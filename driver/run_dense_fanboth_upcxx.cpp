@@ -360,6 +360,10 @@ void Factor_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j){
   assert(Aptr.tid()==MYTHREAD);
   FBMatrix & A = *Aptr;
 
+
+  upcxx::drain();
+
+
     logfileptr->OFS()<<"********************************************"<<endl;
     //Factor the column
     logfileptr->OFS()<<"Factoring column "<<j<<endl;
@@ -918,6 +922,11 @@ Int scol = DBG_COL*blksize;
     //check the result
     double norm = 0;
 
+for(Int j=0;j<Afinished.n();j++){
+  for(Int i=0;i<j;i++){
+    D(i,j)=0.0;
+  }
+}
     //do a solve
     Int n = Afinished.n();
     Int nrhs = n;
@@ -938,6 +947,25 @@ Int scol = DBG_COL*blksize;
     norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
     printf("Norm of residual after SOLVE for FAN-BOTH is %10.2e\n",norm);
       
+
+Int maxI = 0; 
+Int maxJ = 0;
+double maxDiff = 0.0;
+for(Int j=0;j<Afinished.n();j++){
+  for(Int i=j;i<Afinished.m();i++){
+    double diff = abs(Afinished(i,j)-D(i,j));
+    if(diff>=maxDiff){
+      maxDiff=diff;
+      maxI = i;
+      maxJ = j;
+    }
+  }
+}
+    printf("Norm of max diff FAN-BOTH is %10.2e (%d,%d)\n",maxDiff,maxI,maxJ);
+
+    blas::Axpy(n*n,-1.0,&D(0,0),1,&Afinished(0,0),1);
+    norm = lapack::Lange('F',n,n,&Afinished(0,0),n);
+    printf("Norm of residual POTRF - FAN-BOTH is %10.2e\n",norm);
 }
 ////
 ////
