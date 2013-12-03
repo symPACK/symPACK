@@ -41,7 +41,7 @@ run_dense_fanboth.o: run_dense_fanboth.cpp
 	${CXX} -c ${CXXFLAGS} ${CPPDEFS} $< 
 
 run_dense_fanboth_upcxx: run_dense_fanboth_upcxx.o ${CHOLESKY_LIB}
-	($(LOADER)  -DGASNET_SEQ -DUSE_GASNET_FAST_SEGMENT -DONLY_MSPACES  -o $@ run_dense_fanboth_upcxx.o  $(LOADOPTS)   $(IPM) )
+	($(LOADER) $(UPCXX_FLAGS)  -o $@ run_dense_fanboth_upcxx.o  $(LOADOPTS)   $(IPM) )
 
 run_dense_fanboth_upcxx.o: run_dense_fanboth_upcxx.cpp 
 	${CXX} -g  -c ${CXXFLAGS} ${CPPDEFS} $< 
