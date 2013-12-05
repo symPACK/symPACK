@@ -24,7 +24,9 @@ EXES = ${SRCS:.cpp=}
 	${FC} -c ${FFLAGS} $<
 
 #all: run_cholesky run_dense_fanboth
-all: run_dense_fanboth_upcxx run_dense_fanboth
+all: run_dense_fanboth_upcxx 
+
+#run_dense_fanboth
 
 
 run_cholesky: run_cholesky.o ${CHOLESKY_LIB}
