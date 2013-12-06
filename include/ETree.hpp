@@ -37,10 +37,10 @@ public:
   void PostOrderTree();
   Int lca(Int u, Int v);
 
-  inline Int n() { return n_; };
-  inline Int ToPostOrder(Int i) { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return postNumber_(i-1);};
-  inline Int FromPostOrder(Int i) { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return invPostNumber_(i-1);};
-  inline Int PostParent(Int i) { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } return postNumber_(parent_(invPostNumber_(i-1)-1)-1); }
+  inline Int n() const { return n_; };
+  inline Int ToPostOrder(Int i) const { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return postNumber_(i-1);};
+  inline Int FromPostOrder(Int i) const  { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return invPostNumber_(i-1);};
+  inline Int PostParent(Int i) const { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } return postNumber_(parent_(invPostNumber_(i-1)-1)-1); }
 protected:
   Int n_;
   bool isPostOrdered_ = false;

@@ -92,10 +92,9 @@ int main(int argc, char **argv)
 
 
     logfileptr = new LogFile(mpirank);
-    LogFile & logfile = *logfileptr;
 
-    logfile<<"********* LOGFILE OF P"<<mpirank<<" *********"<<endl;
-    logfile<<"**********************************"<<endl;
+    logfileptr->OFS()<<"********* LOGFILE OF P"<<mpirank<<" *********"<<endl;
+    logfileptr->OFS()<<"**********************************"<<endl;
 
     // *********************************************************************
     // Input parameter
@@ -134,7 +133,7 @@ int main(int argc, char **argv)
     A=new double[n*n];
       cout<<"Matrix order is "<<n<<endl;
 
-    csr_matrix_expand_to_dense (A, 0, n, Atmp->repr);
+    csr_matrix_expand_to_dense (A, 0, n, (const csr_matrix_t *)Atmp->repr);
     destroy_sparse_matrix (Atmp);
 
     Afact=new double[n*n];

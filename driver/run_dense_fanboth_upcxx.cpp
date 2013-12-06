@@ -201,7 +201,9 @@ public:
 //        global_ptr<double> Adestptr(&Achunk(j,local_j));
 //        upcxx::copy(Aorigptr,Adestptr,(n-j)*jb);
 //        upcxx::ldacopy(n-j,jb,Aorigptr,n,Adestptr,n);
-        upcxx::ldacopy(n,jb,Aorigptr,n,Adestptr,n);
+
+//        upcxx::ldacopy(n,jb,Aorigptr,n,Adestptr,n);
+        upcxx::copy(Aorigptr,Adestptr,n*jb);
       }
     }
 
@@ -744,10 +746,9 @@ int main(int argc, char **argv)
 
 
     logfileptr = new LogFile(iam);
-    LogFile & logfile = *logfileptr;
 
-    logfile<<"********* LOGFILE OF P"<<iam<<" *********"<<endl;
-    logfile<<"**********************************"<<endl;
+    logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<endl;
+    logfileptr->OFS()<<"**********************************"<<endl;
 
     // *********************************************************************
     // Input parameter
@@ -782,6 +783,10 @@ int main(int argc, char **argv)
 
     FBMatrix & Afact = *Afactptr;
     Afact.RemoteObjPtr = &Aobjects;
+    Real timeSta, timeEnd;
+
+      DblNumMat RHS;
+      DblNumMat XTrue;
 
     //Read the input matrix
     sparse_matrix_file_format_t informat;
@@ -795,13 +800,22 @@ int main(int argc, char **argv)
       cout<<"Matrix order is "<<Afact.n<<endl;
     }
 
+
     DblNumMat A(Afact.n,Afact.n);
-    csr_matrix_expand_to_dense (A.Data(), 0, Afact.n, Atmp->repr);
+    csr_matrix_expand_to_dense (A.Data(), 0, Afact.n, (const csr_matrix_t *) Atmp->repr);
     destroy_sparse_matrix (Atmp);
 
 
-    DblNumMat RefA = A;
-    DblNumMat D = A;
+      Int n = Afact.n;
+      Int nrhs = 5;
+
+    if(MYTHREAD==0){
+
+      RHS.Resize(n,nrhs);
+      XTrue.Resize(n,nrhs);
+      UniformRandom(XTrue);
+      blas::Gemm('N','N',n,nrhs,n,1.0,&A(0,0),n,&XTrue(0,0),n,0.0,&RHS(0,0),n);
+    }
 
 
 
@@ -816,49 +830,48 @@ int main(int argc, char **argv)
     SetValue(AggD,0.0);
 #endif
 
-    Real timeSta, timeEnd;
 
-    if(MYTHREAD==0)
-    {
-      timeSta =  omp_get_wtime( );
-      TIMER_START(POTRF);
-      lapack::Potrf( 'L', D.n(), D.Data(), D.n());
-      TIMER_STOP(POTRF);
-      timeEnd =  omp_get_wtime( );
-      cout<<"REF POTRF: "<<timeEnd-timeSta<<endl;
-
-
-#ifdef _DEBUG_
-      Int i =DBG_COL*blksize;
-      Int jbi = min(blksize, A.n()-i+1);
-      std::copy(&A(0,i),&A(0,i+jbi),&SecondD(0,0)); 
-      std::copy(&A(0,i),&A(0,i+jbi),&FSecondD(0,0)); 
-
-
-
-      //compute AggD
-      blas::Syrk('L','N', jbi ,i,1.0,&D(i,0),A.n(),1.0,&AggD(i,0),A.n()); 
-
-      //logfileptr->OFS()<<"AFTER SYRK"<<AggD<<endl;
-
-
-      if(A.n()-i-jbi>0){
-        blas::Gemm('N','T',A.n()-i-jbi,jbi,i,1.0,&D(i+jbi,0),A.n(),&D(i,0),A.n(),1.0,&AggD(i+jbi,0),A.n());
-      }
-
-
-
-
-      //Accumulate AggD in FSecondD
-      for(int jj=0;jj<jbi && A.n()-i-jj>0;jj++){
-        blas::Axpy((A.n()-i-jj), -1.0, &AggD(i+jj,0+jj),1,&FSecondD(i+jj,0+jj),1);
-      }
-
-      FFSecondD = FSecondD;
-      //      std::copy(&FSecondD(0,0),FSecondD.Data()+FSecondD.m()*blksize,&FFSecondD(0,0)); 
-      lapack::Potrf( 'L', D.n()-blksize, &FFSecondD(i,0), D.n());
-#endif
-    }
+////    if(MYTHREAD==0)
+////    {
+////      timeSta =  omp_get_wtime( );
+////      TIMER_START(POTRF);
+////      lapack::Potrf( 'L', D.n(), D.Data(), D.n());
+////      TIMER_STOP(POTRF);
+////      timeEnd =  omp_get_wtime( );
+////      cout<<"REF POTRF: "<<timeEnd-timeSta<<endl;
+////
+////
+////#ifdef _DEBUG_
+////      Int i =DBG_COL*blksize;
+////      Int jbi = min(blksize, A.n()-i+1);
+////      std::copy(&A(0,i),&A(0,i+jbi),&SecondD(0,0)); 
+////      std::copy(&A(0,i),&A(0,i+jbi),&FSecondD(0,0)); 
+////
+////
+////
+////      //compute AggD
+////      blas::Syrk('L','N', jbi ,i,1.0,&D(i,0),A.n(),1.0,&AggD(i,0),A.n()); 
+////
+////      //logfileptr->OFS()<<"AFTER SYRK"<<AggD<<endl;
+////
+////
+////      if(A.n()-i-jbi>0){
+////        blas::Gemm('N','T',A.n()-i-jbi,jbi,i,1.0,&D(i+jbi,0),A.n(),&D(i,0),A.n(),1.0,&AggD(i+jbi,0),A.n());
+////      }
+////
+////
+////
+////
+////      //Accumulate AggD in FSecondD
+////      for(int jj=0;jj<jbi && A.n()-i-jj>0;jj++){
+////        blas::Axpy((A.n()-i-jj), -1.0, &AggD(i+jj,0+jj),1,&FSecondD(i+jj,0+jj),1);
+////      }
+////
+////      FFSecondD = FSecondD;
+////      //      std::copy(&FSecondD(0,0),FSecondD.Data()+FSecondD.m()*blksize,&FFSecondD(0,0)); 
+////      lapack::Potrf( 'L', D.n()-blksize, &FFSecondD(i,0), D.n());
+////#endif
+////    }
 
     upcxx::barrier();
 
@@ -873,9 +886,36 @@ int main(int argc, char **argv)
 
 
     //Allocate chunks of the matrix on each processor
-    Afact.Allocate(A.n(),blksize);
+    Afact.Allocate(Afact.n,blksize);
     Afact.Distribute(A);
+    upcxx::barrier();
+    upcxx::wait();
 
+if(MYTHREAD==0){
+//      timeSta =  omp_get_wtime( );
+//      TIMER_START(POTRF);
+//      lapack::Potrf( 'L', A.n(), A.Data(), A.n());
+//      TIMER_STOP(POTRF);
+//      timeEnd =  omp_get_wtime( );
+//      cout<<"REF POTRF: "<<timeEnd-timeSta<<endl;
+//
+//
+//      //check the result
+//      double norm = 0;
+//
+//      //do a solve
+//      DblNumMat X = RHS;
+//      lapack::Potrs('L',n,nrhs,&A(0,0),n,&X(0,0),n);
+//
+//
+//      blas::Axpy(n*nrhs,-1.0,&XTrue(0,0),1,&X(0,0),1);
+//      norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
+//      printf("Norm of residual after SOLVE for POTRF is %10.2e\n",norm);
+}
+
+    //A.Resize(0,0);
+    upcxx::barrier();
+    logfileptr->OFS()<<"distributed"<<endl;
 
       timeSta =  omp_get_wtime( );
     TIMER_START(FANBOTH);
@@ -994,51 +1034,22 @@ int main(int argc, char **argv)
     {
       //check the result
       double norm = 0;
-
-      for(Int j=0;j<Afinished.n();j++){
-        for(Int i=0;i<j;i++){
-          D(i,j)=0.0;
-        }
-      }
+//      DblNumMat X = RHS;
+//      lapack::Potrs('L',n,nrhs,&A(0,0),n,&X(0,0),n);
+//
+//
+//      blas::Axpy(n*nrhs,-1.0,&XTrue(0,0),1,&X(0,0),1);
+//      norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
+//      printf("Norm of residual after SOLVE for POTRF is %10.2e\n",norm);
+//
       //do a solve
-      Int n = Afinished.n();
-      Int nrhs = 5;
-      DblNumMat RHS(n,nrhs);
-      DblNumMat XTrue(n,nrhs);
-      UniformRandom(XTrue);
-      blas::Gemm('N','N',n,nrhs,n,1.0,&RefA(0,0),n,&XTrue(0,0),n,0.0,&RHS(0,0),n);
-
       DblNumMat X = RHS;
-      lapack::Potrs('L',n,nrhs,&D(0,0),n,&X(0,0),n);
-      blas::Axpy(n*nrhs,-1.0,&XTrue(0,0),1,&X(0,0),1);
-      norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
-      printf("Norm of residual after SOLVE for REF POTF2 is %10.2e\n",norm);
-
-      X = RHS;
+      // X = RHS;
       lapack::Potrs('L',n,nrhs,&Afinished(0,0),n,&X(0,0),n);
+
       blas::Axpy(n*nrhs,-1.0,&XTrue(0,0),1,&X(0,0),1);
       norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
       printf("Norm of residual after SOLVE for FAN-BOTH is %10.2e\n",norm);
-
-
-      Int maxI = 0; 
-      Int maxJ = 0;
-      double maxDiff = 0.0;
-      for(Int j=0;j<Afinished.n();j++){
-        for(Int i=j;i<Afinished.m();i++){
-          double diff = abs(Afinished(i,j)-D(i,j));
-          if(diff>=maxDiff){
-            maxDiff=diff;
-            maxI = i;
-            maxJ = j;
-          }
-        }
-      }
-      printf("Norm of max diff FAN-BOTH is %10.2e (%d,%d)\n",maxDiff,maxI,maxJ);
-
-      blas::Axpy(n*n,-1.0,&D(0,0),1,&Afinished(0,0),1);
-      norm = lapack::Lange('F',n,n,&Afinished(0,0),n);
-      printf("Norm of residual POTRF - FAN-BOTH is %10.2e\n",norm);
     }
 
     upcxx::finalize();

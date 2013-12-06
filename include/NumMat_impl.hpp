@@ -14,7 +14,7 @@ using namespace upcxx;
 namespace LIBCHOLESKY{
 
 
-  template <class F> NumMat<F>::NumMat(Int m=0, Int n=0): m_(m), n_(n), owndata_(true) {
+  template <class F> NumMat<F>::NumMat(Int m, Int n): m_(m), n_(n), owndata_(true) {
       alloc_data();
   }
 
@@ -144,7 +144,9 @@ template <class F> NumMat<F>& NumMat<F>::Copy(const NumMat& C) {
     if(m_!=m || n_!=n) {
       delete_data();
       m_ = m; n_ = n;
-      alloc_data();
+      if(m*n>0){
+        alloc_data();
+      }
     }
   }
 
