@@ -64,9 +64,18 @@ extern "C" {
 #define TIMER_STOP(a)
 #endif
 
+extern "C"{
 
+void Cblacs_pinfo( int* mypnum, int* nprocs);
+void Cblacs_get( int context, int request, int* value);
+int  Cblacs_gridinit( int* context, char* order, int np_row, int np_col);
+void Cblacs_gridinfo( int context, int* np_row, int* np_col, int* my_row, int* my_col);
+void Cblacs_gridexit( int context);
+void Cblacs_exit( int error_code);
+void Cblacs_barrier(int context, char* scope);
 
-
+void pdpotrf_(char * uplo, int * n, double * A, int * ia, int * ja, int * desca, int * info);
+}
 
 
 //#define MMAP(i,j,arr) arr(((i) % arr.m()),((j) % arr.n())) 
@@ -794,6 +803,11 @@ int main(int argc, char **argv)
     DblNumMat RefA = A;
     DblNumMat D = A;
 
+
+
+
+
+
 #ifdef _DEBUG_
     DblNumMat SecondD(A.m(),blksize);
     DblNumMat FSecondD(A.m(),blksize);
@@ -988,7 +1002,7 @@ int main(int argc, char **argv)
       }
       //do a solve
       Int n = Afinished.n();
-      Int nrhs = n;
+      Int nrhs = 5;
       DblNumMat RHS(n,nrhs);
       DblNumMat XTrue(n,nrhs);
       UniformRandom(XTrue);

@@ -1049,6 +1049,16 @@ inline Real UniformRandom(){
 	return (Real)drand48();
 }
 
+
+inline void UniformRandom( Real * vec, Int size )
+{
+	for(Int i=0; i<size; i++)
+		vec[i] = UniformRandom();
+}
+
+
+
+
 inline void UniformRandom( NumVec<Real>& vec )
 {
 	for(Int i=0; i<vec.m(); i++)
