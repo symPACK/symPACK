@@ -84,6 +84,8 @@ namespace LIBCHOLESKY{
 #endif
         data_ = NULL; 
       }
+      m_=0;
+      n_=0;
     }
   }
 
@@ -134,6 +136,15 @@ template <class F> NumMat<F>& NumMat<F>::Copy(const NumMat& C) {
 
     return *this;
   }
+
+
+  template <class F> void NumMat<F>::Clear()  {
+		if( owndata_ == false ){
+			throw std::logic_error("Matrix being cleared must own data.");
+		}
+      delete_data();
+  }
+
 
 
 

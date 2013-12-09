@@ -50,6 +50,7 @@ public:
   ~NumMat();
   NumMat& Copy(const NumMat& C);
   void Resize(Int m, Int n);
+  void Clear();
 
   NumMat& operator=(const NumMat& C);
   inline const F& operator()(Int i, Int j) const;

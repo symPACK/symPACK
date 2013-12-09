@@ -1,6 +1,7 @@
 #ifndef _LOGFILE_HEADER_
 #define _LOGFILE_HEADER_
 
+#include <sstream>
 #include <fstream>
 
 class LogFile{
@@ -8,7 +9,7 @@ protected:
   std::ofstream myOFS_;
 
   void init_(const char * prefix, const char * suffix){
-    stringstream  ss;
+    std::stringstream  ss;
     ss << prefix << suffix;
     myOFS_.open( ss.str().c_str() );
   }

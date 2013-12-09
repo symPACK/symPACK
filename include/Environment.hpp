@@ -56,6 +56,11 @@
 #define _DEBUGlevel -1
 #endif
 
+#include "LogFile.hpp"
+
+extern LogFile * logfileptr;
+
+
 /***********************************************************************
  *  Data types and constants
  **********************************************************************/
