@@ -30,5 +30,4 @@ libcholesky.a: ${OBJS}
 cleanall:
 	${RM} -f ${OBJS} ${DEPS} $(CHOLESKY_LIB) *.d.*
 
-include $(GASNET_MAKEFILE)
 

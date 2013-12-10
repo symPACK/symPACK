@@ -65,6 +65,8 @@ public:
   F* VecData(Int j) const;
   Int m() const { return m_; }
   Int n() const { return n_; }
+  Int Size() const { return m_*n_; }
+  Int ByteSize() const { return m_*n_*sizeof(F); }
 };
 
 // Commonly used

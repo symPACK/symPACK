@@ -14,12 +14,7 @@ namespace upcxx{
       new ((T*)gptr) T();
     }
     template <typename T> void delete_fctn(global_ptr<T> gptr){
-      logfileptr->OFS()<<"Deleting"<<std::endl;
-      T * toto = gptr;
-      logfileptr->OFS()<<"ptr = "<<(long)toto<<endl;
-//      toto->~T();
       ((T*)gptr)->~T();
-      logfileptr->OFS()<<"Deleted"<<std::endl;
     }
     template <typename T> global_ptr<T>& Create(int where=MYTHREAD){
       //currently it only works with local assignments
@@ -31,12 +26,24 @@ namespace upcxx{
     template <typename T> void Destroy(global_ptr<T>& gptr){
       //currently it only works with local assignments
       int where = gptr.tid();
-      logfileptr->OFS()<<"Calling delete on P"<<where<<std::endl;
-        async(where)(delete_fctn<T>,gptr);
-      logfileptr->OFS()<<"Called delete"<<std::endl;
+      async(where)(delete_fctn<T>,gptr);
       upcxx::wait();
       deallocate<T>(gptr);
     }
+
+  template <typename T> inline void ldacopy(int m, int n, global_ptr<T> A, int lda, global_ptr<T> B, int ldb){
+    for(int j=0;j<n;j++){
+      copy<T>(A + j*lda,B+j*ldb,m);
+    }
+  }
+
+
+  template <typename T> inline void ldacopy_async(int m, int n, global_ptr<T> A, int lda, global_ptr<T> B, int ldb, event * e = NULL){
+    for(int j=0;j<n;j++){
+      async_copy<T>(A + j*lda,B+j*ldb,m,&e[j]);
+    }
+  }
+
 
 }
 

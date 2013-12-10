@@ -66,308 +66,221 @@ using namespace LIBCHOLESKY;
 using namespace std;
 
 shared_lock fact_done;
-namespace upcxx{
-  template <typename T> inline void ldacopy(Int m, Int n, global_ptr<T> A, Int lda, global_ptr<T> B, Int ldb){
-    for(Int j=0;j<n;j++){
-      copy<T>(A + j*lda,B+j*ldb,m);
-    }
-  }
-
-
-  template <typename T> inline void ldacopy_async(Int m, Int n, global_ptr<T> A, Int lda, global_ptr<T> B, Int ldb, event * e = NULL){
-    for(Int j=0;j<n;j++){
-      async_copy<T>(A + j*lda,B+j*ldb,m,&e[j]);
-    }
-  }
-}
-
 
 namespace LIBCHOLESKY{
 
 
-class FBMatrix;
+  class FBMatrix;
 
-void Update_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr);
-void Aggregate_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, global_ptr<double> remoteAggregatePtr);
-void Factor_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j);
-void Gathercopy(upcxx::global_ptr<FBMatrix> Objptr, global_ptr<double> Adest, Int j);
-
-
+  void Update_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr);
+  void Aggregate_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, global_ptr<double> remoteAggregatePtr);
+  void Factor_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j);
+  void Gathercopy(upcxx::global_ptr<FBMatrix> Objptr, global_ptr<double> Adest, Int j);
 
 
 
 
-class FBMatrix{
-public:
-//  DblNumMat W;
-//  DblNumMat Achunk;
-  vector<DblNumMat> AchunkLower;
-  vector<DblNumMat> WLower;
-  upcxx::shared_array<upcxx::global_ptr<FBMatrix> > * RemoteObjPtr;
+  class FBMatrix{
+    public:
+      //  DblNumMat W;
+      //  DblNumMat Achunk;
+      vector<DblNumMat> AchunkLower;
+      vector<DblNumMat> WLower;
+      upcxx::shared_array<upcxx::global_ptr<FBMatrix> > * RemoteObjPtr;
 
-  //lock should be initialized with the number of contribution a block column is receiving
-  IntNumVec AggLock;
+      //lock should be initialized with the number of contribution a block column is receiving
+      IntNumVec AggLock;
 
-  Int n;
-  Int blksize;
-  Int pcol, prow;
-  Int np, iam;
+      Int n;
+      Int blksize;
+      Int pcol, prow;
+      Int np, iam;
 
-  FBMatrix():blksize(1),n(0){
-    np=THREADS;
-    iam=MYTHREAD;
-  }
-  ~FBMatrix(){
-  }
-
-
-  inline Int r(Int i){ return ((i)%THREADS);}
-  inline Int c(Int i){return 0;}
-  inline Int MAP(Int i, Int j) {return r(i/blksize) + c(j/blksize)*prow;}
-
-//  inline Int c(Int i){ return ((i)%THREADS);}
-//  inline Int r(Int i){return 0;}
-//  inline Int MAP(Int i, Int j) {return r(i/blksize)*pcol + c(j/blksize);}
-
-//  inline Int r(Int i){ return ((i)%prow);}
-//  inline Int c(Int i){ return ((i)%pcol);}
-//  inline Int MAP(Int i, Int j) {
-//logfileptr->OFS()<<"MAP("<<i<<","<<j<<") = "<< r(i/blksize) <<" + "<<c(j/blksize)<<"*"<<prow<<" = "<<r(i/blksize) + c(j/blksize)*prow<<endl;
-//return r(i/blksize) + c(j/blksize)*prow;
-//
-//}
-
-
-
-  inline Int global_col_to_local(Int j){ return ((j)/(np*blksize))*blksize; }
-
-  void Allocate(Int pn, Int pblksize){
-    n=pn;
-    blksize=pblksize;
-      
-    Int totBlk = n/blksize;
-    Int remaining = n-totBlk*blksize;
-    if(remaining>0) totBlk++;
-  
-    Int localBlk = totBlk/np;
-    Int additionalBlock = totBlk - np*localBlk;
-    if(iam<additionalBlock){ localBlk++; }
-   
-
-    Int prevBlk = (iam) +np*(localBlk-1); 
-    Int chksize = (localBlk-1)*blksize + min(n-(prevBlk)*blksize,blksize);
-
-    Int lowerChkSize = (localBlk-1)*(n-iam*blksize)*blksize - blksize*blksize*np*(localBlk-1)*localBlk/2 + (n-(prevBlk)*blksize)*min(n-(prevBlk)*blksize,blksize); 
-    logfileptr->OFS()<<"localBlk="<<localBlk<<endl;
-    logfileptr->OFS()<<"prevBlk="<<prevBlk<<endl;
-    logfileptr->OFS()<<"chksize*n="<<chksize*n<<endl;
-    logfileptr->OFS()<<"lowerChkSize="<<lowerChkSize<<endl;
-
-    Int numStep = ceil((double)n/(double)blksize);
-    WLower.resize(numStep, DblNumMat(0,0) );
-    AchunkLower.resize(localBlk, DblNumMat(0,0) );    
-    for(Int j = 0; j<n;j+=blksize){ 
-      Int local_j = global_col_to_local(j);
-      Int jb = min(blksize, n-j);
-      if(iam==MAP(j,j)){
-        AchunkLower[local_j/blksize].Resize(n-j,jb);
+      FBMatrix():blksize(1),n(0){
+        np=THREADS;
+        iam=MYTHREAD;
       }
-      WLower[j/blksize].Resize(n-j,jb);
-      SetValue(WLower[j/blksize],0.0);
-    }
+      ~FBMatrix(){
+      }
+
+
+      inline Int r(Int i){ return ((i)%THREADS);}
+      inline Int c(Int i){return 0;}
+      inline Int MAP(Int i, Int j) {return r(i/blksize) + c(j/blksize)*prow;}
+
+      //  inline Int c(Int i){ return ((i)%THREADS);}
+      //  inline Int r(Int i){return 0;}
+      //  inline Int MAP(Int i, Int j) {return r(i/blksize)*pcol + c(j/blksize);}
+
+      //  inline Int r(Int i){ return ((i)%prow);}
+      //  inline Int c(Int i){ return ((i)%pcol);}
+      //  inline Int MAP(Int i, Int j) {
+      //logfileptr->OFS()<<"MAP("<<i<<","<<j<<") = "<< r(i/blksize) <<" + "<<c(j/blksize)<<"*"<<prow<<" = "<<r(i/blksize) + c(j/blksize)*prow<<endl;
+      //return r(i/blksize) + c(j/blksize)*prow;
+      //
+      //}
 
 
 
-//    Achunk.Resize(n,chksize);
-//    SetValue(Achunk,(double)iam);
+      inline Int global_col_to_local(Int j){ return ((j)/(pcol*blksize))*blksize; }
 
-    //allocate global workspace
-//    W.Resize(n,n);
-//    SetValue(W,0.0);
+      void Allocate(Int pn, Int pblksize){
+        n=pn;
+        blksize=pblksize;
 
-  }
+        Int totBlk = n/blksize;
+        Int remaining = n-totBlk*blksize;
+        if(remaining>0) totBlk++;
 
-  void Distribute( DblNumMat & Aorig){
-//    SetValue(Achunk,(double)iam);
-    for(Int j = 0; j<n;j+=blksize){ 
-      Int local_j = global_col_to_local(j);
-      Int jb = min(blksize, n-j);
-      if(iam==MAP(j,j)){
-//        global_ptr<double> Aorigptr(&Aorig(0,j));
-//        global_ptr<double> Adestptr(&Achunk(0,local_j));
-//        upcxx::copy(Aorigptr,Adestptr,n*jb);
+        Int localBlk = totBlk/pcol;
+        Int additionalBlock = totBlk - pcol*localBlk;
+        if(iam<additionalBlock){ localBlk++; }
 
-//logfileptr->OFS()<<"j="<<j<<" jb="<<jb<<" size is "<<Aorig.n()<<endl;
-{
 
-        global_ptr<double> Aorigptr(&Aorig(j,j));
-        global_ptr<double> Adestptr(&AchunkLower[local_j/blksize](0,0));
-        upcxx::ldacopy(n-j,jb,Aorigptr,n,Adestptr,n-j);
-}
+        Int prevBlk = (iam) +pcol*(localBlk-1); 
+        Int chksize = (localBlk-1)*blksize + min(n-(prevBlk)*blksize,blksize);
+
+        Int lowerChkSize = (localBlk-1)*(n-iam*blksize)*blksize - blksize*blksize*pcol*(localBlk-1)*localBlk/2 + (n-(prevBlk)*blksize)*min(n-(prevBlk)*blksize,blksize); 
+
+        Int numStep = ceil((double)n/(double)blksize);
+        WLower.resize(numStep, DblNumMat(0,0) );
+        AchunkLower.resize(localBlk, DblNumMat(0,0) );    
+        for(Int j = 0; j<n;j+=blksize){ 
+          Int local_j = global_col_to_local(j);
+          Int jb = min(blksize, n-j);
+          if(iam==MAP(j,j)){
+            AchunkLower[local_j/blksize].Resize(n-j,jb);
+          }
+          WLower[j/blksize].Resize(n-j,jb);
+          SetValue(WLower[j/blksize],0.0);
+        }
+      }
+
+      void Distribute( DblNumMat & Aorig){
+        //    SetValue(Achunk,(double)iam);
+        for(Int j = 0; j<n;j+=blksize){ 
+          Int local_j = global_col_to_local(j);
+          Int jb = min(blksize, n-j);
+          if(iam==MAP(j,j)){
+            global_ptr<double> Aorigptr(&Aorig(j,j));
+            global_ptr<double> Adestptr(&AchunkLower[local_j/blksize](0,0));
+            upcxx::ldacopy(n-j,jb,Aorigptr,n,Adestptr,n-j);
+          }
+        }
+
+        Int numStep = ceil((double)n/(double)blksize);
+
+        if(iam==0){
+          cout<<"Factorization will require "<<numStep<<" steps"<<endl;
+        }
+
+
+        //Allocate the lock vector
+        AggLock.Resize(numStep);
+        for(int js=0; js<numStep;js++){
+          int j = min(js*blksize,n-1);
+          Int jb = min(blksize, n-j);
+
+          int numProc = 0;
+          if(j>=pcol*blksize){
+            //col j must receive from jstep -1 proc of the previous steps
+            numProc = pcol;
+          }
+          else{
+            numProc = max(1,js -1);
+          }
+          AggLock[js]=1;//numProc;
+        }
+
+        //    logfileptr->OFS()<<AggLock<<endl;
 
       }
-    }
 
-    Int numStep = ceil((double)n/(double)blksize);
+      void Gather( DblNumMat & Adest){
+        Adest.Resize(n,n);
+        SetValue(Adest,0.0);
 
-    if(iam==0){
-      cout<<"Factorization will require "<<numStep<<" steps"<<endl;
-    }
-
-
-    //Allocate the lock vector
-    AggLock.Resize(numStep);
-    for(int js=0; js<numStep;js++){
-        int j = min(js*blksize,n-1);
-        Int jb = min(blksize, n-j);
-
-        int numProc = 0;
-        if(j>=np*blksize){
-          //col j must receive from jstep -1 proc of the previous steps
-          numProc = np;
+        for(Int j = 0; j<n;j+=blksize){ 
+          Int local_j = global_col_to_local(j);
+          Int jb = min(blksize, n-j);
+          Int target = MAP(j,j);
+          global_ptr<double> Adestptr(&Adest(j,j));
+          upcxx::async(target)(Gathercopy,(*RemoteObjPtr)[target],Adestptr,j);
         }
-        else{
-          numProc = max(1,js -1);
-        }
-        AggLock[js]=1;//numProc;
-    }
- 
-//    logfileptr->OFS()<<AggLock<<endl;
-
-  }
-
-  void Gather( DblNumMat & Adest){
-    Adest.Resize(n,n);
-    SetValue(Adest,0.0);
-
-    for(Int j = 0; j<n;j+=blksize){ 
-      Int local_j = global_col_to_local(j);
-      Int jb = min(blksize, n-j);
-      Int target = MAP(j,j);
-//      logfileptr->OFS()<<"Copying column "<<j<<endl;
-//      global_ptr<double> Adestptr(&Adest(0,j));
-      global_ptr<double> Adestptr(&Adest(j,j));
-//      if(iam!=target){
-        upcxx::async(target)(Gathercopy,(*RemoteObjPtr)[target],Adestptr,j);
-//      }
-//      else{
-
-//        global_ptr<double> Asrcptr(&Achunk(0,local_j));
-//        upcxx::copy(Asrcptr,Adestptr,(n)*jb);
-//        global_ptr<double> Asrcptr(&Achunk(j,local_j));
-//        upcxx::ldacopy(n-j,jb,Asrcptr,n,Adestptr,n);
-//      }
-//      logfileptr->OFS()<<"Done Copying column "<<j<<endl;
-    }
-    upcxx::wait();
-  }
+        upcxx::wait();
+      }
 
 
 
-void Aggregate_once(Int j, DblNumMat &DistW){
-  //j is local
-  Int local_j = global_col_to_local(j);
+      void Aggregate_once(Int j, DblNumMat &DistW){
+        //j is local
+        Int local_j = global_col_to_local(j);
         DblNumMat & LocalChunk = AchunkLower[local_j/blksize];
 
-  Int jb = min(blksize, n-j);
-  //aggregate previous updates
-  TIMER_START(Aggregate);
+        Int jb = min(blksize, n-j);
+        //aggregate previous updates
+        TIMER_START(Aggregate);
 
-    //proc holding update is
-      for(int jj=0;jj<jb && n-j-jj>0;jj++){
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Aggregating subcol "<<jj<< " to col "<<j<<" "<<DistW.m()<<" "<<DistW.n()<< endl;
-#endif
+        //assert(DistW.Size()==LocalChunk.Size());
+        blas::Axpy(LocalChunk.Size(), -1.0, &DistW(0,0),1,&LocalChunk(0,0),1);
 
-//        blas::Axpy((n-j-jj), -1.0, &DistW(j+jj,0+jj),1,&Achunk(j+jj,local_j+jj),1);
+        //    //proc holding update is
+        //      for(int jj=0;jj<jb && n-j-jj>0;jj++){
+        //#ifdef _DEBUG_
+        //        logfileptr->OFS()<<"Aggregating subcol "<<jj<< " to col "<<j<<" "<<DistW.m()<<" "<<DistW.n()<< endl;
+        //#endif
+        //        blas::Axpy((n-j-jj), -1.0, &DistW(jj,jj),1,&LocalChunk(jj,jj),1);
+        //      }
 
-        blas::Axpy((n-j-jj), -1.0, &DistW(0+jj,0+jj),1,&LocalChunk(jj,jj),1);
+        TIMER_STOP(Aggregate);
       }
 
-  TIMER_STOP(Aggregate);
-}
 
 
 
+      void Factor(Int j){
+        Int jb = min(blksize, n-j);
+        //j is local
+        Int local_j = global_col_to_local(j);
+        DblNumMat & LocalChunk = AchunkLower[local_j/blksize];
 
-void Factor(Int j){
-  Int jb = min(blksize, n-j);
-  //j is local
-  Int local_j = global_col_to_local(j);
+        TIMER_START(Factor);
+        lapack::Potrf( 'L', jb, &LocalChunk(0,0 ), n-j);
+        if(n-j-jb>0){
+          blas::Trsm('R','L','T','N',n-j-jb,jb, 1.0, &LocalChunk(0,0), n-j, &LocalChunk(jb,0), n-j);
+        }
+        TIMER_STOP(Factor);
+      }
 
-  TIMER_START(Factor);
-//  lapack::Potrf( 'L', jb, &Achunk(j,local_j ), n);
-//  if(n-j-jb>0){
-//    blas::Trsm('R','L','T','N',n-j-jb,jb, 1.0, &Achunk(j,local_j), n, &Achunk(j+jb,local_j), n);
-//  }
+      void Update(Int j, Int i, DblNumMat & Factor){
+        DblNumMat & WChunk = WLower[i/blksize];
+        //i is local, j is global
+        Int jb = min(blksize, n-j);
+        Int jbi = min(blksize, n-i);
 
+        TIMER_START(Update);
+        //call dgemm
+        blas::Gemm('N','T',n-i,jbi,jb,1.0,&Factor(i-j,0),n-j,&Factor(i-j,0),n-j,1.0,&WChunk(0,0),n-i);
+        TIMER_STOP(Update);
+      }
 
-
-  DblNumMat & LocalChunk = AchunkLower[local_j/blksize];
-  lapack::Potrf( 'L', jb, &LocalChunk(0,0 ), n-j);
-  if(n-j-jb>0){
-    blas::Trsm('R','L','T','N',n-j-jb,jb, 1.0, &LocalChunk(0,0), n-j, &LocalChunk(jb,0), n-j);
-  }
-
-
-  TIMER_STOP(Factor);
-}
-
-void Update(Int j, Int i, DblNumMat & Factor){
-  //i is local, j is global
-  Int jb = min(blksize, n-j);
-
-  TIMER_START(Update);
-  //call dgemm
-  Int jbi = min(blksize, n-i);
-
-    
-//    blas::Gemm('N','T',n-i,jbi,jb,1.0,&Factor(i,0),n,&Factor(i,0),n,1.0,&W(i,i),n);
-
-    DblNumMat & WChunk = WLower[i/blksize];
-    blas::Gemm('N','T',n-i,jbi,jb,1.0,&Factor(i-j,0),n-j,&Factor(i-j,0),n-j,1.0,&WChunk(0,0),n-i);
-
-//for(int ii = 0; ii< WChunk.m();ii++){
-//  for(int jj = 0; jj< jbi;jj++){
-//    logfileptr->OFS()<<W(i+ii,i+jj)<< " ";
-//  }
-//  logfileptr->OFS()<<"  |  ";
-//
-//  for(int jj = 0; jj< jbi;jj++){
-//    logfileptr->OFS()<<WChunk(ii,jj)<< " ";
-//  }
-//  
-//  logfileptr->OFS()<<endl;
-//}
-
-
-
-
-  TIMER_STOP(Update);
-}
-
-};
+  };
 
   void Gathercopy(upcxx::global_ptr<FBMatrix> Objptr, global_ptr<double> Adest, Int j){
-      assert(Objptr.tid()==MYTHREAD);
-      FBMatrix & A = *Objptr;
-      Int local_j = A.global_col_to_local(j);
-      Int jb = min(A.blksize, A.n-j);
-//      global_ptr<double> Asrc(&A.Achunk(j,local_j));
-//      upcxx::ldacopy(A.n-j,jb,Asrc,A.n,Adest,A.n);
-
-
-      DblNumMat & LocalChunk = A.AchunkLower[local_j/A.blksize];
-      global_ptr<double> Asrc = &LocalChunk(0,0);
-      upcxx::ldacopy(A.n-j,jb,Asrc,A.n-j,Adest,A.n);
-
+    assert(Objptr.tid()==MYTHREAD);
+    FBMatrix & A = *Objptr;
+    Int local_j = A.global_col_to_local(j);
+    Int jb = min(A.blksize, A.n-j);
+    DblNumMat & LocalChunk = A.AchunkLower[local_j/A.blksize];
+    global_ptr<double> Asrc = &LocalChunk(0,0);
+    upcxx::ldacopy(A.n-j,jb,Asrc,A.n-j,Adest,A.n);
   }
 
 
 
-void Factor_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j){
-  assert(Aptr.tid()==MYTHREAD);
-  FBMatrix & A = *Aptr;
+  void Factor_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j){
+    assert(Aptr.tid()==MYTHREAD);
+    FBMatrix & A = *Aptr;
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"********************************************"<<endl;
@@ -376,223 +289,152 @@ void Factor_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j){
 #endif
 
     A.Factor(j);
-  
+
 #ifdef _DEBUG_
     logfileptr->OFS()<<"Factoring column done "<<j<<endl;
 #endif
     //Launch the updates
     Int local_j = A.global_col_to_local(j);
-    for(Int i = j+A.blksize; i< min(A.n,j+(A.np+1)*A.blksize);i+=A.blksize){
-       Int target = A.MAP(i,j);
+    //TODO CHECK THIS: WE NEED TO LAUNCH THE UPDATES ON ALL PROCESSORS
+    for(Int i = j+A.blksize; i< min(A.n,j+(A.pcol+1)*A.blksize);i+=A.blksize){
+      Int target = A.MAP(i,j);
 
-       //global_ptr<double> AchkPtr(&A.Achunk(0,local_j));
-       global_ptr<double> AchkPtr(&A.AchunkLower[local_j/A.blksize](0,0));
+      //global_ptr<double> AchkPtr(&A.Achunk(0,local_j));
+      global_ptr<double> AchkPtr(&A.AchunkLower[local_j/A.blksize](0,0));
 
 #ifdef _DEBUG_
-       logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<endl;
+      logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<endl;
 #endif
-#ifdef LAUNCH_ASYNC
-        upcxx::async(target)(Update_Async,(*A.RemoteObjPtr)[target],j,AchkPtr);
-#endif
+      upcxx::async(target)(Update_Async,(*A.RemoteObjPtr)[target],j,AchkPtr);
     }
 
     if(j+A.blksize>=A.n){
 #ifdef _DEBUG_
-     logfileptr->OFS()<<"Unlocking quit"<<endl;
+      logfileptr->OFS()<<"Unlocking quit"<<endl;
 #endif
-     fact_done.unlock(); 
+      fact_done.unlock(); 
     }
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"Quitting Factor_Async"<<endl;
     logfileptr->OFS()<<"********************************************"<<endl;
 #endif
-}
+  }
 
 
-void Aggregate_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, global_ptr<double> remoteAggregatePtr){
-  assert(Aptr.tid()==MYTHREAD);
-  FBMatrix & A = *Aptr;
-  //fetch data
+  void Aggregate_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, global_ptr<double> remoteAggregatePtr){
+    assert(Aptr.tid()==MYTHREAD);
+    FBMatrix & A = *Aptr;
+    //fetch data
 #ifdef _DEBUG_    
-  logfileptr->OFS()<<"Aggregating Fetching data from P"<<remoteAggregatePtr.tid()<<endl;
+    logfileptr->OFS()<<"Aggregating Fetching data from P"<<remoteAggregatePtr.tid()<<endl;
 #endif
-  Int jb = min(A.blksize, A.n-j);
+    Int jb = min(A.blksize, A.n-j);
 
-///#ifdef ADJUSTED_BUFFERS
-///   DblNumMat RemoteAggregate(A.n-j,jb); 
-///#ifdef ASYNC_COPY
-///  TIMER_START(ldacopy_async);
-///   upcxx::event e[RemoteAggregate.n()]; 
-///   upcxx::ldacopy_async(RemoteAggregate.m(),RemoteAggregate.n(),remoteAggregatePtr,A.n-j,RemoteAggregate.GData(),A.n-j,e);
-///   for(int i=0;i<RemoteAggregate.n();i++){e[i].wait();}
-///  TIMER_STOP(ldacopy_async);
-///#else
-///  TIMER_START(ldacopy);
-///  upcxx::ldacopy(RemoteAggregate.m(),RemoteAggregate.n(),remoteAggregatePtr,A.n-j,RemoteAggregate.GData(),A.n-j);
-///  TIMER_STOP(ldacopy);
-///
-///#endif
-///#else
-///   DblNumMat RemoteAggregate(A.n,jb); 
-///  TIMER_START(copy);
-///    upcxx::copy(remoteAggregatePtr,RemoteAggregate.GData(),RemoteAggregate.m()*RemoteAggregate.n());
-///  TIMER_STOP(copy);
-///
-///#endif
-
-
-
-   DblNumMat RemoteAggregate(A.n-j,jb); 
-  TIMER_START(copy);
-    upcxx::copy(remoteAggregatePtr,RemoteAggregate.GData(),RemoteAggregate.m()*RemoteAggregate.n());
-  TIMER_STOP(copy);
+    DblNumMat RemoteAggregate(A.n-j,jb); 
+    TIMER_START(copy);
+    upcxx::copy(remoteAggregatePtr,RemoteAggregate.GData(),RemoteAggregate.Size());
+    TIMER_STOP(copy);
 
 
 
 #ifdef _DEBUG_    
-  logfileptr->OFS()<<"Aggregating update to "<<j<<endl;
+    logfileptr->OFS()<<"Aggregating update to "<<j<<endl;
 #endif
-   A.Aggregate_once(j, RemoteAggregate);
+    A.Aggregate_once(j, RemoteAggregate);
 
 #ifdef _DEBUG_    
-  logfileptr->OFS()<<"Done Aggregating update to "<<j<<endl;
+    logfileptr->OFS()<<"Done Aggregating update to "<<j<<endl;
 #endif
 
-
-
-
-   A.AggLock[j/A.blksize]--;
+    A.AggLock[j/A.blksize]--;
 #ifdef _DEBUG_    
-   logfileptr->OFS()<<A.AggLock<<endl;
+    logfileptr->OFS()<<A.AggLock<<endl;
 #endif
-  if(A.AggLock[j/A.blksize]==0){
-    //launch the factorization of column j
+    if(A.AggLock[j/A.blksize]==0){
+      //launch the factorization of column j
 #ifdef _DEBUG_    
-   logfileptr->OFS()<<"Col "<<j<<" updated. Can be factored "<<endl;
+      logfileptr->OFS()<<"Col "<<j<<" updated. Can be factored "<<endl;
 #endif
-    
+
 #ifdef LAUNCH_ASYNC
-   upcxx::async(A.iam)(Factor_Async,Aptr,j);
+      upcxx::async(A.iam)(Factor_Async,Aptr,j);
 #endif
-  } 
+    } 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"Quitting Aggregate_Async"<<endl<<endl;
 #endif
-}
-
-
-void Update_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr){
-  assert(Aptr.tid()==MYTHREAD);
-  FBMatrix & A = *Aptr;
-
-
-#ifdef _DEBUG_    
-  logfileptr->OFS()<<"Fetching factor from P"<<remoteFactorPtr.tid()<<endl;
-#endif
-
-
-
-
-//#ifdef ADJUSTED_BUFFERS
-//  DblNumMat RemoteFactor(A.n-j,A.blksize);
-//#ifdef ASYNC_COPY
-//  TIMER_START(ldacopy_async);
-//   upcxx::event e[RemoteFactor.n()]; 
-//   upcxx::ldacopy_async(RemoteFactor.m(),RemoteFactor.n(),remoteFactorPtr,A.n,RemoteFactor.GData(),A.n-j,e);
-//   for(int i=0;i<RemoteFactor.n();i++){e[i].wait();}
-//  TIMER_STOP(ldacopy_async);
-//#else
-//  TIMER_START(ldacopy);
-//  upcxx::ldacopy(RemoteFactor.m(),RemoteFactor.n(),remoteFactorPtr,A.n,RemoteFactor.GData(),A.n-j);
-//  TIMER_STOP(ldacopy);
-//#endif
-//
-//#else
-//  DblNumMat RemoteFactor(A.n,A.blksize);
-//  TIMER_START(copy);
-//  upcxx::copy(remoteFactorPtr,RemoteFactor.GData(),RemoteFactor.m()*RemoteFactor.n());
-//  TIMER_STOP(copy);
-//#endif
-
-  DblNumMat RemoteFactor(A.n-j,A.blksize);
-  TIMER_START(copy);
-  upcxx::copy(remoteFactorPtr,RemoteFactor.GData(),RemoteFactor.m()*RemoteFactor.n());
-  TIMER_STOP(copy);
-
-#ifdef _DEBUG_    
-  logfileptr->OFS()<<"Fetched factor from P"<<remoteFactorPtr.tid()<<endl;
-#endif
-
-
-
-
-  //do all my updates with i>j
-  for(Int i = j+A.blksize; i<A.n;i+=A.blksize){
-    if(A.iam==A.MAP(i,j)){
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Updating column "<<i<<" with columns from P"<<remoteFactorPtr.tid()<<endl;
-#endif
-      A.Update(j, i, RemoteFactor);
-
-    }
   }
 
-  IntNumVec myLastUpd(A.np);
-  SetValue(myLastUpd,-1);
-  
-  for(Int i = j+A.blksize; i< min(A.n,j+(A.np+1)*A.blksize);i+=A.blksize){
-    for(Int j2 = j; j2< i;j2+=A.blksize){
-      if(A.iam==A.MAP(i,j2)){
-        Int target = A.MAP(i,i);
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"j2="<<j2<<" vs "<<myLastUpd[target]<<" on P"<<target<<endl;
+
+  void Update_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr){
+    assert(Aptr.tid()==MYTHREAD);
+    FBMatrix & A = *Aptr;
+
+
+#ifdef _DEBUG_    
+    logfileptr->OFS()<<"Fetching factor from P"<<remoteFactorPtr.tid()<<endl;
 #endif
-        myLastUpd[target] = max(j2,myLastUpd[target]);
+    DblNumMat RemoteFactor(A.n-j,A.blksize);
+    TIMER_START(copy);
+    upcxx::copy(remoteFactorPtr,RemoteFactor.GData(),RemoteFactor.Size());
+    TIMER_STOP(copy);
+
+#ifdef _DEBUG_    
+    logfileptr->OFS()<<"Fetched factor from P"<<remoteFactorPtr.tid()<<endl;
+#endif
+
+    //do all my updates with i>j
+    for(Int i = j+A.blksize; i<A.n;i+=A.blksize){
+      if(A.iam==A.MAP(i,j)){
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"Updating column "<<i<<" with columns from P"<<remoteFactorPtr.tid()<<endl;
+#endif
+        A.Update(j, i, RemoteFactor);
       }
     }
-  }
+
+    IntNumVec myLastUpd(A.np);
+    SetValue(myLastUpd,-1);
+
+    //TODO CHECK THIS
+    for(Int i = j+A.blksize; i< min(A.n,j+(A.np+1)*A.blksize);i+=A.blksize){
+      for(Int j2 = j; j2< i;j2+=A.blksize){
+        if(A.iam==A.MAP(i,j2)){
+          Int target = A.MAP(i,i);
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"j2="<<j2<<" vs "<<myLastUpd[target]<<" on P"<<target<<endl;
+#endif
+          myLastUpd[target] = max(j2,myLastUpd[target]);
+        }
+      }
+    }
 
 #ifdef _DEBUG_
-  logfileptr->OFS()<<myLastUpd<<endl;
+    logfileptr->OFS()<<myLastUpd<<endl;
 #endif
 
 
-  for(Int i = j+A.blksize; i< min(A.n,j+(A.np+1)*A.blksize);i+=A.blksize){
+    //TODO CHECK THIS
+    for(Int i = j+A.blksize; i< min(A.n,j+(A.np+1)*A.blksize);i+=A.blksize){
       if(A.iam==A.MAP(i,j)){
         Int target = A.MAP(i,i);
         if(myLastUpd[target]==j){
 #ifdef _DEBUG_
-            logfileptr->OFS()<<"Updating from "<<j<<", launching aggregate on P"<<target<<" for column "<<i<<endl;
+          logfileptr->OFS()<<"Updating from "<<j<<", launching aggregate on P"<<target<<" for column "<<i<<endl;
 #endif
 
-myLastUpd[target]=-1;
-#ifdef LAUNCH_ASYNC
-//#ifdef ADJUSTED_BUFFERS
-//        global_ptr<double> WbufPtr(&A.W(i,i));
-//#else
-//        global_ptr<double> WbufPtr(&A.W(0,i));
-//#endif
-
-        global_ptr<double> WbufPtr(&A.WLower[i/A.blksize](0,0));
-
-        upcxx::async(target)(Aggregate_Async,(*A.RemoteObjPtr)[target],i,WbufPtr);
-#endif
+          myLastUpd[target]=-1;
+          global_ptr<double> WbufPtr(&A.WLower[i/A.blksize](0,0));
+          upcxx::async(target)(Aggregate_Async,(*A.RemoteObjPtr)[target],i,WbufPtr);
+        }
       }
     }
-  }
-  
+
 #ifdef _DEBUG_
     logfileptr->OFS()<<"Quitting Update_Async"<<endl<<endl;
 #endif
-}
-
-
-
-
-
-
-
+  }
 
 }
 
@@ -703,8 +545,8 @@ int main(int argc, char **argv)
     upcxx::barrier();
 
     //TODO This needs to be fixed
-    Afact.prow = sqrt(np);
-    Afact.pcol = Afact.prow;
+    Afact.prow = 1;//sqrt(np);
+    Afact.pcol = np;//Afact.prow;
     np = Afact.prow*Afact.pcol;
     if(MYTHREAD==0){
       cout<<"Number of cores to be used: "<<np<<endl;
@@ -771,9 +613,10 @@ A.Clear();
 
 
     while(fact_done.islocked()){upcxx::progress();};
+    upcxx::barrier();
+    timeEnd =  omp_get_wtime( );
     fact_done.lock();
     TIMER_STOP(FANBOTH);
-    timeEnd =  omp_get_wtime( );
     fact_done.unlock();
 
     upcxx::barrier();
