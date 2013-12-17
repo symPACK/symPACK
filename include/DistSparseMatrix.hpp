@@ -85,6 +85,7 @@ template <class F> class DistSparseMatrix{
   void ConstructETree(ETree & tree);
   void GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc);
   void FindSupernodes(ETree& tree, IntNumVec & cc, IntNumVec & xsuper);
+  void SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper);
 };
 
 // Commonly used

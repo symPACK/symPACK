@@ -40,6 +40,7 @@ public:
   inline Int n() const { return n_; };
   inline Int ToPostOrder(Int i) const { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return postNumber_(i-1);};
   inline Int FromPostOrder(Int i) const  { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return invPostNumber_(i-1);};
+  inline IntNumVec ToPostOrder(IntNumVec & vec) const { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } IntNumVec povec = vec; for(Int i=0;i<povec.m();i++){ povec[i]=postNumber_(povec[i]-1);}   return povec;};
   inline Int PostParent(Int i) const { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } return postNumber_(parent_(invPostNumber_(i-1)-1)-1); }
 protected:
   Int n_;

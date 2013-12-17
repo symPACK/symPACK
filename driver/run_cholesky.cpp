@@ -98,9 +98,7 @@ int main(int argc, char **argv)
 		TAU_PROFILE_SET_CONTEXT(world_comm);
 #endif
 
-      stringstream  ss;
-      ss << "logTest" << mpirank;
-      statusOFS.open( ss.str().c_str() );
+    logfileptr = new LogFile(mpirank);
 
       //if( mpisize != nprow * npcol || nprow != npcol ){
       //  throw std::runtime_error( "nprow == npcol is assumed in this test routine." );
@@ -157,7 +155,7 @@ int main(int argc, char **argv)
 //        Sfile = options["-S"];
 //      }
 //      else{
-//        statusOFS << "-S option is not given. " 
+//        logfileptr->OFS() << "-S option is not given. " 
 //          << "Treat the overlap matrix as an identity matrix." 
 //          << std::endl << std::endl;
 //      }
@@ -167,7 +165,7 @@ int main(int argc, char **argv)
 //        maxPipelineDepth = atoi(options["-P"].c_str());
 //      }
 //      else{
-//        statusOFS << "-P option is not given. " 
+//        logfileptr->OFS() << "-P option is not given. " 
 //          << "Do not limit SelInv pipelining depth." 
 //          << std::endl << std::endl;
 //      }
@@ -178,7 +176,7 @@ int main(int argc, char **argv)
 //        numProcSymbFact = atoi( options["-npsymbfact"].c_str() );
 //      }
 //      else{
-//        statusOFS << "-npsymbfact option is not given. " 
+//        logfileptr->OFS() << "-npsymbfact option is not given. " 
 //          << "Use default value (maximum number of procs)." 
 //          << std::endl << std::endl;
 //        numProcSymbFact = 0;
@@ -233,7 +231,7 @@ int main(int argc, char **argv)
 //        ColPerm = options["-colperm"];
 //      }
 //      else{
-//        statusOFS << "-colperm option is not given. " 
+//        logfileptr->OFS() << "-colperm option is not given. " 
 //          << "Use MMD_AT_PLUS_A." 
 //          << std::endl << std::endl;
 //        ColPerm = "MMD_AT_PLUS_A";
@@ -268,22 +266,23 @@ int main(int argc, char **argv)
      HMat.ToGlobalStruct();
 
      HMat.ConstructETree(elimTree);
-     statusOFS<<elimTree<<std::endl;
+     logfileptr->OFS()<<elimTree<<std::endl;
      elimTree.PostOrderTree();
-     statusOFS<<elimTree<<std::endl;
+     logfileptr->OFS()<<elimTree<<std::endl;
 
      IntNumVec cc,rc;
      HMat.GetLColRowCount(elimTree,cc,rc);
-     statusOFS<<"Col count "<<cc<<std::endl;
-     statusOFS<<"Row count "<<rc<<std::endl;
+     logfileptr->OFS()<<"Col count "<<cc<<std::endl;
+     logfileptr->OFS()<<"Row count "<<rc<<std::endl;
 
 
 
-//    IntNumVec super; 
-//    HMat.FindSupernodes(elimTree,cc,super);
-//     statusOFS<<"supernode indexes "<<super<<std::endl;
+    IntNumVec super; 
+    HMat.FindSupernodes(elimTree,cc,super);
+    logfileptr->OFS()<<"supernode indexes "<<super<<std::endl;
 
-      statusOFS.close();
+    HMat.SymbolicFactorization(elimTree,cc,super);
+delete logfileptr;
     }
   }
   catch( std::exception& e )

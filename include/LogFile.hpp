@@ -6,7 +6,6 @@
 
 class LogFile{
 protected:
-  std::ofstream myOFS_;
 
   void init_(const char * prefix, const char * suffix){
     std::stringstream  ss;
@@ -14,6 +13,7 @@ protected:
     myOFS_.open( ss.str().c_str() );
   }
 public:
+  std::ofstream myOFS_;
 
   LogFile(const char * prefix, const char * suffix){
     init_(prefix,suffix);

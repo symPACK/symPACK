@@ -21,7 +21,7 @@ void cmod(DistSparseMatrix<Scalar> & Amat, IntNumVec & xsuper,Int J, Int K, NumM
       lastRowIdx = rowIdx;
     }
 
-    statusOFS<<"L_JK would be L_"<<firstRow<<".."<<lastRow<<","<<xsuper(K-1)<<".."<<xsuper(K)-1<<std::endl;
+    logfileptr->OFS()<<"L_JK would be L_"<<firstRow<<".."<<lastRow<<","<<xsuper(K-1)<<".."<<xsuper(K)-1<<std::endl;
  
      
 

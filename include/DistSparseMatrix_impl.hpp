@@ -250,23 +250,27 @@ namespace LIBCHOLESKY{
     }
 
 
-    statusOFS<<"children "<<children.m()<<std::endl;
+    logfileptr->OFS()<<"children "<<children.m()<<std::endl;
     for(Int i = 0; i<children.m();i++){
-      statusOFS<<children(i)<<" ";
+      logfileptr->OFS()<<children(i)<<" ";
     }
-    statusOFS<<std::endl;
+    logfileptr->OFS()<<std::endl;
 
     Int nsuper = 1;
     xsuper.Resize(2*size);
-    SetValue(xsuper,I_ONE);
+    xsuper(nsuper-1) = 1;
+    //SetValue(xsuper,I_ONE);
     for(Int i =2; i<=size;i++){
-//      statusOFS<<"Column "<<i<<" has "<<children(i-1)<<" children, "<<cc(i-1)<<" nnz vs "<<cc(i-2)<<" in the prev col"<<std::endl;
+      //logfileptr->OFS()<<"Column "<<i<<" has "<<children(i-1)<<" children, "<<cc(i-1)<<" nnz vs "<<cc(i-2)<<" in the prev col"<<std::endl;
 
       if(children(i-1)!=1 || cc(i-1) != (cc(i-2)-1)){
-//        statusOFS<<"Col "<<i<<" and "<<i-1<<" are not in the same snode"<<std::endl; 
+//        logfileptr->OFS()<<"Col "<<i<<" and "<<i-1<<" are not in the same snode"<<std::endl; 
         nsuper++;
         xsuper(nsuper-1) = i;
       }
+//      else{
+//        logfileptr->OFS()<<"Col "<<i<<" and "<<i-1<<" are in the same snode"<<std::endl; 
+//      }
     }
       nsuper++;
       xsuper(nsuper-1) = size+1;
@@ -280,7 +284,339 @@ namespace LIBCHOLESKY{
   }
 
 
+  template <class F> void DistSparseMatrix<F>::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper){
+    TIMER_START(SymbolicFactorization);
 
+//    Int nsuper = xsuper.m();
+//    IntNumVec snode(size+1);
+//    IntNumVec marker(size+1);
+//    IntNumVec mrglnk(nsuper+1);
+//    IntNumVec rchlnk(size+1);
+//
+//    IntNumVec xlnz(size+1);
+//    IntNumVec lindx(size*nsuper+1);
+//    IntNumVec xlindx(nsuper+1);
+//
+//    Int nzbeg = 0;
+//    Int nzend = 0;
+//    Int head = 0;
+//    Int tail = size + 1;
+//    SetValue(marker,I_ZERO);
+//    Int pointl = 1;
+//    for(Int ksup=1;ksup<nsuper;ksup++){
+//            Int fstcol = xsuper(ksup-1);
+//            Int lstcol = xsuper(ksup) - 1;
+//            for(Int jcol=fstcol;jcol<=lstcol;jcol++){
+//                xlnz(jcol-1) = pointl;
+//                pointl = pointl + cc(fstcol-1);
+//            }
+//    }
+//    xlnz(size) = pointl;
+//    Int point = 1;
+//    for(Int ksup=1;ksup<nsuper;ksup++){
+//            mrglnk(ksup-1) = 0;
+//            Int fstcol = xsuper(ksup-1);
+//            xlindx(ksup-1) = point;
+//            point = point + cc(fstcol-1);
+//    }
+//    xlindx(nsuper) = point;
+//
+//
+//    logfileptr->OFS()<<"xlnz"<<":";
+//    for(int i=0;i<xlnz.m();i++){logfileptr->OFS()<<xlnz(i)<< " ";}
+//    logfileptr->OFS()<<std::endl;
+//
+//        logfileptr->OFS()<<"xlindx"<<":";
+//        for(int i=0;i<xlindx.m();i++){logfileptr->OFS()<<xlindx(i)<< " ";}
+//        logfileptr->OFS()<<std::endl;
+//
+//
+//    IntNumVec & xadj = this->Global_.colptr;
+//    IntNumVec & adjncy = this->Global_.rowind;
+//
+//
+//
+//
+//
+//
+//    for(Int ksup=1;ksup<nsuper;ksup++){
+//            //initializations ...
+//            //    fstcol : first column of supernode ksup.
+//            //    lstcol : last column of supernode ksup.
+//            //    knz    : will count the nonzeros of l in column kcol.
+//            //    rchlnk : initialize empty index list for kcol.
+//            Int fstcol = xsuper(ksup-1);
+//            Int lstcol = xsuper(ksup) - 1;
+//            Int width  = lstcol - fstcol + 1;
+//            Int length = cc(fstcol-1);
+//            Int knz = 0;
+//            rchlnk(head) = tail;
+//            Int jsup = mrglnk(ksup-1);
+//
+//            Int newi; Int nexti; Int i;
+//            //if ksup has children in the supernodal e-tree ...
+//            if  ( jsup > 0 ) {
+//                //copy the indices of the first child jsup into 
+//                //the linked list, and mark each with the value 
+//                //ksup.
+//                Int jwidth = xsuper(jsup) - xsuper(jsup-1);
+//                Int jnzbeg = xlindx(jsup-1) + jwidth;
+//                Int jnzend = xlindx(jsup) - 1;
+//                for(Int jptr = jnzend;jptr>=jnzbeg;jptr--){
+//                    newi = lindx(jptr-1);
+//                    knz = knz+1;
+//                    marker(newi-1) = ksup;
+//                    rchlnk(newi) = rchlnk(head);
+//                    rchlnk(head) = newi;
+//                }
+////  200           continue
+//                //for each subsequent child jsup of ksup ...
+//                jsup = mrglnk(jsup-1);
+////  300           continue
+//                if  ( jsup != 0  &&  knz < length ) {
+//                    //merge the indices of jsup into the list,
+//                    //and mark new indices with value ksup.
+//                    Int jwidth = xsuper(jsup) - xsuper(jsup-1);
+//                    Int jnzbeg = xlindx(jsup-1) + jwidth;
+//                    Int jnzend = xlindx(jsup) - 1;
+//                    nexti = head;
+//                    for(Int jptr = jnzbeg;jptr<=jnzend;jptr++){
+//                        newi = lindx(jptr-1);
+//                            i = nexti;
+//                            nexti = rchlnk(i);
+//                            if  ( newi > nexti )  {continue;}
+//                        if  ( newi < nexti ) {
+//                            knz = knz+1;
+//                            rchlnk(i) = newi;
+//                            rchlnk(newi) = nexti;
+//                            marker(newi-1) = ksup;
+//                            nexti = newi;
+//                        }
+//                    }
+//                    jsup = mrglnk(jsup-1);
+//                    continue;//go to 300
+//                }
+//            }
+//            //structure of a(*,fstcol) has not been examined yet.  
+//            //"sort" its structure into the linked list,
+//            //inserting only those indices not already in the
+//            //list.
+//            if  ( knz < length )  {
+//                Int node = tree.ToPostOrder(fstcol-1);
+//                Int knzbeg = xadj(node-1);
+//                Int knzend = xadj(node) - 1;
+//                for(Int kptr= knzbeg; kptr<=knzend;kptr++){
+//                    Int newi = adjncy(kptr-1);
+//                    newi = tree.FromPostOrder(newi-1);
+//                    if  ( newi > fstcol  && marker(newi-1) != ksup ) {
+//                        //position and insert newi in list
+//                        //and mark it with kcol.
+//                        Int nexti = head;
+//                        Int i = nexti;
+//                        nexti = rchlnk(i);
+//                        if  ( newi > nexti ) {continue;}
+//                        knz = knz + 1;
+//                        rchlnk(i) = newi;
+//                        rchlnk(newi) = nexti;
+//                        marker(newi-1) = ksup;
+//                    }
+//              }
+//            }
+//            //if ksup has no children, insert fstcol into the linked list.
+//            if  ( rchlnk(head) != fstcol ){
+//                rchlnk(fstcol) = rchlnk(head);
+//                rchlnk(head) = fstcol;
+//                knz = knz + 1;
+//            }
+//
+//            //copy indices from linked list into lindx(*).
+//            nzbeg = nzend + 1;
+//            nzend = nzend + knz;
+//            if  ( nzend+1 != xlindx(ksup) ) {/*problem*/}
+//            Int li = head;
+//            for(Int kptr= nzbeg; kptr<=nzend;kptr++){
+//                li = rchlnk(li);
+//                lindx(kptr-1) = li;
+//            }
+//            //if ksup has a parent, insert ksup into its parent's 
+//            //"merge" list.
+//            if  ( length > width ) {
+//                Int pcol = lindx ( xlindx(ksup-1) + width -1 );
+//                Int psup = snode(pcol-1);
+//                mrglnk(ksup-1) = mrglnk(psup-1);
+//                mrglnk(psup-1) = ksup;
+//            }
+//      }
+//
+//
+//        logfileptr->OFS()<<"xlindx"<<":";
+//        for(int i=0;i<xlindx.m();i++){logfileptr->OFS()<<xlindx(i)<< " ";}
+//        logfileptr->OFS()<<std::endl;
+//
+//    return;
+
+
+
+
+
+
+
+
+
+
+
+
+    IntNumVec & rowind = this->Global_.rowind;
+    IntNumVec & colptr = this->Global_.colptr;
+
+
+
+    std::vector<std::set<Int> > sets;
+    sets.resize(xsuper.m(),std::set<Int>());
+
+    std::vector<IntNumVec > LIs;
+    LIs.resize(xsuper.m());
+
+    Int lindxCnt = 0;
+    for(Int I=1;I<xsuper.m();I++){
+      Int fi = tree.FromPostOrder(xsuper(I-1));
+      Int width = xsuper(I)-xsuper(I-1);
+      Int length = cc(fi-1);
+      
+      IntNumVec & LI = LIs[I-1];
+
+      //Initialize LI with nnz struct of A_*fi
+      Int begin = colptr(fi-1);
+      Int end = colptr(fi);
+//      logfileptr->OFS()<<"fi="<<fi<<" begin="<<begin<<" end="<<end<<std::endl;
+      
+
+
+      Int * start = &rowind(begin-1); 
+      Int * stop = (end-1<rowind.m())?&rowind(end-1):&rowind(rowind.m()-1)+1; 
+      //find the diagonal block
+      start=std::find(start,stop,fi);
+
+
+      LI.Resize(stop-start);
+      
+      std::copy(start,stop,&LI(0));
+      LI = tree.ToPostOrder(LI);
+
+      std::set<Int> & SI = sets[I-1];
+      for(std::set<Int>::iterator it = SI.begin(); it!=SI.end(); it++){
+        Int K = *it;
+        IntNumVec & LK = LIs[K-1];
+
+        logfileptr->OFS()<<"merging "<<I<<" with "<<K<<std::endl;
+        //LI = LI U LK \ K
+        IntNumVec Ltmp(LI.m()+LK.m()-1);
+        std::copy(&LI(0),&LI(LI.m()-1)+1,&Ltmp(0));
+
+        
+        if(LK.m()>1){
+          Int head = LI.m();
+          for(Int i =1;i<LK.m();i++){
+            //insert element from LK
+            if(LK[i]>I){
+              Ltmp[head]=LK[i];
+              head++;
+            }
+          }
+          Ltmp.Resize(head);
+          std::sort(&Ltmp(0),&Ltmp(Ltmp.m()-1)+1);
+          
+          //Int * end = std::set_union(&LI(0),&LI(LI.m()-1)+1,&LK(1),&LK(LK.m()-1)+1,&Ltmp(0));
+          //Ltmp.Resize(end - &Ltmp(0));
+          LI = Ltmp;
+        }
+
+
+      }
+     
+      
+      lindxCnt += LI.m();
+
+      if(length>width){
+
+        Int i = LI(width);
+        logfileptr->OFS()<<I<<" : col "<<i<<"is the next to be examined"<<std::endl;
+
+        Int J = I+1;
+        for(J = I+1;J<xsuper.m()-1;J++){
+          if(xsuper(J-1)>=i && xsuper(J)<i){
+            break;
+          }
+        } 
+
+        logfileptr->OFS()<<I<<" : col "<<i<<" is in snode "<<J<<std::endl;
+        std::set<Int> & SJ = sets[J-1];
+        SJ.insert(I);
+
+      }
+
+      //if(LI.m()>1){
+      //  Int i = LI(1);
+      //  logfileptr->OFS()<<I<<" : col "<<i<<"is the next to be examined"<<std::endl;
+      //  //Determine the supernode J that contains column i
+      //  Int J = I;
+      //  bool found = false;
+      //  for(J = I;J<xsuper.m()-1;J++){
+      //    if(xsuper(J-1)>=i && xsuper(J)<i){
+      //      found = true;
+      //      break;
+      //    }
+      //  } 
+
+      //  if(found){
+      //    if(J>I){
+      //      logfileptr->OFS()<<I<<" : col "<<i<<" is in snode "<<J<<std::endl;
+      //      std::set<Int> & SJ = sets[J-1];
+      //      SJ.insert(I);
+      //    }
+      //  }
+      //}
+    }  
+
+    Int nsuper = xsuper.m()-1;
+    IntNumVec xlnz(size+1);
+    Int totNnz = 0;
+    for(Int i=1;i<cc.m();i++){xlnz(i-1)=totNnz; totNnz+=cc(i-1);}
+    xlnz(size)=totNnz+1;
+
+    //DblNumVec lnz(totNnz+1);
+
+    IntNumVec lindx(lindxCnt+1);
+    IntNumVec xlindx(nsuper+1);
+    Int head = 1;
+    for(Int I=1;I<=nsuper;I++){
+      Int fi = tree.FromPostOrder(xsuper(I-1));
+      IntNumVec & LI = LIs[I-1];
+      xlindx(I-1)=head;
+      std::copy(&LI(0),&LI(LI.m()-1)+1,&(lindx(head-1)));
+      head+=cc(fi-1);
+
+//        logfileptr->OFS()<<"PO L"<<I<<":";
+//        for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+//        logfileptr->OFS()<<std::endl;
+    }
+    xlindx(nsuper) = head;
+
+ 
+        logfileptr->OFS()<<"xlindx"<<":";
+        for(int i=0;i<xlindx.m();i++){logfileptr->OFS()<<xlindx(i)<< " ";}
+        logfileptr->OFS()<<std::endl;
+
+        logfileptr->OFS()<<"lindx"<<":";
+        for(int i=0;i<lindx.m();i++){logfileptr->OFS()<<lindx(i)<< " ";}
+        logfileptr->OFS()<<std::endl;
+
+        logfileptr->OFS()<<"xlnz"<<":";
+        for(int i=0;i<xlnz.m();i++){logfileptr->OFS()<<xlnz(i)<< " ";}
+        logfileptr->OFS()<<std::endl;
+
+    TIMER_STOP(SymbolicFactorization);
+  }
 
 
 
