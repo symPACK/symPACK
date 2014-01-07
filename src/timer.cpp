@@ -164,7 +164,7 @@ CTF_timer::CTF_timer(const char * name){
 
 //    excl_time = 0.0;
     int numcore = omp_get_num_threads();
-    std::cout<<numcore<< " cores "<<std::endl;
+//    std::cout<<numcore<< " cores "<<std::endl;
     arr_excl_time.resize(numcore,0.0);
 
     double time = omp_get_wtime();

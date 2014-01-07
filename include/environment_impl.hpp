@@ -1,7 +1,6 @@
 #ifndef _ENVIRONMENT_IMPL_HPP_
 #define _ENVIRONMENT_IMPL_HPP_
 
-#include "Environment.hpp"
 
 // *********************************************************************
 // Global utility functions 

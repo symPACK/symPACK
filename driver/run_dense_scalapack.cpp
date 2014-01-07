@@ -142,7 +142,8 @@ int main(int argc, char **argv)
 
 int ctxt, myid, myrow, mycol, numproc;
 Cblacs_pinfo(&myid, &numproc);
-int procrows = sqrt(numproc), proccols = sqrt(numproc);
+//int procrows = sqrt(numproc), proccols = sqrt(numproc);
+int procrows = 1, proccols = numproc;
 Cblacs_get(0, 0, &ctxt);
 Cblacs_gridinit(&ctxt, "Row-major", procrows, proccols);
 Cblacs_pcoord(ctxt, myid, &myrow, &mycol);
@@ -195,9 +196,10 @@ if(mpirank==0){
 }
 
 
+printf("Copying results back\n");
 // Copy result into local matrix
 pdgeadd_( "N", &n, &n, &one, A_loc, &i_one, &i_one, descA_distr, &zero, Afact, &i_one, &i_one, descA );
-
+printf("Done\n");
 
 
 
@@ -280,6 +282,7 @@ pdgeadd_( "N", &n, &n, &one, A_loc, &i_one, &i_one, descA_distr, &zero, Afact, &
 //}
 
 if(mpirank==0){
+      printf("Checking the results...\n");
       //check the result
       double norm = 0;
 

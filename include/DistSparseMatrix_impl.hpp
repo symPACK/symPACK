@@ -287,6 +287,9 @@ namespace LIBCHOLESKY{
   template <class F> void DistSparseMatrix<F>::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper){
     TIMER_START(SymbolicFactorization);
 
+logfileptr->OFS()<<"xsuper:"<<xsuper<<std::endl;
+
+
 //    Int nsuper = xsuper.m();
 //    IntNumVec snode(size+1);
 //    IntNumVec marker(size+1);
@@ -538,13 +541,18 @@ namespace LIBCHOLESKY{
       lindxCnt += LI.m();
 
       if(length>width){
-
+        logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
         Int i = LI(width);
-        logfileptr->OFS()<<I<<" : col "<<i<<"is the next to be examined"<<std::endl;
+        logfileptr->OFS()<<I<<" : col "<<i<<" is the next to be examined"<<std::endl;
 
         Int J = I+1;
-        for(J = I+1;J<xsuper.m()-1;J++){
-          if(xsuper(J-1)>=i && xsuper(J)<i){
+        for(J = I+1;J<=xsuper.m()-1;J++){
+          Int fc = xsuper(J-1);
+          Int lc = xsuper(J)-1;
+          logfileptr->OFS()<<"FC = "<<fc<<" vs "<<i<<std::endl;
+          logfileptr->OFS()<<"LC = "<<lc<<" vs "<<i<<std::endl;
+          if(fc <=i && lc >= i){
+            logfileptr->OFS()<<I<<" : col "<<i<<" found in snode "<<J<<std::endl;
             break;
           }
         } 
@@ -555,33 +563,12 @@ namespace LIBCHOLESKY{
 
       }
 
-      //if(LI.m()>1){
-      //  Int i = LI(1);
-      //  logfileptr->OFS()<<I<<" : col "<<i<<"is the next to be examined"<<std::endl;
-      //  //Determine the supernode J that contains column i
-      //  Int J = I;
-      //  bool found = false;
-      //  for(J = I;J<xsuper.m()-1;J++){
-      //    if(xsuper(J-1)>=i && xsuper(J)<i){
-      //      found = true;
-      //      break;
-      //    }
-      //  } 
-
-      //  if(found){
-      //    if(J>I){
-      //      logfileptr->OFS()<<I<<" : col "<<i<<" is in snode "<<J<<std::endl;
-      //      std::set<Int> & SJ = sets[J-1];
-      //      SJ.insert(I);
-      //    }
-      //  }
-      //}
     }  
 
     Int nsuper = xsuper.m()-1;
     IntNumVec xlnz(size+1);
     Int totNnz = 0;
-    for(Int i=1;i<cc.m();i++){xlnz(i-1)=totNnz; totNnz+=cc(i-1);}
+    for(Int i=1;i<=cc.m();i++){xlnz(i-1)=totNnz+1; totNnz+=cc(i-1);}
     xlnz(size)=totNnz+1;
 
     //DblNumVec lnz(totNnz+1);
@@ -607,13 +594,47 @@ namespace LIBCHOLESKY{
         for(int i=0;i<xlindx.m();i++){logfileptr->OFS()<<xlindx(i)<< " ";}
         logfileptr->OFS()<<std::endl;
 
-        logfileptr->OFS()<<"lindx"<<":";
+        logfileptr->OFS()<<"lindx"<<lindxCnt<<" :";
         for(int i=0;i<lindx.m();i++){logfileptr->OFS()<<lindx(i)<< " ";}
         logfileptr->OFS()<<std::endl;
 
         logfileptr->OFS()<<"xlnz"<<":";
         for(int i=0;i<xlnz.m();i++){logfileptr->OFS()<<xlnz(i)<< " ";}
         logfileptr->OFS()<<std::endl;
+
+
+    //parsing the data structure
+      
+    for(Int I=1;I<xsuper.m();I++){
+          Int fc = xsuper(I-1);
+          Int lc = xsuper(I)-1;
+          Int fi = xlindx(I-1);
+
+          logfileptr->OFS()<<"FC = "<<fc<<std::endl;
+          logfileptr->OFS()<<"LC = "<<lc<<std::endl;
+
+          for(Int i = fc;i<=lc;i++){
+            Int fnz = xlnz(i-1);
+            Int lnz = xlnz(i)-1;
+
+          logfileptr->OFS()<<"i = "<<i<<" FNZ = "<<fnz<<std::endl;
+          logfileptr->OFS()<<"i = "<<i<<" LNZ = "<<lnz<<std::endl;
+            //diag is lnz(fnz)
+            logfileptr->OFS()<<"Diag element of "<<i<<" is "<<"lnz("<<fnz-1<<")"<<std::endl;
+            Int idx = fi;
+            for(Int s = fnz+1;s<=lnz;s++){
+              idx++;
+
+              //lnz(s) contains an off-diagonal nonzero entry in row lindx(idx)
+              logfileptr->OFS()<<"L("<<lindx(idx-1)<<","<<i<<") = "<<"lnz("<<s-1<<")"<<std::endl;
+            }
+            fi++;
+
+          }
+    }
+
+
+
 
     TIMER_STOP(SymbolicFactorization);
   }

@@ -88,6 +88,8 @@ int main(int argc, char **argv)
     //Create a communicator with npcol*nprow processors
     MPI_Comm_split(MPI_COMM_WORLD, mpirank<nprow*npcol, mpirank, &world_comm);
 
+cout<<"ALIVE"<<endl;
+
     if (mpirank<nprow*npcol){
 
       MPI_Comm_rank(world_comm, &mpirank );
