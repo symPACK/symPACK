@@ -472,6 +472,11 @@ logfileptr->OFS()<<"xsuper:"<<xsuper<<std::endl;
     IntNumVec & rowind = this->Global_.rowind;
     IntNumVec & colptr = this->Global_.colptr;
 
+//    IntNumVec marker(xsuper.m());
+//    for(Int I=1;I<xsuper.m();I++){
+//      marker(I-1)=I;
+//    }
+  
 
 
     std::vector<std::set<Int> > sets;
@@ -487,6 +492,11 @@ logfileptr->OFS()<<"xsuper:"<<xsuper<<std::endl;
       Int length = cc(fi-1);
       
       IntNumVec & LI = LIs[I-1];
+
+
+
+
+
 
       //Initialize LI with nnz struct of A_*fi
       Int begin = colptr(fi-1);
@@ -571,7 +581,7 @@ logfileptr->OFS()<<"xsuper:"<<xsuper<<std::endl;
     for(Int i=1;i<=cc.m();i++){xlnz(i-1)=totNnz+1; totNnz+=cc(i-1);}
     xlnz(size)=totNnz+1;
 
-    //DblNumVec lnz(totNnz+1);
+    DblNumVec lnz(totNnz+1);
 
     IntNumVec lindx(lindxCnt+1);
     IntNumVec xlindx(nsuper+1);
@@ -582,10 +592,6 @@ logfileptr->OFS()<<"xsuper:"<<xsuper<<std::endl;
       xlindx(I-1)=head;
       std::copy(&LI(0),&LI(LI.m()-1)+1,&(lindx(head-1)));
       head+=cc(fi-1);
-
-//        logfileptr->OFS()<<"PO L"<<I<<":";
-//        for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-//        logfileptr->OFS()<<std::endl;
     }
     xlindx(nsuper) = head;
 
