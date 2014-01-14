@@ -6,6 +6,7 @@
 #define _NUMMAT_IMPL_HPP_
 
 #include "Environment.hpp"
+#include <sstream>
 
 #ifdef UPCXX
 using namespace upcxx;
@@ -166,7 +167,14 @@ template <class F> NumMat<F>& NumMat<F>::Copy(const NumMat& C) {
 template <class F> inline const F& NumMat<F>::operator()(Int i, Int j) const  { 
 		if( i < 0 || i >= m_ ||
 				j < 0 || j >= n_ ) {
-			throw std::logic_error( "Index is out of bound." );
+      
+      std::stringstream ss;
+
+#ifdef UPCXX
+      ss<<"P"<<MYTHREAD<<" ";
+#endif
+      ss<<"Index ("<<i<<","<<j<<") is out of bound. Dimensions are ("<<m_<<","<<n_<<")."<<std::endl;
+			throw std::logic_error( ss.str().c_str() );
 		}
     return data_[i+j*m_];
   }
@@ -174,7 +182,14 @@ template <class F> inline const F& NumMat<F>::operator()(Int i, Int j) const  {
 template <class F> inline F& NumMat<F>::operator()(Int i, Int j)  { 
 		if( i < 0 || i >= m_ ||
 				j < 0 || j >= n_ ) {
-			throw std::logic_error( "Index is out of bound." );
+
+      std::stringstream ss;
+
+#ifdef UPCXX
+      ss<<"P"<<MYTHREAD<<" ";
+#endif
+      ss<<"Index ("<<i<<","<<j<<") is out of bound. Dimensions are ("<<m_<<","<<n_<<")."<<std::endl;
+			throw std::logic_error( ss.str().c_str() );
 		}
     return data_[i+j*m_];
   }
@@ -183,7 +198,14 @@ template <class F> inline F& NumMat<F>::operator()(Int i, Int j)  {
   template <class F> F* NumMat<F>::VecData(Int j)  const 
 	{ 
 		if( j < 0 || j >= n_ ) {
-			throw std::logic_error( "Index is out of bound." );
+
+      std::stringstream ss;
+
+#ifdef UPCXX
+      ss<<"P"<<MYTHREAD<<" ";
+#endif
+      ss<<"Index (*,"<<j<<") is out of bound. Dimensions are ("<<m_<<","<<n_<<")."<<std::endl;
+			throw std::logic_error( ss.str().c_str() );
 		}
 		return &(data_[j*m_]); 
 	}
@@ -193,7 +215,14 @@ template <class F> inline F& NumMat<F>::operator()(Int i, Int j)  {
   template <class F> global_ptr<F> NumMat<F>::GVecData(Int j)  const 
 	{ 
 		if( j < 0 || j >= n_ ) {
-			throw std::logic_error( "Index is out of bound." );
+
+      std::stringstream ss;
+
+#ifdef UPCXX
+      ss<<"P"<<MYTHREAD<<" ";
+#endif
+      ss<<"Index (*,"<<j<<") is out of bound. Dimensions are ("<<m_<<","<<n_<<")."<<std::endl;
+			throw std::logic_error( ss.str().c_str() );
 		}
 		return (global_ptr<F>(&data_[j*m_])); 
 	}

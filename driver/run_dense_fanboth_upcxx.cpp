@@ -2,8 +2,9 @@
 /// @brief Test for the interface of SuperLU_DIST and SelInv.
 /// @author Mathias Jacquelin
 /// @date 2013-08-31
-//#define _DEBUG_
+#define _DEBUG_
 #define LAUNCH_ASYNC
+#define LAUNCH_FACTOR
 
 //#define ADJUSTED_BUFFERS
 //#define ASYNC_COPY
@@ -104,9 +105,12 @@ namespace LIBCHOLESKY{
       }
 
 
-      inline Int r(Int i){ return ((i)%THREADS);}
+      inline Int modwrap2D(Int i, Int j) {return min(i/blksize,j/blksize)%prow + prow*floor((double)(max(i/blksize,j/blksize)%np)/(double)prow);}
+
+      inline Int r(Int i){ return ((i)%np);}
       inline Int c(Int i){return 0;}
       inline Int MAP(Int i, Int j) {return r(i/blksize) + c(j/blksize)*prow;}
+
 
       //  inline Int c(Int i){ return ((i)%THREADS);}
       //  inline Int r(Int i){return 0;}
@@ -292,6 +296,11 @@ namespace LIBCHOLESKY{
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"Factoring column done "<<j<<endl;
+
+        Int numStep = ceil((double)A.n/(double)A.blksize);
+      Int curStep = j/A.blksize;
+    
+    logfileptr->OFS()<<"STEP "<<curStep<<"/"<<numStep<<endl;
 #endif
     //Launch the updates
     Int local_j = A.global_col_to_local(j);
@@ -299,7 +308,6 @@ namespace LIBCHOLESKY{
     for(Int i = j+A.blksize; i< min(A.n,j+(A.pcol+1)*A.blksize);i+=A.blksize){
       Int target = A.MAP(i,j);
 
-      //global_ptr<double> AchkPtr(&A.Achunk(0,local_j));
       global_ptr<double> AchkPtr(&A.AchunkLower[local_j/A.blksize](0,0));
 
 #ifdef _DEBUG_
@@ -307,6 +315,8 @@ namespace LIBCHOLESKY{
 #endif
       upcxx::async(target)(Update_Async,(*A.RemoteObjPtr)[target],j,AchkPtr);
     }
+    
+
 
     if(j+A.blksize>=A.n){
 #ifdef _DEBUG_
@@ -358,7 +368,9 @@ namespace LIBCHOLESKY{
 #endif
 
 #ifdef LAUNCH_ASYNC
+#ifdef LAUNCH_FACTOR
       upcxx::async(A.iam)(Factor_Async,Aptr,j);
+#endif
 #endif
     } 
 #ifdef _DEBUG_
@@ -373,7 +385,7 @@ namespace LIBCHOLESKY{
 
 
 #ifdef _DEBUG_    
-    logfileptr->OFS()<<"Fetching factor from P"<<remoteFactorPtr.tid()<<endl;
+    logfileptr->OFS()<<"Fetching factor "<<j<<" from P"<<remoteFactorPtr.tid()<<endl;
 #endif
     DblNumMat RemoteFactor(A.n-j,A.blksize);
     TIMER_START(copy);
@@ -381,39 +393,56 @@ namespace LIBCHOLESKY{
     TIMER_STOP(copy);
 
 #ifdef _DEBUG_    
-    logfileptr->OFS()<<"Fetched factor from P"<<remoteFactorPtr.tid()<<endl;
+//    logfileptr->OFS()<<"Fetched factor from P"<<remoteFactorPtr.tid()<<endl;
 #endif
 
     //do all my updates with i>j
     for(Int i = j+A.blksize; i<A.n;i+=A.blksize){
       if(A.iam==A.MAP(i,j)){
 #ifdef _DEBUG_
-        logfileptr->OFS()<<"Updating column "<<i<<" with columns from P"<<remoteFactorPtr.tid()<<endl;
+//        logfileptr->OFS()<<"Updating column "<<i<<" with columns from P"<<remoteFactorPtr.tid()<<endl;
 #endif
         A.Update(j, i, RemoteFactor);
       }
     }
+
+
+
+    //Now launch aggregation on target processors only if it is my LAST update
+    // i.e. if j = max j | j < i  && MAP(i,j)==iam
+  
+     //TODO CHECK THIS
+//    for(Int i = j+A.blksize; i< min(A.n,j+(A.np+1)*A.blksize);i+=A.blksize){
+//      for(Int j2 = i-A.blksize; j2>=j;j2-=A.blksize){
+//        if(j2==j && A.iam==A.MAP(i,j2)){
+//          Int target = A.MAP(i,i);
+//#ifdef _DEBUG_
+//          logfileptr->OFS()<<"Updating from "<<j<<", launching aggregate on P"<<target<<" for column "<<i<<endl;
+//#endif
+//          global_ptr<double> WbufPtr(&A.WLower[i/A.blksize](0,0));
+//          upcxx::async(target)(Aggregate_Async,(*A.RemoteObjPtr)[target],i,WbufPtr);
+//
+//          break;
+//        }
+//      }
+//    }
+
+ 
+
 
     IntNumVec myLastUpd(A.np);
     SetValue(myLastUpd,-1);
 
     //TODO CHECK THIS
     for(Int i = j+A.blksize; i< min(A.n,j+(A.np+1)*A.blksize);i+=A.blksize){
-      for(Int j2 = j; j2< i;j2+=A.blksize){
+      for(Int j2 = i-A.blksize; j2>=j;j2-=A.blksize){
         if(A.iam==A.MAP(i,j2)){
           Int target = A.MAP(i,i);
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"j2="<<j2<<" vs "<<myLastUpd[target]<<" on P"<<target<<endl;
-#endif
-          myLastUpd[target] = max(j2,myLastUpd[target]);
+          myLastUpd[target] = j2;
+          break;
         }
       }
     }
-
-#ifdef _DEBUG_
-    logfileptr->OFS()<<myLastUpd<<endl;
-#endif
-
 
     //TODO CHECK THIS
     for(Int i = j+A.blksize; i< min(A.n,j+(A.np+1)*A.blksize);i+=A.blksize){
@@ -450,6 +479,8 @@ namespace LIBCHOLESKY{
 int main(int argc, char **argv) 
 {
   upcxx::init(&argc,&argv);
+
+
 
 #if defined(PROFILE) || defined(PMPI)
   TAU_PROFILE_INIT(argc, argv);
@@ -560,35 +591,7 @@ int main(int argc, char **argv)
 
     upcxx::barrier();
     upcxx::wait();
-
-if(MYTHREAD==0){
-//      timeSta =  omp_get_wtime( );
-//      TIMER_START(POTRF);
-//      lapack::Potrf( 'L', A.n(), A.Data(), A.n());
-//      TIMER_STOP(POTRF);
-//      timeEnd =  omp_get_wtime( );
-//      cout<<"REF POTRF: "<<timeEnd-timeSta<<endl;
-//
-//
-//      //check the result
-//      double norm = 0;
-//
-//      //do a solve
-//      DblNumMat X = RHS;
-//      lapack::Potrs('L',n,nrhs,&A(0,0),n,&X(0,0),n);
-//
-//
-//      blas::Axpy(n*nrhs,-1.0,&XTrue(0,0),1,&X(0,0),1);
-//      norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
-//      printf("Norm of residual after SOLVE for POTRF is %10.2e\n",norm);
-}
-
-
-
-
-A.Clear();
-
-
+    A.Clear();
 
     logfileptr->OFS()<<"distributed"<<endl;
 
@@ -606,13 +609,19 @@ A.Clear();
 #endif
 
     upcxx::barrier();
+    upcxx::wait();
 
     if(MYTHREAD==Afact.MAP(0,0)){
       upcxx::async(Afact.iam)(Factor_Async,Afactptr,0);
     }
 
 
-    while(fact_done.islocked()){upcxx::progress();};
+//    while(fact_done.islocked()){upcxx::wait();};
+    while(fact_done.islocked()){  upcxx::progress(); };
+//    while(upcxx::peek() || fact_done.islocked()){upcxx::wait();};
+//    while(fact_done.islocked()){upcxx::drain();};
+//    while(upcxx::peek() || fact_done.islocked()){  logfileptr->OFS()<<"progressing"<<endl; upcxx::progress(); };
+
     upcxx::barrier();
     timeEnd =  omp_get_wtime( );
     fact_done.lock();
@@ -633,13 +642,20 @@ A.Clear();
       Afact.Gather(Afinished);
     }
     upcxx::barrier();
+
+
+
+
+
+
+
 #ifdef _DEBUG_
-    logfileptr->OFS()<<"quitting"<<endl;
+    logfileptr->OFS()<<"quitting "<<iam<<endl;
 #endif
 
 
-    upcxx::barrier();
 
+    upcxx::barrier();
 
 
 
@@ -647,18 +663,12 @@ A.Clear();
 
 
 
-    if(MYTHREAD==0)
+    if(iam==0)
     {
+    logfileptr->OFS()<<"testing"<<endl;
       //check the result
       double norm = 0;
-//      DblNumMat X = RHS;
-//      lapack::Potrs('L',n,nrhs,&A(0,0),n,&X(0,0),n);
-//
-//
-//      blas::Axpy(n*nrhs,-1.0,&XTrue(0,0),1,&X(0,0),1);
-//      norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
-//      printf("Norm of residual after SOLVE for POTRF is %10.2e\n",norm);
-//
+
       //do a solve
       DblNumMat X = RHS;
       // X = RHS;
@@ -669,9 +679,9 @@ A.Clear();
       printf("Norm of residual after SOLVE for FAN-BOTH is %10.2e\n",norm);
     }
 
-    upcxx::finalize();
     delete logfileptr;
 
+    upcxx::finalize();
   }
   catch( std::exception& e )
   {
