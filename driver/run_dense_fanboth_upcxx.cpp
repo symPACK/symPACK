@@ -615,7 +615,14 @@ int main(int argc, char **argv)
       upcxx::async(Afact.iam)(Factor_Async,Afactptr,0);
     }
 
+    if(MYTHREAD==24){
 
+    logfileptr->OFS()<<"testing fact_done.is_locked()"<<endl;
+    int islocked = fact_done.islocked();
+    logfileptr->OFS()<<islocked<<endl;
+      
+
+    }
 //    while(fact_done.islocked()){upcxx::wait();};
     while(fact_done.islocked()){  upcxx::progress(); };
 //    while(upcxx::peek() || fact_done.islocked()){upcxx::wait();};

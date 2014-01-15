@@ -287,7 +287,7 @@ namespace LIBCHOLESKY{
   template <class F> void DistSparseMatrix<F>::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper){
     TIMER_START(SymbolicFactorization);
 
-logfileptr->OFS()<<"xsuper:"<<xsuper<<std::endl;
+    //logfileptr->OFS()<<"xsuper:"<<xsuper<<std::endl;
 
 
 //    Int nsuper = xsuper.m();
@@ -551,7 +551,7 @@ logfileptr->OFS()<<"xsuper:"<<xsuper<<std::endl;
       lindxCnt += LI.m();
 
       if(length>width){
-        logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
+        //logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
         Int i = LI(width);
         logfileptr->OFS()<<I<<" : col "<<i<<" is the next to be examined"<<std::endl;
 
@@ -583,16 +583,24 @@ logfileptr->OFS()<<"xsuper:"<<xsuper<<std::endl;
 
     DblNumVec lnz(totNnz+1);
 
-    IntNumVec lindx(lindxCnt+1);
+    IntNumVec lindx(size*nsuper+1);
+//    IntNumVec lindx(lindxCnt+1);
     IntNumVec xlindx(nsuper+1);
     Int head = 1;
     for(Int I=1;I<=nsuper;I++){
       Int fi = tree.FromPostOrder(xsuper(I-1));
       IntNumVec & LI = LIs[I-1];
       xlindx(I-1)=head;
+
+
+        logfileptr->OFS()<<"PO L"<<I<<":";
+        for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+        logfileptr->OFS()<<std::endl;
+
       std::copy(&LI(0),&LI(LI.m()-1)+1,&(lindx(head-1)));
       head+=cc(fi-1);
     }
+    lindx.Resize(head);
     xlindx(nsuper) = head;
 
  
