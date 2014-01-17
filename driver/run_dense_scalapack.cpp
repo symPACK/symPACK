@@ -196,10 +196,8 @@ if(mpirank==0){
 }
 
 
-printf("Copying results back\n");
 // Copy result into local matrix
 pdgeadd_( "N", &n, &n, &one, A_loc, &i_one, &i_one, descA_distr, &zero, Afact, &i_one, &i_one, descA );
-printf("Done\n");
 
 
 

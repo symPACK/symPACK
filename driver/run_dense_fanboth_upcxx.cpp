@@ -2,7 +2,7 @@
 /// @brief Test for the interface of SuperLU_DIST and SelInv.
 /// @author Mathias Jacquelin
 /// @date 2013-08-31
-#define _DEBUG_
+//#define _DEBUG_
 #define LAUNCH_ASYNC
 #define LAUNCH_FACTOR
 
@@ -66,8 +66,12 @@ extern "C" {
 using namespace LIBCHOLESKY;
 using namespace std;
 
-shared_lock fact_done;
 
+upcxx::shared_lock cout_lock;
+
+
+volatile int fact_finished = 0;
+Real timesync_sta, timesync_end;
 namespace LIBCHOLESKY{
 
 
@@ -80,9 +84,11 @@ namespace LIBCHOLESKY{
 
 
 
-
   class FBMatrix{
     public:
+
+
+
       //  DblNumMat W;
       //  DblNumMat Achunk;
       vector<DblNumMat> AchunkLower;
@@ -105,26 +111,20 @@ namespace LIBCHOLESKY{
       }
 
 
+      inline Int row2D(Int i, Int j) {return (i/blksize)%np;}
+      inline Int col2D(Int i, Int j) {return (j/blksize)%np;}
+
+      inline Int chevron2D(Int i, Int j) {return (min(i,j)/blksize)%np;}
+      inline Int antichevron2D(Int i, Int j) {return (max(i,j)/blksize)%np;}
+
+      inline Int diag2D(Int i, Int j) {return (abs(i-j)/blksize)%np;}
+      inline Int antidiag2D(Int i, Int j) {return ((i+j)/blksize)%np;}
+
+
       inline Int modwrap2D(Int i, Int j) {return min(i/blksize,j/blksize)%prow + prow*floor((double)(max(i/blksize,j/blksize)%np)/(double)prow);}
 
-      inline Int r(Int i){ return ((i)%np);}
-      inline Int c(Int i){return 0;}
-      inline Int MAP(Int i, Int j) {return r(i/blksize) + c(j/blksize)*prow;}
-
-
-      //  inline Int c(Int i){ return ((i)%THREADS);}
-      //  inline Int r(Int i){return 0;}
-      //  inline Int MAP(Int i, Int j) {return r(i/blksize)*pcol + c(j/blksize);}
-
-      //  inline Int r(Int i){ return ((i)%prow);}
-      //  inline Int c(Int i){ return ((i)%pcol);}
-      //  inline Int MAP(Int i, Int j) {
-      //logfileptr->OFS()<<"MAP("<<i<<","<<j<<") = "<< r(i/blksize) <<" + "<<c(j/blksize)<<"*"<<prow<<" = "<<r(i/blksize) + c(j/blksize)*prow<<endl;
-      //return r(i/blksize) + c(j/blksize)*prow;
-      //
-      //}
-
-
+      //inline Int MAP(Int i, Int j) { return chevron2D(i,j);}
+      inline Int MAP(Int i, Int j) { return modwrap2D(i,j);}
 
       inline Int global_col_to_local(Int j){ return ((j)/(pcol*blksize))*blksize; }
 
@@ -168,9 +168,17 @@ namespace LIBCHOLESKY{
           if(iam==MAP(j,j)){
             global_ptr<double> Aorigptr(&Aorig(j,j));
             global_ptr<double> Adestptr(&AchunkLower[local_j/blksize](0,0));
+#ifdef ASYNC_COPY
+            upcxx::ldacopy_async(n-j,jb,Aorigptr,n,Adestptr,n-j);
+#else
             upcxx::ldacopy(n-j,jb,Aorigptr,n,Adestptr,n-j);
+#endif
           }
         }
+
+#ifdef ASYNC_COPY
+        upcxx::async_copy_fence();
+#endif
 
         Int numStep = ceil((double)n/(double)blksize);
 
@@ -178,6 +186,7 @@ namespace LIBCHOLESKY{
           cout<<"Factorization will require "<<numStep<<" steps"<<endl;
         }
 
+// TODO this has to be revised
 
         //Allocate the lock vector
         AggLock.Resize(numStep);
@@ -185,18 +194,37 @@ namespace LIBCHOLESKY{
           int j = min(js*blksize,n-1);
           Int jb = min(blksize, n-j);
 
-          int numProc = 0;
-          if(j>=pcol*blksize){
-            //col j must receive from jstep -1 proc of the previous steps
-            numProc = pcol;
+          IntNumVec procinvolved(np);
+          SetValue(procinvolved, I_ZERO);
+          Int numProc = 0;
+          for(int prevj = j-blksize;prevj>=0;prevj-=blksize){
+            if(procinvolved(MAP(j,prevj))==0){
+              procinvolved(MAP(j,prevj))=1;
+              numProc++;
+            }
+            if(numProc==np){
+              break;
+            }
           }
-          else{
-            numProc = max(1,js -1);
-          }
-          AggLock[js]=1;//numProc;
+
+
+          AggLock[js]=numProc;
+
+
+
+
+//          int numProc = 0;
+//          if(j>=pcol*blksize){
+//            //col j must receive from jstep -1 proc of the previous steps
+//            numProc = pcol;
+//          }
+//          else{
+//            numProc = max(1,js -1);
+//          }
+//          AggLock[js]=1;//numProc;
         }
 
-        //    logfileptr->OFS()<<AggLock<<endl;
+//            logfileptr->OFS()<<AggLock<<endl;
 
       }
 
@@ -277,8 +305,35 @@ namespace LIBCHOLESKY{
     Int jb = min(A.blksize, A.n-j);
     DblNumMat & LocalChunk = A.AchunkLower[local_j/A.blksize];
     global_ptr<double> Asrc = &LocalChunk(0,0);
+#ifdef ASYNC_COPY
+    upcxx::ldacopy_async(A.n-j,jb,Asrc,A.n-j,Adest,A.n);
+    upcxx::async_copy_fence();
+#else
     upcxx::ldacopy(A.n-j,jb,Asrc,A.n-j,Adest,A.n);
+#endif
+
   }
+
+
+
+
+
+void signal_exit_am()
+{
+  fact_finished = 1;
+}
+
+void signal_exit()
+{
+  for (int i = 0; i < THREADS; i++) {
+      async(i)(signal_exit_am);
+  }
+}
+
+
+
+
+
 
 
 
@@ -305,16 +360,21 @@ namespace LIBCHOLESKY{
     //Launch the updates
     Int local_j = A.global_col_to_local(j);
     //TODO CHECK THIS: WE NEED TO LAUNCH THE UPDATES ON ALL PROCESSORS
-    for(Int i = j+A.blksize; i< min(A.n,j+(A.pcol+1)*A.blksize);i+=A.blksize){
-      Int target = A.MAP(i,j);
-
-      global_ptr<double> AchkPtr(&A.AchunkLower[local_j/A.blksize](0,0));
+      TIMER_START(LAUNCH_UPDATES);
+    for(Int target = 0; target<A.np;target++){
+      for(Int i = j+A.blksize; i<A.n; i+=A.blksize){
+        if(A.MAP(i,j)==target){
+          global_ptr<double> AchkPtr(&A.AchunkLower[local_j/A.blksize](0,0));
 
 #ifdef _DEBUG_
-      logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<endl;
+          logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<endl;
 #endif
-      upcxx::async(target)(Update_Async,(*A.RemoteObjPtr)[target],j,AchkPtr);
+          upcxx::async(target)(Update_Async,(*A.RemoteObjPtr)[target],j,AchkPtr);
+          break;
+        }
+      }
     }
+      TIMER_STOP(LAUNCH_UPDATES);
     
 
 
@@ -322,7 +382,10 @@ namespace LIBCHOLESKY{
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Unlocking quit"<<endl;
 #endif
-      fact_done.unlock(); 
+
+      timesync_sta =  omp_get_wtime( );
+      signal_exit();
+
     }
 
 #ifdef _DEBUG_
@@ -359,7 +422,7 @@ namespace LIBCHOLESKY{
 
     A.AggLock[j/A.blksize]--;
 #ifdef _DEBUG_    
-    logfileptr->OFS()<<A.AggLock<<endl;
+    logfileptr->OFS()<<"Still waiting for "<<A.AggLock[j/A.blksize]<<" aggregates"<<endl;
 #endif
     if(A.AggLock[j/A.blksize]==0){
       //launch the factorization of column j
@@ -403,6 +466,30 @@ namespace LIBCHOLESKY{
 //        logfileptr->OFS()<<"Updating column "<<i<<" with columns from P"<<remoteFactorPtr.tid()<<endl;
 #endif
         A.Update(j, i, RemoteFactor);
+
+
+
+      TIMER_START(LAUNCH_AGGREGATES);
+      //is it my last update to column i ?
+      bool last_upd = true;
+      for(Int jj = j+A.blksize; jj<i;jj+=A.blksize){
+        if(A.iam==A.MAP(i,jj)){
+         //logfileptr->OFS()<<j<<" I also have to update column "<<jj<<endl;
+          last_upd=false;
+          break;
+        }
+      }
+      if(last_upd){
+         Int target = A.MAP(i,i);
+#ifdef _DEBUG_
+         logfileptr->OFS()<<"Updating from "<<j<<", launching aggregate on P"<<target<<" for column "<<i<<endl;
+#endif
+         global_ptr<double> WbufPtr(&A.WLower[i/A.blksize](0,0));
+         upcxx::async(target)(Aggregate_Async,(*A.RemoteObjPtr)[target],i,WbufPtr);
+      }
+      TIMER_STOP(LAUNCH_AGGREGATES);
+
+
       }
     }
 
@@ -410,26 +497,30 @@ namespace LIBCHOLESKY{
 
     //Now launch aggregation on target processors only if it is my LAST update
     // i.e. if j = max j | j < i  && MAP(i,j)==iam
-  
+#if 0
+#if 0  
+
+    
+
      //TODO CHECK THIS
-//    for(Int i = j+A.blksize; i< min(A.n,j+(A.np+1)*A.blksize);i+=A.blksize){
-//      for(Int j2 = i-A.blksize; j2>=j;j2-=A.blksize){
-//        if(j2==j && A.iam==A.MAP(i,j2)){
-//          Int target = A.MAP(i,i);
-//#ifdef _DEBUG_
-//          logfileptr->OFS()<<"Updating from "<<j<<", launching aggregate on P"<<target<<" for column "<<i<<endl;
-//#endif
-//          global_ptr<double> WbufPtr(&A.WLower[i/A.blksize](0,0));
-//          upcxx::async(target)(Aggregate_Async,(*A.RemoteObjPtr)[target],i,WbufPtr);
-//
-//          break;
-//        }
-//      }
-//    }
+    for(Int i = j+A.blksize; i< min(A.n,j+(A.np+1)*A.blksize);i+=A.blksize){
+      for(Int j2 = i-A.blksize; j2>=j;j2-=A.blksize){
+        if(j2==j && A.iam==A.MAP(i,j2)){
+          Int target = A.MAP(i,i);
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Updating from "<<j<<", launching aggregate on P"<<target<<" for column "<<i<<endl;
+#endif
+          global_ptr<double> WbufPtr(&A.WLower[i/A.blksize](0,0));
+          upcxx::async(target)(Aggregate_Async,(*A.RemoteObjPtr)[target],i,WbufPtr);
+
+          break;
+        }
+      }
+    }
 
  
 
-
+#else
     IntNumVec myLastUpd(A.np);
     SetValue(myLastUpd,-1);
 
@@ -459,6 +550,8 @@ namespace LIBCHOLESKY{
         }
       }
     }
+#endif
+#endif
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"Quitting Update_Async"<<endl<<endl;
@@ -599,9 +692,8 @@ int main(int argc, char **argv)
     TIMER_START(FANBOTH);
     if(MYTHREAD==Afact.MAP(Afact.n-1,Afact.n-1)){
 #ifdef _DEBUG_
-      logfileptr->OFS()<<"LOCK IS TAKEN BY"<<MYTHREAD<<endl;
+      cout<<"LOCK IS TAKEN BY"<<MYTHREAD<<endl;
 #endif
-      fact_done.lock();
     }
 
 #ifdef _DEBUG_
@@ -609,33 +701,25 @@ int main(int argc, char **argv)
 #endif
 
     upcxx::barrier();
-    upcxx::wait();
 
     if(MYTHREAD==Afact.MAP(0,0)){
       upcxx::async(Afact.iam)(Factor_Async,Afactptr,0);
     }
 
-    if(MYTHREAD==24){
 
-    logfileptr->OFS()<<"testing fact_done.is_locked()"<<endl;
-    int islocked = fact_done.islocked();
-    logfileptr->OFS()<<islocked<<endl;
-      
+     
+      while(!fact_finished){  upcxx::progress(); };
 
+      timeEnd =  omp_get_wtime( );
+
+    if(MYTHREAD==Afact.MAP(Afact.n-1,Afact.n-1)){
+      timesync_end =  omp_get_wtime( );
+      cout<<"FAN-BOTH sync: "<<timesync_end-timesync_sta<<endl;
     }
-//    while(fact_done.islocked()){upcxx::wait();};
-    while(fact_done.islocked()){  upcxx::progress(); };
-//    while(upcxx::peek() || fact_done.islocked()){upcxx::wait();};
-//    while(fact_done.islocked()){upcxx::drain();};
-//    while(upcxx::peek() || fact_done.islocked()){  logfileptr->OFS()<<"progressing"<<endl; upcxx::progress(); };
 
-    upcxx::barrier();
-    timeEnd =  omp_get_wtime( );
-    fact_done.lock();
+    cout_lock.lock();
     TIMER_STOP(FANBOTH);
-    fact_done.unlock();
-
-    upcxx::barrier();
+    cout_lock.unlock();
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"gathering"<<endl;
@@ -643,32 +727,18 @@ int main(int argc, char **argv)
 
     //gather all data on P0
     DblNumMat Afinished;
+    upcxx::barrier();
     if(MYTHREAD==0)
     {
       cout<<"FAN-BOTH: "<<timeEnd-timeSta<<endl;
       Afact.Gather(Afinished);
     }
-    upcxx::barrier();
 
-
-
-
-
-
+    upcxx::wait();
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"quitting "<<iam<<endl;
 #endif
-
-
-
-    upcxx::barrier();
-
-
-
-    upcxx::Destroy<FBMatrix>(Afactptr);
-
-
 
     if(iam==0)
     {
@@ -689,6 +759,7 @@ int main(int argc, char **argv)
     delete logfileptr;
 
     upcxx::finalize();
+    upcxx::Destroy<FBMatrix>(Afactptr);
   }
   catch( std::exception& e )
   {
