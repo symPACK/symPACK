@@ -385,14 +385,17 @@ template <class F> inline std::ostream& operator<<( std::ostream& os, const NumM
 inline std::ostream& operator<<( std::ostream& os, const ETree& tree) 
 {
   os<<tree.n()<<std::endl;
-  for(Int i = 0; i<tree.parent_.m(); i++){
-    os<<i+1<<" ["<<tree.parent_(i)<<"] ";
+  for(Int i = 1; i<=tree.parent_.m(); i++){
+//    os<<i<<" ["<<tree.parent_(i-1)<<"] ";
+    os<<tree.parent_(i-1)<<" ";
   }
   os<<std::endl;
 
   if(tree.isPostOrdered_){
+    //for(Int i = 1; i<=tree.parent_.m(); i++){
     for(Int i = 1; i<=tree.parent_.m(); i++){
-      os<<i+1<<" ["<<tree.PostParent(i)<<"] ";
+//      os<<i<<" ["<<tree.PostParent(i-1)<<"] ";
+      os<<tree.PostParent(i-1)<<" ";
     }
     os<<std::endl;
   }
