@@ -8,11 +8,19 @@
 #include <iostream>
 #include <vector>
 #include <cstring>
+#include <sstream>
 
 #include <omp.h>
 #include "timer.hpp"
 
+#include "LogFile.hpp"
+
 #define MAX_NAME_LENGTH 38
+
+#ifdef UPCXX
+#include <upcxx.h>
+#endif
+
 
 int main_argc = 0;
 char * const * main_argv;
@@ -21,7 +29,9 @@ MPI_Comm comm;
 double complete_time;
 int set_contxt = 0;
 int output_file_counter = 0;
-    
+
+std::stringstream outstream;
+ 
 std::vector<double> arr_excl_time;
 std::vector<double> arr_complete_time;
 
@@ -105,31 +115,18 @@ class function_timer{
                int const      np){
       int i;
       if (rank == 0){
-        fprintf(output, "%s", name);
+        outstream.write(name,(strlen(name))*sizeof(char));
+//        profileptr->OFS().write(name,(strlen(name))*sizeof(char));
         char * space = (char*)malloc(MAX_NAME_LENGTH-strlen(name)+1);
         for (i=0; i<MAX_NAME_LENGTH-(int)strlen(name); i++){
           space[i] = ' ';
         }
         space[i] = '\0';
 
-//        std::cout<<"total_calls = "<<total_calls<<std::endl;
-//        std::cout<<"total_time = "<<total_time<<std::endl;
-//        std::cout<<"total_excl_time = "<<total_excl_time<<std::endl;
-//        std::cout<<"complete_time = "<<complete_time<<std::endl;
-
-
-        fprintf(output, "%s", space);
-//        fprintf(output,"%5d   %3d.%04d  %3d.%02d  %3d.%04d  %3d.%02d\n",
-//                total_calls/np,
-//                (int)(total_time/np),
-//                ((int)(1000.*(total_time)/np))%1000,
-//                (int)(100.*(total_time)/complete_time),
-//                ((int)(10000.*(total_time)/complete_time))%100,
-//                (int)(total_excl_time/np),
-//                ((int)(1000.*(total_excl_time)/np))%1000,
-//                (int)(100.*(total_excl_time)/complete_time),
-//                ((int)(10000.*(total_excl_time)/complete_time))%100);
-        fprintf(output,"%5d    %7.7lg  %3d.%02d  %7.7lg  %3d.%02d\n",
+//        profileptr->OFS().write(space,(strlen(space))*sizeof(char));
+        outstream.write(space,(strlen(space))*sizeof(char));
+        char outstr[50];
+        sprintf(outstr,"%5d    %7.7lg  %3d.%02d  %7.7lg  %3d.%02d\n",
                 total_calls/(np*numcore),
                 (double)(total_time/(np*numcore)),
                 (int)(100.*(total_time)/complete_time),
@@ -137,6 +134,10 @@ class function_timer{
                 (double)(total_excl_time/(np*numcore)),
                 (int)(100.*(total_excl_time)/complete_time),
                 ((int)(10000.*(total_excl_time)/complete_time))%100);
+
+        //fprintf(output, "%s", outstr);
+        outstream.write(outstr,(strlen(outstr))*sizeof(char));
+//        profileptr->OFS().write(outstr,(strlen(outstr))*sizeof(char));
 
         free(space);
       } 
@@ -262,25 +263,40 @@ if(arr_excl_time.size()<core+1){
 #endif
 }
 
-CTF_timer::~CTF_timer(){ }
+CTF_timer::~CTF_timer(){
+}
+
+
+
+
 
 void CTF_timer::exit(){
 #ifdef PROFILE
   if (original && !exited) {
     int core, nc;
     
+#ifndef UPCXX
     #pragma omp parallel
     {
       nc = omp_get_num_threads();
       core = omp_get_thread_num();
     }
+#else
+    nc = 1;
+    core=0;
+#endif
 
     if (set_contxt){ 
       int rank, np, i, j, p, len_symbols;
 
-
+#ifndef UPCXX
       MPI_Comm_rank(comm, &rank);
       MPI_Comm_size(comm, &np);
+#else
+      rank=MYTHREAD;
+      np=THREADS;
+#endif
+
 
       FILE * output;
 
@@ -290,6 +306,7 @@ void CTF_timer::exit(){
         char filename[300];
         char part[300];
 
+#if 0
         sprintf(filename, "profile.");
         srand(time(NULL));
         sprintf(filename+strlen(filename), "%d.", output_file_counter);
@@ -304,9 +321,11 @@ void CTF_timer::exit(){
             sprintf(filename+strlen(filename), "%s.", main_argv[i]+off);
           }
         } 
-        sprintf(filename+strlen(filename), "-p%dc%d.out", np, nc);
+        sprintf(filename+strlen(filename), "-p%dc%d.out", rank, core);
+#endif
 
-        output =  stdout;//fopen(filename, "w");
+        //output = fopen(filename, "w");
+        output = stdout;
         char heading[MAX_NAME_LENGTH+200];
         for (i=0; i<MAX_NAME_LENGTH; i++){
           part[i] = ' ';
@@ -316,7 +335,11 @@ void CTF_timer::exit(){
         //sprintf(part,"calls   total sec   exclusive sec\n");
         sprintf(part,"       inclusive         exclusive\n");
         strcat(heading,part);
-        fprintf(output, "%s", heading);
+        
+        outstream.write(heading,(strlen(heading))*sizeof(char));
+//        profileptr->OFS().write(heading,(strlen(heading))*sizeof(char));
+
+        //fprintf(output, "%s", heading);
         for (i=0; i<MAX_NAME_LENGTH; i++){
           part[i] = ' ';
         }
@@ -326,7 +349,9 @@ void CTF_timer::exit(){
         strcat(heading,part);
         sprintf(part, "       sec       %%\n"); 
         strcat(heading,part);
-        fprintf(output, "%s", heading);
+        //fprintf(output, "%s", heading);
+        outstream.write(heading,(strlen(heading))*sizeof(char));
+//        profileptr->OFS().write(heading,(strlen(heading))*sizeof(char));
 
         len_symbols = 0;
         for (i=0; i<(int)function_timers.size(); i++){
@@ -334,7 +359,17 @@ void CTF_timer::exit(){
           len_symbols += strlen(function_timers[i].name)+1;
         }
 
-        //      fclose(output);
+
+
+
+        
+
+
+
+
+
+
+        //fclose(output);
 
 
 
@@ -397,6 +432,7 @@ void CTF_timer::exit(){
         char filename[300];
         char part[300];
 
+#if 0
         sprintf(filename, "profile.");
         srand(time(NULL));
         sprintf(filename+strlen(filename), "%d.", output_file_counter);
@@ -411,9 +447,12 @@ void CTF_timer::exit(){
             sprintf(filename+strlen(filename), "%s.", main_argv[i]+off);
           }
         } 
-        sprintf(filename+strlen(filename), "-p%dc%d.out", np, nc);
+        sprintf(filename+strlen(filename), "-p%dc%d.out", rank, core);
 
-        output =  stdout;//fopen(filename, "w");
+//        output = fopen(filename, "w");
+#endif
+
+        output = stdout;//fopen(filename, "w");
         char heading[MAX_NAME_LENGTH+200];
         for (i=0; i<MAX_NAME_LENGTH; i++){
           part[i] = ' ';
@@ -423,7 +462,10 @@ void CTF_timer::exit(){
         //sprintf(part,"calls   total sec   exclusive sec\n");
         sprintf(part,"       inclusive         exclusive\n");
         strcat(heading,part);
-        fprintf(output, "%s", heading);
+        //fprintf(output, "%s", heading);
+        //profileptr->OFS().write(heading,(strlen(heading))*sizeof(char));
+        outstream.write(heading,(strlen(heading))*sizeof(char));
+
         for (i=0; i<MAX_NAME_LENGTH; i++){
           part[i] = ' ';
         }
@@ -433,7 +475,9 @@ void CTF_timer::exit(){
         strcat(heading,part);
         sprintf(part, "       sec       %%\n"); 
         strcat(heading,part);
-        fprintf(output, "%s", heading);
+        //fprintf(output, "%s", heading);
+//        profileptr->OFS().write(heading,(strlen(heading))*sizeof(char));
+        outstream.write(heading,(strlen(heading))*sizeof(char));
 
         len_symbols = 0;
         for (i=0; i<(int)function_timers.size(); i++){
@@ -441,7 +485,7 @@ void CTF_timer::exit(){
           len_symbols += strlen(function_timers[i].name)+1;
         }
 
-        //      fclose(output);
+//        fclose(output);
 
 
       std::sort(function_timers.begin(), function_timers.end(),comp_name);
@@ -456,6 +500,27 @@ void CTF_timer::exit(){
 
       function_timers.clear();
     }
+
+
+
+#ifdef UPCXX
+  int iam = MYTHREAD;
+  char suffix[50];
+  sprintf(suffix,"%d",iam);
+  profileptr = new LogFile("profile",suffix);
+#endif
+
+  profileptr->OFS() << outstream.str();
+
+
+ delete profileptr; 
+
+//logfileptr->OFS()<<"CALLED"<<std::endl;
+
+
+
+
+
   }
 #endif
 }

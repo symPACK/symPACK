@@ -63,4 +63,6 @@ public:
 
 };
 
+extern LogFile * logfileptr;
+extern LogFile * profileptr;
 #endif
