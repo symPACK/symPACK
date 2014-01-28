@@ -230,8 +230,14 @@ int main(int argc, char **argv)
 
     upcxx::wait();
 
+
+    logfileptr->OFS()<<"Factor_Async is "<<(void *) Factor_Async<<endl;
+    logfileptr->OFS()<<"Update_Async is "<<(void *) Update_Async<<endl;
+    logfileptr->OFS()<<"Aggregate_Async is "<<(void *) Aggregate_Async<<endl;
+
     logfileptr->OFS()<<"Waiting time in async queues:"<<endl;
     for(int i = 0; i<queue_time.size(); i++){
+//      logfileptr->OFS()<<queue_time[i]<<" ("<<queue_fptr[i]<<") "; 
       logfileptr->OFS()<<queue_time[i]<<" "; 
     }
     logfileptr->OFS()<<endl;

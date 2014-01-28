@@ -11,6 +11,9 @@
 
 #include <vector>
 
+
+#define MAP modwrap2D
+
 namespace LIBCHOLESKY{
 
 
@@ -59,11 +62,12 @@ namespace LIBCHOLESKY{
 
 
       inline Int modwrap2D(Int i, Int j) {return min(i/blksize,j/blksize)%prow + prow*floor((double)(max(i/blksize,j/blksize)%np)/(double)prow);}
+      inline Int modwrap2Dns(Int i, Int j) {return(i/blksize)%prow + prow*floor((double)((j/blksize)%np)/(double)prow);}
 
       //inline Int MAP(Int i, Int j) { return chevron2D(i,j);}
 //      inline Int MAP(Int i, Int j) { return modwrap2D(i,j);}
 //      inline Int MAP(Int i, Int j) { return col2D(i,j);}
-      inline Int MAP(Int i, Int j) { return row2D(i,j);}
+//      inline Int MAP(Int i, Int j) { return row2D(i,j);}
 
       inline Int global_col_to_local(Int j){ return ((j)/(pcol*blksize))*blksize; }
 
