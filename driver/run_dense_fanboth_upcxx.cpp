@@ -114,6 +114,11 @@ int main(int argc, char **argv)
     if( options.find("-b") != options.end() ){
       blksize= atoi(options["-b"].c_str());
     }
+    Int maxPrefetch = 0;
+    if( options.find("-pref") != options.end() ){
+      maxPrefetch= atoi(options["-pref"].c_str());
+    }
+
 
 
     upcxx::shared_array<upcxx::global_ptr<FBMatrix> > Aobjects;
@@ -187,6 +192,7 @@ int main(int argc, char **argv)
 
     //Allocate chunks of the matrix on each processor
     Afact.Allocate(Afact.n,blksize);
+    Afact.prefetch = maxPrefetch;
     Afact.Distribute(A);
 
     upcxx::barrier();
@@ -228,19 +234,18 @@ int main(int argc, char **argv)
       Afact.Gather(Afinished);
     }
 
-    upcxx::wait();
 
 
-    logfileptr->OFS()<<"Factor_Async is "<<(void *) Factor_Async<<endl;
-    logfileptr->OFS()<<"Update_Async is "<<(void *) Update_Async<<endl;
-    logfileptr->OFS()<<"Aggregate_Async is "<<(void *) Aggregate_Async<<endl;
-
-    logfileptr->OFS()<<"Waiting time in async queues:"<<endl;
-    for(int i = 0; i<queue_time.size(); i++){
-//      logfileptr->OFS()<<queue_time[i]<<" ("<<queue_fptr[i]<<") "; 
-      logfileptr->OFS()<<queue_time[i]<<" "; 
-    }
-    logfileptr->OFS()<<endl;
+//    logfileptr->OFS()<<"Factor_Async is "<<(void *) Factor_Async<<endl;
+//    logfileptr->OFS()<<"Update_Async is "<<(void *) Update_Async<<endl;
+//    logfileptr->OFS()<<"Aggregate_Async is "<<(void *) Aggregate_Async<<endl;
+//
+//    logfileptr->OFS()<<"Waiting time in async queues:"<<endl;
+//    for(int i = 0; i<queue_time.size(); i++){
+////      logfileptr->OFS()<<queue_time[i]<<" ("<<queue_fptr[i]<<") "; 
+//      logfileptr->OFS()<<queue_time[i]<<" "; 
+//    }
+//    logfileptr->OFS()<<endl;
 
 
 #ifdef _DEBUG_

@@ -11,28 +11,37 @@
 
 #include <vector>
 
-
+#ifndef MAP
 #define MAP modwrap2D
+#endif
 
 namespace LIBCHOLESKY{
 
 
   class FBMatrix;
 
-  void Update_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr);
-  void Aggregate_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, global_ptr<double> remoteAggregatePtr);
+  //void Update_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr);
+  //void Aggregate_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, global_ptr<double> remoteAggregatePtr);
   void Factor_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j);
   void Gathercopy(upcxx::global_ptr<FBMatrix> Objptr, global_ptr<double> Adest, Int j);
 
+  void Update_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr);
+  void Update_Compute_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, DblNumMat * remoteFactorPtr, upcxx::event * async_copy_event);
+  void Aggregate_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, global_ptr<double> remoteAggregatePtr);
+  void Aggregate_Compute_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j, DblNumMat * remoteAggregatePtr, upcxx::event * async_copy_event);
+
+  void Factor_Async(upcxx::global_ptr<FBMatrix> Aptr, Int j);
 
 
   class FBMatrix{
     public:
 
+      //Parameters
+      Int blksize;
+      Int outstdAggreg=0;
+      Int outstdUpdate=0;
+      Int prefetch;
 
-
-      //  DblNumMat W;
-      //  DblNumMat Achunk;
       std::vector<DblNumMat> AchunkLower;
       std::vector<DblNumMat> WLower;
       std::vector< upcxx::global_ptr<FBMatrix> > RemoteObjPtrs;
@@ -41,7 +50,6 @@ namespace LIBCHOLESKY{
       IntNumVec AggLock;
 
       Int n;
-      Int blksize;
       Int pcol, prow;
       Int np, iam;
 
@@ -63,11 +71,6 @@ namespace LIBCHOLESKY{
 
       inline Int modwrap2D(Int i, Int j) {return min(i/blksize,j/blksize)%prow + prow*floor((double)(max(i/blksize,j/blksize)%np)/(double)prow);}
       inline Int modwrap2Dns(Int i, Int j) {return(i/blksize)%prow + prow*floor((double)((j/blksize)%np)/(double)prow);}
-
-      //inline Int MAP(Int i, Int j) { return chevron2D(i,j);}
-//      inline Int MAP(Int i, Int j) { return modwrap2D(i,j);}
-//      inline Int MAP(Int i, Int j) { return col2D(i,j);}
-//      inline Int MAP(Int i, Int j) { return row2D(i,j);}
 
       inline Int global_col_to_local(Int j){ return ((j)/(pcol*blksize))*blksize; }
 
