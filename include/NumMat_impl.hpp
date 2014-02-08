@@ -8,20 +8,24 @@
 #include "Environment.hpp"
 #include <sstream>
 
-#ifdef UPCXX
-using namespace upcxx;
-#endif
+#include <stdlib.h> 
 
 namespace LIBCHOLESKY{
 
 
-  template <class F> NumMat<F>::NumMat(Int m, Int n): m_(m), n_(n), owndata_(true) {
+  template <typename F> NumMat<F>::NumMat(Int m, Int n): m_(m), n_(n), owndata_(true) {
+#ifdef _ASSERT_
+    allocated_=false;
+#endif
       alloc_data();
   }
 
 
 
-  template <class F> NumMat<F>::NumMat(Int m, Int n, bool owndata, F* data): m_(m), n_(n), owndata_(owndata) {
+  template <typename F> NumMat<F>::NumMat(Int m, Int n, bool owndata, F* data): m_(m), n_(n), owndata_(owndata) {
+#ifdef _ASSERT_
+    allocated_=false;
+#endif
     if(owndata_) {
 
       alloc_data();
@@ -31,85 +35,106 @@ namespace LIBCHOLESKY{
       }
     } 
     else {
-#ifdef UPCXX
-      gdata_= global_ptr<F>(data);
-#endif
       data_ = data;
     }
   }
 
 
 
-  template <class F> NumMat<F>::NumMat(const NumMat& C): m_(C.m_), n_(C.n_), owndata_(C.owndata_) {
+  template <typename F> NumMat<F>::NumMat(const NumMat& C){
+    m_ = C.m_; n_=C.n_; owndata_=C.owndata_;
+#ifdef _ASSERT_
+    allocated_=false;
+#endif
     if(owndata_) {
       alloc_data();
-
       if(m_>0 && n_>0) { 
-        std::copy(C.data_,C.data_+m_*n_,data_);//for(Int i=0; i<m_*n_; i++) data_[i] = data[i]; 
+        std::copy(C.data_,C.data_+m_*n_,data_);
       }
     } 
     else {
-#ifdef UPCXX
-      gdata_= global_ptr<F>(C.data_);
-#endif
-
       data_ = C.data_;
     }
+
+
   }
 
 
-  template <class F> inline void NumMat<F>::alloc_data(){
-    if(owndata_) {
-      if(m_>0 && n_>0) { 
-#ifdef UPCXX
-      gdata_ = allocate<F>(MYTHREAD,m_*n_);     
-      data_ = (F*)gdata_; 
-#else
-        data_ = new F[m_*n_]; 
-#endif
-        if( data_ == NULL ) 
-          throw std::runtime_error("Cannot allocate memory."); 
-      } 
-      else 
-        data_=NULL;
-    }
-  }
+  template <typename F> inline void NumMat<F>::alloc_data(){
+    //logfileptr->OFS()<<"ALLOCATING DATA"<<std::endl;
+#ifdef _ASSERT_
+    if(!allocated_) {
+      if(owndata_) {
+        if(m_>0 && n_>0) { 
+          data_ = new F[m_*n_]; 
+          if( data_ == NULL ) 
+            throw std::runtime_error("Cannot allocate memory."); 
+        } 
+        else 
+          data_=NULL;
 
-  template <class F> inline void NumMat<F>::delete_data(){
-    if(owndata_) {
-      if(m_>0 && n_>0) {
-#ifdef UPCXX
-  deallocate<F>(gdata_);
-#else
-        delete[] data_;
-#endif
-        data_ = NULL; 
+        allocated_=true;
       }
+
+    }
+    else{
+
+#ifdef USE_ABORT
+      printf("%s","Data already allocated.");
+      abort();
+#endif
+          throw std::runtime_error("Data already allocated."); 
+    }
+#else
+      if(owndata_) {
+        if(m_>0 && n_>0) { 
+          data_ = new F[m_*n_]; 
+          if( data_ == NULL ) 
+            throw std::runtime_error("Cannot allocate memory."); 
+        } 
+        else 
+          data_=NULL;
+      }
+#endif
+  }
+
+  template <typename F> inline void NumMat<F>::delete_data(){
+    if(owndata_) {
+#ifdef _ASSERT_
+      if(allocated_) {
+        if(m_>0 && n_>0) {
+          delete[] data_;
+          data_ = NULL; 
+        }
+        allocated_=false;
+      }
+#else
+        if(m_>0 && n_>0) {
+          delete[] data_;
+          data_ = NULL; 
+        }
+#endif
       m_=0;
       n_=0;
     }
   }
 
-
-  template <class F> NumMat<F>::~NumMat() {
+  template <typename F> NumMat<F>::~NumMat() {
     delete_data();
   }
 
-template <class F> NumMat<F>& NumMat<F>::Copy(const NumMat& C) {
+template <typename F> NumMat<F>& NumMat<F>::Copy(const NumMat& C) {
     delete_data();
 
     m_ = C.m_; n_=C.n_; owndata_=C.owndata_;
-
+    
     if(owndata_) {
       alloc_data();
       if(m_>0 && n_>0) { 
-        std::copy(C.data_,C.data_+m_*n_,data_);//for(Int i=0; i<m_*n_; i++) data_[i] = data[i]; 
+        std::copy(C.data_,C.data_+m_*n_,data_);
       }
     } 
     else {
-#ifdef UPCXX
-      gdata_= global_ptr<F>(C.data_);
-#endif
       data_ = C.data_;
     }
 
@@ -117,29 +142,12 @@ template <class F> NumMat<F>& NumMat<F>::Copy(const NumMat& C) {
   }
 
 
-  template <class F> NumMat<F>& NumMat<F>::operator=(const NumMat& C) {
-
-    delete_data();
-    m_ = C.m_; n_=C.n_; owndata_=C.owndata_;
-
-    if(owndata_) {
-      alloc_data();
-      if(m_>0 && n_>0) { 
-        std::copy(C.data_,C.data_+m_*n_,data_);//for(Int i=0; i<m_*n_; i++) data_[i] = data[i]; 
-      }
-    } 
-    else {
-#ifdef UPCXX
-      gdata_= global_ptr<F>(C.data_);
-#endif
-      data_ = C.data_;
-    }
-
-    return *this;
+  template <typename F> NumMat<F>& NumMat<F>::operator=(const NumMat& C) {
+    return this->Copy(C);
   }
 
 
-  template <class F> void NumMat<F>::Clear()  {
+  template <typename F> void NumMat<F>::Clear()  {
 		if( owndata_ == false ){
 			throw std::logic_error("Matrix being cleared must own data.");
 		}
@@ -149,7 +157,7 @@ template <class F> NumMat<F>& NumMat<F>::Copy(const NumMat& C) {
 
 
 
-  template <class F> void NumMat<F>::Resize(Int m, Int n)  {
+  template <typename F> void NumMat<F>::Resize(Int m, Int n)  {
 		if( owndata_ == false ){
 			throw std::logic_error("Matrix being resized must own data.");
 		}
@@ -163,79 +171,73 @@ template <class F> NumMat<F>& NumMat<F>::Copy(const NumMat& C) {
   }
 
 
+  template<typename F> void NumMat<F>::error_message(std::stringstream & ss,Int i, Int j){
+      ss<<"Index ("<<i<<","<<j<<") is out of bound. Dimensions are ("<<m_<<","<<n_<<")."<<std::endl;
+  }
+  template<typename F> void NumMat<F>::error_message(std::stringstream & ss, Int j){
+      ss<<"Index (*,"<<j<<") is out of bound. Dimensions are ("<<m_<<","<<n_<<")."<<std::endl;
+  }
 
-template <class F> inline const F& NumMat<F>::operator()(Int i, Int j) const  { 
+template <typename F> inline const F& NumMat<F>::operator()(Int i, Int j) const  { 
 		if( i < 0 || i >= m_ ||
 				j < 0 || j >= n_ ) {
       
       std::stringstream ss;
+      error_message(ss,i,j);
+      logfileptr->OFS()<<ss.str();
 
-#ifdef UPCXX
-      ss<<"P"<<MYTHREAD<<" ";
+#ifdef USE_ABORT
+      printf("%s",ss.str().c_str());
+      abort();
 #endif
-      ss<<"Index ("<<i<<","<<j<<") is out of bound. Dimensions are ("<<m_<<","<<n_<<")."<<std::endl;
 			throw std::logic_error( ss.str().c_str() );
 		}
     return data_[i+j*m_];
   }
 
-template <class F> inline F& NumMat<F>::operator()(Int i, Int j)  { 
+template <typename F> inline F& NumMat<F>::operator()(Int i, Int j)  { 
 		if( i < 0 || i >= m_ ||
 				j < 0 || j >= n_ ) {
 
       std::stringstream ss;
+      error_message(ss,i,j);
 
-#ifdef UPCXX
-      ss<<"P"<<MYTHREAD<<" ";
+      logfileptr->OFS()<<ss.str();
+
+#ifdef USE_ABORT
+      printf("%s",ss.str().c_str());
+      abort();
 #endif
-      ss<<"Index ("<<i<<","<<j<<") is out of bound. Dimensions are ("<<m_<<","<<n_<<")."<<std::endl;
 			throw std::logic_error( ss.str().c_str() );
 		}
     return data_[i+j*m_];
   }
   
-  template <class F> F* NumMat<F>::Data() const { return data_; }
-  template <class F> F* NumMat<F>::VecData(Int j)  const 
+  template <typename F> F* NumMat<F>::Data() const { return data_; }
+  template <typename F> F* NumMat<F>::VecData(Int j)  const 
 	{ 
 		if( j < 0 || j >= n_ ) {
 
       std::stringstream ss;
+      error_message(ss,j);
 
-#ifdef UPCXX
-      ss<<"P"<<MYTHREAD<<" ";
+#ifdef USE_ABORT
+      printf("%s",ss.str().c_str());
+      abort();
 #endif
-      ss<<"Index (*,"<<j<<") is out of bound. Dimensions are ("<<m_<<","<<n_<<")."<<std::endl;
 			throw std::logic_error( ss.str().c_str() );
 		}
 		return &(data_[j*m_]); 
 	}
 
-#ifdef UPCXX
-  template <class F> global_ptr<F> NumMat<F>::GData() const { return gdata_; }
-  template <class F> global_ptr<F> NumMat<F>::GVecData(Int j)  const 
-	{ 
-		if( j < 0 || j >= n_ ) {
 
-      std::stringstream ss;
-
-#ifdef UPCXX
-      ss<<"P"<<MYTHREAD<<" ";
-#endif
-      ss<<"Index (*,"<<j<<") is out of bound. Dimensions are ("<<m_<<","<<n_<<")."<<std::endl;
-			throw std::logic_error( ss.str().c_str() );
-		}
-		return (global_ptr<F>(&data_[j*m_])); 
-	}
-#endif
-
-
-template <class F> inline void SetValue(NumMat<F>& M, F val)
+template <typename F> inline void SetValue(NumMat<F>& M, F val)
 {
 	F *ptr = M.data_;
 	for (Int i=0; i < M.m()*M.n(); i++) *(ptr++) = val;
 }
 
-template <class F> void
+template <typename F> void
 Transpose ( const NumMat<F>& A, NumMat<F>& B )
 {
 #ifndef _RELEASE_
@@ -262,7 +264,7 @@ Transpose ( const NumMat<F>& A, NumMat<F>& B )
 	return ;
 }		// -----  end of function Transpose  ----- 
 
-template <class F> void
+template <typename F> void
 Symmetrize( NumMat<F>& A )
 {
 #ifndef _RELEASE_

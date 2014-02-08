@@ -17,9 +17,7 @@
 
 #define MAX_NAME_LENGTH 38
 
-#ifdef UPCXX
 #include <upcxx.h>
-#endif
 
 
 int main_argc = 0;
@@ -502,13 +500,19 @@ void CTF_timer::exit(){
     }
 
 
+int ismpi=0;
+MPI_Initialized( &ismpi);
 
-#ifdef UPCXX
-  int iam = MYTHREAD;
+int iam=0;
+if(!ismpi){
+ iam = MYTHREAD;
+}
+else{
+  MPI_Comm_rank(MPI_COMM_WORLD,&iam);
+}
   char suffix[50];
   sprintf(suffix,"%d",iam);
   profileptr = new LogFile("profile",suffix);
-#endif
 
   profileptr->OFS() << outstream.str();
 

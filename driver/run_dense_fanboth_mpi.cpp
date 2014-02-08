@@ -3,34 +3,22 @@
 /// @author Mathias Jacquelin
 /// @date 2013-08-31
 //#define _DEBUG_
-#define LAUNCH_ASYNC
-#define LAUNCH_FACTOR
 
-//#define ADJUSTED_BUFFERS
-//#define ASYNC_COPY
-
-#define UPCXX
 
 #include <time.h>
 #include <random>
 #include <omp.h>
 
+#include  "FBMatrix_mpi.hpp"
 #include  "Environment.hpp"
 //#include  "DistSparseMatrix.hpp"
 #include  "NumVec.hpp"
 #include  "NumMat.hpp"
-#include  "NumMat_upcxx.hpp"
 #include  "utility.hpp"
 #include  "ETree.hpp"
 #include  "blas.hpp"
 #include  "lapack.hpp"
-#include  "FBMatrix_upcxx.hpp"
 #include  "LogFile.hpp"
-
-#include <upcxx.h>
-#include <upcxx_runtime.h>
-#include <async.h>
-#include  "upcxx_additions.hpp"
 
 extern "C" {
 #include <bebop/util/config.h>
@@ -78,10 +66,10 @@ using namespace std;
 int main(int argc, char **argv) 
 {
 
-  upcxx::init(&argc,&argv);
-
-  int np = THREADS;
-  int iam = MYTHREAD;
+  MPI_Init(&argc,&argv);
+  int np, iam;
+  MPI_Comm_size(MPI_COMM_WORLD,&np);
+  MPI_Comm_rank(MPI_COMM_WORLD,&iam);
 
 #if defined(PROFILE) || defined(PMPI)
   TAU_PROFILE_INIT(argc, argv);
@@ -122,23 +110,15 @@ int main(int argc, char **argv)
     }
 
 
-    upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > Aobjects;
-    Aobjects.init(np);
+    FBMatrix_mpi * Afactptr = new FBMatrix_mpi();
 
-    upcxx::global_ptr<FBMatrix_upcxx> AfactGptr = upcxx::Create<FBMatrix_upcxx>();
-    FBMatrix_upcxx * Afactptr = AfactGptr;
-    Aobjects[iam] = AfactGptr;
-    upcxx::barrier();
-    upcxx::wait();
-
-    Afactptr->Initialize(&Aobjects);
+    MPIGrid * grid = new MPIGrid(MPI_COMM_WORLD,1,np);
+    Afactptr->Initialize(*grid);
 
     FBMatrix & Afact = *Afactptr;
 
     Real timeSta, timeEnd;
 
-
-      
       DblNumMat RHS;
       DblNumMat XTrue;
 
@@ -155,19 +135,11 @@ int main(int argc, char **argv)
     }
 
 
-    DblNumMat_upcxx A;
-    A.Resize(Afact.n,Afact.n);
-    
-    if(iam==0){
-      cout<<"DblNumMat of size "<<A.m()<<" "<<A.n()<<endl;
-    }
+    DblNumMat A(Afact.n,Afact.n);
     csr_matrix_expand_to_dense (A.Data(), 0, Afact.n, (const csr_matrix_t *) Atmp->repr);
     destroy_sparse_matrix (Atmp);
 
 
-    if(iam==0){
-      cout<<"Matrix expanded to dense"<<endl;
-    }
 
       Int n = Afact.n;
       Int nrhs = 5;
@@ -180,12 +152,12 @@ int main(int argc, char **argv)
       blas::Gemm('N','N',n,nrhs,n,1.0,&A(0,0),n,&XTrue(0,0),n,0.0,&RHS(0,0),n);
     }
 
-    upcxx::barrier();
+    MPI_Barrier(MPI_COMM_WORLD);
 
     //TODO This needs to be fixed
     Afact.prow = 1;//sqrt(np);
-    Afact.pcol = np;//Afact.prow;
-    np = Afact.prow*Afact.pcol;
+    //Afact.pcol = np;//Afact.prow;
+    //np = Afact.prow*Afact.pcol;
     if(iam==0){
       cout<<"Number of cores to be used: "<<np<<endl;
     }
@@ -194,21 +166,10 @@ int main(int argc, char **argv)
 
     //Allocate chunks of the matrix on each processor
     Afactptr->Allocate(np,Afact.n,blksize);
-
-
-    if(iam==0){
-      cout<<"FBMatrix allocated"<<endl;
-    }
-
-    Afactptr->prefetch = maxPrefetch;
     Afactptr->Distribute(A);
 
-    if(iam==0){
-      cout<<"FBMatrix distributed"<<endl;
-    }
+    MPI_Barrier(MPI_COMM_WORLD);
 
-    upcxx::barrier();
-    upcxx::wait();
     A.Clear();
 
     logfileptr->OFS()<<"distributed"<<endl;
@@ -226,7 +187,7 @@ int main(int argc, char **argv)
 #endif
 
 
-    upcxx::barrier();
+    MPI_Barrier(MPI_COMM_WORLD);
 
     Afact.NumericalFactorization();
     Afact.WaitFactorization();
@@ -235,29 +196,24 @@ int main(int argc, char **argv)
     TIMER_STOP(FANBOTH);
 
 
-#ifdef TIMER_QUEUE
-    upcxx::print_timer_queue();
-#endif
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"gathering"<<endl;
 #endif
 
     //gather all data on P0
-    DblNumMat_upcxx Afinished;
+    DblNumMat Afinished;
 
-    upcxx::barrier();
+    MPI_Barrier(MPI_COMM_WORLD);
     if(iam==0)
     {
       cout<<"FAN-BOTH: "<<timeEnd-timeSta<<endl;
     }
 
 
-    if(iam==0)
     {
-      Afactptr->Gather(Afinished);
+      Afact.Gather(Afinished);
     }
-    upcxx::barrier();
 #ifdef _DEBUG_
     logfileptr->OFS()<<"quitting "<<iam<<endl;
 #endif
@@ -272,21 +228,20 @@ int main(int argc, char **argv)
       DblNumMat X = RHS;
       // X = RHS;
       lapack::Potrs('L',n,nrhs,&Afinished(0,0),n,&X(0,0),n);
+
       blas::Axpy(n*nrhs,-1.0,&XTrue(0,0),1,&X(0,0),1);
       norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
       printf("Norm of residual after SOLVE for FAN-BOTH is %10.2e\n",norm);
     }
 
- 
-
-
     delete logfileptr;
-    upcxx::Destroy<FBMatrix_upcxx>(AfactGptr);
-    upcxx::finalize();
+    delete Afactptr;
+    delete grid;
+    MPI_Finalize();
   }
   catch( std::exception& e )
   {
-    std::cerr << "Exception with message: P"<<MYTHREAD<<" "
+    std::cerr << "Exception with message: "
       << e.what() << std::endl;
 #ifndef _RELEASE_
     DumpCallStack();
