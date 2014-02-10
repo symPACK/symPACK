@@ -14,10 +14,15 @@ namespace LIBCHOLESKY{
 
 
 
-  template <typename F> NumMat_upcxx<F>::NumMat_upcxx(Int m, Int n, bool owndata, F* data): m_(m), n_(n), owndata_(owndata) {
+  template <typename F> NumMat_upcxx<F>::NumMat_upcxx(Int m, Int n, bool owndata, F* data) {
 #ifdef _ASSERT_
     this->allocated_=false;
 #endif
+
+      this->m_=m;
+      this->n_=n;
+      this->owndata_=true;
+
     if(this->owndata_) {
 
       alloc_data();
@@ -44,12 +49,15 @@ namespace LIBCHOLESKY{
       alloc_data();
   }
 
-  template <typename F> NumMat_upcxx<F>::NumMat_upcxx(const NumMat<F>& C): m_(C.m_), n_(C.n_), owndata_(C.owndata_) {
+  template <typename F> NumMat_upcxx<F>::NumMat_upcxx(const NumMat_upcxx<F>& C) {
 
 #ifdef _ASSERT_
     this->allocated_=false;
 #endif
-    this->m_ = C.m_; this->n_=C.n_; this->owndata_=C.owndata_;
+
+    this->m_ = C.m_;
+    this->n_=C.n_;
+    this->owndata_=C.owndata_;
 
     if(this->owndata_) {
       alloc_data();
@@ -59,7 +67,7 @@ namespace LIBCHOLESKY{
     } 
     else {
       gdata_= global_ptr<F>(C.data_);
-      data_ = C.data_;
+      this->data_ = C.data_;
     }
   }
 
@@ -140,7 +148,7 @@ namespace LIBCHOLESKY{
 
 
 
-template <typename F> NumMat_upcxx<F>& NumMat_upcxx<F>::Copy(const NumMat<F>& C) {
+template <typename F> NumMat_upcxx<F>& NumMat_upcxx<F>::Copy(const NumMat_upcxx<F>& C) {
     delete_data();
 
     this->m_ = C.m_; this->n_=C.n_; this->owndata_=C.owndata_;
@@ -153,7 +161,7 @@ template <typename F> NumMat_upcxx<F>& NumMat_upcxx<F>::Copy(const NumMat<F>& C)
     } 
     else {
       gdata_= global_ptr<F>(C.data_);
-      data_ = C.data_;
+      this->data_ = C.data_;
     }
 
     return *this;
@@ -195,7 +203,7 @@ template <typename F> NumMat_upcxx<F>& NumMat_upcxx<F>::Copy(const NumMat<F>& C)
 
 			throw std::logic_error( ss.str().c_str() );
 		}
-		return (global_ptr<F>(&data_[j*this->m_])); 
+		return (global_ptr<F>(&this->data_[j*this->m_])); 
 	}
 
 template <typename F> void NumMat_upcxx<F>::Clear()  {

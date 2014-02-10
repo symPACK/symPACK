@@ -31,9 +31,9 @@ namespace LIBCHOLESKY{
 
       NumMat_upcxx(Int m=0, Int n=0);
       NumMat_upcxx(Int m, Int n, bool owndata, F* data);
-      NumMat_upcxx(const NumMat<F>& C);
+      NumMat_upcxx(const NumMat_upcxx<F>& C);
       virtual ~NumMat_upcxx();
-      virtual NumMat_upcxx& Copy(const NumMat<F>& C);
+      virtual NumMat_upcxx& Copy(const NumMat_upcxx<F>& C);
       virtual void Resize(Int m, Int n);
       virtual void Clear();
 
