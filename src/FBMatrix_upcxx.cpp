@@ -47,6 +47,8 @@ namespace LIBCHOLESKY{
   void signal_exit_am()
   {
     fact_finished = 1;
+
+    upcxx::barrier();
   }
 
   void signal_exit()
@@ -61,22 +63,6 @@ namespace LIBCHOLESKY{
   }
 
 
-//  FBMatrix_upcxx::~FBMatrix_upcxx(){
-//    for(int i =0; i<AchunkLower.size();++i){
-//      if(AchunkLower[i]!=NULL){
-//        delete (DblNumMat_upcxx *)(this->AchunkLower[i]);
-//      }
-//    }
-//    for(int i =0; i<WLower.size();++i){
-//      if(WLower[i]!=NULL){
-//        delete (DblNumMat_upcxx *)(this->WLower[i]);
-//      }
-//    }
-//    AchunkLower.clear();
-//    WLower.clear();
-//  }
-
-
 
   void FBMatrix_upcxx::Initialize(upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > * RemoteObjPtr){
     np=THREADS;
@@ -85,7 +71,6 @@ namespace LIBCHOLESKY{
     RemoteObjPtrs.resize(RemoteObjPtr->size());
     for(int i =0; i< RemoteObjPtr->size();i++){
       RemoteObjPtrs[i]=(*RemoteObjPtr)[i];
-      logfileptr->OFS()<<RemoteObjPtrs[i]<<endl;
     }
     TIMER_STOP(RemotePtr_fetch);
   }
@@ -155,16 +140,15 @@ namespace LIBCHOLESKY{
       Int jb = min(blksize, n-j);
       if(iam==MAP(j,j)){
 
-        logfileptr->OFS()<<"Resizing factor buffer for column :"<<j<<endl;
+//        logfileptr->OFS()<<"Resizing factor buffer for column :"<<j<<endl;
 
         AchunkLower[local_j/blksize] = (DblNumMat*)new DblNumMat_upcxx(n-j,jb);
       }
 
-      logfileptr->OFS()<<"Resizing update buffer for column :"<<j<<endl;
+//      logfileptr->OFS()<<"Resizing update buffer for column :"<<j<<endl;
       WLower[j/blksize] = (DblNumMat*)new DblNumMat_upcxx(n-j,jb);
       SetValue(*WLower[j/blksize],0.0);
     }
-    logfileptr->OFS()<<"Done"<<endl;
   }
 
 
@@ -194,8 +178,9 @@ namespace LIBCHOLESKY{
 
   void FBMatrix_upcxx::WaitFactorization(){     
 
-    //while(!fact_finished){  upcxx::progress(); };
-    while(!fact_finished){  upcxx::advance(1, 99); };
+    while(!fact_finished){  upcxx::progress(); };
+//    while(!fact_finished){  upcxx::advance(); };
+    //while(!fact_finished){  upcxx::advance(1, 99); };
     if(MYTHREAD==MAP(n-1,n-1)){
       TIMER_STOP(SYNC_END);
     }
@@ -212,7 +197,7 @@ namespace LIBCHOLESKY{
     FBMatrix_upcxx & A = *Objptr;
     Int local_j = A.global_col_to_local(j);
     Int jb = min(A.blksize, A.n-j);
-    DblNumMat & LocalChunk = *A.AchunkLower[local_j/A.blksize];
+    DblNumMat_upcxx & LocalChunk = *(DblNumMat_upcxx*)A.AchunkLower[local_j/A.blksize];
     global_ptr<double> Asrc = &LocalChunk(0,0);
 #ifdef ASYNC_COPY
     upcxx::ldacopy_async(A.n-j,jb,Asrc,A.n-j,Adest,A.n);
@@ -261,7 +246,8 @@ namespace LIBCHOLESKY{
           logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<endl;
 #endif
           upcxx::async(target)(Update_Async,A.RemoteObjPtrs[target],j,AchkPtr);
-//          upcxx::advance(0,ADVANCE_COMM);
+          //upcxx::advance(0,ADVANCE_COMM);
+//          int num_out = upcxx::advance_out_task_queue(out_task_queue, ADVANCE_COMM);
           break;
         }
       }
@@ -295,7 +281,7 @@ namespace LIBCHOLESKY{
 
 
 
-#ifndef ASYNC_COPIES
+#ifndef ASYNC_UPDATES
   void Update_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr){
 
     TIMER_START(Update_Async);
@@ -363,6 +349,144 @@ namespace LIBCHOLESKY{
 
 
 
+
+
+
+
+
+#else
+
+
+
+  void Update_Compute_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, DblNumMat_upcxx * remoteFactorPtr, upcxx::event * async_copy_event){
+
+    TIMER_START(Update_Async_compute);
+    FBMatrix_upcxx & A = *Aptr;
+
+#ifdef NO_ASYNC_COPY
+      upcxx::async_copy_fence();
+#else
+    if(async_copy_event!=NULL){
+      upcxx::async_copy_fence();
+      //sync with the async_copy
+      //async_copy_event->wait();
+      delete async_copy_event;
+      A.outstdUpdate--;
+    }
+    TIMER_STOP(Fetching_factor);
+#endif
+
+
+
+#ifdef _DEBUG_    
+        logfileptr->OFS()<<"Fetched factor "<<j<<endl;
+#endif
+
+    TIMER_START(Update_async_loop);
+    //do all my updates with i>j
+    for(Int i = j+A.blksize; i<A.n;i+=A.blksize){
+      if(A.iam==A.MAP(i,j)){
+#ifdef _DEBUG_
+        //        logfileptr->OFS()<<"Updating column "<<i<<" with columns from P"<<remoteFactorPtr.tid()<<endl;
+#endif
+        A.Update(j, i, *remoteFactorPtr);
+
+
+
+        TIMER_START(Launch_Aggregates);
+        //is it my last update to column i ?
+        bool last_upd = true;
+        for(Int jj = j+A.blksize; jj<i;jj+=A.blksize){
+          if(A.iam==A.MAP(i,jj)){
+            //logfileptr->OFS()<<j<<" I also have to update column "<<jj<<endl;
+            last_upd=false;
+            break;
+          }
+        }
+        if(last_upd){
+          Int target = A.MAP(i,i);
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Updating from "<<j<<", launching aggregate on P"<<target<<" for column "<<i<<endl;
+#endif
+          global_ptr<double> WbufPtr(&(*A.WLower[i/A.blksize])(0,0));
+          upcxx::async(target)(Aggregate_Async,A.RemoteObjPtrs[target],i,WbufPtr);
+//          upcxx::advance(0,ADVANCE_COMM);
+//          int num_out = upcxx::advance_out_task_queue(out_task_queue, ADVANCE_COMM);
+          
+        }
+        TIMER_STOP(Launch_Aggregates);
+
+
+      }
+    }
+    TIMER_STOP(Update_async_loop);
+
+
+    //The factor can now be freed
+    delete remoteFactorPtr;
+    
+
+//#ifdef _DEBUG_
+//    logfileptr->OFS()<<"Quitting Update_Async_compute"<<endl<<endl;
+//#endif
+    TIMER_STOP(Update_Async_compute);
+  }
+
+
+
+
+
+  void Update_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr){
+
+    TIMER_START(Update_Async_fetch);
+#ifdef _ASSERT_
+    assert(Aptr.tid()==MYTHREAD);
+#endif
+    FBMatrix_upcxx & A = *Aptr;
+
+
+#ifdef _DEBUG_    
+    logfileptr->OFS()<<"Fetching factor "<<j<<" from P"<<remoteFactorPtr.tid()<<endl;
+#endif
+    DblNumMat_upcxx * RemoteFactor = new DblNumMat_upcxx(A.n-j,A.blksize);
+//    logfileptr->OFS()<<"Done"<<endl;
+
+    if(A.outstdUpdate+1<A.prefetch){
+
+#ifdef NO_ASYNC_COPY
+      upcxx::event * async_copy_event = NULL;//new upcxx::event;
+      TIMER_START(Fetching_factor);
+      upcxx::copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size());
+#else
+      upcxx::event * async_copy_event = new upcxx::event;
+      TIMER_START(Fetching_factor);
+      //upcxx::async_copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size(),async_copy_event);
+      upcxx::async_copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size());
+#endif
+
+      A.outstdUpdate++;
+      //add the function to the async queue
+      upcxx::async(A.iam)(Update_Compute_Async,Aptr,j,RemoteFactor, async_copy_event);
+    }
+    else{
+      TIMER_START(Fetching_factor);
+      upcxx::copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size());
+
+      //call the function inline
+      Update_Compute_Async(Aptr, j, RemoteFactor, NULL);
+    }
+
+
+//    logfileptr->OFS()<<"Quitting Update_Async_fetch"<<endl<<endl;
+    TIMER_STOP(Update_Async_fetch);
+}
+
+#endif
+
+
+#ifndef ASYNC_AGGREGATES
+
+
   void Aggregate_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, global_ptr<double> remoteAggregatePtr){
     TIMER_START(Aggregate_Async);
 #ifdef _ASSERT_
@@ -411,137 +535,28 @@ namespace LIBCHOLESKY{
 
 
 
-
-
-
 #else
 
+  void Aggregate_Compute_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, DblNumMat_upcxx * remoteAggregatePtr, upcxx::event * async_copy_event){
 
-
-  void Update_Compute_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, DblNumMat * remoteFactorPtr, upcxx::event * async_copy_event){
-
-    TIMER_START(Update_Async_compute);
+#ifdef _ASSERT_
+    assert(Aptr.tid()==MYTHREAD);
+#endif
     FBMatrix_upcxx & A = *Aptr;
 
+#ifdef NO_ASYNC_COPY
+      upcxx::async_copy_fence();
+#else
     if(async_copy_event!=NULL){
+      upcxx::async_copy_fence();
       //sync with the async_copy
-      async_copy_event->wait();
+      //async_copy_event->wait();
       delete async_copy_event;
+      A.outstdAggreg--;
     }
-    TIMER_STOP(Fetching_factor);
-
-    A.outstdUpdate--;
-
-
-
-#ifdef _DEBUG_    
-        logfileptr->OFS()<<"Fetched factor "<<j<<endl;
 #endif
-
-    TIMER_START(Update_async_loop);
-    //do all my updates with i>j
-    for(Int i = j+A.blksize; i<A.n;i+=A.blksize){
-      if(A.iam==A.MAP(i,j)){
-#ifdef _DEBUG_
-        //        logfileptr->OFS()<<"Updating column "<<i<<" with columns from P"<<remoteFactorPtr.tid()<<endl;
-#endif
-        A.Update(j, i, *remoteFactorPtr);
-
-
-
-        TIMER_START(Launch_Aggregates);
-        //is it my last update to column i ?
-        bool last_upd = true;
-        for(Int jj = j+A.blksize; jj<i;jj+=A.blksize){
-          if(A.iam==A.MAP(i,jj)){
-            //logfileptr->OFS()<<j<<" I also have to update column "<<jj<<endl;
-            last_upd=false;
-            break;
-          }
-        }
-        if(last_upd){
-          Int target = A.MAP(i,i);
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"Updating from "<<j<<", launching aggregate on P"<<target<<" for column "<<i<<endl;
-#endif
-          global_ptr<double> WbufPtr(&(*A.WLower[i/A.blksize])(0,0));
-          upcxx::async(target)(Aggregate_Async,A.RemoteObjPtrs[target],i,WbufPtr);
-//          upcxx::advance(0,ADVANCE_COMM);
-          
-        }
-        TIMER_STOP(Launch_Aggregates);
-
-
-      }
-    }
-    TIMER_STOP(Update_async_loop);
-
-
-    //The factor can now be freed
-    delete remoteFactorPtr;
-    
-
-//#ifdef _DEBUG_
-    logfileptr->OFS()<<"Quitting Update_Async_compute"<<endl<<endl;
-//#endif
-    TIMER_STOP(Update_Async_compute);
-  }
-
-
-
-
-
-  void Update_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr){
-
-    TIMER_START(Update_Async_fetch);
-#ifdef _ASSERT_
-    assert(Aptr.tid()==MYTHREAD);
-#endif
-    FBMatrix_upcxx & A = *Aptr;
-
-
-#ifdef _DEBUG_    
-    logfileptr->OFS()<<"Fetching factor "<<j<<" from P"<<remoteFactorPtr.tid()<<endl;
-#endif
-    DblNumMat * RemoteFactor = new DblNumMat(A.n-j,A.blksize);
-
-    if(A.outstdUpdate+1<A.prefetch){
-      upcxx::event * async_copy_event = new upcxx::event;
-      TIMER_START(Fetching_factor);
-      upcxx::async_copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size(),async_copy_event);
-
-      A.outstdUpdate++;
-      //add the function to the async queue
-      upcxx::async(A.iam)(Update_Compute_Async,Aptr,j,RemoteFactor, async_copy_event);
-    }
-    else{
-      TIMER_START(Fetching_factor);
-      upcxx::copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size());
-
-      //call the function inline
-      Update_Compute_Async(Aptr, j, RemoteFactor, NULL);
-    }
-
-
-    logfileptr->OFS()<<"Quitting Update_Async_fetch"<<endl<<endl;
-    TIMER_STOP(Update_Async_fetch);
-}
-
-
-
-  void Aggregate_Compute_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, DblNumMat * remoteAggregatePtr, upcxx::event * async_copy_event){
-
-#ifdef _ASSERT_
-    assert(Aptr.tid()==MYTHREAD);
-#endif
-    FBMatrix_upcxx & A = *Aptr;
-
-    //sync with the async_copy
-    async_copy_event->wait();
-    delete async_copy_event;
     TIMER_STOP(Fetching_Aggregate);
 
-    A.outstdAggreg--;
 #ifdef _DEBUG_    
     logfileptr->OFS()<<"Aggregating update to "<<j<<endl;
 #endif
@@ -583,20 +598,32 @@ namespace LIBCHOLESKY{
 #endif
     Int jb = min(A.blksize, A.n-j);
 
-    DblNumMat * RemoteAggregate =  new DblNumMat(A.n-j,jb);
+    DblNumMat_upcxx * RemoteAggregate =  new DblNumMat_upcxx(A.n-j,jb);
 
+    
+
+    if(A.outstdAggreg+1<A.prefetch){
+#ifdef NO_ASYNC_COPY
+      upcxx::event * async_copy_event = NULL;//new upcxx::event;
+      TIMER_START(Fetching_factor);
+    upcxx::copy(remoteAggregatePtr,RemoteAggregate->GData(),RemoteAggregate->Size());
+#else
     upcxx::event * async_copy_event = new upcxx::event;
     TIMER_START(Fetching_Aggregate);
-    upcxx::async_copy(remoteAggregatePtr,RemoteAggregate->GData(),RemoteAggregate->Size(),async_copy_event);
-    
-    A.outstdAggreg++;
-    if(A.outstdAggreg<A.prefetch){
+    //upcxx::async_copy(remoteAggregatePtr,RemoteAggregate->GData(),RemoteAggregate->Size(),async_copy_event);
+    upcxx::async_copy(remoteAggregatePtr,RemoteAggregate->GData(),RemoteAggregate->Size());
+#endif
+
+      A.outstdUpdate++;
       //add the function to the async queue
       upcxx::async(A.iam)(Aggregate_Compute_Async,Aptr,j,RemoteAggregate, async_copy_event);
     }
     else{
+      TIMER_START(Fetching_factor);
+    upcxx::copy(remoteAggregatePtr,RemoteAggregate->GData(),RemoteAggregate->Size());
+
       //call the function inline
-      Aggregate_Compute_Async(Aptr, j, RemoteAggregate, async_copy_event);
+      Aggregate_Compute_Async(Aptr, j, RemoteAggregate, NULL);
     }
 }
 

@@ -226,8 +226,8 @@ int main(int argc, char **argv)
 
     upcxx::barrier();
 
-//    Afactptr->NumericalFactorization();
-//    Afactptr->WaitFactorization();
+    Afactptr->NumericalFactorization();
+    Afactptr->WaitFactorization();
     timeEnd =  omp_get_wtime( );
 
     TIMER_STOP(FANBOTH);

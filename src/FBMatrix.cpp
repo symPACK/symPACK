@@ -51,12 +51,12 @@ namespace LIBCHOLESKY{
       ++j;
       if(j<pn){
         curproc=MAP(j,j);
-        logfileptr->OFS()<<"firstproc = "<<firstproc<<" vs "<<curproc<<endl;
+//        logfileptr->OFS()<<"firstproc = "<<firstproc<<" vs "<<curproc<<endl;
         ++pcol;
       }
     }while(firstproc!=curproc && j<pn);
 
-    logfileptr->OFS()<<"PCOL IS "<<pcol<<endl;   
+//    logfileptr->OFS()<<"PCOL IS "<<pcol<<endl;   
 //    exit(0);
 
     Int totBlk = n/blksize;
