@@ -53,6 +53,11 @@ namespace LIBCHOLESKY{
 
       virtual void NumericalFactorization();
 
+#ifdef DRAW_GRAPH
+      LogFile * graphfileptr;
+      virtual ~FBMatrix_mpi();
+      void Draw_Graph();
+#endif
   };
 
 

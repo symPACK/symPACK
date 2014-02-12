@@ -1,2 +1,3 @@
 #! /bin/bash
-mpirun -np $1 ./run_dense_fanboth_upcxx -in nasa2146/nasa2146.rb -inf HARWELL_BOEING -b 1 -pref 0
+export GASNET_BACKTRACE=1;
+mpirun -np $1 ./run_dense_fanboth_upcxx -in $2 -inf HARWELL_BOEING -b $3 -pref $4

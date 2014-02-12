@@ -42,22 +42,26 @@ namespace LIBCHOLESKY{
     n=pn;
     blksize=pblksize;
 
+
+    //for 2D maps
+    prow = sqrt(np);
+
     //determine pcol and prow
     Int firstproc = MAP(0,0);
     Int j=0;
     Int curproc = -1;
     pcol =0;
     do{
-      ++j;
+      j+=blksize;
       if(j<pn){
         curproc=MAP(j,j);
-//        logfileptr->OFS()<<"firstproc = "<<firstproc<<" vs "<<curproc<<endl;
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"firstproc = "<<firstproc<<" vs "<<curproc<<endl;
+#endif
         ++pcol;
       }
     }while(firstproc!=curproc && j<pn);
 
-//    logfileptr->OFS()<<"PCOL IS "<<pcol<<endl;   
-//    exit(0);
 
     Int totBlk = n/blksize;
     Int remaining = n-totBlk*blksize;

@@ -115,6 +115,8 @@ int main(int argc, char **argv)
     MPIGrid * grid = new MPIGrid(MPI_COMM_WORLD,1,np);
     Afactptr->Initialize(*grid);
 
+
+
     FBMatrix & Afact = *Afactptr;
 
     Real timeSta, timeEnd;
@@ -155,7 +157,7 @@ int main(int argc, char **argv)
     MPI_Barrier(MPI_COMM_WORLD);
 
     //TODO This needs to be fixed
-    Afact.prow = 1;//sqrt(np);
+    //Afact.prow = 1;//sqrt(np);
     //Afact.pcol = np;//Afact.prow;
     //np = Afact.prow*Afact.pcol;
     if(iam==0){
@@ -166,7 +168,18 @@ int main(int argc, char **argv)
 
     //Allocate chunks of the matrix on each processor
     Afactptr->Allocate(np,Afact.n,blksize);
+
     Afactptr->Distribute(A);
+
+    if(iam==0){
+      cout<<"Prow is "<<Afactptr->prow<<endl;
+      cout<<"Pcol is "<<Afactptr->pcol<<endl;
+    }
+#ifdef DRAW_GRAPH
+    Afactptr->Draw_Graph();
+#endif
+
+
 
     MPI_Barrier(MPI_COMM_WORLD);
 

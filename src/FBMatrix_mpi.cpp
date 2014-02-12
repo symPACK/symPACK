@@ -69,6 +69,14 @@ namespace LIBCHOLESKY{
     mpigrid = &grid; 
     iam=grid.mpirank;
     np=grid.mpisize;
+#ifdef DRAW_GRAPH
+    if(iam==0){
+      char suffix[50];
+      sprintf(suffix,".dot");
+      graphfileptr = new LogFile("graph",suffix);
+      graphfileptr->OFS()<<"digraph fanboth{"<<endl;
+    }
+#endif
   }
 
   void FBMatrix_mpi::Distribute( DblNumMat & Aorig){
@@ -123,17 +131,18 @@ namespace LIBCHOLESKY{
       Int local_j = global_col_to_local(j);
       Int jb = min(blksize, n-j);
       if(iam==MAP(j,j)){
-
+#ifdef _DEBUG_
         logfileptr->OFS()<<"Resizing factor buffer for column :"<<j<<endl;
-
+#endif
         AchunkLower[local_j/blksize] = (DblNumMat*)new DblNumMat(n-j,jb);
       }
 
+#ifdef _DEBUG_
       logfileptr->OFS()<<"Resizing update buffer for column :"<<j<<endl;
+#endif
       WLower[j/blksize] = (DblNumMat*)new DblNumMat(n-j,jb);
       SetValue(*WLower[j/blksize],0.0);
     }
-    logfileptr->OFS()<<"Done"<<endl;
   }
 
 
@@ -192,6 +201,72 @@ logfileptr->OFS()<<"Sending column"<<j<<" to P0"<<endl;
   }
 
 
+#ifdef DRAW_GRAPH
+
+  FBMatrix_mpi::~FBMatrix_mpi(){
+    if(iam==0){
+      graphfileptr->OFS()<<"}"<<endl;
+      delete graphfileptr;
+    }
+  }
+
+  void FBMatrix_mpi::Draw_Graph(){
+
+    if(iam==0){
+      Int numStep = ceil((double)n/(double)blksize);
+
+      for(int js=0; js<numStep;js++){
+        int j = min(js*blksize,n-1);
+        Int jb = min(blksize, n-j);
+        Int local_j = global_col_to_local(j);
+
+
+        for(int curproc = 0; curproc<mpigrid->mpisize;curproc++){
+          int iam = (curproc + MAP(j,j)) % mpigrid->mpisize ;
+          //do the aggregation and factorization
+          if(iam==MAP(j,j) ){
+
+            //aggregate previous updates
+            if(j>0){
+              graphfileptr->OFS()<<"a_"<<j<<" [label=\"A("<<j<<","<<iam<<")\", style=filled, fillcolor=\""<<(double)iam/(double)np<<" 0.5 0.8\" ];"<<endl;
+            }
+
+
+
+            for(Int i = j-blksize; i>=0; i-=blksize){
+              Int target = MAP(j,i);
+              graphfileptr->OFS()<<"u_"<<j<<"_"<<i<<"_"<<target<<" -> a_"<<j<<";"<<endl;
+            }
+
+
+
+
+
+
+            //Factor current column 
+            graphfileptr->OFS()<<"f_"<<j<<" [label=\"F("<<j<<","<<iam<<")\", style=filled, fillcolor=\""<<(double)iam/(double)np<<" 0.5 0.8\" ];"<<endl;
+            if(j>0){
+              graphfileptr->OFS()<<"a_"<<j<<" -> f_"<<j<<";"<<endl;
+            }
+            //send factor
+            TIMER_START(Send_Factor);
+            for(Int target = 0; target<np;target++){
+              for(Int i = j+blksize; i<n; i+=blksize){
+                if(MAP(i,j)==target ){
+                  graphfileptr->OFS()<<"u_"<<i<<"_"<<j<<"_"<<target<<" [label=\"U("<<i<<","<<j<<","<<target<<")\", style=filled, fillcolor=\""<<(double)target/(double)np<<" 0.5 0.8\" ];"<<endl;
+                  graphfileptr->OFS()<<"f_"<<j<<" -> u_"<<i<<"_"<<j<<"_"<<target<<";"<<endl;
+                  //break;
+                }
+              }
+            }
+            TIMER_STOP(Send_Factor);
+
+          }
+        } 
+      }
+    }
+  }
+#endif
 
   void FBMatrix_mpi::NumericalFactorization(){
       Int numStep = ceil((double)n/(double)blksize);

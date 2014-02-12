@@ -4,3 +4,5 @@
 LogFile * logfileptr;
 
 LogFile * profileptr;
+
+
