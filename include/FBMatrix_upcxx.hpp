@@ -28,6 +28,8 @@ namespace LIBCHOLESKY{
     public:
 
       //Parameters
+      double aggregate_comm_time;
+      double factor_comm_time;
       Int outstdAggreg=0;
       Int outstdUpdate=0;
       Int prefetch;

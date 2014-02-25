@@ -249,6 +249,8 @@ int main(int argc, char **argv)
     {
       cout<<"FAN-BOTH: "<<timeEnd-timeSta<<endl;
     }
+    logfileptr->OFS()<<"aggregate_comm_time: "<<Afactptr->aggregate_comm_time<<endl;
+    logfileptr->OFS()<<"factor_comm_time: "<<Afactptr->factor_comm_time<<endl;
 
 
     if(iam==0)

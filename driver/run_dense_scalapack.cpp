@@ -72,6 +72,7 @@ int numroc_(int *n, int *blksize, int *myrow, int *iZERO, int *procrows);
 void descinit_(int * descA, int * m, int * n, int * mb, int *nb, int * irsrc, int * icsrc, int * ictxt, int * lld, int * info );
 void pdgeadd_( char * trans, int *m, int *n, double * alpha, double * A, int * ia, int * ja, int * desca, double * beta, double * C, int * ic, int * jc, int * descc );
 void pdpotrf_(char * uplo, int * n, double * A, int * ia, int * ja, int * desca, int * info);
+void pdpotf2_(char * uplo, int * n, double * A, int * ia, int * ja, int * desca, int * info);
 }
 
 
@@ -189,6 +190,7 @@ pdgeadd_( "N", &n, &n, &one, A, &i_one, &i_one, descA, &zero, A_loc, &i_one, &i_
 double timeSta, timeEnd;
       timeSta =  MPI_Wtime( );
 pdpotrf_("L",&n,A_loc,&i_one,&i_one,descA_distr,&info);
+//pdpotf2_("L",&n,A_loc,&i_one,&i_one,descA_distr,&info);
       timeEnd =  MPI_Wtime( );
 
 if(mpirank==0){

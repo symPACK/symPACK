@@ -38,6 +38,10 @@ namespace LIBCHOLESKY{
   };
 
   class FBMatrix_mpi : public FBMatrix{
+    protected:
+
+      virtual bool lastUpdate(Int j, Int i);
+
     public:
 
       //Parameters

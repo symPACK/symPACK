@@ -18,8 +18,6 @@
 #define TAG_AGGREGATE_RECV j
 
 
-//#define _DEBUG_
-
 namespace LIBCHOLESKY{
 
 
@@ -268,6 +266,8 @@ logfileptr->OFS()<<"Sending column"<<j<<" to P0"<<endl;
   }
 #endif
 
+
+
   void FBMatrix_mpi::NumericalFactorization(){
       Int numStep = ceil((double)n/(double)blksize);
 
@@ -337,6 +337,7 @@ logfileptr->OFS()<<"Sending column"<<j<<" to P0"<<endl;
 
           //send factor
           TIMER_START(Send_Factor);
+          
           for(Int target = 0; target<np;target++){
             for(Int i = j+blksize; i<n; i+=blksize){
               if(MAP(i,j)==target && target!=iam){
@@ -363,6 +364,7 @@ logfileptr->OFS()<<"Sending column"<<j<<" to P0"<<endl;
         DblNumMat RemoteFactorBuf2(n-j,jb);
         bool have_factor = false;
 
+        //foreach processor, do I have an update from column j to any column ?
         for(int i=j+jb;i<n ;i+=jb){
           //compute the update
           if(iam==MAP(i,j)){
@@ -396,19 +398,9 @@ logfileptr->OFS()<<"Sending column"<<j<<" to P0"<<endl;
 
             //logfileptr->OFS()<<"Done Updating "<<i<<" with "<<j<<endl;
             TIMER_START(Launch_Aggregates);
-            //is it my last update to column i ?
-            bool last_upd = true;
-            for(Int jj = j+blksize; jj<i;jj+=blksize){
-              //logfileptr->OFS()<<"Next update to "<<i<<" looking at "<<jj<<endl;
-              if(iam==MAP(i,jj)){
-                //logfileptr->OFS()<<jj<<" updates "<<i<<endl;
-                last_upd=false;
-                break;
-              }
-            }
+            //if this is the last update to column i, send aggregate
+            if(lastUpdate(j,i)){
 
-            //if this is the last update, send aggregate
-            if(last_upd){
               Int target = MAP(i,i);
 #ifdef _DEBUG_
               logfileptr->OFS()<<"I did my last update to "<<i<<endl;
@@ -438,6 +430,20 @@ logfileptr->OFS()<<"Sending column"<<j<<" to P0"<<endl;
 
   }
 
+  //Check if j is the last column updating i
+  bool FBMatrix_mpi::lastUpdate(Int j, Int i){
+    //is it my last update to column i ?
+    bool last_upd = true;
+    for(Int jj = j+blksize; jj<i;jj+=blksize){
+      //logfileptr->OFS()<<"Next update to "<<i<<" looking at "<<jj<<endl;
+      if(iam==MAP(i,jj)){
+        //logfileptr->OFS()<<jj<<" updates "<<i<<endl;
+        last_upd=false;
+        break;
+      }
+    }
+    return last_upd;
+  } 
 
 }
 

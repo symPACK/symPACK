@@ -20,7 +20,7 @@
 #define ADVANCE_COMM 1
 #endif
 
-
+#include<omp.h>
 
 
 //#define _DEBUG_
@@ -48,7 +48,7 @@ namespace LIBCHOLESKY{
   {
     fact_finished = 1;
 
-    upcxx::barrier();
+//    upcxx::barrier();
   }
 
   void signal_exit()
@@ -65,6 +65,8 @@ namespace LIBCHOLESKY{
 
 
   void FBMatrix_upcxx::Initialize(upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > * RemoteObjPtr){
+    aggregate_comm_time=0.0;
+    factor_comm_time=0.0;
     np=THREADS;
     iam=MYTHREAD;
     TIMER_START(RemotePtr_fetch);
@@ -176,10 +178,15 @@ namespace LIBCHOLESKY{
 
 
 
-  void FBMatrix_upcxx::WaitFactorization(){     
+  void FBMatrix_upcxx::WaitFactorization(){ 
 
 //    while(!fact_finished){  upcxx::progress(); };
-    while(!fact_finished){  upcxx::advance(); };
+    while(!fact_finished){  
+      TIMER_START(MAIN_ADVANCE);
+      //upcxx::advance(100,99); 
+      while (advance() > 0);
+      TIMER_STOP(MAIN_ADVANCE);
+    }
     //while(!fact_finished){  upcxx::advance(1, 99); };
     if(MYTHREAD==MAP(n-1,n-1)){
       TIMER_STOP(SYNC_END);
@@ -233,6 +240,7 @@ namespace LIBCHOLESKY{
     logfileptr->OFS()<<"STEP "<<curStep<<"/"<<numStep<<endl;
 #endif
     //Launch the updates
+    Int async_created = 0;
     Int local_j = A.global_col_to_local(j);
     //TODO CHECK THIS: WE NEED TO LAUNCH THE UPDATES ON ALL PROCESSORS
     TIMER_START(Launch_Updates);
@@ -246,15 +254,19 @@ namespace LIBCHOLESKY{
           logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<endl;
 #endif
           upcxx::async(target)(Update_Async,A.RemoteObjPtrs[target],j,AchkPtr);
-          //upcxx::advance(0,ADVANCE_COMM);
-//          int num_out = upcxx::advance_out_task_queue(out_task_queue, ADVANCE_COMM);
+          if(target!=A.iam){
+            async_created++;
+          }
+//int num_out = upcxx::advance_out_task_queue(out_task_queue, ADVANCE_COMM);
           break;
         }
       }
     }
     TIMER_STOP(Launch_Updates);
 
-
+    TIMER_START(ADVANCE_UPDATES);
+    upcxx::advance(0,async_created);
+    TIMER_STOP(ADVANCE_UPDATES);
 
     if(j+A.blksize>=A.n){
 #ifdef _DEBUG_
@@ -358,29 +370,39 @@ namespace LIBCHOLESKY{
 
 
 
-  void Update_Compute_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, DblNumMat_upcxx * remoteFactorPtr, upcxx::event * async_copy_event){
+  void Update_Compute_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, DblNumMat_upcxx * remoteFactorPtr, upcxx::event * async_copy_event, double tstart){
 
+#ifdef _DEBUG_
+    logfileptr->OFS()<<"Entering Update_Compute_Async"<<endl<<endl;
+#endif
     TIMER_START(Update_Async_compute);
     FBMatrix_upcxx & A = *Aptr;
 
-#ifdef NO_ASYNC_COPY
-      upcxx::async_copy_fence();
-#else
+//#ifdef NO_ASYNC_COPY
+      //upcxx::async_copy_fence();
+//#else
     if(async_copy_event!=NULL){
 #ifdef ASYNC_COPY_FENCE
       upcxx::async_copy_fence();
 #else
       //sync with the async_copy
+#ifndef CALLBACK
       async_copy_event->wait();
-#endif 
-      A.outstdUpdate--;
-#ifdef _DEBUG_    
-      logfileptr->OFS()<<"Outstanding updates: "<<A.outstdUpdate<<"/"<<A.prefetch<<endl;
-#endif
-    }
-    TIMER_STOP(Fetching_factor);
 #endif
 
+      assert(async_copy_event->isdone());
+
+#endif 
+      A.outstdUpdate--;
+#ifdef _DEBUG_PREFETCH_    
+      logfileptr->OFS()<<"DONE Outstanding updates: "<<A.outstdUpdate<<"/"<<A.prefetch<<endl;
+#endif
+    }
+    TIMER_STOP(Fetching_Factor);
+//#endif
+
+    double tstop = omp_get_wtime();
+    A.factor_comm_time += tstop - tstart;
 
 
 #ifdef _DEBUG_    
@@ -389,6 +411,7 @@ namespace LIBCHOLESKY{
 
     TIMER_START(Update_async_loop);
     //do all my updates with i>j
+    Int async_created = 0;
     for(Int i = j+A.blksize; i<A.n;i+=A.blksize){
       if(A.iam==A.MAP(i,j)){
 #ifdef _DEBUG_
@@ -415,7 +438,10 @@ namespace LIBCHOLESKY{
 #endif
           global_ptr<double> WbufPtr(&(*A.WLower[i/A.blksize])(0,0));
           upcxx::async(target)(Aggregate_Async,A.RemoteObjPtrs[target],i,WbufPtr);
-//          upcxx::advance(0,ADVANCE_COMM);
+          
+          if(target!=A.iam){
+            async_created++;
+          }
 //          int num_out = upcxx::advance_out_task_queue(out_task_queue, ADVANCE_COMM);
           
         }
@@ -426,6 +452,9 @@ namespace LIBCHOLESKY{
     }
     TIMER_STOP(Update_async_loop);
 
+    TIMER_START(ADVANCE_AGGREGATES);
+    upcxx::advance(0,async_created);
+    TIMER_STOP(ADVANCE_AGGREGATES);
 
     //The factor can now be freed
     delete remoteFactorPtr;
@@ -434,6 +463,10 @@ namespace LIBCHOLESKY{
 //#ifdef _DEBUG_
 //    logfileptr->OFS()<<"Quitting Update_Async_compute"<<endl<<endl;
 //#endif
+
+#ifdef _DEBUG_
+    logfileptr->OFS()<<"Quitting Update_Compute_Async"<<endl<<endl;
+#endif
     TIMER_STOP(Update_Async_compute);
   }
 
@@ -443,6 +476,9 @@ namespace LIBCHOLESKY{
 
   void Update_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr){
 
+#ifdef _DEBUG_
+    logfileptr->OFS()<<"Entering Update_Async (fetch)"<<endl<<endl;
+#endif
     TIMER_START(Update_Async_fetch);
 #ifdef _ASSERT_
     assert(Aptr.tid()==MYTHREAD);
@@ -458,41 +494,60 @@ namespace LIBCHOLESKY{
 
     if(A.outstdUpdate+1<=A.prefetch){
 
+    double tstart = omp_get_wtime();
+      TIMER_START(Fetching_Factor);
 #ifdef NO_ASYNC_COPY
-      upcxx::event * async_copy_event = NULL;//new upcxx::event;
-      TIMER_START(Fetching_factor);
+      upcxx::event * async_copy_event = NULL;
       upcxx::copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size());
 #else
       upcxx::event * async_copy_event = new upcxx::event;
-      TIMER_START(Fetching_factor);
 #ifdef ASYNC_COPY_FENCE
       upcxx::async_copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size());
 #else
+
+#ifdef CALLBACK
+#ifdef _DEBUG_PREFETCH_    
+      logfileptr->OFS()<<"USING ASYNC_AFTER: "<<A.outstdUpdate+1<<"/"<<A.prefetch<<" async copy"<<endl;
+#endif
+      upcxx::async_after(A.iam,async_copy_event)(Update_Compute_Async,Aptr,j,RemoteFactor, async_copy_event,tstart);
       upcxx::async_copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size(),async_copy_event);
+
+#else
+#ifdef _DEBUG_PREFETCH_    
+      logfileptr->OFS()<<"Outstanding updates: "<<A.outstdUpdate+1<<"/"<<A.prefetch<<" async copy"<<endl;
+#endif
+      upcxx::async_copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size(),async_copy_event);
+#endif
+
+
+
 #endif
 #endif
 
       A.outstdUpdate++;
-#ifdef _DEBUG_    
-      logfileptr->OFS()<<"Outstanding updates: "<<A.outstdUpdate<<"/"<<A.prefetch<<" async copy"<<endl;
-#endif
       //add the function to the async queue
-      upcxx::async(A.iam)(Update_Compute_Async,Aptr,j,RemoteFactor, async_copy_event);
+#ifndef CALLBACK
+      upcxx::async(A.iam)(Update_Compute_Async,Aptr,j,RemoteFactor, async_copy_event,tstart);
+#endif
     }
     else{
-#ifdef _DEBUG_    
+#ifdef _DEBUG_PREFETCH_    
       logfileptr->OFS()<<"Outstanding updates: "<<A.outstdUpdate<<"/"<<A.prefetch<<" too many > blocking copy"<<endl;
 #endif
-      TIMER_START(Fetching_factor);
+      double tstart = omp_get_wtime();
+      TIMER_START(Fetching_Factor);
       upcxx::copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size());
 
       //call the function inline
-      Update_Compute_Async(Aptr, j, RemoteFactor, NULL);
+      Update_Compute_Async(Aptr, j, RemoteFactor, NULL,tstart);
     }
 
 
 //    logfileptr->OFS()<<"Quitting Update_Async_fetch"<<endl<<endl;
     TIMER_STOP(Update_Async_fetch);
+#ifdef _DEBUG_
+    logfileptr->OFS()<<"Quitting Update_Async (fetch)"<<endl<<endl;
+#endif
 }
 
 #endif
@@ -551,31 +606,43 @@ namespace LIBCHOLESKY{
 
 #else
 
-  void Aggregate_Compute_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, DblNumMat_upcxx * remoteAggregatePtr, upcxx::event * async_copy_event){
+  void Aggregate_Compute_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, DblNumMat_upcxx * remoteAggregatePtr, upcxx::event * async_copy_event, double tstart){
+
+#ifdef _DEBUG_
+    logfileptr->OFS()<<"Entering Aggregate_Compute_Async"<<endl<<endl;
+#endif
+    TIMER_START(Aggregate_Async_compute);
 
 #ifdef _ASSERT_
     assert(Aptr.tid()==MYTHREAD);
 #endif
     FBMatrix_upcxx & A = *Aptr;
 
-#ifdef NO_ASYNC_COPY
-      upcxx::async_copy_fence();
-#else
+//#ifdef NO_ASYNC_COPY
+      //upcxx::async_copy_fence();
+//#else
     if(async_copy_event!=NULL){
 #ifdef ASYNC_COPY_FENCE
       upcxx::async_copy_fence();
 #else
       //sync with the async_copy
+#ifndef CALLBACK
       async_copy_event->wait();
+#endif
+      assert(async_copy_event->isdone());
+
 #endif      
       delete async_copy_event;
       A.outstdAggreg--;
-#ifdef _DEBUG_    
-      logfileptr->OFS()<<"Outstanding aggregates: "<<A.outstdAggreg<<"/"<<A.prefetch<<endl;
+#ifdef _DEBUG_PREFETCH_    
+      logfileptr->OFS()<<"DONE Outstanding aggregates: "<<A.outstdAggreg<<"/"<<A.prefetch<<endl;
 #endif
     }
-#endif
+//#endif
     TIMER_STOP(Fetching_Aggregate);
+    double tstop = omp_get_wtime();
+    A.aggregate_comm_time += tstop - tstart;
+
 
 #ifdef _DEBUG_    
     logfileptr->OFS()<<"Aggregating update to "<<j<<endl;
@@ -601,12 +668,18 @@ namespace LIBCHOLESKY{
       upcxx::async(A.iam)(Factor_Async,Aptr,j);
     } 
 #ifdef _DEBUG_
-    logfileptr->OFS()<<"Quitting Aggregate_Async"<<endl<<endl;
+    logfileptr->OFS()<<"Quitting Aggregate_Compute_Async"<<endl<<endl;
 #endif
 //    TIMER_STOP(Aggregate_Async);
+    TIMER_STOP(Aggregate_Async_compute);
   }
 
   void Aggregate_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, global_ptr<double> remoteAggregatePtr){
+
+#ifdef _DEBUG_
+    logfileptr->OFS()<<"Entering Aggregate_Async (Fetch)"<<endl<<endl;
+#endif
+    TIMER_START(Aggregate_Async_fetch);
 //    TIMER_START(Aggregate_Async);
 #ifdef _ASSERT_
     assert(Aptr.tid()==MYTHREAD);
@@ -623,37 +696,56 @@ namespace LIBCHOLESKY{
     
 
     if(A.outstdAggreg+1<=A.prefetch){
+    double tstart = omp_get_wtime();
+    TIMER_START(Fetching_Aggregate);
 #ifdef NO_ASYNC_COPY
-      upcxx::event * async_copy_event = NULL;//new upcxx::event;
-      TIMER_START(Fetching_factor);
+    upcxx::event * async_copy_event = NULL;
     upcxx::copy(remoteAggregatePtr,RemoteAggregate->GData(),RemoteAggregate->Size());
 #else
     upcxx::event * async_copy_event = new upcxx::event;
-    TIMER_START(Fetching_Aggregate);
 #ifdef ASYNC_COPY_FENCE
     upcxx::async_copy(remoteAggregatePtr,RemoteAggregate->GData(),RemoteAggregate->Size());
 #else
+
+#ifdef CALLBACK
+#ifdef _DEBUG_PREFETCH_    
+      logfileptr->OFS()<<"USING ASYNC_AFTER: "<<A.outstdAggreg+1<<"/"<<A.prefetch<<" async copy"<<endl;
+#endif
+  upcxx::async_after(A.iam,async_copy_event)(Aggregate_Compute_Async,Aptr,j,RemoteAggregate, async_copy_event,tstart);
+  upcxx::async_copy(remoteAggregatePtr,RemoteAggregate->GData(),RemoteAggregate->Size(),async_copy_event);
+#else
+#ifdef _DEBUG_PREFETCH_    
+      logfileptr->OFS()<<"Outstanding aggregates: "<<A.outstdAggreg+1<<"/"<<A.prefetch<<" async copy"<<endl;
+#endif
     upcxx::async_copy(remoteAggregatePtr,RemoteAggregate->GData(),RemoteAggregate->Size(),async_copy_event);
+#endif
+
 #endif
 #endif
 
       A.outstdAggreg++;
-#ifdef _DEBUG_    
-      logfileptr->OFS()<<"Outstanding aggregates: "<<A.outstdAggreg<<"/"<<A.prefetch<<" async copy"<<endl;
-#endif
+
+#ifndef CALLBACK
       //add the function to the async queue
-      upcxx::async(A.iam)(Aggregate_Compute_Async,Aptr,j,RemoteAggregate, async_copy_event);
+      upcxx::async(A.iam)(Aggregate_Compute_Async,Aptr,j,RemoteAggregate, async_copy_event,tstart);
+#endif
     }
     else{
-#ifdef _DEBUG_    
+#ifdef _DEBUG_PREFETCH_    
       logfileptr->OFS()<<"Outstanding aggregates: "<<A.outstdAggreg<<"/"<<A.prefetch<<" too many > blocking copy"<<endl;
 #endif
+    double tstart = omp_get_wtime();
       TIMER_START(Fetching_factor);
     upcxx::copy(remoteAggregatePtr,RemoteAggregate->GData(),RemoteAggregate->Size());
 
       //call the function inline
-      Aggregate_Compute_Async(Aptr, j, RemoteAggregate, NULL);
+      Aggregate_Compute_Async(Aptr, j, RemoteAggregate, NULL,tstart);
     }
+
+#ifdef _DEBUG_
+    logfileptr->OFS()<<"Quitting Aggregate_Async (Fetch)"<<endl<<endl;
+#endif
+    TIMER_STOP(Aggregate_Async_fetch);
 }
 
 
