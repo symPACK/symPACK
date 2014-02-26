@@ -361,7 +361,7 @@ logfileptr->OFS()<<"Sending column"<<j<<" to P0"<<endl;
 
         //do the updates
 
-        DblNumMat RemoteFactorBuf2(n-j,jb);
+        //DblNumMat RemoteFactorBuf2(n-j,jb);
         bool have_factor = false;
 
         //foreach processor, do I have an update from column j to any column ?
@@ -370,7 +370,7 @@ logfileptr->OFS()<<"Sending column"<<j<<" to P0"<<endl;
           if(iam==MAP(i,j)){
             DblNumMat * RemoteFactorPtr;
             if(iam!=MAP(j,j) ){
-              RemoteFactorPtr = & RemoteFactorBuf2;
+              RemoteFactorPtr = & RemoteFactorBuf;
               if(!have_factor){
 #ifdef _DEBUG_
                 logfileptr->OFS()<<"Receiving factor "<<j<<endl;

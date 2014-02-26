@@ -49,7 +49,9 @@ namespace LIBCHOLESKY{
       virtual void WaitFactorization();
 
       virtual void NumericalFactorization();
+      virtual void NumericalFactorizationLoop();
 
+      bool lastUpdate(Int j, Int i);
   };
 
 

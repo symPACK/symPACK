@@ -29,7 +29,7 @@ int set_contxt = 0;
 int output_file_counter = 0;
 
 std::stringstream outstream;
- 
+
 std::vector<double> arr_excl_time;
 std::vector<double> arr_complete_time;
 
@@ -56,16 +56,13 @@ class function_timer{
 
   public: 
     function_timer(char const * name_, 
-                   double const start_time_,
-                   double const start_excl_time_){
+        double const start_time_,
+        double const start_excl_time_){
       sprintf(name, "%s", name_);
       start_time = start_time_;
       start_excl_time = start_excl_time_;
 
       numcore = omp_get_num_threads();
-
-//      sprintf(name, "%s (%d)", name_,numcore);
-//std::cout<<"Function "<<name_<<" runs on "<<numcore<<"cores"<<std::endl;
 
       arr_start_time.resize(numcore,0.0); 
       arr_start_excl_time.resize(numcore,0.0); 
@@ -84,12 +81,12 @@ class function_timer{
 
     void compute_totals(MPI_Comm comm){ 
       if(set_contxt){
-      MPI_Allreduce(&acc_time, &total_time, 1, 
-                    MPI_DOUBLE, MPI_SUM, comm);
-      MPI_Allreduce(&acc_excl_time, &total_excl_time, 1, 
-                    MPI_DOUBLE, MPI_SUM, comm);
-      MPI_Allreduce(&calls, &total_calls, 1, 
-                    MPI_INT, MPI_SUM, comm);
+        MPI_Allreduce(&acc_time, &total_time, 1, 
+            MPI_DOUBLE, MPI_SUM, comm);
+        MPI_Allreduce(&acc_excl_time, &total_excl_time, 1, 
+            MPI_DOUBLE, MPI_SUM, comm);
+        MPI_Allreduce(&calls, &total_calls, 1, 
+            MPI_INT, MPI_SUM, comm);
       }
       else{
         total_time=0.0;
@@ -107,35 +104,32 @@ class function_timer{
       return total_time > w.total_time;
     }
 
-    void print(FILE *         output, 
-               MPI_Comm const comm, 
-               int const      rank,
-               int const      np){
+    void print( 
+        MPI_Comm const comm, 
+        int const      rank,
+        int const      np
+        ){
       int i;
       if (rank == 0){
         outstream.write(name,(strlen(name))*sizeof(char));
-//        profileptr->OFS().write(name,(strlen(name))*sizeof(char));
         char * space = (char*)malloc(MAX_NAME_LENGTH-strlen(name)+1);
         for (i=0; i<MAX_NAME_LENGTH-(int)strlen(name); i++){
           space[i] = ' ';
         }
         space[i] = '\0';
 
-//        profileptr->OFS().write(space,(strlen(space))*sizeof(char));
         outstream.write(space,(strlen(space))*sizeof(char));
         char outstr[50];
         sprintf(outstr,"%5d    %7.7lg  %3d.%02d  %7.7lg  %3d.%02d\n",
-                total_calls/(np*numcore),
-                (double)(total_time/(np*numcore)),
-                (int)(100.*(total_time)/complete_time),
-                ((int)(10000.*(total_time)/complete_time))%100,
-                (double)(total_excl_time/(np*numcore)),
-                (int)(100.*(total_excl_time)/complete_time),
-                ((int)(10000.*(total_excl_time)/complete_time))%100);
+            total_calls/(np*numcore),
+            (double)(total_time/(np*numcore)),
+            (int)(100.*(total_time)/complete_time),
+            ((int)(10000.*(total_time)/complete_time))%100,
+            (double)(total_excl_time/(np*numcore)),
+            (int)(100.*(total_excl_time)/complete_time),
+            ((int)(10000.*(total_excl_time)/complete_time))%100);
 
-        //fprintf(output, "%s", outstr);
         outstream.write(outstr,(strlen(outstr))*sizeof(char));
-//        profileptr->OFS().write(outstr,(strlen(outstr))*sizeof(char));
 
         free(space);
       } 
@@ -161,20 +155,16 @@ CTF_timer::CTF_timer(const char * name){
     original = 1;
     index = 0;
 
-//    excl_time = 0.0;
     int numcore = omp_get_num_threads();
-//    std::cout<<numcore<< " cores "<<std::endl;
     arr_excl_time.resize(numcore,0.0);
 
-    double time = omp_get_wtime();
-//    std::cout<<"time = "<<time<<std::endl;
-//    function_timers.push_back(function_timer(name, MPI_Wtime(), 0.0)); 
+    double time = get_time();
     function_timers.push_back(function_timer(name, time, 0.0)); 
   } else {
     for (i=0; i<(int)function_timers.size(); i++){
       if (strcmp(function_timers[i].name, name) == 0){
         /*function_timers[i].start_time = MPI_Wtime();
-        function_timers[i].start_excl_time = excl_time;*/
+          function_timers[i].start_excl_time = excl_time;*/
         break;
       }
     }
@@ -182,44 +172,36 @@ CTF_timer::CTF_timer(const char * name){
     original = (index==0);
   }
   if (index == (int)function_timers.size()) {
-//    function_timers.push_back(function_timer(name, MPI_Wtime(), excl_time)); 
-
-
-    double time = omp_get_wtime();
-
+    double time = get_time();
     int core = omp_get_thread_num();
 
-if(arr_excl_time.size()<core+1){
-    arr_excl_time.resize(core+1,0.0);
-}
-//    std::cout<<"time = "<<time<<std::endl;
+    if(arr_excl_time.size()<core+1){
+      arr_excl_time.resize(core+1,0.0);
+    }
     function_timers.push_back(function_timer(name, time, arr_excl_time[core])); 
   }
   timer_name = name;
   exited = 0;
 #endif
 }
-  
+
 void CTF_timer::start(){
 #ifdef PROFILE
   if (!exited){
-//    function_timers[index].start_time = MPI_Wtime();
     int core = omp_get_thread_num();
-    double time = omp_get_wtime();
+    double time = get_time();
     if(function_timers[index].arr_start_time.size()<core+1){
       function_timers[index].arr_start_time.resize(core+1);
       function_timers[index].arr_start_excl_time.resize(core+1);
     }
-//    std::cout<<"C"<<omp_get_thread_num()<<" start time = "<<time<<std::endl;
     function_timers[index].arr_start_time[core] = time;
 
-if(arr_excl_time.size()<core+1){
-    arr_excl_time.resize(core+1,0.0);
-}
+    if(arr_excl_time.size()<core+1){
+      arr_excl_time.resize(core+1,0.0);
+    }
 
     function_timers[index].arr_start_excl_time[core] = arr_excl_time[core];
     function_timers[index].start_time = time;
-//    function_timers[index].start_excl_time = excl_time;
   }
 #endif
 }
@@ -227,33 +209,25 @@ if(arr_excl_time.size()<core+1){
 void CTF_timer::stop(){
 #ifdef PROFILE
   if (!exited){
-//    double delta_time = MPI_Wtime() - function_timers[index].start_time;
     int core = omp_get_thread_num();
-    double time = omp_get_wtime();
-//    std::cout<<"stop time = "<<time<<std::endl;
+    double time = get_time();
     if(function_timers[index].arr_acc_time.size()<core+1){
       function_timers[index].arr_acc_time.resize(core+1);
       function_timers[index].arr_acc_excl_time.resize(core+1);
     }
 
-if(arr_excl_time.size()<core+1){
-    arr_excl_time.resize(core+1,0.0);
-}
+    if(arr_excl_time.size()<core+1){
+      arr_excl_time.resize(core+1,0.0);
+    }
     double delta_time = time - function_timers[index].start_time;
-//    function_timers[index].acc_time += delta_time;
-//    function_timers[index].acc_excl_time += delta_time - 
-//          (excl_time- function_timers[index].start_excl_time); 
     function_timers[index].arr_acc_time[core] += delta_time;
     function_timers[index].arr_acc_excl_time[core] += delta_time - 
-          (arr_excl_time[core]- function_timers[index].arr_start_excl_time[core]); 
+      (arr_excl_time[core]- function_timers[index].arr_start_excl_time[core]); 
 
-//    excl_time = function_timers[index].start_excl_time + delta_time;
     arr_excl_time[core] = function_timers[index].arr_start_excl_time[core] + delta_time;
 
-//    function_timers[index].calls++;
     function_timers[index].arr_calls[core]++;
 
-//std::cout<<"C"<<core<<" calls = "<<function_timers[index].arr_calls[core]<<std::endl;
 
     exit();
     exited = 1;
@@ -272,31 +246,35 @@ void CTF_timer::exit(){
 #ifdef PROFILE
   if (original && !exited) {
     int core, nc;
-    
-#ifndef UPCXX
-    #pragma omp parallel
-    {
-      nc = omp_get_num_threads();
-      core = omp_get_thread_num();
-    }
-#else
-    nc = 1;
-    core=0;
-#endif
 
-    if (set_contxt){ 
+//#ifndef UPCXX
+//#pragma omp parallel
+//    {
+//      nc = omp_get_num_threads();
+//      core = omp_get_thread_num();
+//    }
+//#else
+//    nc = 1;
+//    core=0;
+//#endif
+
+    int ismpi=0;
+    MPI_Initialized( &ismpi);
+
+
+    if (ismpi && set_contxt){ 
       int rank, np, i, j, p, len_symbols;
 
-#ifndef UPCXX
-      MPI_Comm_rank(comm, &rank);
-      MPI_Comm_size(comm, &np);
-#else
-      rank=MYTHREAD;
-      np=THREADS;
-#endif
+      if(ismpi){
+        MPI_Comm_rank(comm, &rank);
+        MPI_Comm_size(comm, &np);
+      }
+//      else{
+//        rank=MYTHREAD;
+//        np=THREADS;
+//      }
 
 
-      FILE * output;
 
       char all_symbols[10000];
 
@@ -304,40 +282,17 @@ void CTF_timer::exit(){
         char filename[300];
         char part[300];
 
-#if 0
-        sprintf(filename, "profile.");
-        srand(time(NULL));
-        sprintf(filename+strlen(filename), "%d.", output_file_counter);
-        output_file_counter++;
-
-        int off;
-        if (main_argc > 0){
-          for (i=0; i<main_argc; i++){
-            for (off=strlen(main_argv[i]); off>=1; off--){
-              if (main_argv[i][off-1] == '/') break;
-            }
-            sprintf(filename+strlen(filename), "%s.", main_argv[i]+off);
-          }
-        } 
-        sprintf(filename+strlen(filename), "-p%dc%d.out", rank, core);
-#endif
-
-        //output = fopen(filename, "w");
-        output = stdout;
         char heading[MAX_NAME_LENGTH+200];
         for (i=0; i<MAX_NAME_LENGTH; i++){
           part[i] = ' ';
         }
         part[i] = '\0';
         sprintf(heading,"%s",part);
-        //sprintf(part,"calls   total sec   exclusive sec\n");
         sprintf(part,"       inclusive         exclusive\n");
         strcat(heading,part);
-        
-        outstream.write(heading,(strlen(heading))*sizeof(char));
-//        profileptr->OFS().write(heading,(strlen(heading))*sizeof(char));
 
-        //fprintf(output, "%s", heading);
+        outstream.write(heading,(strlen(heading))*sizeof(char));
+
         for (i=0; i<MAX_NAME_LENGTH; i++){
           part[i] = ' ';
         }
@@ -347,29 +302,13 @@ void CTF_timer::exit(){
         strcat(heading,part);
         sprintf(part, "       sec       %%\n"); 
         strcat(heading,part);
-        //fprintf(output, "%s", heading);
         outstream.write(heading,(strlen(heading))*sizeof(char));
-//        profileptr->OFS().write(heading,(strlen(heading))*sizeof(char));
 
         len_symbols = 0;
         for (i=0; i<(int)function_timers.size(); i++){
           sprintf(all_symbols+len_symbols, "%s", function_timers[i].name);
           len_symbols += strlen(function_timers[i].name)+1;
         }
-
-
-
-
-        
-
-
-
-
-
-
-        //fclose(output);
-
-
 
       }
       if (np > 1){
@@ -393,7 +332,7 @@ void CTF_timer::exit(){
                 len_symbols += strlen(function_timers[i].name)+1;
               }
             }
-       }
+          }
         }
         MPI_Bcast(&len_symbols, 1, MPI_INT, 0, comm);
         MPI_Bcast(all_symbols, len_symbols, MPI_CHAR, 0, comm);
@@ -411,7 +350,7 @@ void CTF_timer::exit(){
       std::sort(function_timers.begin(), function_timers.end());
       complete_time = function_timers[0].total_time;
       for (i=0; i<(int)function_timers.size(); i++){
-        function_timers[i].print(output,comm,rank,np);
+        function_timers[i].print(comm,rank,np);
       }
 
       function_timers.clear();
@@ -420,70 +359,41 @@ void CTF_timer::exit(){
       int i, j, p, len_symbols;
       int np, rank;
 
-      FILE * output;
 
-      np = 1;
       rank = 0;
 
       char all_symbols[10000];
 
-        char filename[300];
-        char part[300];
+      char filename[300];
+      char part[300];
 
-#if 0
-        sprintf(filename, "profile.");
-        srand(time(NULL));
-        sprintf(filename+strlen(filename), "%d.", output_file_counter);
-        output_file_counter++;
+      char heading[MAX_NAME_LENGTH+200];
+      for (i=0; i<MAX_NAME_LENGTH; i++){
+        part[i] = ' ';
+      }
+      part[i] = '\0';
+      sprintf(heading,"%s",part);
+      sprintf(part,"       inclusive         exclusive\n");
+      strcat(heading,part);
+      outstream.write(heading,(strlen(heading))*sizeof(char));
 
-        int off;
-        if (main_argc > 0){
-          for (i=0; i<main_argc; i++){
-            for (off=strlen(main_argv[i]); off>=1; off--){
-              if (main_argv[i][off-1] == '/') break;
-            }
-            sprintf(filename+strlen(filename), "%s.", main_argv[i]+off);
-          }
-        } 
-        sprintf(filename+strlen(filename), "-p%dc%d.out", rank, core);
+      for (i=0; i<MAX_NAME_LENGTH; i++){
+        part[i] = ' ';
+      }
+      part[i] = '\0';
+      sprintf(heading,"%s",part);
+      sprintf(part, "calls        sec       %%"); 
+      strcat(heading,part);
+      sprintf(part, "       sec       %%\n"); 
+      strcat(heading,part);
+      outstream.write(heading,(strlen(heading))*sizeof(char));
 
-//        output = fopen(filename, "w");
-#endif
+      len_symbols = 0;
+      for (i=0; i<(int)function_timers.size(); i++){
+        sprintf(all_symbols+len_symbols, "%s", function_timers[i].name);
+        len_symbols += strlen(function_timers[i].name)+1;
+      }
 
-        output = stdout;//fopen(filename, "w");
-        char heading[MAX_NAME_LENGTH+200];
-        for (i=0; i<MAX_NAME_LENGTH; i++){
-          part[i] = ' ';
-        }
-        part[i] = '\0';
-        sprintf(heading,"%s",part);
-        //sprintf(part,"calls   total sec   exclusive sec\n");
-        sprintf(part,"       inclusive         exclusive\n");
-        strcat(heading,part);
-        //fprintf(output, "%s", heading);
-        //profileptr->OFS().write(heading,(strlen(heading))*sizeof(char));
-        outstream.write(heading,(strlen(heading))*sizeof(char));
-
-        for (i=0; i<MAX_NAME_LENGTH; i++){
-          part[i] = ' ';
-        }
-        part[i] = '\0';
-        sprintf(heading,"%s",part);
-        sprintf(part, "calls        sec       %%"); 
-        strcat(heading,part);
-        sprintf(part, "       sec       %%\n"); 
-        strcat(heading,part);
-        //fprintf(output, "%s", heading);
-//        profileptr->OFS().write(heading,(strlen(heading))*sizeof(char));
-        outstream.write(heading,(strlen(heading))*sizeof(char));
-
-        len_symbols = 0;
-        for (i=0; i<(int)function_timers.size(); i++){
-          sprintf(all_symbols+len_symbols, "%s", function_timers[i].name);
-          len_symbols += strlen(function_timers[i].name)+1;
-        }
-
-//        fclose(output);
 
 
       std::sort(function_timers.begin(), function_timers.end(),comp_name);
@@ -493,33 +403,29 @@ void CTF_timer::exit(){
       std::sort(function_timers.begin(), function_timers.end());
       complete_time = function_timers[0].total_time;
       for (i=0; i<(int)function_timers.size(); i++){
-        function_timers[i].print(output,comm,rank,np);
+        function_timers[i].print(comm,rank,1);
       }
 
       function_timers.clear();
     }
 
+    int iam=0;
+    if(!ismpi){
+      iam = MYTHREAD;
+    }
+    else{
+      MPI_Comm_rank(MPI_COMM_WORLD,&iam);
+    }
+    char suffix[50];
+    sprintf(suffix,"%d",iam);
+    profileptr = new LogFile("profile",suffix);
 
-int ismpi=0;
-MPI_Initialized( &ismpi);
-
-int iam=0;
-if(!ismpi){
- iam = MYTHREAD;
-}
-else{
-  MPI_Comm_rank(MPI_COMM_WORLD,&iam);
-}
-  char suffix[50];
-  sprintf(suffix,"%d",iam);
-  profileptr = new LogFile("profile",suffix);
-
-  profileptr->OFS() << outstream.str();
+    profileptr->OFS() << outstream.str();
 
 
- delete profileptr; 
+    delete profileptr; 
 
-//logfileptr->OFS()<<"CALLED"<<std::endl;
+    //logfileptr->OFS()<<"CALLED"<<std::endl;
 
 
 

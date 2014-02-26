@@ -8,7 +8,15 @@
 
 
 #include <mpi.h>
+#include <sys/time.h>
 
+inline double get_time()
+  {
+    struct timeval tv;
+    gettimeofday(&tv, 0);
+    return tv.tv_sec + ((double) tv.tv_usec / 1000000);
+  }
+ 
 
 class CTF_timer{
   public:

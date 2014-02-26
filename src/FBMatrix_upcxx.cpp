@@ -20,7 +20,7 @@
 #define ADVANCE_COMM 1
 #endif
 
-#include<omp.h>
+#include "timer.hpp"
 
 
 //#define _DEBUG_
@@ -48,7 +48,7 @@ namespace LIBCHOLESKY{
   {
     fact_finished = 1;
 
-//    upcxx::barrier();
+    upcxx::barrier();
   }
 
   void signal_exit()
@@ -181,16 +181,55 @@ namespace LIBCHOLESKY{
   void FBMatrix_upcxx::WaitFactorization(){ 
 
 //    while(!fact_finished){  upcxx::progress(); };
-    while(!fact_finished){  
-      TIMER_START(MAIN_ADVANCE);
-      //upcxx::advance(100,99); 
-      while (advance() > 0);
-      TIMER_STOP(MAIN_ADVANCE);
+    int loc_finished = fact_finished;
+    double time_sta_overall, time_end_overall, time_overall =0.0;
+    double time_sta_adv, time_end_adv, time_adv =0.0;
+    double time_sta_signal, time_end_signal, time_signal =0.0;
+
+      time_sta_overall = get_time();
+//    Int cnt = 0;
+    while( !fact_finished ){
+//      cnt++;
+//      int i= 42;
+//      time_sta_adv = get_time();
+//      TIMER_START(MAIN_ADVANCE);
+      upcxx::advance(); 
+//      TIMER_STOP(MAIN_ADVANCE);
+//      time_end_adv = get_time();
+//      time_adv += time_end_adv - time_sta_adv;
+//      time_sta_signal = get_time();
+//      TIMER_START(WHILE_TEST);
+//      loc_finished =fact_finished;
+//      TIMER_STOP(WHILE_TEST)
+//      time_end_signal = get_time();
+//      time_signal += time_end_signal - time_sta_signal;
     }
-    //while(!fact_finished){  upcxx::advance(1, 99); };
-    if(MYTHREAD==MAP(n-1,n-1)){
-      TIMER_STOP(SYNC_END);
-    }
+
+    time_end_overall = get_time();
+    time_overall += time_end_overall - time_sta_overall;
+
+//    Int cnt2 = cnt;
+//    while( cnt-->0 ){
+//      int i= 42;
+//      time_sta_signal = get_time();
+//      TIMER_START(WHILE_TEST);
+//      loc_finished =i;
+//      TIMER_STOP(WHILE_TEST)
+//      time_end_signal = get_time();
+//      time_signal += time_end_signal - time_sta_signal;
+//    }
+
+    
+//    logfileptr->OFS()<<"Loops: "<<cnt2<<endl; 
+    logfileptr->OFS()<<"FANBOTH_WAITFACT: "<<time_overall<<endl; 
+    logfileptr->OFS()<<"MAIN_ADVANCE: "<<time_adv<<endl; 
+    logfileptr->OFS()<<"WHILE_TEST: "<<time_signal<<endl; 
+
+//    while(!fact_finished){  upcxx::advance(); };
+//    if(MYTHREAD==MAP(n-1,n-1)){
+//      TIMER_STOP(SYNC_END);
+//    }
+
   }
 
   void FBMatrix_upcxx::NumericalFactorization(){
@@ -198,6 +237,255 @@ namespace LIBCHOLESKY{
       upcxx::async(iam)(Factor_Async,RemoteObjPtrs[iam],0);
     }
   }
+
+
+
+
+
+
+  void FBMatrix_upcxx::NumericalFactorizationLoop(){
+      Int numStep = ceil((double)n/(double)blksize);
+
+      DblNumMat_upcxx RemoteAggregate(n,blksize);
+      DblNumMat_upcxx RemoteFactorBuf(n,blksize);
+
+
+    upcxx::shared_array<upcxx::global_ptr<double> > ArrAggregates;
+    ArrAggregates.init(np);
+    ArrAggregates[iam] = RemoteAggregate.GData();
+
+    upcxx::shared_array<upcxx::global_ptr<double> > ArrFactors;
+    ArrFactors.init(np);
+    ArrFactors[iam] = RemoteFactorBuf.GData();
+
+    upcxx::barrier();
+    upcxx::wait();
+
+
+
+
+
+
+
+
+      for(int js=0; js<numStep;js++){
+        int j = min(js*blksize,n-1);
+        Int jb = min(blksize, n-j);
+        Int local_j = global_col_to_local(j);
+
+        //do the aggregation and factorization
+        if(iam==MAP(j,j) ){
+
+          //aggregate previous updates
+          //Do I have local aggregates ?
+          for(int i=(js-1)*blksize; i>=max(0,(js-np))*blksize; i-=blksize){
+
+            #ifdef _DEBUG_
+                  logfileptr->OFS()<<"Searching for local aggregates from "<<i<<" to "<<j<<endl;
+                  logfileptr->OFS()<<i<<" is on P"<<MAP(j,i)<<endl;
+            #endif
+      
+            if(iam==MAP(j,i)){
+              //This is a local aggregate
+              DblNumMat_upcxx & LocalAggregate = *(DblNumMat_upcxx*)WLower[j/blksize];
+
+                #ifdef _DEBUG_
+                  logfileptr->OFS()<<"Aggregating local to column "<<j<<endl;
+                #endif
+              TIMER_START(Local_Aggregate);
+              Aggregate(j, LocalAggregate);
+              TIMER_STOP(Local_Aggregate);
+              --AggLock[j/blksize];
+              break;
+            }
+          }
+          //Process remote aggregates
+          if(AggLock[j/blksize]>0){
+            while(AggLock[j/blksize]>0){
+
+                #ifdef _DEBUG_
+                  logfileptr->OFS()<<"Receiving aggregate"<<endl;
+               #endif
+              TIMER_START(Aggregate_Recv);
+              //MPI_Recv(RemoteAggregate.Data(),(n-j)*jb*sizeof(double),MPI_BYTE,MPI_ANY_SOURCE,TAG_AGGREGATE_RECV,mpigrid->comm,MPI_STATUS_IGNORE);
+              TIMER_STOP(Aggregate_Recv);
+
+                #ifdef _DEBUG_
+                  logfileptr->OFS()<<"Aggregating to column "<<j<<endl;
+                #endif
+              TIMER_START(Remote_Aggregate);
+              Aggregate(j, RemoteAggregate);
+              TIMER_STOP(Remote_Aggregate);
+              --AggLock[j/blksize];
+            }
+          }
+
+
+                #ifdef _DEBUG_
+                  logfileptr->OFS()<<"Factoring column "<<j<<endl;
+                #endif
+          //Factor current column 
+          Factor(j);
+
+          //send factor
+          TIMER_START(Send_Factor);
+          
+          for(Int target = 0; target<np;target++){
+            for(Int i = j+blksize; i<n; i+=blksize){
+              if(MAP(i,j)==target && target!=iam){
+                DblNumMat_upcxx & Achk = *(DblNumMat_upcxx*)AchunkLower[local_j/blksize];
+
+                #ifdef _DEBUG_
+                  logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<endl;
+                #endif
+                //MPI_Isend(&Achk(0,0),Achk.ByteSize(),MPI_BYTE,target,TAG_FACTOR, mpigrid->comm,&Factor_Send_Requests[target] );
+                //push the factor on P(i,j)
+                break;
+              }
+            }
+          }
+          TIMER_STOP(Send_Factor);
+
+        }
+
+        //MPI_Barrier(mpigrid->comm);
+
+        //do the updates
+
+        bool have_factor = false;
+
+        //foreach processor, do I have an update from column j to any column ?
+        for(int i=j+jb;i<n ;i+=jb){
+          //compute the update
+          if(iam==MAP(i,j)){
+            DblNumMat_upcxx * RemoteFactorPtr;
+            if(iam!=MAP(j,j) ){
+              RemoteFactorPtr = & RemoteFactorBuf;
+              if(!have_factor){
+#ifdef _DEBUG_
+                logfileptr->OFS()<<"Receiving factor "<<j<<endl;
+#endif
+                //Receive factor
+              TIMER_START(Factor_Recv);
+                //MPI_Recv(RemoteFactorPtr->Data(),(n-j)*jb*sizeof(double),MPI_BYTE,MAP(j,j),TAG_FACTOR,mpigrid->comm,MPI_STATUS_IGNORE);
+              TIMER_STOP(Factor_Recv);
+                have_factor=true;
+              }
+            }
+            else{
+            #ifdef _DEBUG_
+              DblNumMat_upcxx * LocalFactorPtr=AchunkLower[local_j/blksize];
+              logfileptr->OFS()<<"Local factor "<<j<<" ("<<LocalFactorPtr->m()<<","<<LocalFactorPtr->n()<<")"<<endl;
+            #endif
+              RemoteFactorPtr = (DblNumMat_upcxx*)AchunkLower[local_j/blksize];
+            }
+
+            #ifdef _DEBUG_
+                  logfileptr->OFS()<<"Updating "<<i<<" with "<<j<<endl;
+            #endif
+            //Do the update
+            Update(j, i, *RemoteFactorPtr);
+
+            //logfileptr->OFS()<<"Done Updating "<<i<<" with "<<j<<endl;
+            TIMER_START(Launch_Aggregates);
+            //if this is the last update to column i, send aggregate
+            if(lastUpdate(j,i)){
+
+              Int target = MAP(i,i);
+#ifdef _DEBUG_
+              logfileptr->OFS()<<"I did my last update to "<<i<<endl;
+#endif
+
+              if(target!=iam){
+#ifdef _DEBUG_
+              logfileptr->OFS()<<"Updating from "<<j<<", sending aggregate to P"<<target<<" for column "<<i<<endl;
+#endif
+                //MPI_Isend(WLower[i/blksize]->Data(),WLower[i/blksize]->ByteSize(),MPI_BYTE,target,TAG_AGGREGATE_SEND,mpigrid->comm, &Aggregate_Send_Requests[target]);
+                //push the data to P(i,i)
+                //upcxx::copy
+              }
+            }
+            TIMER_STOP(Launch_Aggregates);
+
+
+
+          }
+        }
+
+        //MPI_Barrier(mpigrid->comm);
+
+      } 
+      
+      fact_finished = 1;
+      upcxx::barrier();
+
+  }
+
+  //Check if j is the last column updating i
+  bool FBMatrix_upcxx::lastUpdate(Int j, Int i){
+    //is it my last update to column i ?
+    bool last_upd = true;
+    for(Int jj = j+blksize; jj<i;jj+=blksize){
+      //logfileptr->OFS()<<"Next update to "<<i<<" looking at "<<jj<<endl;
+      if(iam==MAP(i,jj)){
+        //logfileptr->OFS()<<jj<<" updates "<<i<<endl;
+        last_upd=false;
+        break;
+      }
+    }
+    return last_upd;
+  }
+
+
+
+
+
+
+//  void FBMatrix_upcxx::NumericalFactorizationEvent(){
+//      Int numStep = ceil((double)n/(double)blksize);
+//
+//
+//      upcxx::event * event_factos[numStep];
+//      upcxx::event * event_aggregates[numStep];
+//      upcxx::event * event_updates[numStep];
+//
+//      for(int i =0; i<numStep;i++){
+//        event_factos[i] = new upcxx::event();
+//        event_aggregates[i] = new upcxx::event();
+//        event_updates[i] = new upcxx::event();
+//      }
+//
+//      for(int js=0; js<numStep;js++){
+//        int j = min(js*blksize,n-1);
+//        Int jb = min(blksize, n-j);
+//        Int local_j = global_col_to_local(j);
+//
+//          if(js==0){ 
+//            upcxx::Async<MAP(j,j),&event_factos[js]>(Facto_Async2,,,)
+//          }
+//          else{
+//            upcxx::Async_after<MAP(j,j),event_updates[js],&event_fggregates[js]>(Aggregate_Async2,,,)
+//            upcxx::Async_after<MAP(j,j),event_aggregates[js],&event_factos[js]>(Facto_Async2,,,)
+//          }
+//
+//
+//          for(Int target = 0; target<np;target++){
+//            for(Int i = j+blksize; i<n; i+=blksize){
+//               Int is = i/blksize;
+//                //is it possible to have JOIN ?
+//               upcxx::Async_after<MAP(i,j),event_factos[js],&event_update[is]>(Update_Async2,,,)
+//            }
+//          }
+//      }
+//  }
+
+
+
+
+
+
+
+
 
   void Gathercopy(upcxx::global_ptr<FBMatrix_upcxx> Objptr, global_ptr<double> Adest, Int j){
     assert(Objptr.tid()==MYTHREAD);
@@ -273,7 +561,7 @@ namespace LIBCHOLESKY{
       logfileptr->OFS()<<"Unlocking quit"<<endl;
 #endif
 
-      TIMER_START(SYNC_END);
+//      TIMER_START(SYNC_END);
       signal_exit();
 
     }
@@ -328,15 +616,7 @@ namespace LIBCHOLESKY{
 
         TIMER_START(Launch_Aggregates);
         //is it my last update to column i ?
-        bool last_upd = true;
-        for(Int jj = j+A.blksize; jj<i;jj+=A.blksize){
-          if(A.iam==A.MAP(i,jj)){
-            //logfileptr->OFS()<<j<<" I also have to update column "<<jj<<endl;
-            last_upd=false;
-            break;
-          }
-        }
-        if(last_upd){
+        if(A.lastUpdate(j,i)){
           Int target = A.MAP(i,i);
 #ifdef _DEBUG_
           logfileptr->OFS()<<"Updating from "<<j<<", launching aggregate on P"<<target<<" for column "<<i<<endl;
@@ -401,7 +681,7 @@ namespace LIBCHOLESKY{
     TIMER_STOP(Fetching_Factor);
 //#endif
 
-    double tstop = omp_get_wtime();
+    double tstop = get_time();
     A.factor_comm_time += tstop - tstart;
 
 
@@ -494,7 +774,7 @@ namespace LIBCHOLESKY{
 
     if(A.outstdUpdate+1<=A.prefetch){
 
-    double tstart = omp_get_wtime();
+    double tstart = get_time();
       TIMER_START(Fetching_Factor);
 #ifdef NO_ASYNC_COPY
       upcxx::event * async_copy_event = NULL;
@@ -534,7 +814,7 @@ namespace LIBCHOLESKY{
 #ifdef _DEBUG_PREFETCH_    
       logfileptr->OFS()<<"Outstanding updates: "<<A.outstdUpdate<<"/"<<A.prefetch<<" too many > blocking copy"<<endl;
 #endif
-      double tstart = omp_get_wtime();
+      double tstart = get_time();
       TIMER_START(Fetching_Factor);
       upcxx::copy(remoteFactorPtr,RemoteFactor->GData(),RemoteFactor->Size());
 
@@ -640,7 +920,7 @@ namespace LIBCHOLESKY{
     }
 //#endif
     TIMER_STOP(Fetching_Aggregate);
-    double tstop = omp_get_wtime();
+    double tstop = get_time();
     A.aggregate_comm_time += tstop - tstart;
 
 
@@ -696,7 +976,7 @@ namespace LIBCHOLESKY{
     
 
     if(A.outstdAggreg+1<=A.prefetch){
-    double tstart = omp_get_wtime();
+    double tstart = get_time();
     TIMER_START(Fetching_Aggregate);
 #ifdef NO_ASYNC_COPY
     upcxx::event * async_copy_event = NULL;
@@ -734,7 +1014,7 @@ namespace LIBCHOLESKY{
 #ifdef _DEBUG_PREFETCH_    
       logfileptr->OFS()<<"Outstanding aggregates: "<<A.outstdAggreg<<"/"<<A.prefetch<<" too many > blocking copy"<<endl;
 #endif
-    double tstart = omp_get_wtime();
+    double tstart = get_time();
       TIMER_START(Fetching_factor);
     upcxx::copy(remoteAggregatePtr,RemoteAggregate->GData(),RemoteAggregate->Size());
 

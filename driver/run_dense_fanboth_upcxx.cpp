@@ -13,7 +13,11 @@
 
 #include <time.h>
 #include <random>
-#include <omp.h>
+
+
+
+
+
 
 #include  "Environment.hpp"
 //#include  "DistSparseMatrix.hpp"
@@ -46,6 +50,7 @@ extern "C" {
 }
 
 
+#include "timer.hpp"
 
 
 #ifdef USE_TAU
@@ -70,8 +75,6 @@ extern "C" {
 
 using namespace LIBCHOLESKY;
 using namespace std;
-
-
 
 
 
@@ -210,8 +213,10 @@ int main(int argc, char **argv)
     A.Clear();
 
     logfileptr->OFS()<<"distributed"<<endl;
+    
 
-      timeSta =  omp_get_wtime( );
+      //timeSta =  omp_get_wtime( );
+      timeSta =  get_time( );
     TIMER_START(FANBOTH);
     if(iam==Afactptr->MAP(Afactptr->n-1,Afactptr->n-1)){
 #ifdef _DEBUG_
@@ -223,12 +228,17 @@ int main(int argc, char **argv)
     logfileptr->OFS()<<"initializing"<<endl;
 #endif
 
-
     upcxx::barrier();
 
+    
+    TIMER_START(FANBOTH_NUMFACT);
     Afactptr->NumericalFactorization();
+    TIMER_STOP(FANBOTH_NUMFACT);
+    TIMER_START(FANBOTH_WAITFACT);
     Afactptr->WaitFactorization();
-    timeEnd =  omp_get_wtime( );
+    TIMER_STOP(FANBOTH_WAITFACT);
+    //timeEnd =  omp_get_wtime( );
+    timeEnd =  get_time( );
 
     TIMER_STOP(FANBOTH);
 
