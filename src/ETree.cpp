@@ -112,6 +112,9 @@ ETree::ETree(){
 //      for(Int i=1; i<=n_;i++){
 //        postParent_(postNumber_(i-1)-1)=postNumber_(parent_(i-1)-1);
 //      }
+      
+      logfileptr->OFS()<<"postNumber: "<<postNumber_<<std::endl;
+      logfileptr->OFS()<<"invPostNumber: "<<invPostNumber_<<std::endl;
 
       isPostOrdered_ = true;
     }
