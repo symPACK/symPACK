@@ -20,6 +20,7 @@
 #include  "blas.hpp"
 #include  "lapack.hpp"
 #include  "FBMatrix_upcxx.hpp"
+#include  "NZBlock.hpp"
 
 #include <async.h>
 #include  "LogFile.hpp"
@@ -120,9 +121,6 @@ int main(int argc, char **argv)
 
     upcxx::global_ptr<FBMatrix_upcxx> AfactGptr = upcxx::Create<FBMatrix_upcxx>();
     FBMatrix_upcxx * Afactptr = AfactGptr;
-//    upcxx::global_ptr<FBMatrix> Afactptr;
-//    Afactptr = upcxx::allocate<FBMatrix>(iam,1);// upcxx::Create2<FBMatrix>(Afactptr);
-
 
     Aobjects[iam] = AfactGptr;
     upcxx::barrier();
@@ -148,7 +146,7 @@ int main(int argc, char **argv)
     const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
     DistSparseMatrix<Real> HMat(cscptr);
 
-    Afactptr->n = ((csc_matrix_t *)Atmp->repr)->n;
+    Afactptr->n = HMat.size;
     if(MYTHREAD==0){ cout<<"Matrix order is "<<Afactptr->n<<endl; }
 
 
@@ -176,12 +174,10 @@ int main(int argc, char **argv)
      HMat.ConstructETree(elimTree);
      logfileptr->OFS()<<"etree "<<elimTree<<std::endl;
 
-upcxx::barrier();
+     upcxx::barrier();
      elimTree.PostOrderTree();
      logfileptr->OFS()<<"po etree"<<elimTree<<std::endl;
-
-upcxx::barrier();
-
+     upcxx::barrier();
 
      IntNumVec cc,rc;
      HMat.GetLColRowCount(elimTree,cc,rc);
@@ -190,12 +186,64 @@ upcxx::barrier();
 
 
 
-    IntNumVec super; 
-    HMat.FindSupernodes(elimTree,cc,super);
-    logfileptr->OFS()<<"supernode indexes "<<super<<std::endl;
+    IntNumVec xsuper; 
+    HMat.FindSupernodes(elimTree,cc,xsuper);
+    logfileptr->OFS()<<"supernode indexes "<<xsuper<<std::endl;
 
-    HMat.SymbolicFactorization(elimTree,cc,super);
+    IntNumVec xlindx,lindx,xlnz;
+    DblNumVec lnz;
+    HMat.SymbolicFactorization(elimTree,cc,xsuper,xlindx,xlnz,lindx,lnz);
  
+    {
+      logfileptr->OFS()<<"xlindx contains the starting index in lindx of each supernode"<<std::endl; 
+      logfileptr->OFS()<<"xlindx"<<xlindx<<std::endl;
+      logfileptr->OFS()<<"lindx contains consecutive row indices of all supernodes"<<std::endl; 
+//      for(int i =0;i<lindx.m();++i){logfileptr->OFS()<<i+1<<" ";} logfileptr->OFS()<<std::endl;
+      logfileptr->OFS()<<"lindx"<<lindx<<std::endl;
+      logfileptr->OFS()<<"xlnz contains the index of the first nz in col i"<<std::endl; 
+      logfileptr->OFS()<<"xlnz"<<xlnz<<std::endl;
+      logfileptr->OFS()<<"lnz contains the consecutive nz values of all supernodes"<<std::endl; 
+    }
+
+    //parsing the data structure
+    for(Int I=1;I<xsuper.m();I++){
+      Int fc = xsuper(I-1);
+      Int lc = xsuper(I)-1;
+      Int fi = xlindx(I-1);
+
+      logfileptr->OFS()<<"Supernode "<<I<<" in ["<<fc<<" ... "<<lc<<"]"<<std::endl;
+
+      for(Int i = fc;i<=lc;i++){
+        Int first_nz = xlnz(i-1);
+        Int last_nz = xlnz(i)-1;
+
+        logfileptr->OFS()<<"    Col "<<i<<" nz indices in ["<<first_nz<<" .. "<<last_nz<<"]"<<std::endl;
+        //diag is lnz(first_nz)
+//        logfileptr->OFS()<<"         Diag element of col "<<i<<" is "<<"lnz("<<first_nz-1<<")"<<std::endl;
+//        logfileptr->OFS()<<"         D("<<i<<","<<i<<") = "<<lnz(first_nz-1)<<std::endl;
+
+//copy A into L
+//        lnz(first_nz-1) = HMat.nzvalLocal(HMat.Local_.colptr(i-1));
+
+        logfileptr->OFS()<<"    "<<fi<<"     D("<<i<<","<<i<<") = "<<lnz(first_nz-1)<<std::endl;
+        Int idx = fi;
+        for(Int s = first_nz+1;s<=last_nz;s++){
+          idx++;
+
+          //lnz(s) contains an off-diagonal nonzero entry in row lindx(idx)
+//          logfileptr->OFS()<<"         L("<<lindx(idx-1)<<","<<i<<") = "<<"lnz("<<s-1<<")"<<std::endl;
+//          logfileptr->OFS()<<"         L("<<lindx(idx-1)<<","<<i<<") = "<<lnz(s-1)<<std::endl;
+          logfileptr->OFS()<<"    "<<idx<<"     L("<<lindx(idx-1)<<","<<i<<") = "<<lnz(s-1)<<std::endl;
+        }
+
+        fi++;
+
+      }
+    }
+
+ 
+
+
 
     delete logfileptr;
     upcxx::finalize();
@@ -216,6 +264,7 @@ upcxx::barrier();
     np = Afactptr->prow*Afactptr->pcol;
     if(MYTHREAD==0){
       cout<<"Number of cores to be used: "<<np<<endl;
+//      cout<<"Matrix order is "<<Afact.n<<endl;
     }
 
 
@@ -348,17 +397,6 @@ delete logfileptr;
 
     upcxx::wait();
 
-//
-//    logfileptr->OFS()<<"Factor_Async is "<<(void *) Factor_Async<<endl;
-//    logfileptr->OFS()<<"Update_Async is "<<(void *) Update_Async<<endl;
-//    logfileptr->OFS()<<"Aggregate_Async is "<<(void *) Aggregate_Async<<endl;
-//
-//    logfileptr->OFS()<<"Waiting time in async queues:"<<endl;
-//    for(int i = 0; i<queue_time.size(); i++){
-//      logfileptr->OFS()<<queue_time[i]<<" ("<<queue_fptr[i]<<") "; 
-//    }
-//    logfileptr->OFS()<<endl;
-
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"quitting "<<iam<<endl;
@@ -384,6 +422,7 @@ delete logfileptr;
 
     upcxx::finalize();
     upcxx::Destroy<FBMatrix_upcxx>(AfactGptr);
+
   }
   catch( std::exception& e )
   {

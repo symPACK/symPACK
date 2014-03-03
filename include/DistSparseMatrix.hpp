@@ -230,7 +230,7 @@ template <class F> class DistSparseMatrix{
   void ConstructETreeBis(ETree & tree);
   void GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc);
   void FindSupernodes(ETree& tree, IntNumVec & cc, IntNumVec & xsuper);
-  void SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper);
+  void SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & xlnz,  IntNumVec & lindx, DblNumVec & lnz);
 };
 
 // Commonly used

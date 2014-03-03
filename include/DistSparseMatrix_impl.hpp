@@ -490,11 +490,8 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
   }
 
 
-  template <class F> void DistSparseMatrix<F>::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper){
+  template <class F> void DistSparseMatrix<F>::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & xlnz,  IntNumVec & lindx, DblNumVec & lnz){
     TIMER_START(SymbolicFactorization);
-
-
-
 
 
     IntNumVec & rowind = this->Global_.rowind;
@@ -630,24 +627,24 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
     }  
 
     Int nsuper = xsuper.m()-1;
-    IntNumVec xlnz(size+1);
+    xlnz.Resize(size+1);
     Int totNnz = 1;
     for(Int I=1;I<xsuper.m();I++){
           Int fc = xsuper(I-1);
           Int lc = xsuper(I)-1;
         for(Int i=fc;i<=lc;i++){
           xlnz(i-1)=totNnz;
-          totNnz+=cc(fc-1);
+          totNnz+=cc(i-1);
+//          totNnz+=cc(fc-1);
         }
 
     }
     xlnz(size)=totNnz;
 
-    DblNumVec lnz(totNnz+1);
-
+    lnz.Resize(totNnz+1);
 //    IntNumVec lindx(size*nsuper+1);
-    IntNumVec lindx(lindxCnt);
-    IntNumVec xlindx(nsuper+1);
+    lindx.Resize(lindxCnt);
+    xlindx.Resize(nsuper+1);
     Int head = 1;
     for(Int I=1;I<=nsuper;I++){
       Int fi = tree.FromPostOrder(xsuper(I-1));
@@ -666,17 +663,17 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
     xlindx(nsuper) = head;
 
  
-        logfileptr->OFS()<<"xlindx"<<":";
-        for(int i=0;i<xlindx.m();i++){logfileptr->OFS()<<xlindx(i)<< " ";}
-        logfileptr->OFS()<<std::endl;
-
-        logfileptr->OFS()<<"lindx"<<lindxCnt<<" :";
-        for(int i=0;i<lindx.m();i++){logfileptr->OFS()<<lindx(i)<< " ";}
-        logfileptr->OFS()<<std::endl;
-
-        logfileptr->OFS()<<"xlnz"<<":";
-        for(int i=0;i<xlnz.m();i++){logfileptr->OFS()<<xlnz(i)<< " ";}
-        logfileptr->OFS()<<std::endl;
+//        logfileptr->OFS()<<"xlindx"<<":";
+//        for(int i=0;i<xlindx.m();i++){logfileptr->OFS()<<xlindx(i)<< " ";}
+//        logfileptr->OFS()<<std::endl;
+//
+//        logfileptr->OFS()<<"lindx"<<lindxCnt<<" :";
+//        for(int i=0;i<lindx.m();i++){logfileptr->OFS()<<lindx(i)<< " ";}
+//        logfileptr->OFS()<<std::endl;
+//
+//        logfileptr->OFS()<<"xlnz"<<":";
+//        for(int i=0;i<xlnz.m();i++){logfileptr->OFS()<<xlnz(i)<< " ";}
+//        logfileptr->OFS()<<std::endl;
 
 
     //parsing the data structure
