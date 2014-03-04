@@ -239,187 +239,202 @@ namespace LIBCHOLESKY{
   }
 
 
+typedef upcxx::global_ptr<double> dgptr;
+
+bool isNonNull (dgptr &  i) {
+  return ( static_cast<double *>(i)!=dgptr(NULL));
+}
 
 
 
+void FBMatrix_upcxx::NumericalFactorizationLoop(){
+  Int numStep = ceil((double)n/(double)blksize);
 
-  void FBMatrix_upcxx::NumericalFactorizationLoop(){
-      Int numStep = ceil((double)n/(double)blksize);
-
-      DblNumMat_upcxx RemoteAggregate(n,blksize);
-      DblNumMat_upcxx RemoteFactorBuf(n,blksize);
-
-
-    upcxx::shared_array<upcxx::global_ptr<double> > ArrAggregates;
-    ArrAggregates.init(np);
-    ArrAggregates[iam] = RemoteAggregate.GData();
-
-    upcxx::shared_array<upcxx::global_ptr<double> > ArrFactors;
-    ArrFactors.init(np);
-    ArrFactors[iam] = RemoteFactorBuf.GData();
-
-    upcxx::barrier();
-    upcxx::wait();
+  DblNumMat_upcxx RemoteAggregate(n,blksize);
+  DblNumMat_upcxx RemoteFactorBuf(n,blksize);
 
 
+  //    upcxx::shared_array< dgptr, np > ArrAggregateRdy2;
+  //    ArrAggregateRdy2.init(np*np);
+  //    for(int i=0;i<np;i++){
+  //       ArrAggregateRdy2[iam*np+i]=dgptr(NULL);
+  //    }
+
+  upcxx::shared_array< dgptr, 1 > ArrFactorRdy2;
+  ArrFactorRdy2.init(np);
+  ArrFactorRdy2[iam]=dgptr(NULL);
+
+  NumMat_upcxx< dgptr > RemoteAggregateRdy(np,1);
+  SetValue(RemoteAggregateRdy, dgptr(NULL));
+  upcxx::shared_array< upcxx::global_ptr< dgptr > > ArrAggregateRdy;
+  ArrAggregateRdy.init(np);
+  ArrAggregateRdy[iam] = RemoteAggregateRdy.GData();
+
+  upcxx::barrier();
+  upcxx::wait();
 
 
 
+  for(int js=0; js<numStep;js++){
+    int j = min(js*blksize,n-1);
+    Int jb = min(blksize, n-j);
+    Int local_j = global_col_to_local(j);
+
+    //do the aggregation and factorization
+    if(iam==MAP(j,j) ){
+
+      //aggregate previous updates
+      if(AggLock[j/blksize]>0){
+        dgptr * last = RemoteAggregateRdy.Data()+RemoteAggregateRdy.Size();
+        dgptr * pos = last;
+        while(AggLock[j/blksize]>0){
+          //poll for available data
+          do{ /*upcxx::wait();*/  pos =std::find_if(RemoteAggregateRdy.Data(),last,isNonNull); }while(pos==last);
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Receiving aggregate"<<endl;
+#endif
+          TIMER_START(Aggregate_Recv);
+          upcxx::copy<double>(*pos,RemoteAggregate.GData(),(n-j)*jb);
+          TIMER_STOP(Aggregate_Recv);
+          *pos = dgptr(NULL);
 
 
+          /************** Code for shared_array with block size np ****************/
+          ///              int pos=-1;
+          ///              bool found = false;
+          ///              do{
+          ///                  //upcxx::wait();
+          ///                  for(int i=0;i<np;i++){
+          ///                    dgptr cur = (dgptr)ArrAggregateRdy2[iam*np+i];
+          ///                    if((double*)cur!=NULL){
+          ///                      pos = iam*np+i;
+          ///                      found = true;
+          ///                      break;
+          ///                    }
+          ///                  }
+          ///              }while(! found);
+          ///
+          ///#ifdef _DEBUG_
+          ///          logfileptr->OFS()<<"Receiving aggregate"<<endl;
+          ///#endif
+          ///
+          ///              TIMER_START(Aggregate_Recv);
+          ///              upcxx::copy<double>(ArrAggregateRdy2[pos],RemoteAggregate.GData(),(n-j)*jb);
+          ///              TIMER_STOP(Aggregate_Recv);
+          ///              ArrAggregateRdy2[pos] = dgptr(NULL);
+          /********** end of code for shared_array with block size np *************/
 
-      for(int js=0; js<numStep;js++){
-        int j = min(js*blksize,n-1);
-        Int jb = min(blksize, n-j);
-        Int local_j = global_col_to_local(j);
-
-        //do the aggregation and factorization
-        if(iam==MAP(j,j) ){
-
-          //aggregate previous updates
-          //Do I have local aggregates ?
-          for(int i=(js-1)*blksize; i>=max(0,(js-np))*blksize; i-=blksize){
-
-            #ifdef _DEBUG_
-                  logfileptr->OFS()<<"Searching for local aggregates from "<<i<<" to "<<j<<endl;
-                  logfileptr->OFS()<<i<<" is on P"<<MAP(j,i)<<endl;
-            #endif
-      
-            if(iam==MAP(j,i)){
-              //This is a local aggregate
-              DblNumMat_upcxx & LocalAggregate = *(DblNumMat_upcxx*)WLower[j/blksize];
-
-                #ifdef _DEBUG_
-                  logfileptr->OFS()<<"Aggregating local to column "<<j<<endl;
-                #endif
-              TIMER_START(Local_Aggregate);
-              Aggregate(j, LocalAggregate);
-              TIMER_STOP(Local_Aggregate);
-              --AggLock[j/blksize];
-              break;
-            }
-          }
-          //Process remote aggregates
-          if(AggLock[j/blksize]>0){
-            while(AggLock[j/blksize]>0){
-
-                #ifdef _DEBUG_
-                  logfileptr->OFS()<<"Receiving aggregate"<<endl;
-               #endif
-              TIMER_START(Aggregate_Recv);
-              //MPI_Recv(RemoteAggregate.Data(),(n-j)*jb*sizeof(double),MPI_BYTE,MPI_ANY_SOURCE,TAG_AGGREGATE_RECV,mpigrid->comm,MPI_STATUS_IGNORE);
-              TIMER_STOP(Aggregate_Recv);
-
-                #ifdef _DEBUG_
-                  logfileptr->OFS()<<"Aggregating to column "<<j<<endl;
-                #endif
-              TIMER_START(Remote_Aggregate);
-              Aggregate(j, RemoteAggregate);
-              TIMER_STOP(Remote_Aggregate);
-              --AggLock[j/blksize];
-            }
-          }
-
-
-                #ifdef _DEBUG_
-                  logfileptr->OFS()<<"Factoring column "<<j<<endl;
-                #endif
-          //Factor current column 
-          Factor(j);
-
-          //send factor
-          TIMER_START(Send_Factor);
-          
-          for(Int target = 0; target<np;target++){
-            for(Int i = j+blksize; i<n; i+=blksize){
-              if(MAP(i,j)==target && target!=iam){
-                DblNumMat_upcxx & Achk = *(DblNumMat_upcxx*)AchunkLower[local_j/blksize];
-
-                #ifdef _DEBUG_
-                  logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<endl;
-                #endif
-                //MPI_Isend(&Achk(0,0),Achk.ByteSize(),MPI_BYTE,target,TAG_FACTOR, mpigrid->comm,&Factor_Send_Requests[target] );
-                //push the factor on P(i,j)
-                break;
-              }
-            }
-          }
-          TIMER_STOP(Send_Factor);
-
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Aggregating to column "<<j<<endl;
+#endif
+          TIMER_START(Remote_Aggregate);
+          Aggregate(j, RemoteAggregate);
+          TIMER_STOP(Remote_Aggregate);
+          --AggLock[j/blksize];
         }
+      }
 
-        //MPI_Barrier(mpigrid->comm);
 
-        //do the updates
-
-        bool have_factor = false;
-
-        //foreach processor, do I have an update from column j to any column ?
-        for(int i=j+jb;i<n ;i+=jb){
-          //compute the update
-          if(iam==MAP(i,j)){
-            DblNumMat_upcxx * RemoteFactorPtr;
-            if(iam!=MAP(j,j) ){
-              RemoteFactorPtr = & RemoteFactorBuf;
-              if(!have_factor){
 #ifdef _DEBUG_
-                logfileptr->OFS()<<"Receiving factor "<<j<<endl;
+      logfileptr->OFS()<<"Factoring column "<<j<<endl;
 #endif
-                //Receive factor
-              TIMER_START(Factor_Recv);
-                //MPI_Recv(RemoteFactorPtr->Data(),(n-j)*jb*sizeof(double),MPI_BYTE,MAP(j,j),TAG_FACTOR,mpigrid->comm,MPI_STATUS_IGNORE);
-              TIMER_STOP(Factor_Recv);
-                have_factor=true;
-              }
-            }
-            else{
-            #ifdef _DEBUG_
-              DblNumMat_upcxx * LocalFactorPtr=AchunkLower[local_j/blksize];
-              logfileptr->OFS()<<"Local factor "<<j<<" ("<<LocalFactorPtr->m()<<","<<LocalFactorPtr->n()<<")"<<endl;
-            #endif
-              RemoteFactorPtr = (DblNumMat_upcxx*)AchunkLower[local_j/blksize];
-            }
+      //Factor current column 
+      Factor(j);
 
-            #ifdef _DEBUG_
-                  logfileptr->OFS()<<"Updating "<<i<<" with "<<j<<endl;
-            #endif
-            //Do the update
-            Update(j, i, *RemoteFactorPtr);
+      //send factor
+      TIMER_START(Send_Factor);
 
-            //logfileptr->OFS()<<"Done Updating "<<i<<" with "<<j<<endl;
-            TIMER_START(Launch_Aggregates);
-            //if this is the last update to column i, send aggregate
-            if(lastUpdate(j,i)){
+      for(Int target = 0; target<np;target++){
+        for(Int i = j+blksize; i<n; i+=blksize){
+          if(MAP(i,j)==target){
+            DblNumMat_upcxx & Achk = *(DblNumMat_upcxx*)AchunkLower[local_j/blksize];
 
-              Int target = MAP(i,i);
 #ifdef _DEBUG_
-              logfileptr->OFS()<<"I did my last update to "<<i<<endl;
+            logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<endl;
 #endif
 
-              if(target!=iam){
-#ifdef _DEBUG_
-              logfileptr->OFS()<<"Updating from "<<j<<", sending aggregate to P"<<target<<" for column "<<i<<endl;
-#endif
-                //MPI_Isend(WLower[i/blksize]->Data(),WLower[i/blksize]->ByteSize(),MPI_BYTE,target,TAG_AGGREGATE_SEND,mpigrid->comm, &Aggregate_Send_Requests[target]);
-                //push the data to P(i,i)
-                //upcxx::copy
-              }
-            }
-            TIMER_STOP(Launch_Aggregates);
-
-
-
+            //push the pointer to the factor on P(i,j)
+            dgptr dest = ArrFactorRdy2[target];
+            dgptr src(Achk.GData());
+            ArrFactorRdy2[target] = src;
+            break;
           }
         }
+      }
+      TIMER_STOP(Send_Factor);
+    }
 
-        //MPI_Barrier(mpigrid->comm);
+    //do the updates
 
-      } 
-      
-      fact_finished = 1;
-      upcxx::barrier();
+    bool have_factor = false;
+    //foreach processor, do I have an update from column j to any column ?
+    for(int i=j+jb;i<n ;i+=jb){
+      //compute the update
+      if(iam==MAP(i,j)){
+        DblNumMat_upcxx * RemoteFactorPtr;
 
-  }
+
+
+        RemoteFactorPtr = & RemoteFactorBuf;
+        if(!have_factor){
+          //poll for available data
+          while((double*)ArrFactorRdy2[iam]==NULL);
+
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Receiving factor "<<j<<endl;
+#endif
+
+          //Receive factor
+          TIMER_START(Factor_Recv);
+          upcxx::copy<double>(ArrFactorRdy2[iam],RemoteFactorPtr->GData(),(n-j)*jb);
+          TIMER_STOP(Factor_Recv);
+          ArrFactorRdy2[iam] = dgptr(NULL);
+          have_factor=true;
+        }
+
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"Updating "<<i<<" with "<<j<<endl;
+#endif
+        //Do the update
+        Update(j, i, *RemoteFactorPtr);
+
+        //logfileptr->OFS()<<"Done Updating "<<i<<" with "<<j<<endl;
+        TIMER_START(Launch_Aggregates);
+        //if this is the last update to column i, send aggregate
+        if(lastUpdate(j,i)){
+
+          Int target = MAP(i,i);
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"I did my last update to "<<i<<endl;
+#endif
+
+          if(1){
+#ifdef _DEBUG_
+            logfileptr->OFS()<<"Updating from "<<j<<", sending aggregate to P"<<target<<" for column "<<i<<endl;
+#endif
+
+            //push the pointer to the aggregate vector on P(i,i)
+            global_ptr< dgptr > dest = (global_ptr< dgptr >)ArrAggregateRdy[target]+ iam;
+            global_ptr< dgptr > src( &(((DblNumMat_upcxx *)WLower[i/blksize])->GData()) );
+            upcxx::copy< dgptr >(src,dest,1);
+
+            /************** Code for shared_array with block size np ****************/
+            ///                dgptr src = (((DblNumMat_upcxx *)WLower[i/blksize])->GData());
+            ///                ArrAggregateRdy2[target*np+iam] = src;
+            ///                upcxx::wait();
+            /********** end of code for shared_array with block size np *************/
+
+          }
+        }
+        TIMER_STOP(Launch_Aggregates);
+      }
+    }
+  } 
+
+  fact_finished = 1;
+  upcxx::barrier();
+
+}
 
   //Check if j is the last column updating i
   bool FBMatrix_upcxx::lastUpdate(Int j, Int i){

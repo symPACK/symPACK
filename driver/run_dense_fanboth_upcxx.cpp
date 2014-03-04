@@ -92,7 +92,8 @@ int main(int argc, char **argv)
 
 
 
-  try{
+  //try
+  {
 
 
     logfileptr = new LogFile(iam);
@@ -123,6 +124,11 @@ int main(int argc, char **argv)
     if( options.find("-pref") != options.end() ){
       maxPrefetch= atoi(options["-pref"].c_str());
     }
+    bool loop= false;
+    if( options.find("-loop") != options.end() ){
+      loop = (atoi(options["-loop"].c_str())==1);
+    }
+
 
 
     upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > Aobjects;
@@ -215,7 +221,6 @@ int main(int argc, char **argv)
     logfileptr->OFS()<<"distributed"<<endl;
     
 
-      //timeSta =  omp_get_wtime( );
       timeSta =  get_time( );
     TIMER_START(FANBOTH);
     if(iam==Afactptr->MAP(Afactptr->n-1,Afactptr->n-1)){
@@ -232,12 +237,16 @@ int main(int argc, char **argv)
 
     
     TIMER_START(FANBOTH_NUMFACT);
-    Afactptr->NumericalFactorization();
+    if(loop){
+      Afactptr->NumericalFactorizationLoop();
+    }
+    else{
+      Afactptr->NumericalFactorization();
+    }
     TIMER_STOP(FANBOTH_NUMFACT);
     TIMER_START(FANBOTH_WAITFACT);
     Afactptr->WaitFactorization();
     TIMER_STOP(FANBOTH_WAITFACT);
-    //timeEnd =  omp_get_wtime( );
     timeEnd =  get_time( );
 
     TIMER_STOP(FANBOTH);
@@ -294,16 +303,16 @@ int main(int argc, char **argv)
     upcxx::Destroy<FBMatrix_upcxx>(AfactGptr);
     upcxx::finalize();
   }
-  catch( std::exception& e )
-  {
-    
-    std::cerr << "Exception with message: P"<<MYTHREAD<<" "
-      << e.what() << std::endl;
-    abort();
-#ifndef _RELEASE_
-    DumpCallStack();
-#endif
-  }
+//  catch( std::exception& e )
+//  {
+//    
+//    std::cerr << "Exception with message: P"<<MYTHREAD<<" "
+//      << e.what() << std::endl;
+//    abort();
+//#ifndef _RELEASE_
+//    DumpCallStack();
+//#endif
+//  }
 
 
   return 0;
