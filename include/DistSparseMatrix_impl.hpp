@@ -13,7 +13,22 @@
 
 #include <vector>
 
+#ifdef UPCXX
+#include <upcxx.h>
+#endif
 namespace LIBCHOLESKY{
+
+
+
+
+
+
+
+
+
+
+
+
 
   template <class F> void DistSparseMatrix<F>::ToGlobalStruct(){
     // test if structure hasn't been allocated yet
@@ -21,8 +36,27 @@ namespace LIBCHOLESKY{
       return;
     }
 
-    Int numProcs; MPI_Comm_size(comm,&numProcs);
-    Int mpirank;  MPI_Comm_rank(comm, &mpirank);
+
+    int np;
+    int iam;
+
+    int ismpi=0;
+    MPI_Initialized( &ismpi);
+    int isnull= (comm == MPI_COMM_NULL);
+    logfileptr->OFS()<<ismpi<<std::endl;
+
+    logfileptr->OFS()<<comm<<std::endl;
+    logfileptr->OFS()<<MPI_COMM_NULL<<std::endl;
+    logfileptr->OFS()<<isnull<<std::endl;
+
+    if(ismpi && isnull==0){
+      MPI_Comm_size(comm,&np);
+      MPI_Comm_rank(comm, &iam);
+    }
+    else{
+      //throw an exception
+			throw std::logic_error("MPI needs to be available.");
+    }
 
 
     Global_.rowind.Resize(nnz);
@@ -30,25 +64,25 @@ namespace LIBCHOLESKY{
 
 
     /* Allgatherv for row indices. */ 
-    IntNumVec prevnz(numProcs);
-    IntNumVec rcounts(numProcs);
+    IntNumVec prevnz(np);
+    IntNumVec rcounts(np);
     MPI_Allgather(&Local_.nnz, 1, MPI_INT, rcounts.Data(), 1, MPI_INT, comm);
 
     prevnz[0] = 0;
-    for (Int i = 0; i < numProcs-1; ++i) { prevnz[i+1] = prevnz[i] + rcounts[i]; } 
+    for (Int i = 0; i < np-1; ++i) { prevnz[i+1] = prevnz[i] + rcounts[i]; } 
 
     MPI_Allgatherv(Local_.rowind.Data(), Local_.nnz, MPI_INT, Global_.rowind.Data(),rcounts.Data(), prevnz.Data(), MPI_INT, comm); 
 
     /* Allgatherv for colptr */
     // Compute the number of columns on each processor
-    Int numColFirst = size / numProcs;
+    Int numColFirst = size / np;
     SetValue( rcounts, numColFirst );
-    rcounts[numProcs-1] = size - numColFirst * (numProcs-1);  // Modify the last entry	
+    rcounts[np-1] = size - numColFirst * (np-1);  // Modify the last entry	
 
 
-    IntNumVec rdispls(numProcs);
+    IntNumVec rdispls(np);
     rdispls[0] = 0;
-    for (Int i = 0; i < numProcs-1; ++i) { rdispls[i+1] = rdispls[i] + rcounts[i]; } 
+    for (Int i = 0; i < np-1; ++i) { rdispls[i+1] = rdispls[i] + rcounts[i]; } 
 
 
     MPI_Allgatherv(Local_.colptr.Data(), Local_.colptr.m()-1, MPI_INT, Global_.colptr.Data(),
@@ -56,7 +90,7 @@ namespace LIBCHOLESKY{
 
 
     /* Recompute column pointers. */
-    for (Int p = 1; p < numProcs; p++) {
+    for (Int p = 1; p < np; p++) {
       Int idx = rdispls[p];
       for (Int j = 0; j < rcounts[p]; ++j) Global_.colptr[idx++] += prevnz[p];
     }
@@ -72,9 +106,61 @@ namespace LIBCHOLESKY{
   }
 
 
+  template <class F> void DistSparseMatrix<F>::ConstructETreeBis(ETree & tree){
+    TIMER_START(ConstructETree);
+
+    if(!globalAllocated){
+      ToGlobalStruct();
+    }
+
+    Global_.ExpandSymmetric();
 
 
+    tree.n_ = size;
+    tree.parent_.Resize(size);
+    SetValue(tree.parent_,I_ZERO );
 
+    IntNumVec ancestors(size);
+    SetValue(ancestors,I_ZERO );
+
+    Int k;
+    //for each row
+    for (Int i = 1; i <= size; i++) {
+
+#ifdef _DEBUG_
+      logfileptr->OFS()<<"Examining col "<<i<<std::endl;
+#endif
+      for (Int p = Global_.expColptr(i-1); p < Global_.expColptr(i); p++) {
+        k = Global_.expRowind(p-1);
+
+
+        if (k >= i) continue;
+
+        Int r = k;
+        Int t;
+        while(ancestors(r-1)!=0 && ancestors(r-1)!=i){
+          t = ancestors(r-1);
+          ancestors(r-1)=i;
+          r=t;
+        }
+
+        if(ancestors(r-1)==0){
+          ancestors(r-1)=i;
+          tree.parent_(r-1)=i;
+
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Parent of "<<r<<" is "<<i<<std::endl;
+#endif
+        }
+      }
+
+    }
+
+
+    tree.parent_(size-1) = 0;
+
+    TIMER_STOP(ConstructETree);
+  }
 
 
   template <class F> void DistSparseMatrix<F>::ConstructETree(ETree & tree){
@@ -84,6 +170,7 @@ namespace LIBCHOLESKY{
       ToGlobalStruct();
     }
 
+    Global_.ExpandSymmetric();
 
     tree.n_ = size;
     tree.parent_.Resize(size);
@@ -99,20 +186,32 @@ namespace LIBCHOLESKY{
       sets.Root(cset-1) = col;
       tree.parent_(col-1) = size; 
 
-//      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
-      for (Int p = Global_.colptr(col-1); p < Global_.colptr(col); p++) {
-        row = Global_.rowind(p-1);
+#ifdef _DEBUG_
+      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
+#endif
+      for (Int p = Global_.expColptr(col-1); p < Global_.expColptr(col); p++) {
+        row = Global_.expRowind(p-1);
+
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
+#endif
+
+
         if (row >= col) continue;
 
         rset = sets.find(row);
         rroot = sets.Root(rset-1);
-//        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
+#endif
 
         if (rroot != col) {
           tree.parent_(rroot-1) = col;
           cset = sets.link(cset, rset);
           sets.Root(cset-1) = col;
-//          logfileptr->OFS()<<"Parent of "<<rroot<<" is "<<col<<" which now represents set"<<cset<<std::endl;
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Parent of "<<rroot<<" is "<<col<<" which now represents set"<<cset<<std::endl;
+#endif
         }
       }
 
@@ -123,6 +222,72 @@ namespace LIBCHOLESKY{
 
     TIMER_STOP(ConstructETree);
   }
+
+
+
+
+
+
+//  template <class F> void DistSparseMatrix<F>::ConstructETree(ETree & tree){
+//    TIMER_START(ConstructETree);
+//
+//    if(!globalAllocated){
+//      ToGlobalStruct();
+//    }
+//
+//    IntNumVec rowind, colptr;
+//    Global_.ExpandSymmetric(colptr,rowind);
+//
+//    tree.n_ = size;
+//    tree.parent_.Resize(size);
+//    SetValue(tree.parent_,I_ZERO );
+//
+//    ETree::DisjointSet sets;
+//    sets.Initialize(size);
+//
+//    Int cset,rset,rroot,row;
+//    for (Int col = 1; col <= size; col++) {
+//      tree.parent_(col-1)=col; //1 based indexes
+//      cset = sets.makeSet (col);
+//      sets.Root(cset-1) = col;
+//      tree.parent_(col-1) = size; 
+//
+//#ifdef _DEBUG_
+//      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
+//#endif
+//      for (Int p = Global_.colptr(col-1); p < Global_.colptr(col); p++) {
+//        row = Global_.rowind(p-1);
+//
+//#ifdef _DEBUG_
+//        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
+//#endif
+//
+//
+//        if (row >= col) continue;
+//
+//        rset = sets.find(row);
+//        rroot = sets.Root(rset-1);
+//#ifdef _DEBUG_
+//        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
+//#endif
+//
+//        if (rroot != col) {
+//          tree.parent_(rroot-1) = col;
+//          cset = sets.link(cset, rset);
+//          sets.Root(cset-1) = col;
+//#ifdef _DEBUG_
+//          logfileptr->OFS()<<"Parent of "<<rroot<<" is "<<col<<" which now represents set"<<cset<<std::endl;
+//#endif
+//        }
+//      }
+//
+//    }
+//
+//
+//    tree.parent_(size-1) = 0;
+//
+//    TIMER_STOP(ConstructETree);
+//  }
 
 
 
@@ -138,8 +303,12 @@ namespace LIBCHOLESKY{
 
 
 
+    IntNumVec & rowind = this->Global_.rowind;
+    IntNumVec & colptr = this->Global_.colptr;
 
-
+//    Global_.ExpandSymmetric();
+//    IntNumVec & rowind = this->Global_.expRowind;
+//    IntNumVec & colptr = this->Global_.expColptr;
 
     TIMER_START(Initialize_Data);
     //cc first contains the delta
@@ -148,6 +317,7 @@ namespace LIBCHOLESKY{
     IntNumVec treeSize(size);
     SetValue(treeSize,I_ONE);
 
+logfileptr->OFS()<<"computing levels"<<std::endl;
    
 
     IntNumVec level(size);
@@ -164,6 +334,7 @@ namespace LIBCHOLESKY{
       }
     }
 
+logfileptr->OFS()<<"levels computed"<<std::endl;
 
       if(treeSize(size-1)==1){
         cc(size-1)=1;
@@ -192,8 +363,10 @@ namespace LIBCHOLESKY{
 
     TIMER_STOP(Initialize_Data);
 
+logfileptr->OFS()<<"data initialized"<<std::endl;
+
     TIMER_START(Compute_Col_Row_Count);
-    for(Int col=1; col<=size; col++){
+    for(Int col=1; col<size; col++){
       Int cset;
 
       Int colPar = tree.PostParent(col-1);
@@ -202,8 +375,8 @@ namespace LIBCHOLESKY{
       }
 
       Int oCol = tree.FromPostOrder(col);
-      for (Int i = Global_.colptr(oCol-1); i < Global_.colptr(oCol); i++) {
-        Int row = tree.ToPostOrder(Global_.rowind(i-1));
+      for (Int i = colptr(oCol-1); i < colptr(oCol); i++) {
+        Int row = tree.ToPostOrder(rowind(i-1));
         if (row > col){
           Int k = prevNz(row-1);
           if(k< col - treeSize(col-1) +1){
@@ -264,20 +437,6 @@ namespace LIBCHOLESKY{
 
 
 
-//        nlnz = 0
-//        do  700  k = 1, neqns
-//            temp = colcnt(k) + weight(k)
-//            colcnt(k) = temp
-//            nlnz = nlnz + temp
-//            parent = etpar(k)
-//            if  ( parent .ne. 0 )  then
-//                colcnt(parent) = colcnt(parent) + temp
-//            endif
-//  700   continue
-
-
-
-
     TIMER_STOP(GetColRowCount);
   }
 
@@ -331,11 +490,8 @@ namespace LIBCHOLESKY{
   }
 
 
-  template <class F> void DistSparseMatrix<F>::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper){
+  template <class F> void DistSparseMatrix<F>::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & xlnz,  IntNumVec & lindx, DblNumVec & lnz){
     TIMER_START(SymbolicFactorization);
-
-
-
 
 
     IntNumVec & rowind = this->Global_.rowind;
@@ -471,24 +627,24 @@ namespace LIBCHOLESKY{
     }  
 
     Int nsuper = xsuper.m()-1;
-    IntNumVec xlnz(size+1);
+    xlnz.Resize(size+1);
     Int totNnz = 1;
     for(Int I=1;I<xsuper.m();I++){
           Int fc = xsuper(I-1);
           Int lc = xsuper(I)-1;
         for(Int i=fc;i<=lc;i++){
           xlnz(i-1)=totNnz;
-          totNnz+=cc(fc-1);
+          totNnz+=cc(i-1);
+//          totNnz+=cc(fc-1);
         }
 
     }
     xlnz(size)=totNnz;
 
-    DblNumVec lnz(totNnz+1);
-
+    lnz.Resize(totNnz+1);
 //    IntNumVec lindx(size*nsuper+1);
-    IntNumVec lindx(lindxCnt);
-    IntNumVec xlindx(nsuper+1);
+    lindx.Resize(lindxCnt);
+    xlindx.Resize(nsuper+1);
     Int head = 1;
     for(Int I=1;I<=nsuper;I++){
       Int fi = tree.FromPostOrder(xsuper(I-1));
@@ -507,17 +663,17 @@ namespace LIBCHOLESKY{
     xlindx(nsuper) = head;
 
  
-        logfileptr->OFS()<<"xlindx"<<":";
-        for(int i=0;i<xlindx.m();i++){logfileptr->OFS()<<xlindx(i)<< " ";}
-        logfileptr->OFS()<<std::endl;
-
-        logfileptr->OFS()<<"lindx"<<lindxCnt<<" :";
-        for(int i=0;i<lindx.m();i++){logfileptr->OFS()<<lindx(i)<< " ";}
-        logfileptr->OFS()<<std::endl;
-
-        logfileptr->OFS()<<"xlnz"<<":";
-        for(int i=0;i<xlnz.m();i++){logfileptr->OFS()<<xlnz(i)<< " ";}
-        logfileptr->OFS()<<std::endl;
+//        logfileptr->OFS()<<"xlindx"<<":";
+//        for(int i=0;i<xlindx.m();i++){logfileptr->OFS()<<xlindx(i)<< " ";}
+//        logfileptr->OFS()<<std::endl;
+//
+//        logfileptr->OFS()<<"lindx"<<lindxCnt<<" :";
+//        for(int i=0;i<lindx.m();i++){logfileptr->OFS()<<lindx(i)<< " ";}
+//        logfileptr->OFS()<<std::endl;
+//
+//        logfileptr->OFS()<<"xlnz"<<":";
+//        for(int i=0;i<xlnz.m();i++){logfileptr->OFS()<<xlnz(i)<< " ";}
+//        logfileptr->OFS()<<std::endl;
 
 
     //parsing the data structure
@@ -554,6 +710,134 @@ namespace LIBCHOLESKY{
 
 
     TIMER_STOP(SymbolicFactorization);
+  }
+
+
+
+  template <class F> void DistSparseMatrix<F>::CopyData(const csc_matrix_t * cscptr){
+    int np;
+    int iam;
+
+    int ismpi=0;
+    MPI_Initialized( &ismpi);
+    int isnull= (comm == MPI_COMM_NULL);
+    logfileptr->OFS()<<ismpi<<std::endl;
+
+    logfileptr->OFS()<<comm<<std::endl;
+    logfileptr->OFS()<<MPI_COMM_NULL<<std::endl;
+    logfileptr->OFS()<<isnull<<std::endl;
+
+    if(ismpi && isnull==0){
+      MPI_Comm_size(comm,&np);
+      MPI_Comm_rank(comm, &iam);
+    }
+    else{
+#ifdef UPCXX
+      np = THREADS;
+      iam = MYTHREAD;
+#else
+      //throw an exception
+			throw std::logic_error("Either MPI OR UPCXX need to be available.");
+#endif
+    }
+
+    //fill global structure info as we have it directly
+    this->size = cscptr->n; 
+    this->nnz = cscptr->nnz; 
+    this->Global_.size = this->size;
+    this->Global_.nnz = this->nnz;
+    this->Global_.colptr.Resize(cscptr->n+1);
+    std::copy(cscptr->colptr,cscptr->colptr+cscptr->n+1,this->Global_.colptr.Data());
+    this->Global_.rowind.Resize(cscptr->nnz+1);
+    std::copy(cscptr->rowidx,cscptr->rowidx+cscptr->nnz+1,this->Global_.rowind.Data());
+
+    //move to 1 based indices
+    for(int i=0;i<this->Global_.colptr.m();i++){ ++this->Global_.colptr[i]; }
+    for(int i=0;i<this->Global_.rowind.m();i++){ ++this->Global_.rowind[i]; }
+
+    this->globalAllocated = true;
+
+    //Compute local structure info
+
+//logfileptr->OFS()<<this->Global_.rowind<<endl;
+
+	  // Compute the number of columns on each processor
+	  IntNumVec numColLocalVec(np);
+	  Int numColLocal, numColFirst;
+	  numColFirst = this->size / np;
+    SetValue( numColLocalVec, numColFirst );
+    numColLocalVec[np-1] = this->size - numColFirst * (np-1) ;  // Modify the last entry	
+//logfileptr->OFS()<<numColLocalVec<<endl;
+  	numColLocal = numColLocalVec[iam];
+
+//logfileptr->OFS()<<"NumColFirst = "<<iam*numColFirst<<endl;
+//logfileptr->OFS()<<"NumColLocal = "<<numColLocal<<endl;
+
+	  this->Local_.colptr.Resize( numColLocal + 1 );
+
+
+
+  	for( Int i = 0; i < numColLocal+1; i++ ){
+      
+//      logfileptr->OFS()<<"i = "<<i<<endl;
+//      logfileptr->OFS()<<"this->Global_.colptr["<<iam * numColFirst+i<<"] = "<<this->Global_.colptr[iam * numColFirst+i]<<endl;
+//      logfileptr->OFS()<<"this->Global_.colptr["<<iam * numColFirst<<"] = "<<this->Global_.colptr[iam * numColFirst]<<endl;
+	  	this->Local_.colptr[i] = this->Global_.colptr[iam * numColFirst+i] - this->Global_.colptr[iam * numColFirst] + 1;
+
+
+	  }
+
+    //logfileptr->OFS()<<"Local colptr = "<<this->Local_.colptr<<endl;
+    //logfileptr->OFS()<<"Global colptr = "<<this->Global_.colptr<<endl;
+
+
+	  // Calculate nnz_loc on each processor
+	  this->Local_.nnz = this->Local_.colptr[numColLocal] - this->Local_.colptr[0];
+
+    //logfileptr->OFS()<<"Local NNZ = "<<this->Local_.nnz<<endl;
+
+    // Resize rowind and nzval appropriately 
+    this->Local_.rowind.Resize( this->Local_.nnz );
+	  this->nzvalLocal.Resize ( this->Local_.nnz );
+
+
+
+    //Read my row indices
+    Int prevRead = 0;
+    Int numRead = 0;
+		for( Int ip = 0; ip <iam; ip++ ){	
+      prevRead += this->Global_.colptr[ip*numColFirst + numColLocalVec[ip]]
+                     - this->Global_.colptr[ip*numColFirst];
+    }
+    //logfileptr->OFS()<<"PrevRead = "<<prevRead<<endl;
+
+		numRead = this->Global_.colptr[iam*numColFirst + numColLocalVec[iam]] - this->Global_.colptr[iam*numColFirst];
+    //logfileptr->OFS()<<"NumRead = "<<numRead<<endl;
+    std::copy(&this->Global_.rowind[prevRead],&this->Global_.rowind[prevRead+numRead],this->Local_.rowind.Data());
+
+    //logfileptr->OFS()<<"RowindLocal"<<this->Local_.rowind<<endl;
+
+
+    //copy appropriate nnz values
+    if(cscptr->value_type == REAL){
+      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
+    }
+    else if(cscptr->value_type == COMPLEX){
+      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
+    }
+  
+
+    //logfileptr->OFS()<<"nzvalLocal"<<this->nzvalLocal<<endl;
+
+
+  }
+
+
+  template <class F> DistSparseMatrix<F>::DistSparseMatrix(const csc_matrix_t * cscptr){
+    this->CopyData(cscptr);
+  }
+  template <class F> DistSparseMatrix<F>::DistSparseMatrix(MPI_Comm oComm , const csc_matrix_t * cscptr):comm(oComm){
+    this->CopyData(cscptr);
   }
 
 

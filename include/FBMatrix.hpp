@@ -8,6 +8,7 @@
 #include "Environment.hpp"
 #include "NumVec.hpp"
 #include "NumMat.hpp"
+#include "DistSparseMatrix.hpp"
 
 #include <vector>
 
@@ -18,6 +19,7 @@
 using namespace std;
 
 namespace LIBCHOLESKY{
+
 
 
   class FBMatrix{
@@ -58,6 +60,7 @@ namespace LIBCHOLESKY{
       virtual void Allocate(Int np, Int pn, Int pblksize);
 
       virtual void Distribute( DblNumMat & Aorig) = 0;
+//      virtual void DistributeSparse( DistSparseMatrix<double> & Aorig) = 0;
 
       virtual void Gather( DblNumMat & Adest){};
 

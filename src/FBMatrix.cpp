@@ -18,23 +18,13 @@
 namespace LIBCHOLESKY{
 
 
+
   FBMatrix::FBMatrix():blksize(1),n(0){
   }
 
   FBMatrix::~FBMatrix(){
-
     AchunkLower.clear();
     WLower.clear();
-//    for(int i =0; i<AchunkLower.size();++i){
-//      if(AchunkLower[i]!=NULL){
-//        delete AchunkLower[i];
-//      }
-//    }
-//    for(int i =0; i<WLower.size();++i){
-//      if(WLower[i]!=NULL){
-//        delete WLower[i];
-//      }
-//    }
   }
 
   void FBMatrix::Allocate(Int np, Int pn, Int pblksize){

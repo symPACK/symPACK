@@ -119,7 +119,7 @@ class function_timer{
         space[i] = '\0';
 
         outstream.write(space,(strlen(space))*sizeof(char));
-        char outstr[50];
+        char outstr[100];
         sprintf(outstr,"%5d    %7.7lg  %3d.%02d  %7.7lg  %3d.%02d\n",
             total_calls/(np*numcore),
             (double)(total_time/(np*numcore)),
@@ -279,7 +279,6 @@ void CTF_timer::exit(){
       char all_symbols[10000];
 
       if (rank == 0){
-        char filename[300];
         char part[300];
 
         char heading[MAX_NAME_LENGTH+200];
@@ -359,12 +358,11 @@ void CTF_timer::exit(){
       int i, j, p, len_symbols;
       int np, rank;
 
-
+      np = 1;
       rank = 0;
 
       char all_symbols[10000];
 
-      char filename[300];
       char part[300];
 
       char heading[MAX_NAME_LENGTH+200];
@@ -403,7 +401,7 @@ void CTF_timer::exit(){
       std::sort(function_timers.begin(), function_timers.end());
       complete_time = function_timers[0].total_time;
       for (i=0; i<(int)function_timers.size(); i++){
-        function_timers[i].print(comm,rank,1);
+        function_timers[i].print(comm,rank,np);
       }
 
       function_timers.clear();

@@ -24,7 +24,7 @@ EXES = ${SRCS:.cpp=}
 	${FC} -c ${FFLAGS} $<
 
 #all: run_cholesky run_dense_fanboth
-all: run_dense_fanboth_upcxx run_dense_fanboth_mpi run_dense_scalapack 
+all: run_dense_fanboth_upcxx run_dense_fanboth_mpi run_dense_scalapack run_sparse_fanboth_upcxx unit_test 
 
 #run_sparse_fanboth_upcxx 
 
@@ -61,6 +61,12 @@ run_sparse_fanboth_upcxx: run_sparse_fanboth_upcxx.o ${CHOLESKY_LIB}
 	($(LOADER) $(LDFLAGS)  -o $@ run_sparse_fanboth_upcxx.o  $(LOADOPTS)   $(IPM) )
 
 run_sparse_fanboth_upcxx.o: run_sparse_fanboth_upcxx.cpp 
+	${CXX} -g  -c ${CXXFLAGS} ${CPPDEFS} $< 
+
+unit_test: unit_test.o ${CHOLESKY_LIB}
+	($(LOADER) $(LDFLAGS)  -o $@ unit_test.o  $(LOADOPTS)   $(IPM) )
+
+unit_test.o: unit_test.cpp 
 	${CXX} -g  -c ${CXXFLAGS} ${CPPDEFS} $< 
 
 

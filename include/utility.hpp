@@ -352,8 +352,12 @@ template <class F> inline std::ostream& operator<<( std::ostream& os, const NumV
 {
 	os<<vec.m()<<std::endl;
 	os.setf(std::ios_base::scientific, std::ios_base::floatfield);
-	for(Int i=0; i<vec.m(); i++)	 
+	for(Int i=0; i<vec.m(); i++){ 
 		os<<" "<<vec(i);
+    if(((i+1)%10)==0){
+	    os<<std::endl;
+    }
+  }
 	os<<std::endl;
 	return os;
 }

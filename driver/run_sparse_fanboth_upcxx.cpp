@@ -19,7 +19,8 @@
 #include  "ETree.hpp"
 #include  "blas.hpp"
 #include  "lapack.hpp"
-#include  "FBMatrix.hpp"
+#include  "FBMatrix_upcxx.hpp"
+#include  "NZBlock.hpp"
 
 #include <async.h>
 #include  "LogFile.hpp"
@@ -115,27 +116,20 @@ int main(int argc, char **argv)
     }
 
 
-    upcxx::shared_array<upcxx::global_ptr<FBMatrix> > Aobjects;
+    upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > Aobjects;
     Aobjects.init(np);
 
-    upcxx::global_ptr<FBMatrix> Afactptr = upcxx::Create<FBMatrix>();
-//    upcxx::global_ptr<FBMatrix> Afactptr;
-//    Afactptr = upcxx::allocate<FBMatrix>(iam,1);// upcxx::Create2<FBMatrix>(Afactptr);
+    upcxx::global_ptr<FBMatrix_upcxx> AfactGptr = upcxx::Create<FBMatrix_upcxx>();
+    FBMatrix_upcxx * Afactptr = AfactGptr;
 
-
-    Aobjects[iam] = Afactptr;
+    Aobjects[iam] = AfactGptr;
     upcxx::barrier();
     upcxx::wait();
   
-//    for(int i =0;i<Aobjects.size();i++){
-//      logfileptr->OFS()<<(upcxx::global_ptr<FBMatrix> )Aobjects[i]<<endl;
-//    }
-
 
     //upcxx::global_ptr<FBMatrix> Afactptr = upcxx::Create<FBMatrix>();
 
-    FBMatrix & Afact = *Afactptr;
-    Afact.Initialize(&Aobjects);
+    Afactptr->Initialize(&Aobjects);
 
     Real timeSta, timeEnd;
 
@@ -146,83 +140,196 @@ int main(int argc, char **argv)
     sparse_matrix_file_format_t informat;
     informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
     sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
-    sparse_matrix_expand_symmetric_storage (Atmp);
+    //sparse_matrix_expand_symmetric_storage (Atmp);
     sparse_matrix_convert (Atmp, CSC);
-    Afact.n = ((csc_matrix_t *)Atmp->repr)->n;
-
-    if(MYTHREAD==0){
-      cout<<"Matrix order is "<<Afact.n<<endl;
-    }
-
-
-    DistSparseMatrix<Real> HMat;
 
     const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
-    //fill global structure info as we have it directly
-    HMat.size = cscptr->n; 
-    HMat.nnz = cscptr->nnz; 
-    HMat.Global_.colptr.Resize(cscptr->n);
-    std::copy(cscptr->colptr,cscptr->colptr+cscptr->n,HMat.Global_.colptr.Data());
-    HMat.Global_.rowind.Resize(cscptr->nnz);
-    std::copy(cscptr->rowidx,cscptr->rowidx+cscptr->nnz,HMat.Global_.rowind.Data());
-    //Compute local structure info
+    DistSparseMatrix<Real> HMat(cscptr);
 
-logfileptr->OFS()<<HMat.Global_.rowind<<endl;
-return;
+    Afactptr->n = HMat.size;
+    if(MYTHREAD==0){ cout<<"Matrix order is "<<Afactptr->n<<endl; }
 
-	  // Compute the number of columns on each processor
-	  IntNumVec numColLocalVec(np);
-	  Int numColLocal, numColFirst;
-	  numColFirst = HMat.size / np;
-    SetValue( numColLocalVec, numColFirst );
-    numColLocalVec[np-1] = HMat.size - numColFirst * (np-1);  // Modify the last entry	
-  	numColLocal = numColLocalVec[np];
 
-	  HMat.Local_.colptr.Resize( numColLocal + 1 );
-  	for( Int i = 0; i < numColLocal + 1; i++ ){
-	  	HMat.Local_.colptr[i] = HMat.Global_.colptr[np * numColFirst+i] - HMat.Global_.colptr[np * numColFirst] + 1;
-	  }
+    destroy_sparse_matrix (Atmp);
 
-	  // Calculate nnz_loc on each processor
-	  HMat.Local_.nnz = HMat.Local_.colptr[numColLocal] - HMat.Local_.colptr[0];
-    // Resize rowind and nzval appropriately 
-    HMat.Local_.rowind.Resize( HMat.Local_.nnz );
-	  HMat.nzvalLocal.Resize ( HMat.Local_.nnz );
+
+    //do the symbolic factorization
+
+//{
+//
+//    IntNumVec rowind, colptr;
+//    HMat.Global_.ExpandSymmetric(colptr,rowind);
+//
+//    logfileptr->OFS()<<"expanded colptr: "<<colptr<<endl;
+//    logfileptr->OFS()<<"original colptr: "<<HMat.Global_.colptr<<endl;
+//
+//    logfileptr->OFS()<<"expanded rowind: "<<rowind<<endl;
+//    logfileptr->OFS()<<"original rowind: "<<HMat.Global_.rowind<<endl;
+//
+//}
 
 
 
-    //Read my row indices
-    Int prevRead = 0;
-    Int numRead = 0;
-		for( Int ip = 0; ip <iam; ip++ ){	
-      prevRead += HMat.Global_.colptr[ip*numColFirst + numColLocalVec[ip]]
-                     - HMat.Global_.colptr[ip*numColFirst];
+     ETree elimTree;
+     HMat.ConstructETree(elimTree);
+     logfileptr->OFS()<<"etree "<<elimTree<<std::endl;
+
+     upcxx::barrier();
+     elimTree.PostOrderTree();
+     logfileptr->OFS()<<"po etree"<<elimTree<<std::endl;
+     upcxx::barrier();
+
+     IntNumVec cc,rc;
+     HMat.GetLColRowCount(elimTree,cc,rc);
+     logfileptr->OFS()<<"Col count "<<cc<<std::endl;
+     logfileptr->OFS()<<"Row count "<<rc<<std::endl;
+
+
+
+    IntNumVec xsuper; 
+    HMat.FindSupernodes(elimTree,cc,xsuper);
+    logfileptr->OFS()<<"supernode indexes "<<xsuper<<std::endl;
+
+    IntNumVec xlindx,lindx,xlnz;
+    DblNumVec lnz;
+    HMat.SymbolicFactorization(elimTree,cc,xsuper,xlindx,xlnz,lindx,lnz);
+ 
+    {
+      logfileptr->OFS()<<"xlindx contains the starting index in lindx of each supernode"<<std::endl; 
+      logfileptr->OFS()<<"xlindx"<<xlindx<<std::endl;
+      logfileptr->OFS()<<"lindx contains consecutive row indices of all supernodes"<<std::endl; 
+//      for(int i =0;i<lindx.m();++i){logfileptr->OFS()<<i+1<<" ";} logfileptr->OFS()<<std::endl;
+      logfileptr->OFS()<<"lindx"<<lindx<<std::endl;
+      logfileptr->OFS()<<"xlnz contains the index of the first nz in col i"<<std::endl; 
+      logfileptr->OFS()<<"xlnz"<<xlnz<<std::endl;
+      logfileptr->OFS()<<"lnz contains the consecutive nz values of all supernodes"<<std::endl; 
     }
 
-		numRead = HMat.Global_.colptr[iam*numColFirst + numColLocalVec[iam]] - 
-			HMat.Global_.colptr[iam*numColFirst];
-    std::copy(&HMat.Global_.rowind[prevRead],&HMat.Global_.rowind[prevRead+numRead],HMat.Local_.rowind.Data());
+    //parsing the data structure
+    for(Int I=1;I<xsuper.m();I++){
+      Int fc = xsuper(I-1);
+      Int lc = xsuper(I)-1;
+      Int fi = xlindx(I-1);
+
+      logfileptr->OFS()<<"Supernode "<<I<<" in ["<<fc<<" ... "<<lc<<"]"<<std::endl;
+
+      for(Int i = fc;i<=lc;i++){
+        Int first_nz = xlnz(i-1);
+        Int last_nz = xlnz(i)-1;
+
+        logfileptr->OFS()<<"    Col "<<i<<" nz indices in ["<<first_nz<<" .. "<<last_nz<<"]"<<std::endl;
+        //diag is lnz(first_nz)
+//        logfileptr->OFS()<<"         Diag element of col "<<i<<" is "<<"lnz("<<first_nz-1<<")"<<std::endl;
+//        logfileptr->OFS()<<"         D("<<i<<","<<i<<") = "<<lnz(first_nz-1)<<std::endl;
+
+//copy A into L
+//        lnz(first_nz-1) = HMat.nzvalLocal(HMat.Local_.colptr(i-1));
+
+        logfileptr->OFS()<<"    "<<fi<<"     D("<<i<<","<<i<<") = "<<lnz(first_nz-1)<<std::endl;
+        Int idx = fi;
+        for(Int s = first_nz+1;s<=last_nz;s++){
+          idx++;
+
+          //lnz(s) contains an off-diagonal nonzero entry in row lindx(idx)
+//          logfileptr->OFS()<<"         L("<<lindx(idx-1)<<","<<i<<") = "<<"lnz("<<s-1<<")"<<std::endl;
+//          logfileptr->OFS()<<"         L("<<lindx(idx-1)<<","<<i<<") = "<<lnz(s-1)<<std::endl;
+          logfileptr->OFS()<<"    "<<idx<<"     L("<<lindx(idx-1)<<","<<i<<") = "<<lnz(s-1)<<std::endl;
+        }
+
+        fi++;
+
+      }
+    }
+
+ 
 
 
+
+    delete logfileptr;
+    upcxx::finalize();
     return;
-//
-//    //copy appropriate nnz values
-//    if(cscptr->value_type == REAL){
-//      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],HMat.nzvalLocal.Data());
-//    }
-//    else if(cscptr->value_type == COMPLEX){
-//      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],HMat.nzvalLocal.Data());
-//    }
-  
+
+
+
+    //Alloc RHS
+    //Call PDGEMM to compute XTrue
+
+    upcxx::barrier();
+
+
+
+    //TODO This needs to be fixed
+    Afactptr->prow = 1;//sqrt(np);
+    Afactptr->pcol = np;//Afact.prow;
+    np = Afactptr->prow*Afactptr->pcol;
+    if(MYTHREAD==0){
+      cout<<"Number of cores to be used: "<<np<<endl;
+//      cout<<"Matrix order is "<<Afact.n<<endl;
+    }
+
+
+
+    //Allocate chunks of the matrix on each processor
+    Afactptr->Allocate(np,Afactptr->n,blksize);
+    //TODO: recode this
+    //Afactptr->Distribute(HMat);
+
+    upcxx::barrier();
+    upcxx::wait();
+    //deallocate HMat
+    //A.Clear();
+
+    logfileptr->OFS()<<"distributed"<<endl;
+
+      timeSta =  omp_get_wtime( );
+    TIMER_START(FANBOTH);
+    if(MYTHREAD==Afactptr->MAP(Afactptr->n-1,Afactptr->n-1)){
+#ifdef _DEBUG_
+      cout<<"LOCK IS TAKEN BY"<<MYTHREAD<<endl;
+#endif
+    }
+
+#ifdef _DEBUG_
+    logfileptr->OFS()<<"initializing"<<endl;
+#endif
+
+    upcxx::barrier();
+
+    Afactptr->NumericalFactorization();
+    Afactptr->WaitFactorization();
+    timeEnd =  omp_get_wtime( );
+
+    TIMER_STOP(FANBOTH);
+
+#ifdef _DEBUG_
+    logfileptr->OFS()<<"gathering"<<endl;
+#endif
+
+    //gather all data on P0
+ //   DblNumMat_upcxx Afinished;
+ //   upcxx::barrier();
+ //   if(MYTHREAD==0)
+ //   {
+ //     cout<<"FAN-BOTH: "<<timeEnd-timeSta<<endl;
+ //     Afactptr->Gather(Afinished);
+ //   }
+
+ //   upcxx::wait();
+
+
+
+
+delete logfileptr;
+    upcxx::finalize();
     return;
 
-    DblNumMat A(Afact.n,Afact.n);
+    DblNumMat A(Afactptr->n,Afactptr->n);
     //csc_matrix_expand_to_dense (A.Data(), 0, Afact.n, (const csc_matrix_t *) Atmp->repr);
     destroy_sparse_matrix (Atmp);
 
 
 
-      Int n = Afact.n;
+      Int n = Afactptr->n;
       Int nrhs = 5;
 
     if(MYTHREAD==0){
@@ -236,9 +343,9 @@ return;
     upcxx::barrier();
 
     //TODO This needs to be fixed
-    Afact.prow = 1;//sqrt(np);
-    Afact.pcol = np;//Afact.prow;
-    np = Afact.prow*Afact.pcol;
+    Afactptr->prow = 1;//sqrt(np);
+    Afactptr->pcol = np;//Afact.prow;
+    np = Afactptr->prow*Afactptr->pcol;
     if(MYTHREAD==0){
       cout<<"Number of cores to be used: "<<np<<endl;
     }
@@ -246,8 +353,8 @@ return;
 
 
     //Allocate chunks of the matrix on each processor
-    Afact.Allocate(Afact.n,blksize);
-    Afact.Distribute(A);
+    Afactptr->Allocate(np,Afactptr->n,blksize);
+    Afactptr->Distribute(A);
 
     upcxx::barrier();
     upcxx::wait();
@@ -257,7 +364,7 @@ return;
 
       timeSta =  omp_get_wtime( );
     TIMER_START(FANBOTH);
-    if(MYTHREAD==Afact.MAP(Afact.n-1,Afact.n-1)){
+    if(MYTHREAD==Afactptr->MAP(Afactptr->n-1,Afactptr->n-1)){
 #ifdef _DEBUG_
       cout<<"LOCK IS TAKEN BY"<<MYTHREAD<<endl;
 #endif
@@ -269,8 +376,8 @@ return;
 
     upcxx::barrier();
 
-    Afact.NumericalFactorization();
-    Afact.WaitFactorization();
+    Afactptr->NumericalFactorization();
+    Afactptr->WaitFactorization();
     timeEnd =  omp_get_wtime( );
 
     TIMER_STOP(FANBOTH);
@@ -280,26 +387,15 @@ return;
 #endif
 
     //gather all data on P0
-    DblNumMat Afinished;
+    DblNumMat_upcxx Afinished;
     upcxx::barrier();
     if(MYTHREAD==0)
     {
       cout<<"FAN-BOTH: "<<timeEnd-timeSta<<endl;
-      Afact.Gather(Afinished);
+      Afactptr->Gather(Afinished);
     }
 
     upcxx::wait();
-
-//
-//    logfileptr->OFS()<<"Factor_Async is "<<(void *) Factor_Async<<endl;
-//    logfileptr->OFS()<<"Update_Async is "<<(void *) Update_Async<<endl;
-//    logfileptr->OFS()<<"Aggregate_Async is "<<(void *) Aggregate_Async<<endl;
-//
-//    logfileptr->OFS()<<"Waiting time in async queues:"<<endl;
-//    for(int i = 0; i<queue_time.size(); i++){
-//      logfileptr->OFS()<<queue_time[i]<<" ("<<queue_fptr[i]<<") "; 
-//    }
-//    logfileptr->OFS()<<endl;
 
 
 #ifdef _DEBUG_
@@ -325,7 +421,8 @@ return;
     delete logfileptr;
 
     upcxx::finalize();
-    upcxx::Destroy<FBMatrix>(Afactptr);
+    upcxx::Destroy<FBMatrix_upcxx>(AfactGptr);
+
   }
   catch( std::exception& e )
   {

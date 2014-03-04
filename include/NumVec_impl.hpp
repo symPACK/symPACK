@@ -23,6 +23,11 @@ template <class F> NumVec<F>::NumVec	( Int m ) : m_(m), owndata_(true)
 //		data_ = new F[m_]; 
 		data_ = (F*) malloc(m_*sizeof(F));
 		if( data_ == NULL ){
+
+#ifdef USE_ABORT
+      printf("%s","Cannot allocate memory.");
+      abort();
+#endif
 			throw std::runtime_error("Cannot allocate memory.");
 		}
 	} 
@@ -43,6 +48,11 @@ template <class F> NumVec<F>::NumVec	( Int m, bool owndata, F* data ) : m_(m), o
 //			data_ = new F[m_]; 
   		data_ = (F*) malloc(m_*sizeof(F));
 			if( data_ == NULL ){
+
+#ifdef USE_ABORT
+      printf("%s","Cannot allocate memory.");
+      abort();
+#endif
 				throw std::runtime_error("Cannot allocate memory.");
 			}
 		}
@@ -73,6 +83,11 @@ template <class F> NumVec<F>::NumVec	( const NumVec<F>& C ) : m_(C.m_), owndata_
 			//data_ = new F[m_]; 
 		  data_ = (F*) malloc(m_*sizeof(F));
 			if( data_ == NULL ){
+
+#ifdef USE_ABORT
+      printf("%s","Cannot allocate memory.");
+      abort();
+#endif
 				throw std::runtime_error("Cannot allocate memory.");
 			}
 		}
@@ -133,6 +148,11 @@ template < class F > NumVec<F>& NumVec<F>::operator =	( const NumVec& C  )
 //			data_ = new F[m_];
 		  data_ = (F*) malloc(m_*sizeof(F));
 			if( data_ == NULL ){
+
+#ifdef USE_ABORT
+      printf("%s","Cannot allocate memory.");
+      abort();
+#endif
 				throw std::runtime_error("Cannot allocate memory.");
 			}
 		}
@@ -164,6 +184,11 @@ template < class F > void NumVec<F>::Resize	( const Int m )
 	PushCallStack("NumVec<F>::Resize");
 #endif  // ifndef _RELEASE_
 	if( owndata_ == false ){
+
+#ifdef USE_ABORT
+      printf("%s","Vector being resized must own data.");
+      abort();
+#endif
 		throw std::logic_error("Vector being resized must own data.");
 	}
 	if( m != m_ ){
@@ -171,6 +196,11 @@ template < class F > void NumVec<F>::Resize	( const Int m )
       F* newdata = (F*) realloc((void *)data_, m*sizeof(F));
       if (newdata==NULL){
         free(data_);
+
+#ifdef USE_ABORT
+      printf("%s","Cannot reallocate memory.");
+      abort();
+#endif
         throw std::runtime_error("Cannot reallocate memory.");
       }
       else{
@@ -204,6 +234,11 @@ template <class F> F& NumVec<F>::operator()	( Int i )
 #ifndef _RELEASE_
 	PushCallStack("NumVec<F>::operator()");
 	if( i < 0 || i >= m_ ){
+
+#ifdef USE_ABORT
+      printf("Index %d is out of bound.",i);
+      abort();
+#endif
 		throw std::logic_error( "Index is out of bound." );
 	}
 	PopCallStack();
@@ -219,6 +254,11 @@ NumVec<F>::operator()	( Int i ) const
 #ifndef _RELEASE_
 	PushCallStack("NumVec<F>::operator()");
 	if( i < 0 || i >= m_ ){
+
+#ifdef USE_ABORT
+      printf("Index %d is out of bound.",i);
+      abort();
+#endif
 		throw std::logic_error( "Index is out of bound." );
 	}
 	PopCallStack();
@@ -233,6 +273,11 @@ template <class F> F& NumVec<F>::operator[]	( Int i )
 #ifndef _RELEASE_
 	PushCallStack("NumVec<F>::operator[]");
 	if( i < 0 || i >= m_ ){
+
+#ifdef USE_ABORT
+      printf("Index %d is out of bound.",i);
+      abort();
+#endif
 		throw std::logic_error( "Index is out of bound." );
 	}
 	PopCallStack();
@@ -246,6 +291,11 @@ template <class F> const F& NumVec<F>::operator[]	( Int i ) const
 #ifndef _RELEASE_
 	PushCallStack("NumVec<F>::operator[]");
 	if( i < 0 || i >= m_ ){
+
+#ifdef USE_ABORT
+      printf("Index %d is out of bound.",i);
+      abort();
+#endif
 		throw std::logic_error( "Index is out of bound." );
 	}
 	PopCallStack();
