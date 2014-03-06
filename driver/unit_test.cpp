@@ -99,21 +99,38 @@ int main(int argc, char **argv)
     {
       Int iGIndex = 10;
       Int iLIndex = 42;
-      Int iCnt = 10;
+      Int iRows = 5;
+      Int iCols = 2;
+      Int iCnt = iRows*iCols;
       double pdInput[iCnt];
       for(Int i = 0; i<iCnt;++i){pdInput[i]=static_cast<double>(i);}
 
       logfileptr->OFS()<<"----NZBlock unit test----"<<std::endl;
-      logfileptr->OFS()<<"creating the NZBlock with 10 double"<<std::endl;
-      NZBlock<double> test (pdInput,iCnt,iGIndex,iLIndex);
+      logfileptr->OFS()<<"creating the NZBlock with "<<iCnt<<" double"<<std::endl;
+      NZBlock<double> test (iRows,iCols,iGIndex,iLIndex,pdInput);
       logfileptr->OFS()<<"data pointer is "<<test.Data()<<std::endl;
+      logfileptr->OFS()<<"NRows is "<<test.NRows()<<std::endl;
+      logfileptr->OFS()<<"NCols is "<<test.NCols()<<std::endl;
       logfileptr->OFS()<<"Nzcnt is "<<test.Nzcnt()<<std::endl;
       logfileptr->OFS()<<"Nzval pointer is "<<test.Nzval()<<std::endl;
       logfileptr->OFS()<<"global index is "<<test.GIndex()<<std::endl;
       logfileptr->OFS()<<"local index is "<<test.LIndex()<<std::endl;
-      logfileptr->OFS()<<"parsing the nzvalues "<<std::endl;
+      logfileptr->OFS()<<"parsing the nzvalues (1D index)"<<std::endl;
       for(Int i = 0; i< test.Nzcnt(); ++i){ logfileptr->OFS()<<test.Nzval(i)<<" "; }
       logfileptr->OFS()<<std::endl;
+
+      logfileptr->OFS()<<"parsing the nzvalues (2D indices) "<<std::endl;
+      for(Int i = 0; i< test.NRows(); ++i){
+        for(Int j = 0; j< test.NCols(); ++j){
+         logfileptr->OFS()<<test.Nzval(i,j)<<" ";
+        }
+        logfileptr->OFS()<<std::endl;
+      }
+      logfileptr->OFS()<<std::endl;
+      logfileptr->OFS()<<std::endl;
+      logfileptr->OFS()<<test<<std::endl;
+
+
       logfileptr->OFS()<<"----End of NZBlock unit test----"<<std::endl;
     }
 

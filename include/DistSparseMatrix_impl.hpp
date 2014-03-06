@@ -9,7 +9,7 @@
 #include "Environment.hpp"
 #include "DistSparseMatrix.hpp"
 #include "utility.hpp"
-#include "SuperNode.hpp"
+#include "SparseMatrixStructure.hpp"
 
 #include <vector>
 
@@ -306,10 +306,6 @@ namespace LIBCHOLESKY{
     IntNumVec & rowind = this->Global_.rowind;
     IntNumVec & colptr = this->Global_.colptr;
 
-//    Global_.ExpandSymmetric();
-//    IntNumVec & rowind = this->Global_.expRowind;
-//    IntNumVec & colptr = this->Global_.expColptr;
-
     TIMER_START(Initialize_Data);
     //cc first contains the delta
     cc.Resize(size);
@@ -317,7 +313,6 @@ namespace LIBCHOLESKY{
     IntNumVec treeSize(size);
     SetValue(treeSize,I_ONE);
 
-logfileptr->OFS()<<"computing levels"<<std::endl;
    
 
     IntNumVec level(size);
@@ -334,7 +329,6 @@ logfileptr->OFS()<<"computing levels"<<std::endl;
       }
     }
 
-logfileptr->OFS()<<"levels computed"<<std::endl;
 
       if(treeSize(size-1)==1){
         cc(size-1)=1;
@@ -362,8 +356,6 @@ logfileptr->OFS()<<"levels computed"<<std::endl;
 
 
     TIMER_STOP(Initialize_Data);
-
-logfileptr->OFS()<<"data initialized"<<std::endl;
 
     TIMER_START(Compute_Col_Row_Count);
     for(Int col=1; col<size; col++){
@@ -410,11 +402,11 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
 
 
 
-    logfileptr->OFS()<<"Deltas "<<cc.m()<<std::endl;
-    for(Int i = 0; i<cc.m();i++){
-      logfileptr->OFS()<<cc(i)<<" ";
-    }
-    logfileptr->OFS()<<std::endl;
+//    logfileptr->OFS()<<"Deltas "<<cc.m()<<std::endl;
+//    for(Int i = 0; i<cc.m();i++){
+//      logfileptr->OFS()<<cc(i)<<" ";
+//    }
+//    logfileptr->OFS()<<std::endl;
 
 
 
@@ -429,11 +421,11 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
 
 
 
-    logfileptr->OFS()<<"colcnt "<<cc.m()<<std::endl;
-    for(Int i = 0; i<cc.m();i++){
-      logfileptr->OFS()<<cc(i)<<" ";
-    }
-    logfileptr->OFS()<<std::endl;
+//    logfileptr->OFS()<<"colcnt "<<cc.m()<<std::endl;
+//    for(Int i = 0; i<cc.m();i++){
+//      logfileptr->OFS()<<cc(i)<<" ";
+//    }
+//    logfileptr->OFS()<<std::endl;
 
 
 
@@ -497,13 +489,6 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
     IntNumVec & rowind = this->Global_.rowind;
     IntNumVec & colptr = this->Global_.colptr;
 
-//    IntNumVec marker(xsuper.m());
-//    for(Int I=1;I<xsuper.m();I++){
-//      marker(I-1)=I;
-//    }
-  
-
-
     std::vector<std::set<Int> > sets;
     sets.resize(xsuper.m(),std::set<Int>());
 
@@ -522,10 +507,7 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
       //Initialize LI with nnz struct of A_*fi
       Int begin = colptr(fi-1);
       Int end = colptr(fi);
-//      logfileptr->OFS()<<"fi="<<fi<<" begin="<<begin<<" end="<<end<<std::endl;
       
-
-
       Int * start = &rowind(begin-1); 
       Int * stop = (end-1<rowind.m())?&rowind(end-1):&rowind(rowind.m()-1)+1; 
       //find the diagonal block
@@ -537,15 +519,15 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
       std::copy(start,stop,&LI(0));
 
 //     logfileptr->OFS()<<"L"<<I<<"<- A_*,fi: ";
-     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-     logfileptr->OFS()<<std::endl;
+//     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+//     logfileptr->OFS()<<std::endl;
 
       LI = tree.ToPostOrder(LI);
 
 
 //     logfileptr->OFS()<<"PO L"<<I<<"<- A_*,fi: ";
-     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-     logfileptr->OFS()<<std::endl;
+//     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+//     logfileptr->OFS()<<std::endl;
 
 
 
@@ -561,8 +543,6 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
         std::copy(&LI(0),&LI(LI.m()-1)+1,&Ltmp(0));
 
 
-
- 
         if(LK.m()>1){
 
           //Be careful to not insert duplicates !
@@ -575,19 +555,6 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
           }
           Int * end = std::set_union(&LI(0),&LI(LI.m()-1)+1,&LK(firstidx-1),&LK(LK.m()-1)+1,&Ltmp(0));
           Ltmp.Resize(end - &Ltmp(0));
-//          Int head = LI.m();
-//          for(Int i =1;i<LK.m();i++){
-//            //insert element from LK
-//            if(LK[i]>I ){
-//              Ltmp[head]=LK[i];
-//              head++;
-//            }
-//          }
-//          Ltmp.Resize(head);
-//          std::sort(&Ltmp(0),&Ltmp(Ltmp.m()-1)+1);
-          
-          //Int * end = std::set_union(&LI(0),&LI(LI.m()-1)+1,&LK(1),&LK(LK.m()-1)+1,&Ltmp(0));
-          //Ltmp.Resize(end - &Ltmp(0));
           LI = Ltmp;
         }
 
@@ -627,19 +594,19 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
     }  
 
     Int nsuper = xsuper.m()-1;
-    xlnz.Resize(size+1);
+//    xlnz.Resize(size+1);
     Int totNnz = 1;
     for(Int I=1;I<xsuper.m();I++){
           Int fc = xsuper(I-1);
           Int lc = xsuper(I)-1;
         for(Int i=fc;i<=lc;i++){
-          xlnz(i-1)=totNnz;
+//          xlnz(i-1)=totNnz;
           totNnz+=cc(i-1);
 //          totNnz+=cc(fc-1);
         }
 
     }
-    xlnz(size)=totNnz;
+//    xlnz(size)=totNnz;
 
     //lnz.Resize(totNnz+1);
     lindx.Resize(lindxCnt);
