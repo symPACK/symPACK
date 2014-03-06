@@ -595,8 +595,8 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
       }
      
 //     logfileptr->OFS()<<"Final L"<<I<<": ";
-     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-     logfileptr->OFS()<<std::endl;
+//     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+//     logfileptr->OFS()<<std::endl;
       
       lindxCnt += LI.m();
 
@@ -641,73 +641,28 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
     }
     xlnz(size)=totNnz;
 
-    lnz.Resize(totNnz+1);
-//    IntNumVec lindx(size*nsuper+1);
+    //lnz.Resize(totNnz+1);
     lindx.Resize(lindxCnt);
     xlindx.Resize(nsuper+1);
     Int head = 1;
+
+//    logfileptr->OFS()<<"There are "<<lindxCnt<<" slots in lindx"<<std::endl;
     for(Int I=1;I<=nsuper;I++){
       Int fi = tree.FromPostOrder(xsuper(I-1));
       IntNumVec & LI = LIs[I-1];
       xlindx(I-1)=head;
 
 
-        logfileptr->OFS()<<"PO L"<<I<<":";
-        for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-        logfileptr->OFS()<<std::endl;
+//        logfileptr->OFS()<<"PO L"<<I<<":";
+//        for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+//        logfileptr->OFS()<<std::endl;
 
-      std::copy(&LI(0),&LI(LI.m()-1)+1,&(lindx(head-1)));
-      head+=cc(fi-1);
+//      logfileptr->OFS()<<"Copying "<<LI.m()<<" elem into lindx("<<head-1<<")"<<std::endl;
+      std::copy(&LI(0),LI.Data()+LI.m(),&(lindx(head-1)));
+      head+=LI.m();//cc(fi-1);
     }
 //    lindx.Resize(head-1);
     xlindx(nsuper) = head;
-
- 
-//        logfileptr->OFS()<<"xlindx"<<":";
-//        for(int i=0;i<xlindx.m();i++){logfileptr->OFS()<<xlindx(i)<< " ";}
-//        logfileptr->OFS()<<std::endl;
-//
-//        logfileptr->OFS()<<"lindx"<<lindxCnt<<" :";
-//        for(int i=0;i<lindx.m();i++){logfileptr->OFS()<<lindx(i)<< " ";}
-//        logfileptr->OFS()<<std::endl;
-//
-//        logfileptr->OFS()<<"xlnz"<<":";
-//        for(int i=0;i<xlnz.m();i++){logfileptr->OFS()<<xlnz(i)<< " ";}
-//        logfileptr->OFS()<<std::endl;
-
-
-    //parsing the data structure
-      
-//    for(Int I=1;I<xsuper.m();I++){
-//          Int fc = xsuper(I-1);
-//          Int lc = xsuper(I)-1;
-//          Int fi = xlindx(I-1);
-//
-//          logfileptr->OFS()<<"FC = "<<fc<<std::endl;
-//          logfileptr->OFS()<<"LC = "<<lc<<std::endl;
-//
-//          for(Int i = fc;i<=lc;i++){
-//            Int fnz = xlnz(i-1);
-//            Int lnz = xlnz(i)-1;
-//
-//          logfileptr->OFS()<<"i = "<<i<<" FNZ = "<<fnz<<std::endl;
-//          logfileptr->OFS()<<"i = "<<i<<" LNZ = "<<lnz<<std::endl;
-//            //diag is lnz(fnz)
-//            logfileptr->OFS()<<"Diag element of "<<i<<" is "<<"lnz("<<fnz-1<<")"<<std::endl;
-//            Int idx = fi;
-//            for(Int s = fnz+1;s<=lnz;s++){
-//              idx++;
-//
-//              //lnz(s) contains an off-diagonal nonzero entry in row lindx(idx)
-//              logfileptr->OFS()<<"L("<<lindx(idx-1)<<","<<i<<") = "<<"lnz("<<s-1<<")"<<std::endl;
-//            }
-//            fi++;
-//
-//          }
-//    }
-
-
-
 
     TIMER_STOP(SymbolicFactorization);
   }
@@ -758,49 +713,26 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
     this->globalAllocated = true;
 
     //Compute local structure info
-
-//logfileptr->OFS()<<this->Global_.rowind<<endl;
-
 	  // Compute the number of columns on each processor
 	  IntNumVec numColLocalVec(np);
 	  Int numColLocal, numColFirst;
 	  numColFirst = this->size / np;
     SetValue( numColLocalVec, numColFirst );
     numColLocalVec[np-1] = this->size - numColFirst * (np-1) ;  // Modify the last entry	
-//logfileptr->OFS()<<numColLocalVec<<endl;
   	numColLocal = numColLocalVec[iam];
-
-//logfileptr->OFS()<<"NumColFirst = "<<iam*numColFirst<<endl;
-//logfileptr->OFS()<<"NumColLocal = "<<numColLocal<<endl;
 
 	  this->Local_.colptr.Resize( numColLocal + 1 );
 
-
-
   	for( Int i = 0; i < numColLocal+1; i++ ){
-      
-//      logfileptr->OFS()<<"i = "<<i<<endl;
-//      logfileptr->OFS()<<"this->Global_.colptr["<<iam * numColFirst+i<<"] = "<<this->Global_.colptr[iam * numColFirst+i]<<endl;
-//      logfileptr->OFS()<<"this->Global_.colptr["<<iam * numColFirst<<"] = "<<this->Global_.colptr[iam * numColFirst]<<endl;
 	  	this->Local_.colptr[i] = this->Global_.colptr[iam * numColFirst+i] - this->Global_.colptr[iam * numColFirst] + 1;
-
-
 	  }
-
-    //logfileptr->OFS()<<"Local colptr = "<<this->Local_.colptr<<endl;
-    //logfileptr->OFS()<<"Global colptr = "<<this->Global_.colptr<<endl;
-
 
 	  // Calculate nnz_loc on each processor
 	  this->Local_.nnz = this->Local_.colptr[numColLocal] - this->Local_.colptr[0];
 
-    //logfileptr->OFS()<<"Local NNZ = "<<this->Local_.nnz<<endl;
-
     // Resize rowind and nzval appropriately 
     this->Local_.rowind.Resize( this->Local_.nnz );
 	  this->nzvalLocal.Resize ( this->Local_.nnz );
-
-
 
     //Read my row indices
     Int prevRead = 0;
@@ -809,14 +741,9 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
       prevRead += this->Global_.colptr[ip*numColFirst + numColLocalVec[ip]]
                      - this->Global_.colptr[ip*numColFirst];
     }
-    //logfileptr->OFS()<<"PrevRead = "<<prevRead<<endl;
 
 		numRead = this->Global_.colptr[iam*numColFirst + numColLocalVec[iam]] - this->Global_.colptr[iam*numColFirst];
-    //logfileptr->OFS()<<"NumRead = "<<numRead<<endl;
     std::copy(&this->Global_.rowind[prevRead],&this->Global_.rowind[prevRead+numRead],this->Local_.rowind.Data());
-
-    //logfileptr->OFS()<<"RowindLocal"<<this->Local_.rowind<<endl;
-
 
     //copy appropriate nnz values
     if(cscptr->value_type == REAL){
@@ -825,11 +752,6 @@ logfileptr->OFS()<<"data initialized"<<std::endl;
     else if(cscptr->value_type == COMPLEX){
       std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
     }
-  
-
-    //logfileptr->OFS()<<"nzvalLocal"<<this->nzvalLocal<<endl;
-
-
   }
 
 

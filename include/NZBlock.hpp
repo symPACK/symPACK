@@ -25,6 +25,7 @@ namespace LIBCHOLESKY{
       T * pNzval_;
       
     public:
+      NZBlock(Int aiNzcnt, Int aiGIndex, Int aiLIndex);
       NZBlock(T * apNzval, Int aiNzcnt, Int aiGIndex, Int aiLIndex);
       inline Int Nzcnt() { return iNzcnt_; };
       inline size_t ByteSize() { return storage_.size(); };

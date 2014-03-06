@@ -21,6 +21,7 @@
 #include  "lapack.hpp"
 #include  "FBMatrix_upcxx.hpp"
 #include  "NZBlock.hpp"
+#include  "SuperNode.hpp"
 
 #include <async.h>
 #include  "LogFile.hpp"
@@ -74,7 +75,7 @@ using namespace std;
 int main(int argc, char **argv) 
 {
   upcxx::init(&argc,&argv);
-
+//  MPI_Init(&argc,&argv);
 
 
 #if defined(PROFILE) || defined(PMPI)
@@ -130,6 +131,10 @@ int main(int argc, char **argv)
     //upcxx::global_ptr<FBMatrix> Afactptr = upcxx::Create<FBMatrix>();
 
     Afactptr->Initialize(&Aobjects);
+    Afactptr->pcol = np;
+    Afactptr->np = np;
+    Afactptr->prow = sqrt(np);
+    Afactptr->blksize = 1;
 
     Real timeSta, timeEnd;
 
@@ -172,11 +177,11 @@ int main(int argc, char **argv)
 
      ETree elimTree;
      HMat.ConstructETree(elimTree);
-     logfileptr->OFS()<<"etree "<<elimTree<<std::endl;
+//     logfileptr->OFS()<<"etree "<<elimTree<<std::endl;
 
      upcxx::barrier();
      elimTree.PostOrderTree();
-     logfileptr->OFS()<<"po etree"<<elimTree<<std::endl;
+//     logfileptr->OFS()<<"po etree"<<elimTree<<std::endl;
      upcxx::barrier();
 
      IntNumVec cc,rc;
@@ -190,6 +195,16 @@ int main(int argc, char **argv)
     HMat.FindSupernodes(elimTree,cc,xsuper);
     logfileptr->OFS()<<"supernode indexes "<<xsuper<<std::endl;
 
+
+
+
+
+
+
+
+
+
+
     IntNumVec xlindx,lindx,xlnz;
     DblNumVec lnz;
     HMat.SymbolicFactorization(elimTree,cc,xsuper,xlindx,xlnz,lindx,lnz);
@@ -200,11 +215,25 @@ int main(int argc, char **argv)
       logfileptr->OFS()<<"lindx contains consecutive row indices of all supernodes"<<std::endl; 
 //      for(int i =0;i<lindx.m();++i){logfileptr->OFS()<<i+1<<" ";} logfileptr->OFS()<<std::endl;
       logfileptr->OFS()<<"lindx"<<lindx<<std::endl;
+      //TODO XLNZ might be discarded and we should use a first row to last row loop instead...
       logfileptr->OFS()<<"xlnz contains the index of the first nz in col i"<<std::endl; 
-      logfileptr->OFS()<<"xlnz"<<xlnz<<std::endl;
-      logfileptr->OFS()<<"lnz contains the consecutive nz values of all supernodes"<<std::endl; 
+//      logfileptr->OFS()<<"xlnz"<<xlnz<<std::endl;
+//      logfileptr->OFS()<<"lnz contains the consecutive nz values of all supernodes"<<std::endl; 
     }
 
+    //TODO: Create a Supernode structure and then use it to do a conversion from DistSparseMatrix to DistSupernodalMatrix
+
+
+
+
+
+
+
+
+
+
+/*
+    //Filling L with A and distribute according to supernodal partition
     //parsing the data structure
     for(Int I=1;I<xsuper.m();I++){
       Int fc = xsuper(I-1);
@@ -213,36 +242,338 @@ int main(int argc, char **argv)
 
       logfileptr->OFS()<<"Supernode "<<I<<" in ["<<fc<<" ... "<<lc<<"]"<<std::endl;
 
+
+      Int iDest = Afactptr->MAP(I-1,I-1);
+
       for(Int i = fc;i<=lc;i++){
         Int first_nz = xlnz(i-1);
         Int last_nz = xlnz(i)-1;
 
-        logfileptr->OFS()<<"    Col "<<i<<" nz indices in ["<<first_nz<<" .. "<<last_nz<<"]"<<std::endl;
-        //diag is lnz(first_nz)
-//        logfileptr->OFS()<<"         Diag element of col "<<i<<" is "<<"lnz("<<first_nz-1<<")"<<std::endl;
-//        logfileptr->OFS()<<"         D("<<i<<","<<i<<") = "<<lnz(first_nz-1)<<std::endl;
+        //who owns column i ?
 
-//copy A into L
-//        lnz(first_nz-1) = HMat.nzvalLocal(HMat.Local_.colptr(i-1));
+        Int numColFirst = HMat.size / np;
+        Int iOwner = std::min((i-1)/numColFirst,np-1);
 
-        logfileptr->OFS()<<"    "<<fi<<"     D("<<i<<","<<i<<") = "<<lnz(first_nz-1)<<std::endl;
-        Int idx = fi;
-        for(Int s = first_nz+1;s<=last_nz;s++){
-          idx++;
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"Column "<<i<<" is owned by P"<<iOwner<<" and should go on P"<<iDest<<std::endl;
+#endif
 
-          //lnz(s) contains an off-diagonal nonzero entry in row lindx(idx)
-//          logfileptr->OFS()<<"         L("<<lindx(idx-1)<<","<<i<<") = "<<"lnz("<<s-1<<")"<<std::endl;
-//          logfileptr->OFS()<<"         L("<<lindx(idx-1)<<","<<i<<") = "<<lnz(s-1)<<std::endl;
-          logfileptr->OFS()<<"    "<<idx<<"     L("<<lindx(idx-1)<<","<<i<<") = "<<lnz(s-1)<<std::endl;
+        if(iam == iDest){
+          //Get column i from A
+          if(iOwner!=iam){
+            //Compute buffer size
+            Int nrows = HMat.Global_.colptr(i) - HMat.Global_.colptr(i-1);
+            DblNumVec nzcol(nrows);
+            MPI_Recv(nzcol.Data(),nrows*sizeof(double),MPI_BYTE,iOwner,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+#ifdef _DEBUG_
+            logfileptr->OFS()<<"Received col "<<i<<" from P"<<iOwner<<std::endl;
+#endif
+            //copy A into L
+            Int gcolptr = HMat.Global_.colptr(i-1);
+            Int rowind = HMat.Global_.rowind(gcolptr-1);
+#ifdef _DEBUG_
+            logfileptr->OFS()<<"Column "<<i<<" is remote; gcolptr = "<<gcolptr<<" row "<<i<<" at rowind "<<rowind<<std::endl;
+#endif
+            Int idxA = 0;
+
+            Int idx = fi;
+            Int iLRow = 0;
+            for(Int s = first_nz;s<=last_nz;s++){
+              iLRow = lindx(idx-1);
+              if( iLRow == rowind){
+                double elem = nzcol(idxA);
+                lnz(s-1) = elem;
+                if(idxA<nzcol.m()){
+                  idxA++;
+                  rowind = HMat.Global_.rowind(gcolptr+idxA-1);
+                }
+              }
+#ifdef _DEBUG_
+              logfileptr->OFS()<<"    "<<idx<<"     L("<<lindx(idx-1)<<","<<i<<") = "<<lnz(s-1)<<std::endl;
+#endif
+              idx++;
+            }
+
+
+          }
+          else{
+          
+            Int local_i = (i-(numColFirst)*iam);
+            //do a local copy
+            //copy A into L
+            Int colptr = HMat.Local_.colptr(local_i-1);
+            Int rowind = HMat.Local_.rowind(colptr-1);
+            Int nextColptr = HMat.Local_.colptr(local_i);
+
+            Int idx = fi; 
+            for(Int s = first_nz;s<=last_nz;s++){
+              Int iLRow = lindx(idx-1);
+              if( iLRow == rowind){
+                double elem = HMat.nzvalLocal(colptr-1);
+                lnz(s-1) = elem;
+                if(colptr<nextColptr){
+                  colptr++;
+                  rowind = HMat.Local_.rowind(colptr-1);
+                }
+              }
+
+#ifdef _DEBUG_
+              logfileptr->OFS()<<"    "<<idx<<"     L("<<lindx(idx-1)<<","<<i<<") = "<<lnz(s-1)<<std::endl;
+#endif
+              idx++;
+            }
+
+          }
+
+
         }
+        else{
+          //Get column i from A
+          if(iOwner==iam){
+            Int local_i = (i-(numColFirst)*iam);
+            Int colptr =  HMat.Local_.colptr(local_i-1);
+            Int nrows = HMat.Local_.colptr(local_i) - HMat.Local_.colptr(local_i-1);
+            MPI_Send(&HMat.nzvalLocal(colptr-1),nrows*sizeof(double),MPI_BYTE,iDest,0,MPI_COMM_WORLD);
 
+#ifdef _DEBUG_
+            logfileptr->OFS()<<"Sent col "<<i<<" to P"<<iDest<<std::endl;
+#endif
+          }
+        }
         fi++;
 
       }
     }
-
+*/
  
 
+    std::vector<SuperNode > supernodes;
+
+    for(Int I=1;I<xsuper.m();I++){
+      Int fc = xsuper(I-1);
+      Int lc = xsuper(I)-1;
+      Int width = lc-fc+1;
+      Int fi = xlindx(I-1);
+
+      Int iDest = Afactptr->MAP(I-1,I-1);
+
+
+
+      //parse the first column to create the NZBlock
+      if(iam==iDest){
+        supernodes.push_back(SuperNode());
+        SuperNode & snode = supernodes.back();
+        snode.id = I;
+        snode.firstCol = fc;
+        snode.lastCol = lc;
+        snode.size = lc-fc+1;
+
+        std::vector<NZBlock<double> > & Lcol = snode.Lcol;
+        std::vector<Int > & LocalIndices = snode.LocalIndices;
+
+        Int first_nz = xlnz(fc-1);
+        Int last_nz = xlnz(fc)-1;
+
+        Int idx = fi;
+
+        for(Int s = first_nz;s<=last_nz;s++){
+          Int iStartRow = lindx(idx-1);
+          idx++;
+
+          Int iPrevRow = iStartRow;
+          Int iContiguousRows = 1;
+          for(Int s2 = s+1;s2<=last_nz;s2++){
+            Int iCurRow = lindx(idx-1);
+            if(iCurRow==iPrevRow+1){
+              idx++;
+//              logfileptr->OFS()<<"Rows "<<iPrevRow<<" and "<<iCurRow<<" are contiguous. "<<std::endl;
+              ++iContiguousRows;
+              iPrevRow=iCurRow;
+            }
+            else{
+              break;
+            }
+          }
+
+          Int iCurNZcnt = iContiguousRows * width;
+//          logfileptr->OFS()<<"Creating a new NZBlock for rows "<<iStartRow<<" to "<<iStartRow + iContiguousRows-1<<" with "<<iCurNZcnt<<" nz."<<std::endl;
+          Lcol.push_back(NZBlock<double>(iCurNZcnt,iStartRow,Lcol.size()+1));
+          LocalIndices.push_back(iStartRow);
+
+          s+=iContiguousRows -1;
+        }
+
+        
+        //Add an extra past last row
+        Int iLastRow = lindx(idx-1-1);
+        LocalIndices.push_back(iLastRow+1);
+      }
+
+      //Distribute the data
+
+      //look at the owner of the first column
+      Int numColFirst = HMat.size / np;
+      Int prevOwner = -1;
+      DblNumVec aRemoteCol;
+      double * pdNzVal = NULL;
+      Int iStartIdxCopy = 0;
+      //copy the data from A into this Block structure
+      for(Int i = fc;i<=lc;i++){
+        Int first_nz = xlnz(i-1);
+        Int last_nz = xlnz(i)-1;
+
+        Int iOwner = std::min((i-1)/numColFirst,np-1);
+
+        if(iOwner != prevOwner){
+
+          prevOwner = iOwner;
+          //we need to transfer the bulk of columns
+          //first compute the number of cols we need to transfer
+          Int iNzTransfered = 0;
+          Int iLCTransfered = lc;
+
+          for(Int j =i;j<=lc;++j){
+            iOwner = std::min((j-1)/numColFirst,np-1);
+            if(iOwner == prevOwner){
+              Int nrows = HMat.Global_.colptr(j) - HMat.Global_.colptr(j-1);
+              iNzTransfered+=nrows;
+              //              logfileptr->OFS()<<"Looking at col "<<j<<" which is on P"<<iOwner<<std::endl;
+            }
+            else{
+              iLCTransfered = j-1;
+              break;
+            }
+          } 
+
+
+          //#ifdef _DEBUG_
+ //         logfileptr->OFS()<<"Column "<<i<<" to "<<iLCTransfered<<" are owned by P"<<prevOwner<<" and should go on P"<<iDest<<std::endl;
+ //         logfileptr->OFS()<<"They contain "<<iNzTransfered<<" nz"<<std::endl;
+          //#endif
+
+          //if data needs to be transfered
+          if(iDest!=prevOwner){
+            if(iam == iDest){
+              aRemoteCol.Resize(iNzTransfered);
+              //MPI_Recv
+              MPI_Recv(aRemoteCol.Data(),iNzTransfered*sizeof(double),MPI_BYTE,prevOwner,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+
+ //             logfileptr->OFS()<<"Received col "<<i<<" to "<<iLCTransfered<<" from P"<<iOwner<<std::endl;
+              iStartIdxCopy = 0;
+            } 
+            else if (iam == prevOwner){
+
+              Int local_i = (i-(numColFirst)*iam);
+              Int iColptrLoc = HMat.Local_.colptr(local_i-1);
+              double * pdData = &HMat.nzvalLocal(iColptrLoc-1);
+
+              //MPI_send
+              MPI_Send(pdData,iNzTransfered*sizeof(double),MPI_BYTE,iDest,0,MPI_COMM_WORLD);
+
+ //             logfileptr->OFS()<<"Sent col "<<i<<" to "<<iLCTransfered<<" to P"<<iDest<<std::endl;
+            }
+          }
+        }
+
+        //copy the data if I own it
+        if(iam == iDest){
+          SuperNode & snode = supernodes.back();
+          std::vector<NZBlock<double> > & Lcol = snode.Lcol;
+          std::vector<Int > & LocalIndices = snode.LocalIndices;
+
+          //isData transfered or local
+          if(iam!=prevOwner){
+            pdNzVal = aRemoteCol.Data();
+//            logfileptr->OFS()<<"pdNzVal is the remote buffer"<<std::endl;
+          }
+          else{
+            Int local_i = (i-(numColFirst)*iam);
+            Int iColptrLoc = HMat.Local_.colptr(local_i-1);
+            pdNzVal = &HMat.nzvalLocal(iColptrLoc-1);
+//            logfileptr->OFS()<<"pdNzVal is the local HMat"<<std::endl;
+            iStartIdxCopy = 0;
+          }
+
+          //Copy the data from pdNzVal in the appropriate NZBlock
+
+          Int iGcolptr = HMat.Global_.colptr(i-1);
+          Int iRowind = HMat.Global_.rowind(iGcolptr-1);
+          Int iNrows = HMat.Global_.colptr(i) - HMat.Global_.colptr(i-1);
+          Int idxA = 0;
+          Int idx = fi;
+          Int iLRow = 0;
+          for(Int s = first_nz;s<=last_nz;s++){
+            iLRow = lindx(idx-1);
+            if( iLRow == iRowind){
+
+              Int iNZBlockIdx = 0;
+              for(iNZBlockIdx =0;iNZBlockIdx<LocalIndices.size();++iNZBlockIdx){ 
+                //logfileptr->OFS()<<"iLRow "<<iLRow<<" vs "<<LocalIndices[iNZBlockIdx]<<std::endl;
+                if(LocalIndices[iNZBlockIdx] == iLRow){
+                  break;
+                }
+                else if(LocalIndices[iNZBlockIdx] > iLRow){
+                  --iNZBlockIdx;
+                  break;
+                }
+              }
+
+              logfileptr->OFS()<<s<<"th nz in Row "<<iLRow<<" at colptr "<<iStartIdxCopy + idxA+1<<" in buffer and "<<iNZBlockIdx<<"th NZBlock"<< std::endl;
+              double elem = pdNzVal[iStartIdxCopy + idxA];
+
+              NZBlock<double> * pDestBlock = &Lcol[iNZBlockIdx];
+              Int iHeight = pDestBlock->Nzcnt() / width; 
+              
+              //find where we should put it
+              Int localCol = i - fc;
+              Int localRow = iLRow - pDestBlock->GIndex();
+              Int iDestIdx = iLRow - LocalIndices[iNZBlockIdx] + (i-fc)*iHeight; 
+              logfileptr->OFS()<<"Elem is "<<elem<<" iDestIdx = "<<iDestIdx<<" vs "<<pDestBlock->Nzcnt()<<" localCol = "<<localCol<<" localRow = "<<localRow<< std::endl;
+              /*
+              pDestBlock->Nzval(iDestIdx) = elem;
+              */
+              if(idxA<iNrows){
+                idxA++;
+                iRowind = HMat.Global_.rowind(iGcolptr+idxA-1);
+              }
+            }
+            idx++;
+          }
+
+        }
+
+        fi++;
+      }
+
+      logfileptr->OFS()<<"--------------------------------------------------"<<std::endl;
+    }
+
+
+    delete logfileptr;
+    upcxx::finalize();
+    return;
+
+
+    for(Int i=0;i<supernodes.size();++i){
+      SuperNode & snode = supernodes[i];
+      
+      std::vector<NZBlock<double> > & Lcol = snode.Lcol;
+      std::vector<Int > & LocalIndices = snode.LocalIndices;
+
+//      logfileptr->OFS()<<"Supernode "<<snode.id<<" owns columns "<<snode.firstCol<<" to "<<snode.lastCol<<std::endl;
+      logfileptr->OFS()<<"Supernode "<<snode.id<<" owns blocks:"<<std::endl;
+
+
+      for(int blkidx=0;blkidx<Lcol.size();++blkidx){
+        NZBlock<double> & nzblk = Lcol[blkidx];
+        Int lastRow = nzblk.GIndex() + nzblk.Nzcnt()/snode.size -1;
+        logfileptr->OFS()<<"L("<<nzblk.GIndex()<<".."<<lastRow<<" , "<<snode.firstCol<<".."<<snode.lastCol<<")"<<std::endl;
+
+      }
+
+
+      logfileptr->OFS()<<"--------------------------------------------------"<<std::endl;
+    }
 
 
     delete logfileptr;

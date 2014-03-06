@@ -7,13 +7,19 @@
 
 #include "Environment.hpp"
 #include "NumVec.hpp"
+#include "NZBlock.hpp"
 
 namespace LIBCHOLESKY{
 
-struct SuperNode{
+class SuperNode{
+  public:
+  Int id;
+  Int size;
   Int firstCol;
   Int lastCol;
-
+  SuperNode(){};      
+  std::vector<NZBlock<double> > Lcol;
+  std::vector<Int > LocalIndices;
 };
 
 
