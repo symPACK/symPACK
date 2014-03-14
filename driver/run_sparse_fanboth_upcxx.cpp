@@ -69,36 +69,38 @@ extern "C" {
 using namespace LIBCHOLESKY;
 using namespace std;
 
+//Return the row structure in the permuted matrix
+void getRowStruct(const SparseMatrixStructure & global, const ETree & etree, const Int iPORow, std::vector<Int> & rowStruct){
+  for(Int iPOCurCol = 1; iPOCurCol<=iPORow;++iPOCurCol){
+    Int iCurCol = etree.FromPostOrder(iPOCurCol);
 
-void getRowStruct(const SparseMatrixStructure & global, const Int iRow, std::vector<Int> & rowStruct){
-  for(Int iCurCol = 1; iCurCol<=iRow;++iCurCol){
     Int iFirstRowPtr = global.colptr(iCurCol-1);
     Int iLastRowPtr = global.colptr(iCurCol)-1;
     for(Int iCurRowPtr=iFirstRowPtr ;iCurRowPtr<=iLastRowPtr;++iCurRowPtr){
-      Int iCurRow = global.rowind(iCurRowPtr-1);
-      if(iCurRow == iRow){
-        rowStruct.push_back(iCurCol);
+      Int iPOCurRow = etree.ToPostOrder(global.rowind(iCurRowPtr-1));
+      if(iPOCurRow == iPORow){
+        rowStruct.push_back(iPOCurCol);
       }
 
-      if(iCurRow >= iRow){
+      if(iPOCurRow >= iPORow){
         break;
       }
     }
   }
 }
 
-void getLRowStruct(const SparseMatrixStructure & global, const ETree & etree, const Int iRow, const std::vector<Int> & ARowStruct, std::set<Int> & LRowStruct){
+void getLRowStruct(const SparseMatrixStructure & global, const ETree & etree, const Int iPORow, const std::vector<Int> & ARowStruct, std::set<Int> & LRowStruct){
   LRowStruct.clear();
   for(Int i = 0; i<ARowStruct.size();++i){
     Int iCurNode = ARowStruct[i];
     //tracing from iCurRow to iRow;
     logfileptr->OFS()<<"Starting from node "<<iCurNode<<std::endl;
-    if(iCurNode==iRow){
+    if(iCurNode==iPORow){
       logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
       LRowStruct.insert(iCurNode);
     }
     else{
-      while(iCurNode != iRow && etree.PostParent(iCurNode-1) != 0){
+      while(iCurNode != iPORow && etree.PostParent(iCurNode-1) != 0){
         logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
         LRowStruct.insert(iCurNode);
         iCurNode = etree.PostParent(iCurNode-1);
@@ -185,9 +187,16 @@ int main(int argc, char **argv)
 
     destroy_sparse_matrix (Atmp);
 
-    ETree etree;
-    HMat.ConstructETree(etree);
+    SparseMatrixStructure Global = HMat.GetGlobalStructure();
+
+    logfileptr->OFS()<<Global.colptr<<std::endl;
+    logfileptr->OFS()<<Global.rowind<<std::endl;
+
+    ETree etree(Global);
     etree.PostOrderTree();
+
+
+    logfileptr->OFS()<<"etree is "<<etree<<endl;
 
     //do the symbolic factorization and build supernodal matrix
     SupernodalMatrix<double> SMat(HMat,Afactptr);
@@ -213,13 +222,13 @@ int main(int argc, char **argv)
         for(Int iRow = nzblk.GIndex(); iRow<=lastRow; ++iRow){
           std::vector<Int> & rowStruct = fullRowStruct[iRow-1];
           if(rowStruct.size()==0){
-            getRowStruct(HMat.Global_, iRow,  rowStruct);
+            getRowStruct(Global,etree, iRow,  rowStruct);
             sizerowstruct+=rowStruct.size()*sizeof(Int);
 
             
             logfileptr->OFS()<<"Row "<<iRow<<" structure is "<<rowStruct<<std::endl;
             std::set<Int>  LRowStruct;
-            getLRowStruct(HMat.Global_, etree, iRow, rowStruct, LRowStruct);
+            getLRowStruct(Global, etree, iRow, rowStruct, LRowStruct);
             logfileptr->OFS()<<"Row "<<iRow<<" of L structure is "<<LRowStruct.size()<<std::endl;
             for (std::set<Int>::iterator it=LRowStruct.begin(); it!=LRowStruct.end(); ++it)
               logfileptr->OFS() << ' ' << *it;

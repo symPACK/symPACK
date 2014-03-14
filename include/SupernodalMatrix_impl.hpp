@@ -14,12 +14,19 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
   Int iam = Afactptr->iam;
   Int np = Afactptr->np;
 
+  iSize_ = pMat.size;
+  Local_ = pMat.GetLocalStructure();
+  Local_.ToGlobal(Global_);
 
-  pMat.ConstructETree(ETree_);
+  logfileptr->OFS()<<"I'm alive A"<<std::endl;
+
+  ETree_.ConstructETree(Global_);
+
+
+  logfileptr->OFS()<<"I'm alive B"<<std::endl;
 
   IntNumVec cc,rc;
   pMat.GetLColRowCount(ETree_,cc,rc);
-
   pMat.FindSupernodes(ETree_,cc,Xsuper_);
 
   IntNumVec xlindx,lindx;
@@ -90,7 +97,7 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
       //Distribute the data
 
       //look at the owner of the first column
-      Int numColFirst = pMat.size / np;
+      Int numColFirst = iSize_ / np;
       Int prevOwner = -1;
       DblNumVec aRemoteCol;
       double * pdNzVal = NULL;
@@ -111,7 +118,7 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
           for(Int j =i;j<=lc;++j){
             iOwner = std::min((j-1)/numColFirst,np-1);
             if(iOwner == prevOwner){
-              Int nrows = pMat.Global_.colptr(j) - pMat.Global_.colptr(j-1);
+              Int nrows = Global_.colptr(j) - Global_.colptr(j-1);
               iNzTransfered+=nrows;
               //              logfileptr->OFS()<<"Looking at col "<<j<<" which is on P"<<iOwner<<std::endl;
             }
@@ -140,9 +147,9 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
             else if (iam == prevOwner){
 
               Int local_i = (i-(numColFirst)*iam);
-              Int iColptrLoc = pMat.Local_.colptr(local_i-1);
-              Int iRowIndLoc = pMat.Local_.rowind(iColptrLoc-1);
-              Int iLastRowIndLoc = pMat.Local_.rowind(pMat.Local_.colptr(local_i)-1-1);
+              Int iColptrLoc = Local_.colptr(local_i-1);
+              Int iRowIndLoc = Local_.rowind(iColptrLoc-1);
+              Int iLastRowIndLoc = Local_.rowind(Local_.colptr(local_i)-1-1);
 
               //logfileptr->OFS()<<"cols "<<i<<" to "<<iLCTransfered<<": rows "<<iRowIndLoc<<" to "<<iLastRowIndLoc<<std::endl;
 
@@ -151,7 +158,7 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
 
 
 
-              double * pdData = &pMat.nzvalLocal(iColptrLoc-1);
+              const double * pdData = &pMat.nzvalLocal(iColptrLoc-1);
 
               //MPI_send
               MPI_Send(pdData,iNzTransfered*sizeof(double),MPI_BYTE,iDest,0,MPI_COMM_WORLD);
@@ -173,7 +180,7 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
           }
           else{
             Int local_i = (i-(numColFirst)*iam);
-            Int iColptrLoc = pMat.Local_.colptr(local_i-1);
+            Int iColptrLoc = Local_.colptr(local_i-1);
             pdNzVal = &pMat.nzvalLocal(iColptrLoc-1);
             //logfileptr->OFS()<<"pdNzVal is the local pMat"<<std::endl;
             iStartIdxCopy = 0;
@@ -181,9 +188,9 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
 
           //Copy the data from pdNzVal in the appropriate NZBlock
 
-          Int iGcolptr = pMat.Global_.colptr(i-1);
-          Int iRowind = pMat.Global_.rowind(iGcolptr-1);
-          Int iNrows = pMat.Global_.colptr(i) - pMat.Global_.colptr(i-1);
+          Int iGcolptr = Global_.colptr(i-1);
+          Int iRowind = Global_.rowind(iGcolptr-1);
+          Int iNrows = Global_.colptr(i) - Global_.colptr(i-1);
           Int idxA = 0;
           Int iLRow = 0;
           Int firstrow = fi + i-fc;
@@ -207,7 +214,7 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
               pDestBlock.Nzval(localRow,localCol) = elem;
               if(idxA<iNrows){
                 idxA++;
-                iRowind = pMat.Global_.rowind(iGcolptr+idxA-1);
+                iRowind = Global_.rowind(iGcolptr+idxA-1);
               }
             }
           }

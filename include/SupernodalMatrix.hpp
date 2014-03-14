@@ -20,10 +20,13 @@ namespace LIBCHOLESKY{
 
 template <typename T> class SupernodalMatrix{
   protected:
-  //bool globalAllocated = false;
+  bool globalAllocated = false;
   IntNumVec Xsuper_;
  
+  SparseMatrixStructure Local_;
+  SparseMatrixStructure Global_;
   ETree ETree_;
+  Int iSize_;
 
   public:
   std::vector<SuperNode > LocalSupernodes_;

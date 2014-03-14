@@ -52,8 +52,17 @@ namespace LIBCHOLESKY{
 ///
 /// TODO Add the parameter of numColLocal
 template <class F> class DistSparseMatrix{
+
+  //friend functions
+  friend void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
+  friend void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
+  friend void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
+  friend void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
+
   protected:
   bool globalAllocated = false;
+  SparseMatrixStructure Local_;
+  SparseMatrixStructure Global_;
 
 
   public:
@@ -69,16 +78,15 @@ template <class F> class DistSparseMatrix{
 	/// @brief MPI communicator
 	MPI_Comm     comm = MPI_COMM_NULL;        
 
-  SparseMatrixStructure Local_;
-  SparseMatrixStructure Global_;
 
   void CopyData(const csc_matrix_t * cscptr);
   DistSparseMatrix(const csc_matrix_t * cscptr);
   DistSparseMatrix(MPI_Comm oComm, const csc_matrix_t * cscptr);
 
-  void ToGlobalStruct();
+  SparseMatrixStructure  GetGlobalStructure();
+  SparseMatrixStructure  GetLocalStructure() const;
+  //const SparseMatrixStructure & GetLocalStructure() const;
 
-  void ConstructETree(ETree & tree);
   void ConstructETreeBis(ETree & tree);
   void GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc);
   void FindSupernodes(ETree& tree, IntNumVec & cc, IntNumVec & xsuper);
