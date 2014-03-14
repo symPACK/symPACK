@@ -94,11 +94,25 @@ namespace LIBCHOLESKY{
     Int jb = min(blksize, n-j);
     //j is local
     Int local_j = global_col_to_local(j);
+    DblNumMat * LocalChunk = AchunkLower[local_j/blksize];
+
+    lapack::Potrf( 'L', jb, &LocalChunk->at(0,0 ), n-j);
+    if(n-j-jb>0){
+      blas::Trsm('R','L','T','N',n-j-jb,jb, 1.0, &LocalChunk->at(0,0), n-j, &LocalChunk->at(jb,0), n-j);
+    }
+    TIMER_STOP(Factor);
+  }
+
+  void FBMatrix::Factor_ref(Int j){
+    TIMER_START(Factor);
+    Int jb = min(blksize, n-j);
+    //j is local
+    Int local_j = global_col_to_local(j);
     DblNumMat & LocalChunk = *AchunkLower[local_j/blksize];
 
-    lapack::Potrf( 'L', jb, &LocalChunk(0,0 ), n-j);
+    lapack::Potrf( 'L', jb, &LocalChunk.at(0,0 ), n-j);
     if(n-j-jb>0){
-      blas::Trsm('R','L','T','N',n-j-jb,jb, 1.0, &LocalChunk(0,0), n-j, &LocalChunk(jb,0), n-j);
+      blas::Trsm('R','L','T','N',n-j-jb,jb, 1.0, &LocalChunk.at(0,0), n-j, &LocalChunk.at(jb,0), n-j);
     }
     TIMER_STOP(Factor);
   }

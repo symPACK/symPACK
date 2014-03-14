@@ -38,7 +38,7 @@ namespace LIBCHOLESKY{
       Int pcol, prow;
       Int np, iam;
 
-      FBMatrix();
+      virtual FBMatrix();
       virtual ~FBMatrix();
 
 
@@ -73,6 +73,7 @@ namespace LIBCHOLESKY{
       void Aggregate(Int j, DblNumMat &DistW);
 
       void Factor(Int j);
+      void Factor_ref(Int j);
 
       void Update(Int j, Int i, DblNumMat & Factor);
 

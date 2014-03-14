@@ -55,6 +55,10 @@ class NumMat
     inline const F& operator()(Int i, Int j) const;
     inline F& operator()(Int i, Int j);
 
+    inline const F& at(Int i, Int j) const;
+    inline F& at(Int i, Int j);
+
+
 
     F* Data() const;
     F* VecData(Int j) const;

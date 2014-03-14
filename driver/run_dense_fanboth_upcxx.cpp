@@ -133,16 +133,24 @@ int main(int argc, char **argv)
 
 
 
-    upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > Aobjects;
-    Aobjects.init(np);
+    //upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > * Aobjects = new upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> >();
+    //Aobjects->init(np);
 
-    upcxx::global_ptr<FBMatrix_upcxx> AfactGptr = upcxx::Create<FBMatrix_upcxx>();
-    FBMatrix_upcxx * Afactptr = AfactGptr;
-    Aobjects[iam] = AfactGptr;
+    //upcxx::global_ptr<FBMatrix_upcxx> AfactGptr = upcxx::Create<FBMatrix_upcxx>();
+    FBMatrix_upcxx * Afactptr = new FBMatrix_upcxx();
+    //AfactGptr;
+    //(*Aobjects)[iam] = AfactGptr;
+    //upcxx::barrier();
+
+
+    //for(Int i =0;i<Aobjects->size();i++){
+    //  logfileptr->OFS()<<static_cast<upcxx::global_ptr<FBMatrix_upcxx> >((*Aobjects)[i])<<std::endl;
+    //}
+
+
     upcxx::barrier();
-    upcxx::wait();
 
-    Afactptr->Initialize(&Aobjects);
+    Afactptr->Initialize();
 
     Real timeSta, timeEnd;
 
@@ -302,7 +310,9 @@ int main(int argc, char **argv)
 
 
     delete logfileptr;
-    upcxx::Destroy<FBMatrix_upcxx>(AfactGptr);
+    //upcxx::Destroy<FBMatrix_upcxx>(AfactGptr);
+    //delete Aobjects;
+    delete Afactptr;
     upcxx::finalize();
   }
 //  catch( std::exception& e )

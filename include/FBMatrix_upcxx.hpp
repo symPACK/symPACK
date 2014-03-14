@@ -33,12 +33,12 @@ namespace LIBCHOLESKY{
       Int outstdAggreg=0;
       Int outstdUpdate=0;
       Int prefetch;
-      std::vector< upcxx::global_ptr<FBMatrix_upcxx> > RemoteObjPtrs;
+      std::vector< upcxx::global_ptr<FBMatrix_upcxx> > * pRemoteObjPtrs;
 
-      FBMatrix_upcxx();
-      //~FBMatrix_upcxx();
+      virtual FBMatrix_upcxx();
+      virtual ~FBMatrix_upcxx();
 
-      void Initialize(upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > * RemoteObjPtr);
+      void Initialize();
 
       virtual void Allocate(Int np, Int pn, Int pblksize);
 

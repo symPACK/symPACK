@@ -70,8 +70,43 @@ using namespace LIBCHOLESKY;
 using namespace std;
 
 
+void getRowStruct(const SparseMatrixStructure & global, const Int iRow, std::vector<Int> & rowStruct){
+  for(Int iCurCol = 1; iCurCol<=iRow;++iCurCol){
+    Int iFirstRowPtr = global.colptr(iCurCol-1);
+    Int iLastRowPtr = global.colptr(iCurCol)-1;
+    for(Int iCurRowPtr=iFirstRowPtr ;iCurRowPtr<=iLastRowPtr;++iCurRowPtr){
+      Int iCurRow = global.rowind(iCurRowPtr-1);
+      if(iCurRow == iRow){
+        rowStruct.push_back(iCurCol);
+      }
 
+      if(iCurRow >= iRow){
+        break;
+      }
+    }
+  }
+}
 
+void getLRowStruct(const SparseMatrixStructure & global, const ETree & etree, const Int iRow, const std::vector<Int> & ARowStruct, std::set<Int> & LRowStruct){
+  LRowStruct.clear();
+  for(Int i = 0; i<ARowStruct.size();++i){
+    Int iCurNode = ARowStruct[i];
+    //tracing from iCurRow to iRow;
+    logfileptr->OFS()<<"Starting from node "<<iCurNode<<std::endl;
+    if(iCurNode==iRow){
+      logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+      LRowStruct.insert(iCurNode);
+    }
+    else{
+      while(iCurNode != iRow && etree.PostParent(iCurNode-1) != 0){
+        logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+        LRowStruct.insert(iCurNode);
+        iCurNode = etree.PostParent(iCurNode-1);
+        logfileptr->OFS()<<"Parent is "<<iCurNode<<std::endl;
+      }
+    }
+  } 
+}
 
 int main(int argc, char **argv) 
 {
@@ -118,20 +153,12 @@ int main(int argc, char **argv)
     }
 
 
-    upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > Aobjects;
-    Aobjects.init(np);
-
-    upcxx::global_ptr<FBMatrix_upcxx> AfactGptr = upcxx::Create<FBMatrix_upcxx>();
-    FBMatrix_upcxx * Afactptr = AfactGptr;
-
-    Aobjects[iam] = AfactGptr;
-    upcxx::barrier();
-    upcxx::wait();
+    FBMatrix_upcxx * Afactptr = new FBMatrix_upcxx();
   
 
     //upcxx::global_ptr<FBMatrix> Afactptr = upcxx::Create<FBMatrix>();
 
-    Afactptr->Initialize(&Aobjects);
+    Afactptr->Initialize();
     Afactptr->pcol = np;
     Afactptr->np = np;
     Afactptr->prow = sqrt(np);
@@ -158,203 +185,18 @@ int main(int argc, char **argv)
 
     destroy_sparse_matrix (Atmp);
 
+    ETree etree;
+    HMat.ConstructETree(etree);
+    etree.PostOrderTree();
 
-    //do the symbolic factorization
-
-//{
-//
-//    IntNumVec rowind, colptr;
-//    HMat.Global_.ExpandSymmetric(colptr,rowind);
-//
-//    logfileptr->OFS()<<"expanded colptr: "<<colptr<<endl;
-//    logfileptr->OFS()<<"original colptr: "<<HMat.Global_.colptr<<endl;
-//
-//    logfileptr->OFS()<<"expanded rowind: "<<rowind<<endl;
-//    logfileptr->OFS()<<"original rowind: "<<HMat.Global_.rowind<<endl;
-//
-//}
-
-
-
-//     ETree elimTree;
-//     HMat.ConstructETree(elimTree);
-////     logfileptr->OFS()<<"etree "<<elimTree<<std::endl;
-//
-//     upcxx::barrier();
-//     elimTree.PostOrderTree();
-////     logfileptr->OFS()<<"po etree"<<elimTree<<std::endl;
-//     upcxx::barrier();
-//
-//     IntNumVec cc,rc;
-//     HMat.GetLColRowCount(elimTree,cc,rc);
-//     logfileptr->OFS()<<"Col count "<<cc<<std::endl;
-//     logfileptr->OFS()<<"Row count "<<rc<<std::endl;
-//
-//
-//
-//    IntNumVec xsuper; 
-//    HMat.FindSupernodes(elimTree,cc,xsuper);
-//    logfileptr->OFS()<<"supernode indexes "<<xsuper<<std::endl;
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//    IntNumVec xlindx,lindx,xlnz;
-//    DblNumVec lnz;
-//    HMat.SymbolicFactorization(elimTree,cc,xsuper,xlindx,xlnz,lindx,lnz);
-// 
-//    {
-//      logfileptr->OFS()<<"xlindx contains the starting index in lindx of each supernode"<<std::endl; 
-//      logfileptr->OFS()<<"xlindx"<<xlindx<<std::endl;
-//      logfileptr->OFS()<<"lindx contains consecutive row indices of all supernodes"<<std::endl; 
-////      for(int i =0;i<lindx.m();++i){logfileptr->OFS()<<i+1<<" ";} logfileptr->OFS()<<std::endl;
-//      logfileptr->OFS()<<"lindx"<<lindx<<std::endl;
-//      //TODO XLNZ might be discarded and we should use a first row to last row loop instead...
-//      logfileptr->OFS()<<"xlnz contains the index of the first nz in col i"<<std::endl; 
-////      logfileptr->OFS()<<"xlnz"<<xlnz<<std::endl;
-////      logfileptr->OFS()<<"lnz contains the consecutive nz values of all supernodes"<<std::endl; 
-//    }
-//
-//    //TODO: Create a Supernode structure and then use it to do a conversion from DistSparseMatrix to DistSupernodalMatrix
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-///*
-//    //Filling L with A and distribute according to supernodal partition
-//    //parsing the data structure
-//    for(Int I=1;I<xsuper.m();I++){
-//      Int fc = xsuper(I-1);
-//      Int lc = xsuper(I)-1;
-//      Int fi = xlindx(I-1);
-//
-//      logfileptr->OFS()<<"Supernode "<<I<<" in ["<<fc<<" ... "<<lc<<"]"<<std::endl;
-//
-//
-//      Int iDest = Afactptr->MAP(I-1,I-1);
-//
-//      for(Int i = fc;i<=lc;i++){
-//        Int first_nz = xlnz(i-1);
-//        Int last_nz = xlnz(i)-1;
-//
-//        //who owns column i ?
-//
-//        Int numColFirst = HMat.size / np;
-//        Int iOwner = std::min((i-1)/numColFirst,np-1);
-//
-//#ifdef _DEBUG_
-//        logfileptr->OFS()<<"Column "<<i<<" is owned by P"<<iOwner<<" and should go on P"<<iDest<<std::endl;
-//#endif
-//
-//        if(iam == iDest){
-//          //Get column i from A
-//          if(iOwner!=iam){
-//            //Compute buffer size
-//            Int nrows = HMat.Global_.colptr(i) - HMat.Global_.colptr(i-1);
-//            DblNumVec nzcol(nrows);
-//            MPI_Recv(nzcol.Data(),nrows*sizeof(double),MPI_BYTE,iOwner,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-//#ifdef _DEBUG_
-//            logfileptr->OFS()<<"Received col "<<i<<" from P"<<iOwner<<std::endl;
-//#endif
-//            //copy A into L
-//            Int gcolptr = HMat.Global_.colptr(i-1);
-//            Int rowind = HMat.Global_.rowind(gcolptr-1);
-//#ifdef _DEBUG_
-//            logfileptr->OFS()<<"Column "<<i<<" is remote; gcolptr = "<<gcolptr<<" row "<<i<<" at rowind "<<rowind<<std::endl;
-//#endif
-//            Int idxA = 0;
-//
-//            Int idx = fi;
-//            Int iLRow = 0;
-//            for(Int s = first_nz;s<=last_nz;s++){
-//              iLRow = lindx(idx-1);
-//              if( iLRow == rowind){
-//                double elem = nzcol(idxA);
-//                lnz(s-1) = elem;
-//                if(idxA<nzcol.m()){
-//                  idxA++;
-//                  rowind = HMat.Global_.rowind(gcolptr+idxA-1);
-//                }
-//              }
-//#ifdef _DEBUG_
-//              logfileptr->OFS()<<"    "<<idx<<"     L("<<lindx(idx-1)<<","<<i<<") = "<<lnz(s-1)<<std::endl;
-//#endif
-//              idx++;
-//            }
-//
-//
-//          }
-//          else{
-//          
-//            Int local_i = (i-(numColFirst)*iam);
-//            //do a local copy
-//            //copy A into L
-//            Int colptr = HMat.Local_.colptr(local_i-1);
-//            Int rowind = HMat.Local_.rowind(colptr-1);
-//            Int nextColptr = HMat.Local_.colptr(local_i);
-//
-//            Int idx = fi; 
-//            for(Int s = first_nz;s<=last_nz;s++){
-//              Int iLRow = lindx(idx-1);
-//              if( iLRow == rowind){
-//                double elem = HMat.nzvalLocal(colptr-1);
-//                lnz(s-1) = elem;
-//                if(colptr<nextColptr){
-//                  colptr++;
-//                  rowind = HMat.Local_.rowind(colptr-1);
-//                }
-//              }
-//
-//#ifdef _DEBUG_
-//              logfileptr->OFS()<<"    "<<idx<<"     L("<<lindx(idx-1)<<","<<i<<") = "<<lnz(s-1)<<std::endl;
-//#endif
-//              idx++;
-//            }
-//
-//          }
-//
-//
-//        }
-//        else{
-//          //Get column i from A
-//          if(iOwner==iam){
-//            Int local_i = (i-(numColFirst)*iam);
-//            Int colptr =  HMat.Local_.colptr(local_i-1);
-//            Int nrows = HMat.Local_.colptr(local_i) - HMat.Local_.colptr(local_i-1);
-//            MPI_Send(&HMat.nzvalLocal(colptr-1),nrows*sizeof(double),MPI_BYTE,iDest,0,MPI_COMM_WORLD);
-//
-//#ifdef _DEBUG_
-//            logfileptr->OFS()<<"Sent col "<<i<<" to P"<<iDest<<std::endl;
-//#endif
-//          }
-//        }
-//        fi++;
-//
-//      }
-//    }
-//*/
-// 
-
-
-
-
+    //do the symbolic factorization and build supernodal matrix
     SupernodalMatrix<double> SMat(HMat,Afactptr);
 
 
 
+    //Try to determine nth row structure in A
+    std::vector< std::vector<Int> > fullRowStruct(HMat.size);
+    Int sizerowstruct = 0;
     for(Int i=0;i<SMat.LocalSupernodes_.size();++i){
       SuperNode & snode = SMat.LocalSupernodes_[i];
       
@@ -366,6 +208,26 @@ int main(int argc, char **argv)
       for(int blkidx=0;blkidx<snode.NZBlockCnt();++blkidx){
         NZBlock<double> & nzblk = snode.GetNZBlock(blkidx);
         Int lastRow = nzblk.GIndex() + nzblk.NRows() -1;
+
+
+        for(Int iRow = nzblk.GIndex(); iRow<=lastRow; ++iRow){
+          std::vector<Int> & rowStruct = fullRowStruct[iRow-1];
+          if(rowStruct.size()==0){
+            getRowStruct(HMat.Global_, iRow,  rowStruct);
+            sizerowstruct+=rowStruct.size()*sizeof(Int);
+
+            
+            logfileptr->OFS()<<"Row "<<iRow<<" structure is "<<rowStruct<<std::endl;
+            std::set<Int>  LRowStruct;
+            getLRowStruct(HMat.Global_, etree, iRow, rowStruct, LRowStruct);
+            logfileptr->OFS()<<"Row "<<iRow<<" of L structure is "<<LRowStruct.size()<<std::endl;
+            for (std::set<Int>::iterator it=LRowStruct.begin(); it!=LRowStruct.end(); ++it)
+              logfileptr->OFS() << ' ' << *it;
+            
+            logfileptr->OFS() << std::endl;
+          }
+        }
+
 //        logfileptr->OFS()<<nzblk<<std::endl;
         logfileptr->OFS()<<"L("<<nzblk.GIndex()<<".."<<lastRow<<" , "<<snode.FirstCol()<<".."<<snode.LastCol()<<")"<<std::endl;
       }
@@ -375,6 +237,7 @@ int main(int argc, char **argv)
     }
 
 
+      logfileptr->OFS()<<"total size of row structure is "<<sizerowstruct<<" bytes"<<std::endl;
 
 
 
@@ -552,9 +415,9 @@ delete logfileptr;
     }
 
     delete logfileptr;
+    delete Afactptr;
 
     upcxx::finalize();
-    upcxx::Destroy<FBMatrix_upcxx>(AfactGptr);
 
   }
   catch( std::exception& e )

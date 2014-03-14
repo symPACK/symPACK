@@ -178,6 +178,47 @@ template <typename F> NumMat<F>& NumMat<F>::Copy(const NumMat& C) {
       ss<<"Index (*,"<<j<<") is out of bound. Dimensions are ("<<m_<<","<<n_<<")."<<std::endl;
   }
 
+
+template <typename F> inline const F& NumMat<F>::at(Int i, Int j) const  { 
+		if( i < 0 || i >= m_ ||
+				j < 0 || j >= n_ ) {
+      
+      std::stringstream ss;
+      error_message(ss,i,j);
+      logfileptr->OFS()<<ss.str();
+
+#ifdef USE_ABORT
+      printf("%s",ss.str().c_str());
+      abort();
+#endif
+			throw std::logic_error( ss.str().c_str() );
+		}
+    return data_[i+j*m_];
+  }
+
+
+template <typename F> inline F& NumMat<F>::at(Int i, Int j)  { 
+		if( i < 0 || i >= m_ ||
+				j < 0 || j >= n_ ) {
+
+      std::stringstream ss;
+      error_message(ss,i,j);
+
+      logfileptr->OFS()<<ss.str();
+
+#ifdef USE_ABORT
+      printf("%s",ss.str().c_str());
+      abort();
+#endif
+			throw std::logic_error( ss.str().c_str() );
+		}
+    return data_[i+j*m_];
+  }
+  
+
+
+
+
 template <typename F> inline const F& NumMat<F>::operator()(Int i, Int j) const  { 
 		if( i < 0 || i >= m_ ||
 				j < 0 || j >= n_ ) {

@@ -60,21 +60,34 @@ namespace LIBCHOLESKY{
 
   
   FBMatrix_upcxx::FBMatrix_upcxx():prefetch(0),outstdAggreg(0),outstdUpdate(0),FBMatrix(){
+    pRemoteObjPtrs = new std::vector< upcxx::global_ptr<FBMatrix_upcxx> >();
+  }
+
+
+  FBMatrix_upcxx::~FBMatrix_upcxx(){
+    delete pRemoteObjPtrs;
   }
 
 
 
-  void FBMatrix_upcxx::Initialize(upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > * RemoteObjPtr){
+  void FBMatrix_upcxx::Initialize(){
     aggregate_comm_time=0.0;
     factor_comm_time=0.0;
     np=THREADS;
     iam=MYTHREAD;
+
     TIMER_START(RemotePtr_fetch);
-    RemoteObjPtrs.resize(RemoteObjPtr->size());
-    for(int i =0; i< RemoteObjPtr->size();i++){
-      RemoteObjPtrs[i]=(*RemoteObjPtr)[i];
+    upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > Aobjects;
+    Aobjects.init(np);
+    Aobjects[iam] = upcxx::global_ptr<FBMatrix_upcxx>(this);
+    upcxx::barrier();
+
+    pRemoteObjPtrs->clear();
+    for(int i =0; i< Aobjects.size();i++){
+      pRemoteObjPtrs->push_back(static_cast<upcxx::global_ptr<FBMatrix_upcxx> > (Aobjects[i]));
     }
     TIMER_STOP(RemotePtr_fetch);
+    upcxx::barrier();
   }
 
 
@@ -170,7 +183,7 @@ namespace LIBCHOLESKY{
       Int jb = min(blksize, n-j);
       Int target = MAP(j,j);
       global_ptr<double> Adestptr(&Adest(j,j));
-      upcxx::async(target)(Gathercopy,RemoteObjPtrs[target],Adestptr,j);
+      upcxx::async(target)(Gathercopy,pRemoteObjPtrs->at(target),Adestptr,j);
     }
     upcxx::wait();
   }
@@ -186,7 +199,7 @@ namespace LIBCHOLESKY{
     double time_sta_adv, time_end_adv, time_adv =0.0;
     double time_sta_signal, time_end_signal, time_signal =0.0;
 
-      time_sta_overall = get_time();
+//      time_sta_overall = get_time();
 //    Int cnt = 0;
     while( !fact_finished ){
 //      cnt++;
@@ -205,8 +218,8 @@ namespace LIBCHOLESKY{
 //      time_signal += time_end_signal - time_sta_signal;
     }
 
-    time_end_overall = get_time();
-    time_overall += time_end_overall - time_sta_overall;
+//    time_end_overall = get_time();
+//    time_overall += time_end_overall - time_sta_overall;
 
 //    Int cnt2 = cnt;
 //    while( cnt-->0 ){
@@ -221,9 +234,9 @@ namespace LIBCHOLESKY{
 
     
 //    logfileptr->OFS()<<"Loops: "<<cnt2<<endl; 
-    logfileptr->OFS()<<"FANBOTH_WAITFACT: "<<time_overall<<endl; 
-    logfileptr->OFS()<<"MAIN_ADVANCE: "<<time_adv<<endl; 
-    logfileptr->OFS()<<"WHILE_TEST: "<<time_signal<<endl; 
+//    logfileptr->OFS()<<"FANBOTH_WAITFACT: "<<time_overall<<endl; 
+//    logfileptr->OFS()<<"MAIN_ADVANCE: "<<time_adv<<endl; 
+//    logfileptr->OFS()<<"WHILE_TEST: "<<time_signal<<endl; 
 
 //    while(!fact_finished){  upcxx::advance(); };
 //    if(MYTHREAD==MAP(n-1,n-1)){
@@ -234,7 +247,7 @@ namespace LIBCHOLESKY{
 
   void FBMatrix_upcxx::NumericalFactorization(){
     if(iam==MAP(0,0)){
-      upcxx::async(iam)(Factor_Async,RemoteObjPtrs[iam],0);
+      upcxx::async(iam)(Factor_Async,pRemoteObjPtrs->at(iam),0);
     }
   }
 
@@ -254,22 +267,18 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
   DblNumMat_upcxx RemoteFactorBuf(n,blksize);
 
 
-  //    upcxx::shared_array< dgptr, np > ArrAggregateRdy2;
-  //    ArrAggregateRdy2.init(np*np);
-  //    for(int i=0;i<np;i++){
-  //       ArrAggregateRdy2[iam*np+i]=dgptr(NULL);
-  //    }
+      upcxx::shared_array< dgptr > ArrAggregateRdy2;
+      ArrAggregateRdy2.init(np*np,np);
+      for(int i=0;i<np;i++){
+         ArrAggregateRdy2[iam*np+i]=dgptr(NULL);
+      }
 
-  upcxx::shared_array< dgptr, 1 > ArrFactorRdy2;
+  upcxx::shared_array< dgptr > ArrFactorRdy2;
   ArrFactorRdy2.init(np);
   ArrFactorRdy2[iam]=dgptr(NULL);
+  dgptr* locFactorRdy2 =  ArrFactorRdy2[iam].raw_ptr();
 
-  NumMat_upcxx< dgptr > RemoteAggregateRdy(np,1);
-  SetValue(RemoteAggregateRdy, dgptr(NULL));
-  upcxx::shared_array< upcxx::global_ptr< dgptr > > ArrAggregateRdy;
-  ArrAggregateRdy.init(np);
-  ArrAggregateRdy[iam] = RemoteAggregateRdy.GData();
-
+  
   upcxx::barrier();
   upcxx::wait();
 
@@ -285,44 +294,33 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 
       //aggregate previous updates
       if(AggLock[j/blksize]>0){
-        dgptr * last = RemoteAggregateRdy.Data()+RemoteAggregateRdy.Size();
-        dgptr * pos = last;
         while(AggLock[j/blksize]>0){
           //poll for available data
-          do{ /*upcxx::wait();*/  pos =std::find_if(RemoteAggregateRdy.Data(),last,isNonNull); }while(pos==last);
+          TIMER_START(Aggregate_Poll);
+          int pos=-1;
+          bool found = false;
+          do{
+            for(int i=0;i<np;i++){
+              dgptr cur = (dgptr)ArrAggregateRdy2[iam*np+i];
+              if(cur.raw_ptr()!=NULL){
+                pos = iam*np+i;
+                found = true;
+                break;
+              }
+            }
+            //upcxx::wait();
+          }while(! found);
+          TIMER_STOP(Aggregate_Poll);
+
 #ifdef _DEBUG_
-          logfileptr->OFS()<<"Receiving aggregate"<<endl;
+          logfileptr->OFS()<<"Receiving aggregate at "<<pos<<" from "<<(dgptr)ArrAggregateRdy2[pos]<<endl;
 #endif
+
           TIMER_START(Aggregate_Recv);
-          upcxx::copy<double>(*pos,RemoteAggregate.GData(),(n-j)*jb);
+          upcxx::copy<double>((dgptr)ArrAggregateRdy2[pos],RemoteAggregate.GData(),(n-j)*jb);
           TIMER_STOP(Aggregate_Recv);
-          *pos = dgptr(NULL);
+          ArrAggregateRdy2[pos] = dgptr(NULL);
 
-
-          /************** Code for shared_array with block size np ****************/
-          ///              int pos=-1;
-          ///              bool found = false;
-          ///              do{
-          ///                  //upcxx::wait();
-          ///                  for(int i=0;i<np;i++){
-          ///                    dgptr cur = (dgptr)ArrAggregateRdy2[iam*np+i];
-          ///                    if((double*)cur!=NULL){
-          ///                      pos = iam*np+i;
-          ///                      found = true;
-          ///                      break;
-          ///                    }
-          ///                  }
-          ///              }while(! found);
-          ///
-          ///#ifdef _DEBUG_
-          ///          logfileptr->OFS()<<"Receiving aggregate"<<endl;
-          ///#endif
-          ///
-          ///              TIMER_START(Aggregate_Recv);
-          ///              upcxx::copy<double>(ArrAggregateRdy2[pos],RemoteAggregate.GData(),(n-j)*jb);
-          ///              TIMER_STOP(Aggregate_Recv);
-          ///              ArrAggregateRdy2[pos] = dgptr(NULL);
-          /********** end of code for shared_array with block size np *************/
 
 #ifdef _DEBUG_
           logfileptr->OFS()<<"Aggregating to column "<<j<<endl;
@@ -338,30 +336,38 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Factoring column "<<j<<endl;
 #endif
+
+//#define USE_REF
+
+#ifdef USE_REF
+      Factor_ref(j);
+#else
       //Factor current column 
       Factor(j);
+#endif
 
       //send factor
-      TIMER_START(Send_Factor);
+      TIMER_START(Send_Factor_Notification);
 
       for(Int target = 0; target<np;target++){
         for(Int i = j+blksize; i<n; i+=blksize){
           if(MAP(i,j)==target){
             DblNumMat_upcxx & Achk = *(DblNumMat_upcxx*)AchunkLower[local_j/blksize];
 
-#ifdef _DEBUG_
-            logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<endl;
-#endif
 
             //push the pointer to the factor on P(i,j)
             dgptr dest = ArrFactorRdy2[target];
             dgptr src(Achk.GData());
+
+#ifdef _DEBUG_
+            logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<" at "<<src<<endl;
+#endif
             ArrFactorRdy2[target] = src;
             break;
           }
         }
       }
-      TIMER_STOP(Send_Factor);
+      TIMER_STOP(Send_Factor_Notification);
     }
 
     //do the updates
@@ -377,11 +383,16 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 
         RemoteFactorPtr = & RemoteFactorBuf;
         if(!have_factor){
+
           //poll for available data
-          while((double*)ArrFactorRdy2[iam]==NULL);
+          TIMER_START(Factor_Poll);
+          while((double*)ArrFactorRdy2[iam].get()==NULL){
+            //upcxx::wait();
+          };
+          TIMER_STOP(Factor_Poll);
 
 #ifdef _DEBUG_
-          logfileptr->OFS()<<"Receiving factor "<<j<<endl;
+          logfileptr->OFS()<<"Receiving factor "<<j<<" at "<<ArrFactorRdy2[iam].get()<<endl;
 #endif
 
           //Receive factor
@@ -414,14 +425,13 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 #endif
 
             //push the pointer to the aggregate vector on P(i,i)
-            global_ptr< dgptr > dest = (global_ptr< dgptr >)ArrAggregateRdy[target]+ iam;
-            global_ptr< dgptr > src( &(((DblNumMat_upcxx *)WLower[i/blksize])->GData()) );
-            upcxx::copy< dgptr >(src,dest,1);
+            dgptr src = (((DblNumMat_upcxx *)WLower[i/blksize])->GData());
 
-            /************** Code for shared_array with block size np ****************/
-            ///                dgptr src = (((DblNumMat_upcxx *)WLower[i/blksize])->GData());
-            ///                ArrAggregateRdy2[target*np+iam] = src;
-            ///                upcxx::wait();
+#ifdef _DEBUG_
+            logfileptr->OFS()<<"Putting aggregate for P"<<target<<" at "<<src<<endl;
+#endif
+
+            ArrAggregateRdy2[target*np+iam] = src;
             /********** end of code for shared_array with block size np *************/
 
           }
@@ -504,7 +514,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 
   void Gathercopy(upcxx::global_ptr<FBMatrix_upcxx> Objptr, global_ptr<double> Adest, Int j){
     assert(Objptr.tid()==MYTHREAD);
-    FBMatrix_upcxx & A = *Objptr;
+    FBMatrix_upcxx & A = *Objptr.raw_ptr();
     Int local_j = A.global_col_to_local(j);
     Int jb = min(A.blksize, A.n-j);
     DblNumMat_upcxx & LocalChunk = *(DblNumMat_upcxx*)A.AchunkLower[local_j/A.blksize];
@@ -524,7 +534,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 #ifdef _ASSERT_
     assert(Aptr.tid()==MYTHREAD);
 #endif
-    FBMatrix_upcxx & A = *Aptr;
+    FBMatrix_upcxx & A = *Aptr.raw_ptr();
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"********************************************"<<endl;
@@ -556,7 +566,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 #ifdef _DEBUG_
           logfileptr->OFS()<<"Launching update from "<<j<<" on P"<<target<<endl;
 #endif
-          upcxx::async(target)(Update_Async,A.RemoteObjPtrs[target],j,AchkPtr);
+          upcxx::async(target)(Update_Async,A.pRemoteObjPtrs->at(target),j,AchkPtr);
           if(target!=A.iam){
             async_created++;
           }
@@ -637,7 +647,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
           logfileptr->OFS()<<"Updating from "<<j<<", launching aggregate on P"<<target<<" for column "<<i<<endl;
 #endif
           global_ptr<double> WbufPtr = ((DblNumMat_upcxx *)A.WLower[i/A.blksize])->GData();
-          upcxx::async(target)(Aggregate_Async,A.RemoteObjPtrs[target],i,WbufPtr);
+          upcxx::async(target)(Aggregate_Async,A.pRemoteObjPtrs->at(target),i,WbufPtr);
         }
         TIMER_STOP(Launch_Aggregates);
 
@@ -671,7 +681,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
     logfileptr->OFS()<<"Entering Update_Compute_Async"<<endl<<endl;
 #endif
     TIMER_START(Update_Async_compute);
-    FBMatrix_upcxx & A = *Aptr;
+    FBMatrix_upcxx & A = *Aptr.raw_ptr();
 
 //#ifdef NO_ASYNC_COPY
       //upcxx::async_copy_fence();
@@ -732,9 +742,15 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
           logfileptr->OFS()<<"Updating from "<<j<<", launching aggregate on P"<<target<<" for column "<<i<<endl;
 #endif
           global_ptr<double> WbufPtr(&(*A.WLower[i/A.blksize])(0,0));
-          upcxx::async(target)(Aggregate_Async,A.RemoteObjPtrs[target],i,WbufPtr);
+          upcxx::async(target)(Aggregate_Async,A.pRemoteObjPtrs->at(target),i,WbufPtr);
+
           
+
           if(target!=A.iam){
+
+    TIMER_START(ADVANCE_AGGREGATES);
+    upcxx::advance(0,1);
+    TIMER_STOP(ADVANCE_AGGREGATES);
             async_created++;
           }
 //          int num_out = upcxx::advance_out_task_queue(out_task_queue, ADVANCE_COMM);
@@ -747,9 +763,9 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
     }
     TIMER_STOP(Update_async_loop);
 
-    TIMER_START(ADVANCE_AGGREGATES);
-    upcxx::advance(0,async_created);
-    TIMER_STOP(ADVANCE_AGGREGATES);
+//    TIMER_START(ADVANCE_AGGREGATES);
+//    upcxx::advance(0,async_created);
+//    TIMER_STOP(ADVANCE_AGGREGATES);
 
     //The factor can now be freed
     delete remoteFactorPtr;
@@ -766,9 +782,6 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
   }
 
 
-
-
-
   void Update_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, upcxx::global_ptr<double> remoteFactorPtr){
 
 #ifdef _DEBUG_
@@ -778,7 +791,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 #ifdef _ASSERT_
     assert(Aptr.tid()==MYTHREAD);
 #endif
-    FBMatrix_upcxx & A = *Aptr;
+    FBMatrix_upcxx & A = *Aptr.raw_ptr();
 
 
 #ifdef _DEBUG_    
@@ -911,7 +924,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 #ifdef _ASSERT_
     assert(Aptr.tid()==MYTHREAD);
 #endif
-    FBMatrix_upcxx & A = *Aptr;
+    FBMatrix_upcxx & A = *Aptr.raw_ptr();
 
 //#ifdef NO_ASYNC_COPY
       //upcxx::async_copy_fence();
@@ -979,7 +992,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 #ifdef _ASSERT_
     assert(Aptr.tid()==MYTHREAD);
 #endif
-    FBMatrix_upcxx & A = *Aptr;
+    FBMatrix_upcxx & A = *Aptr.raw_ptr();
     //fetch data
 #ifdef _DEBUG_    
     logfileptr->OFS()<<"Aggregating Fetching data from P"<<remoteAggregatePtr.tid()<<endl;
