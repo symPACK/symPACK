@@ -12,7 +12,7 @@
 
 
 #include <vector>
-//#include "utility.hpp"
+#include "Mapping.hpp"
 
 
 
@@ -21,25 +21,43 @@ namespace LIBCHOLESKY{
 template <typename T> class SupernodalMatrix{
   protected:
   bool globalAllocated = false;
+
   IntNumVec Xsuper_;
+  IntNumVec SupMembership_;
+  MAPCLASS Mapping_;
  
   SparseMatrixStructure Local_;
   SparseMatrixStructure Global_;
   ETree ETree_;
+  ETree SupETree_;
   Int iSize_;
+  std::vector<SuperNode2<T> * > LocalSupernodes_;
 
+  inline bool FindNextUpdate(SuperNode2<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
+  inline bool FindPivot(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode,Int & pivot_idx, Int & pivot_fr, Int & pivot_lr);
+
+  void UpdateSuperNode(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = 0);
   public:
-  std::vector<SuperNode > LocalSupernodes_;
 
 	/// @brief MPI communicator
 	//MPI_Comm     comm = MPI_COMM_NULL;        
-  //SparseMatrixStructure Local_;
-  //SparseMatrixStructure Global_;
 
 
   SupernodalMatrix();
-//  SupernodalMatrix(const DistSparseMatrix<T> & pMat);
-  SupernodalMatrix(const DistSparseMatrix<T> & pMat, FBMatrix* Afactptr );
+  SupernodalMatrix(const DistSparseMatrix<T> & pMat, MAPCLASS & pMapping, MPI_Comm & pComm );
+
+  //Accessors
+  Int Size(){return iSize_;}
+  IntNumVec & GetSupernodes(){ return Xsuper_;}
+  std::vector<SuperNode > & GetLocalSupernodes(){ return LocalSupernodes_; } 
+  SuperNode & GetLocalSupernode(Int i){ return LocalSupernodes_[i]; } 
+  ETree & GetETree(){return ETree_;}
+
+  SparseMatrixStructure GetGlobalStructure();
+  SparseMatrixStructure GetLocalStructure() const;
+
+  void Factorize(MPI_Comm & pComm);
+
 };
 
 

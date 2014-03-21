@@ -17,6 +17,8 @@
 #include  "NumMat.hpp"
 #include  "utility.hpp"
 #include  "ETree.hpp"
+#include  "Mapping.hpp"
+
 #include  "blas.hpp"
 #include  "lapack.hpp"
 #include  "FBMatrix_upcxx.hpp"
@@ -187,69 +189,85 @@ int main(int argc, char **argv)
 
     destroy_sparse_matrix (Atmp);
 
-    SparseMatrixStructure Global = HMat.GetGlobalStructure();
+    //SparseMatrixStructure Global = HMat.GetGlobalStructure();
+    //logfileptr->OFS()<<Global.colptr<<std::endl;
+    //logfileptr->OFS()<<Global.rowind<<std::endl;
 
-    logfileptr->OFS()<<Global.colptr<<std::endl;
-    logfileptr->OFS()<<Global.rowind<<std::endl;
-
-    ETree etree(Global);
-    etree.PostOrderTree();
+    //ETree etree(Global);
+    //etree.PostOrderTree();
 
 
-    logfileptr->OFS()<<"etree is "<<etree<<endl;
+    //logfileptr->OFS()<<"etree is "<<etree<<endl;
 
     //do the symbolic factorization and build supernodal matrix
-    SupernodalMatrix<double> SMat(HMat,Afactptr);
+    MAPCLASS mapping(np, sqrt(np), np, 1);
+    MPI_Comm worldcomm;
+    MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
+    SupernodalMatrix<double> SMat(HMat,mapping,worldcomm);
+
+    SMat.Factorize(worldcomm);
+
+//
+//
+//
+//    //Try to determine nth row structure in A
+//    std::vector< std::vector<Int> > fullRowStruct(HMat.size);
+//    Int sizerowstruct = 0;
+//    ETree & etree = SMat.GetETree();
+//    SparseMatrixStructure global = SMat.GetGlobalStructure();
+//    for(Int i=0;i<SMat.GetLocalSupernodes().size();++i){
+//      SuperNode & snode = SMat.GetLocalSupernode(i);
+//      
+//
+////      logfileptr->OFS()<<"Supernode "<<snode.id<<" owns columns "<<snode.firstCol<<" to "<<snode.lastCol<<std::endl;
+//      logfileptr->OFS()<<"Supernode "<<snode.Id()<<" owns blocks:"<<std::endl;
+//
+//
+//      for(int blkidx=0;blkidx<snode.NZBlockCnt();++blkidx){
+//        NZBlock<double> & nzblk = snode.GetNZBlock(blkidx);
+//        Int lastRow = nzblk.GIndex() + nzblk.NRows() -1;
+//
+//
+//        for(Int iRow = nzblk.GIndex(); iRow<=lastRow; ++iRow){
+//          std::vector<Int> & rowStruct = fullRowStruct[iRow-1];
+//          if(rowStruct.size()==0){
+//            global.GetARowStruct(etree, iRow,  rowStruct);
+//            sizerowstruct+=rowStruct.size()*sizeof(Int);
+//
+//            
+//            logfileptr->OFS()<<"Row "<<iRow<<" structure is "<<rowStruct<<std::endl;
+//            std::set<Int>  LRowStruct;
+//            global.GetLRowStruct(etree, iRow,  rowStruct, LRowStruct);
+//            logfileptr->OFS()<<"Row "<<iRow<<" of L structure is "<<LRowStruct.size()<<std::endl;
+//            for (std::set<Int>::iterator it=LRowStruct.begin(); it!=LRowStruct.end(); ++it){
+//              logfileptr->OFS() << ' ' << *it;
+//            }
+//            
+//            logfileptr->OFS() << std::endl;
+//          }
+//        }
+//
+////        logfileptr->OFS()<<nzblk<<std::endl;
+//        logfileptr->OFS()<<"L("<<nzblk.GIndex()<<".."<<lastRow<<" , "<<snode.FirstCol()<<".."<<snode.LastCol()<<")"<<std::endl;
+//      }
+//
+//
+//      logfileptr->OFS()<<"--------------------------------------------------"<<std::endl;
+//    }
+//
+//
+//      logfileptr->OFS()<<"total size of row structure is "<<sizerowstruct<<" bytes"<<std::endl;
 
 
 
-    //Try to determine nth row structure in A
-    std::vector< std::vector<Int> > fullRowStruct(HMat.size);
-    Int sizerowstruct = 0;
-    for(Int i=0;i<SMat.LocalSupernodes_.size();++i){
-      SuperNode & snode = SMat.LocalSupernodes_[i];
-      
-
-//      logfileptr->OFS()<<"Supernode "<<snode.id<<" owns columns "<<snode.firstCol<<" to "<<snode.lastCol<<std::endl;
-      logfileptr->OFS()<<"Supernode "<<snode.Id()<<" owns blocks:"<<std::endl;
-
-
-      for(int blkidx=0;blkidx<snode.NZBlockCnt();++blkidx){
-        NZBlock<double> & nzblk = snode.GetNZBlock(blkidx);
-        Int lastRow = nzblk.GIndex() + nzblk.NRows() -1;
-
-
-        for(Int iRow = nzblk.GIndex(); iRow<=lastRow; ++iRow){
-          std::vector<Int> & rowStruct = fullRowStruct[iRow-1];
-          if(rowStruct.size()==0){
-            getRowStruct(Global,etree, iRow,  rowStruct);
-            sizerowstruct+=rowStruct.size()*sizeof(Int);
-
-            
-            logfileptr->OFS()<<"Row "<<iRow<<" structure is "<<rowStruct<<std::endl;
-            std::set<Int>  LRowStruct;
-            getLRowStruct(Global, etree, iRow, rowStruct, LRowStruct);
-            logfileptr->OFS()<<"Row "<<iRow<<" of L structure is "<<LRowStruct.size()<<std::endl;
-            for (std::set<Int>::iterator it=LRowStruct.begin(); it!=LRowStruct.end(); ++it)
-              logfileptr->OFS() << ' ' << *it;
-            
-            logfileptr->OFS() << std::endl;
-          }
-        }
-
-//        logfileptr->OFS()<<nzblk<<std::endl;
-        logfileptr->OFS()<<"L("<<nzblk.GIndex()<<".."<<lastRow<<" , "<<snode.FirstCol()<<".."<<snode.LastCol()<<")"<<std::endl;
-      }
-
-
-      logfileptr->OFS()<<"--------------------------------------------------"<<std::endl;
-    }
-
-
-      logfileptr->OFS()<<"total size of row structure is "<<sizerowstruct<<" bytes"<<std::endl;
 
 
 
+
+
+
+    upcxx::barrier();
+    MPI_Comm_free(&worldcomm);
     delete logfileptr;
     upcxx::finalize();
     return;

@@ -62,7 +62,7 @@ namespace LIBCHOLESKY{
   }
 
   void ETree::PostOrderTree(){
-    if(n_>0 && !isPostOrdered_){
+    if(n_>0 && !bIsPostOrdered_){
 
 
       IntNumVec fson(n_);
@@ -78,9 +78,9 @@ namespace LIBCHOLESKY{
         fson(curParent-1) = vertex;
       }
 
-      //      statusOFS<<"parent "<<parent_<<std::endl;
-      //      statusOFS<<"fson "<<fson<<std::endl;
-      //      statusOFS<<"brother "<<brother<<std::endl;
+      logfileptr->OFS()<<"parent "<<parent_<<std::endl;
+      logfileptr->OFS()<<"fson "<<fson<<std::endl;
+      logfileptr->OFS()<<"brother "<<brother<<std::endl;
 
 
       //Do a depth first search to construct the postordered tree
@@ -116,10 +116,10 @@ namespace LIBCHOLESKY{
       //        postParent_(postNumber_(i-1)-1)=postNumber_(parent_(i-1)-1);
       //      }
 
-      //logfileptr->OFS()<<"postNumber: "<<postNumber_<<std::endl;
-      //logfileptr->OFS()<<"invPostNumber: "<<invPostNumber_<<std::endl;
+      logfileptr->OFS()<<"postNumber: "<<postNumber_<<std::endl;
+      logfileptr->OFS()<<"invPostNumber: "<<invPostNumber_<<std::endl;
 
-      isPostOrdered_ = true;
+      bIsPostOrdered_ = true;
     }
 
   }
@@ -130,14 +130,11 @@ namespace LIBCHOLESKY{
   void ETree::ConstructETree(SparseMatrixStructure & aGlobal){
     TIMER_START(ConstructETree);
 
-logfileptr->OFS()<<"ALIVE"<<std::endl;
     //Expand to symmetric storage
     aGlobal.ExpandSymmetric();
 
-logfileptr->OFS()<<"ALIVE"<<std::endl;
     n_ = aGlobal.size;
 
-logfileptr->OFS()<<"ALIVE"<<std::endl;
 
     parent_.Resize(n_);
     SetValue(parent_,I_ZERO );
@@ -188,6 +185,55 @@ logfileptr->OFS()<<"ALIVE"<<std::endl;
 
     TIMER_STOP(ConstructETree);
   }
+
+
+  ETree ETree::ToSupernodalETree(IntNumVec & aXsuper) const{
+    ETree newTree;
+    newTree.n_ = aXsuper.m()-1;
+    newTree.parent_.Resize(aXsuper.m()-1);
+    
+    IntNumVec colToSup(this->parent_.m());
+    for(Int i=1; i<aXsuper.m(); ++i){
+      for(Int j = aXsuper(i-1); j< aXsuper(i); ++j){
+        colToSup(j-1) = i;
+      }
+    }
+    colToSup(this->parent_.m()-1) = 0;
+
+//    logfileptr->OFS()<<aXsuper<<std::endl;
+//    logfileptr->OFS()<<this->parent_<<std::endl;
+//    logfileptr->OFS()<<colToSup<<std::endl;
+
+
+    for(Int i=1; i<=colToSup.m(); ++i){
+        Int curSnode = colToSup(i-1);
+        Int parentSnode = (this->parent_(i-1) == 0) ? 0:colToSup(this->parent_(i-1)-1);
+
+        if( curSnode != parentSnode){
+          newTree.parent_(curSnode-1) = parentSnode;
+          logfileptr->OFS()<<"parent of curSnode "<<curSnode<<" is "<<parentSnode<<std::endl;
+        }
+    } 
+
+    newTree.PostOrderTree();
+
+    return newTree;
+
+//      //translate from columns to supernodes etree using supIdx
+//      etree_supno.resize(this->NumSuper());
+//      for(Int i = 0; i < superNode->etree.m(); ++i){
+//        Int curSnode = superNode->superIdx[i];
+//        Int parentSnode = (superNode->etree[i]>= superNode->etree.m()) ?this->NumSuper():superNode->superIdx[superNode->etree[i]];
+//        if( curSnode != parentSnode){
+//          etree_supno[curSnode] = parentSnode;
+//        }
+//      }
+
+
+
+    return newTree;
+  }
+
 
 
 }

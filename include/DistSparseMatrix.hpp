@@ -87,10 +87,9 @@ template <class F> class DistSparseMatrix{
   SparseMatrixStructure  GetLocalStructure() const;
   //const SparseMatrixStructure & GetLocalStructure() const;
 
-  void ConstructETreeBis(ETree & tree);
   void GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc);
   void FindSupernodes(ETree& tree, IntNumVec & cc, IntNumVec & xsuper);
-  void SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & xlnz,  IntNumVec & lindx, DblNumVec & lnz);
+  void SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx);
 };
 
 // Commonly used

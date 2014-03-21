@@ -27,16 +27,10 @@ namespace LIBCHOLESKY{
     return Local_;
   }
 
-//  template <class F> const SparseMatrixStructure & DistSparseMatrix<F>::GetLocalStructure(){
-//    return const_cast<SparseMatrixStructure>(Local_);
-//  }
-
-
-
-
   template <class F> SparseMatrixStructure DistSparseMatrix<F>::GetGlobalStructure(){
     if(!globalAllocated){
       Local_.ToGlobal(Global_);
+      globalAllocated = true;
     }
     return Global_;
   }
@@ -44,138 +38,10 @@ namespace LIBCHOLESKY{
 
 
 
-
-
-  template <class F> void DistSparseMatrix<F>::ConstructETreeBis(ETree & tree){
-    TIMER_START(ConstructETree);
-
-    if(!globalAllocated){
-      ToGlobalStruct();
-    }
-
-    Global_.ExpandSymmetric();
-
-
-    tree.n_ = size;
-    tree.parent_.Resize(size);
-    SetValue(tree.parent_,I_ZERO );
-
-    IntNumVec ancestors(size);
-    SetValue(ancestors,I_ZERO );
-
-    Int k;
-    //for each row
-    for (Int i = 1; i <= size; i++) {
-
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Examining col "<<i<<std::endl;
-#endif
-      for (Int p = Global_.expColptr(i-1); p < Global_.expColptr(i); p++) {
-        k = Global_.expRowind(p-1);
-
-
-        if (k >= i) continue;
-
-        Int r = k;
-        Int t;
-        while(ancestors(r-1)!=0 && ancestors(r-1)!=i){
-          t = ancestors(r-1);
-          ancestors(r-1)=i;
-          r=t;
-        }
-
-        if(ancestors(r-1)==0){
-          ancestors(r-1)=i;
-          tree.parent_(r-1)=i;
-
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"Parent of "<<r<<" is "<<i<<std::endl;
-#endif
-        }
-      }
-
-    }
-
-
-    tree.parent_(size-1) = 0;
-
-    TIMER_STOP(ConstructETree);
-  }
-
-
-
-
-
-
-
-//  template <class F> void DistSparseMatrix<F>::ConstructETree(ETree & tree){
-//    TIMER_START(ConstructETree);
-//
-//    if(!globalAllocated){
-//      ToGlobalStruct();
-//    }
-//
-//    IntNumVec rowind, colptr;
-//    Global_.ExpandSymmetric(colptr,rowind);
-//
-//    tree.n_ = size;
-//    tree.parent_.Resize(size);
-//    SetValue(tree.parent_,I_ZERO );
-//
-//    ETree::DisjointSet sets;
-//    sets.Initialize(size);
-//
-//    Int cset,rset,rroot,row;
-//    for (Int col = 1; col <= size; col++) {
-//      tree.parent_(col-1)=col; //1 based indexes
-//      cset = sets.makeSet (col);
-//      sets.Root(cset-1) = col;
-//      tree.parent_(col-1) = size; 
-//
-//#ifdef _DEBUG_
-//      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
-//#endif
-//      for (Int p = Global_.colptr(col-1); p < Global_.colptr(col); p++) {
-//        row = Global_.rowind(p-1);
-//
-//#ifdef _DEBUG_
-//        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
-//#endif
-//
-//
-//        if (row >= col) continue;
-//
-//        rset = sets.find(row);
-//        rroot = sets.Root(rset-1);
-//#ifdef _DEBUG_
-//        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
-//#endif
-//
-//        if (rroot != col) {
-//          tree.parent_(rroot-1) = col;
-//          cset = sets.link(cset, rset);
-//          sets.Root(cset-1) = col;
-//#ifdef _DEBUG_
-//          logfileptr->OFS()<<"Parent of "<<rroot<<" is "<<col<<" which now represents set"<<cset<<std::endl;
-//#endif
-//        }
-//      }
-//
-//    }
-//
-//
-//    tree.parent_(size-1) = 0;
-//
-//    TIMER_STOP(ConstructETree);
-//  }
-
-
-
-
   template <class F> void DistSparseMatrix<F>::GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc){
     TIMER_START(GetColRowCount);
     //The tree need to be postordered
-    if(!tree.isPostOrdered_){
+    if(!tree.IsPostOrdered()){
       TIMER_START(PostOrder);
       tree.PostOrderTree();
       TIMER_START(PostOrder);
@@ -193,7 +59,7 @@ namespace LIBCHOLESKY{
     IntNumVec treeSize(size);
     SetValue(treeSize,I_ONE);
 
-   
+
 
     IntNumVec level(size);
     level(size-1)=1;
@@ -210,12 +76,12 @@ namespace LIBCHOLESKY{
     }
 
 
-      if(treeSize(size-1)==1){
-        cc(size-1)=1;
-      }
-      else{
-        cc(size-1)=0;
-      }
+    if(treeSize(size-1)==1){
+      cc(size-1)=1;
+    }
+    else{
+      cc(size-1)=0;
+    }
 
 
 
@@ -282,11 +148,11 @@ namespace LIBCHOLESKY{
 
 
 
-//    logfileptr->OFS()<<"Deltas "<<cc.m()<<std::endl;
-//    for(Int i = 0; i<cc.m();i++){
-//      logfileptr->OFS()<<cc(i)<<" ";
-//    }
-//    logfileptr->OFS()<<std::endl;
+    //    logfileptr->OFS()<<"Deltas "<<cc.m()<<std::endl;
+    //    for(Int i = 0; i<cc.m();i++){
+    //      logfileptr->OFS()<<cc(i)<<" ";
+    //    }
+    //    logfileptr->OFS()<<std::endl;
 
 
 
@@ -301,11 +167,11 @@ namespace LIBCHOLESKY{
 
 
 
-//    logfileptr->OFS()<<"colcnt "<<cc.m()<<std::endl;
-//    for(Int i = 0; i<cc.m();i++){
-//      logfileptr->OFS()<<cc(i)<<" ";
-//    }
-//    logfileptr->OFS()<<std::endl;
+    //    logfileptr->OFS()<<"colcnt "<<cc.m()<<std::endl;
+    //    for(Int i = 0; i<cc.m();i++){
+    //      logfileptr->OFS()<<cc(i)<<" ";
+    //    }
+    //    logfileptr->OFS()<<std::endl;
 
 
 
@@ -322,47 +188,47 @@ namespace LIBCHOLESKY{
     SetValue(children,I_ZERO);
     for(Int col=1; col<=size-1; col++){
       children(tree.PostParent(col-1)-1)++;
-//      children(tree.PostParent(col)-1)++;
+      //      children(tree.PostParent(col)-1)++;
     }
 
 
-//    logfileptr->OFS()<<"children "<<children.m()<<std::endl;
-//    for(Int i = 0; i<children.m();i++){
-//      logfileptr->OFS()<<children(i)<<" ";
-//    }
-//    logfileptr->OFS()<<std::endl;
+    //    logfileptr->OFS()<<"children "<<children.m()<<std::endl;
+    //    for(Int i = 0; i<children.m();i++){
+    //      logfileptr->OFS()<<children(i)<<" ";
+    //    }
+    //    logfileptr->OFS()<<std::endl;
 
     Int nsuper = 1;
     xsuper.Resize(2*size);
     xsuper(nsuper-1) = 1;
     //SetValue(xsuper,I_ONE);
     for(Int i =2; i<=size;i++){
-//      logfileptr->OFS()<<"Column "<<i<<" has "<<children(i-1)<<" children, "<<cc(i-1)<<" nnz vs "<<cc(i-2)<<" in the prev col"<<std::endl;
+      //      logfileptr->OFS()<<"Column "<<i<<" has "<<children(i-1)<<" children, "<<cc(i-1)<<" nnz vs "<<cc(i-2)<<" in the prev col"<<std::endl;
 
       if(children(i-1)!=1 || cc(i-1) != (cc(i-2)-1)){
-//        logfileptr->OFS()<<"Col "<<i<<" and "<<i-1<<" are not in the same snode"<<std::endl; 
+        //        logfileptr->OFS()<<"Col "<<i<<" and "<<i-1<<" are not in the same snode"<<std::endl; 
         nsuper++;
         xsuper(nsuper-1) = i;
       }
-//      else{
-//        logfileptr->OFS()<<"Col "<<i<<" and "<<i-1<<" are in the same snode"<<std::endl; 
-//      }
+      //      else{
+      //        logfileptr->OFS()<<"Col "<<i<<" and "<<i-1<<" are in the same snode"<<std::endl; 
+      //      }
     }
 
 
-      nsuper++;
-      xsuper(nsuper-1) = size+1;
+    nsuper++;
+    xsuper(nsuper-1) = size+1;
 
     xsuper.Resize(nsuper);
 
 
-    
+
 
     TIMER_STOP(FindSupernodes);
   }
 
 
-  template <class F> void DistSparseMatrix<F>::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & xlnz,  IntNumVec & lindx, DblNumVec & lnz){
+  template <class F> void DistSparseMatrix<F>::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx){
     TIMER_START(SymbolicFactorization);
 
 
@@ -380,14 +246,14 @@ namespace LIBCHOLESKY{
       Int fi = tree.FromPostOrder(xsuper(I-1));
       Int width = xsuper(I)-xsuper(I-1);
       Int length = cc(fi-1);
-      
+
       IntNumVec & LI = LIs[I-1];
 
 
       //Initialize LI with nnz struct of A_*fi
       Int begin = colptr(fi-1);
       Int end = colptr(fi);
-      
+
       Int * start = &rowind(begin-1); 
       Int * stop = (end-1<rowind.m())?&rowind(end-1):&rowind(rowind.m()-1)+1; 
       //find the diagonal block
@@ -395,19 +261,19 @@ namespace LIBCHOLESKY{
 
 
       LI.Resize(stop-start);
-      
+
       std::copy(start,stop,&LI(0));
 
-//     logfileptr->OFS()<<"L"<<I<<"<- A_*,fi: ";
-//     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-//     logfileptr->OFS()<<std::endl;
+      //     logfileptr->OFS()<<"L"<<I<<"<- A_*,fi: ";
+      //     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+      //     logfileptr->OFS()<<std::endl;
 
       LI = tree.ToPostOrder(LI);
 
 
-//     logfileptr->OFS()<<"PO L"<<I<<"<- A_*,fi: ";
-//     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-//     logfileptr->OFS()<<std::endl;
+      //     logfileptr->OFS()<<"PO L"<<I<<"<- A_*,fi: ";
+      //     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+      //     logfileptr->OFS()<<std::endl;
 
 
 
@@ -417,7 +283,7 @@ namespace LIBCHOLESKY{
         Int K = *it;
         IntNumVec & LK = LIs[K-1];
 
-//        logfileptr->OFS()<<"merging "<<I<<" with "<<K<<std::endl;
+        //        logfileptr->OFS()<<"merging "<<I<<" with "<<K<<std::endl;
         //LI = LI U LK \ K
         IntNumVec Ltmp(LI.m()+LK.m()-1);
         std::copy(&LI(0),&LI(LI.m()-1)+1,&Ltmp(0));
@@ -440,75 +306,70 @@ namespace LIBCHOLESKY{
 
 
       }
-     
-//     logfileptr->OFS()<<"Final L"<<I<<": ";
-//     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-//     logfileptr->OFS()<<std::endl;
-      
+
+      //     logfileptr->OFS()<<"Final L"<<I<<": ";
+      //     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+      //     logfileptr->OFS()<<std::endl;
+
       lindxCnt += LI.m();
 
       if(length>width){
         //logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
         Int i = LI(width);
-//        logfileptr->OFS()<<I<<" : col "<<i<<" is the next to be examined. width="<<width<<" length="<<length<<std::endl;
+        //        logfileptr->OFS()<<I<<" : col "<<i<<" is the next to be examined. width="<<width<<" length="<<length<<std::endl;
 
         Int J = I+1;
         for(J = I+1;J<=xsuper.m()-1;J++){
           Int fc = xsuper(J-1);
           Int lc = xsuper(J)-1;
-//          logfileptr->OFS()<<"FC = "<<fc<<" vs "<<i<<std::endl;
-//          logfileptr->OFS()<<"LC = "<<lc<<" vs "<<i<<std::endl;
+          //          logfileptr->OFS()<<"FC = "<<fc<<" vs "<<i<<std::endl;
+          //          logfileptr->OFS()<<"LC = "<<lc<<" vs "<<i<<std::endl;
           if(fc <=i && lc >= i){
-//            logfileptr->OFS()<<I<<" : col "<<i<<" found in snode "<<J<<std::endl;
+            //            logfileptr->OFS()<<I<<" : col "<<i<<" found in snode "<<J<<std::endl;
             break;
           }
         } 
 
-//        logfileptr->OFS()<<I<<" : col "<<i<<" is in snode "<<J<<std::endl;
+        //        logfileptr->OFS()<<I<<" : col "<<i<<" is in snode "<<J<<std::endl;
         std::set<Int> & SJ = sets[J-1];
         SJ.insert(I);
-//        logfileptr->OFS()<<"S"<<J<<" U {"<<I<<"}"<<std::endl; 
+        //        logfileptr->OFS()<<"S"<<J<<" U {"<<I<<"}"<<std::endl; 
 
       }
 
     }  
 
     Int nsuper = xsuper.m()-1;
-//    xlnz.Resize(size+1);
     Int totNnz = 1;
     for(Int I=1;I<xsuper.m();I++){
-          Int fc = xsuper(I-1);
-          Int lc = xsuper(I)-1;
-        for(Int i=fc;i<=lc;i++){
-//          xlnz(i-1)=totNnz;
-          totNnz+=cc(i-1);
-//          totNnz+=cc(fc-1);
-        }
+      Int fc = xsuper(I-1);
+      Int lc = xsuper(I)-1;
+      for(Int i=fc;i<=lc;i++){
+        totNnz+=cc(i-1);
+      }
 
     }
-//    xlnz(size)=totNnz;
 
-    //lnz.Resize(totNnz+1);
     lindx.Resize(lindxCnt);
     xlindx.Resize(nsuper+1);
     Int head = 1;
 
-//    logfileptr->OFS()<<"There are "<<lindxCnt<<" slots in lindx"<<std::endl;
+    //    logfileptr->OFS()<<"There are "<<lindxCnt<<" slots in lindx"<<std::endl;
     for(Int I=1;I<=nsuper;I++){
       Int fi = tree.FromPostOrder(xsuper(I-1));
       IntNumVec & LI = LIs[I-1];
       xlindx(I-1)=head;
 
 
-//        logfileptr->OFS()<<"PO L"<<I<<":";
-//        for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-//        logfileptr->OFS()<<std::endl;
+      //        logfileptr->OFS()<<"PO L"<<I<<":";
+      //        for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+      //        logfileptr->OFS()<<std::endl;
 
-//      logfileptr->OFS()<<"Copying "<<LI.m()<<" elem into lindx("<<head-1<<")"<<std::endl;
+      //      logfileptr->OFS()<<"Copying "<<LI.m()<<" elem into lindx("<<head-1<<")"<<std::endl;
       std::copy(&LI(0),LI.Data()+LI.m(),&(lindx(head-1)));
       head+=LI.m();//cc(fi-1);
     }
-//    lindx.Resize(head-1);
+    //    lindx.Resize(head-1);
     xlindx(nsuper) = head;
 
     TIMER_STOP(SymbolicFactorization);
@@ -539,7 +400,7 @@ namespace LIBCHOLESKY{
       iam = MYTHREAD;
 #else
       //throw an exception
-			throw std::logic_error("Either MPI OR UPCXX need to be available.");
+      throw std::logic_error("Either MPI OR UPCXX need to be available.");
 #endif
     }
 
@@ -560,37 +421,37 @@ namespace LIBCHOLESKY{
     this->globalAllocated = true;
 
     //Compute local structure info
-	  // Compute the number of columns on each processor
-	  IntNumVec numColLocalVec(np);
-	  Int numColLocal, numColFirst;
-	  numColFirst = this->size / np;
+    // Compute the number of columns on each processor
+    IntNumVec numColLocalVec(np);
+    Int numColLocal, numColFirst;
+    numColFirst = this->size / np;
     SetValue( numColLocalVec, numColFirst );
     numColLocalVec[np-1] = this->size - numColFirst * (np-1) ;  // Modify the last entry	
-  	numColLocal = numColLocalVec[iam];
+    numColLocal = numColLocalVec[iam];
 
-	  this->Local_.colptr.Resize( numColLocal + 1 );
+    this->Local_.colptr.Resize( numColLocal + 1 );
 
-  	for( Int i = 0; i < numColLocal+1; i++ ){
-	  	this->Local_.colptr[i] = this->Global_.colptr[iam * numColFirst+i] - this->Global_.colptr[iam * numColFirst] + 1;
-	  }
+    for( Int i = 0; i < numColLocal+1; i++ ){
+      this->Local_.colptr[i] = this->Global_.colptr[iam * numColFirst+i] - this->Global_.colptr[iam * numColFirst] + 1;
+    }
 
-	  this->Local_.size = this->size;
-	  // Calculate nnz_loc on each processor
-	  this->Local_.nnz = this->Local_.colptr[numColLocal] - this->Local_.colptr[0];
+    this->Local_.size = this->size;
+    // Calculate nnz_loc on each processor
+    this->Local_.nnz = this->Local_.colptr[numColLocal] - this->Local_.colptr[0];
 
     // Resize rowind and nzval appropriately 
     this->Local_.rowind.Resize( this->Local_.nnz );
-	  this->nzvalLocal.Resize ( this->Local_.nnz );
+    this->nzvalLocal.Resize ( this->Local_.nnz );
 
     //Read my row indices
     Int prevRead = 0;
     Int numRead = 0;
-		for( Int ip = 0; ip <iam; ip++ ){	
+    for( Int ip = 0; ip <iam; ip++ ){	
       prevRead += this->Global_.colptr[ip*numColFirst + numColLocalVec[ip]]
-                     - this->Global_.colptr[ip*numColFirst];
+        - this->Global_.colptr[ip*numColFirst];
     }
 
-		numRead = this->Global_.colptr[iam*numColFirst + numColLocalVec[iam]] - this->Global_.colptr[iam*numColFirst];
+    numRead = this->Global_.colptr[iam*numColFirst + numColLocalVec[iam]] - this->Global_.colptr[iam*numColFirst];
     std::copy(&this->Global_.rowind[prevRead],&this->Global_.rowind[prevRead+numRead],this->Local_.rowind.Data());
 
     //copy appropriate nnz values

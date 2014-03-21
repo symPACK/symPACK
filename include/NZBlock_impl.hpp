@@ -156,6 +156,124 @@ template <typename T> inline std::ostream& operator<<( std::ostream& os, const N
 
 
 
+  template <typename T> NZBlock2<T>::NZBlock2(Int aiNRows, Int aiNCols, Int aiGIndex, Int aiLIndex,void * apStorage, T * apNzval){
+    Int iNzcnt = aiNRows*aiNCols;
+    this->storage_ = apStorage;
+//    this->pGIndex_ = reinterpret_cast<Int*>(storage_);
+//    this->pLIndex_ = reinterpret_cast<Int*>(storage_)+1;
+//    this->piNRows_ = reinterpret_cast<Int*>(storage_)+2;
+//    this->piNCols_ = reinterpret_cast<Int*>(storage_)+3;
+//    this->pNzval_= reinterpret_cast<T*>(this->piNCols_+1);
+//    *this->piNRows_ = aiNRows;
+//    *this->piNCols_ = aiNCols;
+//    *this->pGIndex_ = aiGIndex;
+//    *this->pLIndex_ = aiLIndex;
+
+    this->iNRows_ = aiNRows;
+    this->iNCols_ = aiNCols;
+    this->GIndex_ = aiGIndex;
+    this->LIndex_ = aiLIndex;
+    this->pNzval_= reinterpret_cast<T*>(storage_);
+
+    if(apNzval!=NULL){
+      std::copy(apNzval, apNzval+iNzcnt, this->pNzval_);
+    }
+  }
+
+  //  template <typename T> NZBlock2<T>::NZBlock2(T * apNzval, Int aiNzcnt, Int aiGIndex, Int aiLIndex){
+  //    if(apNzval==NULL){
+  //      abort();
+  //    }
+  //    
+  //    this->storage_.resize(sizeof(Int)*2 + sizeof(T)*aiNzcnt);
+  //    this->pGIndex_ = reinterpret_cast<Int*>(&storage_[0]);
+  //    this->pLIndex_ = reinterpret_cast<Int*>(&storage_[0])+1;
+  //    this->pNzval_= reinterpret_cast<T*>(this->pLIndex_+1);
+  //    this->iNzcnt_ = aiNzcnt;
+  //    *this->pGIndex_ = aiGIndex;
+  //    *this->pLIndex_ = aiLIndex;
+  //    std::copy(apNzval, apNzval+aiNzcnt, this->pNzval_);
+  //  }
+
+//  template <typename T> NZBlock2<T>& NZBlock2<T>::Copy(const NZBlock2& C) {
+//    storage_ = C.storage_;
+//
+//    this->pGIndex_ = reinterpret_cast<Int*>(&storage_[0]);
+//    this->pLIndex_ = reinterpret_cast<Int*>(&storage_[0])+1;
+//    this->pNzval_= reinterpret_cast<T*>(this->pLIndex_+1);
+//    this->iNRows_=C.iNRows_;
+//    this->iNCols_= C.iNCols_;
+//    *this->pGIndex_ = C.iGIndex_;
+//    *this->pLIndex_ = C.iLIndex_;
+//
+//    return *this;
+//  }
+
+
+//  template <typename T> NZBlock2<T>& NZBlock2<T>::operator=(const NZBlock2& C) {
+//    return this->Copy(C);
+//  }
+
+
+//  template <typename T> void NZBlock2<T>::Clear()  {
+//    storage_.clear();
+//  }
+
+  template <typename T> inline T & NZBlock2<T>::Nzval(Int i, Int j){
+    if( i < 0 || i >= NRows() ||
+        j < 0 || j >= NCols() ) {
+
+      std::stringstream ss;
+      ss<<"ERROR: i = "<<i<<" >= "<<NRows()<<" ?  or j = "<<j<<" >= "<<NCols()<<" ?"<<std::endl; 
+      logfileptr->OFS()<<ss.str();
+
+#ifdef USE_ABORT
+      printf("%s",ss.str().c_str());
+      abort();
+#endif
+      throw std::logic_error( ss.str().c_str() );
+    }
+
+    //Col major
+    return pNzval_[i+j*iNRows_];
+    //Row major
+    //return pNzval_[j+i*iNCols_];  
+  }
+
+  template <typename T> inline const T& NZBlock2<T>::operator()(Int i, Int j) const  { 
+    return const_cast<T&>(this->Nzval(i,j));
+  }
+
+  template <typename T> inline T& NZBlock2<T>::operator()(Int i, Int j) { 
+    return this->Nzval(i,j);
+  }
+
+
+  template <typename T> inline T & NZBlock2<T>::Nzval(Int idx){
+    if( idx < 0 || idx >= Nzcnt() ) {
+
+      std::stringstream ss;
+      ss<<"ERROR: idx = "<<idx<<" >= "<< Nzcnt()<<" ?"<<std::endl; 
+      logfileptr->OFS()<<ss.str();
+
+#ifdef USE_ABORT
+      printf("%s",ss.str().c_str());
+      abort();
+#endif
+      throw std::logic_error( ss.str().c_str() );
+    }
+    return pNzval_[idx];
+  }
+  template <typename T> inline const T& NZBlock2<T>::operator[](Int idx) const  { 
+    return const_cast<T&>(this->Nzval(idx));
+  }
+
+
+  template <typename T> inline T& NZBlock2<T>::operator[](Int idx) { 
+    return this->Nzval(idx);
+  }
+
+
 
 
 

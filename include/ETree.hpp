@@ -42,18 +42,23 @@ public:
 
   void PostOrderTree();
 
+  ETree ToSupernodalETree(IntNumVec & aXsuper) const;
+
+  inline bool IsPostOrdered(){ return bIsPostOrdered_;};
   inline Int n() const { return n_; };
-  inline Int ToPostOrder(Int i) const { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return postNumber_(i-1);};
-  inline Int FromPostOrder(Int i) const  { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return invPostNumber_(i-1);};
-  inline IntNumVec ToPostOrder(IntNumVec & vec) const { if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } IntNumVec povec = vec; for(Int i=0;i<povec.m();i++){ povec[i]=postNumber_(povec[i]-1);}   return povec;};
+  inline Int ToPostOrder(Int i) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return postNumber_(i-1);};
+  inline Int FromPostOrder(Int i) const  { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return invPostNumber_(i-1);};
+  inline IntNumVec ToPostOrder(IntNumVec & vec) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } IntNumVec povec = vec; for(Int i=0;i<povec.m();i++){ povec[i]=postNumber_(povec[i]-1);}   return povec;};
   inline Int PostParent(Int i) const { 
-      if(!isPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } 
+      if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } 
       Int parent = parent_(invPostNumber_(i)-1);
       return parent==0?0:postNumber_(parent-1); 
   }
+  inline Int Parent(Int i) const { return parent_(i); };
+  inline Int Size() const { return parent_.m(); };
 protected:
   Int n_;
-  bool isPostOrdered_ = false;
+  bool bIsPostOrdered_ = false;
 
   NumVec<Int> parent_;
   NumVec<Int> postNumber_;

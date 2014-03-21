@@ -5,6 +5,9 @@
 #include "NumVec.hpp"
 
 namespace LIBCHOLESKY{
+
+class ETree;
+
 class SparseMatrixStructure{
   protected:
   bool bIsGlobal=false;
@@ -25,7 +28,29 @@ class SparseMatrixStructure{
   void ToGlobal(SparseMatrixStructure & pGlobal);
 
 
+  void GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc);
+  void FindSupernodes(ETree& tree, IntNumVec & cc, IntNumVec & xsuper);
+  void SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx);
+
+
+  void GetARowStruct(const ETree & etree, const Int iPORow, std::vector<Int> & rowStruct);
+  void GetLRowStruct(const ETree & etree, const Int iPORow, const std::vector<Int> & ARowStruct, std::set<Int> & LRowStruct);
+
+
 };
+
+
+//class LocalSparseMatrixStructure: public SparseMatrixStructure{
+//  public:
+//  void ToGlobal(GlobalSparseMatrixStructure & pGlobal);
+//};
+//
+//class GlobalSparseMatrixStructure: public SparseMatrixStructure{
+//  public:
+//  void GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc);
+//  void FindSupernodes(ETree& tree, IntNumVec & cc, IntNumVec & xsuper);
+//  void SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx);
+//};
 
 
 
