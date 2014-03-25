@@ -118,6 +118,7 @@ class SuperNode2{
   inline NZBlock2<T> & GetNZBlock(Int aiLocIndex){ return *reinterpret_cast<NZBlock2<T>* >(begin_ + Lcol_[aiLocIndex]);}
   inline size_t BytesToEnd(Int aiLocIndex){ return reinterpret_cast<char*>(head_) - Lcol_[aiLocIndex] - begin_;}
  
+  inline char * End(){ return reinterpret_cast<char*>(head_);}
 
 
 
@@ -129,8 +130,7 @@ class SuperNode2{
      //this is an upper bound
      assert(ai_num_rows>0);
      iSize_ = iLastCol_ - iFirstCol_+1;
-//     size_t storage_size = ai_num_rows*(2*sizeof(Int)+iSize_*sizeof(T) + sizeof(NZBlock2<T>));
-     size_t storage_size = ai_num_rows*(iSize_*sizeof(T) + sizeof(NZBlock2<T>));
+     size_t storage_size = ai_num_rows*(iSize_*sizeof(T) + sizeof(NZBlockHeader<T>) + sizeof(NZBlock2<T>));
      storage_lcol_ = new std::vector<char>(storage_size);
      begin_ = &storage_lcol_->front();
      end_ = &storage_lcol_->back()+1;
@@ -138,88 +138,49 @@ class SuperNode2{
      int * tmp1 = (int*)begin_;
      int * tmp2 = (int*)end_;
      logfileptr->OFS()<<"----------------------------------------"<<std::endl<<"Storage will range from address "<<tmp1<<" to "<<tmp2<<std::endl;
-     logfileptr->OFS()<<" It corresponds to "<<ai_num_rows<<" NZBlocks of 1 line of size "<<iSize_*sizeof(T) + /*2*sizeof(Int) +*/ sizeof(NZBlock2<T>)<<" bytes ("<<storage_size<<")"<<std::endl;
-
-/*
-//if(0)
-//{
-//     //self contained version
-//     assert(ai_num_rows>0);
-//     size_t nzblk_size = (2*sizeof(Int)+(aiLc - aiFc +1)*sizeof(T) + sizeof(NZBlock2<T>));
-//     storage_lcol2_.resize(6*sizeof(Int) + sizeof(char*) + sizeof(NZBlock2<T>*)
-//                             + sizeof(int64_t)*ai_num_rows  + sizeof(Int)*(ai_num_rows+1)
-//                              + ai_num_rows*nzblk_size);
-//
-//     piId_ = reinterpret_cast<Int *>(&storage_lcol2_[0]);
-//     piSize_ = piId_ + 1;
-//     piFirstCol_ = piId_ + 2;
-//     piLastCol_ = piId_ + 3;
-//     piArrSize_ = piId_ + 4;
-//     piNzblkCnt_ = piId_ + 5;
-//     piOffsetNzblkStart_ = reinterpret_cast<int64_t *>(piId_ + 6);
-//     piOffsetHead_ = piOffsetNzblkStart_ + 1;
-//     piOffsets_ = piOffsetHead_ +1;
-//     piLocToGlobIndices_ = reinterpret_cast<Int*>(piOffsets_ + ai_num_rows);
-//  
-//     logfileptr->OFS() <<"piId_ = "<<piId_<<std::endl
-//                       <<"piSize_ = "<<piSize_<<std::endl
-//                       <<"piFirstCol_ = "<<piFirstCol_<<std::endl
-//                       <<"piLastCol_ = "<<piLastCol_<<std::endl
-//                       <<"piArrSize_ = "<<piArrSize_<<std::endl
-//                       <<"piNzblkCnt_ = "<<piNzblkCnt_<<std::endl
-//                       <<"piOffsetNzblkStart_ = "<<piOffsetNzblkStart_<<std::endl
-//                       <<"piOffsetHead_ = "<<piOffsetHead_<<std::endl
-//                       <<"piOffsets_ = "<<piOffsets_<<std::endl
-//                       <<"piLocToGlobIndices_ = "<<piLocToGlobIndices_<<std::endl
-//                       <<"storage ranges from "<< &storage_lcol2_[0] << " to " << &*storage_lcol2_.end() << std::endl;
-//
-//
-//
-//
-//     *piId_ = aiId;
-//     *piFirstCol_ = aiFc;
-//     *piLastCol_ = aiLc;
-//     *piSize_ = *piLastCol_ - *piFirstCol_+1;
-//     *piArrSize_ = ai_num_rows;
-//     *piNzblkCnt_ = 0;
-//     *piOffsetNzblkStart_ = reinterpret_cast<char *>(piLocToGlobIndices_+ai_num_rows+1)-&storage_lcol2_[0];
-//     *piOffsetHead_ = *piOffsetNzblkStart_;
-//}
-*/
-
-
-
+//     logfileptr->OFS()<<" It corresponds to "<<ai_num_rows<<" NZBlocks of 1 line of size "<<iSize_*sizeof(T) + /*2*sizeof(Int) +*/ sizeof(NZBlock2<T>)<<" bytes ("<<storage_size<<")"<<std::endl;
 
   }; 
 
   SuperNode2(Int aiId, Int aiFc, Int aiLc, 
-              std::vector<char> * a_nzblocks, bool ab_own_storage = false) :
+              std::vector<char> * a_nzblocks,  bool ab_own_storage = false) :
                                   iId_(aiId),iFirstCol_(aiFc), iLastCol_(aiLc),
                                                  b_own_storage_(ab_own_storage){
-
-    //FIXME: ASSUME THAT a_nzblocks is not starting with a full NZBlock but only some given row
-    // The Header of the incomplete nzblk is provided as an argument
 
     storage_lcol_ = a_nzblocks;
     begin_ = &storage_lcol_->front();
     end_ = &storage_lcol_->back()+1;
 
+
+    //Create a nzblock at the beginning of storage because the first block is incomplete
+    char * storage_ptr = begin_+sizeof(NZBlock2<T>);
+    NZBlock2<T> * p_first_block = new (begin_) NZBlock2<T>(storage_ptr);
+
     iSize_ = iLastCol_ - iFirstCol_+1;
-    size_t line_size = (/*4*sizeof(Int)+*/iSize_*sizeof(T) + sizeof(NZBlock2<T>));
+    size_t line_size = iSize_*sizeof(T) + sizeof(NZBlockHeader<T>) + sizeof(NZBlock2<T>);
     Int max_nzcnt = (end_-begin_) / line_size;
 
     //compute the Lcol array and head_ pointer
     Lcol_.reserve(max_nzcnt);
     LocToGlobIndices_.reserve(max_nzcnt+1);
     head_ = reinterpret_cast<NZBlock2<T>*>(begin_);
+    Int LIndex = 1;
     while(head_<end_){
-      NZBlock2<T> & cur_nzblk = *head_;
-     
+      NZBlock2<T> * cur_nzblk = head_;
+
+      //Update the internal pointers
+      char * storage_ptr = reinterpret_cast<char*>(head_+1);
+      cur_nzblk->header_ = reinterpret_cast<NZBlockHeader<T> * >(storage_ptr);
+      cur_nzblk->storage_ = reinterpret_cast<char * >(reinterpret_cast<char*>(cur_nzblk->header_) +sizeof(NZBlockHeader<T>));
+      cur_nzblk->pNzval_ = reinterpret_cast<double * >(cur_nzblk->storage_);
+      cur_nzblk->header_->iLIndex_ = LIndex++;
+
+      //Update the offset array
       Lcol_.push_back(reinterpret_cast<char*>(head_) - begin_);
       LocToGlobIndices_.push_back(head_->GIndex());
+
       //advance head_ pointer
-      head_ = reinterpret_cast<NZBlock2<T>*>(reinterpret_cast<char*>(head_)
-                                                         + head_->ByteSize())+1;
+      head_ = reinterpret_cast<NZBlock2<T>*>(reinterpret_cast<char *>(head_) + head_->TotalSize()); 
     }
     Int last_nzblk_index = NZBlockCnt()-1;
     NZBlock2<T> & last_nzblk = GetNZBlock(last_nzblk_index);
@@ -227,7 +188,6 @@ class SuperNode2{
 
     Lcol_.shrink_to_fit();
     LocToGlobIndices_.shrink_to_fit();
-
   }
 
   SuperNode2(SuperNode2 const& C){
@@ -280,7 +240,7 @@ class SuperNode2{
     
     //placement new
     void * storage_ptr = static_cast<void*>(head_+1);
-    void * end_ptr = static_cast<void*>(static_cast<char *>(storage_ptr) + /*2*sizeof(Int)+*/ aiNRows*aiNCols*sizeof(T));
+    void * end_ptr = static_cast<void*>(static_cast<char *>(storage_ptr) + sizeof(NZBlockHeader<T>) + aiNRows*aiNCols*sizeof(T));
     assert(end_ptr<= end_);
 
     logfileptr->OFS()<<"Creating an object at "<<head_<<" and storage address will be "<<storage_ptr<<" with "<<aiNRows*aiNCols<<" nnz"<<std::endl;
@@ -288,7 +248,7 @@ class SuperNode2{
     logfileptr->OFS()<<"End of object at "<<end_ptr<<std::endl;
 
     //advance head
-    head_ = reinterpret_cast<NZBlock2<T>*>(reinterpret_cast<char *>(head_) + head_->ByteSize())+1; 
+    head_ = reinterpret_cast<NZBlock2<T>*>(reinterpret_cast<char *>(head_) + head_->TotalSize()); 
 
     if(LocToGlobIndices_.size()==0){
       LocToGlobIndices_.push_back(aiGIndex);

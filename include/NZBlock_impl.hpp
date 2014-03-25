@@ -153,71 +153,38 @@ template <typename T> inline std::ostream& operator<<( std::ostream& os, const N
   return os;
 }
 
+  template <typename T> NZBlock2<T>::NZBlock2(void * apStorage){
+    //I dont own the header because it is embedded in the common storage space
+
+    this->header_ = apStorage;
+    this->bHas_header_ = true;
+    this->bOwn_header_ = false;
+
+    this->storage_ = apStorage + sizeof(NZBlockHeader<T>);
+
+    this->pNzval_= reinterpret_cast<T*>(storage_);
+  }
+
 
 
 
   template <typename T> NZBlock2<T>::NZBlock2(Int aiNRows, Int aiNCols, Int aiGIndex, Int aiLIndex,void * apStorage, T * apNzval){
     Int iNzcnt = aiNRows*aiNCols;
-    this->storage_ = apStorage;
-//    this->pGIndex_ = reinterpret_cast<Int*>(storage_);
-//    this->pLIndex_ = reinterpret_cast<Int*>(storage_)+1;
-//    this->piNRows_ = reinterpret_cast<Int*>(storage_)+2;
-//    this->piNCols_ = reinterpret_cast<Int*>(storage_)+3;
-//    this->pNzval_= reinterpret_cast<T*>(this->piNCols_+1);
-//    *this->piNRows_ = aiNRows;
-//    *this->piNCols_ = aiNCols;
-//    *this->pGIndex_ = aiGIndex;
-//    *this->pLIndex_ = aiLIndex;
 
-    this->iNRows_ = aiNRows;
-    this->iNCols_ = aiNCols;
-    this->GIndex_ = aiGIndex;
-    this->LIndex_ = aiLIndex;
+    //create header
+    this->header_ = new (apStorage) NZBlockHeader<T>(aiNRows,aiNCols,aiGIndex,aiLIndex);
+    this->bHas_header_ = true;
+    //I dont own the header because it is embedded in the common storage space
+    this->bOwn_header_ = false;
+
+    this->storage_ = apStorage + sizeof(NZBlockHeader<T>);
+
     this->pNzval_= reinterpret_cast<T*>(storage_);
 
     if(apNzval!=NULL){
       std::copy(apNzval, apNzval+iNzcnt, this->pNzval_);
     }
   }
-
-  //  template <typename T> NZBlock2<T>::NZBlock2(T * apNzval, Int aiNzcnt, Int aiGIndex, Int aiLIndex){
-  //    if(apNzval==NULL){
-  //      abort();
-  //    }
-  //    
-  //    this->storage_.resize(sizeof(Int)*2 + sizeof(T)*aiNzcnt);
-  //    this->pGIndex_ = reinterpret_cast<Int*>(&storage_[0]);
-  //    this->pLIndex_ = reinterpret_cast<Int*>(&storage_[0])+1;
-  //    this->pNzval_= reinterpret_cast<T*>(this->pLIndex_+1);
-  //    this->iNzcnt_ = aiNzcnt;
-  //    *this->pGIndex_ = aiGIndex;
-  //    *this->pLIndex_ = aiLIndex;
-  //    std::copy(apNzval, apNzval+aiNzcnt, this->pNzval_);
-  //  }
-
-//  template <typename T> NZBlock2<T>& NZBlock2<T>::Copy(const NZBlock2& C) {
-//    storage_ = C.storage_;
-//
-//    this->pGIndex_ = reinterpret_cast<Int*>(&storage_[0]);
-//    this->pLIndex_ = reinterpret_cast<Int*>(&storage_[0])+1;
-//    this->pNzval_= reinterpret_cast<T*>(this->pLIndex_+1);
-//    this->iNRows_=C.iNRows_;
-//    this->iNCols_= C.iNCols_;
-//    *this->pGIndex_ = C.iGIndex_;
-//    *this->pLIndex_ = C.iLIndex_;
-//
-//    return *this;
-//  }
-
-
-//  template <typename T> NZBlock2<T>& NZBlock2<T>::operator=(const NZBlock2& C) {
-//    return this->Copy(C);
-//  }
-
-
-//  template <typename T> void NZBlock2<T>::Clear()  {
-//    storage_.clear();
-//  }
 
   template <typename T> inline T & NZBlock2<T>::Nzval(Int i, Int j){
     if( i < 0 || i >= NRows() ||
@@ -235,7 +202,7 @@ template <typename T> inline std::ostream& operator<<( std::ostream& os, const N
     }
 
     //Col major
-    return pNzval_[i+j*iNRows_];
+    return pNzval_[i+j*LDA()];
     //Row major
     //return pNzval_[j+i*iNCols_];  
   }
@@ -274,7 +241,38 @@ template <typename T> inline std::ostream& operator<<( std::ostream& os, const N
   }
 
 
+template <typename T> inline std::ostream& operator<<( std::ostream& os, const NZBlockHeader<T>& aBlock)
+{
+  os<<"----Begin of NZBlockHeader----"<<std::endl;
+  os<<"Global index is "<<aBlock.GIndex()<<std::endl;
+  os<<"Local index is "<<aBlock.LIndex()<<std::endl;
+  os<<"NRows is "<<aBlock.NRows()<<std::endl;
+  os<<"NCols is "<<aBlock.NCols()<<std::endl;
+  os<<"----End of NZBlockHeader----"<<std::endl;
+  return os;
+}
 
+template <typename T> inline std::ostream& operator<<( std::ostream& os, const NZBlock2<T>& aBlock)
+{
+  os<<"----Begin of NZBlock----"<<std::endl;
+  os<<"Global index is "<<aBlock.GIndex()<<std::endl;
+  os<<"Local index is "<<aBlock.LIndex()<<std::endl;
+  os<<"Data pointer is "<<aBlock.Data()<<std::endl;
+  os<<"Nzval pointer is "<<aBlock.Nzval()<<std::endl;
+  os<<"NRows is "<<aBlock.NRows()<<std::endl;
+  os<<"NCols is "<<aBlock.NCols()<<std::endl;
+  os<<"Nzcnt is "<<aBlock.Nzcnt()<<std::endl;
+  os<<"TotalSize is "<<aBlock.TotalSize()<<std::endl;
+  os<<"Values are: "<<std::endl;
+  for(Int i = 0; i< min(2,aBlock.NRows()); ++i){
+    for(Int j = 0; j< min(2,aBlock.NCols()); ++j){
+      os<<aBlock.Nzval(i,j)<<" ";
+    }
+    os<<std::endl;
+  }
+  os<<"----End of NZBlock----"<<std::endl;
+  return os;
+}
 
 
 

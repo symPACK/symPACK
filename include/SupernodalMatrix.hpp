@@ -28,6 +28,9 @@ template <typename T> class SupernodalMatrix{
  
   SparseMatrixStructure Local_;
   SparseMatrixStructure Global_;
+
+  IntNumVec UpdateCount;
+
   ETree ETree_;
   ETree SupETree_;
   Int iSize_;
@@ -36,7 +39,7 @@ template <typename T> class SupernodalMatrix{
   inline bool FindNextUpdate(SuperNode2<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
   inline bool FindPivot(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode,Int & pivot_idx, Int & pivot_fr, Int & pivot_lr);
 
-  void UpdateSuperNode(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = 0);
+  void UpdateSuperNode(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
   public:
 
 	/// @brief MPI communicator

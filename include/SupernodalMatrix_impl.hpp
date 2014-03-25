@@ -25,7 +25,18 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
 
   IntNumVec cc,rc;
   Global_.GetLColRowCount(ETree_,cc,rc);
+
+
   Global_.FindSupernodes(ETree_,cc,Xsuper_);
+
+
+//  UpdatesCount.Resize(Xsuper_.Size());
+//  for(Int I = 1; I<Xsuper_.Size();++I){
+//    Int first_col = Xsuper_[I-1];
+//    Int last_col = Xsuper_[I]-1;
+//    for(Int 
+//  }
+
 
   IntNumVec xlindx,lindx;
   Global_.SymbolicFactorization(ETree_,cc,Xsuper_,xlindx,lindx);
@@ -40,6 +51,7 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
     } 
   }
   logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
+
 
 
   SupETree_ = ETree_.ToSupernodalETree(Xsuper_);
@@ -325,12 +337,11 @@ template <typename T> inline bool SupernodalMatrix<T>::FindPivot(SuperNode2<T> &
   }
 }
 
-template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr = 0){
-  //FIXME : the pivot block can START before, but it has to finish before too
-
-//  Int pivot_idx = 0;
-//  if(FindPivot(src_snode,tgt_snode,pivot_idx,pivot_fr,pivot_lr)){
+template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr = I_ZERO){
     NZBlock2<T> & pivot_nzblk = src_snode.GetNZBlock(pivot_idx);
+    if(pivot_fr ==I_ZERO){
+      pivot_fr = pivot_nzblk.GIndex();
+    }
     assert(pivot_fr >= pivot_nzblk.GIndex());
     Int pivot_lr = min(pivot_nzblk.GIndex() +pivot_nzblk.NRows() -1, pivot_fr + tgt_snode.Size() -1);
     T * pivot = & pivot_nzblk.Nzval(pivot_fr-pivot_nzblk.GIndex(),0);
@@ -373,38 +384,6 @@ template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode2<T> & 
 
     }
 
-
-//    Int cur_tgt_idx = 0;
-//    for(int src_idx=pivot_idx;src_idx<src_snode.NZBlockCnt();++src_idx){
-//      NZBlock2<T> & src_nzblk = src_snode.GetNZBlock(src_idx);
-//      Int src_fr = max(pivot_fr, src_nzblk.GIndex()) ;
-//      Int src_lr = src_nzblk.GIndex()+src_nzblk.NRows()-1;
-//      
-//      T * src = &src_nzblk.Nzval(src_fr-src_nzblk.GIndex(),0);
-//
-//      //Find the updated nzblock in the target supernode
-//      for(int tgt_idx=cur_tgt_idx;tgt_idx<tgt_snode.NZBlockCnt();++tgt_idx){
-//        NZBlock2<T> & tgt_nzblk = tgt_snode.GetNZBlock(tgt_idx);
-//        Int tgt_fr = tgt_nzblk.GIndex();
-//        Int tgt_lr = tgt_nzblk.GIndex()+tgt_nzblk.NRows()-1;
-//
-//
-//        if(src_fr>= tgt_fr && src_lr<= tgt_lr){
-//          logfileptr->OFS()<<"Block "<<src_idx<<"("<<src_fr<<".."<<src_lr<<") is updating block "<<tgt_idx<<"("<<tgt_fr<<".."<<tgt_lr<<") in the target supernode"<<std::endl;
-//          logfileptr->OFS()<<"Updating from local "<<src_fr-tgt_fr<<"th row to "<<src_fr-tgt_fr+src_nzblk.NRows()-1<<std::endl;
-//          //found the right block. Update it.
-//          T * tgt = &tgt_nzblk.Nzval(src_fr-tgt_fr,tgt_updated_fc);
-//          //blas::Gemm('N','T',src_nzblk.NRows(),source_pivot_block.NRows(),src_nzblk.NCols(),1.0,src_nzblk.Nzval(),src_nzblk.LDA(),source_pivot_block.Nzval(),source_pivot_block.LDA(),1.0,tgt,tgt_nzblk.LDA());
-//
-//          blas::Gemm('N','T',src_lr - src_fr +1,pivot_lr - pivot_fr +1,src_nzblk.NCols(),1.0,src,src_nzblk.LDA(),pivot,pivot_nzblk.LDA(),1.0,tgt,tgt_nzblk.LDA());
-//
-//          cur_tgt_idx = tgt_idx;
-//          break;
-//        }
-//
-//      }
-//    }
-//  }
 }
 
 
@@ -429,6 +408,84 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
       logfileptr->OFS()<<"Supernode "<<I<<"("<<src_snode.Id()<<") is on P"<<iOwner<<" local index is "<<iLocalI<<std::endl; 
      
       assert(src_snode.Id() == I); 
+
+
+      //Do all my updates (Local and remote)
+      //Get Row structure
+      //FIXME
+
+      std::set<Int> LRowStruct;
+      std::vector<Int> supLStruct;
+
+      LRowStruct.clear();
+      Global_.GetSuperLRowStruct(ETree_, Xsuper_, I , LRowStruct);
+      supLStruct.clear();
+      for (std::set<Int>::iterator it=LRowStruct.begin(); it!=LRowStruct.end(); ++it){
+        Int sup = SupMembership_(*it-1);
+          if(*it == Xsuper_(sup-1)){
+            supLStruct.push_back(sup);
+          }
+      }
+ 
+      logfileptr->OFS()<<"  Supernodal Row structure is "<<supLStruct<<std::endl;
+
+
+      std::vector<char> src_nzblocks;
+
+      //Parse the row structure to look for remote factors to Recv
+      for(int Jidx = 0; Jidx < supLStruct.size(); ++Jidx){
+        Int src_snode_id = supLStruct[Jidx];
+        Int iSource = Mapping_.Map(src_snode_id-1,src_snode_id-1);
+//        if(iSource == iam){
+//          logfileptr->OFS()<<"Supernode "<<src_snode_id<<" is updating Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
+//          Int iLocalJ = (tgt_snode_id-1) / np +1 ;
+//          SuperNode2<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+//          UpdateSuperNode(src_snode,tgt_snode,src_nzblk_idx, src_first_row);
+//        }
+//        else{
+        if(iSource != iam){
+
+          if(src_nzblocks.size()==0){
+            //Create an upper bound buffer  (we have the space to store the first header)
+            size_t num_bytes = 0;
+            for(Int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
+              num_bytes += src_snode.GetNZBlock(blkidx).NRows()*(src_snode.Size()*sizeof(T) + sizeof(NZBlockHeader<T>)+ sizeof(NZBlock2<T>));
+            }
+            logfileptr->OFS()<<"We allocate a buffer of size "<<num_bytes<<std::endl;
+            src_nzblocks.resize(num_bytes);
+          }
+
+
+          //MPI_Recv
+          MPI_Status recv_status;
+          char * recv_buf = &src_nzblocks[0]+sizeof(NZBlock2<T>);
+          MPI_Recv(recv_buf,src_nzblocks.size(),MPI_BYTE,iSource,I,pComm,&recv_status);
+
+          //Resize the buffer to the actual number of bytes received
+          int bytes_received = 0;
+          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
+          src_nzblocks.resize(bytes_received+sizeof(NZBlock2<T>));
+
+
+
+          logfileptr->OFS()<<"Supernode "<<I<<" is updated by Supernode "<<src_snode_id<<", received "<<bytes_received<<" bytes"<<std::endl;
+          //Create the dummy supernode for that data
+          SuperNode2<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1,&src_nzblocks);
+
+          Int idx = 0;
+          UpdateSuperNode(dist_src_snode,src_snode,idx);
+
+
+          //restore to its capacity
+          src_nzblocks.resize(src_nzblocks.capacity());
+
+
+        }
+
+
+      }
+      //clear the buffer
+      { vector<char>().swap(src_nzblocks);  }
 
       logfileptr->OFS()<<"  Factoring node "<<I<<std::endl;
 
@@ -462,14 +519,47 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 
           //Send
           NZBlock2<T> * pivot_nzblk = &src_snode.GetNZBlock(src_nzblk_idx);
-          size_t num_bytes = src_snode.BytesToEnd(src_nzblk_idx);
-          MPI_Send(pivot_nzblk,num_bytes,MPI_BYTE,iTarget,TAG_FACTOR,pComm);
-          logfileptr->OFS()<<"     Send factor "<<I<<" to node"<<J<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<" ("<<num_bytes<<" bytes)"<<std::endl;
+
+          int local_first_row = src_first_row-pivot_nzblk->GIndex();
+
+          char * start_buf = reinterpret_cast<char*>(&pivot_nzblk->Nzval(local_first_row,0));
+          size_t num_bytes = src_snode.End() - start_buf;
+
+          //Create a header
+          NZBlockHeader<T> * header = new NZBlockHeader<T>(pivot_nzblk->NRows()-local_first_row,pivot_nzblk->NCols(),src_first_row,1);
+
+
+          MPI_Datatype type;
+          int lens[2];
+          MPI_Aint disps[2];
+          MPI_Datatype types[2];
+          Int err = 0;
+
+
+          /* define a struct that describes all our data */
+          lens[0] = sizeof(NZBlockHeader<T>);
+          lens[1] = num_bytes;
+          MPI_Address(header, &disps[0]);
+          MPI_Address(start_buf, &disps[1]);
+          types[0] = MPI_BYTE;
+          types[1] = MPI_BYTE;
+          MPI_Type_struct(2, lens, disps, types, &type);
+          MPI_Type_commit(&type);
+
+          /* send to target */
+          //FIXME : maybe this can be replaced by a scatterv ?
+          MPI_Send(MPI_BOTTOM,1,type,iTarget,tgt_snode_id,pComm);
+
+          MPI_Type_free(&type);
+
+          delete header;
+
+          logfileptr->OFS()<<"     Send factor "<<I<<" to node"<<J<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<" ("<<num_bytes+sizeof(*header)<<" bytes)"<<std::endl;
 
         }
       }
 
-      //Update my ancestors. 
+      //Update my ancestors right away. 
       tgt_snode_id = 0;
       while(FindNextUpdate(src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
 
@@ -484,39 +574,71 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
         }
       }
     }
-    else{
-      //If I have something updated by this column, update it
-      // i.e do I have ancestors of I ? 
-  
-      Int J = SupETree_.Parent(I-1);
-      while(J != 0){
-        Int iAOwner = Mapping_.Map(J-1,J-1);
-        //If I own the ancestor supernode, update it
-        if( iAOwner == iam ){
-          Int iLocalJ = (J-1) / np +1 ;
-          SuperNode2<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
-          //upper bound, can be replaced by something tighter
-          size_t num_bytes = tgt_snode.BytesToEnd(0);
-          std::vector<char> src_nzblocks(num_bytes);
-          //Recv
-          MPI_Status recv_status;
-          MPI_Recv(&src_nzblocks[0],num_bytes,MPI_BYTE,iOwner,TAG_FACTOR,pComm,&recv_status);
-          int bytes_received = 0;
-          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-          src_nzblocks.resize(bytes_received);
-  
 
-          SuperNode2<T> src_snode(I,src_first_col,src_last_col,&src_nzblocks);
-
-          logfileptr->OFS()<<"     Recv factor "<<I<<" from P"<<iOwner<<" to update snode"<<J<<" on P"<<iam<<std::endl;       
-          //Update
-
-          UpdateSuperNode(src_snode,tgt_snode,iLocalJ);
-        }
-        J = SupETree_.Parent(J-1);
-      }
-    }
-
+///
+///
+///    else{
+///      //If I have something updated by this column, update it
+///      // i.e do I have ancestors of I ? 
+///
+///
+///
+///
+///
+/////Not possible
+/////      //Update my ancestors. 
+/////      tgt_snode_id = 0;
+/////      while(FindNextUpdate(src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
+/////
+/////        Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
+/////        if(iTarget == iam){
+/////          logfileptr->OFS()<<"Supernode "<<tgt_snode_id<<" is updated by Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
+/////
+/////          Int iLocalJ = (tgt_snode_id-1) / np +1 ;
+/////          SuperNode2<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+/////
+/////          UpdateSuperNode(src_snode,tgt_snode,src_nzblk_idx, src_first_row);
+/////        }
+/////      }
+///
+///
+///
+///
+///
+///
+///  
+///      Int J = SupETree_.Parent(I-1);
+///      while(J != 0){
+///
+///        //Is it updated by I ? Is I nnz in LRowStruct ?
+///
+///        Int iAOwner = Mapping_.Map(J-1,J-1);
+///        //If I own the ancestor supernode, update it
+///        if( iAOwner == iam ){
+///          Int iLocalJ = (J-1) / np +1 ;
+///          SuperNode2<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+///          //upper bound, can be replaced by something tighter
+///          size_t num_bytes = tgt_snode.BytesToEnd(0);
+///          std::vector<char> src_nzblocks(num_bytes);
+///          //Recv
+///          MPI_Status recv_status;
+///          MPI_Recv(&src_nzblocks[0],num_bytes,MPI_BYTE,iOwner,TAG_FACTOR,pComm,&recv_status);
+///          int bytes_received = 0;
+///          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
+///          src_nzblocks.resize(bytes_received);
+///  
+///
+///          SuperNode2<T> src_snode(I,src_first_col,src_last_col,&src_nzblocks);
+///
+///          logfileptr->OFS()<<"     Recv factor "<<I<<" from P"<<iOwner<<" to update snode"<<J<<" on P"<<iam<<std::endl;       
+///          //Update
+///
+///          UpdateSuperNode(src_snode,tgt_snode,iLocalJ);
+///        }
+///        J = SupETree_.Parent(J-1);
+///      }
+///    }
+///
 
     upcxx::barrier();
   }

@@ -672,7 +672,7 @@ void SparseMatrixStructure::GetARowStruct(const ETree & etree, const Int iPORow,
 			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetARowStruct\n" );
     }
 
-  for(Int iPOCurCol = 1; iPOCurCol<=iPORow;++iPOCurCol){
+  for(Int iPOCurCol = 1; iPOCurCol<iPORow;++iPOCurCol){
     Int iCurCol = etree.FromPostOrder(iPOCurCol);
 
     Int iFirstRowPtr = colptr(iCurCol-1);
@@ -700,7 +700,7 @@ void SparseMatrixStructure::GetLRowStruct(const ETree & etree, const Int iPORow,
     if(!bIsGlobal){
 			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetLRowStruct\n" );
     }
-  LRowStruct.clear();
+//  LRowStruct.clear();
   for(Int i = 0; i<ARowStruct.size();++i){
     Int iCurNode = ARowStruct[i];
     //tracing from iCurRow to iRow;
@@ -719,6 +719,80 @@ void SparseMatrixStructure::GetLRowStruct(const ETree & etree, const Int iPORow,
     }
   } 
   TIMER_STOP(SparseMatrixStructure::GetLRowStruct);
+}
+
+
+
+void SparseMatrixStructure::GetSuperARowStruct(const ETree & etree, const IntNumVec & Xsuper, const Int iSupNo, std::vector<Int> & SuperRowStruct){
+  TIMER_START(SpStruct_GetSuperARowStruct);
+//  TIMER_START(SparseMatrixStructure::GetSuperARowStruct);
+    if(!bIsGlobal){
+			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetARowStruct\n" );
+    }
+
+  Int first_col = Xsuper[iSupNo-1];
+  Int last_col = Xsuper[iSupNo]-1;
+
+  for(Int iPOCurCol = 1; iPOCurCol<first_col;++iPOCurCol){
+    Int iCurCol = etree.FromPostOrder(iPOCurCol);
+
+    Int iFirstRowPtr = colptr(iCurCol-1);
+    Int iLastRowPtr = colptr(iCurCol)-1;
+
+//    logfileptr->OFS()<<iFirstRowPtr<<" to "<<iLastRowPtr<<std::endl;
+    for(Int iCurRowPtr=iFirstRowPtr ;iCurRowPtr<=iLastRowPtr;++iCurRowPtr){
+      Int iPOCurRow = etree.ToPostOrder(rowind(iCurRowPtr-1));
+      if(iPOCurRow >= first_col && iPOCurRow <= last_col){
+        SuperRowStruct.push_back(iPOCurCol);
+//        logfileptr->OFS()<<"A("<<iPORow<<","<<iPOCurCol<<") is nz "<<std::endl;
+      }
+
+      if(iPOCurRow > last_col){
+        break;
+      }
+    }
+  }
+//  TIMER_STOP(SparseMatrixStructure::GetSuperARowStruct);
+  TIMER_STOP(SpStruct_GetSuperARowStruct);
+}
+
+
+void SparseMatrixStructure::GetSuperLRowStruct(const ETree & etree, const IntNumVec & Xsuper, const Int iSupNo, std::set<Int> & SuperLRowStruct){
+
+  TIMER_START(SpStruct_GetSuperLRowStruct);
+    if(!bIsGlobal){
+			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetSuperLRowStruct\n" );
+    }
+
+//  SuperLRowStruct.clear();
+
+    //Get A row struct
+    std::vector<Int> SuperARowStruct;
+    GetSuperARowStruct(etree, Xsuper, iSupNo, SuperARowStruct);
+
+  Int first_col = Xsuper[iSupNo-1];
+  Int last_col = Xsuper[iSupNo]-1;
+
+  for(Int i = 0; i<SuperARowStruct.size();++i){
+    Int iCurNode = SuperARowStruct[i];
+    //tracing from iCurRow to iRow;
+//    logfileptr->OFS()<<"Starting from node "<<iCurNode<<std::endl;
+    //if(iCurNode==iPORow){
+    if(iCurNode >= first_col && iCurNode <= last_col){
+//      logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+      SuperLRowStruct.insert(iCurNode);
+    }
+    else{
+      while( iCurNode != first_col && etree.PostParent(iCurNode-1) != 0){
+//      while( !(iCurNode >= first_col && iCurNode <= last_col) && etree.PostParent(iCurNode-1) != 0){
+//        logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+        SuperLRowStruct.insert(iCurNode);
+        iCurNode = etree.PostParent(iCurNode-1);
+//        logfileptr->OFS()<<"Parent is "<<iCurNode<<std::endl;
+      }
+    }
+  } 
+  TIMER_STOP(SpStruct_GetSuperLRowStruct);
 }
 
 
