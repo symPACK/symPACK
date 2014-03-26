@@ -29,13 +29,14 @@ template <typename T> class SupernodalMatrix{
   SparseMatrixStructure Local_;
   SparseMatrixStructure Global_;
 
-  IntNumVec UpdateCount;
+  IntNumVec UpdateCount_;
 
   ETree ETree_;
   ETree SupETree_;
   Int iSize_;
   std::vector<SuperNode2<T> * > LocalSupernodes_;
 
+  void GetUpdatingSupernodeCount(const IntNumVec & Xsuper, const IntNumVec & xlindx, const IntNumVec & lindx, const IntNumVec & SupMembership, IntNumVec & sc);
   inline bool FindNextUpdate(SuperNode2<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
   inline bool FindPivot(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode,Int & pivot_idx, Int & pivot_fr, Int & pivot_lr);
 

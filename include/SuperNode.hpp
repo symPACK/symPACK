@@ -148,7 +148,7 @@ class SuperNode2{
                                                  b_own_storage_(ab_own_storage){
 
     storage_lcol_ = a_nzblocks;
-    begin_ = &storage_lcol_->front();
+    begin_ = &storage_lcol_->front()+sizeof(Int);
     end_ = &storage_lcol_->back()+1;
 
 

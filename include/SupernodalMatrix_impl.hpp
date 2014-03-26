@@ -52,6 +52,8 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
   }
   logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
 
+  GetUpdatingSupernodeCount(Xsuper_,xlindx,lindx,SupMembership_,UpdateCount_);
+  logfileptr->OFS()<<"Supernodal counts are "<<UpdateCount_<<std::endl;
 
 
   SupETree_ = ETree_.ToSupernodalETree(Xsuper_);
@@ -233,6 +235,31 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
 }
 
 
+template <typename T> void SupernodalMatrix<T>::GetUpdatingSupernodeCount(const IntNumVec & Xsuper, const IntNumVec & xlindx, const IntNumVec & lindx, const IntNumVec & SupMembership, IntNumVec & sc){
+  sc.Resize(Xsuper.m());
+  SetValue(sc,I_ZERO);
+  IntNumVec marker(Xsuper.m());
+  SetValue(sc,I_ZERO);
+
+  for(Int s = 1; s<Xsuper.m(); ++s){
+    Int first_col = Xsuper(s-1);
+    
+    Int fi = xlindx(s-1);
+    Int li = xlindx(s)-1;
+
+    for(Int row_idx = fi; row_idx<=li;++row_idx){
+      Int row = lindx(row_idx-1);
+      Int supno = SupMembership(row-1);
+      
+      if(marker(supno-1)!=s && supno!=s){
+        ++sc(supno-1);
+        marker(supno-1) = s;
+      }
+    }
+  }
+}
+
+
 template <typename T> SparseMatrixStructure SupernodalMatrix<T>::GetLocalStructure() const {
     return Local_;
   }
@@ -395,6 +422,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
   Int np;
   MPI_Comm_size(pComm, &np);
 
+  IntNumVec UpdatesToDo = UpdateCount_;
  
   //dummy right looking cholesky factorization
   for(Int I=1;I<Xsuper_.m();I++){
@@ -429,25 +457,15 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
  
       logfileptr->OFS()<<"  Supernodal Row structure is "<<supLStruct<<std::endl;
 
+      assert(supLStruct.size()==UpdateCount_(I-1));
 
       std::vector<char> src_nzblocks;
 
-      //Parse the row structure to look for remote factors to Recv
-      for(int Jidx = 0; Jidx < supLStruct.size(); ++Jidx){
-        Int src_snode_id = supLStruct[Jidx];
-        Int iSource = Mapping_.Map(src_snode_id-1,src_snode_id-1);
-//        if(iSource == iam){
-//          logfileptr->OFS()<<"Supernode "<<src_snode_id<<" is updating Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
-//          Int iLocalJ = (tgt_snode_id-1) / np +1 ;
-//          SuperNode2<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
-//          UpdateSuperNode(src_snode,tgt_snode,src_nzblk_idx, src_first_row);
-//        }
-//        else{
-        if(iSource != iam){
+      while(UpdatesToDo(I-1)>0){
 
           if(src_nzblocks.size()==0){
             //Create an upper bound buffer  (we have the space to store the first header)
-            size_t num_bytes = 0;
+            size_t num_bytes = sizeof(Int);
             for(Int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
               num_bytes += src_snode.GetNZBlock(blkidx).NRows()*(src_snode.Size()*sizeof(T) + sizeof(NZBlockHeader<T>)+ sizeof(NZBlock2<T>));
             }
@@ -458,8 +476,11 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 
           //MPI_Recv
           MPI_Status recv_status;
-          char * recv_buf = &src_nzblocks[0]+sizeof(NZBlock2<T>);
-          MPI_Recv(recv_buf,src_nzblocks.size(),MPI_BYTE,iSource,I,pComm,&recv_status);
+          char * recv_buf = &src_nzblocks[0]+max(sizeof(Int),sizeof(NZBlock2<T>));
+          MPI_Recv(recv_buf,&*src_nzblocks.end()-recv_buf,MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
+
+          Int src_snode_id = *(Int*)recv_buf;
+
 
           //Resize the buffer to the actual number of bytes received
           int bytes_received = 0;
@@ -479,10 +500,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
           //restore to its capacity
           src_nzblocks.resize(src_nzblocks.capacity());
 
-
-        }
-
-
+          --UpdatesToDo(I-1);
       }
       //clear the buffer
       { vector<char>().swap(src_nzblocks);  }
@@ -530,20 +548,23 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 
 
           MPI_Datatype type;
-          int lens[2];
-          MPI_Aint disps[2];
-          MPI_Datatype types[2];
+          int lens[3];
+          MPI_Aint disps[3];
+          MPI_Datatype types[3];
           Int err = 0;
 
 
           /* define a struct that describes all our data */
-          lens[0] = sizeof(NZBlockHeader<T>);
-          lens[1] = num_bytes;
-          MPI_Address(header, &disps[0]);
-          MPI_Address(start_buf, &disps[1]);
+          lens[0] = sizeof(Int);
+          lens[1] = sizeof(NZBlockHeader<T>);
+          lens[2] = num_bytes;
+          MPI_Address(&I, &disps[0]);
+          MPI_Address(header, &disps[1]);
+          MPI_Address(start_buf, &disps[2]);
           types[0] = MPI_BYTE;
           types[1] = MPI_BYTE;
-          MPI_Type_struct(2, lens, disps, types, &type);
+          types[2] = MPI_BYTE;
+          MPI_Type_struct(3, lens, disps, types, &type);
           MPI_Type_commit(&type);
 
           /* send to target */
@@ -571,6 +592,8 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
           SuperNode2<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 
           UpdateSuperNode(src_snode,tgt_snode,src_nzblk_idx, src_first_row);
+
+          --UpdatesToDo(tgt_snode_id-1);
         }
       }
     }

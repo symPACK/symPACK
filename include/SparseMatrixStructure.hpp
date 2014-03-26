@@ -39,6 +39,8 @@ class SparseMatrixStructure{
   void GetSuperARowStruct(const ETree & etree, const IntNumVec & Xsuper, const Int iSupNo, std::vector<Int> & SuperRowStruct);
   void GetSuperLRowStruct(const ETree & etree, const IntNumVec & Xsuper, const Int iSupNo, std::set<Int> & SuperLRowStruct);
 
+
+
 };
 
 
