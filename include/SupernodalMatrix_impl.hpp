@@ -74,8 +74,8 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
 
       //parse the first column to create the NZBlock
       if(iam==iDest){
-        LocalSupernodes_.push_back( new SuperNode2<T>(I,fc,lc,iHeight));
-        SuperNode2<T> & snode = *LocalSupernodes_.back();
+        LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight));
+        SuperNode<T> & snode = *LocalSupernodes_.back();
 
 
         for(Int idx = fi; idx<=li;idx++){
@@ -106,9 +106,14 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
           logfileptr->OFS()<<"Creating a new NZBlock for rows "<<iStartRow<<" to "<<iStartRow + iContiguousRows-1<<" with "<<iCurNZcnt<<" nz."<<std::endl;
 #endif
           snode.AddNZBlock(iContiguousRows , iWidth,iStartRow);
+if(I==Xsuper_.m()-1){
+          logfileptr->OFS()<<"Creating a new NZBlock for rows "<<iStartRow<<" to "<<iStartRow + iContiguousRows-1<<" with "<<iCurNZcnt<<" nz."<<std::endl;
+          logfileptr->OFS()<<snode.GetNZBlock(snode.NZBlockCnt()-1)<<endl;
+}
+
         }
 
-        //snode.Shrink();
+        snode.Shrink();
       }
 
       //Distribute the data
@@ -175,7 +180,7 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
 
         //copy the data if I own it
         if(iam == iDest){
-          SuperNode2<T> & snode = *LocalSupernodes_.back();
+          SuperNode<T> & snode = *LocalSupernodes_.back();
 
           //isData transfered or local
           if(iam!=prevOwner){
@@ -207,7 +212,7 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
 
               T elem = pdNzVal[iStartIdxCopy + idxA];
 
-              NZBlock2<T> & pDestBlock = snode.GetNZBlock(iNZBlockIdx);
+              NZBlock<T> & pDestBlock = snode.GetNZBlock(iNZBlockIdx);
               //logfileptr->OFS()<<*pDestBlock<<std::endl;
               
               //find where we should put it
@@ -272,8 +277,8 @@ template <typename T> SparseMatrixStructure SupernodalMatrix<T>::GetGlobalStruct
     return Global_;
   }
 
-
-template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(SuperNode2<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row, Int & src_last_row, Int & tgt_snode_id){
+//FIXME write this function also in terms of SparseMatrixStructure and supno rather than Supernode object.
+template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(SuperNode<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row, Int & src_last_row, Int & tgt_snode_id){
   //src_nzblk_idx is the last nzblock index examined
   //src_first_row is the first row updating the supernode examined
   //src_last_row is the last row updating the supernode examined
@@ -294,7 +299,7 @@ template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(SuperNode2
       return false;
     }
     else{
-      NZBlock2<T> & nzblk = src_snode.GetNZBlock(src_nzblk_idx);
+      NZBlock<T> & nzblk = src_snode.GetNZBlock(src_nzblk_idx);
       Int src_lr = nzblk.GIndex()+nzblk.NRows()-1;
       if(src_last_row == src_lr){
         src_nzblk_idx++;
@@ -312,7 +317,7 @@ template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(SuperNode2
   }
 
   //Now we try to find src_last_row
-  NZBlock2<T> & nzblk = src_snode.GetNZBlock(src_nzblk_idx);
+  NZBlock<T> & nzblk = src_snode.GetNZBlock(src_nzblk_idx);
   Int src_fr = max(src_first_row,nzblk.GIndex());
   Int src_lr = nzblk.GIndex()+nzblk.NRows()-1;
 
@@ -326,7 +331,7 @@ template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(SuperNode2
     //look into other nzblk
     Int new_blk_idx = src_snode.FindBlockIdx(src_last_row);
     new_blk_idx = (new_blk_idx>src_snode.NZBlockCnt())?new_blk_idx-1:new_blk_idx+1;
-    NZBlock2<T> & lb = src_snode.GetNZBlock(new_blk_idx-1); 
+    NZBlock<T> & lb = src_snode.GetNZBlock(new_blk_idx-1); 
     src_last_row = lb.GIndex() + lb.NRows() - 1;
   }
   else{
@@ -342,13 +347,13 @@ template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(SuperNode2
 
 
 
-template <typename T> inline bool SupernodalMatrix<T>::FindPivot(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode,Int & pivot_idx, Int & pivot_fr, Int & pivot_lr){
+template <typename T> inline bool SupernodalMatrix<T>::FindPivot(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int & pivot_fr, Int & pivot_lr){
   //Determine which columns will be updated
   pivot_idx = 0;
   pivot_fr = 0;
   pivot_lr = 0;
   for(int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
-    NZBlock2<T> & nzblk = src_snode.GetNZBlock(blkidx);
+    NZBlock<T> & nzblk = src_snode.GetNZBlock(blkidx);
     Int src_fr = nzblk.GIndex();
     Int src_lr = nzblk.GIndex()+nzblk.NRows()-1;
 
@@ -364,8 +369,8 @@ template <typename T> inline bool SupernodalMatrix<T>::FindPivot(SuperNode2<T> &
   }
 }
 
-template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr = I_ZERO){
-    NZBlock2<T> & pivot_nzblk = src_snode.GetNZBlock(pivot_idx);
+template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr = I_ZERO){
+    NZBlock<T> & pivot_nzblk = src_snode.GetNZBlock(pivot_idx);
     if(pivot_fr ==I_ZERO){
       pivot_fr = pivot_nzblk.GIndex();
     }
@@ -379,25 +384,37 @@ template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode2<T> & 
 
     for(int src_idx=pivot_idx;src_idx<src_snode.NZBlockCnt();++src_idx){
 
-      NZBlock2<T> & src_nzblk = src_snode.GetNZBlock(src_idx);
+      NZBlock<T> & src_nzblk = src_snode.GetNZBlock(src_idx);
       Int src_fr = max(pivot_fr, src_nzblk.GIndex()) ;
       Int src_lr = src_nzblk.GIndex()+src_nzblk.NRows()-1;
       
       do{
         Int tgt_idx = tgt_snode.FindBlockIdx(src_fr);
-        NZBlock2<T> & tgt_nzblk = tgt_snode.GetNZBlock(tgt_idx);
+        NZBlock<T> & tgt_nzblk = tgt_snode.GetNZBlock(tgt_idx);
         Int tgt_fr = tgt_nzblk.GIndex();
         Int tgt_lr = tgt_nzblk.GIndex()+tgt_nzblk.NRows()-1;
 
         Int update_fr = max(tgt_fr, src_fr);
         Int update_lr = min(tgt_lr, src_lr);
-        
+
+        assert(update_fr >= tgt_fr); 
+        assert(update_lr >= update_fr); 
+        assert(update_lr <= tgt_lr); 
 
         //Update tgt_nzblk with src_nzblk
         logfileptr->OFS()<<"Updating SNODE "<<tgt_snode.Id()<<" Block "<<tgt_idx<<" ["<<update_fr<<".."<<update_lr<<"] with SNODE "<<src_snode.Id()<<" Block "<<src_idx<<" ["<<update_fr<<".."<<update_lr<<"]"<<endl;
 
+        T * src = &src_nzblk.Nzval(update_fr - src_fr ,0);
+        T * tgt = &tgt_nzblk.Nzval(update_fr - tgt_fr ,tgt_updated_fc);
+
+#ifdef ROW_MAJOR
+        blas::Gemm('T','N',pivot_lr-pivot_fr+1, update_lr - update_fr + 1,src_snode.Size(),1.0,pivot,pivot_nzblk.LDA(),src,src_nzblk.LDA(),1.0,tgt,tgt_nzblk.LDA());
+#else
+        blas::Gemm('N','T', update_lr - update_fr + 1,pivot_lr-pivot_fr+1,  src_snode.Size(),1.0,src,src_nzblk.LDA(),pivot,pivot_nzblk.LDA(),1.0,tgt,tgt_nzblk.LDA());
+#endif
+
         if(tgt_idx+1<tgt_snode.NZBlockCnt()){
-          NZBlock2<T> & next_tgt_nzblk = tgt_snode.GetNZBlock(tgt_idx+1);
+          NZBlock<T> & next_tgt_nzblk = tgt_snode.GetNZBlock(tgt_idx+1);
           Int next_tgt_fr = next_tgt_nzblk.GIndex();
           src_fr = next_tgt_fr;
         }
@@ -432,42 +449,22 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
     //If I own the column, factor it
     if( iOwner == iam ){
       Int iLocalI = (I-1) / np +1 ;
-      SuperNode2<T> & src_snode = *LocalSupernodes_[iLocalI -1];
+      SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
       logfileptr->OFS()<<"Supernode "<<I<<"("<<src_snode.Id()<<") is on P"<<iOwner<<" local index is "<<iLocalI<<std::endl; 
      
       assert(src_snode.Id() == I); 
 
 
       //Do all my updates (Local and remote)
-      //Get Row structure
-      //FIXME
-
-      std::set<Int> LRowStruct;
-      std::vector<Int> supLStruct;
-
-      LRowStruct.clear();
-      Global_.GetSuperLRowStruct(ETree_, Xsuper_, I , LRowStruct);
-      supLStruct.clear();
-      for (std::set<Int>::iterator it=LRowStruct.begin(); it!=LRowStruct.end(); ++it){
-        Int sup = SupMembership_(*it-1);
-          if(*it == Xsuper_(sup-1)){
-            supLStruct.push_back(sup);
-          }
-      }
- 
-      logfileptr->OFS()<<"  Supernodal Row structure is "<<supLStruct<<std::endl;
-
-      assert(supLStruct.size()==UpdateCount_(I-1));
-
       std::vector<char> src_nzblocks;
-
       while(UpdatesToDo(I-1)>0){
+          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
 
           if(src_nzblocks.size()==0){
             //Create an upper bound buffer  (we have the space to store the first header)
             size_t num_bytes = sizeof(Int);
             for(Int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
-              num_bytes += src_snode.GetNZBlock(blkidx).NRows()*(src_snode.Size()*sizeof(T) + sizeof(NZBlockHeader<T>)+ sizeof(NZBlock2<T>));
+              num_bytes += src_snode.GetNZBlock(blkidx).NRows()*NZBLOCK_ROW_SIZE<T>(src_snode.Size());
             }
             logfileptr->OFS()<<"We allocate a buffer of size "<<num_bytes<<std::endl;
             src_nzblocks.resize(num_bytes);
@@ -476,7 +473,9 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 
           //MPI_Recv
           MPI_Status recv_status;
-          char * recv_buf = &src_nzblocks[0]+max(sizeof(Int),sizeof(NZBlock2<T>));
+
+
+          char * recv_buf = &src_nzblocks[0]+ max(sizeof(Int),NZBLOCK_OBJ_SIZE<T>())-min(sizeof(Int),NZBLOCK_OBJ_SIZE<T>());
           MPI_Recv(recv_buf,&*src_nzblocks.end()-recv_buf,MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
 
           Int src_snode_id = *(Int*)recv_buf;
@@ -485,14 +484,16 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
           //Resize the buffer to the actual number of bytes received
           int bytes_received = 0;
           MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-          src_nzblocks.resize(bytes_received+sizeof(NZBlock2<T>));
+          src_nzblocks.resize(recv_buf+bytes_received - &src_nzblocks[0]);
 
 
 
-          logfileptr->OFS()<<"Supernode "<<I<<" is updated by Supernode "<<src_snode_id<<", received "<<bytes_received<<" bytes"<<std::endl;
+          logfileptr->OFS()<<"Supernode "<<I<<" is updated by Supernode "<<src_snode_id<<", received "<<bytes_received<<" bytes, buffer of size "<<src_nzblocks.size()<<std::endl;
           //Create the dummy supernode for that data
-          SuperNode2<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1,&src_nzblocks);
-
+          SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1,&src_nzblocks);
+//
+//          //logfileptr->OFS()<<dist_src_snode<<endl;
+//
           Int idx = 0;
           UpdateSuperNode(dist_src_snode,src_snode,idx);
 
@@ -508,17 +509,33 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
       logfileptr->OFS()<<"  Factoring node "<<I<<std::endl;
 
       //Factorize Diagonal block
-      NZBlock2<T> & diagonalBlock = src_snode.GetNZBlock(0);
+      NZBlock<T> & diagonalBlock = src_snode.GetNZBlock(0);
+
+
+#ifdef ROW_MAJOR
+      lapack::Potrf( 'U', src_snode.Size(), diagonalBlock.Nzval(), diagonalBlock.LDA());
+#else
       lapack::Potrf( 'L', src_snode.Size(), diagonalBlock.Nzval(), diagonalBlock.LDA());
+#endif
+
       logfileptr->OFS()<<"    Diagonal block factored node "<<I<<std::endl;
 
       for(int blkidx=1;blkidx<src_snode.NZBlockCnt();++blkidx){
-        NZBlock2<T> & nzblk = src_snode.GetNZBlock(blkidx);
+        NZBlock<T> & nzblk = src_snode.GetNZBlock(blkidx);
 
           //Update lower triangular blocks
+#ifdef ROW_MAJOR
+          blas::Trsm('R','U','T','N',nzblk.NCols(),src_snode.Size(), 1.0,  diagonalBlock.Nzval(), diagonalBlock.LDA(), nzblk.Nzval(), nzblk.LDA());
+#else
           blas::Trsm('R','L','T','N',nzblk.NRows(),src_snode.Size(), 1.0,  diagonalBlock.Nzval(), diagonalBlock.LDA(), nzblk.Nzval(), nzblk.LDA());
+#endif
+          logfileptr->OFS()<<diagonalBlock<<std::endl;
+          logfileptr->OFS()<<nzblk<<std::endl;
           logfileptr->OFS()<<"    "<<blkidx<<"th subdiagonal block updated node "<<I<<std::endl;
       }
+
+
+
       //Send my factor to my ancestors. 
       Int tgt_snode_id = 0;
       Int src_nzblk_idx = 0;
@@ -536,16 +553,16 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
           Int tgt_last_col = Xsuper_(J)-1;
 
           //Send
-          NZBlock2<T> * pivot_nzblk = &src_snode.GetNZBlock(src_nzblk_idx);
+          NZBlock<T> * pivot_nzblk = &src_snode.GetNZBlock(src_nzblk_idx);
 
+#ifdef ROW_MAJOR
           int local_first_row = src_first_row-pivot_nzblk->GIndex();
 
           char * start_buf = reinterpret_cast<char*>(&pivot_nzblk->Nzval(local_first_row,0));
           size_t num_bytes = src_snode.End() - start_buf;
 
           //Create a header
-          NZBlockHeader<T> * header = new NZBlockHeader<T>(pivot_nzblk->NRows()-local_first_row,pivot_nzblk->NCols(),src_first_row,1);
-
+          NZBlockHeader<T> * header = new NZBlockHeader<T>(pivot_nzblk->NRows()-local_first_row,pivot_nzblk->NCols(),src_first_row);
 
           MPI_Datatype type;
           int lens[3];
@@ -567,6 +584,8 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
           MPI_Type_struct(3, lens, disps, types, &type);
           MPI_Type_commit(&type);
 
+          //logfileptr->OFS()<<src_snode<<endl;
+          
           /* send to target */
           //FIXME : maybe this can be replaced by a scatterv ?
           MPI_Send(MPI_BOTTOM,1,type,iTarget,tgt_snode_id,pComm);
@@ -574,8 +593,59 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
           MPI_Type_free(&type);
 
           delete header;
+          logfileptr->OFS()<<"     Send factor "<<I<<" to node"<<J<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<" ("<<num_bytes+sizeof(*header)+sizeof(Int)<<" bytes)"<<std::endl;
+#else
+#ifdef SEND_WHOLE_BLOCK
+#else
+          int local_first_row = src_first_row-pivot_nzblk->GIndex();
 
-          logfileptr->OFS()<<"     Send factor "<<I<<" to node"<<J<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<" ("<<num_bytes+sizeof(*header)<<" bytes)"<<std::endl;
+          char * start_buf = reinterpret_cast<char*>(src_snode.NZBlockCnt()>src_nzblk_idx+1?&src_snode.GetNZBlock(src_nzblk_idx+1):src_snode.End());
+          size_t num_bytes = src_snode.End() - start_buf;
+
+          //Create a NZBlock
+          Int nrows = pivot_nzblk->NRows()-local_first_row;
+          Int ncols = pivot_nzblk->NCols();
+          std::vector<char> tmpStorage(NZBLOCK_HEADER_SIZE<T>() + nrows*ncols*sizeof(T));
+          NZBlock<T> * newBlock = new NZBlock<T>(nrows,ncols,src_first_row, &tmpStorage[0]);
+          //Fill the block
+          for(Int col = 0; col< pivot_nzblk->NCols(); ++col){
+            for(Int row = local_first_row; row< pivot_nzblk->NRows(); ++row){
+              newBlock->Nzval(row-local_first_row,col) = pivot_nzblk->Nzval(local_first_row,col);
+            }
+          }
+
+//          logfileptr->OFS()<<"New block is "<<newBlock<<endl;
+
+
+          MPI_Datatype type;
+          int lens[3];
+          MPI_Aint disps[3];
+          MPI_Datatype types[3];
+          Int err = 0;
+
+
+          /* define a struct that describes all our data */
+          lens[0] = sizeof(Int);
+          //don't send the object itself because it will be created again on the receiver side
+          lens[1] = NZBLOCK_HEADER_SIZE<T>()+newBlock->ByteSize(); 
+          lens[2] = num_bytes;
+          MPI_Address(&I, &disps[0]);
+          MPI_Address(&tmpStorage[0], &disps[1]);
+          MPI_Address(start_buf, &disps[2]);
+          types[0] = MPI_BYTE;
+          types[1] = MPI_BYTE;
+          types[2] = MPI_BYTE;
+          MPI_Type_struct(3, lens, disps, types, &type);
+          MPI_Type_commit(&type);
+
+          MPI_Send(MPI_BOTTOM,1,type,iTarget,tgt_snode_id,pComm);
+
+          delete newBlock;
+          logfileptr->OFS()<<"     Send factor "<<I<<" to node"<<J<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<" ("<<lens[0] + lens[1] + lens[2]<<" bytes)"<<std::endl;
+#endif // end ifdef SEND_WHOLE_BLOCK
+
+#endif // end ifdef ROW_MAJOR
+
 
         }
       }
@@ -589,15 +659,19 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
           logfileptr->OFS()<<"Supernode "<<tgt_snode_id<<" is updated by Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
 
           Int iLocalJ = (tgt_snode_id-1) / np +1 ;
-          SuperNode2<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+          SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 
-          UpdateSuperNode(src_snode,tgt_snode,src_nzblk_idx, src_first_row);
+//          UpdateSuperNode(src_snode,tgt_snode,src_nzblk_idx, src_first_row);
 
           --UpdatesToDo(tgt_snode_id-1);
+          logfileptr->OFS()<<UpdatesToDo(tgt_snode_id-1)<<" updates left"<<endl;
         }
       }
     }
+    else{
+      //Update the ancestors
 
+    }
 ///
 ///
 ///    else{
@@ -618,7 +692,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 /////          logfileptr->OFS()<<"Supernode "<<tgt_snode_id<<" is updated by Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
 /////
 /////          Int iLocalJ = (tgt_snode_id-1) / np +1 ;
-/////          SuperNode2<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+/////          SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 /////
 /////          UpdateSuperNode(src_snode,tgt_snode,src_nzblk_idx, src_first_row);
 /////        }
@@ -639,7 +713,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 ///        //If I own the ancestor supernode, update it
 ///        if( iAOwner == iam ){
 ///          Int iLocalJ = (J-1) / np +1 ;
-///          SuperNode2<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+///          SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 ///          //upper bound, can be replaced by something tighter
 ///          size_t num_bytes = tgt_snode.BytesToEnd(0);
 ///          std::vector<char> src_nzblocks(num_bytes);
@@ -651,7 +725,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 ///          src_nzblocks.resize(bytes_received);
 ///  
 ///
-///          SuperNode2<T> src_snode(I,src_first_col,src_last_col,&src_nzblocks);
+///          SuperNode<T> src_snode(I,src_first_col,src_last_col,&src_nzblocks);
 ///
 ///          logfileptr->OFS()<<"     Recv factor "<<I<<" from P"<<iOwner<<" to update snode"<<J<<" on P"<<iam<<std::endl;       
 ///          //Update
@@ -663,7 +737,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 ///    }
 ///
 
-    upcxx::barrier();
+    MPI_Barrier(pComm);
   }
 }
 

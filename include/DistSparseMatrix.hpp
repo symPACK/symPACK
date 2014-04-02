@@ -11,7 +11,7 @@
 #include "ETree.hpp"
 #include "SparseMatrixStructure.hpp"
 
-//#include "utility.hpp"
+#include <mpi.h>
 
 extern "C" {
 #include <bebop/util/config.h>
@@ -80,8 +80,7 @@ template <class F> class DistSparseMatrix{
 
 
   void CopyData(const csc_matrix_t * cscptr);
-  DistSparseMatrix(const csc_matrix_t * cscptr);
-  DistSparseMatrix(MPI_Comm oComm, const csc_matrix_t * cscptr);
+  DistSparseMatrix(const csc_matrix_t * cscptr,MPI_Comm oComm);
 
   SparseMatrixStructure  GetGlobalStructure();
   SparseMatrixStructure  GetLocalStructure() const;

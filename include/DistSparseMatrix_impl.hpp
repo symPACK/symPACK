@@ -381,28 +381,8 @@ namespace LIBCHOLESKY{
     int np;
     int iam;
 
-    int ismpi=0;
-    MPI_Initialized( &ismpi);
-    int isnull= (comm == MPI_COMM_NULL);
-    logfileptr->OFS()<<ismpi<<std::endl;
-
-    logfileptr->OFS()<<comm<<std::endl;
-    logfileptr->OFS()<<MPI_COMM_NULL<<std::endl;
-    logfileptr->OFS()<<isnull<<std::endl;
-
-    if(ismpi && isnull==0){
       MPI_Comm_size(comm,&np);
       MPI_Comm_rank(comm, &iam);
-    }
-    else{
-#ifdef UPCXX
-      np = THREADS;
-      iam = MYTHREAD;
-#else
-      //throw an exception
-      throw std::logic_error("Either MPI OR UPCXX need to be available.");
-#endif
-    }
 
     //fill global structure info as we have it directly
     this->size = cscptr->n; 
@@ -464,10 +444,7 @@ namespace LIBCHOLESKY{
   }
 
 
-  template <class F> DistSparseMatrix<F>::DistSparseMatrix(const csc_matrix_t * cscptr){
-    this->CopyData(cscptr);
-  }
-  template <class F> DistSparseMatrix<F>::DistSparseMatrix(MPI_Comm oComm , const csc_matrix_t * cscptr):comm(oComm){
+  template <class F> DistSparseMatrix<F>::DistSparseMatrix(const csc_matrix_t * cscptr,MPI_Comm oComm ):comm(oComm){
     this->CopyData(cscptr);
   }
 

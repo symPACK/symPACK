@@ -34,13 +34,13 @@ template <typename T> class SupernodalMatrix{
   ETree ETree_;
   ETree SupETree_;
   Int iSize_;
-  std::vector<SuperNode2<T> * > LocalSupernodes_;
+  std::vector<SuperNode<T> * > LocalSupernodes_;
 
   void GetUpdatingSupernodeCount(const IntNumVec & Xsuper, const IntNumVec & xlindx, const IntNumVec & lindx, const IntNumVec & SupMembership, IntNumVec & sc);
-  inline bool FindNextUpdate(SuperNode2<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
-  inline bool FindPivot(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode,Int & pivot_idx, Int & pivot_fr, Int & pivot_lr);
+  inline bool FindNextUpdate(SuperNode<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
+  inline bool FindPivot(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int & pivot_fr, Int & pivot_lr);
 
-  void UpdateSuperNode(SuperNode2<T> & src_snode, SuperNode2<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
+  void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
   public:
 
 	/// @brief MPI communicator
@@ -53,8 +53,8 @@ template <typename T> class SupernodalMatrix{
   //Accessors
   Int Size(){return iSize_;}
   IntNumVec & GetSupernodes(){ return Xsuper_;}
-  std::vector<SuperNode > & GetLocalSupernodes(){ return LocalSupernodes_; } 
-  SuperNode & GetLocalSupernode(Int i){ return LocalSupernodes_[i]; } 
+  std::vector<SuperNode<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 
+  SuperNode<T> & GetLocalSupernode(Int i){ return *LocalSupernodes_[i]; } 
   ETree & GetETree(){return ETree_;}
 
   SparseMatrixStructure GetGlobalStructure();
