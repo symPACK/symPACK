@@ -278,6 +278,25 @@ template <typename T> SparseMatrixStructure SupernodalMatrix<T>::GetGlobalStruct
   }
 
 //FIXME write this function also in terms of SparseMatrixStructure and supno rather than Supernode object.
+template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(Int src_snode_id, Int & tgt_snode_id){
+  Int src_fc = Xsuper_(src_snode_id-1);
+  Int src_lc = Xsuper_(src_snode_id)-1;
+  
+  
+
+  //if tgt_snode_id == 0 , this is the first call to the function
+  if(tgt_snode_id == 0){
+
+    if(src_snode.NZBlockCnt() == 1 ){
+      return false;
+    }
+    src_nzblk_idx = 1;
+    src_first_row = src_snode.GetNZBlock(src_nzblk_idx).GIndex();
+  }
+
+}
+
+
 template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(SuperNode<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row, Int & src_last_row, Int & tgt_snode_id){
   //src_nzblk_idx is the last nzblock index examined
   //src_first_row is the first row updating the supernode examined
