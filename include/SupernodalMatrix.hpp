@@ -37,7 +37,11 @@ template <typename T> class SupernodalMatrix{
   std::vector<SuperNode<T> * > LocalSupernodes_;
 
   void GetUpdatingSupernodeCount(const IntNumVec & Xsuper, const IntNumVec & xlindx, const IntNumVec & lindx, const IntNumVec & SupMembership, IntNumVec & sc);
+
+
+  inline bool FindNextUpdate(Int src_snode_id, Int & src_first_row, Int & src_last_row, Int & tgt_snode_id);
   inline bool FindNextUpdate(SuperNode<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
+
   inline bool FindPivot(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int & pivot_fr, Int & pivot_lr);
 
   void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);

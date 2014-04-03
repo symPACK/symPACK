@@ -117,7 +117,6 @@ int main(int argc, char **argv)
 
 
 
-    FBMatrix & Afact = *Afactptr;
 
     Real timeSta, timeEnd;
 
@@ -130,20 +129,20 @@ int main(int argc, char **argv)
     sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
     sparse_matrix_expand_symmetric_storage (Atmp);
     sparse_matrix_convert (Atmp, CSR);
-    Afact.n = ((csr_matrix_t *)Atmp->repr)->n;
+    Afactptr->n = ((csr_matrix_t *)Atmp->repr)->n;
 
     if(iam==0){
-      cout<<"Matrix order is "<<Afact.n<<endl;
+      cout<<"Matrix order is "<<Afactptr->n<<endl;
     }
 
 
-    DblNumMat A(Afact.n,Afact.n);
-    csr_matrix_expand_to_dense (A.Data(), 0, Afact.n, (const csr_matrix_t *) Atmp->repr);
+    DblNumMat A(Afactptr->n,Afactptr->n);
+    csr_matrix_expand_to_dense (A.Data(), 0, Afactptr->n, (const csr_matrix_t *) Atmp->repr);
     destroy_sparse_matrix (Atmp);
 
 
 
-      Int n = Afact.n;
+      Int n = Afactptr->n;
       Int nrhs = 5;
 
     if(iam==0){
@@ -157,9 +156,9 @@ int main(int argc, char **argv)
     MPI_Barrier(MPI_COMM_WORLD);
 
     //TODO This needs to be fixed
-    //Afact.prow = 1;//sqrt(np);
-    //Afact.pcol = np;//Afact.prow;
-    //np = Afact.prow*Afact.pcol;
+    //Afactptr->prow = 1;//sqrt(np);
+    //Afactptr->pcol = np;//Afactptr->prow;
+    //np = Afactptr->prow*Afactptr->pcol;
     if(iam==0){
       cout<<"Number of cores to be used: "<<np<<endl;
     }
@@ -167,7 +166,7 @@ int main(int argc, char **argv)
 
 
     //Allocate chunks of the matrix on each processor
-    Afactptr->Allocate(np,Afact.n,blksize);
+    Afactptr->Allocate(np,Afactptr->n,blksize);
 
     Afactptr->Distribute(A);
 
@@ -189,7 +188,7 @@ int main(int argc, char **argv)
 
       timeSta =  omp_get_wtime( );
     TIMER_START(FANBOTH);
-    if(iam==Afact.MAP(Afact.n-1,Afact.n-1)){
+    if(iam==Afactptr->MAP(Afactptr->n-1,Afactptr->n-1)){
 #ifdef _DEBUG_
       cout<<"LOCK IS TAKEN BY"<<iam<<endl;
 #endif
@@ -202,8 +201,8 @@ int main(int argc, char **argv)
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    Afact.NumericalFactorization();
-    Afact.WaitFactorization();
+    Afactptr->NumericalFactorization();
+    Afactptr->WaitFactorization();
     timeEnd =  omp_get_wtime( );
 
     TIMER_STOP(FANBOTH);
@@ -225,7 +224,7 @@ int main(int argc, char **argv)
 
 
     {
-      Afact.Gather(Afinished);
+      Afactptr->Gather(Afinished);
     }
 #ifdef _DEBUG_
     logfileptr->OFS()<<"quitting "<<iam<<endl;

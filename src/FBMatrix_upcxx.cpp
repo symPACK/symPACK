@@ -613,7 +613,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 #ifdef _ASSERT_
     assert(Aptr.tid()==MYTHREAD);
 #endif
-    FBMatrix_upcxx & A = *Aptr;
+    const FBMatrix_upcxx & A = *Aptr;
 
 
 #ifdef _DEBUG_    
@@ -869,7 +869,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 #ifdef _ASSERT_
     assert(Aptr.tid()==MYTHREAD);
 #endif
-    FBMatrix_upcxx & A = *Aptr;
+    const FBMatrix_upcxx & A = *Aptr;
     //fetch data
 #ifdef _DEBUG_    
     logfileptr->OFS()<<"Aggregating Fetching data from P"<<remoteAggregatePtr.tid()<<endl;
@@ -891,7 +891,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
     logfileptr->OFS()<<"Done Aggregating update to "<<j<<endl;
 #endif
 
-    A.AggLock[j/A.blksize]--;
+    Aptr.raw_ptr()->AggLock[j/A.blksize]--;
 #ifdef _DEBUG_    
     logfileptr->OFS()<<"Still waiting for "<<A.AggLock[j/A.blksize]<<" aggregates"<<endl;
 #endif

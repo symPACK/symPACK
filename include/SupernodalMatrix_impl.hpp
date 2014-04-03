@@ -278,21 +278,105 @@ template <typename T> SparseMatrixStructure SupernodalMatrix<T>::GetGlobalStruct
   }
 
 //FIXME write this function also in terms of SparseMatrixStructure and supno rather than Supernode object.
-template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(Int src_snode_id, Int & tgt_snode_id){
+template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(Int src_snode_id, Int & src_first_row, Int & src_last_row, Int & tgt_snode_id){
   Int src_fc = Xsuper_(src_snode_id-1);
   Int src_lc = Xsuper_(src_snode_id)-1;
-  
-  
+
+  //look in the global structure for the next nnz below row src_lc  
+  Int first_row_ptr = Global_.colptr(src_lc-1);
+  Int last_row_ptr = Global_.colptr(src_lc)-1;
+  Int src_last_row_ptr = src_last_row - Global_.rowind(first_row_ptr-1) + first_row_ptr;
+
+  Int subdiag_row_cnt = last_row_ptr - first_row_ptr;
+
+    Int first_row = Global_.rowind(first_row_ptr-1);
+    Int last_row = Global_.rowind(last_row_ptr-1);
+
+    logfileptr->OFS()<<"prev src_first_row = "<<src_first_row<<endl;
+    logfileptr->OFS()<<"prev src_last_row = "<<src_last_row<<endl;
+
+    logfileptr->OFS()<<"first_row = "<<first_row<<endl;
+    logfileptr->OFS()<<"last_row = "<<last_row<<endl;
+    logfileptr->OFS()<<"first_row_ptr = "<<first_row_ptr<<endl;
+    logfileptr->OFS()<<"last_row_ptr = "<<last_row_ptr<<endl;
+    logfileptr->OFS()<<"src_last_row_ptr = "<<src_last_row_ptr<<endl;
+    logfileptr->OFS()<<"subdiag_row_cnt = "<<subdiag_row_cnt<<endl;
+
 
   //if tgt_snode_id == 0 , this is the first call to the function
   if(tgt_snode_id == 0){
 
-    if(src_snode.NZBlockCnt() == 1 ){
+    if(subdiag_row_cnt == 0 ){
       return false;
     }
-    src_nzblk_idx = 1;
-    src_first_row = src_snode.GetNZBlock(src_nzblk_idx).GIndex();
+    
+    Int first_row = Global_.rowind(first_row_ptr);
+    tgt_snode_id = SupMembership_(first_row-1);
+    src_first_row = first_row;
   }
+  else{
+    
+    //find the block corresponding to src_last_row
+    //src_nzblk_idx = src_snode.FindBlockIdx(src_last_row);
+
+
+    if(src_last_row_ptr == last_row_ptr){
+      return false;
+    }
+    else{
+      Int src_first_row_ptr = src_last_row_ptr+1;
+      if(src_first_row_ptr == last_row_ptr){
+        return false;
+      }
+      else{
+        Int first_row_idx = Global_.rowind(src_first_row_ptr);
+        tgt_snode_id = SupMembership_(first_row_idx-1);
+        src_first_row = first_row_idx;
+      }
+    }
+  }
+
+  //Now we try to find src_last_row
+  Int src_first_row_ptr = src_last_row_ptr+1;
+  Int src_fr = src_first_row;
+  
+  //Find the last contiguous row
+  Int src_lr = src_first_row;
+  for(Int i = src_first_row_ptr; i<last_row_ptr; ++i){
+    if(src_lr+1 == Global_.rowind(i-1)){
+      ++src_lr;
+    }
+    else{
+      break;
+    }
+  }
+
+  Int tgt_snode_id_first = SupMembership_(src_fr-1);
+  Int tgt_snode_id_last = SupMembership_(src_lr-1);
+  if(tgt_snode_id_first == tgt_snode_id_last){
+    //this can be a zero row in the src_snode
+    src_last_row = Xsuper_(tgt_snode_id_first)-1;
+    tgt_snode_id = tgt_snode_id_first;
+
+    //look into other nzblk
+
+    //Find the last contiguous row to src_last_row
+    Int src_last_row_ptr = src_last_row - Global_.rowind(first_row_ptr-1) + first_row_ptr;
+    for(Int i = src_first_row_ptr; i<last_row_ptr; ++i){
+      if(src_last_row+1 == Global_.rowind(i-1)){
+        ++src_last_row;
+      }
+      else{
+        break;
+      }
+    }
+  }
+  else{
+    src_last_row = Xsuper_(tgt_snode_id_first)-1;
+    tgt_snode_id = tgt_snode_id_first;
+  }
+
+  return true;
 
 }
 
@@ -689,6 +773,12 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
     }
     else{
       //Update the ancestors
+      Int tgt_snode_id = 0;
+      Int src_first_row = 0;
+      Int src_last_row = 0;
+      while(FindNextUpdate(I, src_first_row, src_last_row, tgt_snode_id)){ 
+          logfileptr->OFS()<<"Supernode "<<tgt_snode_id<<" is updated by Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<std::endl;
+      }
 
     }
 ///
