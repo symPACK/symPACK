@@ -7,6 +7,14 @@
 
 namespace LIBCHOLESKY{
 
+  inline void gdb_lock(){
+    int lock = 1;
+    while (lock == 1){
+      lock =1;
+    }
+  }
+
+
 template <typename T> SupernodalMatrix<T>::SupernodalMatrix(){
 }
 
@@ -26,9 +34,13 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
   IntNumVec cc,rc;
   Global_.GetLColRowCount(ETree_,cc,rc);
 
+  logfileptr->OFS()<<"colcnt "<<cc<<std::endl;
+  logfileptr->OFS()<<"rowcnt "<<rc<<std::endl;
 
-  Global_.FindSupernodes(ETree_,cc,Xsuper_);
+  Global_.FindSupernodes(ETree_,cc,SupMembership_,Xsuper_);
 
+  logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
+  logfileptr->OFS()<<"xsuper "<<Xsuper_<<std::endl;
 
 //  UpdatesCount.Resize(Xsuper_.Size());
 //  for(Int I = 1; I<Xsuper_.Size();++I){
@@ -38,21 +50,12 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
 //  }
 
 
-  IntNumVec xlindx,lindx;
-  Global_.SymbolicFactorization(ETree_,cc,Xsuper_,xlindx,lindx);
+  Global_.SymbolicFactorization(ETree_,cc,Xsuper_,xlindx_,lindx_);
+  logfileptr->OFS()<<"xlindx "<<xlindx_<<std::endl;
+  logfileptr->OFS()<<"lindx "<<lindx_<<std::endl;
 
-  //build supernode membership
-  SupMembership_.Resize(iSize_);
-  Int cur_snode_idx = 1;
-  for(Int i = 1; i<=iSize_;++i){
-    SupMembership_(i-1) = cur_snode_idx;
-    if(Xsuper_(cur_snode_idx) == i+1){
-      cur_snode_idx++;
-    } 
-  }
-  logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
 
-  GetUpdatingSupernodeCount(Xsuper_,xlindx,lindx,SupMembership_,UpdateCount_);
+  GetUpdatingSupernodeCount(UpdateCount_);
   logfileptr->OFS()<<"Supernodal counts are "<<UpdateCount_<<std::endl;
 
 
@@ -66,8 +69,8 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
       Int fc = Xsuper_(I-1);
       Int lc = Xsuper_(I)-1;
       Int iWidth = lc-fc+1;
-      Int fi = xlindx(I-1);
-      Int li = xlindx(I)-1;
+      Int fi = xlindx_(I-1);
+      Int li = xlindx_(I)-1;
       Int iHeight = li-fi+1;
 
       Int iDest = pMapping.Map(I-1,I-1);
@@ -79,12 +82,12 @@ template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatr
 
 
         for(Int idx = fi; idx<=li;idx++){
-          Int iStartRow = lindx(idx-1);
+          Int iStartRow = lindx_(idx-1);
           Int iPrevRow = iStartRow;
           Int iContiguousRows = 1;
           for(Int idx2 = idx+1; idx2<=li;idx2++){
-            Int iCurRow = lindx(idx2-1);
-            if(iStartRow == lindx(fi-1)){
+            Int iCurRow = lindx_(idx2-1);
+            if(iStartRow == lindx_(fi-1)){
               if(iCurRow>iStartRow+iWidth-1){
                 //enforce the first block to be a square diagonal block
                 break;
@@ -205,7 +208,7 @@ if(I==Xsuper_.m()-1){
           Int iLRow = 0;
           Int firstrow = fi + i-fc;
           for(Int idx = firstrow; idx<=li;idx++){
-            iLRow = lindx(idx-1);
+            iLRow = lindx_(idx-1);
             //logfileptr->OFS()<<"Looking at L("<<iLRow<<","<<i<<")"<<std::endl;
             if( iLRow == iRowind){
               Int iNZBlockIdx = snode.FindBlockIdx(iLRow);
@@ -240,21 +243,21 @@ if(I==Xsuper_.m()-1){
 }
 
 
-template <typename T> void SupernodalMatrix<T>::GetUpdatingSupernodeCount(const IntNumVec & Xsuper, const IntNumVec & xlindx, const IntNumVec & lindx, const IntNumVec & SupMembership, IntNumVec & sc){
-  sc.Resize(Xsuper.m());
+template <typename T> void SupernodalMatrix<T>::GetUpdatingSupernodeCount(IntNumVec & sc){
+  sc.Resize(Xsuper_.m());
   SetValue(sc,I_ZERO);
-  IntNumVec marker(Xsuper.m());
+  IntNumVec marker(Xsuper_.m());
   SetValue(sc,I_ZERO);
 
-  for(Int s = 1; s<Xsuper.m(); ++s){
-    Int first_col = Xsuper(s-1);
+  for(Int s = 1; s<Xsuper_.m(); ++s){
+    Int first_col = Xsuper_(s-1);
     
-    Int fi = xlindx(s-1);
-    Int li = xlindx(s)-1;
+    Int fi = xlindx_(s-1);
+    Int li = xlindx_(s)-1;
 
     for(Int row_idx = fi; row_idx<=li;++row_idx){
-      Int row = lindx(row_idx-1);
-      Int supno = SupMembership(row-1);
+      Int row = lindx_(row_idx-1);
+      Int supno = SupMembership_(row-1);
       
       if(marker(supno-1)!=s && supno!=s){
         ++sc(supno-1);
@@ -283,24 +286,24 @@ template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(Int src_sn
   Int src_lc = Xsuper_(src_snode_id)-1;
 
   //look in the global structure for the next nnz below row src_lc  
-  Int first_row_ptr = Global_.colptr(src_lc-1);
-  Int last_row_ptr = Global_.colptr(src_lc)-1;
-  Int src_last_row_ptr = src_last_row - Global_.rowind(first_row_ptr-1) + first_row_ptr;
+  Int first_row_ptr = xlindx_(src_snode_id-1);
+  Int last_row_ptr = xlindx_(src_snode_id)-1;
+  Int src_last_row_ptr = 0;
+  Int src_first_row_ptr = 0;
 
   Int subdiag_row_cnt = last_row_ptr - first_row_ptr;
 
-    Int first_row = Global_.rowind(first_row_ptr-1);
-    Int last_row = Global_.rowind(last_row_ptr-1);
+    Int first_row = lindx_(first_row_ptr-1);
+    Int last_row = lindx_(last_row_ptr-1);
 
-    logfileptr->OFS()<<"prev src_first_row = "<<src_first_row<<endl;
-    logfileptr->OFS()<<"prev src_last_row = "<<src_last_row<<endl;
-
-    logfileptr->OFS()<<"first_row = "<<first_row<<endl;
-    logfileptr->OFS()<<"last_row = "<<last_row<<endl;
-    logfileptr->OFS()<<"first_row_ptr = "<<first_row_ptr<<endl;
-    logfileptr->OFS()<<"last_row_ptr = "<<last_row_ptr<<endl;
-    logfileptr->OFS()<<"src_last_row_ptr = "<<src_last_row_ptr<<endl;
-    logfileptr->OFS()<<"subdiag_row_cnt = "<<subdiag_row_cnt<<endl;
+//    logfileptr->OFS()<<"prev src_first_row = "<<src_first_row<<endl;
+//    logfileptr->OFS()<<"prev src_last_row = "<<src_last_row<<endl;
+//    logfileptr->OFS()<<"first_row = "<<first_row<<endl;
+//    logfileptr->OFS()<<"last_row = "<<last_row<<endl;
+//    logfileptr->OFS()<<"first_row_ptr = "<<first_row_ptr<<endl;
+//    logfileptr->OFS()<<"last_row_ptr = "<<last_row_ptr<<endl;
+//    logfileptr->OFS()<<"src_last_row_ptr = "<<src_last_row_ptr<<endl;
+//    logfileptr->OFS()<<"subdiag_row_cnt = "<<subdiag_row_cnt<<endl;
 
 
   //if tgt_snode_id == 0 , this is the first call to the function
@@ -310,66 +313,60 @@ template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(Int src_sn
       return false;
     }
     
-    Int first_row = Global_.rowind(first_row_ptr);
+    Int first_row = lindx_(first_row_ptr);
     tgt_snode_id = SupMembership_(first_row-1);
     src_first_row = first_row;
+    src_last_row_ptr = first_row_ptr;
   }
   else{
     
     //find the block corresponding to src_last_row
     //src_nzblk_idx = src_snode.FindBlockIdx(src_last_row);
 
-
+    //src_last_row_ptr = src_last_row - lindx_(first_row_ptr-1) + first_row_ptr;
+    src_last_row_ptr = std::find(&lindx_(first_row_ptr-1),&lindx_(last_row_ptr), src_last_row) - &lindx_(first_row_ptr-1) + first_row_ptr;
     if(src_last_row_ptr == last_row_ptr){
       return false;
     }
     else{
-      Int src_first_row_ptr = src_last_row_ptr+1;
-      if(src_first_row_ptr == last_row_ptr){
+      src_first_row_ptr = src_last_row_ptr+1;
+      if(src_first_row_ptr > last_row_ptr){
         return false;
       }
       else{
-        Int first_row_idx = Global_.rowind(src_first_row_ptr);
-        tgt_snode_id = SupMembership_(first_row_idx-1);
-        src_first_row = first_row_idx;
+        Int first_row = lindx_(src_first_row_ptr-1);
+        tgt_snode_id = SupMembership_(first_row-1);
+        src_first_row = first_row;
       }
     }
   }
 
   //Now we try to find src_last_row
-  Int src_first_row_ptr = src_last_row_ptr+1;
+  src_first_row_ptr = src_last_row_ptr+1;
   Int src_fr = src_first_row;
   
   //Find the last contiguous row
   Int src_lr = src_first_row;
-  for(Int i = src_first_row_ptr; i<last_row_ptr; ++i){
-    if(src_lr+1 == Global_.rowind(i-1)){
-      ++src_lr;
-    }
-    else{
-      break;
-    }
+  for(Int i = src_first_row_ptr+1; i<=last_row_ptr; ++i){
+    if(src_lr+1 == lindx_(i-1)){ ++src_lr; }
+    else{ break; }
   }
 
   Int tgt_snode_id_first = SupMembership_(src_fr-1);
   Int tgt_snode_id_last = SupMembership_(src_lr-1);
   if(tgt_snode_id_first == tgt_snode_id_last){
     //this can be a zero row in the src_snode
-    src_last_row = Xsuper_(tgt_snode_id_first)-1;
     tgt_snode_id = tgt_snode_id_first;
 
-    //look into other nzblk
+//    src_last_row = min(src_lr,Xsuper_(tgt_snode_id_first)-1);
 
-    //Find the last contiguous row to src_last_row
-    Int src_last_row_ptr = src_last_row - Global_.rowind(first_row_ptr-1) + first_row_ptr;
-    for(Int i = src_first_row_ptr; i<last_row_ptr; ++i){
-      if(src_last_row+1 == Global_.rowind(i-1)){
-        ++src_last_row;
-      }
-      else{
-        break;
-      }
+    //Find the last row in src_snode updating tgt_snode_id
+    for(Int i = src_first_row_ptr +1; i<=last_row_ptr; ++i){
+      Int row = lindx_(i-1);
+      if(SupMembership_(row-1) != tgt_snode_id){ break; }
+      else{ src_last_row = row; }
     }
+
   }
   else{
     src_last_row = Xsuper_(tgt_snode_id_first)-1;
@@ -385,15 +382,26 @@ template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(SuperNode<
   //src_nzblk_idx is the last nzblock index examined
   //src_first_row is the first row updating the supernode examined
   //src_last_row is the last row updating the supernode examined
+//if(src_snode.Id() == 17){gdb_lock();}
 
   //if tgt_snode_id == 0 , this is the first call to the function
   if(tgt_snode_id == 0){
+    
+    //find the first sub diagonal block
+    src_nzblk_idx = -1;
+    for(Int blkidx = 0; blkidx < src_snode.NZBlockCnt(); ++blkidx){
+      if(src_snode.GetNZBlock(blkidx).GIndex() > src_snode.LastCol()){
+        src_nzblk_idx = blkidx;
+        break;
+      }
+    }
 
-    if(src_snode.NZBlockCnt() == 1 ){
+    if(src_nzblk_idx == -1 ){
       return false;
     }
-    src_nzblk_idx = 1;
-    src_first_row = src_snode.GetNZBlock(src_nzblk_idx).GIndex();
+    else{
+      src_first_row = src_snode.GetNZBlock(src_nzblk_idx).GIndex();
+    }
   }
   else{
     //find the block corresponding to src_last_row
@@ -428,20 +436,44 @@ template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(SuperNode<
   Int tgt_snode_id_last = SupMembership_(src_lr-1);
   if(tgt_snode_id_first == tgt_snode_id_last){
     //this can be a zero row in the src_snode
-    src_last_row = Xsuper_(tgt_snode_id_first)-1;
     tgt_snode_id = tgt_snode_id_first;
 
+    src_last_row = Xsuper_(tgt_snode_id_first)-1;
+
     //look into other nzblk
+//if(src_snode.Id() == 8){gdb_lock();}
+
+    //Find the last row in src_snode updating tgt_snode_id
     Int new_blk_idx = src_snode.FindBlockIdx(src_last_row);
-    new_blk_idx = (new_blk_idx>src_snode.NZBlockCnt())?new_blk_idx-1:new_blk_idx+1;
-    NZBlock<T> & lb = src_snode.GetNZBlock(new_blk_idx-1); 
-    src_last_row = lb.GIndex() + lb.NRows() - 1;
+    if(new_blk_idx>=src_snode.NZBlockCnt()){
+      //src_last_row is the last row of the last nzblock
+      new_blk_idx = src_snode.NZBlockCnt()-1; 
+    }
+
+    NZBlock<T> & last_block = src_snode.GetNZBlock(new_blk_idx); 
+    src_last_row = min(src_last_row,last_block.GIndex() + last_block.NRows() - 1);
+    assert(src_last_row<= Xsuper_(tgt_snode_id_first)-1);
+
+//    //this can be a zero row in the src_snode
+//    tgt_snode_id = tgt_snode_id_first;
+//
+//    for(Int i = src_first_row_ptr +1; i<=last_row_ptr; ++i){
+//      Int row = lindx_(i-1);
+//      if(SupMembership_(row-1) != tgt_snode_id){ break; }
+//      else{ src_last_row = row; }
+//    }
   }
   else{
     src_last_row = Xsuper_(tgt_snode_id_first)-1;
     tgt_snode_id = tgt_snode_id_first;
   }
 
+
+  assert(src_last_row>=src_first_row);
+  assert(src_first_row>= Xsuper_(tgt_snode_id-1));
+  assert(src_last_row<= Xsuper_(tgt_snode_id)-1);
+  assert(src_first_row >= src_fr);
+   
   return true;
 
 }
@@ -524,11 +556,7 @@ template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & s
         else{
           break;
         }
-
-
       }while(src_fr<src_lr);
-      
-
     }
 
 }
@@ -537,11 +565,9 @@ template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & s
 
 
 template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
-  Int iam;
+  Int iam,np;
   MPI_Comm_rank(pComm, &iam);
-  Int np;
   MPI_Comm_size(pComm, &np);
-
   IntNumVec UpdatesToDo = UpdateCount_;
  
   //dummy right looking cholesky factorization
@@ -556,6 +582,18 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
       logfileptr->OFS()<<"Supernode "<<I<<"("<<src_snode.Id()<<") is on P"<<iOwner<<" local index is "<<iLocalI<<std::endl; 
      
       assert(src_snode.Id() == I); 
+
+//      std::set<Int> SuperLRowStruct;
+//      Global_.GetSuperLRowStruct(ETree_, Xsuper_, I, SuperLRowStruct);
+//        
+//      logfileptr->OFS()<<"Row structure of Supernode "<<I<<" is ";
+//      for(std::set<Int>::iterator it = SuperLRowStruct.begin(); it != SuperLRowStruct.end(); ++it){
+//        logfileptr->OFS()<<*it<<" ";
+//      }
+//      logfileptr->OFS()<<endl;
+//      logfileptr->OFS()<<"Updates count for Supernode "<<I<<" is "<<UpdateCount_(I-1)<<endl;
+//
+//      assert(SuperLRowStruct.size()==UpdateCount_(I-1));
 
 
       //Do all my updates (Local and remote)
@@ -580,7 +618,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 
           char * recv_buf = &src_nzblocks[0]+ max(sizeof(Int),NZBLOCK_OBJ_SIZE<T>())-min(sizeof(Int),NZBLOCK_OBJ_SIZE<T>());
           MPI_Recv(recv_buf,&*src_nzblocks.end()-recv_buf,MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
-
+logfileptr->OFS()<<"Received something"<<endl;
           Int src_snode_id = *(Int*)recv_buf;
 
 
@@ -590,21 +628,38 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
           src_nzblocks.resize(recv_buf+bytes_received - &src_nzblocks[0]);
 
 
-
-          logfileptr->OFS()<<"Supernode "<<I<<" is updated by Supernode "<<src_snode_id<<", received "<<bytes_received<<" bytes, buffer of size "<<src_nzblocks.size()<<std::endl;
           //Create the dummy supernode for that data
           SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1,&src_nzblocks);
-//
-//          //logfileptr->OFS()<<dist_src_snode<<endl;
-//
-          Int idx = 0;
-          UpdateSuperNode(dist_src_snode,src_snode,idx);
+
+      logfileptr->OFS()<<dist_src_snode<<endl;
+
+
+      //Update everything I own with that factor
+      //Update the ancestors
+      Int tgt_snode_id = 0;
+      Int src_first_row = 0;
+      Int src_last_row = 0;
+      Int src_nzblk_idx = 0;
+      while(FindNextUpdate(dist_src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
+        Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
+        if(iTarget == iam){
+          logfileptr->OFS()<<"RECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
+
+          Int iLocalJ = (tgt_snode_id-1) / np +1 ;
+          SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+
+          UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, src_first_row);
+
+          --UpdatesToDo(tgt_snode_id-1);
+          logfileptr->OFS()<<UpdatesToDo(tgt_snode_id-1)<<" updates left for Supernode "<<tgt_snode_id<<endl;
+        }
+      }
+
 
 
           //restore to its capacity
           src_nzblocks.resize(src_nzblocks.capacity());
 
-          --UpdatesToDo(I-1);
       }
       //clear the buffer
       { vector<char>().swap(src_nzblocks);  }
@@ -613,7 +668,6 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 
       //Factorize Diagonal block
       NZBlock<T> & diagonalBlock = src_snode.GetNZBlock(0);
-
 
 #ifdef ROW_MAJOR
       lapack::Potrf( 'U', src_snode.Size(), diagonalBlock.Nzval(), diagonalBlock.LDA());
@@ -632,14 +686,16 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 #else
           blas::Trsm('R','L','T','N',nzblk.NRows(),src_snode.Size(), 1.0,  diagonalBlock.Nzval(), diagonalBlock.LDA(), nzblk.Nzval(), nzblk.LDA());
 #endif
-          logfileptr->OFS()<<diagonalBlock<<std::endl;
-          logfileptr->OFS()<<nzblk<<std::endl;
-          logfileptr->OFS()<<"    "<<blkidx<<"th subdiagonal block updated node "<<I<<std::endl;
+//          logfileptr->OFS()<<diagonalBlock<<std::endl;
+//          logfileptr->OFS()<<nzblk<<std::endl;
+//          logfileptr->OFS()<<"    "<<blkidx<<"th subdiagonal block updated node "<<I<<std::endl;
       }
 
 
-
       //Send my factor to my ancestors. 
+      BolNumVec is_factor_sent(np);
+      SetValue(is_factor_sent,false);
+
       Int tgt_snode_id = 0;
       Int src_nzblk_idx = 0;
       Int src_first_row = 0;
@@ -647,7 +703,9 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
       while(FindNextUpdate(src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
 
         Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
-        if(iTarget != iam){
+        if(iTarget != iam && !is_factor_sent[iTarget]){
+          is_factor_sent[iTarget] = true;
+
           logfileptr->OFS()<<"Supernode "<<tgt_snode_id<<" is updated by Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
 
           Int J = tgt_snode_id;
@@ -755,32 +813,101 @@ template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
 
       //Update my ancestors right away. 
       tgt_snode_id = 0;
+//      if(I == 7){ gdb_lock(); }
       while(FindNextUpdate(src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
 
         Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
         if(iTarget == iam){
-          logfileptr->OFS()<<"Supernode "<<tgt_snode_id<<" is updated by Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
+          logfileptr->OFS()<<"LOCAL Supernode "<<tgt_snode_id<<" is updated by Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
 
           Int iLocalJ = (tgt_snode_id-1) / np +1 ;
           SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 
-//          UpdateSuperNode(src_snode,tgt_snode,src_nzblk_idx, src_first_row);
+          UpdateSuperNode(src_snode,tgt_snode,src_nzblk_idx, src_first_row);
 
           --UpdatesToDo(tgt_snode_id-1);
           logfileptr->OFS()<<UpdatesToDo(tgt_snode_id-1)<<" updates left"<<endl;
         }
       }
     }
-    else{
-      //Update the ancestors
-      Int tgt_snode_id = 0;
-      Int src_first_row = 0;
-      Int src_last_row = 0;
-      while(FindNextUpdate(I, src_first_row, src_last_row, tgt_snode_id)){ 
-          logfileptr->OFS()<<"Supernode "<<tgt_snode_id<<" is updated by Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<std::endl;
-      }
-
-    }
+///////    else{
+///////      //Update the ancestors
+///////      Int tgt_snode_id = 0;
+///////      Int src_first_row = 0;
+///////      Int src_last_row = 0;
+///////      while(FindNextUpdate(I, src_first_row, src_last_row, tgt_snode_id)){ 
+///////
+///////          Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
+///////          if(iTarget == iam){
+///////            logfileptr->OFS()<<"Supernode "<<tgt_snode_id<<" is updated by Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<std::endl;
+///////
+///////
+///////
+///////      std::vector<char> src_nzblocks;
+///////      {
+///////          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
+///////
+///////          if(src_nzblocks.size()==0){
+///////            //Create an upper bound buffer  (we have the space to store the first header)
+///////            size_t num_bytes = sizeof(Int);
+///////            for(Int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
+///////              num_bytes += src_snode.GetNZBlock(blkidx).NRows()*NZBLOCK_ROW_SIZE<T>(src_snode.Size());
+///////            }
+///////            logfileptr->OFS()<<"We allocate a buffer of size "<<num_bytes<<std::endl;
+///////            src_nzblocks.resize(num_bytes);
+///////          }
+///////
+///////
+///////          //MPI_Recv
+///////          MPI_Status recv_status;
+///////
+///////
+///////          char * recv_buf = &src_nzblocks[0]+ max(sizeof(Int),NZBLOCK_OBJ_SIZE<T>())-min(sizeof(Int),NZBLOCK_OBJ_SIZE<T>());
+///////          MPI_Recv(recv_buf,&*src_nzblocks.end()-recv_buf,MPI_BYTE,iOwner,I,pComm,&recv_status);
+///////
+///////          Int src_snode_id = *(Int*)recv_buf;
+///////
+///////
+///////          //Resize the buffer to the actual number of bytes received
+///////          int bytes_received = 0;
+///////          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
+///////          src_nzblocks.resize(recv_buf+bytes_received - &src_nzblocks[0]);
+///////
+///////
+///////
+///////          logfileptr->OFS()<<"Supernode "<<I<<" is updated by Supernode "<<src_snode_id<<", received "<<bytes_received<<" bytes, buffer of size "<<src_nzblocks.size()<<std::endl;
+///////          //Create the dummy supernode for that data
+///////          SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1,&src_nzblocks);
+/////////
+/////////          //logfileptr->OFS()<<dist_src_snode<<endl;
+/////////
+///////          Int idx = 0;
+///////          UpdateSuperNode(dist_src_snode,src_snode,idx);
+///////
+///////
+///////          //restore to its capacity
+///////          src_nzblocks.resize(src_nzblocks.capacity());
+///////
+///////          --UpdatesToDo(I-1);
+///////      }
+///////      //clear the buffer
+///////      { vector<char>().swap(src_nzblocks);  }
+///////
+///////
+///////
+///////
+///////
+///////
+///////
+///////
+///////
+///////
+///////
+///////          }
+///////
+///////      }
+///////
+///////    }
 ///
 ///
 ///    else{

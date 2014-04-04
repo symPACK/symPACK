@@ -48,10 +48,11 @@ public:
   inline Int n() const { return n_; };
   inline Int ToPostOrder(Int i) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return postNumber_(i-1);};
   inline Int FromPostOrder(Int i) const  { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return invPostNumber_(i-1);};
-  inline IntNumVec ToPostOrder(IntNumVec & vec) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } IntNumVec povec = vec; for(Int i=0;i<povec.m();i++){ povec[i]=postNumber_(povec[i]-1);}   return povec;};
+  inline IntNumVec ToPostOrder(IntNumVec & vec) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } IntNumVec povec = vec; for(Int i=0;i<povec.m();i++){ if(vec[i]!=0){ povec[i]=postNumber_(vec[i]-1);} }   return povec;};
   inline Int PostParent(Int i) const { 
       if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } 
-      Int parent = parent_(invPostNumber_(i)-1);
+      Int node = invPostNumber_(i);
+      Int parent = parent_(node-1);
       return parent==0?0:postNumber_(parent-1); 
   }
   inline Int Parent(Int i) const { return parent_(i); };

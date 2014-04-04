@@ -235,13 +235,24 @@ namespace LIBCHOLESKY{
     level(size-1)=1;
     for(Int vertex = 1; vertex<=size-1; vertex++){
       Int curParent = tree.PostParent(vertex-1);
-      treeSize(curParent-1)+=treeSize(vertex-1);
-      level(size-vertex-1) = level(tree.PostParent(size-vertex-1)-1)+1;
+      if(curParent!=0){
+        treeSize(curParent-1)+=treeSize(vertex-1);
+      }
       if(treeSize(vertex-1)==1){
         cc(vertex-1)=1;
       }
       else{
         cc(vertex-1)=0;
+      }
+    }
+
+    for(Int vertex = size-1; vertex>=1; --vertex){
+      Int curParent = tree.PostParent(vertex-1);
+      if(curParent!=0){
+        level(vertex-1) = level(curParent-1)+1;
+      }
+      else{
+        level(vertex-1) = 0;
       }
     }
 
@@ -278,7 +289,7 @@ namespace LIBCHOLESKY{
       Int cset;
 
       Int colPar = tree.PostParent(col-1);
-      if (col<size){
+      if (col<size && colPar!=0){
         cc(colPar-1)--;
       }
 
@@ -310,7 +321,9 @@ namespace LIBCHOLESKY{
 
       TIMER_START(Merge_LCA);
       //merge col and parent sets (for lca computation)
-      sets.Union(col,colPar);
+      if (colPar!=0){
+        sets.Union(col,colPar);
+      }
       TIMER_STOP(Merge_LCA);
 
     }
@@ -332,7 +345,9 @@ namespace LIBCHOLESKY{
     //convert delta to col count
     for(Int col=1; col<size; col++){
       Int parent = tree.PostParent(col-1);
-      cc(parent-1)+= cc(col-1);
+      if(parent!=0){
+        cc(parent-1)+= cc(col-1);
+      }
     }
 
 
@@ -350,51 +365,45 @@ namespace LIBCHOLESKY{
 
 
 
-  void SparseMatrixStructure::FindSupernodes(ETree& tree, IntNumVec & cc, IntNumVec & xsuper){
+  void SparseMatrixStructure::FindSupernodes(ETree& tree, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, Int maxSize = -1){
     TIMER_START(FindSupernodes);
 
     if(!bIsGlobal){
 			throw std::logic_error( "SparseMatrixStructure must be global in order to call FindSupernodes\n" );
     }
 
-    IntNumVec children(size);
-    SetValue(children,I_ZERO);
-    for(Int col=1; col<=size-1; col++){
-      children(tree.PostParent(col-1)-1)++;
-      //      children(tree.PostParent(col)-1)++;
-    }
-
-
-    //    logfileptr->OFS()<<"children "<<children.m()<<std::endl;
-    //    for(Int i = 0; i<children.m();i++){
-    //      logfileptr->OFS()<<children(i)<<" ";
-    //    }
-    //    logfileptr->OFS()<<std::endl;
+    supMembership.Resize(size);
 
     Int nsuper = 1;
-    xsuper.Resize(2*size);
-    xsuper(nsuper-1) = 1;
-    //SetValue(xsuper,I_ONE);
-    for(Int i =2; i<=size;i++){
-      //      logfileptr->OFS()<<"Column "<<i<<" has "<<children(i-1)<<" children, "<<cc(i-1)<<" nnz vs "<<cc(i-2)<<" in the prev col"<<std::endl;
+    Int supsize = 1;
+    supMembership(0) = 1;
 
-      if(children(i-1)!=1 || cc(i-1) != (cc(i-2)-1)){
-        //        logfileptr->OFS()<<"Col "<<i<<" and "<<i-1<<" are not in the same snode"<<std::endl; 
-        nsuper++;
-        xsuper(nsuper-1) = i;
+    for(Int i =2; i<=size;i++){
+      Int prev_parent = tree.PostParent(i-2);
+      if(prev_parent == i){
+        if(cc(i-2) == cc(i-1)+1){
+          if(supsize<maxSize || maxSize==-1){
+            ++supsize;
+            supMembership(i-1) = nsuper;
+            continue;
+          }
+        }
       }
-      //      else{
-      //        logfileptr->OFS()<<"Col "<<i<<" and "<<i-1<<" are in the same snode"<<std::endl; 
-      //      }
+        nsuper++;
+      supsize = 1;
+      supMembership(i-1) = nsuper;
     }
 
-
-    nsuper++;
-    xsuper(nsuper-1) = size+1;
-
-    xsuper.Resize(nsuper);
-
-
+    xsuper.Resize(nsuper+1);
+    Int lstsup = nsuper+1;
+    for(Int i = size; i>=1;--i){
+      Int ksup = supMembership(i-1);
+      if(ksup!=lstsup){
+       xsuper(lstsup-1) = i + 1; 
+      }
+      lstsup = ksup;
+    }
+    xsuper(0)=1;
 
 
     TIMER_STOP(FindSupernodes);
@@ -429,7 +438,7 @@ namespace LIBCHOLESKY{
       Int end = colptr(fi);
 
       Int * start = &rowind(begin-1); 
-      Int * stop = (end-1<rowind.m())?&rowind(end-1):&rowind(rowind.m()-1)+1; 
+      Int * stop = (end>=rowind.m())?&rowind(rowind.m()-1)+1:&rowind(end-1); 
       //find the diagonal block
       start=std::find(start,stop,fi);
 
@@ -481,14 +490,12 @@ namespace LIBCHOLESKY{
 
       }
 
-      //     logfileptr->OFS()<<"Final L"<<I<<": ";
-      //     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-      //     logfileptr->OFS()<<std::endl;
 
       lindxCnt += LI.m();
+        logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
 
-      if(length>width){
-        //logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
+      if(length>width  ){
+        logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
         Int i = LI(width);
         //        logfileptr->OFS()<<I<<" : col "<<i<<" is the next to be examined. width="<<width<<" length="<<length<<std::endl;
 
@@ -540,8 +547,14 @@ namespace LIBCHOLESKY{
       //        logfileptr->OFS()<<std::endl;
 
       //      logfileptr->OFS()<<"Copying "<<LI.m()<<" elem into lindx("<<head-1<<")"<<std::endl;
-      std::copy(&LI(0),LI.Data()+LI.m(),&(lindx(head-1)));
-      head+=LI.m();//cc(fi-1);
+      for(Int i=0;i<LI.m();++i){
+        if(LI(i)!=0){
+          lindx(head-1) = LI(i); 
+          head++;
+        }
+      }
+      //std::copy(&LI(0),LI.Data()+LI.m(),&(lindx(head-1)));
+      //head+=LI.m();//cc(fi-1);
     }
     //    lindx.Resize(head-1);
     xlindx(nsuper) = head;
@@ -608,7 +621,7 @@ void SparseMatrixStructure::GetLRowStruct(const ETree & etree, const Int iPORow,
 
 
 
-void SparseMatrixStructure::GetSuperARowStruct(const ETree & etree, const IntNumVec & Xsuper, const Int iSupNo, std::vector<Int> & SuperRowStruct){
+void SparseMatrixStructure::GetSuperARowStruct(const ETree & etree, const IntNumVec & Xsuper, const IntNumVec & SupMembership, const Int iSupNo, std::vector<Int> & SuperRowStruct){
   TIMER_START(SpStruct_GetSuperARowStruct);
 //  TIMER_START(SparseMatrixStructure::GetSuperARowStruct);
     if(!bIsGlobal){
@@ -620,6 +633,8 @@ void SparseMatrixStructure::GetSuperARowStruct(const ETree & etree, const IntNum
 
   for(Int iPOCurCol = 1; iPOCurCol<first_col;++iPOCurCol){
     Int iCurCol = etree.FromPostOrder(iPOCurCol);
+    Int iCurSupno = SupMembership(iPOCurCol-1);
+    
 
     Int iFirstRowPtr = colptr(iCurCol-1);
     Int iLastRowPtr = colptr(iCurCol)-1;
@@ -628,7 +643,8 @@ void SparseMatrixStructure::GetSuperARowStruct(const ETree & etree, const IntNum
     for(Int iCurRowPtr=iFirstRowPtr ;iCurRowPtr<=iLastRowPtr;++iCurRowPtr){
       Int iPOCurRow = etree.ToPostOrder(rowind(iCurRowPtr-1));
       if(iPOCurRow >= first_col && iPOCurRow <= last_col){
-        SuperRowStruct.push_back(iPOCurCol);
+//        SuperRowStruct.push_back(iPOCurCol);
+        SuperRowStruct.push_back(iCurSupno);
 //        logfileptr->OFS()<<"A("<<iPORow<<","<<iPOCurCol<<") is nz "<<std::endl;
       }
 
@@ -642,7 +658,7 @@ void SparseMatrixStructure::GetSuperARowStruct(const ETree & etree, const IntNum
 }
 
 
-void SparseMatrixStructure::GetSuperLRowStruct(const ETree & etree, const IntNumVec & Xsuper, const Int iSupNo, std::set<Int> & SuperLRowStruct){
+void SparseMatrixStructure::GetSuperLRowStruct(const ETree & etree, const IntNumVec & Xsuper, const IntNumVec & SupMembership, const Int iSupNo, std::set<Int> & SuperLRowStruct){
 
   TIMER_START(SpStruct_GetSuperLRowStruct);
     if(!bIsGlobal){
@@ -653,7 +669,16 @@ void SparseMatrixStructure::GetSuperLRowStruct(const ETree & etree, const IntNum
 
     //Get A row struct
     std::vector<Int> SuperARowStruct;
-    GetSuperARowStruct(etree, Xsuper, iSupNo, SuperARowStruct);
+    GetSuperARowStruct(etree, Xsuper,SupMembership, iSupNo, SuperARowStruct);
+
+
+
+      logfileptr->OFS()<<"Row structure of A of Supernode "<<iSupNo<<" is ";
+      for(std::vector<Int>::iterator it = SuperARowStruct.begin(); it != SuperARowStruct.end(); ++it){
+        logfileptr->OFS()<<*it<<" ";
+      }
+      logfileptr->OFS()<<std::endl;
+
 
   Int first_col = Xsuper[iSupNo-1];
   Int last_col = Xsuper[iSupNo]-1;
@@ -661,19 +686,19 @@ void SparseMatrixStructure::GetSuperLRowStruct(const ETree & etree, const IntNum
   for(Int i = 0; i<SuperARowStruct.size();++i){
     Int iCurNode = SuperARowStruct[i];
     //tracing from iCurRow to iRow;
-//    logfileptr->OFS()<<"Starting from node "<<iCurNode<<std::endl;
+    logfileptr->OFS()<<"Starting from node "<<iCurNode<<std::endl;
     //if(iCurNode==iPORow){
     if(iCurNode >= first_col && iCurNode <= last_col){
-//      logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+      logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
       SuperLRowStruct.insert(iCurNode);
     }
     else{
       while( iCurNode != first_col && etree.PostParent(iCurNode-1) != 0){
 //      while( !(iCurNode >= first_col && iCurNode <= last_col) && etree.PostParent(iCurNode-1) != 0){
-//        logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+        logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
         SuperLRowStruct.insert(iCurNode);
         iCurNode = etree.PostParent(iCurNode-1);
-//        logfileptr->OFS()<<"Parent is "<<iCurNode<<std::endl;
+        logfileptr->OFS()<<"Parent is "<<iCurNode<<std::endl;
       }
     }
   } 

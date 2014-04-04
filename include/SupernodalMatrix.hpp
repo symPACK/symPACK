@@ -35,8 +35,10 @@ template <typename T> class SupernodalMatrix{
   ETree SupETree_;
   Int iSize_;
   std::vector<SuperNode<T> * > LocalSupernodes_;
+  IntNumVec xlindx_;
+  IntNumVec lindx_;
 
-  void GetUpdatingSupernodeCount(const IntNumVec & Xsuper, const IntNumVec & xlindx, const IntNumVec & lindx, const IntNumVec & SupMembership, IntNumVec & sc);
+  void GetUpdatingSupernodeCount( IntNumVec & sc);
 
 
   inline bool FindNextUpdate(Int src_snode_id, Int & src_first_row, Int & src_last_row, Int & tgt_snode_id);

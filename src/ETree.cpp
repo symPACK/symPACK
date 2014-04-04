@@ -70,13 +70,53 @@ namespace LIBCHOLESKY{
       IntNumVec brother(n_);
       SetValue(brother, I_ZERO);
 
-
-      //Get Binary tree representation
+      Int lroot = n_;
       for(Int vertex=n_-1; vertex>0; vertex--){
         Int curParent = parent_(vertex-1);
-        brother(vertex-1) = fson(curParent-1);
-        fson(curParent-1) = vertex;
+        if(curParent==0 || curParent == vertex){
+          brother(lroot-1) = vertex;
+          lroot = vertex;
+        }
+        else{
+          brother(vertex-1) = fson(curParent-1);
+          fson(curParent-1) = vertex;
+        }
       }
+
+
+//TODO RECYCLE FOR WHEN WE REORDER THE CHILD
+/*
+      IntNumVec lson(n_);
+      SetValue(lson, I_ZERO);
+
+      //Get Binary tree representation
+      Int lroot = n_;
+      for(Int vertex=n_-1; vertex>0; vertex--){
+        Int curParent = parent_(vertex-1);
+        if(curParent==0 || curParent == vertex){
+          brother(lroot-1) = vertex;
+          lroot = vertex;
+        }
+        else{
+          Int ndlson = lson(curParent-1);
+          if(ndlson > 0){
+             if  ( cc(vertex-1) >= cc(ndlson-1) ) {                                                                                                                                       
+                brother(vertex-1) = fson(curParent-1);
+                fson(curParent-1) = vertex;
+             }
+             else{                                                                                                                                            
+                brother(ndlson-1) = vertex;
+                lson(curParent-1) = vertex;
+             }                                                                                                                                                               
+          }
+          else{
+             fson(curParent-1) = vertex;
+             lson(curParent-1) = vertex;
+          }
+        }
+      }
+*/
+
 
       logfileptr->OFS()<<"parent "<<parent_<<std::endl;
       logfileptr->OFS()<<"fson "<<fson<<std::endl;
@@ -89,14 +129,20 @@ namespace LIBCHOLESKY{
       invPostNumber_.Resize(n_);
 
       Int stacktop=0, vertex=n_,m=0;
+      bool exit = false;
       while( m<n_){
-        while(vertex>0){
+        do{
           stacktop++;
           stack(stacktop-1) = vertex;
           vertex = fson(vertex-1);
-        }
+        }while(vertex>0);
 
-        while(vertex==0 && stacktop>0){
+        while(vertex==0){
+
+          if(stacktop<=0){
+            exit = true;
+            break;
+          }
           vertex = stack(stacktop-1);
           stacktop--;
           m++;
@@ -107,15 +153,31 @@ namespace LIBCHOLESKY{
           vertex = brother(vertex-1);
         }
 
+        if(exit){
+          break;
+        }
       }
+
+
+
+
+
+
+
 
       //      postParent_.Resize(n_);
       //modify the parent list ?
       // node i is now node postNumber(i-1)
-      //      for(Int i=1; i<=n_;i++){
-      //        postParent_(postNumber_(i-1)-1)=postNumber_(parent_(i-1)-1);
-      //      }
+            for(Int i=1; i<=n_;i++){
+              Int nunode = postNumber_(i-1);
+              Int ndpar = parent_(i-1);
+              if(ndpar>0){
+                ndpar = postNumber_(ndpar-1);
+              }
+              brother(nunode-1) = ndpar;
+            }
 
+      logfileptr->OFS()<<"new parent: "<<brother<<std::endl;
       logfileptr->OFS()<<"postNumber: "<<postNumber_<<std::endl;
       logfileptr->OFS()<<"invPostNumber: "<<invPostNumber_<<std::endl;
 
@@ -147,7 +209,7 @@ namespace LIBCHOLESKY{
       parent_(col-1)=col; //1 based indexes
       cset = sets.makeSet (col);
       sets.Root(cset-1) = col;
-      parent_(col-1) = n_; 
+      parent_(col-1) = 0; 
 
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Examining col "<<col<<std::endl;
