@@ -33,6 +33,7 @@ class ETree{
 
 protected:
 
+  void BTreeToPO(IntNumVec & fson, IntNumVec & brother);
 
 public:
   ETree();
@@ -57,6 +58,11 @@ public:
   }
   inline Int Parent(Int i) const { return parent_(i); };
   inline Int Size() const { return parent_.m(); };
+
+
+  void SortChildren(IntNumVec & cc);
+
+
 protected:
   Int n_;
   bool bIsPostOrdered_ = false;

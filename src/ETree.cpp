@@ -61,6 +61,46 @@ namespace LIBCHOLESKY{
     ConstructETree(aGlobal);
   }
 
+
+
+  void ETree::BTreeToPO(IntNumVec & fson, IntNumVec & brother){
+      //Do a depth first search to construct the postordered tree
+      IntNumVec stack(n_);
+      postNumber_.Resize(n_);
+      invPostNumber_.Resize(n_);
+
+      Int stacktop=0, vertex=n_,m=0;
+      bool exit = false;
+      while( m<n_){
+        do{
+          stacktop++;
+          stack(stacktop-1) = vertex;
+          vertex = fson(vertex-1);
+        }while(vertex>0);
+
+        while(vertex==0){
+
+          if(stacktop<=0){
+            exit = true;
+            break;
+          }
+          vertex = stack(stacktop-1);
+          stacktop--;
+          m++;
+
+          postNumber_(vertex-1) = m;
+          invPostNumber_(m-1) = vertex;
+
+          vertex = brother(vertex-1);
+        }
+
+        if(exit){
+          break;
+        }
+      }
+}
+
+
   void ETree::PostOrderTree(){
     if(n_>0 && !bIsPostOrdered_){
 
@@ -122,47 +162,7 @@ namespace LIBCHOLESKY{
       logfileptr->OFS()<<"fson "<<fson<<std::endl;
       logfileptr->OFS()<<"brother "<<brother<<std::endl;
 
-
-      //Do a depth first search to construct the postordered tree
-      IntNumVec stack(n_);
-      postNumber_.Resize(n_);
-      invPostNumber_.Resize(n_);
-
-      Int stacktop=0, vertex=n_,m=0;
-      bool exit = false;
-      while( m<n_){
-        do{
-          stacktop++;
-          stack(stacktop-1) = vertex;
-          vertex = fson(vertex-1);
-        }while(vertex>0);
-
-        while(vertex==0){
-
-          if(stacktop<=0){
-            exit = true;
-            break;
-          }
-          vertex = stack(stacktop-1);
-          stacktop--;
-          m++;
-
-          postNumber_(vertex-1) = m;
-          invPostNumber_(m-1) = vertex;
-
-          vertex = brother(vertex-1);
-        }
-
-        if(exit){
-          break;
-        }
-      }
-
-
-
-
-
-
+      BTreeToPO(fson,brother);
 
 
       //      postParent_.Resize(n_);
@@ -185,6 +185,148 @@ namespace LIBCHOLESKY{
     }
 
   }
+
+
+  void ETree::SortChildren(IntNumVec & cc){
+    if(!bIsPostOrdered_){
+      this->PostOrderTree();
+    }
+
+      IntNumVec fson(n_);
+      SetValue(fson, I_ZERO);
+      IntNumVec brother(n_);
+      SetValue(brother, I_ZERO);
+      IntNumVec lson(n_);
+      SetValue(lson, I_ZERO);
+
+      //Get Binary tree representation
+      Int lroot = n_;
+      for(Int vertex=n_-1; vertex>0; vertex--){
+        //Int curParent = PostParent(vertex-1);
+        Int curParent = parent_(vertex-1);
+        if(curParent==0 || curParent == vertex){
+          brother(lroot-1) = vertex;
+          lroot = vertex;
+        }
+        else{
+          Int ndlson = lson(curParent-1);
+          if(ndlson > 0){
+             //if  ( cc(vertex-1) >= cc(ndlson-1) ) {
+             if  ( cc(ToPostOrder(vertex-1)-1) >= cc(ToPostOrder(ndlson-1)-1) ) {
+                brother(vertex-1) = fson(curParent-1);
+                fson(curParent-1) = vertex;
+             }
+             else{                                                                                                                                            
+                brother(ndlson-1) = vertex;
+                lson(curParent-1) = vertex;
+             }                                                                                                                                                               
+          }
+          else{
+             fson(curParent-1) = vertex;
+             lson(curParent-1) = vertex;
+          }
+        }
+      }
+      brother(lroot)=0;
+
+
+      //compute the permuted parent vector of the previous PO tree
+      IntNumVec poParent(n_+1);
+            for(Int i=1; i<=n_;i++){
+              Int nunode = postNumber_(i-1);
+              Int ndpar = parent_(i-1);
+              if(ndpar>0){
+                ndpar = postNumber_(ndpar-1);
+              }
+              poParent(nunode-1) = ndpar;
+            }
+
+      IntNumVec perm;
+      IntNumVec invperm;
+
+      //Compute the parent permutation and update postNumber_
+      //Do a depth first search to construct the postordered tree
+      IntNumVec stack(n_);
+      perm.Resize(n_);
+      invperm.Resize(n_);
+
+      Int stacktop=0, vertex=n_,m=0;
+      bool exit = false;
+      while( m<n_){
+        do{
+          stacktop++;
+          stack(stacktop-1) = vertex;
+          vertex = fson(vertex-1);
+        }while(vertex>0);
+
+        while(vertex==0){
+
+          if(stacktop<=0){
+            exit = true;
+            break;
+          }
+          vertex = stack(stacktop-1);
+          stacktop--;
+          m++;
+
+          perm(vertex-1) = m;
+          invperm(m-1) = vertex;
+
+          vertex = brother(vertex-1);
+        }
+
+        if(exit){
+          break;
+        }
+      }
+
+      //Permute CC     
+      for(Int node = 1; node <= n_; ++node){
+        Int nunode = perm(node-1);
+        stack(nunode-1) = cc(node-1);
+      }
+
+      for(Int node = 1; node <= n_; ++node){
+        cc(node-1) = stack(node-1);
+      }
+
+      postNumber_=perm;
+      invPostNumber_=invperm;
+
+//      //FIXME how to update invperm ?
+//      //Compose the two permutations
+//      for(Int i = 1; i <= n_; ++i){
+//            Int interm = postNumber_(i-1)
+//            postNumber_(i-1) = perm(interm-1)
+//      }
+//      for(Int i = 1; i <= n_; ++i){
+//        Int node = postNumber_(i-1);
+//        perm(node-1) = i;
+//      } 
+//
+//      for(Int i = 1; i <= n_; ++i){
+//        Int pos = postNumber_
+//        invPostNumber_() 
+//      }
+
+            for(Int i=1; i<=n_;i++){
+              Int nunode = postNumber_(i-1);
+              Int ndpar = parent_(i-1);
+              if(ndpar>0){
+                ndpar = postNumber_(ndpar-1);
+              }
+              poParent(nunode-1) = ndpar;
+            }
+
+
+      logfileptr->OFS()<<"new parent: "<<poParent<<std::endl;
+      logfileptr->OFS()<<"postNumber: "<<postNumber_<<std::endl;
+      logfileptr->OFS()<<"invPostNumber: "<<invPostNumber_<<std::endl;
+
+
+
+  }
+
 
 
 

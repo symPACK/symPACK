@@ -410,6 +410,17 @@ namespace LIBCHOLESKY{
   }
 
 
+
+
+
+
+
+
+
+
+
+
+
   void SparseMatrixStructure::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx){
     TIMER_START(SymbolicFactorization);
 
@@ -562,7 +573,7 @@ namespace LIBCHOLESKY{
     TIMER_STOP(SymbolicFactorization);
   }
 
-
+//FIXME correct these methods
 //Return the row structure in the permuted matrix
 void SparseMatrixStructure::GetARowStruct(const ETree & etree, const Int iPORow, std::vector<Int> & rowStruct){
   TIMER_START(SparseMatrixStructure::GetARowStruct);
