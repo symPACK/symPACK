@@ -205,9 +205,14 @@ void SVDLeastSquare( Int m, Int n, Int nrhs, dcomplex * A, Int lda,
 // *********************************************************************
 // Copy
 // *********************************************************************
+void Lacpy( char uplo, Int m, Int n, const float* A, Int lda,
+	float* B, Int ldb	);
 
 void Lacpy( char uplo, Int m, Int n, const double* A, Int lda,
 	double* B, Int ldb	);
+
+void Lacpy( char uplo, Int m, Int n, const scomplex* A, Int lda,
+	scomplex* B, Int ldb	);
 
 void Lacpy( char uplo, Int m, Int n, const dcomplex* A, Int lda,
 	dcomplex* B, Int ldb	);

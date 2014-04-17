@@ -30,6 +30,7 @@ template <typename T> class SupernodalMatrix{
   SparseMatrixStructure Global_;
 
   IntNumVec UpdateCount_;
+  IntNumVec UpdateWidth_;
 
   ETree ETree_;
   ETree SupETree_;
@@ -38,7 +39,7 @@ template <typename T> class SupernodalMatrix{
   IntNumVec xlindx_;
   IntNumVec lindx_;
 
-  void GetUpdatingSupernodeCount( IntNumVec & sc);
+  void GetUpdatingSupernodeCount( IntNumVec & sc,IntNumVec & mw);
 
 
   inline bool FindNextUpdate(Int src_snode_id, Int & src_first_row, Int & src_last_row, Int & tgt_snode_id);
@@ -67,6 +68,9 @@ template <typename T> class SupernodalMatrix{
   SparseMatrixStructure GetLocalStructure() const;
 
   void Factorize(MPI_Comm & pComm);
+
+
+  void Solve(NumMat<T> & B, MPI_Comm & pComm);
 
 };
 

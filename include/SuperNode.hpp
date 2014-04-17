@@ -20,6 +20,7 @@ class SuperNode{
   Int iSize_;
   Int iFirstCol_;
   Int iLastCol_;
+  Int iMaxHeight_;
   NZBlock<T> * head_;
   char * begin_;
   char * end_;
@@ -33,6 +34,7 @@ class SuperNode{
 
   inline Int NZBlockCnt(){ return Lcol_.size();}
   inline Int Size(){ return iSize_;}
+  inline Int MaxHeight(){ return iMaxHeight_;}
   inline Int Id(){ return iId_;}
   inline Int FirstCol(){ return iFirstCol_;}
   inline Int LastCol(){ return iLastCol_;}
@@ -51,6 +53,7 @@ class SuperNode{
      iSize_ = iLastCol_ - iFirstCol_+1;
      size_t line_size = NZBLOCK_ROW_SIZE<T>(iSize_);
      size_t storage_size = ai_num_rows*line_size;
+     iMaxHeight_ = ai_num_rows;
      storage_lcol_ = new std::vector<char>(storage_size);
      b_own_storage_ = true;
      begin_ = &storage_lcol_->front();
@@ -87,6 +90,7 @@ class SuperNode{
     iSize_ = iLastCol_ - iFirstCol_+1;
     size_t line_size = NZBLOCK_ROW_SIZE<T>(iSize_);
     Int max_nzcnt = (end_-begin_) / line_size;
+    iMaxHeight_ = max_nzcnt;
 
     //compute the Lcol array and head_ pointer
     Lcol_.reserve(max_nzcnt);

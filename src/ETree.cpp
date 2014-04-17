@@ -124,40 +124,6 @@ namespace LIBCHOLESKY{
       }
 
 
-//TODO RECYCLE FOR WHEN WE REORDER THE CHILD
-/*
-      IntNumVec lson(n_);
-      SetValue(lson, I_ZERO);
-
-      //Get Binary tree representation
-      Int lroot = n_;
-      for(Int vertex=n_-1; vertex>0; vertex--){
-        Int curParent = parent_(vertex-1);
-        if(curParent==0 || curParent == vertex){
-          brother(lroot-1) = vertex;
-          lroot = vertex;
-        }
-        else{
-          Int ndlson = lson(curParent-1);
-          if(ndlson > 0){
-             if  ( cc(vertex-1) >= cc(ndlson-1) ) {                                                                                                                                       
-                brother(vertex-1) = fson(curParent-1);
-                fson(curParent-1) = vertex;
-             }
-             else{                                                                                                                                            
-                brother(ndlson-1) = vertex;
-                lson(curParent-1) = vertex;
-             }                                                                                                                                                               
-          }
-          else{
-             fson(curParent-1) = vertex;
-             lson(curParent-1) = vertex;
-          }
-        }
-      }
-*/
-
-
       logfileptr->OFS()<<"parent "<<parent_<<std::endl;
       logfileptr->OFS()<<"fson "<<fson<<std::endl;
       logfileptr->OFS()<<"brother "<<brother<<std::endl;
@@ -202,8 +168,8 @@ namespace LIBCHOLESKY{
       //Get Binary tree representation
       Int lroot = n_;
       for(Int vertex=n_-1; vertex>0; vertex--){
-        //Int curParent = PostParent(vertex-1);
-        Int curParent = parent_(vertex-1);
+        Int curParent = PostParent(vertex-1);
+        //Int curParent = parent_(vertex-1);
         if(curParent==0 || curParent == vertex){
           brother(lroot-1) = vertex;
           lroot = vertex;
@@ -211,8 +177,8 @@ namespace LIBCHOLESKY{
         else{
           Int ndlson = lson(curParent-1);
           if(ndlson > 0){
-             //if  ( cc(vertex-1) >= cc(ndlson-1) ) {
-             if  ( cc(ToPostOrder(vertex-1)-1) >= cc(ToPostOrder(ndlson-1)-1) ) {
+             if  ( cc(vertex-1) >= cc(ndlson-1) ) {
+             //if  ( cc(ToPostOrder(vertex)-1) >= cc(ToPostOrder(ndlson)-1) ) {
                 brother(vertex-1) = fson(curParent-1);
                 fson(curParent-1) = vertex;
              }
@@ -227,19 +193,8 @@ namespace LIBCHOLESKY{
           }
         }
       }
-      brother(lroot)=0;
+      brother(lroot-1)=0;
 
-
-      //compute the permuted parent vector of the previous PO tree
-      IntNumVec poParent(n_+1);
-            for(Int i=1; i<=n_;i++){
-              Int nunode = postNumber_(i-1);
-              Int ndpar = parent_(i-1);
-              if(ndpar>0){
-                ndpar = postNumber_(ndpar-1);
-              }
-              poParent(nunode-1) = ndpar;
-            }
 
       IntNumVec perm;
       IntNumVec invperm;
@@ -290,25 +245,21 @@ namespace LIBCHOLESKY{
         cc(node-1) = stack(node-1);
       }
 
-      postNumber_=perm;
-      invPostNumber_=invperm;
+      //Compose the two permutations
+      for(Int i = 1; i <= n_; ++i){
+            Int interm = postNumber_(i-1);
+            postNumber_(i-1) = perm(interm-1);
+      }
+      for(Int i = 1; i <= n_; ++i){
+        Int node = postNumber_(i-1);
+        invPostNumber_(node-1) = i;
+      } 
 
-//      //FIXME how to update invperm ?
-//      //Compose the two permutations
-//      for(Int i = 1; i <= n_; ++i){
-//            Int interm = postNumber_(i-1)
-//            postNumber_(i-1) = perm(interm-1)
-//      }
-//      for(Int i = 1; i <= n_; ++i){
-//        Int node = postNumber_(i-1);
-//        perm(node-1) = i;
-//      } 
-//
-//      for(Int i = 1; i <= n_; ++i){
-//        Int pos = postNumber_
-//        invPostNumber_() 
-//      }
+#ifdef _DEBUG_
+      logfileptr->OFS()<<"ORDERED fson "<<fson<<std::endl;
+      logfileptr->OFS()<<"ORDERED brother "<<brother<<std::endl;
 
+      IntNumVec poParent(n_+1);
             for(Int i=1; i<=n_;i++){
               Int nunode = postNumber_(i-1);
               Int ndpar = parent_(i-1);
@@ -319,10 +270,10 @@ namespace LIBCHOLESKY{
             }
 
 
-      logfileptr->OFS()<<"new parent: "<<poParent<<std::endl;
-      logfileptr->OFS()<<"postNumber: "<<postNumber_<<std::endl;
-      logfileptr->OFS()<<"invPostNumber: "<<invPostNumber_<<std::endl;
-
+      logfileptr->OFS()<<"ORDERED new parent: "<<poParent<<std::endl;
+      logfileptr->OFS()<<"ORDERED postNumber: "<<postNumber_<<std::endl;
+      logfileptr->OFS()<<"ORDERED invPostNumber: "<<invPostNumber_<<std::endl;
+#endif
 
 
   }

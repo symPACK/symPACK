@@ -6,6 +6,7 @@
 #define _NUMMAT_DECL_HPP_
 
 #include "Environment.hpp"
+#include "SuperNode.hpp"
 
 
 
@@ -28,30 +29,33 @@ class NumMat
     virtual inline void delete_data();
   public:
     /// @brief The size of the first dimension.
-    Int m_; 
+    Int m_ = 0; 
 
     /// @brief The size of second dimension.
-    Int n_;
+    Int n_ = 0;
 
     /// @brief Whether it owns the data.
-    bool owndata_;
+    bool owndata_ = false;
 
 #ifdef _ASSERT_
     bool allocated_ = false;
 #endif
 
     /// @brief The pointer for the actual data.
-    F* data_;
+    F* data_ = NULL;
 
     NumMat(Int m=0, Int n=0);
     NumMat(Int m, Int n, bool owndata, F* data);
     NumMat(const NumMat& C);
+    NumMat(const SuperNode<F>& S);
     virtual ~NumMat();
     NumMat& Copy(const NumMat& C);
+    NumMat& SnodeToDense(const SuperNode<F>& S);
     virtual void Resize(Int m, Int n);
     virtual void Clear();
 
     NumMat& operator=(const NumMat& C);
+    NumMat& operator=(const SuperNode<F>& S);
     inline const F& operator()(Int i, Int j) const;
     inline F& operator()(Int i, Int j);
 

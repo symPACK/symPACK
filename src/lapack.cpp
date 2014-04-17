@@ -253,11 +253,21 @@ void LAPACK(zgelss)
   dcomplex *work, const Int *lwork, double *rwork, Int *info );	
 
 // Copy
+void LAPACK(slacpy)
+	( const char* uplo, const Int* m, const Int* n, 
+		const float* A, const Int *lda, 
+		float* B, const Int *ldb );
 
 void LAPACK(dlacpy)
 	( const char* uplo, const Int* m, const Int* n, 
 		const double* A, const Int *lda, 
 		double* B, const Int *ldb );
+
+void LAPACK(clacpy)
+	( const char* uplo, const Int* m, const Int* n, 
+		const scomplex* A, const Int *lda, 
+		scomplex* B, const Int *ldb );
+
 void LAPACK(zlacpy)
 	( const char* uplo, const Int* m, const Int* n, 
 		const dcomplex* A, const Int *lda, 
@@ -1733,6 +1743,16 @@ void SVDLeastSquare( Int m, Int n, Int nrhs, dcomplex * A, Int lda,
 // *********************************************************************
 // Copy
 // *********************************************************************
+void Lacpy( char uplo, Int m, Int n, const float* A, Int lda,
+	float* B, Int ldb	){
+#ifndef _RELEASE_
+    PushCallStack("lapack::Lacpy");
+#endif
+		LAPACK(slacpy)( &uplo, &m, &n, A, &lda, B, &ldb );
+#ifndef _RELEASE_
+    PopCallStack();
+#endif
+}
 
 void Lacpy( char uplo, Int m, Int n, const double* A, Int lda,
 	double* B, Int ldb	){
@@ -1744,6 +1764,18 @@ void Lacpy( char uplo, Int m, Int n, const double* A, Int lda,
     PopCallStack();
 #endif
 }
+
+void Lacpy( char uplo, Int m, Int n, const scomplex* A, Int lda,
+	scomplex* B, Int ldb	){
+#ifndef _RELEASE_
+    PushCallStack("lapack::Lacpy");
+#endif
+  LAPACK(clacpy)( &uplo, &m, &n, A, &lda, B, &ldb );
+#ifndef _RELEASE_
+    PopCallStack();
+#endif
+}
+
 
 void Lacpy( char uplo, Int m, Int n, const dcomplex* A, Int lda,
 	dcomplex* B, Int ldb	){
