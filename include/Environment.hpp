@@ -35,6 +35,18 @@
 #define _USE_COMPLEX_
 #include "datatypes.hpp"
 
+
+
+
+
+
+
+
+
+
+
+
+
 // TODO Remove environment_impl.hpp. Move things to utility.hpp and only
 // keep environment.hpp
 // Update numXXX_*.hpp and tinyvec*.hpp
@@ -97,6 +109,27 @@ const char LOWER = 'L';
  **********************************************************************/
 
 namespace LIBCHOLESKY{
+
+
+
+
+
+  extern Int iam,np;
+
+  inline void gdb_lock(){
+    int lock = 1;
+    while (lock == 1){
+      lock =1;
+    }
+  }
+
+
+
+
+
+
+
+
 
 
 #ifndef _RELEASE_

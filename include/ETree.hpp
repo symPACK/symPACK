@@ -60,7 +60,7 @@ public:
   inline Int Size() const { return parent_.m(); };
 
 
-  void SortChildren(IntNumVec & cc);
+  IntNumVec SortChildren(IntNumVec & cc);
 
 
 protected:

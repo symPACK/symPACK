@@ -123,13 +123,13 @@ template <typename T> inline std::ostream& operator<<( std::ostream& os, const N
   os<<"Nzcnt is "<<aBlock.Nzcnt()<<std::endl;
   os<<"ByteSize is "<<aBlock.ByteSize()<<std::endl;
   os<<"TotalSize is "<<aBlock.TotalSize()<<std::endl;
-//  os<<"Values are: "<<std::endl;
-//  for(Int i = 0; i< min(2,aBlock.NRows()); ++i){
-//    for(Int j = 0; j< min(2,aBlock.NCols()); ++j){
-//      os<<aBlock.Nzval(i,j)<<" ";
-//    }
-//    os<<std::endl;
-//  }
+  os<<"Values are: "<<std::endl;
+  for(Int i = 0; i< /*min(2,*/aBlock.NRows()/*)*/; ++i){
+    for(Int j = 0; j< /*min(2,*/aBlock.NCols()/*)*/; ++j){
+      os<<aBlock.Nzval(i,j)<<" ";
+    }
+    os<<std::endl;
+  }
   os<<"----End of NZBlock----"<<std::endl;
   return os;
 }

@@ -97,6 +97,7 @@ template< typename T> class SuperNode;
       inline T & Nzval(Int idx);
       inline T & Nzval(Int i, Int j, Int LDA = -1 );
 
+      inline void Zero() { for (Int i=0; i < Nzcnt(); i++) pNzval_[i] = ZERO<T>(); };
 
 //      inline const T& operator()(Int i, Int j) const;
 //      inline T& operator()(Int i, Int j);
@@ -115,6 +116,7 @@ template <typename T> inline std::ostream& operator<<( std::ostream& os, const N
 template <typename T> inline size_t NZBLOCK_HEADER_SIZE(){ return sizeof(NZBlockHeader<T>); };
 template <typename T> inline size_t NZBLOCK_OBJ_SIZE() { return sizeof(NZBlock<T>);};
 template <typename T> inline size_t NZBLOCK_ROW_SIZE(Int width){ return (width*sizeof(T) + NZBLOCK_HEADER_SIZE<T>() + NZBLOCK_OBJ_SIZE<T>()) ; };
+template <typename T> inline size_t NZBLOCK_FULL_SIZE(Int width,Int height){ return (height*width*sizeof(T) + NZBLOCK_HEADER_SIZE<T>() + NZBLOCK_OBJ_SIZE<T>()) ; };
 
 }
 

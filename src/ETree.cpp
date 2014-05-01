@@ -153,7 +153,7 @@ namespace LIBCHOLESKY{
   }
 
 
-  void ETree::SortChildren(IntNumVec & cc){
+  IntNumVec ETree::SortChildren(IntNumVec & cc){
     if(!bIsPostOrdered_){
       this->PostOrderTree();
     }
@@ -275,6 +275,7 @@ namespace LIBCHOLESKY{
       logfileptr->OFS()<<"ORDERED invPostNumber: "<<invPostNumber_<<std::endl;
 #endif
 
+    return perm;
 
   }
 

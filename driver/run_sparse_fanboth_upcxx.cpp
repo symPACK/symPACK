@@ -124,9 +124,103 @@ int main(int argc, char **argv)
     //Read the input matrix
     sparse_matrix_file_format_t informat;
     informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
+
+
+    Int nrhs = 5;
+
+    DblNumMat STEPS;
+    DblNumMat RHS;
+    DblNumMat XTrue;
+    {
+      sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
+      sparse_matrix_expand_symmetric_storage (Atmp);
+      sparse_matrix_convert (Atmp, CSR);
+      const csr_matrix_t * csrptr = (const csr_matrix_t *) Atmp->repr;
+      DblNumMat A(csrptr->n,csrptr->n);
+      csr_matrix_expand_to_dense (A.Data(), 0, A.m(), csrptr);
+
+      Int n = A.m();
+
+      STEPS.Resize(n,n);
+      SetValue(STEPS,0.0);
+
+      if(iam==0){
+        RHS.Resize(n,nrhs);
+        XTrue.Resize(n,nrhs);
+        SetValue(XTrue,1.0);
+        //      UniformRandom(XTrue);
+        blas::Gemm('N','N',n,nrhs,n,1.0,&A(0,0),n,&XTrue(0,0),n,0.0,&RHS(0,0),n);
+
+        //cal dposv
+        double norm = 0;
+
+        //do a solve
+        DblNumMat X = RHS;
+        //      DblNumMat A2 = A;
+        //      lapack::Posv('L',n,nrhs,&A2(0,0),n,&X(0,0),n);
+        //      
+        //      blas::Axpy(n*nrhs,-1.0,&XTrue(0,0),1,&X(0,0),1);
+        //      norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
+        //      logfileptr->OFS()<<"Norm of residual after POSV is "<<norm<<std::endl;
+        //
+        //      X = RHS;
+        lapack::Potrf('L',n,&A(0,0),n);
+
+        for(Int i = 0; i<A.m();++i){
+          for(Int j = 0; j<A.n();++j){
+            if(j>i){
+              A(i,j)=LIBCHOLESKY::ZERO<double>();
+            }
+          }
+        }
+
+
+        //      logfileptr->OFS()<<"Cholesky factor of POTRF:"<<A<<std::endl;
+
+
+        //simulate a potrs in order to get the intermediate values
+        for(Int j = 0; j<nrhs;++j){
+          for(Int k = 0; k<A.m();++k){
+            if(X(k,j)!=0){
+              X(k,j) = X(k,j) / A(k,k);
+              if(j==0){
+                STEPS(k,k) = X(k,j);
+              }
+              for(Int i = k+1;i<A.m();++i){
+                X(i,j) -= X(k,j)*A(i,k);
+                if(j==0){
+                  STEPS(i,k) -= X(k,j)*A(i,k);
+
+                  for(Int kk = 0;kk<k;++kk){
+                    //    STEPS(i,k)+=STEPS(i,kk);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        //blas::Trsm('L','L','N','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
+        logfileptr->OFS()<<"Solution after forward substitution:"<<X<<std::endl;
+        blas::Trsm('L','L','T','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
+        logfileptr->OFS()<<"Solution after back substitution:"<<X<<std::endl;
+
+        blas::Axpy(n*nrhs,-1.0,&XTrue(0,0),1,&X(0,0),1);
+        norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
+        logfileptr->OFS()<<"Norm of residual after MYPOSV is "<<norm<<std::endl;
+
+
+      }
+
+      destroy_sparse_matrix (Atmp);
+    }
+
+
+
+
+
     sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
     sparse_matrix_convert (Atmp, CSC);
-
     const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
     DistSparseMatrix<Real> HMat(cscptr,worldcomm);
 
@@ -149,6 +243,29 @@ int main(int argc, char **argv)
     SupernodalMatrix<double> SMat(HMat,mapping,worldcomm);
 
     SMat.Factorize(worldcomm);
+
+    RHS.Resize(SMat.Size(),nrhs);
+    MPI_Bcast(RHS.Data(),RHS.ByteSize(),MPI_BYTE,0,worldcomm);
+
+    logfileptr->OFS()<<"RHS:"<<RHS<<endl;
+
+    DblNumMat X = RHS;
+
+
+    //logfileptr->OFS()<<STEPS<<endl;
+
+    SMat.Solve(&X,worldcomm);
+
+
+
+    XTrue.Resize(SMat.Size(),nrhs);
+    MPI_Bcast(XTrue.Data(),XTrue.ByteSize(),MPI_BYTE,0,worldcomm);
+
+
+      blas::Axpy(X.m()*X.n(),-1.0,&XTrue(0,0),1,&X(0,0),1);
+      double norm = lapack::Lange('F',X.m(),X.n(),&X(0,0),X.m());
+      logfileptr->OFS()<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
+
 
 
     MPI_Barrier(worldcomm);

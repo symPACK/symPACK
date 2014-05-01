@@ -13,6 +13,9 @@ using std::cerr;
 
 namespace LIBCHOLESKY{
 
+
+Int iam,np;
+
 // *********************************************************************
 // IO functions
 // TODO Move this to utility.hpp and make them inline functions

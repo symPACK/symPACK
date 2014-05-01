@@ -45,10 +45,19 @@ template <typename T> class SupernodalMatrix{
   inline bool FindNextUpdate(Int src_snode_id, Int & src_first_row, Int & src_last_row, Int & tgt_snode_id);
   inline bool FindNextUpdate(SuperNode<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
 
-  inline bool FindPivot(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int & pivot_fr, Int & pivot_lr);
 
   void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
   public:
+
+
+
+
+  Int forward_update(NZBlock<T> & dist_nzblk, std::vector<Int> & GlobToLocIndx,SuperNode<T> * contrib,NumMat<T> & B, Int local_blkidx = -1);
+
+
+  void forward_update(SuperNode<T> * src_contrib,SuperNode<T> * tgt_contrib);
+  void back_update(SuperNode<T> * src_contrib,SuperNode<T> * tgt_contrib);
+
 
 	/// @brief MPI communicator
 	//MPI_Comm     comm = MPI_COMM_NULL;        
@@ -70,7 +79,7 @@ template <typename T> class SupernodalMatrix{
   void Factorize(MPI_Comm & pComm);
 
 
-  void Solve(NumMat<T> & B, MPI_Comm & pComm);
+  void Solve(NumMat<T> * RHS, MPI_Comm & pComm, NumMat<T> * Xptr=NULL);
 
 };
 
