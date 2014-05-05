@@ -5,9 +5,10 @@
 
 #define _DEBUG_
 
-#define TAG_FACTOR 0
+#define MAX_SNODE_SIZE 10
 
 namespace LIBCHOLESKY{
+
 
 
   template <typename T> SupernodalMatrix<T>::SupernodalMatrix(){
@@ -31,36 +32,31 @@ namespace LIBCHOLESKY{
     logfileptr->OFS()<<"colcnt "<<cc<<std::endl;
     logfileptr->OFS()<<"rowcnt "<<rc<<std::endl;
 
-    //ETree_.SortChildren(cc);
+    IntNumVec perm(Size());
+    for(Int i =0; i<perm.m();++i){perm[i]=i+1;}
+//    IntNumVec perm = ETree_.SortChildren(cc);
 
     logfileptr->OFS()<<"colcnt "<<cc<<std::endl;
 
-    Global_.FindSupernodes(ETree_,cc,SupMembership_,Xsuper_,1);
+    Global_.FindSupernodes(ETree_,cc,SupMembership_,Xsuper_,MAX_SNODE_SIZE);
 
-    logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
-    logfileptr->OFS()<<"xsuper "<<Xsuper_<<std::endl;
-
-    //  UpdatesCount.Resize(Xsuper_.Size());
-    //  for(Int I = 1; I<Xsuper_.Size();++I){
-    //    Int first_col = Xsuper_[I-1];
-    //    Int last_col = Xsuper_[I]-1;
-    //    for(Int 
-    //  }
+//    logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
+//    logfileptr->OFS()<<"xsuper "<<Xsuper_<<std::endl;
 
 
     Global_.SymbolicFactorization2(ETree_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
     //  Global_.SymbolicFactorization(ETree_,cc,Xsuper_,xlindx_,lindx_);
-    logfileptr->OFS()<<"xlindx "<<xlindx_<<std::endl;
-    logfileptr->OFS()<<"lindx "<<lindx_<<std::endl;
+//    logfileptr->OFS()<<"xlindx "<<xlindx_<<std::endl;
+//    logfileptr->OFS()<<"lindx "<<lindx_<<std::endl;
 
 
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_);
-    logfileptr->OFS()<<"Supernodal counts are "<<UpdateCount_<<std::endl;
-    logfileptr->OFS()<<"Supernodal update width are "<<UpdateWidth_<<std::endl;
+//    logfileptr->OFS()<<"Supernodal counts are "<<UpdateCount_<<std::endl;
+//    logfileptr->OFS()<<"Supernodal update width are "<<UpdateWidth_<<std::endl;
 
 
-    SupETree_ = ETree_.ToSupernodalETree(Xsuper_);
-    logfileptr->OFS()<<"Supernodal Etree is "<<SupETree_<<std::endl;
+//    SupETree_ = ETree_.ToSupernodalETree(Xsuper_);
+//    logfileptr->OFS()<<"Supernodal Etree is "<<SupETree_<<std::endl;
 
     Mapping_ = pMapping;
 
@@ -125,8 +121,11 @@ namespace LIBCHOLESKY{
       Int iStartIdxCopy = 0;
       //copy the data from A into this Block structure
       for(Int i = fc;i<=lc;i++){
+        //corresponding column in the unsorted matrix A
+        Int orig_i = perm(i-1);
 
-        Int iOwner = std::min((i-1)/numColFirst,np-1);
+//        Int iOwner = std::min((i-1)/numColFirst,np-1);
+        Int iOwner = std::min((orig_i-1)/numColFirst,np-1);
 
         if(iOwner != prevOwner){
 
@@ -137,23 +136,21 @@ namespace LIBCHOLESKY{
           Int iLCTransfered = lc;
 
           for(Int j =i;j<=lc;++j){
-            iOwner = std::min((j-1)/numColFirst,np-1);
+            //corresponding column in the unsorted matrix A
+            Int orig_j = perm(j-1);
+//            iOwner = std::min((j-1)/numColFirst,np-1);
+            iOwner = std::min((orig_j-1)/numColFirst,np-1);
             if(iOwner == prevOwner){
-              Int nrows = Global_.colptr(j) - Global_.colptr(j-1);
+//              Int nrows = Global_.colptr(j) - Global_.colptr(j-1);
+              Int nrows = Global_.colptr(orig_j) - Global_.colptr(orig_j-1);
               iNzTransfered+=nrows;
-              //              logfileptr->OFS()<<"Looking at col "<<j<<" which is on P"<<iOwner<<std::endl;
             }
             else{
-              iLCTransfered = j-1;
+//              iLCTransfered = j-1;
+              iLCTransfered =j-1;
               break;
             }
           } 
-
-
-          //#ifdef _DEBUG_
-          //logfileptr->OFS()<<"Column "<<i<<" to "<<iLCTransfered<<" are owned by P"<<prevOwner<<" and should go on P"<<iDest<<std::endl;
-          //logfileptr->OFS()<<"They contain "<<iNzTransfered<<" nz"<<std::endl;
-          //#endif
 
           //if data needs to be transfered
           if(iDest!=prevOwner){
@@ -165,7 +162,9 @@ namespace LIBCHOLESKY{
               iStartIdxCopy = 0;
             } 
             else if (iam == prevOwner){
-              Int local_i = (i-(numColFirst)*iam);
+//              Int local_i = (i-(numColFirst)*iam);
+              //USE THE PERM OBTAINED AFTER SORTING THE CHILDREN
+              Int local_i = (orig_i-(numColFirst)*iam);
               Int iColptrLoc = Local_.colptr(local_i-1);
               Int iRowIndLoc = Local_.rowind(iColptrLoc-1);
               Int iLastRowIndLoc = Local_.rowind(Local_.colptr(local_i)-1-1);
@@ -184,11 +183,11 @@ namespace LIBCHOLESKY{
           //isData transfered or local
           if(iam!=prevOwner){
             pdNzVal = aRemoteCol.Data();
-            //logfileptr->OFS()<<"pdNzVal is the remote buffer"<<std::endl;
-            //logfileptr->OFS()<<aRemoteCol<<std::endl;
           }
           else{
-            Int local_i = (i-(numColFirst)*iam);
+            //Int local_i = (i-(numColFirst)*iam);
+            //USE THE PERM OBTAINED AFTER SORTING THE CHILDREN
+            Int local_i = (orig_i-(numColFirst)*iam);
             Int iColptrLoc = Local_.colptr(local_i-1);
             pdNzVal = &pMat.nzvalLocal(iColptrLoc-1);
             //logfileptr->OFS()<<"pdNzVal is the local pMat"<<std::endl;
@@ -196,19 +195,21 @@ namespace LIBCHOLESKY{
           }
 
           //Copy the data from pdNzVal in the appropriate NZBlock
-
-          Int iGcolptr = Global_.colptr(i-1);
-          Int iNextColptr = Global_.colptr(i);
+          //Int iGcolptr = Global_.colptr(i-1);
+          //Int iNextColptr = Global_.colptr(i);
+          Int iGcolptr = Global_.colptr(orig_i-1);
+          Int iNextColptr = Global_.colptr(orig_i);
           Int iRowind = Global_.rowind(iGcolptr-1);
-          Int iNrows = Global_.colptr(i) - Global_.colptr(i-1);
+          Int iNrows = iNextColptr - iGcolptr;
           Int idxA = 0;
           Int iLRow = 0;
           Int firstrow = fi + i-fc;
           for(Int idx = firstrow; idx<=li;idx++){
             iLRow = lindx_(idx-1);
+            // Original row index in the unsorted matrix A
+            Int orig_iLRow = perm(lindx_(idx-1)-1);
             //logfileptr->OFS()<<"Looking at L("<<iLRow<<","<<i<<")"<<std::endl;
-            if( iLRow == iRowind){
-              //TODO we can use the Globaltolocal index here also
+            if( orig_iLRow == iRowind){
               Int iNZBlockIdx = snode.FindBlockIdx(iLRow);
 
               T elem = pdNzVal[iStartIdxCopy + idxA];
@@ -220,20 +221,14 @@ namespace LIBCHOLESKY{
                 Int localCol = i - fc;
                 Int localRow = iLRow - desc.GIndex;
 
-                //row major storage
-                dest[localRow*snode.Size()+localCol] = elem;
-  
-//              NZBlock<T> & pDestBlock = snode.GetNZBlock(iNZBlockIdx);
-//              //logfileptr->OFS()<<*pDestBlock<<std::endl;
-//
-//              //find where we should put it
-//              Int localCol = i - fc;
-//              Int localRow = iLRow - pDestBlock.GIndex();
-//#ifdef _DEBUG_
-//              logfileptr->OFS()<<"Elem is A("<<iRowind<<","<<i<<") = "<<elem<<" at ("<<localRow<<","<<localCol<<") in "<<iNZBlockIdx<<"th NZBlock of L"<< std::endl;
-//#endif
-//              pDestBlock.Nzval(localRow,localCol) = elem;
-
+//                if(iLRow > snode.LastCol()){
+                  //row major storage
+                  dest[localRow*snode.Size()+localCol] = elem;
+//                }
+//                else{
+//                  //col major storage
+//                  dest[localRow+localCol*snode.Size()] = elem;
+//                }
 
               if(iGcolptr+idxA+1<iNextColptr){
                 idxA++;
@@ -253,18 +248,15 @@ namespace LIBCHOLESKY{
 #endif
     }
 
+#ifdef _DEBUG_
     for(Int I=1;I<Xsuper_.m();I++){
       Int src_first_col = Xsuper_(I-1);
       Int src_last_col = Xsuper_(I)-1;
       Int iOwner = Mapping_.Map(I-1,I-1);
       //If I own the column, factor it
       if( iOwner == iam ){
-
-
-
         Int iLocalI = (I-1) / np +1 ;
         SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
-
 
         logfileptr->OFS()<<"+++++++++++++"<<I<<"++++++++"<<std::endl;
         for(int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
@@ -281,30 +273,11 @@ namespace LIBCHOLESKY{
             logfileptr->OFS()<<std::endl;
           }
 
-//        logfileptr->OFS()<<"................................"<<std::endl;
-//
-//          NZBlock<T> & nzblk = src_snode.GetNZBlock(blkidx);
-//          for(Int i = 0; i< nzblk.NRows(); ++i){
-//            for(Int j = 0; j< nzblk.NCols(); ++j){
-//              logfileptr->OFS()<<nzblk.Nzval(i,j)<<" ";
-//            }
-//            logfileptr->OFS()<<std::endl;
-//          }
         logfileptr->OFS()<<"_______________________________"<<std::endl;
         }
-
-//        Int nrhs = 5;
-//        NumMat<T> RHS(dense_snode.n(),nrhs);
-//        NumMat<T> XTrue(dense_snode.n(),nrhs);
-//        UniformRandom(XTrue);
-//        blas::Gemm('N','N',dense_snode.n(),nrhs,dense_snode.n(),1.0,&dense_snode(0,0),dense_snode.m(),&XTrue(0,0),XTrue.m(),0.0,&RHS(0,0),RHS.m());
-
-
-
-
       }
     }
-
+#endif
 
 
 
@@ -360,93 +333,6 @@ namespace LIBCHOLESKY{
     return Global_;
   }
 
-  //FIXME write this function also in terms of SparseMatrixStructure and supno rather than Supernode object.
-/*  template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(Int src_snode_id, Int & src_first_row, Int & src_last_row, Int & tgt_snode_id){
-    Int src_fc = Xsuper_(src_snode_id-1);
-    Int src_lc = Xsuper_(src_snode_id)-1;
-
-    //look in the global structure for the next nnz below row src_lc  
-    Int first_row_ptr = xlindx_(src_snode_id-1);
-    Int last_row_ptr = xlindx_(src_snode_id)-1;
-    Int src_last_row_ptr = 0;
-    Int src_first_row_ptr = 0;
-
-    Int subdiag_row_cnt = last_row_ptr - first_row_ptr;
-
-    Int first_row = lindx_(first_row_ptr-1);
-    Int last_row = lindx_(last_row_ptr-1);
-
-    //if tgt_snode_id == 0 , this is the first call to the function
-    if(tgt_snode_id == 0){
-
-      if(subdiag_row_cnt == 0 ){
-        return false;
-      }
-
-      Int first_row = lindx_(first_row_ptr);
-      tgt_snode_id = SupMembership_(first_row-1);
-      src_first_row = first_row;
-      src_last_row_ptr = first_row_ptr;
-    }
-    else{
-
-      //find the block corresponding to src_last_row
-      //src_nzblk_idx = src_snode.FindBlockIdx(src_last_row);
-
-      //src_last_row_ptr = src_last_row - lindx_(first_row_ptr-1) + first_row_ptr;
-      src_last_row_ptr = std::find(&lindx_(first_row_ptr-1),&lindx_(last_row_ptr), src_last_row) - &lindx_(first_row_ptr-1) + first_row_ptr;
-      if(src_last_row_ptr == last_row_ptr){
-        return false;
-      }
-      else{
-        src_first_row_ptr = src_last_row_ptr+1;
-        if(src_first_row_ptr > last_row_ptr){
-          return false;
-        }
-        else{
-          Int first_row = lindx_(src_first_row_ptr-1);
-          tgt_snode_id = SupMembership_(first_row-1);
-          src_first_row = first_row;
-        }
-      }
-    }
-
-    //Now we try to find src_last_row
-    src_first_row_ptr = src_last_row_ptr+1;
-    Int src_fr = src_first_row;
-
-    //Find the last contiguous row
-    Int src_lr = src_first_row;
-    for(Int i = src_first_row_ptr+1; i<=last_row_ptr; ++i){
-      if(src_lr+1 == lindx_(i-1)){ ++src_lr; }
-      else{ break; }
-    }
-
-    Int tgt_snode_id_first = SupMembership_(src_fr-1);
-    Int tgt_snode_id_last = SupMembership_(src_lr-1);
-    if(tgt_snode_id_first == tgt_snode_id_last){
-      //this can be a zero row in the src_snode
-      tgt_snode_id = tgt_snode_id_first;
-
-      //    src_last_row = min(src_lr,Xsuper_(tgt_snode_id_first)-1);
-
-      //Find the last row in src_snode updating tgt_snode_id
-      for(Int i = src_first_row_ptr +1; i<=last_row_ptr; ++i){
-        Int row = lindx_(i-1);
-        if(SupMembership_(row-1) != tgt_snode_id){ break; }
-        else{ src_last_row = row; }
-      }
-
-    }
-    else{
-      src_last_row = Xsuper_(tgt_snode_id_first)-1;
-      tgt_snode_id = tgt_snode_id_first;
-    }
-
-    return true;
-
-  }
-*/
 
   template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(SuperNode<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row, Int & src_last_row, Int & tgt_snode_id){
     //src_nzblk_idx is the last nzblock index examined
@@ -469,8 +355,6 @@ namespace LIBCHOLESKY{
 
       if(src_nzblk_idx == -1 ){
         return false;
-        //logfileptr->OFS()<<std::endl;
-        //logfileptr->OFS()<<std::endl;
       }
       else{
             assert(src_nzblk_idx<src_snode.NZBlockCnt());
@@ -488,8 +372,6 @@ namespace LIBCHOLESKY{
         NZBlockDesc & desc = src_snode.GetNZBlockDesc(src_nzblk_idx);
         Int src_lr = desc.GIndex + src_snode.NRows(src_nzblk_idx)-1;
 
-//        NZBlock<T> & nzblk = src_snode.GetNZBlock(src_nzblk_idx);
-//        Int src_lr = nzblk.GIndex()+nzblk.NRows()-1;
         if(src_last_row == src_lr){
           src_nzblk_idx++;
           if(src_nzblk_idx==src_snode.NZBlockCnt()){
@@ -512,38 +394,43 @@ namespace LIBCHOLESKY{
     Int src_fr = max(src_first_row,desc.GIndex);
     Int src_lr = desc.GIndex+src_snode.NRows(src_nzblk_idx)-1;
 
-//    NZBlock<T> & nzblk = src_snode.GetNZBlock(src_nzblk_idx);
-//    assert(src_first_row >= nzblk.GIndex());
-//    Int src_fr = max(src_first_row,nzblk.GIndex());
-//    Int src_lr = nzblk.GIndex()+nzblk.NRows()-1;
-
-
     Int tgt_snode_id_first = SupMembership_(src_fr-1);
     Int tgt_snode_id_last = SupMembership_(src_lr-1);
-
-    //logfileptr->OFS()<<"First row of Supernode "<< src_snode.Id() <<" updates Supernode "<<tgt_snode_id_first<<std::endl;
-    //logfileptr->OFS()<<"NZ block is "<<nzblk<<std::endl;
 
     if(tgt_snode_id_first == tgt_snode_id_last){
       //this can be a zero row in the src_snode
       tgt_snode_id = tgt_snode_id_first;
 
-      src_last_row = Xsuper_(tgt_snode_id_first)-1;
+      Int last_tgt_col = Xsuper_(tgt_snode_id_first)-1;
+
+      //We might have another block updating the same snode
+      if(src_lr < last_tgt_col){
+        src_last_row = src_lr;
+        for(Int blkidx = src_nzblk_idx; blkidx<src_snode.NZBlockCnt();++blkidx){
+          if(src_snode.GetNZBlockDesc(blkidx).GIndex <= last_tgt_col){
+            src_last_row = min(last_tgt_col,src_snode.GetNZBlockDesc(blkidx).GIndex + src_snode.NRows(blkidx) -1);
+          }
+          else{
+            break;
+          }
+        }
+      }
+      else{
+        src_last_row = last_tgt_col;
+      }
 
       //look into other nzblk
 
-      //Find the last row in src_snode updating tgt_snode_id
-      Int new_blk_idx = src_snode.FindBlockIdx(src_last_row);
-      if(new_blk_idx==-1/*>=src_snode.NZBlockCnt()*/){
-        //src_last_row is the last row of the last nzblock
-        new_blk_idx = src_snode.NZBlockCnt()-1; 
-      }
+//      //Find the last row in src_snode updating tgt_snode_id
+//      Int new_blk_idx = src_snode.FindBlockIdx(src_last_row);
+//      if(new_blk_idx==-1/*>=src_snode.NZBlockCnt()*/){
+//        //src_last_row is the last row of the last nzblock
+//        new_blk_idx = src_snode.NZBlockCnt()-1; 
+//      }
+//
+//      NZBlockDesc & last_desc = src_snode.GetNZBlockDesc(new_blk_idx); 
+//      src_last_row = min(src_last_row,last_desc.GIndex + src_snode.NRows(new_blk_idx) - 1);
 
-      NZBlockDesc & last_desc = src_snode.GetNZBlockDesc(new_blk_idx); 
-      src_last_row = min(src_last_row,last_desc.GIndex + src_snode.NRows(new_blk_idx) - 1);
-
-//      NZBlock<T> & last_block = src_snode.GetNZBlock(new_blk_idx); 
-//      src_last_row = min(src_last_row,last_block.GIndex() + last_block.NRows() - 1);
       assert(src_last_row<= Xsuper_(tgt_snode_id_first)-1);
     }
     else{
@@ -562,110 +449,147 @@ namespace LIBCHOLESKY{
   }
 
 
-
   template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr = I_ZERO){
-    NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(pivot_idx);
-    if(pivot_fr ==I_ZERO){
-      pivot_fr = pivot_desc.GIndex;
-    }
-    assert(pivot_fr >= pivot_desc.GIndex);
-    Int pivot_nrows = src_snode.NRows(pivot_idx);
-    Int pivot_lr = min(pivot_desc.GIndex + pivot_nrows -1, pivot_fr + tgt_snode.Size() -1);
-    T * pivot = &(src_snode.GetNZval(pivot_desc.Offset)[(pivot_fr-pivot_desc.GIndex)*src_snode.Size()]);
 
-//    NZBlock<T> & pivot_nzblk = src_snode.GetNZBlock(pivot_idx);
-//    if(pivot_fr ==I_ZERO){
-//      pivot_fr = pivot_nzblk.GIndex();
-//    }
-//    assert(pivot_fr >= pivot_nzblk.GIndex());
-//    Int pivot_lr = min(pivot_nzblk.GIndex() +pivot_nzblk.NRows() -1, pivot_fr + tgt_snode.Size() -1);
-//    T * pivot = & pivot_nzblk.Nzval(pivot_fr-pivot_nzblk.GIndex(),0);
+    NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(pivot_idx);
+    Int first_pivot_fr = pivot_fr;
+      if(first_pivot_fr ==I_ZERO ){
+        first_pivot_fr = first_pivot_desc.GIndex;
+      }
 
-    Int tgt_updated_fc =  pivot_fr - tgt_snode.FirstCol();
+    //start with the first pivot
+    for(int cur_piv_idx=pivot_idx;cur_piv_idx<src_snode.NZBlockCnt();++cur_piv_idx){
 
-    for(int src_idx=pivot_idx;src_idx<src_snode.NZBlockCnt();++src_idx){
 
-      NZBlockDesc & src_desc = src_snode.GetNZBlockDesc(src_idx);
-      Int src_fr = max(pivot_fr, src_desc.GIndex) ;
-      Int src_nrows = src_snode.NRows(src_idx);
-      Int src_lr = src_desc.GIndex+src_nrows-1;
+      NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(cur_piv_idx);
 
-//      NZBlock<T> & src_nzblk = src_snode.GetNZBlock(src_idx);
-//      Int src_fr = max(pivot_fr, src_nzblk.GIndex()) ;
-//      Int src_lr = src_nzblk.GIndex()+src_nzblk.NRows()-1;
+      if(pivot_fr ==I_ZERO || cur_piv_idx != pivot_idx){
+        pivot_fr = pivot_desc.GIndex;
+      }
 
-      do{
-        //TODO Need to be replaced by GlobToLoc index
-        Int tgt_idx = tgt_snode.FindBlockIdx(src_fr);
+      assert(pivot_fr >= pivot_desc.GIndex);
 
-        assert(tgt_idx!=-1 && tgt_idx<tgt_snode.NZBlockCnt());
+      if(pivot_fr>tgt_snode.LastCol()){
+        break;
+      }
 
-        NZBlockDesc & tgt_desc = tgt_snode.GetNZBlockDesc(tgt_idx);
-        Int tgt_nrows = tgt_snode.NRows(tgt_idx);
-        Int tgt_fr = tgt_desc.GIndex;
-        Int tgt_lr = tgt_desc.GIndex+tgt_nrows-1;
+      Int pivot_nrows = src_snode.NRows(cur_piv_idx);
+      Int pivot_lr = min(pivot_desc.GIndex + pivot_nrows -1, tgt_snode.LastCol());
+      T * pivot = &(src_snode.GetNZval(pivot_desc.Offset)[(pivot_fr-pivot_desc.GIndex)*src_snode.Size()]);
 
-//        NZBlock<T> & tgt_nzblk = tgt_snode.GetNZBlock(tgt_idx);
-//        Int tgt_fr = tgt_nzblk.GIndex();
-//        Int tgt_lr = tgt_nzblk.GIndex()+tgt_nzblk.NRows()-1;
+      //determine the first column that will be updated in the target supernode
+      Int tgt_updated_fc =  pivot_fr - tgt_snode.FirstCol();
+      Int tgt_updated_lc =  pivot_lr - tgt_snode.FirstCol();
 
-        Int update_fr = max(tgt_fr, src_fr);
-        Int update_lr = min(tgt_lr, src_lr);
+      for(int src_idx=pivot_idx;src_idx<src_snode.NZBlockCnt();++src_idx){
 
-        assert(update_fr >= tgt_fr); 
-        assert(update_lr >= update_fr); 
-        assert(update_lr <= tgt_lr); 
+        NZBlockDesc & src_desc = src_snode.GetNZBlockDesc(src_idx);
 
-        //Update tgt_nzblk with src_nzblk
-        //        logfileptr->OFS()<<"Updating SNODE "<<tgt_snode.Id()<<" Block "<<tgt_idx<<" ["<<update_fr<<".."<<update_lr<<"] with SNODE "<<src_snode.Id()<<" Block "<<src_idx<<" ["<<update_fr<<".."<<update_lr<<"]"<<endl;
+        Int src_fr = max(first_pivot_fr, src_desc.GIndex) ;
+        //Int src_fr = src_desc.GIndex;
+        Int src_nrows = src_snode.NRows(src_idx);
+        Int src_lr = src_desc.GIndex+src_nrows-1;
 
-        T * src = &(src_snode.GetNZval(src_desc.Offset)[(update_fr - src_desc.GIndex)*src_snode.Size()]);
-        T * tgt = &(tgt_snode.GetNZval(tgt_desc.Offset)[(update_fr - tgt_desc.GIndex)*tgt_snode.Size()+tgt_updated_fc]);
-//        T * src = &src_nzblk.Nzval(update_fr - src_nzblk.GIndex() ,0);
-//        T * tgt = &tgt_nzblk.Nzval(update_fr - tgt_nzblk.GIndex() ,tgt_updated_fc);
+        do{
+          //TODO Need to be replaced by GlobToLoc index
+          Int tgt_idx = tgt_snode.FindBlockIdx(src_fr);
+
+          if(tgt_idx==-1){
+            break;
+          }
+
+          assert(tgt_idx!=-1 && tgt_idx<tgt_snode.NZBlockCnt());
+
+          NZBlockDesc & tgt_desc = tgt_snode.GetNZBlockDesc(tgt_idx);
+          Int tgt_nrows = tgt_snode.NRows(tgt_idx);
+          Int tgt_fr = tgt_desc.GIndex;
+          Int tgt_lr = tgt_desc.GIndex+tgt_nrows-1;
+
+          Int update_fr = max(tgt_fr, src_fr);
+          Int update_lr = min(tgt_lr, src_lr);
+
+          assert(update_fr >= tgt_fr); 
+          assert(update_lr >= update_fr); 
+          assert(update_lr <= tgt_lr); 
+
+
 
 #ifdef _DEBUG_
-          logfileptr->OFS()<<"| "<<tgt[0]<<" | = | "<<tgt[0]<<" | - |"<<src[0]<<"| * | ";
-          for(Int i =0;i<pivot_lr-pivot_fr+1 ;++i){
-            logfileptr->OFS()<<pivot[i]<<" ";
-          }
-          logfileptr->OFS()<<"|"<<std::endl;
-          for(Int i =1;i<update_lr - update_fr + 1 ;++i){
-            logfileptr->OFS()<<"| "<<tgt[i]<<" |   | "<<tgt[i]<<" | - |"<<src[i]<<"|"<<std::endl;
-          }
+          logfileptr->OFS()<<"L("<<update_fr<<".."<<update_lr<<","<<tgt_snode.FirstCol()+tgt_updated_fc<<".."<< tgt_snode.FirstCol()+tgt_updated_lc <<") -= L("<<update_fr<<".."<<update_lr<<",:) * L("<<pivot_fr<<".."<<pivot_lr<<",:)'"<<endl;
 #endif
 
-        blas::Gemm('T','N',pivot_lr-pivot_fr+1, update_lr - update_fr + 1,src_snode.Size(),MINUS_ONE<T>(),pivot,src_snode.Size(),src,src_snode.Size(),ONE<T>(),tgt,tgt_snode.Size());
 
-#ifdef ROW_MAJOR
-//        blas::Gemm('T','N',pivot_lr-pivot_fr+1, update_lr - update_fr + 1,src_snode.Size(),1.0,pivot,pivot_nzblk.LDA(),src,src_nzblk.LDA(),1.0,tgt,tgt_nzblk.LDA());
-#else
-//        blas::Gemm('N','T', update_lr - update_fr + 1,pivot_lr-pivot_fr+1,  src_snode.Size(),MINUS_ONE<T>(),src,src_nzblk.LDA(),pivot,pivot_nzblk.LDA(),ONE<T>(),tgt,tgt_nzblk.LDA());
+
+          //Update tgt_nzblk with src_nzblk
+
+          T * src = &(src_snode.GetNZval(src_desc.Offset)[(update_fr - src_desc.GIndex)*src_snode.Size()]);
+          T * tgt = &(tgt_snode.GetNZval(tgt_desc.Offset)[(update_fr - tgt_desc.GIndex)*tgt_snode.Size()+tgt_updated_fc]);
+
+//#ifdef _DEBUG_
+//          logfileptr->OFS()<<"| ";
+//          for(Int j =0;j<pivot_lr-pivot_fr+1 ;++j){
+//            logfileptr->OFS()<<tgt[0+j]<<" ";
+//          }
+//
+//          logfileptr->OFS()<<"| = | ";
+//          for(Int j =0;j<pivot_lr-pivot_fr+1 ;++j){
+//            logfileptr->OFS()<<tgt[0+j]<<" ";
+//          }
+//
+//          logfileptr->OFS()<<"| - | ";
+//          for(Int j =0;j<src_snode.Size() ;++j){
+//            logfileptr->OFS()<<src[0+j]<<" ";
+//          }
+//
+//          logfileptr->OFS()<<"| * | ";
+//          for(Int i =0;i<pivot_lr-pivot_fr+1 ;++i){
+//            logfileptr->OFS()<<pivot[i]<<" ";
+//          }
+//          logfileptr->OFS()<<"|"<<std::endl;
+//
+//
+//
+//
+//
+//          for(Int i =1;i<update_lr - update_fr + 1 ;++i){
+//            for(Int j =0;j<pivot_lr-pivot_fr+1 ;++j){
+//              logfileptr->OFS()<<tgt[i*tgt_snode.Size()+j]<<" ";
+//            }
+//
+//            logfileptr->OFS()<<"|   | ";
+//            for(Int j =0;j<pivot_lr-pivot_fr+1 ;++j){
+//              logfileptr->OFS()<<tgt[i*tgt_snode.Size()+j]<<" ";
+//            }
+//
+//            logfileptr->OFS()<<"| - | ";
+//            for(Int j =0;j<src_snode.Size() ;++j){
+//              logfileptr->OFS()<<src[i*src_snode.Size()+j]<<" ";
+//            }
+//            logfileptr->OFS()<<"|"<<std::endl;
+//          }
+//#endif
+
+          //if(tgt_idx>0){
+          //everything is in row-major
+          blas::Gemm('T','N',pivot_lr-pivot_fr+1, update_lr - update_fr + 1,src_snode.Size(),MINUS_ONE<T>(),pivot,src_snode.Size(),src,src_snode.Size(),ONE<T>(),tgt,tgt_snode.Size());
+          //}
+          //else{
+          //        //src is row major while tgt is col major
+          //}
+          if(tgt_idx+1<tgt_snode.NZBlockCnt()){
+            NZBlockDesc & next_tgt_desc = tgt_snode.GetNZBlockDesc(tgt_idx+1);
+            src_fr = next_tgt_desc.GIndex;
+          }
+          else{
+            break;
+          }
+        }while(src_fr<=src_lr);
+      }
+    } //end for pivots
+
+#ifdef _DEBUG_
+          logfileptr->OFS()<<tgt_snode<<std::endl;
 #endif
-
-//        if(tgt_snode.Id()==46 && tgt_idx==1){
-//          logfileptr->OFS()<<*tgt<<std::endl;
-//        }
-//        //special case for diagonal block
-//        if(src_lr > tgt_lr){
-//          assert(tgt_idx==0);
-//          //keep the same source block, just change first line
-//          src_fr = tgt_lr+1;
-//        }
-        
-        if(tgt_idx+1<tgt_snode.NZBlockCnt()){
-          NZBlockDesc & next_tgt_desc = tgt_snode.GetNZBlockDesc(tgt_idx+1);
-          src_fr = next_tgt_desc.GIndex;
-
-//          NZBlock<T> & next_tgt_nzblk = tgt_snode.GetNZBlock(tgt_idx+1);
-//          Int next_tgt_fr = next_tgt_nzblk.GIndex();
-//          src_fr = next_tgt_fr;
-        }
-        else{
-          break;
-        }
-      }while(src_fr<=src_lr);
-    }
 
   }
 
@@ -716,93 +640,6 @@ namespace LIBCHOLESKY{
           logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
 #endif
         }
-
-
-//        //Remote updates
-//        std::vector<char> src_nzblocks;
-//
-//        size_t num_bytes;
-//        while(UpdatesToDo(I-1)>0){
-//          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
-//
-//          if(src_nzblocks.size()==0){
-//            //The upper bound must be of the width of the "largest" child
-//            logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;
-//
-//            num_bytes = sizeof(Int)+sizeof(NZBlock<T>);
-//            for(Int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
-//              num_bytes += src_snode.GetNZBlock(blkidx).NRows()*NZBLOCK_ROW_SIZE<T>(UpdateWidth_(I-1));
-//            }
-//            logfileptr->OFS()<<"We allocate a buffer of size "<<num_bytes<<std::endl;
-//            src_nzblocks.resize(num_bytes);
-//          }
-//
-//
-//          //receive the index array
-//
-//
-//          //MPI_Recv
-//          MPI_Status recv_status;
-//
-//          MPI_Probe(MPI_ANY_SOURCE,I,pComm,&recv_status);
-//          int bytes_to_receive = 0;
-//          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_to_receive);
-//          assert(src_nzblocks.size()>=bytes_to_receive);
-//
-//
-//
-//
-//          char * recv_buf = &src_nzblocks[0]+ max(sizeof(Int),NZBLOCK_OBJ_SIZE<T>())-min(sizeof(Int),NZBLOCK_OBJ_SIZE<T>());
-//          MPI_Recv(recv_buf,&*src_nzblocks.end()-recv_buf,MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
-//          //logfileptr->OFS()<<"Received something"<<endl;
-//          Int src_snode_id = *(Int*)recv_buf;
-//
-//
-//          //Resize the buffer to the actual number of bytes received
-//          int bytes_received = 0;
-//          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-//          src_nzblocks.resize(recv_buf+bytes_received - &src_nzblocks[0]);
-//
-//
-//          //Create the dummy supernode for that data
-//          SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1,&src_nzblocks);
-//
-//          logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<std::endl;
-//          //      logfileptr->OFS()<<dist_src_snode<<endl;
-//
-//
-//          //Update everything I own with that factor
-//          //Update the ancestors
-//          Int tgt_snode_id = 0;
-//          Int src_first_row = 0;
-//          Int src_last_row = 0;
-//          Int src_nzblk_idx = 0;
-//          while(FindNextUpdate(dist_src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
-//            Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
-//            if(iTarget == iam){
-//              logfileptr->OFS()<<"RECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
-//
-//              Int iLocalJ = (tgt_snode_id-1) / np +1 ;
-//              SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
-//
-//              UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, src_first_row);
-//
-//              --UpdatesToDo(tgt_snode_id-1);
-//              logfileptr->OFS()<<UpdatesToDo(tgt_snode_id-1)<<" updates left for Supernode "<<tgt_snode_id<<endl;
-//            }
-//          }
-//
-//
-//
-//          //restore to its capacity
-//          src_nzblocks.resize(num_bytes);
-//
-//        }
-//        //clear the buffer
-//        { vector<char>().swap(src_nzblocks);  }
-//
-
-
 
         //Remote updates
         std::vector<T> src_nzval;
@@ -885,15 +722,10 @@ namespace LIBCHOLESKY{
 #endif
             }
           }
-
-
-
-          //restore to its capacity
-//          src_nzblocks.resize(num_bytes);
-
         }
         //clear the buffer
-//        { vector<char>().swap(src_nzblocks);  }
+        { vector<char>().swap(src_blocks);  }
+        { vector<T>().swap(src_nzval);  }
 
 
 
@@ -904,42 +736,42 @@ namespace LIBCHOLESKY{
 
 #ifdef _DEBUG_
         logfileptr->OFS()<<"  Factoring Supernode "<<I<<std::endl;
+        logfileptr->OFS()<<src_snode<<std::endl;
 #endif
 
         //Factorize Diagonal block
         NZBlockDesc & diag_desc = src_snode.GetNZBlockDesc(0);
         T * diag_nzval = src_snode.GetNZval(diag_desc.Offset);
+
+ //       T * tmp = new T[src_snode.Size()*src_snode.Size()];
+ //       for(Int i = 0; i<src_snode.Size();++i){
+ //         for(Int j = 0; j<src_snode.Size();++j){
+ //           tmp[i + j*src_snode.Size()] = diag_nzval[i*src_snode.Size()+j];
+ //         }
+ //       }
+ //       lapack::Potrf( 'L', src_snode.Size(), tmp, src_snode.Size());
+
+ //       for(Int i = 0; i<src_snode.Size();++i){
+ //         for(Int j = 0; j<src_snode.Size();++j){
+ //           diag_nzval[j + i*src_snode.Size()] = tmp[j*src_snode.Size()+i];
+ //         }
+ //       }
+
+ //       delete [] tmp;
+
         lapack::Potrf( 'U', src_snode.Size(), diag_nzval, src_snode.Size());
 
         if(src_snode.NZBlockCnt()>1){
           NZBlockDesc & nzblk_desc = src_snode.GetNZBlockDesc(1);
           T * nzblk_nzval = src_snode.GetNZval(nzblk_desc.Offset);
-          blas::Trsm('L','U','N','N',src_snode.Size(),  src_snode.NRowsBelowBlock(1), ONE<T>(),  diag_nzval, src_snode.Size(), nzblk_nzval, src_snode.Size());
+//          blas::Trsm('L','U','N','N',src_snode.Size(),  src_snode.NRowsBelowBlock(1), ONE<T>(),  diag_nzval, src_snode.Size(), nzblk_nzval, src_snode.Size());
 
+          blas::Trsm('L','U','T','N',src_snode.Size(), src_snode.NRowsBelowBlock(1), ONE<T>(),  diag_nzval, src_snode.Size(), nzblk_nzval, src_snode.Size());
 //correct col-major
 //          blas::Trsm('R','L','T','N',nzblk.NRows(),src_snode.Size(), ONE<T>(),  diagonalBlock.Nzval(), diagonalBlock.LDA(), nzblk.Nzval(), nzblk.LDA());
         }
 
-//        NZBlock<T> & diagonalBlock = src_snode.GetNZBlock(0);
-//
-//#ifdef ROW_MAJOR
-//        lapack::Potrf( 'U', src_snode.Size(), diagonalBlock.Nzval(), diagonalBlock.LDA());
-//#else
-//        lapack::Potrf( 'L', src_snode.Size(), diagonalBlock.Nzval(), diagonalBlock.LDA());
-//#endif
-//
-//        for(int blkidx=1;blkidx<src_snode.NZBlockCnt();++blkidx){
-//          NZBlock<T> & nzblk = src_snode.GetNZBlock(blkidx);
-//
-//          //Update lower triangular blocks
-//#ifdef ROW_MAJOR
-//          blas::Trsm('R','U','T','N',nzblk.NCols(),src_snode.Size(), ONE<T>(),  diagonalBlock.Nzval(), diagonalBlock.LDA(), nzblk.Nzval(), nzblk.LDA());
-//#else
-//          blas::Trsm('R','L','T','N',nzblk.NRows(),src_snode.Size(), ONE<T>(),  diagonalBlock.Nzval(), diagonalBlock.LDA(), nzblk.Nzval(), nzblk.LDA());
-//#endif
-//        }
-
-
+        logfileptr->OFS()<<src_snode<<std::endl;
 
         //Send my factor to my ancestors. 
         BolNumVec is_factor_sent(np);
@@ -1034,12 +866,24 @@ namespace LIBCHOLESKY{
       MPI_Barrier(pComm);
     }
 
-    NumMat<T> fullMatrix;
+
+
+
+
+  }
+
+
+
+
+template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & fullMatrix, MPI_Comm &pComm){
     if(iam==0){
       fullMatrix.Resize(this->Size(),this->Size());
       SetValue(fullMatrix,ZERO<T>());
     }
 
+
+
+#ifdef _DEBUG_
     //output L
     for(Int I=1;I<Xsuper_.m();I++){
       Int src_first_col = Xsuper_(I-1);
@@ -1098,7 +942,9 @@ namespace LIBCHOLESKY{
             T * dest = fullMatrix.Data();
             for(Int i = 0; i<nRows;++i){
               for(Int j = 0; j<src_snode.Size();++j){
-                dest[nzblk_desc.GIndex -1 + i + (src_snode.FirstCol()-1+j)*fullMatrix.m()] = nzblk_nzval[i * src_snode.Size() + j];
+                if(nzblk_desc.GIndex -1 + i >= src_snode.FirstCol()-1+j){
+                  dest[nzblk_desc.GIndex -1 + i + (src_snode.FirstCol()-1+j)*fullMatrix.m()] = nzblk_nzval[i * src_snode.Size() + j];
+                }
               }
             }
           } 
@@ -1115,7 +961,9 @@ namespace LIBCHOLESKY{
             T * dest = fullMatrix.Data();
             for(Int i = 0; i<nRows;++i){
               for(Int j = 0; j<src_snode.Size();++j){
-                dest[nzblk_desc.GIndex -1 + i + (src_snode.FirstCol()-1+j)*fullMatrix.m()] = nzblk_nzval[i * src_snode.Size() + j];
+                if(nzblk_desc.GIndex -1 + i >= src_snode.FirstCol()-1+j){
+                  dest[nzblk_desc.GIndex -1 + i + (src_snode.FirstCol()-1+j)*fullMatrix.m()] = nzblk_nzval[i * src_snode.Size() + j];
+                }
               }
             }
           }
@@ -1127,7 +975,12 @@ namespace LIBCHOLESKY{
       if(iam==0){
     logfileptr->OFS()<<fullMatrix<<std::endl;
      } 
-  }
+#endif
+
+}
+
+
+
 
 
   template <typename T> void SupernodalMatrix<T>::forward_update(SuperNode<T> * src_contrib,SuperNode<T> * tgt_contrib){
@@ -1223,69 +1076,11 @@ namespace LIBCHOLESKY{
     }
   }
 
-  template <typename T> Int SupernodalMatrix<T>::forward_update(NZBlock<T> & dist_nzblk, std::vector<Int> & GlobToLocIndx,SuperNode<T> * contrib,NumMat<T> & B, Int local_blkidx = -1){
-
-////            if(local_blkidx==-1){
-////              local_blkidx = GlobToLocIndx[dist_nzblk.GIndex()-1];
-////            }
-////
-////            NZBlock<T> & local_nzblk = contrib->GetNZBlock(local_blkidx);
-////            Int src_local_fr = max(local_nzblk.GIndex() - dist_nzblk.GIndex(),0);
-////            Int src_lr = dist_nzblk.GIndex()+dist_nzblk.NRows()-1;
-////
-////            Int tgt_local_fr = max(dist_nzblk.GIndex() - local_nzblk.GIndex(),0);
-////            Int tgt_lr = local_nzblk.GIndex()+local_nzblk.NRows()-1;
-////            Int tgt_local_lr = min(src_lr,tgt_lr) - local_nzblk.GIndex();
-////
-//////            if(tgt_local_fr>0){
-//////              //copy B in the space preceding the updated block
-//////              lapack::Lacpy('N',tgt_local_fr,local_nzblk.NCols(),
-//////                  &B(local_nzblk.GIndex()-1,0),B.m(),
-//////                  &local_nzblk.Nzval(0,0),local_nzblk.LDA());
-//////            }
-//////
-//////            //copy the contrib
-//////            lapack::Lacpy('N',tgt_local_lr - tgt_local_fr +1,dist_nzblk.NCols(),
-//////                &dist_nzblk.Nzval(src_local_fr,0),dist_nzblk.LDA(),
-//////                &local_nzblk.Nzval(tgt_local_fr,0),local_nzblk.LDA());
-//////            if(tgt_local_lr+1<local_nzblk.NRows()){
-//////              //copy B in the space following the updated block
-//////              lapack::Lacpy('N',local_nzblk.NRows()-(tgt_local_lr+1),local_nzblk.NCols(),
-//////                  &B(local_nzblk.GIndex()-1+(tgt_local_lr+1),0),B.m(),
-//////                  &local_nzblk.Nzval(tgt_local_lr+1,0),local_nzblk.LDA());
-//////            }
-////
-////
-////            //add the contrib
-////#ifdef ROW_MAJOR
-////            blas::Axpy((tgt_local_lr - tgt_local_fr +1)*dist_nzblk.NCols(),
-////                          ONE<T>(),&dist_nzblk.Nzval(src_local_fr,0),1,
-////                            &local_nzblk.Nzval(tgt_local_fr,0),1);
-////#else
-////            for(Int j = 0; j< dist_nzblk.NCols();++j){
-////
-////              blas::Axpy((tgt_local_lr - tgt_local_fr +1),
-////                          ONE<T>(),&dist_nzblk.Nzval(src_local_fr,j),1,
-////                             &local_nzblk.Nzval(tgt_local_fr,j),1);
-////            }
-////#endif
-////
-////      return local_blkidx;
-
-}
-
-
-
   template <typename T> void SupernodalMatrix<T>::Solve(NumMat<T> * RHS, MPI_Comm & pComm, NumMat<T> * Xptr=NULL){
 
 
     NumMat<T> & B = *RHS;
     Int nrhs = B.n();
-
-//    NumMat<T> TMP(B.m(),B.n());
-//    NumMat<T> STEPS_SP(B.m(),B.m());
-//    SetValue(STEPS_SP,ZERO<T>()); 
-//    SetValue(TMP,ZERO<T>()); 
 
     Int iam,np;
     MPI_Comm_rank(pComm, &iam);
@@ -1336,16 +1131,9 @@ namespace LIBCHOLESKY{
         for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
           NZBlockDesc & cur_desc = cur_snode->GetNZBlockDesc(blkidx);
           contrib->AddNZBlock(cur_snode->NRows(blkidx),nrhs,cur_desc.GIndex);
-//          NZBlock<T> & contrib_nzblk = contrib->GetNZBlock(blkidx);
-//          contrib_nzblk.Zero();
-//          SetValue(contrib_nzblk.Nzval(),ZERO<T>());
-          
         }
 
-        Int oldsize =contrib->StorageSize();
-        Int newsize =contrib->Shrink();
-//        logfileptr->OFS()<<"new size of contrib is "<<newsize<<" vs "<<oldsize<<std::endl;
-
+        contrib->Shrink();
 
         //Do all my updates (Local and remote)
         //Local updates
@@ -1355,7 +1143,10 @@ namespace LIBCHOLESKY{
 
           SuperNode<T> * dist_contrib = contributions[(contrib_snode_id-1) / np];
 
+#ifdef _DEBUG_
           logfileptr->OFS()<<"LOCAL Supernode "<<I<<" is updated by contrib of Supernode "<<contrib_snode_id<<std::endl;
+#endif
+
           forward_update(dist_contrib,contrib);
             //delete contributions[(contrib_snode_id-1) / np];
           --UpdatesToDo(I-1);
@@ -1368,8 +1159,9 @@ namespace LIBCHOLESKY{
         Int nz_cnt;
         while(UpdatesToDo(I-1)>0){
           //receive children contrib
+#ifdef _DEBUG_
           logfileptr->OFS()<<UpdatesToDo(I-1)<<" contribs left"<<endl;
-
+#endif
 
 
 
@@ -1533,10 +1325,6 @@ namespace LIBCHOLESKY{
       }
     }
 
-//////    logfileptr->OFS()<<"Solution after each step is "<<STEPS_SP<<std::endl;
-//////    logfileptr->OFS()<<"Solution is after forward substitution is "<<TMP<<std::endl;
-////
-//////    SetValue(STEPS_SP,ZERO<T>());
     //Back-substitution phase
 
     //start from the root of the tree
@@ -1567,6 +1355,8 @@ namespace LIBCHOLESKY{
             back_update(dist_contrib,contrib);
           }
           else{
+
+            assert(iOwner!=iam);
 
             //Receive parent contrib
             std::vector<char> src_blocks;
@@ -1643,21 +1433,7 @@ namespace LIBCHOLESKY{
                   Int src_row = chol_desc.GIndex - cur_desc.GIndex +kk;
                   if(src_row< cur_nrows){
                     temp += -chol_nzval[kk*cur_snode->Size()+ii]*cur_nzval[src_row*nrhs+j];
-
-                    //                      if(j==0){
-                    //                        STEPS_SP(ii,I-1)+= -chol_nzblk.Nzval(kk,ii)*cur_nzblk->Nzval(src_row,j);
-                    //                      }
                   }
-                  //                    else{
-                  //                      src_blkidx++;
-                  //                      cur_nzblk = &contrib->GetNZBlock(src_blkidx);
-                  //                      src_row = chol_nzblk.GIndex() - cur_nzblk->GIndex() +kk;
-                  //                      temp += -chol_nzblk.Nzval(kk,ii)*cur_nzblk->Nzval(src_row,j);
-                  //
-                  //                      if(j==0){
-                  //                        STEPS_SP(ii,I-1+ii)+= -chol_nzblk.Nzval(kk,ii)*cur_nzblk->Nzval(src_row,j);
-                  //                      }
-                  //                    }
                 }
               }
             }
@@ -1668,23 +1444,17 @@ namespace LIBCHOLESKY{
         }
 
 
-
-//        //TODO DO BETTER THAN THIS
-//        //copy the updated block in B
-//        lapack::Lacpy('N',tgt_nzblk.NRows(),tgt_nzblk.NCols(),
-//            &tgt_nzblk.Nzval(0,0),tgt_nzblk.LDA(),
-//            &B(tgt_nzblk.GIndex()-1,0),B.m());
-
-
-
-
         //send to my children
         Int colIdx = cur_snode->FirstCol()-1;
         if(colIdx>0){
           Int children_found = 0;
           while(children_found<children(I-1)){
             Int child_snode_id = SupMembership_[colIdx-1];
-            if(ETree_.PostParent(child_snode_id-1)==cur_snode->FirstCol()){
+//            Int firstCol = Xsuper_[child_snode_id-1];
+//            for(Int col = colIdx; col>=firstCol; --col){
+//            }
+
+            if(ETree_.PostParent(colIdx-1)==cur_snode->FirstCol()){
               Int iTarget = Mapping_.Map(child_snode_id-1,child_snode_id-1);
 
               if(iTarget!=iam){
@@ -1748,6 +1518,10 @@ namespace LIBCHOLESKY{
 #endif
               }
               else{
+
+#ifdef _DEBUG_
+                logfileptr->OFS()<<"Local Supernode "<<child_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
+#endif
                 Int iLocalJ = (child_snode_id-1) / np +1 ;
                 LocalUpdates[iLocalJ-1].push(I);
               }
@@ -1767,7 +1541,7 @@ namespace LIBCHOLESKY{
 
 
 
-    //Gather B from everybody
+    //Gather B from everybody and put it in the original matrix order
     std::vector<T> tmp_nzval;
     for(Int I=1; I<Xsuper_.m();++I){
       Int iOwner = Mapping_.Map(I-1,I-1);
@@ -1789,6 +1563,7 @@ namespace LIBCHOLESKY{
 
       for(Int i = 0; i<snode_size; ++i){ 
         for(Int j = 0; j<nrhs; ++j){
+//          Int destRow = 
           B(Xsuper_[I-1] -1 + i, j) = data[i*nrhs + j];
         }
       }
@@ -1796,12 +1571,12 @@ namespace LIBCHOLESKY{
 
 ////
 ////
-//////    logfileptr->OFS()<<"Solution after each step is "<<STEPS_SP<<std::endl;
 ////    //Print B
     logfileptr->OFS()<<"Solution is "<<B<<std::endl;
 ////
 
 
+}
 
 
 
@@ -1814,548 +1589,6 @@ namespace LIBCHOLESKY{
 
 
 
-
-
-
-
-////    NumMat<T> & B = *RHS;
-////
-//////    NumMat<T> TMP(B.m(),B.n());
-//////    NumMat<T> STEPS_SP(B.m(),B.m());
-//////    SetValue(STEPS_SP,ZERO<T>()); 
-//////    SetValue(TMP,ZERO<T>()); 
-////
-////    Int iam,np;
-////    MPI_Comm_rank(pComm, &iam);
-////    MPI_Comm_size(pComm, &np);
-////
-////    IntNumVec children(Xsuper_.m());
-////    SetValue(children,0);
-////
-////    for(Int I=1;I<Xsuper_.m()-1;I++){
-////      Int fc = Xsuper_(I-1);
-////      Int lc = Xsuper_(I)-1;
-////
-////      Int parent = ETree_.PostParent(lc-1);
-////      if(parent!=0){
-////        ++children(SupMembership_(parent-1)-1);
-////      }
-////    }
-////
-////    logfileptr->OFS()<<"Children vector is"<<children<<std::endl;
-////
-////
-////    IntNumVec UpdatesToDo = children;
-////    std::vector<SuperNode<T> *> contributions(LocalSupernodes_.size());
-////    std::vector<std::stack<Int> > LocalUpdates(LocalSupernodes_.size());
-////
-////    //forward-substitution phase
-////    //Sending contrib up the tree
-////    //Start from the leaves of the tree
-////
-////    //This corresponds to the k loop in dtrsm
-////    for(Int I=1;I<Xsuper_.m();I++){
-////      Int iOwner = Mapping_.Map(I-1,I-1);
-////      //If I own the column, factor it
-////      if( iOwner == iam ){
-////        //Create the blocks of my contrib with the same nz structure as L
-////        //and the same width as the final solution
-////        Int iLocalI = (I-1) / np +1 ;
-////        SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-////
-////        Int parent = ETree_.PostParent(cur_snode->LastCol()-1);
-////
-////        SuperNode<T> * contrib = new SuperNode<T>(I,1,B.n(),cur_snode->NRows());
-////        contributions[iLocalI-1] = contrib;
-////
-////        std::vector<Int> GlobToLocIndx(Size(),-1);
-////
-////        for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
-////          NZBlock<T> & cur_nzblk = cur_snode->GetNZBlock(blkidx);
-////          contrib->AddNZBlock(cur_nzblk.NRows(),B.n(),cur_nzblk.GIndex());
-////          NZBlock<T> & contrib_nzblk = contrib->GetNZBlock(blkidx);
-////          contrib_nzblk.Zero();
-//////          SetValue(contrib_nzblk.Nzval(),ZERO<T>());
-////          
-////          //fill the indirect index array
-////          for(Int gi = cur_nzblk.GIndex(); gi<cur_nzblk.GIndex()+cur_nzblk.NRows();++gi){
-////            GlobToLocIndx[gi-1] = blkidx;
-////          }
-////        }
-////
-////        Int oldsize =contrib->StorageSize();
-////        Int newsize =contrib->Shrink();
-//////        logfileptr->OFS()<<"new size of contrib is "<<newsize<<" vs "<<oldsize<<std::endl;
-////
-////
-////        //Do all my updates (Local and remote)
-////        //Local updates
-////        while(!LocalUpdates[iLocalI-1].empty()){
-////          Int contrib_snode_id = LocalUpdates[iLocalI-1].top();
-////          LocalUpdates[iLocalI-1].pop();
-////
-////          SuperNode<T> & dist_contrib = *contributions[(contrib_snode_id-1) / np];
-////
-////          logfileptr->OFS()<<"LOCAL Supernode "<<I<<" is updated by contrib of Supernode "<<contrib_snode_id<<std::endl;
-////          //skip the "diagonal" block
-////          for(Int blkidx = 1; blkidx<dist_contrib.NZBlockCnt();++blkidx){
-////            NZBlock<T> & dist_nzblk = dist_contrib.GetNZBlock(blkidx);
-////            Int local_blkidx = forward_update(dist_nzblk,GlobToLocIndx,contrib,B);
-////
-////            NZBlock<T> & local_nzblk = contrib->GetNZBlock(local_blkidx);
-////            Int src_lr = dist_nzblk.GIndex()+dist_nzblk.NRows()-1;
-////            Int tgt_lr = local_nzblk.GIndex()+local_nzblk.NRows()-1;
-////            //this case happens only locally for the diagonal block
-////            if(src_lr>tgt_lr){
-////              assert(local_blkidx==0);
-////              ++local_blkidx;
-////
-////              local_blkidx = forward_update(dist_nzblk,GlobToLocIndx,contrib,B,local_blkidx);
-////              //there won't be any other update to that block
-////            }
-////          }
-////            //delete contributions[(contrib_snode_id-1) / np];
-////          --UpdatesToDo(I-1);
-////        }
-////
-////        //do remote updates
-////        std::vector<char> src_nzblocks;
-////        size_t num_bytes;
-////        while(UpdatesToDo(I-1)>0){
-////          //receive children contrib
-////          logfileptr->OFS()<<UpdatesToDo(I-1)<<" contribs left"<<endl;
-////
-////          if(src_nzblocks.size()==0){
-////            num_bytes = sizeof(Int)+sizeof(NZBlock<T>);
-////            for(Int blkidx=0;blkidx<cur_snode->NZBlockCnt();++blkidx){
-////              num_bytes += cur_snode->GetNZBlock(blkidx).NRows()*NZBLOCK_ROW_SIZE<T>(B.n());
-////            }
-////            logfileptr->OFS()<<"We allocate a buffer of size "<<num_bytes<<std::endl;
-////            src_nzblocks.resize(num_bytes);
-////          }
-////
-////
-////          //MPI_Recv
-////          MPI_Status recv_status;
-////
-////          MPI_Probe(MPI_ANY_SOURCE,I,pComm,&recv_status);
-////          int bytes_to_receive = 0;
-////          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_to_receive);
-////
-////          assert(src_nzblocks.size()>=bytes_to_receive);
-////
-////
-////          char * recv_buf = &src_nzblocks[0]+ max(sizeof(Int),NZBLOCK_OBJ_SIZE<T>())-min(sizeof(Int),NZBLOCK_OBJ_SIZE<T>());
-////          MPI_Recv(recv_buf,&*src_nzblocks.end()-recv_buf,MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
-////          Int src_snode_id = *(Int*)recv_buf;
-////
-////          //Resize the buffer to the actual number of bytes received
-////          int bytes_received = 0;
-////          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-////          src_nzblocks.resize(recv_buf+bytes_received - &src_nzblocks[0]);
-////
-////
-////          //Create the dummy supernode for that data
-////          SuperNode<T> dist_contrib(src_snode_id,1,B.n(),&src_nzblocks);
-////
-////          logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib.Id()<<std::endl;
-////
-////          for(Int blkidx = 0; blkidx<dist_contrib.NZBlockCnt();++blkidx){
-////            NZBlock<T> & dist_nzblk = dist_contrib.GetNZBlock(blkidx);
-////            Int local_blkidx = forward_update(dist_nzblk,GlobToLocIndx,contrib,B);
-////          }
-////          --UpdatesToDo(I-1);
-////
-////          src_nzblocks.resize(num_bytes);
-////        }
-////
-////
-////        if(UpdatesToDo(I-1)==0){
-////            //This corresponds to the i loop in dtrsm
-////            for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
-////              NZBlock<T> & cur_nzblk = contrib->GetNZBlock(blkidx);
-////              NZBlock<T> & chol_nzblk = cur_snode->GetNZBlock(blkidx);
-////            NZBlock<T> & diag_nzblk = contrib->GetNZBlock(0);
-////              //compute my contribution
-////              //Handle the diagonal block
-////              if(blkidx==0){
-////                //TODO That's where we can use the selective inversion
-////                //if we are processing the "pivot" block
-////                for(Int kk = 0; kk<cur_snode->Size(); ++kk){
-////                  for(Int j = 0; j<diag_nzblk.NCols();++j){
-////                    diag_nzblk.Nzval(kk,j) = (B(diag_nzblk.GIndex()-1,j) + diag_nzblk.Nzval(kk,j)) / chol_nzblk.Nzval(kk,kk);
-////                    for(Int i = kk+1; i<cur_nzblk.NRows();++i){
-////                      diag_nzblk.Nzval(i,j) += -diag_nzblk.Nzval(kk,j)*chol_nzblk.Nzval(i,kk);
-////                    }
-////                  }
-////                }
-////              }
-////              else{
-////                for(Int kk = 0; kk<cur_snode->Size(); ++kk){
-////                  for(Int j = 0; j<cur_nzblk.NCols();++j){
-////                    for(Int i = 0; i<cur_nzblk.NRows();++i){
-////                      cur_nzblk.Nzval(i,j) += -diag_nzblk.Nzval(kk,j)*chol_nzblk.Nzval(i,kk);
-////                    }
-////                  }
-////                }
-////              }
-////            }
-////          
-////
-////
-//////          {
-//////              NZBlock<T> & cur_nzblk = contrib->GetNZBlock(0);
-//////                lapack::Lacpy('N',cur_nzblk.NRows(),cur_nzblk.NCols(),
-//////                    cur_nzblk.Nzval(),cur_nzblk.LDA(),
-//////                    &TMP(cur_nzblk.GIndex()-1,0),TMP.m()
-//////                    );
-//////          }
-////
-////
-//////          for(Int blkidx=0; blkidx<contrib->NZBlockCnt();++blkidx)
-//////          {
-//////              NZBlock<T> & cur_nzblk = contrib->GetNZBlock(blkidx);
-//////                lapack::Lacpy('N',cur_nzblk.NRows(),1,
-//////                    &cur_nzblk.Nzval(0,0),cur_nzblk.LDA(),
-//////                    &STEPS_SP(cur_nzblk.GIndex()-1,I-1),STEPS_SP.m()
-//////                    );
-//////
-////// 
-//////              Int start = blkidx==0?1:0;
-//////              for(Int i =start; i<cur_nzblk.NRows();++i){
-//////                //Add B to it
-//////                STEPS_SP(cur_nzblk.GIndex()-1+i,I-1)*=-1;
-//////              }
-//////              
-//////          }
-////
-////
-////
-////          //send to my parent
-////          if(parent!=0){
-////            Int parent_snode_id = SupMembership_[parent-1];
-////
-////            Int iTarget = Mapping_.Map(parent_snode_id-1,parent_snode_id-1);
-////
-////            if(iTarget!=iam){
-////              logfileptr->OFS()<<"Supernode "<<parent_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
-////              Int J = parent_snode_id;
-////
-////              Int tgt_first_col = Xsuper_(J-1);
-////              Int tgt_last_col = Xsuper_(J)-1;
-////
-////
-////#ifdef ROW_MAJOR
-////#else
-////#ifdef SEND_WHOLE_BLOCK
-////#else
-////              char * start_buf = reinterpret_cast<char*>(&contrib->GetNZBlock(1));
-////              size_t num_bytes = contrib->End() - start_buf;
-////
-////              MPI_Datatype type;
-////              int lens[2];
-////              MPI_Aint disps[2];
-////              MPI_Datatype types[2];
-////              Int err = 0;
-////
-////
-////              /* define a struct that describes all our data */
-////              lens[0] = sizeof(Int);
-////              lens[1] = num_bytes;
-////              MPI_Address(&I, &disps[0]);
-////              MPI_Address(start_buf, &disps[1]);
-////              types[0] = MPI_BYTE;
-////              types[1] = MPI_BYTE;
-////              MPI_Type_struct(2, lens, disps, types, &type);
-////              MPI_Type_commit(&type);
-////
-////              MPI_Send(MPI_BOTTOM,1,type,iTarget,parent_snode_id,pComm);
-////
-////              logfileptr->OFS()<<"     SEND Supernode "<<I<<" to Supernode "<<J<<" on P"<<iTarget<<" ("<<lens[0] + lens[1] <<" bytes)"<<std::endl;
-////              MPI_Type_free(&type);
-////#endif // end ifdef SEND_WHOLE_BLOCK
-////
-////#endif // end ifdef ROW_MAJOR
-////
-////              //delete it
-////              //delete contributions[iLocalI-1];
-////
-////            }
-////            else{
-////              Int iLocalJ = (parent_snode_id-1) / np +1 ;
-////              LocalUpdates[iLocalJ-1].push(I);
-////            }
-////          }
-////        }
-////      }
-////    }
-////
-//////    logfileptr->OFS()<<"Solution after each step is "<<STEPS_SP<<std::endl;
-//////    logfileptr->OFS()<<"Solution is after forward substitution is "<<TMP<<std::endl;
-////
-//////    SetValue(STEPS_SP,ZERO<T>());
-////    //Back-substitution phase
-////
-////    //start from the root of the tree
-////    for(Int I=Xsuper_.m()-1;I>=1;--I){
-////      Int iOwner = Mapping_.Map(I-1,I-1);
-////      //If I own the column, factor it
-////      if( iOwner == iam ){
-////        Int iLocalI = (I-1) / np +1 ;
-////        SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-////        SuperNode<T> * contrib = contributions[iLocalI-1];
-////
-////        Int parent = ETree_.PostParent(cur_snode->LastCol()-1);
-////        //Extend the contribution.
-////
-////
-////        std::vector<Int> GlobToLocIndx(Size(),-1);
-////
-////
-////        for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
-////          NZBlock<T> & cur_nzblk = cur_snode->GetNZBlock(blkidx);
-////          //fill the indirect index array
-////          for(Int gi = cur_nzblk.GIndex(); gi<cur_nzblk.GIndex()+cur_nzblk.NRows();++gi){
-////            GlobToLocIndx[gi-1] = blkidx;
-////          }
-////        }
-////
-////        std::vector<Int> isBlockUpdated(contrib->NZBlockCnt(),0);
-////
-////        if(parent!=0){
-////          Int parent_snode_id = SupMembership_[parent-1];
-////          Int iTarget = Mapping_.Map(parent_snode_id-1,parent_snode_id-1);
-////          //Do all my updates (Local and remote)
-////          //Local updates
-////          SuperNode<T> * dist_contrib;
-////          if(!LocalUpdates[iLocalI-1].empty()){
-////            Int contrib_snode_id = LocalUpdates[iLocalI-1].top();
-////            LocalUpdates[iLocalI-1].pop();
-////
-////            dist_contrib = contributions[(contrib_snode_id-1) / np];
-////          }
-////          else{
-////
-////            //do remote updates
-////            std::vector<char> src_nzblocks;
-////            size_t num_bytes;
-////            //receive parent contrib
-////
-////            //MPI_Recv
-////            MPI_Status recv_status;
-////
-////
-////            MPI_Probe(iTarget,I,pComm,&recv_status);
-////            int bytes_to_receive = 0;
-////            MPI_Get_count(&recv_status, MPI_BYTE, &bytes_to_receive);
-////            src_nzblocks.resize(bytes_to_receive+NZBLOCK_OBJ_SIZE<T>());
-////
-////
-////            char * recv_buf = &src_nzblocks[0]+ max(sizeof(Int),NZBLOCK_OBJ_SIZE<T>())-min(sizeof(Int),NZBLOCK_OBJ_SIZE<T>());
-////            MPI_Recv(recv_buf,&*src_nzblocks.end()-recv_buf,MPI_BYTE,iTarget,I,pComm,&recv_status);
-////            Int src_snode_id = *(Int*)recv_buf;
-////
-////            //Resize the buffer to the actual number of bytes received
-////            //            int bytes_received = 0;
-////            //            MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-////            //            src_nzblocks.resize(recv_buf+bytes_received - &src_nzblocks[0]);
-////
-////            //Create the dummy supernode for that data
-////            dist_contrib = new SuperNode<T>(src_snode_id,1,B.n(),&src_nzblocks);
-////
-////            logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib->Id()<<std::endl;
-////          }
-////
-////
-////          for(Int blkidx = 1; blkidx<contrib->NZBlockCnt();++blkidx){
-////            NZBlock<T> & tgt_nzblk = contrib->GetNZBlock(blkidx);
-////
-////
-////            //TODO this could be replaced if I had the GlobIndex array of the parent
-////            Int src_nzblk_idx = dist_contrib->FindBlockIdx(tgt_nzblk.GIndex());
-////            Int tgt_lr = tgt_nzblk.GIndex()+tgt_nzblk.NRows()-1;
-////            Int src_lr; 
-////            do
-////            {
-////              NZBlock<T> * src_nzblk = &dist_contrib->GetNZBlock(src_nzblk_idx);
-////              src_lr = src_nzblk->GIndex()+src_nzblk->NRows()-1;
-////
-////
-////              Int src_local_fr = max(tgt_nzblk.GIndex() - src_nzblk->GIndex(),0);
-////
-////              Int tgt_local_fr = max(src_nzblk->GIndex() - tgt_nzblk.GIndex(),0);
-////              Int tgt_local_lr = min(src_lr,tgt_lr) - tgt_nzblk.GIndex();
-////
-////
-////              lapack::Lacpy('N',(tgt_local_lr - tgt_local_fr +1),src_nzblk->NCols(),
-////                  &src_nzblk->Nzval(src_local_fr,0),src_nzblk->LDA(),  
-////                  &tgt_nzblk.Nzval(tgt_local_fr,0),tgt_nzblk.LDA());
-////
-////              //do other block
-////              if(tgt_lr>src_lr){
-////                assert(src_nzblk_idx==0);
-////                src_nzblk_idx++;
-////              }
-////
-////            } while(tgt_lr>src_lr);
-////          }
-////
-////          if( iTarget != iam ){
-////            delete dist_contrib;
-////          }
-////
-////
-////
-////        }
-////
-////        //now compute MY contribution
-////
-////          NZBlock<T> & diag_nzblk = cur_snode->GetNZBlock(0);
-////          NZBlock<T> & tgt_nzblk = contrib->GetNZBlock(0);
-////          for(Int j = 0; j<tgt_nzblk.NCols();++j){
-////            for(Int ii = cur_snode->Size()-1; ii>=0; --ii){
-////              T temp = tgt_nzblk.Nzval(ii,j);
-////
-////              //This corresponds to the k loop in dtrsm
-////              for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
-////                NZBlock<T> & chol_nzblk = cur_snode->GetNZBlock(blkidx);
-////
-////                Int src_blkidx = contrib->FindBlockIdx(chol_nzblk.GIndex());
-////                NZBlock<T> * cur_nzblk = &contrib->GetNZBlock(src_blkidx);
-////
-////                for(Int kk = 0; kk< chol_nzblk.NRows(); ++kk){
-////                  if(chol_nzblk.GIndex()+kk>cur_snode->FirstCol()+ii){
-////                    Int src_row = chol_nzblk.GIndex() - cur_nzblk->GIndex() +kk;
-////                    if(src_row< cur_nzblk->NRows()){
-////                      temp += -chol_nzblk.Nzval(kk,ii)*cur_nzblk->Nzval(src_row,j);
-////
-//////                      if(j==0){
-//////                        STEPS_SP(ii,I-1)+= -chol_nzblk.Nzval(kk,ii)*cur_nzblk->Nzval(src_row,j);
-//////                      }
-////                    }
-//////                    else{
-//////                      src_blkidx++;
-//////                      cur_nzblk = &contrib->GetNZBlock(src_blkidx);
-//////                      src_row = chol_nzblk.GIndex() - cur_nzblk->GIndex() +kk;
-//////                      temp += -chol_nzblk.Nzval(kk,ii)*cur_nzblk->Nzval(src_row,j);
-//////
-//////                      if(j==0){
-//////                        STEPS_SP(ii,I-1+ii)+= -chol_nzblk.Nzval(kk,ii)*cur_nzblk->Nzval(src_row,j);
-//////                      }
-//////                    }
-////                  }
-////                }
-////              }
-////
-////              temp = temp / diag_nzblk.Nzval(ii,ii);    
-////              tgt_nzblk.Nzval(ii,j) = temp;
-////            }
-////          }
-////
-////
-////
-////          //TODO DO BETTER THAN THIS
-////          //copy the updated block in B
-////              lapack::Lacpy('N',tgt_nzblk.NRows(),tgt_nzblk.NCols(),
-////                  &tgt_nzblk.Nzval(0,0),tgt_nzblk.LDA(),
-////                  &B(tgt_nzblk.GIndex()-1,0),B.m());
-////
-////
-////
-////
-////          //send to my children
-////          Int colIdx = cur_snode->FirstCol()-1;
-////          if(colIdx>0){
-////            Int children_found = 0;
-////            while(children_found<children(I-1)){
-////                Int nodeIdx = SupMembership_[colIdx-1];
-////              if(ETree_.PostParent(colIdx-1)==cur_snode->FirstCol()){
-////                Int iTarget = Mapping_.Map(nodeIdx-1,nodeIdx-1);
-////
-////                if(iTarget!=iam){
-////                  logfileptr->OFS()<<"Supernode "<<nodeIdx<<" gets the contribution of Supernode "<<I<<std::endl;
-////                  Int J = nodeIdx;
-////
-////                  Int tgt_first_col = Xsuper_(J-1);
-////                  Int tgt_last_col = Xsuper_(J)-1;
-////
-////
-////#ifdef ROW_MAJOR
-////#else
-////#ifdef SEND_WHOLE_BLOCK
-////#else
-////
-////                  char * start_buf = reinterpret_cast<char*>(&contrib->GetNZBlock(0));
-////                  size_t num_bytes = contrib->End() - start_buf;
-////
-////
-////                  MPI_Datatype type;
-////                  int lens[2];
-////                  MPI_Aint disps[2];
-////                  MPI_Datatype types[2];
-////                  Int err = 0;
-////
-////
-////                  lens[0] = sizeof(Int);
-////                  lens[1] = num_bytes;
-////                  MPI_Address(&I, &disps[0]);
-////                  MPI_Address(start_buf, &disps[1]);
-////                  types[0] = MPI_BYTE;
-////                  types[1] = MPI_BYTE;
-////                  MPI_Type_struct(2, lens, disps, types, &type);
-////                  MPI_Type_commit(&type);
-////
-////                  MPI_Send(MPI_BOTTOM,1,type,iTarget,nodeIdx,pComm);
-////
-////                  logfileptr->OFS()<<"     SEND Supernode "<<I<<" to Supernode "<<J<<" on P"<<iTarget<<" ("<<lens[0] + lens[1] <<" bytes)"<<std::endl;
-////                  MPI_Type_free(&type);
-////#endif // end ifdef SEND_WHOLE_BLOCK
-////#endif // end ifdef ROW_MAJOR
-////
-////
-////                }
-////                else{
-////                  Int iLocalJ = (nodeIdx-1) / np +1 ;
-////                  LocalUpdates[iLocalJ-1].push(I);
-////                }
-////                children_found++;
-////              }
-////              //last column of the prev supernode
-////              colIdx = Xsuper_[nodeIdx-1]-1;
-////              if(colIdx==0){
-////                break;
-////              }
-////            }
-////          }
-////
-////          
-////      }
-////    }
-////
-////
-//////    //Gather B from everybody
-//////    for(Int I=Xsuper_.m()-1;I>=1;--I){
-//////      Int iOwner = Mapping_.Map(I-1,I-1);
-//////      //If I own the column, factor it
-//////      if( iOwner == iam ){
-//////        Int iLocalI = (I-1) / np +1 ;
-//////        SuperNode<T> * contrib = contributions[iLocalI-1];
-//////
-//////
-//////
-//////      }
-//////    }
-////
-////
-//////    logfileptr->OFS()<<"Solution after each step is "<<STEPS_SP<<std::endl;
-////    //Print B
-////    logfileptr->OFS()<<"Solution is "<<B<<std::endl;
-////
-
-
-
-
-  }
 
 
 } // namespace LIBCHOLESKY

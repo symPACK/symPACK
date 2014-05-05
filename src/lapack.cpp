@@ -53,6 +53,12 @@ extern "C" {
 double LAPACK(dlange)
 (const char * norm, const int *m, const int *n, const double* A, const int *lda, double *work); 
 
+void LAPACK(xerbla)
+(const char * srname, const Int * info);
+
+Int LAPACK(lsame)
+(const char * CA, const char * CB);
+
 
 // Safely compute a Givens rotation
 void LAPACK(slartg)
@@ -293,6 +299,66 @@ void LAPACK(zgetri)
 // *********************************************************************
 // Cholesky factorization
 // *********************************************************************
+
+
+
+
+///
+/////Special version for row major
+///void Potrf_RM( char uplo, Int n, const double* A, Int lda )
+///{
+///#ifndef _RELEASE_
+///    PushCallStack("lapack::Potrf");
+///#endif
+///    Int info;
+///    info=0;
+///    bool upper = (uplo == 'U' || uplo == 'u');
+///
+///    if(!upper && !(uplo=='L' || uplo=='l')){
+///      info = -1;
+///    }
+///    else if(n<0){
+///      info = -2;
+///    }
+///    else if(lda < max(1,n) ){
+///      info = -4;
+///    }
+///
+///    if(info <0){
+///      xerbla('DPOTRF', -info);
+///      return;
+///    }
+///    
+///    
+///
+///
+///    LAPACK(dpotrf)( &uplo, &n, A, &lda, &info );
+/////    if( info < 0 )
+/////    {
+/////        std::ostringstream msg;
+/////        msg << "dpotrf returned with info = " << info;
+/////        throw std::logic_error( msg.str().c_str() );
+/////    }
+/////      if( info > 0 )
+/////         throw std::runtime_error("Matrix is not HPD.");
+///#ifndef _RELEASE_
+///    PopCallStack();
+///#endif
+///}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 void Potrf( char uplo, Int n, const float* A, Int lda )
 {

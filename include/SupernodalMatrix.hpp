@@ -52,9 +52,6 @@ template <typename T> class SupernodalMatrix{
 
 
 
-  Int forward_update(NZBlock<T> & dist_nzblk, std::vector<Int> & GlobToLocIndx,SuperNode<T> * contrib,NumMat<T> & B, Int local_blkidx = -1);
-
-
   void forward_update(SuperNode<T> * src_contrib,SuperNode<T> * tgt_contrib);
   void back_update(SuperNode<T> * src_contrib,SuperNode<T> * tgt_contrib);
 
@@ -81,6 +78,7 @@ template <typename T> class SupernodalMatrix{
 
   void Solve(NumMat<T> * RHS, MPI_Comm & pComm, NumMat<T> * Xptr=NULL);
 
+  void GetFullFactors( NumMat<T> & fullMatrix, MPI_Comm &pComm);
 };
 
 

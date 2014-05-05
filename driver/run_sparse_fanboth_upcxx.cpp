@@ -131,20 +131,21 @@ int main(int argc, char **argv)
     DblNumMat STEPS;
     DblNumMat RHS;
     DblNumMat XTrue;
+    DblNumMat A;
     {
-      sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
-      sparse_matrix_expand_symmetric_storage (Atmp);
-      sparse_matrix_convert (Atmp, CSR);
-      const csr_matrix_t * csrptr = (const csr_matrix_t *) Atmp->repr;
-      DblNumMat A(csrptr->n,csrptr->n);
-      csr_matrix_expand_to_dense (A.Data(), 0, A.m(), csrptr);
-
-      Int n = A.m();
-
-      STEPS.Resize(n,n);
-      SetValue(STEPS,0.0);
-
       if(iam==0){
+        sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
+        sparse_matrix_expand_symmetric_storage (Atmp);
+        sparse_matrix_convert (Atmp, CSR);
+        const csr_matrix_t * csrptr = (const csr_matrix_t *) Atmp->repr;
+        A.Resize(csrptr->n,csrptr->n);
+        csr_matrix_expand_to_dense (A.Data(), 0, A.m(), csrptr);
+
+        Int n = A.m();
+
+        STEPS.Resize(n,n);
+        SetValue(STEPS,0.0);
+
         RHS.Resize(n,nrhs);
         XTrue.Resize(n,nrhs);
         SetValue(XTrue,1.0);
@@ -209,10 +210,10 @@ int main(int argc, char **argv)
         norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
         logfileptr->OFS()<<"Norm of residual after MYPOSV is "<<norm<<std::endl;
 
+        destroy_sparse_matrix (Atmp);
 
       }
 
-      destroy_sparse_matrix (Atmp);
     }
 
 
@@ -251,8 +252,15 @@ int main(int argc, char **argv)
 
     DblNumMat X = RHS;
 
+    NumMat<Real> fullMatrix;
+    SMat.GetFullFactors(fullMatrix,worldcomm);
 
-    //logfileptr->OFS()<<STEPS<<endl;
+    if(iam==0){
+      blas::Axpy(fullMatrix.m()*fullMatrix.n(),-1.0,&A(0,0),1,&fullMatrix(0,0),1);
+
+      logfileptr->OFS()<<fullMatrix<<endl;
+    }
+
 
     SMat.Solve(&X,worldcomm);
 
