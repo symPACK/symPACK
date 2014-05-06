@@ -110,6 +110,10 @@ class SuperNode{
     b_own_storage_ = false;
     nzval_= a_nzval;
     nzval_cnt_ = a_nzval_cnt;
+
+    assert(nzval_cnt_ % iSize_ == 0);
+
+
     blocks_ = a_block_desc;
     blocks_cnt_ = a_desc_cnt;
     global_to_local_index_.resize(aiN,-1);

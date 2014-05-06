@@ -128,6 +128,7 @@ int main(int argc, char **argv)
 
     Int nrhs = 5;
 
+    DblNumMat fwdSol;
     DblNumMat STEPS;
     DblNumMat RHS;
     DblNumMat XTrue;
@@ -202,6 +203,7 @@ int main(int argc, char **argv)
         }
 
         //blas::Trsm('L','L','N','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
+        fwdSol = X;
         logfileptr->OFS()<<"Solution after forward substitution:"<<X<<std::endl;
         blas::Trsm('L','L','T','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
         logfileptr->OFS()<<"Solution after back substitution:"<<X<<std::endl;
@@ -257,12 +259,17 @@ int main(int argc, char **argv)
 
     if(iam==0){
       blas::Axpy(fullMatrix.m()*fullMatrix.n(),-1.0,&A(0,0),1,&fullMatrix(0,0),1);
-
+      double norm = lapack::Lange('F',fullMatrix.m(),fullMatrix.n(),&fullMatrix(0,0),fullMatrix.m());
       logfileptr->OFS()<<fullMatrix<<endl;
+      logfileptr->OFS()<<"Norm of residual between full matrices is "<<norm<<std::endl;
     }
 
+    fwdSol.Resize(SMat.Size(),nrhs);
+    MPI_Bcast(fwdSol.Data(),fwdSol.ByteSize(),MPI_BYTE,0,worldcomm);
 
-    SMat.Solve(&X,worldcomm);
+    SMat.Solve(&X,worldcomm,fwdSol);
+
+    SMat.GetSolution(X,worldcomm);
 
 
 

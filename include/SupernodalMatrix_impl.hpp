@@ -3,9 +3,9 @@
 
 #include "SupernodalMatrix.hpp"
 
-#define _DEBUG_
+//#define _DEBUG_
 
-#define MAX_SNODE_SIZE 10
+#define MAX_SNODE_SIZE -1
 
 namespace LIBCHOLESKY{
 
@@ -239,6 +239,7 @@ namespace LIBCHOLESKY{
               }
             }
           }
+          iStartIdxCopy+=iNrows;
 
         }
 
@@ -451,6 +452,7 @@ namespace LIBCHOLESKY{
 
   template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr = I_ZERO){
 
+//if(tgt_snode.Id() == 14){gdb_lock();}
     NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(pivot_idx);
     Int first_pivot_fr = pivot_fr;
       if(first_pivot_fr ==I_ZERO ){
@@ -671,19 +673,28 @@ namespace LIBCHOLESKY{
 
           //MPI_Recv
           MPI_Status recv_status;
+          MPI_Status recv_status_nz;
 
           //receive the index array
           MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
           int bytes_received = 0;
           MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
+
+
+          assert( (bytes_received -sizeof(Int)) % sizeof(NZBlockDesc) == 0);
+
           //there an aditional integer storing the src id which needs to be removed
           Int src_nzblk_cnt = (bytes_received - sizeof(Int) ) / sizeof(NZBlockDesc);
 
           //receive the nzval array
-          MPI_Recv(&src_nzval[0],nz_cnt*sizeof(T),MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
-          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
+          MPI_Recv(&src_nzval[0],nz_cnt*sizeof(T),MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status_nz);
+          MPI_Get_count(&recv_status_nz, MPI_BYTE, &bytes_received);
+
+          assert(bytes_received % sizeof(T) == 0);
+
           Int src_nzval_cnt = bytes_received / sizeof(T);
 
+          
 
           Int src_snode_id = *(Int*)&src_blocks[0];
           NZBlockDesc * src_blocks_ptr = 
@@ -869,6 +880,7 @@ namespace LIBCHOLESKY{
 
 
 
+      MPI_Barrier(pComm);
 
   }
 
@@ -973,7 +985,9 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
     
       if(iam==0){
+#ifdef _DEBUG_
     logfileptr->OFS()<<fullMatrix<<std::endl;
+#endif
      } 
 #endif
 
@@ -1076,7 +1090,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
     }
   }
 
-  template <typename T> void SupernodalMatrix<T>::Solve(NumMat<T> * RHS, MPI_Comm & pComm, NumMat<T> * Xptr=NULL){
+  template <typename T> void SupernodalMatrix<T>::Solve(NumMat<T> * RHS, MPI_Comm & pComm, NumMat<T> & forwardSol, NumMat<T> * Xptr=NULL){
 
 
     NumMat<T> & B = *RHS;
@@ -1105,12 +1119,9 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
 
     IntNumVec UpdatesToDo = children;
-    std::vector<SuperNode<T> *> contributions(LocalSupernodes_.size());
+    Contributions_.resize(LocalSupernodes_.size());
     std::vector<std::stack<Int> > LocalUpdates(LocalSupernodes_.size());
 
-    //forward-substitution phase
-    //Sending contrib up the tree
-    //Start from the leaves of the tree
 
     //This corresponds to the k loop in dtrsm
     for(Int I=1;I<Xsuper_.m();I++){
@@ -1121,11 +1132,8 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
         //and the same width as the final solution
         Int iLocalI = (I-1) / np +1 ;
         SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-
-        Int parent = ETree_.PostParent(cur_snode->LastCol()-1);
-
         SuperNode<T> * contrib = new SuperNode<T>(I,1,nrhs, Size(), cur_snode->NRowsBelowBlock(0) );
-        contributions[iLocalI-1] = contrib;
+        Contributions_[iLocalI-1] = contrib;
 
 
         for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
@@ -1134,6 +1142,21 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
         }
 
         contrib->Shrink();
+      }
+    }
+
+    //forward-substitution phase
+    //Sending contrib up the tree
+    //Start from the leaves of the tree
+    for(Int I=1;I<Xsuper_.m();I++){
+      Int iOwner = Mapping_.Map(I-1,I-1);
+      //If I own the column, factor it
+      if( iOwner == iam ){
+        Int iLocalI = (I-1) / np +1 ;
+        SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
+        Int parent = ETree_.PostParent(cur_snode->LastCol()-1);
+        SuperNode<T> * contrib = Contributions_[iLocalI-1];
+
 
         //Do all my updates (Local and remote)
         //Local updates
@@ -1141,7 +1164,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
           Int contrib_snode_id = LocalUpdates[iLocalI-1].top();
           LocalUpdates[iLocalI-1].pop();
 
-          SuperNode<T> * dist_contrib = contributions[(contrib_snode_id-1) / np];
+          SuperNode<T> * dist_contrib = Contributions_[(contrib_snode_id-1) / np];
 
 #ifdef _DEBUG_
           logfileptr->OFS()<<"LOCAL Supernode "<<I<<" is updated by contrib of Supernode "<<contrib_snode_id<<std::endl;
@@ -1212,6 +1235,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
 
         if(UpdatesToDo(I-1)==0){
+
             //This corresponds to the i loop in dtrsm
             for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
 
@@ -1234,7 +1258,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
                 //if we are processing the "pivot" block
                 for(Int kk = 0; kk<cur_snode->Size(); ++kk){
                   for(Int j = 0; j<nrhs;++j){
-                    diag_nzval[kk*nrhs+j] = (B(diag_desc.GIndex-1,j) + diag_nzval[kk*nrhs+j]) / chol_nzval[kk*cur_snode->Size()+kk];
+                    diag_nzval[kk*nrhs+j] = (B(diag_desc.GIndex-1+kk,j) + diag_nzval[kk*nrhs+j]) / chol_nzval[kk*cur_snode->Size()+kk];
                     for(Int i = kk+1; i<cur_nrows;++i){
                       diag_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*chol_nzval[i*cur_snode->Size()+kk];
                     }
@@ -1323,9 +1347,23 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
           }
         }
       }
+
+//      {
+//      NumMat<T> tmp = B;
+//      GetSolution(tmp, pComm);
+//      Int nrows = 0;
+//      for(Int ii=1; ii<=I;++ii){ nrows+= Xsuper_[ii] - Xsuper_[ii-1];}
+//
+//      blas::Axpy(tmp.m()*tmp.n(),-1.0,&forwardSol(0,0),1,&tmp(0,0),1);
+//      double norm = lapack::Lange('F',nrows,tmp.n(),&tmp(0,0),tmp.m());
+//      logfileptr->OFS()<<"Norm after SuperNode "<<I<<" is "<<norm<<std::endl; 
+//      }
+
+      MPI_Barrier(pComm);
     }
 
     //Back-substitution phase
+
 
     //start from the root of the tree
     for(Int I=Xsuper_.m()-1;I>=1;--I){
@@ -1334,7 +1372,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
       if( iOwner == iam ){
         Int iLocalI = (I-1) / np +1 ;
         SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-        SuperNode<T> * contrib = contributions[iLocalI-1];
+        SuperNode<T> * contrib = Contributions_[iLocalI-1];
 
         Int parent = ETree_.PostParent(cur_snode->LastCol()-1);
         //Extend the contribution.
@@ -1351,12 +1389,12 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
             Int contrib_snode_id = LocalUpdates[iLocalI-1].top();
             LocalUpdates[iLocalI-1].pop();
 
-            dist_contrib = contributions[(contrib_snode_id-1) / np];
+            dist_contrib = Contributions_[(contrib_snode_id-1) / np];
             back_update(dist_contrib,contrib);
           }
           else{
 
-            assert(iOwner!=iam);
+            assert(iTarget!=iam);
 
             //Receive parent contrib
             std::vector<char> src_blocks;
@@ -1405,6 +1443,8 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
         }
 
         //now compute MY contribution
+
+
 
         NZBlockDesc & diag_desc = cur_snode->GetNZBlockDesc(0);
         NZBlockDesc & tgt_desc = contrib->GetNZBlockDesc(0);
@@ -1537,10 +1577,17 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
 
       }
+
+      MPI_Barrier(pComm);
     }
 
 
+}
 
+
+
+template<typename T> void SupernodalMatrix<T>::GetSolution(NumMat<T> & B, MPI_Comm pComm){
+    Int nrhs = B.n();
     //Gather B from everybody and put it in the original matrix order
     std::vector<T> tmp_nzval;
     for(Int I=1; I<Xsuper_.m();++I){
@@ -1552,7 +1599,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
       if( iOwner == iam ){
         Int iLocalI = (I-1) / np +1 ;
-        SuperNode<T> * contrib = contributions[iLocalI-1];
+        SuperNode<T> * contrib = Contributions_[iLocalI-1];
         data = contrib->GetNZval(0);
       }
       else{
@@ -1572,13 +1619,11 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 ////
 ////
 ////    //Print B
+#ifdef _DEBUG_
     logfileptr->OFS()<<"Solution is "<<B<<std::endl;
+#endif
 ////
-
-
 }
-
-
 
 
 

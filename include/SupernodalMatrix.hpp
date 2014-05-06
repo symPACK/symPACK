@@ -36,6 +36,7 @@ template <typename T> class SupernodalMatrix{
   ETree SupETree_;
   Int iSize_;
   std::vector<SuperNode<T> * > LocalSupernodes_;
+  std::vector<SuperNode<T> *> Contributions_;
   IntNumVec xlindx_;
   IntNumVec lindx_;
 
@@ -76,9 +77,11 @@ template <typename T> class SupernodalMatrix{
   void Factorize(MPI_Comm & pComm);
 
 
-  void Solve(NumMat<T> * RHS, MPI_Comm & pComm, NumMat<T> * Xptr=NULL);
+  void Solve(NumMat<T> * RHS, MPI_Comm & pComm,NumMat<T> & forwardSol, NumMat<T> * Xptr=NULL);
 
   void GetFullFactors( NumMat<T> & fullMatrix, MPI_Comm &pComm);
+
+  void GetSolution(NumMat<T> & B, MPI_Comm pComm);
 };
 
 
