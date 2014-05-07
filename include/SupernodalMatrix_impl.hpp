@@ -850,6 +850,7 @@ namespace LIBCHOLESKY{
 
               delete blocks_sent.back();
 
+              logfileptr->OFS()<<"Sending "<<nz_cnt*sizeof(T)<<" bytes to P"<<iTarget<<std::endl;
 #ifdef _DEBUG_            
               logfileptr->OFS()<<"     Send factor "<<I<<" to node"<<tgt_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
               logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
@@ -895,7 +896,6 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
 
 
-#ifdef _DEBUG_
     //output L
     for(Int I=1;I<Xsuper_.m();I++){
       Int src_first_col = Xsuper_(I-1);
@@ -909,8 +909,10 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
         Int iLocalI = (I-1) / np +1 ;
         SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
 
+#ifdef _DEBUG_
         logfileptr->OFS()<<"Supernode "<<I<<"("<<src_snode.Id()<<") is on P"<<iOwner<<" local index is "<<iLocalI<<std::endl; 
         logfileptr->OFS()<<src_snode<<std::endl;
+#endif
 
         NZBlockDesc * nzblk_desc = &src_snode.GetNZBlockDesc(0);
         Int size_blocks = src_snode.NZBlockCnt();
@@ -944,7 +946,6 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
           MPI_Recv(&nzval[0],size_nzval*sizeof(T),MPI_BYTE,iOwner,I,pComm,MPI_STATUS_IGNORE);
 
           SuperNode<T> src_snode(I,Xsuper_[I-1],Xsuper_[I]-1,Size(),&blocks[0],size_blocks,&nzval[0],size_nzval);
-          logfileptr->OFS()<<"RECV "<<src_snode<<std::endl;
 
           for(int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
             NZBlockDesc & nzblk_desc = src_snode.GetNZBlockDesc(blkidx);
@@ -989,7 +990,6 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
     logfileptr->OFS()<<fullMatrix<<std::endl;
 #endif
      } 
-#endif
 
 }
 

@@ -125,9 +125,8 @@ int main(int argc, char **argv)
     sparse_matrix_file_format_t informat;
     informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
 
-
+#ifdef _CHECK_RESULT_
     Int nrhs = 5;
-
     DblNumMat fwdSol;
     DblNumMat STEPS;
     DblNumMat RHS;
@@ -218,7 +217,7 @@ int main(int argc, char **argv)
 
     }
 
-
+#endif
 
 
 
@@ -247,6 +246,12 @@ int main(int argc, char **argv)
 
     SMat.Factorize(worldcomm);
 
+    NumMat<Real> fullMatrix;
+    SMat.GetFullFactors(fullMatrix,worldcomm);
+
+    logfileptr->OFS()<<fullMatrix<<std::endl;
+
+#ifdef _CHECK_RESULT_
     RHS.Resize(SMat.Size(),nrhs);
     MPI_Bcast(RHS.Data(),RHS.ByteSize(),MPI_BYTE,0,worldcomm);
 
@@ -254,8 +259,6 @@ int main(int argc, char **argv)
 
     DblNumMat X = RHS;
 
-    NumMat<Real> fullMatrix;
-    SMat.GetFullFactors(fullMatrix,worldcomm);
 
     if(iam==0){
       blas::Axpy(fullMatrix.m()*fullMatrix.n(),-1.0,&A(0,0),1,&fullMatrix(0,0),1);
@@ -280,7 +283,7 @@ int main(int argc, char **argv)
       blas::Axpy(X.m()*X.n(),-1.0,&XTrue(0,0),1,&X(0,0),1);
       double norm = lapack::Lange('F',X.m(),X.n(),&X(0,0),X.m());
       logfileptr->OFS()<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
-
+#endif
 
 
     MPI_Barrier(worldcomm);
