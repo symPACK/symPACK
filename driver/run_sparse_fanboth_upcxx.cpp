@@ -21,7 +21,7 @@
 
 #include  "blas.hpp"
 #include  "lapack.hpp"
-#include  "NZBlock.hpp"
+//#include  "NZBlock.hpp"
 #include  "SuperNode.hpp"
 #include  "SupernodalMatrix.hpp"
 

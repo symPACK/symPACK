@@ -189,7 +189,7 @@ namespace LIBCHOLESKY{
             //USE THE PERM OBTAINED AFTER SORTING THE CHILDREN
             Int local_i = (orig_i-(numColFirst)*iam);
             Int iColptrLoc = Local_.colptr(local_i-1);
-            pdNzVal = &pMat.nzvalLocal(iColptrLoc-1);
+            pdNzVal = (T*)(&pMat.nzvalLocal(iColptrLoc-1));
             //logfileptr->OFS()<<"pdNzVal is the local pMat"<<std::endl;
             iStartIdxCopy = 0;
           }
@@ -450,7 +450,7 @@ namespace LIBCHOLESKY{
   }
 
 
-  template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr = I_ZERO){
+  template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr){
 
 //if(tgt_snode.Id() == 14){gdb_lock();}
     NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(pivot_idx);
@@ -647,7 +647,7 @@ namespace LIBCHOLESKY{
         std::vector<T> src_nzval;
         std::vector<char> src_blocks;
 
-        Int nz_cnt;
+        volatile Int nz_cnt;
         Int max_bytes;
         while(UpdatesToDo(I-1)>0){
 #ifdef _DEBUG_
@@ -818,7 +818,7 @@ namespace LIBCHOLESKY{
               NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(src_nzblk_idx);
 
               Int local_first_row = src_first_row-pivot_desc.GIndex;
-              Int nzblk_cnt = src_snode.NZBlockCnt()-src_nzblk_idx;
+              volatile Int nzblk_cnt = src_snode.NZBlockCnt()-src_nzblk_idx;
               pNewDesc->resize(sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc));
 
               char * send_ptr = &(*pNewDesc)[0];
@@ -841,7 +841,7 @@ namespace LIBCHOLESKY{
               T * nzval_ptr = src_snode.GetNZval(pivot_desc.Offset
                   +local_first_row*src_snode.Size());
 
-              Int nz_cnt = (src_snode.NRowsBelowBlock(src_nzblk_idx)
+              volatile Int nz_cnt = (src_snode.NRowsBelowBlock(src_nzblk_idx)
                   - local_first_row )*src_snode.Size();
 
 
@@ -1090,7 +1090,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
     }
   }
 
-  template <typename T> void SupernodalMatrix<T>::Solve(NumMat<T> * RHS, MPI_Comm & pComm, NumMat<T> & forwardSol, NumMat<T> * Xptr=NULL){
+  template <typename T> void SupernodalMatrix<T>::Solve(NumMat<T> * RHS, MPI_Comm & pComm, NumMat<T> & forwardSol, NumMat<T> * Xptr){
 
 
     NumMat<T> & B = *RHS;
@@ -1179,7 +1179,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
         std::vector<char> src_blocks;
         std::vector<T> src_nzval;
         size_t max_bytes;
-        Int nz_cnt;
+        volatile Int nz_cnt;
         while(UpdatesToDo(I-1)>0){
           //receive children contrib
 #ifdef _DEBUG_
@@ -1301,7 +1301,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
               Int src_first_row = pivot_desc.GIndex;
               Int local_first_row = 0;
-              Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
+              volatile Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
               pNewDesc->resize(sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc));
 
               char * send_ptr = &(*pNewDesc)[0];
@@ -1324,7 +1324,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
               T * nzval_ptr = contrib->GetNZval(pivot_desc.Offset
                   +local_first_row*nrhs);
 
-              Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
+              volatile Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
                   - local_first_row )*nrhs;
 
               MPI_Send(nzval_ptr,nz_cnt*sizeof(T),
@@ -1418,7 +1418,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
 
             //Receive the size of the nzval array
-            Int nz_cnt = 0;
+            volatile Int nz_cnt = 0;
             MPI_Recv(&nz_cnt,sizeof(Int),MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
             src_nzval.resize(nz_cnt);
 
@@ -1518,7 +1518,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
                 Int src_first_row = pivot_desc.GIndex;
                 Int local_first_row = 0;
-                Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
+                volatile Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
                 pNewDesc->resize(sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc));
 
                 char * send_ptr = &(*pNewDesc)[0];
@@ -1543,7 +1543,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
                 T * nzval_ptr = contrib->GetNZval(pivot_desc.Offset
                     +local_first_row*nrhs);
 
-                Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
+                volatile Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
                     - local_first_row )*nrhs;
 
                 MPI_Send(&nz_cnt,sizeof(nz_cnt),MPI_BYTE,iTarget,child_snode_id,pComm);

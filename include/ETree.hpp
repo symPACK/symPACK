@@ -45,7 +45,7 @@ public:
 
   ETree ToSupernodalETree(IntNumVec & aXsuper) const;
 
-  inline bool IsPostOrdered(){ return bIsPostOrdered_;};
+  inline bool IsPostOrdered() const { return bIsPostOrdered_;};
   inline Int n() const { return n_; };
   inline Int ToPostOrder(Int i) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return postNumber_(i-1);};
   inline Int FromPostOrder(Int i) const  { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return invPostNumber_(i-1);};

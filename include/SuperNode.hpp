@@ -7,7 +7,7 @@
 
 #include "Environment.hpp"
 #include "NumVec.hpp"
-#include "NZBlock.hpp"
+//#include "NZBlock.hpp"
 
 namespace LIBCHOLESKY{
 
@@ -165,7 +165,7 @@ class SuperNode{
 
   Int Shrink(){
     if(b_own_storage_){
-      blocks_container_.shrink_to_fit();
+      //blocks_container_.shrink_to_fit();
       blocks_ = &blocks_container_.front();
 
       nzval_container_.resize(nzval_cnt_);
@@ -181,7 +181,7 @@ class SuperNode{
 
 
 
-template <typename T> inline std::ostream& operator<<( std::ostream& os, const SuperNode<T>& snode){
+template <typename T> inline std::ostream& operator<<( std::ostream& os,  SuperNode<T>& snode){
   os<<"ooooooooooo   Supernode "<<snode.Id()<<" oooooooooooo"<<endl;
   os<<"     size = "<<snode.Size()<<endl;
   os<<"     fc   = "<<snode.FirstCol()<<endl;

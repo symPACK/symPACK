@@ -365,7 +365,7 @@ namespace LIBCHOLESKY{
 
 
 
-  void SparseMatrixStructure::FindSupernodes(ETree& tree, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, Int maxSize = -1){
+  void SparseMatrixStructure::FindSupernodes(ETree& tree, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, Int maxSize ){
     TIMER_START(FindSupernodes);
 
     if(!bIsGlobal){

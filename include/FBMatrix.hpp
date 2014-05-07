@@ -38,7 +38,7 @@ namespace LIBCHOLESKY{
       Int pcol, prow;
       Int np, iam;
 
-      virtual FBMatrix();
+      FBMatrix();
       virtual ~FBMatrix();
 
 

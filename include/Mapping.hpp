@@ -36,7 +36,7 @@ class Mapping{
       Mapping(Mapping & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Mapping():Mapping(0,0,0,0){};
 
-      Map(Int i, Int j){ abort();}
+      Int Map(Int i, Int j){ abort(); return 0;}
 };
 
 
@@ -48,7 +48,7 @@ class Modwrap2D: public Mapping{
       Modwrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
       Modwrap2D(Modwrap2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Modwrap2D():Mapping(0,0,0,0){};
-      Map(Int i, Int j){ return modwrap2D_(i,j);}
+      Int Map(Int i, Int j){ return modwrap2D_(i,j);}
 };
 
 }

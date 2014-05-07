@@ -35,7 +35,7 @@ namespace LIBCHOLESKY{
       Int prefetch;
       std::vector< upcxx::global_ptr<FBMatrix_upcxx> > * pRemoteObjPtrs;
 
-      virtual FBMatrix_upcxx();
+      FBMatrix_upcxx();
       virtual ~FBMatrix_upcxx();
 
       void Initialize();

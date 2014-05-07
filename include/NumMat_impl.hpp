@@ -7,7 +7,7 @@
 
 #include "Environment.hpp"
 #include "lapack.hpp"
-#include "NZBlock.hpp"
+////#include "NZBlock.hpp"
 #include <sstream>
 
 #include <stdlib.h> 
@@ -161,30 +161,30 @@ template <typename F> NumMat<F>& NumMat<F>::Copy(const NumMat& C) {
 
 
 template <typename F> NumMat<F>& NumMat<F>::SnodeToDense(const SuperNode<F>& S){
-    delete_data();
-
-    owndata_ = true;
-
-    //compute m_ and n_
-    n_ = S.Size();
-    m_=0;
-    for(Int blkidx=0; blkidx < S.NZBlockCnt(); ++blkidx){
-      m_+=S.GetNZBlock(blkidx).NRows();
-    }
-    
-    alloc_data();
-
-    if(m_>0 && n_>0) {
-      Int head =0;
-      for(Int blkidx=0; blkidx < S.NZBlockCnt(); ++blkidx){
-        NZBlock<F> & cur_block = S.GetNZBlock(blkidx);
-        lapack::Lacpy('N',cur_block.NRows(),cur_block.NCols(),
-                            cur_block.Nzval(),cur_block.NRows(), 
-                                                        &at(head,0), m_);
-        head+=cur_block.NRows();
-      }
-    }
-
+//    delete_data();
+//
+//    owndata_ = true;
+//
+//    //compute m_ and n_
+//    n_ = S.Size();
+//    m_=0;
+//    for(Int blkidx=0; blkidx < S.NZBlockCnt(); ++blkidx){
+//      m_+=S.GetNZBlock(blkidx).NRows();
+//    }
+//    
+//    alloc_data();
+//
+//    if(m_>0 && n_>0) {
+//      Int head =0;
+//      for(Int blkidx=0; blkidx < S.NZBlockCnt(); ++blkidx){
+//        NZBlock<F> & cur_block = S.GetNZBlock(blkidx);
+//        lapack::Lacpy('N',cur_block.NRows(),cur_block.NCols(),
+//                            cur_block.Nzval(),cur_block.NRows(), 
+//                                                        &at(head,0), m_);
+//        head+=cur_block.NRows();
+//      }
+//    }
+//
     return *this; 
 }
 
@@ -231,7 +231,7 @@ template <typename F> inline const F& NumMat<F>::at(Int i, Int j) const  {
 				j < 0 || j >= n_ ) {
       
       std::stringstream ss;
-      error_message(ss,i,j);
+      //error_message(ss,i,j);
       logfileptr->OFS()<<ss.str();
 
 #ifdef USE_ABORT
@@ -249,7 +249,7 @@ template <typename F> inline F& NumMat<F>::at(Int i, Int j)  {
 				j < 0 || j >= n_ ) {
 
       std::stringstream ss;
-      error_message(ss,i,j);
+      //error_message(ss,i,j);
 
       logfileptr->OFS()<<ss.str();
 
@@ -271,7 +271,7 @@ template <typename F> inline const F& NumMat<F>::operator()(Int i, Int j) const 
 				j < 0 || j >= n_ ) {
       
       std::stringstream ss;
-      error_message(ss,i,j);
+      //error_message(ss,i,j);
       logfileptr->OFS()<<ss.str();
 
 #ifdef USE_ABORT
@@ -288,7 +288,7 @@ template <typename F> inline F& NumMat<F>::operator()(Int i, Int j)  {
 				j < 0 || j >= n_ ) {
 
       std::stringstream ss;
-      error_message(ss,i,j);
+      //error_message(ss,i,j);
 
       logfileptr->OFS()<<ss.str();
 
@@ -307,7 +307,7 @@ template <typename F> inline F& NumMat<F>::operator()(Int i, Int j)  {
 		if( j < 0 || j >= n_ ) {
 
       std::stringstream ss;
-      error_message(ss,j);
+      //error_message(ss,j);
 
 #ifdef USE_ABORT
       printf("%s",ss.str().c_str());
