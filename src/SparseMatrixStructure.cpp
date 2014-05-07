@@ -672,10 +672,14 @@ namespace LIBCHOLESKY{
 
 
       lindxCnt += LI.m();
+#ifdef _DEBUG_
         logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
+#endif
 
       if(length>width  ){
+#ifdef _DEBUG_
         logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
+#endif
         Int i = LI(width);
         //        logfileptr->OFS()<<I<<" : col "<<i<<" is the next to be examined. width="<<width<<" length="<<length<<std::endl;
 
@@ -853,12 +857,13 @@ void SparseMatrixStructure::GetSuperLRowStruct(const ETree & etree, const IntNum
 
 
 
+#ifdef _DEBUG_
       logfileptr->OFS()<<"Row structure of A of Supernode "<<iSupNo<<" is ";
       for(std::vector<Int>::iterator it = SuperARowStruct.begin(); it != SuperARowStruct.end(); ++it){
         logfileptr->OFS()<<*it<<" ";
       }
       logfileptr->OFS()<<std::endl;
-
+#endif
 
   Int first_col = Xsuper[iSupNo-1];
   Int last_col = Xsuper[iSupNo]-1;
@@ -866,19 +871,27 @@ void SparseMatrixStructure::GetSuperLRowStruct(const ETree & etree, const IntNum
   for(Int i = 0; i<SuperARowStruct.size();++i){
     Int iCurNode = SuperARowStruct[i];
     //tracing from iCurRow to iRow;
+#ifdef _DEBUG_
     logfileptr->OFS()<<"Starting from node "<<iCurNode<<std::endl;
+#endif
     //if(iCurNode==iPORow){
     if(iCurNode >= first_col && iCurNode <= last_col){
+#ifdef _DEBUG_
       logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+#endif
       SuperLRowStruct.insert(iCurNode);
     }
     else{
       while( iCurNode != first_col && etree.PostParent(iCurNode-1) != 0){
 //      while( !(iCurNode >= first_col && iCurNode <= last_col) && etree.PostParent(iCurNode-1) != 0){
+#ifdef _DEBUG_
         logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+#endif
         SuperLRowStruct.insert(iCurNode);
         iCurNode = etree.PostParent(iCurNode-1);
+#ifdef _DEBUG_
         logfileptr->OFS()<<"Parent is "<<iCurNode<<std::endl;
+#endif
       }
     }
   } 

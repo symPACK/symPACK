@@ -54,7 +54,7 @@ class SuperNode{
   inline NZBlockDesc & GetNZBlockDesc(Int aiLocIndex){ return blocks_[aiLocIndex];}
   inline T* GetNZval(size_t offset){ return &nzval_[offset];}
 
-  /*inline*/ Int NRows(Int blkidx){
+  inline Int NRows(Int blkidx){
       NZBlockDesc & desc = GetNZBlockDesc(blkidx);
       size_t end = (blkidx<NZBlockCnt()-1)?GetNZBlockDesc(blkidx+1).Offset:nzval_cnt_;
       Int nRows = (end-desc.Offset)/Size();
@@ -65,6 +65,7 @@ class SuperNode{
       NZBlockDesc & desc = GetNZBlockDesc(blkidx);
       size_t end = nzval_cnt_;
       Int nRows = (end-desc.Offset)/Size();
+      return nRows;
   }
 
 
@@ -182,22 +183,22 @@ class SuperNode{
 
 
 template <typename T> inline std::ostream& operator<<( std::ostream& os,  SuperNode<T>& snode){
-  os<<"ooooooooooo   Supernode "<<snode.Id()<<" oooooooooooo"<<endl;
-  os<<"     size = "<<snode.Size()<<endl;
-  os<<"     fc   = "<<snode.FirstCol()<<endl;
-  os<<"     lc   = "<<snode.LastCol()<<endl;
+  os<<"ooooooooooo   Supernode "<<snode.Id()<<" oooooooooooo"<<std::endl;
+  os<<"     size = "<<snode.Size()<<std::endl;
+  os<<"     fc   = "<<snode.FirstCol()<<std::endl;
+  os<<"     lc   = "<<snode.LastCol()<<std::endl;
   for(Int blkidx =0; blkidx<snode.NZBlockCnt();++blkidx){
      NZBlockDesc & nzblk_desc = snode.GetNZBlockDesc(blkidx);
      T * nzblk_nzval = snode.GetNZval(nzblk_desc.Offset);
-     os<<"--- NZBlock "<<nzblk_desc.GIndex<<" ---"<<endl;
+     os<<"--- NZBlock "<<nzblk_desc.GIndex<<" ---"<<std::endl;
      for(Int i = 0; i<snode.NRows(blkidx);++i){
         for(Int j = 0; j<snode.Size();++j){
           os<<nzblk_nzval[i*snode.Size()+j]<<" ";
         }
-        os<<endl;
+        os<<std::endl;
      }
   }
-  os<<"oooooooooooooooooooooooooooooooooooooooo"<<endl;
+  os<<"oooooooooooooooooooooooooooooooooooooooo"<<std::endl;
   return os;
 }
 

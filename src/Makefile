@@ -1,7 +1,8 @@
 include ../make.inc
 
 SRCS_C   = 
-SRCS_CPP = ETree.cpp utility.cpp timer.cpp blas.cpp lapack.cpp global.cpp LogFile.cpp FBMatrix.cpp FBMatrix_mpi.cpp FBMatrix_upcxx.cpp SparseMatrixStructure.cpp
+SRCS_CPP = ETree.cpp utility.cpp timer.cpp blas.cpp lapack.cpp global.cpp LogFile.cpp SparseMatrixStructure.cpp
+# FBMatrix.cpp FBMatrix_mpi.cpp FBMatrix_upcxx.cpp
 SRCS_F   =
 
 OBJS     = ${SRCS_CPP:.cpp=.o} ${SRCS_C:.c=.o} ${SRCS_F:.f=.o}

@@ -25,7 +25,7 @@
 #include  "SuperNode.hpp"
 #include  "SupernodalMatrix.hpp"
 
-#include <async.h>
+//#include <async.h>
 #include  "LogFile.hpp"
 
 
@@ -244,12 +244,16 @@ int main(int argc, char **argv)
     //do the symbolic factorization and build supernodal matrix
     SupernodalMatrix<double> SMat(HMat,mapping,worldcomm);
 
+TIMER_START(SPARSE_FAN_OUT);
     SMat.Factorize(worldcomm);
+TIMER_STOP(SPARSE_FAN_OUT);
 
     NumMat<Real> fullMatrix;
     SMat.GetFullFactors(fullMatrix,worldcomm);
 
+#ifdef _DEBUG_
     logfileptr->OFS()<<fullMatrix<<std::endl;
+#endif
 
 #ifdef _CHECK_RESULT_
     RHS.Resize(SMat.Size(),nrhs);

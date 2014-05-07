@@ -17,7 +17,7 @@
 
 #define MAX_NAME_LENGTH 38
 
-#include <upcxx.h>
+//#include <upcxx.h>
 
 
 int main_argc = 0;
@@ -409,7 +409,8 @@ void CTF_timer::exit(){
 
     int iam=0;
     if(!ismpi){
-      iam = MYTHREAD;
+//      iam = MYTHREAD;
+      abort();
     }
     else{
       MPI_Comm_rank(MPI_COMM_WORLD,&iam);

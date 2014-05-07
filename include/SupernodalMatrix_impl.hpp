@@ -29,14 +29,18 @@ namespace LIBCHOLESKY{
 
     IntNumVec cc,rc;
     Global_.GetLColRowCount(ETree_,cc,rc);
+#ifdef _DEBUG_
     logfileptr->OFS()<<"colcnt "<<cc<<std::endl;
     logfileptr->OFS()<<"rowcnt "<<rc<<std::endl;
+#endif
 
     IntNumVec perm(Size());
     for(Int i =0; i<perm.m();++i){perm[i]=i+1;}
 //    IntNumVec perm = ETree_.SortChildren(cc);
 
+#ifdef _DEBUG_
     logfileptr->OFS()<<"colcnt "<<cc<<std::endl;
+#endif
 
     Global_.FindSupernodes(ETree_,cc,SupMembership_,Xsuper_,MAX_SNODE_SIZE);
 
@@ -171,7 +175,7 @@ namespace LIBCHOLESKY{
               const T * pdData = &pMat.nzvalLocal(iColptrLoc-1);
 
               //MPI_send
-              MPI_Send(pdData,iNzTransfered*sizeof(T),MPI_BYTE,iDest,0,pComm);
+              MPI_Send((void*)pdData,iNzTransfered*sizeof(T),MPI_BYTE,iDest,0,pComm);
             }
           }
         }
@@ -301,7 +305,9 @@ namespace LIBCHOLESKY{
       Int fi = xlindx_(s-1);
       Int li = xlindx_(s)-1;
 
+#ifdef _DEBUG_
       logfileptr->OFS()<<"Supernode "<<s<<" updates: ";
+#endif
 
       for(Int row_idx = fi; row_idx<=li;++row_idx){
         Int row = lindx_(row_idx-1);
@@ -309,7 +315,9 @@ namespace LIBCHOLESKY{
 
         if(marker(supno-1)!=s && supno!=s){
 
+#ifdef _DEBUG_
           logfileptr->OFS()<<supno<<" ";
+#endif
           ++sc(supno-1);
           marker(supno-1) = s;
 
@@ -317,7 +325,10 @@ namespace LIBCHOLESKY{
 
         }
       }
+
+#ifdef _DEBUG_
       logfileptr->OFS()<<std::endl;
+#endif
     }
   }
 
@@ -647,7 +658,7 @@ namespace LIBCHOLESKY{
         std::vector<T> src_nzval;
         std::vector<char> src_blocks;
 
-        volatile Int nz_cnt;
+        Int nz_cnt;
         Int max_bytes;
         while(UpdatesToDo(I-1)>0){
 #ifdef _DEBUG_
@@ -782,7 +793,9 @@ namespace LIBCHOLESKY{
 //          blas::Trsm('R','L','T','N',nzblk.NRows(),src_snode.Size(), ONE<T>(),  diagonalBlock.Nzval(), diagonalBlock.LDA(), nzblk.Nzval(), nzblk.LDA());
         }
 
+#ifdef _DEBUG_
         logfileptr->OFS()<<src_snode<<std::endl;
+#endif
 
         //Send my factor to my ancestors. 
         BolNumVec is_factor_sent(np);
@@ -811,6 +824,7 @@ namespace LIBCHOLESKY{
               blocks_sent.push_back(pNewDesc);
 
 
+
               Int tgt_first_col = Xsuper_(tgt_snode_id-1);
               Int tgt_last_col = Xsuper_(tgt_snode_id)-1;
 
@@ -818,7 +832,16 @@ namespace LIBCHOLESKY{
               NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(src_nzblk_idx);
 
               Int local_first_row = src_first_row-pivot_desc.GIndex;
-              volatile Int nzblk_cnt = src_snode.NZBlockCnt()-src_nzblk_idx;
+
+
+
+//              logfileptr->OFS()<<src_first_row<<std::endl;
+//              logfileptr->OFS()<<local_first_row<<std::endl;
+//              logfileptr->OFS()<<pivot_desc.GIndex<<std::endl;
+//              assert(src_first_row < pivot_desc.GIndex + src_snode.NRows(src_nzblk_idx));
+
+
+              Int nzblk_cnt = src_snode.NZBlockCnt()-src_nzblk_idx;
               pNewDesc->resize(sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc));
 
               char * send_ptr = &(*pNewDesc)[0];
@@ -835,23 +858,31 @@ namespace LIBCHOLESKY{
               block_desc_ptr->GIndex = src_first_row;
 
               //send the block descriptors
-              MPI_Send(send_ptr,nzblk_cnt*sizeof(NZBlockDesc) + sizeof(Int),
+              MPI_Send((void*)send_ptr,nzblk_cnt*sizeof(NZBlockDesc) + sizeof(Int),
                   MPI_BYTE,iTarget,tgt_snode_id,pComm);
 
-              T * nzval_ptr = src_snode.GetNZval(pivot_desc.Offset
-                  +local_first_row*src_snode.Size());
-
-              volatile Int nz_cnt = (src_snode.NRowsBelowBlock(src_nzblk_idx)
-                  - local_first_row )*src_snode.Size();
+              const T * nzval_ptr = static_cast<T *>(src_snode.GetNZval(pivot_desc.Offset
+                  +local_first_row*src_snode.Size()));
 
 
-              MPI_Send(nzval_ptr,nz_cnt*sizeof(T),
-                  MPI_BYTE,iTarget,tgt_snode_id,pComm);
+
+//              Int nrows_below =src_snode.NRowsBelowBlock(src_nzblk_idx); 
+//              logfileptr->OFS()<<nrows_below<<std::endl;
+
+              Int nz_cnt = (src_snode.NRowsBelowBlock(src_nzblk_idx) - local_first_row )*src_snode.Size();
+
+              assert(nz_cnt>0);
+
+//              T * tmp = new T[nz_cnt];
+//              std::copy(nzval_ptr,nzval_ptr + nz_cnt, tmp);
+//              MPI_Send(tmp,nz_cnt*sizeof(T), MPI_BYTE,iTarget,tgt_snode_id,pComm);
+//              delete [] tmp;
+              MPI_Send(nzval_ptr,nz_cnt*sizeof(T), MPI_BYTE,iTarget,tgt_snode_id,pComm);
 
               delete blocks_sent.back();
 
-              logfileptr->OFS()<<"Sending "<<nz_cnt*sizeof(T)<<" bytes to P"<<iTarget<<std::endl;
 #ifdef _DEBUG_            
+              logfileptr->OFS()<<"Sending "<<nz_cnt*sizeof(T)<<" bytes to P"<<iTarget<<std::endl;
               logfileptr->OFS()<<"     Send factor "<<I<<" to node"<<tgt_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
               logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
 #endif
@@ -875,7 +906,7 @@ namespace LIBCHOLESKY{
           }
         }
       }
-      MPI_Barrier(pComm);
+//      MPI_Barrier(pComm);
     }
 
 
@@ -916,13 +947,13 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
         NZBlockDesc * nzblk_desc = &src_snode.GetNZBlockDesc(0);
         Int size_blocks = src_snode.NZBlockCnt();
-        MPI_Send(&size_blocks,sizeof(Int),MPI_BYTE,0,I,pComm);
-        MPI_Send(nzblk_desc,size_blocks*sizeof(NZBlockDesc),MPI_BYTE,0,I,pComm);
+        MPI_Send((void*)&size_blocks,sizeof(Int),MPI_BYTE,0,I,pComm);
+        MPI_Send((void*)nzblk_desc,size_blocks*sizeof(NZBlockDesc),MPI_BYTE,0,I,pComm);
 
         T * nzblk_nzval = src_snode.GetNZval(0);
         Int size_nzval = src_snode.NRowsBelowBlock(0)*src_snode.Size();
-        MPI_Send(&size_nzval,sizeof(Int),MPI_BYTE,0,I,pComm);
-        MPI_Send(nzblk_nzval,size_nzval*sizeof(T),MPI_BYTE,0,I,pComm);
+        MPI_Send((void*)&size_nzval,sizeof(Int),MPI_BYTE,0,I,pComm);
+        MPI_Send((void*)nzblk_nzval,size_nzval*sizeof(T),MPI_BYTE,0,I,pComm);
 
 
 
@@ -1179,7 +1210,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
         std::vector<char> src_blocks;
         std::vector<T> src_nzval;
         size_t max_bytes;
-        volatile Int nz_cnt;
+        Int nz_cnt;
         while(UpdatesToDo(I-1)>0){
           //receive children contrib
 #ifdef _DEBUG_
@@ -1301,7 +1332,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
               Int src_first_row = pivot_desc.GIndex;
               Int local_first_row = 0;
-              volatile Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
+              Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
               pNewDesc->resize(sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc));
 
               char * send_ptr = &(*pNewDesc)[0];
@@ -1324,7 +1355,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
               T * nzval_ptr = contrib->GetNZval(pivot_desc.Offset
                   +local_first_row*nrhs);
 
-              volatile Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
+              Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
                   - local_first_row )*nrhs;
 
               MPI_Send(nzval_ptr,nz_cnt*sizeof(T),
@@ -1418,7 +1449,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
 
             //Receive the size of the nzval array
-            volatile Int nz_cnt = 0;
+            Int nz_cnt = 0;
             MPI_Recv(&nz_cnt,sizeof(Int),MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
             src_nzval.resize(nz_cnt);
 
@@ -1518,7 +1549,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
 
                 Int src_first_row = pivot_desc.GIndex;
                 Int local_first_row = 0;
-                volatile Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
+                Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
                 pNewDesc->resize(sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc));
 
                 char * send_ptr = &(*pNewDesc)[0];
@@ -1543,7 +1574,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
                 T * nzval_ptr = contrib->GetNZval(pivot_desc.Offset
                     +local_first_row*nrhs);
 
-                volatile Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
+                Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
                     - local_first_row )*nrhs;
 
                 MPI_Send(&nz_cnt,sizeof(nz_cnt),MPI_BYTE,iTarget,child_snode_id,pComm);

@@ -6,7 +6,8 @@
 include ../make.inc
 
 
-SRCS  = run_cholesky.cpp run_dense_fanboth.cpp 
+SRCS  = 
+#run_cholesky.cpp run_dense_fanboth.cpp 
 
 OBJS = ${SRCS:.cpp=.o}
 DEPS = ${SRCS:.cpp=.d}

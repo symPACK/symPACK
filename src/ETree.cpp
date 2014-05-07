@@ -124,9 +124,11 @@ namespace LIBCHOLESKY{
       }
 
 
+#ifdef _DEBUG_
       logfileptr->OFS()<<"parent "<<parent_<<std::endl;
       logfileptr->OFS()<<"fson "<<fson<<std::endl;
       logfileptr->OFS()<<"brother "<<brother<<std::endl;
+#endif
 
       BTreeToPO(fson,brother);
 
@@ -143,9 +145,11 @@ namespace LIBCHOLESKY{
               brother(nunode-1) = ndpar;
             }
 
+#ifdef _DEBUG_
       logfileptr->OFS()<<"new parent: "<<brother<<std::endl;
       logfileptr->OFS()<<"postNumber: "<<postNumber_<<std::endl;
       logfileptr->OFS()<<"invPostNumber: "<<invPostNumber_<<std::endl;
+#endif
 
       bIsPostOrdered_ = true;
     }
@@ -367,7 +371,9 @@ namespace LIBCHOLESKY{
 
         if( curSnode != parentSnode){
           newTree.parent_(curSnode-1) = parentSnode;
+#ifdef _DEBUG_
           logfileptr->OFS()<<"parent of curSnode "<<curSnode<<" is "<<parentSnode<<std::endl;
+#endif
         }
     } 
 
