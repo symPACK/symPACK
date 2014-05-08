@@ -249,8 +249,9 @@ namespace LIBCHOLESKY{
               }
             }
           }
-          iStartIdxCopy+=iNrows;
-
+          if(iam!=prevOwner){
+            iStartIdxCopy+=iNrows;
+          }
         }
 
       }
@@ -988,6 +989,13 @@ namespace LIBCHOLESKY{
         }
       }
 //      MPI_Barrier(pComm);
+
+
+//      {
+//      NumMat<T> tmp;
+//      GetFullFactors(tmp,pComm);
+//      }
+
     }
 
 

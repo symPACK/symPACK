@@ -253,7 +253,7 @@ TIMER_STOP(SPARSE_FAN_OUT);
     SMat.GetFullFactors(fullMatrix,worldcomm);
 
 #ifdef _DEBUG_
-    logfileptr->OFS()<<fullMatrix<<std::endl;
+//    logfileptr->OFS()<<fullMatrix<<std::endl;
 #endif
 
 #ifdef _CHECK_RESULT_
@@ -266,9 +266,24 @@ TIMER_STOP(SPARSE_FAN_OUT);
 
 
     if(iam==0){
+      logfileptr->OFS()<<fullMatrix<<endl;
+
+
+
       blas::Axpy(fullMatrix.m()*fullMatrix.n(),-1.0,&A(0,0),1,&fullMatrix(0,0),1);
       double norm = lapack::Lange('F',fullMatrix.m(),fullMatrix.n(),&fullMatrix(0,0),fullMatrix.m());
-      logfileptr->OFS()<<fullMatrix<<endl;
+      for(int j = 0; j<fullMatrix.n();++j){
+        int maxi = 0;
+        double maxelem = 0.0;
+        for(int i = 0; i<fullMatrix.m();++i){
+          if(std::abs(maxelem)<= std::abs(fullMatrix(i,j))){
+            maxelem = fullMatrix(i,j);
+            maxi = i;
+          }
+        }
+        logfileptr->OFS()<<"Max of col "<<j<<" is "<<maxelem<<" at line "<<maxi<<std::endl;
+      }
+
       logfileptr->OFS()<<"Norm of residual between full matrices is "<<norm<<std::endl;
     }
 
