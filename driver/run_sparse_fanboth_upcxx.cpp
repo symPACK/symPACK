@@ -45,6 +45,7 @@ extern "C" {
 
 
 
+#define _CHECK_RESULT_
 
 #ifdef USE_TAU
 #include "TAU.h"

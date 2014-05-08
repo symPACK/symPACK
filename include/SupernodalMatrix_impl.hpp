@@ -7,6 +7,12 @@
 
 #define MAX_SNODE_SIZE -1
 
+#define TAG_INDEX 0
+#define TAG_NZVAL 1
+#define TAG_COUNT 2
+
+#define PACKING
+
 namespace LIBCHOLESKY{
 
 
@@ -305,6 +311,11 @@ namespace LIBCHOLESKY{
       Int fi = xlindx_(s-1);
       Int li = xlindx_(s)-1;
 
+#ifndef _DEBUG_
+  #define nodebugtmp
+  #define _DEBUG_
+#endif
+
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Supernode "<<s<<" updates: ";
 #endif
@@ -328,6 +339,10 @@ namespace LIBCHOLESKY{
 
 #ifdef _DEBUG_
       logfileptr->OFS()<<std::endl;
+#endif
+
+#ifdef nodebugtmp
+  #undef _DEBUG_
 #endif
     }
   }
@@ -665,6 +680,7 @@ namespace LIBCHOLESKY{
           logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
 #endif
 
+#ifndef PACKING
           if(src_blocks.size()==0){
             //The upper bound must be of the width of the "largest" child
 #ifdef _DEBUG_
@@ -687,7 +703,7 @@ namespace LIBCHOLESKY{
           MPI_Status recv_status_nz;
 
           //receive the index array
-          MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
+          MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,(I-1)*TAG_COUNT+TAG_INDEX,pComm,&recv_status);
           int bytes_received = 0;
           MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
 
@@ -698,7 +714,7 @@ namespace LIBCHOLESKY{
           Int src_nzblk_cnt = (bytes_received - sizeof(Int) ) / sizeof(NZBlockDesc);
 
           //receive the nzval array
-          MPI_Recv(&src_nzval[0],nz_cnt*sizeof(T),MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status_nz);
+          MPI_Recv(&src_nzval[0],nz_cnt*sizeof(T),MPI_BYTE,MPI_ANY_SOURCE,(I-1)*TAG_COUNT+TAG_NZVAL,pComm,&recv_status_nz);
           MPI_Get_count(&recv_status_nz, MPI_BYTE, &bytes_received);
 
           assert(bytes_received % sizeof(T) == 0);
@@ -711,7 +727,46 @@ namespace LIBCHOLESKY{
           NZBlockDesc * src_blocks_ptr = 
                     reinterpret_cast<NZBlockDesc*>(&src_blocks[sizeof(Int)]);
           T * src_nzval_ptr = &src_nzval[0];
+#else
 
+//    blocklens[0] = sizeof(Int);
+//    blocklens[1] = sizeof(Int);
+//    blocklens[2] = sizeof(NZBlockDesc);
+//    blocklens[3] = (nzblk_cnt_-1)*sizeof(NZBlockDesc);
+//    blocklens[4] = sizeof(Int);
+//    blocklens[5] = nz_cnt * sizeof(T);
+
+          if(src_blocks.size()==0){
+            max_bytes = 3*sizeof(Int); 
+            //The upper bound must be of the width of the "largest" child
+#ifdef _DEBUG_
+            logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;
+#endif
+
+            Int nrows = src_snode.NRowsBelowBlock(0);
+            Int ncols = UpdateWidth_(I-1);
+            nz_cnt = nrows * ncols;
+            
+            max_bytes += (nrows/2+1)*sizeof(NZBlockDesc);
+            max_bytes += nz_cnt*sizeof(T); 
+
+            src_blocks.resize(max_bytes);
+          }
+
+
+          MPI_Status recv_status;
+          //receive the index array
+          MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
+          int bytes_received = 0;
+          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
+
+          Int src_snode_id = *(Int*)&src_blocks[0];
+          Int src_nzblk_cnt = *(((Int*)&src_blocks[0])+1);
+          NZBlockDesc * src_blocks_ptr = 
+                    reinterpret_cast<NZBlockDesc*>(&src_blocks[2*sizeof(Int)]);
+          Int src_nzval_cnt = *(Int*)(src_blocks_ptr + src_nzblk_cnt);
+          T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
+#endif
           //Create the dummy supernode for that data
           SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
 
@@ -756,8 +811,8 @@ namespace LIBCHOLESKY{
 
 
 
-#ifdef _DEBUG_
         logfileptr->OFS()<<"  Factoring Supernode "<<I<<std::endl;
+#ifdef _DEBUG_
         logfileptr->OFS()<<src_snode<<std::endl;
 #endif
 
@@ -808,6 +863,8 @@ namespace LIBCHOLESKY{
         Int src_nzblk_idx = 0;
         Int src_first_row = 0;
         Int src_last_row = 0;
+
+
         while(FindNextUpdate(src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
 
           Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
@@ -840,12 +897,16 @@ namespace LIBCHOLESKY{
 //              logfileptr->OFS()<<pivot_desc.GIndex<<std::endl;
 //              assert(src_first_row < pivot_desc.GIndex + src_snode.NRows(src_nzblk_idx));
 
-
               Int nzblk_cnt = src_snode.NZBlockCnt()-src_nzblk_idx;
+
+              Int nz_cnt = (src_snode.NRowsBelowBlock(src_nzblk_idx) - local_first_row )*src_snode.Size();
+              assert(nz_cnt>0);
+
+              T * nzval_ptr = src_snode.GetNZval(pivot_desc.Offset
+                  +local_first_row*src_snode.Size());
+#ifndef PACKING
               pNewDesc->resize(sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc));
-
               char * send_ptr = &(*pNewDesc)[0];
-
               Int * id_ptr = reinterpret_cast<Int *>(&(*pNewDesc)[0]);
               NZBlockDesc * block_desc_ptr = 
                 reinterpret_cast<NZBlockDesc *>(&(*pNewDesc)[sizeof(Int)]);
@@ -859,30 +920,50 @@ namespace LIBCHOLESKY{
 
               //send the block descriptors
               MPI_Send((void*)send_ptr,nzblk_cnt*sizeof(NZBlockDesc) + sizeof(Int),
-                  MPI_BYTE,iTarget,tgt_snode_id,pComm);
-
-              const T * nzval_ptr = static_cast<T *>(src_snode.GetNZval(pivot_desc.Offset
-                  +local_first_row*src_snode.Size()));
+                  MPI_BYTE,iTarget,(tgt_snode_id-1)*TAG_COUNT+TAG_INDEX,pComm);
 
 
+              MPI_Send(nzval_ptr,nz_cnt*sizeof(T), MPI_BYTE,iTarget,(tgt_snode_id-1)*TAG_COUNT+TAG_NZVAL,pComm);
+#else
 
-//              Int nrows_below =src_snode.NRowsBelowBlock(src_nzblk_idx); 
-//              logfileptr->OFS()<<nrows_below<<std::endl;
+    NZBlockDesc first_desc;
+    first_desc.GIndex = src_first_row;
+    first_desc.Offset = pivot_desc.Offset + (src_first_row - pivot_desc.GIndex)*src_snode.Size();
+ 
 
-              Int nz_cnt = (src_snode.NRowsBelowBlock(src_nzblk_idx) - local_first_row )*src_snode.Size();
+    MPI_Datatype packedType;
+    int          blocklens[6];
+    MPI_Aint     indices[6];
 
-              assert(nz_cnt>0);
+    blocklens[0] = sizeof(Int);
+    blocklens[1] = sizeof(Int);
+    blocklens[2] = sizeof(NZBlockDesc);
+    blocklens[3] = (nzblk_cnt-1)*sizeof(NZBlockDesc);
+    blocklens[4] = sizeof(Int);
+    blocklens[5] = nz_cnt * sizeof(T);
 
-//              T * tmp = new T[nz_cnt];
-//              std::copy(nzval_ptr,nzval_ptr + nz_cnt, tmp);
-//              MPI_Send(tmp,nz_cnt*sizeof(T), MPI_BYTE,iTarget,tgt_snode_id,pComm);
-//              delete [] tmp;
-              MPI_Send(nzval_ptr,nz_cnt*sizeof(T), MPI_BYTE,iTarget,tgt_snode_id,pComm);
+    MPI_Address( &I, &indices[0] );
+    MPI_Address( &nzblk_cnt, &indices[1] );
+    MPI_Address( &first_desc, &indices[2] );
+    MPI_Address( &pivot_desc + 1, &indices[3] );
+    MPI_Address( &nz_cnt, &indices[4] );
+    MPI_Address( nzval_ptr, &indices[5] );
+
+
+
+    MPI_Type_hindexed( 6, blocklens, indices, MPI_BYTE, &packedType );
+    MPI_Type_commit( &packedType );
+
+    MPI_Send(MPI_BOTTOM,1, packedType,iTarget,tgt_snode_id,pComm);
+
+    MPI_Type_free( &packedType );
+#endif
+
 
               delete blocks_sent.back();
 
-#ifdef _DEBUG_            
               logfileptr->OFS()<<"Sending "<<nz_cnt*sizeof(T)<<" bytes to P"<<iTarget<<std::endl;
+#ifdef _DEBUG_            
               logfileptr->OFS()<<"     Send factor "<<I<<" to node"<<tgt_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
               logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
 #endif
