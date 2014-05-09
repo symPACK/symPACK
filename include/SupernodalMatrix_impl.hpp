@@ -35,6 +35,7 @@ namespace LIBCHOLESKY{
 
     IntNumVec cc,rc;
     Global_.GetLColRowCount(ETree_,cc,rc);
+//    Global_.GetLColRowCount2(ETree_,cc,rc);
 #ifdef _DEBUG_
     logfileptr->OFS()<<"colcnt "<<cc<<std::endl;
     logfileptr->OFS()<<"rowcnt "<<rc<<std::endl;
@@ -132,7 +133,7 @@ namespace LIBCHOLESKY{
       //copy the data from A into this Block structure
       for(Int i = fc;i<=lc;i++){
         //corresponding column in the unsorted matrix A
-        Int orig_i = perm(i-1);
+        Int orig_i = ETree_.FromPostOrder(perm(i-1));
 
 //        Int iOwner = std::min((i-1)/numColFirst,np-1);
         Int iOwner = std::min((orig_i-1)/numColFirst,np-1);
@@ -147,7 +148,7 @@ namespace LIBCHOLESKY{
 
           for(Int j =i;j<=lc;++j){
             //corresponding column in the unsorted matrix A
-            Int orig_j = perm(j-1);
+            Int orig_j = ETree_.FromPostOrder(perm(j-1));
 //            iOwner = std::min((j-1)/numColFirst,np-1);
             iOwner = std::min((orig_j-1)/numColFirst,np-1);
             if(iOwner == prevOwner){
@@ -217,7 +218,7 @@ namespace LIBCHOLESKY{
           for(Int idx = firstrow; idx<=li;idx++){
             iLRow = lindx_(idx-1);
             // Original row index in the unsorted matrix A
-            Int orig_iLRow = perm(lindx_(idx-1)-1);
+            Int orig_iLRow = ETree_.FromPostOrder(perm(lindx_(idx-1)-1));
             //logfileptr->OFS()<<"Looking at L("<<iLRow<<","<<i<<")"<<std::endl;
             if( orig_iLRow == iRowind){
               Int iNZBlockIdx = snode.FindBlockIdx(iLRow);
@@ -249,9 +250,9 @@ namespace LIBCHOLESKY{
               }
             }
           }
-          if(iam!=prevOwner){
+          //if(iam!=prevOwner){
             iStartIdxCopy+=iNrows;
-          }
+          //}
         }
 
       }
@@ -314,7 +315,7 @@ namespace LIBCHOLESKY{
 
 #ifndef _DEBUG_
   #define nodebugtmp
-  #define _DEBUG_
+  //#define _DEBUG_
 #endif
 
 #ifdef _DEBUG_
@@ -367,7 +368,9 @@ namespace LIBCHOLESKY{
     //src_first_row is the first row updating the supernode examined
     //src_last_row is the last row updating the supernode examined
 
+    TIMER_START(FIND_UPDATE);
     
+    bool returnval = true;
 
     //if tgt_snode_id == 0 , this is the first call to the function
     if(tgt_snode_id == 0){
@@ -382,7 +385,8 @@ namespace LIBCHOLESKY{
       }
 
       if(src_nzblk_idx == -1 ){
-        return false;
+        returnval = false;
+//        return false;
       }
       else{
             assert(src_nzblk_idx<src_snode.NZBlockCnt());
@@ -393,7 +397,8 @@ namespace LIBCHOLESKY{
       //find the block corresponding to src_last_row
       src_nzblk_idx = src_snode.FindBlockIdx(src_last_row);
       if(src_nzblk_idx==-1/*src_snode.NZBlockCnt()*/){
-        return false;
+        returnval = false;
+//        return false;
       }
       else{
             assert(src_nzblk_idx<src_snode.NZBlockCnt());
@@ -403,7 +408,8 @@ namespace LIBCHOLESKY{
         if(src_last_row == src_lr){
           src_nzblk_idx++;
           if(src_nzblk_idx==src_snode.NZBlockCnt()){
-            return false;
+            returnval = false;
+//            return false;
           }
           else{
             assert(src_nzblk_idx<src_snode.NZBlockCnt());
@@ -416,6 +422,7 @@ namespace LIBCHOLESKY{
       }
     }
 
+    if(returnval){
     //Now we try to find src_last_row
     NZBlockDesc & desc = src_snode.GetNZBlockDesc(src_nzblk_idx);
     assert(src_first_row >= desc.GIndex);
@@ -471,14 +478,18 @@ namespace LIBCHOLESKY{
     assert(src_first_row>= Xsuper_(tgt_snode_id-1));
     assert(src_last_row<= Xsuper_(tgt_snode_id)-1);
     assert(src_first_row >= src_fr);
+    }
 
-    return true;
+    TIMER_STOP(FIND_UPDATE);
+
+    return returnval;
 
   }
 
 
   template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr){
 
+    TIMER_START(UPDATE_SNODE);
 //if(tgt_snode.Id() == 14){gdb_lock();}
     NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(pivot_idx);
     Int first_pivot_fr = pivot_fr;
@@ -620,12 +631,17 @@ namespace LIBCHOLESKY{
           logfileptr->OFS()<<tgt_snode<<std::endl;
 #endif
 
+    TIMER_STOP(UPDATE_SNODE);
   }
 
 
 
 
   template <typename T> void SupernodalMatrix<T>::Factorize( MPI_Comm & pComm ){
+
+    TIMER_START(FACTORIZATION);
+
+
     MPI_Comm_rank(pComm, &iam);
     MPI_Comm_size(pComm, &np);
     IntNumVec UpdatesToDo = UpdateCount_;
@@ -737,6 +753,7 @@ namespace LIBCHOLESKY{
 //    blocklens[4] = sizeof(Int);
 //    blocklens[5] = nz_cnt * sizeof(T);
 
+    TIMER_START(RECV_MALLOC);
           if(src_blocks.size()==0){
             max_bytes = 3*sizeof(Int); 
             //The upper bound must be of the width of the "largest" child
@@ -753,8 +770,9 @@ namespace LIBCHOLESKY{
 
             src_blocks.resize(max_bytes);
           }
+    TIMER_STOP(RECV_MALLOC);
 
-
+    TIMER_START(RECV_MPI);
           MPI_Status recv_status;
           //receive the index array
           MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,pComm,&recv_status);
@@ -767,6 +785,7 @@ namespace LIBCHOLESKY{
                     reinterpret_cast<NZBlockDesc*>(&src_blocks[2*sizeof(Int)]);
           Int src_nzval_cnt = *(Int*)(src_blocks_ptr + src_nzblk_cnt);
           T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
+    TIMER_STOP(RECV_MPI);
 #endif
           //Create the dummy supernode for that data
           SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
@@ -812,11 +831,12 @@ namespace LIBCHOLESKY{
 
 
 
-        logfileptr->OFS()<<"  Factoring Supernode "<<I<<std::endl;
 #ifdef _DEBUG_
+        logfileptr->OFS()<<"  Factoring Supernode "<<I<<std::endl;
         logfileptr->OFS()<<src_snode<<std::endl;
 #endif
 
+    TIMER_START(FACTOR_PANEL);
         //Factorize Diagonal block
         NZBlockDesc & diag_desc = src_snode.GetNZBlockDesc(0);
         T * diag_nzval = src_snode.GetNZval(diag_desc.Offset);
@@ -852,6 +872,8 @@ namespace LIBCHOLESKY{
 #ifdef _DEBUG_
         logfileptr->OFS()<<src_snode<<std::endl;
 #endif
+
+    TIMER_STOP(FACTOR_PANEL);
 
         //Send my factor to my ancestors. 
         BolNumVec is_factor_sent(np);
@@ -927,6 +949,7 @@ namespace LIBCHOLESKY{
               MPI_Send(nzval_ptr,nz_cnt*sizeof(T), MPI_BYTE,iTarget,(tgt_snode_id-1)*TAG_COUNT+TAG_NZVAL,pComm);
 #else
 
+    TIMER_START(SEND_MALLOC);
     NZBlockDesc first_desc;
     first_desc.GIndex = src_first_row;
     first_desc.Offset = pivot_desc.Offset + (src_first_row - pivot_desc.GIndex)*src_snode.Size();
@@ -955,7 +978,13 @@ namespace LIBCHOLESKY{
     MPI_Type_hindexed( 6, blocklens, indices, MPI_BYTE, &packedType );
     MPI_Type_commit( &packedType );
 
+
+    TIMER_STOP(SEND_MALLOC);
+
+
+    TIMER_START(SEND_MPI);
     MPI_Send(MPI_BOTTOM,1, packedType,iTarget,tgt_snode_id,pComm);
+    TIMER_STOP(SEND_MPI);
 
     MPI_Type_free( &packedType );
 #endif
@@ -963,8 +992,8 @@ namespace LIBCHOLESKY{
 
               delete blocks_sent.back();
 
-              logfileptr->OFS()<<"Sending "<<nz_cnt*sizeof(T)<<" bytes to P"<<iTarget<<std::endl;
 #ifdef _DEBUG_            
+              logfileptr->OFS()<<"Sending "<<nz_cnt*sizeof(T)<<" bytes to P"<<iTarget<<std::endl;
               logfileptr->OFS()<<"     Send factor "<<I<<" to node"<<tgt_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
               logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
 #endif
@@ -1003,6 +1032,7 @@ namespace LIBCHOLESKY{
 
       MPI_Barrier(pComm);
 
+    TIMER_STOP(FACTORIZATION);
   }
 
 

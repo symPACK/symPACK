@@ -40,6 +40,7 @@ public:
   ETree(SparseMatrixStructure & aGlobal);
 
   void ConstructETree(SparseMatrixStructure & aGlobal);
+  void ConstructETree2(SparseMatrixStructure & aGlobal);
 
   void PostOrderTree();
 

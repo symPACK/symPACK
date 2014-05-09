@@ -206,6 +206,163 @@ namespace LIBCHOLESKY{
     TIMER_STOP(ToGlobalStructure);
   }
 
+  void SparseMatrixStructure::GetLColRowCount2(ETree & tree, IntNumVec & cc, IntNumVec & rc){
+     //The tree need to be postordered
+    if(!tree.IsPostOrdered()){
+      TIMER_START(PostOrder);
+      tree.PostOrderTree();
+      TIMER_START(PostOrder);
+    }
+
+    ExpandSymmetric();
+    
+    cc.Resize(size);
+    rc.Resize(size);
+
+    IntNumVec level(size+1);
+    IntNumVec weight(size+1);
+    IntNumVec fdesc(size+1);
+    IntNumVec nchild(size+1);
+    IntNumVec set(size);
+    IntNumVec prvlf(size);
+    IntNumVec prvnbr(size);
+
+
+        Int xsup = 1;
+        level(0) = 0;
+      for(Int k = size; k>=1; --k){
+            rc(k-1) = 1;
+            cc(k-1) = 0;
+            set(k-1) = k;
+            prvlf(k-1) = 0;
+            prvnbr(k-1) = 0;
+            level(k) = level(tree.PostParent(k-1)) + 1;
+            weight(k) = 1;
+            fdesc(k) = k;
+            nchild(k) = 0;
+      }
+
+      nchild(0) = 0;
+      fdesc(0) = 0;
+      for(Int k =1; k<size; ++k){
+            Int parent = tree.PostParent(k-1);
+            weight(parent) = 0;
+            ++nchild(parent);
+            Int ifdesc = fdesc(k);
+            if  ( ifdesc < fdesc(parent) ) {
+                fdesc(parent) = ifdesc;
+            }
+      }
+
+
+
+
+
+
+
+      for(Int lownbr = 1; lownbr<=size; ++lownbr){
+        Int lflag = 0;
+        Int ifdesc = fdesc(lownbr);
+        Int oldnbr = tree.FromPostOrder(lownbr);
+        Int jstrt = expColptr(oldnbr-1);
+        Int jstop = expColptr(oldnbr) - 1;
+
+//        if(nchild(lownbr)>=2){
+//          weight(lownbr)--;
+//        }
+
+        //           -----------------------------------------------
+        //           for each ``high neighbor'', hinbr of lownbr ...
+        //           -----------------------------------------------
+        for(Int j = jstrt; j<=jstop;++j){
+          Int hinbr = tree.ToPostOrder(expRowind(j-1));
+          if  ( hinbr > lownbr )  {
+            if  ( ifdesc > prvnbr(hinbr-1) ) {
+              //                       -------------------------
+              //                       increment weight(lownbr).
+              //                       -------------------------
+              ++weight(lownbr);
+              Int pleaf = prvlf(hinbr-1);
+              //                       -----------------------------------------
+              //                       if hinbr has no previous ``low neighbor'' 
+              //                       then ...
+              //                       -----------------------------------------
+              if  ( pleaf == 0 ) {
+                //                           -----------------------------------------
+                //                           ... accumulate lownbr-->hinbr path length 
+                //                               in rowcnt(hinbr).
+                //                           -----------------------------------------
+                rc(hinbr-1) += level(lownbr) - level(hinbr);
+              }
+              else{
+                //                           -----------------------------------------
+                //                           ... otherwise, lca <-- find(pleaf), which 
+                //                               is the least common ancestor of pleaf 
+                //                               and lownbr.
+                //                               (path halving.)
+                //                           -----------------------------------------
+                Int last1 = pleaf;
+                Int last2 = set(last1-1);
+                Int lca = set(last2-1);
+                while(lca != last2){
+                  set(last1-1) = lca;
+                  last1 = lca;
+                  last2 = set(last1-1);
+                  lca = set(last2-1);
+                }
+                //                           -------------------------------------
+                //                           accumulate pleaf-->lca path length in 
+                //                           rowcnt(hinbr).
+                //                           decrement weight(lca).
+                //                           -------------------------------------
+                rc(hinbr-1) += level(lownbr) - level(lca);
+                --weight(lca);
+              }
+              //                       ----------------------------------------------
+              //                       lownbr now becomes ``previous leaf'' of hinbr.
+              //                       ----------------------------------------------
+              prvlf(hinbr-1) = lownbr;
+              lflag = 1;
+            }
+            //                   --------------------------------------------------
+            //                   lownbr now becomes ``previous neighbor'' of hinbr.
+            //                   --------------------------------------------------
+            prvnbr(hinbr-1) = lownbr;
+          }
+        }
+        //           ----------------------------------------------------
+        //           decrement weight ( parent(lownbr) ).
+        //           set ( p(lownbr) ) <-- set ( p(lownbr) ) + set(xsup).
+        //           ----------------------------------------------------
+        Int parent = tree.PostParent(lownbr-1);
+        --weight(parent);
+
+
+        //merge the sets
+        if  ( lflag == 1  || nchild(lownbr) >= 2 ) {
+          xsup = lownbr;
+        }
+        set(xsup-1) = parent;
+      }
+
+
+
+
+      logfileptr->OFS()<<"deltas "<<weight<<std::endl;
+
+
+        for(Int k = 1; k<=size; ++k){
+            Int temp = cc(k-1) + weight(k);
+            cc(k-1) = temp;
+            Int parent = tree.PostParent(k-1);
+            if  ( parent != 0 ) {
+                cc(parent-1) += temp;
+            }
+        }
+
+      logfileptr->OFS()<<"column counts "<<cc<<std::endl;
+
+  }
 
   void SparseMatrixStructure::GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc){
 
@@ -221,6 +378,8 @@ namespace LIBCHOLESKY{
       tree.PostOrderTree();
       TIMER_START(PostOrder);
     }
+
+    ExpandSymmetric();
 
     TIMER_START(Initialize_Data);
     //cc first contains the delta
@@ -242,7 +401,7 @@ namespace LIBCHOLESKY{
         cc(vertex-1)=1;
       }
       else{
-        cc(vertex-1)=0;
+        cc(vertex-1)= 0;//treeSize(vertex-1) -2;
       }
     }
 
@@ -261,7 +420,7 @@ namespace LIBCHOLESKY{
       cc(size-1)=1;
     }
     else{
-      cc(size-1)=0;
+      cc(size-1)= 0 ;
     }
 
 
@@ -293,27 +452,42 @@ namespace LIBCHOLESKY{
         cc(colPar-1)--;
       }
 
+//      if (col<size && treeSize(col-1)>1){
+//        cc(col-1)--;
+//      }
+
       Int oCol = tree.FromPostOrder(col);
-      for (Int i = colptr(oCol-1); i < colptr(oCol); i++) {
-        Int row = tree.ToPostOrder(rowind(i-1));
+      for (Int i = expColptr(oCol-1); i < expColptr(oCol); i++) {
+        Int row = tree.ToPostOrder(expRowind(i-1));
         if (row > col){
           Int k = prevNz(row-1);
+
+
+          logfileptr->OFS()<<"prevNz("<<row<<")="<<k<<" vs "<< col - treeSize(col-1) +1<<std::endl;
           if(k< col - treeSize(col-1) +1){
+            logfileptr->OFS()<<"Vertex "<<col<<" is a leaf of Tr["<<row<<"]"<<std::endl;
+            cc(col-1)++;
 
             Int p = prevLeaf(row-1);
-            cc(col-1)++;
             if(p==0){
               rc(row-1)+=level(col-1)-level(row-1);
             }
-            else{
+            else {
               TIMER_START(Get_LCA);
               Int pset = sets.find(p);
               Int q = sets.Root(pset-1);
               TIMER_STOP(Get_LCA);
+
+              logfileptr->OFS()<<"Vertex "<<q<<" is the LCA of "<<p<<" and "<< col<<std::endl;
+
               rc(row-1)+= level(col-1) - level(q-1);
               cc(q-1)--;
+
             }
             prevLeaf(row-1)=col;
+          }
+          else{
+            logfileptr->OFS()<<"Vertex "<<col<<" is an internal vertex of Tr["<<row<<"]"<<std::endl;
           }
           prevNz(row-1)=col;
         }
@@ -331,11 +505,11 @@ namespace LIBCHOLESKY{
 
 
 
-    //    logfileptr->OFS()<<"Deltas "<<cc.m()<<std::endl;
-    //    for(Int i = 0; i<cc.m();i++){
-    //      logfileptr->OFS()<<cc(i)<<" ";
-    //    }
-    //    logfileptr->OFS()<<std::endl;
+        logfileptr->OFS()<<"Deltas "<<cc.m()<<std::endl;
+        for(Int i = 0; i<cc.m();i++){
+          logfileptr->OFS()<<cc(i)<<" ";
+        }
+        logfileptr->OFS()<<std::endl;
 
 
 
@@ -352,11 +526,11 @@ namespace LIBCHOLESKY{
 
 
 
-    //    logfileptr->OFS()<<"colcnt "<<cc.m()<<std::endl;
-    //    for(Int i = 0; i<cc.m();i++){
-    //      logfileptr->OFS()<<cc(i)<<" ";
-    //    }
-    //    logfileptr->OFS()<<std::endl;
+        logfileptr->OFS()<<"colcnt "<<cc.m()<<std::endl;
+        for(Int i = 0; i<cc.m();i++){
+          logfileptr->OFS()<<cc(i)<<" ";
+        }
+        logfileptr->OFS()<<std::endl;
 
 
 
@@ -511,6 +685,7 @@ namespace LIBCHOLESKY{
             }while(newi > nexti);
 
             if(newi < nexti){
+            logfileptr->OFS()<<jsup<<" is a child of "<<ksup<<" and "<<newi<<" is inserted in the structure of "<<ksup<<std::endl;
               ++knz;
               rchlnk(i) = newi;
               rchlnk(newi) = nexti;
@@ -557,6 +732,9 @@ namespace LIBCHOLESKY{
         rchlnk(head) = fstcol;
         ++knz;
       }
+
+      assert(knz == cc(fstcol-1));
+
 
       //copy indices from linked list into lindx(*).
       nzbeg = nzend+1;

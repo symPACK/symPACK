@@ -45,7 +45,6 @@ extern "C" {
 
 
 
-#define _CHECK_RESULT_
 
 #ifdef USE_TAU
 #include "TAU.h"
@@ -204,9 +203,13 @@ int main(int argc, char **argv)
 
         //blas::Trsm('L','L','N','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
         fwdSol = X;
+#ifdef _DEBUG_
         logfileptr->OFS()<<"Solution after forward substitution:"<<X<<std::endl;
+#endif
         blas::Trsm('L','L','T','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
+#ifdef _DEBUG_
         logfileptr->OFS()<<"Solution after back substitution:"<<X<<std::endl;
+#endif
 
         blas::Axpy(n*nrhs,-1.0,&XTrue(0,0),1,&X(0,0),1);
         norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
@@ -260,32 +263,39 @@ TIMER_STOP(SPARSE_FAN_OUT);
     RHS.Resize(SMat.Size(),nrhs);
     MPI_Bcast(RHS.Data(),RHS.ByteSize(),MPI_BYTE,0,worldcomm);
 
-    logfileptr->OFS()<<"RHS:"<<RHS<<endl;
+//    logfileptr->OFS()<<"RHS:"<<RHS<<endl;
 
-    DblNumMat X = RHS;
-
-
-    if(iam==0){
-      logfileptr->OFS()<<fullMatrix<<endl;
-
-
-
-      blas::Axpy(fullMatrix.m()*fullMatrix.n(),-1.0,&A(0,0),1,&fullMatrix(0,0),1);
-      double norm = lapack::Lange('F',fullMatrix.m(),fullMatrix.n(),&fullMatrix(0,0),fullMatrix.m());
-      for(int j = 0; j<fullMatrix.n();++j){
-        int maxi = 0;
-        double maxelem = 0.0;
-        for(int i = 0; i<fullMatrix.m();++i){
-          if(std::abs(maxelem)<= std::abs(fullMatrix(i,j))){
-            maxelem = fullMatrix(i,j);
-            maxi = i;
-          }
-        }
-        logfileptr->OFS()<<"Max of col "<<j<<" is "<<maxelem<<" at line "<<maxi<<std::endl;
+    //sort X the same way (permute rows)
+    ETree & tree = SMat.GetETree();
+    DblNumMat X(RHS.m(),RHS.n());
+    for(Int row = 1; row<= RHS.m(); ++row){
+      for(Int col = 1; col<= RHS.n(); ++col){
+        X(tree.ToPostOrder(row)-1,col-1) = RHS(row-1,col-1);
       }
-
-      logfileptr->OFS()<<"Norm of residual between full matrices is "<<norm<<std::endl;
     }
+
+
+//    if(iam==0){
+//      logfileptr->OFS()<<fullMatrix<<endl;
+//
+//
+//
+//      blas::Axpy(fullMatrix.m()*fullMatrix.n(),-1.0,&A(0,0),1,&fullMatrix(0,0),1);
+//      double norm = lapack::Lange('F',fullMatrix.m(),fullMatrix.n(),&fullMatrix(0,0),fullMatrix.m());
+//      for(int j = 0; j<fullMatrix.n();++j){
+//        int maxi = 0;
+//        double maxelem = 0.0;
+//        for(int i = 0; i<fullMatrix.m();++i){
+//          if(std::abs(maxelem)<= std::abs(fullMatrix(i,j))){
+//            maxelem = fullMatrix(i,j);
+//            maxi = i;
+//          }
+//        }
+//        logfileptr->OFS()<<"Max of col "<<j<<" is "<<maxelem<<" at line "<<maxi<<std::endl;
+//      }
+//
+//      logfileptr->OFS()<<"Norm of residual between full matrices is "<<norm<<std::endl;
+//    }
 
     fwdSol.Resize(SMat.Size(),nrhs);
     MPI_Bcast(fwdSol.Data(),fwdSol.ByteSize(),MPI_BYTE,0,worldcomm);
@@ -299,9 +309,18 @@ TIMER_STOP(SPARSE_FAN_OUT);
     XTrue.Resize(SMat.Size(),nrhs);
     MPI_Bcast(XTrue.Data(),XTrue.ByteSize(),MPI_BYTE,0,worldcomm);
 
+    //Sort back X
+    DblNumMat X2(X.m(),X.n());
+    for(Int row = 1; row<= X.m(); ++row){
+      for(Int col = 1; col<= X.n(); ++col){
+        X2(tree.FromPostOrder(row)-1,col-1) = X(row-1,col-1);
+      }
+    }
 
-      blas::Axpy(X.m()*X.n(),-1.0,&XTrue(0,0),1,&X(0,0),1);
-      double norm = lapack::Lange('F',X.m(),X.n(),&X(0,0),X.m());
+
+
+      blas::Axpy(X2.m()*X2.n(),-1.0,&XTrue(0,0),1,&X2(0,0),1);
+      double norm = lapack::Lange('F',X2.m(),X2.n(),&X2(0,0),X2.m());
       logfileptr->OFS()<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
 #endif
 
