@@ -4,7 +4,7 @@
 #include "SupernodalMatrix.hpp"
 
 #include <queue>
-#include <forward_list>
+#include <list>
 
 //#define _DEBUG_
 
@@ -702,7 +702,7 @@ struct DelayedComm{
     MPI_Comm_size(pComm, &np);
     IntNumVec UpdatesToDo = UpdateCount_;
 
-    std::forward_list<DelayedComm> FactorsToSend; 
+    std::list<DelayedComm> FactorsToSend; 
 //    IntNumVec FactorsToSend(Xsuper_.m());
 //    SetValue(FactorsToSend,0);
 
@@ -717,8 +717,7 @@ struct DelayedComm{
 
 
         //process some of the delayed send
-        std::forward_list<DelayedComm>::iterator prevIt = FactorsToSend.before_begin();
-        std::forward_list<DelayedComm>::iterator it = FactorsToSend.begin();
+        std::list<DelayedComm>::iterator it = FactorsToSend.begin();
         while( it != FactorsToSend.end()){
           
           Int src_snode_id = it->src_snode_id;
@@ -865,10 +864,9 @@ struct DelayedComm{
 
           if(is_sendable && !skipped){
               //remove from the list
-              it = FactorsToSend.erase_after(prevIt);
+              it = FactorsToSend.erase(it);
           }
           else{
-            prevIt = it;
             it++;
           }
         }

@@ -434,7 +434,7 @@ int main(int argc, char **argv)
   SetValue(XTrue,1.0);
   //      UniformRandom(XTrue);
 
-  sp_dgemm_dist('N','N', n, XTrue.n(), n, 
+  sp_dgemm_dist("N","N", n, XTrue.n(), n, 
       LIBCHOLESKY::ONE<MYSCALAR>(), HMat, XTrue.Data(), XTrue.m(), 
       LIBCHOLESKY::ZERO<MYSCALAR>(), RHS.Data(), RHS.m());
 
