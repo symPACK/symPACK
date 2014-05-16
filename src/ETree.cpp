@@ -104,6 +104,7 @@ namespace LIBCHOLESKY{
   void ETree::PostOrderTree(){
     if(n_>0 && !bIsPostOrdered_){
 
+     TIMER_START(PostOrder);
 
       IntNumVec fson(n_);
       SetValue(fson, I_ZERO);
@@ -152,6 +153,7 @@ namespace LIBCHOLESKY{
 #endif
 
       bIsPostOrdered_ = true;
+     TIMER_STOP(PostOrder);
     }
 
   }
@@ -287,12 +289,12 @@ namespace LIBCHOLESKY{
 
   void ETree::ConstructETree(SparseMatrixStructure & aGlobal){
 
-
     n_ = aGlobal.size;
 
     //Expand to symmetric storage
     aGlobal.ExpandSymmetric();
 
+TIMER_START(Construct_Etree_Classic);
     parent_.Resize(n_);
     SetValue(parent_,I_ZERO );
 
@@ -346,16 +348,17 @@ namespace LIBCHOLESKY{
             }
   }
 
+TIMER_STOP(Construct_Etree_Classic);
 
   }
 
 
   void ETree::ConstructETree2(SparseMatrixStructure & aGlobal){
-    TIMER_START(ConstructETree);
 
     //Expand to symmetric storage
     aGlobal.ExpandSymmetric();
 
+    TIMER_START(ConstructETree);
     n_ = aGlobal.size;
 
 
@@ -375,6 +378,7 @@ namespace LIBCHOLESKY{
       parent_(col-1) = 0; 
     }
 
+/*
     for (Int col = 1; col <= n_; col++) {
       cset = sets.find (col);
 
@@ -411,51 +415,51 @@ namespace LIBCHOLESKY{
       }
 
     }
+*/
 
 
-//
-//
-//
-//
-//
-//
-//    for (Int col = 1; col <= n_; col++) {
-//      parent_(col-1)=col; //1 based indexes
-//      cset = sets.makeSet (col);
-//      sets.Root(cset-1) = col;
-//      parent_(col-1) = 0; 
-//
-//#ifdef _DEBUG_
-//      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
-//#endif
-//      for (Int p = aGlobal.expColptr(col-1); p < aGlobal.expColptr(col); p++) {
-//        row = aGlobal.expRowind(p-1);
-//
-//#ifdef _DEBUG_
-//        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
-//#endif
-//
-//
-//        if (row >= col) continue;
-//
-//        rset = sets.find(row);
-//        rroot = sets.Root(rset-1);
-//#ifdef _DEBUG_
-//        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
-//#endif
-//
-//        if (rroot != col) {
-//          parent_(rroot-1) = col;
-//          cset = sets.link(cset, rset);
-//          sets.Root(cset-1) = col;
-//#ifdef _DEBUG_
-//          logfileptr->OFS()<<"Parent of "<<rroot<<" is "<<col<<" which now represents set"<<cset<<std::endl;
-//#endif
-//        }
-//      }
-//
-//    }
-//
+
+
+
+
+
+    for (Int col = 1; col <= n_; col++) {
+      parent_(col-1)=col; //1 based indexes
+      cset = sets.makeSet (col);
+      sets.Root(cset-1) = col;
+      parent_(col-1) = 0; 
+
+#ifdef _DEBUG_
+      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
+#endif
+      for (Int p = aGlobal.expColptr(col-1); p < aGlobal.expColptr(col); p++) {
+        row = aGlobal.expRowind(p-1);
+
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
+#endif
+
+
+        if (row >= col) continue;
+
+        rset = sets.find(row);
+        rroot = sets.Root(rset-1);
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
+#endif
+
+        if (rroot != col) {
+          parent_(rroot-1) = col;
+          cset = sets.link(cset, rset);
+          sets.Root(cset-1) = col;
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Parent of "<<rroot<<" is "<<col<<" which now represents set"<<cset<<std::endl;
+#endif
+        }
+      }
+
+    }
+
 
     parent_(n_-1) = 0;
 

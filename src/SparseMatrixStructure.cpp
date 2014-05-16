@@ -209,13 +209,12 @@ namespace LIBCHOLESKY{
   void SparseMatrixStructure::GetLColRowCount2(ETree & tree, IntNumVec & cc, IntNumVec & rc){
      //The tree need to be postordered
     if(!tree.IsPostOrdered()){
-      TIMER_START(PostOrder);
       tree.PostOrderTree();
-      TIMER_START(PostOrder);
     }
 
     ExpandSymmetric();
     
+    TIMER_START(GetColRowCount_Classic);
     cc.Resize(size);
     rc.Resize(size);
 
@@ -347,9 +346,9 @@ namespace LIBCHOLESKY{
 
 
 
-
+#ifdef _DEBUG_
       logfileptr->OFS()<<"deltas "<<weight<<std::endl;
-
+#endif
 
         for(Int k = 1; k<=size; ++k){
             Int temp = cc(k-1) + weight(k);
@@ -360,28 +359,27 @@ namespace LIBCHOLESKY{
             }
         }
 
-      logfileptr->OFS()<<"column counts "<<cc<<std::endl;
+//      logfileptr->OFS()<<"column counts "<<cc<<std::endl;
 
+      TIMER_STOP(GetColRowCount_Classic);
   }
 
   void SparseMatrixStructure::GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc){
 
 
-    TIMER_START(GetColRowCount);
     if(!bIsGlobal){
 			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetLColRowCount\n" );
     }
 
     //The tree need to be postordered
     if(!tree.IsPostOrdered()){
-      TIMER_START(PostOrder);
       tree.PostOrderTree();
-      TIMER_START(PostOrder);
     }
 
     ExpandSymmetric();
 
-    TIMER_START(Initialize_Data);
+    TIMER_START(GetColRowCount);
+//    TIMER_START(Initialize_Data);
     //cc first contains the delta
     cc.Resize(size);
     //Compute size of subtrees
@@ -401,7 +399,7 @@ namespace LIBCHOLESKY{
         cc(vertex-1)=1;
       }
       else{
-        cc(vertex-1)= 0;//treeSize(vertex-1) -2;
+        cc(vertex-1)= 0;
       }
     }
 
@@ -441,9 +439,9 @@ namespace LIBCHOLESKY{
     }
 
 
-    TIMER_STOP(Initialize_Data);
+//    TIMER_STOP(Initialize_Data);
 
-    TIMER_START(Compute_Col_Row_Count);
+//    TIMER_START(Compute_Col_Row_Count);
     for(Int col=1; col<size; col++){
       Int cset;
 
@@ -452,10 +450,6 @@ namespace LIBCHOLESKY{
         cc(colPar-1)--;
       }
 
-//      if (col<size && treeSize(col-1)>1){
-//        cc(col-1)--;
-//      }
-
       Int oCol = tree.FromPostOrder(col);
       for (Int i = expColptr(oCol-1); i < expColptr(oCol); i++) {
         Int row = tree.ToPostOrder(expRowind(i-1));
@@ -463,9 +457,13 @@ namespace LIBCHOLESKY{
           Int k = prevNz(row-1);
 
 
+#ifdef _DEBUG_
           logfileptr->OFS()<<"prevNz("<<row<<")="<<k<<" vs "<< col - treeSize(col-1) +1<<std::endl;
+#endif
           if(k< col - treeSize(col-1) +1){
+#ifdef _DEBUG_
             logfileptr->OFS()<<"Vertex "<<col<<" is a leaf of Tr["<<row<<"]"<<std::endl;
+#endif
             cc(col-1)++;
 
             Int p = prevLeaf(row-1);
@@ -473,44 +471,47 @@ namespace LIBCHOLESKY{
               rc(row-1)+=level(col-1)-level(row-1);
             }
             else {
-              TIMER_START(Get_LCA);
+//              TIMER_START(Get_LCA);
               Int pset = sets.find(p);
               Int q = sets.Root(pset-1);
-              TIMER_STOP(Get_LCA);
+//              TIMER_STOP(Get_LCA);
 
+#ifdef _DEBUG_
               logfileptr->OFS()<<"Vertex "<<q<<" is the LCA of "<<p<<" and "<< col<<std::endl;
-
+#endif
               rc(row-1)+= level(col-1) - level(q-1);
               cc(q-1)--;
 
             }
             prevLeaf(row-1)=col;
           }
+#ifdef _DEBUG_
           else{
             logfileptr->OFS()<<"Vertex "<<col<<" is an internal vertex of Tr["<<row<<"]"<<std::endl;
           }
+#endif
           prevNz(row-1)=col;
         }
       }
 
-      TIMER_START(Merge_LCA);
+//      TIMER_START(Merge_LCA);
       //merge col and parent sets (for lca computation)
       if (colPar!=0){
         sets.Union(col,colPar);
       }
-      TIMER_STOP(Merge_LCA);
+//      TIMER_STOP(Merge_LCA);
 
     }
-    TIMER_STOP(Compute_Col_Row_Count);
+//    TIMER_STOP(Compute_Col_Row_Count);
 
 
-
+#ifdef _DEBUG_
         logfileptr->OFS()<<"Deltas "<<cc.m()<<std::endl;
         for(Int i = 0; i<cc.m();i++){
           logfileptr->OFS()<<cc(i)<<" ";
         }
         logfileptr->OFS()<<std::endl;
-
+#endif
 
 
 
@@ -524,13 +525,6 @@ namespace LIBCHOLESKY{
       }
     }
 
-
-
-        logfileptr->OFS()<<"colcnt "<<cc.m()<<std::endl;
-        for(Int i = 0; i<cc.m();i++){
-          logfileptr->OFS()<<cc(i)<<" ";
-        }
-        logfileptr->OFS()<<std::endl;
 
 
 
@@ -685,7 +679,9 @@ namespace LIBCHOLESKY{
             }while(newi > nexti);
 
             if(newi < nexti){
+#ifdef _DEBUG_
             logfileptr->OFS()<<jsup<<" is a child of "<<ksup<<" and "<<newi<<" is inserted in the structure of "<<ksup<<std::endl;
+#endif
               ++knz;
               rchlnk(i) = newi;
               rchlnk(newi) = nexti;

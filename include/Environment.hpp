@@ -118,9 +118,7 @@ namespace LIBCHOLESKY{
 
   inline void gdb_lock(){
     int lock = 1;
-    while (lock == 1){
-      lock =1;
-    }
+    while (lock == 1){ }
   }
 
 

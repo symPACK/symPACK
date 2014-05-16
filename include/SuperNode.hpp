@@ -45,7 +45,7 @@ class SuperNode{
   public:
 
 
-  inline Int Id(){ return iId_;}
+  inline Int & Id(){ return iId_;}
   inline Int FirstCol(){ return iFirstCol_;}
   inline Int LastCol(){ return iLastCol_;}
   inline Int Size(){ return iSize_;}

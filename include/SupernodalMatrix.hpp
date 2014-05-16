@@ -77,7 +77,11 @@ template <typename T> class SupernodalMatrix{
   void Factorize(MPI_Comm & pComm);
 
 
+#ifdef _CHECK_RESULT_SEQ_
   void Solve(NumMat<T> * RHS, MPI_Comm & pComm,NumMat<T> & forwardSol, NumMat<T> * Xptr=NULL);
+#else
+  void Solve(NumMat<T> * RHS, MPI_Comm & pComm,/*NumMat<T> & forwardSol,*/ NumMat<T> * Xptr=NULL);
+#endif
 
   void GetFullFactors( NumMat<T> & fullMatrix, MPI_Comm &pComm);
 
