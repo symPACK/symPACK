@@ -43,7 +43,7 @@ class Mapping{
 
 class Modwrap2D: public Mapping{
   protected:
-    inline Int modwrap2D_(Int i, Int j) {return std::min(i/iBlockSize_,j/iBlockSize_)%iPRows_ + iPRows_*floor((double)(std::max(i/iBlockSize_,j/iBlockSize_)%iNumProc_)/(double)iPRows_);}
+    /*inline*/ Int modwrap2D_(Int i, Int j) { Int p = std::min(i/iBlockSize_,j/iBlockSize_)%iPRows_ + iPRows_*floor((double)(std::max(i/iBlockSize_,j/iBlockSize_)%iNumProc_)/(double)iPRows_); if(p>=np){gdb_lock();}; return p;}
   public:
       Modwrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
       Modwrap2D(Modwrap2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};

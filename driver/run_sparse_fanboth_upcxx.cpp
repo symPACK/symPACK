@@ -287,8 +287,13 @@ int main(int argc, char **argv)
   MPI_Comm_size(worldcomm,&np);
   MPI_Comm_rank(worldcomm,&iam);
 
-  MAPCLASS mapping(np, sqrt(np), np, 1);
-
+  MAPCLASS * mapping;
+  if( np % (Int)sqrt(np) == 0){
+    mapping = new MAPCLASS(np, sqrt(np), np, 1);
+  }
+  else{
+    mapping = new MAPCLASS(np, np, np, 1);
+  }
 
 
 #if defined(PROFILE) || defined(PMPI)
@@ -476,7 +481,7 @@ int main(int argc, char **argv)
   //logfileptr->OFS()<<"etree is "<<etree<<endl;
 
   //do the symbolic factorization and build supernodal matrix
-  SupernodalMatrix<double> SMat(HMat,mapping,worldcomm);
+  SupernodalMatrix<double> SMat(HMat,*mapping,worldcomm);
 
   TIMER_START(SPARSE_FAN_OUT);
   SMat.Factorize(worldcomm);
@@ -574,6 +579,8 @@ int main(int argc, char **argv)
   double norm = lapack::Lange('F',X2.m(),X2.n(),&X2(0,0),X2.m());
   logfileptr->OFS()<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
 #endif
+
+  delete mapping;
 
 
   MPI_Barrier(worldcomm);
