@@ -421,7 +421,7 @@ logfileptr->OFS()<<aRemoteCol<<std::endl;
     //src_first_row is the first row updating the supernode examined
     //src_last_row is the last row updating the supernode examined
 
-    TIMER_START(FIND_UPDATE);
+//    TIMER_START(FIND_UPDATE);
     
     bool returnval = true;
 
@@ -429,7 +429,16 @@ logfileptr->OFS()<<aRemoteCol<<std::endl;
     if(tgt_snode_id == 0){
 
       //find the first sub diagonal block
-      src_nzblk_idx = -1;
+//      Int iOwner = Mapping_.Map(src_snode.Id()-1,src_snode.Id()-1);
+//      src_nzblk_idx = iOwner==iam?1:0;
+//            
+//      #ifdef _DEBUG_
+//      assert(src_nzblk_idx<src_snode.NZBlockCnt());
+//      #endif
+//      src_first_row = src_snode.GetNZBlockDesc(src_nzblk_idx).GIndex;
+
+      src_nzblk_idx=-1;
+      
       for(Int blkidx = 0; blkidx < src_snode.NZBlockCnt(); ++blkidx){
         if(src_snode.GetNZBlockDesc(blkidx).GIndex > src_snode.LastCol()){
           src_nzblk_idx = blkidx;
@@ -439,7 +448,6 @@ logfileptr->OFS()<<aRemoteCol<<std::endl;
 
       if(src_nzblk_idx == -1 ){
         returnval = false;
-//        return false;
       }
       else{
             assert(src_nzblk_idx<src_snode.NZBlockCnt());
@@ -449,12 +457,16 @@ logfileptr->OFS()<<aRemoteCol<<std::endl;
     else{
       //find the block corresponding to src_last_row
       src_nzblk_idx = src_snode.FindBlockIdx(src_last_row);
-      if(src_nzblk_idx==-1/*src_snode.NZBlockCnt()*/){
-        returnval = false;
-//        return false;
-      }
-      else{
+      
+      assert(src_nzblk_idx!=-1);
+//      //should not happen
+//      if(src_nzblk_idx==-1){
+//        returnval = false;
+//      }
+//      else{
+#ifdef _DEBUG_
             assert(src_nzblk_idx<src_snode.NZBlockCnt());
+#endif
         NZBlockDesc & desc = src_snode.GetNZBlockDesc(src_nzblk_idx);
         Int src_lr = desc.GIndex + src_snode.NRows(src_nzblk_idx)-1;
 
@@ -462,23 +474,26 @@ logfileptr->OFS()<<aRemoteCol<<std::endl;
           src_nzblk_idx++;
           if(src_nzblk_idx==src_snode.NZBlockCnt()){
             returnval = false;
-//            return false;
           }
           else{
+#ifdef _DEBUG_
             assert(src_nzblk_idx<src_snode.NZBlockCnt());
+#endif
             src_first_row = src_snode.GetNZBlockDesc(src_nzblk_idx).GIndex;
           }
         }
         else{
           src_first_row = src_last_row+1;
         }
-      }
+//      }
     }
 
     if(returnval){
     //Now we try to find src_last_row
     NZBlockDesc & desc = src_snode.GetNZBlockDesc(src_nzblk_idx);
+#ifdef _DEBUG_
     assert(src_first_row >= desc.GIndex);
+#endif
     Int src_fr = max(src_first_row,desc.GIndex);
     Int src_lr = desc.GIndex+src_snode.NRows(src_nzblk_idx)-1;
 
@@ -518,8 +533,9 @@ logfileptr->OFS()<<aRemoteCol<<std::endl;
 //
 //      NZBlockDesc & last_desc = src_snode.GetNZBlockDesc(new_blk_idx); 
 //      src_last_row = min(src_last_row,last_desc.GIndex + src_snode.NRows(new_blk_idx) - 1);
-
+#ifdef _DEBUG_
       assert(src_last_row<= Xsuper_(tgt_snode_id_first)-1);
+#endif
     }
     else{
       src_last_row = Xsuper_(tgt_snode_id_first)-1;
@@ -527,22 +543,24 @@ logfileptr->OFS()<<aRemoteCol<<std::endl;
     }
 
 
+#ifdef _DEBUG_
     assert(src_last_row>=src_first_row);
     assert(src_first_row>= Xsuper_(tgt_snode_id-1));
     assert(src_last_row<= Xsuper_(tgt_snode_id)-1);
     assert(src_first_row >= src_fr);
+#endif
     }
 
-    TIMER_STOP(FIND_UPDATE);
+//    TIMER_STOP(FIND_UPDATE);
 
     return returnval;
 
   }
 
 
-  template <typename T> void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr){
+  template <typename T> inline void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr){
 
-    TIMER_START(UPDATE_SNODE);
+//    TIMER_START(UPDATE_SNODE);
     NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(pivot_idx);
     Int first_pivot_fr = pivot_fr;
       if(first_pivot_fr ==I_ZERO ){
@@ -683,7 +701,7 @@ logfileptr->OFS()<<aRemoteCol<<std::endl;
 //          logfileptr->OFS()<<tgt_snode<<std::endl;
 #endif
 
-    TIMER_STOP(UPDATE_SNODE);
+//    TIMER_STOP(UPDATE_SNODE);
   }
 
 
@@ -794,8 +812,10 @@ struct DelayedComm{
 ////
 ////                  is_factor_sent[iTarget] = true;
 
+#ifdef _DEBUG_
           logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
           cout<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+#endif
 
 #ifdef _DEBUG_
                   logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<prev_src_snode.Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
@@ -927,9 +947,9 @@ struct DelayedComm{
       if( iOwner == iam ){
 
 
-//#ifdef _DEBUG_
+#ifdef _DEBUG_
           logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
-//#endif
+#endif
 
         Int iLocalI = (I-1) / np +1 ;
         SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
@@ -1212,9 +1232,10 @@ struct DelayedComm{
                   //need to push the prev src_last_row
                   //FactorsToSend.push_front(DelayedComm(src_snode.Id(),tgt_snode_id,prev_last_row));
                   FactorsToSend.push_back(DelayedComm(src_snode.Id(),tgt_snode_id,src_nzblk_idx,src_first_row));
+#ifdef _DEBUG_
                   logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
                   cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
-
+#endif
                   is_skipped[iTarget] = true;
 
                   //                FactorsToSend[I-1]==tgt_snode_id;
