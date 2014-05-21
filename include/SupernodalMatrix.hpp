@@ -11,12 +11,16 @@
 
 
 
+#include <list>
 #include <vector>
 #include "Mapping.hpp"
 
 
 
 namespace LIBCHOLESKY{
+
+struct SnodeUpdate;
+
 
 template <typename T> class SupernodalMatrix{
   protected:
@@ -35,6 +39,7 @@ template <typename T> class SupernodalMatrix{
   ETree ETree_;
   ETree SupETree_;
   Int iSize_;
+  Int maxIsend_;
   std::vector<SuperNode<T> * > LocalSupernodes_;
   std::vector<SuperNode<T> *> Contributions_;
   IntNumVec xlindx_;
@@ -43,6 +48,7 @@ template <typename T> class SupernodalMatrix{
   void GetUpdatingSupernodeCount( IntNumVec & sc,IntNumVec & mw);
 
 
+  inline void FindUpdates(SuperNode<T> & src_snode, std::list<SnodeUpdate> & updates  );
   inline bool FindNextUpdate(SuperNode<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
 
 
@@ -61,7 +67,7 @@ template <typename T> class SupernodalMatrix{
 
 
   SupernodalMatrix();
-  SupernodalMatrix(const DistSparseMatrix<T> & pMat, MAPCLASS & pMapping, MPI_Comm & pComm );
+  SupernodalMatrix(const DistSparseMatrix<T> & pMat, Int maxSnode,MAPCLASS & pMapping, Int maxIsend, MPI_Comm & pComm );
 
   //Accessors
   Int Size(){return iSize_;}

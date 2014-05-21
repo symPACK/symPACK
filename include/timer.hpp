@@ -87,6 +87,11 @@ void CTF_set_context(MPI_Comm ctxt);
               __t.start();                                        \
     PMPI_Send(__VA_ARGS__);                                       \
               __t.stop(); }
+#define MPI_Isend(...)                                            \
+  { CTF_timer __t("MPI_Isend");                                   \
+              __t.start();                                        \
+    PMPI_Isend(__VA_ARGS__);                                      \
+              __t.stop(); }
 #define MPI_Allreduce(...)                                        \
   { CTF_timer __t("MPI_Allreduce");                               \
               __t.start();                                        \

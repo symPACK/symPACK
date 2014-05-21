@@ -324,10 +324,16 @@ int main(int argc, char **argv)
   if( options.find("-inf") != options.end() ){
     informatstr= options["-inf"];
   }
-  Int blksize = 1;
+  Int maxSnode = -1;
   if( options.find("-b") != options.end() ){
-    blksize= atoi(options["-b"].c_str());
+    maxSnode= atoi(options["-b"].c_str());
   }
+
+  Int maxIsend = 1;
+  if( options.find("-i") != options.end() ){
+    maxIsend= atoi(options["-i"].c_str());
+  }
+
 
 
   Real timeSta, timeEnd;
@@ -481,7 +487,7 @@ int main(int argc, char **argv)
   //logfileptr->OFS()<<"etree is "<<etree<<endl;
 
   //do the symbolic factorization and build supernodal matrix
-  SupernodalMatrix<double> SMat(HMat,*mapping,worldcomm);
+  SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,worldcomm);
 
   TIMER_START(SPARSE_FAN_OUT);
   SMat.Factorize(worldcomm);
