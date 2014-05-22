@@ -338,6 +338,7 @@ int main(int argc, char **argv)
 
   Real timeSta, timeEnd;
 
+  TIMER_START(READING_MATRIX);
 DistSparseMatrix<Real> HMat(worldcomm);
   //Read the input matrix
   if(informatstr == "CSC"){
@@ -355,10 +356,11 @@ DistSparseMatrix<Real> HMat(worldcomm);
   const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
   HMat.CopyData(cscptr);
 
-  if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
 
   destroy_sparse_matrix (Atmp);
   }
+  TIMER_STOP(READING_MATRIX);
+  if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
 
 #ifdef _CHECK_RESULT_
 
