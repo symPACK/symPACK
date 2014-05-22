@@ -79,6 +79,7 @@ template <class F> class DistSparseMatrix{
 	MPI_Comm     comm = MPI_COMM_NULL;        
 
 
+  DistSparseMatrix(MPI_Comm oComm){comm = oComm;};
   void CopyData(const csc_matrix_t * cscptr);
   DistSparseMatrix(const csc_matrix_t * cscptr,MPI_Comm oComm);
 

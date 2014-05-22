@@ -338,8 +338,13 @@ int main(int argc, char **argv)
 
   Real timeSta, timeEnd;
 
-
+DistSparseMatrix<Real> HMat(worldcomm);
   //Read the input matrix
+  if(informatstr == "CSC"){
+       ParaReadDistSparseMatrix( filename.c_str(), HMat, worldcomm ); 
+  }
+  else{
+
   sparse_matrix_file_format_t informat;
   informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
 
@@ -348,11 +353,12 @@ int main(int argc, char **argv)
   sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
   sparse_matrix_convert (Atmp, CSC);
   const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
-  DistSparseMatrix<Real> HMat(cscptr,worldcomm);
+  HMat.CopyData(cscptr);
 
   if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
 
   destroy_sparse_matrix (Atmp);
+  }
 
 #ifdef _CHECK_RESULT_
 
