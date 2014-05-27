@@ -5,8 +5,8 @@
 
 #include <queue>
 
-//#define _DEBUG_
 
+#define BLOCKSIZE 4
 
 #define TAG_INDEX 0
 #define TAG_NZVAL 1
@@ -968,7 +968,9 @@ else{
       //If I own the column, factor it
       if( iOwner == iam ){
 
-
+//          if(I%100==0){
+//            logfileptr->OFS()<<I*100/Xsuper_.m()<<"%"<<std::endl;
+//          }
 #ifdef _DEBUG_
           logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 #endif
@@ -1232,13 +1234,19 @@ else{
     TIMER_START(FACTOR_PANEL);
         //Factorize Diagonal block
         NZBlockDesc & diag_desc = src_snode.GetNZBlockDesc(0);
-        T * diag_nzval = src_snode.GetNZval(diag_desc.Offset);
-        lapack::Potrf( 'U', src_snode.Size(), diag_nzval, src_snode.Size());
+        for(Int col = 0; col<src_snode.Size();col+=BLOCKSIZE){
+          Int bw = min(BLOCKSIZE,src_snode.Size()-col);
+          T * diag_nzval = &src_snode.GetNZval(diag_desc.Offset)[col+col*src_snode.Size()];
+          lapack::Potrf( 'U', bw, diag_nzval, src_snode.Size());
+          T * nzblk_nzval = &src_snode.GetNZval(diag_desc.Offset)[col+(col+bw)*src_snode.Size()];
+          blas::Trsm('L','U','T','N',bw, src_snode.NRowsBelowBlock(0)-(col+bw), ONE<T>(),  diag_nzval, src_snode.Size(), nzblk_nzval, src_snode.Size());
+          
 
-        if(src_snode.NZBlockCnt()>1){
-          NZBlockDesc & nzblk_desc = src_snode.GetNZBlockDesc(1);
-          T * nzblk_nzval = src_snode.GetNZval(nzblk_desc.Offset);
-          blas::Trsm('L','U','T','N',src_snode.Size(), src_snode.NRowsBelowBlock(1), ONE<T>(),  diag_nzval, src_snode.Size(), nzblk_nzval, src_snode.Size());
+//        if(src_snode.NZBlockCnt()>1){
+//          NZBlockDesc & nzblk_desc = src_snode.GetNZBlockDesc(1);
+//          T * nzblk_nzval = src_snode.GetNZval(nzblk_desc.Offset);
+//          blas::Trsm('L','U','T','N',src_snode.Size(), src_snode.NRowsBelowBlock(1), ONE<T>(),  diag_nzval, src_snode.Size(), nzblk_nzval, src_snode.Size());
+//        }
         }
 
 #ifdef _DEBUG_
