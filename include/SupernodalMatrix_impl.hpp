@@ -6,13 +6,21 @@
 #include <queue>
 
 
-#define BLOCKSIZE 4
+#define BLOCKSIZE src_snode.Size()
 
 #define TAG_INDEX 0
 #define TAG_NZVAL 1
 #define TAG_COUNT 2
 
 #define PACKING
+
+
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) 
+#define TIMER_STOP(a) 
+#endif
+#endif
 
 namespace LIBCHOLESKY{
 
@@ -33,22 +41,20 @@ namespace LIBCHOLESKY{
     Local_ = pMat.GetLocalStructure();
     Local_.ToGlobal(Global_);
 
-    {
-    ETree tmp;
-    tmp.ConstructETree2(Global_);
-    }
+    ETree * tmp = new ETree();
+    tmp->ConstructETree2(Global_);
+    
     ETree_.ConstructETree(Global_);
 
 
     IntNumVec cc,rc;
-    Global_.GetLColRowCount(ETree_,cc,rc);
     {
-      Global_.GetLColRowCount2(ETree_,cc,rc);
+      Global_.GetLColRowCount2(*tmp,cc,rc);
+      IntNumVec perm2 = tmp->SortChildren(cc);
+      logfileptr->OFS()<<"perm2 "<<perm2<<std::endl;
     }
-    //ETree_.ConstructETree2(Global_);
-    //ETree_.PostOrderTree();
+    Global_.GetLColRowCount2(ETree_,cc,rc);
 
-//    Global_.GetLColRowCount2(ETree_,cc,rc);
 #ifdef _DEBUG_
     logfileptr->OFS()<<"colcnt "<<cc<<std::endl;
     logfileptr->OFS()<<"rowcnt "<<rc<<std::endl;
@@ -56,7 +62,7 @@ namespace LIBCHOLESKY{
 
     IntNumVec perm(Size());
     for(Int i =0; i<perm.m();++i){perm[i]=i+1;}
-//    IntNumVec perm = ETree_.SortChildren(cc);
+
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"perm "<<perm<<std::endl;
@@ -71,18 +77,8 @@ namespace LIBCHOLESKY{
 #endif
 
     Global_.SymbolicFactorization2(ETree_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
-    //  Global_.SymbolicFactorization(ETree_,cc,Xsuper_,xlindx_,lindx_);
-//    logfileptr->OFS()<<"xlindx "<<xlindx_<<std::endl;
-//    logfileptr->OFS()<<"lindx "<<lindx_<<std::endl;
-
 
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_);
-//    logfileptr->OFS()<<"Supernodal counts are "<<UpdateCount_<<std::endl;
-//    logfileptr->OFS()<<"Supernodal update width are "<<UpdateWidth_<<std::endl;
-
-
-//    SupETree_ = ETree_.ToSupernodalETree(Xsuper_);
-//    logfileptr->OFS()<<"Supernodal Etree is "<<SupETree_<<std::endl;
 
     Mapping_ = pMapping;
 
@@ -156,10 +152,7 @@ namespace LIBCHOLESKY{
       for(Int i = fc;i<=lc;i++){
         //corresponding column in the unsorted matrix A
         Int orig_i = ETree_.FromPostOrder(perm(i-1));
-
-//        Int iOwner = std::min((i-1)/numColFirst,np-1);
         Int iOwner = std::min((orig_i-1)/numColFirst,np-1);
-
 
         if(iOwner != prevOwner || !allsend){
 
@@ -174,13 +167,11 @@ namespace LIBCHOLESKY{
             //corresponding column in the unsorted matrix A
             Int orig_j = ETree_.FromPostOrder(perm(j-1));
        
-//            iOwner = std::min((j-1)/numColFirst,np-1);
             iOwner = std::min((orig_j-1)/numColFirst,np-1);
             //check if the column is owned by the same processor 
             //as the previous column and that they are contiguous
             //in the postordered matrix
             if(iOwner == prevOwner && prevcol+1==orig_j){
-//              Int nrows = Global_.colptr(j) - Global_.colptr(j-1);
               Int nrows = Global_.colptr(orig_j) - Global_.colptr(orig_j-1);
               iNzTransfered+=nrows;
 
@@ -195,16 +186,13 @@ namespace LIBCHOLESKY{
               else{
                 allsend = true;
               }
-//              iLCTransfered = j-1;
               break;
             }
           } 
 
-
 #ifdef _DEBUG_
 logfileptr->OFS()<<fc<<" Col "<<orig_i<<" to "<<iLCTransfered<<" are owned by P"<<prevOwner<<std::endl;
 #endif
-
 
           //if data needs to be transfered
           if(iDest!=prevOwner){
@@ -216,7 +204,6 @@ logfileptr->OFS()<<fc<<" Col "<<orig_i<<" to "<<iLCTransfered<<" are owned by P"
               iStartIdxCopy = 0;
             } 
             else if (iam == prevOwner){
-//              Int local_i = (i-(numColFirst)*iam);
               //USE THE PERM OBTAINED AFTER SORTING THE CHILDREN
               Int local_i = (orig_i-(numColFirst)*iam);
               Int iColptrLoc = Local_.colptr(local_i-1);
@@ -230,9 +217,10 @@ logfileptr->OFS()<<fc<<" Col "<<orig_i<<" to "<<iLCTransfered<<" are owned by P"
             logfileptr->OFS()<<pdData[i]<<std::endl;
           }
 #endif
-              //MPI_send
-              
-                  assert(iDest<np);
+              //MPI_send        
+#ifdef _DEBUG_
+              assert(iDest<np);
+#endif
               MPI_Send((void*)pdData,iNzTransfered*sizeof(T),MPI_BYTE,iDest,0,pComm);
             }
           }
@@ -251,7 +239,6 @@ logfileptr->OFS()<<aRemoteCol<<std::endl;
 #endif
           }
           else{
-            //Int local_i = (i-(numColFirst)*iam);
             //USE THE PERM OBTAINED AFTER SORTING THE CHILDREN
             Int local_i = (orig_i-(numColFirst)*iam);
             Int iColptrLoc = Local_.colptr(local_i-1);
@@ -261,8 +248,6 @@ logfileptr->OFS()<<aRemoteCol<<std::endl;
           }
 
           //Copy the data from pdNzVal in the appropriate NZBlock
-          //Int iGcolptr = Global_.colptr(i-1);
-          //Int iNextColptr = Global_.colptr(i);
           Int iGcolptr = Global_.colptr(orig_i-1);
           Int iNextColptr = Global_.colptr(orig_i);
           Int iRowind = Global_.rowind(iGcolptr-1);
@@ -289,9 +274,6 @@ logfileptr->OFS()<<aRemoteCol<<std::endl;
                 Int localRow = iLRow - desc.GIndex;
 
                 dest[localRow*snode.Size()+localCol] = elem;
-
-           
-
 
               if(iGcolptr+idxA+1<iNextColptr){
                 idxA++;
@@ -486,11 +468,6 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
       src_nzblk_idx = src_snode.FindBlockIdx(src_last_row);
       
       assert(src_nzblk_idx!=-1);
-//      //should not happen
-//      if(src_nzblk_idx==-1){
-//        returnval = false;
-//      }
-//      else{
 #ifdef _DEBUG_
             assert(src_nzblk_idx<src_snode.NZBlockCnt());
 #endif
@@ -512,7 +489,6 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
         else{
           src_first_row = src_last_row+1;
         }
-//      }
     }
 
     if(returnval){
@@ -548,18 +524,6 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
       else{
         src_last_row = last_tgt_col;
       }
-
-      //look into other nzblk
-
-//      //Find the last row in src_snode updating tgt_snode_id
-//      Int new_blk_idx = src_snode.FindBlockIdx(src_last_row);
-//      if(new_blk_idx==-1/*>=src_snode.NZBlockCnt()*/){
-//        //src_last_row is the last row of the last nzblock
-//        new_blk_idx = src_snode.NZBlockCnt()-1; 
-//      }
-//
-//      NZBlockDesc & last_desc = src_snode.GetNZBlockDesc(new_blk_idx); 
-//      src_last_row = min(src_last_row,last_desc.GIndex + src_snode.NRows(new_blk_idx) - 1);
 #ifdef _DEBUG_
       assert(src_last_row<= Xsuper_(tgt_snode_id_first)-1);
 #endif
@@ -578,10 +542,7 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
 #endif
     }
 
-//    TIMER_STOP(FIND_UPDATE);
-
     return returnval;
-
   }
 
 
@@ -1240,8 +1201,14 @@ else{
           lapack::Potrf( 'U', bw, diag_nzval, src_snode.Size());
           T * nzblk_nzval = &src_snode.GetNZval(diag_desc.Offset)[col+(col+bw)*src_snode.Size()];
           blas::Trsm('L','U','T','N',bw, src_snode.NRowsBelowBlock(0)-(col+bw), ONE<T>(),  diag_nzval, src_snode.Size(), nzblk_nzval, src_snode.Size());
-          
+ 
+          //update the rest !!! (next blocks columns)
+          T * tgt_nzval = &src_snode.GetNZval(diag_desc.Offset)[col+bw+(col+bw)*src_snode.Size()];
+          blas::Gemm('T','N',src_snode.Size()-(col+bw), src_snode.NRowsBelowBlock(0)-(col+bw),bw,MINUS_ONE<T>(),nzblk_nzval,src_snode.Size(),nzblk_nzval,src_snode.Size(),ONE<T>(),tgt_nzval,src_snode.Size());
+         
 
+//          T * diag_nzval = src_snode.GetNZval(diag_desc.Offset);
+//          lapack::Potrf( 'U', src_snode.Size(), diag_nzval, src_snode.Size());
 //        if(src_snode.NZBlockCnt()>1){
 //          NZBlockDesc & nzblk_desc = src_snode.GetNZBlockDesc(1);
 //          T * nzblk_nzval = src_snode.GetNZval(nzblk_desc.Offset);
@@ -2597,6 +2564,17 @@ template<typename T> void SupernodalMatrix<T>::GetSolution(NumMat<T> & B, MPI_Co
 
 
 } // namespace LIBCHOLESKY
+
+
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) TAU_FSTART(a);
+#define TIMER_STOP(a) TAU_FSTOP(a);
+#endif
+#endif
+
+
+
 
 
 #endif 

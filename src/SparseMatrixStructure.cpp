@@ -1,6 +1,7 @@
 #include "SparseMatrixStructure.hpp"
 #include "ETree.hpp"
 #include "utility.hpp"
+#include <limits>       // std::numeric_limits
 
 namespace LIBCHOLESKY{
   void SparseMatrixStructure::ClearExpandedSymmetric(){
@@ -549,14 +550,15 @@ namespace LIBCHOLESKY{
     for(Int i =2; i<=size;i++){
       Int prev_parent = tree.PostParent(i-2);
       if(prev_parent == i){
-        if(cc(i-2) == cc(i-1)+1){
-          if(supsize<maxSize || maxSize==-1){
+        if(cc(i-2) == cc(i-1)+1 ) {
+          if(supsize<=maxSize || maxSize==-1){
             ++supsize;
             supMembership(i-1) = nsuper;
             continue;
           }
         }
       }
+
         nsuper++;
       supsize = 1;
       supMembership(i-1) = nsuper;
@@ -572,6 +574,142 @@ namespace LIBCHOLESKY{
       lstsup = ksup;
     }
     xsuper(0)=1;
+
+
+
+
+
+#ifdef RELAXED_SNODE
+
+    DisjointSet sets;
+    sets.Initialize(nsuper);
+    IntNumVec ncols(nsuper);
+    IntNumVec zeros(nsuper);
+    IntNumVec newCC(nsuper);
+    for(Int ksup=nsuper;ksup>=1;--ksup){
+      Int cset = sets.makeSet(ksup);
+      sets.Root(cset-1)=ksup;
+      
+      Int fstcol = xsuper(ksup-1);
+      Int lstcol = xsuper(ksup)-1;
+      Int width = lstcol - fstcol +1;
+      Int length = cc(fstcol-1);
+      ncols[ksup-1] = width;
+      zeros[ksup-1] = 0;
+      newCC[ksup-1] = length;
+    }
+
+
+  //minsize
+  Int nrelax0 = 4;
+  Int nrelax1 = 16;
+  Int nrelax2 = 48;
+
+  double zrelax0 = 0.8;
+  double zrelax1 = 0.1;
+  double zrelax2 = 0.05;
+
+  for(Int ksup=nsuper;ksup>=1;--ksup){
+      Int fstcol = xsuper(ksup-1);
+      Int lstcol = xsuper(ksup)-1;
+      Int width = ncols[ksup-1];
+      Int length = cc(fstcol-1);
+
+      Int parent_fstcol = tree.PostParent(lstcol-1);
+      if(parent_fstcol!=0){
+        Int parent_snode = supMembership[parent_fstcol-1];
+        Int pset = sets.find(parent_snode);
+        parent_snode = sets.Root(pset-1);
+
+        bool merge = (parent_snode == ksup+1);
+ 
+
+        if(merge){
+          Int parent_width = ncols[parent_snode-1];
+
+          Int parent_fstcol = xsuper(parent_snode-1);
+          Int parent_lstcol = xsuper(parent_snode)-1;
+          Int totzeros = zeros[parent_snode-1];
+          Int fused_cols = width + parent_width;
+          
+          merge = false;
+          if(fused_cols <= nrelax0){
+            merge = true;
+          }
+          else if(fused_cols <=maxSize{
+            double child_lnz = cc(fstcol-1);
+            double parent_lnz = cc(parent_fstcol-1);
+            double xnewzeros = width * (parent_lnz + width  - child_lnz);
+
+            if(xnewzeros == 0){
+              merge = true;
+            }
+            else{
+              //all these values are the values corresponding to the merged snode
+              double xtotzeros = (double)totzeros + xnewzeros;
+              double xfused_cols = (double) fused_cols;
+              //new number of nz
+              double xtotsize = (xfused_cols * (xfused_cols+1)/2) + xfused_cols * (parent_lnz - parent_width);
+              //percentage of explicit zeros
+              double z = xtotzeros / xtotsize;
+
+              Int totsize = (fused_cols * (fused_cols+1)/2) + fused_cols * ((Int)parent_lnz - parent_width);
+              totzeros += (Int)xnewzeros;
+
+              merge = ((fused_cols <= nrelax1 && z < zrelax0) 
+                          || (fused_cols <= nrelax2 && z < zrelax1)
+                              || (z<zrelax2)) &&
+                            (xtotsize < std::numeric_limits<Int>::max() / sizeof(double));
+            }
+
+          }
+
+          if(merge){
+              std::cout<<"merge "<<ksup<<" and "<<parent_snode<<std::endl;
+            ncols[ksup-1] += ncols[parent_snode-1]; 
+            zeros[ksup-1] = totzeros;
+            newCC[ksup-1] = width + newCC[parent_snode-1];
+            sets.Union(ksup,parent_snode,ksup);
+          }
+        } 
+
+      }
+  }
+
+    IntNumVec relXSuper(nsuper+1);
+    Int nrSuper = 0;
+    for(Int ksup=1;ksup<=nsuper;++ksup){
+        Int kset = sets.find(ksup);
+        if(ksup == sets.Root(kset-1)){
+          Int fstcol = xsuper[ksup-1];
+          relXSuper[nrSuper] = fstcol;
+          newCC[nrSuper] = newCC[ksup-1];
+          ++nrSuper;
+        }
+    }
+    relXSuper[nrSuper] = xsuper[nsuper];
+    relXSuper.Resize(nrSuper+1);
+
+    for(Int ksup=1;ksup<=nrSuper;++ksup){
+
+      Int fstcol = relXSuper[ksup-1];
+      Int lstcol = relXSuper[ksup]-1;
+      for(Int col = fstcol; col<=lstcol;++col){
+        supMembership[col-1] = ksup;
+        cc[col-1] = newCC[ksup-1] + col-fstcol;
+      }
+    }
+    
+    xsuper = relXSuper;
+///      //adjust the column counts
+///      for(Int col=i-2;col>=i-supsize;--col){
+///        cc[col-1] = cc[col]+1;
+///      }
+#endif
+
+
+
+
 
 
     TIMER_STOP(FindSupernodes);
@@ -693,7 +831,53 @@ namespace LIBCHOLESKY{
         }
       }
 
+#ifdef RELAXED_SNODE
+      //structure of a(*,fstcol) has not been examined yet.  
+      //"sort" its structure into the linked list,
+      //inserting only those indices not already in the
+      //list.
+      if(knz < length){
+        for(Int row = fstcol; row<lstcol; ++row){
+          Int newi = tree.ToPostOrder(newi);
+          if(newi > fstcol && marker(newi-1) != ksup){
+            //position and insert newi in list and
+            // mark it with kcol
+            Int nexti = head;
+            Int i;
+            do{
+              i = nexti;
+              nexti = rchlnk(i);
+            }while(newi > nexti);
+            ++knz;
+            rchlnk(i) = newi;
+            rchlnk(newi) = nexti;
+            marker(newi-1) = ksup;
+          }
+        }
 
+        Int node = tree.FromPostOrder(lstcol);
+        Int knzbeg = colptr(node-1);
+        Int knzend = colptr(node)-1;
+        for(Int kptr = knzbeg; kptr<=knzend;++kptr){
+          Int newi = rowind(kptr-1);
+          newi = tree.ToPostOrder(newi);
+          if(newi > fstcol && marker(newi-1) != ksup){
+            //position and insert newi in list and
+            // mark it with kcol
+            Int nexti = head;
+            Int i;
+            do{
+              i = nexti;
+              nexti = rchlnk(i);
+            }while(newi > nexti);
+            ++knz;
+            rchlnk(i) = newi;
+            rchlnk(newi) = nexti;
+            marker(newi-1) = ksup;
+          }
+        }
+      } 
+#else
       //structure of a(*,fstcol) has not been examined yet.  
       //"sort" its structure into the linked list,
       //inserting only those indices not already in the
@@ -720,7 +904,8 @@ namespace LIBCHOLESKY{
             marker(newi-1) = ksup;
           }
         }
-      }     
+      }
+#endif
 
       //if ksup has no children, insert fstcol into the linked list.
       if(rchlnk(head) != fstcol){
@@ -763,7 +948,7 @@ namespace LIBCHOLESKY{
 
 
 
-
+//NOT WORKING
   void SparseMatrixStructure::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx){
     TIMER_START(SymbolicFactorization);
 

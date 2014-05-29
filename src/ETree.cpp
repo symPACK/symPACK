@@ -17,39 +17,6 @@ namespace LIBCHOLESKY{
     pp_.Resize(0);
   }
 
-  Int DisjointSet::makeSet(Int i){
-    pp_(i-1)=i;
-    return i;
-  }
-
-  Int DisjointSet::link(Int s, Int t){
-    pp_(s-1)=t;
-
-    return t;
-  }
-
-  Int DisjointSet::find(Int i){
-    Int p, gp;
-
-    p = pp_(i-1);
-    gp=pp_(p-1);
-
-    while(gp!=p){
-      i = makeSet(gp);
-      p = pp_(i-1);
-      gp = pp_(p-1);
-    }
-
-    return p;
-  }
-
-
-  void DisjointSet::Union(Int s, Int t){
-    Int tSet= find(t);
-    Int sSet= find(s);
-    sSet = link(sSet, tSet );
-    root_(sSet-1) = t;
-  }
 
 
 
