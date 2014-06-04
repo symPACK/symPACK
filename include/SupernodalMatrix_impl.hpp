@@ -76,7 +76,23 @@ namespace LIBCHOLESKY{
     logfileptr->OFS()<<"xsuper "<<Xsuper_<<std::endl;
 #endif
 
+#ifdef RELAXED_SNODE
+    Global_.SymbolicFactorizationRelaxed(ETree_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+
+
+    logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
+    logfileptr->OFS()<<"xsuper "<<Xsuper_<<std::endl;
+    logfileptr->OFS()<<"colcnt "<<cc<<std::endl;
+    logfileptr->OFS()<<"xlindx "<<xlindx_<<std::endl;
+    logfileptr->OFS()<<"lindx "<<lindx_<<std::endl;
+
+    ETree tmp2 = ETree_.ToSupernodalETree(Xsuper_);
+    logfileptr->OFS()<<"Supernodal ETree "<<tmp2<<std::endl;
+
+
+#else
     Global_.SymbolicFactorization2(ETree_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+#endif
 
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_);
 
@@ -548,7 +564,90 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
 
   template <typename T> inline void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr){
 
-//    TIMER_START(UPDATE_SNODE);
+    TIMER_START(UPDATE_SNODE);
+
+#ifdef SINGLE_BLAS
+    Int tgt_fr = tgt_snode.FirstCol();
+    Int first_pivot_idx = -1;
+    //find the pivot idx
+    do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fr); tgt_fr++;}
+    while(first_pivot_idx==-1 && tgt_fr<=tgt_snode.LastCol());
+    tgt_fr--;
+    NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
+
+    Int tgt_lr = tgt_snode.LastCol();
+    Int last_pivot_idx = -1;
+    //find the pivot idx
+    do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lr); tgt_lr--;}
+    while(last_pivot_idx==-1 && tgt_lr>=tgt_snode.FirstCol());
+    tgt_lr++;
+
+
+    Int src_nrows = src_snode.NRowsBelowBlock(first_pivot_idx);
+    Int src_lr = tgt_fr+src_nrows-1;
+    Int tgt_width = tgt_lr - tgt_fr +1;
+    NumMat<T> tmpBuf(src_nrows,tgt_width);
+
+      T * pivot = &(src_snode.GetNZval(first_pivot_desc.Offset)[(tgt_fr-first_pivot_desc.GIndex)*src_snode.Size()]);
+
+      //determine the first column that will be updated in the target supernode
+      Int tgt_updated_fc =  tgt_fr - tgt_snode.FirstCol();
+      Int tgt_updated_lc =  tgt_lr - tgt_snode.FirstCol();
+
+
+      T * tgt = tmpBuf.Data();
+
+          //everything is in row-major
+    TIMER_START(UPDATE_SNODE_GEMM);
+      blas::Gemm('T','N',tgt_lr-tgt_fr+1, src_lr - tgt_fr + 1,src_snode.Size(),MINUS_ONE<T>(),pivot,src_snode.Size(),pivot,src_snode.Size(),ZERO<T>(),tgt,tmpBuf.n());
+    TIMER_STOP(UPDATE_SNODE_GEMM);
+ 
+
+    //Now we can add the content into tgt_snode taking care of the indices
+    Int Offset = 0;
+    for(Int blkidx = first_pivot_idx; blkidx < src_snode.NZBlockCnt(); ++blkidx){
+      NZBlockDesc & cur_block_desc = src_snode.GetNZBlockDesc(blkidx);
+      Int cur_nrows = src_snode.NRows(blkidx);
+      Int cur_lr = cur_block_desc.GIndex + cur_nrows -1;
+      Int cur_fr = max(tgt_fr, cur_block_desc.GIndex);
+      cur_nrows = cur_lr - cur_fr +1;
+      Int tgt_blk_idx = tgt_snode.FindBlockIdx(cur_fr);
+      Int tgt_blk_idx_lr = tgt_snode.FindBlockIdx(cur_lr);
+      
+      assert(tgt_blk_idx != -1);
+      assert(tgt_blk_idx_lr != -1);
+
+      for( ; tgt_blk_idx <= tgt_blk_idx_lr; ++tgt_blk_idx){
+        NZBlockDesc & cur_tgt_desc = tgt_snode.GetNZBlockDesc(tgt_blk_idx);
+        Int tgt_nrows = tgt_snode.NRows(tgt_blk_idx);
+        T * cur_tgt = tgt_snode.GetNZval(cur_tgt_desc.Offset);
+      
+        Int updated_nrows = min(tgt_nrows,cur_nrows); 
+        Int updated_fr = max(cur_fr, cur_tgt_desc.GIndex);
+
+      
+        for(Int row = 0; row< updated_nrows; ++row){
+          T * cur_src = &tgt[ Offset ];
+          blas::Axpy(tgt_width,ONE<T>(),cur_src,1,&cur_tgt[(updated_fr + row - cur_tgt_desc.GIndex )*tgt_snode.Size() + tgt_updated_fc ],1);
+          Offset += tgt_width;
+        }
+
+      }
+    }
+
+
+
+
+
+//    Int first_pivot_fr = pivot_fr;
+//      if(first_pivot_fr ==I_ZERO ){
+//        first_pivot_fr = first_pivot_desc.GIndex;
+//      }
+
+
+
+
+#else
     NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(pivot_idx);
     Int first_pivot_fr = pivot_fr;
       if(first_pivot_fr ==I_ZERO ){
@@ -565,7 +664,9 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
         pivot_fr = pivot_desc.GIndex;
       }
 
+#ifdef _DEBUG_
       assert(pivot_fr >= pivot_desc.GIndex);
+#endif
 
       if(pivot_fr>tgt_snode.LastCol()){
         break;
@@ -596,7 +697,9 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
             break;
           }
 
+#ifdef _DEBUG_
           assert(tgt_idx!=-1 && tgt_idx<tgt_snode.NZBlockCnt());
+#endif
 
           NZBlockDesc & tgt_desc = tgt_snode.GetNZBlockDesc(tgt_idx);
           Int tgt_nrows = tgt_snode.NRows(tgt_idx);
@@ -606,10 +709,11 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
           Int update_fr = max(tgt_fr, src_fr);
           Int update_lr = min(tgt_lr, src_lr);
 
+#ifdef _DEBUG_
           assert(update_fr >= tgt_fr); 
           assert(update_lr >= update_fr); 
           assert(update_lr <= tgt_lr); 
-
+#endif
 
 
 #ifdef _DEBUG_
@@ -623,57 +727,11 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
           T * src = &(src_snode.GetNZval(src_desc.Offset)[(update_fr - src_desc.GIndex)*src_snode.Size()]);
           T * tgt = &(tgt_snode.GetNZval(tgt_desc.Offset)[(update_fr - tgt_desc.GIndex)*tgt_snode.Size()+tgt_updated_fc]);
 
-//#ifdef _DEBUG_
-//          logfileptr->OFS()<<"| ";
-//          for(Int j =0;j<pivot_lr-pivot_fr+1 ;++j){
-//            logfileptr->OFS()<<tgt[0+j]<<" ";
-//          }
-//
-//          logfileptr->OFS()<<"| = | ";
-//          for(Int j =0;j<pivot_lr-pivot_fr+1 ;++j){
-//            logfileptr->OFS()<<tgt[0+j]<<" ";
-//          }
-//
-//          logfileptr->OFS()<<"| - | ";
-//          for(Int j =0;j<src_snode.Size() ;++j){
-//            logfileptr->OFS()<<src[0+j]<<" ";
-//          }
-//
-//          logfileptr->OFS()<<"| * | ";
-//          for(Int i =0;i<pivot_lr-pivot_fr+1 ;++i){
-//            logfileptr->OFS()<<pivot[i]<<" ";
-//          }
-//          logfileptr->OFS()<<"|"<<std::endl;
-//
-//
-//
-//
-//
-//          for(Int i =1;i<update_lr - update_fr + 1 ;++i){
-//            for(Int j =0;j<pivot_lr-pivot_fr+1 ;++j){
-//              logfileptr->OFS()<<tgt[i*tgt_snode.Size()+j]<<" ";
-//            }
-//
-//            logfileptr->OFS()<<"|   | ";
-//            for(Int j =0;j<pivot_lr-pivot_fr+1 ;++j){
-//              logfileptr->OFS()<<tgt[i*tgt_snode.Size()+j]<<" ";
-//            }
-//
-//            logfileptr->OFS()<<"| - | ";
-//            for(Int j =0;j<src_snode.Size() ;++j){
-//              logfileptr->OFS()<<src[i*src_snode.Size()+j]<<" ";
-//            }
-//            logfileptr->OFS()<<"|"<<std::endl;
-//          }
-//#endif
-
-          //if(tgt_idx>0){
           //everything is in row-major
+    TIMER_START(UPDATE_SNODE_GEMM);
           blas::Gemm('T','N',pivot_lr-pivot_fr+1, update_lr - update_fr + 1,src_snode.Size(),MINUS_ONE<T>(),pivot,src_snode.Size(),src,src_snode.Size(),ONE<T>(),tgt,tgt_snode.Size());
-          //}
-          //else{
-          //        //src is row major while tgt is col major
-          //}
+    TIMER_STOP(UPDATE_SNODE_GEMM);
+
           if(tgt_idx+1<tgt_snode.NZBlockCnt()){
             NZBlockDesc & next_tgt_desc = tgt_snode.GetNZBlockDesc(tgt_idx+1);
             src_fr = next_tgt_desc.GIndex;
@@ -685,11 +743,8 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
       }
     } //end for pivots
 
-#ifdef _DEBUG_
-//          logfileptr->OFS()<<tgt_snode<<std::endl;
 #endif
-
-//    TIMER_STOP(UPDATE_SNODE);
+    TIMER_STOP(UPDATE_SNODE);
   }
 
 
@@ -938,7 +993,6 @@ else{
 
         Int iLocalI = (I-1) / np +1 ;
         SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
-        assert(src_snode.Id() == I); 
 
 
 
@@ -956,13 +1010,14 @@ else{
 
           SuperNode<T> & local_src_snode = *LocalSupernodes_[(src_snode_id-1) / np];
           
-#ifdef _DEBUG_
+//#ifdef _DEBUG_
           logfileptr->OFS()<<"LOCAL Supernode "<<src_snode.Id()<<" is updated by Supernode "<<src_snode_id<<" from row "<<src_first_row<<" "<<src_nzblk_idx<<std::endl;
-#endif
+//#endif
 
 //        logfileptr->OFS()<<"before "<<src_snode<<std::endl;
 //        logfileptr->OFS()<<"after ";
           UpdateSuperNode(local_src_snode,src_snode,src_nzblk_idx, src_first_row);
+        logfileptr->OFS()<<"After "<<src_snode<<std::endl;
 
           --UpdatesToDo(I-1);
 #ifdef _DEBUG_
@@ -1219,6 +1274,7 @@ else{
 #ifdef _DEBUG_
 //        logfileptr->OFS()<<src_snode<<std::endl;
 #endif
+        logfileptr->OFS()<<src_snode<<std::endl;
 
     TIMER_STOP(FACTOR_PANEL);
 
@@ -2414,7 +2470,9 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 //            for(Int col = colIdx; col>=firstCol; --col){
 //            }
 
-            if(ETree_.PostParent(colIdx-1)==cur_snode->FirstCol()){
+            Int parent = ETree_.PostParent(colIdx-1);
+            if(parent!=0){
+            if(SupMembership_[parent-1]==cur_snode->Id()){
               Int iTarget = Mapping_.Map(child_snode_id-1,child_snode_id-1);
 
               if(iTarget!=iam){
@@ -2489,6 +2547,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
               }
               children_found++;
             }
+            }
             //last column of the prev supernode
             colIdx = Xsuper_[child_snode_id-1]-1;
             if(colIdx==0){
@@ -2501,6 +2560,35 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
       }
 
 //      MPI_Barrier(pComm);
+
+#ifdef _CHECK_RESULT_SEQ_
+      {
+//      MPI_Barrier(pComm);
+//      NumMat<T> tmp = B;
+//      GetSolution(tmp, pComm);
+//            logfileptr->OFS()<<tmp<<std::endl;
+//      Int nrows = 0;
+//      for(Int ii=1; ii<=I;++ii){ nrows+= Xsuper_[ii] - Xsuper_[ii-1];}
+//
+//      NumMat<T> tmp2 = tmp;
+//      blas::Axpy(tmp.m()*tmp.n(),-1.0,&forwardSol(0,0),1,&tmp2(0,0),1);
+//      double norm = lapack::Lange('F',nrows,tmp.n(),&tmp2(0,0),tmp.m());
+//      logfileptr->OFS()<<"Norm after SuperNode "<<I<<" is "<<norm<<std::endl; 
+//
+//        if(abs(norm)>=1e-1){
+//          for(Int i = 0;i<tmp.m();++i){
+//            logfileptr->OFS()<<forwardSol(i,0)<<"       "<<tmp(i,0)<<std::endl;
+//          }
+//        }
+      }
+#endif
+
+
+
+
+
+
+
     }
     TIMER_STOP(SPARSE_BACK_SUBST);
 

@@ -338,6 +338,7 @@ int main(int argc, char **argv)
 
   Real timeSta, timeEnd;
 
+  sparse_matrix_file_format_t informat;
   TIMER_START(READING_MATRIX);
 DistSparseMatrix<Real> HMat(worldcomm);
   //Read the input matrix
@@ -346,7 +347,6 @@ DistSparseMatrix<Real> HMat(worldcomm);
   }
   else{
 
-  sparse_matrix_file_format_t informat;
   informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
 
 
@@ -572,8 +572,9 @@ DistSparseMatrix<Real> HMat(worldcomm);
 #else
   SMat.Solve(&X,worldcomm);
 #endif
-
   SMat.GetSolution(X,worldcomm);
+
+
 
   //Sort back X
   DblNumMat X2(X.m(),X.n());

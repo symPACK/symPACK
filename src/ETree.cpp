@@ -439,6 +439,9 @@ TIMER_STOP(Construct_Etree_Classic);
     newTree.n_ = aXsuper.m()-1;
     newTree.parent_.Resize(aXsuper.m()-1);
     
+
+assert(bIsPostOrdered_);
+
     IntNumVec colToSup(this->parent_.m());
     for(Int i=1; i<aXsuper.m(); ++i){
       for(Int j = aXsuper(i-1); j< aXsuper(i); ++j){
@@ -454,7 +457,8 @@ TIMER_STOP(Construct_Etree_Classic);
 
     for(Int i=1; i<=colToSup.m(); ++i){
         Int curSnode = colToSup(i-1);
-        Int parentSnode = (this->parent_(i-1) == 0) ? 0:colToSup(this->parent_(i-1)-1);
+        Int parent_col = this->PostParent(i-1);
+        Int parentSnode = ( parent_col == 0) ? 0:colToSup(parent_col-1);
 
         if( curSnode != parentSnode){
           newTree.parent_(curSnode-1) = parentSnode;

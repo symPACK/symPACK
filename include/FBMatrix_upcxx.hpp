@@ -43,7 +43,6 @@ namespace LIBCHOLESKY{
       virtual void Allocate(Int np, Int pn, Int pblksize);
 
       virtual void Distribute( DblNumMat & Aorig);
-//      virtual void DistributeSparse( DistSparseMatrix<double> & Aorig);
 
       virtual void Gather( DblNumMat_upcxx & Adest);
 

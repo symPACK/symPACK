@@ -192,57 +192,14 @@ namespace LIBCHOLESKY{
 
 
   void FBMatrix_upcxx::WaitFactorization(){ 
-
-//    while(!fact_finished){  upcxx::progress(); };
     int loc_finished = fact_finished;
     double time_sta_overall, time_end_overall, time_overall =0.0;
     double time_sta_adv, time_end_adv, time_adv =0.0;
     double time_sta_signal, time_end_signal, time_signal =0.0;
 
-//      time_sta_overall = get_time();
-//    Int cnt = 0;
     while( !fact_finished ){
-//      cnt++;
-//      int i= 42;
-//      time_sta_adv = get_time();
-//      TIMER_START(MAIN_ADVANCE);
       upcxx::advance(); 
-//      TIMER_STOP(MAIN_ADVANCE);
-//      time_end_adv = get_time();
-//      time_adv += time_end_adv - time_sta_adv;
-//      time_sta_signal = get_time();
-//      TIMER_START(WHILE_TEST);
-//      loc_finished =fact_finished;
-//      TIMER_STOP(WHILE_TEST)
-//      time_end_signal = get_time();
-//      time_signal += time_end_signal - time_sta_signal;
     }
-
-//    time_end_overall = get_time();
-//    time_overall += time_end_overall - time_sta_overall;
-
-//    Int cnt2 = cnt;
-//    while( cnt-->0 ){
-//      int i= 42;
-//      time_sta_signal = get_time();
-//      TIMER_START(WHILE_TEST);
-//      loc_finished =i;
-//      TIMER_STOP(WHILE_TEST)
-//      time_end_signal = get_time();
-//      time_signal += time_end_signal - time_sta_signal;
-//    }
-
-    
-//    logfileptr->OFS()<<"Loops: "<<cnt2<<endl; 
-//    logfileptr->OFS()<<"FANBOTH_WAITFACT: "<<time_overall<<endl; 
-//    logfileptr->OFS()<<"MAIN_ADVANCE: "<<time_adv<<endl; 
-//    logfileptr->OFS()<<"WHILE_TEST: "<<time_signal<<endl; 
-
-//    while(!fact_finished){  upcxx::advance(); };
-//    if(MYTHREAD==MAP(n-1,n-1)){
-//      TIMER_STOP(SYNC_END);
-//    }
-
   }
 
   void FBMatrix_upcxx::NumericalFactorization(){

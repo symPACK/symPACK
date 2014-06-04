@@ -7,7 +7,6 @@
 
 #include "Environment.hpp"
 #include "NumVec.hpp"
-//#include "NZBlock.hpp"
 
 namespace LIBCHOLESKY{
 
@@ -17,7 +16,6 @@ struct NZBlockDesc{
     NZBlockDesc():GIndex(-1),Offset(-1){};
     NZBlockDesc(Int aGIndex, size_t aOffset):GIndex(aGIndex),Offset(aOffset){};
 };
-
 
 
 

@@ -601,9 +601,9 @@ namespace LIBCHOLESKY{
 
 
   //minsize
-  Int nrelax0 = 4;
-  Int nrelax1 = 16;
-  Int nrelax2 = 48;
+  Int nrelax0 = 16;
+  Int nrelax1 = 32;//16;
+  Int nrelax2 = 64;//48;
 
   double zrelax0 = 0.8;
   double zrelax1 = 0.1;
@@ -636,7 +636,7 @@ namespace LIBCHOLESKY{
           if(fused_cols <= nrelax0){
             merge = true;
           }
-          else if(fused_cols <=maxSize{
+          else if(fused_cols <=maxSize){
             double child_lnz = cc(fstcol-1);
             double parent_lnz = cc(parent_fstcol-1);
             double xnewzeros = width * (parent_lnz + width  - child_lnz);
@@ -691,7 +691,6 @@ namespace LIBCHOLESKY{
     relXSuper.Resize(nrSuper+1);
 
     for(Int ksup=1;ksup<=nrSuper;++ksup){
-
       Int fstcol = relXSuper[ksup-1];
       Int lstcol = relXSuper[ksup]-1;
       for(Int col = fstcol; col<=lstcol;++col){
@@ -714,6 +713,289 @@ namespace LIBCHOLESKY{
 
     TIMER_STOP(FindSupernodes);
   }
+
+
+
+
+
+
+
+  void SparseMatrixStructure::SymbolicFactorizationRelaxed(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, IntNumVec & xlindx, IntNumVec & lindx){
+    TIMER_START(SymbolicFactorization);
+
+
+    if(!bIsGlobal){
+			throw std::logic_error( "SparseMatrixStructure must be global in order to call SymbolicFactorization\n" );
+    }
+
+    Int nsuper = xsuper.m()-1;
+
+
+
+
+    Int nzbeg = 0;
+    //nzend points to the last used slot in lindx
+    Int nzend = 0;
+
+    //tail is the end of list indicator (in rchlnk, not mrglnk)
+    Int tail = size +1;
+
+    Int head = 0;
+
+    //Array of length nsuper containing the children of 
+    //each supernode as a linked list
+    IntNumVec mrglnk(nsuper);
+    SetValue(mrglnk,0);
+
+    //Array of length n+1 containing the current linked list 
+    //of merged indices (the "reach" set)
+    IntNumVec rchlnk(size+1);
+
+    //Array of length n used to mark indices as they are introduced
+    // into each supernode's index set
+    IntNumVec marker(size);
+    SetValue(marker,0);
+
+
+
+    xlindx.Resize(nsuper+1);
+
+    //Compute the sum of the column count and resize lindx accordingly
+    Int nofsub = 1;
+    for(Int i =0; i<cc.m();++i){
+      nofsub+=cc(i);
+    }
+
+    lindx.Resize(nofsub);
+
+
+    Int point = 1;
+    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+      Int fstcol = xsuper(ksup-1);
+      xlindx(ksup-1) = point;
+      point += cc(fstcol-1); 
+    } 
+    xlindx(nsuper) = point;
+
+
+//    Int point = 1;
+//    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+//      Int fstcol = xsuper(ksup-1);
+//      Int width = xsuper(ksup) - xsuper(ksup-1);
+//      lindx(ksup-1) = point;
+//      point += width*cc(fstcol-1); 
+//    } 
+//    lindx(nsuper) = point;
+//
+//    IntNumVec tmpLindx = lindx;
+//    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+//
+//    ETree superTree = tree.ToSupernodalETree(xsuper);
+//      Int fstcol = xsuper(ksup-1);
+//      Int lstcol = xsuper(ksup)-1;
+//
+//      for(Int row = fstcol; row <=lstcol; ++row){
+////        lindx[tmpLindx[ksup-1]++-1]=row;
+//      }
+//
+//
+//      for(Int row = fstcol; row <=lstcol; ++row){
+//        /* traverse the row subtree for each nonzero in A or AA' */
+//          subtree (k, k, Ap, Ai, Anz, SuperMap, Sparent, mark,
+//              Flag, Ls, Lpi2) ;
+//
+//
+//
+//
+//
+//
+//    Int p, pend, i, si ;
+//    p = Ap [j] ;
+//    pend = (Anz == NULL) ? (Ap [j+1]) : (p + Anz [j]) ;
+//    for ( ; p < pend ; p++)
+//    {
+//  Int row = Ai [p] ;
+//  if (row < k)
+//  {
+//      /* (i,k) is an entry in the upper triangular part of A or A*F'.
+//       * symmetric case:   A(i,k) is nonzero (j=k).
+//       * unsymmetric case: A(i,j) and F(j,k) are both nonzero.
+//       *
+//       * Column i is in supernode si = SuperMap [i].  Follow path from si
+//       * to root of supernodal etree, stopping at the first flagged
+//       * supernode.  The root of the row subtree is supernode SuperMap[k],
+//       * which is flagged already. This traversal will stop there, or it
+//       * might stop earlier if supernodes have been flagged by previous
+//       * calls to this routine for the same k. */
+//      for (si = SuperMap [row-1] ; Flag [si] < mark ; si = Sparent [si])
+//      {
+//    ASSERT (si <= SuperMap [k]) ;
+//    Ls [tmpLindx [si]++] = k ;
+//    Flag [si] = mark ;
+//      }
+//  }
+//    }
+//      }
+//    }
+
+
+
+    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+      Int fstcol = xsuper(ksup-1);
+      Int lstcol = xsuper(ksup)-1;
+      Int width = lstcol - fstcol +1;
+      Int length = cc(fstcol-1);
+      Int knz = 0;
+      rchlnk(head) = tail;
+      Int jsup = mrglnk(ksup-1);
+
+      //If ksup has children in the supernodal e-tree
+      if(jsup>0){
+        //copy the indices of the first child jsup into 
+        //the linked list, and mark each with the value 
+        //ksup.
+        Int jwidth = xsuper(jsup)-xsuper(jsup-1);
+        Int jnzbeg = xlindx(jsup-1) + jwidth;
+        Int jnzend = xlindx(jsup) -1;
+        for(Int jptr = jnzend; jptr>=jnzbeg; --jptr){
+          Int newi = lindx(jptr-1);
+          ++knz;
+          marker(newi-1) = ksup;
+          rchlnk(newi) = rchlnk(head);
+          rchlnk(head) = newi;
+        }
+
+        //for each subsequent child jsup of ksup ...
+        jsup = mrglnk(jsup-1);
+        while(jsup!=0 && knz < length){
+          //merge the indices of jsup into the list,
+          //and mark new indices with value ksup.
+
+          jwidth = xsuper(jsup)-xsuper(jsup-1);
+          jnzbeg = xlindx(jsup-1) + jwidth;
+          jnzend = xlindx(jsup) -1;
+          Int nexti = head;
+          for(Int jptr = jnzbeg; jptr<=jnzend; ++jptr){
+            Int newi = lindx(jptr-1);
+            Int i;
+            do{
+              i = nexti;
+              nexti = rchlnk(i);
+            }while(newi > nexti);
+
+            if(newi < nexti){
+#ifdef _DEBUG_
+            logfileptr->OFS()<<jsup<<" is a child of "<<ksup<<" and "<<newi<<" is inserted in the structure of "<<ksup<<std::endl;
+#endif
+              ++knz;
+              rchlnk(i) = newi;
+              rchlnk(newi) = nexti;
+              marker(newi-1) = ksup;
+              nexti = newi;
+            }
+          }
+          jsup = mrglnk(jsup-1);
+        }
+      }
+
+      //structure of a(*,fstcol) has not been examined yet.  
+      //"sort" its structure into the linked list,
+      //inserting only those indices not already in the
+      //list.
+      if(knz < length){
+        for(Int row = fstcol; row<=lstcol; ++row){
+          Int newi = row;
+          if(newi > fstcol && marker(newi-1) != ksup){
+            //position and insert newi in list and
+            // mark it with kcol
+            Int nexti = head;
+            Int i;
+            do{
+              i = nexti;
+              nexti = rchlnk(i);
+            }while(newi > nexti);
+            ++knz;
+            rchlnk(i) = newi;
+            rchlnk(newi) = nexti;
+            marker(newi-1) = ksup;
+          }
+        }
+
+
+        for(Int col = fstcol; col<=lstcol; ++col){
+          Int node = tree.FromPostOrder(col);
+          Int knzbeg = colptr(node-1);
+          Int knzend = colptr(node)-1;
+          for(Int kptr = knzbeg; kptr<=knzend;++kptr){
+            Int newi = rowind(kptr-1);
+            newi = tree.ToPostOrder(newi);
+            if(newi > fstcol && marker(newi-1) != ksup){
+              //position and insert newi in list and
+              // mark it with kcol
+              Int nexti = head;
+              Int i;
+              do{
+                i = nexti;
+                nexti = rchlnk(i);
+              }while(newi > nexti);
+              ++knz;
+              rchlnk(i) = newi;
+              rchlnk(newi) = nexti;
+              marker(newi-1) = ksup;
+            }
+          }
+        }
+
+      } 
+
+      //if ksup has no children, insert fstcol into the linked list.
+      if(rchlnk(head) != fstcol){
+        rchlnk(fstcol) = rchlnk(head);
+        rchlnk(head) = fstcol;
+        ++knz;
+      }
+
+      assert(knz == cc(fstcol-1));
+
+
+      //copy indices from linked list into lindx(*).
+      nzbeg = nzend+1;
+      nzend += knz;
+      assert(nzend+1 == xlindx(ksup));
+      Int i = head;
+      for(Int kptr = nzbeg; kptr<=nzend;++kptr){
+        i = rchlnk(i);
+        lindx(kptr-1) = i;
+      } 
+
+      //if ksup has a parent, insert ksup into its parent's 
+      //"merge" list.
+      if(length > width){
+        Int pcol = lindx(xlindx(ksup-1) + width -1);
+        Int psup = SupMembership(pcol-1);
+        mrglnk(ksup-1) = mrglnk(psup-1);
+        mrglnk(psup-1) = ksup;
+      }
+    }
+
+    lindx.Resize(nzend+1);
+
+    TIMER_STOP(SymbolicFactorization);
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
