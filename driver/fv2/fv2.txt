@@ -1,0 +1,12 @@
+%-------------------------------------------------------------------------------
+% UF Sparse Matrix Collection, Tim Davis
+% http://www.cise.ufl.edu/research/sparse/matrices/Norris/fv2
+% name: Norris/fv2
+% [S.Norris, Univ. Auckland. FEM, Laplace eqn 2D 101x101 mesh]
+% id: 888
+% date: 2003
+% author: S. Norris
+% ed: T. Davis
+% fields: title A name id date author ed kind
+% kind: 2D/3D problem
+%-------------------------------------------------------------------------------
