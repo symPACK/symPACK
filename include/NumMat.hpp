@@ -29,20 +29,20 @@ class NumMat
     virtual inline void delete_data();
   public:
     /// @brief The size of the first dimension.
-    Int m_ = 0; 
+    Int m_ ; 
 
     /// @brief The size of second dimension.
-    Int n_ = 0;
+    Int n_ ;
 
     /// @brief Whether it owns the data.
-    bool owndata_ = false;
+    bool owndata_;
 
 #ifdef _ASSERT_
-    bool allocated_ = false;
+    bool allocated_ ;
 #endif
 
     /// @brief The pointer for the actual data.
-    F* data_ = NULL;
+    F* data_;
 
     NumMat(Int m=0, Int n=0);
     NumMat(Int m, Int n, bool owndata, F* data);

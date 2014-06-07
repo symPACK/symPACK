@@ -22,9 +22,11 @@ namespace LIBCHOLESKY{
 
   ETree::ETree(){
 
+    bIsPostOrdered_ = false;
   }
 
   ETree::ETree(SparseMatrixStructure & aGlobal){
+    bIsPostOrdered_ = false;
     ConstructETree(aGlobal);
   }
 

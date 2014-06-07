@@ -34,7 +34,7 @@ namespace LIBCHOLESKY{
 
 
     //for 2D maps
-    prow = sqrt(np);
+    prow = (Int)sqrt((double)np);
 
     //determine pcol and prow
     Int firstproc = MAP(0,0);

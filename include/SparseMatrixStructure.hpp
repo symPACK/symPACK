@@ -10,8 +10,8 @@ class ETree;
 
 class SparseMatrixStructure{
   protected:
-  bool bIsGlobal=false;
-  bool bIsExpanded = false;
+  bool bIsGlobal;
+  bool bIsExpanded;
   public:
 	Int          size;                            // Matrix dimension
 	Int          nnz;                             // Number of nonzeros
@@ -40,7 +40,8 @@ class SparseMatrixStructure{
 
   void GetSuperARowStruct(const ETree & etree, const IntNumVec & Xsuper, const IntNumVec & SupMembership, const Int iSupNo, std::vector<Int> & SuperRowStruct);
   void GetSuperLRowStruct(const ETree & etree, const IntNumVec & Xsuper, const IntNumVec & SupMembership, const Int iSupNo, std::set<Int> & SuperLRowStruct);
-
+    
+  SparseMatrixStructure(): bIsGlobal(false), bIsExpanded(false){};
 
 
 };
