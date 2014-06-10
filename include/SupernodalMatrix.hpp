@@ -52,7 +52,11 @@ template <typename T> class SupernodalMatrix{
   inline bool FindNextUpdate(SuperNode<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
 
 
+#ifdef SINGLE_BLAS
+  inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, NumMat<T> & tmpBuf, Int  pivot_fr = I_ZERO);
+#else
   inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
+#endif
   public:
 
 

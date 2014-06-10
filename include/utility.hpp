@@ -336,6 +336,26 @@ inline Int Print(std::ostream &os, const char* name, bool val) {
 // Overload << and >> operators for basic data types
 // *********************************************************************
 
+
+
+// std::set
+template <class F> inline std::ostream& operator<<( std::ostream& os, const std::set<F>& s)
+{
+	os<<s.size()<<std::endl;
+	os.setf(std::ios_base::scientific, std::ios_base::floatfield);
+  for(typename std::set<F>::iterator it = s.begin();it!=s.end();it++){
+		os<<" "<<*it;
+  }
+	os<<std::endl;
+	return os;
+}
+
+
+
+
+
+
+
 // std::vector
 template <class F> inline std::ostream& operator<<( std::ostream& os, const std::vector<F>& vec)
 {

@@ -31,11 +31,20 @@ class SparseMatrixStructure{
   void GetLColRowCount2(ETree & tree, IntNumVec & cc, IntNumVec & rc);
   void GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc);
   void FindSupernodes(ETree& tree, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, Int maxSize = -1);
-  void SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx);
+
+  void RefineSupernodes(ETree& tree, IntNumVec & supMembership, IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx, IntNumVec & perm);
+
+
   void SymbolicFactorization2(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, IntNumVec & xlindx, IntNumVec & lindx);
   void SymbolicFactorizationRelaxed(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, IntNumVec & xlindx, IntNumVec & lindx);
 
 
+
+
+
+
+//TRASH
+  void SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx);
   void GetARowStruct(const ETree & etree, const Int iPORow, std::vector<Int> & rowStruct);
   void GetLRowStruct(const ETree & etree, const Int iPORow, const std::vector<Int> & ARowStruct, std::set<Int> & LRowStruct);
 
