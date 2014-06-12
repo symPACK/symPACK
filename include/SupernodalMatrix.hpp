@@ -22,8 +22,39 @@ namespace LIBCHOLESKY{
 struct SnodeUpdate;
 
 
+struct DelayedComm{
+  Int tgt_snode_id;
+  Int src_snode_id;
+
+  Int src_nzblk_idx;
+  Int src_first_row;
+  Int src_last_row;
+
+  DelayedComm(Int a_src_snode_id, Int a_tgt_snode_id, Int a_src_nzblk_idx, Int a_src_first_row):src_snode_id(a_src_snode_id),tgt_snode_id(a_tgt_snode_id),src_first_row(a_src_first_row),src_nzblk_idx(a_src_nzblk_idx){};
+};
+
+struct OutgoingComm{
+  std::vector<char> * pSrcBlocks = NULL;
+  MPI_Request Request;
+  OutgoingComm(Int aSize, MPI_Request aRequest):Request(aRequest){
+   pSrcBlocks = new std::vector<char>(aSize);
+  };
+  ~OutgoingComm(){  delete pSrcBlocks; };
+};
+
+
+
+
+
+typedef std::list<DelayedComm> CommList;
+typedef std::list<OutgoingComm *> Isends;
+
 template <typename T> class SupernodalMatrix{
   protected:
+
+
+
+
   bool globalAllocated = false;
 
   IntNumVec Xsuper_;
@@ -57,9 +88,17 @@ template <typename T> class SupernodalMatrix{
 #else
   inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
 #endif
+
+
+
+    void SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, Isends & OutgoingSend);
+
+
   public:
 
-
+	MPI_Comm     pComm;        
+  
+  IntNumVec perm_;
 
 
   void forward_update(SuperNode<T> * src_contrib,SuperNode<T> * tgt_contrib);
@@ -84,6 +123,8 @@ template <typename T> class SupernodalMatrix{
   SparseMatrixStructure GetLocalStructure() const;
 
   void Factorize(MPI_Comm & pComm);
+  void FanOut( MPI_Comm & pComm );
+
 
 
 #ifdef _CHECK_RESULT_SEQ_

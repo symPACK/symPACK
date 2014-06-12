@@ -63,6 +63,7 @@ public:
 
   IntNumVec SortChildren(IntNumVec & cc);
 
+  void PermuteTree(IntNumVec & perm);
 
 protected:
   Int n_;

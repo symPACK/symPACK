@@ -148,7 +148,7 @@ namespace LIBCHOLESKY{
 
 
 
- void FBMatrix_upcxx::Allocate(Int np,Int pn, Int pblksize){
+ void FBMatrix_upcxx::Allocate(Int & np,Int pn, Int pblksize){
     FBMatrix::Allocate(np,pn,pblksize);
     for(Int j = 0; j<n;j+=blksize){ 
       Int local_j = global_col_to_local(j);

@@ -40,7 +40,7 @@ namespace LIBCHOLESKY{
 
       void Initialize();
 
-      virtual void Allocate(Int np, Int pn, Int pblksize);
+      virtual void Allocate(Int & np, Int pn, Int pblksize);
 
       virtual void Distribute( DblNumMat & Aorig);
 

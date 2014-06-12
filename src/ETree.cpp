@@ -170,13 +170,13 @@ namespace LIBCHOLESKY{
 
 
       IntNumVec perm;
-      IntNumVec invperm;
+//      IntNumVec invperm;
 
       //Compute the parent permutation and update postNumber_
       //Do a depth first search to construct the postordered tree
       IntNumVec stack(n_);
       perm.Resize(n_);
-      invperm.Resize(n_);
+//      invperm.Resize(n_);
 
       Int stacktop=0, vertex=n_,m=0;
       bool exit = false;
@@ -198,7 +198,7 @@ namespace LIBCHOLESKY{
           m++;
 
           perm(vertex-1) = m;
-          invperm(m-1) = vertex;
+//          invperm(m-1) = vertex;
 
           vertex = brother(vertex-1);
         }
@@ -218,6 +218,43 @@ namespace LIBCHOLESKY{
         cc(node-1) = stack(node-1);
       }
 
+////      //Compose the two permutations
+////      for(Int i = 1; i <= n_; ++i){
+////            Int interm = postNumber_(i-1);
+////            postNumber_(i-1) = perm(interm-1);
+////      }
+////      for(Int i = 1; i <= n_; ++i){
+////        Int node = postNumber_(i-1);
+////        invPostNumber_(node-1) = i;
+////      } 
+////
+////#ifdef _DEBUG_
+////      logfileptr->OFS()<<"ORDERED fson "<<fson<<std::endl;
+////      logfileptr->OFS()<<"ORDERED brother "<<brother<<std::endl;
+////
+////      IntNumVec poParent(n_+1);
+////            for(Int i=1; i<=n_;i++){
+////              Int nunode = postNumber_(i-1);
+////              Int ndpar = parent_(i-1);
+////              if(ndpar>0){
+////                ndpar = postNumber_(ndpar-1);
+////              }
+////              poParent(nunode-1) = ndpar;
+////            }
+////
+////
+////      logfileptr->OFS()<<"ORDERED new parent: "<<poParent<<std::endl;
+////      logfileptr->OFS()<<"ORDERED postNumber: "<<postNumber_<<std::endl;
+////      logfileptr->OFS()<<"ORDERED invPostNumber: "<<invPostNumber_<<std::endl;
+////#endif
+////
+//////      logfileptr->OFS()<<"perm: "<<perm<<std::endl;
+//////      logfileptr->OFS()<<"invperm: "<<invperm<<std::endl;
+    return perm;
+
+  }
+
+  void ETree::PermuteTree(IntNumVec & perm){
       //Compose the two permutations
       for(Int i = 1; i <= n_; ++i){
             Int interm = postNumber_(i-1);
@@ -227,31 +264,7 @@ namespace LIBCHOLESKY{
         Int node = postNumber_(i-1);
         invPostNumber_(node-1) = i;
       } 
-
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"ORDERED fson "<<fson<<std::endl;
-      logfileptr->OFS()<<"ORDERED brother "<<brother<<std::endl;
-
-      IntNumVec poParent(n_+1);
-            for(Int i=1; i<=n_;i++){
-              Int nunode = postNumber_(i-1);
-              Int ndpar = parent_(i-1);
-              if(ndpar>0){
-                ndpar = postNumber_(ndpar-1);
-              }
-              poParent(nunode-1) = ndpar;
-            }
-
-
-      logfileptr->OFS()<<"ORDERED new parent: "<<poParent<<std::endl;
-      logfileptr->OFS()<<"ORDERED postNumber: "<<postNumber_<<std::endl;
-      logfileptr->OFS()<<"ORDERED invPostNumber: "<<invPostNumber_<<std::endl;
-#endif
-
-    return perm;
-
   }
-
 
 
   void ETree::ConstructETree(SparseMatrixStructure & aGlobal){

@@ -123,7 +123,7 @@ namespace LIBCHOLESKY{
 
 
 
- void FBMatrix_mpi::Allocate(Int np,Int pn, Int pblksize){
+ void FBMatrix_mpi::Allocate(Int & np,Int pn, Int pblksize){
     FBMatrix::Allocate(np,pn,pblksize);
     for(Int j = 0; j<n;j+=blksize){ 
       Int local_j = global_col_to_local(j);

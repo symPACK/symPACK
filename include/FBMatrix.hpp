@@ -57,7 +57,7 @@ namespace LIBCHOLESKY{
 
       inline Int global_col_to_local(Int j){ return ((j)/(pcol*blksize))*blksize; }
 
-      virtual void Allocate(Int np, Int pn, Int pblksize);
+      virtual void Allocate(Int & np, Int pn, Int pblksize);
 
       virtual void Distribute( DblNumMat & Aorig) = 0;
 

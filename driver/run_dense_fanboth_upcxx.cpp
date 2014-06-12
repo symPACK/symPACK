@@ -150,16 +150,23 @@ int main(int argc, char **argv)
 
   //Setup the process grid
   Afactptr->prefetch = maxPrefetch;
-  Afactptr->prow = 1;
-  Afactptr->pcol = np;
-  np = Afactptr->prow*Afactptr->pcol;
+//  Afactptr->prow = 1;
+//  Afactptr->pcol = np;
+//  np = Afactptr->prow*Afactptr->pcol;
+
+
+  //Allocate chunks of the matrix on each processor
+
+//gdb_lock();
+
+  Afactptr->Allocate(np,Afactptr->n,blksize);
+
+
   if(iam==0){
     cout<<"Number of cores to be used: "<<np<<endl;
   }
 
 
-  //Allocate chunks of the matrix on each processor
-  Afactptr->Allocate(np,Afactptr->n,blksize);
   Afactptr->Distribute(A);
   if(iam==0){
     cout<<"FBMatrix distributed"<<endl;
