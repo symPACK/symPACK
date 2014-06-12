@@ -445,6 +445,7 @@ namespace LIBCHOLESKY{
 
 
   template <class F> DistSparseMatrix<F>::DistSparseMatrix(const csc_matrix_t * cscptr,MPI_Comm oComm ):comm(oComm){
+    globalAllocated=false;
     this->CopyData(cscptr);
   }
 

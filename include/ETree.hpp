@@ -67,7 +67,7 @@ public:
 
 protected:
   Int n_;
-  bool bIsPostOrdered_ = false;
+  bool bIsPostOrdered_;
 
   NumVec<Int> parent_;
   NumVec<Int> postNumber_;

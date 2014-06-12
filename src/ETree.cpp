@@ -22,6 +22,7 @@ namespace LIBCHOLESKY{
 
   ETree::ETree(){
 
+    bIsPostOrdered_=false;
   }
 
   ETree::ETree(SparseMatrixStructure & aGlobal){
@@ -268,7 +269,7 @@ namespace LIBCHOLESKY{
 
 
   void ETree::ConstructETree(SparseMatrixStructure & aGlobal){
-
+    bIsPostOrdered_=false;
     n_ = aGlobal.size;
 
     //Expand to symmetric storage
