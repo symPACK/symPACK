@@ -172,20 +172,26 @@ namespace LIBCHOLESKY{
 
 
 
-  void FBMatrix_upcxx::Gather( DblNumMat_upcxx & Adest){
+  void FBMatrix_upcxx::Gather( DblNumMat & Adest){
       Adest.Resize(n,n);
       SetValue(Adest,0.0);
     
 //      logfileptr->OFS()<<Adest.m()<<" "<<Adest.n()<<std::endl;
-
+    DblNumMat_upcxx tmp(n,blksize);
     for(Int j = 0; j<n;j+=blksize){ 
       Int local_j = global_col_to_local(j);
       Int jb = min(blksize, n-j);
       Int target = MAP(j,j);
-      global_ptr<double> Adestptr(&Adest(j,j));
+      
+//      global_ptr<double> Adestptr(&Adest(j,j));
+      global_ptr<double> Adestptr(&tmp(0,0));
       upcxx::async(target)(Gathercopy,pRemoteObjPtrs->at(target),Adestptr,j);
+      upcxx::wait();
+      //copy tmp in Adest
+      for(Int k=0;k<jb;k++){
+        std::copy(&tmp(0,0) + k*n,&tmp(0,0) + k*n + n-j,&Adest(j,j)+k*n);
+      }
     }
-    upcxx::wait();
   }
 
 

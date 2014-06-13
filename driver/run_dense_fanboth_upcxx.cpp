@@ -211,8 +211,10 @@ int main(int argc, char **argv)
 #endif
 
 
+  Afactptr->ClearTmp();
+
   //gather all data on P0
-  DblNumMat_upcxx Afinished;
+  DblNumMat Afinished;
 
   upcxx::barrier();
   logfileptr->OFS()<<"aggregate_comm_time: "<<Afactptr->aggregate_comm_time<<endl;

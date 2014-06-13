@@ -73,6 +73,9 @@ namespace LIBCHOLESKY{
 
 
   template <typename F> NumMat_upcxx<F>::~NumMat_upcxx() {
+
+//    logfileptr->OFS()<<"Deallocating matrix of size "<<this->m_<<"-by-"<<this->n_<<std::endl;
+    
     delete_data();
   }
 

@@ -34,13 +34,33 @@ struct DelayedComm{
 };
 
 struct OutgoingComm{
-  std::vector<char> * pSrcBlocks = NULL;
+  std::vector<char> * pSrcBlocks;
+  Int head;
   MPI_Request Request;
   OutgoingComm(Int aSize, MPI_Request aRequest):Request(aRequest){
    pSrcBlocks = new std::vector<char>(aSize);
+    head = 0;
   };
   ~OutgoingComm(){  delete pSrcBlocks; };
+  inline char * back(){ return &pSrcBlocks->at(head);}
+  inline char * front(){ return &pSrcBlocks->front();}
+  inline Int size(){ return pSrcBlocks->size();}
+
 };
+
+template <typename T> inline void Serialize( OutgoingComm& os,  const T * val, const Int count){
+  T* dest = reinterpret_cast<T*>(&os.pSrcBlocks->at(os.head));
+  std::copy(val,val+count,dest);
+  os.head += count*sizeof(T);
+}
+
+template <typename T> inline OutgoingComm& operator<<( OutgoingComm& os,  const T & val){
+  T* dest = reinterpret_cast<T*>(&os.pSrcBlocks->at(os.head));
+  std::copy(&val,&val+1,dest);
+  os.head += sizeof(T);
+
+  return os;
+}
 
 
 
@@ -75,6 +95,12 @@ template <typename T> class SupernodalMatrix{
   std::vector<SuperNode<T> *> Contributions_;
   IntNumVec xlindx_;
   IntNumVec lindx_;
+
+
+
+
+  void AddOutgoingComm(Isends & outgoingSend, Int src_snode_id, Int src_snode_size ,Int src_first_row, NZBlockDesc & pivot_desc, Int nzblk_cnt, T * nzval_ptr, Int nz_cnt);
+
 
   void GetUpdatingSupernodeCount( IntNumVec & sc,IntNumVec & mw);
 

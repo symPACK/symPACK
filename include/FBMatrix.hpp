@@ -41,6 +41,7 @@ namespace LIBCHOLESKY{
       FBMatrix();
       virtual ~FBMatrix();
 
+      void ClearTmp();
 
       inline Int row2D(Int i, Int j) {return (i/blksize)%np;}
       inline Int col2D(Int i, Int j) {return (j/blksize)%np;}

@@ -44,7 +44,7 @@ namespace LIBCHOLESKY{
 
       virtual void Distribute( DblNumMat & Aorig);
 
-      virtual void Gather( DblNumMat_upcxx & Adest);
+      virtual void Gather( DblNumMat & Adest);
 
       virtual void WaitFactorization();
 

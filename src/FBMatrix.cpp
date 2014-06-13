@@ -27,6 +27,11 @@ namespace LIBCHOLESKY{
     WLower.clear();
   }
 
+  void FBMatrix::ClearTmp(){
+    WLower.clear();
+  }
+
+
   void FBMatrix::Allocate(Int & np, Int pn, Int pblksize){
     n=pn;
     blksize=pblksize;
