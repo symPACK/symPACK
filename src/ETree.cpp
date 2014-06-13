@@ -22,11 +22,7 @@ namespace LIBCHOLESKY{
 
   ETree::ETree(){
 
-<<<<<<< HEAD
     bIsPostOrdered_=false;
-=======
-    bIsPostOrdered_ = false;
->>>>>>> benchmarking
   }
 
   ETree::ETree(SparseMatrixStructure & aGlobal){
