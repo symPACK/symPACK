@@ -38,7 +38,7 @@ namespace LIBCHOLESKY{
 
 
     //for 2D maps
-    prow = sqrt(np);
+    prow = (Int)sqrt((double)np);
 
 
 #ifdef MAP2D  

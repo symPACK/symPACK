@@ -30,8 +30,8 @@ namespace LIBCHOLESKY{
       //Parameters
       double aggregate_comm_time;
       double factor_comm_time;
-      Int outstdAggreg=0;
-      Int outstdUpdate=0;
+      Int outstdAggreg;
+      Int outstdUpdate;
       Int prefetch;
       std::vector< upcxx::global_ptr<FBMatrix_upcxx> > * pRemoteObjPtrs;
 
