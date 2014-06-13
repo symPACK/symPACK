@@ -8,6 +8,8 @@
 #include "Environment.hpp"
 #include "NumVec.hpp"
 
+#include <list>
+
 namespace LIBCHOLESKY{
 
 struct NZBlockDesc{
@@ -92,8 +94,59 @@ class SuperNode{
 
 
 
+  SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, IntNumVec & xlindx, IntNumVec & lindx) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
+
+    //compute supernode size / width
+    iSize_ = iLastCol_ - iFirstCol_+1;
+    global_to_local_index_.resize(aiN,-(aiN+1));
+    b_own_storage_ = true;
+
+    std::list<NZBlockDesc> tmpBlockIndex;
+
+    Int fi = xlindx(iId_-1);
+    Int li = xlindx(iId_)-1;
 
 
+
+    Int prevRow = 0;
+    nzval_cnt_ = 0;
+    blocks_cnt_ = 0;
+
+
+
+    for(Int idx= fi ; idx<=li; ++idx){
+      Int curRow = lindx[idx-1];
+        //create a new block
+        if(curRow != prevRow+1){
+
+#ifdef FAST_INDEX_SEARCH
+          if(blocks_cnt_>0){
+            for(Int row = prevRow+1; row< curRow; ++row){
+              global_to_local_index_[row-1] = -curRow;
+            }
+          }
+#endif
+
+          tmpBlockIndex.push_back(NZBlockDesc(curRow,nzval_cnt_));
+          ++blocks_cnt_;
+        }
+
+        global_to_local_index_[curRow-1] = blocks_cnt_;
+
+        nzval_cnt_+=iSize_;
+    }
+
+    blocks_container_.resize(tmpBlockIndex.size());
+    std::copy(tmpBlockIndex.begin(),tmpBlockIndex.end(),blocks_container_.begin());
+
+
+    nzval_container_.resize(nzval_cnt_,ZERO<T>());
+    //nzval_container_.resize(nzval_cnt_,ZERO<T>());
+
+    nzval_ = &nzval_container_.front();
+    blocks_ = &blocks_container_.front();
+
+  }
 
 
 
@@ -166,8 +219,6 @@ class SuperNode{
         }
       }
 #endif
-
-
 
       blocks_container_.push_back(NZBlockDesc(aiGIndex,nzval_cnt_));
       for(Int rowidx = 0; rowidx< aiNRows; ++rowidx){

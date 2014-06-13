@@ -150,6 +150,7 @@ template <typename T> class SupernodalMatrix{
 
   void Factorize(MPI_Comm & pComm);
   void FanOut( MPI_Comm & pComm );
+  void FanBoth( MPI_Comm & pComm );
 
 
 
