@@ -1636,6 +1636,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
             }
 #endif
 
+#ifdef DELAY_SNODES
             if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
               //need a std::unordered_set to check whether 
@@ -1650,6 +1651,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
                   continue;
                 }
               }
+#endif
 
 #ifdef _DEBUG_
               is_factor_sent[iTarget] = I;
@@ -1728,6 +1730,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
             }
 #endif
 
+#ifdef DELAY_SNODES
             if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
               //need a std::unordered_set to check whether 
@@ -1743,7 +1746,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
                   continue;
                 }
               }
-
+#endif
 
 
 
@@ -2174,6 +2177,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
             }
 #endif
 
+#ifdef DELAY_SNODES
             if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
               //need a std::unordered_set to check whether 
@@ -2188,6 +2192,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
                   continue;
                 }
               }
+#endif
 
 #ifdef _DEBUG_
               is_factor_sent[iTarget] = I;
@@ -2266,6 +2271,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
             }
 #endif
 
+#ifdef DELAY_SNODES
             if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
               //need a std::unordered_set to check whether 
@@ -2281,7 +2287,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
                   continue;
                 }
               }
-
+#endif
 
 
 
@@ -2367,6 +2373,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
       //If I am involved in updating tgt_snode_id
       if(tgt_snode_id!= -1){
         bool skipped = false;
+#ifdef DELAY_SNODES
         if(LocalSupernodes_.size()>0){
           Int nextLocalI = max(1,iLocalI);
           Int next_snode_id = LocalSupernodes_[nextLocalI-1]->Id();
@@ -2386,6 +2393,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
 
           }
         }
+#endif
 
         if(!skipped){
           std::vector<char> src_blocks;
