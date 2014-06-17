@@ -499,8 +499,8 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
   TIMER_START(SPARSE_FAN_OUT);
 //  SMat.Factorize(worldcomm);
-//  SMat.FanOut(worldcomm);
-  SMat.FanBoth(worldcomm);
+  SMat.FanOut(worldcomm);
+//  SMat.FanBoth(worldcomm);
   TIMER_STOP(SPARSE_FAN_OUT);
 
 

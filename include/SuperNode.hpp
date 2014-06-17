@@ -117,19 +117,22 @@ class SuperNode{
     for(Int idx= fi ; idx<=li; ++idx){
       Int curRow = lindx[idx-1];
         //create a new block
-        if(curRow != prevRow+1){
+        if(curRow==iFirstCol_ || curRow != prevRow+1 || (curRow>iLastCol_ && blocks_cnt_==1) ){
 
 #ifdef FAST_INDEX_SEARCH
-          if(blocks_cnt_>0){
+//          if(blocks_cnt_>0){
+//gdb_lock();
             for(Int row = prevRow+1; row< curRow; ++row){
               global_to_local_index_[row-1] = -curRow;
             }
-          }
+//          }
 #endif
 
           tmpBlockIndex.push_back(NZBlockDesc(curRow,nzval_cnt_));
           ++blocks_cnt_;
         }
+
+        prevRow = curRow;
 
         global_to_local_index_[curRow-1] = blocks_cnt_;
 
@@ -208,15 +211,16 @@ class SuperNode{
     //Resize the container if I own the storage
     if(b_own_storage_){
 #ifdef FAST_INDEX_SEARCH
+      Int prevLastRow = 0;
       if(blocks_container_.size()>0){
         Int prevBlkIdx = blocks_cnt_-1; 
-        Int prevLastRow = blocks_container_.back().GIndex+NRows(prevBlkIdx)-1;
+        prevLastRow = blocks_container_.back().GIndex+NRows(prevBlkIdx)-1;
+      }
 
-        Int cur_fr = aiGIndex;
-        Int cur_lr = cur_fr + aiNRows -1;
-        for(Int row = prevLastRow+1; row< cur_fr; ++row){
-          global_to_local_index_[row-1] = -cur_fr;
-        }
+      Int cur_fr = aiGIndex;
+      Int cur_lr = cur_fr + aiNRows -1;
+      for(Int row = prevLastRow+1; row< cur_fr; ++row){
+        global_to_local_index_[row-1] = -cur_fr;
       }
 #endif
 

@@ -115,10 +115,17 @@ template <typename T> class SupernodalMatrix{
   inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
 #endif
 
-
+  inline void AggregateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr = I_ZERO);
 
     void SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, Isends & OutgoingSend);
 
+
+
+
+  Int FBUpdate(Int I);
+  void FBGetUpdateCount(IntNumVec & sc, IntNumVec & lu);
+
+  SuperNode<T> * FBRecvFactor(Int src_snode_id,Int tgt_snode_id, std::vector<char> & src_blocks);
 
   public:
 

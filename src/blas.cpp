@@ -976,6 +976,22 @@ void Gemm
 {
     const char fixedTransA = ( transA == 'C' ? 'T' : transA );
     const char fixedTransB = ( transB == 'C' ? 'T' : transB );
+
+
+#ifdef _DEBUG_
+    logfileptr->OFS()<<"Param 1 transA = "<<fixedTransA<<std::endl;
+    logfileptr->OFS()<<"Param 2 transB = "<<fixedTransB<<std::endl;
+    logfileptr->OFS()<<"Param 3 m = "<<m<<std::endl;
+    logfileptr->OFS()<<"Param 4 n = "<<n<<std::endl;
+    logfileptr->OFS()<<"Param 5 k = "<<k<<std::endl;
+    logfileptr->OFS()<<"Param 6 alpha = "<<alpha<<std::endl;
+    logfileptr->OFS()<<"Param 8 lda = "<<lda<<std::endl;
+    logfileptr->OFS()<<"Param 10 ldb = "<<ldb<<std::endl;
+    logfileptr->OFS()<<"Param 11 beta = "<<beta<<std::endl;
+    logfileptr->OFS()<<"Param 13 ldc = "<<ldc<<std::endl;
+assert(ldc>0 && lda>0 && ldb>0);
+#endif
+
     BLAS(dgemm)( &fixedTransA, &fixedTransB, &m, &n, &k,
                  &alpha, A, &lda, B, &ldb, &beta, C, &ldc );
 }
