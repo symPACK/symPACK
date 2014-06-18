@@ -10,7 +10,7 @@
 #define __SAVE_UPCXX__
 #endif
 
-#include <upcxx.h>
+#include "upcxx.h"
 
 #include "Environment.hpp"
 #include "NumMat_upcxx.hpp"
