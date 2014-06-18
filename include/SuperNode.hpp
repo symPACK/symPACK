@@ -8,6 +8,8 @@
 #include "Environment.hpp"
 #include "NumVec.hpp"
 
+#include <list>
+
 namespace LIBCHOLESKY{
 
 struct NZBlockDesc{
@@ -84,7 +86,7 @@ class SuperNode{
      blocks_ = NULL;
      blocks_cnt_ = 0;
 
-     global_to_local_index_.resize(aiN,-1);
+     global_to_local_index_.resize(aiN,-(aiN+1));
 
 
      b_own_storage_ = true;
@@ -92,8 +94,62 @@ class SuperNode{
 
 
 
+  SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, IntNumVec & xlindx, IntNumVec & lindx) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
+
+    //compute supernode size / width
+    iSize_ = iLastCol_ - iFirstCol_+1;
+    global_to_local_index_.resize(aiN,-(aiN+1));
+    b_own_storage_ = true;
+
+    std::list<NZBlockDesc> tmpBlockIndex;
+
+    Int fi = xlindx(iId_-1);
+    Int li = xlindx(iId_)-1;
 
 
+
+    Int prevRow = 0;
+    nzval_cnt_ = 0;
+    blocks_cnt_ = 0;
+
+
+
+    for(Int idx= fi ; idx<=li; ++idx){
+      Int curRow = lindx[idx-1];
+        //create a new block
+        if(curRow==iFirstCol_ || curRow != prevRow+1 || (curRow>iLastCol_ && blocks_cnt_==1) ){
+
+#ifdef FAST_INDEX_SEARCH
+//          if(blocks_cnt_>0){
+//gdb_lock();
+            for(Int row = prevRow+1; row< curRow; ++row){
+              global_to_local_index_[row-1] = -curRow;
+            }
+//          }
+#endif
+
+          tmpBlockIndex.push_back(NZBlockDesc(curRow,nzval_cnt_));
+          ++blocks_cnt_;
+        }
+
+        prevRow = curRow;
+
+        global_to_local_index_[curRow-1] = blocks_cnt_;
+
+        nzval_cnt_+=iSize_;
+    }
+
+    blocks_container_.resize(tmpBlockIndex.size());
+    std::copy(tmpBlockIndex.begin(),tmpBlockIndex.end(),blocks_container_.begin());
+
+
+    nzval_container_.resize(nzval_cnt_,ZERO<T>());
+    //nzval_container_.resize(nzval_cnt_,ZERO<T>());
+
+    nzval_ = &nzval_container_.front();
+    blocks_ = &blocks_container_.front();
+
+  }
 
 
 
@@ -115,16 +171,27 @@ class SuperNode{
 
     blocks_ = a_block_desc;
     blocks_cnt_ = a_desc_cnt;
-    global_to_local_index_.resize(aiN,-1);
+    global_to_local_index_.resize(aiN,-(aiN+1));
 
     //restore 0-based offsets and compute global_to_local indices
     for(Int blkidx=blocks_cnt_-1; blkidx>=0;--blkidx){
       blocks_[blkidx].Offset -= blocks_[0].Offset;
     }
 
+#ifdef FAST_INDEX_SEARCH
+    Int prevLastRow = 0;
+#endif
     for(Int blkidx=0; blkidx<blocks_cnt_;++blkidx){
-      for(Int rowidx = 0; rowidx< NRows(blkidx); ++rowidx){
-        global_to_local_index_[blocks_[blkidx].GIndex+rowidx-1] = blkidx;
+      Int cur_fr = blocks_[blkidx].GIndex;
+      Int cur_lr = cur_fr + NRows(blkidx) -1;
+#ifdef FAST_INDEX_SEARCH
+      for(Int row = prevLastRow+1; row< cur_fr; ++row){
+        global_to_local_index_[row-1] = -cur_fr;
+      }
+      prevLastRow = cur_lr;
+#endif
+      for(Int row = cur_fr; row<=cur_lr; ++row){
+        global_to_local_index_[row-1] = blkidx;
       }
     }
 
@@ -139,23 +206,41 @@ class SuperNode{
 
  
 
- inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex){
+  inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex){
 
     //Resize the container if I own the storage
     if(b_own_storage_){
+#ifdef FAST_INDEX_SEARCH
+      Int prevLastRow = 0;
+      if(blocks_container_.size()>0){
+        Int prevBlkIdx = blocks_cnt_-1; 
+        prevLastRow = blocks_container_.back().GIndex+NRows(prevBlkIdx)-1;
+      }
+
+      Int cur_fr = aiGIndex;
+      Int cur_lr = cur_fr + aiNRows -1;
+      for(Int row = prevLastRow+1; row< cur_fr; ++row){
+        global_to_local_index_[row-1] = -cur_fr;
+      }
+#endif
+
       blocks_container_.push_back(NZBlockDesc(aiGIndex,nzval_cnt_));
       for(Int rowidx = 0; rowidx< aiNRows; ++rowidx){
         global_to_local_index_[aiGIndex+rowidx-1] = blocks_cnt_;
       }
+
       blocks_cnt_++;
       nzval_cnt_+=aiNRows*iSize_;
       nzval_container_.resize(nzval_cnt_,ZERO<T>());
       nzval_ = &nzval_container_.front();
       blocks_ = &blocks_container_.front();
     }
- }
+  }
  
 
+  const std::vector<Int> & GetGlobToLocIndx() const{
+    return global_to_local_index_;
+  }
 
   Int FindBlockIdx(Int aiGIndex){
       return global_to_local_index_[aiGIndex-1];      

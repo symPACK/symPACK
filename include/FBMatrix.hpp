@@ -41,6 +41,7 @@ namespace LIBCHOLESKY{
       FBMatrix();
       virtual ~FBMatrix();
 
+      void ClearTmp();
 
       inline Int row2D(Int i, Int j) {return (i/blksize)%np;}
       inline Int col2D(Int i, Int j) {return (j/blksize)%np;}
@@ -57,7 +58,7 @@ namespace LIBCHOLESKY{
 
       inline Int global_col_to_local(Int j){ return ((j)/(pcol*blksize))*blksize; }
 
-      virtual void Allocate(Int np, Int pn, Int pblksize);
+      virtual void Allocate(Int & np, Int pn, Int pblksize);
 
       virtual void Distribute( DblNumMat & Aorig) = 0;
 

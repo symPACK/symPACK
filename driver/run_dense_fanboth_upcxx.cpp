@@ -12,7 +12,7 @@
 #define UPCXX
 
 #include <time.h>
-#include <random>
+//#include <random>
 
 #include  "Environment.hpp"
 #include  "NumVec.hpp"
@@ -22,6 +22,7 @@
 #include  "ETree.hpp"
 #include  "blas.hpp"
 #include  "lapack.hpp"
+#include  "FBMatrix.hpp"
 #include  "FBMatrix_upcxx.hpp"
 #include  "LogFile.hpp"
 
@@ -150,16 +151,23 @@ int main(int argc, char **argv)
 
   //Setup the process grid
   Afactptr->prefetch = maxPrefetch;
-  Afactptr->prow = 1;
-  Afactptr->pcol = np;
-  np = Afactptr->prow*Afactptr->pcol;
+//  Afactptr->prow = 1;
+//  Afactptr->pcol = np;
+//  np = Afactptr->prow*Afactptr->pcol;
+
+
+  //Allocate chunks of the matrix on each processor
+
+//gdb_lock();
+
+  Afactptr->Allocate(np,Afactptr->n,blksize);
+
+
   if(iam==0){
     cout<<"Number of cores to be used: "<<np<<endl;
   }
 
 
-  //Allocate chunks of the matrix on each processor
-  Afactptr->Allocate(np,Afactptr->n,blksize);
   Afactptr->Distribute(A);
   if(iam==0){
     cout<<"FBMatrix distributed"<<endl;
@@ -204,8 +212,10 @@ int main(int argc, char **argv)
 #endif
 
 
+  Afactptr->ClearTmp();
+
   //gather all data on P0
-  DblNumMat_upcxx Afinished;
+  DblNumMat Afinished;
 
   upcxx::barrier();
   logfileptr->OFS()<<"aggregate_comm_time: "<<Afactptr->aggregate_comm_time<<endl;

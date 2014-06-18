@@ -15,6 +15,8 @@
 namespace LIBCHOLESKY{
 
 
+
+
   template <typename F> NumMat<F>::NumMat(Int m, Int n): m_(m), n_(n), owndata_(true) {
 #ifdef _ASSERT_
     allocated_=false;

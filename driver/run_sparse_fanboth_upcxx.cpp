@@ -498,7 +498,9 @@ DistSparseMatrix<Real> HMat(worldcomm);
   SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,worldcomm);
 
   TIMER_START(SPARSE_FAN_OUT);
-  SMat.Factorize(worldcomm);
+//  SMat.Factorize(worldcomm);
+  SMat.FanOut(worldcomm);
+//  SMat.FanBoth(worldcomm);
   TIMER_STOP(SPARSE_FAN_OUT);
 
 
@@ -528,12 +530,14 @@ DistSparseMatrix<Real> HMat(worldcomm);
 #ifdef _CHECK_RESULT_SEQ_
       X(row-1,col-1) = RHS2(tree.FromPostOrder(row)-1,col-1);
 #else
-      X(row-1,col-1) = RHS(tree.FromPostOrder(row)-1,col-1);
+//      X(row-1,col-1) = RHS(tree.FromPostOrder(row)-1,col-1);
+      X(row-1,col-1) = RHS(SMat.perm_[row-1]-1,col-1);
 #endif
     }
   }
 
-  //    logfileptr->OFS()<<X<<endl;
+      logfileptr->OFS()<<RHS<<endl;
+      logfileptr->OFS()<<X<<endl;
 
   //    if(iam==0){
   //      logfileptr->OFS()<<fullMatrix<<endl;
@@ -580,11 +584,14 @@ DistSparseMatrix<Real> HMat(worldcomm);
   DblNumMat X2(X.m(),X.n());
   for(Int row = 1; row<= X.m(); ++row){
     for(Int col = 1; col<= X.n(); ++col){
-      X2(row-1,col-1) = X(tree.ToPostOrder(row)-1,col-1);
+//      X2(row-1,col-1) = X(tree.ToPostOrder(row)-1,col-1);
+//      X2(tree.FromPostOrder(row)-1,col-1) = X(row-1,col-1);
+      X2(SMat.perm_[row-1]-1,col-1) = X(row-1,col-1);
     }
   }
 
 
+      logfileptr->OFS()<<X2<<endl;
 
 #ifdef _CHECK_RESULT_SEQ_
   blas::Axpy(X2.m()*X2.n(),-1.0,&XTrue2(0,0),1,&X2(0,0),1);

@@ -49,7 +49,7 @@ namespace LIBCHOLESKY{
 
       void Initialize(MPIGrid & grid);
 
-      virtual void Allocate(Int np,Int pn, Int pblksize);
+      virtual void Allocate(Int & np,Int pn, Int pblksize);
 
       virtual void Distribute( DblNumMat & Aorig);
 

@@ -27,15 +27,25 @@ namespace LIBCHOLESKY{
     WLower.clear();
   }
 
-  void FBMatrix::Allocate(Int np, Int pn, Int pblksize){
-    this->np = np;
+  void FBMatrix::ClearTmp(){
+    WLower.clear();
+  }
+
+
+  void FBMatrix::Allocate(Int & np, Int pn, Int pblksize){
     n=pn;
     blksize=pblksize;
 
 
     //for 2D maps
-    prow = sqrt(np);
+    prow = (Int)sqrt((double)np);
 
+
+#ifdef MAP2D  
+    np = (Int)(np/prow) * prow;
+#endif
+
+    this->np = np;
     //determine pcol and prow
     Int firstproc = MAP(0,0);
     Int j=0;
@@ -52,6 +62,7 @@ namespace LIBCHOLESKY{
       }
     }while(firstproc!=curproc && j<pn);
 
+    assert(pcol <= np);
 
     Int totBlk = n/blksize;
     Int remaining = n-totBlk*blksize;

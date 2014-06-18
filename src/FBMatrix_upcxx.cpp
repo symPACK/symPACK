@@ -148,7 +148,7 @@ namespace LIBCHOLESKY{
 
 
 
- void FBMatrix_upcxx::Allocate(Int np,Int pn, Int pblksize){
+ void FBMatrix_upcxx::Allocate(Int & np,Int pn, Int pblksize){
     FBMatrix::Allocate(np,pn,pblksize);
     for(Int j = 0; j<n;j+=blksize){ 
       Int local_j = global_col_to_local(j);
@@ -172,20 +172,26 @@ namespace LIBCHOLESKY{
 
 
 
-  void FBMatrix_upcxx::Gather( DblNumMat_upcxx & Adest){
+  void FBMatrix_upcxx::Gather( DblNumMat & Adest){
       Adest.Resize(n,n);
       SetValue(Adest,0.0);
     
 //      logfileptr->OFS()<<Adest.m()<<" "<<Adest.n()<<std::endl;
-
+    DblNumMat_upcxx tmp(n,blksize);
     for(Int j = 0; j<n;j+=blksize){ 
       Int local_j = global_col_to_local(j);
       Int jb = min(blksize, n-j);
       Int target = MAP(j,j);
-      global_ptr<double> Adestptr(&Adest(j,j));
+      
+//      global_ptr<double> Adestptr(&Adest(j,j));
+      global_ptr<double> Adestptr(&tmp(0,0));
       upcxx::async(target)(Gathercopy,pRemoteObjPtrs->at(target),Adestptr,j);
+      upcxx::wait();
+      //copy tmp in Adest
+      for(Int k=0;k<jb;k++){
+        std::copy(&tmp(0,0) + k*n,&tmp(0,0) + k*n + n-j,&Adest(j,j)+k*n);
+      }
     }
-    upcxx::wait();
   }
 
 
@@ -212,7 +218,7 @@ namespace LIBCHOLESKY{
 typedef upcxx::global_ptr<double> dgptr;
 
 bool isNonNull (dgptr &  i) {
-  return ( static_cast<double *>(i)!=dgptr(NULL));
+  return ( static_cast<double *>(i)!=dgptr((double*)NULL));
 }
 
 
@@ -227,12 +233,12 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
       upcxx::shared_array< dgptr > ArrAggregateRdy2;
       ArrAggregateRdy2.init(np*np,np);
       for(int i=0;i<np;i++){
-         ArrAggregateRdy2[iam*np+i]=dgptr(NULL);
+         ArrAggregateRdy2[iam*np+i]=dgptr((double*)NULL);
       }
 
   upcxx::shared_array< dgptr > ArrFactorRdy2;
   ArrFactorRdy2.init(np);
-  ArrFactorRdy2[iam]=dgptr(NULL);
+  ArrFactorRdy2[iam]=dgptr((double*)NULL);
   dgptr* locFactorRdy2 =  ArrFactorRdy2[iam].raw_ptr();
 
   
@@ -276,7 +282,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
           TIMER_START(Aggregate_Recv);
           upcxx::copy<double>((dgptr)ArrAggregateRdy2[pos],RemoteAggregate.GData(),(n-j)*jb);
           TIMER_STOP(Aggregate_Recv);
-          ArrAggregateRdy2[pos] = dgptr(NULL);
+          ArrAggregateRdy2[pos] = dgptr((double*)NULL);
 
 
 #ifdef _DEBUG_
@@ -356,7 +362,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
           TIMER_START(Factor_Recv);
           upcxx::copy<double>(ArrFactorRdy2[iam],RemoteFactorPtr->GData(),(n-j)*jb);
           TIMER_STOP(Factor_Recv);
-          ArrFactorRdy2[iam] = dgptr(NULL);
+          ArrFactorRdy2[iam] = dgptr((double*)NULL);
           have_factor=true;
         }
 
@@ -470,12 +476,12 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 
 
   void Gathercopy(upcxx::global_ptr<FBMatrix_upcxx> Objptr, global_ptr<double> Adest, Int j){
-    assert(Objptr.tid()==MYTHREAD);
+    assert(Objptr.where()==MYTHREAD);
     FBMatrix_upcxx & A = *Objptr.raw_ptr();
     Int local_j = A.global_col_to_local(j);
     Int jb = min(A.blksize, A.n-j);
     DblNumMat_upcxx & LocalChunk = *(DblNumMat_upcxx*)A.AchunkLower[local_j/A.blksize];
-    global_ptr<double> Asrc = &LocalChunk(0,0);
+    global_ptr<double> Asrc(&LocalChunk(0,0));
 #ifdef ASYNC_COPY
     upcxx::ldacopy_async(A.n-j,jb,Asrc,A.n-j,Adest,A.n);
     upcxx::async_copy_fence();

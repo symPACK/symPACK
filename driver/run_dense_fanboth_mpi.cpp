@@ -6,7 +6,11 @@
 
 
 #include <time.h>
+
+#ifndef __PGI
 #include <random>
+#endif
+
 #include <omp.h>
 
 #include  "FBMatrix.hpp"

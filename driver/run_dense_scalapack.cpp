@@ -4,7 +4,10 @@
 /// @date 2013-08-31
 
 #include <time.h>
+
+#ifndef __PGI
 #include <random>
+#endif
 #include <omp.h>
 
 #include  "Environment.hpp"

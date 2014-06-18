@@ -30,8 +30,8 @@ namespace LIBCHOLESKY{
       //Parameters
       double aggregate_comm_time;
       double factor_comm_time;
-      Int outstdAggreg=0;
-      Int outstdUpdate=0;
+      Int outstdAggreg;
+      Int outstdUpdate;
       Int prefetch;
       std::vector< upcxx::global_ptr<FBMatrix_upcxx> > * pRemoteObjPtrs;
 
@@ -40,11 +40,11 @@ namespace LIBCHOLESKY{
 
       void Initialize();
 
-      virtual void Allocate(Int np, Int pn, Int pblksize);
+      virtual void Allocate(Int & np, Int pn, Int pblksize);
 
       virtual void Distribute( DblNumMat & Aorig);
 
-      virtual void Gather( DblNumMat_upcxx & Adest);
+      virtual void Gather( DblNumMat & Adest);
 
       virtual void WaitFactorization();
 

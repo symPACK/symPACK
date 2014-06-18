@@ -3,6 +3,12 @@
 #include "utility.hpp"
 #include <limits>       // std::numeric_limits
 
+#include <iterator>
+#include <set>
+#include <list>
+#include <vector>
+#include <algorithm>
+
 namespace LIBCHOLESKY{
   void SparseMatrixStructure::ClearExpandedSymmetric(){
     expColptr.Resize(0);
@@ -533,6 +539,7 @@ namespace LIBCHOLESKY{
   }
 
 
+  
 
   void SparseMatrixStructure::FindSupernodes(ETree& tree, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, Int maxSize ){
     TIMER_START(FindSupernodes);
@@ -574,12 +581,189 @@ namespace LIBCHOLESKY{
       lstsup = ksup;
     }
     xsuper(0)=1;
+    TIMER_STOP(FindSupernodes);
+  }
+
+
+
+  typedef std::set<Int> nodeset;
+  typedef std::list<nodeset*> partitions;
+  typedef std::vector<nodeset*> vecset;
+void SparseMatrixStructure::RefineSupernodes(ETree& tree, IntNumVec & supMembership, IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx, IntNumVec & perm){
+
+  perm.Resize(size);
+//  for(Int i =1; i<=size; ++i){
+//    perm[i-1]=i;
+//  }
+
+  Int nsuper = xsuper.m()-1;
+  //Using std datatypes first
+
+  vecset adj(nsuper);
+  vecset snodes(nsuper);
+
+  partitions L;
+
+  IntNumVec origPerm(size);
+
+  //init L with curent supernodal partition
+  Int pos = 1;
+  for(Int i = 1; i<=nsuper; ++i){
+    adj[i-1] = new nodeset();
+    Int fi = xlindx(i-1);
+    Int li = xlindx(i)-1;
+    for(Int idx = fi; idx<=li;idx++){
+       adj[i-1]->insert(lindx(idx-1));
+    }
+
+    L.push_back(new nodeset());
+    snodes[i-1] = L.back();
+    nodeset * curL = L.back();
+    Int fc = xsuper(i-1);
+    Int lc = xsuper(i)-1;
+    for(Int node = fc; node<=lc;++node){
+      curL->insert(node);
+      origPerm[node-1] = pos++;
+    }
+  }
+ 
+  Int K = nsuper;
+  partitions::reverse_iterator Kit;
+  for(Kit = L.rbegin();Kit != L.rend(); ++Kit){
+    logfileptr->OFS()<<"Looking at snode "<<K<<std::endl;
+
+    assert( snodes[K-1] == *Kit);
+
+//        logfileptr->OFS()<<"Adj is "<<*adj[K-1]<<std::endl;
+
+    partitions::reverse_iterator Jit;
+//    partitions tmp;
+    Jit = L.rbegin();
+    Int count = L.size() - K;
+    while(count>0){
+//        logfileptr->OFS()<<"L is "<<**Jit<<std::endl;
+    //for(Jit = L.rbegin();Jit!=Kit;++Jit){
+      nodeset * inter = new nodeset();
+
+      std::set_intersection((*Jit)->begin(),(*Jit)->end(),
+                              adj[K-1]->begin(),adj[K-1]->end(),
+                                std::inserter(*inter, inter->begin()));
+//        logfileptr->OFS()<<"Intersect is "<<*inter<<std::endl;
+
+      if(inter->size()>0){
+        nodeset * diff = new nodeset();
+        std::set_difference((*Jit)->begin(),(*Jit)->end(),
+                              adj[K-1]->begin(),adj[K-1]->end(),
+                                std::inserter(*diff, diff->begin()));
+
+//        logfileptr->OFS()<<"Diff is "<<*diff<<std::endl;
+
+        if(diff->size()>0){
+//          tmp.push_back(diff);
+//          tmp.push_back(inter);
+          //replace Jit by inter and diff
+          (*Jit)->swap(*diff);
+          L.insert(Jit.base(),inter);
+          delete diff;
+//          (*Jit)->swap(*inter);
+//          L.insert(Jit.base(),diff);
+//          delete inter;
+          ++Jit; 
+          ++Jit; 
+        }
+        else{
+//          tmp.push_back(*Jit);
+          delete diff;
+        }
+      }
+      else{
+//        tmp.push_back(*Jit);
+        delete inter;
+      }
+    //}
+      ++Jit;
+      --count;
+    }
+    
+
+    partitions::iterator it;
+    for(it = L.begin();it != L.end(); ++it){
+      logfileptr->OFS()<<"[ ";
+      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
+        logfileptr->OFS()<<*nit<<" ";
+      }
+      logfileptr->OFS()<<"] ";
+    }
+    logfileptr->OFS()<<std::endl;
+    --K;
+  }
+
+    partitions::iterator it;
+    for(it = L.begin();it != L.end(); ++it){
+      logfileptr->OFS()<<"[ ";
+      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
+        logfileptr->OFS()<<*nit<<" ";
+      }
+      logfileptr->OFS()<<"] ";
+    }
+    logfileptr->OFS()<<std::endl;
+
+
+  //construct perm
+    pos = 1;
+    for(it = L.begin();it != L.end(); ++it){
+      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
+        perm[*nit-1] = pos++;
+      }
+    }
+
+    logfileptr->OFS()<<"Orig col order "<<origPerm<<std::endl;
+    logfileptr->OFS()<<"Refined col order "<<perm<<std::endl;
+
+//  IntNumVec lindxTemp = lindx;
+//  //change lindx to reflect the new ordering
+//  for(Int i = 1; i<=nsuper; ++i){
+//    Int fi = xlindx(i-1);
+//    Int li = xlindx(i)-1;
+//    for(Int idx = fi; idx<=li;idx++){
+//       lindx[idx-1] = perm[lindxTemp[idx-1]-1];
+//    }
+//  }
+//
+//    logfileptr->OFS()<<"Previous lindx "<<lindxTemp<<std::endl;
+//    logfileptr->OFS()<<"Refined lindx "<<lindx<<std::endl;
+
+
+  for(it = L.begin();it != L.end(); ++it){
+    delete (*it);
+  }
+
+  for(Int i = 1; i<=nsuper; ++i){
+    delete adj[i-1];
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
 
 
 #ifdef RELAXED_SNODE
+void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, Int maxSize ){
+
+    Int nsuper = xsuper.m()-1;
 
     DisjointSet sets;
     sets.Initialize(nsuper);
@@ -704,18 +888,11 @@ namespace LIBCHOLESKY{
 ///      for(Int col=i-2;col>=i-supsize;--col){
 ///        cc[col-1] = cc[col]+1;
 ///      }
+
+
+}
+
 #endif
-
-
-
-
-
-
-    TIMER_STOP(FindSupernodes);
-  }
-
-
-
 
 
 

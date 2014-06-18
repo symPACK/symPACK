@@ -60,7 +60,7 @@ template <class F> class DistSparseMatrix{
   friend void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
 
   protected:
-  bool globalAllocated = false;
+  bool globalAllocated;
   SparseMatrixStructure Local_;
   SparseMatrixStructure Global_;
 
@@ -76,10 +76,10 @@ template <class F> class DistSparseMatrix{
 	NumVec<F>    nzvalLocal;                      
 
 	/// @brief MPI communicator
-	MPI_Comm     comm = MPI_COMM_NULL;        
+	MPI_Comm     comm;        
 
 
-  DistSparseMatrix(MPI_Comm oComm){comm = oComm;};
+  DistSparseMatrix(MPI_Comm oComm){globalAllocated=false; comm = oComm;};
   void CopyData(const csc_matrix_t * cscptr);
   DistSparseMatrix(const csc_matrix_t * cscptr,MPI_Comm oComm);
 
