@@ -21,6 +21,12 @@ namespace LIBCHOLESKY{
 
 struct SnodeUpdate;
 
+struct LocalUpdate{
+  Int src_snode_id;
+  Int src_nzblk_idx;
+  Int src_first_row;
+  LocalUpdate(Int snode_id,Int nzblk_idx,Int first_row):src_snode_id(snode_id),src_nzblk_idx(nzblk_idx),src_first_row(first_row){};
+};
 
 struct DelayedComm{
   Int tgt_snode_id;
@@ -41,7 +47,12 @@ struct OutgoingComm{
    pSrcBlocks = new std::vector<char>(aSize);
     head = 0;
   };
-  ~OutgoingComm(){  delete pSrcBlocks; };
+  ~OutgoingComm(){  
+    delete pSrcBlocks; 
+    if(Request !=MPI_REQUEST_NULL){
+      MPI_Request_free(&Request);
+    }
+  };
   inline char * back(){ return &pSrcBlocks->at(head);}
   inline char * front(){ return &pSrcBlocks->front();}
   inline Int size(){ return pSrcBlocks->size();}
