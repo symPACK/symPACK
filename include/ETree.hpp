@@ -41,6 +41,7 @@ public:
 
   void ConstructETree(SparseMatrixStructure & aGlobal);
   void ConstructETree2(SparseMatrixStructure & aGlobal);
+  void ConstructETree(int n, int * xadj, int * adj);
 
   void PostOrderTree();
 
