@@ -1,4 +1,3 @@
-#include <set>
 #include <vector>
 #include <list>
 #include <iostream>
@@ -7,8 +6,11 @@
 #include <string>
 #include <sstream>
 
+#include <stdlib.h>
+#include <time.h>
+#include <math.h>
 
-#define verbose
+//#define verbose
 
 using namespace std;
 
@@ -19,15 +21,30 @@ struct node_t{
 };
 
 bool node_comp(node_t * & a, node_t * & b){
-  return a->degree<b->degree;
+      if (a->degree<b->degree)
+        return true;
+      else{
+        if(a->degree == b->degree){
+          double tmp = fmod(rand(),10.0);
+          return (tmp>5.0);
+        }
+        else{
+          return false;
+        }
+      }
 }
 
 
 
 void get_reach(const vector<int> & xadj,const vector<int> & adj,const vector<node_t> & nodes, const node_t & min_node, const int elim_step, list<node_t*> & reach_set){
-  list<node_t *> explore_set;
+  //this array is used to mark the node so that 
+  //they are not added twice into the reachable set
   vector<int> explored(nodes.size(),0);
-  //initialize the explore set
+  
+  //this list contains the nodes to explore
+  list<node_t *> explore_set;
+  //initialize explore_set with the neighborhood
+  // of min_node in the original graph 
   int beg = xadj[min_node.id-1];  
   int end = xadj[min_node.id]-1;
   for(int i = beg;i<=end;++i){
@@ -49,24 +66,24 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,const vector<nod
       reach_set.push_back(cur_node);
     }
     else{
-      if(cur_node->elim_step < elim_step){
-        int beg = xadj[cur_node->id-1];  
-        int end = xadj[cur_node->id]-1;
-        for(int i = beg;i<=end;++i){
-          if(!explored[adj[i-1]-1]){
-            explore_set.push_back(const_cast<node_t*>(&nodes[adj[i-1]-1]));
-            explored[adj[i-1]-1]=1;
-          }
+      int beg = xadj[cur_node->id-1];  
+      int end = xadj[cur_node->id]-1;
+      for(int i = beg;i<=end;++i){
+        if(!explored[adj[i-1]-1]){
+          explore_set.push_back(const_cast<node_t*>(&nodes[adj[i-1]-1]));
+          explored[adj[i-1]-1]=1;
         }
       }
     }
-
   }
 }
 
 
 
 int main(int argc, char *argv[]) {
+  /* initialize random seed: */
+  int seed =time(NULL); 
+  srand (seed);
 
   vector<int> xadj;
   vector<int> adj;
@@ -111,6 +128,8 @@ int main(int argc, char *argv[]) {
   vector<node_t> nodes(n);
   vector<node_t *> node_heap(n);
 
+  int initEdgeCnt = 0;
+  int edgeCnt = 0;
 
   //initialize nodes
   for(int i=0;i<n;++i){
@@ -118,6 +137,12 @@ int main(int argc, char *argv[]) {
     cur_node.id = i+1;
     cur_node.degree = xadj[i+1] - xadj[i];
     cur_node.elim_step = -1;
+
+    for(int idx = xadj[i]; idx <= xadj[i+1]-1;++idx){
+      if(adj[idx-1]>i+1){
+        initEdgeCnt++;
+      }
+    }
     node_heap[i] = &cur_node;
   }
 
@@ -142,6 +167,9 @@ int main(int argc, char *argv[]) {
     //update the degree of its reachable set
     list<node_t *> reach;
     get_reach(xadj,adj,nodes,min_node,step,reach);
+
+    edgeCnt += reach.size();
+
     for(list<node_t *>::iterator it = reach.begin();it!=reach.end();++it){
       node_t * cur_neighbor = *it;
       list<node_t *> nghb_reach;
@@ -164,6 +192,8 @@ int main(int argc, char *argv[]) {
   }
   cout<<endl;
 
+  cout<<"Initial edge count: "<<initEdgeCnt<<endl;
+  cout<<"Final edge count: "<<edgeCnt<<endl;
 }
 
 
