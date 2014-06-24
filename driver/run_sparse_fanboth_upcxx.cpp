@@ -329,9 +329,14 @@ int main(int argc, char **argv)
     maxSnode= atoi(options["-b"].c_str());
   }
 
-  Int maxIsend = 1;
-  if( options.find("-i") != options.end() ){
-    maxIsend= atoi(options["-i"].c_str());
+  Int maxIsend = 0;
+  if( options.find("-is") != options.end() ){
+    maxIsend= atoi(options["-is"].c_str());
+  }
+
+  Int maxIrecv = 0;
+  if( options.find("-ir") != options.end() ){
+    maxIrecv= atoi(options["-ir"].c_str());
   }
 
 
@@ -495,7 +500,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
   //logfileptr->OFS()<<"etree is "<<etree<<endl;
 
   //do the symbolic factorization and build supernodal matrix
-  SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,worldcomm);
+  SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
 
   TIMER_START(SPARSE_FAN_OUT);
 //  SMat.Factorize(worldcomm);
