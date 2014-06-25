@@ -13,7 +13,7 @@
 #include "cost.h"
 #include "ETree.hpp"
 
-//#define verbose
+#define verbose
 
 using namespace std;
   int GedgeCnt = 0;
@@ -45,27 +45,41 @@ bool node_comp(node_t * & a, node_t * & b){
 
 
 
-void get_reach(const vector<int> & xadj,const vector<int> & adj,const vector<node_t> & nodes, const node_t & min_node, const int elim_step, list<node_t*> & reach_set){
+void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> & nodes, const node_t & min_node, const int elim_step, list<node_t*> & reach_set){
   //this array is used to mark the node so that 
   //they are not added twice into the reachable set
-  vector<int> explored(nodes.size(),0);
+  vector<int> * explored = new vector<int>(nodes.size(),0);
   
+
+cout<<adj.size()<<endl;
+
+
   //this list contains the nodes to explore
-  list<node_t *> explore_set;
+  list<node_t *> * explore_set = new list<node_t *>();
   //initialize explore_set with the neighborhood
   // of min_node in the original graph 
   int beg = xadj[min_node.id-1];  
   int end = xadj[min_node.id]-1;
   for(int i = beg;i<=end;++i){
-    explore_set.push_back(const_cast<node_t*>(&nodes[adj[i-1]-1]));
-    explored[adj[i-1]-1]=1;
+    node_t * next_node = nodes[adj[i-1]-1];
+
+    if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
+      abort();
+    }
+    explore_set->push_back(next_node);
+    (*explored)[adj[i-1]-1]=1;
   }  
 
   //now find path between min_nodes and other nodes
-  while(explore_set.size()>0){
+  while(explore_set->size()>0){
     //pop a node
-    node_t * cur_node = explore_set.back();
-    explore_set.pop_back();
+    node_t * cur_node = explore_set->back();
+
+    if(nodes.end()==find(nodes.begin(),nodes.end(),cur_node)){
+      abort();
+    }
+
+    explore_set->pop_back();
 
     if(cur_node->id == min_node.id ){
       continue;
@@ -78,20 +92,27 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,const vector<nod
       int beg = xadj[cur_node->id-1];  
       int end = xadj[cur_node->id]-1;
       for(int i = beg;i<=end;++i){
-        if(!explored[adj[i-1]-1]){
-          explore_set.push_back(const_cast<node_t*>(&nodes[adj[i-1]-1]));
-          explored[adj[i-1]-1]=1;
+        if(!(*explored)[adj[i-1]-1]){
+          node_t * next_node = nodes[adj[i-1]-1];
+
+    if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
+      abort();
+    }
+          explore_set->push_back(next_node);
+          (*explored)[adj[i-1]-1]=1;
         }
       }
     }
   }
+  delete explore_set;
+  delete explored;
 }
 
 
 
 int main(int argc, char *argv[]) {
   /* initialize random seed: */
-  int seed =time(NULL); 
+  int seed =1403739569;//time(NULL); 
   srand (seed);
 
   vector<int> xadj;
@@ -132,9 +153,18 @@ int main(int argc, char *argv[]) {
 
   infile.close();
 
+cout<<adj.size()<<endl;
+
+  cout<<"adj: ";
+  for(int step = 1; step<=adj.size();++step){
+    cout<<" "<<adj[step-1];
+  }
+  cout<<endl;
+
+
 
   int n = xadj.size()-1;
-  vector<node_t> nodes(n);
+  vector<node_t *> nodes(n);
   vector<node_t *> node_heap(n);
 
   int initEdgeCnt = 0;
@@ -142,7 +172,8 @@ int main(int argc, char *argv[]) {
 
   //initialize nodes
   for(int i=0;i<n;++i){
-    node_t & cur_node = nodes[i];
+    nodes[i] = new node_t;
+    node_t & cur_node = *nodes[i];
     cur_node.id = i+1;
     cur_node.degree = xadj[i+1] - xadj[i];
     cur_node.elim_step = -1;
@@ -209,6 +240,18 @@ int main(int argc, char *argv[]) {
     cout<<" "<<schedule[step-1]->id;
   }
   cout<<endl;
+
+
+
+  for(int i=0;i<n;++i){
+    delete nodes[i];
+  }
+
+
+
+
+
+
 
   cout<<"perm: ";
   for(int step = 1; step<=n;++step){

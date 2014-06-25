@@ -7,6 +7,7 @@
 
 #include "Environment.hpp"
 #include "NumVec.hpp"
+#include "IntervalTree.hpp"
 
 #include <list>
 
@@ -26,8 +27,13 @@ class SuperNode{
 
   protected:
 
+#ifdef INTERVAL_TREE
+  ITree * idxToBlk_;
+#else
   //store the nnz values of the nz blocks in a contiguous row major buffer
   std::vector<Int> global_to_local_index_;
+#endif
+
   std::vector<T> nzval_container_;
   Int nzval_cnt_;
   T * nzval_;
@@ -86,10 +92,15 @@ class SuperNode{
      blocks_ = NULL;
      blocks_cnt_ = 0;
 
+#ifndef INTERVAL_TREE
      global_to_local_index_.resize(aiN,-(aiN+1));
-
+#else
+     idxToBlk_ = new ITree();
+#endif
 
      b_own_storage_ = true;
+
+
   }; 
 
 
@@ -98,7 +109,11 @@ class SuperNode{
 
     //compute supernode size / width
     iSize_ = iLastCol_ - iFirstCol_+1;
+#ifndef INTERVAL_TREE
     global_to_local_index_.resize(aiN,-(aiN+1));
+#else
+     idxToBlk_ = new ITree();
+#endif
     b_own_storage_ = true;
 
     std::list<NZBlockDesc> tmpBlockIndex;
@@ -119,23 +134,22 @@ class SuperNode{
         //create a new block
         if(curRow==iFirstCol_ || curRow != prevRow+1 || (curRow>iLastCol_ && blocks_cnt_==1) ){
 
+#ifndef INTERVAL_TREE
 #ifdef FAST_INDEX_SEARCH
-//          if(blocks_cnt_>0){
-//gdb_lock();
             for(Int row = prevRow+1; row< curRow; ++row){
               global_to_local_index_[row-1] = -curRow;
             }
-//          }
 #endif
-
+#endif
           tmpBlockIndex.push_back(NZBlockDesc(curRow,nzval_cnt_));
           ++blocks_cnt_;
         }
 
         prevRow = curRow;
 
+#ifndef INTERVAL_TREE
         global_to_local_index_[curRow-1] = blocks_cnt_;
-
+#endif
         nzval_cnt_+=iSize_;
     }
 
@@ -144,7 +158,6 @@ class SuperNode{
 
 
     nzval_container_.resize(nzval_cnt_,ZERO<T>());
-    //nzval_container_.resize(nzval_cnt_,ZERO<T>());
 
     nzval_ = &nzval_container_.front();
     blocks_ = &blocks_container_.front();
@@ -171,7 +184,11 @@ class SuperNode{
 
     blocks_ = a_block_desc;
     blocks_cnt_ = a_desc_cnt;
+#ifndef INTERVAL_TREE
     global_to_local_index_.resize(aiN,-(aiN+1));
+#else
+     idxToBlk_ = new ITree();
+#endif
 
     //restore 0-based offsets and compute global_to_local indices
     for(Int blkidx=blocks_cnt_-1; blkidx>=0;--blkidx){
@@ -184,6 +201,11 @@ class SuperNode{
     for(Int blkidx=0; blkidx<blocks_cnt_;++blkidx){
       Int cur_fr = blocks_[blkidx].GIndex;
       Int cur_lr = cur_fr + NRows(blkidx) -1;
+
+#ifdef INTERVAL_TREE
+      ITree::Interval cur_interv = { cur_fr, cur_lr, blkidx};
+      idxToBlk_->Insert(cur_interv);
+#else
 #ifdef FAST_INDEX_SEARCH
       for(Int row = prevLastRow+1; row< cur_fr; ++row){
         global_to_local_index_[row-1] = -cur_fr;
@@ -193,6 +215,7 @@ class SuperNode{
       for(Int row = cur_fr; row<=cur_lr; ++row){
         global_to_local_index_[row-1] = blkidx;
       }
+#endif
     }
 
 
@@ -201,6 +224,10 @@ class SuperNode{
 
 
   ~SuperNode(){
+#ifdef INTERVAL_TREE
+  delete idxToBlk_;
+#endif
+ 
   }
     
 
@@ -210,6 +237,13 @@ class SuperNode{
 
     //Resize the container if I own the storage
     if(b_own_storage_){
+      Int cur_fr = aiGIndex;
+      Int cur_lr = cur_fr + aiNRows -1;
+
+#ifdef INTERVAL_TREE
+      ITree::Interval cur_interv = { cur_fr, cur_lr, blocks_cnt_};
+      idxToBlk_->Insert(cur_interv);
+#else
 #ifdef FAST_INDEX_SEARCH
       Int prevLastRow = 0;
       if(blocks_container_.size()>0){
@@ -217,17 +251,19 @@ class SuperNode{
         prevLastRow = blocks_container_.back().GIndex+NRows(prevBlkIdx)-1;
       }
 
-      Int cur_fr = aiGIndex;
-      Int cur_lr = cur_fr + aiNRows -1;
       for(Int row = prevLastRow+1; row< cur_fr; ++row){
         global_to_local_index_[row-1] = -cur_fr;
       }
 #endif
+#endif
 
       blocks_container_.push_back(NZBlockDesc(aiGIndex,nzval_cnt_));
+#ifndef INTERVAL_TREE
       for(Int rowidx = 0; rowidx< aiNRows; ++rowidx){
         global_to_local_index_[aiGIndex+rowidx-1] = blocks_cnt_;
       }
+#endif
+
 
       blocks_cnt_++;
       nzval_cnt_+=aiNRows*iSize_;
@@ -238,14 +274,32 @@ class SuperNode{
   }
  
 
+#ifndef INTERVAL_TREE
   const std::vector<Int> & GetGlobToLocIndx() const{
     return global_to_local_index_;
   }
+#endif
 
   Int FindBlockIdx(Int aiGIndex){
-      return global_to_local_index_[aiGIndex-1];      
+#ifdef INTERVAL_TREE
+      ITree::Interval it = {aiGIndex, aiGIndex,0};
+      ITree::Interval * res = idxToBlk_->IntervalSearch(it);
+      if (res == NULL){
+         return -1;
+      }
+      else{
+         return res->block_idx;
+      }
+#else
+      return global_to_local_index_[aiGIndex-1];
+#endif 
   }
 
+#ifdef INTERVAL_TREE
+  void DumpITree(){
+    idxToBlk_->Dump();
+  }
+#endif
 
   Int Shrink(){
     if(b_own_storage_){
@@ -255,6 +309,10 @@ class SuperNode{
       nzval_container_.resize(nzval_cnt_);
       nzval_ = &nzval_container_.front();
     }
+
+#ifdef INTERVAL_TREE
+logfileptr->OFS()<<"IntervalTree size of Supernode "<<iId_<<" is "<<idxToBlk_->StorageSize()<<endl;
+#endif
     return StorageSize();
   }
 

@@ -4,6 +4,9 @@
 /// @date 2012-08-31
 #include "ETree.hpp"
 
+#include <iostream>
+
+using namespace std;
 
   void DisjointSet::Initialize(int n){
     pp_.resize(n,I_ZERO);
@@ -213,60 +216,136 @@
   void ETree::ConstructETree(int n, int * xadj, int * adj){
 
 
+//    n_ = n;
+//
+//
+//    parent_.resize(n_,I_ZERO);
+//
+//    DisjointSet sets;
+//    sets.Initialize(n_);
+//
+//    int cset,croot,rset,rroot,row;
+//
+//
+//    for (int col = 1; col <= n_; col++) {
+//      parent_[col-1]=col; //1 based indexes
+//      cset = sets.makeSet (col);
+//      sets.Root(cset-1) = col;
+//      parent_[col-1] = 0; 
+//    }
+//
+//
+//
+//
+//
+//    for (int col = 1; col <= n_; col++) {
+//      parent_[col-1]=col; //1 based indexes
+//      cset = sets.makeSet (col);
+//      sets.Root(cset-1) = col;
+//      parent_[col-1] = 0; 
+//
+//      for (int p = xadj[col-1]; p < xadj[col]; p++) {
+//        row = adj[p-1];
+//
+//
+//
+//        if (row >= col) continue;
+//
+//        rset = sets.find(row);
+//        rroot = sets.Root(rset-1);
+//
+//        if (rroot != col) {
+//          parent_[rroot-1] = col;
+//          cset = sets.link(cset, rset);
+//          sets.Root(cset-1) = col;
+//        }
+//      }
+//
+//    }
+//
+//
+//    parent_[n_-1] = 0;
+
+
+
+
+
+    bIsPostOrdered_=false;
     n_ = n;
 
 
-    parent_.resize(n_,I_ZERO);
-
-    DisjointSet sets;
-    sets.Initialize(n_);
-
-    int cset,croot,rset,rroot,row;
+    parent_.assign(n_,I_ZERO);
 
 
-    for (int col = 1; col <= n_; col++) {
-      parent_[col-1]=col; //1 based indexes
-      cset = sets.makeSet (col);
-      sets.Root(cset-1) = col;
-      parent_[col-1] = 0; 
-    }
+    vector<int> ancstr(n_);
 
 
 
+    for(int i = 1; i<=n_; ++i){
+            parent_[i-1] = 0;
+            ancstr[i-1] = 0;
+            int node = i;
 
-
-    for (int col = 1; col <= n_; col++) {
-      parent_[col-1]=col; //1 based indexes
-      cset = sets.makeSet (col);
-      sets.Root(cset-1) = col;
-      parent_[col-1] = 0; 
-
-      for (int p = xadj[col-1]; p < xadj[col]; p++) {
-        row = adj[p-1];
-
-
-
-        if (row >= col) continue;
-
-        rset = sets.find(row);
-        rroot = sets.Root(rset-1);
-
-        if (rroot != col) {
-          parent_[rroot-1] = col;
-          cset = sets.link(cset, rset);
-          sets.Root(cset-1) = col;
-        }
-      }
-
-    }
-
-
-    parent_[n_-1] = 0;
-
+            int jstrt = xadj[node-1];
+            int jstop = xadj[node] - 1;
+            if  ( jstrt < jstop ){
+              for(int j = jstrt; j<=jstop; ++j){
+                    int nbr = adj[j-1];
+                    if  ( nbr < i ){
+//                       -------------------------------------------
+//                       for each nbr, find the root of its current
+//                       elimination tree.  perform path compression
+//                       as the subtree is traversed.
+//                       -------------------------------------------
+                      int break_loop = 0;
+                      if  ( ancstr[nbr-1] == i ){
+                        break_loop = 1;
+                      }
+                      else{
+                        while(ancstr[nbr-1] >0){
+                          if  ( ancstr[nbr-1] == i ){
+                            break_loop = 1;
+                            break;
+                          }
+                          int next = ancstr[nbr-1];
+                          ancstr[nbr-1] = i;
+                          nbr = next;
+                        }
+                        //                       --------------------------------------------
+                        //                       now, nbr is the root of the subtree.  make i
+                        //                       the parent node of this root.
+                        //                       --------------------------------------------
+                        if(!break_loop){
+                          parent_[nbr-1] = i;
+                          ancstr[nbr-1] = i;
+                        }
+                      }
+                    }
+              }
+            }
   }
 
 
 
+
+
+
+
+
+
+
+
+
+  }
+
+
+  void ETree::Dump(){
+    cout<<"Post ordered etree: ";
+    for(int i = 1;i<=Size();++i){
+      cout<<" "<<PostParent(i-1);
+    }
+    cout<<endl;
+  }
 
 
 

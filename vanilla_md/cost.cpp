@@ -8,6 +8,8 @@
 
 using namespace std;
 
+#define _verbose_
+
 void GetLColRowCount(ETree & tree,const int * xadj, const int * adj, vector<int> & cc, vector<int> & rc);
 
   void GetLColRowCount(ETree & tree,const int * xadj, const int * adj, vector<int> & cc, vector<int> & rc){
@@ -190,7 +192,9 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
     }
   }
 
+#ifdef _verbose_
   cout<<"Initial edge count: "<<initEdgeCnt<<endl;
+#endif
 
   //sort the adjacency structure according to the new labelling
   vector<int> newxadj(n+1);
@@ -201,6 +205,7 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
     newxadj[step] = newxadj[step-1] + xadj[perm[step-1]]-xadj[perm[step-1]-1];
   }
 
+#ifdef _verbose_
   cout<<"xadj: ";
   for(int step = 1; step<=n+1;++step){
     cout<<" "<<xadj[step-1];
@@ -212,6 +217,7 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
     cout<<" "<<newxadj[step-1];
   }
   cout<<endl;
+#endif
 
   for(int step = 1; step<=n;++step){
     int fn = newxadj[step-1];
@@ -230,6 +236,7 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
   }
 //  newadj.back() = 0;
   
+#ifdef _verbose_
   cout<<"adj: ";
   for(int step = 1; step<=nnz;++step){
     cout<<" "<<adj[step-1];
@@ -241,7 +248,7 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
     cout<<" "<<newadj[step-1];
   }
   cout<<endl;
-
+#endif
 
   //Get the elimination tree
   ETree  tree;
@@ -255,20 +262,27 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
   vector<int> cc,rc;
   GetLColRowCount(tree,&newxadj[0],&newadj[0],cc,rc);
 
+#ifdef _verbose_
   tree.Dump();
+#endif
 
 //  GetLColRowCount(tree,&xadj[0],&adj[0],cc,rc);
 
   //sum counts all the diagonal elements
-  int sum = n;
-  cout<<"Column count: ";
+  int sum = 0;
   for(int i =0; i<cc.size(); ++i){
     sum+= cc[i];
+  }
+
+#ifdef _verbose_
+  cout<<"Column count: ";
+  for(int i =0; i<cc.size(); ++i){
     cout<<" "<<cc[i];
   }
-  //cout<<endl;
+  cout<<endl;
 
   cout<<"Sum is "<<sum<<endl;
+#endif
 
   return (double)(sum - initEdgeCnt);
 

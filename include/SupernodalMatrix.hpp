@@ -136,6 +136,7 @@ template <typename T> class SupernodalMatrix{
   inline void FindUpdates(SuperNode<T> & src_snode, std::list<SnodeUpdate> & updates  );
   inline bool FindNextUpdate(SuperNode<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
 
+  inline bool FindNextUpdate2(SuperNode<T> & src_snode, Int & src_first_nzblk_idx, Int & src_last_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
 
 #ifdef SINGLE_BLAS
   inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, NumMat<T> & tmpBuf, Int  pivot_fr = I_ZERO);
