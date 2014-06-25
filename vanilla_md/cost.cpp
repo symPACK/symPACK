@@ -180,7 +180,7 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
 
 
 
-  initEdgeCnt=0;
+  initEdgeCnt=n;
   //initialize nodes
   for(int i=0;i<n;++i){
     for(int idx = xadj[i]; idx <= xadj[i+1]-1;++idx){
@@ -190,7 +190,7 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
     }
   }
 
-//  cout<<"Initial edge count: "<<initEdgeCnt<<endl;
+  cout<<"Initial edge count: "<<initEdgeCnt<<endl;
 
   //sort the adjacency structure according to the new labelling
   vector<int> newxadj(n+1);
@@ -201,17 +201,17 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
     newxadj[step] = newxadj[step-1] + xadj[perm[step-1]]-xadj[perm[step-1]-1];
   }
 
-//  cout<<"xadj: ";
-//  for(int step = 1; step<=n+1;++step){
-//    cout<<" "<<xadj[step-1];
-//  }
-//  cout<<endl;
-//
-//  cout<<"newxadj: ";
-//  for(int step = 1; step<=n+1;++step){
-//    cout<<" "<<newxadj[step-1];
-//  }
-//  cout<<endl;
+  cout<<"xadj: ";
+  for(int step = 1; step<=n+1;++step){
+    cout<<" "<<xadj[step-1];
+  }
+  cout<<endl;
+
+  cout<<"newxadj: ";
+  for(int step = 1; step<=n+1;++step){
+    cout<<" "<<newxadj[step-1];
+  }
+  cout<<endl;
 
   for(int step = 1; step<=n;++step){
     int fn = newxadj[step-1];
@@ -230,38 +230,45 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
   }
 //  newadj.back() = 0;
   
-//  cout<<"adj: ";
-//  for(int step = 1; step<=adj.size();++step){
-//    cout<<" "<<adj[step-1];
-//  }
-//  cout<<endl;
-//
-//  cout<<"newadj: ";
-//  for(int step = 1; step<=newadj.size();++step){
-//    cout<<" "<<newadj[step-1];
-//  }
-//  cout<<endl;
+  cout<<"adj: ";
+  for(int step = 1; step<=nnz;++step){
+    cout<<" "<<adj[step-1];
+  }
+  cout<<endl;
+
+  cout<<"newadj: ";
+  for(int step = 1; step<=nnz;++step){
+    cout<<" "<<newadj[step-1];
+  }
+  cout<<endl;
 
 
   //Get the elimination tree
   ETree  tree;
   tree.ConstructETree(n,&newxadj[0],&newadj[0]);
+  
+
+
+
 //  tree.ConstructETree(n,&xadj[0],&adj[0]);
 
   vector<int> cc,rc;
   GetLColRowCount(tree,&newxadj[0],&newadj[0],cc,rc);
+
+  tree.Dump();
+
 //  GetLColRowCount(tree,&xadj[0],&adj[0],cc,rc);
 
   //sum counts all the diagonal elements
   int sum = n;
-  //cout<<"Column count: ";
+  cout<<"Column count: ";
   for(int i =0; i<cc.size(); ++i){
     sum+= cc[i];
-    //cout<<" "<<cc[i];
+    cout<<" "<<cc[i];
   }
   //cout<<endl;
 
-//  cout<<"Sum is "<<sum<<endl;
+  cout<<"Sum is "<<sum<<endl;
 
   return (double)(sum - initEdgeCnt);
 

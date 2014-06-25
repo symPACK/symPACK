@@ -38,6 +38,7 @@ public:
 
   void ConstructETree(int n, int * xadj, int * adj);
   void PostOrderTree();
+  void Dump();
 
   inline bool IsPostOrdered() const { return bIsPostOrdered_;};
   inline int n() const { return n_; };

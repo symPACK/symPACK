@@ -63,7 +63,7 @@ int main (void) {
     int bestOrdering[NUM_GENES];
     double testScore;
     double bestScore = 10000;
-    /*FILE *permsFile;
+    FILE *permsFile;
     permsFile = fopen("allperms.txt", "r");
     if (permsFile == NULL) {
         fprintf(stderr, "Unable to open perms file\n");
@@ -76,7 +76,7 @@ int main (void) {
         }
         testScore = GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, testordering);
         //printf("%f\n", testScore/*GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, testordering));
-        /*if (testScore < bestScore) {
+        if (testScore < bestScore) {
             bestScore = testScore;
             memcpy(bestOrdering, testordering, NUM_GENES * sizeof(int));
         }
@@ -86,12 +86,12 @@ int main (void) {
     for (int k = 0; k < NUM_GENES; k++) {
         printf("%d ",bestOrdering[k]);
     }
-    printf("\n");*/
+    printf("\n");
 
     printf("HardCoding a testCase \n");
     int hardCode[16] = {3, 1, 6, 2, 4, 5, 7, 13, 10, 15, 11, 12, 8, 16, 9, 14};
     printf("Fitness of HardCode: %f\n", ((GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, hardCode))));
-
+    
 
     printf("Initial Population \n");
     printPop();
