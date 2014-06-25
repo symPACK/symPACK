@@ -254,12 +254,12 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
 
   //sum counts all the diagonal elements
   int sum = n;
-  cout<<"Column count: ";
+  //cout<<"Column count: ";
   for(int i =0; i<cc.size(); ++i){
     sum+= cc[i];
-    cout<<" "<<cc[i];
+    //cout<<" "<<cc[i];
   }
-  cout<<endl;
+  //cout<<endl;
 
 //  cout<<"Sum is "<<sum<<endl;
 

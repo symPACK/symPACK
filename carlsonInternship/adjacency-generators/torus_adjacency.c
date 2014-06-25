@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
     int numAdjacents;
     int singleAdjacents;
     numNodes = height * width;
-    singleAdjacents = op /*- 1*/;
+    singleAdjacents = op - 1;
     numAdjacents = numNodes * singleAdjacents;
     nodeArray = (unsigned int*) malloc((numNodes+1)*sizeof(unsigned int));
     neighborArray = (unsigned int*) malloc(numAdjacents*sizeof(unsigned int));
@@ -76,7 +76,7 @@ void fill_adjacency_arrays(unsigned int height, unsigned int width,
     int tempArray[100];
     int tempArrayIndex = 0;
     for (int i = 0; i < (height * width); i ++) {
-        nodeArray[i] = i * (op /*- 1*/) + 1;
+        nodeArray[i] = i * (op - 1) + 1;
         
         //Neighbor Below Left
         if (op >= 7) {
@@ -175,8 +175,8 @@ void fill_adjacency_arrays(unsigned int height, unsigned int width,
         }
         		
         //self
-        tempArray[tempArrayIndex] = i+1;
-        tempArrayIndex += 1;
+        //tempArray[tempArrayIndex] = i+1;
+        //tempArrayIndex += 1;
 
         //Update left edge
         if (i == leftEdge) {
@@ -187,12 +187,12 @@ void fill_adjacency_arrays(unsigned int height, unsigned int width,
         	rightEdge += width;
         }
 
-        qsort(tempArray, (op /*- 1*/), sizeof(int), comp);
-        for (int z = 0; z < op /*- 1*/; z++) {
+        qsort(tempArray, (op - 1), sizeof(int), comp);
+        for (int z = 0; z < op - 1; z++) {
             neighborArray[neighborArrayIndex] = tempArray[z];
             neighborArrayIndex += 1;
         }
         tempArrayIndex = 0;
     }
-    nodeArray[height*width] = (((height*width)) * (op/*-1*/)) + 1;
+    nodeArray[height*width] = (((height*width)) * (op-1)) + 1;
 }
