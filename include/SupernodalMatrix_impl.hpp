@@ -24,9 +24,9 @@
 
 namespace LIBCHOLESKY{
 
-  template<typename T> void SupernodalMatrix<T>::AddOutgoingComm(Isends & outgoingSend, Int src_snode_id, Int src_snode_size, Int src_first_row, NZBlockDesc & pivot_desc, Int nzblk_cnt, T * nzval_ptr, Int nz_cnt){
+  template<typename T> void SupernodalMatrix<T>::AddOutgoingComm(AsyncComms & outgoingSend, Int src_snode_id, Int src_snode_size, Int src_first_row, NZBlockDesc & pivot_desc, Int nzblk_cnt, T * nzval_ptr, Int nz_cnt){
 
-    outgoingSend.push_back(new OutgoingComm(3*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nz_cnt*sizeof(T),MPI_REQUEST_NULL));
+    outgoingSend.push_back(new Icomm(3*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nz_cnt*sizeof(T),MPI_REQUEST_NULL));
 
     *outgoingSend.back()<<src_snode_id;
     *outgoingSend.back()<<nzblk_cnt;
@@ -43,7 +43,7 @@ namespace LIBCHOLESKY{
   template <typename T> SupernodalMatrix<T>::SupernodalMatrix(){
   }
 
-  template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatrix<T> & pMat, Int maxSnode,MAPCLASS & pMapping, Int maxIsend, MPI_Comm & pComm ){
+  template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatrix<T> & pMat, Int maxSnode,MAPCLASS & pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm ){
     this->pComm = pComm;
     Int iam;
     MPI_Comm_rank(pComm, &iam);
@@ -51,6 +51,7 @@ namespace LIBCHOLESKY{
     MPI_Comm_size(pComm, &np);
 
     maxIsend_ = maxIsend;
+    maxIrecv_ = maxIrecv;
 
     iSize_ = pMat.size;
     Local_ = pMat.GetLocalStructure();
@@ -1204,7 +1205,7 @@ for(Int rowidx = 0; rowidx < src_rowindx.m(); ++rowidx){
 
 
 
-    template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, Isends & OutgoingSend){
+    template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend){
     if(!MsgToSend.empty()){
 
      CommList::iterator it = MsgToSend.begin();
@@ -1310,6 +1311,130 @@ for(Int rowidx = 0; rowidx < src_rowindx.m(); ++rowidx){
 
 
 
+template <typename T> void SupernodalMatrix<T>::AdvanceOutgoing(AsyncComms & outgoingSend){
+  //Check for completion of outgoing communication
+  if(!outgoingSend.empty()){
+    AsyncComms::iterator it = outgoingSend.begin();
+    while(it != outgoingSend.end()){
+      int flag = 0;
+      MPI_Test(&(*it)->Request,&flag,MPI_STATUS_IGNORE);
+      if(flag){
+        it = outgoingSend.erase(it);
+      }
+      else{
+        it++;
+      }
+    }
+  }
+}
+
+
+
+template <typename T> inline AsyncComms::iterator SupernodalMatrix<T>::WaitIncomingFactors(AsyncComms & cur_incomingRecv, MPI_Status & recv_status, AsyncComms & outgoingSend) {
+//        vector<MPI_Request> reqs;
+//        reqs.reserve(cur_incomingRecv.size());
+//      for(AsyncComms::iterator it = cur_incomingRecv.begin(); it!=cur_incomingRecv.end();++it){
+//        reqs.push_back((*it)->Request);
+//      }
+//
+//          TIMER_START(IRECV_MPI2);
+//
+//          AsyncComms::iterator it = cur_incomingRecv.begin();
+//          if(cur_incomingRecv.size()==0){
+//            it = cur_incomingRecv.end();
+//          }
+//          else{
+//          int index=-1;
+//          MPI_Waitany(reqs.size(),&reqs[0],&index,&recv_status);
+//          advance(it,index);
+//          }
+//          TIMER_STOP(IRECV_MPI2);
+//          return it;
+//
+
+
+
+          TIMER_START(IRECV_MPI);
+        if(cur_incomingRecv.size()==0){
+          TIMER_STOP(IRECV_MPI);
+          return cur_incomingRecv.end();
+        }
+        else{
+          Int done = 0;
+          while(cur_incomingRecv.size()>0){
+            for(AsyncComms::iterator it = cur_incomingRecv.begin(); it!=cur_incomingRecv.end();++it){
+              Icomm * curComm = *it;
+              MPI_Request req = (curComm->Request);
+              //MPI_Test(&(curComm->Request),&done,&recv_status);
+              MPI_Test(&req,&done,&recv_status);
+              //Test if comm is done
+              if(done==1){
+          TIMER_STOP(IRECV_MPI);
+                return it;
+              }
+            }
+
+         //   AdvanceOutgoing(outgoingSend);
+          }
+        }
+}
+
+
+
+
+
+template<typename T> void SupernodalMatrix<T>::AsyncRecvFactors(Int iLocalI, std::vector<AsyncComms> & incomingRecvArr,IntNumVec & FactorsToRecv,IntNumVec & UpdatesToDo){
+
+        for(Int nextLocalI = iLocalI;nextLocalI<=LocalSupernodes_.size();++nextLocalI){
+          SuperNode<T> * next_src_snode = LocalSupernodes_[nextLocalI-1];
+          AsyncComms & incomingRecv = incomingRecvArr[nextLocalI-1]; 
+          
+            assert(UpdateCount_[next_src_snode->Id()-1] >= FactorsToRecv[nextLocalI-1]);
+
+          Int IrecvCnt = 0; 
+          Int maxRecvCnt = min(UpdatesToDo[nextLocalI-1],FactorsToRecv[nextLocalI-1]);
+
+          for(Int idx =0; idx<maxRecvCnt && incomingRecvCnt_ + IrecvCnt < maxIrecv_;
+                 ++idx){
+            Int max_bytes = 3*sizeof(Int); 
+            //The upper bound must be of the width of the "largest" child
+            Int nrows = next_src_snode->NRowsBelowBlock(0);
+            Int ncols = UpdateWidth_(next_src_snode->Id()-1);
+            Int nz_cnt = nrows * ncols;
+            max_bytes += (std::max((Int)ceil(nrows/2)+1,next_src_snode->NZBlockCnt()))*sizeof(NZBlockDesc);
+            max_bytes += nz_cnt*sizeof(T);
+
+
+            assert(UpdateCount_[next_src_snode->Id()-1] >= incomingRecv.size()+1);
+
+            incomingRecv.push_back(new Icomm(max_bytes,MPI_REQUEST_NULL));
+            Icomm & Irecv = *incomingRecv.back();
+            MPI_Irecv(Irecv.front(),Irecv.size(),MPI_BYTE,MPI_ANY_SOURCE,next_src_snode->Id(),pComm,&Irecv.Request);
+            ++IrecvCnt;
+          }
+
+  logfileptr->OFS()<<"Posting "<<IrecvCnt<<" IRECV for Supernode "<<next_src_snode->Id()<<std::endl;
+          incomingRecvCnt_+=IrecvCnt;
+          FactorsToRecv[nextLocalI-1] = maxRecvCnt - IrecvCnt;
+
+          assert(FactorsToRecv[nextLocalI-1]>=0);
+
+          if( incomingRecvCnt_ >= maxIrecv_){
+            break;
+          }
+        }
+#ifdef _DEBUG_
+  logfileptr->OFS()<<"FactorsToRecv: "<<FactorsToRecv<<std::endl;
+#endif
+
+}
+
+
+
+
+
+
+
 
 
 
@@ -1319,16 +1444,19 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
   TIMER_START(FACTORIZATION_FO);
 
+  Real timeSta, timeEnd;
+  timeSta =  get_time( );
+  
 
   MPI_Comm_rank(pComm, &iam);
   MPI_Comm_size(pComm, &np);
   IntNumVec UpdatesToDo = UpdateCount_;
 
   CommList FactorsToSend; 
-  Isends outgoingSend;
+  AsyncComms outgoingSend;
 
-  std::vector<Isends> incomingRecvArr(LocalSupernodes_.size());
-  Int incomingRecvCnt = 0;
+  std::vector<AsyncComms> incomingRecvArr(LocalSupernodes_.size());
+  incomingRecvCnt_ = 0;
   IntNumVec FactorsToRecv(LocalSupernodes_.size());
 
 
@@ -1386,19 +1514,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
   while(I<Xsuper_.m() || !FactorsToSend.empty() || !outgoingSend.empty()){
 
     //Check for completion of outgoing communication
-    if(!outgoingSend.empty()){
-      std::list<OutgoingComm *>::iterator it = outgoingSend.begin();
-      while(it != outgoingSend.end()){
-        int flag = 0;
-        MPI_Test(&(*it)->Request,&flag,MPI_STATUS_IGNORE);
-        if(flag){
-          it = outgoingSend.erase(it);
-        }
-        else{
-          it++;
-        }
-      }
-    }
+    AdvanceOutgoing(outgoingSend);
 
     //process some of the delayed send
     SendDelayedMessages(I,FactorsToSend,outgoingSend);
@@ -1424,37 +1540,8 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
         //Launch Irecv for subsequent local supernodes if I can
 //        if(iam==2){gdb_lock();}
-        for(Int nextLocalI = iLocalI;nextLocalI<=LocalSupernodes_.size();++nextLocalI){
-          SuperNode<T> * next_src_snode = LocalSupernodes_[nextLocalI-1];
-          Isends & incomingRecv = incomingRecvArr[nextLocalI-1]; 
-          
-          Int IrecvCnt = 0; 
-          for(Int idx =0; idx<FactorsToRecv[nextLocalI-1] && 
-                outgoingSend.size() + incomingRecvCnt + IrecvCnt < maxIsend_;
-                 ++idx){
-            Int max_bytes = 3*sizeof(Int); 
-            //The upper bound must be of the width of the "largest" child
-            Int nrows = next_src_snode->NRowsBelowBlock(0);
-            Int ncols = UpdateWidth_(next_src_snode->Id()-1);
-            Int nz_cnt = nrows * ncols;
-            max_bytes += (std::max((Int)ceil(nrows/2)+1,next_src_snode->NZBlockCnt()))*sizeof(NZBlockDesc);
-            max_bytes += nz_cnt*sizeof(T);
 
-            incomingRecv.push_back(new OutgoingComm(max_bytes,MPI_REQUEST_NULL));
-            OutgoingComm & Irecv = *incomingRecv.back();
-            MPI_Irecv(Irecv.front(),Irecv.size(),MPI_BYTE,MPI_ANY_SOURCE,next_src_snode->Id(),pComm,&Irecv.Request);
-            ++IrecvCnt;
-          }
-
-          incomingRecvCnt+=IrecvCnt;
-          FactorsToRecv[nextLocalI-1]-=IrecvCnt;
-          if(outgoingSend.size() + incomingRecvCnt >= maxIsend_){
-            break;
-          }
-        }
-#ifdef _DEBUG_
-  logfileptr->OFS()<<"FactorsToRecv: "<<FactorsToRecv<<std::endl;
-#endif
+        AsyncRecvFactors(iLocalI,incomingRecvArr,FactorsToRecv,UpdatesToDo);
 
         //Do all my updates (Local and remote)
         //Local updates
@@ -1486,19 +1573,13 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
         //Remote updates
 
-
         //first wait for the Irecv
-        Isends & cur_incomingRecv = incomingRecvArr[iLocalI-1];
-        while(cur_incomingRecv.size()>0){
-//gdb_lock();
-          Int done;
-          for(Isends::iterator it = cur_incomingRecv.begin(); it!=cur_incomingRecv.end();++it){
-            OutgoingComm * curComm = *it;
-            MPI_Status recv_status;
-            MPI_Test(&(curComm->Request),&done,&recv_status);
-            //Test if comm is done
-            if(done==1){
+        AsyncComms & cur_incomingRecv = incomingRecvArr[iLocalI-1];
+        MPI_Status recv_status;
+        AsyncComms::iterator it = WaitIncomingFactors(cur_incomingRecv, recv_status,outgoingSend);
 
+        while( it != cur_incomingRecv.end() ){
+            Icomm * curComm = *it;
 
               Int bytes_received = 0;
               MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
@@ -1515,10 +1596,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
               SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
 
 
-
-
-
-
+//              logfileptr->OFS()<<"IRECV Supernode "<<dist_src_snode.Id()<<std::endl;
 #ifdef _DEBUG_
               logfileptr->OFS()<<"IRECV Supernode "<<dist_src_snode.Id()<<std::endl;
 #endif
@@ -1535,7 +1613,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
                 if(iTarget == iam){
 #ifdef _DEBUG_
-                  logfileptr->OFS()<<"RECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" from row "<<src_first_row<<" "<<src_nzblk_idx<<std::endl;
+                  logfileptr->OFS()<<"IRECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<src_first_row<<" to "<<src_last_row<<std::endl;
 #endif
 
                   Int iLocalJ = (tgt_snode_id-1) / np +1 ;
@@ -1566,13 +1644,12 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
               Int src_last_row = 0;
               Int src_nzblk_idx = 0;
 
-
               TIMER_START(UPDATE_ANCESTORS);
               while(FindNextUpdate(dist_src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
                 Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
                 if(iTarget == iam){
 #ifdef _DEBUG_
-                  logfileptr->OFS()<<"RECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
+                  logfileptr->OFS()<<"IRECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
 #endif
 
                   Int iLocalJ = (tgt_snode_id-1) / np +1 ;
@@ -1605,56 +1682,41 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
               //delete the request from the list
               cur_incomingRecv.erase(it);
-              --incomingRecvCnt;
+              --incomingRecvCnt_;
+
+//              logfileptr->OFS()<<cur_incomingRecv.size()<<" async recv to do for Supernode "<<I<<endl;
+//              logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left for Supernode "<<I<<endl;
+
+              if(UpdatesToDo(src_snode.Id()-1)==0){
+
+                //cancel all requests
+                Int flag;
+                AsyncComms::iterator it2 = cur_incomingRecv.begin();
+                while( it2!=cur_incomingRecv.end()){
+                  Icomm * curComm = *it2;
+                  MPI_Status recv_status;
+                  MPI_Test(&(curComm->Request),&flag,&recv_status);
+                  //Test if comm is done
+                  assert(flag==0);
+
+                  MPI_Cancel(&(curComm->Request));
+                  it2 = cur_incomingRecv.erase(it2);
+                  --incomingRecvCnt_; 
 
 
-//              if(UpdatesToDo(src_snode.Id()-1)==0){
-//                if(!(cur_incomingRecv.size()==0)){
-////                  gdb_lock();
-//                }
-//
-//                //cancel all requests
-//                Int flag;
-//                Isends::iterator it2 = cur_incomingRecv.begin();
-//                while( it2!=cur_incomingRecv.end()){
-//                  OutgoingComm * curComm = *it2;
-//                  MPI_Status recv_status;
-//                  MPI_Test(&(curComm->Request),&flag,&recv_status);
-//                  //Test if comm is done
-//                  assert(flag==0);
-//
-//                  MPI_Cancel(&(curComm->Request));
-//                  it2 = cur_incomingRecv.erase(it2);
-//                  --incomingRecvCnt;           
-//
-//
-//                }
-//
-//                assert(cur_incomingRecv.size()==0);
-//              }
+                }
+
+                assert(cur_incomingRecv.size()==0);
+              }
 
 
-              break;
-
+              it = WaitIncomingFactors(cur_incomingRecv,recv_status,outgoingSend);
             }
-          }
 
-//          //Check for completion of outgoing communication
-//          if(!outgoingSend.empty()){
-//            Isends::iterator it = outgoingSend.begin();
-//            while(it != outgoingSend.end()){
-//              int flag = 0;
-//              MPI_Test(&(*it)->Request,&flag,MPI_STATUS_IGNORE);
-//              if(flag){
-//                it = outgoingSend.erase(it);
-//              }
-//              else{
-//                it++;
-//              }
-//            }
-//          }
 
-        } 
+
+
+          //AdvanceOutgoing(outgoingSend);
 
 
         std::vector<T> src_nzval;
@@ -1667,6 +1729,157 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
           logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
 #endif
 
+
+////if(UpdatesToDo(I-1)>0){
+////        //first wait for the Irecv
+////        AsyncComms & cur_incomingRecv = incomingRecvArr[iLocalI-1];
+////        MPI_Status recv_status;
+////        AsyncComms::iterator it = WaitIncomingFactors(cur_incomingRecv, recv_status,outgoingSend);
+////
+////        while( it != cur_incomingRecv.end() ){
+////            Icomm * curComm = *it;
+////
+////              Int bytes_received = 0;
+////              MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
+////
+////              std::vector<char> & src_blocks = *curComm->pSrcBlocks;
+////              Int src_snode_id = *(Int*)&src_blocks[0];
+////              Int src_nzblk_cnt = *(((Int*)&src_blocks[0])+1);
+////              NZBlockDesc * src_blocks_ptr = 
+////                reinterpret_cast<NZBlockDesc*>(&src_blocks[2*sizeof(Int)]);
+////              Int src_nzval_cnt = *(Int*)(src_blocks_ptr + src_nzblk_cnt);
+////              T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
+////
+////              //Create the dummy supernode for that data
+////              SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
+////
+////
+//////              logfileptr->OFS()<<"IRECV Supernode "<<dist_src_snode.Id()<<std::endl;
+////#ifdef _DEBUG_
+////              logfileptr->OFS()<<"IRECV Supernode "<<dist_src_snode.Id()<<std::endl;
+////#endif
+////
+////#ifdef UPDATE_LIST
+////              TIMER_START(UPDATE_ANCESTORS);
+////              FindUpdates(dist_src_snode,updates);
+////              //now traverse the list
+////              for(std::list<SnodeUpdate>::iterator it = updates.begin(); it!=updates.end();it++){
+////                Int tgt_snode_id = it->tgt_snode_id;
+////                Int src_first_row = it->src_fr;
+////                Int src_nzblk_idx = dist_src_snode.FindBlockIdx(src_first_row);
+////                Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
+////
+////                if(iTarget == iam){
+////#ifdef _DEBUG_
+////                  logfileptr->OFS()<<"IRECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<src_first_row<<" to "<<src_last_row<<std::endl;
+////#endif
+////
+////                  Int iLocalJ = (tgt_snode_id-1) / np +1 ;
+////                  SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+////
+////
+////
+////#ifdef SINGLE_BLAS
+////                  UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, tmpBuf,src_first_row);
+////#else
+////                  UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, src_first_row);
+////#endif
+////
+////
+////                  --UpdatesToDo(tgt_snode_id-1);
+////
+////#ifdef _DEBUG_
+////                  logfileptr->OFS()<<UpdatesToDo(tgt_snode_id-1)<<" updates left for Supernode "<<tgt_snode_id<<endl;
+////#endif
+////                }
+////              }
+////              TIMER_STOP(UPDATE_ANCESTORS);
+////#else
+////              //Update everything I own with that factor
+////              //Update the ancestors
+////              Int tgt_snode_id = 0;
+////              Int src_first_row = 0;
+////              Int src_last_row = 0;
+////              Int src_nzblk_idx = 0;
+////
+////              TIMER_START(UPDATE_ANCESTORS);
+////              while(FindNextUpdate(dist_src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
+////                Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
+////                if(iTarget == iam){
+////#ifdef _DEBUG_
+////                  logfileptr->OFS()<<"IRECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
+////#endif
+////
+////                  Int iLocalJ = (tgt_snode_id-1) / np +1 ;
+////                  SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+////
+////
+////
+////#ifdef SINGLE_BLAS
+////                  UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, tmpBuf,src_first_row);
+////#else
+////                  UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, src_first_row);
+////#endif
+////
+////                  --UpdatesToDo(tgt_snode_id-1);
+////
+////
+////
+////#ifdef _DEBUG_
+////                  logfileptr->OFS()<<UpdatesToDo(tgt_snode_id-1)<<" updates left for Supernode "<<tgt_snode_id<<endl;
+////#endif
+////
+////                }
+////              }
+////              TIMER_STOP(UPDATE_ANCESTORS);
+////#endif
+////
+////
+////
+////
+////
+////              //delete the request from the list
+////              cur_incomingRecv.erase(it);
+////              --incomingRecvCnt_;
+////
+//////              logfileptr->OFS()<<cur_incomingRecv.size()<<" async recv to do for Supernode "<<I<<endl;
+//////              logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left for Supernode "<<I<<endl;
+////
+////              if(UpdatesToDo(src_snode.Id()-1)==0){
+////
+////                //cancel all requests
+////
+//////                incomingRecvCnt_-=cur_incomingRecv.size();
+//////                cur_incomingRecv.clear();
+////                Int flag;
+////                AsyncComms::iterator it = cur_incomingRecv.begin();
+////                while( it!=cur_incomingRecv.end()){
+////                  Icomm * curComm = *it;
+//////                  MPI_Status recv_status;
+//////                  MPI_Test(&(curComm->Request),&flag,&recv_status);
+//////                  //Test if comm is done
+//////                  assert(flag==0);
+////
+////                  MPI_Cancel(&(curComm->Request));
+////                  it = cur_incomingRecv.erase(it);
+////                  --incomingRecvCnt_; 
+////
+////
+////                }
+////
+//////                assert(cur_incomingRecv.size()==0);
+////              }
+////
+////
+////              it = WaitIncomingFactors(cur_incomingRecv,recv_status,outgoingSend);
+////            }
+////
+////
+////
+////}
+
+//if(UpdatesToDo(I-1)>0)
+{
 
           TIMER_START(RECV_MALLOC);
           if(src_blocks.size()==0){
@@ -1809,18 +2022,29 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
           }
           TIMER_STOP(UPDATE_ANCESTORS);
 #endif
+}
+
+
+////if(UpdatesToDo(I-1)>0){
+////            AsyncRecvFactors(iLocalI,incomingRecvArr,FactorsToRecv,UpdatesToDo);
+////            //AdvanceOutgoing(outgoingSend);
+////}
+
+
+
         }
         //clear the buffer
         { vector<char>().swap(src_blocks);  }
         { vector<T>().swap(src_nzval);  }
 
 
+        timeEnd =  get_time( );
 #ifdef _DEBUG_
         if(UpdatesToDo(src_snode.Id()-1)!=0){gdb_lock();}
         assert(UpdatesToDo(src_snode.Id()-1)==0);
-        logfileptr->OFS()<<"  Factoring Supernode "<<I<<std::endl;
+        logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
 #endif
-        //logfileptr->OFS()<<"  Factoring Supernode "<<I<<std::endl;
+        logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
 
         TIMER_START(FACTOR_PANEL);
         //Factorize Diagonal block
@@ -1890,9 +2114,9 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
             }
 #endif
 
-#ifdef DELAY_SNODES
             if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
+#ifdef DELAY_SNODES
               //need a std::unordered_set to check whether 
               if(iLocalI < LocalSupernodes_.size()){
                 if(LocalSupernodes_[iLocalI]->Id()< tgt_snode_id){
@@ -1982,9 +2206,9 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
             }
 #endif
 
-#ifdef DELAY_SNODES
             if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
+#ifdef DELAY_SNODES
               //need a std::unordered_set to check whether 
               if(iLocalI < LocalSupernodes_.size()){
                 if(LocalSupernodes_[iLocalI]->Id()< tgt_snode_id){
@@ -2128,7 +2352,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
   CommList UpdatesToSend; 
   CommList UpdatesToRecv; 
   CommList FactorsToSend; 
-  Isends outgoingSend;
+  AsyncComms outgoingSend;
 
 
 
@@ -2160,7 +2384,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
 
 //////    //Check for completion of outgoing communication
 //////    if(!outgoingSend.empty()){
-//////      std::list<OutgoingComm *>::iterator it = outgoingSend.begin();
+//////      std::list<Icomm *>::iterator it = outgoingSend.begin();
 //////      while(it != outgoingSend.end()){
 //////        int flag = 0;
 //////        MPI_Test(&(*it)->Request,&flag,MPI_STATUS_IGNORE);
@@ -2438,9 +2662,9 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
             }
 #endif
 
-#ifdef DELAY_SNODES
             if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
+#ifdef DELAY_SNODES
               //need a std::unordered_set to check whether 
               if(iLocalI < LocalSupernodes_.size()){
                 if(LocalSupernodes_[iLocalI]->Id()< tgt_snode_id){
@@ -2530,9 +2754,9 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
             }
 #endif
 
-#ifdef DELAY_SNODES
             if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
+#ifdef DELAY_SNODES
               //need a std::unordered_set to check whether 
               if(iLocalI < LocalSupernodes_.size()){
                 if(LocalSupernodes_[iLocalI]->Id()< tgt_snode_id){
@@ -3104,7 +3328,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
     Contributions_.resize(LocalSupernodes_.size());
     std::vector<std::stack<Int> > LocalUpdates(LocalSupernodes_.size());
 
-    Isends outgoingSend;
+    AsyncComms outgoingSend;
 
     //This corresponds to the k loop in dtrsm
     for(Int I=1;I<Xsuper_.m();I++){

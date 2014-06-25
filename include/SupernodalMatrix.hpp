@@ -39,18 +39,25 @@ struct DelayedComm{
   DelayedComm(Int a_src_snode_id, Int a_tgt_snode_id, Int a_src_nzblk_idx, Int a_src_first_row):src_snode_id(a_src_snode_id),tgt_snode_id(a_tgt_snode_id),src_first_row(a_src_first_row),src_nzblk_idx(a_src_nzblk_idx){};
 };
 
-struct OutgoingComm{
+struct Icomm{
   std::vector<char> * pSrcBlocks;
   Int head;
   MPI_Request Request;
-  OutgoingComm(Int aSize, MPI_Request aRequest):Request(aRequest){
+  Icomm(Int aSize, MPI_Request aRequest):Request(aRequest){
+   TIMER_START(ICOMM_MALLOC);
    pSrcBlocks = new std::vector<char>(aSize);
+   TIMER_STOP(ICOMM_MALLOC);
     head = 0;
   };
-  ~OutgoingComm(){  
+  ~Icomm(){  
     delete pSrcBlocks; 
     if(Request !=MPI_REQUEST_NULL){
-      MPI_Request_free(&Request);
+//        int flag = 0;
+//        MPI_Status recv_status;
+//        MPI_Test(&Request,&flag,&recv_status);
+//        assert(flag==0);
+//        MPI_Cancel(&Request);
+        MPI_Request_free(&Request);
     }
   };
   inline char * back(){ return &pSrcBlocks->at(head);}
@@ -59,16 +66,20 @@ struct OutgoingComm{
 
 };
 
-template <typename T> inline void Serialize( OutgoingComm& os,  const T * val, const Int count){
+template <typename T> inline void Serialize( Icomm& os,  const T * val, const Int count){
+   TIMER_START(ICOMM_SERIALIZE);
   T* dest = reinterpret_cast<T*>(&os.pSrcBlocks->at(os.head));
   std::copy(val,val+count,dest);
   os.head += count*sizeof(T);
+   TIMER_STOP(ICOMM_SERIALIZE);
 }
 
-template <typename T> inline OutgoingComm& operator<<( OutgoingComm& os,  const T & val){
+template <typename T> inline Icomm& operator<<( Icomm& os,  const T & val){
+   TIMER_START(ICOMM_SERIALIZE);
   T* dest = reinterpret_cast<T*>(&os.pSrcBlocks->at(os.head));
   std::copy(&val,&val+1,dest);
   os.head += sizeof(T);
+   TIMER_STOP(ICOMM_SERIALIZE);
 
   return os;
 }
@@ -78,7 +89,7 @@ template <typename T> inline OutgoingComm& operator<<( OutgoingComm& os,  const 
 
 
 typedef std::list<DelayedComm> CommList;
-typedef std::list<OutgoingComm *> Isends;
+typedef std::list<Icomm *> AsyncComms;
 
 template <typename T> class SupernodalMatrix{
   protected:
@@ -102,15 +113,21 @@ template <typename T> class SupernodalMatrix{
   ETree SupETree_;
   Int iSize_;
   Int maxIsend_;
+  Int maxIrecv_;
+  Int incomingRecvCnt_;
+ 
   std::vector<SuperNode<T> * > LocalSupernodes_;
   std::vector<SuperNode<T> *> Contributions_;
   IntNumVec xlindx_;
   IntNumVec lindx_;
 
 
+  inline AsyncComms::iterator WaitIncomingFactors(AsyncComms & cur_incomingRecv, MPI_Status & recv_status, AsyncComms & outgoingSend);
+  void AdvanceOutgoing(AsyncComms & outgoingSend);
+  void AsyncRecvFactors(Int iLocalI, std::vector<AsyncComms> & incomingRecvArr,IntNumVec & FactorsToRecv,IntNumVec & UpdatesToDo);
 
 
-  void AddOutgoingComm(Isends & outgoingSend, Int src_snode_id, Int src_snode_size ,Int src_first_row, NZBlockDesc & pivot_desc, Int nzblk_cnt, T * nzval_ptr, Int nz_cnt);
+  void AddOutgoingComm(AsyncComms & outgoingSend, Int src_snode_id, Int src_snode_size ,Int src_first_row, NZBlockDesc & pivot_desc, Int nzblk_cnt, T * nzval_ptr, Int nz_cnt);
 
 
   void GetUpdatingSupernodeCount( IntNumVec & sc,IntNumVec & mw);
@@ -128,7 +145,7 @@ template <typename T> class SupernodalMatrix{
 
   inline void AggregateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr = I_ZERO);
 
-    void SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, Isends & OutgoingSend);
+    void SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend);
 
 
 
@@ -154,7 +171,7 @@ template <typename T> class SupernodalMatrix{
 
 
   SupernodalMatrix();
-  SupernodalMatrix(const DistSparseMatrix<T> & pMat, Int maxSnode,MAPCLASS & pMapping, Int maxIsend, MPI_Comm & pComm );
+  SupernodalMatrix(const DistSparseMatrix<T> & pMat, Int maxSnode,MAPCLASS & pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm );
 
   //Accessors
   Int Size(){return iSize_;}
