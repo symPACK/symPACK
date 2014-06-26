@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
     numAdjacents = numNodes * singleAdjacents;
     nodeArray = (unsigned int*) malloc((numNodes+1)*sizeof(unsigned int));
     neighborArray = (unsigned int*) malloc(numAdjacents*sizeof(unsigned int));
-    printf("NumNodes: %d, Height: %d, Width: %d, SingleAdj: %d, NumAdjacents: %d\n", numNodes, height, width, singleAdjacents, numAdjacents);
+    //printf("NumNodes: %d, Height: %d, Width: %d, SingleAdj: %d, NumAdjacents: %d\n", numNodes, height, width, singleAdjacents, numAdjacents);
 
     //Call the function to create the arrays.
     fill_adjacency_arrays(height, width, op, nodeArray, neighborArray);
@@ -197,11 +197,11 @@ void fill_adjacency_arrays(unsigned int height, unsigned int width,
 
 
         //Debugg printing
-        printf("Printing the neighbor Array: ");
+        /*printf("Printing the neighbor Array: ");
         for (int test = 0; test < ((height * width) * (op -1)); test++) {
             printf("%d ", neighborArray[test]);
         }
-        printf("\n");
+        printf("\n");*/
     }
     nodeArray[height*width] = (((height*width)) * (op-1)) + 1;
 }
