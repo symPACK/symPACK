@@ -9,9 +9,9 @@
 #define POPSIZE 20
 #define MAXGENS 100000
 #define PMUTATION  .5
-#define NUM_GENES 16
-#define INPUT_FILE "population4x4_5.dat"
-#define ADJ_FILE "input4x4_5.adj"
+#define NUM_GENES 9
+#define INPUT_FILE "population.dat"
+#define ADJ_FILE "input.adj"
 
 struct individual {
     double fitness;
