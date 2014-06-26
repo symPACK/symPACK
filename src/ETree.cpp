@@ -453,113 +453,113 @@ TIMER_STOP(Construct_Etree_Classic);
 
   void ETree::ConstructETree(int n, int * xadj, int * adj){
 
-
-    TIMER_START(ConstructETree);
-    n_ = n;
-
-
-    parent_.Resize(n_);
-    SetValue(parent_,I_ZERO );
-
-    DisjointSet sets;
-    sets.Initialize(n_);
-
-    Int cset,croot,rset,rroot,row;
-
-
-    for (Int col = 1; col <= n_; col++) {
-      parent_(col-1)=col; //1 based indexes
-      cset = sets.makeSet (col);
-      sets.Root(cset-1) = col;
-      parent_(col-1) = 0; 
-    }
-
-/*
-    for (Int col = 1; col <= n_; col++) {
-      cset = sets.find (col);
-
-
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
-#endif
-      for (Int p = aGlobal.expColptr(col-1); p < aGlobal.expColptr(col); p++) {
-        row = aGlobal.expRowind(p-1);
-
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
-#endif
-
-
-        if (row <= col) continue;
-
-        rset = sets.find(row);
-        croot = sets.Root(cset-1);
-        rroot = sets.Root(rset-1);
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
-#endif
-
-        if (croot != row) {
-          parent_(croot-1) = row;
-          cset = sets.link(cset, rset);
-          sets.Root(cset-1) = row;
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"Parent of "<<croot<<" is "<<row<<" which now represents set"<<cset<<std::endl;
-#endif
-          break;
-        }
-      }
-
-    }
-*/
-
-
-
-
-
-
-
-    for (Int col = 1; col <= n_; col++) {
-      parent_(col-1)=col; //1 based indexes
-      cset = sets.makeSet (col);
-      sets.Root(cset-1) = col;
-      parent_(col-1) = 0; 
-
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
-#endif
-      for (Int p = xadj[col-1]; p < xadj[col]; p++) {
-        row = adj[p-1];
-
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
-#endif
-
-
-        if (row >= col) continue;
-
-        rset = sets.find(row);
-        rroot = sets.Root(rset-1);
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
-#endif
-
-        if (rroot != col) {
-          parent_(rroot-1) = col;
-          cset = sets.link(cset, rset);
-          sets.Root(cset-1) = col;
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"Parent of "<<rroot<<" is "<<col<<" which now represents set"<<cset<<std::endl;
-#endif
-        }
-      }
-
-    }
-
-
-    parent_(n_-1) = 0;
-
-    TIMER_STOP(ConstructETree);
+////
+////    TIMER_START(ConstructETree);
+////    n_ = n;
+////
+////
+////    parent_.Resize(n_);
+////    SetValue(parent_,I_ZERO );
+////
+////    DisjointSet sets;
+////    sets.Initialize(n_);
+////
+////    Int cset,croot,rset,rroot,row;
+////
+////
+////    for (Int col = 1; col <= n_; col++) {
+////      parent_(col-1)=col; //1 based indexes
+////      cset = sets.makeSet (col);
+////      sets.Root(cset-1) = col;
+////      parent_(col-1) = 0; 
+////    }
+////
+/////*
+////    for (Int col = 1; col <= n_; col++) {
+////      cset = sets.find (col);
+////
+////
+////#ifdef _DEBUG_
+////      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
+////#endif
+////      for (Int p = aGlobal.expColptr(col-1); p < aGlobal.expColptr(col); p++) {
+////        row = aGlobal.expRowind(p-1);
+////
+////#ifdef _DEBUG_
+////        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
+////#endif
+////
+////
+////        if (row <= col) continue;
+////
+////        rset = sets.find(row);
+////        croot = sets.Root(cset-1);
+////        rroot = sets.Root(rset-1);
+////#ifdef _DEBUG_
+////        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
+////#endif
+////
+////        if (croot != row) {
+////          parent_(croot-1) = row;
+////          cset = sets.link(cset, rset);
+////          sets.Root(cset-1) = row;
+////#ifdef _DEBUG_
+////          logfileptr->OFS()<<"Parent of "<<croot<<" is "<<row<<" which now represents set"<<cset<<std::endl;
+////#endif
+////          break;
+////        }
+////      }
+////
+////    }
+////*/
+////
+////
+////
+////
+////
+////
+////
+////    for (Int col = 1; col <= n_; col++) {
+////      parent_(col-1)=col; //1 based indexes
+////      cset = sets.makeSet (col);
+////      sets.Root(cset-1) = col;
+////      parent_(col-1) = 0; 
+////
+////#ifdef _DEBUG_
+////      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
+////#endif
+////      for (Int p = xadj[col-1]; p < xadj[col]; p++) {
+////        row = adj[p-1];
+////
+////#ifdef _DEBUG_
+////        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
+////#endif
+////
+////
+////        if (row >= col) continue;
+////
+////        rset = sets.find(row);
+////        rroot = sets.Root(rset-1);
+////#ifdef _DEBUG_
+////        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
+////#endif
+////
+////        if (rroot != col) {
+////          parent_(rroot-1) = col;
+////          cset = sets.link(cset, rset);
+////          sets.Root(cset-1) = col;
+////#ifdef _DEBUG_
+////          logfileptr->OFS()<<"Parent of "<<rroot<<" is "<<col<<" which now represents set"<<cset<<std::endl;
+////#endif
+////        }
+////      }
+////
+////    }
+////
+////
+////    parent_(n_-1) = 0;
+////
+////    TIMER_STOP(ConstructETree);
   }
 
 

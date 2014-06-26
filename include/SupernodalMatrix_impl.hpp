@@ -15,13 +15,6 @@
 #define PACKING
 
 
-#ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a) 
-#define TIMER_STOP(a) 
-#endif
-#endif
-
 namespace LIBCHOLESKY{
 
   template<typename T> void SupernodalMatrix<T>::AddOutgoingComm(AsyncComms & outgoingSend, Int src_snode_id, Int src_snode_size, Int src_first_row, NZBlockDesc & pivot_desc, Int nzblk_cnt, T * nzval_ptr, Int nz_cnt){
@@ -57,8 +50,8 @@ namespace LIBCHOLESKY{
     Local_ = pMat.GetLocalStructure();
     Local_.ToGlobal(Global_);
 
-    ETree * tmp = new ETree();
-    tmp->ConstructETree2(Global_);
+//    ETree * tmp = new ETree();
+//    tmp->ConstructETree2(Global_);
     
     ETree_.ConstructETree(Global_);
 
@@ -200,6 +193,9 @@ newPerm = perm3;
         }
 
         snode.Shrink();
+        
+
+        //snode.DumpITree();
       }
 
       //Distribute the data
@@ -2171,7 +2167,9 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
         assert(UpdatesToDo(src_snode.Id()-1)==0);
         logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
 #endif
+if((I*100/(Xsuper_.m()-1)) % 10 == 0){
         logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
+}
 
         TIMER_START(FACTOR_PANEL);
         //Factorize Diagonal block
@@ -3399,13 +3397,6 @@ template<typename T> void SupernodalMatrix<T>::GetSolution(NumMat<T> & B, MPI_Co
 
 } // namespace LIBCHOLESKY
 
-
-#ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a) TAU_FSTART(a);
-#define TIMER_STOP(a) TAU_FSTOP(a);
-#endif
-#endif
 
 
 

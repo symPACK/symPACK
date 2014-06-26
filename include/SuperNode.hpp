@@ -297,6 +297,8 @@ class SuperNode{
 
 #ifdef INTERVAL_TREE
   void DumpITree(){
+    logfileptr->OFS()<<"Number of blocks: "<<blocks_cnt_<<endl;
+    logfileptr->OFS()<<"log2(Number of blocks): "<<log2(blocks_cnt_)<<endl;
     idxToBlk_->Dump();
   }
 #endif
@@ -311,7 +313,7 @@ class SuperNode{
     }
 
 #ifdef INTERVAL_TREE
-logfileptr->OFS()<<"IntervalTree size of Supernode "<<iId_<<" is "<<idxToBlk_->StorageSize()<<endl;
+//logfileptr->OFS()<<"IntervalTree size of Supernode "<<iId_<<" is "<<idxToBlk_->StorageSize()<<endl;
 #endif
     return StorageSize();
   }

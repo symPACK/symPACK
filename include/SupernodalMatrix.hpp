@@ -15,6 +15,13 @@
 #include <vector>
 #include "Mapping.hpp"
 
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) 
+#define TIMER_STOP(a) 
+#endif
+#endif
+
 
 
 namespace LIBCHOLESKY{
@@ -206,5 +213,15 @@ template <typename T> class SupernodalMatrix{
 } // namespace LIBCHOLESKY
 
 #include "SupernodalMatrix_impl.hpp"
+
+
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) TAU_FSTART(a);
+#define TIMER_STOP(a) TAU_FSTOP(a);
+#endif
+#endif
+
+
 
 #endif 

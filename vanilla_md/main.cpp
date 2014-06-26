@@ -16,7 +16,7 @@
 #define verbose
 
 using namespace std;
-  int GedgeCnt = 0;
+int GedgeCnt = 0;
 
 void displayMatrix(vector<int> & xadj, vector<int> & adj);
 void SymbolicFactorization(ETree& tree,const vector<int> & colptr,const vector<int> & rowind,const vector<int> & cc, vector<int> & xlindx, vector<int> & lindx);
@@ -30,17 +30,17 @@ struct node_t{
 };
 
 bool node_comp(node_t * & a, node_t * & b){
-      if (a->degree<b->degree)
-        return true;
-      else{
-        if(a->degree == b->degree){
-          double tmp = fmod(rand(),10.0);
-          return (tmp>5.0);
-        }
-        else{
-          return false;
-        }
-      }
+  if (a->degree<b->degree)
+    return true;
+  else{
+    if(a->degree == b->degree){
+      double tmp = fmod(rand(),10.0);
+      return (tmp>5.0);
+    }
+    else{
+      return false;
+    }
+  }
 }
 
 
@@ -49,9 +49,9 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> 
   //this array is used to mark the node so that 
   //they are not added twice into the reachable set
   vector<int> * explored = new vector<int>(nodes.size(),0);
-  
 
-cout<<adj.size()<<endl;
+
+  cout<<adj.size()<<endl;
 
 
   //this list contains the nodes to explore
@@ -61,13 +61,15 @@ cout<<adj.size()<<endl;
   int beg = xadj[min_node.id-1];  
   int end = xadj[min_node.id]-1;
   for(int i = beg;i<=end;++i){
-    node_t * next_node = nodes[adj[i-1]-1];
+    if(adj[i-1]!=0){
+      node_t * next_node = nodes[adj[i-1]-1];
 
-    if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
-      abort();
+      if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
+        abort();
+      }
+      explore_set->push_back(next_node);
+      (*explored)[adj[i-1]-1]=1;
     }
-    explore_set->push_back(next_node);
-    (*explored)[adj[i-1]-1]=1;
   }  
 
   //now find path between min_nodes and other nodes
@@ -92,14 +94,16 @@ cout<<adj.size()<<endl;
       int beg = xadj[cur_node->id-1];  
       int end = xadj[cur_node->id]-1;
       for(int i = beg;i<=end;++i){
-        if(!(*explored)[adj[i-1]-1]){
-          node_t * next_node = nodes[adj[i-1]-1];
+        if(adj[i-1]!=0){
+          if(!(*explored)[adj[i-1]-1]){
+            node_t * next_node = nodes[adj[i-1]-1];
 
-    if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
-      abort();
-    }
-          explore_set->push_back(next_node);
-          (*explored)[adj[i-1]-1]=1;
+            if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
+              abort();
+            }
+            explore_set->push_back(next_node);
+            (*explored)[adj[i-1]-1]=1;
+          }
         }
       }
     }
@@ -153,7 +157,7 @@ int main(int argc, char *argv[]) {
 
   infile.close();
 
-cout<<adj.size()<<endl;
+  cout<<adj.size()<<endl;
 
   cout<<"adj: ";
   for(int step = 1; step<=adj.size();++step){
@@ -213,7 +217,7 @@ cout<<adj.size()<<endl;
     get_reach(xadj,adj,nodes,min_node,step,reach);
 
 
-//    edgeCnt += reach.size()*(reach.size()-1)/2;
+    //    edgeCnt += reach.size()*(reach.size()-1)/2;
 
     for(list<node_t *>::iterator it = reach.begin();it!=reach.end();++it){
       node_t * cur_neighbor = *it;
@@ -263,28 +267,28 @@ cout<<adj.size()<<endl;
 
   cout<<"Cost is "<<cost<<endl;
 
-// vector<int> xlindx;
-// vector<int> lindx;
-// SymbolicFactorization(tree,newxadj,newadj,cc, xlindx, lindx);
-//
-//  cout<<"xlindx: ";
-//  for(int i =0; i<xlindx.size(); ++i){
-//    cout<<" "<<xlindx[i];
-//  }
-//  cout<<endl;
-//
-//  cout<<"lindx: ";
-//  for(int i =0; i<lindx.size(); ++i){
-//    cout<<" "<<lindx[i];
-//  }
-//  cout<<endl;
-//
-//  displayMatrix(newxadj, newadj);
-//cout<<endl<<endl;
-//  displayMatrix(xlindx, lindx);
+  // vector<int> xlindx;
+  // vector<int> lindx;
+  // SymbolicFactorization(tree,newxadj,newadj,cc, xlindx, lindx);
+  //
+  //  cout<<"xlindx: ";
+  //  for(int i =0; i<xlindx.size(); ++i){
+  //    cout<<" "<<xlindx[i];
+  //  }
+  //  cout<<endl;
+  //
+  //  cout<<"lindx: ";
+  //  for(int i =0; i<lindx.size(); ++i){
+  //    cout<<" "<<lindx[i];
+  //  }
+  //  cout<<endl;
+  //
+  //  displayMatrix(newxadj, newadj);
+  //cout<<endl<<endl;
+  //  displayMatrix(xlindx, lindx);
 #ifdef _verbose_
   displayMatrix(xadj, adj);
-cout<<endl<<endl;
+  cout<<endl<<endl;
   displayMatrix(newxadj, newadj);
 #endif
 }
@@ -443,165 +447,165 @@ cout<<endl<<endl;
 
 void SymbolicFactorization(ETree& tree,const vector<int> & colptr,const vector<int> & rowind,const vector<int> & cc, vector<int> & xlindx, vector<int> & lindx){
 
-    int size = tree.Size();
-    int nsuper = tree.Size();
+  int size = tree.Size();
+  int nsuper = tree.Size();
 
-    int nzbeg = 0;
-    //nzend points to the last used slot in lindx
-    int nzend = 0;
+  int nzbeg = 0;
+  //nzend points to the last used slot in lindx
+  int nzend = 0;
 
-    //tail is the end of list indicator (in rchlnk, not mrglnk)
-    int tail = size +1;
+  //tail is the end of list indicator (in rchlnk, not mrglnk)
+  int tail = size +1;
 
-    int head = 0;
+  int head = 0;
 
-    //Array of length nsuper containing the children of 
-    //each supernode as a linked list
-    vector<int> mrglnk(nsuper,0);
+  //Array of length nsuper containing the children of 
+  //each supernode as a linked list
+  vector<int> mrglnk(nsuper,0);
 
-    //Array of length n+1 containing the current linked list 
-    //of merged indices (the "reach" set)
-    vector<int> rchlnk(size+1);
+  //Array of length n+1 containing the current linked list 
+  //of merged indices (the "reach" set)
+  vector<int> rchlnk(size+1);
 
-    //Array of length n used to mark indices as they are introduced
-    // into each supernode's index set
-    vector<int> marker(size,0);
-
-
-    xlindx.resize(nsuper+1);
-
-    //Compute the sum of the column count and resize lindx accordingly
-    int nofsub = 1;
-    for(int i =0; i<cc.size();++i){
-      nofsub+=cc[i];
-    }
-
-    lindx.resize(nofsub);
+  //Array of length n used to mark indices as they are introduced
+  // into each supernode's index set
+  vector<int> marker(size,0);
 
 
-    int point = 1;
-    for(int ksup = 1; ksup<=nsuper; ++ksup){
-      int fstcol = ksup;
-      xlindx[ksup-1] = point;
-      point += cc[fstcol-1]; 
-    } 
-    xlindx[nsuper] = point;
+  xlindx.resize(nsuper+1);
 
-    for(int ksup = 1; ksup<=nsuper; ++ksup){
-      int fstcol = ksup;
-      int lstcol = ksup;
-      int width = lstcol - fstcol +1;
-      int length = cc[fstcol-1];
-      int knz = 0;
-      rchlnk[head] = tail;
-      int jsup = mrglnk[ksup-1];
+  //Compute the sum of the column count and resize lindx accordingly
+  int nofsub = 1;
+  for(int i =0; i<cc.size();++i){
+    nofsub+=cc[i];
+  }
 
-      //If ksup has children in the supernodal e-tree
-      if(jsup>0){
-        //copy the indices of the first child jsup into 
-        //the linked list, and mark each with the value 
-        //ksup.
-        int jwidth = 1;
-        int jnzbeg = xlindx[jsup-1] + jwidth;
-        int jnzend = xlindx[jsup] -1;
-        for(int jptr = jnzend; jptr>=jnzbeg; --jptr){
-          int newi = lindx[jptr-1];
-          ++knz;
-          marker[newi-1] = ksup;
-          rchlnk[newi] = rchlnk[head];
-          rchlnk[head] = newi;
-        }
+  lindx.resize(nofsub);
 
-        //for each subsequent child jsup of ksup ...
-        jsup = mrglnk[jsup-1];
-        while(jsup!=0 && knz < length){
-          //merge the indices of jsup into the list,
-          //and mark new indices with value ksup.
 
-          jwidth = 1;
-          jnzbeg = xlindx[jsup-1] + jwidth;
-          jnzend = xlindx[jsup] -1;
-          int nexti = head;
-          for(int jptr = jnzbeg; jptr<=jnzend; ++jptr){
-            int newi = lindx[jptr-1];
-            int i;
-            do{
-              i = nexti;
-              nexti = rchlnk[i];
-            }while(newi > nexti);
+  int point = 1;
+  for(int ksup = 1; ksup<=nsuper; ++ksup){
+    int fstcol = ksup;
+    xlindx[ksup-1] = point;
+    point += cc[fstcol-1]; 
+  } 
+  xlindx[nsuper] = point;
 
-            if(newi < nexti){
-              ++knz;
-              rchlnk[i] = newi;
-              rchlnk[newi] = nexti;
-              marker[newi-1] = ksup;
-              nexti = newi;
-            }
-          }
-          jsup = mrglnk[jsup-1];
-        }
+  for(int ksup = 1; ksup<=nsuper; ++ksup){
+    int fstcol = ksup;
+    int lstcol = ksup;
+    int width = lstcol - fstcol +1;
+    int length = cc[fstcol-1];
+    int knz = 0;
+    rchlnk[head] = tail;
+    int jsup = mrglnk[ksup-1];
+
+    //If ksup has children in the supernodal e-tree
+    if(jsup>0){
+      //copy the indices of the first child jsup into 
+      //the linked list, and mark each with the value 
+      //ksup.
+      int jwidth = 1;
+      int jnzbeg = xlindx[jsup-1] + jwidth;
+      int jnzend = xlindx[jsup] -1;
+      for(int jptr = jnzend; jptr>=jnzbeg; --jptr){
+        int newi = lindx[jptr-1];
+        ++knz;
+        marker[newi-1] = ksup;
+        rchlnk[newi] = rchlnk[head];
+        rchlnk[head] = newi;
       }
-      //structure of a(*,fstcol) has not been examined yet.  
-      //"sort" its structure into the linked list,
-      //inserting only those indices not already in the
-      //list.
-      if(knz < length){
-        int node = tree.FromPostOrder(fstcol);
-        int knzbeg = colptr[node-1];
-        int knzend = colptr[node]-1;
-        for(int kptr = knzbeg; kptr<=knzend;++kptr){
-          int newi = rowind[kptr-1];
-          newi = tree.ToPostOrder(newi);
-          if(newi > fstcol && marker[newi-1] != ksup){
-            //position and insert newi in list and
-            // mark it with kcol
-            int nexti = head;
-            int i;
-            do{
-              i = nexti;
-              nexti = rchlnk[i];
-            }while(newi > nexti);
+
+      //for each subsequent child jsup of ksup ...
+      jsup = mrglnk[jsup-1];
+      while(jsup!=0 && knz < length){
+        //merge the indices of jsup into the list,
+        //and mark new indices with value ksup.
+
+        jwidth = 1;
+        jnzbeg = xlindx[jsup-1] + jwidth;
+        jnzend = xlindx[jsup] -1;
+        int nexti = head;
+        for(int jptr = jnzbeg; jptr<=jnzend; ++jptr){
+          int newi = lindx[jptr-1];
+          int i;
+          do{
+            i = nexti;
+            nexti = rchlnk[i];
+          }while(newi > nexti);
+
+          if(newi < nexti){
             ++knz;
             rchlnk[i] = newi;
             rchlnk[newi] = nexti;
             marker[newi-1] = ksup;
+            nexti = newi;
           }
         }
+        jsup = mrglnk[jsup-1];
       }
-
-      //if ksup has no children, insert fstcol into the linked list.
-      if(rchlnk[head] != fstcol){
-        rchlnk[fstcol] = rchlnk[head];
-        rchlnk[head] = fstcol;
-        ++knz;
-      }
-
-      //assert(knz == cc[fstcol-1]);
-
-
-      //copy indices from linked list into lindx(*).
-      nzbeg = nzend+1;
-      nzend += knz;
-//      assert(nzend+1 == xlindx[ksup]);
-      int i = head;
-      for(int kptr = nzbeg; kptr<=nzend;++kptr){
-        i = rchlnk[i];
-        lindx[kptr-1] = i;
-      } 
-
-      //if ksup has a parent, insert ksup into its parent's 
-      //"merge" list.
-      if(length > width){
-        int pcol = lindx[xlindx[ksup-1] + width -1];
-        int psup = pcol;
-        mrglnk[ksup-1] = mrglnk[psup-1];
-        mrglnk[psup-1] = ksup;
+    }
+    //structure of a(*,fstcol) has not been examined yet.  
+    //"sort" its structure into the linked list,
+    //inserting only those indices not already in the
+    //list.
+    if(knz < length){
+      int node = tree.FromPostOrder(fstcol);
+      int knzbeg = colptr[node-1];
+      int knzend = colptr[node]-1;
+      for(int kptr = knzbeg; kptr<=knzend;++kptr){
+        int newi = rowind[kptr-1];
+        newi = tree.ToPostOrder(newi);
+        if(newi > fstcol && marker[newi-1] != ksup){
+          //position and insert newi in list and
+          // mark it with kcol
+          int nexti = head;
+          int i;
+          do{
+            i = nexti;
+            nexti = rchlnk[i];
+          }while(newi > nexti);
+          ++knz;
+          rchlnk[i] = newi;
+          rchlnk[newi] = nexti;
+          marker[newi-1] = ksup;
+        }
       }
     }
 
-    lindx.resize(nzend+1);
+    //if ksup has no children, insert fstcol into the linked list.
+    if(rchlnk[head] != fstcol){
+      rchlnk[fstcol] = rchlnk[head];
+      rchlnk[head] = fstcol;
+      ++knz;
+    }
 
+    //assert(knz == cc[fstcol-1]);
+
+
+    //copy indices from linked list into lindx(*).
+    nzbeg = nzend+1;
+    nzend += knz;
+    //      assert(nzend+1 == xlindx[ksup]);
+    int i = head;
+    for(int kptr = nzbeg; kptr<=nzend;++kptr){
+      i = rchlnk[i];
+      lindx[kptr-1] = i;
+    } 
+
+    //if ksup has a parent, insert ksup into its parent's 
+    //"merge" list.
+    if(length > width){
+      int pcol = lindx[xlindx[ksup-1] + width -1];
+      int psup = pcol;
+      mrglnk[ksup-1] = mrglnk[psup-1];
+      mrglnk[psup-1] = ksup;
+    }
   }
+
+  lindx.resize(nzend+1);
+
+}
 
 
 
@@ -733,7 +737,7 @@ void displayMatrix(vector<int> & xadj, vector<int> & adj){
   for(int i = 1; i< xadj.size();++i){
     int fi = xadj[i-1];
     int li = xadj[i]-1;
-    
+
     int prevrow = 0;
     int diagpassed = 0;
     for(int rowi = fi;rowi<=li;++rowi){
@@ -746,7 +750,7 @@ void displayMatrix(vector<int> & xadj, vector<int> & adj){
         cout<<1<<" ";
         prevrow = i;
       }   
-   
+
       for(int prow = prevrow+1; prow<row; prow++){ 
         cout<<0<<" ";
       }
