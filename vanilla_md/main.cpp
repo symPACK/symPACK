@@ -48,14 +48,13 @@ bool node_comp(node_t * & a, node_t * & b){
 void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> & nodes, const node_t & min_node, const int elim_step, list<node_t*> & reach_set){
   //this array is used to mark the node so that 
   //they are not added twice into the reachable set
-  vector<int> * explored = new vector<int>(nodes.size(),0);
+  vector<int> explored(nodes.size(),0);
 
 
-  cout<<adj.size()<<endl;
 
 
   //this list contains the nodes to explore
-  list<node_t *> * explore_set = new list<node_t *>();
+  list<node_t *> explore_set;
   //initialize explore_set with the neighborhood
   // of min_node in the original graph 
   int beg = xadj[min_node.id-1];  
@@ -64,24 +63,27 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> 
     if(adj[i-1]!=0){
       node_t * next_node = nodes[adj[i-1]-1];
 
-      if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
-        abort();
-      }
-      explore_set->push_back(next_node);
-      (*explored)[adj[i-1]-1]=1;
+//      if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
+//        abort();
+//      }
+      explore_set.push_back(next_node);
+      explored[adj[i-1]-1]=1;
+    }
+    else{
+      abort();
     }
   }  
 
   //now find path between min_nodes and other nodes
-  while(explore_set->size()>0){
+  while(explore_set.size()>0){
     //pop a node
-    node_t * cur_node = explore_set->back();
+    node_t * cur_node = explore_set.back();
 
-    if(nodes.end()==find(nodes.begin(),nodes.end(),cur_node)){
-      abort();
-    }
+//    if(nodes.end()==find(nodes.begin(),nodes.end(),cur_node)){
+//      abort();
+//    }
 
-    explore_set->pop_back();
+    explore_set.pop_back();
 
     if(cur_node->id == min_node.id ){
       continue;
@@ -95,21 +97,22 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> 
       int end = xadj[cur_node->id]-1;
       for(int i = beg;i<=end;++i){
         if(adj[i-1]!=0){
-          if(!(*explored)[adj[i-1]-1]){
+          if(!explored[adj[i-1]-1]){
             node_t * next_node = nodes[adj[i-1]-1];
 
-            if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
-              abort();
-            }
-            explore_set->push_back(next_node);
-            (*explored)[adj[i-1]-1]=1;
+//            if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
+//              abort();
+//            }
+            explore_set.push_back(next_node);
+            explored[adj[i-1]-1]=1;
           }
+        }
+        else{
+          abort();
         }
       }
     }
   }
-  delete explore_set;
-  delete explored;
 }
 
 

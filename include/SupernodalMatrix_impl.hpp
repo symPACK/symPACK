@@ -505,106 +505,44 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
 
 
 
-  template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate2(SuperNode<T> & src_snode, Int & src_first_nzblk_idx, Int & src_last_nzblk_idx, Int & src_first_row, Int & src_last_row, Int & tgt_snode_id){
-    //src_nzblk_idx is the last nzblock index examined
-    //src_first_row is the first row updating the supernode examined
-    //src_last_row is the last row updating the supernode examined
+  template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate2(SuperNode<T> & src_snode, Int & tgt_snode_id, Int & f_ur, Int & f_ub, Int & n_ur, Int & n_ub){
 
 //    TIMER_START(FIND_UPDATE);
-    
-    bool returnval = true;
-    NZBlockDesc * desc;
 
-    //if tgt_snode_id == 0 , this is the first call to the function
-    if(tgt_snode_id == 0){
-      //find the first sub diagonal block
+    if(tgt_snode_id==0){   
       Int iOwner = Mapping_.Map(src_snode.Id()-1,src_snode.Id()-1);
-      src_first_nzblk_idx= iOwner==iam?1:0;
-
-      if(src_first_nzblk_idx < 0  || src_first_nzblk_idx>=src_snode.NZBlockCnt()){
-        returnval = false;
-      }
-      else{
-        desc = &src_snode.GetNZBlockDesc(src_first_nzblk_idx);
-        src_first_row = desc->GIndex;
-      }
+      f_ub = iOwner==iam?1:0;
+      n_ub = f_ub;
+      n_ur = 0;
     }
     else{
-      //find the block corresponding to src_last_row
-      src_first_nzblk_idx = src_last_nzblk_idx;
-      
-//        NZBlockDesc & desc = src_snode.GetNZBlockDesc(src_first_nzblk_idx);
-//        Int src_lr = desc.GIndex + src_snode.NRows(src_first_nzblk_idx)-1;
-//
-//        if(src_last_row == src_lr){
-//          src_first_nzblk_idx++;
-//          if(src_first_nzblk_idx==src_snode.NZBlockCnt()){
-//            returnval = false;
-//          }
-//          else{
-//#ifdef _DEBUG_
-//            assert(src_first_nzblk_idx<src_snode.NZBlockCnt());
-//#endif
-//            src_first_row = src_snode.GetNZBlockDesc(src_first_nzblk_idx).GIndex;
-//          }
-//        }
-//        else{
-//          src_first_row = src_last_row+1;
-//        }
+      f_ub = n_ub;
     }
 
-    if(returnval){
-    //Now we try to find src_last_row
-#ifdef _DEBUG_
-    assert(src_first_row >= desc->GIndex);
-#endif
-    Int src_fr = src_first_row;
-    Int src_lr = desc->GIndex+src_snode.NRows(src_first_nzblk_idx)-1;
-
-    Int tgt_snode_id_first = SupMembership_(src_fr-1);
-    Int tgt_snode_id_last = SupMembership_(src_lr-1);
-
-    if(tgt_snode_id_first == tgt_snode_id_last){
-      //this can be a zero row in the src_snode
-      tgt_snode_id = tgt_snode_id_first;
-
-      Int last_tgt_col = Xsuper_(tgt_snode_id_first)-1;
-
-      //We might have another block updating the same snode
-      if(src_lr < last_tgt_col){
-        src_last_row = src_lr;
-        for(Int blkidx = src_first_nzblk_idx; blkidx<src_snode.NZBlockCnt();++blkidx){
-          if(src_snode.GetNZBlockDesc(blkidx).GIndex <= last_tgt_col){
-            src_last_row = min(last_tgt_col,src_snode.GetNZBlockDesc(blkidx).GIndex + src_snode.NRows(blkidx) -1);
-            src_last_nzblk_idx=blkidx;
-          }
-          else{
-            break;
-          }
+    if(src_snode.NZBlockCnt()>f_ub){
+      NZBlockDesc * cur_desc = &src_snode.GetNZBlockDesc(f_ub); 
+      f_ur = max(n_ur,cur_desc->GIndex); 
+      //find the snode updated by that row
+      tgt_snode_id = SupMembership_[f_ur-1];
+      Int tgt_lc = Xsuper_[tgt_snode_id]-1;
+      //or use FindBlockIdx
+      while(cur_desc->GIndex < tgt_lc+1 )
+      {
+        ++n_ub;
+        if(src_snode.NZBlockCnt()>n_ub){
+          cur_desc = &src_snode.GetNZBlockDesc(n_ub);
         }
       }
-      else{
-        src_last_row = last_tgt_col;
-      }
-#ifdef _DEBUG_
-      assert(src_last_row<= Xsuper_(tgt_snode_id_first)-1);
-#endif
+      
+      cur_desc = &src_snode.GetNZBlockDesc(n_ub);
+      n_ur = min(cur_desc->GIndex + src_snode.NRows(n_ub) -1,tgt_lc+1);
+
+      //src_snode updates tgt_snode_id. Then we need to look from row n_ur and block l_ub
+      return true;
     }
     else{
-      src_last_row = Xsuper_(tgt_snode_id_first)-1;
-      tgt_snode_id = tgt_snode_id_first;
+      return false;
     }
-
-
-#ifdef _DEBUG_
-    assert(src_last_row>=src_first_row);
-    assert(src_first_row>= Xsuper_(tgt_snode_id-1));
-    assert(src_last_row<= Xsuper_(tgt_snode_id)-1);
-    assert(src_first_row >= src_fr);
-#endif
-    }
-
-    return returnval;
   }
 
 
@@ -1595,8 +1533,10 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
     Int src_first_row = 0;
     Int src_last_row = 0;
     Int src_nzblk_idx = 0;
+    Int src_next_nzblk_idx = 0;
 
-    while(FindNextUpdate(cur_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
+    while(FindNextUpdate2(cur_snode, tgt_snode_id, src_first_row, src_nzblk_idx, src_last_row, src_next_nzblk_idx)){ 
+    //while(FindNextUpdate(cur_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
       Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
       if(iTarget == iam){
         Int iLocalJ = (tgt_snode_id-1) / np +1 ;

@@ -88,9 +88,9 @@ int main (void) {
     }
     printf("\n");
 
-    printf("HardCoding a testCase \n");
-    int hardCode[16] = {3, 1, 6, 2, 4, 5, 7, 13, 10, 15, 11, 12, 8, 16, 9, 14};
-    printf("Fitness of HardCode: %f\n", ((GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, hardCode))));
+//    printf("HardCoding a testCase \n");
+//    int hardCode[16] = {3, 1, 6, 2, 4, 5, 7, 13, 10, 15, 11, 12, 8, 16, 9, 14};
+//    printf("Fitness of HardCode: %f\n", ((GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, hardCode))));
     
 
     printf("Initial Population \n");
@@ -150,8 +150,8 @@ int main (void) {
 }
 
 int costComp(const void * a, const void * b) {
-    individual *indiv1 = (individual *) a;
-    individual *indiv2 = (individual *) b;
+    struct individual *indiv1 = (struct individual *) a;
+    struct individual *indiv2 = (struct individual *) b;
     if (indiv2->fitness == indiv1->fitness) {
         return 0;
     } else if (indiv2->fitness > indiv1->fitness) {

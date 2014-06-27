@@ -28,8 +28,8 @@ int main(int argc, char *argv[]) {
   vector<int> xadj;
   vector<int> adj;
 
-  if(argc<2){
-    cerr<<"Usage is: "<<argv[0]<<" input.file"<<endl;
+  if(argc<3){
+    cerr<<"Usage is: "<<argv[0]<<" input.file \"ordering\""<<endl;
     return -1;
   }
 
@@ -64,7 +64,22 @@ int main(int argc, char *argv[]) {
   infile.close();
 
   int n = xadj.size()-1;
-  int  perm[16] = { 3, 1, 6, 2, 4, 5, 7, 13, 10, 15, 11, 12, 8, 16, 9, 14};
+
+  vector<int> perm;
+  {
+    string orderstr(argv[2]);
+    istringstream iss(orderstr);
+    perm.reserve(n);
+
+    int i;
+    while(iss>> i){ perm.push_back(i);}
+    if(perm.size()!=n){
+      cerr<<"Wrong ordering, not the same size as graph"<<endl;
+      return -2;
+    }  
+  }
+  
+
 
   double cost  = GetCost(n,adj.size(),&xadj[0],&adj[0],&perm[0]);
 
