@@ -19,7 +19,6 @@ using namespace std;
  
 
 
-
 int main(int argc, char *argv[]) {
   /* initialize random seed: */
   int seed =time(NULL); 
@@ -79,7 +78,6 @@ int main(int argc, char *argv[]) {
     }  
   }
   
-
 
   double cost  = GetCost(n,adj.size(),&xadj[0],&adj[0],&perm[0]);
 

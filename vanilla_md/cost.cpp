@@ -8,7 +8,211 @@
 
 using namespace std;
 
-#define _verbose_
+//#define _verbose_
+
+void displayMatrix(vector<int> & xadj, vector<int> & adj){
+  for(int i = 1; i< xadj.size();++i){
+    int fi = xadj[i-1];
+    int li = xadj[i]-1;
+
+    int prevrow = 0;
+    int diagpassed = 0;
+    for(int rowi = fi;rowi<=li;++rowi){
+      int row = adj[rowi-1];
+      if(row == i)
+        continue;
+
+      if(row>i && !diagpassed){
+        diagpassed=1;
+        for(int prow = prevrow+1; prow<i; prow++){ 
+          cout<<0<<" ";
+        }
+        cout<<1<<" ";
+        prevrow = i;
+      }
+
+      for(int prow = prevrow+1; prow<row; prow++){ 
+        cout<<0<<" ";
+      }
+      cout<<1<<" ";
+      prevrow = row;
+    }
+
+    if(!diagpassed){
+      for(int prow = prevrow+1; prow<i; prow++){ cout<<0<<" ";}
+      cout<<1<<" ";
+      for(int prow = i+1; prow<xadj.size(); prow++){ cout<<0<<" ";}
+    }
+    else{
+      for(int prow = prevrow+1; prow<xadj.size(); prow++){ cout<<0<<" ";}
+    }
+    cout<<endl;
+  }
+}
+
+
+void SymbolicFactorization(ETree& tree,const vector<int> & colptr,const vector<int> & rowind,const vector<int> & cc, vector<int> & xlindx, vector<int> & lindx){
+
+  int size = tree.Size();
+  int nsuper = tree.Size();
+
+  int nzbeg = 0;
+  //nzend points to the last used slot in lindx
+  int nzend = 0;
+
+  //tail is the end of list indicator (in rchlnk, not mrglnk)
+  int tail = size +1;
+
+  int head = 0;
+
+  //Array of length nsuper containing the children of 
+  //each supernode as a linked list
+  vector<int> mrglnk(nsuper,0);
+
+  //Array of length n+1 containing the current linked list 
+  //of merged indices (the "reach" set)
+  vector<int> rchlnk(size+1);
+
+  //Array of length n used to mark indices as they are introduced
+  // into each supernode's index set
+  vector<int> marker(size,0);
+
+
+  xlindx.resize(nsuper+1);
+
+  //Compute the sum of the column count and resize lindx accordingly
+  int nofsub = 1;
+  for(int i =0; i<cc.size();++i){
+    nofsub+=cc[i];
+  }
+
+  lindx.resize(nofsub);
+
+
+  int point = 1;
+  for(int ksup = 1; ksup<=nsuper; ++ksup){
+    int fstcol = ksup;
+    xlindx[ksup-1] = point;
+    point += cc[fstcol-1]; 
+  } 
+  xlindx[nsuper] = point;
+
+  for(int ksup = 1; ksup<=nsuper; ++ksup){
+    int fstcol = ksup;
+    int lstcol = ksup;
+    int width = lstcol - fstcol +1;
+    int length = cc[fstcol-1];
+    int knz = 0;
+    rchlnk[head] = tail;
+    int jsup = mrglnk[ksup-1];
+
+    //If ksup has children in the supernodal e-tree
+    if(jsup>0){
+      //copy the indices of the first child jsup into 
+      //the linked list, and mark each with the value 
+      //ksup.
+      int jwidth = 1;
+      int jnzbeg = xlindx[jsup-1] + jwidth;
+      int jnzend = xlindx[jsup] -1;
+      for(int jptr = jnzend; jptr>=jnzbeg; --jptr){
+        int newi = lindx[jptr-1];
+        ++knz;
+        marker[newi-1] = ksup;
+        rchlnk[newi] = rchlnk[head];
+        rchlnk[head] = newi;
+      }
+
+      //for each subsequent child jsup of ksup ...
+      jsup = mrglnk[jsup-1];
+      while(jsup!=0 && knz < length){
+        //merge the indices of jsup into the list,
+        //and mark new indices with value ksup.
+
+        jwidth = 1;
+        jnzbeg = xlindx[jsup-1] + jwidth;
+        jnzend = xlindx[jsup] -1;
+        int nexti = head;
+        for(int jptr = jnzbeg; jptr<=jnzend; ++jptr){
+          int newi = lindx[jptr-1];
+          int i;
+          do{
+            i = nexti;
+            nexti = rchlnk[i];
+          }while(newi > nexti);
+
+          if(newi < nexti){
+            ++knz;
+            rchlnk[i] = newi;
+            rchlnk[newi] = nexti;
+            marker[newi-1] = ksup;
+            nexti = newi;
+          }
+        }
+        jsup = mrglnk[jsup-1];
+      }
+    }
+    //structure of a(*,fstcol) has not been examined yet.  
+    //"sort" its structure into the linked list,
+    //inserting only those indices not already in the
+    //list.
+    if(knz < length){
+      int node = tree.FromPostOrder(fstcol);
+      int knzbeg = colptr[node-1];
+      int knzend = colptr[node]-1;
+      for(int kptr = knzbeg; kptr<=knzend;++kptr){
+        int newi = rowind[kptr-1];
+        newi = tree.ToPostOrder(newi);
+        if(newi > fstcol && marker[newi-1] != ksup){
+          //position and insert newi in list and
+          // mark it with kcol
+          int nexti = head;
+          int i;
+          do{
+            i = nexti;
+            nexti = rchlnk[i];
+          }while(newi > nexti);
+          ++knz;
+          rchlnk[i] = newi;
+          rchlnk[newi] = nexti;
+          marker[newi-1] = ksup;
+        }
+      }
+    }
+
+    //if ksup has no children, insert fstcol into the linked list.
+    if(rchlnk[head] != fstcol){
+      rchlnk[fstcol] = rchlnk[head];
+      rchlnk[head] = fstcol;
+      ++knz;
+    }
+
+    //assert(knz == cc[fstcol-1]);
+
+
+    //copy indices from linked list into lindx(*).
+    nzbeg = nzend+1;
+    nzend += knz;
+    //      assert(nzend+1 == xlindx[ksup]);
+    int i = head;
+    for(int kptr = nzbeg; kptr<=nzend;++kptr){
+      i = rchlnk[i];
+      lindx[kptr-1] = i;
+    } 
+
+    //if ksup has a parent, insert ksup into its parent's 
+    //"merge" list.
+    if(length > width){
+      int pcol = lindx[xlindx[ksup-1] + width -1];
+      int psup = pcol;
+      mrglnk[ksup-1] = mrglnk[psup-1];
+      mrglnk[psup-1] = ksup;
+    }
+  }
+
+  lindx.resize(nzend+1);
+
+}
+
 
 void GetLColRowCount(ETree & tree,const int * xadj, const int * adj, vector<int> & cc, vector<int> & rc);
 
@@ -235,6 +439,9 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
 
   }
 //  newadj.back() = 0;
+
+
+
   
 #ifdef _verbose_
   cout<<"adj: ";
@@ -261,6 +468,20 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
 
   vector<int> cc,rc;
   GetLColRowCount(tree,&newxadj[0],&newadj[0],cc,rc);
+
+
+
+#ifdef _verbose_
+  displayMatrix(newxadj,newadj);
+
+
+  vector<int> xlindx,lindx;
+  SymbolicFactorization(tree,newxadj,newadj,cc, xlindx, lindx);
+
+  displayMatrix(xlindx,lindx);
+
+#endif
+
 
 #ifdef _verbose_
   tree.Dump();
