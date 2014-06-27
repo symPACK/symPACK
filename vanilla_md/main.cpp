@@ -16,12 +16,7 @@
 //#define verbose
 
 using namespace std;
-int GedgeCnt = 0;
 
-void displayMatrix(vector<int> & xadj, vector<int> & adj);
-void SymbolicFactorization(ETree& tree,const vector<int> & colptr,const vector<int> & rowind,const vector<int> & cc, vector<int> & xlindx, vector<int> & lindx);
-
-//double GetCost(vector<int> & xadj, vector<int> & adj,vector<int> & perm);
 
 struct node_t{
   int id;
@@ -49,12 +44,9 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> 
   //this array is used to mark the node so that 
   //they are not added twice into the reachable set
   vector<int> explored(nodes.size(),0);
-
-
-
-
   //this list contains the nodes to explore
   list<node_t *> explore_set;
+
   //initialize explore_set with the neighborhood
   // of min_node in the original graph 
   int beg = xadj[min_node.id-1];  
@@ -62,10 +54,6 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> 
   for(int i = beg;i<=end;++i){
     if(adj[i-1]!=0){
       node_t * next_node = nodes[adj[i-1]-1];
-
-//      if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
-//        abort();
-//      }
       explore_set.push_back(next_node);
       explored[adj[i-1]-1]=1;
     }
@@ -78,10 +66,6 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> 
   while(explore_set.size()>0){
     //pop a node
     node_t * cur_node = explore_set.back();
-
-//    if(nodes.end()==find(nodes.begin(),nodes.end(),cur_node)){
-//      abort();
-//    }
 
     explore_set.pop_back();
 
@@ -99,10 +83,6 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> 
         if(adj[i-1]!=0){
           if(!explored[adj[i-1]-1]){
             node_t * next_node = nodes[adj[i-1]-1];
-
-//            if(nodes.end()==find(nodes.begin(),nodes.end(),next_node)){
-//              abort();
-//            }
             explore_set.push_back(next_node);
             explored[adj[i-1]-1]=1;
           }
@@ -160,16 +140,6 @@ int main(int argc, char *argv[]) {
 
   infile.close();
 
-  cout<<adj.size()<<endl;
-
-  cout<<"adj: ";
-  for(int step = 1; step<=adj.size();++step){
-    cout<<" "<<adj[step-1];
-  }
-  cout<<endl;
-
-
-
   int n = xadj.size()-1;
   vector<node_t *> nodes(n);
   vector<node_t *> node_heap(n);
@@ -219,9 +189,6 @@ int main(int argc, char *argv[]) {
     list<node_t *> reach;
     get_reach(xadj,adj,nodes,min_node,step,reach);
 
-
-    //    edgeCnt += reach.size()*(reach.size()-1)/2;
-
     for(list<node_t *>::iterator it = reach.begin();it!=reach.end();++it){
       node_t * cur_neighbor = *it;
       list<node_t *> nghb_reach;
@@ -254,46 +221,9 @@ int main(int argc, char *argv[]) {
     delete nodes[i];
   }
 
-
-
-
-
-
-
-  cout<<"perm: ";
-  for(int step = 1; step<=n;++step){
-    cout<<" "<<perm[step-1];
-  }
-  cout<<endl;
-
   double cost  = GetCost(n,adj.size(),&xadj[0],&adj[0],&perm[0]);
 
   cout<<"Cost is "<<cost<<endl;
-
-  // vector<int> xlindx;
-  // vector<int> lindx;
-  // SymbolicFactorization(tree,newxadj,newadj,cc, xlindx, lindx);
-  //
-  //  cout<<"xlindx: ";
-  //  for(int i =0; i<xlindx.size(); ++i){
-  //    cout<<" "<<xlindx[i];
-  //  }
-  //  cout<<endl;
-  //
-  //  cout<<"lindx: ";
-  //  for(int i =0; i<lindx.size(); ++i){
-  //    cout<<" "<<lindx[i];
-  //  }
-  //  cout<<endl;
-  //
-  //  displayMatrix(newxadj, newadj);
-  //cout<<endl<<endl;
-  //  displayMatrix(xlindx, lindx);
-///#ifdef _verbose_
-///  displayMatrix(xadj, adj);
-///  cout<<endl<<endl;
-///  displayMatrix(newxadj, newadj);
-///#endif
 }
 
 
