@@ -8,7 +8,7 @@
 
 using namespace std;
 
-#define _verbose_
+//#define _verbose_
 
 void GetLColRowCount(ETree & tree,const int * xadj, const int * adj, vector<int> & cc, vector<int> & rc);
 

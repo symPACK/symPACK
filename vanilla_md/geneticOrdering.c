@@ -4,7 +4,7 @@
 #include <string.h>
 #include "cost.h"
 
-#define STOPCOUNT 5000
+#define STOPCOUNT 500000000
 #define PARAMETER 4
 #define POPSIZE 20
 #define MAXGENS 100000
@@ -35,6 +35,7 @@ void mutatePop(struct individual mutated[]);
 int pickParent(struct individual possibleParents[]);
 void printPop();
 int costComp(const void * a, const void * b);
+int isPermutation(int possiblePermutation[]);
 
 double totalFitness;
 int currentGen = 0;
@@ -56,14 +57,13 @@ int main (void) {
     setbuf(stdout, NULL);
     init();
 
-
     /*Adding stuff to test total perms here.*/
     int testordering[NUM_GENES];
     int testNum;
     int bestOrdering[NUM_GENES];
     double testScore;
     double bestScore = 10000;
-    FILE *permsFile;
+    /*FILE *permsFile;
     permsFile = fopen("allperms.txt", "r");
     if (permsFile == NULL) {
         fprintf(stderr, "Unable to open perms file\n");
@@ -73,6 +73,16 @@ int main (void) {
         for (int j = 0; j < NUM_GENES; j++) {
             fscanf(permsFile, "%d", &testNum);
             testordering[j] = testNum;
+        }
+        if (! isPermutation(testordering)) {
+            printf("i is %d \n", i);
+        }
+        if (i == 0) {
+            printf(" The first ordering read in is: ");
+            for (int printing= 0; printing< NUM_GENES; printing++) {
+                printf("%d ", testordering[printing]);
+            }
+            printf("\n");
         }
         testScore = GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, testordering);
         //printf("%f\n", testScore/*GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, testordering));
@@ -88,10 +98,16 @@ int main (void) {
     }
     printf("\n");
 
-//    printf("HardCoding a testCase \n");
-//    int hardCode[16] = {3, 1, 6, 2, 4, 5, 7, 13, 10, 15, 11, 12, 8, 16, 9, 14};
-//    printf("Fitness of HardCode: %f\n", ((GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, hardCode))));
-    
+    printf("HardCoding a testCase \n");
+    int hardCode[9] = {9, 2, 1, 4, 5, 6, 7, 8, 9};
+    printf("Fitness of HardCode: %f\n", ((GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, hardCode))));
+    printf("HardCoded Ordering is:");
+    for (int k = 0; k < NUM_GENES; k++) {
+        printf("%d ",hardCode[k]);
+    }
+    printf("\n");*/
+
+
 
     printf("Initial Population \n");
     printPop();
@@ -126,10 +142,10 @@ int main (void) {
         //printf("Evaled\n");
         qsort(nextPop, POPSIZE * 2, sizeof(struct individual), costComp);
 
-        for (int test = 0; test < 2*POPSIZE; test++) {
-            printf(" %.2f", 1/(nextPop[test].fitness));
-        }
-        printf("\n");
+        //for (int test = 0; test < 2*POPSIZE; test++) {
+        //    printf(" %.2f", 1/(nextPop[test].fitness));
+        //}
+        //printf("\n");
 
         if (nextPop[0].fitness > costStopScore) {
             costStopScore = nextPop[0].fitness;
@@ -339,3 +355,29 @@ void mutatePop(struct individual mutated[]) {
         }
     }
 }
+
+/*Utility function to determine if argument is a legal permutation*/
+int isPermutation(int possiblePermutation[]) {
+    int boolArray[NUM_GENES];
+    int testNum;
+    for (int i = 0; i < NUM_GENES; i++) {
+        boolArray[i] = 0;
+    }
+    for (int j = 0; j < NUM_GENES; j++) {
+        testNum = possiblePermutation[j];
+        if (boolArray[(testNum - 1)] == 0) {
+            boolArray[(testNum - 1)] = 1;
+        } else {
+            printf("This is not a legal permutation. Printing and exiting.\n");
+            printf("Printing Possible Permutation ");
+            for (int k = 0; k < NUM_GENES; k++) {
+                printf("%d ", possiblePermutation[k]);
+            }
+            printf("\nPrinting double number: %d \n", testNum);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
