@@ -527,6 +527,42 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
       Int tgt_lc = Xsuper_[tgt_snode_id]-1;
 
       //or use FindBlockIdx
+      if(f_ub<src_snode.NZBlockCnt()-1){
+        Int src_tgt_lb = src_snode.FindBlockIdx(tgt_lc);
+        //if tgt_lc not found in the current column we need to resume at the next block 
+        if(src_tgt_lb!=-1){
+
+          for(n_ub;n_ub<src_snode.NZBlockCnt();++n_ub){
+            cur_desc = &src_snode.GetNZBlockDesc(n_ub);
+            if(cur_desc->GIndex > tgt_lc){
+              break;
+            }
+          }
+          if(n_ub<src_snode.NZBlockCnt()){
+            n_ur = cur_desc->GIndex;
+          }
+          else{
+            n_ur = -1;
+          }
+        }
+        else{
+            n_ub = src_tgt_lb;
+            cur_desc = &src_snode.GetNZBlockDesc(n_ub);
+            if(cur_desc->GIndex + src_snode.NRows(n_ub)-1>tgt_lc){
+              n_ur = tgt_lc+1;
+            }
+            else{
+              ++n_ub;
+              n_ur = 
+            } 
+        }
+      }
+      else{
+           
+          //tgt_lc is in current block or not
+          if(
+      }
+
       while(cur_desc->GIndex < tgt_lc+1 )
       {
         ++n_ub;

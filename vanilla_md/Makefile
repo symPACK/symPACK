@@ -1,5 +1,8 @@
-all: ETree.o cost.o
+all: ETree.o cost.o main.cpp
 	g++ -I./ -o md main.cpp cost.o ETree.o -O0 -g
+
+md: minimum_degree.cpp
+	g++ -I./ -o md minimum_degree.cpp -O0 -g
 
 #	g++ -o md_set main_set.cpp -O0 -g -std=c++11
 
