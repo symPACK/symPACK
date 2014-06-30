@@ -13,7 +13,7 @@
 #include "cost.h"
 #include "ETree.hpp"
 
-//#define verbose
+#define verbose
 
 using namespace std;
 
@@ -25,7 +25,7 @@ struct node_t{
 };
 
 bool node_comp(node_t * & a, node_t * & b){
-  if (a->degree<b->degree)
+  if (a->degree>b->degree)
     return true;
   else{
     if(a->degree == b->degree){
@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
 
     min_node.elim_step = step;
 #ifdef verbose
-    cout<<"Node "<<min_node.id<<" scheduled at step "<<step<<endl;
+    cout<<"Node "<<min_node.id<<" scheduled at step "<<step<<" degree is "<<min_node.degree<<endl;
 #endif
     //update the degree of its reachable set
     list<node_t *> reach;

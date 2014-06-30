@@ -722,7 +722,8 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
 
 
 #ifdef SINGLE_BLAS
-  template <typename T> inline void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, NumMat<T> & tmpBuf, Int  pivot_fr)
+  template <typename T> inline void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, NumMat<T> & tmpBuf,IntNumVec & src_colindx, IntNumVec & src_rowindx, IntNumVec & src_to_tgt_offset
+, Int  pivot_fr)
 #else
   template <typename T> inline void SupernodalMatrix<T>::UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr)
 #endif
@@ -817,16 +818,39 @@ if(1){
     TIMER_START(UPDATE_SNODE_INDEX_MAP);
   Int src_snode_size = src_snode.Size();
   Int tgt_snode_size = tgt_snode.Size();
-  IntNumVec src_colindx(tgt_width);
-  IntNumVec src_rowindx(src_nrows);
-  IntNumVec src_to_tgt_offset(src_nrows);
-  SetValue(src_to_tgt_offset,-1);
-  //IntNumVec src_offset(src_nrows);
-  //SetValue(src_offset,-1);
 
+//  IntNumVec src_colindx(tgt_width);
+//  IntNumVec src_rowindx(src_nrows);
+//  IntNumVec src_to_tgt_offset(src_nrows);
+
+src_colindx.Resize(tgt_width);
+//src_rowindx.Resize(src_nrows);
+src_to_tgt_offset.Resize(src_nrows);
+
+//  SetValue(src_to_tgt_offset,-1);
+/////  //IntNumVec src_offset(src_nrows);
+/////  //SetValue(src_offset,-1);
+/////
   Int colidx = 0;
   Int rowidx = 0;
   Int offset = 0;
+
+
+////  NZBlockDesc & first_block_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
+////  Int srcOffset = first_block_desc.Offset + (tgt_fc - first_block_desc.GIndex)*src_snode_size;
+////  for(Int rowidx = max(tgt_fc, first_block_desc.GIndex)-first_block_desc.GIndex; 
+////                          rowidx< src_nrows; ++rowidx){
+////
+////      offset+=tgt_width;
+////
+////
+////      src_to_tgt_offset[rowidx] = cur_tgt_desc.Offset + (row - cur_tgt_desc.GIndex)*tgt_snode_size; 
+////      rowidx++;
+////
+////  }
+
+
+
   for(Int blkidx = first_pivot_idx; blkidx < src_snode.NZBlockCnt(); ++blkidx){
     NZBlockDesc & cur_block_desc = src_snode.GetNZBlockDesc(blkidx);
     Int cur_src_nrows = src_snode.NRows(blkidx);
@@ -834,45 +858,144 @@ if(1){
     Int cur_src_fr = max(tgt_fc, cur_block_desc.GIndex);
     cur_src_nrows = cur_src_lr - cur_src_fr +1;
 
-    for(Int row = cur_src_fr; row<= cur_src_lr;++row){
-      if(row<=tgt_lc){
-        src_colindx[colidx++] = row;
+    //Except for the last pivot block which MIGHT be splitted onto multiple blocks in the target
+    //The other one MUST reside into a single block in the target
+//    if(blkidx==last_pivot_idx){
+      Int row = cur_src_fr;
+      while(row<=cur_src_lr){
+        Int tgt_blk_idx = tgt_snode.FindBlockIdx(row);
+        NZBlockDesc & cur_tgt_desc = tgt_snode.GetNZBlockDesc(tgt_blk_idx);
+        Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + tgt_snode.NRows(tgt_blk_idx)-1);
+        Int tgtOffset = cur_tgt_desc.Offset + (row - cur_tgt_desc.GIndex)*tgt_snode_size;
+        for(Int cr = row ;cr<=lr;++cr){
+          if(cr<=tgt_lc){
+            src_colindx[colidx++] = cr;
+          }
+
+//          src_rowindx[rowidx] = cr;
+          offset+=tgt_width;
+
+          src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
+          rowidx++;
+        }
+        row += (lr-row+1);
       }
-      src_rowindx[rowidx] = row;
-      //src_offset[rowidx] = offset;
-//cur_block_desc.Offset - (first_pivot_desc.Offset + (tgt_fc - first_pivot_desc.GIndex)*src_snode_size ) + (row - cur_block_desc.GIndex)*src_snode_size;
-      offset+=tgt_width;
 
-      Int tgt_blk_idx = tgt_snode.FindBlockIdx(row);
-//assert(tgt_blk_idx>=0);
-      NZBlockDesc & cur_tgt_desc = tgt_snode.GetNZBlockDesc(tgt_blk_idx);
-      src_to_tgt_offset[rowidx] = cur_tgt_desc.Offset + (row - cur_tgt_desc.GIndex)*tgt_snode_size; 
-      rowidx++;
-    }
+
+
+//      for(Int row = cur_src_fr; row<= cur_src_lr;++row){
+//        if(row<=tgt_lc){
+//          src_colindx[colidx++] = row;
+//        }
+//
+//        src_rowindx[rowidx] = row;
+//        offset+=tgt_width;
+//
+//        Int tgt_blk_idx = tgt_snode.FindBlockIdx(row);
+//        NZBlockDesc & cur_tgt_desc = tgt_snode.GetNZBlockDesc(tgt_blk_idx);
+//        src_to_tgt_offset[rowidx] = cur_tgt_desc.Offset + (row - cur_tgt_desc.GIndex)*tgt_snode_size; 
+//        rowidx++;
+//      }
+
+//    }
+//    else{
+//      Int tgt_blk_idx = tgt_snode.FindBlockIdx(cur_src_fr);
+//      NZBlockDesc & cur_tgt_desc = tgt_snode.GetNZBlockDesc(tgt_blk_idx);
+//      for(Int row = cur_src_fr; row<= cur_src_lr;++row){
+//        if(row<=tgt_lc){
+//          src_colindx[colidx++] = row;
+//        }
+//      
+////        src_rowindx[rowidx] = row;
+//        offset+=tgt_width;
+//
+//        src_to_tgt_offset[rowidx] = cur_tgt_desc.Offset + (row - cur_tgt_desc.GIndex)*tgt_snode_size; 
+//        rowidx++;
+//      }
+//    }
+//
   }
+
+
+////  for(Int blkidx = first_pivot_idx; blkidx < src_snode.NZBlockCnt(); ++blkidx){
+////    NZBlockDesc & cur_block_desc = src_snode.GetNZBlockDesc(blkidx);
+////    Int cur_src_nrows = src_snode.NRows(blkidx);
+////    Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
+////    Int cur_src_fr = max(tgt_fc, cur_block_desc.GIndex);
+////    cur_src_nrows = cur_src_lr - cur_src_fr +1;
+////
+////    for(Int row = cur_src_fr; row<= cur_src_lr;++row){
+////      if(row<=tgt_lc){
+////        src_colindx[colidx++] = row;
+////      }
+////      
+////      src_rowindx[rowidx] = row;
+////      offset+=tgt_width;
+////
+////      Int tgt_blk_idx = tgt_snode.FindBlockIdx(row);
+////      NZBlockDesc & cur_tgt_desc = tgt_snode.GetNZBlockDesc(tgt_blk_idx);
+////      src_to_tgt_offset[rowidx] = cur_tgt_desc.Offset + (row - cur_tgt_desc.GIndex)*tgt_snode_size; 
+////      rowidx++;
+////    }
+////  }
+
+
+
+
+//Multiple cases to consider
+// same structure between src and tgt : src_nrows == tgt_nrows
+// tgt has only one column 
+// single pivot block first_pivot idx == last_pivot_idx updating contiguous columns
+// full sparse case (done right now)
+
+
+
+
+
+
+
     TIMER_STOP(UPDATE_SNODE_INDEX_MAP);
-
-#ifdef _DEBUG_ 
-logfileptr->OFS()<<"src_rowindx :"<<src_rowindx<<std::endl;
-logfileptr->OFS()<<"src_colindx :"<<src_colindx<<std::endl;
-logfileptr->OFS()<<"Index map tgt :"<<src_to_tgt_offset<<std::endl;
-logfileptr->OFS()<<"Index map src :"<<src_offset<<std::endl;
-#endif
-
-    TIMER_START(UPDATE_SNODE_ASSEMBLY);
+/////
+/////#ifdef _DEBUG_ 
+/////logfileptr->OFS()<<"src_rowindx :"<<src_rowindx<<std::endl;
+/////logfileptr->OFS()<<"src_colindx :"<<src_colindx<<std::endl;
+/////logfileptr->OFS()<<"Index map tgt :"<<src_to_tgt_offset<<std::endl;
+/////logfileptr->OFS()<<"Index map src :"<<src_offset<<std::endl;
+/////#endif
+/////
+/////    TIMER_START(UPDATE_SNODE_ASSEMBLY);
 T* tgt = tgt_snode.GetNZval(0);
-for(Int rowidx = 0; rowidx < src_rowindx.m(); ++rowidx){
-  Int row = src_rowindx[rowidx];
-  for(Int colidx = 0; colidx< src_colindx.m();++colidx){
-    Int col = src_colindx[colidx];
-    Int tgt_colidx = col - tgt_snode.FirstCol();
-      tgt[src_to_tgt_offset[rowidx] + tgt_colidx] += buf[rowidx*tgt_width/*src_offset[rowidx]*/+colidx]; 
+if(tgt_snode_size==1){
+  for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
+      tgt[src_to_tgt_offset[rowidx]] += buf[rowidx]; 
   }
 }
-    TIMER_STOP(UPDATE_SNODE_ASSEMBLY);
-//logfileptr->OFS()<<"After "<<std::endl<<tgt_snode<<std::endl;
+else{
+  if(first_pivot_idx==last_pivot_idx){
+    Int tgt_offset = (tgt_fc - tgt_snode.FirstCol());
+    for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
+//      for(Int colidx = 0; colidx< tgt_width;++colidx){
+//        Int tgt_colidx = tgt_offset + colidx;
+//        tgt[src_to_tgt_offset[rowidx] + tgt_colidx] += buf[rowidx*tgt_width+colidx]; 
+//      }
 
+      blas::Axpy(tgt_width,ONE<T>(),&buf[rowidx*tgt_width],1,&tgt[src_to_tgt_offset[rowidx] + tgt_offset],1);
+    }
 
+  }
+  else{
+    for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
+      for(Int colidx = 0; colidx< src_colindx.m();++colidx){
+        Int col = src_colindx[colidx];
+        Int tgt_colidx = col - tgt_snode.FirstCol();
+        tgt[src_to_tgt_offset[rowidx] + tgt_colidx] += buf[rowidx*tgt_width+colidx]; 
+      }
+    }
+  }
+}
+
+/////    TIMER_STOP(UPDATE_SNODE_ASSEMBLY);
+///////logfileptr->OFS()<<"After "<<std::endl<<tgt_snode<<std::endl;
 
 }
 else{
@@ -1601,6 +1724,9 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
   }
 
   NumMat<T> tmpBuf(iSize_,maxwidth);
+  IntNumVec src_colindx(maxwidth);
+  IntNumVec src_rowindx(iSize_);
+  IntNumVec src_to_tgt_offset(iSize_);
 
 
   //dummy right looking cholesky factorization
@@ -1651,7 +1777,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 #endif
 
 #ifdef SINGLE_BLAS
-          UpdateSuperNode(local_src_snode,src_snode,src_nzblk_idx,tmpBuf, src_first_row);
+          UpdateSuperNode(local_src_snode,src_snode,src_nzblk_idx,tmpBuf,src_colindx,src_rowindx,src_to_tgt_offset, src_first_row);
 #else
           UpdateSuperNode(local_src_snode,src_snode,src_nzblk_idx, src_first_row);
 #endif
@@ -1714,7 +1840,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
 
 #ifdef SINGLE_BLAS
-              UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, tmpBuf,src_first_row);
+              UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, tmpBuf,src_colindx,src_rowindx,src_to_tgt_offset,src_first_row);
 #else
               UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, src_first_row);
 #endif
@@ -1753,7 +1879,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
 
 #ifdef SINGLE_BLAS
-              UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, tmpBuf,src_first_row);
+              UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, tmpBuf,src_colindx,src_rowindx,src_to_tgt_offset,src_first_row);
 #else
               UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, src_first_row);
 #endif
@@ -1914,7 +2040,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
 
 #ifdef SINGLE_BLAS
-              UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, tmpBuf,src_first_row);
+              UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, tmpBuf,src_colindx,src_rowindx,src_to_tgt_offset,src_first_row);
 #else
               UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, src_first_row);
 #endif
@@ -1952,7 +2078,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
 
 #ifdef SINGLE_BLAS
-              UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, tmpBuf,src_first_row);
+              UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, tmpBuf,src_colindx,src_rowindx,src_to_tgt_offset,src_first_row);
 #else
               UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, src_first_row);
 #endif

@@ -20,7 +20,7 @@ struct node_t{
 };
 
 bool node_comp(node_t * & a, node_t * & b){
-  if (a->degree<b->degree)
+  if (a->degree>b->degree)
     return true;
   else{
     if(a->degree == b->degree){
