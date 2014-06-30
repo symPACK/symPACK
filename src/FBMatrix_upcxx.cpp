@@ -20,7 +20,6 @@
 #define ADVANCE_COMM 1
 #endif
 
-#include "timer.hpp"
 
 
 //#define _DEBUG_

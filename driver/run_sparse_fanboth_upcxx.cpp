@@ -502,12 +502,17 @@ DistSparseMatrix<Real> HMat(worldcomm);
   //do the symbolic factorization and build supernodal matrix
   SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
 
+  timeSta = get_time();
   TIMER_START(SPARSE_FAN_OUT);
 //  SMat.Factorize(worldcomm);
   SMat.FanOut(worldcomm);
 //  SMat.FanBoth(worldcomm);
   TIMER_STOP(SPARSE_FAN_OUT);
+  timeEnd = get_time();
 
+  if(iam==0){
+    cout<<"Factorization time: "<<timeEnd-timeSta<<endl;
+  }
 
 #ifdef _DEBUG_
   //    NumMat<Real> fullMatrix;

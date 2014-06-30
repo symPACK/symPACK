@@ -197,6 +197,15 @@ void OptionsCreate(Int argc, char** argv,
 #elif defined (PROFILE) || defined(PMPI)
 #define TAU
 #include "timer.hpp"
+#else
+#include <sys/time.h>
+
+inline double get_time()
+  {
+    struct timeval tv;
+    gettimeofday(&tv, 0);
+    return tv.tv_sec + ((double) tv.tv_usec / 1000000);
+  }
 #endif
 
 #define VAL(str) #str

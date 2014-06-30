@@ -172,7 +172,8 @@ int main(int argc, char *argv[]) {
   //process with MD algorithm
   for(int step = 1; step<=n;++step){
     //sort heap
-    std::sort_heap (node_heap.begin(),node_heap.end(),node_comp);
+    std::make_heap(node_heap.begin(),node_heap.end(),node_comp);
+    //std::sort_heap (node_heap.begin(),node_heap.end(),node_comp);
     //get the min degree node
     std::pop_heap (node_heap.begin(),node_heap.end(),node_comp);
     node_t & min_node = *node_heap.back();

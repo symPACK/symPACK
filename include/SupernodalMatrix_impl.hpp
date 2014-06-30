@@ -527,11 +527,10 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
       Int tgt_lc = Xsuper_[tgt_snode_id]-1;
 
       //or use FindBlockIdx
-      if(f_ub<src_snode.NZBlockCnt()-1){
+//      if(f_ub<src_snode.NZBlockCnt()-1){
         Int src_tgt_lb = src_snode.FindBlockIdx(tgt_lc);
         //if tgt_lc not found in the current column we need to resume at the next block 
-        if(src_tgt_lb!=-1){
-
+        if(src_tgt_lb==-1){
           for(n_ub;n_ub<src_snode.NZBlockCnt();++n_ub){
             cur_desc = &src_snode.GetNZBlockDesc(n_ub);
             if(cur_desc->GIndex > tgt_lc){
@@ -553,39 +552,19 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
             }
             else{
               ++n_ub;
-              n_ur = 
-            } 
+              n_ur = (n_ub<src_snode.NZBlockCnt())?src_snode.GetNZBlockDesc(n_ub).GIndex:-1;
+            }
         }
-      }
-      else{
-           
-          //tgt_lc is in current block or not
-          if(
-      }
 
-      while(cur_desc->GIndex < tgt_lc+1 )
-      {
-        ++n_ub;
-        if(src_snode.NZBlockCnt()<=n_ub){
-          break;
-        }
-        cur_desc = &src_snode.GetNZBlockDesc(n_ub);
-      }
 
       
-        if(tgt_lc+1<src_snode.GetNZBlockDesc(n_ub-1).GIndex + src_snode.NRows(n_ub-1) -1){
-          --n_ub;
-          n_ur = tgt_lc+1;
-        }
-        else if(src_snode.NZBlockCnt()>n_ub){
-          n_ur = cur_desc->GIndex;
-        }
-        else{
-          n_ur=-1;
-        }
-      
-//        cur_desc = &src_snode.GetNZBlockDesc(n_ub);
-//        n_ur = min(cur_desc->GIndex + src_snode.NRows(n_ub) -1,tgt_lc+1);
+
+//      }
+//      else{
+//           
+//          //tgt_lc is in current block or not
+//          if(
+//      }
 
       //src_snode updates tgt_snode_id. Then we need to look from row n_ur and block l_ub
       return true;
@@ -841,9 +820,9 @@ if(1){
   IntNumVec src_colindx(tgt_width);
   IntNumVec src_rowindx(src_nrows);
   IntNumVec src_to_tgt_offset(src_nrows);
-  IntNumVec src_offset(src_nrows);
-  SetValue(src_offset,-1);
   SetValue(src_to_tgt_offset,-1);
+  //IntNumVec src_offset(src_nrows);
+  //SetValue(src_offset,-1);
 
   Int colidx = 0;
   Int rowidx = 0;
@@ -860,7 +839,7 @@ if(1){
         src_colindx[colidx++] = row;
       }
       src_rowindx[rowidx] = row;
-      src_offset[rowidx] = offset;
+      //src_offset[rowidx] = offset;
 //cur_block_desc.Offset - (first_pivot_desc.Offset + (tgt_fc - first_pivot_desc.GIndex)*src_snode_size ) + (row - cur_block_desc.GIndex)*src_snode_size;
       offset+=tgt_width;
 
@@ -887,7 +866,7 @@ for(Int rowidx = 0; rowidx < src_rowindx.m(); ++rowidx){
   for(Int colidx = 0; colidx< src_colindx.m();++colidx){
     Int col = src_colindx[colidx];
     Int tgt_colidx = col - tgt_snode.FirstCol();
-      tgt[src_to_tgt_offset[rowidx] + tgt_colidx] += buf[src_offset[rowidx]+colidx]; 
+      tgt[src_to_tgt_offset[rowidx] + tgt_colidx] += buf[rowidx*tgt_width/*src_offset[rowidx]*/+colidx]; 
   }
 }
     TIMER_STOP(UPDATE_SNODE_ASSEMBLY);
@@ -1592,9 +1571,9 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
         Int iLocalJ = (tgt_snode_id-1) / np +1 ;
         LocalUpdates[iLocalJ-1].push(LocalUpdate(cur_snode.Id(),src_nzblk_idx,src_first_row));
 
-//#ifdef _DEBUG_
+#ifdef _DEBUG_
           logfileptr->OFS()<<"FUTURE LOCAL Supernode "<<tgt_snode_id<<" is going to be updated by Supernode "<<cur_snode.Id()<<" from row "<<src_first_row<<" "<<src_nzblk_idx<<std::endl;
-//#endif
+#endif
 //        FactorsToRecv[iLocalJ-1]-=UpdatesToDo(cur_snode.Id()-1)+1;
       }
     }
@@ -1758,7 +1737,10 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
           Int src_nzblk_idx = 0;
 
           TIMER_START(UPDATE_ANCESTORS);
-          while(FindNextUpdate(dist_src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
+
+          Int src_next_nzblk_idx = 0;
+          while(FindNextUpdate2(dist_src_snode, tgt_snode_id, src_first_row, src_nzblk_idx, src_last_row, src_next_nzblk_idx)){ 
+//          while(FindNextUpdate(dist_src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
             Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
             if(iTarget == iam){
 #ifdef _DEBUG_
@@ -1955,7 +1937,9 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
 
           TIMER_START(UPDATE_ANCESTORS);
-          while(FindNextUpdate(dist_src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
+          Int src_next_nzblk_idx = 0;
+          while(FindNextUpdate2(dist_src_snode, tgt_snode_id, src_first_row, src_nzblk_idx, src_last_row, src_next_nzblk_idx)){ 
+//          while(FindNextUpdate(dist_src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
             Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
             if(iTarget == iam){
 #ifdef _DEBUG_
@@ -2148,7 +2132,9 @@ if((I*100/(Xsuper_.m()-1)) % 10 == 0){
         TIMER_STOP(FIND_UPDATED_ANCESTORS);
 #else
         TIMER_START(FIND_UPDATED_ANCESTORS);
-        while(FindNextUpdate(src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
+          Int src_next_nzblk_idx = 0;
+          while(FindNextUpdate2(src_snode, tgt_snode_id, src_first_row, src_nzblk_idx, src_last_row, src_next_nzblk_idx)){ 
+//        while(FindNextUpdate(src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
           Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
 
           if(iTarget != iam){
