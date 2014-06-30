@@ -13,7 +13,7 @@
 #include "cost.h"
 #include "ETree.hpp"
 
-#define verbose
+//#define verbose
 
 using namespace std;
 

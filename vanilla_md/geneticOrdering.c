@@ -4,14 +4,27 @@
 #include <string.h>
 #include "cost.h"
 
-#define STOPCOUNT 500000000
-#define PARAMETER 4
+//#define STOPCOUNT 500000000
+#define STENCIL 4
 #define POPSIZE 20
-#define MAXGENS 100000
-#define PMUTATION  .5
-#define NUM_GENES 9
-#define INPUT_FILE "population.dat"
-#define ADJ_FILE "input.adj"
+//#define MAXGENS 50000
+//#define PMUTATION  .5
+#define NUM_GENES 100
+//#define INPUT_FILE "population10x10.dat"
+//#define ADJ_FILE "input10x10_5.adj"
+
+
+
+char* INPUT_FILE;
+char* ADJ_FILE;
+int MAXGENS;
+int STOPCOUNT;
+//int STENCIL;
+int PMUTATION;
+//int POPSIZE;
+int swapPercent;
+
+
 
 struct individual {
     double fitness;
@@ -24,9 +37,9 @@ struct individual currentPop[POPSIZE];
 struct individual nextPop[2 * POPSIZE];
 
 int adjArray1[NUM_GENES + 1];
-int adjArray2[NUM_GENES * PARAMETER];
+int adjArray2[NUM_GENES * STENCIL];
 
-int main();
+int main(int arc, char *argv[]);
 struct individual cross (int firstParent, int secondParent);
 void evaluateOrdering(struct individual indivs[]);
 void init();
@@ -47,12 +60,27 @@ double costStopScore = 0;
 
 
 
+
 /* The main function for a program to generate Matrix Orderings which
    require the least possible fill during factorization and other
    matrix operations. Will implement a genetic algorithm to search
    for the optimal matrix ordering. Does not take any commandline
    arguments as of now.*/
-int main (void) {
+int main (int argc, char *argv[]) {
+
+    //if (argc != 6) {
+    //    printf("ERROR\n");
+    //    exit(5);
+    //} else {
+        INPUT_FILE = argv[1];
+        ADJ_FILE = argv[2];
+        MAXGENS = atoi(argv[3]);
+//        STENCIL = atoi(argv[4]) - 1;
+        //STOPCOUNT = atoi(argv[4]);
+        PMUTATION = atof(argv[4]);
+        swapPercent = atoi(argv[5]);
+
+    //}
     
     setbuf(stdout, NULL);
     init();
@@ -84,8 +112,8 @@ int main (void) {
             }
             printf("\n");
         }
-        testScore = GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, testordering);
-        //printf("%f\n", testScore/*GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, testordering));
+        testScore = GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2, testordering);
+        //printf("%f\n", testScore/*GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2, testordering));
         if (testScore < bestScore) {
             bestScore = testScore;
             memcpy(bestOrdering, testordering, NUM_GENES * sizeof(int));
@@ -100,7 +128,7 @@ int main (void) {
 
     printf("HardCoding a testCase \n");
     int hardCode[9] = {9, 2, 1, 4, 5, 6, 7, 8, 9};
-    printf("Fitness of HardCode: %f\n", ((GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, hardCode))));
+    printf("Fitness of HardCode: %f\n", ((GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2, hardCode))));
     printf("HardCoded Ordering is:");
     for (int k = 0; k < NUM_GENES; k++) {
         printf("%d ",hardCode[k]);
@@ -180,14 +208,19 @@ int costComp(const void * a, const void * b) {
 
 /*Prints the genes of the current population. */
 void printPop() {
+    double average = 0;
     for (int i = 0; i < POPSIZE; i++) {
         for (int j = 0; j < NUM_GENES; j++) {
             printf("%d ", currentPop[i].ordering[j]);
         }
         //printf("\n");
-        printf("Fitness: %f\n", ((GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2, currentPop[i].ordering))));
+        double thisFit = ((GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2, currentPop[i].ordering)));
+        average += thisFit;
+        printf("Fitness: %f\n", thisFit);
  //       printf("The fitness of this individual is %f\n", currentPop[i].fitness);
     }
+    average = average / POPSIZE;
+    printf("Average is %f", average);
     printf("\n");
 }
 
@@ -267,8 +300,8 @@ int pickParent(struct individual possibleParents[]) {
    TODO: Determine what arguments this function will need. */
 void evaluateOrdering(struct individual indivs[]) {
     for (int i = 0; i < POPSIZE * 2; i++) {
-        indivs[i].fitness = 1 / (GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2 ,indivs[i].ordering));
-        double tempcost = GetCost(NUM_GENES, NUM_GENES * PARAMETER, adjArray1, adjArray2 ,indivs[i].ordering);
+        indivs[i].fitness = 1 / (GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2 ,indivs[i].ordering));
+        double tempcost = GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2 ,indivs[i].ordering);
         if (tempcost < bestEverScore) {
             bestEverScore = tempcost;
         }
@@ -292,10 +325,13 @@ void init() {
     FILE *adjFile;
     int number;
     inFile = fopen(INPUT_FILE, "r");
+    adjFile = fopen(ADJ_FILE, "r");
     if (inFile == NULL) {
         fprintf(stderr, "Unable to open file\n");
         exit(1);
     }
+    //fscanf(infile, "%d", &POPSIZE);
+    //fscanf(adjfile, "%d", &NUM_GENES);
 
     for (int indiv = 0; indiv < POPSIZE; indiv ++) {
         for (int gene = 0; gene < NUM_GENES; gene++) {
@@ -308,7 +344,6 @@ void init() {
         }
     }
     fclose(inFile);
-    adjFile = fopen(ADJ_FILE, "r");
     if (adjFile == NULL) {
         fprintf(stderr, "Unable to open adjacency file\n");
         exit(1);
@@ -317,7 +352,7 @@ void init() {
         fscanf(adjFile, "%d", &number);
         adjArray1[i] = number;
     }
-    for (int k = 0; k < (NUM_GENES * PARAMETER); k++) {
+    for (int k = 0; k < (NUM_GENES * STENCIL); k++) {
         fscanf(adjFile, "%d", &number);
         adjArray2[k] = number;
     }
@@ -334,7 +369,17 @@ void mutatePop(struct individual mutated[]) {
         randomMutate=rand();
         if (randomMutate < mutateBarrier) {
             /*DO MUTATE STUFF*/
-            int temp1;
+            int numSwaps = swapPercent * POPSIZE;
+            for (int x = 0; x < numSwaps; x++) {
+                int temp;
+                int gene1 = rand() % NUM_GENES;
+                int gene2 = rand() % NUM_GENES;
+                temp = mutated[indiv].ordering[gene1];
+                mutated[indiv].ordering[gene1] = mutated[indiv].ordering[gene2];
+                mutated[indiv].ordering[gene2] = temp;
+            }
+
+            /*int temp1;
             int temp2;
             int temp3;
             int gene1 = rand() % NUM_GENES;
@@ -351,7 +396,7 @@ void mutatePop(struct individual mutated[]) {
             mutated[indiv].ordering[gene4] = temp2;
             temp3 = mutated[indiv].ordering[gene5];
             mutated[indiv].ordering[gene5] = mutated[indiv].ordering[gene6];
-            mutated[indiv].ordering[gene6] = temp3;
+            mutated[indiv].ordering[gene6] = temp3;*/
         }
     }
 }
