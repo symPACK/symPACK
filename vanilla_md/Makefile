@@ -1,9 +1,11 @@
-all: ETree.o cost.o main.cpp
-	g++ -I./ -o md main.cpp cost.o ETree.o -O0 -g
+all: ETree.o cost.o main.cpp md
+	g++ -I./ -o mymd main.cpp cost.o ETree.o -O0 -g
 
 md: minimum_degree.cpp
 	g++ -I./ -o md minimum_degree.cpp -O0 -g
 
+maxd: maximum_degree.cpp
+	g++ -I./ -o maxd maximum_degree.cpp -O0 -g
 #	g++ -o md_set main_set.cpp -O0 -g -std=c++11
 
 ETree.o: ETree.cpp
@@ -15,5 +17,7 @@ cost.o: cost.cpp
 call_cost: ETree.o cost.o
 	g++ -o call_cost call_cost.cpp ETree.o cost.o -O0 -g
 
+check_md: ETree.o cost.o check_md.cpp
+	g++ -I./ -o check_md check_md.cpp ETree.o cost.o -O0 -g
 clean:
-	rm -rf call_cost md *.o
+	rm -rf call_cost check_md md mymd *.o
