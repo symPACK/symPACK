@@ -23,6 +23,7 @@ int STOPCOUNT;
 int PMUTATION;
 //int POPSIZE;
 int swapPercent;
+int swapLength;
 
 
 
@@ -79,6 +80,7 @@ int main (int argc, char *argv[]) {
         //STOPCOUNT = atoi(argv[4]);
         PMUTATION = atof(argv[4]);
         swapPercent = atoi(argv[5]);
+        swapLength = atoi(argv[6]);
 
     //}
     
@@ -369,14 +371,14 @@ void mutatePop(struct individual mutated[]) {
         randomMutate=rand();
         if (randomMutate < mutateBarrier) {
             /*DO MUTATE STUFF*/
-            int numSwaps = swapPercent * POPSIZE;
+            int numSwaps = swapPercent * POPSIZE * .01;
             for (int x = 0; x < numSwaps; x++) {
-                int temp;
+                int temp[swapLength]; //remove * to revert also is temp1
                 int gene1 = rand() % NUM_GENES;
                 int gene2 = rand() % NUM_GENES;
-                temp = mutated[indiv].ordering[gene1];
-                mutated[indiv].ordering[gene1] = mutated[indiv].ordering[gene2];
-                mutated[indiv].ordering[gene2] = temp;
+                memcpy(temp, &mutated[indiv].ordering[gene1], swapLength * sizeof(int));//temp = mutated[indiv].ordering[gene1];
+                memcpy(&mutated[indiv].ordering[gene1], &mutated[indiv].ordering[gene2], swapLength * sizeof(int)); //mutated[indiv].ordering[gene1] = mutated[indiv].ordering[gene2];
+                memcpy(&mutated[indiv].ordering[gene2], temp, swapLength * sizeof(int));//mutated[indiv].ordering[gene2] = temp;
             }
 
             /*int temp1;
