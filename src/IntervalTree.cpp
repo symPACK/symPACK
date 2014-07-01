@@ -185,26 +185,39 @@ namespace LIBCHOLESKY{
     return false;
   }
 
+  bool ITree::doOVerlap_(ITree::Interval &i1, Int & low, Int & high)
+  {
+    if (i1.low <= high && low <= i1.high)
+      return true;
+    return false;
+  }
+
+
 
   // The main function that searches a given interval i in a given
   // Interval Tree.
-  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, ITree::Interval &i)
+  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, Int & begin, Int &end)
+//  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, ITree::Interval &i)
   {
     // Base Case, tree is empty
     if (root == NULL) return NULL;
 
     // If given interval overlaps with root
-    if (doOVerlap_(*(root->i), i))
+    //if (doOVerlap_(*(root->i), i))
+    if (doOVerlap_(*(root->i), begin,end))
       return root->i;
 
     // If left child of root is present and max of left child is
     // greater than or equal to given interval, then i may
     // overlap with an interval is left subtree
-    if (root->left != NULL && root->left->max >= i.low)
-      return intervalSearch_(root->left, i);
+    //if (root->left != NULL && root->left->max >= i.low)
+    if (root->left != NULL && root->left->max >= begin)
+      return intervalSearch_(root->left, begin,end);
+      //return intervalSearch_(root->left, i);
 
     // Else interval can only overlap with right subtree
-    return intervalSearch_(root->right, i);
+    return intervalSearch_(root->right, begin,end);
+    //return intervalSearch_(root->right, i);
   }
 
 

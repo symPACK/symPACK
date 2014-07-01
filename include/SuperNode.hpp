@@ -282,8 +282,9 @@ class SuperNode{
 
   Int FindBlockIdx(Int aiGIndex){
 #ifdef INTERVAL_TREE
-      ITree::Interval it = {aiGIndex, aiGIndex,0};
-      ITree::Interval * res = idxToBlk_->IntervalSearch(it);
+//      ITree::Interval it = {aiGIndex, aiGIndex,0};
+//      ITree::Interval * res = idxToBlk_->IntervalSearch(it);
+      ITree::Interval * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex);
       if (res == NULL){
          return -1;
       }

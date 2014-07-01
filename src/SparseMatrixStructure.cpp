@@ -785,9 +785,9 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
 
   //minsize
-  Int nrelax0 = 16;
-  Int nrelax1 = 32;//16;
-  Int nrelax2 = 64;//48;
+  Int nrelax0 = 4;
+  Int nrelax1 = 16;
+  Int nrelax2 = 48;
 
   double zrelax0 = 0.8;
   double zrelax1 = 0.1;
@@ -849,7 +849,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
           }
 
           if(merge){
-              std::cout<<"merge "<<ksup<<" and "<<parent_snode<<std::endl;
+//              std::cout<<"merge "<<ksup<<" and "<<parent_snode<<std::endl;
             ncols[ksup-1] += ncols[parent_snode-1]; 
             zeros[ksup-1] = totzeros;
             newCC[ksup-1] = width + newCC[parent_snode-1];
@@ -1296,8 +1296,8 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
       //inserting only those indices not already in the
       //list.
       if(knz < length){
-        for(Int row = fstcol; row<lstcol; ++row){
-          Int newi = tree.ToPostOrder(newi);
+        for(Int row = fstcol; row<=lstcol; ++row){
+          Int newi = row;
           if(newi > fstcol && marker(newi-1) != ksup){
             //position and insert newi in list and
             // mark it with kcol
@@ -1314,27 +1314,31 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
           }
         }
 
-        Int node = tree.FromPostOrder(lstcol);
-        Int knzbeg = colptr(node-1);
-        Int knzend = colptr(node)-1;
-        for(Int kptr = knzbeg; kptr<=knzend;++kptr){
-          Int newi = rowind(kptr-1);
-          newi = tree.ToPostOrder(newi);
-          if(newi > fstcol && marker(newi-1) != ksup){
-            //position and insert newi in list and
-            // mark it with kcol
-            Int nexti = head;
-            Int i;
-            do{
-              i = nexti;
-              nexti = rchlnk(i);
-            }while(newi > nexti);
-            ++knz;
-            rchlnk(i) = newi;
-            rchlnk(newi) = nexti;
-            marker(newi-1) = ksup;
+
+        for(Int col = fstcol; col<=lstcol; ++col){
+          Int node = tree.FromPostOrder(col);
+          Int knzbeg = colptr(node-1);
+          Int knzend = colptr(node)-1;
+          for(Int kptr = knzbeg; kptr<=knzend;++kptr){
+            Int newi = rowind(kptr-1);
+            newi = tree.ToPostOrder(newi);
+            if(newi > fstcol && marker(newi-1) != ksup){
+              //position and insert newi in list and
+              // mark it with kcol
+              Int nexti = head;
+              Int i;
+              do{
+                i = nexti;
+                nexti = rchlnk(i);
+              }while(newi > nexti);
+              ++knz;
+              rchlnk(i) = newi;
+              rchlnk(newi) = nexti;
+              marker(newi-1) = ksup;
+            }
           }
         }
+
       } 
 #else
       //structure of a(*,fstcol) has not been examined yet.  

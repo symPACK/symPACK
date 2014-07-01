@@ -88,17 +88,17 @@ namespace LIBCHOLESKY{
 #endif
 
 #ifdef RELAXED_SNODE
+    Global_.RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, maxSnode );
     Global_.SymbolicFactorizationRelaxed(ETree_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
 
+    IntNumVec newPerm(Size());
+      for(Int i =0; i<newPerm.m();++i){
+        newPerm[i] = ETree_.FromPostOrder(i+1);
+      }
 
-    logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
-    logfileptr->OFS()<<"xsuper "<<Xsuper_<<std::endl;
-    logfileptr->OFS()<<"colcnt "<<cc<<std::endl;
-    logfileptr->OFS()<<"xlindx "<<xlindx_<<std::endl;
-    logfileptr->OFS()<<"lindx "<<lindx_<<std::endl;
+   perm_ = newPerm;
 
-    ETree tmp2 = ETree_.ToSupernodalETree(Xsuper_);
-    logfileptr->OFS()<<"Supernodal ETree "<<tmp2<<std::endl;
+
 
 
 #else
@@ -792,7 +792,7 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
   
 
 #ifdef ZEROCOLUMNS
-
+{
     Int src_snode_size = src_snode.Size();
     Int tgt_snode_size = tgt_snode.Size();
     Int tgt_width = tgt_lc - tgt_fc+1;
@@ -918,6 +918,7 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
 
 
     }
+}
 #else
     Int tgt_width = src_snode.NRowsBelowBlock(first_pivot_idx) - (tgt_fc - first_pivot_desc.GIndex) - src_snode.NRowsBelowBlock(last_pivot_idx) + (tgt_lc - last_pivot_desc.GIndex)+1;
 
@@ -1793,6 +1794,8 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
   incomingRecvCnt_ = 0;
   IntNumVec FactorsToRecv(LocalSupernodes_.size());
 
+  std::vector<T> src_nzval;
+  std::vector<char> src_blocks;
 
 
   std::vector<std::queue<LocalUpdate> > LocalUpdates(LocalSupernodes_.size());
@@ -2058,9 +2061,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
           //AdvanceOutgoing(outgoingSend);
 
-
-        std::vector<T> src_nzval;
-        std::vector<char> src_blocks;
+        src_blocks.resize(0);
 
         Int nz_cnt;
         Int max_bytes;
@@ -2217,8 +2218,8 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
 
         }
         //clear the buffer
-        { vector<char>().swap(src_blocks);  }
-        { vector<T>().swap(src_nzval);  }
+//        { vector<char>().swap(src_blocks);  }
+//        { vector<T>().swap(src_nzval);  }
 
 
         timeEnd =  get_time( );

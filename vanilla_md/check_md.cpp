@@ -17,7 +17,7 @@
 
 using namespace std;
 
-
+//#define verbose
 
 
 
@@ -77,6 +77,7 @@ int main(int argc, char *argv[]) {
     while(iss>> i){ perm.push_back(i);}
     if(perm.size()!=n){
       cerr<<"Wrong ordering, not the same size as graph"<<endl;
+      cerr<<n<<" vs "<<perm.size()<<endl;
       return -2;
     }  
   }
@@ -99,59 +100,14 @@ int main(int argc, char *argv[]) {
   GetPermutedGraph(n,nnz,&xadj[0], &adj[0], &perm[0], &newxadj[0], &newadj[0]);
 
 
-////  //Perform the symbolic factorization
-////  ETree  tree;
-////  tree.ConstructETree(n,&newxadj[0],&newadj[0]);
-////
-////  vector<int> cc,rc;
-////  GetLColRowCount(tree,&newxadj[0],&newadj[0],cc,rc);
-////
-////  vector<int> xlindx,lindx;
-////
-////  
-////  vector<int> lxadj,ladj;
-////
-////  lxadj.resize(n+1);
-////  //ladj.resize(newadj.size()+n);
-////  lxadj[0] = 1;
-////  for(int i =2; i<=n+1;++i){
-////    ladj.insert(ladj.end(),&newadj[newxadj[i-2]-1],&newadj[newxadj[i-1]-1]);
-////    ladj.push_back(i-1);
-////    lxadj[i-1] = ladj.size()+1; 
-////  }
-////
-////
-////  cout<<"newxadj: ";
-////  for(int step = 1; step<=newxadj.size();++step){
-////    cout<<" "<<newxadj[step-1];
-////  }
-////  cout<<endl;
-////  cout<<"newadj: ";
-////  for(int step = 1; step<=newadj.size();++step){
-////    cout<<" "<<newadj[step-1];
-////  }
-////  cout<<endl;
-////
-////
-////
-////
-////
-////  cout<<"lxadj: ";
-////  for(int step = 1; step<=lxadj.size();++step){
-////    cout<<" "<<lxadj[step-1];
-////  }
-////  cout<<endl;
-////  cout<<"ladj: ";
-////  for(int step = 1; step<=ladj.size();++step){
-////    cout<<" "<<ladj[step-1];
-////  }
-////  cout<<endl;
-////
-////
-////
-////  SymbolicFactorization(tree,lxadj,ladj,cc, xlindx, lindx);
-////
-////  //Compute the boolean structure matrix
+  //Perform the symbolic factorization
+  ETree  tree;
+  tree.ConstructETree(n,&newxadj[0],&newadj[0]);
+
+  vector<int> cc,rc;
+  GetLColRowCount(tree,&newxadj[0],&newadj[0],cc,rc);
+
+  //Compute the boolean structure matrix
   vector< vector<bool> > matrix(n, vector<bool>(n,false));
 
   //Fill the matrix with the content of newadj
@@ -172,65 +128,7 @@ int main(int argc, char *argv[]) {
       rowstruct[col-1] = true;
 
     }
-
-//    assert(std::count(colstruct.begin(),colstruct.end(),true)==cc[col-1]);
-
   }
-////
-////  for(int row = 1; row <=n; ++row){
-////    for(int col = 1; col <=n; ++col){
-////      vector<bool> & colstruct = matrix[col-1]; 
-////      cerr<<" "<<colstruct[row-1]?1:0;
-////    }
-////    cerr<<endl;
-////  }
-////
-////
-////
-////if(0){
-////
-//// //Compute the boolean structure matrix
-////  vector< vector<bool> > matrix2(n, vector<bool>(n,false));
-////
-////  //Fill the matrix with the content of lindx
-////  for(int col=1;col<=n;++col){
-////    int fi = xlindx[col-1];
-////    int li = xlindx[col]-1;
-////      
-////    vector<bool> & colstruct = matrix2[col-1]; 
-////    
-////    for(int i=fi; i<=li;++i){
-////      int row = lindx[i-1];
-////      
-//////      vector<bool> & rowstruct = matrix2[row-1]; 
-////
-////      colstruct[row-1] = true;
-//////      rowstruct[col-1] = true;
-////
-////    }
-////
-//////    assert(std::count(colstruct.begin(),colstruct.end(),true)==cc[col-1]);
-////
-////  }
-////
-////    cerr<<endl;
-////    cerr<<endl;
-////    cerr<<endl;
-////  for(int row = 1; row <=n; ++row){
-////    for(int col = 1; col <=n; ++col){
-////      vector<bool> & colstruct = matrix2[col-1]; 
-////      cerr<<" "<<colstruct[row-1]?1:0;
-////    }
-////    cerr<<endl;
-////  }
-////
-////}
-
-
-
-
-
-
 
   //Simulate the factorization and check the degrees
   for(int col = 1; col <=n; ++col){
@@ -240,10 +138,10 @@ int main(int argc, char *argv[]) {
     advance(it,col-1);
     int deg = std::count(it,colstruct.end(),true)-1;
 
+#ifdef verbose
     cout<<"Degree of col "<<perm[col-1]<<" is "<<deg<<endl;
-    //assert(deg +1  == cc[col-1]);
+#endif
 
-//    cout<<"Degree of col "<<perm[col-1]<<" is "<<deg<<endl;
     //Check that it is indeed the minimum degree
     for(int ncol = col+1;ncol<=n;++ncol){
       //if that column is updated
@@ -254,22 +152,9 @@ int main(int argc, char *argv[]) {
         int ndeg = std::count(nit,ncolstruct.end(),true)-1;
 
       if( colstruct[ncol-1]){
+#ifdef verbose
         cout<<"      Degree of col "<<perm[ncol-1]<<" is "<<ndeg<<endl;
-//        for(int nrow = col;nrow<=n;++nrow){
-//          cout<<" "<<perm[nrow-1];
-//        }
-//        cout<<endl;
-//        for(int nrow = col;nrow<=n;++nrow){
-//          if(perm[nrow-1]>9){
-//            cout<<"  "<<ncolstruct[nrow-1];
-//          }
-//          else{
-//            cout<<" "<<ncolstruct[nrow-1];
-//          }
-//        }
-//        cout<<endl;
-//        cout<<endl;
-
+#endif
 
         for(int nrow = col;nrow<=n;++nrow){
           ncolstruct[nrow-1] = ncolstruct[nrow-1] || colstruct[nrow-1];
@@ -288,15 +173,18 @@ int main(int argc, char *argv[]) {
   }
 
 
+  //Check the column count for safety reasons
+  for(int col = 1; col <=n; ++col){
+    vector<bool> & colstruct = matrix[col-1]; 
 
+    vector<bool>::iterator it = colstruct.begin();
+    advance(it,col-1);
+    int deg = std::count(it,colstruct.end(),true)-1;
+    assert(deg +1  == cc[tree.ToPostOrder(col)-1]);
+  }
 
 
  
-
-
-
-
-
 
   cerr<<"This ordering is a minimum degree ordering"<<endl;
   //This was indeed a md ordering, return without error
