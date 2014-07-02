@@ -71,10 +71,10 @@ char* mutType;
    arguments as of now.*/
 int main (int argc, char *argv[]) {
 
-    //if (argc != 6) {
-    //    printf("ERROR\n");
-    //    exit(5);
-    //} else {
+    if (argc != 10) {
+        fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\n");
+        exit(5);
+    } else {
         INPUT_FILE = argv[1];
         ADJ_FILE = argv[2];
         MAXGENS = atoi(argv[3]);
@@ -86,7 +86,7 @@ int main (int argc, char *argv[]) {
         breakThreshold = atoi (argv[8]);
         mutType = argv[9];
 
-    //}
+    }
     
     setbuf(stdout, NULL);
     init();
@@ -242,27 +242,72 @@ void printPop() {
 /* Implements the crossing of two selected matrix orderings in order
    to complete the descendant stage of the genetic algorithm. */
 struct individual cross (int firstParent, int secondParent) {
-    int crossPoint = rand() % NUM_GENES;
+    int crossPoint1 = rand() % NUM_GENES;
+    int crossPoint2 = 0;
+    while (crossPoint2 < crossPoint1) {
+        crossPoint2 = rand() % NUM_GENES;
+    }
     struct individual child;
 
 
     int takenGenes[NUM_GENES + 1];
     for (int zeroing = 0; zeroing < NUM_GENES + 1; zeroing++){
         takenGenes[zeroing] = 0; 
+        //child.ordering[zeroing] = 0;
     }
 
-    int counter = 0;
-    for (int genes = 0; genes < crossPoint; genes++) {
-        child.ordering[counter] = currentPop[firstParent].ordering[genes];
-        takenGenes[child.ordering[counter]] = 1;
-        counter++;
+    //int counter = 0;
+    for (int genes = crossPoint1; genes < crossPoint2; genes++) {
+        child.ordering[genes] = currentPop[firstParent].ordering[genes];
+        takenGenes[child.ordering[genes]] = 1;
+        //counter++;
     }
+    /*
+    printf("Debug Printing Child with genes from A\n");
+    for (int debug = 0; debug < NUM_GENES; debug++) {
+        printf("%d %d \n", debug, child.ordering[debug]);
+    }*/
+
+
+
+    int counter = 0;
     for (int secondPass = 0; secondPass < NUM_GENES; secondPass++) {
         if (!takenGenes[currentPop[secondParent].ordering[secondPass]]) {
             child.ordering[counter] = currentPop[secondParent].ordering[secondPass];
+            takenGenes[child.ordering[counter]] = 1;
+            counter++;
+            if (counter == crossPoint1) {break;}
+        }
+    }
+
+    /*
+    printf("Debug Printing Child with first genes from B\n");
+    for (int debug = 0; debug < NUM_GENES; debug++) {
+        printf("%d %d \n", debug, child.ordering[debug]);
+    }*/
+
+
+    counter = crossPoint2;
+    for (int thirdPass = 0; thirdPass < NUM_GENES; thirdPass++) {
+        if (!takenGenes[currentPop[secondParent].ordering[thirdPass]]) {
+            child.ordering[counter] = currentPop[secondParent].ordering[thirdPass];
             counter++;
         }
     }
+
+
+    if (! isPermutation(child.ordering)) {
+        printf("Child is illegal permutation.\n");
+        printf("crosspoint1 is %d and crosspoint2 is %d\n", crossPoint1, crossPoint2);
+        printf("Dumping Child ordering\n");
+        for (int z = 0; z < NUM_GENES; z++) {
+            printf("%d %d \n", z,child.ordering[z] );
+        }
+        printf("\n");
+        exit(1);
+    }
+
+
 
     return child;
 
