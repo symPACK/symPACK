@@ -426,9 +426,16 @@ void GetLColRowCount(ETree & tree,const int * xadj, const int * adj, vector<int>
 
   }
 
+void GetPrefixSum(int n, int * arr, int * arrout){
+  partial_sum(arr,arr+n,arrout);
+}
 
 //nnz must be adj.size()
 double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
+  return GetCostPerCol(n, nnz,xadj,adj,perm, NULL);
+}
+
+double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * costc){
   int initEdgeCnt;
 
 
@@ -450,8 +457,14 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
   initEdgeCnt=n;
   //initialize nodes
   for(int i=0;i<n;++i){
+  if(costc!=NULL){
+    costc[i] = 1;
+  }
     for(int idx = xadj[i]; idx <= xadj[i+1]-1;++idx){
       if(adj[idx-1]>i+1){
+  if(costc!=NULL){
+        costc[i]++;
+  }
         initEdgeCnt++;
       }
     }
@@ -501,10 +514,18 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
 
   //sum counts all the diagonal elements
   int sum = 0;
+  if(costc!=NULL){
+  for(int i =0; i<cc.size(); ++i){
+    costc[i] = cc[i] - costc[i];
+    sum+= cc[i];
+  }
+  }
+  else{
   for(int i =0; i<cc.size(); ++i){
     sum+= cc[i];
   }
-
+  }
+  
 #ifdef _verbose_
   cout<<"Column count: ";
   for(int i =0; i<cc.size(); ++i){

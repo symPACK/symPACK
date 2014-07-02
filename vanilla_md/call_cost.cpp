@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+#include <assert.h>
 
 #include "cost.h"
 #include "ETree.hpp"
@@ -78,8 +79,30 @@ int main(int argc, char *argv[]) {
     }  
   }
   
+  vector<int> costc(n);
+  double cost  = GetCostPerCol(n,adj.size(),&xadj[0],&adj[0],&perm[0],&costc[0]);
 
-  double cost  = GetCost(n,adj.size(),&xadj[0],&adj[0],&perm[0]);
+  cout<<"Cost is "<<cost<<endl;
+  cout<<"Cost per col is: ";
+  double sum = 0;
+  for(int i=0;i<n;++i){
+    cout<<" "<<costc[i];
+    sum += costc[i];
+  }
+  cout<<endl;
 
-    cout<<cost<<endl;
+  assert(sum==cost);
+  
+  vector<int> psum(n);
+  GetPrefixSum(n,&costc[0],&psum[0]);
+
+  cout<<"Prefix sum of cost is: ";
+  for(int i=0;i<n;++i){
+    cout<<" "<<psum[i];
+  }
+  cout<<endl;
+//  assert(psum[n-1]==cost);
+
+
+
 }

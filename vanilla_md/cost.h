@@ -11,6 +11,8 @@ using namespace std;
 extern "C" {
 #endif
 extern double GetCost(int n, int nnz, int * xadj, int * adj,int * perm);
+extern double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * costc);
+extern void GetPrefixSum(int n, int * arr, int * arrout);
 #ifdef __cplusplus
 }
 
