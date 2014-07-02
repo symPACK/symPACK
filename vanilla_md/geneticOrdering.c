@@ -20,7 +20,7 @@ char* ADJ_FILE;
 int MAXGENS;
 int STOPCOUNT;
 //int STENCIL;
-int PMUTATION;
+double PMUTATION;
 //int POPSIZE;
 int swapPercent;
 int swapLength;
@@ -53,11 +53,13 @@ int isPermutation(int possiblePermutation[]);
 
 double totalFitness;
 int currentGen = 0;
-double bestEverScore = 10000000;
 double bestCost;
 
 double costStopCounter = 0;
 double costStopScore = 0;
+int breakThreshold;
+
+char* mutType;
 
 
 
@@ -77,10 +79,12 @@ int main (int argc, char *argv[]) {
         ADJ_FILE = argv[2];
         MAXGENS = atoi(argv[3]);
 //        STENCIL = atoi(argv[4]) - 1;
-        //STOPCOUNT = atoi(argv[4]);
         PMUTATION = atof(argv[4]);
         swapPercent = atoi(argv[5]);
         swapLength = atoi(argv[6]);
+        STOPCOUNT = atoi(argv[7]);
+        breakThreshold = atoi (argv[8]);
+        mutType = argv[9];
 
     //}
     
@@ -92,7 +96,7 @@ int main (int argc, char *argv[]) {
     int testNum;
     int bestOrdering[NUM_GENES];
     double testScore;
-    double bestScore = 10000;
+    double bestScore = 10000000;
     /*FILE *permsFile;
     permsFile = fopen("allperms.txt", "r");
     if (permsFile == NULL) {
@@ -137,8 +141,6 @@ int main (int argc, char *argv[]) {
     }
     printf("\n");*/
 
-
-
     printf("Initial Population \n");
     printPop();
     struct individual child;
@@ -167,7 +169,7 @@ int main (int argc, char *argv[]) {
         }
         //printf("Children made\n");
         mutatePop(nextPop);
-        //printf("Mutated\n");
+        //printf("Mutated %f\n",PMUTATION);
         evaluateOrdering(nextPop);
         //printf("Evaled\n");
         qsort(nextPop, POPSIZE * 2, sizeof(struct individual), costComp);
@@ -183,6 +185,10 @@ int main (int argc, char *argv[]) {
         }
         costStopCounter += 1;
 
+        if (GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2 , nextPop[0].ordering) < breakThreshold) {
+            break;
+        }
+
         memcpy(currentPop, nextPop, POPSIZE * sizeof(struct individual));
         currentGen += 1;
         if (costStopCounter == STOPCOUNT) {
@@ -192,7 +198,12 @@ int main (int argc, char *argv[]) {
     printf("Final Population with %d generations.\n", currentGen);
     printPop();
 
-    //printf("Best Pop fitness seen this whole run is %f\n", bestEverScore);
+
+    if (isPermutation(currentPop[0].ordering)) {
+        printf("The best individual in this population is a real permutation\n");
+    }
+
+
 }
 
 int costComp(const void * a, const void * b) {
@@ -229,8 +240,7 @@ void printPop() {
 
 
 /* Implements the crossing of two selected matrix orderings in order
-   to complete the descendant stage of the genetic algorithm.
-   TODO: Determine what arguments this function will need. */
+   to complete the descendant stage of the genetic algorithm. */
 struct individual cross (int firstParent, int secondParent) {
     int crossPoint = rand() % NUM_GENES;
     struct individual child;
@@ -298,20 +308,16 @@ int pickParent(struct individual possibleParents[]) {
 
 
 /* Implements the evaluation function for a matrix ordering. Will store
-   the value of this ordering into the structure that contains it.
-   TODO: Determine what arguments this function will need. */
+   the value of this ordering into the structure that contains it. */
 void evaluateOrdering(struct individual indivs[]) {
-    for (int i = 0; i < POPSIZE * 2; i++) {
-        indivs[i].fitness = 1 / (GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2 ,indivs[i].ordering));
-        double tempcost = GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2 ,indivs[i].ordering);
-        if (tempcost < bestEverScore) {
-            bestEverScore = tempcost;
-        }
+    for (int in = 0; in < POPSIZE * 2; in++) {
+        indivs[in].fitness = 1 / (GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2 ,indivs[in].ordering));
+        double tempcost = GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2 ,indivs[in].ordering);
         double costTest = 1/tempcost;
         if (costTest > bestCost) {
             bestCost = costTest;
         }
-     //   printf("Fitness is %f\n",indivs[i].fitness);
+        //printf("Fitness is %f for indiv %d\n",indivs[in].fitness, in);
     }
 }
 
@@ -369,16 +375,76 @@ void mutatePop(struct individual mutated[]) {
         int mutateBarrier;
         mutateBarrier = PMUTATION * RAND_MAX;
         randomMutate=rand();
+        //printf("%f %d %d %d\n", PMUTATION, RAND_MAX, randomMutate, mutateBarrier);
         if (randomMutate < mutateBarrier) {
             /*DO MUTATE STUFF*/
             int numSwaps = swapPercent * POPSIZE * .01;
+            //printf("numSwaps is %d \n", numSwaps);
             for (int x = 0; x < numSwaps; x++) {
-                int temp[swapLength]; //remove * to revert also is temp1
-                int gene1 = rand() % NUM_GENES;
-                int gene2 = rand() % NUM_GENES;
-                memcpy(temp, &mutated[indiv].ordering[gene1], swapLength * sizeof(int));//temp = mutated[indiv].ordering[gene1];
-                memcpy(&mutated[indiv].ordering[gene1], &mutated[indiv].ordering[gene2], swapLength * sizeof(int)); //mutated[indiv].ordering[gene1] = mutated[indiv].ordering[gene2];
-                memcpy(&mutated[indiv].ordering[gene2], temp, swapLength * sizeof(int));//mutated[indiv].ordering[gene2] = temp;
+                if (!strcmp("swap", mutType)) {
+                    //int geneshifted = rand() % NUM_GENES;
+                    //printf("Swapping Segments");
+                    int temp[NUM_GENES]; //remove * to revert also is temp1
+                    int gene1 = rand() % (NUM_GENES - (swapLength + 1));
+                    int gene2 = gene1;
+                    while (((gene1 - swapLength) <= gene2) && ((gene1 + swapLength) >= gene2)) {
+                        gene2 = rand() % (NUM_GENES - (swapLength + 1));
+                    }
+                    //int gene2 = rand() % (NUM_GENES - (swapLength + 1));
+                    memcpy(&temp[0], &mutated[indiv].ordering[gene1], (swapLength * sizeof(int)));//temp = mutated[indiv].ordering[gene1];
+                    memcpy(&mutated[indiv].ordering[gene1], &mutated[indiv].ordering[gene2], (swapLength * sizeof(int))); //mutated[indiv].ordering[gene1] = mutated[indiv].ordering[gene2];
+                    memcpy(&mutated[indiv].ordering[gene2], &temp[0], (swapLength * sizeof(int)));//mutated[indiv].ordering[gene2] = temp;
+                    if (! isPermutation(mutated[indiv].ordering)) {
+                        printf(" Gene 1 is %d and Gene 2 is %d\n", gene1, gene2);
+                        printf("Dumping temp");
+                        for (int z = 0; z < NUM_GENES; z++) {
+                            printf("%d ", temp[z] );
+                        }
+                        printf("\n");
+                        exit(1);
+                    }
+                } else if (!strcmp("shift", mutType)) {
+                    int temp[NUM_GENES];
+                    int shiftPoint = rand() % (NUM_GENES - (swapLength + 1));
+                    memcpy(&temp[0], &mutated[indiv].ordering[shiftPoint], (swapLength * sizeof(int)));
+                    memcpy(&mutated[indiv].ordering[shiftPoint], &mutated[indiv].ordering[shiftPoint + swapLength], ((NUM_GENES - (shiftPoint + swapLength)) * sizeof(int)));
+                    memcpy(&mutated[indiv].ordering[NUM_GENES - swapLength], &temp[0], swapLength * sizeof(int));
+                    if (! isPermutation(mutated[indiv].ordering)) {
+                        printf("shiftPoint is %d\n", shiftPoint);
+                        printf("Dumping temp");
+                        for (int z = 0; z < NUM_GENES; z++) {
+                            printf("%d ", temp[z] );
+                        }
+                        printf("\n");
+                        exit(1);
+                    }
+
+
+                } else if (!strcmp("invert", mutType)) {
+                    int temp[NUM_GENES];
+                    int flipPoint = rand() % (NUM_GENES - (swapLength + 1));
+                    memcpy(&temp[0], &mutated[indiv].ordering[flipPoint], (swapLength * sizeof(int)));
+                    for (int swapper = swapLength - 1; swapper >= 0; swapper--) {
+                        int counter = 0;
+                        mutated[indiv].ordering[flipPoint + counter] = temp[swapper];
+                        counter++;
+                        //printf("%d ", temp[swapper]);
+                    }
+                    if (! isPermutation(mutated[indiv].ordering)) {
+                        printf("flipPoint is %d\n", flipPoint);
+                        printf("Dumping temp");
+                        for (int z = 0; z < NUM_GENES; z++) {
+                            printf("%d ", temp[z] );
+                        }
+                        printf("\n");
+                        exit(1);
+                    }
+
+                } else {
+                    fprintf(stderr, "Invalid mutation type. Mutation must be either swap, shift, or invert.\n");
+                    exit(1);
+                }
+                //printf("x is %d\n", x);
             }
 
             /*int temp1;
@@ -400,6 +466,7 @@ void mutatePop(struct individual mutated[]) {
             mutated[indiv].ordering[gene5] = mutated[indiv].ordering[gene6];
             mutated[indiv].ordering[gene6] = temp3;*/
         }
+        //printf("Indiv is %d\n", indiv);
     }
 }
 
@@ -420,7 +487,7 @@ int isPermutation(int possiblePermutation[]) {
             for (int k = 0; k < NUM_GENES; k++) {
                 printf("%d ", possiblePermutation[k]);
             }
-            printf("\nPrinting double number: %d \n", testNum);
+            printf("Printing double number: %d \n", testNum);
             return 0;
         }
     }
