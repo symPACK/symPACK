@@ -1,12 +1,9 @@
 #include "cost.h"
 
-#include <vector>
 #include <iostream>
 #include <algorithm>
 
-#include "ETree.hpp"
 
-using namespace std;
 
 //#define _verbose_
 
@@ -49,6 +46,74 @@ void displayMatrix(vector<int> & xadj, vector<int> & adj){
     cout<<endl;
   }
 }
+
+void GetPermutedGraph(int n, int nnz, int * xadj, int * adj, int * perm, int * newxadj, int * newadj){
+  //sort the adjacency structure according to the new labelling
+
+  vector<int> invperm(n);
+
+  for(int step = 1; step<=n;++step){
+    invperm[perm[step-1]-1] = step;
+  }
+
+
+
+
+  newxadj[0] = 1;
+  for(int step = 1; step<=n;++step){
+    newxadj[step] = newxadj[step-1] + xadj[perm[step-1]]-xadj[perm[step-1]-1];
+  }
+
+#ifdef _verbose_
+  cout<<"xadj: ";
+  for(int step = 1; step<=n+1;++step){
+    cout<<" "<<xadj[step-1];
+  }
+  cout<<endl;
+
+  cout<<"newxadj: ";
+  for(int step = 1; step<=n+1;++step){
+    cout<<" "<<newxadj[step-1];
+  }
+  cout<<endl;
+#endif
+
+  for(int step = 1; step<=n;++step){
+    int fn = newxadj[step-1];
+    int ln = newxadj[step]-1;
+
+    int oldlabel = perm[step-1];
+    int ofn = xadj[oldlabel-1];
+    int oln = xadj[oldlabel]-1;
+    for(int i =ofn;i<=oln;++i){
+      newadj[fn+i-ofn-1] = invperm[adj[i-1]-1];
+    }
+
+    //now sort them
+    sort(&newadj[fn-1],&newadj[ln]);
+
+  }
+//  newadj.back() = 0;
+
+
+
+  
+#ifdef _verbose_
+  cout<<"adj: ";
+  for(int step = 1; step<=nnz;++step){
+    cout<<" "<<adj[step-1];
+  }
+  cout<<endl;
+
+  cout<<"newadj: ";
+  for(int step = 1; step<=nnz;++step){
+    cout<<" "<<newadj[step-1];
+  }
+  cout<<endl;
+#endif
+}
+
+
 
 
 void SymbolicFactorization(ETree& tree,const vector<int> & colptr,const vector<int> & rowind,const vector<int> & cc, vector<int> & xlindx, vector<int> & lindx){
@@ -366,11 +431,7 @@ void GetLColRowCount(ETree & tree,const int * xadj, const int * adj, vector<int>
 double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
   int initEdgeCnt;
 
-  vector<int> invperm(n);
 
-  for(int step = 1; step<=n;++step){
-    invperm[perm[step-1]-1] = step;
-  }
 
 //  cout<<"perm: ";
 //  for(int step = 1; step<=n;++step){
@@ -400,62 +461,11 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
   cout<<"Initial edge count: "<<initEdgeCnt<<endl;
 #endif
 
-  //sort the adjacency structure according to the new labelling
   vector<int> newxadj(n+1);
   vector<int> newadj(nnz);
-
-  newxadj[0] = 1;
-  for(int step = 1; step<=n;++step){
-    newxadj[step] = newxadj[step-1] + xadj[perm[step-1]]-xadj[perm[step-1]-1];
-  }
-
-#ifdef _verbose_
-  cout<<"xadj: ";
-  for(int step = 1; step<=n+1;++step){
-    cout<<" "<<xadj[step-1];
-  }
-  cout<<endl;
-
-  cout<<"newxadj: ";
-  for(int step = 1; step<=n+1;++step){
-    cout<<" "<<newxadj[step-1];
-  }
-  cout<<endl;
-#endif
-
-  for(int step = 1; step<=n;++step){
-    int fn = newxadj[step-1];
-    int ln = newxadj[step]-1;
-
-    int oldlabel = perm[step-1];
-    int ofn = xadj[oldlabel-1];
-    int oln = xadj[oldlabel]-1;
-    for(int i =ofn;i<=oln;++i){
-      newadj[fn+i-ofn-1] = invperm[adj[i-1]-1];
-    }
-
-    //now sort them
-    sort(&newadj[fn-1],&newadj[ln]);
-
-  }
-//  newadj.back() = 0;
+  GetPermutedGraph(n,nnz,xadj, adj, perm, &newxadj[0], &newadj[0]);
 
 
-
-  
-#ifdef _verbose_
-  cout<<"adj: ";
-  for(int step = 1; step<=nnz;++step){
-    cout<<" "<<adj[step-1];
-  }
-  cout<<endl;
-
-  cout<<"newadj: ";
-  for(int step = 1; step<=nnz;++step){
-    cout<<" "<<newadj[step-1];
-  }
-  cout<<endl;
-#endif
 
   //Get the elimination tree
   ETree  tree;

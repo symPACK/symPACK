@@ -72,7 +72,9 @@ protected:
 
       // A utility function to check if given two intervals overlap
       bool doOVerlap_(Interval &i1, Interval &i2);
-      Interval *intervalSearch_(ITNode *root, Interval &i);
+      bool doOVerlap_(ITree::Interval &i1, Int & low, Int & high);
+      //Interval *intervalSearch_(ITNode *root, Interval &i);
+      Interval *intervalSearch_(ITNode *root, Int & begin, Int & end);
 
       void inorder_(ITNode *root);
 
@@ -325,9 +327,12 @@ public:
 
 
       Interval * IntervalSearch(Interval & i){
-        return intervalSearch_(root_,i);
+        return intervalSearch_(root_,i.low,i.high);
       }
 
+      Interval * IntervalSearch(Int & low, Int & high){
+        return intervalSearch_(root_,low,high);
+      }
 
       Int StorageSize(){
         Int size = 0;

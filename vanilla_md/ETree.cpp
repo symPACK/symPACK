@@ -340,6 +340,13 @@ using namespace std;
 
 
   void ETree::Dump(){
+
+    cout<<"Original etree: ";
+    for(int i = 1;i<=Size();++i){
+      cout<<" "<<Parent(i-1);
+    }
+    cout<<endl;
+
     cout<<"Post ordered etree: ";
     for(int i = 1;i<=Size();++i){
       cout<<" "<<PostParent(i-1);

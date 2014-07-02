@@ -1,19 +1,27 @@
-all: ETree.o cost.o main.cpp
-	g++ -I./ -o md main.cpp cost.o ETree.o -O0 -g
+#CXXFLAGS =-I./ -O0 -g -std=c++11 
+CXXFLAGS =-I./ -O3 -std=c++11 
+
+
+all: ETree.o cost.o main.cpp md
+	g++ ${CXXFLAGS} -o mymd main.cpp cost.o ETree.o 
 
 md: minimum_degree.cpp
-	g++ -I./ -o md minimum_degree.cpp -O0 -g
+	g++ ${CXXFLAGS} -o md minimum_degree.cpp 
 
+maxd: maximum_degree.cpp
+	g++ ${CXXFLAGS} -o maxd maximum_degree.cpp 
 #	g++ -o md_set main_set.cpp -O0 -g -std=c++11
 
 ETree.o: ETree.cpp
-	g++ -I./ -o ETree.o -c ETree.cpp -O0 -g -std=c++11
+	g++ ${CXXFLAGS} -o ETree.o -c ETree.cpp 
 
 cost.o: cost.cpp
-	g++ -I./ -o cost.o -c cost.cpp -O0 -g -std=c++11
+	g++ ${CXXFLAGS} -o cost.o -c cost.cpp 
 
 call_cost: ETree.o cost.o
-	g++ -o call_cost call_cost.cpp ETree.o cost.o -O0 -g
+	g++ ${CXXFLAGS} -o call_cost call_cost.cpp ETree.o cost.o 
 
+check_md: ETree.o cost.o check_md.cpp
+	g++ ${CXXFLAGS} -o check_md check_md.cpp ETree.o cost.o 
 clean:
-	rm -rf call_cost md *.o
+	rm -rf call_cost check_md md mymd *.o

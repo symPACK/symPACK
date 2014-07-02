@@ -10,11 +10,6 @@
 #include <time.h>
 #include <math.h>
 
-#include "cost.h"
-#include "ETree.hpp"
-
-//#define verbose
-
 using namespace std;
 
 
@@ -25,8 +20,7 @@ struct node_t{
 };
 
 bool node_comp(node_t * & a, node_t * & b){
-  //if (a->degree>b->degree)
-  if (a->degree>b->degree)
+  if (a->degree<b->degree)
     return true;
   else{
     if(a->degree == b->degree){
@@ -184,9 +178,6 @@ int main(int argc, char *argv[]) {
     perm.push_back(min_node.id);
 
     min_node.elim_step = step;
-#ifdef verbose
-    cout<<"Node "<<min_node.id<<" scheduled at step "<<step<<" degree is "<<min_node.degree<<endl;
-#endif
     //update the degree of its reachable set
     list<node_t *> reach;
     get_reach(xadj,adj,nodes,min_node,step,reach);
@@ -195,13 +186,6 @@ int main(int argc, char *argv[]) {
       node_t * cur_neighbor = *it;
       list<node_t *> nghb_reach;
       get_reach(xadj,adj,nodes,*cur_neighbor,step+1,nghb_reach);
-#ifdef verbose
-      cout<<"     Node "<<cur_neighbor->id<<" degree "<<cur_neighbor->degree<<" -> "<<nghb_reach.size()<<" {";
-      for(list<node_t *>::iterator it2 = nghb_reach.begin();it2!=nghb_reach.end();++it2){
-        cout<<" "<<(*it2)->id;
-      }
-      cout<<" }"<<endl;
-#endif
       cur_neighbor->degree = nghb_reach.size();
 
     }
@@ -217,15 +201,6 @@ int main(int argc, char *argv[]) {
   }
   cout<<endl;
 
-
-
-  for(int i=0;i<n;++i){
-    delete nodes[i];
-  }
-
-  double cost  = GetCost(n,adj.size(),&xadj[0],&adj[0],&perm[0]);
-
-  cout<<"Cost is "<<cost<<endl;
 }
 
 
