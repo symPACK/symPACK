@@ -1,14 +1,13 @@
 #include <vector>
 #include <list>
 #include <iostream>
-#include <fstream>
 #include <algorithm>
-#include <string>
-#include <sstream>
 
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+
+#include "util.h"
 
 using namespace std;
 
@@ -97,45 +96,25 @@ int main(int argc, char *argv[]) {
   int seed =time(NULL); 
   srand (seed);
 
-  vector<int> xadj;
-  vector<int> adj;
+  vector<int> ixadj;
+  vector<int> iadj;
 
   if(argc<2){
     cerr<<"Usage is: "<<argv[0]<<" input.file"<<endl;
     return -1;
   }
 
-  string filename(argv[1]);
-  ifstream infile;
-  infile.open(filename.c_str());
 
-  string line;
-  //read xadj on the first line of the input file
-  if(getline(infile, line))
-  {
-    istringstream iss(line);
-    int i;
-    while(iss>> i){ xadj.push_back(i);}
-  }    
-  else{
-    return -2;
-  }
+  ReadAdjacency(argv[1], ixadj, iadj);
 
-  //read adj on the second line of the input file
-  if(getline(infile, line))
-  {
-    istringstream iss(line);
-    int i;
-    while(iss>> i){ adj.push_back(i);}
-  }    
-  else{
-    return -2;
-  }
+  int n = ixadj.size()-1;
 
 
-  infile.close();
+  //expand to asymmetric storage
+  vector<int> xadj;
+  vector<int> adj;
+  ExpandSymmetric(n,&ixadj[0],&iadj[0], xadj, adj);
 
-  int n = xadj.size()-1;
   vector<node_t *> nodes(n);
   vector<node_t *> node_heap(n);
 
@@ -147,7 +126,7 @@ int main(int argc, char *argv[]) {
     nodes[i] = new node_t;
     node_t & cur_node = *nodes[i];
     cur_node.id = i+1;
-    cur_node.degree = xadj[i+1] - xadj[i];
+    cur_node.degree = xadj[i+1] - xadj[i] -1;
     cur_node.elim_step = -1;
 
     for(int idx = xadj[i]; idx <= xadj[i+1]-1;++idx){
@@ -168,7 +147,6 @@ int main(int argc, char *argv[]) {
   for(int step = 1; step<=n;++step){
     //sort heap
     std::make_heap(node_heap.begin(),node_heap.end(),node_comp);
-    //std::sort_heap (node_heap.begin(),node_heap.end(),node_comp);
     //get the min degree node
     std::pop_heap (node_heap.begin(),node_heap.end(),node_comp);
     node_t & min_node = *node_heap.back();
@@ -184,10 +162,11 @@ int main(int argc, char *argv[]) {
 
     for(list<node_t *>::iterator it = reach.begin();it!=reach.end();++it){
       node_t * cur_neighbor = *it;
-      list<node_t *> nghb_reach;
-      get_reach(xadj,adj,nodes,*cur_neighbor,step+1,nghb_reach);
-      cur_neighbor->degree = nghb_reach.size();
-
+      if(cur_neighbor->id != min_node.id){
+        list<node_t *> nghb_reach;
+        get_reach(xadj,adj,nodes,*cur_neighbor,step+1,nghb_reach);
+        cur_neighbor->degree = nghb_reach.size();
+      }
     }
   }
 

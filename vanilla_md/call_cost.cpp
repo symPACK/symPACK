@@ -1,69 +1,42 @@
 #include <vector>
 #include <list>
 #include <iostream>
-#include <fstream>
-#include <algorithm>
-#include <string>
 #include <sstream>
+#include <string>
+#include <algorithm>
 
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
 #include <assert.h>
 
-#include "cost.h"
+#include "util.h"
 #include "ETree.hpp"
 
 //#define verbose
 
 using namespace std;
- 
+
 
 
 int main(int argc, char *argv[]) {
-  /* initialize random seed: */
-  int seed =time(NULL); 
-  srand (seed);
-
-  vector<int> xadj;
-  vector<int> adj;
+  vector<int> ixadj;
+  vector<int> iadj;
 
   if(argc<3){
     cerr<<"Usage is: "<<argv[0]<<" input.file \"ordering\""<<endl;
     return -1;
   }
 
-  string filename(argv[1]);
-  ifstream infile;
-  infile.open(filename.c_str());
 
-  string line;
-  //read xadj on the first line of the input file
-  if(getline(infile, line))
-  {
-    istringstream iss(line);
-    int i;
-    while(iss>> i){ xadj.push_back(i);}
-  }    
-  else{
-    return -2;
-  }
-
-  //read adj on the second line of the input file
-  if(getline(infile, line))
-  {
-    istringstream iss(line);
-    int i;
-    while(iss>> i){ adj.push_back(i);}
-  }    
-  else{
-    return -2;
-  }
+  ReadAdjacency(argv[1], ixadj, iadj);
+  int n = ixadj.size()-1;
 
 
-  infile.close();
-
-  int n = xadj.size()-1;
+  //expand to asymmetric storage
+  vector<int> xadj;
+  vector<int> adj;
+  ExpandSymmetric(n,&ixadj[0],&iadj[0], xadj, adj);
 
   vector<int> perm;
   {
@@ -78,10 +51,13 @@ int main(int argc, char *argv[]) {
       return -2;
     }  
   }
-  
+
   vector<int> costc(n);
+  double cost2  = GetCost(n,adj.size(),&xadj[0],&adj[0],&perm[0]);
   double cost  = GetCostPerCol(n,adj.size(),&xadj[0],&adj[0],&perm[0],&costc[0]);
 
+
+  cout<<"Cost(fast) is "<<cost2<<endl;
   cout<<"Cost is "<<cost<<endl;
   cout<<"Cost per col is: ";
   double sum = 0;
@@ -92,7 +68,7 @@ int main(int argc, char *argv[]) {
   cout<<endl;
 
   assert(sum==cost);
-  
+
   vector<int> psum(n);
   GetPrefixSum(n,&costc[0],&psum[0]);
 
@@ -101,7 +77,7 @@ int main(int argc, char *argv[]) {
     cout<<" "<<psum[i];
   }
   cout<<endl;
-//  assert(psum[n-1]==cost);
+  //  assert(psum[n-1]==cost);
 
 
 

@@ -1,19 +1,16 @@
 #include <vector>
 #include <list>
 #include <iostream>
-#include <fstream>
 #include <algorithm>
-#include <string>
-#include <sstream>
 
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
 
-#include "cost.h"
+#include "util.h"
 #include "ETree.hpp"
 
-//#define verbose
+#define verbose
 
 using namespace std;
 
@@ -103,45 +100,39 @@ int main(int argc, char *argv[]) {
   int seed =time(NULL); 
   srand (seed);
 
-  vector<int> xadj;
-  vector<int> adj;
+  vector<int> ixadj;
+  vector<int> iadj;
 
   if(argc<2){
     cerr<<"Usage is: "<<argv[0]<<" input.file"<<endl;
     return -1;
   }
 
-  string filename(argv[1]);
-  ifstream infile;
-  infile.open(filename.c_str());
 
-  string line;
-  //read xadj on the first line of the input file
-  if(getline(infile, line))
-  {
-    istringstream iss(line);
-    int i;
-    while(iss>> i){ xadj.push_back(i);}
-  }    
-  else{
-    return -2;
+  ReadAdjacency(argv[1], ixadj, iadj);
+  int n = ixadj.size()-1;
+
+
+
+  //expand to asymmetric storage
+  vector<int> xadj;
+  vector<int> adj;
+  ExpandSymmetric(n,&ixadj[0],&iadj[0], xadj, adj);
+
+#ifdef verbose
+  cout<<"Expanded xadj: ";
+  for(int i = 0;i<xadj.size();++i){
+    cout<<" "<<xadj[i];
   }
-
-  //read adj on the second line of the input file
-  if(getline(infile, line))
-  {
-    istringstream iss(line);
-    int i;
-    while(iss>> i){ adj.push_back(i);}
-  }    
-  else{
-    return -2;
+  cout<<endl;
+  cout<<"Expanded adj: ";
+  for(int i = 0;i<adj.size();++i){
+    cout<<" "<<adj[i];
   }
+  cout<<endl;
+#endif 
 
 
-  infile.close();
-
-  int n = xadj.size()-1;
   vector<node_t *> nodes(n);
   vector<node_t *> node_heap(n);
 
@@ -153,7 +144,7 @@ int main(int argc, char *argv[]) {
     nodes[i] = new node_t;
     node_t & cur_node = *nodes[i];
     cur_node.id = i+1;
-    cur_node.degree = xadj[i+1] - xadj[i];
+    cur_node.degree = xadj[i+1] - xadj[i] - 1;
     cur_node.elim_step = -1;
 
     for(int idx = xadj[i]; idx <= xadj[i+1]-1;++idx){
@@ -193,17 +184,18 @@ int main(int argc, char *argv[]) {
 
     for(list<node_t *>::iterator it = reach.begin();it!=reach.end();++it){
       node_t * cur_neighbor = *it;
-      list<node_t *> nghb_reach;
-      get_reach(xadj,adj,nodes,*cur_neighbor,step+1,nghb_reach);
+      if(cur_neighbor->id != min_node.id){
+        list<node_t *> nghb_reach;
+        get_reach(xadj,adj,nodes,*cur_neighbor,step+1,nghb_reach);
 #ifdef verbose
-      cout<<"     Node "<<cur_neighbor->id<<" degree "<<cur_neighbor->degree<<" -> "<<nghb_reach.size()<<" {";
-      for(list<node_t *>::iterator it2 = nghb_reach.begin();it2!=nghb_reach.end();++it2){
-        cout<<" "<<(*it2)->id;
-      }
-      cout<<" }"<<endl;
+        cout<<"     Node "<<cur_neighbor->id<<" degree "<<cur_neighbor->degree<<" -> "<<nghb_reach.size()<<" {";
+        for(list<node_t *>::iterator it2 = nghb_reach.begin();it2!=nghb_reach.end();++it2){
+          cout<<" "<<(*it2)->id;
+        }
+        cout<<" }"<<endl;
 #endif
-      cur_neighbor->degree = nghb_reach.size();
-
+        cur_neighbor->degree = nghb_reach.size();
+      }
     }
   }
 

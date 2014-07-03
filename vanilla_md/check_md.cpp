@@ -12,7 +12,7 @@
 
 #include <assert.h> 
 
-#include "cost.h"
+#include "util.h"
 #include "ETree.hpp"
 
 using namespace std;
@@ -26,45 +26,25 @@ int main(int argc, char *argv[]) {
   int seed =time(NULL); 
   srand (seed);
 
-  vector<int> xadj;
-  vector<int> adj;
+  vector<int> ixadj;
+  vector<int> iadj;
 
   if(argc<2){
     cerr<<"Usage is: "<<argv[0]<<" input.file"<<endl;
     return -1;
   }
 
-  string filename(argv[1]);
-  ifstream infile;
-  infile.open(filename.c_str());
 
-  string line;
-  //read xadj on the first line of the input file
-  if(getline(infile, line))
-  {
-    istringstream iss(line);
-    int i;
-    while(iss>> i){ xadj.push_back(i);}
-  }    
-  else{
-    return -2;
-  }
+  ReadAdjacency(argv[1], ixadj, iadj);
 
-  //read adj on the second line of the input file
-  if(getline(infile, line))
-  {
-    istringstream iss(line);
-    int i;
-    while(iss>> i){ adj.push_back(i);}
-  }    
-  else{
-    return -2;
-  }
+  int n = ixadj.size()-1;
 
+  
+  //expand to asymmetric storage
+  vector<int> xadj;
+  vector<int> adj;
+  ExpandSymmetric(n,&ixadj[0],&iadj[0], xadj, adj);
 
-  infile.close();
-
-  int n = xadj.size()-1;
 
   //read the ordering
   vector<int> perm;
