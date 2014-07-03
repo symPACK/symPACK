@@ -7,6 +7,9 @@ all: check_md md vmd call_cost maxd
 vmd: ETree.o util.o main.cpp 
 	g++ ${CXXFLAGS} -o vmd main.cpp util.o ETree.o 
 
+genetic: geneticOrdering.c cost.o ETree.o 
+	g++ ${CXXFLAGS} -o geneticOrdering geneticOrdering.c cost.o Etree.o
+
 md: minimum_degree.cpp util.o ETree.o
 	g++ ${CXXFLAGS} -o md minimum_degree.cpp util.o ETree.o
 
@@ -32,4 +35,5 @@ check_md: ETree.o util.o check_md.cpp
 	g++ ${CXXFLAGS} -o check_md check_md.cpp ETree.o util.o 
 
 clean:
-	rm -rf call_cost check_md md vmd *.o
+	rm -rf call_cost check_md md mymd *.o geneticOrdering
+
