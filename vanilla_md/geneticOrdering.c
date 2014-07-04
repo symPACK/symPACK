@@ -58,7 +58,6 @@ int isPermutation(int possiblePermutation[]);
 
 double totalFitness;
 int currentGen = 0;
-double bestCost;
 
 double costStopCounter = 0;
 double costStopScore = 0;
@@ -84,7 +83,6 @@ int main (int argc, char *argv[]) {
         INPUT_FILE = argv[1];
         ADJ_FILE = argv[2];
         MAXGENS = atoi(argv[3]);
-//        STENCIL = atoi(argv[4]) - 1;
         PMUTATION = atof(argv[4]);
         swapPercent = atoi(argv[5]);
         swapLength = atoi(argv[6]);
@@ -92,61 +90,10 @@ int main (int argc, char *argv[]) {
         breakThreshold = atoi (argv[8]);
         mutType = argv[9];
         crossType = argv[10];
-
     }
     
     setbuf(stdout, NULL);
     init();
-
-    /*Adding stuff to test total perms here.*/
-    int testordering[NUM_GENES];
-    int testNum;
-    int bestOrdering[NUM_GENES];
-    double testScore;
-    double bestScore = 10000000;
-    /*FILE *permsFile;
-    permsFile = fopen("allperms.txt", "r");
-    if (permsFile == NULL) {
-        fprintf(stderr, "Unable to open perms file\n");
-        exit(1);
-    }
-    for (unsigned int i = 0; i < 362880; i++) {
-        for (int j = 0; j < NUM_GENES; j++) {
-            fscanf(permsFile, "%d", &testNum);
-            testordering[j] = testNum;
-        }
-        if (! isPermutation(testordering)) {
-            printf("i is %d \n", i);
-        }
-        if (i == 0) {
-            printf(" The first ordering read in is: ");
-            for (int printing= 0; printing< NUM_GENES; printing++) {
-                printf("%d ", testordering[printing]);
-            }
-            printf("\n");
-        }
-        testScore = GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2, testordering);
-        //printf("%f\n", testScore/*GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2, testordering));
-        if (testScore < bestScore) {
-            bestScore = testScore;
-            memcpy(bestOrdering, testordering, NUM_GENES * sizeof(int));
-        }
-    }
-    printf("The best ordering has fill %f\n", bestScore);
-    printf("The best ordering is ");
-    for (int k = 0; k < NUM_GENES; k++) {
-        printf("%d ",bestOrdering[k]);
-    }
-    printf("\n");
-
-    printf("HardCoding a testCase \n");
-    int hardCode[9] = {9, 2, 1, 4, 5, 6, 7, 8, 9};
-    printf("Fitness of HardCode: %f\n", ((GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2, hardCode))));
-    printf("HardCoded Ordering is:");
-    for (int k = 0; k < NUM_GENES; k++) {
-        printf("%d ",hardCode[k]);
-    }
-    printf("\n");*/
 
     printf("Initial Population \n");
     printPop();
@@ -155,39 +102,18 @@ int main (int argc, char *argv[]) {
     int parent2;
     while (currentGen < MAXGENS) {
 
-
-        //printf("Entered the while loop before crashing\n");
         evaluateOrdering(currentPop, POPSIZE);
         memcpy(nextPop, currentPop, POPSIZE * sizeof(struct individual));
-        //evaluateOrdering(nextPop);
-        //printf("Copy one works\n");
-        //for (int test2 = 0; test2 < POPSIZE; test2++) {
-        //        printf(" %.2f", (1/nextPop[test2].fitness));
-        //}
-        //printf("\n");
-
         for (int j = POPSIZE; j < ((2 * POPSIZE)); j++) {
 
             parent1 = pickParent(currentPop);
-            //printf("Can I pick a parent?%d\n", parent1);
             parent2 = pickParent(currentPop);
-            //printf("Can I pick a second parent?%d\n", parent2);
-            //printf("CALLING CROSS WITH %d and %d\n", parent1, parent2);
             child = cross(parent1, parent2);
-            //printf("Cross is happening!");
             nextPop[j] = child;
         }
-        //printf("Children made\n");
         mutatePop(nextPop);
-        //printf("Mutated %f\n",PMUTATION);
         evaluateOrdering(nextPop, 2*POPSIZE);
-        //printf("Evaled\n");
         qsort(nextPop, POPSIZE * 2, sizeof(struct individual), costComp);
-
-        //for (int test = 0; test < 2*POPSIZE; test++) {
-        //    printf(" %.2f", 1/(nextPop[test].fitness));
-        //}
-        //printf("\n");
 
         if (nextPop[0].fitness > costStopScore) {
             costStopScore = nextPop[0].fitness;
@@ -195,7 +121,7 @@ int main (int argc, char *argv[]) {
         }
         costStopCounter += 1;
 
-        if (GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2 , nextPop[0].ordering) < breakThreshold) {
+        if ((1/nextPop[0].fitness) < breakThreshold) {
             break;
         }
 
@@ -215,7 +141,7 @@ int main (int argc, char *argv[]) {
 
 
 }
-
+/*Comparison function used to order individuals by fitness*/
 int costComp(const void * a, const void * b) {
     struct individual *indiv1 = (struct individual *) a;
     struct individual *indiv2 = (struct individual *) b;
@@ -228,6 +154,7 @@ int costComp(const void * a, const void * b) {
     }
 }
 
+/*Comparison function used for the average crossover algorithm*/
 int averageStructComp(const void * a, const void * b) {
     struct averageStruct *pair1 = (struct averageStruct *) a;
     struct averageStruct *pair2 = (struct averageStruct *) b;
@@ -240,7 +167,6 @@ int averageStructComp(const void * a, const void * b) {
     }
 }
 
-
 /*Prints the genes of the current population. */
 void printPop() {
     double average = 0;
@@ -248,25 +174,25 @@ void printPop() {
         for (int j = 0; j < NUM_GENES; j++) {
             printf("%d ", currentPop[i].ordering[j]);
         }
-        //printf("\n");
-        double thisFit = ((GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2, currentPop[i].ordering)));
+        double thisFit;
+        if (currentGen != 0) {
+            thisFit = (1 / currentPop[i].fitness);
+        } else {
+            thisFit = ((GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2, currentPop[i].ordering)));
+        }
         average += thisFit;
         printf("Fitness: %f\n", thisFit);
- //       printf("The fitness of this individual is %f\n", currentPop[i].fitness);
     }
     average = average / POPSIZE;
     printf("Average is %f", average);
     printf("\n");
 }
 
-
-
 /* Implements the crossing of two selected matrix orderings in order
    to complete the descendant stage of the genetic algorithm. */
 struct individual cross (int firstParent, int secondParent) {
     struct individual child;
     if (!strcmp("order", crossType)) {
-        //printf("First Parent is %d and secondParent is %d ", firstParent, secondParent);
         int crossPoint1 = rand() % NUM_GENES;
         int crossPoint2 = 0;
         while (crossPoint2 < crossPoint1) {
@@ -275,19 +201,12 @@ struct individual cross (int firstParent, int secondParent) {
         int takenGenes[NUM_GENES + 1];
         for (int zeroing = 0; zeroing < NUM_GENES + 1; zeroing++){
             takenGenes[zeroing] = 0; 
-            //child.ordering[zeroing] = 0;
         }
-        //int counter = 0;
         for (int genes = crossPoint1; genes < crossPoint2; genes++) {
             child.ordering[genes] = currentPop[firstParent].ordering[genes];
             takenGenes[child.ordering[genes]] = 1;
-            //counter++;
         }
-        /*
-        printf("Debug Printing Child with genes from A\n");
-        for (int debug = 0; debug < NUM_GENES; debug++) {
-            printf("%d %d \n", debug, child.ordering[debug]);
-        }*/
+
         int counter = 0;
         for (int secondPass = 0; secondPass < NUM_GENES; secondPass++) {
             if (!takenGenes[currentPop[secondParent].ordering[secondPass]]) {
@@ -297,11 +216,6 @@ struct individual cross (int firstParent, int secondParent) {
                 if (counter == crossPoint1) {break;}
             }
         }
-        /*
-        printf("Debug Printing Child with first genes from B\n");
-        for (int debug = 0; debug < NUM_GENES; debug++) {
-            printf("%d %d \n", debug, child.ordering[debug]);
-        }*/
         counter = crossPoint2;
         for (int thirdPass = 0; thirdPass < NUM_GENES; thirdPass++) {
             if (!takenGenes[currentPop[secondParent].ordering[thirdPass]]) {
@@ -334,17 +248,6 @@ struct individual cross (int firstParent, int secondParent) {
             newOrder[division].average /= 2;
         }
         qsort(newOrder, NUM_GENES + 1, sizeof(struct averageStruct), averageStructComp);
-        //Printing new order values to see if child gets filled in right.
-        /*printf("DEBUG PRINTING STARTS HERE \n");
-        for (int y = 0; y < NUM_GENES + 1; y++) {
-            printf("%d ", newOrder[y].average);
-        }
-        printf("\n");
-        for (int x = 0; x < NUM_GENES + 1; x++) {
-            printf("%d ", newOrder[x].value);
-        }
-        printf("\n");
-        printf("DEBUG STOP\n");*/
         int childCounter = 0;
         for (int i = 0; i < (NUM_GENES + 1); i++) {
             if (newOrder[i].value != 0) {
@@ -356,29 +259,6 @@ struct individual cross (int firstParent, int secondParent) {
             printf("Child is illegal permutation.\n");
             exit(1);
         }
-
-
-        /*//Test Printing stuff;
-        printf("\n");
-        printf("Printing Parent1: \n");
-        for (int printer = 0; printer < NUM_GENES; printer++) {
-            printf("%d ", currentPop[firstParent].ordering[printer]);
-        }
-        printf("\n");
-        printf("Printing Parent2: \n");
-        for (int printer = 0; printer < NUM_GENES; printer++) {
-            printf("%d ", currentPop[secondParent].ordering[printer]);
-        }
-        printf("\n\n");
-        for (int tester = 0; tester < NUM_GENES + 1; tester++) {
-            printf("%d ", newOrder[tester].average);
-        }
-        printf("\n");
-        printf("Printing the newOrder indicies\n");
-        for (int printer = 1; printer < NUM_GENES + 1; printer++) {
-            printf("%d ", newOrder[printer].value);
-        }
-        exit(1);*/
     } else {
         fprintf(stderr,"Not a legal type of crossover.");
         exit(1);
@@ -395,59 +275,38 @@ int pickParent(struct individual possibleParents[]) {
     totalFitness=0;
     //Find the total fitness of the population.
     for (int totalSum = 0; totalSum < POPSIZE; totalSum++) {
-        //printf("Fitness of indiv %d is %f\n", totalSum, currentPop[totalSum].fitness);
         totalFitness += currentPop[totalSum].fitness;
     }
-    //printf("Total Fitness of Population is %f", totalFitness);
-    //Find the relative fitness of each individual.
-    //float rfitCounter = 0;
     for (int fitCounter = 0; fitCounter < POPSIZE; fitCounter++) {
         currentPop[fitCounter].rfitness = currentPop[fitCounter].fitness / totalFitness;
-        //printf("RFitness of indiv %d is %f\n", fitCounter, currentPop[fitCounter].rfitness);
-        //rfitCounter += currentPop[fitCounter].rfitness;
     }
-    //printf("Total RFitCounter is %f", rfitCounter);
     //Find the cumulative fitness of the individuals.
     currentPop[0].cfitness = currentPop[0].rfitness;
     for (int cfitCounter = 1; cfitCounter < POPSIZE; cfitCounter ++) {
         currentPop[cfitCounter].cfitness = currentPop[cfitCounter - 1].cfitness + currentPop[cfitCounter].rfitness;
-        //printf("Current Individual C Fitness %f\n", currentPop[cfitCounter].cfitness);
     }
     
     //Select and return 1 parent, based off of cfitness.
     double random;
-    int test;
     random =((double)rand()/(double)RAND_MAX);
-    //printf("Random is %f\n", random);
     if (random < currentPop[0].cfitness) {
-        //printf("Selected 0 with fitness %f\n", currentPop[0].fitness);
         return 0;
     } else {
         for (int picker = 0; picker < POPSIZE; picker++) {
-            //printf("%f %f %f\n", currentPop[picker].cfitness, random, currentPop[picker + 1].cfitness);
             if (currentPop[picker].cfitness <= random && random < currentPop[picker + 1].cfitness) {
-                //printf("Selected %d with fitness %f\n", picker + 1, currentPop[picker + 1].fitness);
                 return picker + 1;
             }
         }
     }
 }
 
-
 /* Implements the evaluation function for a matrix ordering. Will store
    the value of this ordering into the structure that contains it. */
 void evaluateOrdering(struct individual indivs[], int size) {
     for (int in = 0; in < size; in++) {
-        //printf("Evaluating individual %d.", in);
         indivs[in].fitness = 1 / (GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2 ,indivs[in].ordering));
-        double tempcost = GetCost(NUM_GENES, NUM_GENES * STENCIL, adjArray1, adjArray2 ,indivs[in].ordering);
-        double costTest = 1/tempcost;
-        if (costTest > bestCost) {
-            bestCost = costTest;
-        }
     }
 }
-
 
 /* Initializze the original generation to begin the simulation.
    probably involves reading in my other program and using that
@@ -465,9 +324,6 @@ void init() {
         fprintf(stderr, "Unable to open file\n");
         exit(1);
     }
-    //fscanf(infile, "%d", &POPSIZE);
-    //fscanf(adjfile, "%d", &NUM_GENES);
-
     for (int indiv = 0; indiv < POPSIZE; indiv ++) {
         for (int gene = 0; gene < NUM_GENES; gene++) {
             fscanf(inFile, "%d", &number);
@@ -493,8 +349,6 @@ void init() {
     }
 }
 
-
-
 /* Mutates the entire current population. */
 void mutatePop(struct individual mutated[]) {
     for (int indiv = 0; indiv < POPSIZE; indiv++) { 
@@ -502,22 +356,16 @@ void mutatePop(struct individual mutated[]) {
         int mutateBarrier;
         mutateBarrier = PMUTATION * RAND_MAX;
         randomMutate=rand();
-        //printf("%f %d %d %d\n", PMUTATION, RAND_MAX, randomMutate, mutateBarrier);
         if (randomMutate < mutateBarrier) {
-            /*DO MUTATE STUFF*/
             int numSwaps = swapPercent * POPSIZE * .01;
-            //printf("numSwaps is %d \n", numSwaps);
             for (int x = 0; x < numSwaps; x++) {
                 if (!strcmp("swap", mutType)) {
-                    //int geneshifted = rand() % NUM_GENES;
-                    //printf("Swapping Segments");
                     int temp[NUM_GENES]; //remove * to revert also is temp1
                     int gene1 = rand() % (NUM_GENES - (swapLength + 1));
                     int gene2 = gene1;
                     while (((gene1 - swapLength) <= gene2) && ((gene1 + swapLength) >= gene2)) {
                         gene2 = rand() % (NUM_GENES - (swapLength + 1));
                     }
-                    //int gene2 = rand() % (NUM_GENES - (swapLength + 1));
                     memcpy(&temp[0], &mutated[indiv].ordering[gene1], (swapLength * sizeof(int)));//temp = mutated[indiv].ordering[gene1];
                     memcpy(&mutated[indiv].ordering[gene1], &mutated[indiv].ordering[gene2], (swapLength * sizeof(int))); //mutated[indiv].ordering[gene1] = mutated[indiv].ordering[gene2];
                     memcpy(&mutated[indiv].ordering[gene2], &temp[0], (swapLength * sizeof(int)));//mutated[indiv].ordering[gene2] = temp;
@@ -555,7 +403,6 @@ void mutatePop(struct individual mutated[]) {
                         int counter = 0;
                         mutated[indiv].ordering[flipPoint + counter] = temp[swapper];
                         counter++;
-                        //printf("%d ", temp[swapper]);
                     }
                     if (! isPermutation(mutated[indiv].ordering)) {
                         printf("flipPoint is %d\n", flipPoint);
@@ -571,29 +418,8 @@ void mutatePop(struct individual mutated[]) {
                     fprintf(stderr, "Invalid mutation type. Mutation must be either swap, shift, or invert.\n");
                     exit(1);
                 }
-                //printf("x is %d\n", x);
             }
-
-            /*int temp1;
-            int temp2;
-            int temp3;
-            int gene1 = rand() % NUM_GENES;
-            int gene2 = rand() % NUM_GENES;
-            int gene3 = rand() % NUM_GENES;
-            int gene4 = rand() % NUM_GENES;
-            int gene5 = rand() % NUM_GENES;
-            int gene6 = rand() % NUM_GENES;
-            temp1 = mutated[indiv].ordering[gene1];
-            mutated[indiv].ordering[gene1] = mutated[indiv].ordering[gene2];
-            mutated[indiv].ordering[gene2] = temp1;
-            temp2 = mutated[indiv].ordering[gene3];
-            mutated[indiv].ordering[gene3] = mutated[indiv].ordering[gene4];
-            mutated[indiv].ordering[gene4] = temp2;
-            temp3 = mutated[indiv].ordering[gene5];
-            mutated[indiv].ordering[gene5] = mutated[indiv].ordering[gene6];
-            mutated[indiv].ordering[gene6] = temp3;*/
         }
-        //printf("Indiv is %d\n", indiv);
     }
 }
 
