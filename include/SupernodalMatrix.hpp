@@ -12,6 +12,8 @@
 
 
 #include <list>
+#include <deque>
+#include <queue>
 #include <vector>
 #include "Mapping.hpp"
 
@@ -59,10 +61,8 @@ struct Icomm{
   ~Icomm(){  
     delete pSrcBlocks; 
     if(Request !=MPI_REQUEST_NULL){
-//        int flag = 0;
-//        MPI_Status recv_status;
-//        MPI_Test(&Request,&flag,&recv_status);
-//        assert(flag==0);
+        MPI_Status recv_status;
+        MPI_Wait(&Request,&recv_status);
 //        MPI_Cancel(&Request);
         MPI_Request_free(&Request);
     }
@@ -92,11 +92,75 @@ template <typename T> inline Icomm& operator<<( Icomm& os,  const T & val){
 }
 
 
+bool operator<(const DelayedComm & a,const DelayedComm & b) 
+    {
+      return a.tgt_snode_id>b.tgt_snode_id;
+    }
 
 
+struct DelayedCommCompare{
+    bool operator()(const DelayedComm & a,const DelayedComm & b) const
+    {
+      return a.tgt_snode_id>b.tgt_snode_id;
+    }
+};
 
-typedef std::list<DelayedComm> CommList;
-typedef std::list<Icomm *> AsyncComms;
+typedef std::priority_queue<DelayedComm,deque<DelayedComm>,DelayedCommCompare> CommList;
+
+
+class AsyncComms{
+  protected:
+  std::list<Icomm *> list_;
+
+
+  public:
+typedef std::list<Icomm *>::iterator iterator;
+//push_back
+//pop_back
+//back
+
+  void push_back(Icomm * elem){
+    list_.push_back(elem);
+  }
+  void pop_back(){
+    Icomm * elem = list_.back();
+    delete elem;
+    list_.pop_back();
+  }
+
+  Icomm * & back(){
+    return list_.back();
+  }
+
+  int size(){
+    return list_.size();
+  }
+
+  bool empty(){
+    return list_.empty();
+  }
+
+  iterator begin(){
+    return list_.begin();
+  }
+
+  iterator end(){
+    return list_.end();
+  }
+
+  iterator erase(iterator position){
+    static int count = 0;
+    count++;
+    
+    if(position!=end()){
+      Icomm * elem = *position;
+      delete elem;
+    }
+    return list_.erase(position);
+  }
+  
+
+};
 
 template <typename T> class SupernodalMatrix{
   protected:

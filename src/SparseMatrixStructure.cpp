@@ -896,7 +896,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
 
 
-
+#ifdef RELAXED_SNODE
   void SparseMatrixStructure::SymbolicFactorizationRelaxed(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, IntNumVec & xlindx, IntNumVec & lindx){
     TIMER_START(SymbolicFactorization);
 
@@ -1159,7 +1159,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
     TIMER_STOP(SymbolicFactorization);
   }
-
+#endif
 
 
 
