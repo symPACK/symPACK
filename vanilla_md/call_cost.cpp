@@ -53,6 +53,7 @@ int main(int argc, char *argv[]) {
     int i;
     while(iss>> i){ perm.push_back(i);}
     if(perm.size()!=n){
+      cerr<<perm.size()<<" vs "<<n<<endl;
       cerr<<"Wrong ordering, not the same size as graph"<<endl;
       return -2;
     }  
