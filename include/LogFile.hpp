@@ -4,6 +4,8 @@
 #include <sstream>
 #include <fstream>
 
+namespace LIBCHOLESKY{
+
 class LogFile{
 protected:
 
@@ -65,4 +67,7 @@ public:
 
 extern LogFile * logfileptr;
 extern LogFile * profileptr;
+
+}
+
 #endif

@@ -425,7 +425,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
               if(iLocalI < LocalSupernodes_.size()){
                 if(LocalSupernodes_[iLocalI]->Id()< tgt_snode_id){
                   //need to push the prev src_last_row
-                  FactorsToSend.push_back(DelayedComm(src_snode.Id(),tgt_snode_id,src_nzblk_idx,src_first_row));
+                  FactorsToSend.push(DelayedComm(src_snode.Id(),tgt_snode_id,src_nzblk_idx,src_first_row));
 #ifdef _DEBUG_
                   logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
                   cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
@@ -533,7 +533,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth( MPI_Comm & pComm ){
             skipped = true;
 
             //push this thing to be done later
-            UpdatesToRecv.push_back(DelayedComm(src_snode_id,tgt_snode_id,-1,-1));
+            UpdatesToRecv.push(DelayedComm(src_snode_id,tgt_snode_id,-1,-1));
 #ifdef _DEBUG_
                   logfileptr->OFS()<<"P"<<iam<<" has delayed reception of factor from Supernode "<<src_snode_id<<" to "<<tgt_snode_id<<endl;
 #endif

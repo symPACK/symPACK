@@ -62,8 +62,16 @@ struct Icomm{
     delete pSrcBlocks; 
     if(Request !=MPI_REQUEST_NULL){
         MPI_Status recv_status;
-        MPI_Wait(&Request,&recv_status);
-//        MPI_Cancel(&Request);
+        int flag = 0;
+        MPI_Test(&Request,&flag,&recv_status);
+        if(!flag){
+          //        MPI_Wait(&Request,&recv_status);
+//          MPI_Test_cancelled(&recv_status,&flag);
+//          if(!flag){
+//          }
+//            cout<<"CANCEL"<<endl;
+            MPI_Cancel(&Request);
+        }
         MPI_Request_free(&Request);
     }
   };
@@ -146,6 +154,13 @@ typedef std::list<Icomm *>::iterator iterator;
 
   iterator end(){
     return list_.end();
+  }
+
+  void clear(){
+    for(iterator it = list_.begin();it!=list_.end();++it){
+      delete *it;
+    }
+    list_.clear();
   }
 
   iterator erase(iterator position){
@@ -251,6 +266,7 @@ template <typename T> class SupernodalMatrix{
   IntNumVec & GetSupernodes(){ return Xsuper_;}
   std::vector<SuperNode<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 
   SuperNode<T> & GetLocalSupernode(Int i){ return *LocalSupernodes_[i]; } 
+  Int SupernodeCnt(){ return LocalSupernodes_.size(); } 
   ETree & GetETree(){return ETree_;}
 
   SparseMatrixStructure GetGlobalStructure();

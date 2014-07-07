@@ -13,19 +13,19 @@
 
 #include <mpi.h>
 
-extern "C" {
-#include <bebop/util/config.h>
-#include <bebop/smc/sparse_matrix.h>
-#include <bebop/smc/csr_matrix.h>
-#include <bebop/smc/csc_matrix.h>
-#include <bebop/smc/sparse_matrix_ops.h>
-
-#include <bebop/util/get_options.h>
-#include <bebop/util/init.h>
-#include <bebop/util/malloc.h>
-#include <bebop/util/timer.h>
-#include <bebop/util/util.h>
-}
+//extern "C" {
+//#include <bebop/util/config.h>
+//#include <bebop/smc/sparse_matrix.h>
+//#include <bebop/smc/csr_matrix.h>
+//#include <bebop/smc/csc_matrix.h>
+//#include <bebop/smc/sparse_matrix_ops.h>
+//
+//#include <bebop/util/get_options.h>
+//#include <bebop/util/init.h>
+//#include <bebop/util/malloc.h>
+//#include <bebop/util/timer.h>
+//#include <bebop/util/util.h>
+//}
 
 
 
@@ -59,6 +59,10 @@ template <class F> class DistSparseMatrix{
   friend void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
   friend void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
 
+  friend void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Complex>& pspmat, MPI_Comm comm );
+  friend void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Complex>& pspmat, MPI_Comm comm );
+  friend void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Complex>& pspmat, MPI_Comm comm );
+  friend void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Complex>& pspmat, MPI_Comm comm );
   protected:
   bool globalAllocated;
   SparseMatrixStructure Local_;
@@ -80,8 +84,8 @@ template <class F> class DistSparseMatrix{
 
 
   DistSparseMatrix(MPI_Comm oComm){globalAllocated=false; comm = oComm;};
-  void CopyData(const csc_matrix_t * cscptr);
-  DistSparseMatrix(const csc_matrix_t * cscptr,MPI_Comm oComm);
+  void CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval);
+  DistSparseMatrix(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval , MPI_Comm oComm);
 
   SparseMatrixStructure  GetGlobalStructure();
   SparseMatrixStructure  GetLocalStructure() const;

@@ -376,8 +376,7 @@ namespace LIBCHOLESKY{
   }
 
 
-
-  template <class F> void DistSparseMatrix<F>::CopyData(const csc_matrix_t * cscptr){
+  template <class F> void DistSparseMatrix<F>::CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval ){
     int np;
     int iam;
 
@@ -385,14 +384,14 @@ namespace LIBCHOLESKY{
       MPI_Comm_rank(comm, &iam);
 
     //fill global structure info as we have it directly
-    this->size = cscptr->n; 
-    this->nnz = cscptr->nnz; 
+    this->size = n; 
+    this->nnz = nnz; 
     this->Global_.size = this->size;
     this->Global_.nnz = this->nnz;
-    this->Global_.colptr.Resize(cscptr->n+1);
-    std::copy(cscptr->colptr,cscptr->colptr+cscptr->n+1,this->Global_.colptr.Data());
-    this->Global_.rowind.Resize(cscptr->nnz+1);
-    std::copy(cscptr->rowidx,cscptr->rowidx+cscptr->nnz+1,this->Global_.rowind.Data());
+    this->Global_.colptr.Resize(n+1);
+    std::copy(colptr,colptr+n+1,this->Global_.colptr.Data());
+    this->Global_.rowind.Resize(nnz+1);
+    std::copy(rowidx,rowidx+nnz+1,this->Global_.rowind.Data());
 
     //move to 1 based indices
     for(int i=0;i<this->Global_.colptr.m();i++){ ++this->Global_.colptr[i]; }
@@ -434,19 +433,20 @@ namespace LIBCHOLESKY{
     numRead = this->Global_.colptr[iam*numColFirst + numColLocalVec[iam]] - this->Global_.colptr[iam*numColFirst];
     std::copy(&this->Global_.rowind[prevRead],&this->Global_.rowind[prevRead+numRead],this->Local_.rowind.Data());
 
+      std::copy(&((const F*)nzval)[prevRead],&((const F*)nzval)[prevRead+numRead],this->nzvalLocal.Data());
     //copy appropriate nnz values
-    if(cscptr->value_type == REAL){
-      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
-    }
-    else if(cscptr->value_type == COMPLEX){
-      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
-    }
+//    if(cscptr->value_type == REAL){
+//      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
+//    }
+//    else if(cscptr->value_type == COMPLEX){
+//      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
+//    }
   }
 
 
-  template <class F> DistSparseMatrix<F>::DistSparseMatrix(const csc_matrix_t * cscptr,MPI_Comm oComm ):comm(oComm){
+  template <class F> DistSparseMatrix<F>::DistSparseMatrix(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval ,MPI_Comm oComm ):comm(oComm){
     globalAllocated=false;
-    this->CopyData(cscptr);
+    this->CopyData(n,nnz,colptr,rowidx,nzval);
   }
 
 

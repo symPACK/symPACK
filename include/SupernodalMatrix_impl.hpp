@@ -3,6 +3,8 @@
 
 #include "SupernodalMatrix.hpp"
 
+#include "blas.hpp"
+
 #include <queue>
 
 
@@ -1712,9 +1714,9 @@ template <typename T> inline AsyncComms::iterator SupernodalMatrix<T>::WaitIncom
           while(cur_incomingRecv.size()>0){
             for(AsyncComms::iterator it = cur_incomingRecv.begin(); it!=cur_incomingRecv.end();++it){
               Icomm * curComm = *it;
-              MPI_Request req = (curComm->Request);
+              //MPI_Request req = (curComm->Request);
               //MPI_Test(&(curComm->Request),&done,&recv_status);
-              MPI_Test(&req,&done,&recv_status);
+              MPI_Test(&(curComm->Request),&done,&recv_status);
               //Test if comm is done
               if(done==1){
           TIMER_STOP(IRECV_MPI);
@@ -1929,8 +1931,8 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
         //first wait for the Irecv
         AsyncComms & cur_incomingRecv = incomingRecvArr[iLocalI-1];
         MPI_Status recv_status;
-        AsyncComms::iterator it = WaitIncomingFactors(cur_incomingRecv, recv_status,outgoingSend);
 
+        AsyncComms::iterator it = WaitIncomingFactors(cur_incomingRecv, recv_status,outgoingSend);
         while( it != cur_incomingRecv.end() ){
           Icomm * curComm = *it;
 
@@ -2048,21 +2050,23 @@ template <typename T> void SupernodalMatrix<T>::FanOut( MPI_Comm & pComm ){
           if(UpdatesToDo(src_snode.Id()-1)==0){
 
             //cancel all requests
-            Int flag;
-            AsyncComms::iterator it2 = cur_incomingRecv.begin();
-            while( it2!=cur_incomingRecv.end()){
-              Icomm * curComm = *it2;
-              MPI_Status recv_status;
-              MPI_Test(&(curComm->Request),&flag,&recv_status);
-              //Test if comm is done
-//              assert(flag==0);
-
-              MPI_Cancel(&(curComm->Request));
-              it2 = cur_incomingRecv.erase(it2);
-              --incomingRecvCnt_; 
-
-
-            }
+            incomingRecvCnt_-=cur_incomingRecv.size(); 
+            cur_incomingRecv.clear();
+//            Int flag;
+//            AsyncComms::iterator it2 = cur_incomingRecv.begin();
+//            while( it2!=cur_incomingRecv.end()){
+//              Icomm * curComm = *it2;
+//              MPI_Status recv_status;
+//              MPI_Test(&(curComm->Request),&flag,&recv_status);
+//              //Test if comm is done
+////              assert(flag==0);
+//
+//              MPI_Cancel(&(curComm->Request));
+//              it2 = cur_incomingRecv.erase(it2);
+//              --incomingRecvCnt_; 
+//
+//
+//            }
 
 //            assert(cur_incomingRecv.size()==0);
           }

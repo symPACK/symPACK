@@ -23,9 +23,6 @@ Int iam,np;
 //---------------------------------------------------------
 Int SeparateRead(std::string name, std::istringstream& is)
 {
-#ifndef _RELEASE_
-	PushCallStack("SeparateRead");
-#endif
   MPI_Barrier(MPI_COMM_WORLD);
   int mpirank;  MPI_Comm_rank(MPI_COMM_WORLD, &mpirank);
   int mpisize;  MPI_Comm_size(MPI_COMM_WORLD, &mpisize);
@@ -41,18 +38,12 @@ Int SeparateRead(std::string name, std::istringstream& is)
   fin.close();
   //
   MPI_Barrier(MPI_COMM_WORLD);
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
   return 0;
 }
 
 //---------------------------------------------------------
 Int SeparateWrite(std::string name, std::ostringstream& os)
 {
-#ifndef _RELEASE_
-	PushCallStack("SeparateWrite");
-#endif
    MPI_Barrier(MPI_COMM_WORLD);
   int mpirank;  MPI_Comm_rank(MPI_COMM_WORLD, &mpirank);
   int mpisize;  MPI_Comm_size(MPI_COMM_WORLD, &mpisize);
@@ -67,18 +58,12 @@ Int SeparateWrite(std::string name, std::ostringstream& os)
   fout.close();
   //
   MPI_Barrier(MPI_COMM_WORLD);
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
   return 0;
 }
 
 //---------------------------------------------------------
 Int SharedRead(std::string name, std::istringstream& is)
 {
-#ifndef _RELEASE_
-	PushCallStack("SharedRead");
-#endif
   MPI_Barrier(MPI_COMM_WORLD);
   int mpirank;  MPI_Comm_rank(MPI_COMM_WORLD, &mpirank);
   int mpisize;  MPI_Comm_size(MPI_COMM_WORLD, &mpisize);
@@ -105,18 +90,12 @@ Int SharedRead(std::string name, std::istringstream& is)
   is.str( std::string(tmpstr.begin(), tmpstr.end()) );
   //
   MPI_Barrier(MPI_COMM_WORLD);
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
   return 0;
 }
 
 //---------------------------------------------------------
 Int SharedWrite(std::string name, std::ostringstream& os)
 {
-#ifndef _RELEASE_
-	PushCallStack("SharedWrite");
-#endif
   MPI_Barrier(MPI_COMM_WORLD);
   int mpirank;  MPI_Comm_rank(MPI_COMM_WORLD, &mpirank);
   int mpisize;  MPI_Comm_size(MPI_COMM_WORLD, &mpisize);
@@ -130,9 +109,6 @@ Int SharedWrite(std::string name, std::ostringstream& os)
     fout.close();
   }
   MPI_Barrier(MPI_COMM_WORLD);
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
   return 0;
 }
 
@@ -140,9 +116,6 @@ Int SharedWrite(std::string name, std::ostringstream& os)
 //---------------------------------------------------------
 Int SeparateWriteAscii(std::string name, std::ostringstream& os)
 {
-#ifndef _RELEASE_
-	PushCallStack("SeparateWriteAscii");
-#endif
   MPI_Barrier(MPI_COMM_WORLD);
   int mpirank;  MPI_Comm_rank(MPI_COMM_WORLD, &mpirank);
   int mpisize;  MPI_Comm_size(MPI_COMM_WORLD, &mpisize);
@@ -157,9 +130,6 @@ Int SeparateWriteAscii(std::string name, std::ostringstream& os)
   fout.close();
   //
   MPI_Barrier(MPI_COMM_WORLD);
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
   return 0;
 }
 
@@ -172,9 +142,6 @@ Int SeparateWriteAscii(std::string name, std::ostringstream& os)
 //---------------------------------------------------------
 void ReadSparseMatrix ( const char* filename, SparseMatrix<Real>& spmat )
 {
-#ifndef _RELEASE_
-	PushCallStack("ReadSparseMatrix");
-#endif
 	
 	// FIXME
 	// Binary format
@@ -211,9 +178,6 @@ void ReadSparseMatrix ( const char* filename, SparseMatrix<Real>& spmat )
 
 		fin.close();
 	}
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
 
 	return ;
 }		// -----  end of function ReadSparseMatrix  ----- 
@@ -222,9 +186,6 @@ void ReadSparseMatrix ( const char* filename, SparseMatrix<Real>& spmat )
 //---------------------------------------------------------
 void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm )
 {
-#ifndef _RELEASE_
-	PushCallStack("ReadDistSparseMatrix");
-#endif
 	// Get the processor information within the current communicator
   MPI_Barrier( comm );
   Int mpirank;  MPI_Comm_rank(comm, &mpirank);
@@ -379,9 +340,6 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 
   MPI_Barrier( comm );
 
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
 
 	return ;
 }		// -----  end of function ReadDistSparseMatrix  ----- 
@@ -389,9 +347,6 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 
 void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm )
 {
-#ifndef _RELEASE_
-  PushCallStack("ParaWriteDistSparseMatrix");
-#endif
   // Get the processor information within the current communicator
   MPI_Barrier( comm );
   Int mpirank;  MPI_Comm_rank(comm, &mpirank);
@@ -517,9 +472,6 @@ void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& p
   MPI_Barrier( comm );
 
   MPI_File_close(&fout);
-#ifndef _RELEASE_
-  PopCallStack();
-#endif
 
   return ;
 }		// -----  end of function ParaWriteDistSparseMatrix  ----- 
@@ -535,9 +487,6 @@ void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& ps
 
 
 
-#ifndef _RELEASE_
-  PushCallStack("ParaReadDistSparseMatrix");
-#endif
   // Get the processor information within the current communicator
   MPI_Barrier( comm );
   Int mpirank;  MPI_Comm_rank(comm, &mpirank);
@@ -701,9 +650,6 @@ throw std::logic_error( "error reading nzval" );
   MPI_Barrier( comm );
 
   MPI_File_close(&fin);
-#ifndef _RELEASE_
-  PopCallStack();
-#endif
 
   return ;
 
@@ -863,9 +809,6 @@ throw std::logic_error( "error reading nzval" );
 
 void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm )
 {
-#ifndef _RELEASE_
-	PushCallStack("ReadDistSparseMatrixFormatted");
-#endif
 	// Get the processor information within the current communicator
   MPI_Barrier( comm );
   Int mpirank;  MPI_Comm_rank(comm, &mpirank);
@@ -1087,9 +1030,6 @@ LinearInterpolation (
 		const std::vector<Real>& xx,
 		std::vector<Real>& yy )
 {
-#ifndef _RELEASE_
-	PushCallStack("LinearInterpolation");
-#endif
 	Int numX  = x.size();
 	Int numXX = xx.size();
 

@@ -330,9 +330,6 @@ template <typename F> inline void SetValue(NumMat<F>& M, F val)
 template <typename F> void
 Transpose ( const NumMat<F>& A, NumMat<F>& B )
 {
-#ifndef _RELEASE_
-	PushCallStack("Transpose");
-#endif
 	if( A.m() != B.n() || A.n() != B.m() ){
 		B.Resize( A.n(), A.m() );
 	}
@@ -347,9 +344,6 @@ Transpose ( const NumMat<F>& A, NumMat<F>& B )
 		}
 	}
 
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
 
 	return ;
 }		// -----  end of function Transpose  ----- 
@@ -357,9 +351,6 @@ Transpose ( const NumMat<F>& A, NumMat<F>& B )
 template <typename F> void
 Symmetrize( NumMat<F>& A )
 {
-#ifndef _RELEASE_
-	PushCallStack("Symmetrize");
-#endif
 	if( A.m() != A.n() ){
 		throw std::logic_error( "The matrix to be symmetrized should be a square matrix." );
 	}
@@ -377,9 +368,6 @@ Symmetrize( NumMat<F>& A )
 		Adata++; Bdata++;
 	}
 
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
 
 	return ;
 }		// -----  end of function Symmetrize ----- 

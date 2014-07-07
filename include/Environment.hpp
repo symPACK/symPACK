@@ -70,7 +70,7 @@
 
 #include "LogFile.hpp"
 
-extern LogFile * logfileptr;
+//extern LogFile * logfileptr;
 
 
 /***********************************************************************
@@ -124,18 +124,6 @@ namespace LIBCHOLESKY{
 
 
 
-
-
-
-
-
-
-
-#ifndef _RELEASE_
-void PushCallStack( std::string s );
-void PopCallStack();
-void DumpCallStack();
-#endif // ifndef _RELEASE_
 
 // We define an output stream that does nothing. This is done so that the 
 // root process can be used to print data to a file's ostream while all other 

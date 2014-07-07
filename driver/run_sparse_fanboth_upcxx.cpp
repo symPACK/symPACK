@@ -359,7 +359,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
   sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
   sparse_matrix_convert (Atmp, CSC);
   const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
-  HMat.CopyData(cscptr);
+  HMat.CopyData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,cscptr->values);
 
 
   destroy_sparse_matrix (Atmp);

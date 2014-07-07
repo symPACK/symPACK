@@ -1172,17 +1172,11 @@ template <class F1, class F2>
 void
 CopyPattern	( const SparseMatrix<F1>& A, SparseMatrix<F2>& B )
 {
-#ifndef _RELEASE_
-	PushCallStack("CopyPattern");
-#endif
 	B.size        = A.size;
 	B.nnz         = A.nnz;
 	B.colptr      = A.colptr;
 	B.rowind      = A.rowind;
 	B.nzval.Resize( A.nnz );
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
 	return ;
 }		// -----  end of template function CopyPattern  ----- 
 
@@ -1199,9 +1193,6 @@ template <class F1, class F2>
 void
 CopyPattern	( const DistSparseMatrix<F1>& A, DistSparseMatrix<F2>& B )
 {
-#ifndef _RELEASE_
-	PushCallStack("CopyPattern");
-#endif
 	B.size        = A.size;
 	B.nnz         = A.nnz;
 	B.Local_.nnz    = A.Local_.nnz;
@@ -1209,9 +1200,6 @@ CopyPattern	( const DistSparseMatrix<F1>& A, DistSparseMatrix<F2>& B )
 	B.Local_.rowind = A.Local_.rowind;
 	B.nzvalLocal.Resize( A.Local_.nnz );
 	B.comm        = A.comm;
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
 	return ;
 }		// -----  end of template function CopyPattern  ----- 
 

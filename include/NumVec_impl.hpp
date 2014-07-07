@@ -16,9 +16,6 @@ namespace LIBCHOLESKY{
 
 template <class F> NumVec<F>::NumVec	( Int m ) : m_(m), owndata_(true)
 {
-#ifndef _RELEASE_
-	PushCallStack("NumVec<F>::NumVec");
-#endif  // ifndef _RELEASE_
 	if(m_>0) { 
 //		data_ = new F[m_]; 
 		data_ = (F*) malloc(m_*sizeof(F));
@@ -33,16 +30,10 @@ template <class F> NumVec<F>::NumVec	( Int m ) : m_(m), owndata_(true)
 	} 
 	else 
 		data_=NULL;
-#ifndef _RELEASE_
-	PopCallStack();
-#endif  // ifndef _RELEASE_
 } 		// -----  end of method NumVec<F>::NumVec  ----- 
 
 template <class F> NumVec<F>::NumVec	( Int m, bool owndata, F* data ) : m_(m), owndata_(owndata)
 {
-#ifndef _RELEASE_
-	PushCallStack("NumVec<F>::NumVec");
-#endif  // ifndef _RELEASE_
 	if( owndata_ ){
 		if( m_ > 0 ) { 
 //			data_ = new F[m_]; 
@@ -68,16 +59,10 @@ template <class F> NumVec<F>::NumVec	( Int m, bool owndata, F* data ) : m_(m), o
 	else{
 		data_ = data;
 	}
-#ifndef _RELEASE_
-	PopCallStack();
-#endif  // ifndef _RELEASE_
 } 		// -----  end of method NumVec<F>::NumVec  ----- 
 
 template <class F> NumVec<F>::NumVec	( const NumVec<F>& C ) : m_(C.m_), owndata_(C.owndata_)
 {
-#ifndef _RELEASE_
-	PushCallStack("NumVec<F>::NumVec");
-#endif  // ifndef _RELEASE_
 	if( owndata_ ){
 		if( m_ > 0 ) { 
 			//data_ = new F[m_]; 
@@ -103,17 +88,11 @@ template <class F> NumVec<F>::NumVec	( const NumVec<F>& C ) : m_(C.m_), owndata_
 	else{
 		data_ = C.data_;
 	}
-#ifndef _RELEASE_
-	PopCallStack();
-#endif  // ifndef _RELEASE_
 } 		// -----  end of method NumVec<F>::NumVec  ----- 
 
 
 template < class F > NumVec<F>::~NumVec	(  )
 {
-#ifndef _RELEASE_
-	PushCallStack("NumVec<F>::~NumVec");
-#endif  // ifndef _RELEASE_
 	if( owndata_ ){
 		if( m_ > 0 ){
 //			delete[] data_;  
@@ -121,18 +100,12 @@ template < class F > NumVec<F>::~NumVec	(  )
 			data_ = NULL;
 		}
 	}
-#ifndef _RELEASE_
-	PopCallStack();
-#endif  // ifndef _RELEASE_
 
 } 		// -----  end of method NumVec<F>::~NumVec  ----- 
 
 
 template < class F > NumVec<F>& NumVec<F>::operator =	( const NumVec& C  )
 {
-#ifndef _RELEASE_
-	PushCallStack("NumVec<F>::operator=");
-#endif  // ifndef _RELEASE_
 	if( owndata_ ){
 		if( m_ > 0 ){
 //			delete[]  data_;
@@ -170,9 +143,6 @@ template < class F > NumVec<F>& NumVec<F>::operator =	( const NumVec& C  )
 		data_ = C.data_;
 	}
 
-#ifndef _RELEASE_
-	PopCallStack();
-#endif  // ifndef _RELEASE_
 
 	return *this;
 } 		// -----  end of method NumVec<F>::operator=  ----- 
@@ -180,9 +150,6 @@ template < class F > NumVec<F>& NumVec<F>::operator =	( const NumVec& C  )
 
 template < class F > void NumVec<F>::Resize	( const Int m )
 {
-#ifndef _RELEASE_
-	PushCallStack("NumVec<F>::Resize");
-#endif  // ifndef _RELEASE_
 	if( owndata_ == false ){
 
 #ifdef USE_ABORT
@@ -222,9 +189,6 @@ template < class F > void NumVec<F>::Resize	( const Int m )
 //		}
 	}
 
-#ifndef _RELEASE_
-	PopCallStack();
-#endif  // ifndef _RELEASE_
 	return ;
 } 		// -----  end of method NumVec<F>::Resize  ----- 
 
@@ -232,7 +196,6 @@ template < class F > void NumVec<F>::Resize	( const Int m )
 template <class F> F& NumVec<F>::operator()	( Int i )
 {
 #ifndef _RELEASE_
-	PushCallStack("NumVec<F>::operator()");
 	if( i < 0 || i >= m_ ){
 
 #ifdef USE_ABORT
@@ -241,7 +204,6 @@ template <class F> F& NumVec<F>::operator()	( Int i )
 #endif
 		throw std::logic_error( "Index is out of bound." );
 	}
-	PopCallStack();
 #endif  // ifndef _RELEASE_
 	return data_[i];
 
@@ -252,7 +214,6 @@ template <class F> const F&
 NumVec<F>::operator()	( Int i ) const
 {
 #ifndef _RELEASE_
-	PushCallStack("NumVec<F>::operator()");
 	if( i < 0 || i >= m_ ){
 
 #ifdef USE_ABORT
@@ -261,7 +222,6 @@ NumVec<F>::operator()	( Int i ) const
 #endif
 		throw std::logic_error( "Index is out of bound." );
 	}
-	PopCallStack();
 #endif  // ifndef _RELEASE_
 	return data_[i];
 
@@ -271,7 +231,6 @@ NumVec<F>::operator()	( Int i ) const
 template <class F> F& NumVec<F>::operator[]	( Int i )
 {
 #ifndef _RELEASE_
-	PushCallStack("NumVec<F>::operator[]");
 	if( i < 0 || i >= m_ ){
 
 #ifdef USE_ABORT
@@ -280,7 +239,6 @@ template <class F> F& NumVec<F>::operator[]	( Int i )
 #endif
 		throw std::logic_error( "Index is out of bound." );
 	}
-	PopCallStack();
 #endif  // ifndef _RELEASE_
 	return data_[i];
 } 		// -----  end of method NumVec<F>::operator[]  ----- 
@@ -289,7 +247,6 @@ template <class F> F& NumVec<F>::operator[]	( Int i )
 template <class F> const F& NumVec<F>::operator[]	( Int i ) const
 {
 #ifndef _RELEASE_
-	PushCallStack("NumVec<F>::operator[]");
 	if( i < 0 || i >= m_ ){
 
 #ifdef USE_ABORT
@@ -298,7 +255,6 @@ template <class F> const F& NumVec<F>::operator[]	( Int i ) const
 #endif
 		throw std::logic_error( "Index is out of bound." );
 	}
-	PopCallStack();
 #endif  // ifndef _RELEASE_
 	return data_[i];
 

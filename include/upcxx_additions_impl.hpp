@@ -6,7 +6,7 @@
 #include "upcxx_additions.hpp"
 #include "LogFile.hpp"
 
-extern LogFile * logfileptr; 
+//extern LogFile * logfileptr; 
 
 namespace upcxx{
 
