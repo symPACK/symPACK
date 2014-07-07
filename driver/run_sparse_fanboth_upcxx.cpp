@@ -161,7 +161,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
   sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
   sparse_matrix_convert (Atmp, CSC);
   const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
-  HMat.CopyData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,cscptr->values);
+  HMat.CopyData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,(MYSCALAR *)cscptr->values);
 
 
   destroy_sparse_matrix (Atmp);
@@ -315,6 +315,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
   if(iam==0){
     cout<<"Factorization time: "<<timeEnd-timeSta<<endl;
   }
+    logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
 #ifdef _DEBUG_
   //    NumMat<Real> fullMatrix;
