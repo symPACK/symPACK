@@ -12,7 +12,11 @@ extern "C" {
 #endif
 extern double GetCost(int n, int nnz, int * xadj, int * adj,int * perm);
 extern double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * costc);
+
 extern void GetPrefixSum(int n, int * arr, int * arrout);
+
+extern int ReadAdjacency(const char * pfilename, int ** pxadj, int ** padj, int * n , int * nnz);
+
 #ifdef __cplusplus
 }
 
@@ -22,7 +26,7 @@ void GetPermutedGraph(int n, int nnz, int * xadj, int * adj, int * perm, int * n
 void SymbolicFactorization(ETree& tree,const vector<int> & colptr,const vector<int> & rowind,const vector<int> & cc, vector<int> & xlindx, vector<int> & lindx);
 void GetLColRowCount(ETree & tree,const int * xadj, const int * adj, vector<int> & cc, vector<int> & rc);
 void displayMatrix(vector<int> & xadj, vector<int> & adj);
-int ReadAdjacency(char * pfilename, vector<int> & xadj, vector<int> & adj);
+int ReadAdjacency(const char * pfilename, vector<int> & xadj, vector<int> & adj);
 
 #endif
 

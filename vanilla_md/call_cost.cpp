@@ -20,8 +20,6 @@ using namespace std;
 
 
 int main(int argc, char *argv[]) {
-  vector<int> ixadj;
-  vector<int> iadj;
 
   if(argc<3){
     cerr<<"Usage is: "<<argv[0]<<" input.file \"ordering\""<<endl;
@@ -29,8 +27,13 @@ int main(int argc, char *argv[]) {
   }
 
 
-  ReadAdjacency(argv[1], ixadj, iadj);
-  int n = ixadj.size()-1;
+//  vector<int> ixadj;
+//  vector<int> iadj;
+//  ReadAdjacency(argv[1], ixadj, iadj);
+//  int n = ixadj.size()-1;
+  int * ixadj,*iadj;
+  int n, nnz;
+  ReadAdjacency(argv[1], &ixadj, &iadj,&n,&nnz);
 
 
   //expand to asymmetric storage

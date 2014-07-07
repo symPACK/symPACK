@@ -7,6 +7,7 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+#include <iterator>
 
 #include <assert.h>
 
@@ -284,7 +285,7 @@ void SymbolicFactorization(ETree& tree,const vector<int> & colptr,const vector<i
 }
 
 
-int ReadAdjacency(char * pfilename, vector<int> & xadj, vector<int> & adj){
+int ReadAdjacency(const char * pfilename, vector<int> & xadj, vector<int> & adj){
   string filename(pfilename);
   ifstream infile;
   infile.open(filename.c_str());
@@ -366,6 +367,102 @@ int ReadAdjacency(char * pfilename, vector<int> & xadj, vector<int> & adj){
   return 0;
 
 }
+
+
+
+int ReadAdjacency(const char * pfilename, int ** pxadj, int ** padj, int * n , int * nnz){
+  ifstream infile;
+  infile.open(pfilename);
+
+  
+
+
+  vector<int> ixadj;
+  vector<int> xadj;
+  vector<int> adj;
+
+  string line;
+  //read xadj on the first line of the input file
+  if(getline(infile, line))
+  {
+    istringstream iss(line);
+    int pos = 0;
+    int i;
+    while(iss>> i){
+       ixadj.push_back(i);
+    }
+  }    
+  else{
+    return -2;
+  }
+
+  //read adj on the second line of the input file
+  if(getline(infile, line))
+  {
+    istringstream iss(line);
+    int i;
+    int col = 1;
+    int xpos = 0;
+    int pos = 0;
+    int offset = 0;
+    int ifound =0;
+    xadj.push_back(1);
+    while(iss>> i){
+       pos++;
+       if(pos>=ixadj[col]){
+        if(!ifound){
+          adj.push_back(col);
+        }
+        col++;
+        ifound=0; 
+        xadj.push_back(adj.size()+1);
+       }
+       if(i==col){
+        ifound=1;
+       }
+       adj.push_back(i);
+    }
+    xadj.push_back(adj.size()+1);
+  }    
+  else{
+    return -2;
+  }
+
+
+  infile.close();
+
+  *n = xadj.size()-1;
+  *nnz = adj.size();
+  *pxadj = (int*)malloc(xadj.size()*sizeof(int));
+  *padj = (int*)malloc(adj.size()*sizeof(int));
+  std::copy(xadj.begin(),xadj.end(),*pxadj);
+  std::copy(adj.begin(),adj.end(),*padj);
+
+
+#ifdef _verbose_
+  cout<<"ixadj: ";
+  for(int i = 0;i<ixadj.size();++i){
+    cout<<" "<<ixadj[i];
+  }
+  cout<<endl;
+
+  cout<<"xadj: ";
+  for(int i = 0;i<xadj.size();++i){
+    cout<<" "<<xadj[i];
+  }
+  cout<<endl;
+  cout<<"adj: ";
+  for(int i = 0;i<adj.size();++i){
+    cout<<" "<<adj[i];
+  }
+  cout<<endl;
+#endif
+
+  return 0;
+
+
+}
+
 
 void ExpandSymmetric(int size,const int * colptr,const int * rowind, vector<int> & expColptr, vector<int> & expRowind){
   //code from sparsematrixconverter
