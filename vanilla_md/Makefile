@@ -7,8 +7,8 @@ all: check_md md vmd call_cost maxd
 vmd: ETree.o util.o main.cpp 
 	g++ ${CXXFLAGS} -o vmd main.cpp util.o ETree.o 
 
-genetic: geneticOrdering.c cost.o ETree.o 
-	g++ ${CXXFLAGS} -o geneticOrdering geneticOrdering.c cost.o Etree.o
+genetic: geneticOrdering.c util.o ETree.o 
+	g++ ${CXXFLAGS} -o geneticOrdering geneticOrdering.c util.o Etree.o
 
 md: minimum_degree.cpp util.o ETree.o
 	g++ ${CXXFLAGS} -o md minimum_degree.cpp util.o ETree.o
