@@ -11,9 +11,9 @@
 #include <sstream>
 
 #include <omp.h>
-#include "timer.hpp"
+#include "ngchol/timer.hpp"
 
-#include "LogFile.hpp"
+#include "ngchol/LogFile.hpp"
 
 #define MAX_NAME_LENGTH 38
 

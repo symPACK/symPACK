@@ -43,7 +43,7 @@
 /// @file blas.cpp
 /// @brief Thin interface to BLAS
 /// @date 2012-09-12
-#include "blas.hpp"
+#include "ngchol/blas.hpp"
 
 namespace LIBCHOLESKY {
 namespace blas {

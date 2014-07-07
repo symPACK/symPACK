@@ -3,14 +3,14 @@
 /// @author Mathias Jacquelin
 /// @date 2014-01-21
 
-#include "FBMatrix.hpp"
+#include "ngchol/FBMatrix.hpp"
 
-#include  "utility.hpp"
-#include  "blas.hpp"
-#include  "lapack.hpp"
+#include  "ngchol/utility.hpp"
+#include  "ngchol/blas.hpp"
+#include  "ngchol/lapack.hpp"
 
-#include  "LogFile.hpp"
-#include  "upcxx_additions.hpp"
+#include  "ngchol/LogFile.hpp"
+#include  "ngchol/upcxx_additions.hpp"
 
 
 

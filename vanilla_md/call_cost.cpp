@@ -41,6 +41,9 @@ int main(int argc, char *argv[]) {
   vector<int> adj;
   ExpandSymmetric(n,&ixadj[0],&iadj[0], xadj, adj);
 
+  free(ixadj);
+  free(iadj);
+
   vector<int> perm;
   {
     string orderstr(argv[2]);
@@ -81,7 +84,6 @@ int main(int argc, char *argv[]) {
   }
   cout<<endl;
   //  assert(psum[n-1]==cost);
-
 
 
 }

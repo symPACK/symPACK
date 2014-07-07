@@ -2,8 +2,8 @@
 /// @brief Implementation of the non-templated utility subroutines.
 /// @author Lin Lin
 /// @date 2012-09-20
-#include "utility.hpp"
-#include "NumVec.hpp"
+#include "ngchol/utility.hpp"
+#include "ngchol/NumVec.hpp"
 
 using namespace std;
 using std::ifstream;

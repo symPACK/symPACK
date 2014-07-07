@@ -5,10 +5,10 @@
 #ifndef _FBMATRIX_HPP_ 
 #define _FBMATRIX_HPP_
 
-#include "Environment.hpp"
-#include "NumVec.hpp"
-#include "NumMat.hpp"
-#include "DistSparseMatrix.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/NumVec.hpp"
+#include "ngchol/NumMat.hpp"
+#include "ngchol/DistSparseMatrix.hpp"
 
 #include <vector>
 

@@ -6,10 +6,10 @@
 #ifndef _DIST_SPARSE_MATRIX_DECL_HPP_
 #define _DIST_SPARSE_MATRIX_DECL_HPP_
 
-#include "Environment.hpp"
-#include "NumVec.hpp"
-#include "ETree.hpp"
-#include "SparseMatrixStructure.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/NumVec.hpp"
+#include "ngchol/ETree.hpp"
+#include "ngchol/SparseMatrixStructure.hpp"
 
 #include <mpi.h>
 
@@ -104,6 +104,6 @@ typedef DistSparseMatrix<Complex>    CpxDistSparseMatrix;
 
 } // namespace LIBCHOLESKY
 
-#include "DistSparseMatrix_impl.hpp"
+#include "ngchol/DistSparseMatrix_impl.hpp"
 
 #endif // _DIST_SPARSE_MATRIX_DECL_HPP_

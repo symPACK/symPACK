@@ -33,7 +33,7 @@
 
 // Always use complex data.
 #define _USE_COMPLEX_
-#include "datatypes.hpp"
+#include "ngchol/datatypes.hpp"
 
 
 
@@ -68,7 +68,7 @@
 #define _DEBUGlevel -1
 #endif
 
-#include "LogFile.hpp"
+#include "ngchol/LogFile.hpp"
 
 //extern LogFile * logfileptr;
 
@@ -184,7 +184,7 @@ void OptionsCreate(Int argc, char** argv,
 #include "TAU.h"
 #elif defined (PROFILE) || defined(PMPI)
 #define TAU
-#include "timer.hpp"
+#include "ngchol/timer.hpp"
 #else
 #include <sys/time.h>
 
@@ -212,7 +212,7 @@ inline double get_time()
 #endif
 
 
-#include "Environment_impl.hpp"
+#include "ngchol/Environment_impl.hpp"
 
 
 #endif // _ENVIRONMENT_DECL_HPP_

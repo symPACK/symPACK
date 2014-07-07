@@ -1,5 +1,5 @@
-#include  "Environment.hpp"
-#include  "utility.hpp"
+#include  "ngchol/Environment.hpp"
+#include  "ngchol/utility.hpp"
 
 
 namespace LIBCHOLESKY{

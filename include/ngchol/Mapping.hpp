@@ -1,7 +1,7 @@
 #ifndef _MAPPING_HPP_
 #define _MAPPING_HPP_
 
-#include "Environment.hpp"
+#include "ngchol/Environment.hpp"
 
 
 #ifndef MAPCLASS

@@ -43,7 +43,7 @@
 /// @file lapack.cpp
 /// @brief Thin interface to LAPACK
 /// @date 2012-09-12
-#include "lapack.hpp"
+#include "ngchol/lapack.hpp"
 
 namespace LIBCHOLESKY {
 namespace lapack {

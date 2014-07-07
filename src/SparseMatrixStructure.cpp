@@ -1,6 +1,6 @@
-#include "SparseMatrixStructure.hpp"
-#include "ETree.hpp"
-#include "utility.hpp"
+#include "ngchol/SparseMatrixStructure.hpp"
+#include "ngchol/ETree.hpp"
+#include "ngchol/utility.hpp"
 #include <limits>       // std::numeric_limits
 
 #include <iterator>

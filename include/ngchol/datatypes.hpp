@@ -6,7 +6,7 @@
 #define _DATATYPES_HPP_
 
 
-#include  "Environment.hpp"
+#include  "ngchol/Environment.hpp"
 
 namespace LIBCHOLESKY {
 

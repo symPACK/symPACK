@@ -12,9 +12,9 @@
 
 #include "upcxx.h"
 
-#include "Environment.hpp"
-#include "NumMat_upcxx.hpp"
-#include "FBMatrix.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/NumMat_upcxx.hpp"
+#include "ngchol/FBMatrix.hpp"
 
 
 using namespace std;

@@ -1,4 +1,4 @@
-#include "IntervalTree.hpp"
+#include "ngchol/IntervalTree.hpp"
 
 
 

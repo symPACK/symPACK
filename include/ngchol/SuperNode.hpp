@@ -5,9 +5,9 @@
 #ifndef _SUPERNODE_FACT_HPP_
 #define _SUPERNODE_FACT_HPP_
 
-#include "Environment.hpp"
-#include "NumVec.hpp"
-#include "IntervalTree.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/NumVec.hpp"
+#include "ngchol/IntervalTree.hpp"
 
 #include <list>
 

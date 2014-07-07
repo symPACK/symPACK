@@ -3,18 +3,18 @@
 /// @author Mathias Jacquelin
 /// @date 2014-01-21
 
-#include "FBMatrix_upcxx.hpp"
+#include "ngchol/FBMatrix_upcxx.hpp"
 
 #include <upcxx.h>
-#include  "NumMat_upcxx.hpp"
+#include  "ngchol/NumMat_upcxx.hpp"
 
-#include  "utility.hpp"
-#include  "blas.hpp"
-#include  "lapack.hpp"
+#include  "ngchol/utility.hpp"
+#include  "ngchol/blas.hpp"
+#include  "ngchol/lapack.hpp"
 
 
-#include  "LogFile.hpp"
-#include  "upcxx_additions.hpp"
+#include  "ngchol/LogFile.hpp"
+#include  "ngchol/upcxx_additions.hpp"
 
 #ifndef ADVANCE_COMM
 #define ADVANCE_COMM 1

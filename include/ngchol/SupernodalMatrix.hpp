@@ -1,13 +1,13 @@
 #ifndef _SUPERNODAL_MATRIX_DECL_HPP_
 #define _SUPERNODAL_MATRIX_DECL_HPP_
 
-#include "Environment.hpp"
-#include "SuperNode.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/SuperNode.hpp"
 
-#include "NumVec.hpp"
-#include "DistSparseMatrix.hpp"
-#include "ETree.hpp"
-#include "FBMatrix.hpp"
+#include "ngchol/NumVec.hpp"
+#include "ngchol/DistSparseMatrix.hpp"
+#include "ngchol/ETree.hpp"
+//#include "FBMatrix.hpp"
 
 
 
@@ -15,7 +15,7 @@
 #include <deque>
 #include <queue>
 #include <vector>
-#include "Mapping.hpp"
+#include "ngchol/Mapping.hpp"
 
 #ifdef NO_INTRA_PROFILE
 #if defined (PROFILE)
@@ -293,7 +293,7 @@ template <typename T> class SupernodalMatrix{
 
 } // namespace LIBCHOLESKY
 
-#include "SupernodalMatrix_impl.hpp"
+#include "ngchol/SupernodalMatrix_impl.hpp"
 
 
 #ifdef NO_INTRA_PROFILE

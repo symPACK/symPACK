@@ -7,9 +7,9 @@
 
 #include  <stdlib.h>
 
-#include "Environment.hpp"
-#include "NumVec.hpp"
-#include "SparseMatrixStructure.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/NumVec.hpp"
+#include "ngchol/SparseMatrixStructure.hpp"
 
 namespace LIBCHOLESKY{
   class DisjointSet{

@@ -5,7 +5,7 @@
 #ifndef _NUMVEC_DECL_HPP_
 #define _NUMVEC_DECL_HPP_
 
-#include "Environment.hpp"
+#include "ngchol/Environment.hpp"
 
 namespace LIBCHOLESKY{
 
@@ -67,6 +67,6 @@ template <class F> Real Energy( const NumVec<F>& vec );
 
 } // namespace LIBCHOLESKY
 
-#include "NumVec_impl.hpp"
+#include "ngchol/NumVec_impl.hpp"
 
 #endif // _NUMVEC_DECL_HPP_

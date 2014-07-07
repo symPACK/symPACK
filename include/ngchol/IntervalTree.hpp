@@ -5,7 +5,7 @@
 #ifndef _INTTREE_DECL_HPP_
 #define _INTTREE_DECL_HPP_
 
-#include "Environment.hpp"
+#include "ngchol/Environment.hpp"
 
 using namespace std;
 

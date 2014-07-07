@@ -1,5 +1,5 @@
 
-#include "LogFile.hpp"
+#include "ngchol/LogFile.hpp"
 
 namespace LIBCHOLESKY{
 

@@ -45,7 +45,7 @@
 /// @file blas.hpp
 /// @brief Thin interface to BLAS
 /// @date 2012-09-12
-#include  "Environment.hpp"
+#include  "ngchol/Environment.hpp"
 
 namespace LIBCHOLESKY {
 

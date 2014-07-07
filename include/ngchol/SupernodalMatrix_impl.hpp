@@ -1,9 +1,9 @@
 #ifndef _SUPERNODAL_MATRIX_IMPL_HPP_
 #define _SUPERNODAL_MATRIX_IMPL_HPP_
 
-#include "SupernodalMatrix.hpp"
+#include "ngchol/SupernodalMatrix.hpp"
 
-#include "blas.hpp"
+#include "ngchol/blas.hpp"
 
 #include <queue>
 

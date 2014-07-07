@@ -2,8 +2,8 @@
 /// @brief Implementation of the elimination-tree related algorithms.
 /// @author Mathias Jacquelin
 /// @date 2012-08-31
-#include "ETree.hpp"
-#include "utility.hpp"
+#include "ngchol/ETree.hpp"
+#include "ngchol/utility.hpp"
 
 namespace LIBCHOLESKY{
 

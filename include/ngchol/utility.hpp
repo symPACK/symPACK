@@ -7,12 +7,12 @@
 
 #include  <mpi.h>
 #include  <stdlib.h>
-#include  "Environment.hpp"
-#include  "NumVec.hpp"
-#include  "NumMat.hpp"
-#include  "SparseMatrix.hpp"
-#include  "DistSparseMatrix.hpp"
-#include  "ETree.hpp"
+#include  "ngchol/Environment.hpp"
+#include  "ngchol/NumVec.hpp"
+#include  "ngchol/NumMat.hpp"
+#include  "ngchol/SparseMatrix.hpp"
+#include  "ngchol/DistSparseMatrix.hpp"
+#include  "ngchol/ETree.hpp"
 
 namespace LIBCHOLESKY{
 

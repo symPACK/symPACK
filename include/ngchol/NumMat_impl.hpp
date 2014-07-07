@@ -5,8 +5,8 @@
 #ifndef _NUMMAT_IMPL_HPP_
 #define _NUMMAT_IMPL_HPP_
 
-#include "Environment.hpp"
-#include "lapack.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/lapack.hpp"
 ////#include "NZBlock.hpp"
 #include <sstream>
 

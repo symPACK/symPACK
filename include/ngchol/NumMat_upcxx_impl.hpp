@@ -5,7 +5,7 @@
 #ifndef _NUMMAT_UPCXX_IMPL_HPP_
 #define _NUMMAT_UPCXX_IMPL_HPP_
 
-#include "Environment.hpp"
+#include "ngchol/Environment.hpp"
 #include <sstream>
 
 using namespace upcxx;

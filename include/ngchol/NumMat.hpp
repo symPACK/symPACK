@@ -5,8 +5,8 @@
 #ifndef _NUMMAT_DECL_HPP_
 #define _NUMMAT_DECL_HPP_
 
-#include "Environment.hpp"
-#include "SuperNode.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/SuperNode.hpp"
 
 
 
@@ -91,6 +91,6 @@ template <typename F> inline void Transpose ( const NumMat<F>& A, NumMat<F>& B )
 template <typename F> inline void Symmetrize( NumMat<F>& A );
 } // namespace LIBCHOLESKY
 
-#include "NumMat_impl.hpp"
+#include "ngchol/NumMat_impl.hpp"
 
 #endif // _NUMMAT_DECL_HPP_

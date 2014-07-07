@@ -6,8 +6,8 @@
 #ifndef _SPARSE_MATRIX_DECL_HPP_
 #define _SPARSE_MATRIX_DECL_HPP_
 
-#include "Environment.hpp"
-#include "NumVec.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/NumVec.hpp"
 
 namespace LIBCHOLESKY{
 
@@ -41,6 +41,6 @@ typedef SparseMatrix<Complex>    CpxSparseMatrix;
 
 } // namespace LIBCHOLESKY
 
-#include "SparseMatrix_impl.hpp"
+#include "ngchol/SparseMatrix_impl.hpp"
 
 #endif // _SPARSE_MATRIX_DECL_HPP_

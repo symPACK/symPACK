@@ -3,8 +3,8 @@
 
 
 
-#include "upcxx_additions.hpp"
-#include "LogFile.hpp"
+#include "ngchol/upcxx_additions.hpp"
+#include "ngchol/LogFile.hpp"
 
 //extern LogFile * logfileptr; 
 

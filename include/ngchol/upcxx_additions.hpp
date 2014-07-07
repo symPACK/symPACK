@@ -9,6 +9,6 @@ namespace upcxx{
     template <typename T> void Destroy(global_ptr<T>& gptr);
 }
 
-#include "upcxx_additions_impl.hpp"
+#include "ngchol/upcxx_additions_impl.hpp"
 
 #endif

@@ -1,8 +1,8 @@
 #ifndef _DIST_SPARSE_MATRIX_STRUCTURE_HPP_
 #define _DIST_SPARSE_MATRIX_STRUCTURE_HPP_
 
-#include "Environment.hpp"
-#include "NumVec.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/NumVec.hpp"
 
 namespace LIBCHOLESKY{
 

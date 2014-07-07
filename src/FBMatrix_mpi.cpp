@@ -3,13 +3,13 @@
 /// @author Mathias Jacquelin
 /// @date 2014-01-21
 
-#include "FBMatrix_mpi.hpp"
+#include "ngchol/FBMatrix_mpi.hpp"
 
-#include  "utility.hpp"
-#include  "blas.hpp"
-#include  "lapack.hpp"
+#include  "ngchol/utility.hpp"
+#include  "ngchol/blas.hpp"
+#include  "ngchol/lapack.hpp"
 
-#include  "LogFile.hpp"
+#include  "ngchol/LogFile.hpp"
 
 
 #define TAG_FACTOR 0

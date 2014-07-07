@@ -6,10 +6,10 @@
 #ifndef _DIST_SPARSE_MATRIX_IMPL_HPP_
 #define _DIST_SPARSE_MATRIX_IMPL_HPP_
 
-#include "Environment.hpp"
-#include "DistSparseMatrix.hpp"
-#include "utility.hpp"
-#include "SparseMatrixStructure.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/DistSparseMatrix.hpp"
+#include "ngchol/utility.hpp"
+#include "ngchol/SparseMatrixStructure.hpp"
 
 #include <vector>
 

@@ -12,8 +12,8 @@
 #endif
 
 
-#include "Environment.hpp"
-#include "FBMatrix.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/FBMatrix.hpp"
 
 
 using namespace std;

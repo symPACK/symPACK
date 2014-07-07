@@ -1,6 +1,6 @@
-#include "Cholesky.hpp"
+#include "ngchol/Cholesky.hpp"
 
-#include "NumMat.hpp"
+#include "ngchol/NumMat.hpp"
 #include <vector>
 
 namespace LIBCHOLESKY{

@@ -5,8 +5,8 @@
 #ifndef _NUMMAT_UPCXX_HPP_
 #define _NUMMAT_UPCXX_HPP_
 
-#include "Environment.hpp"
-#include "NumMat.hpp"
+#include "ngchol/Environment.hpp"
+#include "ngchol/NumMat.hpp"
 
 #include <upcxx.h>
 
@@ -49,6 +49,6 @@ typedef NumMat_upcxx<Complex>  CpxNumMat_upcxx;
 
 } // namespace LIBCHOLESKY
 
-#include "NumMat_upcxx_impl.hpp"
+#include "ngchol/NumMat_upcxx_impl.hpp"
 
 #endif // _NUMMAT_UPCXX_HPP_
