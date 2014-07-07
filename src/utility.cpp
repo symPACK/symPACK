@@ -949,9 +949,6 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 
   MPI_Barrier( comm );
 
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
 
 	return ;
 }		// -----  end of function ReadDistSparseMatrixFormatted  ----- 
@@ -1063,9 +1060,6 @@ LinearInterpolation (
 		}
 	} // for (i)
 
-#ifndef _RELEASE_
-	PopCallStack();
-#endif
 	return ;
 }		// -----  end of function LinearInterpolation  ----- 
 

@@ -1,3 +1,5 @@
+#ifndef _NGCHOL_BLAS_HEADER_
+#define _NGCHOL_BLAS_HEADER_
 /*
 	 Copyright (c) 2012 The Regents of the University of California,
 	 through Lawrence Berkeley National Laboratory.  
@@ -553,4 +555,10 @@ template<typename T>
 		T alpha, const T* A, Int lda, T* B, Int ldb );
 
 } // namespace blas
-} // namespace PEXSI 
+} // namespace LIBCHOLESKY
+
+
+#endif //_NGCHOL_BLAS_HEADER_
+
+
+
