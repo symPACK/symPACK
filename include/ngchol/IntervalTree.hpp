@@ -6,6 +6,7 @@
 #define _INTTREE_DECL_HPP_
 
 #include "ngchol/Environment.hpp"
+#include "ngchol/LogFile.hpp"
 
 using namespace std;
 

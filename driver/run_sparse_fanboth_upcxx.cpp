@@ -12,24 +12,8 @@
 #include <omp.h>
 
 #include  "ngchol.hpp"
-//#include  "Environment.hpp"
-//#include  "DistSparseMatrix.hpp"
-//#include  "NumVec.hpp"
-//#include  "NumMat.hpp"
-//#include  "utility.hpp"
-//#include  "ETree.hpp"
-//#include  "Mapping.hpp"
-//
-//#include  "blas.hpp"
-#include  "ngchol/sp_blas.hpp"
-//#include  "lapack.hpp"
-////#include  "NZBlock.hpp"
-//#include  "SuperNode.hpp"
-//#include  "SupernodalMatrix.hpp"
-//
-////#include <async.h>
-//#include  "LogFile.hpp"
 
+#include  "ngchol/sp_blas.hpp"
 
 extern "C" {
 #include <bebop/util/config.h>
@@ -46,37 +30,10 @@ extern "C" {
 }
 
 
-
-
-//#ifdef USE_TAU
-//#include "TAU.h"
-//#elif defined (PROFILE) || defined(PMPI)
-//#define TAU
-//#include "timer.hpp"
-//#endif
-//
-//
-//
-//#ifdef USE_TAU 
-//#define TIMER_START(a) TAU_START(TOSTRING(a));
-//#define TIMER_STOP(a) TAU_STOP(TOSTRING(a));
-//#elif defined (PROFILE)
-//#define TIMER_START(a) TAU_FSTART(a);
-//#define TIMER_STOP(a) TAU_FSTOP(a);
-//#else
-//#define TIMER_START(a)
-//#define TIMER_STOP(a)
-//#endif
-
-using namespace LIBCHOLESKY;
-using namespace std;
-
-
-
 #define MYSCALAR double
 
 
-
+using namespace LIBCHOLESKY;
 
 
 int main(int argc, char **argv) 
@@ -215,10 +172,6 @@ DistSparseMatrix<Real> HMat(worldcomm);
         }
       }
 
-
-      //      logfileptr->OFS()<<"Cholesky factor of POTRF:"<<A<<std::endl;
-
-
       //simulate a potrs in order to get the intermediate values
       for(Int j = 0; j<nrhs;++j){
         for(Int k = 0; k<A.m();++k){
@@ -290,26 +243,13 @@ DistSparseMatrix<Real> HMat(worldcomm);
 #endif
 
 
-
-  //SparseMatrixStructure Global = HMat.GetGlobalStructure();
-  //logfileptr->OFS()<<Global.colptr<<std::endl;
-  //logfileptr->OFS()<<Global.rowind<<std::endl;
-
-  //ETree etree(Global);
-  //etree.PostOrderTree();
-
-
-  //logfileptr->OFS()<<"etree is "<<etree<<endl;
-
   //do the symbolic factorization and build supernodal matrix
   SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
 
   timeSta = get_time();
-  TIMER_START(SPARSE_FAN_OUT);
-//  SMat.Factorize(worldcomm);
-  SMat.FanOut(worldcomm);
-//  SMat.FanBoth(worldcomm);
-  TIMER_STOP(SPARSE_FAN_OUT);
+  TIMER_START(SPARSE_FAN_OUT2);
+  SMat.FanOut2();
+  TIMER_STOP(SPARSE_FAN_OUT2);
   timeEnd = get_time();
 
   if(iam==0){
@@ -317,9 +257,26 @@ DistSparseMatrix<Real> HMat(worldcomm);
   }
     logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
+{
+  SupernodalMatrix<double> SMat2(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
+
+  timeSta = get_time();
+  TIMER_START(SPARSE_FAN_OUT);
+  SMat2.FanOut();
+  TIMER_STOP(SPARSE_FAN_OUT);
+  timeEnd = get_time();
+
+  if(iam==0){
+    cout<<"Factorization time: "<<timeEnd-timeSta<<endl;
+  }
+    logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
+}
+
+
+
 #ifdef _DEBUG_
   //    NumMat<Real> fullMatrix;
-  //    SMat.GetFullFactors(fullMatrix,worldcomm);
+  //    SMat.GetFullFactors(fullMatrix);
   //    logfileptr->OFS()<<fullMatrix<<std::endl;
 #endif
 
@@ -337,13 +294,13 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
   //sort X the same way (permute rows)
   DblNumMat X(RHS.m(),RHS.n());
+  const IntNumVec & perm = SMat.GetColPerm(); 
   for(Int row = 1; row<= RHS.m(); ++row){
     for(Int col = 1; col<= RHS.n(); ++col){
 #ifdef _CHECK_RESULT_SEQ_
-      X(row-1,col-1) = RHS2(SMat.perm_[row-1]-1,col-1);
+      X(row-1,col-1) = RHS2(perm[row-1]-1,col-1);
 #else
-//      X(row-1,col-1) = RHS(tree.FromPostOrder(row)-1,col-1);
-      X(row-1,col-1) = RHS(SMat.perm_[row-1]-1,col-1);
+      X(row-1,col-1) = RHS(perm[row-1]-1,col-1);
 #endif
     }
   }
@@ -384,11 +341,11 @@ DistSparseMatrix<Real> HMat(worldcomm);
       poFwdSol(row-1,col-1) = fwdSol(tree.FromPostOrder(row)-1,col-1);
     }
   }
-  SMat.Solve(&X,worldcomm,poFwdSol);
+  SMat.Solve(&X,poFwdSol);
 #else
-  SMat.Solve(&X,worldcomm);
+  SMat.Solve(&X);
 #endif
-  SMat.GetSolution(X,worldcomm);
+  SMat.GetSolution(X);
 
 
 
@@ -396,9 +353,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
   DblNumMat X2(X.m(),X.n());
   for(Int row = 1; row<= X.m(); ++row){
     for(Int col = 1; col<= X.n(); ++col){
-//      X2(row-1,col-1) = X(tree.ToPostOrder(row)-1,col-1);
-//      X2(tree.FromPostOrder(row)-1,col-1) = X(row-1,col-1);
-      X2(SMat.perm_[row-1]-1,col-1) = X(row-1,col-1);
+      X2(perm[row-1]-1,col-1) = X(row-1,col-1);
     }
   }
 

@@ -59,6 +59,14 @@ int main(int argc, char *argv[]) {
     }  
   }
 
+  if(argc>3){
+    vector<int> perm2(perm.size());
+    for(int i =0; i<perm.size(); ++i){
+      perm2[perm[i]-1]=i+1;
+    }
+    perm = perm2;
+  }
+
   vector<int> costc(n);
   double cost2  = GetCost(n,adj.size(),&xadj[0],&adj[0],&perm[0]);
   double cost  = GetCostPerCol(n,adj.size(),&xadj[0],&adj[0],&perm[0],&costc[0]);

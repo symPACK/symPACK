@@ -37,6 +37,7 @@
 
 
 
+#include "ngchol/LogFile.hpp"
 
 
 
@@ -68,7 +69,6 @@
 #define _DEBUGlevel -1
 #endif
 
-#include "ngchol/LogFile.hpp"
 
 //extern LogFile * logfileptr;
 
@@ -110,11 +110,9 @@ const char LOWER = 'L';
 
 namespace LIBCHOLESKY{
 
+  extern Int iam;
+  extern Int np;
 
-
-
-
-  extern Int iam,np;
 
   inline void gdb_lock(){
     std::cout<<"P"<<iam<<" is locked"<<std::endl;
