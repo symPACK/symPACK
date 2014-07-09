@@ -432,7 +432,6 @@ int ReadAdjacency(const char * pfilename, int ** pxadj, int ** padj, int * n , i
   infile.close();
 
   *n = ixadj.size()-1;
-  *nnz = iadj.size();
 
 
   //expand to asymmetric storage
@@ -446,6 +445,7 @@ int ReadAdjacency(const char * pfilename, int ** pxadj, int ** padj, int * n , i
   std::copy(xadj.begin(),xadj.end(),*pxadj);
   std::copy(adj.begin(),adj.end(),*padj);
 
+  *nnz = adj.size();
 
 #ifdef _verbose_
   cout<<"ixadj: ";

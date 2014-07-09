@@ -4,8 +4,8 @@
 #include <string.h>
 #include "util.h"
 
-#define POPSIZE 100
-#define NUM_GENES 100
+#define POPSIZE 10
+#define NUM_GENES 2146
 
 
 
@@ -101,7 +101,9 @@ int main (int argc, char *argv[]) {
     struct individual child;
     int parent1;
     int parent2;
+
     evaluateOrdering(currentPop, POPSIZE);
+    printf("Evaluated\n");
     while (currentGen < MAXGENS) {
 
         memcpy(nextPop, currentPop, POPSIZE * sizeof(struct individual));
@@ -131,7 +133,7 @@ int main (int argc, char *argv[]) {
         if (costStopCounter == STOPCOUNT) {
             break;
         }
-        printf("Best Indiv is fitness %f\n", 1/currentPop[0].fitness);
+        //printf("Best Indiv is fitness %f\n", 1/currentPop[0].fitness);
         //printf("Current Generation is %d", currentGen);
     } 
     printf("Final Population with %d generations.\n", currentGen);
@@ -180,7 +182,7 @@ void printPop() {
     for (int i = 0; i < POPSIZE; i++) {
         for (int j = 0; j < n; j++) {
             printf("%d ", currentPop[i].ordering[j]);
-        }
+        }        
         double thisFit;
         if (currentGen != 0) {
             thisFit = (1 / currentPop[i].fitness);
