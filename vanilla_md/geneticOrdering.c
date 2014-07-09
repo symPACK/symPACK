@@ -4,14 +4,9 @@
 #include <string.h>
 #include "util.h"
 
-//#define STOPCOUNT 500000000
-//#define STENCIL 4
-#define POPSIZE 20
-//#define MAXGENS 50000
-//#define PMUTATION  .5
-#define NUM_GENES 2146
-//#define INPUT_FILE "population10x10.dat"
-//#define ADJ_FILE "input10x10_5.adj"
+#define POPSIZE 100
+#define NUM_GENES 100
+
 
 
 
@@ -19,9 +14,8 @@ char* INPUT_FILE;
 char* ADJ_FILE;
 int MAXGENS;
 int STOPCOUNT;
-//int STENCIL;
 double PMUTATION;
-//int POPSIZE;
+//int POPSIZE = 20;
 int swapPercent;
 int swapLength;
 
@@ -39,7 +33,7 @@ struct individual {
 };
 
 struct individual currentPop[POPSIZE];
-struct individual nextPop[2 * POPSIZE];
+struct individual nextPop[2*POPSIZE];
 int* adjArray1;
 int* adjArray2;
 
@@ -67,6 +61,7 @@ int breakThreshold;
 
 char* mutType;
 char* crossType;
+char* selectionType;
 
 int costCounter = 0;
 
@@ -80,7 +75,7 @@ int costCounter = 0;
    arguments as of now.*/
 int main (int argc, char *argv[]) {
 
-    if (argc != 11) {
+    if (argc != 12) {
         fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\n");
         exit(5);
     } else {
@@ -94,7 +89,9 @@ int main (int argc, char *argv[]) {
         breakThreshold = atoi (argv[8]);
         mutType = argv[9];
         crossType = argv[10];
+        selectionType = argv[11];
     }
+    //printf("PMUTATION: %f, swapPercent: %d\n", PMUTATION, swapPercent);
     
     setbuf(stdout, NULL);
     init();
@@ -134,6 +131,7 @@ int main (int argc, char *argv[]) {
         if (costStopCounter == STOPCOUNT) {
             break;
         }
+        printf("Best Indiv is fitness %f\n", 1/currentPop[0].fitness);
         //printf("Current Generation is %d", currentGen);
     } 
     printf("Final Population with %d generations.\n", currentGen);
@@ -201,6 +199,7 @@ void printPop() {
    to complete the descendant stage of the genetic algorithm. */
 struct individual cross (int firstParent, int secondParent) {
     struct individual child;
+    //printf("Using Parent1: %d and Parent2: %d\n", firstParent, secondParent);
     if (!strcmp("order", crossType)) {
         int crossPoint1 = rand() % n;
         int crossPoint2 = 0;
@@ -268,8 +267,16 @@ struct individual cross (int firstParent, int secondParent) {
             printf("Child is illegal permutation.\n");
             exit(1);
         }
+    } else if (!strcmp("none", crossType)) {
+        for (int sillyCopy = 0; sillyCopy < n; sillyCopy++) {
+            child.ordering[sillyCopy] = currentPop[firstParent].ordering[sillyCopy];
+        } 
+        if (!isPermutation(child.ordering)) {
+            printf("Child is illegal permutation.\n");
+            exit(1);
+        }
     } else {
-        fprintf(stderr,"Not a legal type of crossover.");
+        fprintf(stderr,"Not a legal type of crossover. Should be Average, order, or none.");
         exit(1);
     }
     return child;
@@ -281,31 +288,69 @@ struct individual cross (int firstParent, int secondParent) {
    more fit to produce the next generation. Algorithm for this borrowed
    from FSU tutorial, perhaps can be improved. */
 int pickParent(struct individual possibleParents[]) {
-    totalFitness=0;
-    //Find the total fitness of the population.
-    for (int totalSum = 0; totalSum < POPSIZE; totalSum++) {
-        totalFitness += currentPop[totalSum].fitness;
-    }
-    for (int fitCounter = 0; fitCounter < POPSIZE; fitCounter++) {
-        currentPop[fitCounter].rfitness = currentPop[fitCounter].fitness / totalFitness;
-    }
-    //Find the cumulative fitness of the individuals.
-    currentPop[0].cfitness = currentPop[0].rfitness;
-    for (int cfitCounter = 1; cfitCounter < POPSIZE; cfitCounter ++) {
-        currentPop[cfitCounter].cfitness = currentPop[cfitCounter - 1].cfitness + currentPop[cfitCounter].rfitness;
-    }
-    
-    //Select and return 1 parent, based off of cfitness.
-    double random;
-    random =((double)rand()/(double)RAND_MAX);
-    if (random < currentPop[0].cfitness) {
-        return 0;
-    } else {
-        for (int picker = 0; picker < POPSIZE; picker++) {
-            if (currentPop[picker].cfitness <= random && random < currentPop[picker + 1].cfitness) {
-                return picker + 1;
+    if (!strcmp("rw", selectionType)) {
+        totalFitness=0;
+        //Find the total fitness of the population.
+        for (int totalSum = 0; totalSum < POPSIZE; totalSum++) {
+            totalFitness += currentPop[totalSum].fitness;
+        }
+        //Find the relative fitness of the population.
+        for (int fitCounter = 0; fitCounter < POPSIZE; fitCounter++) {
+            currentPop[fitCounter].rfitness = currentPop[fitCounter].fitness / totalFitness;
+        }
+        //Find the cumulative fitness of the individuals.
+        currentPop[0].cfitness = currentPop[0].rfitness;
+        for (int cfitCounter = 1; cfitCounter < POPSIZE; cfitCounter ++) {
+            currentPop[cfitCounter].cfitness = currentPop[cfitCounter - 1].cfitness + currentPop[cfitCounter].rfitness;
+        }
+        
+        //Select and return 1 parent, based off of cfitness.
+        double random;
+        random =((double)rand()/(double)RAND_MAX);
+        if (random < currentPop[0].cfitness) {
+            return 0;
+        } else {
+            for (int picker = 0; picker < POPSIZE; picker++) {
+                if (currentPop[picker].cfitness <= random && random < currentPop[picker + 1].cfitness) {
+                    return picker + 1;
+                }
             }
         }
+    } else if (!strcmp("ro", selectionType)) {
+        totalFitness=0;
+        //Find the total fitness of the population.
+        for (int totalSum = 0; totalSum < POPSIZE; totalSum++) {
+            totalFitness += totalSum + 1;
+            //printf("Total Fitness is %f\n", totalFitness);
+        }
+        //Find the relative fitness of the population.
+        int ranking = 1;
+        for (int fitCounter = POPSIZE - 1; fitCounter >= 0; fitCounter--) {
+            currentPop[fitCounter].rfitness = ranking / totalFitness;
+            ranking++;
+            //printf("Rfitnesses are %f\n", currentPop[fitCounter].rfitness);
+        }
+        //Find the cumulative fitness of the individuals.
+        currentPop[0].cfitness = currentPop[0].rfitness;
+        for (int cfitCounter = 1; cfitCounter < POPSIZE; cfitCounter ++) {
+            currentPop[cfitCounter].cfitness = currentPop[cfitCounter - 1].cfitness + currentPop[cfitCounter].rfitness;
+        }
+        
+        //Select and return 1 parent, based off of cfitness.
+        double random;
+        random =((double)rand()/(double)RAND_MAX);
+        if (random < currentPop[0].cfitness) {
+            return 0;
+        } else {
+            for (int picker = 0; picker < POPSIZE; picker++) {
+                if (currentPop[picker].cfitness <= random && random < currentPop[picker + 1].cfitness) {
+                    return picker + 1;
+                }
+            }
+        }
+    } else {
+        fprintf(stderr,"Not a legal type of selection. Should be ro for Rank Ordering or RW for Roulette Wheel");
+        exit(1);
     }
 }
 
@@ -314,7 +359,7 @@ int pickParent(struct individual possibleParents[]) {
 void evaluateOrdering(struct individual indivs[], int size) {
     for (int in = 0; in < size; in++) {
         if (indivs[in].fitness == -1) {
-            indivs[in].fitness = 1 / (GetCost(n, nnz, adjArray1, adjArray2 ,indivs[in].ordering));
+            indivs[in].fitness = 1.0 / (GetCost(n, nnz, adjArray1, adjArray2 ,indivs[in].ordering));
             costCounter += 1;
         }
     }
@@ -350,14 +395,15 @@ void init() {
 
 /* Mutates the entire current population. */
 void mutatePop(struct individual mutated[]) {
-    for (int indiv = 0; indiv < POPSIZE; indiv++) {
-        int randomMutate;
-        int mutateBarrier;
+    for (int indiv = POPSIZE; indiv < POPSIZE * 2; indiv++) {
+        double randomMutate;
+        double mutateBarrier;
         mutateBarrier = PMUTATION * RAND_MAX;
         randomMutate=rand();
         if (randomMutate < mutateBarrier) {
             mutated[indiv].fitness = - 1;
-            int numSwaps = swapPercent * POPSIZE * .01;
+            int numSwaps = swapPercent * NUM_GENES * .01;
+            //printf("numSwaps is: %d\n", numSwaps);
             for (int x = 0; x < numSwaps; x++) {
                 if (!strcmp("swap", mutType)) {
                     int temp[n]; //remove * to revert also is temp1

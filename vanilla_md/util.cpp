@@ -377,9 +377,9 @@ int ReadAdjacency(const char * pfilename, int ** pxadj, int ** padj, int * n , i
   
 
 
+  vector<int> iixadj;
   vector<int> ixadj;
-  vector<int> xadj;
-  vector<int> adj;
+  vector<int> iadj;
 
   string line;
   //read xadj on the first line of the input file
@@ -389,7 +389,7 @@ int ReadAdjacency(const char * pfilename, int ** pxadj, int ** padj, int * n , i
     int pos = 0;
     int i;
     while(iss>> i){
-       ixadj.push_back(i);
+       iixadj.push_back(i);
     }
   }    
   else{
@@ -406,23 +406,23 @@ int ReadAdjacency(const char * pfilename, int ** pxadj, int ** padj, int * n , i
     int pos = 0;
     int offset = 0;
     int ifound =0;
-    xadj.push_back(1);
+    ixadj.push_back(1);
     while(iss>> i){
        pos++;
-       if(pos>=ixadj[col]){
+       if(pos>=iixadj[col]){
         if(!ifound){
-          adj.push_back(col);
+          iadj.push_back(col);
         }
         col++;
         ifound=0; 
-        xadj.push_back(adj.size()+1);
+        ixadj.push_back(iadj.size()+1);
        }
        if(i==col){
         ifound=1;
        }
-       adj.push_back(i);
+       iadj.push_back(i);
     }
-    xadj.push_back(adj.size()+1);
+    ixadj.push_back(iadj.size()+1);
   }    
   else{
     return -2;
@@ -431,8 +431,16 @@ int ReadAdjacency(const char * pfilename, int ** pxadj, int ** padj, int * n , i
 
   infile.close();
 
-  *n = xadj.size()-1;
-  *nnz = adj.size();
+  *n = ixadj.size()-1;
+  *nnz = iadj.size();
+
+
+  //expand to asymmetric storage
+  vector<int> xadj;
+  vector<int> adj;
+  ExpandSymmetric(*n,&ixadj[0],&iadj[0], xadj, adj);
+
+
   *pxadj = (int*)malloc(xadj.size()*sizeof(int));
   *padj = (int*)malloc(adj.size()*sizeof(int));
   std::copy(xadj.begin(),xadj.end(),*pxadj);

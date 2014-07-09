@@ -1,4 +1,4 @@
-CXXFLAGS =-I./ -O3 -std=c++11 
+CXXFLAGS =-I./ -O3 -std=c++11
 #CXXFLAGS =-I./ -O0 -g -std=c++11 
 
 
