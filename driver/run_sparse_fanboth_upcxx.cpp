@@ -257,21 +257,6 @@ DistSparseMatrix<Real> HMat(worldcomm);
   }
     logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
-{
-  SupernodalMatrix<double> SMat2(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
-
-  timeSta = get_time();
-  TIMER_START(SPARSE_FAN_OUT);
-  SMat2.FanOut();
-  TIMER_STOP(SPARSE_FAN_OUT);
-  timeEnd = get_time();
-
-  if(iam==0){
-    cout<<"Factorization time: "<<timeEnd-timeSta<<endl;
-  }
-    logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
-}
-
 
 
 #ifdef _DEBUG_
@@ -304,6 +289,48 @@ DistSparseMatrix<Real> HMat(worldcomm);
 #endif
     }
   }
+
+{
+  DblNumMat X3 = X;
+  SupernodalMatrix<double> SMat2(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
+
+  timeSta = get_time();
+  TIMER_START(SPARSE_FAN_OUT);
+  SMat2.FanOut();
+  TIMER_STOP(SPARSE_FAN_OUT);
+  timeEnd = get_time();
+
+  if(iam==0){
+    cout<<"Factorization time: "<<timeEnd-timeSta<<endl;
+  }
+    logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
+
+  SMat.Solve(&X3);
+  SMat.GetSolution(X3);
+
+
+
+  //Sort back X
+  DblNumMat X4(X.m(),X.n());
+  for(Int row = 1; row<= X.m(); ++row){
+    for(Int col = 1; col<= X.n(); ++col){
+      X4(perm[row-1]-1,col-1) = X3(row-1,col-1);
+    }
+  }
+
+
+//      logfileptr->OFS()<<X2<<endl;
+
+  blas::Axpy(X4.m()*X4.n(),-1.0,&XTrue(0,0),1,&X4(0,0),1);
+  double norm = lapack::Lange('F',X4.m(),X4.n(),&X4(0,0),X4.m());
+  logfileptr->OFS()<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
+
+
+}
+
+
+
+
 
 //      logfileptr->OFS()<<RHS<<endl;
 //      logfileptr->OFS()<<X<<endl;
