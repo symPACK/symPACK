@@ -3,9 +3,10 @@
 #include <time.h>
 #include <string.h>
 #include "util.h"
+#include <omp.h>
 
-#define POPSIZE 10
-#define NUM_GENES 2146
+#define POPSIZE 20
+#define NUM_GENES 100
 
 
 
@@ -98,17 +99,19 @@ int main (int argc, char *argv[]) {
 
     printf("Initial Population \n");
     printPop();
-    struct individual child;
+/*    struct individual child;
     int parent1;
-    int parent2;
-
+    int parent2;*/
     evaluateOrdering(currentPop, POPSIZE);
-    printf("Evaluated\n");
     while (currentGen < MAXGENS) {
 
         memcpy(nextPop, currentPop, POPSIZE * sizeof(struct individual));
-        for (int j = POPSIZE; j < ((2 * POPSIZE)); j++) {
 
+        #pragma omp parallel for
+        for (int j = POPSIZE; j < ((2 * POPSIZE)); j++) {
+            struct individual child;
+            int parent1;
+            int parent2;
             parent1 = pickParent(currentPop);
             parent2 = pickParent(currentPop);
             child = cross(parent1, parent2);
@@ -182,7 +185,7 @@ void printPop() {
     for (int i = 0; i < POPSIZE; i++) {
         for (int j = 0; j < n; j++) {
             printf("%d ", currentPop[i].ordering[j]);
-        }        
+        }
         double thisFit;
         if (currentGen != 0) {
             thisFit = (1 / currentPop[i].fitness);
@@ -359,6 +362,7 @@ int pickParent(struct individual possibleParents[]) {
 /* Implements the evaluation function for a matrix ordering. Will store
    the value of this ordering into the structure that contains it. */
 void evaluateOrdering(struct individual indivs[], int size) {
+    #pragma omp parallel for
     for (int in = 0; in < size; in++) {
         if (indivs[in].fitness == -1) {
             indivs[in].fitness = 1.0 / (GetCost(n, nnz, adjArray1, adjArray2 ,indivs[in].ordering));
@@ -397,6 +401,7 @@ void init() {
 
 /* Mutates the entire current population. */
 void mutatePop(struct individual mutated[]) {
+    #pragma omp parallel for
     for (int indiv = POPSIZE; indiv < POPSIZE * 2; indiv++) {
         double randomMutate;
         double mutateBarrier;
@@ -494,5 +499,3 @@ int isPermutation(int possiblePermutation[]) {
     }
     return 1;
 }
-
-
