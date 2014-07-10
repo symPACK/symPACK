@@ -2,9 +2,10 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <omp.h>
 #include "util.h"
 
-#define POPSIZE 10
+#define POPSIZE 20
 #define NUM_GENES 2146
 
 
@@ -92,23 +93,25 @@ int main (int argc, char *argv[]) {
         selectionType = argv[11];
     }
     //printf("PMUTATION: %f, swapPercent: %d\n", PMUTATION, swapPercent);
-    
     setbuf(stdout, NULL);
     init();
 
     printf("Initial Population \n");
     printPop();
-    struct individual child;
-    int parent1;
-    int parent2;
+    //struct individual child;
+    //int parent1;
+    //int parent2;
 
     evaluateOrdering(currentPop, POPSIZE);
-    printf("Evaluated\n");
+    //printf("Evaluated\n");
     while (currentGen < MAXGENS) {
 
         memcpy(nextPop, currentPop, POPSIZE * sizeof(struct individual));
+        #pragma omp parallel for
         for (int j = POPSIZE; j < ((2 * POPSIZE)); j++) {
-
+            struct individual child;
+            int parent1;
+            int parent2;
             parent1 = pickParent(currentPop);
             parent2 = pickParent(currentPop);
             child = cross(parent1, parent2);
@@ -359,6 +362,7 @@ int pickParent(struct individual possibleParents[]) {
 /* Implements the evaluation function for a matrix ordering. Will store
    the value of this ordering into the structure that contains it. */
 void evaluateOrdering(struct individual indivs[], int size) {
+    #pragma omp parallel for
     for (int in = 0; in < size; in++) {
         if (indivs[in].fitness == -1) {
             indivs[in].fitness = 1.0 / (GetCost(n, nnz, adjArray1, adjArray2 ,indivs[in].ordering));
@@ -397,6 +401,7 @@ void init() {
 
 /* Mutates the entire current population. */
 void mutatePop(struct individual mutated[]) {
+    #pragma omp parallel for
     for (int indiv = POPSIZE; indiv < POPSIZE * 2; indiv++) {
         double randomMutate;
         double mutateBarrier;
