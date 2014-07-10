@@ -45,6 +45,7 @@ template <typename T> class SupernodalMatrix{
 
   ETree & GetETree(){return ETree_;}
   const IntNumVec & GetColPerm(){return Perm_;}
+  const IntNumVec & GetSupMembership(){return SupMembership_;}
 
   Int SupernodeCnt(){ return LocalSupernodes_.size(); } 
   std::vector<SuperNode<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 

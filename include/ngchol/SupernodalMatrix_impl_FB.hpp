@@ -576,7 +576,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
               else{
                 //Check if src_snode_id already have an aggregate vector
                 if(aggVectors[tgt_snode_id-1]==NULL){
-                  aggVectors[tgt_snode_id-1] = new SuperNode<T>(tgt_snode_id, Xsuper_[tgt_snode_id-1], Xsuper_[tgt_snode_id]-1, Size(), xlindx_, lindx_);
+                  aggVectors[tgt_snode_id-1] = new SuperNode<T>(tgt_snode_id, Xsuper_[tgt_snode_id-1], Xsuper_[tgt_snode_id]-1,  xlindx_, lindx_);
                 }
                 tgt_aggreg = aggVectors[tgt_snode_id-1];
               }
@@ -869,7 +869,7 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_sn
     TIMER_STOP(RECV_MPI);
 
     //Create the dummy supernode for that data
-    SuperNode<T>* dist_src_snode = new SuperNode<T>(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
+    SuperNode<T>* dist_src_snode = new SuperNode<T>(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
 
 
 

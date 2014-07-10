@@ -68,10 +68,7 @@ int main(int argc, char *argv[]) {
   }
 
   vector<int> costc(n);
-double cost2;
-for(int i =0;i<10;++i){
-  cost2  = GetCost(n,adj.size(),&xadj[0],&adj[0],&perm[0]);
-}
+  double cost2  = GetCost(n,adj.size(),&xadj[0],&adj[0],&perm[0]);
   double cost  = GetCostPerCol(n,adj.size(),&xadj[0],&adj[0],&perm[0],&costc[0]);
 
 

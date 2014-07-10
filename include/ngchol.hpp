@@ -7,6 +7,7 @@
 #include  "ngchol/Mapping.hpp"
 #include  "ngchol/SuperNode.hpp"
 #include  "ngchol/SupernodalMatrix.hpp"
+#include  "ngchol/CommTypes.hpp"
 
 #include  "ngchol/LogFile.hpp"
 

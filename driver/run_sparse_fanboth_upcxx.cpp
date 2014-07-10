@@ -14,6 +14,7 @@
 #include  "ngchol.hpp"
 
 #include  "ngchol/sp_blas.hpp"
+#include  "ngchol/CommTypes.hpp"
 
 extern "C" {
 #include <bebop/util/config.h>
@@ -247,9 +248,9 @@ DistSparseMatrix<Real> HMat(worldcomm);
   SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
 
   timeSta = get_time();
-  TIMER_START(SPARSE_FAN_OUT2);
-  SMat.FanOut2();
-  TIMER_STOP(SPARSE_FAN_OUT2);
+  TIMER_START(SPARSE_FAN_OUT);
+  SMat.FanOut();
+  TIMER_STOP(SPARSE_FAN_OUT);
   timeEnd = get_time();
 
   if(iam==0){
@@ -258,6 +259,13 @@ DistSparseMatrix<Real> HMat(worldcomm);
     logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
 
+//  SuperNode<double> & test = SMat.GetLocalSupernode(0);
+//  logfileptr->OFS()<<test<<endl;
+//  Icomm buffer;
+//  Serialize(buffer,test);
+//  SuperNode<double> target;
+//  Deserialize(buffer.front(),target);
+//  logfileptr->OFS()<<target<<endl;
 
 #ifdef _DEBUG_
   //    NumMat<Real> fullMatrix;
@@ -290,14 +298,15 @@ DistSparseMatrix<Real> HMat(worldcomm);
     }
   }
 
+if(0)
 {
   DblNumMat X3 = X;
   SupernodalMatrix<double> SMat2(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
 
   timeSta = get_time();
-  TIMER_START(SPARSE_FAN_OUT);
-  SMat2.FanOut();
-  TIMER_STOP(SPARSE_FAN_OUT);
+  TIMER_START(SPARSE_FAN_OUT2);
+  SMat2.FanOut2();
+  TIMER_STOP(SPARSE_FAN_OUT2);
   timeEnd = get_time();
 
   if(iam==0){

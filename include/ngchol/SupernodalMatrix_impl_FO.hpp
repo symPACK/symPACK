@@ -15,6 +15,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
     //  Int src_nzblk_idx = it->src_nzblk_idx;
     //  Int src_first_row = it->src_first_row;
     while( MsgToSend.size()>0){
+      //Pull the highest priority message
       const DelayedComm & comm = MsgToSend.top();
       Int src_snode_id = comm.src_snode_id;
       Int tgt_id = comm.tgt_snode_id;
@@ -675,7 +676,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
             T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
 
             //Create the dummy supernode for that data
-            SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
+            SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
 
 
             //              logfileptr->OFS()<<"IRECV Supernode "<<dist_src_snode.Id()<<std::endl;
@@ -816,7 +817,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
             T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
             TIMER_STOP(RECV_MPI);
             //Create the dummy supernode for that data
-            SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
+            SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
 
 #ifdef PROBE_FIRST
             if(doabort){
@@ -1346,7 +1347,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
             T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
 
             //Create the dummy supernode for that data
-            SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
+            SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
 
 
             //              logfileptr->OFS()<<"IRECV Supernode "<<dist_src_snode.Id()<<std::endl;
@@ -1484,7 +1485,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
             T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
             TIMER_STOP(RECV_MPI);
             //Create the dummy supernode for that data
-            SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
+            SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
 
 
 //            assert(!received[src_snode_id-1]);
