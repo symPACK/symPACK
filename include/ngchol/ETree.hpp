@@ -53,7 +53,8 @@ public:
   inline Int ToPostOrder(Int i) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return postNumber_(i-1);};
   inline Int FromPostOrder(Int i) const  { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return invPostNumber_(i-1);};
   inline IntNumVec ToPostOrder(IntNumVec & vec) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } IntNumVec povec = vec; for(Int i=0;i<povec.m();i++){ if(vec[i]!=0){ povec[i]=postNumber_(vec[i]-1);} }   return povec;};
-  inline Int PostParent(Int i) const { 
+  inline Int PostParent(Int i) const {
+//      return poparent_[i]; 
       if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } 
       Int node = invPostNumber_(i);
       Int parent = parent_(node-1);
@@ -62,6 +63,8 @@ public:
   inline Int Parent(Int i) const { return parent_(i); };
   inline Int Size() const { return parent_.m(); };
 
+  inline IntNumVec & Perm(){ return postNumber_; }
+  inline IntNumVec & Invp(){ return invPostNumber_; }
 
   IntNumVec SortChildren(IntNumVec & cc);
 
@@ -72,6 +75,7 @@ protected:
   bool bIsPostOrdered_;
 
   NumVec<Int> parent_;
+  NumVec<Int> poparent_;
   NumVec<Int> postNumber_;
   NumVec<Int> invPostNumber_;
 //  NumVec<Int> postParent_;

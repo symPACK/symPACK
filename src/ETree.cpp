@@ -115,6 +115,8 @@ namespace LIBCHOLESKY{
               brother(nunode-1) = ndpar;
             }
 
+      poparent_ = brother;
+
 #ifdef _DEBUG_
       logfileptr->OFS()<<"new parent: "<<brother<<std::endl;
       logfileptr->OFS()<<"postNumber: "<<postNumber_<<std::endl;
@@ -288,14 +290,14 @@ TIMER_START(Construct_Etree_Classic);
     for(Int i = 1; i<=n_; ++i){
             parent_(i-1) = 0;
             ancstr(i-1) = 0;
-            Int node = aGlobal.Perm(i-1);
+            Int node = i;//aGlobal.Perm(i-1);
 
             Int jstrt = aGlobal.expColptr(node-1);
             Int jstop = aGlobal.expColptr(node) - 1;
             if  ( jstrt < jstop ){
               for(Int j = jstrt; j<=jstop; ++j){
                     Int nbr = aGlobal.expRowind(j-1);
-                    nbr = aGlobal.Invp(nbr-1);
+                    //nbr = aGlobal.Invp(nbr-1);
                     if  ( nbr < i ){
 //                       -------------------------------------------
 //                       for each nbr, find the root of its current

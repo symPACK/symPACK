@@ -43,8 +43,8 @@ namespace LIBCHOLESKY{
 
     //Reoder the matrix with MMD
     Global_.ExpandSymmetric();
-    IntNumVec permMMD,invpermMMD;
-    Global_.MMD(permMMD,invpermMMD);
+//    IntNumVec permMMD,invpermMMD;
+//    Global_.MMD(permMMD,invpermMMD);
 
 
     ETree_.ConstructETree(Global_);
@@ -101,7 +101,6 @@ if(0){
 #endif
 
 
-abort();
 
 #ifdef REFINED_SNODES
     IntNumVec permRefined;
