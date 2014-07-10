@@ -74,6 +74,7 @@ namespace LIBCHOLESKY{
 
 #else
     Global_.SymbolicFactorization(ETree_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+#ifdef REFINED_SNODE
 if(0){
     IntNumVec permRefined;
     IntNumVec newPerm(Size());
@@ -95,6 +96,7 @@ if(0){
 //      perm3 = newPerm;
     Perm_ = permRefined;
 }
+#endif
 
 #endif
 
