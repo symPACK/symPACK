@@ -56,6 +56,14 @@ namespace LIBCHOLESKY{
     std::vector<char> * pSrcBlocks;
     Int head;
     MPI_Request Request;
+    Icomm(){
+      Request = MPI_REQUEST_NULL;
+      TIMER_START(ICOMM_MALLOC);
+      pSrcBlocks = new std::vector<char>();
+      TIMER_STOP(ICOMM_MALLOC);
+      head = 0;
+    };
+
     Icomm(Int aSize, MPI_Request aRequest):Request(aRequest){
       TIMER_START(ICOMM_MALLOC);
       pSrcBlocks = new std::vector<char>(aSize);
@@ -82,6 +90,19 @@ namespace LIBCHOLESKY{
     inline char * back(){ return &pSrcBlocks->at(head);}
     inline char * front(){ return &pSrcBlocks->front();}
     inline Int size(){ return pSrcBlocks->size();}
+    inline void resize(Int size){ pSrcBlocks->resize(size);}
+    inline void clear(){ 
+      head = 0; 
+      pSrcBlocks->resize(0); 
+      if(Request !=MPI_REQUEST_NULL){
+        MPI_Status recv_status;
+        int flag = 0;
+        MPI_Test(&Request,&flag,&recv_status);
+        assert(!flag);
+        MPI_Request_free(&Request);
+      }
+      Request = MPI_REQUEST_NULL;     
+    }
 
   };
 
@@ -102,6 +123,8 @@ namespace LIBCHOLESKY{
 
     return os;
   }
+
+
 
 
 

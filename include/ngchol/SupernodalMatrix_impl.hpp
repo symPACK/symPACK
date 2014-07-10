@@ -14,7 +14,6 @@
 #define TAG_NZVAL 1
 #define TAG_COUNT 2
 
-#define PACKING
 
 
 namespace LIBCHOLESKY{
@@ -38,12 +37,20 @@ namespace LIBCHOLESKY{
 
     iSize_ = pMat.size;
     Local_ = pMat.GetLocalStructure();
+
     Local_.ToGlobal(Global_);
 
-    ETree_.ConstructETree(Global_);
+
+    //Reoder the matrix with MMD
+    Global_.ExpandSymmetric();
+    IntNumVec permMMD,invpermMMD;
+    Global_.MMD(permMMd,invpermMMD);
+
+
+    ETree_.ConstructETree(Global_,permMMD,invpermMMD);
 
     IntNumVec cc,rc;
-    Global_.GetLColRowCount2(ETree_,cc,rc);
+    Global_.GetLColRowCount(ETree_,cc,rc);
     IntNumVec permChild = ETree_.SortChildren(cc);
     ETree_.PermuteTree(permChild);
 
@@ -64,12 +71,8 @@ namespace LIBCHOLESKY{
     Global_.RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, maxSnode );
     Global_.SymbolicFactorizationRelaxed(ETree_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
 
-    Perm_.Resize(Size());
-    for(Int i =0; i<Perm_.m();++i){
-      Perm_[i] = ETree_.FromPostOrder(i+1);
-    }
 #else
-    Global_.SymbolicFactorization2(ETree_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+    Global_.SymbolicFactorization(ETree_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
 if(0){
     IntNumVec permRefined;
     IntNumVec newPerm(Size());
@@ -91,13 +94,27 @@ if(0){
 //      perm3 = newPerm;
     Perm_ = permRefined;
 }
-else{
+
+#endif
+
+#ifdef REFINED_SNODES
+    IntNumVec permRefined;
+//    IntNumVec newPerm(Size());
+    Global_.RefineSupernodes(ETree_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
+
+//      Perm_.Resize(Size());
+//      for(Int i =0; i<Perm_.m();++i){
+//        Perm_[permRefined[i]-1] = permChild[i];
+//      }
+
+    Perm_ = permRefined;
+#else
     Perm_.Resize(Size());
     for(Int i =0; i<Perm_.m();++i){
       Perm_[i] = ETree_.FromPostOrder(i+1);
     }
-}
 #endif
+
 
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_);
 
@@ -121,7 +138,7 @@ else{
 
       //parse the first column to create the NZBlock
       if(iam==iDest){
-        LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,Size(),iHeight));
+        LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight));
         SuperNode<T> & snode = *LocalSupernodes_.back();
 
 
@@ -370,6 +387,13 @@ else{
   }
 
   template <typename T> SupernodalMatrix<T>::~SupernodalMatrix(){
+    for(Int i=0;i<LocalSupernodes_.size();++i){
+      delete LocalSupernodes_[i];
+    }
+
+    for(Int i=0;i<Contributions_.size();++i){
+      delete Contributions_[i];
+    }
     if(CommEnv_!=NULL){
       delete CommEnv_;
     }
@@ -728,7 +752,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
         //and the same width as the final solution
         Int iLocalI = (I-1) / np +1 ;
         SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-        SuperNode<T> * contrib = new SuperNode<T>(I,1,nrhs, Size(), cur_snode->NRowsBelowBlock(0) );
+        SuperNode<T> * contrib = new SuperNode<T>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) );
         Contributions_[iLocalI-1] = contrib;
 
 
@@ -785,47 +809,6 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 #endif
 
 
-#ifndef PACKING
-          if(src_blocks.size()==0){
-            Int nrows = cur_snode->NRowsBelowBlock(0);
-            Int ncols = nrhs;
-            nz_cnt = nrows * ncols;
-
-            max_bytes = nrows*sizeof(NZBlockDesc) + sizeof(Int);
-            src_blocks.resize(max_bytes);
-            src_nzval.resize(nz_cnt);
-          }
-
-          
-
-          //MPI_Recv
-          MPI_Status recv_status;
-
-          //receive the index array
-          MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-          int bytes_received = 0;
-          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-          //there an aditional integer storing the src id which needs to be removed
-          Int src_nzblk_cnt = (bytes_received - sizeof(Int) ) / sizeof(NZBlockDesc);
-
-          //receive the nzval array
-          MPI_Recv(&src_nzval[0],nz_cnt*sizeof(T),MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-          Int src_nzval_cnt = bytes_received / sizeof(T);
-
-          Int src_snode_id = *(Int*)&src_blocks[0];
-          NZBlockDesc * src_blocks_ptr = 
-                    reinterpret_cast<NZBlockDesc*>(&src_blocks[sizeof(Int)]);
-          T * src_nzval_ptr = &src_nzval[0];
-#else
-
-//    blocklens[0] = sizeof(Int);
-//    blocklens[1] = sizeof(Int);
-//    blocklens[2] = sizeof(NZBlockDesc);
-//    blocklens[3] = (nzblk_cnt_-1)*sizeof(NZBlockDesc);
-//    blocklens[4] = sizeof(Int);
-//    blocklens[5] = nz_cnt * sizeof(T);
-
     TIMER_START(RECV_MALLOC);
           if(src_blocks.size()==0){
             max_bytes = 3*sizeof(Int); 
@@ -881,10 +864,9 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
           Int src_nzval_cnt = *(Int*)(src_blocks_ptr + src_nzblk_cnt);
           T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
     TIMER_STOP(RECV_MPI);
-#endif
 
           //Create the dummy supernode for that data
-          SuperNode<T> dist_contrib(src_snode_id,1,nrhs, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
+          SuperNode<T> dist_contrib(src_snode_id,1,nrhs, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
 
 #ifdef PROBE_FIRST
           if(doabort){
@@ -959,49 +941,6 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 #endif
 
 
-#ifndef PACKING
-//              std::vector<char> * pNewDesc = new std::vector<char>();
-//
-//              Int tgt_first_col = Xsuper_(parent_snode_id-1);
-//              Int tgt_last_col = Xsuper_(parent_snode_id)-1;
-//
-//              //Send
-//              Int src_nzblk_idx = 1;
-//              NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
-//
-//              Int src_first_row = pivot_desc.GIndex;
-//              Int local_first_row = 0;
-//              Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
-//              pNewDesc->resize(sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc));
-//
-//              char * send_ptr = &(*pNewDesc)[0];
-//
-//              Int * id_ptr = reinterpret_cast<Int *>(&(*pNewDesc)[0]);
-//              NZBlockDesc * block_desc_ptr = 
-//                reinterpret_cast<NZBlockDesc *>(&(*pNewDesc)[sizeof(Int)]);
-//
-//              *id_ptr = contrib->Id();
-//              //copy the block descriptors
-//              std::copy(&pivot_desc,&pivot_desc+nzblk_cnt, block_desc_ptr);
-//              //change the first one
-//              block_desc_ptr->Offset += (src_first_row - block_desc_ptr->GIndex)*nrhs;
-//              block_desc_ptr->GIndex = src_first_row;
-//
-//              //send the block descriptors
-//              MPI_Send(send_ptr,nzblk_cnt*sizeof(NZBlockDesc) + sizeof(Int),
-//                  MPI_BYTE,iTarget,parent_snode_id,CommEnv_->MPI_GetComm());
-//
-//              T * nzval_ptr = contrib->GetNZval(pivot_desc.Offset
-//                  +local_first_row*nrhs);
-//
-//              Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
-//                  - local_first_row )*nrhs;
-//
-//              MPI_Send(nzval_ptr,nz_cnt*sizeof(T),
-//                  MPI_BYTE,iTarget,parent_snode_id,CommEnv_->MPI_GetComm());
-//
-//              delete pNewDesc;
-#else
 
 
 
@@ -1034,7 +973,6 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
     MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,parent_snode_id,CommEnv_->MPI_GetComm());
     TIMER_STOP(SEND_MPI);
       outgoingSend.pop_back();
-#endif
 
 
 #ifdef _DEBUG_            
@@ -1152,7 +1090,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
             T * src_nzval_ptr = &src_nzval[0];
 
             //Create the dummy supernode for that data
-            dist_contrib = new SuperNode<T>(src_snode_id,1,nrhs, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, nz_cnt);
+            dist_contrib = new SuperNode<T>(src_snode_id,1,nrhs, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, nz_cnt);
 
 #ifdef _DEBUG_
             logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib->Id()<<std::endl;
@@ -1402,7 +1340,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
           nzval.resize(size_nzval); 
           MPI_Recv(&nzval[0],size_nzval*sizeof(T),MPI_BYTE,iOwner,I,CommEnv_->MPI_GetComm(),MPI_STATUS_IGNORE);
 
-          SuperNode<T> src_snode(I,Xsuper_[I-1],Xsuper_[I]-1,Size(),&blocks[0],size_blocks,&nzval[0],size_nzval);
+          SuperNode<T> src_snode(I,Xsuper_[I-1],Xsuper_[I]-1,&blocks[0],size_blocks,&nzval[0],size_nzval);
 
           for(int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
             NZBlockDesc & nzblk_desc = src_snode.GetNZBlockDesc(blkidx);

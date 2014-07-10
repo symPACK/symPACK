@@ -40,6 +40,7 @@ public:
   ETree(SparseMatrixStructure & aGlobal);
 
   void ConstructETree(SparseMatrixStructure & aGlobal);
+  void ConstructETree(SparseMatrixStructure & aGlobal,IntNumVec & perm, IntNumVec & invp);
   void ConstructETree2(SparseMatrixStructure & aGlobal);
   void ConstructETree(int n, int * xadj, int * adj);
 
