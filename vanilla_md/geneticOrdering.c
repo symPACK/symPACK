@@ -2,13 +2,12 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <omp.h>
 #include "util.h"
 #include <omp.h>
 
 #define POPSIZE 20
-#define NUM_GENES 100
-
-
+#define NUM_GENES 2146
 
 
 char* INPUT_FILE;
@@ -92,16 +91,12 @@ int main (int argc, char *argv[]) {
         crossType = argv[10];
         selectionType = argv[11];
     }
-    //printf("PMUTATION: %f, swapPercent: %d\n", PMUTATION, swapPercent);
-    
+
     setbuf(stdout, NULL);
     init();
 
     printf("Initial Population \n");
     printPop();
-/*    struct individual child;
-    int parent1;
-    int parent2;*/
     evaluateOrdering(currentPop, POPSIZE);
     while (currentGen < MAXGENS) {
 
@@ -413,15 +408,15 @@ void mutatePop(struct individual mutated[]) {
             //printf("numSwaps is: %d\n", numSwaps);
             for (int x = 0; x < numSwaps; x++) {
                 if (!strcmp("swap", mutType)) {
-                    int temp[n]; //remove * to revert also is temp1
+                    int temp[n]; 
                     int gene1 = rand() % (n - (swapLength + 1));
                     int gene2 = gene1;
                     while (((gene1 - swapLength) <= gene2) && ((gene1 + swapLength) >= gene2)) {
                         gene2 = rand() % (n - (swapLength + 1));
                     }
-                    memcpy(&temp[0], &mutated[indiv].ordering[gene1], (swapLength * sizeof(int)));//temp = mutated[indiv].ordering[gene1];
-                    memcpy(&mutated[indiv].ordering[gene1], &mutated[indiv].ordering[gene2], (swapLength * sizeof(int))); //mutated[indiv].ordering[gene1] = mutated[indiv].ordering[gene2];
-                    memcpy(&mutated[indiv].ordering[gene2], &temp[0], (swapLength * sizeof(int)));//mutated[indiv].ordering[gene2] = temp;
+                    memcpy(&temp[0], &mutated[indiv].ordering[gene1], (swapLength * sizeof(int)));
+                    memcpy(&mutated[indiv].ordering[gene1], &mutated[indiv].ordering[gene2], (swapLength * sizeof(int))); 
+                    memcpy(&mutated[indiv].ordering[gene2], &temp[0], (swapLength * sizeof(int)));
                     if (! isPermutation(mutated[indiv].ordering)) {
                         printf(" Gene 1 is %d and Gene 2 is %d\n", gene1, gene2);
                         printf("Dumping temp");
@@ -499,3 +494,4 @@ int isPermutation(int possiblePermutation[]) {
     }
     return 1;
 }
+
