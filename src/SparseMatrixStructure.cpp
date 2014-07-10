@@ -11,6 +11,12 @@
 #include <algorithm>
 
 namespace LIBCHOLESKY{
+
+  SparseMatrixStructure::SparseMatrixStructure(){
+    bIsGlobal = false;
+    bIsExpanded = false;
+  }
+
   void SparseMatrixStructure::ClearExpandedSymmetric(){
     expColptr.Resize(0);
     expRowind.Resize(0);
@@ -274,9 +280,6 @@ namespace LIBCHOLESKY{
         Int jstrt = expColptr(oldnbr-1);
         Int jstop = expColptr(oldnbr) - 1;
 
-//        if(nchild(lownbr)>=2){
-//          weight(lownbr)--;
-//        }
 
         //           -----------------------------------------------
         //           for each ``high neighbor'', hinbr of lownbr ...
@@ -913,11 +916,15 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
         for(Int col = fstcol; col<=lstcol; ++col){
           Int node = tree.FromPostOrder(col);
+          node = Perm(node-1);
+
           Int knzbeg = colptr(node-1);
           Int knzend = colptr(node)-1;
           for(Int kptr = knzbeg; kptr<=knzend;++kptr){
             Int newi = rowind(kptr-1);
+            newi = Invp(newi-1);
             newi = tree.ToPostOrder(newi);
+            
             if(newi > fstcol && marker(newi-1) != ksup){
               //position and insert newi in list and
               // mark it with kcol
@@ -1112,10 +1119,13 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
         for(Int col = fstcol; col<=lstcol; ++col){
           Int node = tree.FromPostOrder(col);
+          node = Perm(node-1);
+
           Int knzbeg = colptr(node-1);
           Int knzend = colptr(node)-1;
           for(Int kptr = knzbeg; kptr<=knzend;++kptr){
             Int newi = rowind(kptr-1);
+            newi = Invp(newi-1);
             newi = tree.ToPostOrder(newi);
             if(newi > fstcol && marker(newi-1) != ksup){
               //position and insert newi in list and
@@ -1142,10 +1152,12 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
       //list.
       if(knz < length){
         Int node = tree.FromPostOrder(fstcol);
+        node = Perm(node-1);
         Int knzbeg = colptr(node-1);
         Int knzend = colptr(node)-1;
         for(Int kptr = knzbeg; kptr<=knzend;++kptr){
           Int newi = rowind(kptr-1);
+          newi = Invp(newi-1);
           newi = tree.ToPostOrder(newi);
           if(newi > fstcol && marker(newi-1) != ksup){
             //position and insert newi in list and
@@ -1204,7 +1216,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
 
 
-void SparseMatrixStructure::MMD(IntNumVec & perm, IntNumVec & invp){
+void SparseMatrixStructure::MMD(IntNumVec & pperm, IntNumVec & pinvp){
     if(!bIsGlobal || !bIsExpanded){
 			throw std::logic_error( "SparseMatrixStructure must be global and expanded in order to call MMD\n" );
     }
@@ -1222,6 +1234,9 @@ void SparseMatrixStructure::MMD(IntNumVec & perm, IntNumVec & invp){
     IntNumVec tmpAdj = expRowind;
     FORTRAN(ordmmd)( &size , &nadj , tmpXadj.Data() , tmpAdj.Data(), 
             &invp[0] , &perm[0] , &iwsiz , &iwork[0] , &nofsub, &iflag ) ;
+
+    pperm = perm;
+    pinvp = invp;
 
 //  logfileptr->OFS()<<"perm "<<perm<<endl;
 //  logfileptr->OFS()<<"invperm "<<invp<<endl;

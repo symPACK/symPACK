@@ -44,15 +44,16 @@ namespace LIBCHOLESKY{
     //Reoder the matrix with MMD
     Global_.ExpandSymmetric();
     IntNumVec permMMD,invpermMMD;
-    Global_.MMD(permMMd,invpermMMD);
+    Global_.MMD(permMMD,invpermMMD);
 
 
-    ETree_.ConstructETree(Global_,permMMD,invpermMMD);
+    ETree_.ConstructETree(Global_);
 
     IntNumVec cc,rc;
     Global_.GetLColRowCount(ETree_,cc,rc);
     IntNumVec permChild = ETree_.SortChildren(cc);
     ETree_.PermuteTree(permChild);
+
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"colcnt "<<cc<<std::endl;
@@ -97,6 +98,9 @@ if(0){
 
 #endif
 
+
+abort();
+
 #ifdef REFINED_SNODES
     IntNumVec permRefined;
 //    IntNumVec newPerm(Size());
@@ -109,6 +113,7 @@ if(0){
 
     Perm_ = permRefined;
 #else
+    //Combine permMMD with Postorder
     Perm_.Resize(Size());
     for(Int i =0; i<Perm_.m();++i){
       Perm_[i] = ETree_.FromPostOrder(i+1);

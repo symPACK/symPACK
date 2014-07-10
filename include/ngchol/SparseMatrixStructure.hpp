@@ -12,6 +12,7 @@ class SparseMatrixStructure{
   protected:
   bool bIsGlobal;
   bool bIsExpanded;
+
   public:
 	Int          size;                            // Matrix dimension
 	Int          nnz;                             // Number of nonzeros
@@ -20,6 +21,12 @@ class SparseMatrixStructure{
 
 	IntNumVec    expColptr;                          // Column index pointer expanded
 	IntNumVec    expRowind;                          // Starting row index pointer expanded
+
+  //Permutation to have the ordered matrix
+  // Computed by the Ordering class
+  IntNumVec    perm;
+  IntNumVec    invp;
+
 
   void ClearExpandedSymmetric();
 
@@ -44,7 +51,40 @@ class SparseMatrixStructure{
 
 
 
-void MMD(IntNumVec & perm, IntNumVec & invp);
+
+
+  SparseMatrixStructure();
+
+
+
+
+//TODO make an ordering class friend with this class
+void MMD(IntNumVec & pperm, IntNumVec & pinvp);
+
+  inline Int Perm(Int i){
+    if (perm.m()!=size){
+      perm.Resize(size);
+      for(Int i = 0; i<size;++i){
+        perm[i]=i+1;
+      }
+    }
+    return perm[i];
+  }
+  inline Int Invp(Int i){
+    if (invp.m()!=size){
+      invp.Resize(size);
+      for(Int i = 0; i<size;++i){
+        invp[i]=i+1;
+      }
+    }
+    return invp[i];
+  }
+
+
+
+
+
+
 
 void Permute(IntNumVec & perm);
 
@@ -58,7 +98,6 @@ void Permute(IntNumVec & perm);
   void GetSuperARowStruct(const ETree & etree, const IntNumVec & Xsuper, const IntNumVec & SupMembership, const Int iSupNo, std::vector<Int> & SuperRowStruct);
   void GetSuperLRowStruct(const ETree & etree, const IntNumVec & Xsuper, const IntNumVec & SupMembership, const Int iSupNo, std::set<Int> & SuperLRowStruct);
     
-  SparseMatrixStructure(): bIsGlobal(false), bIsExpanded(false){};
 
 
 };

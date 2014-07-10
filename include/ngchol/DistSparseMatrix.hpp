@@ -71,7 +71,7 @@ template <class F> class DistSparseMatrix{
 
   public:
 	/// @brief Matrix dimension.
-	Int          size;         
+	Int          size;
 
 	/// @brief Total number of nonzeros elements.
 	Int          nnz;                             
@@ -83,7 +83,7 @@ template <class F> class DistSparseMatrix{
 	MPI_Comm     comm;        
 
 
-  DistSparseMatrix(MPI_Comm oComm){globalAllocated=false; comm = oComm;};
+  DistSparseMatrix(MPI_Comm aComm){globalAllocated=false; comm = aComm;};
   void CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval);
   DistSparseMatrix(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval , MPI_Comm oComm);
 
