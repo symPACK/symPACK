@@ -15,6 +15,7 @@
 
 #include  "ngchol/sp_blas.hpp"
 #include  "ngchol/CommTypes.hpp"
+#include  "ngchol/Ordering.hpp"
 
 extern "C" {
 #include <bebop/util/config.h>
@@ -287,57 +288,58 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
   //sort X the same way (permute rows)
   DblNumMat X(RHS.m(),RHS.n());
-  const IntNumVec & perm = SMat.GetColPerm(); 
+  const Ordering & order = SMat.GetOrdering();
   for(Int row = 1; row<= RHS.m(); ++row){
     for(Int col = 1; col<= RHS.n(); ++col){
 #ifdef _CHECK_RESULT_SEQ_
-      X(row-1,col-1) = RHS2(perm[row-1]-1,col-1);
+      X(row-1,col-1) = RHS2(order.perm[row-1]-1,col-1);
 #else
-      X(row-1,col-1) = RHS(perm[row-1]-1,col-1);
+      Int oldrow = order.perm[row-1];
+      X(row-1,col-1) = RHS(oldrow-1,col-1);
 #endif
     }
   }
-
-if(0)
-{
-  DblNumMat X3 = X;
-  SupernodalMatrix<double> SMat2(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
-
-  timeSta = get_time();
-  TIMER_START(SPARSE_FAN_OUT2);
-  SMat2.FanOut2();
-  TIMER_STOP(SPARSE_FAN_OUT2);
-  timeEnd = get_time();
-
-  if(iam==0){
-    cout<<"Factorization time: "<<timeEnd-timeSta<<endl;
-  }
-    logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
-
-  SMat.Solve(&X3);
-  SMat.GetSolution(X3);
-
-
-
-  //Sort back X
-  DblNumMat X4(X.m(),X.n());
-  for(Int row = 1; row<= X.m(); ++row){
-    for(Int col = 1; col<= X.n(); ++col){
-      X4(perm[row-1]-1,col-1) = X3(row-1,col-1);
-    }
-  }
-
-
-//      logfileptr->OFS()<<X2<<endl;
-
-  blas::Axpy(X4.m()*X4.n(),-1.0,&XTrue(0,0),1,&X4(0,0),1);
-  double norm = lapack::Lange('F',X4.m(),X4.n(),&X4(0,0),X4.m());
-  logfileptr->OFS()<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
-
-
-}
-
-
+//
+//if(0)
+//{
+//  DblNumMat X3 = X;
+//  SupernodalMatrix<double> SMat2(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
+//
+//  timeSta = get_time();
+//  TIMER_START(SPARSE_FAN_OUT2);
+//  SMat2.FanOut2();
+//  TIMER_STOP(SPARSE_FAN_OUT2);
+//  timeEnd = get_time();
+//
+//  if(iam==0){
+//    cout<<"Factorization time: "<<timeEnd-timeSta<<endl;
+//  }
+//    logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
+//
+//  SMat.Solve(&X3);
+//  SMat.GetSolution(X3);
+//
+//
+//
+//  //Sort back X
+//  DblNumMat X4(X.m(),X.n());
+//  for(Int row = 1; row<= X.m(); ++row){
+//    for(Int col = 1; col<= X.n(); ++col){
+//      X4(perm[row-1]-1,col-1) = X3(row-1,col-1);
+//    }
+//  }
+//
+//
+////      logfileptr->OFS()<<X2<<endl;
+//
+//  blas::Axpy(X4.m()*X4.n(),-1.0,&XTrue(0,0),1,&X4(0,0),1);
+//  double norm = lapack::Lange('F',X4.m(),X4.n(),&X4(0,0),X4.m());
+//  logfileptr->OFS()<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
+//
+//
+//}
+//
+//
 
 
 
@@ -389,7 +391,8 @@ if(0)
   DblNumMat X2(X.m(),X.n());
   for(Int row = 1; row<= X.m(); ++row){
     for(Int col = 1; col<= X.n(); ++col){
-      X2(perm[row-1]-1,col-1) = X(row-1,col-1);
+      Int newrow = order.invp[row-1];
+      X2(row-1,col-1) = X(newrow-1,col-1);
     }
   }
 

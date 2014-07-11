@@ -4,6 +4,7 @@
 #include "ngchol/SupernodalMatrix.hpp"
 
 #include "ngchol/blas.hpp"
+#include "ngchol/Ordering.hpp"
 
 #include <queue>
 
@@ -39,20 +40,52 @@ namespace LIBCHOLESKY{
     Local_ = pMat.GetLocalStructure();
 
     Local_.ToGlobal(Global_);
+    Global_.ExpandSymmetric();
+    //Create an Ordering object to hold the permutation
+    Order_.SetStructure(Global_);
 
 
     //Reoder the matrix with MMD
-    Global_.ExpandSymmetric();
-//    IntNumVec permMMD,invpermMMD;
-//    Global_.MMD(permMMD,invpermMMD);
+    Order_.MMD();
+
+logfileptr->OFS()<<"Order.perm "<<Order_.perm<<endl;
+logfileptr->OFS()<<"Order.invp "<<Order_.invp<<endl;
+
+for(Int i = 1; i<=Order_.perm.m();++i){
+  assert(Order_.invp[Order_.perm[i-1]-1]==i);
+}
 
 
-    ETree_.ConstructETree(Global_);
+    ETree_.ConstructETree(Global_,Order_);
+
+logfileptr->OFS()<<"ETree "<<ETree_<<endl;
+    ETree_.PostOrderTree(Order_);
+logfileptr->OFS()<<"POETree "<<ETree_<<endl;
+
+logfileptr->OFS()<<"Order.perm "<<Order_.perm<<endl;
+logfileptr->OFS()<<"Order.invp "<<Order_.invp<<endl;
+
+
+for(Int i = 1; i<=Order_.perm.m();++i){
+  assert(Order_.invp[Order_.perm[i-1]-1]==i);
+}
+
 
     IntNumVec cc,rc;
-    Global_.GetLColRowCount(ETree_,cc,rc);
-    IntNumVec permChild = ETree_.SortChildren(cc);
-    ETree_.PermuteTree(permChild);
+    Global_.GetLColRowCount(ETree_,Order_,cc,rc);
+    logfileptr->OFS()<<"colcnt "<<cc<<std::endl;
+    ETree_.SortChildren(cc,Order_);
+
+logfileptr->OFS()<<"Sorted POETree "<<ETree_<<endl;
+    logfileptr->OFS()<<"sorted colcnt "<<cc<<std::endl;
+logfileptr->OFS()<<"Order.perm "<<Order_.perm<<endl;
+logfileptr->OFS()<<"Order.invp "<<Order_.invp<<endl;
+
+
+for(Int i = 1; i<=Order_.perm.m();++i){
+  assert(Order_.invp[Order_.perm[i-1]-1]==i);
+}
+
 
 
 #ifdef _DEBUG_
@@ -61,7 +94,7 @@ namespace LIBCHOLESKY{
 #endif
 
 
-    Global_.FindSupernodes(ETree_,cc,SupMembership_,Xsuper_,maxSnode);
+    Global_.FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,maxSnode);
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
@@ -70,15 +103,15 @@ namespace LIBCHOLESKY{
 
 #ifdef RELAXED_SNODE
     Global_.RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, maxSnode );
-    Global_.SymbolicFactorizationRelaxed(ETree_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+    Global_.SymbolicFactorizationRelaxed(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
 
 #else
-    Global_.SymbolicFactorization(ETree_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+    Global_.SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
 #ifdef REFINED_SNODE
 if(0){
     IntNumVec permRefined;
     IntNumVec newPerm(Size());
-    Global_.RefineSupernodes(ETree_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
+    Global_.RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
 
 
 //newPerm = perm3;
@@ -94,7 +127,7 @@ if(0){
 //      logfileptr->OFS()<<"perm2 and perm3: "<<newPerm<<std::endl;
 //
 //      perm3 = newPerm;
-    Perm_ = permRefined;
+//    Perm_ = permRefined;
 }
 #endif
 
@@ -105,20 +138,20 @@ if(0){
 #ifdef REFINED_SNODES
     IntNumVec permRefined;
 //    IntNumVec newPerm(Size());
-    Global_.RefineSupernodes(ETree_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
+    Global_.RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
 
 //      Perm_.Resize(Size());
 //      for(Int i =0; i<Perm_.m();++i){
 //        Perm_[permRefined[i]-1] = permChild[i];
 //      }
 
-    Perm_ = permRefined;
+//    Perm_ = permRefined;
 #else
     //Combine permMMD with Postorder
-    Perm_.Resize(Size());
-    for(Int i =0; i<Perm_.m();++i){
-      Perm_[i] = ETree_.FromPostOrder(i+1);
-    }
+//    Perm_.Resize(Size());
+//    for(Int i =0; i<Perm_.m();++i){
+//      Perm_[i] = ETree_.FromPostOrder(i+1);
+//    }
 #endif
 
 
@@ -199,7 +232,7 @@ if(0){
       //copy the data from A into this Block structure
       for(Int i = fc;i<=lc;i++){
         //corresponding column in the unsorted matrix A
-        Int orig_i = Perm_[i-1];
+        Int orig_i = Order_.perm[i-1];
         Int iOwner = std::min((orig_i-1)/numColFirst,np-1);
 
         if(iOwner != prevOwner || !allsend){
@@ -213,14 +246,20 @@ if(0){
           Int prevcol = orig_i-1;
           for(Int j =i;j<=lc;++j){
             //corresponding column in the unsorted matrix A
-            Int orig_j = Perm_[j-1];
+            Int orig_j = Order_.perm[j-1];
        
             iOwner = std::min((orig_j-1)/numColFirst,np-1);
             //check if the column is owned by the same processor 
             //as the previous column and that they are contiguous
             //in the postordered matrix
             if(iOwner == prevOwner && prevcol+1==orig_j){
-              Int nrows = Global_.colptr(orig_j) - Global_.colptr(orig_j-1);
+              Int nrows = 1;
+              for(Int rowi = Global_.expColptr(orig_j-1); rowi<Global_.expColptr(orig_j);++rowi){
+                Int row = Order_.invp[Global_.expRowind[rowi-1]-1];
+                if(row>j){
+                  ++nrows;
+                }
+              }
               iNzTransfered+=nrows;
 
               iLCTransfered =orig_j;
@@ -252,6 +291,9 @@ if(0){
               iStartIdxCopy = 0;
             } 
             else if (iam == prevOwner){
+              // More complex than this > we are dealing with a permuted matrix !
+
+
               //USE THE PERM OBTAINED AFTER SORTING THE CHILDREN
               Int local_i = (orig_i-(numColFirst)*iam);
               Int iColptrLoc = Local_.colptr(local_i-1);
@@ -305,7 +347,7 @@ if(0){
           for(Int idx = firstrow; idx<=li;idx++){
             iLRow = lindx_(idx-1);
             // Original row index in the unsorted matrix A
-            Int orig_iLRow = Perm_[lindx_[idx-1]-1];
+            Int orig_iLRow = Order_.perm[lindx_[idx-1]-1];
             if( orig_iLRow == iRowind){
               Int iNZBlockIdx = snode.FindBlockIdx(iLRow);
 #ifdef _DEBUG_

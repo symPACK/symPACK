@@ -9,6 +9,7 @@
 #include "ngchol/ETree.hpp"
 #include "ngchol/Mapping.hpp"
 #include "ngchol/CommTypes.hpp"
+#include "ngchol/Ordering.hpp"
 
 
 
@@ -44,7 +45,7 @@ template <typename T> class SupernodalMatrix{
   IntNumVec & GetSupernodalPartition(){ return Xsuper_;}
 
   ETree & GetETree(){return ETree_;}
-  const IntNumVec & GetColPerm(){return Perm_;}
+  const Ordering & GetOrdering(){return Order_;}
   const IntNumVec & GetSupMembership(){return SupMembership_;}
 
   Int SupernodeCnt(){ return LocalSupernodes_.size(); } 
@@ -106,7 +107,7 @@ template <typename T> class SupernodalMatrix{
   ETree ETree_;
 
   //Column permutation
-  IntNumVec Perm_;
+  Ordering Order_;
 
   //Order of the matrix
   Int iSize_;

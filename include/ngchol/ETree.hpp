@@ -10,6 +10,7 @@
 #include "ngchol/Environment.hpp"
 #include "ngchol/NumVec.hpp"
 #include "ngchol/SparseMatrixStructure.hpp"
+#include "ngchol/Ordering.hpp"
 
 namespace LIBCHOLESKY{
   class DisjointSet{
@@ -33,42 +34,45 @@ class ETree{
 
 protected:
 
-  void BTreeToPO(IntNumVec & fson, IntNumVec & brother);
+  void BTreeToPO(IntNumVec & fson, IntNumVec & brother, IntNumVec & perm);
 
 public:
   ETree();
-  ETree(SparseMatrixStructure & aGlobal);
+  ETree(SparseMatrixStructure & aGlobal, Ordering & aOrder);
 
-  void ConstructETree(SparseMatrixStructure & aGlobal);
-  void ConstructETree(SparseMatrixStructure & aGlobal,IntNumVec & perm, IntNumVec & invp);
-  void ConstructETree2(SparseMatrixStructure & aGlobal);
-  void ConstructETree(int n, int * xadj, int * adj);
+  void ConstructETree(SparseMatrixStructure & aGlobal, Ordering & aOrder);
+//  void ConstructETree(SparseMatrixStructure & aGlobal,IntNumVec & perm, IntNumVec & invp);
+//  void ConstructETree2(SparseMatrixStructure & aGlobal);
+//  void ConstructETree(int n, int * xadj, int * adj);
 
-  void PostOrderTree();
+  void PostOrderTree(Ordering & aOrder);
 
-  ETree ToSupernodalETree(IntNumVec & aXsuper) const;
+//  ETree ToSupernodalETree(IntNumVec & aXsuper) const;
 
   inline bool IsPostOrdered() const { return bIsPostOrdered_;};
   inline Int n() const { return n_; };
-  inline Int ToPostOrder(Int i) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return postNumber_(i-1);};
-  inline Int FromPostOrder(Int i) const  { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return invPostNumber_(i-1);};
-  inline IntNumVec ToPostOrder(IntNumVec & vec) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } IntNumVec povec = vec; for(Int i=0;i<povec.m();i++){ if(vec[i]!=0){ povec[i]=postNumber_(vec[i]-1);} }   return povec;};
+//  inline Int ToPostOrder(Int i) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return postNumber_(i-1);};
+//  inline Int FromPostOrder(Int i) const  { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); }  return invPostNumber_(i-1);};
+//  inline IntNumVec ToPostOrder(IntNumVec & vec) const { if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } IntNumVec povec = vec; for(Int i=0;i<povec.m();i++){ if(vec[i]!=0){ povec[i]=postNumber_(vec[i]-1);} }   return povec;};
   inline Int PostParent(Int i) const {
-//      return poparent_[i]; 
-      if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } 
-      Int node = invPostNumber_(i);
-      Int parent = parent_(node-1);
-      return parent==0?0:postNumber_(parent-1); 
+      return poparent_[i]; 
+//      if(!bIsPostOrdered_){ throw std::logic_error("Tree must be postordered to use this function."); } 
+//
+//      Int node = invPostNumber_(i);
+//      Int parent = parent_(node-1);
+//      parent = parent==0?0:postNumber_(parent-1);
+//      assert(parent == poparent_[i]);
+//      return parent; 
   }
   inline Int Parent(Int i) const { return parent_(i); };
   inline Int Size() const { return parent_.m(); };
 
-  inline IntNumVec & Perm(){ return postNumber_; }
-  inline IntNumVec & Invp(){ return invPostNumber_; }
+//  inline IntNumVec & Perm(){ return postNumber_; }
+//  inline IntNumVec & Invp(){ return invPostNumber_; }
 
-  IntNumVec SortChildren(IntNumVec & cc);
+  void SortChildren(IntNumVec & cc, Ordering & aOrder);
 
-  void PermuteTree(IntNumVec & perm);
+//  void PermuteTree(IntNumVec & perm);
 
 protected:
   Int n_;
@@ -76,9 +80,8 @@ protected:
 
   NumVec<Int> parent_;
   NumVec<Int> poparent_;
-  NumVec<Int> postNumber_;
-  NumVec<Int> invPostNumber_;
-//  NumVec<Int> postParent_;
+//  NumVec<Int> postNumber_;
+//  NumVec<Int> invPostNumber_;
 
 };
 

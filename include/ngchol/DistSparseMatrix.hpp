@@ -91,9 +91,6 @@ template <class F> class DistSparseMatrix{
   SparseMatrixStructure  GetLocalStructure() const;
   //const SparseMatrixStructure & GetLocalStructure() const;
 
-  void GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc);
-  void FindSupernodes(ETree& tree, IntNumVec & cc, IntNumVec & xsuper);
-  void SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx);
 };
 
 // Commonly used

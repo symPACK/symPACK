@@ -1,7 +1,6 @@
 #include "ngchol/SparseMatrixStructure.hpp"
 #include "ngchol/ETree.hpp"
 #include "ngchol/utility.hpp"
-#include "ngchol/mmd.hpp"
 #include <limits>       // std::numeric_limits
 
 #include <iterator>
@@ -220,10 +219,10 @@ namespace LIBCHOLESKY{
     TIMER_STOP(ToGlobalStructure);
   }
 
-  void SparseMatrixStructure::GetLColRowCount(ETree & tree, IntNumVec & cc, IntNumVec & rc){
+  void SparseMatrixStructure::GetLColRowCount(ETree & tree, Ordering & aOrder, IntNumVec & cc, IntNumVec & rc){
      //The tree need to be postordered
     if(!tree.IsPostOrdered()){
-      tree.PostOrderTree();
+      tree.PostOrderTree(aOrder);
     }
 
     ExpandSymmetric();
@@ -276,7 +275,7 @@ namespace LIBCHOLESKY{
       for(Int lownbr = 1; lownbr<=size; ++lownbr){
         Int lflag = 0;
         Int ifdesc = fdesc(lownbr);
-        Int oldnbr = tree.FromPostOrder(lownbr);
+        Int oldnbr = aOrder.perm[lownbr-1];
         Int jstrt = expColptr(oldnbr-1);
         Int jstop = expColptr(oldnbr) - 1;
 
@@ -285,7 +284,8 @@ namespace LIBCHOLESKY{
         //           for each ``high neighbor'', hinbr of lownbr ...
         //           -----------------------------------------------
         for(Int j = jstrt; j<=jstop;++j){
-          Int hinbr = tree.ToPostOrder(expRowind(j-1));
+          Int hinbr = expRowind[j-1];
+          hinbr = aOrder.invp[hinbr-1];
           if  ( hinbr > lownbr )  {
             if  ( ifdesc > prvnbr(hinbr-1) ) {
               //                       -------------------------
@@ -377,7 +377,7 @@ namespace LIBCHOLESKY{
 
   
 
-  void SparseMatrixStructure::FindSupernodes(ETree& tree, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, Int maxSize ){
+  void SparseMatrixStructure::FindSupernodes(ETree& tree, Ordering & aOrder, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, Int maxSize ){
     TIMER_START(FindSupernodes);
 
     if(!bIsGlobal){
@@ -425,7 +425,7 @@ namespace LIBCHOLESKY{
   typedef std::set<Int> nodeset;
   typedef std::list<nodeset*> partitions;
   typedef std::vector<nodeset*> vecset;
-void SparseMatrixStructure::RefineSupernodes(ETree& tree, IntNumVec & supMembership, IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx, IntNumVec & perm){
+void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, IntNumVec & supMembership, IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx, IntNumVec & perm){
 
   perm.Resize(size);
 //  for(Int i =1; i<=size; ++i){
@@ -577,6 +577,9 @@ void SparseMatrixStructure::RefineSupernodes(ETree& tree, IntNumVec & supMembers
   for(Int i = 1; i<=nsuper; ++i){
     delete adj[i-1];
   }
+
+  aOrder.Compose(perm);
+
 }
 #endif
 
@@ -712,7 +715,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
 }
 
-  void SparseMatrixStructure::SymbolicFactorizationRelaxed(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, IntNumVec & xlindx, IntNumVec & lindx){
+  void SparseMatrixStructure::SymbolicFactorizationRelaxed(ETree& tree,Ordering & aOrder, const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, IntNumVec & xlindx, IntNumVec & lindx){
     TIMER_START(SymbolicFactorization);
 
 
@@ -768,67 +771,6 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
       point += cc(fstcol-1); 
     } 
     xlindx(nsuper) = point;
-
-
-//    Int point = 1;
-//    for(Int ksup = 1; ksup<=nsuper; ++ksup){
-//      Int fstcol = xsuper(ksup-1);
-//      Int width = xsuper(ksup) - xsuper(ksup-1);
-//      lindx(ksup-1) = point;
-//      point += width*cc(fstcol-1); 
-//    } 
-//    lindx(nsuper) = point;
-//
-//    IntNumVec tmpLindx = lindx;
-//    for(Int ksup = 1; ksup<=nsuper; ++ksup){
-//
-//    ETree superTree = tree.ToSupernodalETree(xsuper);
-//      Int fstcol = xsuper(ksup-1);
-//      Int lstcol = xsuper(ksup)-1;
-//
-//      for(Int row = fstcol; row <=lstcol; ++row){
-////        lindx[tmpLindx[ksup-1]++-1]=row;
-//      }
-//
-//
-//      for(Int row = fstcol; row <=lstcol; ++row){
-//        /* traverse the row subtree for each nonzero in A or AA' */
-//          subtree (k, k, Ap, Ai, Anz, SuperMap, Sparent, mark,
-//              Flag, Ls, Lpi2) ;
-//
-//
-//
-//
-//
-//
-//    Int p, pend, i, si ;
-//    p = Ap [j] ;
-//    pend = (Anz == NULL) ? (Ap [j+1]) : (p + Anz [j]) ;
-//    for ( ; p < pend ; p++)
-//    {
-//  Int row = Ai [p] ;
-//  if (row < k)
-//  {
-//      /* (i,k) is an entry in the upper triangular part of A or A*F'.
-//       * symmetric case:   A(i,k) is nonzero (j=k).
-//       * unsymmetric case: A(i,j) and F(j,k) are both nonzero.
-//       *
-//       * Column i is in supernode si = SuperMap [i].  Follow path from si
-//       * to root of supernodal etree, stopping at the first flagged
-//       * supernode.  The root of the row subtree is supernode SuperMap[k],
-//       * which is flagged already. This traversal will stop there, or it
-//       * might stop earlier if supernodes have been flagged by previous
-//       * calls to this routine for the same k. */
-//      for (si = SuperMap [row-1] ; Flag [si] < mark ; si = Sparent [si])
-//      {
-//    ASSERT (si <= SuperMap [k]) ;
-//    Ls [tmpLindx [si]++] = k ;
-//    Flag [si] = mark ;
-//      }
-//  }
-//    }
-//      }
-//    }
 
 
 
@@ -915,15 +857,13 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
 
         for(Int col = fstcol; col<=lstcol; ++col){
-          Int node = tree.FromPostOrder(col);
-//          node = Perm(node-1);
+          Int node = aOrder.perm[col-1];
 
-          Int knzbeg = colptr(node-1);
-          Int knzend = colptr(node)-1;
+          Int knzbeg = expColptr(node-1);
+          Int knzend = expColptr(node)-1;
           for(Int kptr = knzbeg; kptr<=knzend;++kptr){
-            Int newi = rowind(kptr-1);
-//            newi = Invp(newi-1);
-            newi = tree.ToPostOrder(newi);
+            Int newi = expRowind(kptr-1);
+            newi = aOrder.invp[newi-1];
             
             if(newi > fstcol && marker(newi-1) != ksup){
               //position and insert newi in list and
@@ -980,7 +920,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
   }
 #endif
 
-  void SparseMatrixStructure::SymbolicFactorization(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, IntNumVec & xlindx, IntNumVec & lindx){
+  void SparseMatrixStructure::SymbolicFactorization(ETree& tree, Ordering & aOrder, const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, IntNumVec & xlindx, IntNumVec & lindx){
     TIMER_START(SymbolicFactorization);
 
 
@@ -1097,14 +1037,12 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
       //inserting only those indices not already in the
       //list.
       if(knz < length){
-        Int node = tree.FromPostOrder(fstcol);
-//        node = Perm(node-1);
-        Int knzbeg = colptr(node-1);
-        Int knzend = colptr(node)-1;
+        Int node = aOrder.perm[fstcol-1];
+        Int knzbeg = expColptr(node-1);
+        Int knzend = expColptr(node)-1;
         for(Int kptr = knzbeg; kptr<=knzend;++kptr){
-          Int newi = rowind(kptr-1);
-//          newi = Invp(newi-1);
-          newi = tree.ToPostOrder(newi);
+          Int newi = expRowind(kptr-1);
+          newi = aOrder.invp[newi-1];
           if(newi > fstcol && marker(newi-1) != ksup){
             //position and insert newi in list and
             // mark it with kcol
@@ -1161,568 +1099,481 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
 
 
-void SparseMatrixStructure::MMD(IntNumVec & pperm, IntNumVec & pinvp){
-    if(!bIsGlobal || !bIsExpanded){
-			throw std::logic_error( "SparseMatrixStructure must be global and expanded in order to call MMD\n" );
-    }
 
-    Int iwsiz = 4*size;
-    std::vector<Int> iwork (iwsiz);
-    invp.Resize(size);
-    perm.Resize(size);
 
-    Int nadj = expRowind.m();
-    Int nofsub =0;
-    Int iflag =0;
-
-    IntNumVec tmpXadj = expColptr;
-    IntNumVec tmpAdj = expRowind;
-    FORTRAN(ordmmd)( &size , &nadj , tmpXadj.Data() , tmpAdj.Data(), 
-            &invp[0] , &perm[0] , &iwsiz , &iwork[0] , &nofsub, &iflag ) ;
-
-    pperm = perm;
-    pinvp = invp;
-
-//  logfileptr->OFS()<<"perm "<<perm<<endl;
-//  logfileptr->OFS()<<"invperm "<<invp<<endl;
-
-//    Permute(perm);
-
-    assert(iflag == 0);
-}
-
-void SparseMatrixStructure::Permute(IntNumVec & perm){
-  IntNumVec invperm(size); 
-  for(int step = 1; step<=size;++step){ 
-    invperm[perm[step-1]-1] = step; 
-  } 
-
-//  logfileptr->OFS()<<"invperm "<<invperm<<endl;
-//
-//
-//  IntNumVec tmpXadj;
-//  IntNumVec tmpAdj;
-//  Int * newColptr,*newRowind;
-//
-//  tmpXadj = expColptr;
-//  tmpAdj = expRowind;
-//  newColptr = expColptr.Data();
-//  newRowind = expRowind.Data();
-//
-//  newColptr[0] = 1;
-//  for(Int step = 1; step<=size;++step){ 
-//    newColptr[step] = newColptr[step-1] + tmpXadj[perm[step-1]]-tmpXadj[perm[step-1]-1]; 
-//  }
-//
-//  for(int step = 1; step<=size;++step){ 
-//    int fn = newColptr[step-1]; 
-//    int ln = newColptr[step]-1; 
-//
-//    int oldlabel = perm[step-1]; 
-//    int ofn = tmpXadj[oldlabel-1]; 
-//    int oln = tmpXadj[oldlabel]-1; 
-//    for(int i =ofn;i<=oln;++i){ 
-//      newRowind[fn+i-ofn-1] = invperm[tmpAdj[i-1]-1]; 
-//    } 
-//    //now sort them 
-//    sort(&newRowind[fn-1],&newRowind[ln]); 
-//  }
-//
-//  for(int step = 1; step<=size;++step){ 
-//    int fn = newColptr[step-1]; 
-//    int ln = newColptr[step]-1; 
-//    for(int i =fn;i<=ln;++i){ 
-//      Int row = newRowind[i-1];
-//    }
-//  } 
-
-//  if(bIsExpanded){
-//    bIsExpanded = false;
-//    ExpandSymmetric();
-//  }
-
-
-}
-
-
-
-
-
-
-
-//DEPRECATED METHODS
-//NOT WORKING
-  void SparseMatrixStructure::SymbolicFactorizationDEPRECATED(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx){
-    TIMER_START(SymbolicFactorization);
-
-
-    if(!bIsGlobal){
-			throw std::logic_error( "SparseMatrixStructure must be global in order to call SymbolicFactorization\n" );
-    }
-
-    std::vector<std::set<Int> > sets;
-    sets.resize(xsuper.m(),std::set<Int>());
-
-    std::vector<IntNumVec > LIs;
-    LIs.resize(xsuper.m());
-
-    Int lindxCnt = 0;
-    for(Int I=1;I<xsuper.m();I++){
-      Int fi = tree.FromPostOrder(xsuper(I-1));
-      Int width = xsuper(I)-xsuper(I-1);
-      Int length = cc(fi-1);
-
-      IntNumVec & LI = LIs[I-1];
-
-
-      //Initialize LI with nnz struct of A_*fi
-      Int begin = colptr(fi-1);
-      Int end = colptr(fi);
-
-      Int * start = &rowind(begin-1); 
-      Int * stop = (end>=rowind.m())?&rowind(rowind.m()-1)+1:&rowind(end-1); 
-      //find the diagonal block
-      start=std::find(start,stop,fi);
-
-
-      LI.Resize(stop-start);
-
-      std::copy(start,stop,&LI(0));
-
-      //     logfileptr->OFS()<<"L"<<I<<"<- A_*,fi: ";
-      //     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-      //     logfileptr->OFS()<<std::endl;
-
-      LI = tree.ToPostOrder(LI);
-
-
-      //     logfileptr->OFS()<<"PO L"<<I<<"<- A_*,fi: ";
-      //     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-      //     logfileptr->OFS()<<std::endl;
-
-
-
-
-      std::set<Int> & SI = sets[I-1];
-      for(std::set<Int>::iterator it = SI.begin(); it!=SI.end(); it++){
-        Int K = *it;
-        IntNumVec & LK = LIs[K-1];
-
-        //        logfileptr->OFS()<<"merging "<<I<<" with "<<K<<std::endl;
-        //LI = LI U LK \ K
-        IntNumVec Ltmp(LI.m()+LK.m()-1);
-        std::copy(&LI(0),&LI(LI.m()-1)+1,&Ltmp(0));
-
-
-        if(LK.m()>1){
-
-          //Be careful to not insert duplicates !
-          Int firstidx =1;
-          for(Int i =1;i<LK.m();i++){
-            if(LK[i]>fi ){
-              firstidx = i+1;
-              break;
-            }
-          }
-          Int * end = std::set_union(&LI(0),&LI(LI.m()-1)+1,&LK(firstidx-1),&LK(LK.m()-1)+1,&Ltmp(0));
-          Ltmp.Resize(end - &Ltmp(0));
-          LI = Ltmp;
-        }
-
-
-      }
-
-
-      lindxCnt += LI.m();
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
-#endif
-
-      if(length>width  ){
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
-#endif
-        Int i = LI(width);
-        //        logfileptr->OFS()<<I<<" : col "<<i<<" is the next to be examined. width="<<width<<" length="<<length<<std::endl;
-
-        Int J = I+1;
-        for(J = I+1;J<=xsuper.m()-1;J++){
-          Int fc = xsuper(J-1);
-          Int lc = xsuper(J)-1;
-          //          logfileptr->OFS()<<"FC = "<<fc<<" vs "<<i<<std::endl;
-          //          logfileptr->OFS()<<"LC = "<<lc<<" vs "<<i<<std::endl;
-          if(fc <=i && lc >= i){
-            //            logfileptr->OFS()<<I<<" : col "<<i<<" found in snode "<<J<<std::endl;
-            break;
-          }
-        } 
-
-        //        logfileptr->OFS()<<I<<" : col "<<i<<" is in snode "<<J<<std::endl;
-        std::set<Int> & SJ = sets[J-1];
-        SJ.insert(I);
-        //        logfileptr->OFS()<<"S"<<J<<" U {"<<I<<"}"<<std::endl; 
-
-      }
-
-    }  
-
-    Int nsuper = xsuper.m()-1;
-    Int totNnz = 1;
-    for(Int I=1;I<xsuper.m();I++){
-      Int fc = xsuper(I-1);
-      Int lc = xsuper(I)-1;
-      for(Int i=fc;i<=lc;i++){
-        totNnz+=cc(i-1);
-      }
-
-    }
-
-    lindx.Resize(lindxCnt);
-    xlindx.Resize(nsuper+1);
-    Int head = 1;
-
-    //    logfileptr->OFS()<<"There are "<<lindxCnt<<" slots in lindx"<<std::endl;
-    for(Int I=1;I<=nsuper;I++){
-      Int fi = tree.FromPostOrder(xsuper(I-1));
-      IntNumVec & LI = LIs[I-1];
-      xlindx(I-1)=head;
-
-
-      //        logfileptr->OFS()<<"PO L"<<I<<":";
-      //        for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
-      //        logfileptr->OFS()<<std::endl;
-
-      //      logfileptr->OFS()<<"Copying "<<LI.m()<<" elem into lindx("<<head-1<<")"<<std::endl;
-      for(Int i=0;i<LI.m();++i){
-        if(LI(i)!=0){
-          lindx(head-1) = LI(i); 
-          head++;
-        }
-      }
-      //std::copy(&LI(0),LI.Data()+LI.m(),&(lindx(head-1)));
-      //head+=LI.m();//cc(fi-1);
-    }
-    //    lindx.Resize(head-1);
-    xlindx(nsuper) = head;
-
-    TIMER_STOP(SymbolicFactorization);
-  }
-
-//FIXME correct these methods
-//Return the row structure in the permuted matrix
-void SparseMatrixStructure::GetARowStruct(const ETree & etree, const Int iPORow, std::vector<Int> & rowStruct){
-  TIMER_START(SparseMatrixStructure::GetARowStruct);
-    if(!bIsGlobal){
-			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetARowStruct\n" );
-    }
-
-  for(Int iPOCurCol = 1; iPOCurCol<iPORow;++iPOCurCol){
-    Int iCurCol = etree.FromPostOrder(iPOCurCol);
-
-    Int iFirstRowPtr = colptr(iCurCol-1);
-    Int iLastRowPtr = colptr(iCurCol)-1;
-
-//    logfileptr->OFS()<<iFirstRowPtr<<" to "<<iLastRowPtr<<std::endl;
-    for(Int iCurRowPtr=iFirstRowPtr ;iCurRowPtr<=iLastRowPtr;++iCurRowPtr){
-      Int iPOCurRow = etree.ToPostOrder(rowind(iCurRowPtr-1));
-      if(iPOCurRow == iPORow){
-        rowStruct.push_back(iPOCurCol);
-//        logfileptr->OFS()<<"A("<<iPORow<<","<<iPOCurCol<<") is nz "<<std::endl;
-      }
-
-      if(iPOCurRow >= iPORow){
-        break;
-      }
-    }
-  }
-  TIMER_STOP(SparseMatrixStructure::GetARowStruct);
-}
-
-void SparseMatrixStructure::GetLRowStruct(const ETree & etree, const Int iPORow, const std::vector<Int> & ARowStruct, std::set<Int> & LRowStruct){
-
-  TIMER_START(SparseMatrixStructure::GetLRowStruct);
-    if(!bIsGlobal){
-			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetLRowStruct\n" );
-    }
-//  LRowStruct.clear();
-  for(Int i = 0; i<ARowStruct.size();++i){
-    Int iCurNode = ARowStruct[i];
-    //tracing from iCurRow to iRow;
-//    logfileptr->OFS()<<"Starting from node "<<iCurNode<<std::endl;
-    if(iCurNode==iPORow){
-//      logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
-      LRowStruct.insert(iCurNode);
-    }
-    else{
-      while(iCurNode != iPORow && etree.PostParent(iCurNode-1) != 0){
-//        logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
-        LRowStruct.insert(iCurNode);
-        iCurNode = etree.PostParent(iCurNode-1);
-//        logfileptr->OFS()<<"Parent is "<<iCurNode<<std::endl;
-      }
-    }
-  } 
-  TIMER_STOP(SparseMatrixStructure::GetLRowStruct);
-}
-
-void SparseMatrixStructure::GetSuperARowStruct(const ETree & etree, const IntNumVec & Xsuper, const IntNumVec & SupMembership, const Int iSupNo, std::vector<Int> & SuperRowStruct){
-  TIMER_START(SpStruct_GetSuperARowStruct);
-//  TIMER_START(SparseMatrixStructure::GetSuperARowStruct);
-    if(!bIsGlobal){
-			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetARowStruct\n" );
-    }
-
-  Int first_col = Xsuper[iSupNo-1];
-  Int last_col = Xsuper[iSupNo]-1;
-
-  for(Int iPOCurCol = 1; iPOCurCol<first_col;++iPOCurCol){
-    Int iCurCol = etree.FromPostOrder(iPOCurCol);
-    Int iCurSupno = SupMembership(iPOCurCol-1);
-    
-
-    Int iFirstRowPtr = colptr(iCurCol-1);
-    Int iLastRowPtr = colptr(iCurCol)-1;
-
-//    logfileptr->OFS()<<iFirstRowPtr<<" to "<<iLastRowPtr<<std::endl;
-    for(Int iCurRowPtr=iFirstRowPtr ;iCurRowPtr<=iLastRowPtr;++iCurRowPtr){
-      Int iPOCurRow = etree.ToPostOrder(rowind(iCurRowPtr-1));
-      if(iPOCurRow >= first_col && iPOCurRow <= last_col){
-//        SuperRowStruct.push_back(iPOCurCol);
-        SuperRowStruct.push_back(iCurSupno);
-//        logfileptr->OFS()<<"A("<<iPORow<<","<<iPOCurCol<<") is nz "<<std::endl;
-      }
-
-      if(iPOCurRow > last_col){
-        break;
-      }
-    }
-  }
-//  TIMER_STOP(SparseMatrixStructure::GetSuperARowStruct);
-  TIMER_STOP(SpStruct_GetSuperARowStruct);
-}
-
-void SparseMatrixStructure::GetSuperLRowStruct(const ETree & etree, const IntNumVec & Xsuper, const IntNumVec & SupMembership, const Int iSupNo, std::set<Int> & SuperLRowStruct){
-
-  TIMER_START(SpStruct_GetSuperLRowStruct);
-    if(!bIsGlobal){
-			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetSuperLRowStruct\n" );
-    }
-
-//  SuperLRowStruct.clear();
-
-    //Get A row struct
-    std::vector<Int> SuperARowStruct;
-    GetSuperARowStruct(etree, Xsuper,SupMembership, iSupNo, SuperARowStruct);
-
-
-
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Row structure of A of Supernode "<<iSupNo<<" is ";
-      for(std::vector<Int>::iterator it = SuperARowStruct.begin(); it != SuperARowStruct.end(); ++it){
-        logfileptr->OFS()<<*it<<" ";
-      }
-      logfileptr->OFS()<<std::endl;
-#endif
-
-  Int first_col = Xsuper[iSupNo-1];
-  Int last_col = Xsuper[iSupNo]-1;
-
-  for(Int i = 0; i<SuperARowStruct.size();++i){
-    Int iCurNode = SuperARowStruct[i];
-    //tracing from iCurRow to iRow;
-#ifdef _DEBUG_
-    logfileptr->OFS()<<"Starting from node "<<iCurNode<<std::endl;
-#endif
-    //if(iCurNode==iPORow){
-    if(iCurNode >= first_col && iCurNode <= last_col){
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
-#endif
-      SuperLRowStruct.insert(iCurNode);
-    }
-    else{
-      while( iCurNode != first_col && etree.PostParent(iCurNode-1) != 0){
-//      while( !(iCurNode >= first_col && iCurNode <= last_col) && etree.PostParent(iCurNode-1) != 0){
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
-#endif
-        SuperLRowStruct.insert(iCurNode);
-        iCurNode = etree.PostParent(iCurNode-1);
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Parent is "<<iCurNode<<std::endl;
-#endif
-      }
-    }
-  } 
-  TIMER_STOP(SpStruct_GetSuperLRowStruct);
-}
-
-  void SparseMatrixStructure::GetLColRowCountDEPRECATED(ETree & tree, IntNumVec & cc, IntNumVec & rc){
-
-
-    if(!bIsGlobal){
-			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetLColRowCount\n" );
-    }
-
-    //The tree need to be postordered
-    if(!tree.IsPostOrdered()){
-      tree.PostOrderTree();
-    }
-
-    ExpandSymmetric();
-
-    TIMER_START(GetColRowCount);
-//    TIMER_START(Initialize_Data);
-    //cc first contains the delta
-    cc.Resize(size);
-    //Compute size of subtrees
-    IntNumVec treeSize(size);
-    SetValue(treeSize,I_ONE);
-
-
-
-    IntNumVec level(size);
-    level(size-1)=1;
-    for(Int vertex = 1; vertex<=size-1; vertex++){
-      Int curParent = tree.PostParent(vertex-1);
-      if(curParent!=0){
-        treeSize(curParent-1)+=treeSize(vertex-1);
-      }
-      if(treeSize(vertex-1)==1){
-        cc(vertex-1)=1;
-      }
-      else{
-        cc(vertex-1)= 0;
-      }
-    }
-
-    for(Int vertex = size-1; vertex>=1; --vertex){
-      Int curParent = tree.PostParent(vertex-1);
-      if(curParent!=0){
-        level(vertex-1) = level(curParent-1)+1;
-      }
-      else{
-        level(vertex-1) = 0;
-      }
-    }
-
-
-    if(treeSize(size-1)==1){
-      cc(size-1)=1;
-    }
-    else{
-      cc(size-1)= 0 ;
-    }
-
-
-
-    IntNumVec prevLeaf(size);
-    SetValue(prevLeaf,I_ZERO);
-    IntNumVec prevNz(size);
-    SetValue(prevNz,I_ZERO);
-
-    rc.Resize(size);
-    SetValue(rc,I_ONE);
-
-    DisjointSet sets;
-    sets.Initialize(size);
-    for(Int vertex = 1; vertex<=size; vertex++){
-      Int cset = sets.makeSet (vertex);
-      sets.Root(cset-1)=vertex;
-    }
-
-
-//    TIMER_STOP(Initialize_Data);
-
-//    TIMER_START(Compute_Col_Row_Count);
-    for(Int col=1; col<size; col++){
-      Int cset;
-
-      Int colPar = tree.PostParent(col-1);
-      if (col<size && colPar!=0){
-        cc(colPar-1)--;
-      }
-
-      Int oCol = tree.FromPostOrder(col);
-      for (Int i = expColptr(oCol-1); i < expColptr(oCol); i++) {
-        Int row = tree.ToPostOrder(expRowind(i-1));
-        if (row > col){
-          Int k = prevNz(row-1);
-
-
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"prevNz("<<row<<")="<<k<<" vs "<< col - treeSize(col-1) +1<<std::endl;
-#endif
-          if(k< col - treeSize(col-1) +1){
-#ifdef _DEBUG_
-            logfileptr->OFS()<<"Vertex "<<col<<" is a leaf of Tr["<<row<<"]"<<std::endl;
-#endif
-            cc(col-1)++;
-
-            Int p = prevLeaf(row-1);
-            if(p==0){
-              rc(row-1)+=level(col-1)-level(row-1);
-            }
-            else {
-//              TIMER_START(Get_LCA);
-              Int pset = sets.find(p);
-              Int q = sets.Root(pset-1);
-//              TIMER_STOP(Get_LCA);
-
-#ifdef _DEBUG_
-              logfileptr->OFS()<<"Vertex "<<q<<" is the LCA of "<<p<<" and "<< col<<std::endl;
-#endif
-              rc(row-1)+= level(col-1) - level(q-1);
-              cc(q-1)--;
-
-            }
-            prevLeaf(row-1)=col;
-          }
-#ifdef _DEBUG_
-          else{
-            logfileptr->OFS()<<"Vertex "<<col<<" is an internal vertex of Tr["<<row<<"]"<<std::endl;
-          }
-#endif
-          prevNz(row-1)=col;
-        }
-      }
-
-//      TIMER_START(Merge_LCA);
-      //merge col and parent sets (for lca computation)
-      if (colPar!=0){
-        sets.Union(col,colPar);
-      }
-//      TIMER_STOP(Merge_LCA);
-
-    }
-//    TIMER_STOP(Compute_Col_Row_Count);
-
-
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Deltas "<<cc.m()<<std::endl;
-        for(Int i = 0; i<cc.m();i++){
-          logfileptr->OFS()<<cc(i)<<" ";
-        }
-        logfileptr->OFS()<<std::endl;
-#endif
-
-
-
-
-
-    //convert delta to col count
-    for(Int col=1; col<size; col++){
-      Int parent = tree.PostParent(col-1);
-      if(parent!=0){
-        cc(parent-1)+= cc(col-1);
-      }
-    }
-
-
-
-
-    TIMER_STOP(GetColRowCount);
-  }
+//////DEPRECATED METHODS
+//////NOT WORKING
+////  void SparseMatrixStructure::SymbolicFactorizationDEPRECATED(ETree& tree,const IntNumVec & cc,const IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx){
+////    TIMER_START(SymbolicFactorization);
+////
+////
+////    if(!bIsGlobal){
+////			throw std::logic_error( "SparseMatrixStructure must be global in order to call SymbolicFactorization\n" );
+////    }
+////
+////    std::vector<std::set<Int> > sets;
+////    sets.resize(xsuper.m(),std::set<Int>());
+////
+////    std::vector<IntNumVec > LIs;
+////    LIs.resize(xsuper.m());
+////
+////    Int lindxCnt = 0;
+////    for(Int I=1;I<xsuper.m();I++){
+////      Int fi = tree.FromPostOrder(xsuper(I-1));
+////      Int width = xsuper(I)-xsuper(I-1);
+////      Int length = cc(fi-1);
+////
+////      IntNumVec & LI = LIs[I-1];
+////
+////
+////      //Initialize LI with nnz struct of A_*fi
+////      Int begin = colptr(fi-1);
+////      Int end = colptr(fi);
+////
+////      Int * start = &rowind(begin-1); 
+////      Int * stop = (end>=rowind.m())?&rowind(rowind.m()-1)+1:&rowind(end-1); 
+////      //find the diagonal block
+////      start=std::find(start,stop,fi);
+////
+////
+////      LI.Resize(stop-start);
+////
+////      std::copy(start,stop,&LI(0));
+////
+////      //     logfileptr->OFS()<<"L"<<I<<"<- A_*,fi: ";
+////      //     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+////      //     logfileptr->OFS()<<std::endl;
+////
+////      LI = tree.ToPostOrder(LI);
+////
+////
+////      //     logfileptr->OFS()<<"PO L"<<I<<"<- A_*,fi: ";
+////      //     for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+////      //     logfileptr->OFS()<<std::endl;
+////
+////
+////
+////
+////      std::set<Int> & SI = sets[I-1];
+////      for(std::set<Int>::iterator it = SI.begin(); it!=SI.end(); it++){
+////        Int K = *it;
+////        IntNumVec & LK = LIs[K-1];
+////
+////        //        logfileptr->OFS()<<"merging "<<I<<" with "<<K<<std::endl;
+////        //LI = LI U LK \ K
+////        IntNumVec Ltmp(LI.m()+LK.m()-1);
+////        std::copy(&LI(0),&LI(LI.m()-1)+1,&Ltmp(0));
+////
+////
+////        if(LK.m()>1){
+////
+////          //Be careful to not insert duplicates !
+////          Int firstidx =1;
+////          for(Int i =1;i<LK.m();i++){
+////            if(LK[i]>fi ){
+////              firstidx = i+1;
+////              break;
+////            }
+////          }
+////          Int * end = std::set_union(&LI(0),&LI(LI.m()-1)+1,&LK(firstidx-1),&LK(LK.m()-1)+1,&Ltmp(0));
+////          Ltmp.Resize(end - &Ltmp(0));
+////          LI = Ltmp;
+////        }
+////
+////
+////      }
+////
+////
+////      lindxCnt += LI.m();
+////#ifdef _DEBUG_
+////        logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
+////#endif
+////
+////      if(length>width  ){
+////#ifdef _DEBUG_
+////        logfileptr->OFS()<<"I:"<<I<<std::endl<<"LI:"<<LI<<std::endl;
+////#endif
+////        Int i = LI(width);
+////        //        logfileptr->OFS()<<I<<" : col "<<i<<" is the next to be examined. width="<<width<<" length="<<length<<std::endl;
+////
+////        Int J = I+1;
+////        for(J = I+1;J<=xsuper.m()-1;J++){
+////          Int fc = xsuper(J-1);
+////          Int lc = xsuper(J)-1;
+////          //          logfileptr->OFS()<<"FC = "<<fc<<" vs "<<i<<std::endl;
+////          //          logfileptr->OFS()<<"LC = "<<lc<<" vs "<<i<<std::endl;
+////          if(fc <=i && lc >= i){
+////            //            logfileptr->OFS()<<I<<" : col "<<i<<" found in snode "<<J<<std::endl;
+////            break;
+////          }
+////        } 
+////
+////        //        logfileptr->OFS()<<I<<" : col "<<i<<" is in snode "<<J<<std::endl;
+////        std::set<Int> & SJ = sets[J-1];
+////        SJ.insert(I);
+////        //        logfileptr->OFS()<<"S"<<J<<" U {"<<I<<"}"<<std::endl; 
+////
+////      }
+////
+////    }  
+////
+////    Int nsuper = xsuper.m()-1;
+////    Int totNnz = 1;
+////    for(Int I=1;I<xsuper.m();I++){
+////      Int fc = xsuper(I-1);
+////      Int lc = xsuper(I)-1;
+////      for(Int i=fc;i<=lc;i++){
+////        totNnz+=cc(i-1);
+////      }
+////
+////    }
+////
+////    lindx.Resize(lindxCnt);
+////    xlindx.Resize(nsuper+1);
+////    Int head = 1;
+////
+////    //    logfileptr->OFS()<<"There are "<<lindxCnt<<" slots in lindx"<<std::endl;
+////    for(Int I=1;I<=nsuper;I++){
+////      Int fi = tree.FromPostOrder(xsuper(I-1));
+////      IntNumVec & LI = LIs[I-1];
+////      xlindx(I-1)=head;
+////
+////
+////      //        logfileptr->OFS()<<"PO L"<<I<<":";
+////      //        for(int i=0;i<LI.m();i++){logfileptr->OFS()<<LI(i)<< " ";}
+////      //        logfileptr->OFS()<<std::endl;
+////
+////      //      logfileptr->OFS()<<"Copying "<<LI.m()<<" elem into lindx("<<head-1<<")"<<std::endl;
+////      for(Int i=0;i<LI.m();++i){
+////        if(LI(i)!=0){
+////          lindx(head-1) = LI(i); 
+////          head++;
+////        }
+////      }
+////      //std::copy(&LI(0),LI.Data()+LI.m(),&(lindx(head-1)));
+////      //head+=LI.m();//cc(fi-1);
+////    }
+////    //    lindx.Resize(head-1);
+////    xlindx(nsuper) = head;
+////
+////    TIMER_STOP(SymbolicFactorization);
+////  }
+////
+//////FIXME correct these methods
+//////Return the row structure in the permuted matrix
+////void SparseMatrixStructure::GetARowStruct(const ETree & etree, const Int iPORow, std::vector<Int> & rowStruct){
+////  TIMER_START(SparseMatrixStructure::GetARowStruct);
+////    if(!bIsGlobal){
+////			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetARowStruct\n" );
+////    }
+////
+////  for(Int iPOCurCol = 1; iPOCurCol<iPORow;++iPOCurCol){
+////    Int iCurCol = etree.FromPostOrder(iPOCurCol);
+////
+////    Int iFirstRowPtr = colptr(iCurCol-1);
+////    Int iLastRowPtr = colptr(iCurCol)-1;
+////
+//////    logfileptr->OFS()<<iFirstRowPtr<<" to "<<iLastRowPtr<<std::endl;
+////    for(Int iCurRowPtr=iFirstRowPtr ;iCurRowPtr<=iLastRowPtr;++iCurRowPtr){
+////      Int iPOCurRow = etree.ToPostOrder(rowind(iCurRowPtr-1));
+////      if(iPOCurRow == iPORow){
+////        rowStruct.push_back(iPOCurCol);
+//////        logfileptr->OFS()<<"A("<<iPORow<<","<<iPOCurCol<<") is nz "<<std::endl;
+////      }
+////
+////      if(iPOCurRow >= iPORow){
+////        break;
+////      }
+////    }
+////  }
+////  TIMER_STOP(SparseMatrixStructure::GetARowStruct);
+////}
+////
+////void SparseMatrixStructure::GetLRowStruct(const ETree & etree, const Int iPORow, const std::vector<Int> & ARowStruct, std::set<Int> & LRowStruct){
+////
+////  TIMER_START(SparseMatrixStructure::GetLRowStruct);
+////    if(!bIsGlobal){
+////			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetLRowStruct\n" );
+////    }
+//////  LRowStruct.clear();
+////  for(Int i = 0; i<ARowStruct.size();++i){
+////    Int iCurNode = ARowStruct[i];
+////    //tracing from iCurRow to iRow;
+//////    logfileptr->OFS()<<"Starting from node "<<iCurNode<<std::endl;
+////    if(iCurNode==iPORow){
+//////      logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+////      LRowStruct.insert(iCurNode);
+////    }
+////    else{
+////      while(iCurNode != iPORow && etree.PostParent(iCurNode-1) != 0){
+//////        logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+////        LRowStruct.insert(iCurNode);
+////        iCurNode = etree.PostParent(iCurNode-1);
+//////        logfileptr->OFS()<<"Parent is "<<iCurNode<<std::endl;
+////      }
+////    }
+////  } 
+////  TIMER_STOP(SparseMatrixStructure::GetLRowStruct);
+////}
+////
+////void SparseMatrixStructure::GetSuperARowStruct(const ETree & etree, const IntNumVec & Xsuper, const IntNumVec & SupMembership, const Int iSupNo, std::vector<Int> & SuperRowStruct){
+////  TIMER_START(SpStruct_GetSuperARowStruct);
+//////  TIMER_START(SparseMatrixStructure::GetSuperARowStruct);
+////    if(!bIsGlobal){
+////			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetARowStruct\n" );
+////    }
+////
+////  Int first_col = Xsuper[iSupNo-1];
+////  Int last_col = Xsuper[iSupNo]-1;
+////
+////  for(Int iPOCurCol = 1; iPOCurCol<first_col;++iPOCurCol){
+////    Int iCurCol = etree.FromPostOrder(iPOCurCol);
+////    Int iCurSupno = SupMembership(iPOCurCol-1);
+////    
+////
+////    Int iFirstRowPtr = colptr(iCurCol-1);
+////    Int iLastRowPtr = colptr(iCurCol)-1;
+////
+//////    logfileptr->OFS()<<iFirstRowPtr<<" to "<<iLastRowPtr<<std::endl;
+////    for(Int iCurRowPtr=iFirstRowPtr ;iCurRowPtr<=iLastRowPtr;++iCurRowPtr){
+////      Int iPOCurRow = etree.ToPostOrder(rowind(iCurRowPtr-1));
+////      if(iPOCurRow >= first_col && iPOCurRow <= last_col){
+//////        SuperRowStruct.push_back(iPOCurCol);
+////        SuperRowStruct.push_back(iCurSupno);
+//////        logfileptr->OFS()<<"A("<<iPORow<<","<<iPOCurCol<<") is nz "<<std::endl;
+////      }
+////
+////      if(iPOCurRow > last_col){
+////        break;
+////      }
+////    }
+////  }
+//////  TIMER_STOP(SparseMatrixStructure::GetSuperARowStruct);
+////  TIMER_STOP(SpStruct_GetSuperARowStruct);
+////}
+////
+////void SparseMatrixStructure::GetSuperLRowStruct(const ETree & etree, const IntNumVec & Xsuper, const IntNumVec & SupMembership, const Int iSupNo, std::set<Int> & SuperLRowStruct){
+////
+////  TIMER_START(SpStruct_GetSuperLRowStruct);
+////    if(!bIsGlobal){
+////			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetSuperLRowStruct\n" );
+////    }
+////
+//////  SuperLRowStruct.clear();
+////
+////    //Get A row struct
+////    std::vector<Int> SuperARowStruct;
+////    GetSuperARowStruct(etree, Xsuper,SupMembership, iSupNo, SuperARowStruct);
+////
+////
+////
+////#ifdef _DEBUG_
+////      logfileptr->OFS()<<"Row structure of A of Supernode "<<iSupNo<<" is ";
+////      for(std::vector<Int>::iterator it = SuperARowStruct.begin(); it != SuperARowStruct.end(); ++it){
+////        logfileptr->OFS()<<*it<<" ";
+////      }
+////      logfileptr->OFS()<<std::endl;
+////#endif
+////
+////  Int first_col = Xsuper[iSupNo-1];
+////  Int last_col = Xsuper[iSupNo]-1;
+////
+////  for(Int i = 0; i<SuperARowStruct.size();++i){
+////    Int iCurNode = SuperARowStruct[i];
+////    //tracing from iCurRow to iRow;
+////#ifdef _DEBUG_
+////    logfileptr->OFS()<<"Starting from node "<<iCurNode<<std::endl;
+////#endif
+////    //if(iCurNode==iPORow){
+////    if(iCurNode >= first_col && iCurNode <= last_col){
+////#ifdef _DEBUG_
+////      logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+////#endif
+////      SuperLRowStruct.insert(iCurNode);
+////    }
+////    else{
+////      while( iCurNode != first_col && etree.PostParent(iCurNode-1) != 0){
+//////      while( !(iCurNode >= first_col && iCurNode <= last_col) && etree.PostParent(iCurNode-1) != 0){
+////#ifdef _DEBUG_
+////        logfileptr->OFS()<<"Adding node "<<iCurNode<<std::endl;
+////#endif
+////        SuperLRowStruct.insert(iCurNode);
+////        iCurNode = etree.PostParent(iCurNode-1);
+////#ifdef _DEBUG_
+////        logfileptr->OFS()<<"Parent is "<<iCurNode<<std::endl;
+////#endif
+////      }
+////    }
+////  } 
+////  TIMER_STOP(SpStruct_GetSuperLRowStruct);
+////}
+////
+////  void SparseMatrixStructure::GetLColRowCountDEPRECATED(ETree & tree, IntNumVec & cc, IntNumVec & rc){
+////
+////
+////    if(!bIsGlobal){
+////			throw std::logic_error( "SparseMatrixStructure must be global in order to call GetLColRowCount\n" );
+////    }
+////
+////    //The tree need to be postordered
+////    if(!tree.IsPostOrdered()){
+////      tree.PostOrderTree();
+////    }
+////
+////    ExpandSymmetric();
+////
+////    TIMER_START(GetColRowCount);
+//////    TIMER_START(Initialize_Data);
+////    //cc first contains the delta
+////    cc.Resize(size);
+////    //Compute size of subtrees
+////    IntNumVec treeSize(size);
+////    SetValue(treeSize,I_ONE);
+////
+////
+////
+////    IntNumVec level(size);
+////    level(size-1)=1;
+////    for(Int vertex = 1; vertex<=size-1; vertex++){
+////      Int curParent = tree.PostParent(vertex-1);
+////      if(curParent!=0){
+////        treeSize(curParent-1)+=treeSize(vertex-1);
+////      }
+////      if(treeSize(vertex-1)==1){
+////        cc(vertex-1)=1;
+////      }
+////      else{
+////        cc(vertex-1)= 0;
+////      }
+////    }
+////
+////    for(Int vertex = size-1; vertex>=1; --vertex){
+////      Int curParent = tree.PostParent(vertex-1);
+////      if(curParent!=0){
+////        level(vertex-1) = level(curParent-1)+1;
+////      }
+////      else{
+////        level(vertex-1) = 0;
+////      }
+////    }
+////
+////
+////    if(treeSize(size-1)==1){
+////      cc(size-1)=1;
+////    }
+////    else{
+////      cc(size-1)= 0 ;
+////    }
+////
+////
+////
+////    IntNumVec prevLeaf(size);
+////    SetValue(prevLeaf,I_ZERO);
+////    IntNumVec prevNz(size);
+////    SetValue(prevNz,I_ZERO);
+////
+////    rc.Resize(size);
+////    SetValue(rc,I_ONE);
+////
+////    DisjointSet sets;
+////    sets.Initialize(size);
+////    for(Int vertex = 1; vertex<=size; vertex++){
+////      Int cset = sets.makeSet (vertex);
+////      sets.Root(cset-1)=vertex;
+////    }
+////
+////
+//////    TIMER_STOP(Initialize_Data);
+////
+//////    TIMER_START(Compute_Col_Row_Count);
+////    for(Int col=1; col<size; col++){
+////      Int cset;
+////
+////      Int colPar = tree.PostParent(col-1);
+////      if (col<size && colPar!=0){
+////        cc(colPar-1)--;
+////      }
+////
+////      Int oCol = tree.FromPostOrder(col);
+////      for (Int i = expColptr(oCol-1); i < expColptr(oCol); i++) {
+////        Int row = tree.ToPostOrder(expRowind(i-1));
+////        if (row > col){
+////          Int k = prevNz(row-1);
+////
+////
+////#ifdef _DEBUG_
+////          logfileptr->OFS()<<"prevNz("<<row<<")="<<k<<" vs "<< col - treeSize(col-1) +1<<std::endl;
+////#endif
+////          if(k< col - treeSize(col-1) +1){
+////#ifdef _DEBUG_
+////            logfileptr->OFS()<<"Vertex "<<col<<" is a leaf of Tr["<<row<<"]"<<std::endl;
+////#endif
+////            cc(col-1)++;
+////
+////            Int p = prevLeaf(row-1);
+////            if(p==0){
+////              rc(row-1)+=level(col-1)-level(row-1);
+////            }
+////            else {
+//////              TIMER_START(Get_LCA);
+////              Int pset = sets.find(p);
+////              Int q = sets.Root(pset-1);
+//////              TIMER_STOP(Get_LCA);
+////
+////#ifdef _DEBUG_
+////              logfileptr->OFS()<<"Vertex "<<q<<" is the LCA of "<<p<<" and "<< col<<std::endl;
+////#endif
+////              rc(row-1)+= level(col-1) - level(q-1);
+////              cc(q-1)--;
+////
+////            }
+////            prevLeaf(row-1)=col;
+////          }
+////#ifdef _DEBUG_
+////          else{
+////            logfileptr->OFS()<<"Vertex "<<col<<" is an internal vertex of Tr["<<row<<"]"<<std::endl;
+////          }
+////#endif
+////          prevNz(row-1)=col;
+////        }
+////      }
+////
+//////      TIMER_START(Merge_LCA);
+////      //merge col and parent sets (for lca computation)
+////      if (colPar!=0){
+////        sets.Union(col,colPar);
+////      }
+//////      TIMER_STOP(Merge_LCA);
+////
+////    }
+//////    TIMER_STOP(Compute_Col_Row_Count);
+////
+////
+////#ifdef _DEBUG_
+////        logfileptr->OFS()<<"Deltas "<<cc.m()<<std::endl;
+////        for(Int i = 0; i<cc.m();i++){
+////          logfileptr->OFS()<<cc(i)<<" ";
+////        }
+////        logfileptr->OFS()<<std::endl;
+////#endif
+////
+////
+////
+////
+////
+////    //convert delta to col count
+////    for(Int col=1; col<size; col++){
+////      Int parent = tree.PostParent(col-1);
+////      if(parent!=0){
+////        cc(parent-1)+= cc(col-1);
+////      }
+////    }
+////
+////
+////
+////
+////    TIMER_STOP(GetColRowCount);
+////  }
 
 
 

@@ -8,6 +8,7 @@
 #include  "ngchol/SuperNode.hpp"
 #include  "ngchol/SupernodalMatrix.hpp"
 #include  "ngchol/CommTypes.hpp"
+#include  "ngchol/Ordering.hpp"
 
 #include  "ngchol/LogFile.hpp"
 

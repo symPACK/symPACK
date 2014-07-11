@@ -213,4 +213,8 @@ inline double get_time()
 #include "ngchol/Environment_impl.hpp"
 
 
+
+
+
+
 #endif // _ENVIRONMENT_DECL_HPP_
