@@ -1,0 +1,12 @@
+%-------------------------------------------------------------------------------
+% UF Sparse Matrix Collection, Tim Davis
+% http://www.cise.ufl.edu/research/sparse/matrices/Nasa/nasa2146
+% name: Nasa/nasa2146
+% [STRUCTURE FROM NASA LANGLEY, 2146 DEGREES OF FREEDOM]
+% id: 758
+% date: 1995
+% author: NASA
+% ed: G. Kumfert, A. Pothen
+% fields: title A b name id date author ed kind
+% kind: structural problem
+%-------------------------------------------------------------------------------

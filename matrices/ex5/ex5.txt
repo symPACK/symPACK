@@ -1,0 +1,12 @@
+%-------------------------------------------------------------------------------
+% UF Sparse Matrix Collection, Tim Davis
+% http://www.cise.ufl.edu/research/sparse/matrices/FIDAP/ex5
+% name: FIDAP/ex5
+% [ TEST MATRIX FROM FIDAP: EX5.MAT]
+% id: 436
+% date: 1994
+% author: A. Baggag, Y. Saad
+% ed: A. Baggag, Y. Saad
+% fields: title A name id date author ed kind
+% kind: computational fluid dynamics problem
+%-------------------------------------------------------------------------------

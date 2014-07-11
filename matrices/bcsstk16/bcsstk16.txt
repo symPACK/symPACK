@@ -1,0 +1,12 @@
+%-------------------------------------------------------------------------------
+% UF Sparse Matrix Collection, Tim Davis
+% http://www.cise.ufl.edu/research/sparse/matrices/HB/bcsstk16
+% name: HB/bcsstk16
+% [S  STIFFNESS MATRIX - CORP. OF ENGINEERS DAM]
+% id: 38
+% date: 1985
+% author: M. Will
+% ed: I. Duff, R. Grimes, J. Lewis
+% fields: title A name id date author ed kind
+% kind: structural problem
+%-------------------------------------------------------------------------------
