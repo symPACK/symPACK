@@ -7,7 +7,7 @@
 #include <omp.h>
 
 #define POPSIZE 20
-#define NUM_GENES 2146
+#define NUM_GENES 1074
 
 
 char* INPUT_FILE;
@@ -16,7 +16,7 @@ int MAXGENS;
 int STOPCOUNT;
 double PMUTATION;
 //int POPSIZE = 20;
-int swapPercent;
+double swapPercent;
 int swapLength;
 
 
@@ -83,7 +83,7 @@ int main (int argc, char *argv[]) {
         ADJ_FILE = argv[2];
         MAXGENS = atoi(argv[3]);
         PMUTATION = atof(argv[4]);
-        swapPercent = atoi(argv[5]);
+        swapPercent = atof(argv[5]);
         swapLength = atoi(argv[6]);
         STOPCOUNT = atoi(argv[7]);
         breakThreshold = atoi (argv[8]);
@@ -106,9 +106,12 @@ int main (int argc, char *argv[]) {
         for (int j = POPSIZE; j < ((2 * POPSIZE)); j++) {
             struct individual child;
             int parent1;
-            int parent2;
+            int parent2 = -1;
             parent1 = pickParent(currentPop);
-            parent2 = pickParent(currentPop);
+            while (parent2 < 0 || parent2 == parent1) {
+                parent2 = pickParent(currentPop);
+            }
+            //printf("Parent 1 is %d and Parent 2 is %d\n", parent1, parent2);
             child = cross(parent1, parent2);
             nextPop[j] = child;
         }
@@ -122,7 +125,7 @@ int main (int argc, char *argv[]) {
         }
         costStopCounter += 1;
 
-        if ((1/nextPop[0].fitness) < breakThreshold) {
+        if ((1/nextPop[POPSIZE - 1].fitness) < breakThreshold) {
             break;
         }
 
@@ -404,8 +407,8 @@ void mutatePop(struct individual mutated[]) {
         randomMutate=rand();
         if (randomMutate < mutateBarrier) {
             mutated[indiv].fitness = - 1;
-            int numSwaps = swapPercent * NUM_GENES * .01;
-            //printf("numSwaps is: %d\n", numSwaps);
+            int numSwaps = swapPercent * NUM_GENES * .01;//playing with this variable
+            // printf("numSwaps is: %d\n", numSwaps);
             for (int x = 0; x < numSwaps; x++) {
                 if (!strcmp("swap", mutType)) {
                     int temp[n]; 
