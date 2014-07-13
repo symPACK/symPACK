@@ -7,7 +7,7 @@
 #include <omp.h>
 
 #define POPSIZE 20
-#define NUM_GENES 1074
+#define NUM_GENES 100
 
 
 char* INPUT_FILE;
@@ -86,7 +86,7 @@ int main (int argc, char *argv[]) {
         swapPercent = atof(argv[5]);
         swapLength = atoi(argv[6]);
         STOPCOUNT = atoi(argv[7]);
-        breakThreshold = atoi (argv[8]);
+        breakThreshold = atoi(argv[8]);
         mutType = argv[9];
         crossType = argv[10];
         selectionType = argv[11];
@@ -102,7 +102,7 @@ int main (int argc, char *argv[]) {
 
         memcpy(nextPop, currentPop, POPSIZE * sizeof(struct individual));
 
-        #pragma omp parallel for
+        //#pragma omp parallel for
         for (int j = POPSIZE; j < ((2 * POPSIZE)); j++) {
             struct individual child;
             int parent1;
@@ -135,7 +135,7 @@ int main (int argc, char *argv[]) {
             break;
         }
         //printf("Best Indiv is fitness %f\n", 1/currentPop[0].fitness);
-        //printf("Current Generation is %d", currentGen);
+        //printf("Current Generation is %d\n", currentGen);
     } 
     printf("Final Population with %d generations.\n", currentGen);
     printPop();
@@ -148,6 +148,10 @@ int main (int argc, char *argv[]) {
     printf("This run took %d generations.\n", currentGen);
     free(adjArray1);
     free(adjArray2);
+
+    for (int tired = 1; tired < 1; tired++) {
+        printf("Does this run once?");
+    }
 
 
 }
@@ -204,50 +208,53 @@ struct individual cross (int firstParent, int secondParent) {
     struct individual child;
     //printf("Using Parent1: %d and Parent2: %d\n", firstParent, secondParent);
     if (!strcmp("order", crossType)) {
-        int crossPoint1 = rand() % n;
-        int crossPoint2 = 0;
-        while (crossPoint2 < crossPoint1) {
-            crossPoint2 = rand() % n;
+        int crossOver1 = (rand() % (n-2));                   //CrossOver1 should be between 0 and n-2
+        int crossOver2 = -1;
+        while (crossOver2 <= (crossOver1) + 1)   {
+            crossOver2 = rand() % n;                         //CrossOver2 should be > crossOver1 and < n
         }
+        //printf("Crossover1 is %d and crossover2 is %d\n", crossOver1, crossOver2);
+
         int takenGenes[n + 1];
         for (int zeroing = 0; zeroing < n + 1; zeroing++){
             takenGenes[zeroing] = 0; 
         }
-        for (int genes = crossPoint1; genes < crossPoint2; genes++) {
-            child.ordering[genes] = currentPop[firstParent].ordering[genes];
-            takenGenes[child.ordering[genes]] = 1;
+
+        for (int copySeg = crossOver1; copySeg < crossOver2; copySeg++) {
+            child.ordering[copySeg] = currentPop[firstParent].ordering[copySeg];
+            takenGenes[currentPop[firstParent].ordering[copySeg]] = 1;
         }
 
-        int counter = 0;
-        for (int secondPass = 0; secondPass < n; secondPass++) {
-            if (!takenGenes[currentPop[secondParent].ordering[secondPass]]) {
-                child.ordering[counter] = currentPop[secondParent].ordering[secondPass];
-                takenGenes[child.ordering[counter]] = 1;
-                counter++;
-                if (counter == crossPoint1) {break;}
+        int secondCrawler = 0;
+        for (int i = 0; i < crossOver1; i++) {
+            while (takenGenes[currentPop[secondParent].ordering[secondCrawler]] == 1) {
+                secondCrawler += 1;
             }
+            child.ordering[i] = currentPop[secondParent].ordering[secondCrawler];
+            takenGenes[currentPop[secondParent].ordering[secondCrawler]] = 1;
         }
-        counter = crossPoint2;
-        for (int thirdPass = 0; thirdPass < n; thirdPass++) {
-            if (!takenGenes[currentPop[secondParent].ordering[thirdPass]]) {
-                child.ordering[counter] = currentPop[secondParent].ordering[thirdPass];
-                counter++;
+
+        for (int j = crossOver2; j < n; j++) {
+            while (takenGenes[currentPop[secondParent].ordering[secondCrawler]] == 1) {
+                secondCrawler += 1;
             }
+            child.ordering[j] = currentPop[secondParent].ordering[secondCrawler];
+            takenGenes[currentPop[secondParent].ordering[secondCrawler]] = 1;
         }
+
         if (!isPermutation(child.ordering)) {
             printf("Child is illegal permutation.\n");
-            printf("crosspoint1 is %d and crosspoint2 is %d\n", crossPoint1, crossPoint2);
-            printf("Dumping Child ordering\n");
+            printf("Dumping orderings (child p1 p2)\n");
             for (int z = 0; z < n; z++) {
-                printf("%d %d \n", z,child.ordering[z] );
+                printf("%d %d %d %d\n", z, child.ordering[z], currentPop[firstParent].ordering[z], currentPop[secondParent].ordering[z]);
             }
             printf("\n");
             exit(1);
         }
     } else if (!strcmp("average", crossType)) {
         struct averageStruct newOrder[n +1];
-        for (int init = 0; init < n + 1; init++) {
-            newOrder[init].value = init;
+        for (int starter = 0; starter < n + 1; starter++) {
+            newOrder[starter].value = starter;
         }
         for (int location = 0; location < n; location++) {
             newOrder[currentPop[firstParent].ordering[location]].average = location;
@@ -282,6 +289,30 @@ struct individual cross (int firstParent, int secondParent) {
         fprintf(stderr,"Not a legal type of crossover. Should be Average, order, or none.");
         exit(1);
     }
+
+    int parentATesting = 0;
+    int parentBTesting = 0;
+    for (int testingVar = 0; testingVar < n; testingVar++) {
+        if (child.ordering[testingVar] == currentPop[firstParent].ordering[testingVar]) {
+            parentATesting += 1;
+        }
+        if (child.ordering[testingVar] == currentPop[secondParent].ordering[testingVar]) {
+            parentBTesting += 1;
+        }
+    }
+    if (parentATesting == n) {
+        int newParent1 = pickParent(currentPop);
+        int newParent2 = pickParent(currentPop);
+        return cross(newParent1, newParent2);
+    }
+    if (parentBTesting == n) {
+        int newParent1 = pickParent(currentPop);
+        int newParent2 = pickParent(currentPop);
+        return cross(newParent1, newParent2);
+    }
+    printf("Child generated with cost %f\n",((GetCost(n, nnz, adjArray1, adjArray2, child.ordering))));
+
+
     return child;
 }
 
@@ -360,7 +391,7 @@ int pickParent(struct individual possibleParents[]) {
 /* Implements the evaluation function for a matrix ordering. Will store
    the value of this ordering into the structure that contains it. */
 void evaluateOrdering(struct individual indivs[], int size) {
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for (int in = 0; in < size; in++) {
         if (indivs[in].fitness == -1) {
             indivs[in].fitness = 1.0 / (GetCost(n, nnz, adjArray1, adjArray2 ,indivs[in].ordering));
@@ -399,7 +430,7 @@ void init() {
 
 /* Mutates the entire current population. */
 void mutatePop(struct individual mutated[]) {
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for (int indiv = POPSIZE; indiv < POPSIZE * 2; indiv++) {
         double randomMutate;
         double mutateBarrier;
