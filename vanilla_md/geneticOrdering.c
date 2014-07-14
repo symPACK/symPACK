@@ -302,12 +302,18 @@ struct individual cross (int firstParent, int secondParent) {
     }
     if (parentATesting == n) {
         int newParent1 = pickParent(currentPop);
-        int newParent2 = pickParent(currentPop);
+        int newParent2 = -1;
+        while (newParent2 < 0 || newParent2 == newParent1) {
+            newParent2 = pickParent(currentPop);
+        }
         return cross(newParent1, newParent2);
     }
     if (parentBTesting == n) {
         int newParent1 = pickParent(currentPop);
-        int newParent2 = pickParent(currentPop);
+        int newParent2 = -1;
+        while (newParent2 < 0 || newParent2 == newParent1) {
+            newParent2 = pickParent(currentPop);
+        }
         return cross(newParent1, newParent2);
     }
     printf("Child generated with cost %f\n",((GetCost(n, nnz, adjArray1, adjArray2, child.ordering))));
