@@ -7,7 +7,7 @@
 #include <omp.h>
 
 #define POPSIZE 20
-#define NUM_GENES 100
+#define NUM_GENES 1074
 
 
 char* INPUT_FILE;
@@ -102,7 +102,7 @@ int main (int argc, char *argv[]) {
 
         memcpy(nextPop, currentPop, POPSIZE * sizeof(struct individual));
 
-        //#pragma omp parallel for
+        #pragma omp parallel for
         for (int j = POPSIZE; j < ((2 * POPSIZE)); j++) {
             struct individual child;
             int parent1;
@@ -117,7 +117,13 @@ int main (int argc, char *argv[]) {
         }
         mutatePop(nextPop);
         evaluateOrdering(nextPop, 2*POPSIZE);
-        qsort(nextPop, POPSIZE * 2, sizeof(struct individual), costComp);
+       // qsort(nextPop, POPSIZE * 2, sizeof(struct individual), costComp);
+
+        qsort(nextPop, POPSIZE, sizeof(struct individual), costComp);                      //remove to revert
+        qsort(nextPop + (POPSIZE), POPSIZE, sizeof(struct individual), costComp);        //remove to revert
+        memcpy(currentPop, nextPop, (POPSIZE/2)*sizeof(struct individual));
+        memcpy(currentPop + (POPSIZE/2), nextPop + (POPSIZE), (POPSIZE/2)*sizeof(struct individual));
+        qsort(currentPop, POPSIZE, sizeof(struct individual), costComp);
 
         if (nextPop[0].fitness > costStopScore) {
             costStopScore = nextPop[0].fitness;
@@ -128,13 +134,14 @@ int main (int argc, char *argv[]) {
         if ((1/nextPop[POPSIZE - 1].fitness) < breakThreshold) {
             break;
         }
-
-        memcpy(currentPop, nextPop, POPSIZE * sizeof(struct individual));
+        
+        //memcpy(currentPop, nextPop, POPSIZE * sizeof(struct individual));
+        
         currentGen += 1;
         if (costStopCounter == STOPCOUNT) {
             break;
         }
-        //printf("Best Indiv is fitness %f\n", 1/currentPop[0].fitness);
+        printf("Best Indiv is fitness %f\n", 1/currentPop[0].fitness);
         //printf("Current Generation is %d\n", currentGen);
     } 
     printf("Final Population with %d generations.\n", currentGen);
@@ -148,13 +155,8 @@ int main (int argc, char *argv[]) {
     printf("This run took %d generations.\n", currentGen);
     free(adjArray1);
     free(adjArray2);
-
-    for (int tired = 1; tired < 1; tired++) {
-        printf("Does this run once?");
-    }
-
-
 }
+
 /*Comparison function used to order individuals by fitness*/
 int costComp(const void * a, const void * b) {
     struct individual *indiv1 = (struct individual *) a;
@@ -316,7 +318,7 @@ struct individual cross (int firstParent, int secondParent) {
         }
         return cross(newParent1, newParent2);
     }
-    printf("Child generated with cost %f\n",((GetCost(n, nnz, adjArray1, adjArray2, child.ordering))));
+    //printf("Child generated with cost %f\n",((GetCost(n, nnz, adjArray1, adjArray2, child.ordering))));
 
 
     return child;
@@ -397,7 +399,7 @@ int pickParent(struct individual possibleParents[]) {
 /* Implements the evaluation function for a matrix ordering. Will store
    the value of this ordering into the structure that contains it. */
 void evaluateOrdering(struct individual indivs[], int size) {
-    //#pragma omp parallel for
+    #pragma omp parallel for
     for (int in = 0; in < size; in++) {
         if (indivs[in].fitness == -1) {
             indivs[in].fitness = 1.0 / (GetCost(n, nnz, adjArray1, adjArray2 ,indivs[in].ordering));
