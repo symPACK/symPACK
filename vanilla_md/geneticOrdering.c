@@ -6,7 +6,7 @@
 #include "util.h"
 #include <omp.h>
 
-#define POPSIZE 50
+//#define POPSIZE 50
 #define NUM_GENES 1074
 
 
@@ -15,7 +15,7 @@ char* ADJ_FILE;
 int MAXGENS;
 int STOPCOUNT;
 double PMUTATION;
-//int POPSIZE = 20;
+int POPSIZE;
 double swapPercent;
 int swapLength;
 
@@ -32,7 +32,7 @@ struct individual {
     int ordering[NUM_GENES];
 };
 
-struct individual** currentPop;
+//struct individual** currentPop;
 struct individual** nextPop;
 int* adjArray1;
 int* adjArray2;
@@ -75,8 +75,8 @@ int costCounter = 0;
    arguments as of now.*/
 int main (int argc, char *argv[]) {
 
-    if (argc != 12) {
-        fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\n");
+    if (argc != 13) {
+        fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Size\n");
         exit(5);
     } else {
         INPUT_FILE = argv[1];
@@ -90,6 +90,7 @@ int main (int argc, char *argv[]) {
         mutType = argv[9];
         crossType = argv[10];
         selectionType = argv[11];
+        POPSIZE = atoi(argv[12]);
     }
 
     setbuf(stdout, NULL);
@@ -97,19 +98,19 @@ int main (int argc, char *argv[]) {
 
     printf("Initial Population \n");
     printPop();
-    evaluateOrdering(currentPop, POPSIZE);
+    evaluateOrdering(nextPop, POPSIZE);
     while (currentGen < MAXGENS) {
 
-        memcpy(nextPop, currentPop, POPSIZE * sizeof(struct individual*));
+        //memcpy(nextPop, currentPop, POPSIZE * sizeof(struct individual*));
 
         #pragma omp parallel for
         for (int j = POPSIZE; j < ((2 * POPSIZE)); j++) {
             struct individual* child;
             int parent1;
             int parent2 = -1;
-            parent1 = pickParent(currentPop);
+            parent1 = pickParent(nextPop);
             while (parent2 < 0 || parent2 == parent1) {
-                parent2 = pickParent(currentPop);
+                parent2 = pickParent(nextPop);
             }
             //printf("Parent 1 is %d and Parent 2 is %d\n", parent1, parent2);
             child = cross(parent1, parent2);
@@ -132,9 +133,9 @@ int main (int argc, char *argv[]) {
         }
          
 
-        memcpy(currentPop, nextPop, (POPSIZE/2)*sizeof(struct individual*));
-        memcpy(currentPop + (POPSIZE/2), nextPop + (POPSIZE), (POPSIZE/2)*sizeof(struct individual*));
-        qsort(currentPop, POPSIZE, sizeof(struct individual*), costComp);
+        //memcpy(currentPop, nextPop, (POPSIZE/2)*sizeof(struct individual*));
+        memcpy(nextPop + (POPSIZE/2), nextPop + (POPSIZE), (POPSIZE/2)*sizeof(struct individual*));
+        qsort(nextPop, POPSIZE, sizeof(struct individual*), costComp);
 
         if (nextPop[0]->fitness > costStopScore) {
             costStopScore = nextPop[0]->fitness;
@@ -152,22 +153,22 @@ int main (int argc, char *argv[]) {
         if (costStopCounter == STOPCOUNT) {
             break;
         }
-        printf("Best Indiv is fitness %f\n", 1/currentPop[0]->fitness);
+        printf("Best Indiv is fitness %f\n", 1/nextPop[0]->fitness);
         //printf("Current Generation is %d\n", currentGen);
     } 
     printf("Final Population with %d generations.\n", currentGen);
     printPop();
 
 
-    if (isPermutation(currentPop[0]->ordering)) {
+    if (isPermutation(nextPop[0]->ordering)) {
         printf("The best individual in this population is a real permutation.\n");
     }
     printf("Cost was called %d times this run.\n", costCounter);
     printf("This run took %d generations.\n", currentGen);
     for (int i = 0; i < POPSIZE; i++) {
-        free(currentPop[i]);
+        free(nextPop[i]);
     }
-    free(currentPop);
+    //free(currentPop);
     free(nextPop);
     free(adjArray1);
     free(adjArray2);
@@ -204,13 +205,13 @@ void printPop() {
     double average = 0;
     for (int i = 0; i < POPSIZE; i++) {
         for (int j = 0; j < n; j++) {
-            printf("%d ", currentPop[i]->ordering[j]);
+            printf("%d ", nextPop[i]->ordering[j]);
         }
         double thisFit;
         if (currentGen != 0) {
-            thisFit = (1 / currentPop[i]->fitness);
+            thisFit = (1 / nextPop[i]->fitness);
         } else {
-            thisFit = ((GetCost(n, nnz, adjArray1, adjArray2, currentPop[i]->ordering)));
+            thisFit = ((GetCost(n, nnz, adjArray1, adjArray2, nextPop[i]->ordering)));
         }
         average += thisFit;
         printf("Fitness: %f\n", thisFit);
@@ -240,32 +241,32 @@ struct individual* cross (int firstParent, int secondParent) {
         }
 
         for (int copySeg = crossOver1; copySeg < crossOver2; copySeg++) {
-            child->ordering[copySeg] = currentPop[firstParent]->ordering[copySeg];
-            takenGenes[currentPop[firstParent]->ordering[copySeg]] = 1;
+            child->ordering[copySeg] = nextPop[firstParent]->ordering[copySeg];
+            takenGenes[nextPop[firstParent]->ordering[copySeg]] = 1;
         }
 
         int secondCrawler = 0;
         for (int i = 0; i < crossOver1; i++) {
-            while (takenGenes[currentPop[secondParent]->ordering[secondCrawler]] == 1) {
+            while (takenGenes[nextPop[secondParent]->ordering[secondCrawler]] == 1) {
                 secondCrawler += 1;
             }
-            child->ordering[i] = currentPop[secondParent]->ordering[secondCrawler];
-            takenGenes[currentPop[secondParent]->ordering[secondCrawler]] = 1;
+            child->ordering[i] = nextPop[secondParent]->ordering[secondCrawler];
+            takenGenes[nextPop[secondParent]->ordering[secondCrawler]] = 1;
         }
 
         for (int j = crossOver2; j < n; j++) {
-            while (takenGenes[currentPop[secondParent]->ordering[secondCrawler]] == 1) {
+            while (takenGenes[nextPop[secondParent]->ordering[secondCrawler]] == 1) {
                 secondCrawler += 1;
             }
-            child->ordering[j] = currentPop[secondParent]->ordering[secondCrawler];
-            takenGenes[currentPop[secondParent]->ordering[secondCrawler]] = 1;
+            child->ordering[j] = nextPop[secondParent]->ordering[secondCrawler];
+            takenGenes[nextPop[secondParent]->ordering[secondCrawler]] = 1;
         }
 
         if (!isPermutation(child->ordering)) {
             printf("Child is illegal permutation.\n");
             printf("Dumping orderings (child p1 p2)\n");
             for (int z = 0; z < n; z++) {
-                printf("%d %d %d %d\n", z, child->ordering[z], currentPop[firstParent]->ordering[z], currentPop[secondParent]->ordering[z]);
+                printf("%d %d %d %d\n", z, child->ordering[z], nextPop[firstParent]->ordering[z], nextPop[secondParent]->ordering[z]);
             }
             printf("\n");
             exit(1);
@@ -276,10 +277,10 @@ struct individual* cross (int firstParent, int secondParent) {
             newOrder[starter].value = starter;
         }
         for (int location = 0; location < n; location++) {
-            newOrder[currentPop[firstParent]->ordering[location]].average = location;
+            newOrder[nextPop[firstParent]->ordering[location]].average = location;
         }
         for (int location2 = 0; location2 < n; location2++) {
-            newOrder[currentPop[secondParent]->ordering[location2]].average += location2;
+            newOrder[nextPop[secondParent]->ordering[location2]].average += location2;
         }
         for (int division = 0; division < n; division++) {
             newOrder[division].average /= 2;
@@ -298,7 +299,7 @@ struct individual* cross (int firstParent, int secondParent) {
         }
     } else if (!strcmp("none", crossType)) {
         for (int sillyCopy = 0; sillyCopy < n; sillyCopy++) {
-            child->ordering[sillyCopy] = currentPop[firstParent]->ordering[sillyCopy];
+            child->ordering[sillyCopy] = nextPop[firstParent]->ordering[sillyCopy];
         } 
         if (!isPermutation(child->ordering)) {
             printf("Child is illegal permutation.\n");
@@ -312,27 +313,27 @@ struct individual* cross (int firstParent, int secondParent) {
     int parentATesting = 0;
     int parentBTesting = 0;
     for (int testingVar = 0; testingVar < n; testingVar++) {
-        if (child->ordering[testingVar] == currentPop[firstParent]->ordering[testingVar]) {
+        if (child->ordering[testingVar] == nextPop[firstParent]->ordering[testingVar]) {
             parentATesting += 1;
         }
-        if (child->ordering[testingVar] == currentPop[secondParent]->ordering[testingVar]) {
+        if (child->ordering[testingVar] == nextPop[secondParent]->ordering[testingVar]) {
             parentBTesting += 1;
         }
     }
     if (parentATesting == n) {
-        int newParent1 = pickParent(currentPop);
+        int newParent1 = pickParent(nextPop);
         int newParent2 = -1;
         while (newParent2 < 0 || newParent2 == newParent1) {
-            newParent2 = pickParent(currentPop);
+            newParent2 = pickParent(nextPop);
         }
         free(child);
         return cross(newParent1, newParent2);
     }
     if (parentBTesting == n) {
-        int newParent1 = pickParent(currentPop);
+        int newParent1 = pickParent(nextPop);
         int newParent2 = -1;
         while (newParent2 < 0 || newParent2 == newParent1) {
-            newParent2 = pickParent(currentPop);
+            newParent2 = pickParent(nextPop);
         }
         free(child);
         return cross(newParent1, newParent2);
@@ -353,26 +354,26 @@ int pickParent(struct individual* possibleParents[]) {
         totalFitness=0;
         //Find the total fitness of the population.
         for (int totalSum = 0; totalSum < POPSIZE; totalSum++) {
-            totalFitness += currentPop[totalSum]->fitness;
+            totalFitness += nextPop[totalSum]->fitness;
         }
         //Find the relative fitness of the population.
         for (int fitCounter = 0; fitCounter < POPSIZE; fitCounter++) {
-            currentPop[fitCounter]->rfitness = currentPop[fitCounter]->fitness / totalFitness;
+            nextPop[fitCounter]->rfitness = nextPop[fitCounter]->fitness / totalFitness;
         }
         //Find the cumulative fitness of the individuals.
-        currentPop[0]->cfitness = currentPop[0]->rfitness;
+        nextPop[0]->cfitness = nextPop[0]->rfitness;
         for (int cfitCounter = 1; cfitCounter < POPSIZE; cfitCounter ++) {
-            currentPop[cfitCounter]->cfitness = currentPop[cfitCounter - 1]->cfitness + currentPop[cfitCounter]->rfitness;
+            nextPop[cfitCounter]->cfitness = nextPop[cfitCounter - 1]->cfitness + nextPop[cfitCounter]->rfitness;
         }
         
         //Select and return 1 parent, based off of cfitness.
         double random;
         random =((double)rand()/(double)RAND_MAX);
-        if (random < currentPop[0]->cfitness) {
+        if (random < nextPop[0]->cfitness) {
             return 0;
         } else {
             for (int picker = 0; picker < POPSIZE; picker++) {
-                if (currentPop[picker]->cfitness <= random && random < currentPop[picker + 1]->cfitness) {
+                if (nextPop[picker]->cfitness <= random && random < nextPop[picker + 1]->cfitness) {
                     return picker + 1;
                 }
             }
@@ -387,24 +388,24 @@ int pickParent(struct individual* possibleParents[]) {
         //Find the relative fitness of the population.
         int ranking = 1;
         for (int fitCounter = POPSIZE - 1; fitCounter >= 0; fitCounter--) {
-            currentPop[fitCounter]->rfitness = ranking / totalFitness;
+            nextPop[fitCounter]->rfitness = ranking / totalFitness;
             ranking++;
-            //printf("Rfitnesses are %f\n", currentPop[fitCounter].rfitness);
+            //printf("Rfitnesses are %f\n", nextPop[fitCounter].rfitness);
         }
         //Find the cumulative fitness of the individuals.
-        currentPop[0]->cfitness = currentPop[0]->rfitness;
+        nextPop[0]->cfitness = nextPop[0]->rfitness;
         for (int cfitCounter = 1; cfitCounter < POPSIZE; cfitCounter ++) {
-            currentPop[cfitCounter]->cfitness = currentPop[cfitCounter - 1]->cfitness + currentPop[cfitCounter]->rfitness;
+            nextPop[cfitCounter]->cfitness = nextPop[cfitCounter - 1]->cfitness + nextPop[cfitCounter]->rfitness;
         }
         
         //Select and return 1 parent, based off of cfitness.
         double random;
         random =((double)rand()/(double)RAND_MAX);
-        if (random < currentPop[0]->cfitness) {
+        if (random < nextPop[0]->cfitness) {
             return 0;
         } else {
             for (int picker = 0; picker < POPSIZE; picker++) {
-                if (currentPop[picker]->cfitness <= random && random < currentPop[picker + 1]->cfitness) {
+                if (nextPop[picker]->cfitness <= random && random < nextPop[picker + 1]->cfitness) {
                     return picker + 1;
                 }
             }
@@ -435,11 +436,11 @@ void evaluateOrdering(struct individual* indivs[], int size) {
 void init() {
     srand(time(NULL));
     ReadAdjacency(ADJ_FILE, &adjArray1, &adjArray2, &n, &nnz);    
-    currentPop = (struct individual**) malloc(POPSIZE * sizeof(struct individual*));
+    //currentPop = (struct individual**) malloc(POPSIZE * sizeof(struct individual*));
     nextPop = (struct individual**) malloc(POPSIZE * 2 * sizeof(struct individual*));
     for (int i = 0; i < POPSIZE; i++) {
-        currentPop[i] = (struct individual*) malloc(sizeof(struct individual));
-        currentPop[i]->fitness = -1;
+        nextPop[i] = (struct individual*) malloc(sizeof(struct individual));
+        nextPop[i]->fitness = -1;
     }
         
     FILE *inFile;
@@ -456,7 +457,7 @@ void init() {
                 fprintf(stderr, "Reached EOF Early, check parameters\n");
                 exit(1);
             }
-            currentPop[indiv]->ordering[gene] = number;
+            nextPop[indiv]->ordering[gene] = number;
         }
     }
     fclose(inFile);
