@@ -6,7 +6,7 @@
 #include "util.h"
 #include <omp.h>
 
-#define POPSIZE 20
+#define POPSIZE 50
 #define NUM_GENES 1074
 
 
@@ -131,7 +131,7 @@ int main (int argc, char *argv[]) {
         }
         costStopCounter += 1;
 
-        if ((1/nextPop[POPSIZE - 1].fitness) < breakThreshold) {
+        if ((1/nextPop[0].fitness) < breakThreshold) {
             break;
         }
         
