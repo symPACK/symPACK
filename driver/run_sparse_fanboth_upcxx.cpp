@@ -137,7 +137,57 @@ DistSparseMatrix<Real> HMat(worldcomm);
   Int n = HMat.size;
 
 
+  RHS.Resize(n,nrhs);
+  XTrue.Resize(n,nrhs);
+  //SetValue(XTrue,1.0);
+  for(Int i = 0; i<n;++i){ 
+    for(Int j=0;j<nrhs;++j){
+      XTrue(i,j) = i+1;
+    }
+  }
+  //      UniformRandom(XTrue);
 
+  if(iam==0){
+    cout<<"Starting spGEMM"<<endl;
+  }
+
+#if 0
+  timeSta = get_time();
+  sp_dgemm_dist("N","N", n, XTrue.n(), n, 
+      LIBCHOLESKY::ONE<MYSCALAR>(), HMat, XTrue.Data(), XTrue.m(), 
+      LIBCHOLESKY::ZERO<MYSCALAR>(), RHS.Data(), RHS.m());
+  timeEnd = get_time();
+#else
+  for(Int i = 0; i<n;++i){ 
+    for(Int j=0;j<nrhs;++j){
+      RHS(i,j) = i+1;
+    }
+  }
+#endif
+
+  if(iam==0){
+    cout<<"spGEMM time: "<<timeEnd-timeSta<<endl;
+  }
+
+
+  //   logfileptr->OFS()<<RHS<<endl;
+#endif
+
+
+  if(iam==0){
+    cout<<"Starting allocation"<<endl;
+  }
+  timeSta = get_time();
+  //do the symbolic factorization and build supernodal matrix
+  SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
+
+  timeEnd = get_time();
+  if(iam==0){
+    cout<<"Allocation time: "<<timeEnd-timeSta<<endl;
+  }
+
+
+#ifdef _CHECK_RESULT_
 #ifdef _CHECK_RESULT_SEQ_
   DblNumMat fwdSol;
   DblNumMat RHS2;
@@ -152,24 +202,48 @@ DistSparseMatrix<Real> HMat(worldcomm);
       A.Resize(csrptr->n,csrptr->n);
       csr_matrix_expand_to_dense (A.Data(), 0, A.m(), csrptr);
 
-      RHS2.Resize(n,nrhs);
-      XTrue2.Resize(n,nrhs);
-      SetValue(XTrue2,1.0);
+      RHS2 = RHS;//.Resize(n,nrhs);
+      XTrue2 = XTrue;//.Resize(n,nrhs);
+      //SetValue(XTrue2,1.0);
       //      UniformRandom(XTrue);
       blas::Gemm('N','N',n,nrhs,n,1.0,&A(0,0),n,&XTrue2(0,0),n,0.0,&RHS2(0,0),n);
+
+
+      //Order the matrix
+      Ordering order = SMat.GetOrdering();
+
+      DblNumMat Aperm(A.m(),A.n());
+      for(Int i = 0; i<A.m(); ++i){
+        for(Int j = 0; j<A.n(); ++j){
+          Aperm(i,j) = A(order.perm[i]-1,order.perm[j]-1);
+        }
+      }
 
 
       //cal dposv
       double norm = 0;
 
       //do a solve
-      DblNumMat X = RHS2;
-      lapack::Potrf('L',n,&A(0,0),n);
+      DblNumMat X(RHS2.m(),RHS2.n());
+      for(Int i = 0; i<n;++i){ 
+        for(Int j=0;j<nrhs;++j){
+          X(i,j) = RHS2(order.perm[i]-1,j);
+        }
+      }
+
+
+//logfileptr->OFS()<<"Aperm "<<Aperm<<endl;
+
+      lapack::Potrf('L',n,&Aperm(0,0),n);
+
+
+//logfileptr->OFS()<<"Lperm "<<Aperm<<endl;
+
 
       for(Int i = 0; i<A.m();++i){
         for(Int j = 0; j<A.n();++j){
           if(j>i){
-            A(i,j)=LIBCHOLESKY::ZERO<double>();
+            Aperm(i,j)=LIBCHOLESKY::ZERO<double>();
           }
         }
       }
@@ -178,25 +252,34 @@ DistSparseMatrix<Real> HMat(worldcomm);
       for(Int j = 0; j<nrhs;++j){
         for(Int k = 0; k<A.m();++k){
           if(X(k,j)!=0){
-            X(k,j) = X(k,j) / A(k,k);
+            X(k,j) = X(k,j) / Aperm(k,k);
             for(Int i = k+1;i<A.m();++i){
-              X(i,j) -= X(k,j)*A(i,k);
+              X(i,j) -= X(k,j)*Aperm(i,k);
             }
           }
         }
       }
 
       //blas::Trsm('L','L','N','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
-      fwdSol = X;
+      fwdSol.Resize(X.m(),X.n());
+      DblNumMat XTrue3(XTrue2.m(),XTrue2.n());
+      for(Int i = 0; i<n;++i){ 
+        for(Int j=0;j<nrhs;++j){
+          fwdSol(i,j) = X(order.invp[i]-1,j);
+          XTrue3(i,j) = XTrue2(order.perm[i]-1,j);
+        }
+      }
+
+
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Solution after forward substitution:"<<X<<std::endl;
 #endif
-      blas::Trsm('L','L','T','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
+      blas::Trsm('L','L','T','N',n,nrhs,1.0,&Aperm(0,0),n,&X(0,0),n);
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Solution after back substitution:"<<X<<std::endl;
 #endif
 
-      blas::Axpy(n*nrhs,-1.0,&XTrue2(0,0),1,&X(0,0),1);
+      blas::Axpy(n*nrhs,-1.0,&XTrue3(0,0),1,&X(0,0),1);
       norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
       logfileptr->OFS()<<"Norm of residual after MYPOSV is "<<norm<<std::endl;
 
@@ -209,44 +292,49 @@ DistSparseMatrix<Real> HMat(worldcomm);
 #endif
 
 
-
-  RHS.Resize(n,nrhs);
-  XTrue.Resize(n,nrhs);
-  SetValue(XTrue,1.0);
-  //      UniformRandom(XTrue);
-
-  sp_dgemm_dist("N","N", n, XTrue.n(), n, 
-      LIBCHOLESKY::ONE<MYSCALAR>(), HMat, XTrue.Data(), XTrue.m(), 
-      LIBCHOLESKY::ZERO<MYSCALAR>(), RHS.Data(), RHS.m());
-
-
 #ifdef _CHECK_RESULT_SEQ_
+//  if(iam==0){
+//    DblNumMat RHSDiff = RHS;
+//
+//    blas::Axpy(RHS.m()*RHS.n(),-1.0,&RHS2(0,0),1,&RHSDiff(0,0),1);
+//    double norm = lapack::Lange('F',RHS.m(),RHS.n(),&RHSDiff(0,0),RHS.m());
+//    logfileptr->OFS()<<"Norm of residual between RHS is "<<norm<<std::endl;
+//
+//    if(abs(norm)>=1e-5){
+//      for(Int i = 0;i<RHS.m();++i){
+//        logfileptr->OFS()<<i+1<<"   "<<RHS(i,0)-RHS2(i,0)<<endl;
+//      }
+//      abort();
+//    }
+//
+//  }
+#endif
+
+
+
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   if(iam==0){
-    DblNumMat RHSDiff = RHS;
-
-    blas::Axpy(RHS.m()*RHS.n(),-1.0,&RHS2(0,0),1,&RHSDiff(0,0),1);
-    double norm = lapack::Lange('F',RHS.m(),RHS.n(),&RHSDiff(0,0),RHS.m());
-    logfileptr->OFS()<<"Norm of residual between RHS is "<<norm<<std::endl;
-
-    if(abs(norm)>=1e-5){
-      for(Int i = 0;i<RHS.m();++i){
-        logfileptr->OFS()<<i+1<<"   "<<RHS(i,0)-RHS2(i,0)<<endl;
-      }
-      abort();
-    }
-
+    cout<<"Starting Factorization"<<endl;
   }
-#endif
 
-
-
-
-  //   logfileptr->OFS()<<RHS<<endl;
-#endif
-
-
-  //do the symbolic factorization and build supernodal matrix
-  SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
 
   timeSta = get_time();
   TIMER_START(SPARSE_FAN_OUT);
@@ -259,19 +347,10 @@ DistSparseMatrix<Real> HMat(worldcomm);
   }
     logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
-
-//  SuperNode<double> & test = SMat.GetLocalSupernode(0);
-//  logfileptr->OFS()<<test<<endl;
-//  Icomm buffer;
-//  Serialize(buffer,test);
-//  SuperNode<double> target;
-//  Deserialize(buffer.front(),target);
-//  logfileptr->OFS()<<target<<endl;
-
 #ifdef _DEBUG_
-  //    NumMat<Real> fullMatrix;
-  //    SMat.GetFullFactors(fullMatrix);
-  //    logfileptr->OFS()<<fullMatrix<<std::endl;
+      NumMat<Real> fullMatrix;
+      SMat.GetFullFactors(fullMatrix);
+      logfileptr->OFS()<<fullMatrix<<std::endl;
 #endif
 
 #ifdef _CHECK_RESULT_
@@ -287,126 +366,46 @@ DistSparseMatrix<Real> HMat(worldcomm);
 #endif
 
   //sort X the same way (permute rows)
-  DblNumMat X(RHS.m(),RHS.n());
-  const Ordering & order = SMat.GetOrdering();
-  for(Int row = 1; row<= RHS.m(); ++row){
-    for(Int col = 1; col<= RHS.n(); ++col){
 #ifdef _CHECK_RESULT_SEQ_
-      X(row-1,col-1) = RHS2(order.perm[row-1]-1,col-1);
+  DblNumMat X = RHS2;
 #else
-      Int oldrow = order.perm[row-1];
-      X(row-1,col-1) = RHS(oldrow-1,col-1);
+  DblNumMat X = RHS;
 #endif
-    }
+
+  if(iam==0){
+    cout<<"Starting solve"<<endl;
   }
-//
-//if(0)
-//{
-//  DblNumMat X3 = X;
-//  SupernodalMatrix<double> SMat2(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
-//
-//  timeSta = get_time();
-//  TIMER_START(SPARSE_FAN_OUT2);
-//  SMat2.FanOut2();
-//  TIMER_STOP(SPARSE_FAN_OUT2);
-//  timeEnd = get_time();
-//
-//  if(iam==0){
-//    cout<<"Factorization time: "<<timeEnd-timeSta<<endl;
-//  }
-//    logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
-//
-//  SMat.Solve(&X3);
-//  SMat.GetSolution(X3);
-//
-//
-//
-//  //Sort back X
-//  DblNumMat X4(X.m(),X.n());
-//  for(Int row = 1; row<= X.m(); ++row){
-//    for(Int col = 1; col<= X.n(); ++col){
-//      X4(perm[row-1]-1,col-1) = X3(row-1,col-1);
-//    }
-//  }
-//
-//
-////      logfileptr->OFS()<<X2<<endl;
-//
-//  blas::Axpy(X4.m()*X4.n(),-1.0,&XTrue(0,0),1,&X4(0,0),1);
-//  double norm = lapack::Lange('F',X4.m(),X4.n(),&X4(0,0),X4.m());
-//  logfileptr->OFS()<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
-//
-//
-//}
-//
-//
 
-
-
-//      logfileptr->OFS()<<RHS<<endl;
-//      logfileptr->OFS()<<X<<endl;
-
-  //    if(iam==0){
-  //      logfileptr->OFS()<<fullMatrix<<endl;
-  //
-  //
-  //
-  //      blas::Axpy(fullMatrix.m()*fullMatrix.n(),-1.0,&A(0,0),1,&fullMatrix(0,0),1);
-  //      double norm = lapack::Lange('F',fullMatrix.m(),fullMatrix.n(),&fullMatrix(0,0),fullMatrix.m());
-  //      for(int j = 0; j<fullMatrix.n();++j){
-  //        int maxi = 0;
-  //        double maxelem = 0.0;
-  //        for(int i = 0; i<fullMatrix.m();++i){
-  //          if(std::abs(maxelem)<= std::abs(fullMatrix(i,j))){
-  //            maxelem = fullMatrix(i,j);
-  //            maxi = i;
-  //          }
-  //        }
-  //        logfileptr->OFS()<<"Max of col "<<j<<" is "<<maxelem<<" at line "<<maxi<<std::endl;
-  //      }
-  //
-  //      logfileptr->OFS()<<"Norm of residual between full matrices is "<<norm<<std::endl;
-  //    }
-
-
+  timeSta = get_time();
 #ifdef _CHECK_RESULT_SEQ_
   fwdSol.Resize(SMat.Size(),nrhs);
   MPI_Bcast(fwdSol.Data(),fwdSol.ByteSize(),MPI_BYTE,0,worldcomm);
 
-  DblNumMat poFwdSol(fwdSol.m(),fwdSol.n());
-  for(Int row = 1; row<= X.m(); ++row){
-    for(Int col = 1; col<= X.n(); ++col){
-      poFwdSol(row-1,col-1) = fwdSol(tree.FromPostOrder(row)-1,col-1);
-    }
-  }
+  DblNumMat poFwdSol = fwdSol;
   SMat.Solve(&X,poFwdSol);
 #else
   SMat.Solve(&X);
 #endif
-  SMat.GetSolution(X);
+  timeEnd = get_time();
 
-
-
-  //Sort back X
-  DblNumMat X2(X.m(),X.n());
-  for(Int row = 1; row<= X.m(); ++row){
-    for(Int col = 1; col<= X.n(); ++col){
-      Int newrow = order.invp[row-1];
-      X2(row-1,col-1) = X(newrow-1,col-1);
-    }
+  if(iam==0){
+    cout<<"Solve time: "<<timeEnd-timeSta<<endl;
   }
 
 
-//      logfileptr->OFS()<<X2<<endl;
+  SMat.GetSolution(X);
 
+
+  if(iam==0){
 #ifdef _CHECK_RESULT_SEQ_
-  blas::Axpy(X2.m()*X2.n(),-1.0,&XTrue2(0,0),1,&X2(0,0),1);
+  blas::Axpy(X.m()*X.n(),-1.0,&XTrue2(0,0),1,&X(0,0),1);
 #else
-  blas::Axpy(X2.m()*X2.n(),-1.0,&XTrue(0,0),1,&X2(0,0),1);
+  blas::Axpy(X.m()*X.n(),-1.0,&XTrue(0,0),1,&X(0,0),1);
 #endif
-  double norm = lapack::Lange('F',X2.m(),X2.n(),&X2(0,0),X2.m());
-  logfileptr->OFS()<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
+  double norm = lapack::Lange('F',X.m(),X.n(),&X(0,0),X.m());
+    cout<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
 #endif
+  }
 
   delete mapping;
 

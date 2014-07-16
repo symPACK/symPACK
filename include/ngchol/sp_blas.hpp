@@ -5,13 +5,14 @@
 #include "ngchol/blas.hpp"
 #include "ngchol/DistSparseMatrix.hpp"
 #include "ngchol/SparseMatrixStructure.hpp"
+#include "ngchol/mpi_interf.hpp"
 
 namespace LIBCHOLESKY{
 
 //FROM SUPERLU
 template <typename MYSCALAR>  int 
 sp_dgemv_dist(char *trans, MYSCALAR alpha, DistSparseMatrix<MYSCALAR> & A, MYSCALAR *x, 
-    int incx, MYSCALAR beta, MYSCALAR *y, int incy)
+    int incx, MYSCALAR beta, MYSCALAR *y, int incy, MYSCALAR * ytmp)
 {
 
   /* Local variables */
@@ -60,7 +61,7 @@ sp_dgemv_dist(char *trans, MYSCALAR alpha, DistSparseMatrix<MYSCALAR> & A, MYSCA
   /* Start the operations. In this version the elements of A are   
      accessed sequentially with one pass through A. */
   /* First form  y := beta*y. */
-  MYSCALAR * ytmp = y;//new MYSCALAR[leny];
+  //MYSCALAR * ytmp = y;//new MYSCALAR[leny];
 
   if (beta != 1.) {
     if (incy == 1) {
@@ -138,22 +139,42 @@ sp_dgemv_dist(char *trans, MYSCALAR alpha, DistSparseMatrix<MYSCALAR> & A, MYSCA
         jx += incx;
       }
 
-      if(iam==0){
-        MYSCALAR * yrecv = new MYSCALAR[leny];
-        for(i=1; i<np;++i){
-          MPI_Recv(yrecv,leny*sizeof(MYSCALAR),MPI_BYTE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-          blas::Axpy(leny,LIBCHOLESKY::ONE<MYSCALAR>(),yrecv,1,y,1);
-        }
-        delete [] yrecv;
-      }
-      else{
-        MPI_Send(y,leny*sizeof(MYSCALAR),MPI_BYTE,0,0,MPI_COMM_WORLD);
-      }
 
-      MPI_Bcast(y,leny*sizeof(MYSCALAR),MPI_BYTE,0,MPI_COMM_WORLD);
+      mpi::Allreduce( ytmp, y, leny, MPI_SUM, MPI_COMM_WORLD );
+
+      //Use a Allgather and do the sum after
+
+//      std::vector<MYSCALAR> recv_buffer(np*leny);
+//      MPI_Allgather( y, leny*sizeof(MYSCALAR), MPI_BYTE, &recv_buffer[0], np*leny*sizeof(MYSCALAR), MPI_BYTE, MPI_COMM_WORLD );
+//
+//        for(i=0; i<np;++i){
+//          if(i!=iam){
+//            blas::Axpy(leny,LIBCHOLESKY::ONE<MYSCALAR>(),&recv_buffer[i*leny],1,y,1);
+//          }
+//        }
+
+
+
+
+
+//      if(iam==0){
+//        MYSCALAR * yrecv = new MYSCALAR[leny];
+//        for(i=1; i<np;++i){
+//          MPI_Recv(yrecv,leny*sizeof(MYSCALAR),MPI_BYTE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+//          blas::Axpy(leny,LIBCHOLESKY::ONE<MYSCALAR>(),yrecv,1,ytmp,1);
+//        }
+////        std::copy(ytmp,ytmp+leny,y);
+////        blas::Axpy(leny,LIBCHOLESKY::ONE<MYSCALAR>(),ytmp,1,y,1);
+//        delete [] yrecv;
+//      }
+//      else{
+//        MPI_Send(ytmp,leny*sizeof(MYSCALAR),MPI_BYTE,0,0,MPI_COMM_WORLD);
+//      }
+//
+//      MPI_Bcast(y,leny*sizeof(MYSCALAR),MPI_BYTE,0,MPI_COMM_WORLD);
 
       //we need to reduce the column now
-      //      MPI_Allreduce(ytmp,y,leny,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD); 
+      // MPI_Allreduce(ytmp,y,leny,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD); 
 
 
 
@@ -199,11 +220,27 @@ sp_dgemm_dist(char *transa, char *transb, int m, int n, int k,
   int    incx = 1, incy = 1;
   int    j;
 
+  int lenx, leny;
+  
+  bool notran = true;//lsame_(trans, "N");
+  if (notran) {
+    lenx = A.size;
+    leny = lenx;
+  } else {
+    lenx = A.size;
+    leny = lenx;
+  }
+
+
+  MYSCALAR * ytmp = new MYSCALAR[leny];
+
   for (j = 0; j < n; ++j) {
-    sp_dgemv_dist(transa, alpha, A, &b[ldb*j], incx, beta, &c[ldc*j], incy);
+    sp_dgemv_dist(transa, alpha, A, &b[ldb*j], incx, beta, &c[ldc*j], incy, ytmp);
 
 
   }
+
+  delete [] ytmp;
   return 0;
 }
 

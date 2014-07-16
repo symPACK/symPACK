@@ -56,11 +56,16 @@ class NumMat
 
     NumMat& operator=(const NumMat& C);
     NumMat& operator=(const SuperNode<F>& S);
+
     inline const F& operator()(Int i, Int j) const;
     inline F& operator()(Int i, Int j);
 
     inline const F& at(Int i, Int j) const;
+#ifdef _DEBUG_
+    F& at(Int i, Int j);
+#else
     inline F& at(Int i, Int j);
+#endif
 
 
 

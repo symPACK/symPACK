@@ -268,7 +268,7 @@ cout<<"ALIVE"<<endl;
      HMat.ToGlobalStruct();
 
      HMat.ConstructETree(elimTree);
-//     logfileptr->OFS()<<elimTree<<std::endl;
+     logfileptr->OFS()<<elimTree<<std::endl;
      elimTree.PostOrderTree();
      logfileptr->OFS()<<elimTree<<std::endl;
 
