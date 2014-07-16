@@ -4,17 +4,14 @@
 #include <string.h>
 #include <omp.h>
 #include "util.h"
-#include <omp.h>
 
-#define NUM_GENES 1074
-
-
-char* INPUT_FILE;
-char* ADJ_FILE;
-int MAXGENS;
-int STOPCOUNT;
-double PMUTATION;
-int POPSIZE;
+char* inputFile;
+char* adjacencyFile;
+int maxGens;
+int stopCount;
+double pMutation;
+int popSize;
+int maxPopSize;
 double swapPercent;
 int swapLength;
 
@@ -28,7 +25,7 @@ struct individual {
     double fitness{-1};
     double rfitness;
     double cfitness;
-    int ordering[NUM_GENES];
+    int* ordering;
 };
 
 struct individual** population;
@@ -77,18 +74,18 @@ int main (int argc, char *argv[]) {
         fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Size\n");
         exit(5);
     } else {
-        INPUT_FILE = argv[1];
-        ADJ_FILE = argv[2];
-        MAXGENS = atoi(argv[3]);
-        PMUTATION = atof(argv[4]);
+        inputFile = argv[1];
+        adjacencyFile = argv[2];
+        maxGens = atoi(argv[3]);
+        pMutation = atof(argv[4]);
         swapPercent = atof(argv[5]);
         swapLength = atoi(argv[6]);
-        STOPCOUNT = atoi(argv[7]);
+        stopCount = atoi(argv[7]);
         breakThreshold = atoi(argv[8]);
         mutType = argv[9];
         crossType = argv[10];
         selectionType = argv[11];
-        POPSIZE = atoi(argv[12]);
+        maxPopSize = atoi(argv[12]);
     }
 
     setbuf(stdout, NULL);
@@ -96,10 +93,10 @@ int main (int argc, char *argv[]) {
 
     printf("Initial Population \n");
     printPop();
-    evaluateOrdering(population, POPSIZE);
-    while (currentGen < MAXGENS) {
+    evaluateOrdering(population, popSize);
+    while (currentGen < maxGens) {
         #pragma omp parallel for
-        for (int j = POPSIZE; j < ((2 * POPSIZE)); j++) {
+        for (int j = popSize; j < ((2 * popSize)); j++) {
             struct individual* child;
             int parent1;
             int parent2 = -1;
@@ -111,17 +108,19 @@ int main (int argc, char *argv[]) {
             population[j] = child;
         }
         mutatePop(population);
-        evaluateOrdering(population, 2*POPSIZE);
-        qsort(population, POPSIZE, sizeof(struct individual*), costComp);
-        qsort(population + (POPSIZE), POPSIZE, sizeof(struct individual*), costComp);
-        for (int x = (POPSIZE/2); x < POPSIZE; x++) {
+        evaluateOrdering(population, 2*popSize);
+        qsort(population, popSize, sizeof(struct individual*), costComp);
+        qsort(population + (popSize), popSize, sizeof(struct individual*), costComp);
+        for (int x = (popSize/2); x < popSize; x++) {
+            free(population[x]->ordering);
             free(population[x]);
         }
-        for (int z = ((POPSIZE/2)+POPSIZE); z<(POPSIZE *2); z++) {
+        for (int z = ((popSize/2)+popSize); z<(popSize *2); z++) {
+            free(population[z]->ordering);
             free(population[z]);
         }
-        memcpy(population + (POPSIZE/2), population + (POPSIZE), (POPSIZE/2)*sizeof(struct individual*));
-        qsort(population, POPSIZE, sizeof(struct individual*), costComp);
+        memcpy(population + (popSize/2), population + (popSize), (popSize/2)*sizeof(struct individual*));
+        qsort(population, popSize, sizeof(struct individual*), costComp);
 
         if (population[0]->fitness > costStopScore) {
             costStopScore = population[0]->fitness;
@@ -134,7 +133,7 @@ int main (int argc, char *argv[]) {
         }
         
         currentGen += 1;
-        if (costStopCounter == STOPCOUNT) {
+        if (costStopCounter == stopCount) {
             break;
         }
         printf("Best Indiv is fitness %f\n", 1/population[0]->fitness);
@@ -148,7 +147,8 @@ int main (int argc, char *argv[]) {
     }
     printf("Cost was called %d times this run.\n", costCounter);
     printf("This run took %d generations.\n", currentGen);
-    for (int i = 0; i < POPSIZE; i++) {
+    for (int i = 0; i < popSize; i++) {
+        free(population[i]->ordering);
         free(population[i]);
     }
     free(population);
@@ -185,7 +185,7 @@ int averageStructComp(const void * a, const void * b) {
 /*Prints the genes of the current population. */
 void printPop() {
     double average = 0;
-    for (int i = 0; i < POPSIZE; i++) {
+    for (int i = 0; i < popSize; i++) {
         for (int j = 0; j < n; j++) {
             printf("%d ", population[i]->ordering[j]);
         }
@@ -198,7 +198,7 @@ void printPop() {
         average += thisFit;
         printf("Fitness: %f\n", thisFit);
     }
-    average = average / POPSIZE;
+    average = average / popSize;
     printf("Average is %f", average);
     printf("\n");
 }
@@ -208,6 +208,7 @@ void printPop() {
 struct individual* cross (int firstParent, int secondParent) {
     struct individual* child = (struct individual*) malloc(sizeof(struct individual));
     child->fitness = -1;
+    child->ordering = (int*) malloc(sizeof(int) * n);
     if (!strcmp("order", crossType)) {
         int crossOver1 = (rand() % (n-2));
         int crossOver2 = -1;
@@ -306,6 +307,7 @@ struct individual* cross (int firstParent, int secondParent) {
         while (newParent2 < 0 || newParent2 == newParent1) {
             newParent2 = pickParent(population);
         }
+        free(child->ordering);
         free(child);
         return cross(newParent1, newParent2);
     }
@@ -315,6 +317,7 @@ struct individual* cross (int firstParent, int secondParent) {
         while (newParent2 < 0 || newParent2 == newParent1) {
             newParent2 = pickParent(population);
         }
+        free(child->ordering);
         free(child);
         return cross(newParent1, newParent2);
     }
@@ -332,16 +335,16 @@ int pickParent(struct individual* possibleParents[]) {
     if (!strcmp("rw", selectionType)) {
         totalFitness=0;
         //Find the total fitness of the population.
-        for (int totalSum = 0; totalSum < POPSIZE; totalSum++) {
+        for (int totalSum = 0; totalSum < popSize; totalSum++) {
             totalFitness += population[totalSum]->fitness;
         }
         //Find the relative fitness of the population.
-        for (int fitCounter = 0; fitCounter < POPSIZE; fitCounter++) {
+        for (int fitCounter = 0; fitCounter < popSize; fitCounter++) {
             population[fitCounter]->rfitness = population[fitCounter]->fitness / totalFitness;
         }
         //Find the cumulative fitness of the individuals.
         population[0]->cfitness = population[0]->rfitness;
-        for (int cfitCounter = 1; cfitCounter < POPSIZE; cfitCounter ++) {
+        for (int cfitCounter = 1; cfitCounter < popSize; cfitCounter ++) {
             population[cfitCounter]->cfitness = population[cfitCounter - 1]->cfitness + population[cfitCounter]->rfitness;
         }
         
@@ -351,7 +354,7 @@ int pickParent(struct individual* possibleParents[]) {
         if (random < population[0]->cfitness) {
             return 0;
         } else {
-            for (int picker = 0; picker < POPSIZE; picker++) {
+            for (int picker = 0; picker < (popSize-1); picker++) {
                 if (population[picker]->cfitness <= random && random < population[picker + 1]->cfitness) {
                     return picker + 1;
                 }
@@ -360,18 +363,18 @@ int pickParent(struct individual* possibleParents[]) {
     } else if (!strcmp("ro", selectionType)) {
         totalFitness=0;
         //Find the total fitness of the population.
-        for (int totalSum = 0; totalSum < POPSIZE; totalSum++) {
+        for (int totalSum = 0; totalSum < popSize; totalSum++) {
             totalFitness += totalSum + 1;
         }
         //Find the relative fitness of the population.
         int ranking = 1;
-        for (int fitCounter = POPSIZE - 1; fitCounter >= 0; fitCounter--) {
+        for (int fitCounter = popSize - 1; fitCounter >= 0; fitCounter--) {
             population[fitCounter]->rfitness = ranking / totalFitness;
             ranking++;
         }
         //Find the cumulative fitness of the individuals.
         population[0]->cfitness = population[0]->rfitness;
-        for (int cfitCounter = 1; cfitCounter < POPSIZE; cfitCounter ++) {
+        for (int cfitCounter = 1; cfitCounter < popSize; cfitCounter ++) {
             population[cfitCounter]->cfitness = population[cfitCounter - 1]->cfitness + population[cfitCounter]->rfitness;
         }
         
@@ -381,7 +384,7 @@ int pickParent(struct individual* possibleParents[]) {
         if (random < population[0]->cfitness) {
             return 0;
         } else {
-            for (int picker = 0; picker < POPSIZE; picker++) {
+            for (int picker = 0; picker < (popSize - 1); picker++) {
                 if (population[picker]->cfitness <= random && random < population[picker + 1]->cfitness) {
                     return picker + 1;
                 }
@@ -412,21 +415,25 @@ void evaluateOrdering(struct individual* indivs[], int size) {
    program. Also reads in the adjacency input file.*/
 void init() {
     srand(time(NULL));
-    ReadAdjacency(ADJ_FILE, &adjArray1, &adjArray2, &n, &nnz);    
-    population = (struct individual**) malloc(POPSIZE * 2 * sizeof(struct individual*));
-    for (int i = 0; i < POPSIZE; i++) {
-        population[i] = (struct individual*) malloc(sizeof(struct individual));
-        population[i]->fitness = -1;
-    }
-        
+    ReadAdjacency(adjacencyFile, &adjArray1, &adjArray2, &n, &nnz);    
     FILE *inFile;
     int number;
-    inFile = fopen(INPUT_FILE, "r");
+    inFile = fopen(inputFile, "r");
     if (inFile == NULL) {
         fprintf(stderr, "Unable to open file\n");
         exit(1);
     }
-    for (int indiv = 0; indiv < POPSIZE; indiv ++) {
+    fscanf(inFile, "%d", &popSize);
+    if (maxPopSize < popSize) {
+        maxPopSize = popSize;
+    }
+    population = (struct individual**) malloc(maxPopSize * 2 * sizeof(struct individual*));
+    for (int i = 0; i < popSize; i++) {
+        population[i] = (struct individual*) malloc(sizeof(struct individual));
+        population[i]->fitness = -1;
+        population[i]->ordering = (int*) malloc(sizeof(int) * n);
+    }    
+    for (int indiv = 0; indiv < popSize; indiv ++) {
         for (int gene = 0; gene < n; gene++) {
             fscanf(inFile, "%d", &number);
             if (feof(inFile)) {
@@ -442,10 +449,10 @@ void init() {
 /* Mutates the entire current population. */
 void mutatePop(struct individual* mutated[]) {
     #pragma omp parallel for
-    for (int indiv = POPSIZE; indiv < POPSIZE * 2; indiv++) {
+    for (int indiv = popSize; indiv < popSize * 2; indiv++) {
         double randomMutate;
         double mutateBarrier;
-        mutateBarrier = PMUTATION * RAND_MAX;
+        mutateBarrier = pMutation * RAND_MAX;
         randomMutate=rand();
         if (randomMutate < mutateBarrier) {
             mutated[indiv]->fitness = - 1;
