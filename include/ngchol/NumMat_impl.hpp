@@ -246,7 +246,12 @@ template <typename F> inline const F& NumMat<F>::at(Int i, Int j) const  {
   }
 
 
-template <typename F> inline F& NumMat<F>::at(Int i, Int j)  { 
+#ifdef _DEBUG_
+template <typename F> F& NumMat<F>::at(Int i, Int j)  
+#else
+template <typename F> inline F& NumMat<F>::at(Int i, Int j)  
+#endif
+{ 
 		if( i < 0 || i >= m_ ||
 				j < 0 || j >= n_ ) {
 
@@ -267,8 +272,8 @@ template <typename F> inline F& NumMat<F>::at(Int i, Int j)  {
 
 
 
-
-template <typename F> inline const F& NumMat<F>::operator()(Int i, Int j) const  { 
+template <typename F> inline const F& NumMat<F>::operator()(Int i, Int j) const
+{ 
 		if( i < 0 || i >= m_ ||
 				j < 0 || j >= n_ ) {
       
@@ -285,7 +290,8 @@ template <typename F> inline const F& NumMat<F>::operator()(Int i, Int j) const 
     return data_[i+j*m_];
   }
 
-template <typename F> inline F& NumMat<F>::operator()(Int i, Int j)  { 
+template <typename F> inline F& NumMat<F>::operator()(Int i, Int j)
+{
 		if( i < 0 || i >= m_ ||
 				j < 0 || j >= n_ ) {
 

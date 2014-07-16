@@ -141,7 +141,9 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
         Int nrows = next_src_snode->NRowsBelowBlock(0);
         Int ncols = UpdateWidth_(next_src_snode->Id()-1);
         Int nz_cnt = nrows * ncols;
-        max_bytes += (std::max((Int)ceil(nrows/2)+1,next_src_snode->NZBlockCnt()))*sizeof(NZBlockDesc);
+
+        Int nblocks = nrows;//std::max((Int)ceil(nrows/2)+1,next_src_snode.NZBlockCnt());
+        max_bytes += (nblocks)*sizeof(NZBlockDesc);
         max_bytes += nz_cnt*sizeof(T);
 
 
@@ -775,7 +777,8 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
               Int ncols = UpdateWidth_(I-1);
               nz_cnt = nrows * ncols;
 
-              max_bytes += (std::max((Int)ceil(nrows/2)+1,src_snode.NZBlockCnt()))*sizeof(NZBlockDesc);
+              Int nblocks = nrows;//std::max((Int)ceil(nrows/2)+1,src_snode.NZBlockCnt());
+              max_bytes += (nblocks)*sizeof(NZBlockDesc);
               max_bytes += nz_cnt*sizeof(T); 
 
               src_blocks.resize(max_bytes);
@@ -1443,7 +1446,8 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
               Int ncols = UpdateWidth_(I-1);
               nz_cnt = nrows * ncols;
 
-              max_bytes += (std::max((Int)ceil(nrows/2)+1,src_snode.NZBlockCnt()))*sizeof(NZBlockDesc);
+              Int nblocks = nrows;//std::max((Int)ceil(nrows/2)+1,src_snode.NZBlockCnt());
+              max_bytes += (nblocks)*sizeof(NZBlockDesc);
               max_bytes += nz_cnt*sizeof(T); 
 
               src_blocks.resize(max_bytes);
@@ -1671,7 +1675,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
                   Int iLocalTgt = (tgt_snode_id-1) / np +1 ;
                   SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalTgt -1];
 #ifdef _DEBUG_
-                  logfileptr->OFS()<<"LOCAL Supernode "<<tgt_snode.Id()<<" is updated by Supernode "<<src_snode_id<<" from row "<<src_first_row<<" "<<src_nzblk_idx<<std::endl;
+                  logfileptr->OFS()<<"LOCAL Supernode "<<tgt_snode.Id()<<" is updated by Supernode "<<src_snode.Id()<<" from row "<<src_first_row<<" "<<src_nzblk_idx<<std::endl;
 #endif
 
 #ifdef SINGLE_BLAS

@@ -89,11 +89,19 @@ namespace LIBCHOLESKY{
     };
     inline char * back(){ return &pSrcBlocks->at(head);}
     inline char * front(){ return &pSrcBlocks->front();}
-    inline Int size(){ return pSrcBlocks->size();}
-    inline void resize(Int size){ pSrcBlocks->resize(size);}
+    //inline Int size(){ return pSrcBlocks->size();}
+    inline Int size(){ return head;}
+    inline void resize(Int size){
+      head = 0; 
+//      pSrcBlocks->resize(0); 
+//      pSrcBlocks->reserve(size);
+      pSrcBlocks->resize(size);
+    }
     inline void clear(){ 
       head = 0; 
       pSrcBlocks->resize(0); 
+//      pSrcBlocks->clear();
+ 
       if(Request !=MPI_REQUEST_NULL){
         MPI_Status recv_status;
         int flag = 0;
