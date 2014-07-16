@@ -35,10 +35,12 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
       Int iLocalI = (cur_snode_id-1) / np +1 ;
       Int local_snode_id = cur_snode_id>=last_local_id?-1:
         LocalSupernodes_[iLocalI-1]->Id();
+      Int last_snode_id = Xsuper_.m()-1;
 
       bool is_sendable = ((cur_snode_id<last_local_id 
             && tgt_id < local_snode_id)
-          || (cur_snode_id>=last_local_id));
+          || (cur_snode_id>last_local_id  || 
+      (cur_snode_id<last_snode_id && cur_snode_id>=last_local_id)));
 
       if(is_sendable){
 

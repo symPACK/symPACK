@@ -892,11 +892,35 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
     }
 
 
+
+
+
+    CommList ContribsToSend; 
+
+
+
+
     //forward-substitution phase
     //Sending contrib up the tree
     //Start from the leaves of the tree
     TIMER_START(SPARSE_FWD_SUBST);
-    for(Int I=1;I<Xsuper_.m();I++){
+//    for(Int I=1;I<Xsuper_.m();I++){
+
+
+    Int I =1;
+    while(I<Xsuper_.m() || !ContribsToSend.empty() || !outgoingSend.empty()){
+
+      //Check for completion of outgoing communication
+      AdvanceOutgoing(outgoingSend);
+
+      //process some of the delayed send
+      SendDelayedMessages(I,ContribsToSend,outgoingSend);
+
+      if(I<Xsuper_.m()){
+
+
+
+
       Int iOwner = Mapping_.Map(I-1,I-1);
       //If I own the column, factor it
       if( iOwner == iam ){
@@ -919,7 +943,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 #endif
 
           forward_update(dist_contrib,contrib);
-            //delete contributions[(contrib_snode_id-1) / np];
+          //delete contributions[(contrib_snode_id-1) / np];
           --UpdatesToDo(I-1);
         }
 
@@ -935,7 +959,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 #endif
 
 
-    TIMER_START(RECV_MALLOC);
+          TIMER_START(RECV_MALLOC);
           if(src_blocks.size()==0){
             max_bytes = 3*sizeof(Int); 
             Int nrows = cur_snode->NRowsBelowBlock(0);
@@ -948,9 +972,9 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
             src_blocks.resize(max_bytes);
           }
-    TIMER_STOP(RECV_MALLOC);
+          TIMER_STOP(RECV_MALLOC);
 
-    TIMER_START(RECV_MPI);
+          TIMER_START(RECV_MPI);
           MPI_Status recv_status;
           int bytes_received = 0;
 
@@ -958,7 +982,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
           MPI_Probe(MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
           MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
 
-logfileptr->OFS()<<"Preparing to receive "<<bytes_received<<" bytes"<<endl;
+          logfileptr->OFS()<<"Preparing to receive "<<bytes_received<<" bytes"<<endl;
 
           bool doabort = false;
           int prev_size = 0;
@@ -974,7 +998,7 @@ logfileptr->OFS()<<"Preparing to receive "<<bytes_received<<" bytes"<<endl;
 #endif
 
 #ifdef PROBE_FIRST
-logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
+          logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
           MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
 #else
           MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
@@ -986,10 +1010,10 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
           Int src_snode_id = *(Int*)&src_blocks[0];
           Int src_nzblk_cnt = *(((Int*)&src_blocks[0])+1);
           NZBlockDesc * src_blocks_ptr = 
-                    reinterpret_cast<NZBlockDesc*>(&src_blocks[2*sizeof(Int)]);
+            reinterpret_cast<NZBlockDesc*>(&src_blocks[2*sizeof(Int)]);
           Int src_nzval_cnt = *(Int*)(src_blocks_ptr + src_nzblk_cnt);
           T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
-    TIMER_STOP(RECV_MPI);
+          TIMER_STOP(RECV_MPI);
 
           //Create the dummy supernode for that data
           SuperNode<T> dist_contrib(src_snode_id,1,nrhs, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
@@ -1011,53 +1035,53 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 
         }
 
-assert(UpdatesToDo(I-1)==0);
+        assert(UpdatesToDo(I-1)==0);
 
         if(UpdatesToDo(I-1)==0){
           logfileptr->OFS()<<"FORW Processing contrib "<<I<<std::endl;
 
-            //This corresponds to the i loop in dtrsm
-            for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
+          //This corresponds to the i loop in dtrsm
+          for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
 
-              NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
-              NZBlockDesc & chol_desc = cur_snode->GetNZBlockDesc(blkidx);
-              NZBlockDesc & diag_desc = contrib->GetNZBlockDesc(0);
-              
-              Int cur_nrows = contrib->NRows(blkidx);
-              Int chol_nrows = cur_snode->NRows(blkidx);
-              Int diag_nrows = contrib->NRows(0);
+            NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
+            NZBlockDesc & chol_desc = cur_snode->GetNZBlockDesc(blkidx);
+            NZBlockDesc & diag_desc = contrib->GetNZBlockDesc(0);
 
-              T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
-              T * chol_nzval = cur_snode->GetNZval(chol_desc.Offset);
-              T * diag_nzval = contrib->GetNZval(diag_desc.Offset);
+            Int cur_nrows = contrib->NRows(blkidx);
+            Int chol_nrows = cur_snode->NRows(blkidx);
+            Int diag_nrows = contrib->NRows(0);
 
-              //compute my contribution
-              //Handle the diagonal block
-              if(blkidx==0){
-                //TODO That's where we can use the selective inversion
-                //if we are processing the "pivot" block
-                for(Int kk = 0; kk<cur_snode->Size(); ++kk){
-                  for(Int j = 0; j<nrhs;++j){
-//logfileptr->OFS()<<"                      B = "<<B(Order_.perm[diag_desc.GIndex+kk-1]-1,j)<<std::endl;
-                    diag_nzval[kk*nrhs+j] = (B(Order_.perm[diag_desc.GIndex+kk-1]-1,j) + diag_nzval[kk*nrhs+j]) / chol_nzval[kk*cur_snode->Size()+kk];
-                    //diag_nzval[kk*nrhs+j] = (B(diag_desc.GIndex-1+kk,j) + diag_nzval[kk*nrhs+j]) / chol_nzval[kk*cur_snode->Size()+kk];
-                    for(Int i = kk+1; i<cur_nrows;++i){
-                      diag_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*chol_nzval[i*cur_snode->Size()+kk];
-                    }
-                  }
-                }
-              }
-              else{
-                for(Int kk = 0; kk<cur_snode->Size(); ++kk){
-                  for(Int j = 0; j<nrhs;++j){
-                    for(Int i = 0; i<cur_nrows;++i){
-                      cur_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*chol_nzval[i*cur_snode->Size()+kk];
-                    }
+            T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
+            T * chol_nzval = cur_snode->GetNZval(chol_desc.Offset);
+            T * diag_nzval = contrib->GetNZval(diag_desc.Offset);
+
+            //compute my contribution
+            //Handle the diagonal block
+            if(blkidx==0){
+              //TODO That's where we can use the selective inversion
+              //if we are processing the "pivot" block
+              for(Int kk = 0; kk<cur_snode->Size(); ++kk){
+                for(Int j = 0; j<nrhs;++j){
+                  //logfileptr->OFS()<<"                      B = "<<B(Order_.perm[diag_desc.GIndex+kk-1]-1,j)<<std::endl;
+                  diag_nzval[kk*nrhs+j] = (B(Order_.perm[diag_desc.GIndex+kk-1]-1,j) + diag_nzval[kk*nrhs+j]) / chol_nzval[kk*cur_snode->Size()+kk];
+                  //diag_nzval[kk*nrhs+j] = (B(diag_desc.GIndex-1+kk,j) + diag_nzval[kk*nrhs+j]) / chol_nzval[kk*cur_snode->Size()+kk];
+                  for(Int i = kk+1; i<cur_nrows;++i){
+                    diag_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*chol_nzval[i*cur_snode->Size()+kk];
                   }
                 }
               }
             }
-          
+            else{
+              for(Int kk = 0; kk<cur_snode->Size(); ++kk){
+                for(Int j = 0; j<nrhs;++j){
+                  for(Int i = 0; i<cur_nrows;++i){
+                    cur_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*chol_nzval[i*cur_snode->Size()+kk];
+                  }
+                }
+              }
+            }
+          }
+
 
           //send to my parent
           if(parent!=0){
@@ -1066,6 +1090,13 @@ assert(UpdatesToDo(I-1)==0);
             Int iTarget = Mapping_.Map(parent_snode_id-1,parent_snode_id-1);
 
             if(iTarget!=iam){
+
+
+
+
+
+
+
 #ifdef _DEBUG_
               logfileptr->OFS()<<"Remote Supernode "<<parent_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
 #endif
@@ -1074,7 +1105,7 @@ assert(UpdatesToDo(I-1)==0);
 
 
 
-        Int tgt_first_col = Xsuper_(parent_snode_id-1);
+              Int tgt_first_col = Xsuper_(parent_snode_id-1);
               Int tgt_last_col = Xsuper_(parent_snode_id)-1;
               Int src_nzblk_idx = 1;
               NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
@@ -1091,28 +1122,59 @@ assert(UpdatesToDo(I-1)==0);
 
 
 
-
-
-    TIMER_START(SEND_MALLOC);
-              AddOutgoingComm(outgoingSend, contrib->Id(), nrhs, src_first_row, pivot_desc, nzblk_cnt, nzval_ptr, nz_cnt);
-    TIMER_STOP(SEND_MALLOC);
-
-
-    TIMER_START(SEND_MPI);
-//                  assert(iTarget<np);
-
-              logfileptr->OFS()<<"Remote Supernode "<<parent_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
-    MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,parent_snode_id,CommEnv_->MPI_GetComm());
-    TIMER_STOP(SEND_MPI);
-      outgoingSend.pop_back();
-
-              logfileptr->OFS()<<"Remote Supernode "<<parent_snode_id<<" got the contribution of Supernode "<<I<<std::endl;
-
-#ifdef _DEBUG_            
-              logfileptr->OFS()<<"     Send contribution "<<I<<" to Supernode "<<parent_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
-              logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
-              logfileptr->OFS()<<"Sending "<<nzblk_cnt*sizeof(NZBlockDesc)+nz_cnt*sizeof(T) + 3*sizeof(Int)<<" bytes"<< std::endl;
+              if(iLocalI < Contributions_.size()){
+                if(Contributions_[iLocalI]->Id()< parent_snode_id){
+                  //need to push the prev src_last_row
+                  ContribsToSend.push(DelayedComm(contrib->Id(),parent_snode_id,1,src_first_row));
+#ifdef _DEBUG_DELAY_
+                  //                    logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
+                  //                    cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
 #endif
+                }
+              }
+              else{
+
+                if(!ContribsToSend.empty()){
+                  if(ContribsToSend.top().tgt_snode_id<parent_snode_id){
+                    SendDelayedMessages(I,ContribsToSend,outgoingSend);
+                  }
+                }
+
+
+
+
+                TIMER_START(SEND_MALLOC);
+                AddOutgoingComm(outgoingSend, contrib->Id(), nrhs, src_first_row, pivot_desc, nzblk_cnt, nzval_ptr, nz_cnt);
+                TIMER_STOP(SEND_MALLOC);
+
+
+                TIMER_START(SEND_MPI);
+                //                  assert(iTarget<np);
+
+
+
+                if(outgoingSend.size() > maxIsend_){
+                  logfileptr->OFS()<<"Remote Supernode "<<parent_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
+                  MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,parent_snode_id,CommEnv_->MPI_GetComm());
+                  TIMER_STOP(SEND_MPI);
+                  outgoingSend.pop_back();
+
+                  logfileptr->OFS()<<"Remote Supernode "<<parent_snode_id<<" got the contribution of Supernode "<<I<<std::endl;
+                }
+                else{
+
+                  TIMER_START(SEND_MPI);
+                  MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,parent_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
+                  TIMER_STOP(SEND_MPI);
+
+
+                }
+#ifdef _DEBUG_            
+                logfileptr->OFS()<<"     Send contribution "<<I<<" to Supernode "<<parent_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
+                logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
+                logfileptr->OFS()<<"Sending "<<nzblk_cnt*sizeof(NZBlockDesc)+nz_cnt*sizeof(T) + 3*sizeof(Int)<<" bytes"<< std::endl;
+#endif
+              }
             }
             else{
 #ifdef _DEBUG_
@@ -1122,6 +1184,7 @@ assert(UpdatesToDo(I-1)==0);
               LocalUpdates[iLocalJ-1].push(I);
             }
           }
+
         }
       }
 
@@ -1158,7 +1221,8 @@ assert(UpdatesToDo(I-1)==0);
       }
 #endif
 
-      MPI_Barrier(CommEnv_->MPI_GetComm());
+          }
+          ++I;
       //MPI_Barrier(CommEnv_->MPI_GetComm());
     }
     TIMER_STOP(SPARSE_FWD_SUBST);
