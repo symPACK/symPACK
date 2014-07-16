@@ -10,16 +10,16 @@
 #endif
 #include <omp.h>
 
-#include  "ngchol/Environment.hpp"
+#include  "Environment.hpp"
 //#include  "DistSparseMatrix.hpp"
-#include  "ngchol/NumVec.hpp"
-#include  "ngchol/NumMat.hpp"
-#include  "ngchol/utility.hpp"
-#include  "ngchol/ETree.hpp"
-#include  "ngchol/blas.hpp"
-#include  "ngchol/lapack.hpp"
+#include  "NumVec.hpp"
+#include  "NumMat.hpp"
+#include  "utility.hpp"
+#include  "ETree.hpp"
+#include  "blas.hpp"
+#include  "lapack.hpp"
 
-#include  "ngchol/LogFile.hpp"
+#include  "LogFile.hpp"
 
 extern "C" {
 #include <bebop/util/config.h>
@@ -41,7 +41,7 @@ extern "C" {
 #include "TAU.h"
 #elif defined (PROFILE) || defined(PMPI)
 #define TAU
-#include "ngchol/timer.hpp"
+#include "timer.hpp"
 #endif
 
 
@@ -82,6 +82,7 @@ void pdpotf2_(char * uplo, int * n, double * A, int * ia, int * ja, int * desca,
 using namespace LIBCHOLESKY;
 using namespace std;
 
+LogFile * logfileptr;
 
 int main(int argc, char **argv) 
 {

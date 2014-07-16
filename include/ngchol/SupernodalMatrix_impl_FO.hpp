@@ -885,7 +885,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
           logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
 #endif
           //if((I*100/(Xsuper_.m()-1)) % 20 == 0){
-          //        logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
+                  logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
           //}
 
           TIMER_START(FACTOR_PANEL);

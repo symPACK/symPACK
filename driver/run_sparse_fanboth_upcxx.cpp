@@ -137,39 +137,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
   Int n = HMat.size;
 
 
-  RHS.Resize(n,nrhs);
-  XTrue.Resize(n,nrhs);
-  //SetValue(XTrue,1.0);
-  for(Int i = 0; i<n;++i){ 
-    for(Int j=0;j<nrhs;++j){
-      XTrue(i,j) = i+1;
-    }
-  }
-  //      UniformRandom(XTrue);
 
-  sp_dgemm_dist("N","N", n, XTrue.n(), n, 
-      LIBCHOLESKY::ONE<MYSCALAR>(), HMat, XTrue.Data(), XTrue.m(), 
-      LIBCHOLESKY::ZERO<MYSCALAR>(), RHS.Data(), RHS.m());
-
-
-
-
-  //   logfileptr->OFS()<<RHS<<endl;
-#endif
-
-
-  //do the symbolic factorization and build supernodal matrix
-  SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
-
-
-
-
-
-
-
-
-
-#ifdef _CHECK_RESULT_
 #ifdef _CHECK_RESULT_SEQ_
   DblNumMat fwdSol;
   DblNumMat RHS2;
@@ -184,48 +152,24 @@ DistSparseMatrix<Real> HMat(worldcomm);
       A.Resize(csrptr->n,csrptr->n);
       csr_matrix_expand_to_dense (A.Data(), 0, A.m(), csrptr);
 
-      RHS2 = RHS;//.Resize(n,nrhs);
-      XTrue2 = XTrue;//.Resize(n,nrhs);
-      //SetValue(XTrue2,1.0);
+      RHS2.Resize(n,nrhs);
+      XTrue2.Resize(n,nrhs);
+      SetValue(XTrue2,1.0);
       //      UniformRandom(XTrue);
       blas::Gemm('N','N',n,nrhs,n,1.0,&A(0,0),n,&XTrue2(0,0),n,0.0,&RHS2(0,0),n);
-
-
-      //Order the matrix
-      Ordering order = SMat.GetOrdering();
-
-      DblNumMat Aperm(A.m(),A.n());
-      for(Int i = 0; i<A.m(); ++i){
-        for(Int j = 0; j<A.n(); ++j){
-          Aperm(i,j) = A(order.perm[i]-1,order.perm[j]-1);
-        }
-      }
 
 
       //cal dposv
       double norm = 0;
 
       //do a solve
-      DblNumMat X(RHS2.m(),RHS2.n());
-      for(Int i = 0; i<n;++i){ 
-        for(Int j=0;j<nrhs;++j){
-          X(i,j) = RHS2(order.perm[i]-1,j);
-        }
-      }
-
-
-//logfileptr->OFS()<<"Aperm "<<Aperm<<endl;
-
-      lapack::Potrf('L',n,&Aperm(0,0),n);
-
-
-//logfileptr->OFS()<<"Lperm "<<Aperm<<endl;
-
+      DblNumMat X = RHS2;
+      lapack::Potrf('L',n,&A(0,0),n);
 
       for(Int i = 0; i<A.m();++i){
         for(Int j = 0; j<A.n();++j){
           if(j>i){
-            Aperm(i,j)=LIBCHOLESKY::ZERO<double>();
+            A(i,j)=LIBCHOLESKY::ZERO<double>();
           }
         }
       }
@@ -234,34 +178,25 @@ DistSparseMatrix<Real> HMat(worldcomm);
       for(Int j = 0; j<nrhs;++j){
         for(Int k = 0; k<A.m();++k){
           if(X(k,j)!=0){
-            X(k,j) = X(k,j) / Aperm(k,k);
+            X(k,j) = X(k,j) / A(k,k);
             for(Int i = k+1;i<A.m();++i){
-              X(i,j) -= X(k,j)*Aperm(i,k);
+              X(i,j) -= X(k,j)*A(i,k);
             }
           }
         }
       }
 
       //blas::Trsm('L','L','N','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
-      fwdSol.Resize(X.m(),X.n());
-      DblNumMat XTrue3(XTrue2.m(),XTrue2.n());
-      for(Int i = 0; i<n;++i){ 
-        for(Int j=0;j<nrhs;++j){
-          fwdSol(i,j) = X(order.invp[i]-1,j);
-          XTrue3(i,j) = XTrue2(order.perm[i]-1,j);
-        }
-      }
-
-
+      fwdSol = X;
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Solution after forward substitution:"<<X<<std::endl;
 #endif
-      blas::Trsm('L','L','T','N',n,nrhs,1.0,&Aperm(0,0),n,&X(0,0),n);
+      blas::Trsm('L','L','T','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Solution after back substitution:"<<X<<std::endl;
 #endif
 
-      blas::Axpy(n*nrhs,-1.0,&XTrue3(0,0),1,&X(0,0),1);
+      blas::Axpy(n*nrhs,-1.0,&XTrue2(0,0),1,&X(0,0),1);
       norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
       logfileptr->OFS()<<"Norm of residual after MYPOSV is "<<norm<<std::endl;
 
@@ -274,46 +209,44 @@ DistSparseMatrix<Real> HMat(worldcomm);
 #endif
 
 
+
+  RHS.Resize(n,nrhs);
+  XTrue.Resize(n,nrhs);
+  SetValue(XTrue,1.0);
+  //      UniformRandom(XTrue);
+
+  sp_dgemm_dist("N","N", n, XTrue.n(), n, 
+      LIBCHOLESKY::ONE<MYSCALAR>(), HMat, XTrue.Data(), XTrue.m(), 
+      LIBCHOLESKY::ZERO<MYSCALAR>(), RHS.Data(), RHS.m());
+
+
 #ifdef _CHECK_RESULT_SEQ_
-//  if(iam==0){
-//    DblNumMat RHSDiff = RHS;
-//
-//    blas::Axpy(RHS.m()*RHS.n(),-1.0,&RHS2(0,0),1,&RHSDiff(0,0),1);
-//    double norm = lapack::Lange('F',RHS.m(),RHS.n(),&RHSDiff(0,0),RHS.m());
-//    logfileptr->OFS()<<"Norm of residual between RHS is "<<norm<<std::endl;
-//
-//    if(abs(norm)>=1e-5){
-//      for(Int i = 0;i<RHS.m();++i){
-//        logfileptr->OFS()<<i+1<<"   "<<RHS(i,0)-RHS2(i,0)<<endl;
-//      }
-//      abort();
-//    }
-//
-//  }
+  if(iam==0){
+    DblNumMat RHSDiff = RHS;
+
+    blas::Axpy(RHS.m()*RHS.n(),-1.0,&RHS2(0,0),1,&RHSDiff(0,0),1);
+    double norm = lapack::Lange('F',RHS.m(),RHS.n(),&RHSDiff(0,0),RHS.m());
+    logfileptr->OFS()<<"Norm of residual between RHS is "<<norm<<std::endl;
+
+    if(abs(norm)>=1e-5){
+      for(Int i = 0;i<RHS.m();++i){
+        logfileptr->OFS()<<i+1<<"   "<<RHS(i,0)-RHS2(i,0)<<endl;
+      }
+      abort();
+    }
+
+  }
 #endif
 
 
 
 
+  //   logfileptr->OFS()<<RHS<<endl;
 #endif
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  //do the symbolic factorization and build supernodal matrix
+  SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
 
   timeSta = get_time();
   TIMER_START(SPARSE_FAN_OUT);
@@ -336,9 +269,9 @@ DistSparseMatrix<Real> HMat(worldcomm);
 //  logfileptr->OFS()<<target<<endl;
 
 #ifdef _DEBUG_
-      NumMat<Real> fullMatrix;
-      SMat.GetFullFactors(fullMatrix);
-      logfileptr->OFS()<<fullMatrix<<std::endl;
+  //    NumMat<Real> fullMatrix;
+  //    SMat.GetFullFactors(fullMatrix);
+  //    logfileptr->OFS()<<fullMatrix<<std::endl;
 #endif
 
 #ifdef _CHECK_RESULT_
@@ -354,19 +287,18 @@ DistSparseMatrix<Real> HMat(worldcomm);
 #endif
 
   //sort X the same way (permute rows)
-  DblNumMat X = RHS;
-//  DblNumMat X(RHS.m(),RHS.n());
-//  const Ordering & order = SMat.GetOrdering();
-//  for(Int row = 1; row<= RHS.m(); ++row){
-//    for(Int col = 1; col<= RHS.n(); ++col){
-//#ifdef _CHECK_RESULT_SEQ_
-//      X(row-1,col-1) = RHS2(order.perm[row-1]-1,col-1);
-//#else
-//      Int oldrow = order.perm[row-1];
-//      X(row-1,col-1) = RHS(oldrow-1,col-1);
-//#endif
-//    }
-//  }
+  DblNumMat X(RHS.m(),RHS.n());
+  const Ordering & order = SMat.GetOrdering();
+  for(Int row = 1; row<= RHS.m(); ++row){
+    for(Int col = 1; col<= RHS.n(); ++col){
+#ifdef _CHECK_RESULT_SEQ_
+      X(row-1,col-1) = RHS2(order.perm[row-1]-1,col-1);
+#else
+      Int oldrow = order.perm[row-1];
+      X(row-1,col-1) = RHS(oldrow-1,col-1);
+#endif
+    }
+  }
 //
 //if(0)
 //{
@@ -441,13 +373,12 @@ DistSparseMatrix<Real> HMat(worldcomm);
   fwdSol.Resize(SMat.Size(),nrhs);
   MPI_Bcast(fwdSol.Data(),fwdSol.ByteSize(),MPI_BYTE,0,worldcomm);
 
-  DblNumMat poFwdSol = fwdSol;
-//(fwdSol.m(),fwdSol.n());
-//  for(Int row = 1; row<= X.m(); ++row){
-//    for(Int col = 1; col<= X.n(); ++col){
-//      poFwdSol(row-1,col-1) = fwdSol(tree.FromPostOrder(row)-1,col-1);
-//    }
-//  }
+  DblNumMat poFwdSol(fwdSol.m(),fwdSol.n());
+  for(Int row = 1; row<= X.m(); ++row){
+    for(Int col = 1; col<= X.n(); ++col){
+      poFwdSol(row-1,col-1) = fwdSol(tree.FromPostOrder(row)-1,col-1);
+    }
+  }
   SMat.Solve(&X,poFwdSol);
 #else
   SMat.Solve(&X);
@@ -455,19 +386,17 @@ DistSparseMatrix<Real> HMat(worldcomm);
   SMat.GetSolution(X);
 
 
-//      logfileptr->OFS()<<X<<endl;
 
   //Sort back X
-  DblNumMat X2 = X;
-//(X.m(),X.n());
-//  for(Int row = 1; row<= X.m(); ++row){
-//    for(Int col = 1; col<= X.n(); ++col){
-//      Int newrow = order.invp[row-1];
-//      X2(row-1,col-1) = X(newrow-1,col-1);
-//    }
-//  }
+  DblNumMat X2(X.m(),X.n());
+  for(Int row = 1; row<= X.m(); ++row){
+    for(Int col = 1; col<= X.n(); ++col){
+      Int newrow = order.invp[row-1];
+      X2(row-1,col-1) = X(newrow-1,col-1);
+    }
+  }
 
-//
+
 //      logfileptr->OFS()<<X2<<endl;
 
 #ifdef _CHECK_RESULT_SEQ_

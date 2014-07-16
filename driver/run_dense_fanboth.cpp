@@ -7,11 +7,7 @@
 #include <upcxx.h>
 
 #include <time.h>
-
-#ifndef __PGI
 #include <random>
-#endif
-
 #include <omp.h>
 
 #include  "Environment.hpp"

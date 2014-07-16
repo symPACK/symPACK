@@ -13,16 +13,16 @@
 
 #include <omp.h>
 
-#include  "ngchol/FBMatrix.hpp"
-#include  "ngchol/FBMatrix_mpi.hpp"
-#include  "ngchol/Environment.hpp"
-#include  "ngchol/NumVec.hpp"
-#include  "ngchol/NumMat.hpp"
-#include  "ngchol/utility.hpp"
-#include  "ngchol/ETree.hpp"
-#include  "ngchol/blas.hpp"
-#include  "ngchol/lapack.hpp"
-#include  "ngchol/LogFile.hpp"
+#include  "FBMatrix.hpp"
+#include  "FBMatrix_mpi.hpp"
+#include  "Environment.hpp"
+#include  "NumVec.hpp"
+#include  "NumMat.hpp"
+#include  "utility.hpp"
+#include  "ETree.hpp"
+#include  "blas.hpp"
+#include  "lapack.hpp"
+#include  "LogFile.hpp"
 
 extern "C" {
 #include <bebop/util/config.h>
