@@ -12,8 +12,11 @@ int stopCount;
 double pMutation;
 int popSize;
 int maxPopSize;
+double maxPopScale;
 double swapPercent;
 int swapLength;
+time_t seed;
+int growthNumber;
 
 
 struct averageStruct {
@@ -70,8 +73,8 @@ int costCounter = 0;
    arguments as of now.*/
 int main (int argc, char *argv[]) {
 
-    if (argc != 13) {
-        fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Size\n");
+    if (argc != 14) {
+        fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Scale (i.e. 2 = 200 percent scaling)\n Amount of individuals to increase each generation(rounded up to nearest even number)");
         exit(5);
     } else {
         inputFile = argv[1];
@@ -85,7 +88,14 @@ int main (int argc, char *argv[]) {
         mutType = argv[9];
         crossType = argv[10];
         selectionType = argv[11];
-        maxPopSize = atoi(argv[12]);
+        maxPopScale = atof(argv[12]);
+        if (maxPopScale < 1) {
+            maxPopScale = 1;
+        }
+        growthNumber = atoi(argv[13]);
+        if (growthNumber % 2 == 1) {
+            growthNumber += 1;
+        }
     }
 
     setbuf(stdout, NULL);
@@ -111,16 +121,22 @@ int main (int argc, char *argv[]) {
         evaluateOrdering(population, 2*popSize);
         qsort(population, popSize, sizeof(struct individual*), costComp);
         qsort(population + (popSize), popSize, sizeof(struct individual*), costComp);
-        for (int x = (popSize/2); x < popSize; x++) {
+        for (int x = ((popSize/2)+(growthNumber / 2)); x < popSize; x++) {
             free(population[x]->ordering);
             free(population[x]);
         }
-        for (int z = ((popSize/2)+popSize); z<(popSize *2); z++) {
+        for (int z = ((popSize/2)+popSize+(growthNumber/2)); z<(popSize *2); z++) {
             free(population[z]->ordering);
             free(population[z]);
         }
-        memcpy(population + (popSize/2), population + (popSize), (popSize/2)*sizeof(struct individual*));
-        qsort(population, popSize, sizeof(struct individual*), costComp);
+        memcpy(population + (popSize/2) + (growthNumber/2), population + (popSize),((growthNumber/2)+ (popSize/2))*sizeof(struct individual*));
+        qsort(population, popSize+growthNumber, sizeof(struct individual*), costComp);
+
+
+        if (popSize < maxPopSize) {
+            popSize += 2;
+        }
+
 
         if (population[0]->fitness > costStopScore) {
             costStopScore = population[0]->fitness;
@@ -414,7 +430,9 @@ void evaluateOrdering(struct individual* indivs[], int size) {
    the random number generator used for ohter functions of this
    program. Also reads in the adjacency input file.*/
 void init() {
-    srand(time(NULL));
+    seed = time(NULL);
+    srand(seed);
+    printf("Seed is %d\n",seed);
     ReadAdjacency(adjacencyFile, &adjArray1, &adjArray2, &n, &nnz);    
     FILE *inFile;
     int number;
@@ -424,9 +442,7 @@ void init() {
         exit(1);
     }
     fscanf(inFile, "%d", &popSize);
-    if (maxPopSize < popSize) {
-        maxPopSize = popSize;
-    }
+    maxPopSize = maxPopScale * popSize;
     population = (struct individual**) malloc(maxPopSize * 2 * sizeof(struct individual*));
     for (int i = 0; i < popSize; i++) {
         population[i] = (struct individual*) malloc(sizeof(struct individual));
