@@ -1011,8 +1011,10 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 
         }
 
+assert(UpdatesToDo(I-1)==0);
 
         if(UpdatesToDo(I-1)==0){
+          logfileptr->OFS()<<"FORW Processing contrib "<<I<<std::endl;
 
             //This corresponds to the i loop in dtrsm
             for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
@@ -1098,10 +1100,13 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 
     TIMER_START(SEND_MPI);
 //                  assert(iTarget<np);
+
+              logfileptr->OFS()<<"Remote Supernode "<<parent_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
     MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,parent_snode_id,CommEnv_->MPI_GetComm());
     TIMER_STOP(SEND_MPI);
       outgoingSend.pop_back();
 
+              logfileptr->OFS()<<"Remote Supernode "<<parent_snode_id<<" got the contribution of Supernode "<<I<<std::endl;
 
 #ifdef _DEBUG_            
               logfileptr->OFS()<<"     Send contribution "<<I<<" to Supernode "<<parent_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
@@ -1153,6 +1158,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
       }
 #endif
 
+      MPI_Barrier(CommEnv_->MPI_GetComm());
       //MPI_Barrier(CommEnv_->MPI_GetComm());
     }
     TIMER_STOP(SPARSE_FWD_SUBST);
@@ -1244,6 +1250,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
         //now compute MY contribution
 
 
+        logfileptr->OFS()<<"BACK Processing contrib "<<I<<std::endl;
 
         NZBlockDesc & diag_desc = cur_snode->GetNZBlockDesc(0);
         NZBlockDesc & tgt_desc = contrib->GetNZBlockDesc(0);
@@ -1382,7 +1389,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 
       }
 
-//      MPI_Barrier(CommEnv_->MPI_GetComm());
+      MPI_Barrier(CommEnv_->MPI_GetComm());
 
 #ifdef _CHECK_RESULT_SEQ_
       {

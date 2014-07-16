@@ -151,12 +151,19 @@ DistSparseMatrix<Real> HMat(worldcomm);
     cout<<"Starting spGEMM"<<endl;
   }
 
+#if 0
   timeSta = get_time();
   sp_dgemm_dist("N","N", n, XTrue.n(), n, 
       LIBCHOLESKY::ONE<MYSCALAR>(), HMat, XTrue.Data(), XTrue.m(), 
       LIBCHOLESKY::ZERO<MYSCALAR>(), RHS.Data(), RHS.m());
   timeEnd = get_time();
-
+#else
+  for(Int i = 0; i<n;++i){ 
+    for(Int j=0;j<nrhs;++j){
+      RHS(i,j) = i+1;
+    }
+  }
+#endif
 
   if(iam==0){
     cout<<"spGEMM time: "<<timeEnd-timeSta<<endl;
