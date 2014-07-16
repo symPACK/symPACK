@@ -97,6 +97,10 @@ namespace LIBCHOLESKY{
 //      pSrcBlocks->reserve(size);
       pSrcBlocks->resize(size);
     }
+    inline void setHead(Int phead){ 
+      assert(phead <= pSrcBlocks->size()); 
+      head = phead;
+    }
     inline void clear(){ 
       head = 0; 
       pSrcBlocks->resize(0); 

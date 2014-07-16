@@ -43,6 +43,9 @@ namespace LIBCHOLESKY{
 
         MPI_Gatherv( localIcomm.front(), localSize, MPI_BYTE, allIcomm.front(), 
             &localSizeVec[0], &localSizeDispls[0], MPI_BYTE,root, comm	);
+
+        //Mark the Icomm as "full"
+        allIcomm.setHead(totalSize);
         return ;
       };		// -----  end of function Gatherv  ----- 
 

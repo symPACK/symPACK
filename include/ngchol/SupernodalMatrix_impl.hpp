@@ -331,10 +331,10 @@ if(0){
 
 
 
+          mpi::Gatherv(buffer,recv_buffer,iDest,CommEnv_->MPI_GetComm());
           //now I know if I need to send something and who I'm receiving from
           if(iam == iDest){
             denseA.resize(iSize_);
-            mpi::Gatherv(buffer,recv_buffer,iDest,CommEnv_->MPI_GetComm());
                 char * pRecvData;
                 Int size = recv_buffer.size();
                 pRecvData = recv_buffer.front();
@@ -373,11 +373,6 @@ assert(row>0);
               }
             }
           }
-          else{
-            mpi::Gatherv(buffer,recv_buffer,iDest,CommEnv_->MPI_GetComm());
-          }
-
-
 
 
 
@@ -1130,6 +1125,8 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
       MPI_Barrier(CommEnv_->MPI_GetComm());
       NumMat<T> tmp = B;
       GetSolution(tmp);
+
+
       Int nrows = 0;
       for(Int ii=1; ii<=I;++ii){ nrows+= Xsuper_[ii] - Xsuper_[ii-1];}
 

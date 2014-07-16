@@ -37,13 +37,13 @@ run_cholesky: run_cholesky.o ${CHOLESKY_LIB}
 
 
 run_cholesky.o: run_cholesky.cpp 
-	${CXX} -c ${CXXFLAGS} ${CPPDEFS} $< 
+	${CXX} -g -c ${CXXFLAGS} ${CPPDEFS} $< 
 
 run_dense_fanboth: run_dense_fanboth.o ${CHOLESKY_LIB}
 	($(LOADER) -o $@ run_dense_fanboth.o  $(LOADOPTS) $(IPM) )
 
 run_dense_fanboth.o: run_dense_fanboth.cpp 
-	${CXX} -c ${CXXFLAGS} ${CPPDEFS} $< 
+	${CXX} -g -c ${CXXFLAGS} ${CPPDEFS} $< 
 
 run_dense_fanboth_upcxx: run_dense_fanboth_upcxx.o ${CHOLESKY_LIB}
 	($(LOADER) $(LDFLAGS)  -o $@ run_dense_fanboth_upcxx.o  $(LOADOPTS)   $(IPM) )
@@ -52,7 +52,7 @@ run_dense_fanboth_upcxx.o: run_dense_fanboth_upcxx.cpp
 	${CXX} -g  -c -DUPCXX ${CXXFLAGS} ${CPPDEFS} $< 
 
 run_dense_fanboth_mpi: run_dense_fanboth_mpi.o ${CHOLESKY_LIB}
-	($(LOADER) $(LDFLAGS)  -o $@ run_dense_fanboth_mpi.o  $(LOADOPTS)   $(IPM) )
+	($(LOADER) $(LDFLAGS)  -o $@ run_dense_fanboth_mpi.o  $(LOADOPTS)   $(IPM)) 
 
 run_dense_fanboth_mpi.o: run_dense_fanboth_mpi.cpp 
 	${CXX} -g  -o $@ -c ${CXXFLAGS} ${CPPDEFS} $< 
