@@ -4,18 +4,14 @@
 #include <string.h>
 #include <omp.h>
 #include "util.h"
-#include <omp.h>
 
-//#define POPSIZE 50
-#define NUM_GENES 1074
-
-
-char* INPUT_FILE;
-char* ADJ_FILE;
-int MAXGENS;
-int STOPCOUNT;
-double PMUTATION;
-int POPSIZE;
+char* inputFile;
+char* adjacencyFile;
+int maxGens;
+int stopCount;
+double pMutation;
+int popSize;
+int maxPopSize;
 double swapPercent;
 int swapLength;
 
@@ -29,11 +25,10 @@ struct individual {
     double fitness{-1};
     double rfitness;
     double cfitness;
-    int ordering[NUM_GENES];
+    int* ordering;
 };
 
-//struct individual** currentPop;
-struct individual** nextPop;
+struct individual** population;
 int* adjArray1;
 int* adjArray2;
 
@@ -79,18 +74,18 @@ int main (int argc, char *argv[]) {
         fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Size\n");
         exit(5);
     } else {
-        INPUT_FILE = argv[1];
-        ADJ_FILE = argv[2];
-        MAXGENS = atoi(argv[3]);
-        PMUTATION = atof(argv[4]);
+        inputFile = argv[1];
+        adjacencyFile = argv[2];
+        maxGens = atoi(argv[3]);
+        pMutation = atof(argv[4]);
         swapPercent = atof(argv[5]);
         swapLength = atoi(argv[6]);
-        STOPCOUNT = atoi(argv[7]);
+        stopCount = atoi(argv[7]);
         breakThreshold = atoi(argv[8]);
         mutType = argv[9];
         crossType = argv[10];
         selectionType = argv[11];
-        POPSIZE = atoi(argv[12]);
+        maxPopSize = atoi(argv[12]);
     }
 
     setbuf(stdout, NULL);
@@ -98,78 +93,65 @@ int main (int argc, char *argv[]) {
 
     printf("Initial Population \n");
     printPop();
-    evaluateOrdering(nextPop, POPSIZE);
-    while (currentGen < MAXGENS) {
-
-        //memcpy(nextPop, currentPop, POPSIZE * sizeof(struct individual*));
-
+    evaluateOrdering(population, popSize);
+    while (currentGen < maxGens) {
         #pragma omp parallel for
-        for (int j = POPSIZE; j < ((2 * POPSIZE)); j++) {
+        for (int j = popSize; j < ((2 * popSize)); j++) {
             struct individual* child;
             int parent1;
             int parent2 = -1;
-            parent1 = pickParent(nextPop);
+            parent1 = pickParent(population);
             while (parent2 < 0 || parent2 == parent1) {
-                parent2 = pickParent(nextPop);
+                parent2 = pickParent(population);
             }
-            //printf("Parent 1 is %d and Parent 2 is %d\n", parent1, parent2);
             child = cross(parent1, parent2);
-
-            //free(nextPop[j]);
-            nextPop[j] = child;
+            population[j] = child;
         }
-        mutatePop(nextPop);
-        evaluateOrdering(nextPop, 2*POPSIZE);
-       // qsort(nextPop, POPSIZE * 2, sizeof(struct individual), costComp);
-
-        qsort(nextPop, POPSIZE, sizeof(struct individual*), costComp);                      //remove to revert
-
-        qsort(nextPop + (POPSIZE), POPSIZE, sizeof(struct individual*), costComp);        //remove to revert
-        for (int x = (POPSIZE/2); x < POPSIZE; x++) {
-            free(nextPop[x]);
+        mutatePop(population);
+        evaluateOrdering(population, 2*popSize);
+        qsort(population, popSize, sizeof(struct individual*), costComp);
+        qsort(population + (popSize), popSize, sizeof(struct individual*), costComp);
+        for (int x = (popSize/2); x < popSize; x++) {
+            free(population[x]->ordering);
+            free(population[x]);
         }
-        for (int z = ((POPSIZE/2)+POPSIZE); z<(POPSIZE *2); z++) {
-            free(nextPop[z]);
+        for (int z = ((popSize/2)+popSize); z<(popSize *2); z++) {
+            free(population[z]->ordering);
+            free(population[z]);
         }
-         
+        memcpy(population + (popSize/2), population + (popSize), (popSize/2)*sizeof(struct individual*));
+        qsort(population, popSize, sizeof(struct individual*), costComp);
 
-        //memcpy(currentPop, nextPop, (POPSIZE/2)*sizeof(struct individual*));
-        memcpy(nextPop + (POPSIZE/2), nextPop + (POPSIZE), (POPSIZE/2)*sizeof(struct individual*));
-        qsort(nextPop, POPSIZE, sizeof(struct individual*), costComp);
-
-        if (nextPop[0]->fitness > costStopScore) {
-            costStopScore = nextPop[0]->fitness;
+        if (population[0]->fitness > costStopScore) {
+            costStopScore = population[0]->fitness;
             costStopCounter = 0;
         }
         costStopCounter += 1;
 
-        if ((1/nextPop[0]->fitness) < breakThreshold) {
+        if ((1/population[0]->fitness) < breakThreshold) {
             break;
         }
-        
-        //memcpy(currentPop, nextPop, POPSIZE * sizeof(struct individual));
         
         currentGen += 1;
-        if (costStopCounter == STOPCOUNT) {
+        if (costStopCounter == stopCount) {
             break;
         }
-        printf("Best Indiv is fitness %f\n", 1/nextPop[0]->fitness);
+        printf("Best Indiv is fitness %f\n", 1/population[0]->fitness);
         //printf("Current Generation is %d\n", currentGen);
     } 
     printf("Final Population with %d generations.\n", currentGen);
     printPop();
 
-
-    if (isPermutation(nextPop[0]->ordering)) {
+    if (isPermutation(population[0]->ordering)) {
         printf("The best individual in this population is a real permutation.\n");
     }
     printf("Cost was called %d times this run.\n", costCounter);
     printf("This run took %d generations.\n", currentGen);
-    for (int i = 0; i < POPSIZE; i++) {
-        free(nextPop[i]);
+    for (int i = 0; i < popSize; i++) {
+        free(population[i]->ordering);
+        free(population[i]);
     }
-    //free(currentPop);
-    free(nextPop);
+    free(population);
     free(adjArray1);
     free(adjArray2);
 }
@@ -203,20 +185,20 @@ int averageStructComp(const void * a, const void * b) {
 /*Prints the genes of the current population. */
 void printPop() {
     double average = 0;
-    for (int i = 0; i < POPSIZE; i++) {
+    for (int i = 0; i < popSize; i++) {
         for (int j = 0; j < n; j++) {
-            printf("%d ", nextPop[i]->ordering[j]);
+            printf("%d ", population[i]->ordering[j]);
         }
         double thisFit;
         if (currentGen != 0) {
-            thisFit = (1 / nextPop[i]->fitness);
+            thisFit = (1 / population[i]->fitness);
         } else {
-            thisFit = ((GetCost(n, nnz, adjArray1, adjArray2, nextPop[i]->ordering)));
+            thisFit = ((GetCost(n, nnz, adjArray1, adjArray2, population[i]->ordering)));
         }
         average += thisFit;
         printf("Fitness: %f\n", thisFit);
     }
-    average = average / POPSIZE;
+    average = average / popSize;
     printf("Average is %f", average);
     printf("\n");
 }
@@ -226,14 +208,13 @@ void printPop() {
 struct individual* cross (int firstParent, int secondParent) {
     struct individual* child = (struct individual*) malloc(sizeof(struct individual));
     child->fitness = -1;
-    //printf("Using Parent1: %d and Parent2: %d\n", firstParent, secondParent);
+    child->ordering = (int*) malloc(sizeof(int) * n);
     if (!strcmp("order", crossType)) {
-        int crossOver1 = (rand() % (n-2));                   //CrossOver1 should be between 0 and n-2
+        int crossOver1 = (rand() % (n-2));
         int crossOver2 = -1;
         while (crossOver2 <= (crossOver1) + 1)   {
-            crossOver2 = rand() % n;                         //CrossOver2 should be > crossOver1 and < n
+            crossOver2 = rand() % n;
         }
-        //printf("Crossover1 is %d and crossover2 is %d\n", crossOver1, crossOver2);
 
         int takenGenes[n + 1];
         for (int zeroing = 0; zeroing < n + 1; zeroing++){
@@ -241,32 +222,32 @@ struct individual* cross (int firstParent, int secondParent) {
         }
 
         for (int copySeg = crossOver1; copySeg < crossOver2; copySeg++) {
-            child->ordering[copySeg] = nextPop[firstParent]->ordering[copySeg];
-            takenGenes[nextPop[firstParent]->ordering[copySeg]] = 1;
+            child->ordering[copySeg] = population[firstParent]->ordering[copySeg];
+            takenGenes[population[firstParent]->ordering[copySeg]] = 1;
         }
 
         int secondCrawler = 0;
         for (int i = 0; i < crossOver1; i++) {
-            while (takenGenes[nextPop[secondParent]->ordering[secondCrawler]] == 1) {
+            while (takenGenes[population[secondParent]->ordering[secondCrawler]] == 1) {
                 secondCrawler += 1;
             }
-            child->ordering[i] = nextPop[secondParent]->ordering[secondCrawler];
-            takenGenes[nextPop[secondParent]->ordering[secondCrawler]] = 1;
+            child->ordering[i] = population[secondParent]->ordering[secondCrawler];
+            takenGenes[population[secondParent]->ordering[secondCrawler]] = 1;
         }
 
         for (int j = crossOver2; j < n; j++) {
-            while (takenGenes[nextPop[secondParent]->ordering[secondCrawler]] == 1) {
+            while (takenGenes[population[secondParent]->ordering[secondCrawler]] == 1) {
                 secondCrawler += 1;
             }
-            child->ordering[j] = nextPop[secondParent]->ordering[secondCrawler];
-            takenGenes[nextPop[secondParent]->ordering[secondCrawler]] = 1;
+            child->ordering[j] = population[secondParent]->ordering[secondCrawler];
+            takenGenes[population[secondParent]->ordering[secondCrawler]] = 1;
         }
 
         if (!isPermutation(child->ordering)) {
             printf("Child is illegal permutation.\n");
             printf("Dumping orderings (child p1 p2)\n");
             for (int z = 0; z < n; z++) {
-                printf("%d %d %d %d\n", z, child->ordering[z], nextPop[firstParent]->ordering[z], nextPop[secondParent]->ordering[z]);
+                printf("%d %d %d %d\n", z, child->ordering[z], population[firstParent]->ordering[z], population[secondParent]->ordering[z]);
             }
             printf("\n");
             exit(1);
@@ -277,10 +258,10 @@ struct individual* cross (int firstParent, int secondParent) {
             newOrder[starter].value = starter;
         }
         for (int location = 0; location < n; location++) {
-            newOrder[nextPop[firstParent]->ordering[location]].average = location;
+            newOrder[population[firstParent]->ordering[location]].average = location;
         }
         for (int location2 = 0; location2 < n; location2++) {
-            newOrder[nextPop[secondParent]->ordering[location2]].average += location2;
+            newOrder[population[secondParent]->ordering[location2]].average += location2;
         }
         for (int division = 0; division < n; division++) {
             newOrder[division].average /= 2;
@@ -299,7 +280,7 @@ struct individual* cross (int firstParent, int secondParent) {
         }
     } else if (!strcmp("none", crossType)) {
         for (int sillyCopy = 0; sillyCopy < n; sillyCopy++) {
-            child->ordering[sillyCopy] = nextPop[firstParent]->ordering[sillyCopy];
+            child->ordering[sillyCopy] = population[firstParent]->ordering[sillyCopy];
         } 
         if (!isPermutation(child->ordering)) {
             printf("Child is illegal permutation.\n");
@@ -313,32 +294,33 @@ struct individual* cross (int firstParent, int secondParent) {
     int parentATesting = 0;
     int parentBTesting = 0;
     for (int testingVar = 0; testingVar < n; testingVar++) {
-        if (child->ordering[testingVar] == nextPop[firstParent]->ordering[testingVar]) {
+        if (child->ordering[testingVar] == population[firstParent]->ordering[testingVar]) {
             parentATesting += 1;
         }
-        if (child->ordering[testingVar] == nextPop[secondParent]->ordering[testingVar]) {
+        if (child->ordering[testingVar] == population[secondParent]->ordering[testingVar]) {
             parentBTesting += 1;
         }
     }
     if (parentATesting == n) {
-        int newParent1 = pickParent(nextPop);
+        int newParent1 = pickParent(population);
         int newParent2 = -1;
         while (newParent2 < 0 || newParent2 == newParent1) {
-            newParent2 = pickParent(nextPop);
+            newParent2 = pickParent(population);
         }
+        free(child->ordering);
         free(child);
         return cross(newParent1, newParent2);
     }
     if (parentBTesting == n) {
-        int newParent1 = pickParent(nextPop);
+        int newParent1 = pickParent(population);
         int newParent2 = -1;
         while (newParent2 < 0 || newParent2 == newParent1) {
-            newParent2 = pickParent(nextPop);
+            newParent2 = pickParent(population);
         }
+        free(child->ordering);
         free(child);
         return cross(newParent1, newParent2);
     }
-    //printf("Child generated with cost %f\n",((GetCost(n, nnz, adjArray1, adjArray2, child.ordering))));
 
 
     return child;
@@ -353,27 +335,27 @@ int pickParent(struct individual* possibleParents[]) {
     if (!strcmp("rw", selectionType)) {
         totalFitness=0;
         //Find the total fitness of the population.
-        for (int totalSum = 0; totalSum < POPSIZE; totalSum++) {
-            totalFitness += nextPop[totalSum]->fitness;
+        for (int totalSum = 0; totalSum < popSize; totalSum++) {
+            totalFitness += population[totalSum]->fitness;
         }
         //Find the relative fitness of the population.
-        for (int fitCounter = 0; fitCounter < POPSIZE; fitCounter++) {
-            nextPop[fitCounter]->rfitness = nextPop[fitCounter]->fitness / totalFitness;
+        for (int fitCounter = 0; fitCounter < popSize; fitCounter++) {
+            population[fitCounter]->rfitness = population[fitCounter]->fitness / totalFitness;
         }
         //Find the cumulative fitness of the individuals.
-        nextPop[0]->cfitness = nextPop[0]->rfitness;
-        for (int cfitCounter = 1; cfitCounter < POPSIZE; cfitCounter ++) {
-            nextPop[cfitCounter]->cfitness = nextPop[cfitCounter - 1]->cfitness + nextPop[cfitCounter]->rfitness;
+        population[0]->cfitness = population[0]->rfitness;
+        for (int cfitCounter = 1; cfitCounter < popSize; cfitCounter ++) {
+            population[cfitCounter]->cfitness = population[cfitCounter - 1]->cfitness + population[cfitCounter]->rfitness;
         }
         
         //Select and return 1 parent, based off of cfitness.
         double random;
         random =((double)rand()/(double)RAND_MAX);
-        if (random < nextPop[0]->cfitness) {
+        if (random < population[0]->cfitness) {
             return 0;
         } else {
-            for (int picker = 0; picker < POPSIZE; picker++) {
-                if (nextPop[picker]->cfitness <= random && random < nextPop[picker + 1]->cfitness) {
+            for (int picker = 0; picker < (popSize-1); picker++) {
+                if (population[picker]->cfitness <= random && random < population[picker + 1]->cfitness) {
                     return picker + 1;
                 }
             }
@@ -381,31 +363,29 @@ int pickParent(struct individual* possibleParents[]) {
     } else if (!strcmp("ro", selectionType)) {
         totalFitness=0;
         //Find the total fitness of the population.
-        for (int totalSum = 0; totalSum < POPSIZE; totalSum++) {
+        for (int totalSum = 0; totalSum < popSize; totalSum++) {
             totalFitness += totalSum + 1;
-            //printf("Total Fitness is %f\n", totalFitness);
         }
         //Find the relative fitness of the population.
         int ranking = 1;
-        for (int fitCounter = POPSIZE - 1; fitCounter >= 0; fitCounter--) {
-            nextPop[fitCounter]->rfitness = ranking / totalFitness;
+        for (int fitCounter = popSize - 1; fitCounter >= 0; fitCounter--) {
+            population[fitCounter]->rfitness = ranking / totalFitness;
             ranking++;
-            //printf("Rfitnesses are %f\n", nextPop[fitCounter].rfitness);
         }
         //Find the cumulative fitness of the individuals.
-        nextPop[0]->cfitness = nextPop[0]->rfitness;
-        for (int cfitCounter = 1; cfitCounter < POPSIZE; cfitCounter ++) {
-            nextPop[cfitCounter]->cfitness = nextPop[cfitCounter - 1]->cfitness + nextPop[cfitCounter]->rfitness;
+        population[0]->cfitness = population[0]->rfitness;
+        for (int cfitCounter = 1; cfitCounter < popSize; cfitCounter ++) {
+            population[cfitCounter]->cfitness = population[cfitCounter - 1]->cfitness + population[cfitCounter]->rfitness;
         }
         
         //Select and return 1 parent, based off of cfitness.
         double random;
         random =((double)rand()/(double)RAND_MAX);
-        if (random < nextPop[0]->cfitness) {
+        if (random < population[0]->cfitness) {
             return 0;
         } else {
-            for (int picker = 0; picker < POPSIZE; picker++) {
-                if (nextPop[picker]->cfitness <= random && random < nextPop[picker + 1]->cfitness) {
+            for (int picker = 0; picker < (popSize - 1); picker++) {
+                if (population[picker]->cfitness <= random && random < population[picker + 1]->cfitness) {
                     return picker + 1;
                 }
             }
@@ -428,36 +408,39 @@ void evaluateOrdering(struct individual* indivs[], int size) {
     }
 }
 
-/* Initializze the original generation to begin the simulation.
+/* Initialize the original generation to begin the simulation.
    probably involves reading in my other program and using that
    adjacency list to somehow generate a population. Also seeds
    the random number generator used for ohter functions of this
    program. Also reads in the adjacency input file.*/
 void init() {
     srand(time(NULL));
-    ReadAdjacency(ADJ_FILE, &adjArray1, &adjArray2, &n, &nnz);    
-    //currentPop = (struct individual**) malloc(POPSIZE * sizeof(struct individual*));
-    nextPop = (struct individual**) malloc(POPSIZE * 2 * sizeof(struct individual*));
-    for (int i = 0; i < POPSIZE; i++) {
-        nextPop[i] = (struct individual*) malloc(sizeof(struct individual));
-        nextPop[i]->fitness = -1;
-    }
-        
+    ReadAdjacency(adjacencyFile, &adjArray1, &adjArray2, &n, &nnz);    
     FILE *inFile;
     int number;
-    inFile = fopen(INPUT_FILE, "r");
+    inFile = fopen(inputFile, "r");
     if (inFile == NULL) {
         fprintf(stderr, "Unable to open file\n");
         exit(1);
     }
-    for (int indiv = 0; indiv < POPSIZE; indiv ++) {
+    fscanf(inFile, "%d", &popSize);
+    if (maxPopSize < popSize) {
+        maxPopSize = popSize;
+    }
+    population = (struct individual**) malloc(maxPopSize * 2 * sizeof(struct individual*));
+    for (int i = 0; i < popSize; i++) {
+        population[i] = (struct individual*) malloc(sizeof(struct individual));
+        population[i]->fitness = -1;
+        population[i]->ordering = (int*) malloc(sizeof(int) * n);
+    }    
+    for (int indiv = 0; indiv < popSize; indiv ++) {
         for (int gene = 0; gene < n; gene++) {
             fscanf(inFile, "%d", &number);
             if (feof(inFile)) {
                 fprintf(stderr, "Reached EOF Early, check parameters\n");
                 exit(1);
             }
-            nextPop[indiv]->ordering[gene] = number;
+            population[indiv]->ordering[gene] = number;
         }
     }
     fclose(inFile);
@@ -466,15 +449,14 @@ void init() {
 /* Mutates the entire current population. */
 void mutatePop(struct individual* mutated[]) {
     #pragma omp parallel for
-    for (int indiv = POPSIZE; indiv < POPSIZE * 2; indiv++) {
+    for (int indiv = popSize; indiv < popSize * 2; indiv++) {
         double randomMutate;
         double mutateBarrier;
-        mutateBarrier = PMUTATION * RAND_MAX;
+        mutateBarrier = pMutation * RAND_MAX;
         randomMutate=rand();
         if (randomMutate < mutateBarrier) {
             mutated[indiv]->fitness = - 1;
             int numSwaps = swapPercent * n * .01;         //playing with this variable
-            // printf("numSwaps is: %d\n", numSwaps);
             for (int x = 0; x < numSwaps; x++) {
                 if (!strcmp("swap", mutType)) {
                     int temp[n]; 
