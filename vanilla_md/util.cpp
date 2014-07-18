@@ -53,13 +53,17 @@ void displayMatrix(vector<int> & xadj, vector<int> & adj){
   }
 }
 
-void GetPermutedGraph(int n, int nnz, int * xadj, int * adj, int * perm, int * newxadj, int * newadj){
+void GetPermutedGraph(int n, int nnz, int * xadj, int * adj, int * perm, int * invp, int * newxadj, int * newadj){
   //sort the adjacency structure according to the new labelling
 
-  vector<int> invperm(n);
+  vector<int> invperm;
+  if(invp==NULL){
+    invperm.resize(n);
+    invp = &invperm[0];
+  }
 
   for(int step = 1; step<=n;++step){
-    invperm[perm[step-1]-1] = step;
+    invp[perm[step-1]-1] = step;
   }
 
 
@@ -92,7 +96,7 @@ void GetPermutedGraph(int n, int nnz, int * xadj, int * adj, int * perm, int * n
     int ofn = xadj[oldlabel-1];
     int oln = xadj[oldlabel]-1;
     for(int i =ofn;i<=oln;++i){
-      newadj[fn+i-ofn-1] = invperm[adj[i-1]-1];
+      newadj[fn+i-ofn-1] = invp[adj[i-1]-1];
     }
 
     //now sort them
@@ -120,6 +124,9 @@ void GetPermutedGraph(int n, int nnz, int * xadj, int * adj, int * perm, int * n
 }
 
 
+void GetPermutedGraph(int n, int nnz, int * xadj, int * adj, int * perm, int * newxadj, int * newadj){
+  GetPermutedGraph(n, nnz, xadj, adj, perm, NULL, newxadj, newadj);
+}
 
 
 void SymbolicFactorization(ETree& tree,const vector<int> & colptr,const vector<int> & rowind,const vector<int> & cc, vector<int> & xlindx, vector<int> & lindx){
@@ -767,7 +774,7 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
 
   vector<int> newxadj(n+1);
   vector<int> newadj(nnz);
-  GetPermutedGraph(n,nnz,xadj, adj, perm, &newxadj[0], &newadj[0]);
+  GetPermutedGraph(n,nnz,xadj, adj, perm, NULL, &newxadj[0], &newadj[0]);
 
 
   initEdgeCnt=n;
@@ -1032,16 +1039,55 @@ double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * cos
 
   vector<int> newxadj(n+1);
   vector<int> newadj(nnz);
-  GetPermutedGraph(n,nnz,xadj, adj, perm, &newxadj[0], &newadj[0]);
+  vector<int> invp(n);
+  GetPermutedGraph(n,nnz,xadj, adj, perm,&invp[0], &newxadj[0], &newadj[0]);
+
+
+  //Get the elimination tree
+  ETree  tree;
+  tree.ConstructETree(n,&newxadj[0],&newadj[0]);
+  tree.PostOrderTree();
+
+  //update perm
+  vector<int> poinvp(n);
+  for(int i=1;i<=n;++i){poinvp[i-1]=tree.ToPostOrder(i);}
+
+#ifdef _verbose_
+  vector<int> poperm(n);
+  for(int i=1;i<=n;++i){poperm[i-1]=tree.FromPostOrder(i);}
+  cout<<"poperm: ";
+  for(int i =0; i<n; ++i){
+    cout<<" "<<poperm[i];
+  }
+  cout<<endl;
+
+  cout<<"poinvp: ";
+  for(int i =0; i<n; ++i){
+    cout<<" "<<poinvp[i];
+  }
+  cout<<endl;
+#endif
+
+
+  //Compose the two permutations 
+  for(int i = 1; i <= n; ++i){ 
+    int interm = invp[i-1]; 
+    invp[i-1] = poinvp[interm-1]; 
+  } 
+  for(int i = 1; i <= n; ++i){ 
+    int node = invp[i-1]; 
+    perm[node-1] = i; 
+  } 
 
   initEdgeCnt=n;
   //initialize nodes
   for(int i=0;i<n;++i){
+    int col = tree.FromPostOrder(i+1);
     if(costc!=NULL){
       costc[i] = 1;
     }
-    for(int idx = newxadj[i]; idx <= newxadj[i+1]-1;++idx){
-      if(newadj[idx-1]-1>i){
+    for(int idx = newxadj[col-1]; idx <= newxadj[col]-1;++idx){
+      if(newadj[idx-1]-1>col){
 
         if(costc!=NULL){
           costc[i]++;
@@ -1056,14 +1102,13 @@ double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * cos
 #endif
 
 
-  //Get the elimination tree
-  ETree  tree;
-  tree.ConstructETree(n,&newxadj[0],&newadj[0]);
-  tree.PostOrderTree();
-  vector<int> poperm(n);
-  for(int i=1;i<=n;++i){poperm[i-1]=tree.ToPostOrder(i);}
 
-  for(int i=1;i<=n;++i){perm[i-1]=tree.ToPostOrder(i);}
+
+
+
+
+
+
 
   vector<int> cc,rc;
   GetLColRowCount(tree,&newxadj[0],&newadj[0],cc,rc);
