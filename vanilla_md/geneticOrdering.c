@@ -5,20 +5,6 @@
 #include <omp.h>
 #include "util.h"
 
-char* inputFile;
-char* adjacencyFile;
-int maxGens;
-int stopCount;
-double pMutation;
-int popSize;
-int maxPopSize;
-double maxPopScale;
-double swapPercent;
-int swapLength;
-time_t seed;
-int growthNumber;
-
-
 struct averageStruct {
     int average;
     int value;
@@ -32,39 +18,51 @@ struct individual {
 };
 
 struct individual** population;
+
 int* adjArray1;
 int* adjArray2;
 
-int nnz;
-int n;
-
-int main(int arc, char *argv[]);
-struct individual* cross (int firstParent, int secondParent);
-void evaluateOrdering(struct individual* indivs[], int size);
-void init();
-void keepBest();
-void mutatePop(struct individual* mutated[]);
-int pickParent(struct individual* possibleParents[]);
-void printPop();
-int costComp(const void * a, const void * b);
-int averageStructComp(const void * a, const void * b);
-int isPermutation(int possiblePermutation[]);
-
-double totalFitness;
-int currentGen = 0;
-
-double costStopCounter = 0;
-double costStopScore = 0;
-int breakThreshold;
-
+char* inputFile;
+char* adjacencyFile;
 char* mutType;
 char* crossType;
 char* selectionType;
 
+int nnz;
+int n;
+int maxGens;
+int stopCount;
+int popSize;
+int maxPopSize;
+int swapLength;
+int growthNumber;
+int currentGen = 0;
+int breakThreshold;
 int costCounter = 0;
 
+double pMutation;
+double maxPopScale;
+double swapPercent;
+double totalFitness;
+double costStopCounter = 0;
+double costStopScore = 0;
 
+time_t seed;
 
+int main(int argc, char *argv[]);
+
+struct individual* cross (int firstParent, int secondParent);
+
+void evaluateOrdering(struct individual* indivs[], int size);
+void init(int argc, char *argv[]);
+void keepBest();
+void mutatePop(struct individual* mutated[]);
+void printPop();
+
+int pickParent(struct individual* possibleParents[]);
+int costComp(const void * a, const void * b);
+int averageStructComp(const void * a, const void * b);
+int isPermutation(int possiblePermutation[]);
 
 /* The main function for a program to generate Matrix Orderings which
    require the least possible fill during factorization and other
@@ -72,35 +70,8 @@ int costCounter = 0;
    for the optimal matrix ordering. Does not take any commandline
    arguments as of now.*/
 int main (int argc, char *argv[]) {
-
-    if (argc != 14) {
-        fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Scale (i.e. 2 = 200 percent scaling)\n Amount of individuals to increase each generation(rounded up to nearest even number)");
-        exit(5);
-    } else {
-        inputFile = argv[1];
-        adjacencyFile = argv[2];
-        maxGens = atoi(argv[3]);
-        pMutation = atof(argv[4]);
-        swapPercent = atof(argv[5]);
-        swapLength = atoi(argv[6]);
-        stopCount = atoi(argv[7]);
-        breakThreshold = atoi(argv[8]);
-        mutType = argv[9];
-        crossType = argv[10];
-        selectionType = argv[11];
-        maxPopScale = atof(argv[12]);
-        if (maxPopScale < 1) {
-            maxPopScale = 1;
-        }
-        growthNumber = atoi(argv[13]);
-        if (growthNumber % 2 == 1) {
-            growthNumber += 1;
-        }
-    }
-
     setbuf(stdout, NULL);
-    init();
-
+    init(argc, argv);
     printf("Initial Population \n");
     printPop();
     evaluateOrdering(population, popSize);
@@ -161,8 +132,10 @@ int main (int argc, char *argv[]) {
     if (isPermutation(population[0]->ordering)) {
         printf("The best individual in this population is a real permutation.\n");
     }
+    printf("The best cost is %f\n", 1/(population[0]->fitness));
     printf("Cost was called %d times this run.\n", costCounter);
     printf("This run took %d generations.\n", currentGen);
+    printf("The final population size for this was %d\n", popSize);
     for (int i = 0; i < popSize; i++) {
         free(population[i]->ordering);
         free(population[i]);
@@ -429,10 +402,34 @@ void evaluateOrdering(struct individual* indivs[], int size) {
    adjacency list to somehow generate a population. Also seeds
    the random number generator used for ohter functions of this
    program. Also reads in the adjacency input file.*/
-void init() {
+void init(int argc, char *argv[]) {
     seed = time(NULL);
     srand(seed);
     printf("Seed is %d\n",seed);
+    if (argc != 14) {
+        fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Scale (i.e. 2 = 200 percent scaling)\n Amount of individuals to increase each generation(rounded up to nearest even number)");
+        exit(5);
+    } else {
+        inputFile = argv[1];
+        adjacencyFile = argv[2];
+        maxGens = atoi(argv[3]);
+        pMutation = atof(argv[4]);
+        swapPercent = atof(argv[5]);
+        swapLength = atoi(argv[6]);
+        stopCount = atoi(argv[7]);
+        breakThreshold = atoi(argv[8]);
+        mutType = argv[9];
+        crossType = argv[10];
+        selectionType = argv[11];
+        maxPopScale = atof(argv[12]);
+        if (maxPopScale < 1) {
+            maxPopScale = 1;
+        }
+        growthNumber = atoi(argv[13]);
+        if (growthNumber % 2 == 1) {
+            growthNumber += 1;
+        }
+    }
     ReadAdjacency(adjacencyFile, &adjArray1, &adjArray2, &n, &nnz);    
     FILE *inFile;
     int number;

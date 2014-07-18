@@ -1,5 +1,5 @@
-CXXFLAGS =-I./  -O3 -std=c++11
-#CXXFLAGS =-I./  -O0 -g -std=c++11
+#CXXFLAGS =-I./  -O3 -std=c++11
+CXXFLAGS =-I./  -g -O0 -std=c++11
 
 all: check_md md vmd call_cost maxd genetic
 
