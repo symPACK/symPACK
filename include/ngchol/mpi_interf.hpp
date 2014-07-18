@@ -1,6 +1,8 @@
 #ifndef _NGCHOL_MPI_HPP_
 #define _NGCHOL_MPI_HPP_
 
+#include <iostream>
+
 #include  "ngchol/Environment.hpp"
 #include  "ngchol/CommTypes.hpp"
 
@@ -12,10 +14,6 @@ namespace LIBCHOLESKY{
   ///
   /// @brief Interface with MPI to facilitate communication.
   namespace mpi{
-
-
-
-
 
     inline void
       Gatherv ( 

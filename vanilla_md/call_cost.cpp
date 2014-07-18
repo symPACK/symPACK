@@ -69,8 +69,16 @@ int main(int argc, char *argv[]) {
 
   vector<int> costc(n);
   double cost2  = GetCost(n,adj.size(),&xadj[0],&adj[0],&perm[0]);
+
+
+
   double cost  = GetCostPerCol(n,adj.size(),&xadj[0],&adj[0],&perm[0],&costc[0]);
 
+    cout<<"Perm after postordering: ";
+    for(int i =0; i<perm.size(); ++i){
+      cout<<" "<<perm[i];
+    }
+    cout<<endl;
 
   cout<<"Cost(fast) is "<<cost2<<endl;
   cout<<"Cost is "<<cost<<endl;
