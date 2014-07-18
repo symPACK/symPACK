@@ -9,6 +9,9 @@
 #include <mpi.h>
 
 #include "ngchol/Environment.hpp"
+#include "ngchol/debug.hpp"
+
+
 
 namespace LIBCHOLESKY{
 
@@ -75,13 +78,11 @@ namespace LIBCHOLESKY{
       if(Request !=MPI_REQUEST_NULL){
         MPI_Status recv_status;
         int flag = 0;
-        MPI_Test(&Request,&flag,&recv_status);
+
+//        set_mpi_handler(MPI_COMM_WORLD);
+        int error_code = MPI_Test(&Request,&flag,&recv_status);
+//        check_mpi_error(error_code, MPI_COMM_WORLD, true);
         if(!flag){
-          //        MPI_Wait(&Request,&recv_status);
-          //          MPI_Test_cancelled(&recv_status,&flag);
-          //          if(!flag){
-          //          }
-          //            cout<<"CANCEL"<<endl;
           MPI_Cancel(&Request);
         }
         MPI_Request_free(&Request);
@@ -89,15 +90,14 @@ namespace LIBCHOLESKY{
     };
     inline char * back(){ return &pSrcBlocks->at(head);}
     inline char * front(){ return &pSrcBlocks->front();}
-    //inline Int size(){ return pSrcBlocks->size();}
+    inline Int capacity(){ return pSrcBlocks->size();}
     inline Int size(){ return head;}
     inline void resize(Int size){
       head = 0; 
-//      pSrcBlocks->resize(0); 
-//      pSrcBlocks->reserve(size);
       pSrcBlocks->resize(size);
     }
     inline void setHead(Int phead){ 
+//if(this == 0x1cb5e00){gdb_lock();}
       assert(phead <= pSrcBlocks->size()); 
       head = phead;
     }
@@ -109,7 +109,9 @@ namespace LIBCHOLESKY{
       if(Request !=MPI_REQUEST_NULL){
         MPI_Status recv_status;
         int flag = 0;
-        MPI_Test(&Request,&flag,&recv_status);
+//        set_mpi_handler(MPI_COMM_WORLD);
+        int error_code = MPI_Test(&Request,&flag,&recv_status);
+//        check_mpi_error(error_code, MPI_COMM_WORLD, true);
         assert(!flag);
         MPI_Request_free(&Request);
       }

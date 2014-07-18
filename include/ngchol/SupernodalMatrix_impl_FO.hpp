@@ -5,7 +5,7 @@
 
 
 
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend){
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
   if(!MsgToSend.empty()){
 
     //CommList::iterator it = MsgToSend.begin();
@@ -27,20 +27,21 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
 #endif
 
       Int iLocalSrc = (src_snode_id-1) / np +1 ;
-      SuperNode<T> & prev_src_snode = *LocalSupernodes_[iLocalSrc -1];
+      SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
 
       //        assert(prev_src_snode.Id()==src_snode_id);
 
-      Int last_local_id = LocalSupernodes_.back()->Id();
+      Int last_local_id = snodeColl.back()->Id();
       Int iLocalI = (cur_snode_id-1) / np +1 ;
-      Int local_snode_id = cur_snode_id>=last_local_id?-1:
-        LocalSupernodes_[iLocalI-1]->Id();
+      Int local_snode_id = cur_snode_id>=last_local_id?-1:snodeColl[iLocalI-1]->Id();
       Int last_snode_id = Xsuper_.m()-1;
 
       bool is_sendable = ((cur_snode_id<last_local_id 
             && tgt_id < local_snode_id)
-          || (cur_snode_id>last_local_id  || 
-      (cur_snode_id<last_snode_id && cur_snode_id>=last_local_id)));
+          || (cur_snode_id>=last_local_id  || 
+//TODO FIX THIS FOR PWTK
+      //(cur_snode_id<last_snode_id && cur_snode_id>=last_local_id)));
+      0));
 
       if(is_sendable){
 
@@ -153,7 +154,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
 
         incomingRecv.push_back(new Icomm(max_bytes,MPI_REQUEST_NULL));
         Icomm & Irecv = *incomingRecv.back();
-        MPI_Irecv(Irecv.front(),Irecv.size(),MPI_BYTE,MPI_ANY_SOURCE,next_src_snode->Id(),CommEnv_->MPI_GetComm(),&Irecv.Request);
+        MPI_Irecv(Irecv.front(),Irecv.capacity(),MPI_BYTE,MPI_ANY_SOURCE,next_src_snode->Id(),CommEnv_->MPI_GetComm(),&Irecv.Request);
         ++IrecvCnt;
       }
 
@@ -205,13 +206,22 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
     else{
       Int done = 0;
       while(cur_incomingRecv.size()>0){
-        for(AsyncComms::iterator it = cur_incomingRecv.begin(); it!=cur_incomingRecv.end();++it){
+        Int index = 0;
+        for(AsyncComms::iterator it = cur_incomingRecv.begin(); it!=cur_incomingRecv.end();++it, ++index){
           Icomm * curComm = *it;
           //MPI_Request req = (curComm->Request);
           //MPI_Test(&(curComm->Request),&done,&recv_status);
-          MPI_Test(&(curComm->Request),&done,&recv_status);
+      set_mpi_handler(MPI_COMM_WORLD);
+      int error_code = MPI_Test(&(curComm->Request),&done,&recv_status);
+      check_mpi_error(error_code, MPI_COMM_WORLD, true);
+
           //Test if comm is done
           if(done==1){
+
+            Int bytes_received = 0;
+            MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
+            curComm->setHead(bytes_received);
+
             TIMER_STOP(IRECV_MPI);
             return it;
           }
@@ -606,7 +616,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
       AdvanceOutgoing(outgoingSend);
 
       //process some of the delayed send
-      SendDelayedMessages(I,FactorsToSend,outgoingSend);
+      SendDelayedMessages(I,FactorsToSend,outgoingSend,LocalSupernodes_);
 
 
       if(I<Xsuper_.m()){
@@ -880,7 +890,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
           //        { vector<T>().swap(src_nzval);  }
 
 
-          //        timeEnd =  get_time( );
+          timeEnd =  get_time( );
 #ifdef _DEBUG_
           if(UpdatesToDo(src_snode.Id()-1)!=0){gdb_lock();}
           assert(UpdatesToDo(src_snode.Id()-1)==0);
@@ -974,7 +984,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
 
                 if(!FactorsToSend.empty()){
                   if(FactorsToSend.top().tgt_snode_id<tgt_snode_id){
-                    SendDelayedMessages(I,FactorsToSend,outgoingSend);
+                    SendDelayedMessages(I,FactorsToSend,outgoingSend,LocalSupernodes_);
                   }
                 }
 #endif
@@ -1340,8 +1350,6 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
           while( it != cur_incomingRecv.end() ){
             Icomm * curComm = *it;
 
-            Int bytes_received = 0;
-            MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
 
             std::vector<char> & src_blocks = *curComm->pSrcBlocks;
             Int src_snode_id = *(Int*)&src_blocks[0];

@@ -140,18 +140,18 @@ DistSparseMatrix<Real> HMat(worldcomm);
   RHS.Resize(n,nrhs);
   XTrue.Resize(n,nrhs);
   //SetValue(XTrue,1.0);
-  for(Int i = 0; i<n;++i){ 
-    for(Int j=0;j<nrhs;++j){
-      XTrue(i,j) = i+1;
-    }
-  }
-  //      UniformRandom(XTrue);
+//  for(Int i = 0; i<n;++i){ 
+//    for(Int j=0;j<nrhs;++j){
+//      XTrue(i,j) = i+1;
+//    }
+//  }
+        UniformRandom(XTrue);
 
   if(iam==0){
     cout<<"Starting spGEMM"<<endl;
   }
 
-#if 0
+#if 1
   timeSta = get_time();
   sp_dgemm_dist("N","N", n, XTrue.n(), n, 
       LIBCHOLESKY::ONE<MYSCALAR>(), HMat, XTrue.Data(), XTrue.m(), 
@@ -208,6 +208,12 @@ DistSparseMatrix<Real> HMat(worldcomm);
       //      UniformRandom(XTrue);
       blas::Gemm('N','N',n,nrhs,n,1.0,&A(0,0),n,&XTrue2(0,0),n,0.0,&RHS2(0,0),n);
 
+      double norm = 0;
+      DblNumMat tmp = RHS2;
+      blas::Axpy(n*nrhs,-1.0,&RHS(0,0),1,&tmp(0,0),1);
+      norm = lapack::Lange('F',n,nrhs,&tmp(0,0),n);
+      cout<<"Norm between RHS is "<<norm<<std::endl;
+
 
       //Order the matrix
       Ordering order = SMat.GetOrdering();
@@ -221,23 +227,45 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
 
       //cal dposv
-      double norm = 0;
+      norm = 0;
 
       //do a solve
       DblNumMat X(RHS2.m(),RHS2.n());
+      DblNumMat XTrue3(XTrue2.m(),XTrue2.n());
       for(Int i = 0; i<n;++i){ 
         for(Int j=0;j<nrhs;++j){
           X(i,j) = RHS2(order.perm[i]-1,j);
+          XTrue3(i,j) = XTrue2(order.perm[i]-1,j);
         }
       }
 
 
+
+//logfileptr->OFS()<<"RHS2 "<<X<<endl;
 //logfileptr->OFS()<<"Aperm "<<Aperm<<endl;
 
+
+
+{
+      DblNumMat B = Aperm;
+      DblNumMat XTrue4 = XTrue3;
+      DblNumMat X3 = X;
+
+      lapack::Potrf('L',n,&B(0,0),n);
+      lapack::Potrs('L',n,nrhs,&B(0,0),n,&X3(0,0),n);
+
+  blas::Axpy(X3.m()*X3.n(),-1.0,&XTrue4(0,0),1,&X3(0,0),1);
+  double norm2 = lapack::Lange('F',X3.m(),X3.n(),&X3(0,0),X3.m());
+    cout<<"Norm of residual after potrf (potrs) is "<<norm2<<std::endl;
+
+}
+
+
+
+
+
+
       lapack::Potrf('L',n,&Aperm(0,0),n);
-
-
-//logfileptr->OFS()<<"Lperm "<<Aperm<<endl;
 
 
       for(Int i = 0; i<A.m();++i){
@@ -247,6 +275,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
           }
         }
       }
+//logfileptr->OFS()<<"Lperm "<<Aperm<<endl;
 
       //simulate a potrs in order to get the intermediate values
       for(Int j = 0; j<nrhs;++j){
@@ -262,11 +291,9 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
       //blas::Trsm('L','L','N','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
       fwdSol.Resize(X.m(),X.n());
-      DblNumMat XTrue3(XTrue2.m(),XTrue2.n());
       for(Int i = 0; i<n;++i){ 
         for(Int j=0;j<nrhs;++j){
           fwdSol(i,j) = X(order.invp[i]-1,j);
-          XTrue3(i,j) = XTrue2(order.perm[i]-1,j);
         }
       }
 
@@ -281,7 +308,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
       blas::Axpy(n*nrhs,-1.0,&XTrue3(0,0),1,&X(0,0),1);
       norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
-      logfileptr->OFS()<<"Norm of residual after MYPOSV is "<<norm<<std::endl;
+      cout<<"Norm of residual after MYPOSV is "<<norm<<std::endl;
 
       destroy_sparse_matrix (Atmp);
 
@@ -347,13 +374,32 @@ DistSparseMatrix<Real> HMat(worldcomm);
   }
     logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
-#ifdef _DEBUG_
+#ifdef _CHECK_RESULT_
+#ifdef _CHECK_RESULT_POTRS_SEQ_
       NumMat<Real> fullMatrix;
       SMat.GetFullFactors(fullMatrix);
-      logfileptr->OFS()<<fullMatrix<<std::endl;
+  if(iam==0){
+//      logfileptr->OFS()<<"FullRes "<<fullMatrix<<std::endl;
+      Ordering order = SMat.GetOrdering();
+      DblNumMat X(RHS.m(),RHS.n());
+      DblNumMat XTrue3(XTrue.m(),XTrue.n());
+      for(Int i = 0; i<n;++i){ 
+        for(Int j=0;j<nrhs;++j){
+          X(i,j) = RHS(order.perm[i]-1,j);
+          XTrue3(i,j) = XTrue(order.perm[i]-1,j);
+        }
+      }
+
+
+      lapack::Potrs('L',n,nrhs,&fullMatrix(0,0),n,&X(0,0),n);
+
+  blas::Axpy(X.m()*X.n(),-1.0,&XTrue3(0,0),1,&X(0,0),1);
+  double norm2 = lapack::Lange('F',X.m(),X.n(),&X(0,0),X.m());
+    cout<<"Norm of residual after SPCHOL (potrs) is "<<norm2<<std::endl;
+
+  }
 #endif
 
-#ifdef _CHECK_RESULT_
 
 
 #ifdef _CHECK_RESULT_SEQ_
@@ -397,15 +443,11 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
 
   if(iam==0){
-#ifdef _CHECK_RESULT_SEQ_
-  blas::Axpy(X.m()*X.n(),-1.0,&XTrue2(0,0),1,&X(0,0),1);
-#else
   blas::Axpy(X.m()*X.n(),-1.0,&XTrue(0,0),1,&X(0,0),1);
-#endif
   double norm = lapack::Lange('F',X.m(),X.n(),&X(0,0),X.m());
     cout<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
-#endif
   }
+#endif
 
   delete mapping;
 

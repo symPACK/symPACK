@@ -816,6 +816,7 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
 
 }
 
+#if 0
 double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * costc){
   int initEdgeCnt;
 
@@ -1024,3 +1025,82 @@ double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * cos
   return (double)(sum - initEdgeCnt);
 
 }
+#else
+//In this version perm is replaced by its post ordered equivalent ordering
+double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * costc){
+  int initEdgeCnt;
+
+  vector<int> newxadj(n+1);
+  vector<int> newadj(nnz);
+  GetPermutedGraph(n,nnz,xadj, adj, perm, &newxadj[0], &newadj[0]);
+
+  initEdgeCnt=n;
+  //initialize nodes
+  for(int i=0;i<n;++i){
+    if(costc!=NULL){
+      costc[i] = 1;
+    }
+    for(int idx = newxadj[i]; idx <= newxadj[i+1]-1;++idx){
+      if(newadj[idx-1]-1>i){
+
+        if(costc!=NULL){
+          costc[i]++;
+        }
+        initEdgeCnt++;
+      }
+    }
+  }
+
+#ifdef _verbose_
+  cout<<"Initial edge count: "<<initEdgeCnt<<endl;
+#endif
+
+
+  //Get the elimination tree
+  ETree  tree;
+  tree.ConstructETree(n,&newxadj[0],&newadj[0]);
+  tree.PostOrderTree();
+  vector<int> poperm(n);
+  for(int i=1;i<=n;++i){poperm[i-1]=tree.ToPostOrder(i);}
+
+  for(int i=1;i<=n;++i){perm[i-1]=tree.ToPostOrder(i);}
+
+  vector<int> cc,rc;
+  GetLColRowCount(tree,&newxadj[0],&newadj[0],cc,rc);
+
+  //sum counts all the diagonal elements
+  int sum = 0;
+  if(costc!=NULL){
+    for(int i =0; i<cc.size(); ++i){
+      costc[i] = cc[i] - costc[i];
+      sum+= cc[i];
+    }
+  }
+  else{
+    for(int i =0; i<cc.size(); ++i){
+      sum+= cc[i];
+    }
+  }
+
+  #ifdef _verbose_
+  cout<<"Column count: ";
+  for(int i =0; i<cc.size(); ++i){
+    cout<<" "<<cc[i];
+  }
+  cout<<endl;
+
+  cout<<"Column costs: ";
+  for(int i =0; i<cc.size(); ++i){
+    cout<<" "<<costc[i];
+  }
+  cout<<endl;
+  #endif
+
+#ifdef _verbose_
+  cout<<"Sum is "<<sum<<endl;
+#endif
+
+  return (double)(sum - initEdgeCnt);
+
+}
+#endif
