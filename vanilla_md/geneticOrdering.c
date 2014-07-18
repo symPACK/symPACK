@@ -4,74 +4,7 @@
 #include <string.h>
 #include <omp.h>
 #include "util.h"
-
-struct averageStruct {
-    int average;
-    int value;
-};
-
-struct individual {
-    double fitness{-1};
-    double rfitness;
-    double cfitness;
-    int* ordering;
-};
-
-struct individual** population;
-
-int* adjArray1;
-int* adjArray2;
-
-char* inputFile;
-char* adjacencyFile;
-char* mutType;
-char* crossType;
-char* selectionType;
-
-int nnz;
-int n;
-int maxGens;
-int stopCount;
-int popSize;
-int maxPopSize;
-int swapLength;
-int growthNumber;
-int currentGen = 0;
-int breakThreshold;
-int costCounter = 0;
-
-double pMutation;
-double maxPopScale;
-double swapPercent;
-double totalFitness;
-double costStopCounter = 0;
-double costStopScore = 0;
-
-time_t seed;
-
-int main(int argc, char *argv[]);
-
-struct individual* cross (int firstParent, int secondParent);
-struct individual* segmentCross(int firstParent, int secondParent);
-struct individual* averageCross(int firstParent, int secondParent);
-
-void evaluateOrdering(struct individual* indivs[], int size);
-void init(int argc, char *argv[]);
-void printPop();
-void mutatePop(struct individual* mutated[]);
-void swapMutate(struct individual* mutated[], int numMutations, int indiv);
-void shiftMutate(struct individual* mutated[], int numMutations, int indiv);
-void invertMutate(struct individual* mutated[], int numMutations, int indiv);
-void orderCrossover(struct individual* child, int firstParent, int secondParent);
-void averageCrossover(struct individual* child, int firstParent, int secondParent);
-void noneCrossover(struct individual* child, int firstParent, int secondParent);
-
-int costComp(const void * a, const void * b);
-int averageStructComp(const void * a, const void * b);
-int isPermutation(int possiblePermutation[]);
-int pickParent(struct individual* possibleParents[]);
-int rankPicking(struct individual* possibleParents[]);
-int fitPicking(struct individual* possibleParents[]);
+#include "geneticOrdering.h"
 
 /* The main function for a program to generate Matrix Orderings which
    require the least possible fill during factorization and other
@@ -429,6 +362,10 @@ void evaluateOrdering(struct individual* indivs[], int size) {
    the random number generator used for ohter functions of this
    program. Also reads in the adjacency input file.*/
 void init(int argc, char *argv[]) {
+    currentGen = 0;
+    costCounter = 0;
+    costStopCounter = 0;
+    costStopScore = 0;
     seed = time(NULL);
     srand(seed);
     printf("Seed is %d\n",seed);
