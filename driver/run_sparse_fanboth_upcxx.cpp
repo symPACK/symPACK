@@ -139,24 +139,66 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
   RHS.Resize(n,nrhs);
   XTrue.Resize(n,nrhs);
+
   //SetValue(XTrue,1.0);
-//  for(Int i = 0; i<n;++i){ 
-//    for(Int j=0;j<nrhs;++j){
-//      XTrue(i,j) = i+1;
-//    }
-//  }
-        UniformRandom(XTrue);
+  Int val = 1.0;
+  for(Int i = 0; i<n;++i){ 
+    for(Int j=0;j<nrhs;++j){
+      XTrue(i,j) = val;
+      val = -val;
+    }
+  }
+//        UniformRandom(XTrue);
 
   if(iam==0){
     cout<<"Starting spGEMM"<<endl;
   }
 
-#if 1
   timeSta = get_time();
+
+#if 1
+{
+  SparseMatrixStructure Local = HMat.GetLocalStructure();
+  SparseMatrixStructure Global;
+  Local.ToGlobal(Global);
+  Global.ExpandSymmetric();
+
+  Int numColFirst = n / np;
+
+
+  SetValue(RHS,0.0);
+  for(Int j = 1; j<=n; ++j){
+    Int iOwner = std::min((j-1)/numColFirst,np-1);
+    if(iam == iOwner){
+      Int iLocal = (j-(numColFirst)*iOwner);
+      //do I own the column ?
+      double t = XTrue(j-1,0);
+      //do a dense mat mat mul ?
+      for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
+        Int row = Local.rowind[ii-1];
+        RHS(row-1,0) += t*HMat.nzvalLocal[ii-1];
+        if(row>j){
+          RHS(j-1,0) += XTrue(row-1,0)*HMat.nzvalLocal[ii-1];
+        }
+      }
+    }
+  }
+  //Do a reduce of RHS
+  MPI_Allreduce(MPI_IN_PLACE,&RHS(0,0),RHS.Size(),MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+}
+#else
+
+
+
+
+
+
+
+
+#if 0
   sp_dgemm_dist("N","N", n, XTrue.n(), n, 
       LIBCHOLESKY::ONE<MYSCALAR>(), HMat, XTrue.Data(), XTrue.m(), 
       LIBCHOLESKY::ZERO<MYSCALAR>(), RHS.Data(), RHS.m());
-  timeEnd = get_time();
 #else
   for(Int i = 0; i<n;++i){ 
     for(Int j=0;j<nrhs;++j){
@@ -165,6 +207,9 @@ DistSparseMatrix<Real> HMat(worldcomm);
   }
 #endif
 
+#endif
+
+  timeEnd = get_time();
   if(iam==0){
     cout<<"spGEMM time: "<<timeEnd-timeSta<<endl;
   }
@@ -443,10 +488,50 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
 
   if(iam==0){
-  blas::Axpy(X.m()*X.n(),-1.0,&XTrue(0,0),1,&X(0,0),1);
-  double norm = lapack::Lange('F',X.m(),X.n(),&X(0,0),X.m());
-    cout<<"Norm of residual after SPCHOL is "<<norm<<std::endl;
+//  blas::Axpy(X.m()*X.n(),-1.0,&XTrue(0,0),1,&X(0,0),1);
+//  double norm = lapack::Lange('F',X.m(),X.n(),&X(0,0),X.m());
+//    cout<<"Norm of residual after SPCHOL is "<<norm/normB<<std::endl;
+}
+
+{
+  SparseMatrixStructure Local = HMat.GetLocalStructure();
+
+  Int numColFirst = n / np;
+
+  DblNumMat AX(n,nrhs);
+  SetValue(AX,0.0);
+  
+  for(Int j = 1; j<=n; ++j){
+    Int iOwner = std::min((j-1)/numColFirst,np-1);
+    if(iam == iOwner){
+      Int iLocal = (j-(numColFirst)*iOwner);
+      //do I own the column ?
+      double t = X(j-1,0);
+      //do a dense mat mat mul ?
+      for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
+        Int row = Local.rowind[ii-1];
+        AX(row-1,0) += t*HMat.nzvalLocal[ii-1];
+        if(row>j){
+          AX(j-1,0) += X(row-1,0)*HMat.nzvalLocal[ii-1];
+        }
+      }
+    }
   }
+  //Do a reduce of RHS
+  MPI_Allreduce(MPI_IN_PLACE,&AX(0,0),AX.Size(),MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+
+  if(iam==0){
+  blas::Axpy(AX.m()*AX.n(),-1.0,&RHS(0,0),1,&AX(0,0),1);
+  double normAX = lapack::Lange('F',AX.m(),AX.n(),&AX(0,0),AX.m());
+  double normRHS = lapack::Lange('F',RHS.m(),RHS.n(),&RHS(0,0),RHS.m());
+    cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
+  }
+}
+
+
+
+
+
 #endif
 
   delete mapping;

@@ -36,12 +36,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
       Int local_snode_id = cur_snode_id>=last_local_id?-1:snodeColl[iLocalI-1]->Id();
       Int last_snode_id = Xsuper_.m()-1;
 
-      bool is_sendable = ((cur_snode_id<last_local_id 
-            && tgt_id < local_snode_id)
-          || (cur_snode_id>=last_local_id  || 
-//TODO FIX THIS FOR PWTK
-      //(cur_snode_id<last_snode_id && cur_snode_id>=last_local_id)));
-      0));
+      bool is_last_local = cur_snode_id>=last_local_id;
+      bool is_after_last_local = cur_snode_id>last_local_id;
+      bool is_less = tgt_id < local_snode_id;
+      bool is_last_snode = cur_snode_id>=last_snode_id;
+      bool is_sendable = ((!is_last_local && is_less)|| ( is_after_last_local) || (!is_last_snode && is_last_local));
 
       if(is_sendable){
 
