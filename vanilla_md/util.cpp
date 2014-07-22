@@ -787,9 +787,9 @@ double GetCost(int n, int nnz, int * xadj, int * adj,int * perm){
     }
   }
 
-#ifdef _verbose_
+//#ifdef _verbose_
   cout<<"Initial edge count: "<<initEdgeCnt<<endl;
-#endif
+//#endif
 
 
   //Get the elimination tree
@@ -1048,6 +1048,8 @@ double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * cos
   tree.ConstructETree(n,&newxadj[0],&newadj[0]);
   tree.PostOrderTree();
 
+  tree.Dump();
+
   //update perm
   vector<int> poinvp(n);
   for(int i=1;i<=n;++i){poinvp[i-1]=tree.ToPostOrder(i);}
@@ -1079,6 +1081,20 @@ double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * cos
     perm[node-1] = i; 
   } 
 
+
+
+  cout<<"perm: ";
+  for(int i =0; i<n; ++i){
+    cout<<" "<<perm[i];
+  }
+  cout<<endl;
+
+
+
+
+
+
+
   initEdgeCnt=n;
   //initialize nodes
   for(int i=0;i<n;++i){
@@ -1087,7 +1103,7 @@ double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * cos
       costc[i] = 1;
     }
     for(int idx = newxadj[col-1]; idx <= newxadj[col]-1;++idx){
-      if(newadj[idx-1]-1>col){
+      if(newadj[idx-1]>col){
 
         if(costc!=NULL){
           costc[i]++;
@@ -1127,7 +1143,7 @@ double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * cos
     }
   }
 
-  #ifdef _verbose_
+ // #ifdef _verbose_
   cout<<"Column count: ";
   for(int i =0; i<cc.size(); ++i){
     cout<<" "<<cc[i];
@@ -1139,7 +1155,7 @@ double GetCostPerCol(int n, int nnz, int * xadj, int * adj,int * perm, int * cos
     cout<<" "<<costc[i];
   }
   cout<<endl;
-  #endif
+//  #endif
 
 #ifdef _verbose_
   cout<<"Sum is "<<sum<<endl;
