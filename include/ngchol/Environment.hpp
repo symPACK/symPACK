@@ -116,7 +116,7 @@ namespace LIBCHOLESKY{
 
   inline void gdb_lock(){
     std::cout<<"P"<<iam<<" is locked"<<std::endl;
-    int lock = 1;
+    volatile int lock = 1;
     while (lock == 1){ }
   }
 

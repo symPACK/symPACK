@@ -9,7 +9,7 @@
 #include <mpi.h>
 
 #include "ngchol/Environment.hpp"
-#include "ngchol/debug.hpp"
+//#include "ngchol/debug.hpp"
 
 
 
@@ -145,7 +145,17 @@ namespace LIBCHOLESKY{
   struct DelayedCommCompare{
     bool operator()(const DelayedComm & a,const DelayedComm & b) const
     {
-      return a.tgt_snode_id>b.tgt_snode_id;
+//      bool return_value =  a.tgt_snode_id<b.tgt_snode_id;
+      if(a.tgt_snode_id>b.tgt_snode_id){
+        return true;
+      }
+      else if(a.tgt_snode_id==b.tgt_snode_id){
+       return a.src_snode_id>b.src_snode_id;
+      }
+      else{
+        return false;
+      }
+      //return a.tgt_snode_id>b.tgt_snode_id;
     }
   };
 
@@ -207,6 +217,21 @@ namespace LIBCHOLESKY{
         }
         return list_.erase(position);
       }
+
+      friend std::ostream& operator<<(std::ostream& out, AsyncComms& comm) // output 
+      {
+#ifdef _DEBUG_DELAY_
+        out <<"(";
+        for(AsyncComms::iterator it = comm.list_.begin();it!=comm.list_.end();++it){
+          Icomm * elem = *it;
+          Int src_snode_id = *(Int*)elem->front();
+          out <<" " << src_snode_id;
+        }
+        out <<" )";
+#endif
+        return out; 
+      } 
+
 
 
   };

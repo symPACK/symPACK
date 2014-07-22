@@ -538,20 +538,20 @@ assert(row>0);
       Int fi = xlindx_(s-1);
       Int li = xlindx_(s)-1;
 
-#ifndef _DEBUG_
-  #define nodebugtmp
-  #define _DEBUG_
-#endif
+//#ifndef _DEBUG_
+//  #define nodebugtmp
+//  #define _DEBUG_
+//#endif
 
 
 
-#ifdef nodebugtmp
-  #undef _DEBUG_
-#endif
+//#ifdef nodebugtmp
+//  #undef _DEBUG_
+//#endif
 
 
 
-#ifdef _DEBUG_
+#ifdef _DEBUG_UPDATES_
       logfileptr->OFS()<<"Supernode "<<s<<" updates: ";
 #endif
 
@@ -561,7 +561,7 @@ assert(row>0);
 
         if(marker(supno-1)!=s && supno!=s){
 
-#ifdef _DEBUG_
+#ifdef _DEBUG_UPDATES_
           logfileptr->OFS()<<supno<<" ";
 #endif
           ++sc(supno-1);
@@ -572,13 +572,13 @@ assert(row>0);
         }
       }
 
-#ifdef _DEBUG_
+#ifdef _DEBUG_UPDATES_
       logfileptr->OFS()<<std::endl;
 #endif
 
-#ifdef nodebugtmp
-  #undef _DEBUG_
-#endif
+//#ifdef nodebugtmp
+//  #undef _DEBUG_
+//#endif
     }
   }
 

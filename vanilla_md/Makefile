@@ -1,3 +1,6 @@
+DEBUG_LIB = ${HOME}/software/duma_2_5_15/libduma.a -lpthread
+
+
 CXXFLAGS =-I./  -O3 -std=c++11
 #CXXFLAGS =-I./  -g -O0 -std=c++11
 
@@ -23,7 +26,7 @@ util.o: util.cpp ETree.o
 	g++ ${CXXFLAGS} -o util.o -c util.cpp 
 
 call_cost: ETree.o util.o call_cost.cpp
-	g++ ${CXXFLAGS} -o call_cost call_cost.cpp ETree.o util.o 
+	g++ ${CXXFLAGS} -o call_cost call_cost.cpp ETree.o util.o ${DEBUG_LIB}
 
 
 fastshift: ETree.o util.o fastshift.cpp

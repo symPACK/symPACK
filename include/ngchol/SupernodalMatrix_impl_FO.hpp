@@ -6,8 +6,58 @@
 
 
 template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
+  typedef volatile LIBCHOLESKY::Int Int;
+ 
+  if(snodeColl.empty() || MsgToSend.empty()) { return;}
+
+Int iLocalI = cur_snode_id;
+
+ 
+//  Int iOwner = Mapping_.Map(cur_snode_id-1,cur_snode_id-1);
+//  Int iLocalI = (cur_snode_id-1 - (iOwner==iam)?0:1) / np +1 ;
+  //Index of the last global snode to do
+  Int last_snode_id = Xsuper_.m()-1;
+  //Index of the last local supernode
+  Int last_local_id = snodeColl.back()->Id();
+  //Index of the last PROCESSED supernode
+  Int prev_snode_id = iLocalI<=snodeColl.size()?snodeColl[iLocalI-1]->Id():last_local_id;
+  //Index of the next local supernode
+  Int next_snode_id = prev_snode_id>=last_local_id?last_snode_id+1:snodeColl[iLocalI]->Id();
+
+//  if (prev_snode_id > cur_snode_id ) { return; };
+
+ // if (prev_snode_id > cur_snode_id ) {gdb_lock();};
+  //if (next_snode_id >= cur_snode_id || next_snode_id == -1 );
+
+ // assert(prev_snode_id <= cur_snode_id );
+  //assert(next_snode_id >= cur_snode_id || next_snode_id == -1 );
+
+      bool is_last_local = prev_snode_id==last_local_id;
+      //bool is_after_last_local = cur_snode_id>last_local_id;
+//      bool is_last_snode = cur_snode_id==last_snode_id;
+      bool is_last = cur_snode_id>=last_local_id;
+
   if(!MsgToSend.empty()){
 
+#ifdef _DEBUG_DELAY_
+    {
+      CommList tmp = MsgToSend;
+      logfileptr->OFS()<<"Queue : ";
+      while( tmp.size()>0){
+        //Pull the highest priority message
+        const DelayedComm & comm = tmp.top();
+        Int src_snode_id = comm.src_snode_id;
+        Int tgt_id = comm.tgt_snode_id;
+        Int src_nzblk_idx = comm.src_nzblk_idx;
+        Int src_first_row = comm.src_first_row;
+        logfileptr->OFS()<<" { "<<src_snode_id<<" -> "<<tgt_id<<" }";
+        tmp.pop();
+      }
+      logfileptr->OFS()<<endl;
+
+
+    }
+#endif
     //CommList::iterator it = MsgToSend.begin();
     //while( it != MsgToSend.end()){
     //  Int src_snode_id = it->src_snode_id;
@@ -15,6 +65,15 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
     //  Int src_nzblk_idx = it->src_nzblk_idx;
     //  Int src_first_row = it->src_first_row;
     while( MsgToSend.size()>0){
+
+
+#ifdef _DEBUG_DELAY_
+      logfileptr->OFS()<<"Async comms: "<<OutgoingSend<<endl;
+#endif
+      //Check for completion of outgoing communication
+//      AdvanceOutgoing(OutgoingSend);
+
+
       //Pull the highest priority message
       const DelayedComm & comm = MsgToSend.top();
       Int src_snode_id = comm.src_snode_id;
@@ -23,7 +82,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
       Int src_first_row = comm.src_first_row;
 
 #ifdef _DEBUG_DELAY_
-      logfileptr->OFS()<<"Top of delayed queue is "<<tgt_id<<endl;
+      logfileptr->OFS()<<"Picked { "<<src_snode_id<<" -> "<<tgt_id<<" }"<<endl;
 #endif
 
       Int iLocalSrc = (src_snode_id-1) / np +1 ;
@@ -31,16 +90,9 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
 
       //        assert(prev_src_snode.Id()==src_snode_id);
 
-      Int last_local_id = snodeColl.back()->Id();
-      Int iLocalI = (cur_snode_id-1) / np +1 ;
-      Int local_snode_id = cur_snode_id>=last_local_id?-1:snodeColl[iLocalI-1]->Id();
-      Int last_snode_id = Xsuper_.m()-1;
-
-      bool is_last_local = cur_snode_id>=last_local_id;
-      bool is_after_last_local = cur_snode_id>last_local_id;
-      bool is_less = tgt_id < local_snode_id;
-      bool is_last_snode = cur_snode_id>=last_snode_id;
-      bool is_sendable = ((!is_last_local && is_less)|| ( is_after_last_local) || (!is_last_snode && is_last_local));
+      bool is_less = tgt_id < next_snode_id;
+//      bool is_sendable = ((!is_last_local && is_less)|| ( is_after_last_local) || (!is_last_snode && is_last_local));
+      bool is_sendable = (is_less || is_last);
 
       if(is_sendable){
 
@@ -108,6 +160,9 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
 
 
         }
+      }
+      else{
+//        gdb_lock();
       }
 
       if(is_sendable){
@@ -210,9 +265,9 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
           Icomm * curComm = *it;
           //MPI_Request req = (curComm->Request);
           //MPI_Test(&(curComm->Request),&done,&recv_status);
-      set_mpi_handler(MPI_COMM_WORLD);
+ //     set_mpi_handler(MPI_COMM_WORLD);
       int error_code = MPI_Test(&(curComm->Request),&done,&recv_status);
-      check_mpi_error(error_code, MPI_COMM_WORLD, true);
+//      check_mpi_error(error_code, MPI_COMM_WORLD, true);
 
           //Test if comm is done
           if(done==1){
@@ -608,32 +663,38 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
 
 
     //dummy right looking cholesky factorization
-    Int I =1;
-    while(I<Xsuper_.m() || !FactorsToSend.empty() || !outgoingSend.empty()){
+    volatile Int I =1;
+    volatile Int iLocalI=1;
+    while(iLocalI<=LocalSupernodes_.size() || !FactorsToSend.empty() || !outgoingSend.empty()){
+//    while(I<Xsuper_.m() || !FactorsToSend.empty() || !outgoingSend.empty()){
 
       //Check for completion of outgoing communication
       AdvanceOutgoing(outgoingSend);
 
       //process some of the delayed send
-      SendDelayedMessages(I,FactorsToSend,outgoingSend,LocalSupernodes_);
+      //SendDelayedMessages(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
 
 
-      if(I<Xsuper_.m()){
-        Int src_first_col = Xsuper_(I-1);
-        Int src_last_col = Xsuper_(I)-1;
-        Int iOwner = Mapping_.Map(I-1,I-1);
+      if(iLocalI>0 && iLocalI<=LocalSupernodes_.size()){
+//      if(I<Xsuper_.m()){
+        //Int src_first_col = Xsuper_(I-1);
+        //Int src_last_col = Xsuper_(I)-1;
+        //Int iOwner = Mapping_.Map(I-1,I-1);
         //If I own the column, factor it
-        if( iOwner == iam ){
+        if( 1 /*iOwner == iam*/ ){
+
+          //iLocalI = (I-1) / np +1 ;
+          SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
+          I = src_snode.Id();
+          Int src_first_col = src_snode.FirstCol();
+          Int src_last_col = src_snode.LastCol();
 
 #ifdef _DEBUG_
           logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 #endif
 
-          Int iLocalI = (I-1) / np +1 ;
-          SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
 
 
-          //if(I==1){gdb_lock();}
 
 
           //Launch Irecv for subsequent local supernodes if I can
@@ -764,6 +825,8 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
 
 
 
+          if(I==160){gdb_lock();}
+
           //AdvanceOutgoing(outgoingSend);
 
           src_blocks.resize(0);
@@ -823,11 +886,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
 #endif
             MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
 
-            Int src_snode_id = *(Int*)&src_blocks[0];
-            Int src_nzblk_cnt = *(((Int*)&src_blocks[0])+1);
+            volatile Int src_snode_id = *(Int*)&src_blocks[0];
+            volatile Int src_nzblk_cnt = *(((Int*)&src_blocks[0])+1);
             NZBlockDesc * src_blocks_ptr = 
               reinterpret_cast<NZBlockDesc*>(&src_blocks[2*sizeof(Int)]);
-            Int src_nzval_cnt = *(Int*)(src_blocks_ptr + src_nzblk_cnt);
+            volatile Int src_nzval_cnt = *(Int*)(src_blocks_ptr + src_nzblk_cnt);
             T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
             TIMER_STOP(RECV_MPI);
             //Create the dummy supernode for that data
@@ -858,14 +921,12 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
             while(FindNextUpdate(dist_src_snode, tgt_snode_id, src_first_row, src_nzblk_idx, src_last_row, src_next_nzblk_idx)){ 
               Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
               if(iTarget == iam){
-#ifdef _DEBUG_
+#if defined(_DEBUG_) || defined(_DEBUG_DELAY_)
                 logfileptr->OFS()<<"RECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
 #endif
 
                 Int iLocalJ = (tgt_snode_id-1) / np +1 ;
                 SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
-
-
 
 #ifdef SINGLE_BLAS
                 UpdateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, tmpBuf,src_colindx,src_rowindx,src_to_tgt_offset,src_first_row);
@@ -963,12 +1024,17 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
               }
 #endif
 
+
+
+          if(tgt_snode_id==160 && src_snode.Id()==158){gdb_lock();}
+
+
               if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
 #ifdef DELAY_SNODES
                 //need a std::unordered_set to check whether 
-                if(iLocalI < LocalSupernodes_.size()){
-                  if(LocalSupernodes_[iLocalI]->Id()< tgt_snode_id){
+                volatile Int next_local_snode = (iLocalI+1 < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
+                  if(next_local_snode< tgt_snode_id){
                     //need to push the prev src_last_row
                     //                  FactorsToSend.push_back(DelayedComm(src_snode.Id(),tgt_snode_id,src_nzblk_idx,src_first_row));
                     FactorsToSend.push(DelayedComm(src_snode.Id(),tgt_snode_id,src_nzblk_idx,src_first_row));
@@ -979,13 +1045,12 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
                     is_skipped[iTarget] = true;
                     continue;
                   }
-                }
 
-                if(!FactorsToSend.empty()){
-                  if(FactorsToSend.top().tgt_snode_id<tgt_snode_id){
-                    SendDelayedMessages(I,FactorsToSend,outgoingSend,LocalSupernodes_);
-                  }
-                }
+//                if(!FactorsToSend.empty()){
+//                  if(FactorsToSend.top().tgt_snode_id<tgt_snode_id){
+//                    SendDelayedMessages(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
+//                  }
+//                }
 #endif
 
 #ifdef _DEBUG_
@@ -1067,7 +1132,14 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snod
 
 
       }
-      I++;
+
+
+      //process some of the delayed send
+  //    SendDelayedMessages(I,FactorsToSend,outgoingSend,LocalSupernodes_);
+      SendDelayedMessages(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
+
+//      I++;
+      iLocalI++;
     }
 
 
