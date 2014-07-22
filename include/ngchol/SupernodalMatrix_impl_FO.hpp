@@ -5,16 +5,11 @@
 
 
 
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
   typedef volatile LIBCHOLESKY::Int Int;
  
   if(snodeColl.empty() || MsgToSend.empty()) { return;}
 
-Int iLocalI = cur_snode_id;
-
- 
-//  Int iOwner = Mapping_.Map(cur_snode_id-1,cur_snode_id-1);
-//  Int iLocalI = (cur_snode_id-1 - (iOwner==iam)?0:1) / np +1 ;
   //Index of the last global snode to do
   Int last_snode_id = Xsuper_.m()-1;
   //Index of the last local supernode
@@ -24,18 +19,8 @@ Int iLocalI = cur_snode_id;
   //Index of the next local supernode
   Int next_snode_id = prev_snode_id>=last_local_id?last_snode_id+1:snodeColl[iLocalI]->Id();
 
-//  if (prev_snode_id > cur_snode_id ) { return; };
 
- // if (prev_snode_id > cur_snode_id ) {gdb_lock();};
-  //if (next_snode_id >= cur_snode_id || next_snode_id == -1 );
-
- // assert(prev_snode_id <= cur_snode_id );
-  //assert(next_snode_id >= cur_snode_id || next_snode_id == -1 );
-
-      bool is_last_local = prev_snode_id==last_local_id;
-      //bool is_after_last_local = cur_snode_id>last_local_id;
-//      bool is_last_snode = cur_snode_id==last_snode_id;
-      bool is_last = cur_snode_id>=last_local_id;
+      bool is_last = prev_snode_id>=last_local_id;
 
   if(!MsgToSend.empty()){
 
@@ -58,12 +43,6 @@ Int iLocalI = cur_snode_id;
 
     }
 #endif
-    //CommList::iterator it = MsgToSend.begin();
-    //while( it != MsgToSend.end()){
-    //  Int src_snode_id = it->src_snode_id;
-    //  Int tgt_id = it->tgt_snode_id;
-    //  Int src_nzblk_idx = it->src_nzblk_idx;
-    //  Int src_first_row = it->src_first_row;
     while( MsgToSend.size()>0){
 
 
@@ -666,24 +645,19 @@ Int iLocalI = cur_snode_id;
     volatile Int I =1;
     volatile Int iLocalI=1;
     while(iLocalI<=LocalSupernodes_.size() || !FactorsToSend.empty() || !outgoingSend.empty()){
-//    while(I<Xsuper_.m() || !FactorsToSend.empty() || !outgoingSend.empty()){
 
       //Check for completion of outgoing communication
       AdvanceOutgoing(outgoingSend);
 
-      //process some of the delayed send
-      //SendDelayedMessages(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
 
 
       if(iLocalI>0 && iLocalI<=LocalSupernodes_.size()){
-//      if(I<Xsuper_.m()){
         //Int src_first_col = Xsuper_(I-1);
         //Int src_last_col = Xsuper_(I)-1;
         //Int iOwner = Mapping_.Map(I-1,I-1);
         //If I own the column, factor it
         if( 1 /*iOwner == iam*/ ){
 
-          //iLocalI = (I-1) / np +1 ;
           SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
           I = src_snode.Id();
           Int src_first_col = src_snode.FirstCol();
@@ -825,7 +799,7 @@ Int iLocalI = cur_snode_id;
 
 
 
-          if(I==160){gdb_lock();}
+//          if(I==160){gdb_lock();}
 
           //AdvanceOutgoing(outgoingSend);
 
@@ -1026,7 +1000,7 @@ Int iLocalI = cur_snode_id;
 
 
 
-          if(tgt_snode_id==160 && src_snode.Id()==158){gdb_lock();}
+//          if(tgt_snode_id==160 && src_snode.Id()==158){gdb_lock();}
 
 
               if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
@@ -1122,23 +1096,12 @@ Int iLocalI = cur_snode_id;
 
 
         }
-        //      MPI_Barrier(CommEnv_->MPI_GetComm());
-
-
-        //      {
-        //      NumMat<T> tmp;
-        //      GetFullFactors(tmp);
-        //      }
-
-
       }
 
 
       //process some of the delayed send
-  //    SendDelayedMessages(I,FactorsToSend,outgoingSend,LocalSupernodes_);
       SendDelayedMessages(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
 
-//      I++;
       iLocalI++;
     }
 
