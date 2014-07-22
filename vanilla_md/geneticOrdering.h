@@ -61,7 +61,8 @@ void orderCrossover(struct individual* child, int firstParent, int secondParent)
 void averageCrossover(struct individual* child, int firstParent, int secondParent);
 void noneCrossover(struct individual* child, int firstParent, int secondParent);
 void prefixCrossover(struct individual* child, int firstParent, int secondParent);
-
+void prefix2Crossover(struct individual* child, int firstParent, int secondparent);
+void uxCrossover(struct individual* child, int firstParent, int secondParent);
 
 int costComp(const void * a, const void * b);
 int averageStructComp(const void * a, const void * b);

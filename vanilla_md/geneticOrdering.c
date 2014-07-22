@@ -148,10 +148,14 @@ struct individual* cross (int firstParent, int secondParent) {
         noneCrossover(child, firstParent, secondParent);
     } else if (!strcmp("prefix", crossType)) {
         prefixCrossover(child, firstParent, secondParent);
+    } else if (!strcmp("prefix2", crossType)) {
+        prefix2Crossover(child, firstParent, secondParent);
+    } else if (!strcmp("ux", crossType)) {
+        uxCrossover(child, firstParent, secondParent);
     } else {
-        fprintf(stderr,"Not a legal type of crossover. Should be Average, order, or none.");
+        fprintf(stderr,"Not a legal type of crossover. Should be Average, order, prefix, ux,  or none.");
         exit(1);
-    }
+    }/*
     int parentATesting = 0;
     int parentBTesting = 0;
     for (int testingVar = 0; testingVar < n; testingVar++) {
@@ -181,8 +185,202 @@ struct individual* cross (int firstParent, int secondParent) {
         free(child->ordering);
         free(child);
         return cross(newParent1, newParent2);
-    }
+    }*/
     return child;
+}
+
+
+void prefix2Crossover(struct individual* child, int firstParent, int secondParent) {
+    /*int flipper = rand()%2;
+    //printf("Flipper is %d\n", flipper);
+    if (flipper == 1) {
+        int temp;
+        temp = firstParent;
+        firstParent = secondParent;
+        secondParent = temp;
+    }*/
+    double parent1Cost = 1/(population[firstParent]->fitness);
+    double threshold = fillPercent * parent1Cost;
+    //printf("Threshold is %f\n", threshold);
+    int* parentACostArr;
+    //printf("ParentA Fitness: %f ParentBFitnee %f\n", parent1Cost, 1/(population[secondParent]->fitness));
+    parentACostArr = (int*) malloc(n*sizeof(int));
+    GetCostPerCol(n, nnz, adjArray1, adjArray2, population[firstParent]->ordering, parentACostArr);
+/*
+    printf("Printing ParentA:\n");
+    for (int printing = 0; printing < n; printing++) {
+        printf("%d ", population[firstParent]->ordering[printing]);
+    }
+    printf("\nPrinting ParentB:\n");
+    for (int printing2 = 0; printing2 < n; printing2++) {
+        printf("%d ", population[secondParent]->ordering[printing2]);
+    }
+    printf("\n");
+*/
+
+    int prefixCounter = 0;
+    int costIndex;
+    int zerosIndex = 0;
+
+    while (parentACostArr[zerosIndex] == 0) {
+        zerosIndex += 1;
+    }
+    costIndex = zerosIndex;
+
+
+    while ((prefixCounter < threshold) && (costIndex < n)) {
+        prefixCounter += parentACostArr[costIndex];
+        costIndex++;      
+    }
+    //printf("Cost index is %d\n", costIndex);
+    int lengthSegment = costIndex - zerosIndex;
+    
+
+    for (int zeroer = 0; zeroer < n; zeroer++) {
+        child->ordering[zeroer] = 0;
+    }
+
+
+
+    
+
+    memcpy(&child->ordering[0], &population[firstParent]->ordering[0], zerosIndex * sizeof(int));
+    memcpy(&child->ordering[(n - lengthSegment)], &population[firstParent]->ordering[zerosIndex], lengthSegment * sizeof(int));
+
+/*
+    printf("Printing debugging stuff. zerosIndex is %d, costIndex is %d, and length is %d\n", zerosIndex, costIndex, lengthSegment);
+    for (int i = 0; i < n; i++) {
+        printf("%d ", child->ordering[i]);
+    }
+    printf("\n");
+*/
+
+
+    int* takenGenes;
+    takenGenes = (int*) calloc(n+1, sizeof(int));
+    for (int z=0; z < costIndex; z++) {
+        takenGenes[population[firstParent]->ordering[z]] = 1;
+    } 
+    for (int parentB = 0; parentB < n; parentB++) {
+        if (!takenGenes[population[secondParent]->ordering[parentB]]) {
+            child->ordering[zerosIndex] = population[secondParent]->ordering[parentB];
+            zerosIndex +=1;
+        }
+    }
+    GetCostPerCol(n, nnz, adjArray1, adjArray2, child->ordering, parentACostArr);
+    
+    //printf("Threshold: %f CostIndex: %d PrefixCounter: %d Child costs:\n", threshold, costIndex, prefixCounter);
+    //for (int test = 0; test < n; test++) {
+        //printf("%d ", parentACostArr[test]);
+    //}
+   // printf("\nPrinting child:\n");
+    //for (int print3 = 0; print3 < n; print3++) {
+        //printf("%d ", child->ordering[print3]);
+    //}
+    //printf("Child Fitness: %f\n", (GetCost(n, nnz, adjArray1, adjArray2 ,child->ordering)));
+    //printf("\n");
+
+    free(takenGenes);
+    free(parentACostArr);
+    if (!isPermutation(child->ordering)) {
+        printf("Child is illegal permutation.\n");
+        exit(1);
+    }
+   //exit(1);
+}
+
+
+/*UX crossover from the Poon and Carter Paper.*/
+void uxCrossover(struct individual* child, int firstParent, int secondParent) {
+    int startPoint = (rand() % (n-2));            //Start <= n-2
+    int endPoint = -1;
+    while (endPoint < startPoint) {
+        endPoint = rand() % n;                     //End > start
+    }
+    int segment1Length = endPoint - startPoint;
+    //printf("Segment 1 length is %d\n", segment1Length);
+
+    int* fromParent1;
+    int* fromParent2;
+    int* takenValues;
+    fromParent1 = (int*) malloc(segment1Length*sizeof(int));
+    fromParent2 = (int*) malloc((n-segment1Length)*sizeof(int));
+    takenValues = (int*) calloc((n+1), sizeof(int));
+    int copyLocation = 0;
+    for (int copy = startPoint; copy < endPoint; copy++) {
+        fromParent1[copyLocation] = population[firstParent]->ordering[copy];
+        copyLocation++;
+        takenValues[population[firstParent]->ordering[copy]] = 1;
+    }
+    copyLocation = 0;
+    for (int copy2 = 0; copy2 < n; copy2++) {
+        if (takenValues[population[secondParent]->ordering[copy2]] != 1) {
+            fromParent2[copyLocation] = population[secondParent]->ordering[copy2];
+            copyLocation++;
+            takenValues[population[secondParent]->ordering[copy2]] = 1;
+        }
+    }
+    int childIndex = 0;
+    int parent1Index = 0;
+    int parent2Index = 0;
+    int whichArr;
+    while ((parent1Index < segment1Length) && (parent2Index < (n - segment1Length))) {
+        whichArr = rand()%2;
+        if (whichArr == 0) {
+            child->ordering[childIndex] = fromParent1[parent1Index];
+            parent1Index += 1;
+        } else if (whichArr == 1) {
+            child->ordering[childIndex] = fromParent2[parent2Index];
+            parent2Index +=1;
+        }
+        childIndex += 1;
+    }   
+    if (parent1Index == segment1Length) {
+        while (parent2Index < (n-segment1Length)) {
+            child->ordering[childIndex] = fromParent2[parent2Index];
+            childIndex++;
+            parent2Index++;
+        }
+    } else {
+        while (parent1Index < segment1Length) {
+            child->ordering[childIndex] = fromParent1[parent1Index];
+            childIndex++;
+            parent1Index++;
+        }
+    }
+
+/*
+    printf("From p1:\n");
+    for (int testing = 0; testing < segment1Length; testing++) {
+        printf("%d ", fromParent1[testing]);
+    }
+    printf("\n");
+    
+
+
+    printf("from p2:\n");
+    for (int testing2 = 0; testing2 < (n - segment1Length); testing2++) {
+        printf("%d ", fromParent2[testing2]);
+    }
+    printf("\n");
+    
+    for (int test3 = 0; test3 < (n+1); test3++) {
+        printf("%d ", takenValues[test3]);
+    }
+    printf("\n");*/
+    if (!isPermutation(child->ordering)) {
+        printf("Child is illegal permutation.\n");
+        printf("Dumping orderings (child p1 p2)\n");
+        for (int z = 0; z < n; z++) {
+            printf("%d %d %d %d\n", z, child->ordering[z], population[firstParent]->ordering[z], population[secondParent]->ordering[z]);
+        }
+        printf("\n");
+        exit(1);
+    }
+    free(fromParent1);
+    free(fromParent2);
+    free(takenValues);
+    //exit(1);
 }
 
 /*Copy a segment and fill from B. Maintains orders from both parents.*/
@@ -267,10 +465,14 @@ void noneCrossover(struct individual* child, int firstParent, int secondParent) 
 }
 
 void prefixCrossover(struct individual* child, int firstParent, int secondParent) {
-    
-
-
-
+    int flipper = rand()%2;
+    //printf("Flipper is %d\n", flipper);
+    if (flipper == 1) {
+        int temp;
+        temp = firstParent;
+        firstParent = secondParent;
+        secondParent = temp;
+    }
     double parent1Cost = 1/(population[firstParent]->fitness);
     double threshold = fillPercent * parent1Cost;
     //printf("Threshold is %f\n", threshold);
@@ -324,8 +526,6 @@ void prefixCrossover(struct individual* child, int firstParent, int secondParent
     //}
     //printf("Child Fitness: %f\n", (GetCost(n, nnz, adjArray1, adjArray2 ,child->ordering)));
     //printf("\n");
-
-
 
     free(takenGenes);
     free(parentACostArr);
