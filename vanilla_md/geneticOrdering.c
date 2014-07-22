@@ -18,7 +18,7 @@ int main (int argc, char *argv[]) {
     printPop();
     evaluateOrdering(population, popSize);
     while (currentGen < maxGens) {
-        #pragma omp parallel for
+        //#pragma omp parallel for
         for (int j = popSize; j < ((2 * popSize)); j++) {
             struct individual* child;
             int parent1;
@@ -46,7 +46,7 @@ int main (int argc, char *argv[]) {
         qsort(population, popSize+growthNumber, sizeof(struct individual*), costComp);
 
 
-        if (popSize < maxPopSize) {
+        if (popSize + growthNumber <= maxPopSize) {
             popSize += 2;
         }
 
@@ -146,6 +146,8 @@ struct individual* cross (int firstParent, int secondParent) {
         averageCrossover(child, firstParent, secondParent);
     } else if (!strcmp("none", crossType)) {
         noneCrossover(child, firstParent, secondParent);
+    } else if (!strcmp("prefix", crossType)) {
+        prefixCrossover(child, firstParent, secondParent);
     } else {
         fprintf(stderr,"Not a legal type of crossover. Should be Average, order, or none.");
         exit(1);
@@ -264,6 +266,76 @@ void noneCrossover(struct individual* child, int firstParent, int secondParent) 
     }
 }
 
+void prefixCrossover(struct individual* child, int firstParent, int secondParent) {
+    
+
+
+
+    double parent1Cost = 1/(population[firstParent]->fitness);
+    double threshold = fillPercent * parent1Cost;
+    //printf("Threshold is %f\n", threshold);
+    int* parentACostArr;
+    //printf("ParentA Fitness: %f ParentBFitnee %f\n", parent1Cost, 1/(population[secondParent]->fitness));
+    parentACostArr = (int*) malloc(n*sizeof(int));
+    GetCostPerCol(n, nnz, adjArray1, adjArray2, population[firstParent]->ordering, parentACostArr);
+
+    //printf("Printing ParentA:\n");
+    //for (int printing = 0; printing < n; printing++) {
+       // printf("%d ", population[firstParent]->ordering[printing]);
+    //}
+    //printf("\nPrinting ParentB:\n");
+    //for (int printing2 = 0; printing2 < n; printing2++) {
+       // printf("%d ", population[secondParent]->ordering[printing2]);
+    //}
+    //printf("\n");
+
+
+    int prefixCounter = 0;
+    int costIndex = 0;
+    while ((prefixCounter < threshold)/* && (costIndex < n)*/) {
+        prefixCounter += parentACostArr[costIndex];
+        costIndex++;      
+    }
+    //printf("Cost index is %d\n", costIndex);
+
+
+
+    memcpy(&child->ordering[0], &population[firstParent]->ordering[0], costIndex * sizeof(int));
+    int* takenGenes;
+    takenGenes = (int*) calloc(n+1, sizeof(int));
+    for (int z=0; z < costIndex; z++) {
+        takenGenes[child->ordering[z]] = 1;
+    } 
+    for (int parentB = 0; parentB < n; parentB++) {
+        if (!takenGenes[population[secondParent]->ordering[parentB]]) {
+            child->ordering[costIndex] = population[secondParent]->ordering[parentB];
+            costIndex +=1;
+        }
+    }
+    GetCostPerCol(n, nnz, adjArray1, adjArray2, child->ordering, parentACostArr);
+    
+    //printf("Threshold: %f CostIndex: %d PrefixCounter: %d Child costs:\n", threshold, costIndex, prefixCounter);
+    //for (int test = 0; test < n; test++) {
+        //printf("%d ", parentACostArr[test]);
+    //}
+   // printf("\nPrinting child:\n");
+    //for (int print3 = 0; print3 < n; print3++) {
+        //printf("%d ", child->ordering[print3]);
+    //}
+    //printf("Child Fitness: %f\n", (GetCost(n, nnz, adjArray1, adjArray2 ,child->ordering)));
+    //printf("\n");
+
+
+
+    free(takenGenes);
+    free(parentACostArr);
+    if (!isPermutation(child->ordering)) {
+        printf("Child is illegal permutation.\n");
+        exit(1);
+    }
+   //exit(1);
+}
+
 /* Picks an individual in the current generation to serve as a parent
    for the next generation. Will use the fraction of total population
    fitness in order to select (on average) those parents which are
@@ -347,7 +419,7 @@ int fitPicking(struct individual* possibleParents[]) {
 /* Implements the evaluation function for a matrix ordering. Will store
    the value of this ordering into the structure that contains it. */
 void evaluateOrdering(struct individual* indivs[], int size) {
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for (int in = 0; in < size; in++) {
         if (indivs[in]->fitness == -1) {
             indivs[in]->fitness = 1.0 / (GetCost(n, nnz, adjArray1, adjArray2 ,indivs[in]->ordering));
@@ -369,8 +441,8 @@ void init(int argc, char *argv[]) {
     seed = time(NULL);
     srand(seed);
     printf("Seed is %d\n",seed);
-    if (argc != 14) {
-        fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Scale (i.e. 2 = 200 percent scaling)\n Amount of individuals to increase each generation(rounded up to nearest even number)");
+    if (argc != 15) {
+        fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Scale (i.e. 2 = 200 percent scaling)\n Amount of individuals to increase each generation(rounded up to nearest even number\n Amount of fill to use for prefix crossover, ignored otherwise)");
         exit(5);
     } else {
         inputFile = argv[1];
@@ -392,6 +464,7 @@ void init(int argc, char *argv[]) {
         if (growthNumber % 2 == 1) {
             growthNumber += 1;
         }
+        fillPercent = atof(argv[14]);
     }
     ReadAdjacency(adjacencyFile, &adjArray1, &adjArray2, &n, &nnz);    
     FILE *inFile;
@@ -424,7 +497,7 @@ void init(int argc, char *argv[]) {
 
 /* Mutates the entire current population. */
 void mutatePop(struct individual* mutated[]) {
-    #pragma omp parallel for
+    //#pragma omp parallel for
     for (int individual = popSize; individual < popSize * 2; individual++) {
         double randomMutate;
         double mutateBarrier;

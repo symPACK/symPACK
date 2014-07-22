@@ -42,6 +42,7 @@ double swapPercent;
 double totalFitness;
 double costStopCounter;
 double costStopScore;
+double fillPercent;
 
 time_t seed;
 
@@ -59,6 +60,8 @@ void invertMutate(struct individual* mutated[], int numMutations, int indiv);
 void orderCrossover(struct individual* child, int firstParent, int secondParent);
 void averageCrossover(struct individual* child, int firstParent, int secondParent);
 void noneCrossover(struct individual* child, int firstParent, int secondParent);
+void prefixCrossover(struct individual* child, int firstParent, int secondParent);
+
 
 int costComp(const void * a, const void * b);
 int averageStructComp(const void * a, const void * b);
