@@ -538,20 +538,20 @@ assert(row>0);
       Int fi = xlindx_(s-1);
       Int li = xlindx_(s)-1;
 
-#ifndef _DEBUG_
-  #define nodebugtmp
-  #define _DEBUG_
-#endif
+//#ifndef _DEBUG_
+//  #define nodebugtmp
+//  #define _DEBUG_
+//#endif
 
 
 
-#ifdef nodebugtmp
-  #undef _DEBUG_
-#endif
+//#ifdef nodebugtmp
+//  #undef _DEBUG_
+//#endif
 
 
 
-#ifdef _DEBUG_
+#ifdef _DEBUG_UPDATES_
       logfileptr->OFS()<<"Supernode "<<s<<" updates: ";
 #endif
 
@@ -561,7 +561,7 @@ assert(row>0);
 
         if(marker(supno-1)!=s && supno!=s){
 
-#ifdef _DEBUG_
+#ifdef _DEBUG_UPDATES_
           logfileptr->OFS()<<supno<<" ";
 #endif
           ++sc(supno-1);
@@ -572,13 +572,13 @@ assert(row>0);
         }
       }
 
-#ifdef _DEBUG_
+#ifdef _DEBUG_UPDATES_
       logfileptr->OFS()<<std::endl;
 #endif
 
-#ifdef nodebugtmp
-  #undef _DEBUG_
-#endif
+//#ifdef nodebugtmp
+//  #undef _DEBUG_
+//#endif
     }
   }
 
@@ -1500,25 +1500,29 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 //    for(Int I=1;I<Xsuper_.m();I++){
 
 
-    Int I =1;
-    while(I<Xsuper_.m() || !ContribsToSend.empty() || !outgoingSend.empty()){
+    volatile Int I =1;
+    volatile Int iLocalI =1;
+    while(iLocalI<=LocalSupernodes_.size() || !ContribsToSend.empty() || !outgoingSend.empty()){
+//    while(I<Xsuper_.m() || !ContribsToSend.empty() || !outgoingSend.empty())
 
       //Check for completion of outgoing communication
       AdvanceOutgoing(outgoingSend);
 
       //process some of the delayed send
-      SendDelayedMessages(I,ContribsToSend,outgoingSend,Contributions_);
+//      SendDelayedMessages(I,ContribsToSend,outgoingSend,Contributions_);
 
-      if(I<Xsuper_.m()){
+      if(iLocalI>0 && iLocalI<=LocalSupernodes_.size()){
+//      if(I<Xsuper_.m())
 
 
 
 
-      Int iOwner = Mapping_.Map(I-1,I-1);
+//      Int iOwner = Mapping_.Map(I-1,I-1);
       //If I own the column, factor it
-      if( iOwner == iam ){
-        Int iLocalI = (I-1) / np +1 ;
+      if( 1 /*iOwner == iam*/ ){
+//        Int iLocalI = (I-1) / np +1 ;
         SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
+        I = cur_snode->Id();
         Int parent = ETree_.PostParent(cur_snode->LastCol()-1);
         SuperNode<T> * contrib = Contributions_[iLocalI-1];
 
@@ -1716,8 +1720,9 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 
 
               bool isSkipped= false;
-              if(iLocalI < Contributions_.size()){
-                if(Contributions_[iLocalI]->Id()< parent_snode_id){
+
+              volatile Int next_local_contrib = (iLocalI+1 < Contributions_.size())?Contributions_[iLocalI]->Id():Xsuper_.m();
+                  if(next_local_contrib< parent_snode_id){
                   //need to push the prev src_last_row
                   ContribsToSend.push(DelayedComm(contrib->Id(),parent_snode_id,1,src_first_row));
 #ifdef _DEBUG_DELAY_
@@ -1726,7 +1731,6 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 #endif
                     isSkipped= true;
                 }
-              }
               
               if(!isSkipped){
 
@@ -1821,7 +1825,12 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 #endif
 
           }
-          ++I;
+
+
+      SendDelayedMessages(iLocalI,ContribsToSend,outgoingSend,Contributions_);
+
+//          ++I;
+          ++iLocalI;
       //MPI_Barrier(CommEnv_->MPI_GetComm());
     }
     TIMER_STOP(SPARSE_FWD_SUBST);
@@ -2054,7 +2063,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 
       }
 
-      MPI_Barrier(CommEnv_->MPI_GetComm());
+//      MPI_Barrier(CommEnv_->MPI_GetComm());
 
 #ifdef _CHECK_RESULT_SEQ_
       {
