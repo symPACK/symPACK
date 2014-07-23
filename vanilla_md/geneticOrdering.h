@@ -43,6 +43,7 @@ double totalFitness;
 double costStopCounter;
 double costStopScore;
 double fillPercent;
+double childPercent;
 
 time_t seed;
 

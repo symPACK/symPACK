@@ -32,24 +32,46 @@ int main (int argc, char *argv[]) {
         }
         mutatePop(population);
         evaluateOrdering(population, 2*popSize);
+        if (popSize == maxPopSize) {
+            growthNumber = 0;
+        }
+
+
         qsort(population, popSize, sizeof(struct individual*), costComp);
         qsort(population + (popSize), popSize, sizeof(struct individual*), costComp);
-        for (int x = ((popSize/2)+(growthNumber / 2)); x < popSize; x++) {
+
+        int numChildren;
+        int numParents;
+
+        numChildren = childPercent * (popSize + (growthNumber));
+        numParents = popSize + growthNumber - numChildren;
+
+        if (numChildren > popSize) {
+            numChildren = popSize;
+            numParents = growthNumber;
+        } else if (numParents > popSize) {
+            numChildren = growthNumber;
+            numParents = popSize;
+        }
+
+
+
+        printf("numChildren: %d, numParents: %d, popSize %d\n", numChildren, numParents, popSize);
+        for (int x = numParents; x < popSize; x++) {
             free(population[x]->ordering);
             free(population[x]);
         }
-        for (int z = ((popSize/2)+popSize+(growthNumber/2)); z<(popSize *2); z++) {
+        for (int z = (numChildren + popSize); z<(popSize *2); z++) {
             free(population[z]->ordering);
             free(population[z]);
         }
-        memcpy(population + (popSize/2) + (growthNumber/2), population + (popSize),((growthNumber/2)+ (popSize/2))*sizeof(struct individual*));
+        
+        memcpy((population + numParents), population + (popSize), numChildren*sizeof(struct individual*));
         qsort(population, popSize+growthNumber, sizeof(struct individual*), costComp);
-
-
+        
         if (popSize + growthNumber <= maxPopSize) {
-            popSize += 2;
+            popSize += growthNumber;
         }
-
 
         if (population[0]->fitness > costStopScore) {
             costStopScore = population[0]->fitness;
@@ -155,7 +177,7 @@ struct individual* cross (int firstParent, int secondParent) {
     } else {
         fprintf(stderr,"Not a legal type of crossover. Should be Average, order, prefix, ux,  or none.");
         exit(1);
-    }/*
+    }
     int parentATesting = 0;
     int parentBTesting = 0;
     for (int testingVar = 0; testingVar < n; testingVar++) {
@@ -185,7 +207,7 @@ struct individual* cross (int firstParent, int secondParent) {
         free(child->ordering);
         free(child);
         return cross(newParent1, newParent2);
-    }*/
+    }
     return child;
 }
 
@@ -641,7 +663,7 @@ void init(int argc, char *argv[]) {
     seed = time(NULL);
     srand(seed);
     printf("Seed is %d\n",seed);
-    if (argc != 15) {
+    if (argc != 16) {
         fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Scale (i.e. 2 = 200 percent scaling)\n Amount of individuals to increase each generation(rounded up to nearest even number\n Amount of fill to use for prefix crossover, ignored otherwise)");
         exit(5);
     } else {
@@ -665,6 +687,7 @@ void init(int argc, char *argv[]) {
             growthNumber += 1;
         }
         fillPercent = atof(argv[14]);
+        childPercent = atof(argv[15]);
     }
     ReadAdjacency(adjacencyFile, &adjArray1, &adjArray2, &n, &nnz);    
     FILE *inFile;

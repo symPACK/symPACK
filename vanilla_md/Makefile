@@ -34,5 +34,5 @@ check_md: ETree.o util.o check_md.cpp
 	g++ ${CXXFLAGS} -o check_md check_md.cpp ETree.o util.o 
 
 clean:
-	rm -rf call_cost check_md md mymd *.o geneticOrdering
+	rm -rf core call_cost check_md md mymd *.o geneticOrdering
 
