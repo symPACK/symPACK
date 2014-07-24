@@ -14,6 +14,7 @@
    arguments as of now.*/
 int main (int argc, char *argv[]) {
     signal(SIGINT, signalStopper);
+    signal(SIGUSR1, signalPrinter);
     while (runningProgram) { 
         setbuf(stdout, NULL);
         init(argc, argv);
@@ -21,7 +22,7 @@ int main (int argc, char *argv[]) {
         printPop();
         evaluateOrdering(population, popSize);
         while (currentGen < maxGens) {
-            //#pragma omp parallel for
+            #pragma omp parallel for
             for (int j = popSize; j < ((2 * popSize)); j++) {
                 struct individual* child;
                 int parent1;
@@ -66,16 +67,7 @@ int main (int argc, char *argv[]) {
             printf("Best Indiv is fitness %f\n", 1/population[0]->fitness);
             //printf("Current Generation is %d\n", currentGen);
         } 
-        printf("Final Population with %d generations.\n", currentGen);
         printPop();
-
-        if (isPermutation(population[0]->ordering)) {
-            printf("The best individual in this population is a real permutation.\n");
-        }
-        printf("The best cost is %f\n", 1/(population[0]->fitness));
-        printf("Cost was called %d times this run.\n", costCounter);
-        printf("This run took %d generations.\n", currentGen);
-        printf("The final population size for this was %d\n", popSize);
         for (int i = 0; i < popSize; i++) {
             free(population[i]->ordering);
             free(population[i]);
@@ -87,8 +79,12 @@ int main (int argc, char *argv[]) {
     }
 }
 void signalStopper(int signum) {
-    printPop;
+    printPop();
     exit(0);
+}
+
+void signalPrinter(int sugnum) {
+    printPop();
 }
 
 void sortGeneration(individual** population) {
@@ -183,6 +179,14 @@ void printPop() {
     average = average / popSize;
     printf("Average is %f", average);
     printf("\n");
+    if (isPermutation(population[0]->ordering)) {
+        printf("The best individual in this population is a real permutation.\n");
+    }
+    printf("The best cost is %f\n", 1/(population[0]->fitness));
+    printf("Cost was called %d times this run.\n", costCounter);
+    printf("This run took %d generations.\n", currentGen);
+    printf("The final population size for this was %d\n", popSize);
+
 }
 
 /* Implements the crossing of two selected matrix orderings in order
@@ -670,7 +674,7 @@ int fitPicking(struct individual* possibleParents[]) {
 /* Implements the evaluation function for a matrix ordering. Will store
    the value of this ordering into the structure that contains it. */
 void evaluateOrdering(struct individual* indivs[], int size) {
-    //#pragma omp parallel for
+    #pragma omp parallel for
     for (int in = 0; in < size; in++) {
         if (indivs[in]->fitness == -1) {
             indivs[in]->fitness = 1.0 / (GetCost(n, nnz, adjArray1, adjArray2 ,indivs[in]->ordering));
@@ -750,7 +754,7 @@ void init(int argc, char *argv[]) {
 
 /* Mutates the entire current population. */
 void mutatePop(struct individual* mutated[]) {
-    //#pragma omp parallel for
+    #pragma omp parallel for
     for (int individual = popSize; individual < popSize * 2; individual++) {
         double randomMutate;
         double mutateBarrier;

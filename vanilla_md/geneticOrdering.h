@@ -69,6 +69,7 @@ void uxCrossover(struct individual* child, int firstParent, int secondParent);
 void fractionGeneration(individual** population);
 void sortGeneration(individual** population);
 void signalStopper(int signum);
+void signalPrinter(int signum);
 
 int costComp(const void * a, const void * b);
 int averageStructComp(const void * a, const void * b);
