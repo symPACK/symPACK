@@ -64,7 +64,7 @@ int main (int argc, char *argv[]) {
             if (costStopCounter == stopCount) {
                 break;
             }
-            printf("Best Indiv is fitness %f\n", 1/population[0]->fitness);
+            //printf("Best Indiv is fitness %f\n", 1/population[0]->fitness);
             //printf("Current Generation is %d\n", currentGen);
         } 
         printPop();
@@ -182,11 +182,12 @@ void printPop() {
     if (isPermutation(population[0]->ordering)) {
         printf("The best individual in this population is a real permutation.\n");
     }
-    printf("The best cost is %f\n", 1/(population[0]->fitness));
-    printf("Cost was called %d times this run.\n", costCounter);
-    printf("This run took %d generations.\n", currentGen);
-    printf("The final population size for this was %d\n", popSize);
-
+    if (currentGen != 0) {
+        printf("The best cost is %f\n", 1/(population[0]->fitness));
+        printf("Cost was called %d times this run.\n", costCounter);
+        printf("This run took %d generations.\n", currentGen);
+        printf("The final population size for this was %d\n", popSize);
+    }
 }
 
 /* Implements the crossing of two selected matrix orderings in order
