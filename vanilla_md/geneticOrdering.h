@@ -23,7 +23,9 @@ char* adjacencyFile;
 char* mutType;
 char* crossType;
 char* selectionType;
+char* generationType;
 
+int runningProgram = 1;
 int nnz;
 int n;
 int maxGens;
@@ -64,6 +66,9 @@ void noneCrossover(struct individual* child, int firstParent, int secondParent);
 void prefixCrossover(struct individual* child, int firstParent, int secondParent);
 void prefix2Crossover(struct individual* child, int firstParent, int secondparent);
 void uxCrossover(struct individual* child, int firstParent, int secondParent);
+void fractionGeneration(individual** population);
+void sortGeneration(individual** population);
+void signalStopper(int signum);
 
 int costComp(const void * a, const void * b);
 int averageStructComp(const void * a, const void * b);

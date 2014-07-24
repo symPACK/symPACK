@@ -3,6 +3,7 @@
 #include <time.h>
 #include <string.h>
 #include <omp.h>
+#include <signal.h>
 #include "util.h"
 #include "geneticOrdering.h"
 
@@ -12,102 +13,130 @@
    for the optimal matrix ordering. Does not take any commandline
    arguments as of now.*/
 int main (int argc, char *argv[]) {
-    setbuf(stdout, NULL);
-    init(argc, argv);
-    printf("Initial Population \n");
-    printPop();
-    evaluateOrdering(population, popSize);
-    while (currentGen < maxGens) {
-        //#pragma omp parallel for
-        for (int j = popSize; j < ((2 * popSize)); j++) {
-            struct individual* child;
-            int parent1;
-            int parent2 = -1;
-            parent1 = pickParent(population);
-            while (parent2 < 0 || parent2 == parent1) {
-                parent2 = pickParent(population);
+    signal(SIGINT, signalStopper);
+    while (runningProgram) { 
+        setbuf(stdout, NULL);
+        init(argc, argv);
+        printf("Initial Population \n");
+        printPop();
+        evaluateOrdering(population, popSize);
+        while (currentGen < maxGens) {
+            //#pragma omp parallel for
+            for (int j = popSize; j < ((2 * popSize)); j++) {
+                struct individual* child;
+                int parent1;
+                int parent2 = -1;
+                parent1 = pickParent(population);
+                while (parent2 < 0 || parent2 == parent1) {
+                    parent2 = pickParent(population);
+                }
+                child = cross(parent1, parent2);
+                population[j] = child;
             }
-            child = cross(parent1, parent2);
-            population[j] = child;
-        }
-        mutatePop(population);
-        evaluateOrdering(population, 2*popSize);
-        if (popSize == maxPopSize) {
-            growthNumber = 0;
-        }
+            mutatePop(population);
+            evaluateOrdering(population, 2*popSize);
+            if (popSize == maxPopSize) {
+                growthNumber = 0;
+            }
 
+            if (!strcmp("fraction", generationType)) { 
+                fractionGeneration(population);        
+            } else if (!strcmp("sort", generationType)) {
+                sortGeneration(population);
+            }
+            
+            if (popSize + growthNumber <= maxPopSize) {
+                popSize += growthNumber;
+            }
 
-        qsort(population, popSize, sizeof(struct individual*), costComp);
-        qsort(population + (popSize), popSize, sizeof(struct individual*), costComp);
+            if (population[0]->fitness > costStopScore) {
+                costStopScore = population[0]->fitness;
+                costStopCounter = 0;
+            }
+            costStopCounter += 1;
 
-        int numChildren;
-        int numParents;
-
-        numChildren = childPercent * (popSize + (growthNumber));
-        numParents = popSize + growthNumber - numChildren;
-
-        if (numChildren > popSize) {
-            numChildren = popSize;
-            numParents = growthNumber;
-        } else if (numParents > popSize) {
-            numChildren = growthNumber;
-            numParents = popSize;
-        }
-
-
-
-        printf("numChildren: %d, numParents: %d, popSize %d\n", numChildren, numParents, popSize);
-        for (int x = numParents; x < popSize; x++) {
-            free(population[x]->ordering);
-            free(population[x]);
-        }
-        for (int z = (numChildren + popSize); z<(popSize *2); z++) {
-            free(population[z]->ordering);
-            free(population[z]);
-        }
+            if ((1/population[0]->fitness) < breakThreshold) {
+                break;
+            }
         
-        memcpy((population + numParents), population + (popSize), numChildren*sizeof(struct individual*));
-        qsort(population, popSize+growthNumber, sizeof(struct individual*), costComp);
-        
-        if (popSize + growthNumber <= maxPopSize) {
-            popSize += growthNumber;
-        }
+            currentGen += 1;
+            if (costStopCounter == stopCount) {
+                break;
+            }
+            printf("Best Indiv is fitness %f\n", 1/population[0]->fitness);
+            //printf("Current Generation is %d\n", currentGen);
+        } 
+        printf("Final Population with %d generations.\n", currentGen);
+        printPop();
 
-        if (population[0]->fitness > costStopScore) {
-            costStopScore = population[0]->fitness;
-            costStopCounter = 0;
+        if (isPermutation(population[0]->ordering)) {
+            printf("The best individual in this population is a real permutation.\n");
         }
-        costStopCounter += 1;
-
-        if ((1/population[0]->fitness) < breakThreshold) {
-            break;
+        printf("The best cost is %f\n", 1/(population[0]->fitness));
+        printf("Cost was called %d times this run.\n", costCounter);
+        printf("This run took %d generations.\n", currentGen);
+        printf("The final population size for this was %d\n", popSize);
+        for (int i = 0; i < popSize; i++) {
+            free(population[i]->ordering);
+            free(population[i]);
         }
-        
-        currentGen += 1;
-        if (costStopCounter == stopCount) {
-            break;
-        }
-        printf("Best Indiv is fitness %f\n", 1/population[0]->fitness);
-        //printf("Current Generation is %d\n", currentGen);
-    } 
-    printf("Final Population with %d generations.\n", currentGen);
-    printPop();
-
-    if (isPermutation(population[0]->ordering)) {
-        printf("The best individual in this population is a real permutation.\n");
+        free(population);
+        free(adjArray1);
+        free(adjArray2);
+        return 0;
     }
-    printf("The best cost is %f\n", 1/(population[0]->fitness));
-    printf("Cost was called %d times this run.\n", costCounter);
-    printf("This run took %d generations.\n", currentGen);
-    printf("The final population size for this was %d\n", popSize);
-    for (int i = 0; i < popSize; i++) {
-        free(population[i]->ordering);
-        free(population[i]);
-    }
-    free(population);
-    free(adjArray1);
-    free(adjArray2);
 }
+void signalStopper(int signum) {
+    printPop;
+    exit(0);
+}
+
+void sortGeneration(individual** population) {
+    qsort(population, 2*popSize, sizeof(struct individual*), costComp);
+    for (int x = popSize + growthNumber; x < (2*popSize); x++) {
+        free(population[x]->ordering);
+        free(population[x]);
+    }
+} 
+
+void fractionGeneration(individual** population) {
+    qsort(population, popSize, sizeof(struct individual*), costComp);
+    qsort(population + (popSize), popSize, sizeof(struct individual*), costComp);
+
+    int numChildren;
+    int numParents;
+
+    numChildren = childPercent * (popSize + (growthNumber));
+    numParents = popSize + growthNumber - numChildren;
+
+    if (numChildren > popSize) {
+        numChildren = popSize;
+        numParents = growthNumber;
+    } else if (numParents > popSize) {
+        numChildren = growthNumber;
+        numParents = popSize;
+    }
+
+
+
+    //printf("numChildren: %d, numParents: %d, popSize %d\n", numChildren, numParents, popSize);
+    for (int x = numParents; x < popSize; x++) {
+        free(population[x]->ordering);
+        free(population[x]);
+    }
+    for (int z = (numChildren + popSize); z<(popSize *2); z++) {
+        free(population[z]->ordering);
+        free(population[z]);
+    }
+    
+    memcpy((population + numParents), population + (popSize), numChildren*sizeof(struct individual*));
+    qsort(population, popSize+growthNumber, sizeof(struct individual*), costComp);
+
+}
+
+
+
+
 
 /*Comparison function used to order individuals by fitness*/
 int costComp(const void * a, const void * b) {
@@ -663,8 +692,8 @@ void init(int argc, char *argv[]) {
     seed = time(NULL);
     srand(seed);
     printf("Seed is %d\n",seed);
-    if (argc != 16) {
-        fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Scale (i.e. 2 = 200 percent scaling)\n Amount of individuals to increase each generation(rounded up to nearest even number\n Amount of fill to use for prefix crossover, ignored otherwise)");
+    if (argc != 17) {
+        fprintf(stderr,"Error: Wrong number of Arugments. Should be the following:\nPopulation File\nAdjaceny File \nMax # of Generations\nChance of mutating individual\nPercentage of the indiv to be mutated\nLength of genes to be mutated at once\n# of generations to stop after no improvement\nThreshold to stop the generation\nType of Mutation\nType of Crossover\nType of Selection\nPopulation Scale (i.e. 2 = 200 percent scaling)\n Amount of individuals to increase each generation(rounded up to nearest even number\n Amount of fill to use for prefix crossover, ignored otherwise\nMethod of generating the next population.\nFraction to use for next generation if using fraction generation.\n)");
         exit(5);
     } else {
         inputFile = argv[1];
@@ -687,7 +716,8 @@ void init(int argc, char *argv[]) {
             growthNumber += 1;
         }
         fillPercent = atof(argv[14]);
-        childPercent = atof(argv[15]);
+        generationType = argv[15];
+        childPercent = atof(argv[16]);
     }
     ReadAdjacency(adjacencyFile, &adjArray1, &adjArray2, &n, &nnz);    
     FILE *inFile;

@@ -1,4 +1,4 @@
-DEBUG_LIB = ${HOME}/software/duma_2_5_15/libduma.a -lpthread
+#DEBUG_LIB = ${HOME}/software/duma_2_5_15/libduma.a -lpthread
 
 
 CXXFLAGS =-I./  -O3 -std=c++11
