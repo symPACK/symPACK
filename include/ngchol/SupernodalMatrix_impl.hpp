@@ -1833,6 +1833,12 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
           ++iLocalI;
       //MPI_Barrier(CommEnv_->MPI_GetComm());
     }
+
+    while(!outgoingSend.empty()){
+      AdvanceOutgoing(outgoingSend);
+    } 
+    MPI_Barrier(CommEnv_->MPI_GetComm());
+
     TIMER_STOP(SPARSE_FWD_SUBST);
 
 
@@ -1899,6 +1905,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
             MPI_Recv(&nz_cnt,sizeof(Int),MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
             src_nzval.resize(nz_cnt);
 
+            logfileptr->OFS()<<"RECVing contrib to Supernode "<<contrib->Id()<<std::endl;
             //receive the nzval array
             MPI_Recv(&src_nzval[0],nz_cnt*sizeof(T),MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
 
@@ -1910,9 +1917,9 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
             //Create the dummy supernode for that data
             dist_contrib = new SuperNode<T>(src_snode_id,1,nrhs, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, nz_cnt);
 
-#ifdef _DEBUG_
+//#ifdef _DEBUG_
             logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib->Id()<<std::endl;
-#endif
+//#endif
 
             back_update(dist_contrib,contrib);
             delete dist_contrib;
@@ -2026,11 +2033,13 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
                 //send the block descriptors
 //                  assert(iTarget<np);
 
+                logfileptr->OFS()<<"     Sending contribution "<<I<<" to Supernode "<<child_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
                   MPI_Send(&bytes_size,sizeof(bytes_size),MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm());
                   MPI_Send(send_ptr,bytes_size, MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm());
                   //send the nzvals
                   MPI_Send(&nz_cnt,sizeof(nz_cnt),MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm());
                   MPI_Send(nzval_ptr,nz_cnt*sizeof(T),MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm());
+                logfileptr->OFS()<<"     Sent contribution "<<I<<" to Supernode "<<child_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
 
                 
                 delete pNewDesc;
