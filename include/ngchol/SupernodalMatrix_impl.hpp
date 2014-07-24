@@ -1781,7 +1781,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
               logfileptr->OFS()<<"Local Supernode "<<parent_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
 #endif
               Int iLocalJ = (parent_snode_id-1) / np +1 ;
-              LocalUpdates[iLocalJ-1].push(I);
+              LocalUpdates[iLocalJ-1].push((Int)I);
             }
           }
 

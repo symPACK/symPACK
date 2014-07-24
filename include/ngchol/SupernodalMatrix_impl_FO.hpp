@@ -666,6 +666,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
 #ifdef _DEBUG_
           logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 #endif
+          logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 
 
 
