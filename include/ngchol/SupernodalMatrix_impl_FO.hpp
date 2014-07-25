@@ -5,7 +5,7 @@
 
 
 
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, bool reverse){
   typedef volatile LIBCHOLESKY::Int Int;
  
   if(snodeColl.empty() || MsgToSend.empty()) { return;}
@@ -14,13 +14,15 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
   Int last_snode_id = Xsuper_.m()-1;
   //Index of the last local supernode
   Int last_local_id = snodeColl.back()->Id();
+  Int first_local_id = snodeColl.front()->Id();
   //Index of the last PROCESSED supernode
   Int prev_snode_id = iLocalI<=snodeColl.size()?snodeColl[iLocalI-1]->Id():last_local_id;
+  if(reverse){prev_snode_id = iLocalI>=1?snodeColl[iLocalI-1]->Id():first_local_id;}
   //Index of the next local supernode
   Int next_snode_id = prev_snode_id>=last_local_id?last_snode_id+1:snodeColl[iLocalI]->Id();
+  if(reverse){next_snode_id = prev_snode_id<=1?0:snodeColl[iLocalI-2]->Id();}
 
-
-      bool is_last = prev_snode_id>=last_local_id;
+  bool is_last = (!reverse)?prev_snode_id>=last_local_id:prev_snode_id<=1;
 
   if(!MsgToSend.empty()){
 
@@ -69,7 +71,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
 
       //        assert(prev_src_snode.Id()==src_snode_id);
 
-      bool is_less = tgt_id < next_snode_id;
+      bool is_less = (!reverse)?tgt_id < next_snode_id:tgt_id>next_snode_id;
 //      bool is_sendable = ((!is_last_local && is_less)|| ( is_after_last_local) || (!is_last_snode && is_last_local));
       bool is_sendable = (is_less || is_last);
 
@@ -1008,7 +1010,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
 
 #ifdef DELAY_SNODES
                 //need a std::unordered_set to check whether 
-                volatile Int next_local_snode = (iLocalI+1 < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
+                volatile Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
                   if(next_local_snode< tgt_snode_id){
                     //need to push the prev src_last_row
                     //                  FactorsToSend.push_back(DelayedComm(src_snode.Id(),tgt_snode_id,src_nzblk_idx,src_first_row));
