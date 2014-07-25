@@ -252,28 +252,22 @@ if(0){
 
 
         //NZvals are in row orig_col of original matrix
-        std::vector<Int> isSender(np,0);
-
         Int prev_col = col;
         do{
           Int orig_prev_col = Order_.perm[prev_col-1];
           Int iOwnerCurCol = std::min((orig_prev_col-1)/numColFirst,np-1);
 
-          Int local_col = (orig_prev_col-(numColFirst)*iOwnerCurCol);
-          Int colbeg = Local_.colptr[local_col-1];
-          Int colend = Local_.colptr[local_col]-1;
-          const T * pdData = &pMat.nzvalLocal[0];
+          if(iam == iOwnerCurCol){
+            Int local_col = (orig_prev_col-(numColFirst)*iOwnerCurCol);
+            Int colbeg = Local_.colptr[local_col-1];
+            Int colend = Local_.colptr[local_col]-1;
+            const T * pdData = &pMat.nzvalLocal[0];
 
-          for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-            Int orig_row = Local_.rowind[rowidx-1];
-            Int row = Order_.invp[orig_row-1];
-            //serialize the value
-            if(orig_prev_col == orig_col){
-              if(iam == iDest){
-                isSender[iOwnerCurCol] = 1;
-              }
-
-              if(iam == iOwnerCurCol){
+            for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
+              Int orig_row = Local_.rowind[rowidx-1];
+              Int row = Order_.invp[orig_row-1];
+              //serialize the value
+              if(orig_prev_col == orig_col){
                 if(row>=col){
                   buffer<<row;
                   assert(row>0);
@@ -281,13 +275,7 @@ if(0){
                   buffer<<val;
                 }
               }
-            }
-            else if(row == col){
-              if(iam == iDest){
-                isSender[iOwnerCurCol] = 1;
-              }
-
-              if(iam == iOwnerCurCol){
+              else if(row == col){
                 buffer<<prev_col;
                 assert(prev_col>0);
                 T val = pdData[rowidx-1];
@@ -300,41 +288,42 @@ if(0){
           prev_col = ETree_.PostParent(prev_col-1);
         }while(prev_col!=0);
 
-////          //If I'm the destination, I should count the number of senders
-////          if( iam == iDest ){
-////
-////          Int prev_col = col;
-////          do{
-////            Int orig_prev_col = Order_.perm[prev_col-1];
-////            Int iOwnerCurCol = std::min((orig_prev_col-1)/numColFirst,np-1);
-////
-////              Int colbeg = Global_.expColptr[orig_prev_col-1];
-////              Int colend = Global_.expColptr[orig_prev_col]-1;
-////
-////                for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-////                  Int orig_row = Global_.expRowind[rowidx-1];
-////                  Int row = Order_.invp[orig_row-1];
-////                  //Look only at the lower triangular part
-////                  if(orig_row>= orig_prev_col){
-////                    //serialize the value
-////                    if(orig_prev_col == orig_col){
-////                      if(row>=col){
-////                        isSender[iOwnerCurCol] = 1;//true;      
-////                      }
-////                    }
-////                    else if(row == col){
-////                      isSender[iOwnerCurCol] = 1;//true;      
-////                      break;
-////                    }
-////                  }
-////                }
-////
-////            prev_col = ETree_.PostParent(prev_col-1);
-////          }while(prev_col!=0);
-////
-//////              logfileptr->OFS()<<isSender<<endl;
-////            }
-////
+        std::vector<Int> isSender(np,0);
+        if(iam==iDest){
+          //If I'm the destination, I should count the number of senders
+
+          Int prev_col = col;
+          do{
+            Int orig_prev_col = Order_.perm[prev_col-1];
+            Int iOwnerCurCol = std::min((orig_prev_col-1)/numColFirst,np-1);
+
+            Int colbeg = Global_.expColptr[orig_prev_col-1];
+            Int colend = Global_.expColptr[orig_prev_col]-1;
+
+            for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
+              Int orig_row = Global_.expRowind[rowidx-1];
+              Int row = Order_.invp[orig_row-1];
+              //Look only at the lower triangular part
+              if(orig_row>= orig_prev_col){
+                //serialize the value
+                if(orig_prev_col == orig_col){
+                  if(row>=col){
+                    isSender[iOwnerCurCol] = 1;//true;      
+                  }
+                }
+                else if(row == col){
+                  isSender[iOwnerCurCol] = 1;//true;      
+                  break;
+                }
+              }
+            }
+
+            prev_col = ETree_.PostParent(prev_col-1);
+          }while(prev_col!=0);
+
+          //              logfileptr->OFS()<<isSender<<endl;
+        }
+
 
 
 
@@ -391,9 +380,11 @@ assert(row>0);
             std::vector<MPI_Request> requestSizes(np,MPI_REQUEST_NULL);
             std::vector<MPI_Request> requestContents(np,MPI_REQUEST_NULL);
             std::vector<Int> sizes(np,0);
+            Int senderCnt = 0;
             for(Int psrc = 0; psrc<np; ++psrc){
               if(isSender[psrc]){
                 if(psrc!=iam){
+                  senderCnt++;
                   MPI_Irecv(&sizes[psrc],sizeof(Int),MPI_BYTE,psrc,2*col+0,CommEnv_->MPI_GetComm(),&requestSizes[psrc]);
                 }
               }
@@ -403,22 +394,23 @@ assert(row>0);
 
             Int indx = MPI_UNDEFINED;
             MPI_Status recv_status;
-            MPI_Waitany(np,&requestSizes[0],&indx,&recv_status);
-            while(indx!=MPI_UNDEFINED){
-              //Post the corresponding Irecv for content
-              //MPI_Request & req = requestSizes[indx];
-              Int psrc = recv_status.MPI_SOURCE;
-              Int size = sizes[psrc];
-              recvBuffers[psrc].resize(size);
-              //Do the Irecv for content
-              assert(isSender[psrc]);
-              MPI_Irecv(recvBuffers[psrc].front(),size,MPI_BYTE,psrc,2*col+1,CommEnv_->MPI_GetComm(),&requestContents[psrc]);
-
-              //Wait for another size
-              indx = MPI_UNDEFINED;
+            if(senderCnt>0){
               MPI_Waitany(np,&requestSizes[0],&indx,&recv_status);
-            }
+              while(indx!=MPI_UNDEFINED){
+                //Post the corresponding Irecv for content
+                //MPI_Request & req = requestSizes[indx];
+                Int psrc = recv_status.MPI_SOURCE;
+                Int size = sizes[psrc];
+                recvBuffers[psrc].resize(size);
+                //Do the Irecv for content
+                assert(isSender[psrc]);
+                MPI_Irecv(recvBuffers[psrc].front(),size,MPI_BYTE,psrc,2*col+1,CommEnv_->MPI_GetComm(),&requestContents[psrc]);
 
+                //Wait for another size
+                indx = MPI_UNDEFINED;
+                MPI_Waitany(np,&requestSizes[0],&indx,&recv_status);
+              }
+            }
 
             //If there is some local data, unpackit while we receive the remote content
             if(isSender[iam]){
@@ -440,35 +432,36 @@ assert(row>0);
 
 
 
-            //While there is a new content
-            indx = MPI_UNDEFINED;
-            MPI_Waitany(np,&requestContents[0],&indx,&recv_status);
-            while(indx!=MPI_UNDEFINED){
-              MPI_Request & req = requestContents[indx];
-              Int psrc = recv_status.MPI_SOURCE;
-
-              Icomm & buffer = recvBuffers[psrc];
-              Int size = buffer.size();
-              char * pRecvData = buffer.front();
-              //Unpack
-              Int pos = 0;
-              while(pos<size){
-                Int row = *reinterpret_cast<Int *>(&pRecvData[pos]);
-                assert(row>0);
-                pos += sizeof(Int);
-                T val = *reinterpret_cast<T *>(&pRecvData[pos]);
-                pos += sizeof(T);
-
-                //put this into denseA
-                denseA.at(row-1) = val;
-              }
-
-
-              //Wait for another content
+            if(senderCnt>0){
+              //While there is a new content
               indx = MPI_UNDEFINED;
               MPI_Waitany(np,&requestContents[0],&indx,&recv_status);
-            }
+              while(indx!=MPI_UNDEFINED){
+                MPI_Request & req = requestContents[indx];
+                Int psrc = recv_status.MPI_SOURCE;
 
+                Icomm & buffer = recvBuffers[psrc];
+                Int size = buffer.size();
+                char * pRecvData = buffer.front();
+                //Unpack
+                Int pos = 0;
+                while(pos<size){
+                  Int row = *reinterpret_cast<Int *>(&pRecvData[pos]);
+                  assert(row>0);
+                  pos += sizeof(Int);
+                  T val = *reinterpret_cast<T *>(&pRecvData[pos]);
+                  pos += sizeof(T);
+
+                  //put this into denseA
+                  denseA.at(row-1) = val;
+                }
+
+
+                //Wait for another content
+                indx = MPI_UNDEFINED;
+                MPI_Waitany(np,&requestContents[0],&indx,&recv_status);
+              }
+            }
 
             //now parse A, pick the values in denseA and put it in L
 
@@ -501,6 +494,8 @@ assert(row>0);
               MPI_Send(buffer.front(),size,MPI_BYTE,iDest,2*col+1,CommEnv_->MPI_GetComm());
             }
           }
+
+//        MPI_Barrier(CommEnv_->MPI_GetComm()); 
 #endif
 
 
@@ -2258,7 +2253,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
                   logfileptr->OFS()<<"Local Supernode "<<child_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
 #endif
                   Int iLocalJ = (child_snode_id-1) / np +1 ;
-                  LocalUpdates[iLocalJ-1].push(I);
+                  LocalUpdates[iLocalJ-1].push((Int)I);
                 }
                 children_found++;
               }
