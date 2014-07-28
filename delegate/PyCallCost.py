@@ -53,4 +53,3 @@ print(cost)
 #Free the Adj and XAdj Arrays and exit.
 utilLib.freeIntPointer(XAdj)
 utilLib.freeIntPointer(Adj)
-exit(0)

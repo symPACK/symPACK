@@ -36,6 +36,23 @@ int main(int argc, char *argv[]) {
   ReadAdjacency(argv[1], &ixadj, &iadj,&n,&nnz);
 
 
+    cout<<"ixadj: ";
+    for(int i =0; i<n+1; ++i){
+      cout<<" "<<ixadj[i];
+    }
+    cout<<endl;
+
+
+
+
+    cout<<"iadj: ";
+    for(int i =0; i<nnz; ++i){
+      cout<<" "<<iadj[i];
+    }
+    cout<<endl;
+
+
+
   //expand to asymmetric storage
   vector<int> xadj;
   vector<int> adj;
@@ -74,11 +91,11 @@ int main(int argc, char *argv[]) {
 
   double cost  = GetCostPerCol(n,adj.size(),&xadj[0],&adj[0],&perm[0],&costc[0]);
 
-    cout<<"Perm after postordering: ";
-    for(int i =0; i<perm.size(); ++i){
-      cout<<" "<<perm[i];
-    }
-    cout<<endl;
+//    cout<<"Perm after postordering: ";
+//    for(int i =0; i<perm.size(); ++i){
+//      cout<<" "<<perm[i];
+//    }
+//    cout<<endl;
 
   cout<<"Cost(fast) is "<<cost2<<endl;
   cout<<"Cost is "<<cost<<endl;
@@ -95,11 +112,11 @@ int main(int argc, char *argv[]) {
   vector<int> psum(n);
   GetPrefixSum(n,&costc[0],&psum[0]);
 
-  cout<<"Prefix sum of cost is: ";
-  for(int i=0;i<n;++i){
-    cout<<" "<<psum[i];
-  }
-  cout<<endl;
+//  cout<<"Prefix sum of cost is: ";
+//  for(int i=0;i<n;++i){
+//    cout<<" "<<psum[i];
+//  }
+//  cout<<endl;
   //  assert(psum[n-1]==cost);
 
 
