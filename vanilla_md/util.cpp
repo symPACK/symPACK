@@ -341,6 +341,9 @@ int ReadAdjacency(const char * pfilename, vector<int> & xadj, vector<int> & adj)
        }
        adj.push_back(i);
     }
+    if(!ifound){
+      adj.push_back(col);
+    }
     xadj.push_back(adj.size()+1);
   }    
   else{
@@ -428,6 +431,9 @@ int ReadAdjacency(const char * pfilename, int ** pxadj, int ** padj, int * n , i
         ifound=1;
        }
        iadj.push_back(i);
+    }
+    if(!ifound){
+      iadj.push_back(col);
     }
     ixadj.push_back(iadj.size()+1);
   }    
