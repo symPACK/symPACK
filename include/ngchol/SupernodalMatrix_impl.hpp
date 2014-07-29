@@ -288,46 +288,9 @@ if(0){
           prev_col = ETree_.PostParent(prev_col-1);
         }while(prev_col!=0);
 
-        std::vector<Int> isSender(np,0);
-        if(iam==iDest){
-          //If I'm the destination, I should count the number of senders
-
-          Int prev_col = col;
-          do{
-            Int orig_prev_col = Order_.perm[prev_col-1];
-            Int iOwnerCurCol = std::min((orig_prev_col-1)/numColFirst,np-1);
-
-            Int colbeg = Global_.expColptr[orig_prev_col-1];
-            Int colend = Global_.expColptr[orig_prev_col]-1;
-
-            for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-              Int orig_row = Global_.expRowind[rowidx-1];
-              Int row = Order_.invp[orig_row-1];
-              //Look only at the lower triangular part
-              if(orig_row>= orig_prev_col){
-                //serialize the value
-                if(orig_prev_col == orig_col){
-                  if(row>=col){
-                    isSender[iOwnerCurCol] = 1;//true;      
-                  }
-                }
-                else if(row == col){
-                  isSender[iOwnerCurCol] = 1;//true;      
-                  break;
-                }
-              }
-            }
-
-            prev_col = ETree_.PostParent(prev_col-1);
-          }while(prev_col!=0);
-
-          //              logfileptr->OFS()<<isSender<<endl;
-        }
 
 
-
-
-#if 0
+#if 1
           mpi::Gatherv(buffer,recv_buffer,iDest,CommEnv_->MPI_GetComm());
           //now I know if I need to send something and who I'm receiving from
           if(iam == iDest){
@@ -371,6 +334,43 @@ assert(row>0);
             }
           }
 #else
+        std::vector<Int> isSender(np,0);
+        if(iam==iDest){
+          //If I'm the destination, I should count the number of senders
+
+          Int prev_col = col;
+          do{
+            Int orig_prev_col = Order_.perm[prev_col-1];
+            Int iOwnerCurCol = std::min((orig_prev_col-1)/numColFirst,np-1);
+
+            Int colbeg = Global_.expColptr[orig_prev_col-1];
+            Int colend = Global_.expColptr[orig_prev_col]-1;
+
+            for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
+              Int orig_row = Global_.expRowind[rowidx-1];
+              Int row = Order_.invp[orig_row-1];
+              //Look only at the lower triangular part
+              if(orig_row>= orig_prev_col){
+                //serialize the value
+                if(orig_prev_col == orig_col){
+                  if(row>=col){
+                    isSender[iOwnerCurCol] = 1;//true;      
+                  }
+                }
+                else if(row == col){
+                  isSender[iOwnerCurCol] = 1;//true;      
+                  break;
+                }
+              }
+            }
+
+            prev_col = ETree_.PostParent(prev_col-1);
+          }while(prev_col!=0);
+
+          //              logfileptr->OFS()<<isSender<<endl;
+        }
+
+
           //now I know if I need to send something and who I'm receiving from
           if(iam == iDest){
 
@@ -732,6 +732,14 @@ assert(row>0);
     *outgoingSend.back()<<nz_cnt;
     Serialize(*outgoingSend.back(),nzval_ptr,nz_cnt);
   }
+
+  template<typename T> void SupernodalMatrix<T>::AddOutgoingComm(AsyncComms & outgoingSend, Icomm * send_buffer){
+    outgoingSend.push_back(send_buffer);
+  }
+
+
+
+
 
 template <typename T> void SupernodalMatrix<T>::AdvanceOutgoing(AsyncComms & outgoingSend){
   //Check for completion of outgoing communication
@@ -1611,6 +1619,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 
 
     CommList ContribsToSend; 
+    DownCommList ContribsToSendDown; 
 
 
     std::vector<char> src_blocks;
@@ -1708,7 +1717,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
           MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
 #endif
 
-#if 1
+#if 0
           MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
 
           Int src_snode_id = *(Int*)&src_blocks[0];
@@ -1722,7 +1731,6 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
           //Create the dummy supernode for that data
           SuperNode<T> dist_contrib(src_snode_id,1,nrhs, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
 #else
-
           SuperNode<T> dist_contrib;
           Deserialize(&src_blocks[0],dist_contrib);
 #endif
@@ -1820,15 +1828,6 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
               NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
 
               Int src_first_row = pivot_desc.GIndex;
-              Int local_first_row = 0;
-              Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
-
-              T * nzval_ptr = contrib->GetNZval(pivot_desc.Offset
-                  +local_first_row*nrhs);
-
-              Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
-                  - local_first_row )*nrhs;
-
 
               bool isSkipped= false;
 
@@ -1837,21 +1836,39 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
                   //need to push the prev src_last_row
                   ContribsToSend.push(DelayedComm(contrib->Id(),parent_snode_id,1,src_first_row));
 #ifdef _DEBUG_DELAY_
-                  //                    logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
                                       cout<<"P"<<iam<<" has delayed update from Contrib "<<I<<" to "<<parent_snode_id<<" from row "<<src_first_row<<endl;
 #endif
                     isSkipped= true;
                 }
               
               if(!isSkipped){
+#if 1
+                    //Create a new Icomm buffer, serialize the contribution
+                    // in it and add it to the outgoing comm list
+                    Icomm * send_buffer = new Icomm();
+                    Serialize(*send_buffer,*contrib,src_nzblk_idx,src_first_row);
+                    AddOutgoingComm(outgoingSend,send_buffer);
 
-//               if(!ContribsToSend.empty()){
-//                  if(ContribsToSend.top().tgt_snode_id<parent_snode_id){
-//                    SendDelayedMessages(I,ContribsToSend,outgoingSend,Contributions_);
-//                  }
-//                }
+                    if( outgoingSend.size() > maxIsend_){
+                      TIMER_START(SEND_MPI);
+                      MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,parent_snode_id,CommEnv_->MPI_GetComm());
+                      TIMER_STOP(SEND_MPI);
+                      outgoingSend.pop_back();
+                    }
+                    else{
+                      TIMER_START(SEND_MPI);
+                      MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,parent_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
+                      TIMER_STOP(SEND_MPI);
+                    }
+#else
+              Int local_first_row = 0;
+              Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
 
+              T * nzval_ptr = contrib->GetNZval(pivot_desc.Offset
+                  +local_first_row*nrhs);
 
+              Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
+                  - local_first_row )*nrhs;
 
 
                 TIMER_START(SEND_MALLOC);
@@ -1880,6 +1897,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 
 
                 }
+#endif
 #ifdef _DEBUG_            
                 logfileptr->OFS()<<"     Send contribution "<<I<<" to Supernode "<<parent_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
                 logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
@@ -1898,49 +1916,55 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
 
       }
 
-#ifdef _CHECK_RESULT_SEQ_
-      {
+
+
+          }
+
+
+      SendDelayedMessagesUp(iLocalI,ContribsToSend,outgoingSend,Contributions_);
+
+
+//#ifdef _CHECK_RESULT_SEQ_
+//      //if(iLocalI>0 && iLocalI<=LocalSupernodes_.size()){
+//      {
 //      MPI_Barrier(CommEnv_->MPI_GetComm());
-      NumMat<T> tmp = B;
-      GetSolution(tmp);
+//      NumMat<T> tmp = B;
+//      GetSolution(tmp);
+//
+//
+//      Int nrows = 0;
+//      for(Int ii=1; ii<=I;++ii){ nrows+= Xsuper_[ii] - Xsuper_[ii-1];}
+//
+//      NumMat<T> tmp3(tmp.m(),tmp.n());
+//      NumMat<T> tmpFwd(tmp.m(),tmp.n());
+//      for(Int i = 0; i<tmp.m();++i){
+//        for(Int j = 0; j<tmp.n();++j){
+////          tmp3(Order_.perm[i]-1,j) = tmp(i,j);
+////          tmpFwd(Order_.perm[i]-1,j) = forwardSol(i,j);
+//
+//          tmp3(i,j) = tmp(Order_.perm[i]-1,j);
+//          tmpFwd(i,j) = forwardSol(Order_.perm[i]-1,j);
+//        }
+//      }
+//
+//      NumMat<T> tmp2 = tmp3;
+//      
+//      blas::Axpy(tmp.m()*tmp.n(),-1.0,&tmpFwd(0,0),1,&tmp2(0,0),1);
+//      double norm = lapack::Lange('F',nrows,tmp.n(),&tmp2(0,0),tmp.m());
+//      logfileptr->OFS()<<"Norm after SuperNode "<<I<<" is "<<norm<<std::endl; 
+//
+//        if(abs(norm)>=1e-1){
+//          for(Int i = 0;i<nrows/*tmp.m()*/;++i){
+//            logfileptr->OFS()<<tmpFwd(i,0)<<"       "<<tmp3(i,0)<<std::endl;
+//          }
+//        }
+//      }
+//#endif
 
 
-      Int nrows = 0;
-      for(Int ii=1; ii<=I;++ii){ nrows+= Xsuper_[ii] - Xsuper_[ii-1];}
 
-      NumMat<T> tmp3(tmp.m(),tmp.n());
-      NumMat<T> tmpFwd(tmp.m(),tmp.n());
-      for(Int i = 0; i<tmp.m();++i){
-        for(Int j = 0; j<tmp.n();++j){
-//          tmp3(Order_.perm[i]-1,j) = tmp(i,j);
-//          tmpFwd(Order_.perm[i]-1,j) = forwardSol(i,j);
-
-          tmp3(i,j) = tmp(Order_.perm[i]-1,j);
-          tmpFwd(i,j) = forwardSol(Order_.perm[i]-1,j);
-        }
-      }
-
-      NumMat<T> tmp2 = tmp3;
-      
-      blas::Axpy(tmp.m()*tmp.n(),-1.0,&tmpFwd(0,0),1,&tmp2(0,0),1);
-      double norm = lapack::Lange('F',nrows,tmp.n(),&tmp2(0,0),tmp.m());
-      logfileptr->OFS()<<"Norm after SuperNode "<<I<<" is "<<norm<<std::endl; 
-
-        if(abs(norm)>=1e-1){
-          for(Int i = 0;i<nrows/*tmp.m()*/;++i){
-            logfileptr->OFS()<<tmpFwd(i,0)<<"       "<<tmp3(i,0)<<std::endl;
-          }
-        }
-      }
-#endif
-
-          }
-
-
-      SendDelayedMessages(iLocalI,ContribsToSend,outgoingSend,Contributions_);
 
           ++iLocalI;
-      //MPI_Barrier(CommEnv_->MPI_GetComm());
     }
 
     while(!outgoingSend.empty()){
@@ -1951,16 +1975,10 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
     TIMER_STOP(SPARSE_FWD_SUBST);
 
 
-
-
     //Back-substitution phase
-
     TIMER_START(SPARSE_BACK_SUBST);
 
     //start from the root of the tree
-
-
-
     iLocalI = LocalSupernodes_.size() ;
     while(iLocalI>0|| !ContribsToSend.empty() || !outgoingSend.empty()){
 
@@ -1991,16 +2009,8 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
             back_update(dist_contrib,contrib);
           }
           else{
-
             //Receive parent contrib
-
-
-            //MPI_Recv
             MPI_Status recv_status;
-
-
-
-#if 1
             Int bytes_received = 0;
             MPI_Probe(iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
             MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
@@ -2009,61 +2019,13 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
             MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
 
 
-
-            Int src_snode_id = *(Int*)&src_blocks[0];
-            Int src_nzblk_cnt = *(((Int*)&src_blocks[0])+1);
-            NZBlockDesc * src_blocks_ptr = 
-              reinterpret_cast<NZBlockDesc*>(&src_blocks[2*sizeof(Int)]);
-            Int src_nzval_cnt = *(Int*)(src_blocks_ptr + src_nzblk_cnt);
-            T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
+            dist_contrib = new SuperNode<T>();
+            Deserialize(&src_blocks[0],*dist_contrib); 
 
 
-
-
-            dist_contrib = new SuperNode<T>(src_snode_id,1,nrhs, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
-
-
-            //            dist_contrib = new SuperNode<T>();
-            //            Deserialize(&src_blocks[0],*dist_contrib,nrhs); 
-
-
-#else
-            std::vector<T> src_nzval;
-            //Receive the size of the blocks array
-            Int max_bytes = 0;
-            MPI_Recv(&max_bytes,sizeof(Int),MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
-            src_blocks.resize(max_bytes);
-
-
-            //receive the index array
-            MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
-            //there an aditional integer storing the src id which needs to be removed
-            Int src_nzblk_cnt = (max_bytes - sizeof(Int) ) / sizeof(NZBlockDesc);
-
-
-
-            //Receive the size of the nzval array
-            Int nz_cnt = 0;
-            MPI_Recv(&nz_cnt,sizeof(Int),MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
-            src_nzval.resize(nz_cnt);
-
-            logfileptr->OFS()<<"RECVing contrib to Supernode "<<contrib->Id()<<std::endl;
-            //receive the nzval array
-            MPI_Recv(&src_nzval[0],nz_cnt*sizeof(T),MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
-
-            Int src_snode_id = *(Int*)&src_blocks[0];
-            NZBlockDesc * src_blocks_ptr = 
-              reinterpret_cast<NZBlockDesc*>(&src_blocks[sizeof(Int)]);
-            T * src_nzval_ptr = &src_nzval[0];
-
-            //Create the dummy supernode for that data
-            dist_contrib = new SuperNode<T>(src_snode_id,1,nrhs, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, nz_cnt);
-#endif
-
-
-            //#ifdef _DEBUG_
+            #ifdef _DEBUG_
             logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib->Id()<<std::endl;
-            //#endif
+            #endif
 
             back_update(dist_contrib,contrib);
             delete dist_contrib;
@@ -2071,9 +2033,9 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
         }
 
         //now compute MY contribution
-
-
+#ifdef _DEBUG_
         logfileptr->OFS()<<"BACK Processing contrib "<<I<<std::endl;
+#endif
 
         NZBlockDesc & diag_desc = cur_snode->GetNZBlockDesc(0);
         NZBlockDesc & tgt_desc = contrib->GetNZBlockDesc(0);
@@ -2119,9 +2081,6 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
           Int children_found = 0;
           while(children_found<children(I-1)){
             Int child_snode_id = SupMembership_[colIdx-1];
-            //            Int firstCol = Xsuper_[child_snode_id-1];
-            //            for(Int col = colIdx; col>=firstCol; --col){
-            //            }
 
             Int parent = ETree_.PostParent(colIdx-1);
             if(parent!=0){
@@ -2135,110 +2094,44 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
                   volatile Int next_local_contrib = (iLocalI >1)?Contributions_[iLocalI-2]->Id():0;
                   if(next_local_contrib > child_snode_id){
                     //need to push the prev src_last_row
-
                     //Send
                     Int src_nzblk_idx = 0;
                     NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
-
                     Int src_first_row = pivot_desc.GIndex;
-                    ContribsToSend.push(DelayedComm(contrib->Id(),child_snode_id,1,src_first_row));
+                    ContribsToSendDown.push(DelayedComm(contrib->Id(),child_snode_id,0,src_first_row));
 #ifdef _DEBUG_DELAY_
-                    //                    logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
                     cout<<"P"<<iam<<" has delayed update from Contrib "<<I<<" to "<<child_snode_id<<" from row "<<src_first_row<<endl;
 #endif
                     isSkipped= true;
                   }
 
+
                   if(!isSkipped){
-
-
-
-
 #ifdef _DEBUG_
                     logfileptr->OFS()<<"Remote Supernode "<<child_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
 #endif
 
-
-
-                    std::vector<char> * pNewDesc = new std::vector<char>();
-
-                    Int tgt_first_col = Xsuper_(child_snode_id-1);
-                    Int tgt_last_col = Xsuper_(child_snode_id)-1;
-
-
                     Int src_nzblk_idx = 0;
                     NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
                     Int src_first_row = pivot_desc.GIndex;
-                    Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
-                    T * nzval_ptr = contrib->GetNZval(pivot_desc.Offset);
-                    Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx))*nrhs;
+                    //Create a new Icomm buffer, serialize the contribution
+                    // in it and add it to the outgoing comm list
+                    Icomm * send_buffer = new Icomm();
+                    Serialize(*send_buffer,*contrib,src_nzblk_idx,src_first_row);
+                    AddOutgoingComm(outgoingSend,send_buffer);
 
-
-                    AddOutgoingComm(outgoingSend,contrib->Id(),nrhs,src_first_row,pivot_desc,nzblk_cnt,nzval_ptr,nz_cnt);
 
                     if( outgoingSend.size() > maxIsend_){
-                      //logfileptr->OFS()<<"Remote Supernode "<<parent_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
+                      TIMER_START(SEND_MPI);
                       MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm());
                       TIMER_STOP(SEND_MPI);
                       outgoingSend.pop_back();
-
-                      //logfileptr->OFS()<<"Remote Supernode "<<parent_snode_id<<" got the contribution of Supernode "<<I<<std::endl;
                     }
                     else{
-
                       TIMER_START(SEND_MPI);
                       MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
                       TIMER_STOP(SEND_MPI);
-
-
                     }
-
-#if 0
-                    //Send
-                    Int src_nzblk_idx = 0;
-                    NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
-
-                    Int src_first_row = pivot_desc.GIndex;
-                    Int local_first_row = 0;
-                    Int nzblk_cnt = contrib->NZBlockCnt()-src_nzblk_idx;
-                    pNewDesc->resize(sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc));
-
-                    char * send_ptr = &(*pNewDesc)[0];
-
-                    Int * id_ptr = reinterpret_cast<Int *>(&(*pNewDesc)[0]);
-                    NZBlockDesc * block_desc_ptr = 
-                      reinterpret_cast<NZBlockDesc *>(&(*pNewDesc)[sizeof(Int)]);
-
-                    *id_ptr = contrib->Id();
-                    //copy the block descriptors
-                    std::copy(&pivot_desc,&pivot_desc+nzblk_cnt, block_desc_ptr);
-                    //change the first one
-                    block_desc_ptr->Offset += (src_first_row - block_desc_ptr->GIndex)*nrhs;
-                    block_desc_ptr->GIndex = src_first_row;
-
-                    Int bytes_size = nzblk_cnt*sizeof(NZBlockDesc)+sizeof(Int);
-
-
-                    T * nzval_ptr = contrib->GetNZval(pivot_desc.Offset
-                        +local_first_row*nrhs);
-
-                    Int nz_cnt = (contrib->NRowsBelowBlock(src_nzblk_idx)
-                        - local_first_row )*nrhs;
-
-                    //send the block descriptors
-                    //                  assert(iTarget<np);
-
-                    logfileptr->OFS()<<"     Sending contribution "<<I<<" to Supernode "<<child_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
-                    MPI_Send(&bytes_size,sizeof(bytes_size),MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm());
-                    MPI_Send(send_ptr,bytes_size, MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm());
-                    //send the nzvals
-                    MPI_Send(&nz_cnt,sizeof(nz_cnt),MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm());
-                    MPI_Send(nzval_ptr,nz_cnt*sizeof(T),MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm());
-                    logfileptr->OFS()<<"     Sent contribution "<<I<<" to Supernode "<<child_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
-
-
-                    delete pNewDesc;
-#endif
 
 #ifdef _DEBUG_            
                     logfileptr->OFS()<<"     Send contribution "<<I<<" to Supernode "<<child_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
@@ -2269,7 +2162,7 @@ logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
         }
       }
 
-      SendDelayedMessages(iLocalI,ContribsToSend,outgoingSend,Contributions_,true);
+      SendDelayedMessagesDown(iLocalI,ContribsToSendDown,outgoingSend,Contributions_);
       --iLocalI;
     }
     TIMER_STOP(SPARSE_BACK_SUBST);
@@ -2430,6 +2323,285 @@ template<typename T> void SupernodalMatrix<T>::GetSolution(NumMat<T> & B){
 ////
 
       MPI_Barrier(CommEnv_->MPI_GetComm());
+}
+
+
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
+  typedef volatile LIBCHOLESKY::Int Int;
+
+  if(snodeColl.empty() || MsgToSend.empty()) { return;}
+
+  //Index of the first local supernode
+  Int first_local_id = snodeColl.front()->Id();
+  //Index of the last PROCESSED supernode
+  Int prev_snode_id = iLocalI>=1?snodeColl[iLocalI-1]->Id():first_local_id;
+  //Index of the next local supernode
+  //Int next_snode_id = prev_snode_id<=1?0:snodeColl[iLocalI-2]->Id();
+  Int next_snode_id = iLocalI<=1?0:snodeColl[iLocalI-2]->Id();
+
+  bool is_last = prev_snode_id<=1;
+
+  if(!MsgToSend.empty()){
+
+#ifdef _DEBUG_DELAY_
+    {
+      CommList tmp = MsgToSend;
+      logfileptr->OFS()<<"Queue : ";
+      while( tmp.size()>0){
+        //Pull the highest priority message
+        const DelayedComm & comm = tmp.top();
+        Int src_snode_id = comm.src_snode_id;
+        Int tgt_id = comm.tgt_snode_id;
+        Int src_nzblk_idx = comm.src_nzblk_idx;
+        Int src_first_row = comm.src_first_row;
+        logfileptr->OFS()<<" { "<<src_snode_id<<" -> "<<tgt_id<<" }";
+        tmp.pop();
+      }
+      logfileptr->OFS()<<endl;
+
+
+    }
+#endif
+    while( MsgToSend.size()>0){
+
+
+#ifdef _DEBUG_DELAY_
+      logfileptr->OFS()<<"Async comms: "<<OutgoingSend<<endl;
+#endif
+
+      //Pull the highest priority message
+      const DelayedComm & comm = MsgToSend.top();
+      Int src_snode_id = comm.src_snode_id;
+      Int tgt_id = comm.tgt_snode_id;
+      Int src_nzblk_idx = comm.src_nzblk_idx;
+      Int src_first_row = comm.src_first_row;
+
+#ifdef _DEBUG_DELAY_
+      logfileptr->OFS()<<"Picked { "<<src_snode_id<<" -> "<<tgt_id<<" }"<<endl;
+#endif
+
+      Int iLocalSrc = (src_snode_id-1) / np +1 ;
+      SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
+
+      bool is_less = tgt_id>next_snode_id;
+      bool is_sendable = (is_less || is_last);
+
+      if(is_sendable){
+
+        //this can be sent now
+        Int tgt_snode_id = tgt_id;
+
+        Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
+        if(iTarget != iam){
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+          cout<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+#endif
+
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<prev_src_snode.Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
+#endif
+
+
+
+#if 1
+          NZBlockDesc & pivot_desc = prev_src_snode.GetNZBlockDesc(src_nzblk_idx);
+          //Create a new Icomm buffer, serialize the contribution
+          // in it and add it to the outgoing comm list
+          Icomm * send_buffer = new Icomm();
+          Serialize(*send_buffer,prev_src_snode,src_nzblk_idx,src_first_row);
+          AddOutgoingComm(OutgoingSend,send_buffer);
+
+
+          if( OutgoingSend.size() > maxIsend_){
+            TIMER_START(SEND_MPI);
+            MPI_Send(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm());
+            TIMER_STOP(SEND_MPI);
+            OutgoingSend.pop_back();
+          }
+          else{
+            TIMER_START(SEND_MPI);
+            MPI_Isend(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm(),&OutgoingSend.back()->Request);
+            TIMER_STOP(SEND_MPI);
+          }
+
+
+#else
+          //Send
+          NZBlockDesc & pivot_desc = prev_src_snode.GetNZBlockDesc(src_nzblk_idx);
+          Int local_first_row = src_first_row-pivot_desc.GIndex;
+          Int nzblk_cnt = prev_src_snode.NZBlockCnt()-src_nzblk_idx;
+          Int nz_cnt = (prev_src_snode.NRowsBelowBlock(src_nzblk_idx)
+              - local_first_row )*prev_src_snode.Size();
+          //            assert(nz_cnt>0);
+
+          T * nzval_ptr = prev_src_snode.GetNZval(pivot_desc.Offset
+              +local_first_row*prev_src_snode.Size());
+
+          //gdb_lock();
+          TIMER_START(SEND_MALLOC);
+          AddOutgoingComm(OutgoingSend, prev_src_snode.Id(), prev_src_snode.Size(), src_first_row, pivot_desc, nzblk_cnt, nzval_ptr, nz_cnt);
+          TIMER_STOP(SEND_MALLOC);
+
+          if(OutgoingSend.size() > maxIsend_){
+            TIMER_START(SEND_MPI);
+            MPI_Send(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm());
+            TIMER_STOP(SEND_MPI);
+
+#ifdef _DEBUG_DELAY_
+            logfileptr->OFS()<<"DELAYED Sending "<<nz_cnt*sizeof(T)<<" bytes to P"<<iTarget<<std::endl;
+            logfileptr->OFS()<<"DELAYED     Send factor "<<prev_src_snode.Id()<<" to node"<<tgt_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
+            logfileptr->OFS()<<"DELAYED Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
+            logfileptr->OFS()<<"DELAYED Sending "<<OutgoingSend.back()->size()<<" bytes to P"<<iTarget<<std::endl;
+#endif
+            OutgoingSend.pop_back();
+
+          }
+          else{
+            TIMER_START(SEND_MPI);
+            MPI_Isend(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm(),&OutgoingSend.back()->Request);
+            TIMER_STOP(SEND_MPI);
+
+#ifdef _DEBUG_DELAY_
+            logfileptr->OFS()<<"DELAYED Sending "<<nz_cnt*sizeof(T)<<" bytes to P"<<iTarget<<std::endl;
+            logfileptr->OFS()<<"DELAYED     Send factor "<<prev_src_snode.Id()<<" to node"<<tgt_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
+            logfileptr->OFS()<<"DELAYED Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
+            logfileptr->OFS()<<"DELAYED Sending "<<OutgoingSend.back()->size()<<" bytes to P"<<iTarget<<std::endl;
+#endif
+          }
+#endif
+
+
+
+
+
+        }
+      }
+
+      if(is_sendable){
+        //remove from the list
+        MsgToSend.pop();
+      }
+      else{
+        break;
+      }
+    }
+
+
+  }
+}
+
+
+
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
+  typedef volatile LIBCHOLESKY::Int Int;
+
+  if(snodeColl.empty() || MsgToSend.empty()) { return;}
+
+  //Index of the last global snode to do
+  Int last_snode_id = Xsuper_.m()-1;
+  //Index of the last local supernode
+  Int last_local_id = snodeColl.back()->Id();
+  //Index of the last PROCESSED supernode
+  Int prev_snode_id = iLocalI<=snodeColl.size()?snodeColl[iLocalI-1]->Id():last_local_id;
+  //Index of the next local supernode
+  Int next_snode_id = prev_snode_id>=last_local_id?last_snode_id+1:snodeColl[iLocalI]->Id();
+
+  bool is_last = prev_snode_id>=last_local_id;
+
+  if(!MsgToSend.empty()){
+
+#ifdef _DEBUG_DELAY_
+    {
+      CommList tmp = MsgToSend;
+      logfileptr->OFS()<<"Queue : ";
+      while( tmp.size()>0){
+        //Pull the highest priority message
+        const DelayedComm & comm = tmp.top();
+        Int src_snode_id = comm.src_snode_id;
+        Int tgt_id = comm.tgt_snode_id;
+        Int src_nzblk_idx = comm.src_nzblk_idx;
+        Int src_first_row = comm.src_first_row;
+        logfileptr->OFS()<<" { "<<src_snode_id<<" -> "<<tgt_id<<" }";
+        tmp.pop();
+      }
+      logfileptr->OFS()<<endl;
+
+
+    }
+#endif
+    while( MsgToSend.size()>0){
+
+
+#ifdef _DEBUG_DELAY_
+      logfileptr->OFS()<<"Async comms: "<<OutgoingSend<<endl;
+#endif
+      //Pull the highest priority message
+      const DelayedComm & comm = MsgToSend.top();
+      Int src_snode_id = comm.src_snode_id;
+      Int tgt_id = comm.tgt_snode_id;
+      Int src_nzblk_idx = comm.src_nzblk_idx;
+      Int src_first_row = comm.src_first_row;
+
+#ifdef _DEBUG_DELAY_
+      logfileptr->OFS()<<"Picked { "<<src_snode_id<<" -> "<<tgt_id<<" }"<<endl;
+#endif
+
+      Int iLocalSrc = (src_snode_id-1) / np +1 ;
+      SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
+
+
+      bool is_less = tgt_id < next_snode_id;
+      bool is_sendable = (is_less || is_last);
+
+      if(is_sendable){
+
+        //this can be sent now
+        Int tgt_snode_id = tgt_id;
+
+        Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
+        if(iTarget != iam){
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+          cout<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+#endif
+
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<prev_src_snode.Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
+#endif
+          NZBlockDesc & pivot_desc = prev_src_snode.GetNZBlockDesc(src_nzblk_idx);
+          //Create a new Icomm buffer, serialize the contribution
+          // in it and add it to the outgoing comm list
+          Icomm * send_buffer = new Icomm();
+          Serialize(*send_buffer,prev_src_snode,src_nzblk_idx,src_first_row);
+          AddOutgoingComm(OutgoingSend,send_buffer);
+
+
+          if( OutgoingSend.size() > maxIsend_){
+            TIMER_START(SEND_MPI);
+            MPI_Send(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm());
+            TIMER_STOP(SEND_MPI);
+            OutgoingSend.pop_back();
+          }
+          else{
+            TIMER_START(SEND_MPI);
+            MPI_Isend(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm(),&OutgoingSend.back()->Request);
+            TIMER_STOP(SEND_MPI);
+          }
+        }
+      }
+
+      if(is_sendable){
+        //remove from the list
+        MsgToSend.pop();
+      }
+      else{
+        break;
+      }
+    }
+
+
+  }
 }
 
 

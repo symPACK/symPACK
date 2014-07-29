@@ -141,6 +141,7 @@ template <typename T> class SupernodalMatrix{
 
   //Do the packing of a FO update and enqueue it to outgoingSend
   void AddOutgoingComm(AsyncComms & outgoingSend, Int src_snode_id, Int src_snode_size ,Int src_first_row, NZBlockDesc & pivot_desc, Int nzblk_cnt, T * nzval_ptr, Int nz_cnt);
+  void AddOutgoingComm(AsyncComms & outgoingSend, Icomm * send_buffer);
   //Wait for completion of some outgoing communication in outgoingSend
   void AdvanceOutgoing(AsyncComms & outgoingSend);
 
@@ -163,6 +164,8 @@ template <typename T> class SupernodalMatrix{
 
   //FanOut related routines
   void SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, bool reverse=false);
+  void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl);
+  void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl);
 #ifdef SINGLE_BLAS
   inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, NumMat<T> & tmpBuf,IntNumVec & src_colindx, IntNumVec & src_rowindx, IntNumVec & src_to_tgt_offset
 , Int  pivot_fr = I_ZERO);
