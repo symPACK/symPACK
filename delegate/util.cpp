@@ -13,6 +13,17 @@
 
 //#define _verbose_
 
+void freeIntPointer(int* pointer) {
+    free(pointer);
+}
+
+void freeCharPointer(char* pointer) {
+    free(pointer);
+}
+
+
+
+
 void displayMatrix(vector<int> & xadj, vector<int> & adj){
   for(int i = 1; i< xadj.size();++i){
     int fi = xadj[i-1];
@@ -341,6 +352,9 @@ int ReadAdjacency(const char * pfilename, vector<int> & xadj, vector<int> & adj)
        }
        adj.push_back(i);
     }
+    if(!ifound){
+      adj.push_back(col);
+    }
     xadj.push_back(adj.size()+1);
   }    
   else{
@@ -428,6 +442,9 @@ int ReadAdjacency(const char * pfilename, int ** pxadj, int ** padj, int * n , i
         ifound=1;
        }
        iadj.push_back(i);
+    }
+    if(!ifound){
+      iadj.push_back(col);
     }
     ixadj.push_back(iadj.size()+1);
   }    

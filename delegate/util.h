@@ -17,6 +17,11 @@ extern void GetPrefixSum(int n, int * arr, int * arrout);
 
 extern int ReadAdjacency(const char * pfilename, int ** pxadj, int ** padj, int * n , int * nnz);
 
+extern void freeIntPointer(int* pointer);
+
+extern void freeCharPointer(char* pointer);
+
+
 #ifdef __cplusplus
 }
 
