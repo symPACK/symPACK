@@ -486,6 +486,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
   SMat.GetSolution(X);
 
+      logfileptr->OFS()<<"X:"<<X<<endl;
 
   if(iam==0){
 //  blas::Axpy(X.m()*X.n(),-1.0,&XTrue(0,0),1,&X(0,0),1);
