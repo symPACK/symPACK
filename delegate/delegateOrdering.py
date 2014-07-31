@@ -71,67 +71,70 @@ def permute(depth):
     global bestCost
     global bestPerm
     global currentPerm
-    while depth >= 1:
-        for start in range(N.value):
-            bestIndex = start
-            currentIndex = start
-            while currentIndex < N.value:
-               
-                #Swap Neighborhood
-                oldPerm = makePermList(currentPerm)
-                modifiedList = makePermList(currentPerm)
-                neighborList = getNeighborhood(currentPerm[currentIndex],depth)
-                for el in oldPerm:
-                    if el in neighborList:
-                        modifiedList.append(modifiedList.pop(modifiedList.index(el)))
-                fillPermArray(currentPerm, modifiedList)
-                
-                nextCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
-                if nextCost < bestCost:
-                    bestIndex = currentIndex
-                    bestCost = nextCost
+    newPerm = []
+    k = 0
+    while k <= depth:
+        start = 0
+        moved = False
+        while start < N.value:
+            #originalPerm maintains the original permutation for this iteration
+            #permList is the one to play with and permute
+ #           print("Start is " + str(start))
+            originalPerm = makePermList(bestPerm)
+            permList = makePermList(bestPerm)
 
-                #Restore Neighborhood
-                fillPermArray(currentPerm,oldPerm)
-                currentIndex += 1
 
-            #Swap best Neighborhood in bestPerm and currentPerm
-            tempList = makePermList(currentPerm)
-            modifiedList = makePermList(currentPerm)
-            neighborList = getNeighborhood(currentPerm[bestIndex], depth)
-            for el in tempList:
-                if el in neighborList:
-                    modifiedList.append(modifiedList.pop(modifiedList.index(el)))
-            fillPermArray(currentPerm, modifiedList)
-            fillPermArray(bestPerm, modifiedList)
-            
-        depth -= 1
+            #StartNeighborhood is a set of the neighbors we are looking at.
+            #orderedNeighborhood gets them in the order they appeared in the originalPerm
+            startNeighborhood = getNeighborhood(bestPerm[start], k)
+            orderedNeighborhood = []
+            for i in range(N.value):
+                if bestPerm[i] in startNeighborhood:
+                    orderedNeighborhood.append(bestPerm[i])
+            if len(startNeighborhood) != len(orderedNeighborhood):
+                print("Neighborhoodlengths are wrong")
+#            print(orderedNeighborhood)
+
+            #lastNeighborIndex is the index of the last neighbor. Where we are going to start putting the neighborhood.
+            lastNeighborIndex = originalPerm.index(orderedNeighborhood[-1])
+            #Slicing the list should insert the neighborhood at the index and remove earlier entries of neighbors.
+            permList = permList[:lastNeighborIndex + 1] + orderedNeighborhood + permList[lastNeighborIndex + 1:]
+            for el in orderedNeighborhood:
+                permList.remove(el)
+
+            #If this position is better keep it.
+            fillPermArray(currentPerm, permList)
+            currentCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
+            if currentCost < bestCost:
+                moved = True
+                newPerm = permList
+                bestCost = currentCost
+                bestPerm = currentPerm
+
+            #Try moving elements from after the neighborhood forward and check them.
+            lastNeighbor = permList.index(orderedNeighborhood[-1])
+            firstNeighbor = permList.index(orderedNeighborhood[0])
+  #          print("Before: " + str(permList))
+            while lastNeighbor != N.value-1:
+                permList.insert(firstNeighbor, permList.pop(lastNeighbor + 1))
+  #              print("After: " + str(permList))
+                fillPermArray(currentPerm, permList)
+                currentCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
+                if currentCost < bestCost:
+                    moved = True
+                    newPerm = permList
+                    bestCost = currentCost
+                lastNeighbor = permList.index(orderedNeighborhood[-1])
+                firstNeighbor = permList.index(orderedNeighborhood[0])
+
+            #Update the permutations with the best one found this cycle and increase start.
+            fillPermArray(currentPerm, newPerm)
+            fillPermArray(bestPerm, newPerm)
+            if moved == False:
+                start += 1
+            moved = False
+        k += 1
     return bestCost        
-#    global bestCost
-#    global bestPerm
-#    global CurrentPerm
-#    for start in range(N.value):
-#        bestIndex = start
-#        currentIndex = start
-#        while currentIndex < N.value:
-#            temp = currentPerm[currentIndex]
-#            currentPerm[currentIndex] = currentPerm[start]
-#            currentPerm[start] = temp
-#            nextCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
-#            if nextCost < bestCost:
-#                bestIndex = currentIndex
-#                bestCost = nextCost
-#            temp = currentPerm[currentIndex]
-#            currentPerm[currentIndex] = currentPerm[start]
-#            currentPerm[start] = temp
-#            currentIndex += 1
-#        swap = currentPerm[bestIndex]
-#        currentPerm[bestIndex] = currentPerm[start]
-#        bestPerm[bestIndex] = bestPerm[start]
-#        currentPerm[start] = swap
-#        bestPerm[start] = swap
-#    return bestCost
-
 
 
 def makePermList(arg):
@@ -172,13 +175,16 @@ def getNeighborhood(value, depth):
 # Utility function to determine legality of
 # an ordering permutation.
 def legalPerm(permutation):
-    testSet = set()
-    for i in range(N.value):
-        if i in range(1, N.value+1):
-            testSet.add(permutation[i])
-    if len(testSet) == N.value:
+    correctSum = 0
+    permSum = 0
+    for i in range (1, N.value + 1):
+        correctSum += i
+    for el in range (N.value):
+        permSum += permutation[el]
+    if permSum == correctSum:
         return True
     return False
+
 
 # Utility function to print a permutation.
 def printPerm(permutation):
