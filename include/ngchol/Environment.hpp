@@ -1,6 +1,10 @@
 #ifndef _ENVIRONMENT_DECL_HPP_
 #define _ENVIRONMENT_DECL_HPP_
 
+//debug
+#include <sys/types.h>
+#include <unistd.h>
+
 // STL libraries
 #include <iostream> 
 #include <iomanip> 
@@ -118,6 +122,15 @@ namespace LIBCHOLESKY{
     std::cout<<"P"<<iam<<" is locked"<<std::endl;
     volatile int lock = 1;
     while (lock == 1){ }
+  }
+
+  inline void gdb_lock(Int proc){
+    if(iam==proc){
+      pid_t pid = getpid();
+      std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
+      volatile int lock = 1;
+      while (lock == 1){ }
+    }
   }
 
 

@@ -2,11 +2,10 @@
 #define _SUPERNODAL_MATRIX_IMPL_FO_HPP_
 
 
-#define SERIALIZE
 
 
 template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, bool reverse){
-  typedef volatile LIBCHOLESKY::Int Int;
+//  typedef volatile LIBCHOLESKY::Int Int;
  
   if(snodeColl.empty() || MsgToSend.empty()) { return;}
 
@@ -170,11 +169,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
 
       for(Int idx =0; idx<maxRecvCnt && incomingRecvCnt_ + IrecvCnt < maxIrecv_;
           ++idx){
-#ifdef SERIALIZE 
         Int max_bytes = 5*sizeof(Int); 
-#else
-        Int max_bytes = 3*sizeof(Int); 
-#endif
         //The upper bound must be of the width of the "largest" child
         Int nrows = next_src_snode->NRowsBelowBlock(0);
         Int ncols = UpdateWidth_(next_src_snode->Id()-1);
@@ -642,8 +637,8 @@ assert(tgt_blk_idx!=-1);
 
 
     //dummy right looking cholesky factorization
-    volatile Int I =1;
-    volatile Int iLocalI=1;
+    Int I =1;
+    Int iLocalI=1;
     while(iLocalI<=LocalSupernodes_.size() || !FactorsToSend.empty() || !outgoingSend.empty()){
 
       //Check for completion of outgoing communication
@@ -710,26 +705,8 @@ assert(tgt_blk_idx!=-1);
           while( it != cur_incomingRecv.end() ){
             Icomm * curComm = *it;
 
-#ifdef SERIALIZE
           SuperNode<T> dist_src_snode;
           Deserialize(curComm->front(),dist_src_snode);
-#else
-            Int bytes_received = 0;
-            MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-
-            std::vector<char> & src_blocks = *curComm->pSrcBlocks;
-            Int src_snode_id = *(Int*)&src_blocks[0];
-            Int src_nzblk_cnt = *(((Int*)&src_blocks[0])+1);
-            NZBlockDesc * src_blocks_ptr = 
-              reinterpret_cast<NZBlockDesc*>(&src_blocks[2*sizeof(Int)]);
-            Int src_nzval_cnt = *(Int*)(src_blocks_ptr + src_nzblk_cnt);
-            T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
-
-            //Create the dummy supernode for that data
-            SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
-#endif
-
-            //              logfileptr->OFS()<<"IRECV Supernode "<<dist_src_snode.Id()<<std::endl;
 #ifdef _DEBUG_
             logfileptr->OFS()<<"IRECV Supernode "<<dist_src_snode.Id()<<std::endl;
 #endif
@@ -813,11 +790,7 @@ assert(tgt_blk_idx!=-1);
 
             TIMER_START(RECV_MALLOC);
             if(src_blocks.size()==0){
-#ifdef SERIALIZE
               max_bytes = 5*sizeof(Int); 
-#else
-              max_bytes = 3*sizeof(Int); 
-#endif
               //The upper bound must be of the width of the "largest" child
 #ifdef _DEBUG_
               logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;
@@ -861,22 +834,8 @@ assert(tgt_blk_idx!=-1);
             MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
 #endif
 
-#ifdef SERIALIZE
           SuperNode<T> dist_src_snode;
           Deserialize(&src_blocks[0],dist_src_snode);
-#else
-            MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-            volatile Int src_snode_id = *(Int*)&src_blocks[0];
-            volatile Int src_nzblk_cnt = *(((Int*)&src_blocks[0])+1);
-            NZBlockDesc * src_blocks_ptr = 
-              reinterpret_cast<NZBlockDesc*>(&src_blocks[2*sizeof(Int)]);
-            volatile Int src_nzval_cnt = *(Int*)(src_blocks_ptr + src_nzblk_cnt);
-            T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
-            TIMER_STOP(RECV_MPI);
-            //Create the dummy supernode for that data
-            SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
-#endif
-
 #ifdef PROBE_FIRST
             if(doabort){
               cout<<"We have a problem !!!! on P"<<iam<<"\n";
@@ -1013,7 +972,7 @@ assert(tgt_blk_idx!=-1);
 
 #ifdef DELAY_SNODES
                 //need a std::unordered_set to check whether 
-                volatile Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
+                 Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
                   if( next_local_snode< tgt_snode_id){
                     //need to push the prev src_last_row
                     FactorsToSend.push(DelayedComm(src_snode.Id(),tgt_snode_id,src_nzblk_idx,src_first_row));
@@ -1038,7 +997,6 @@ assert(tgt_blk_idx!=-1);
 
 
 
-#ifdef SERIALIZE
           Icomm * send_buffer = new Icomm();
           Serialize(*send_buffer,src_snode,src_nzblk_idx,src_first_row);
           AddOutgoingComm(outgoingSend,send_buffer);
@@ -1057,7 +1015,7 @@ assert(tgt_blk_idx!=-1);
             TIMER_STOP(SEND_MPI);
           }
 
-#else
+#if 0
                 Int local_first_row = src_first_row-pivot_desc.GIndex;
                 Int nzblk_cnt = src_snode.NZBlockCnt()-src_nzblk_idx;
 
@@ -1110,11 +1068,7 @@ assert(tgt_blk_idx!=-1);
 
 
       //process some of the delayed send
-#ifdef SERIALIZE
       SendDelayedMessagesUp(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
-#else
-      SendDelayedMessages(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
-#endif
       iLocalI++;
     }
 
