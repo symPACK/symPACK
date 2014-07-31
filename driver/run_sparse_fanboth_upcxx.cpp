@@ -163,8 +163,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
   Local.ToGlobal(Global);
   Global.ExpandSymmetric();
 
-  Int numColFirst = n / np;
-
+  Int numColFirst = std::max(1,n / np);
 
   SetValue(RHS,0.0);
   for(Int j = 1; j<=n; ++j){

@@ -226,7 +226,7 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 	// Compute the number of columns on each processor
 	IntNumVec numColLocalVec(mpisize);
 	Int numColLocal, numColFirst;
-	numColFirst = pspmat.size / mpisize;
+	numColFirst = std::max(1,pspmat.size / mpisize);
   SetValue( numColLocalVec, numColFirst );
   numColLocalVec[mpisize-1] = pspmat.size - numColFirst * (mpisize-1);  // Modify the last entry	
 	numColLocal = numColLocalVec[mpirank];

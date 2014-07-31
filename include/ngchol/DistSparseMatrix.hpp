@@ -34,7 +34,7 @@
 namespace LIBCHOLESKY{
 
 
-
+template <typename T> class SupernodalMatrix;
 
 
 
@@ -51,8 +51,8 @@ namespace LIBCHOLESKY{
 /// compressed sparse column format.
 ///
 /// TODO Add the parameter of numColLocal
-template <class F> class DistSparseMatrix{
-
+template <typename F> class DistSparseMatrix{
+  friend class SupernodalMatrix<F>;
   //friend functions
   friend void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
   friend void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
