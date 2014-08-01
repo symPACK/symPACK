@@ -2,7 +2,7 @@
 #define _SUPERNODAL_MATRIX_IMPL_DEPRECATED_HPP_
 
 #ifdef UPDATE_LIST
-template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> & src_snode, std::list<SnodeUpdate> & updates  ){
+template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> & src_snode, std::list<SnodeUpdateOld> & updates  ){
     Int iam = CommEnv_->MPI_Rank();
     Int np  = CommEnv_->MPI_Size();
   Int src_owner = Mapping_.Map(src_snode.Id()-1,src_snode.Id()-1);
@@ -18,7 +18,7 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
      for(Int row = src_fr; row<= src_lr; ++row){
       Int tgt_snode_id = SupMembership_[row-1];
       if(last_snode_id!= tgt_snode_id){
-        updates.push_back(SnodeUpdate(tgt_snode_id,row));
+        updates.push_back(SnodeUpdateOld(tgt_snode_id,row));
         last_snode_id = tgt_snode_id;
       }
     }

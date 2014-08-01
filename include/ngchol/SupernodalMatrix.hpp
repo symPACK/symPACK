@@ -196,7 +196,7 @@ protected:
 
   //deprecated
   #ifdef UPDATE_LIST
-  inline void FindUpdates(SuperNode<T> & src_snode, std::list<SnodeUpdate> & updates  );
+  inline void FindUpdates(SuperNode<T> & src_snode, std::list<SnodeUpdateOld> & updates  );
   #endif
   inline bool FindNextUpdateOld(SuperNode<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
 

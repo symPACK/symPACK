@@ -189,15 +189,6 @@ void OptionsCreate(Int argc, char** argv,
 // *********************************************************************
 // Profiling functions 
 // *********************************************************************
-
-
-#ifdef USE_TAU
-#define PROFILING_ON
-#include "TAU.h"
-#elif defined (PROFILE) || defined(PMPI)
-#define TAU
-#include "ngchol/timer.hpp"
-#else
 #include <sys/time.h>
 
 inline double get_time()
@@ -206,6 +197,14 @@ inline double get_time()
     gettimeofday(&tv, 0);
     return tv.tv_sec + ((double) tv.tv_usec / 1000000);
   }
+
+
+#ifdef USE_TAU
+#define PROFILING_ON
+#include "TAU.h"
+#elif defined (PROFILE) || defined(PMPI)
+#define TAU
+#include "ngchol/timer.hpp"
 #endif
 
 #define VAL(str) #str

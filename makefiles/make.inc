@@ -1,163 +1,193 @@
 #/usr/bin/bash
-PROFILE   =   1
-PROF_MPI   =  1
-
-USE_TAU   =   0
-USE_AUTO_TAU   =   0
-
-
-MODE=release
-MODE=debug
-
-SUFFIX        =$(MODE)_${PLATFORM}
-
-ifdef USE_TAU
-  ifeq ($(USE_TAU),1)
-    SUFFIX=$(MODE)_tau_${PLATFORM}
-  endif
-endif
-
-  ifeq ($(PROFILE),1)
-    SUFFIX=$(MODE)_tau_${PLATFORM}
-  endif
-
-  ifeq ($(PROF_MPI),1)
-    SUFFIX=$(MODE)_tau_${PLATFORM}
-  endif
-
-CHOLESKY_DIR     = ${HOME}/Work/postdoc-lbl/cholesky
-
-UPCXX_INSTALL_DIR     = ${PREFIX}/${MODE}/upcxx_install
-#UPCXX_INSTALL_DIR     = ${PREFIX}/release/upcxx_install
-## Add the following line in the UPC++ application Makefile
-include $(UPCXX_INSTALL_DIR)/include/upcxx.mak
+COMPILE_MODE     = release
+PAR_ND_LIBRARY   = ptscotch #not used right now
+SEQ_ND_LIBRARY   = metis  #not used right now
+USE_PROFILE      = 1
+USE_PAPI         = 0
+USE_IPM          = 0
+USE_MAP          = 0
 
 
+# Different compiling and linking options.
+SUFFIX       = ${PLATFORM}_v0.1
 
-# includes
-
-#UPCXX_INCLUDE = -I${UPCXX_DIR}/include -DGASNET_SEQ -DUSE_GASNET_FAST_SEGMENT -DONLY_MSPACES $(GASNET_CPPFLAGS) $(GASNET_CFLAGS)
-#UPCXX_INCLUDE = -I${UPCXX_DIR}/include -DGASNET_SEQ $(GASNET_CPPFLAGS) $(GASNET_CFLAGS)
-SPARSELIB_INCLUDE    = -I${HOME}/Work/postdoc-lbl/pexsi/Converter/bebop_util/include -I${HOME}/Work/postdoc-lbl/pexsi/Converter/sparse_matrix_converter/include
-CHOLESKY_INCLUDE    = -I${CHOLESKY_DIR}/include 
-INCLUDES         = ${CHOLESKY_INCLUDE} ${SPARSELIB_INCLUDE} ${UPCXX_INCLUDE}
-
-# Libraries
-GFORTRAN_LIB = -lgfortran
-LAPACK_LIB       = -L${HOME}/software/scalapack-2.0.2/build/lib -lscalapack  
-BLAS_LIB         = -L${HOME}/software/lapack-3.4.2/lib -llapack -llapacke -ltmglib -lblas 
-#BLAS_LIB         = -lopenblas
-CHOLESKY_LIB        = ${CHOLESKY_DIR}/src/libcholesky_${SUFFIX}.a
-SPARSELIB_LIB    =  ${HOME}/Work/postdoc-lbl/pexsi/Converter/sparse_matrix_converter/libsparse_matrix_converter.a ${HOME}/Work/postdoc-lbl/pexsi/Converter/bebop_util/libbebop_util.a
-#UPCXX_LIB        = ${UPCXX_DIR}/lib/libupcxx.a $(GASNET_LDFLAGS) $(GASNET_LIBS)
-
-#UPCXX_FLAGS =  -DGASNET_SEQ -DUSE_GASNET_FAST_SEGMENT -DONLY_MSPACES
-
-LIBS             = ${SPARSELIB_LIB} ${CHOLESKY_LIB} ${UPCXX_LDLIBS} ${LAPACK_LIB} ${BLAS_LIB} ${GFORTRAN_LIB} -lgomp ${IPM} 
-
-CC           = mpicc 
-CXX          = mpicxx
-FC           = mpif90
-LOADER       = mpicxx
+#compiler and tools
+################################################################
+CC           = cc 
+CXX          = CC
+FC           = ftn
+LOADER       = CC
 
 
 AR           = ar 
-ARFLAGS      = rvscu
+ARFLAGS      = rvcu
 # For System V based machine without ranlib, like Cray and SGI,
 # use touch instead.
 #RANLIB      = touch
 RANLIB       = ranlib
 
+CP           = cp
 RM           = rm
 RMFLAGS      = -f
+################################################################
+
+
+#NGCHOL directory
+NGCHOL_DIR     = ${SCRATCH}/ngchol
+#${HOME}/ngchol_scratch
+
+
+
+
+#required libraries directories
+GFORTRAN_DIR  = 
+METIS_DIR     = $(PREFIX)/release/parmetis-4.0.3/build/Linux-x86_64
+PARMETIS_DIR  = $(PREFIX)/release/parmetis-4.0.3/build/Linux-x86_64
+SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.0
+MKL_DIR       = $(MKL_HOME)
+LAPACK_DIR    = 
+BLAS_DIR      =  
+PAPI_DIR      = 
+MAP_DIR       = ${PREFIX}/Map
+SPARSELIB_DIR = ${PREFIX}/MatrixConverter
+
+# Includes
+NGCHOL_INCLUDE    = -I${NGCHOL_DIR}/include 
+SPARSELIB_INCLUDE = -I ${SPARSELIB_DIR}/bebop_util/include -I ${SPARSELIB_DIR}/sparse_matrix_converter/include
+INCLUDES          = ${NGCHOL_INCLUDE} ${SPARSELIB_INCLUDE}
+
+# Libraries
+GFORTRAN_LIB     = -L${GFORTRAN_DIR} -lgfortran
+MKL_LIB = -Wl,--start-group $(MKL_DIR)/lib/intel64/libmkl_intel_lp64.a $(MKL_DIR)/lib/intel64/libmkl_core.a $(MKL_DIR)/lib/intel64/libmkl_sequential.a -Wl,--end-group -lm
+LAPACK_LIB       = ${MKL_LIB} 
+BLAS_LIB         = 
+NGCHOL_LIB       = ${NGCHOL_DIR}/src/lingchol_${SUFFIX}.a
+SPARSELIB_LIB    = ${SPARSELIB_DIR}/sparse_matrix_converter/libsparse_matrix_converter.a  ${SPARSELIB_DIR}/bebop_util/libbebop_util.a
+
+
+
+
+# Graph partitioning libraries
+METIS_LIB        = -L${METIS_DIR}/libmetis -lmetis
+PARMETIS_LIB     = -L${PARMETIS_DIR}/libparmetis -lparmetis 
+SCOTCH_LIB       = -L${SCOTCH_DIR}/lib -lscotchmetis -lscotch -lscotcherr
+PTSCOTCH_LIB     = -L${SCOTCH_DIR}/lib -lptscotchparmetis -lptscotch -lptscotcherr -lscotch
+
+#utility libraries and includes
+PAPI_INCLUDE     = -I${PAPI_DIR}/include
+PAPI_LIB         = -L${PAPI_DIR}/lib -lpapi
+MAP_INCLUDE      =
+MAP_LIB          = -L${MAP_DIR} -lmap-sampler-pmpi -Wl,--undefined,allinea_init_sampler_now -lmap-sampler -lstdc++ -lgcc_eh -Wl,--whole-archive -lpthread -Wl,--no-whole-archive -Wl,--eh-frame-hdr
+INCLUDES        += ${PAPI_INCLUDE} ${MAP_INCLUDE}
+
+#UPCXX
+UPCXX_DIR        = ${PREFIX}/upcxx_install
+include $(UPCXX_DIR)/include/upcxx.mak
+
 
 # Different compiling and linking options.
-
-ifeq ($(MODE), debug)
-	COMMONDEFS   = -DRELEASE -DAdd_ 
-  CFLAGS       = ${INCLUDES} -O0 -w -g 
-  FFLAGS       = ${INCLUDES} -O0 -w -g 
-  CXXFLAGS     = $(UPCXX_CXXFLAGS) ${INCLUDES} -O0 -w -g -fpermissive
-  LDFLAGS      = $(UPCXX_LDFLAGS)
-	CCDEFS       = ${COMMONDEFS}
-	CPPDEFS      = ${COMMONDEFS}
-  LOADOPTS     = ${LIBS}
-  FLOADOPTS    = ${LIBS} -lstdc++
-
+ifeq (${COMPILE_MODE}, release)
+  COMPILE_DEF    = -DRELEASE
+  COMPILE_FLAG   = -fast -no-ipo -w  -g
+endif
+ifeq (${COMPILE_MODE}, debug)
+  COMPILE_DEF    = -DDEBUG=1
+  COMPILE_FLAG   = -O0 -w -g
 endif
 
-ifeq ($(MODE), release)
-	COMMONDEFS   = -DRELEASE -g -DAdd_ 
-  CFLAGS       = ${INCLUDES} -O3 -w -g 
-  FFLAGS       = ${INCLUDES} -O3 -w -g 
-  CXXFLAGS     = $(UPCXX_CXXFLAGS) ${INCLUDES} -O3 -w -g -fpermissive
-  LDFLAGS      = $(UPCXX_LDFLAGS)
-	CCDEFS       = ${COMMONDEFS}
-	CPPDEFS      = ${COMMONDEFS}
-  LOADOPTS     = ${LIBS}
-  FLOADOPTS    = ${LIBS} -lstdc++
+ifeq (${PAR_ND_LIBRARY}, ptscotch)
+  PAR_ND_LIB = ${PTSCOTCH_LIB}
+else
+  PAR_ND_LIB = ${PARMETIS_LIB}
+endif 
+
+ifeq (${SEQ_ND_LIBRARY}, scotch)
+  SEQ_ND_LIB = ${SCOTCH_LIB}
+else
+  SEQ_ND_LIB = ${METIS_LIB}
+endif 
+
+ifeq (${USE_PROFILE}, 1)
+  PROFILE_FLAG  = -DPROFILE
 endif
-#  COMMONDEFS += -DUPCXX
 
-  #COMMONDEFS += -DMAP=col2D
-  #COMMONDEFS += -DMAP=modwrap2Dns
-  COMMONDEFS += -DMAP=modwrap2D
-  #COMMONDEFS += -DMAP=antichevron2D
+ifeq (${USE_PAPI}, 1)
+  PAPI_FLAG  = -D_PAPI_
+  UTIL_LIB   += ${PAPI_LIB}
+endif
 
+ifeq (${USE_IPM}, 1)
+  UTIL_LIB  += ${IPM}
+endif
 
-  ## THIS ONE HAS TO BE DEBUGGED
-  #COMMONDEFS += -DMAP=antidiag2D
-  COMMONDEFS += -DUSE_ABORT
-  COMMONDEFS += -DASYNC_AGGREGATES
-  COMMONDEFS += -DASYNC_UPDATES
-  #COMMONDEFS += -DNO_ASYNC_COPY
-  #COMMONDEFS += -DASYNC_COPY_FENCE
-  #COMMONDEFS += -DDRAW_GRAPH
-  COMMONDEFS += -DCALLBACK
+ifeq (${USE_MAP}, 1)
+  UTIL_LIB   += ${MAP_LIB}
+endif
 
 
+LIBS  = ${NGCHOL_LIB} ${PAR_ND_LIB} ${SEQ_ND_LIB} ${LAPACK_LIB} ${BLAS_LIB} ${SPARSELIB_LIB} ${GFORTRAN_LIB} ${UTIL_LIB}
 
-#  COMMONDEFS += -DUPDATE_LIST 
-#  COMMONDEFS += -D_DEBUG_ 
-  COMMONDEFS += -D_CHECK_RESULT_ 
-  COMMONDEFS += -D_CHECK_RESULT_SEQ_ 
-#  COMMONDEFS += -DPROBE_FIRST 
-#  COMMONDEFS += -DNO_INTRA_PROFILE 
-#WIP
-#  COMMONDEFS += -DRELAXED_SNODE 
-  COMMONDEFS += -DSINGLE_BLAS
+#NOW THE OPTIONS
 
+#COMMON
+  #MAPPINGS
+    #COMPILE_DEF += -DMAP=row2D
+    #COMPILE_DEF += -DMAP=col2D
+    #COMPILE_DEF += -DMAP=modwrap2Dns
+    COMPILE_DEF += -DMAP=modwrap2D
+    #COMPILE_DEF += -DMAP=antichevron2D
+    #COMPILE_DEF += -DMAP=chevron2D
+    ## THIS ONE HAS TO BE DEBUGGED
+    #COMPILE_DEF += -DMAP=antidiag2D
+  #DEBUG
+    #COMPILE_DEF += -D_DEBUG_ 
 
-
-
-
-  ifeq ($(USE_TAU),1)
-    COMMONDEFS     += -DUSE_TAU 
-  endif
-
-  ifeq ($(PROFILE),1)
-    COMMONDEFS += -DPROFILE
-  endif
-
-  ifeq ($(PROF_MPI),1)
-    COMMONDEFS  += -DPMPI
-  endif
+  #OTHER
+    COMPILE_DEF += -DAdd_
+    COMPILE_DEF += -DUSE_ABORT -DABORT
 
 
+#DENSE
+  #DEBUG
+    #COMPILE_DEF += -D_DEBUG_PREFETCH_
 
-	COMMONDEFS   += -fopenmp -std=gnu++11 
-  ifeq ($(USE_TAU),1)
-    CXXFLAGS     += -DUSE_TAU 
-  endif
+  #OPTIONS
+    COMPILE_DEF += -DASYNC_AGGREGATES
+    COMPILE_DEF += -DASYNC_UPDATES
+    #COMPILE_DEF += -DNO_ASYNC_COPY
+    #COMPILE_DEF += -DASYNC_COPY_FENCE
+    #COMPILE_DEF += -DDRAW_GRAPH
+    COMPILE_DEF += -DCALLBACK
 
-  ifeq ($(PROFILE),1)
-    CXXFLAGS     += -DPROFILE
-  endif
+#SPARSE
+  #DEBUG
+    # COMPILE_DEF += -D_DEBUG_DELAY_ 
+    # COMPILE_DEF += -D_DEBUG_UPDATES_
+    # COMPILE_DEF += -DPROBE_FIRST 
+ 
+  #OPTIONS 
+    COMPILE_DEF += -DNO_INTRA_PROFILE 
+    COMPILE_DEF += -D_CHECK_RESULT_ 
+    COMPILE_DEF += -DRELAXED_SNODE 
+    COMPILE_DEF += -DINTERVAL_TREE 
+    COMPILE_DEF += -DSINGLE_BLAS 
+    COMPILE_DEF += -DDELAY_SNODES
 
-  ifeq ($(PROF_MPI),1)
-    CXXFLAGS     += -DPMPI
-  endif
+  #DEPRECATED
+    # COMPILE_DEF += -DUPDATE_LIST 
+    # COMPILE_DEF += -D_CHECK_RESULT_SEQ_ 
 
+#OTHER
+    COMPILE_DEF += -openmp -std=c++11
+
+#FLOADOPTS    = ${LIBS} -L/usr/local/lib  -lstdc++ 
+
+CFLAGS       = ${COMPILE_FLAG} ${PROFILE_FLAG} ${PAPI_FLAG} ${INCLUDES}
+FFLAGS       = ${COMPILE_FLAG} ${PROFILE_FLAG} ${PAPI_FLAG} ${INCLUDES}
+CXXFLAGS     = $(UPCXX_CXXFLAGS) ${COMPILE_FLAG} ${PROFILE_FLAG} ${PAPI_FLAG} ${INCLUDES} 
+CCDEFS       = ${COMPILE_DEF} 
+CPPDEFS      = ${COMPILE_DEF} 
+LOADOPTS     = ${PROFILE_FLAG} ${LIBS} -openmp
 
 
 # Generate auto-dependencies 
@@ -172,3 +202,4 @@ endif
 	$(CXX) -M $(CPPDEFS) $(CXXFLAGS) $< > $@.$$$$; \
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@;\
 	rm -f $@.$$$$
+

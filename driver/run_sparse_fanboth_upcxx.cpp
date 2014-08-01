@@ -221,6 +221,10 @@ DistSparseMatrix<Real> HMat(worldcomm);
   if(iam==0){
     cout<<"Starting allocation"<<endl;
   }
+
+
+  DblNumMat XFinal;
+{
   timeSta = get_time();
   //do the symbolic factorization and build supernodal matrix
   SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
@@ -457,9 +461,9 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
   //sort X the same way (permute rows)
 #ifdef _CHECK_RESULT_SEQ_
-  DblNumMat X = RHS2;
+  XFinal = RHS2;
 #else
-  DblNumMat X = RHS;
+  XFinal = RHS;
 #endif
 
   if(iam==0){
@@ -472,9 +476,9 @@ DistSparseMatrix<Real> HMat(worldcomm);
   MPI_Bcast(fwdSol.Data(),fwdSol.ByteSize(),MPI_BYTE,0,worldcomm);
 
   DblNumMat poFwdSol = fwdSol;
-  SMat.Solve(&X,poFwdSol);
+  SMat.Solve(&XFinal,poFwdSol);
 #else
-  SMat.Solve(&X);
+  SMat.Solve(&XFinal);
 #endif
   timeEnd = get_time();
 
@@ -483,9 +487,10 @@ DistSparseMatrix<Real> HMat(worldcomm);
   }
 
 
-  SMat.GetSolution(X);
+  SMat.GetSolution(XFinal);
+}
 
-      logfileptr->OFS()<<"X:"<<X<<endl;
+ //     logfileptr->OFS()<<"X:"<<X<<endl;
 
   if(iam==0){
 //  blas::Axpy(X.m()*X.n(),-1.0,&XTrue(0,0),1,&X(0,0),1);
@@ -496,7 +501,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
 {
   SparseMatrixStructure Local = HMat.GetLocalStructure();
 
-  Int numColFirst = n / np;
+  Int numColFirst = std::max(1,n / np);
 
   DblNumMat AX(n,nrhs);
   SetValue(AX,0.0);
@@ -506,13 +511,13 @@ DistSparseMatrix<Real> HMat(worldcomm);
     if(iam == iOwner){
       Int iLocal = (j-(numColFirst)*iOwner);
       //do I own the column ?
-      double t = X(j-1,0);
+      double t = XFinal(j-1,0);
       //do a dense mat mat mul ?
       for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
         Int row = Local.rowind[ii-1];
         AX(row-1,0) += t*HMat.nzvalLocal[ii-1];
         if(row>j){
-          AX(j-1,0) += X(row-1,0)*HMat.nzvalLocal[ii-1];
+          AX(j-1,0) += XFinal(row-1,0)*HMat.nzvalLocal[ii-1];
         }
       }
     }

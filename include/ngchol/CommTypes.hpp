@@ -9,11 +9,23 @@
 #include <mpi.h>
 
 #include "ngchol/Environment.hpp"
+#include "ngchol/NumMat.hpp"
 //#include "ngchol/debug.hpp"
+
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) 
+#define TIMER_STOP(a) 
+#endif
+#endif
+
 
 
 
 namespace LIBCHOLESKY{
+
+  template<typename T> class NumMat;
+
 
   struct SnodeUpdate;
   struct LocalUpdate;
@@ -33,10 +45,10 @@ namespace LIBCHOLESKY{
 
 
 
-  struct SnodeUpdate{
+  struct SnodeUpdateOld{
     Int tgt_snode_id;
     Int src_fr;
-    SnodeUpdate(Int aSnodeId, Int aSrcFr):tgt_snode_id(aSnodeId),src_fr(aSrcFr){};
+    SnodeUpdateOld(Int aSnodeId, Int aSrcFr):tgt_snode_id(aSnodeId),src_fr(aSrcFr){};
   };
 
 
@@ -46,6 +58,43 @@ namespace LIBCHOLESKY{
     Int src_first_row;
     LocalUpdate(Int snode_id,Int nzblk_idx,Int first_row):src_snode_id(snode_id),src_nzblk_idx(nzblk_idx),src_first_row(first_row){};
   };
+
+  struct SnodeUpdate{
+    Int src_snode_id;
+    Int tgt_snode_id;
+    Int src_first_row;
+    Int src_next_row;
+    Int blkidx;
+    Int next_blkidx;
+    //std::vector<bool> is_factor_sent;
+
+    SnodeUpdate(){
+      src_snode_id = 0;
+      tgt_snode_id = 0;
+      src_first_row = 0;
+      src_next_row = 0;
+      blkidx = 0;
+      next_blkidx = 0;
+      //is_factor_sent.assign(np,false);
+    }
+  };
+
+  template<typename T>
+  class TempUpdateBuffers{
+    public:
+    NumMat<T> tmpBuf;
+    IntNumVec src_colindx;
+    //IntNumVec src_rowindx;
+    IntNumVec src_to_tgt_offset;
+    TempUpdateBuffers(Int size, Int mw){
+      tmpBuf.Resize(size,mw);
+      src_colindx.Resize(mw);
+      //src_rowindx.Resize(size);
+      src_to_tgt_offset.Resize(size);
+    }
+  };
+
+
 
   struct DelayedComm{
     Int tgt_snode_id;
@@ -299,5 +348,15 @@ namespace LIBCHOLESKY{
 
 
 }
+
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) TAU_FSTART(a);
+#define TIMER_STOP(a) TAU_FSTOP(a);
+#endif
+#endif
+
+
+
 
 #endif //_COMM_TYPES_DECL_HPP_

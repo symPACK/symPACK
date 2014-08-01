@@ -27,7 +27,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
 
 #ifdef UPDATE_LIST
-  std::list<SnodeUpdate> updates;
+  std::list<SnodeUpdateOld> updates;
 #endif
 
   Int maxwidth = 0;
@@ -194,7 +194,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
           TIMER_START(UPDATE_ANCESTORS);
           FindUpdates(dist_src_snode,updates);
           //now traverse the list
-          for(std::list<SnodeUpdate>::iterator it = updates.begin(); it!=updates.end();it++){
+          for(std::list<SnodeUpdateOld>::iterator it = updates.begin(); it!=updates.end();it++){
             Int tgt_snode_id = it->tgt_snode_id;
             Int src_first_row = it->src_fr;
             Int src_nzblk_idx = dist_src_snode.FindBlockIdx(src_first_row);

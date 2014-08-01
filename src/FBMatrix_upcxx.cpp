@@ -3,9 +3,10 @@
 /// @author Mathias Jacquelin
 /// @date 2014-01-21
 
-#include "ngchol/FBMatrix_upcxx.hpp"
-
 #include <upcxx.h>
+
+#include "ngchol/FBMatrix_upcxx.hpp"
+#include  "ngchol/Environment.hpp"
 #include  "ngchol/NumMat_upcxx.hpp"
 
 #include  "ngchol/utility.hpp"

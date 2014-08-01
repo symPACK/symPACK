@@ -10,7 +10,7 @@
 #include <mpi.h>
 #include <sys/time.h>
 
-
+namespace LIBCHOLESKY{
 
 class CTF_timer{
   public:
@@ -132,6 +132,8 @@ void CTF_set_context(MPI_Comm ctxt);
     PMPI_Barrier(__VA_ARGS__);                                    \
               __t.stop(); }
 #endif
+
+}
 
 #endif
 

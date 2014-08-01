@@ -32,39 +32,39 @@ all: run_dense_fanboth_upcxx run_dense_fanboth_mpi run_dense_scalapack run_spars
 #run_dense_fanboth
 
 
-run_cholesky: run_cholesky.o ${CHOLESKY_LIB}
+run_cholesky: run_cholesky.o ${NGCHOL_LIB}
 	($(LOADER) -o $@ run_cholesky.o  $(LOADOPTS) $(IPM) )
 
 
 run_cholesky.o: run_cholesky.cpp 
 	${CXX} -g -c ${CXXFLAGS} ${CPPDEFS} $< 
 
-run_dense_fanboth: run_dense_fanboth.o ${CHOLESKY_LIB}
+run_dense_fanboth: run_dense_fanboth.o ${NGCHOL_LIB}
 	($(LOADER) -o $@ run_dense_fanboth.o  $(LOADOPTS) $(IPM) )
 
 run_dense_fanboth.o: run_dense_fanboth.cpp 
 	${CXX} -g -c ${CXXFLAGS} ${CPPDEFS} $< 
 
-run_dense_fanboth_upcxx: run_dense_fanboth_upcxx.o ${CHOLESKY_LIB}
+run_dense_fanboth_upcxx: run_dense_fanboth_upcxx.o ${NGCHOL_LIB}
 	($(LOADER) $(LDFLAGS)  -o $@ run_dense_fanboth_upcxx.o  $(LOADOPTS)   $(IPM) )
 
 run_dense_fanboth_upcxx.o: run_dense_fanboth_upcxx.cpp 
 	${CXX} -g  -c -DUPCXX ${CXXFLAGS} ${CPPDEFS} $< 
 
-run_dense_fanboth_mpi: run_dense_fanboth_mpi.o ${CHOLESKY_LIB}
+run_dense_fanboth_mpi: run_dense_fanboth_mpi.o ${NGCHOL_LIB}
 	($(LOADER) $(LDFLAGS)  -o $@ run_dense_fanboth_mpi.o  $(LOADOPTS)   $(IPM)) 
 
 run_dense_fanboth_mpi.o: run_dense_fanboth_mpi.cpp 
 	${CXX} -g  -o $@ -c ${CXXFLAGS} ${CPPDEFS} $< 
 
 
-run_sparse_fanboth_upcxx: run_sparse_fanboth_upcxx.o ${CHOLESKY_LIB}
+run_sparse_fanboth_upcxx: run_sparse_fanboth_upcxx.o ${NGCHOL_LIB}
 	($(LOADER) $(LDFLAGS)  -o $@ run_sparse_fanboth_upcxx.o  $(LOADOPTS)   $(IPM) )
 
 run_sparse_fanboth_upcxx.o: run_sparse_fanboth_upcxx.cpp 
 	${CXX} -g  -c ${CXXFLAGS} ${CPPDEFS} $< 
 
-unit_test: unit_test.o ${CHOLESKY_LIB}
+unit_test: unit_test.o ${NGCHOL_LIB}
 	($(LOADER) $(LDFLAGS)  -o $@ unit_test.o  $(LOADOPTS)   $(IPM) )
 
 unit_test.o: unit_test.cpp 
@@ -72,7 +72,7 @@ unit_test.o: unit_test.cpp
 
 
 
-run_dense_scalapack: run_dense_scalapack.o ${CHOLESKY_LIB}
+run_dense_scalapack: run_dense_scalapack.o ${NGCHOL_LIB}
 	($(LOADER) -o $@ run_dense_scalapack.o  $(LOADOPTS) $(IPM) )
 
 run_dense_scalapck.o: run_dense_scalapack.cpp 
@@ -80,7 +80,7 @@ run_dense_scalapck.o: run_dense_scalapack.cpp
 
 -include ${DEPS}
 
-${CHOLESKY_LIB}:
+${NGCHOL_LIB}:
 	(cd ${PEXSI_DIR}/src; make all)
 
 cleanall:
