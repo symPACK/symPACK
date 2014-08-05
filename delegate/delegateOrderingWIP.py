@@ -125,17 +125,17 @@ def permute(depth):
     global currentPerm
     originalPerm = makePermList(currentPerm)
     k = 0
-    print(originalPerm)
+    #print(originalPerm)
     while k <= depth:
         start = 0
         while start < N.value:
             permList = makePermList(originalPerm)
             startNeighborhood = getNeighborhood(permList[start], k)
-            print(startNeighborhood)
+            #print(startNeighborhood)
             orderedNeighborhood = []
             for i in range(N.value):
                 if permList[i] in startNeighborhood:
-                    orderedNeighborhood.append(permLis[i])
+                    orderedNeighborhood.append(permList[i])
             if len(startNeighborhood) != len(orderedNeighborhood):
                 print("Neighborhoodlengths are wrong")
 
@@ -146,6 +146,7 @@ def permute(depth):
                     permList.insert(indexFirstNeighbor, permList.pop(permList.index(orderedNeighborhood[movingAfter]) + 1)) 
                     #If this position is better keep it.
                     fillPermArray(currentPerm, permList)
+                    #print(permList)
                     currentCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
                     if currentCost < bestMove[1]:
                         bestCost = currentCost
@@ -157,6 +158,7 @@ def permute(depth):
             while lastNeighbor != N.value-1:
                 permList.insert(firstNeighbor, permList.pop(lastNeighbor + 1))
                 fillPermArray(currentPerm, permList)
+                #print(permList)
                 currentCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
                 if currentCost < bestMove[1]:
                     bestCost = currentCost
@@ -165,10 +167,18 @@ def permute(depth):
                 lastNeighbor = permList.index(orderedNeighborhood[-1])
                 firstNeighbor = permList.index(orderedNeighborhood[0])
             start += 1
-        print(k)
         k += 1
     fillPermArray(currentPerm, bestMove[0])     
     return bestCost        
+
+def fullPermute(depth):
+    lastCost = inputCost
+    while True:
+        nextCost = permute(depth)
+        print(nextCost)
+        if nextCost == lastCost:
+            return nextCost
+        else: lastCost = nextCost
 
 
 def makePermList(arg):
