@@ -2,6 +2,9 @@
 #Python Delegate Ordering Algorithm
 #LBL Summer 2014
 
+#Swaps elements instead of shifting them as the algorithm intends.
+
+
 import sys
 import ctypes
 

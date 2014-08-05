@@ -2,12 +2,19 @@
 #Python Delegate Ordering Algorithm
 #LBL Summer 2014
 
+
+
+#Implements the grouping of the nieghborhood, but swaps on improvement instead of trying every combination.
+
+
+
+
 import sys
 import ctypes
 
 #Read the arguments supplied from the command line
-if len(sys.argv) != 3:
-    print('Usage: Adjacency file, "ordering (space seperated)"', file=sys.stderr)
+if len(sys.argv) != 3 and len(sys.argv) != 4:
+    print('Usage: Adjacency file, "ordering (space seperated)", optional update flag', file=sys.stderr)
     sys.exit()
 adjacencyFile = bytes(sys.argv[1], 'utf-8')
 inputPermutation = sys.argv[2]
@@ -65,9 +72,63 @@ for i in range(N.value + 1):
     pyXAdj.append(xAdj[i])
 
 
+def get_reach (xAdj, Adj, elimNode, step, inputPerm):
+    reachableSet = set()
+    exploreSet = set()
+    exploreSet |= set(getNeighbors(elimNode)) #Initialize exploredSet to neighbors of elimNode
+    explored = set(exploreSet)
+
+    permList = []
+    splitPerm = inputPerm
+    if type(inputPerm) == str:
+        splitPerm = inputPerm.split()
+    for i in range(len(splitPerm)):
+        permList.append(int(splitPerm[i]))
+        
+    while (len(exploreSet) != 0):
+        node = exploreSet.pop()
+        if node == elimNode:
+            continue
+        elimStep = permList.index(node) + 1
+        if elimStep > step-1:
+            reachableSet.add(node)
+        else:
+            neighbors =set(getNeighbors(node))
+            exploreSet |= ( neighbors - explored)
+            explored |= neighbors
+    return reachableSet
+
+def updatePermAdj(perm):
+    global pyAdj
+    global pyXAdj
+    newPyAdj = []
+    newPyXAdj = []
+    newAdjStruct(pyXAdj, Adj, perm, newPyXAdj, newPyAdj)
+    pyAdj = newPyAdj
+    pyXAdj = newPyXAdj
+
+
+def newAdjStruct (xAdj, Adj, inputPerm, newXAdj, newAdj):
+    permList = []
+    if type(inputPerm) == str:
+        inputPerm = inputPerm.split()
+    for i in range(len(inputPerm)):
+        permList.append(int(inputPerm[i]))
+    newXAdj += [1]
+    for el in range(len(permList)):
+        newAdj.extend([permList[el]])
+        sortedList = list( get_reach(xAdj, Adj, permList[el], el + 1, inputPerm ))
+        sortedList.sort()
+        newAdj.extend(sortedList)
+        newXAdj += [ len(newAdj) + 1 ]
+    #newXAdj += [len(newAdj) + 1]
+         
+
 # Function to complete delegate algorithm on
 # the global variable bestPerm.
 def permute(depth):
+    if len(sys.argv) == 4 and sys.argv[3] == 'update':
+       updatePermAdj(inputPermutation) 
     global bestCost
     global bestPerm
     global currentPerm
@@ -87,6 +148,8 @@ def permute(depth):
             #StartNeighborhood is a set of the neighbors we are looking at.
             #orderedNeighborhood gets them in the order they appeared in the originalPerm
             startNeighborhood = getNeighborhood(bestPerm[start], k)
+            print(bestPerm[start])
+            print(startNeighborhood)
             orderedNeighborhood = []
             for i in range(N.value):
                 if bestPerm[i] in startNeighborhood:
@@ -134,6 +197,8 @@ def permute(depth):
             #Update the permutations with the best one found this cycle and increase start.
             fillPermArray(currentPerm, newPerm)
             fillPermArray(bestPerm, newPerm)
+            if len(sys.argv) == 4 and sys.argv[3] == 'update':
+                updatePermAdj(bestPerm)
             if moved == False:
                 start += 1
             moved = False
@@ -172,9 +237,6 @@ def getNeighborhood(value, depth):
             neighborhood |= getNeighborhood(el, depth - 1)  #| is union of sets
         return neighborhood
         
-        
-
-
 
 # Utility function to determine legality of
 # an ordering permutation.

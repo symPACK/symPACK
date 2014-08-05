@@ -1,15 +1,15 @@
-#Kevin Carlson
+#kevin carlson
 #Python Delegate Ordering Algorithm
 #LBL Summer 2014
 
-#Updates everytime we find something better. Not currrent branch of development as of 8/5/2014
+#Correctly swaps and checks all permutations. Most up to date version as of 8/5/2014.
 
 import sys
 import ctypes
 
 #Read the arguments supplied from the command line
-if len(sys.argv) != 3:
-    print('Usage: Adjacency file, "ordering (space seperated)"', file=sys.stderr)
+if len(sys.argv) != 3 and len(sys.argv) != 4:
+    print('Usage: Adjacency file, "ordering (space seperated)", optional update flag', file=sys.stderr)
     sys.exit()
 adjacencyFile = bytes(sys.argv[1], 'utf-8')
 inputPermutation = sys.argv[2]
@@ -33,7 +33,6 @@ ReadAdjacency = utilLib.ReadAdjacency
 ReadAdjacency.restype = ctypes.c_int
 ReadAdjacency.argtypes = [ctypes.POINTER(ctypes.c_char), ctypes.POINTER(ctypes.POINTER(ctypes.c_int)), ctypes.POINTER(ctypes.POINTER(ctypes.c_int)), ctypes.POINTER(ctypes.c_int), ctypes.POINTER(ctypes.c_int)]
 
-
 #Set up variables and call ReadAdjacency.
 cAdjacencyFile = ctypes.create_string_buffer(adjacencyFile)
 XAdjint = ctypes.c_int()
@@ -49,13 +48,12 @@ xAdj = cXAdj.contents
 Adj = cAdj.contents
 N = cN.contents
 Nnz = cNnz.contents
-bestPerm = (ctypes.c_int * N.value)()
 currentPerm = (ctypes.c_int * N.value)()
 for i in range(len(inputPermutation.split())):
-    bestPerm[i] = int(inputPermutation.split()[i])
     currentPerm[i] = int(inputPermutation.split()[i])
-inputCost = GetCost(N, Nnz, xAdj, Adj, bestPerm)
-bestCost = float("inf")
+inputCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
+bestMove = [[], inputCost]                  #permutation cost 
+bestCost = inputCost
 
 #Set up Python Lists for the Adj and xAdj arrays
 pyAdj = []
@@ -66,76 +64,110 @@ pyXAdj = []
 for i in range(N.value + 1):
     pyXAdj.append(xAdj[i])
 
+def get_reach (xAdj, Adj, elimNode, step, inputPerm):
+    reachableSet = set()
+    exploreSet = set()
+    exploreSet |= set(getNeighbors(elimNode)) #Initialize exploredSet to neighbors of elimNode
+    explored = set(exploreSet)
 
+    permList = []
+    splitPerm = inputPerm
+    if type(inputPerm) == str:
+        splitPerm = inputPerm.split()
+    for i in range(len(splitPerm)):
+        permList.append(int(splitPerm[i]))
+        
+    while (len(exploreSet) != 0):
+        node = exploreSet.pop()
+        if node == elimNode:
+            continue
+        elimStep = permList.index(node) + 1
+        if elimStep > step-1:
+            reachableSet.add(node)
+        else:
+            neighbors =set(getNeighbors(node))
+            exploreSet |= ( neighbors - explored)
+            explored |= neighbors
+    return reachableSet
+
+def updatePermAdj(perm):
+    global pyAdj
+    global pyXAdj
+    newPyAdj = []
+    newPyXAdj = []
+    newAdjStruct(pyXAdj, Adj, perm, newPyXAdj, newPyAdj)
+    pyAdj = newPyAdj
+    pyXAdj = newPyXAdj
+
+
+def newAdjStruct (xAdj, Adj, inputPerm, newXAdj, newAdj):
+    permList = []
+    if type(inputPerm) == str:
+        inputPerm = inputPerm.split()
+    for i in range(len(inputPerm)):
+        permList.append(int(inputPerm[i]))
+    newXAdj += [1]
+    for el in range(len(permList)):
+        newAdj.extend([permList[el]])
+        sortedList = list( get_reach(xAdj, Adj, permList[el], el + 1, inputPerm ))
+        sortedList.sort()
+        newAdj.extend(sortedList)
+        newXAdj += [ len(newAdj) + 1 ]
+    #newXAdj += [len(newAdj) + 1]
+         
 # Function to complete delegate algorithm on
 # the global variable bestPerm.
 def permute(depth):
+    if len(sys.argv) == 4 and sys.argv[3] == 'update':
+       updatePermAdj(inputPermutation) 
+    global bestMove
     global bestCost
-    global bestPerm
     global currentPerm
-    newPerm = []
+    originalPerm = makePermList(currentPerm)
     k = 0
+    print(originalPerm)
     while k <= depth:
         start = 0
-        moved = False
         while start < N.value:
-            #originalPerm maintains the original permutation for this iteration
-            #permList is the one to play with and permute
- #           print("Start is " + str(start))
-            originalPerm = makePermList(bestPerm)
-            permList = makePermList(bestPerm)
-
-
-            #StartNeighborhood is a set of the neighbors we are looking at.
-            #orderedNeighborhood gets them in the order they appeared in the originalPerm
-            startNeighborhood = getNeighborhood(bestPerm[start], k)
+            permList = makePermList(originalPerm)
+            startNeighborhood = getNeighborhood(permList[start], k)
+            print(startNeighborhood)
             orderedNeighborhood = []
             for i in range(N.value):
-                if bestPerm[i] in startNeighborhood:
-                    orderedNeighborhood.append(bestPerm[i])
+                if permList[i] in startNeighborhood:
+                    orderedNeighborhood.append(permLis[i])
             if len(startNeighborhood) != len(orderedNeighborhood):
                 print("Neighborhoodlengths are wrong")
-#            print(orderedNeighborhood)
 
-            #lastNeighborIndex is the index of the last neighbor. Where we are going to start putting the neighborhood.
-            lastNeighborIndex = originalPerm.index(orderedNeighborhood[-1])
-            #Slicing the list should insert the neighborhood at the index and remove earlier entries of neighbors.
-            permList = permList[:lastNeighborIndex + 1] + orderedNeighborhood + permList[lastNeighborIndex + 1:]
-            for el in orderedNeighborhood:
-                permList.remove(el)
-
-            #If this position is better keep it.
-            fillPermArray(currentPerm, permList)
-            currentCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
-            if currentCost < bestCost:
-                moved = True
-                newPerm = permList
-                bestCost = currentCost
-                bestPerm = currentPerm
-
-            #Try moving elements from after the neighborhood forward and check them.
+            movingAfter = 0
+            while movingAfter < (len(orderedNeighborhood) - 1):
+                while (permList.index(orderedNeighborhood[movingAfter]) + 1) != permList.index(orderedNeighborhood[movingAfter+1]):
+                    indexFirstNeighbor = permList.index(orderedNeighborhood[0])
+                    permList.insert(indexFirstNeighbor, permList.pop(permList.index(orderedNeighborhood[movingAfter]) + 1)) 
+                    #If this position is better keep it.
+                    fillPermArray(currentPerm, permList)
+                    currentCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
+                    if currentCost < bestMove[1]:
+                        bestCost = currentCost
+                        bestMove [1]  = currentCost
+                        bestMove[0] = list(permList)
+                movingAfter += 1
             lastNeighbor = permList.index(orderedNeighborhood[-1])
             firstNeighbor = permList.index(orderedNeighborhood[0])
-  #          print("Before: " + str(permList))
             while lastNeighbor != N.value-1:
                 permList.insert(firstNeighbor, permList.pop(lastNeighbor + 1))
-  #              print("After: " + str(permList))
                 fillPermArray(currentPerm, permList)
                 currentCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
-                if currentCost < bestCost:
-                    moved = True
-                    newPerm = permList
+                if currentCost < bestMove[1]:
                     bestCost = currentCost
+                    bestMove[1] = currentCost
+                    bestMove[0] = list(permList)
                 lastNeighbor = permList.index(orderedNeighborhood[-1])
                 firstNeighbor = permList.index(orderedNeighborhood[0])
-
-            #Update the permutations with the best one found this cycle and increase start.
-            fillPermArray(currentPerm, newPerm)
-            fillPermArray(bestPerm, newPerm)
-            if moved == False:
-                start += 1
-            moved = False
+            start += 1
+        print(k)
         k += 1
+    fillPermArray(currentPerm, bestMove[0])     
     return bestCost        
 
 
@@ -170,9 +202,6 @@ def getNeighborhood(value, depth):
             neighborhood |= getNeighborhood(el, depth - 1)  #| is union of sets
         return neighborhood
         
-        
-
-
 
 # Utility function to determine legality of
 # an ordering permutation.
