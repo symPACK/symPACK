@@ -6,6 +6,7 @@
 
 import sys
 import ctypes
+import time
 
 #Read the arguments supplied from the command line
 if len(sys.argv) != 3 and len(sys.argv) != 4:
@@ -54,6 +55,7 @@ for i in range(len(inputPermutation.split())):
 inputCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
 bestMove = [[], inputCost]                  #permutation cost 
 bestCost = inputCost
+callCostCounter = 0
 
 #Set up Python Lists for the Adj and xAdj arrays
 pyAdj = []
@@ -118,11 +120,14 @@ def newAdjStruct (xAdj, Adj, inputPerm, newXAdj, newAdj):
 # Function to complete delegate algorithm on
 # the global variable bestPerm.
 def permute(depth):
+    totalTimeStart = time.clock()
+    timeInCost = 0
     if len(sys.argv) == 4 and sys.argv[3] == 'update':
        updatePermAdj(inputPermutation) 
     global bestMove
     global bestCost
     global currentPerm
+    global callCostCounter
     originalPerm = makePermList(currentPerm)
     k = 0
     #print(originalPerm)
@@ -138,7 +143,7 @@ def permute(depth):
                     orderedNeighborhood.append(permList[i])
             if len(startNeighborhood) != len(orderedNeighborhood):
                 print("Neighborhoodlengths are wrong")
-
+            #print(str(orderedNeighborhood))
             movingAfter = 0
             while movingAfter < (len(orderedNeighborhood) - 1):
                 while (permList.index(orderedNeighborhood[movingAfter]) + 1) != permList.index(orderedNeighborhood[movingAfter+1]):
@@ -147,28 +152,48 @@ def permute(depth):
                     #If this position is better keep it.
                     fillPermArray(currentPerm, permList)
                     #print(permList)
+                    costStart = time.clock()
                     currentCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
+                    costEnd = time.clock()
+                    timeInCost += costEnd - costStart
+                    callCostCounter += 1
                     if currentCost < bestMove[1]:
                         bestCost = currentCost
                         bestMove [1]  = currentCost
                         bestMove[0] = list(permList)
+                        print(str(bestMove[0]))
+                        print(len(orderedNeighborhood))
+                        print("Index Start: " + str(bestMove[0].index(orderedNeighborhood[0])) + " indexEnd " + str(bestMove[0].index(orderedNeighborhood[-1])))
                 movingAfter += 1
             lastNeighbor = permList.index(orderedNeighborhood[-1])
             firstNeighbor = permList.index(orderedNeighborhood[0])
             while lastNeighbor != N.value-1:
                 permList.insert(firstNeighbor, permList.pop(lastNeighbor + 1))
                 fillPermArray(currentPerm, permList)
-                #print(permList)
+                #print(permList)a
+                costStart = time.clock()
                 currentCost = GetCost(N, Nnz, xAdj, Adj, currentPerm)
+                costEnd = time.clock()
+                timeInCost += costEnd - costStart
+                callCostCounter += 1
                 if currentCost < bestMove[1]:
                     bestCost = currentCost
                     bestMove[1] = currentCost
                     bestMove[0] = list(permList)
+                    print(str(bestMove[0]))
+                    print(len(orderedNeighborhood))
+                    print("Index Start: " + str(bestMove[0].index(orderedNeighborhood[0])) + " indexEnd " + str(bestMove[0].index(orderedNeighborhood[-1])))
                 lastNeighbor = permList.index(orderedNeighborhood[-1])
                 firstNeighbor = permList.index(orderedNeighborhood[0])
             start += 1
         k += 1
-    fillPermArray(currentPerm, bestMove[0])     
+    fillPermArray(currentPerm, bestMove[0])
+    totalTimeEnd = time.clock()
+    print("Total time is: " + str(totalTimeEnd - totalTimeStart))     
+    print("Total cost is: " + str(timeInCost))
+    print("Fraction of time is " + str(timeInCost/(totalTimeEnd - totalTimeStart)))
+    print("Called cost function " + str(callCostCounter) + " times.")
+    callCostCounter = 0
     return bestCost        
 
 def fullPermute(depth):
@@ -231,4 +256,9 @@ def legalPerm(permutation):
 def printPerm(permutation):
     for i in range(N.value):
         print(permutation[i])
+
+
+
+
+
 
