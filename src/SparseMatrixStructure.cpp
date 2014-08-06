@@ -41,6 +41,13 @@ namespace LIBCHOLESKY{
        *   new_nnz == total # of non-zeros to be stored in the final expanded 
        *              matrix.
        */
+
+
+//logfileptr->OFS()<<colptr<<endl;
+//logfileptr->OFS()<<rowind<<endl;
+
+
+//gdb_lock(0);
       Int new_nnz = 0;
       for (Int i = 0; i < size; i++) 
       {    
@@ -70,6 +77,7 @@ namespace LIBCHOLESKY{
        *    new_colptr initialized to the correct, final values.
        *    new_col_nnz[i] reset to be equal to cur_col_nnz[i].
        */
+
       expColptr.Resize(size+1);
       expColptr[0] = 1;
       for (Int i = 1; i <= size; i++)
@@ -95,7 +103,6 @@ namespace LIBCHOLESKY{
        */
 
 
-//gdb_lock(0);
 
       for (Int i = 0; i < size; i++)
       {
@@ -166,6 +173,11 @@ namespace LIBCHOLESKY{
 #endif
       }
       //expRowind[new_nnz-1] = size;
+
+//logfileptr->OFS()<<expColptr<<endl;
+//logfileptr->OFS()<<expRowind<<endl;
+
+
 
       bIsExpanded =true;
     }

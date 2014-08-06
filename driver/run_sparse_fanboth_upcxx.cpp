@@ -413,7 +413,8 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
   timeSta = get_time();
   TIMER_START(SPARSE_FAN_OUT);
-  SMat.FanOut();
+  //SMat.FanOut();
+  SMat.FanBoth();
   TIMER_STOP(SPARSE_FAN_OUT);
   timeEnd = get_time();
 

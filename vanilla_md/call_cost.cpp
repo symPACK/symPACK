@@ -14,6 +14,7 @@
 #include "ETree.hpp"
 
 //#define verbose
+#define silent
 
 using namespace std;
 
@@ -36,20 +37,20 @@ int main(int argc, char *argv[]) {
   ReadAdjacency(argv[1], &ixadj, &iadj,&n,&nnz);
 
 
-    cout<<"ixadj: ";
-    for(int i =0; i<n+1; ++i){
-      cout<<" "<<ixadj[i];
-    }
-    cout<<endl;
-
-
-
-
-    cout<<"iadj: ";
-    for(int i =0; i<nnz; ++i){
-      cout<<" "<<iadj[i];
-    }
-    cout<<endl;
+//    cout<<"ixadj: ";
+//    for(int i =0; i<n+1; ++i){
+//      cout<<" "<<ixadj[i];
+//    }
+//    cout<<endl;
+//
+//
+//
+//
+//    cout<<"iadj: ";
+//    for(int i =0; i<nnz; ++i){
+//      cout<<" "<<iadj[i];
+//    }
+//    cout<<endl;
 
 
 
@@ -89,6 +90,8 @@ int main(int argc, char *argv[]) {
 
 
 
+
+#ifndef silent
   double cost  = GetCostPerCol(n,adj.size(),&xadj[0],&adj[0],&perm[0],&costc[0]);
 
 //    cout<<"Perm after postordering: ";
@@ -111,6 +114,7 @@ int main(int argc, char *argv[]) {
 
   vector<int> psum(n);
   GetPrefixSum(n,&costc[0],&psum[0]);
+#endif
 
 //  cout<<"Prefix sum of cost is: ";
 //  for(int i=0;i<n;++i){

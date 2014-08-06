@@ -824,7 +824,7 @@ template <typename T> inline void Serialize(Icomm & buffer,SuperNode<T> & snode,
 
 
 
-template <typename T> inline void Deserialize(char * buffer, SuperNode<T> & snode){
+template <typename T> inline size_t Deserialize(char * buffer, SuperNode<T> & snode){
             Int snode_id = *(Int*)&buffer[0];
             Int snode_fc = *(((Int*)&buffer[0])+1);
             Int snode_lc = *(((Int*)&buffer[0])+2);
@@ -833,9 +833,12 @@ template <typename T> inline void Deserialize(char * buffer, SuperNode<T> & snod
               reinterpret_cast<NZBlockDesc*>(&buffer[4*sizeof(Int)]);
             Int nzval_cnt = *(Int*)(blocks_ptr + nzblk_cnt);
             T * nzval_ptr = (T*)((Int*)(blocks_ptr + nzblk_cnt)+1);
+            char * last_ptr = (char *)(nzval_ptr+nzval_cnt);
 
             //Create the dummy supernode for that data
             snode.Init(snode_id,snode_fc,snode_lc, blocks_ptr, nzblk_cnt, nzval_ptr, nzval_cnt);
+
+            return (last_ptr - buffer);
   }
 
 

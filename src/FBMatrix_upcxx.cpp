@@ -231,7 +231,8 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 
 
       upcxx::shared_array< dgptr > ArrAggregateRdy2;
-      ArrAggregateRdy2.init(np*np,np);
+//      ArrAggregateRdy2.init(np*np,np);
+      ArrAggregateRdy2.init(np*np);
       for(int i=0;i<np;i++){
          ArrAggregateRdy2[iam*np+i]=dgptr((double*)NULL);
       }
@@ -239,7 +240,8 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
   upcxx::shared_array< dgptr > ArrFactorRdy2;
   ArrFactorRdy2.init(np);
   ArrFactorRdy2[iam]=dgptr((double*)NULL);
-  dgptr* locFactorRdy2 =  ArrFactorRdy2[iam].raw_ptr();
+//  upcxx::global_ptr<dgptr> tmp = &(ArrFactorRdy2[iam]);
+  dgptr* locFactorRdy2 = NULL; //ArrFactorRdy2[iam].raw_ptr();
 
   
   upcxx::barrier();
