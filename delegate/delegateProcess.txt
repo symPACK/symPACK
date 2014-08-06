@@ -1,0 +1,34 @@
+    The delegate ordering algorithm is an experiment
+that was conducted once it was determined that our
+genetic algorithm would not be able to efficiently
+generate orderings which would be of high quality.
+The idea for this algorithm is based on a paper
+suggesting a similar algorithm to efficiently schedule
+tasks.
+    This algorithm groups neighborhoods of the graph
+representation of a matrix ordering together and then
+attempts to place this neighborhood throughout the 
+remainder of the ordering. At each step, GetCost is
+used to determine if the ordering has improved. If the
+new ordering is better then the previous orderings we
+have generated we save the ordering and continue. It
+turns out that this approach does not scale well to
+larger problems, as the time spent evaluating the cost
+of every ordering is much to large and the improvement
+with a single generation is not great enough to justify
+the very large cost.
+    This implementation relies on the python ctypes
+library to allow us to reuse the GetCost function that
+was written for the genetic algorithm. Because of this,
+there are segments of the code that could be optimized
+(less copies between C data types and Python data types),
+but even so it seems that this algorithm is even less
+effective then the genetic algorithm.
+    In order to use this algorithm, the following 
+commands will suffice.
+
+python3 -i delegateOrderingWIP.py *inputfile* "(whitespace
+separated permutation". Once you have reached the interactive
+interpreter, one must simply enter permute(*depth*) where
+depth is the degree of neighborhoods that and individual
+wants to explore. 
