@@ -95,6 +95,13 @@ int main(int argc, char **argv)
     maxIsend= atoi(options["-is"].c_str());
   }
 
+  Int doFB = 0;
+  if( options.find("-fb") != options.end() ){
+    doFB= atoi(options["-fb"].c_str());
+  }
+
+
+
   Int maxIrecv = 0;
   if( options.find("-ir") != options.end() ){
     maxIrecv= atoi(options["-ir"].c_str());
@@ -412,10 +419,14 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
 
   timeSta = get_time();
-  TIMER_START(SPARSE_FAN_OUT);
-  //SMat.FanOut();
+if(doFB){
   SMat.FanBoth();
+}
+else{
+  TIMER_START(SPARSE_FAN_OUT);
+  SMat.FanOut();
   TIMER_STOP(SPARSE_FAN_OUT);
+}
   timeEnd = get_time();
 
   if(iam==0){
