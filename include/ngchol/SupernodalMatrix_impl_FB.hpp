@@ -182,6 +182,9 @@ logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
             max_bytes += nrows*sizeof(NZBlockDesc);
             max_bytes += nz_cnt*sizeof(T); 
 
+
+            max_bytes += sizeof(Int); 
+
             src_blocks.resize(max_bytes);
           }
           TIMER_STOP(RECV_MALLOC);
@@ -215,6 +218,7 @@ logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
         SuperNode<T> dist_src_snode;
         size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
 
+if(I==5){gdb_lock();}
         //Deserialize the number of aggregates
         Int * aggregatesCnt = (Int *)(&src_blocks[0]+read_bytes);
 

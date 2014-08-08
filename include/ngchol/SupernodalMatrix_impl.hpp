@@ -1282,7 +1282,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
           MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
 #else
           TIMER_START(RECV_MALLOC);
-          max_bytes = 3*sizeof(Int); 
+          max_bytes = 5*sizeof(Int); 
           Int nrows = cur_snode->NRowsBelowBlock(0);
           Int ncols = nrhs;
           nz_cnt = nrows * ncols;
