@@ -20,8 +20,13 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
   Int np  = CommEnv_->MPI_Size();
 
   IntNumVec UpdatesToDo,LastUpdate;
+//gdb_lock(0);
   FBGetUpdateCount(UpdatesToDo,LastUpdate);
-  IntNumVec AggregatesToRecv = UpdateCount_;
+
+logfileptr->OFS()<<"LastUpdate: "<<LastUpdate<<endl;
+logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
+
+  IntNumVec AggregatesToRecv = UpdatesToDo;//UpdateCount_;
   IntNumVec AggregatesDone(Xsuper_.m());
   SetValue(AggregatesDone,0);
 
@@ -62,30 +67,30 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
 
 
-
-  //Initialize the list of local updates as well as the factors to receive
-  for(Int i = LocalSupernodes_.size()-1; i>=0; --i){
-    SuperNode<T> & cur_snode = *LocalSupernodes_[i];
-
-    SnodeUpdate curUpdate;
-    while(cur_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-      Int iTarget = Mapping_.Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
-      if(iTarget == iam){
-        Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
-        LocalUpdates[iLocalJ-1].push((SnodeUpdate)curUpdate);
-
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"FUTURE LOCAL Supernode "<<curUpdate.tgt_snode_id<<" is going to be updated by Supernode "<<cur_snode.Id()<<" from row "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-#endif
-      }
-    }
-    FactorsToRecv[i] = UpdatesToDo(cur_snode.Id()-1) % np;//UpdatesToDo(cur_snode.Id()-1) - LocalUpdates[i].size();
-  }
-
-
-#ifdef _DEBUG_
-  logfileptr->OFS()<<"FactorsToRecv: "<<FactorsToRecv<<std::endl;
-#endif
+//
+//  //Initialize the list of local updates as well as the factors to receive
+//  for(Int i = LocalSupernodes_.size()-1; i>=0; --i){
+//    SuperNode<T> & cur_snode = *LocalSupernodes_[i];
+//
+//    SnodeUpdate curUpdate;
+//    while(cur_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
+//      Int iTarget = Mapping_.Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+//      if(iTarget == iam){
+//        Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
+//        LocalUpdates[iLocalJ-1].push((SnodeUpdate)curUpdate);
+//
+//#ifdef _DEBUG_
+//        logfileptr->OFS()<<"FUTURE LOCAL Supernode "<<curUpdate.tgt_snode_id<<" is going to be updated by Supernode "<<cur_snode.Id()<<" from row "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
+//#endif
+//      }
+//    }
+//    FactorsToRecv[i] = UpdatesToDo(cur_snode.Id()-1) % np;//UpdatesToDo(cur_snode.Id()-1) - LocalUpdates[i].size();
+//  }
+//
+//
+//#ifdef _DEBUG_
+//  logfileptr->OFS()<<"FactorsToRecv: "<<FactorsToRecv<<std::endl;
+//#endif
 
 
 
@@ -126,7 +131,6 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
 
 
-gdb_lock(0);
 
   Int I =1;
   Int iLocalI=1;
@@ -229,6 +233,7 @@ gdb_lock(0);
 
         SnodeUpdate curUpdate;
         dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false);
+gdb_lock();
         FBAggregateSuperNode(dist_src_snode,src_snode,curUpdate.blkidx, curUpdate.src_first_row);
         AggregatesToRecv(curUpdate.tgt_snode_id-1) -= *aggregatesCnt;
 
@@ -366,6 +371,8 @@ gdb_lock(0);
             src_blocks.resize(0);
             SuperNode<T> * cur_src_snode = FBRecvFactor(src_snode_id,tgt_snode_id,src_blocks);
 
+//if(cur_src_snode->Id() == 4){ gdb_lock();}
+
             Int iSrcOwner = Mapping_.Map(src_snode_id-1,src_snode_id-1);
 
             //Compute update to tgt_snode_id and put it in my aggregate vector 
@@ -375,10 +382,12 @@ gdb_lock(0);
             SnodeUpdate curUpdate;
 
             TIMER_START(UPDATE_ANCESTORS);
-            while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){
+
+            while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
 
               Int iTarget = Mapping_.Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
               if(iTarget == iam){
+//if(cur_src_snode->Id()==2){gdb_lock();}
                 SuperNode<T> * tgt_aggreg;
 
                 Int iTgtOwner = Mapping_.Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
@@ -411,32 +420,25 @@ gdb_lock(0);
                 logfileptr->OFS()<<UpdatesToDo(curUpdate.tgt_snode_id-1)<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
 
-
-                if(iTgtOwner==iam){
-                  --AggregatesToRecv(curUpdate.tgt_snode_id-1);
+                //Send the aggregate if it's the last
+                //If this is my last update sent it to curUpdate.tgt_snode_id
+                if(src_snode_id == LastUpdate[curUpdate.tgt_snode_id-1]){
+//gdb_lock();
+                  if(iTgtOwner == iam){
+                      AggregatesToRecv[curUpdate.tgt_snode_id-1]-=AggregatesDone[curUpdate.tgt_snode_id-1];
 #ifdef _DEBUG_
                   logfileptr->OFS()<<AggregatesToRecv(curUpdate.tgt_snode_id-1)<<" aggregates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
-                }
-
-
-                //Send the aggregate if it's the last
-
-                //If this is my last update sent it to curUpdate.tgt_snode_id
-                if(src_snode_id == LastUpdate[curUpdate.tgt_snode_id-1]){
-                  if(iTgtOwner != iam){
+                  }
+                  else{
 
 #ifdef _DEBUG_
                     logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<src_snode_id<<std::endl;
 #endif
 
-
                     //TODO Do the delay thing
-
-
                     //Send
                     NZBlockDesc & pivot_desc = tgt_aggreg->GetNZBlockDesc(0);
-
 
                     Icomm * send_buffer = new Icomm();
                     Serialize(*send_buffer,*tgt_aggreg,0,pivot_desc.GIndex);
@@ -1210,25 +1212,23 @@ template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I){
       Int li = xlindx_(I)-1;
        
 
- 
+      Int firstUpdate = -1; 
       Int J = -1; 
       for(Int idx = fi; idx<=li;++idx){
         Int row = lindx_[idx-1];
         J = SupMembership_[row-1];
         Int iUpdater = Mapping_.Map(J-1,I-1);
         if(iUpdater == iam && J>I){
+          firstUpdate = J;
           break;
         }
       }
-#ifdef _DEBUG_
-assert(J>=1);
-#endif
 
-      return J;
+      return firstUpdate;
       }
 
 
-  template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,IntNumVec & lu){
+template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,IntNumVec & lu){
     sc.Resize(Xsuper_.m());
     SetValue(sc,I_ZERO);
 
@@ -1245,20 +1245,8 @@ assert(J>=1);
       Int fi = xlindx_(s-1);
       Int li = xlindx_(s)-1;
 
-#ifndef _DEBUG_
-  #define nodebugtmp
-  #define _DEBUG_
-#endif
 
-
-
-#ifdef nodebugtmp
-  #undef _DEBUG_
-#endif
-
-
-
-#ifdef _DEBUG_
+#ifdef _DEBUG_UPDATES_
       logfileptr->OFS()<<"Supernode "<<s<<" updates: ";
 #endif
 
@@ -1268,14 +1256,15 @@ assert(J>=1);
 
         if(marker(supno-1)!=s && supno!=s){
 
-#ifdef _DEBUG_
-          logfileptr->OFS()<<supno<<" ";
-#endif
 
 
           Int iUpdater = Mapping_.Map(supno-1,s-1);
 
           if(iam == iUpdater){
+
+#ifdef _DEBUG_UPDATES_
+          logfileptr->OFS()<<supno<<" ";
+#endif
             ++sc[supno-1];
             lu[supno-1] = s;
           }
@@ -1284,13 +1273,10 @@ assert(J>=1);
         }
       }
 
-#ifdef _DEBUG_
+#ifdef _DEBUG_UPDATES_
       logfileptr->OFS()<<std::endl;
 #endif
 
-#ifdef nodebugtmp
-  #undef _DEBUG_
-#endif
     }
   }
 

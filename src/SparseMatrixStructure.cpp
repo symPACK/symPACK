@@ -450,7 +450,7 @@ namespace LIBCHOLESKY{
       Int prev_parent = tree.PostParent(i-2);
       if(prev_parent == i){
         if(cc(i-2) == cc(i-1)+1 ) {
-          if(supsize<=maxSize || maxSize==-1){
+          if(supsize<maxSize || maxSize==-1){
             ++supsize;
             supMembership(i-1) = nsuper;
             continue;
@@ -664,9 +664,9 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
 
   //minsize
-  Int nrelax0 = 4;
-  Int nrelax1 = 16;
-  Int nrelax2 = 48;
+  Int nrelax0 = min(4,maxSize);
+  Int nrelax1 = min(16,maxSize);
+  Int nrelax2 = min(48,maxSize);
 
   double zrelax0 = 0.8;
   double zrelax1 = 0.1;

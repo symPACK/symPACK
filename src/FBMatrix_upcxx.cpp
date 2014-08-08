@@ -760,7 +760,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 
 
 #ifdef _DEBUG_    
-    logfileptr->OFS()<<"Fetching factor "<<j<<" from P"<<remoteFactorPtr.tid()<<endl;
+    //logfileptr->OFS()<<"Fetching factor "<<j<<" from P"<<remoteFactorPtr.tid()<<endl;
 #endif
     DblNumMat_upcxx * RemoteFactor = new DblNumMat_upcxx(A.n-j,A.blksize);
 //    logfileptr->OFS()<<"Done"<<endl;
@@ -960,7 +960,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
     FBMatrix_upcxx & A = *Aptr.raw_ptr();
     //fetch data
 #ifdef _DEBUG_    
-    logfileptr->OFS()<<"Aggregating Fetching data from P"<<remoteAggregatePtr.tid()<<endl;
+    //logfileptr->OFS()<<"Aggregating Fetching data from P"<<remoteAggregatePtr.tid()<<endl;
 #endif
     Int jb = min(A.blksize, A.n-j);
 

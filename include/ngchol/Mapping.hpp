@@ -35,8 +35,8 @@ class Mapping{
       Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize){};
       Mapping(Mapping & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Mapping():Mapping(0,0,0,0){};
-
-      inline Int Map(Int i, Int j){ abort(); return 0;}
+      virtual ~Mapping(){};
+      virtual inline Int Map(Int i, Int j)=0;
 };
 
 
@@ -49,7 +49,23 @@ class Modwrap2D: public Mapping{
       Modwrap2D(Modwrap2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Modwrap2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){ return modwrap2D_(i,j);}
+      ~Modwrap2D(){};
 };
+
+class Row2D: public Mapping{
+  protected:
+    inline Int row2D_(Int i, Int j) { Int p = (i/iBlockSize_)%iNumProc_; return p;}
+  public:
+      Row2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
+      Row2D(Row2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
+      Row2D():Mapping(0,0,0,0){};
+      inline Int Map(Int i, Int j){ return row2D_(i,j);}
+      ~Row2D(){};
+};
+
+
+
+
 
 }
 

@@ -119,9 +119,11 @@ namespace LIBCHOLESKY{
 
 
   inline void gdb_lock(){
-    std::cout<<"P"<<iam<<" is locked"<<std::endl;
+      pid_t pid = getpid();
+      std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
     volatile int lock = 1;
     while (lock == 1){ }
+      std::cout<<"P"<<iam<<" is unlocked"<<std::endl;
   }
 
   inline void gdb_lock(Int proc){
@@ -130,6 +132,7 @@ namespace LIBCHOLESKY{
       std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
       volatile int lock = 1;
       while (lock == 1){ }
+      std::cout<<"P"<<iam<<" is unlocked"<<std::endl;
     }
   }
 

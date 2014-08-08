@@ -978,7 +978,7 @@ void Gemm
     const char fixedTransB = ( transB == 'C' ? 'T' : transB );
 
 
-#ifdef _DEBUG_
+#ifdef _DEBUG_BLAS_
     logfileptr->OFS()<<"Param 1 transA = "<<fixedTransA<<std::endl;
     logfileptr->OFS()<<"Param 2 transB = "<<fixedTransB<<std::endl;
     logfileptr->OFS()<<"Param 3 m = "<<m<<std::endl;

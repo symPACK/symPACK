@@ -87,6 +87,7 @@ int main(int argc, char *argv[]) {
 
   vector<int> costc(n);
   double cost2  = GetCost(n,adj.size(),&xadj[0],&adj[0],&perm[0]);
+ cout<<"Cost(fast) is "<<cost2<<endl;
 
 
 
@@ -100,7 +101,6 @@ int main(int argc, char *argv[]) {
 //    }
 //    cout<<endl;
 
-  cout<<"Cost(fast) is "<<cost2<<endl;
   cout<<"Cost is "<<cost<<endl;
   cout<<"Cost per col is: ";
   double sum = 0;

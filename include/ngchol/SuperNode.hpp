@@ -151,10 +151,23 @@ class SuperNode{
     std::copy(tmpBlockIndex.begin(),tmpBlockIndex.end(),blocks_container_.begin());
 
 
+
+
+
     nzval_container_.resize(nzval_cnt_,ZERO<T>());
 
     nzval_ = &nzval_container_.front();
     blocks_ = &blocks_container_.front();
+
+
+    for(Int blkidx=0; blkidx<blocks_cnt_;++blkidx){
+      Int cur_fr = blocks_[blkidx].GIndex;
+      Int cur_lr = cur_fr + NRows(blkidx) -1;
+
+      ITree::Interval cur_interv = { cur_fr, cur_lr, blkidx};
+      idxToBlk_->Insert(cur_interv);
+    }
+
 
   }
 
@@ -296,6 +309,7 @@ class SuperNode{
     else{
       first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
     }
+assert(first_pivot_idx>=0);
     NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
 
     //find the last row updated by src_snode
@@ -305,6 +319,7 @@ class SuperNode{
     do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
     while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
     tgt_lc++;
+assert(last_pivot_idx>=0);
     NZBlockDesc & last_pivot_desc = src_snode.GetNZBlockDesc(last_pivot_idx);
     TIMER_STOP(UPDATE_SNODE_FIND_INDEX);
 
@@ -376,6 +391,7 @@ class SuperNode{
           Int row = cur_src_fr;
           while(row<=cur_src_lr){
             Int tgt_blk_idx = FindBlockIdx(row);
+assert(tgt_blk_idx>=0);
             NZBlockDesc & cur_tgt_desc = GetNZBlockDesc(tgt_blk_idx);
             Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + NRows(tgt_blk_idx)-1);
             Int tgtOffset = cur_tgt_desc.Offset 
@@ -409,6 +425,7 @@ class SuperNode{
           Int row = cur_src_fr;
           while(row<=cur_src_lr){
             Int tgt_blk_idx = FindBlockIdx(row);
+assert(tgt_blk_idx>=0);
             NZBlockDesc & cur_tgt_desc = GetNZBlockDesc(tgt_blk_idx);
             Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + NRows(tgt_blk_idx)-1);
             Int tgtOffset = cur_tgt_desc.Offset 

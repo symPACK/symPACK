@@ -47,7 +47,7 @@ namespace LIBCHOLESKY{
 
 
     //Reoder the matrix with MMD
-    Order_.MMD();
+//    Order_.MMD();
 
 //logfileptr->OFS()<<"Order.perm "<<Order_.perm<<endl;
 //logfileptr->OFS()<<"Order.invp "<<Order_.invp<<endl;
@@ -94,10 +94,6 @@ if(iam==0){
 
     Global_.FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,maxSnode);
 
-#ifdef _DEBUG_
-    logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
-    logfileptr->OFS()<<"xsuper "<<Xsuper_<<std::endl;
-#endif
 
 #ifdef RELAXED_SNODE
     Global_.RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, maxSnode );
@@ -105,30 +101,6 @@ if(iam==0){
 
 #else
     Global_.SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
-#ifdef REFINED_SNODE
-if(0){
-    IntNumVec permRefined;
-    IntNumVec newPerm(Size());
-    Global_.RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
-
-
-//newPerm = perm3;
-//      for(Int i =0; i<perm3.m();++i){
-//        newPerm[perm2[i]-1] = poperm[i];
-//      }
-//      logfileptr->OFS()<<"new perm == po perm 2 ?: "<<newPerm<<std::endl;
-//      poperm2 = newPerm;
-//
-//      for(Int i =0; i<perm3.m();++i){
-//        newPerm[perm3[i]-1] = perm2[i];
-//      }
-//      logfileptr->OFS()<<"perm2 and perm3: "<<newPerm<<std::endl;
-//
-//      perm3 = newPerm;
-//    Perm_ = permRefined;
-}
-#endif
-
 #endif
 
 
@@ -152,6 +124,10 @@ if(0){
 //    }
 #endif
 
+#ifdef _DEBUG_
+    logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
+    logfileptr->OFS()<<"xsuper "<<Xsuper_<<std::endl;
+#endif
 
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_);
 
@@ -880,8 +856,9 @@ assert(row>0);
 
 
 
+      Int iOwner = Mapping_.Map(s-1,s-1);
 #ifdef _DEBUG_UPDATES_
-      logfileptr->OFS()<<"Supernode "<<s<<" updates: ";
+      logfileptr->OFS()<<"Supernode "<<s<<" on P"<<iOwner<<" updates: ";
 #endif
 
       for(Int row_idx = fi; row_idx<=li;++row_idx){
@@ -1462,8 +1439,8 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
                     }
 #ifdef _DEBUG_            
                 logfileptr->OFS()<<"     Send contribution "<<I<<" to Supernode "<<parent_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
-                logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
-                logfileptr->OFS()<<"Sending "<<nzblk_cnt*sizeof(NZBlockDesc)+nz_cnt*sizeof(T) + 3*sizeof(Int)<<" bytes"<< std::endl;
+//                logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
+//                logfileptr->OFS()<<"Sending "<<nzblk_cnt*sizeof(NZBlockDesc)+nz_cnt*sizeof(T) + 3*sizeof(Int)<<" bytes"<< std::endl;
 #endif
               }
             }
@@ -1694,8 +1671,8 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
 #ifdef _DEBUG_            
                     logfileptr->OFS()<<"     Send contribution "<<I<<" to Supernode "<<child_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
-                    logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
-                    logfileptr->OFS()<<"Sending "<<nzblk_cnt*sizeof(NZBlockDesc)<<" and "<<nz_cnt*sizeof(T)<<" bytes during BS"<<std::endl;
+//                    logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
+//                    logfileptr->OFS()<<"Sending "<<nzblk_cnt*sizeof(NZBlockDesc)<<" and "<<nz_cnt*sizeof(T)<<" bytes during BS"<<std::endl;
 #endif
                   }
                 }
