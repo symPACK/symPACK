@@ -20,13 +20,17 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
   Int np  = CommEnv_->MPI_Size();
 
   IntNumVec UpdatesToDo,LastUpdate;
+  IntNumVec AggregatesToRecv;
 //gdb_lock(0);
+  UpdatesToDo = UpdateCount_;
+  AggregatesToRecv = UpdateCount_;
+  //FBGetUpdateCount(AggregatesToRecv,LastUpdate);
   FBGetUpdateCount(UpdatesToDo,LastUpdate);
 
 logfileptr->OFS()<<"LastUpdate: "<<LastUpdate<<endl;
 logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
+logfileptr->OFS()<<"AggregatesToRecv: "<<AggregatesToRecv<<endl;
 
-  IntNumVec AggregatesToRecv = UpdatesToDo;//UpdateCount_;
   IntNumVec AggregatesDone(Xsuper_.m());
   SetValue(AggregatesDone,0);
 
@@ -154,7 +158,12 @@ logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
 #endif
 
 
-        //Doing local updates
+//if(I==15){logfileptr->OFS()<<src_snode<<endl;}
+
+
+
+
+
 
         //Receiving aggregates
         src_blocks.resize(0);
@@ -176,7 +185,7 @@ logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
 #endif
 
             Int nrows = src_snode.NRowsBelowBlock(0);
-            Int ncols = UpdateWidth_(I-1);
+            Int ncols = src_snode.Size();
             nz_cnt = nrows * ncols;
 
             max_bytes += nrows*sizeof(NZBlockDesc);
@@ -200,6 +209,7 @@ logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
           bool doabort = false;
           int prev_size = 0;
           if(src_blocks.size()<bytes_received){
+gdb_lock();
             prev_size = src_blocks.size();
             doabort = true;
             //receive anyway
@@ -208,17 +218,18 @@ logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
 #endif
 
 
+logfileptr->OFS()<<"RECV2 Bfore"<<endl;
 #ifdef PROBE_FIRST
-          MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
+          MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
 #else
           //receive the index array
           MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
 #endif
+logfileptr->OFS()<<"RECV2 after"<<endl;
 
         SuperNode<T> dist_src_snode;
         size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
 
-if(I==5){gdb_lock();}
         //Deserialize the number of aggregates
         Int * aggregatesCnt = (Int *)(&src_blocks[0]+read_bytes);
 
@@ -237,7 +248,7 @@ if(I==5){gdb_lock();}
 
         SnodeUpdate curUpdate;
         dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false);
-gdb_lock();
+//gdb_lock();
         FBAggregateSuperNode(dist_src_snode,src_snode,curUpdate.blkidx, curUpdate.src_first_row);
         AggregatesToRecv(curUpdate.tgt_snode_id-1) -= *aggregatesCnt;
 
@@ -407,6 +418,8 @@ gdb_lock();
                   //Check if src_snode_id already have an aggregate vector
                   if(aggVectors[curUpdate.tgt_snode_id-1]==NULL){
                     aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,  xlindx_, lindx_);
+
+//if(aggVectors[curUpdate.tgt_snode_id-1]->Id()==15){logfileptr->OFS()<<*aggVectors[curUpdate.tgt_snode_id-1]<<endl;gdb_lock();}
                   }
                   tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
                 }
@@ -1310,9 +1323,10 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_sn
     src_blocks.resize(bytes_received);
     TIMER_STOP(RECV_MALLOC);
 
-
+logfileptr->OFS()<<"RECV Bfore"<<endl;
     MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,recv_status.MPI_SOURCE,recv_status.MPI_TAG,CommEnv_->MPI_GetComm(),&recv_status);
     MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
+logfileptr->OFS()<<"RECV After"<<endl;
 
 
 

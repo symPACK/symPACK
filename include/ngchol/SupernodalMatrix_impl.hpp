@@ -47,7 +47,7 @@ namespace LIBCHOLESKY{
 
 
     //Reoder the matrix with MMD
-//    Order_.MMD();
+    Order_.MMD();
 
 //logfileptr->OFS()<<"Order.perm "<<Order_.perm<<endl;
 //logfileptr->OFS()<<"Order.invp "<<Order_.invp<<endl;
@@ -1324,12 +1324,12 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
           SuperNode<T> dist_contrib;
           Deserialize(&src_blocks[0],dist_contrib);
-#ifdef PROBE_FIRST
-          if(doabort){
-
-            abort();
-          }
-#endif
+//#ifdef PROBE_FIRST
+//          if(doabort){
+//
+//            abort();
+//          }
+//#endif
 
 #ifdef _DEBUG_
           logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib.Id()<<std::endl;

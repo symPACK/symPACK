@@ -1,2 +1,2 @@
 #! /bin/bash
-cd ../src; make cleanall; make -j; cd ../driver; make cleanall; make $1 
+cd ../src; make cleanall; make -j; cd ../driver; rm $1 $1.o; make $1 

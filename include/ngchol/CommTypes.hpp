@@ -145,7 +145,7 @@ namespace LIBCHOLESKY{
     inline Int capacity(){ return pSrcBlocks->size();}
     inline Int size(){ return head;}
     inline void resize(Int size){
-      head = 0; 
+      //head = 0; 
       pSrcBlocks->resize(size);
     }
     inline void setHead(Int phead){ 

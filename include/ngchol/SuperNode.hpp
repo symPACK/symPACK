@@ -132,7 +132,6 @@ class SuperNode{
     blocks_cnt_ = 0;
 
 
-
     for(Int idx= fi ; idx<=li; ++idx){
       Int curRow = lindx[idx-1];
         //create a new block
