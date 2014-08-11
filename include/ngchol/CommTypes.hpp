@@ -33,15 +33,48 @@ namespace LIBCHOLESKY{
   struct Icomm;
   struct DelayedCommCompare;
   struct DelayedCommReverseCompare;
+  struct SnodeUpdateFB;
+  struct SnodeUpdateFBCompare;
+
   class AsyncComms;
   typedef std::priority_queue<DelayedComm,deque<DelayedComm>,DelayedCommCompare> CommList;
   typedef std::priority_queue<DelayedComm,deque<DelayedComm>,DelayedCommReverseCompare> DownCommList;
+  typedef std::priority_queue<SnodeUpdateFB,deque<SnodeUpdateFB>,SnodeUpdateFBCompare> FBTasks;
 
   template <typename T> inline void Serialize( Icomm& os,  const T * val, const Int count);
   template <typename T> inline Icomm& operator<<( Icomm& os,  const T & val);
 
 
   class CommEnvironment;
+
+
+  struct SnodeUpdateFB{
+    Int src_snode_id;
+    Int tgt_snode_id;
+  };
+
+
+  struct SnodeUpdateFBCompare{
+    bool operator()(const SnodeUpdateFB & a,const SnodeUpdateFB & b) const
+    {
+      if(a.tgt_snode_id>b.tgt_snode_id){
+        return true;
+      }
+      else if(a.tgt_snode_id==b.tgt_snode_id){
+       return a.src_snode_id>b.src_snode_id;
+      }
+      else{
+        return false;
+      }
+    }
+  };
+
+
+
+
+
+
+
 
 
 
