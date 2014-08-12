@@ -21,13 +21,18 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
 
-  IntNumVec UpdatesToDo,LastUpdate;
+  IntNumVec UpdatesToDo;
+  IntNumVec LastUpdate;
   IntNumVec AggregatesToRecv;
   //gdb_lock(0);
   UpdatesToDo = UpdateCount_;
   AggregatesToRecv = UpdateCount_;
   //FBGetUpdateCount(AggregatesToRecv,LastUpdate);
+  
+  double timesta2 = get_time(); 
   FBGetUpdateCount(UpdatesToDo,LastUpdate);
+  double timeend2 = get_time(); 
+  logfileptr->OFS()<<"Update count time: "<<timeend2-timesta2<<endl;
 
 #ifdef _DEBUG_UPDATES_
   logfileptr->OFS()<<"LastUpdate: "<<LastUpdate<<endl;
@@ -290,12 +295,19 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
 
 
+#ifdef TRACK_PROGRESS
+  Real timeStaTask =  get_time( );
+#endif
 
 
         TIMER_START(FACTOR_PANEL);
         src_snode.Factorize();
         TIMER_STOP(FACTOR_PANEL);
 
+#ifdef TRACK_PROGRESS
+  timeEnd =  get_time( );
+  progressptr->OFS()<<src_snode.Id()<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" F"<<src_snode.Id()<<" "<<iam<<endl;
+#endif
 
         //Sending factors
 
@@ -433,7 +445,23 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
 
               //Update the aggregate
+
+#ifdef TRACK_PROGRESS
+  Real timeStaTask =  get_time( );
+#endif
+
+
               tgt_aggreg->Update(*cur_src_snode,curUpdate,tmpBufs);
+
+#ifdef TRACK_PROGRESS
+  timeEnd =  get_time( );
+  progressptr->OFS()<<curUpdate.tgt_snode_id<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" U"<<curUpdate.src_snode_id<<"-"<<curUpdate.tgt_snode_id<<" "<<iam<< endl;
+#endif
+
+
+
+
+
               --UpdatesToDo[curUpdate.tgt_snode_id-1];
               ++AggregatesDone[curUpdate.tgt_snode_id-1];
 #ifdef _DEBUG_
@@ -2030,8 +2058,8 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
   sc.Resize(Xsuper_.m());
   SetValue(sc,I_ZERO);
 
-  lu.Resize(Xsuper_.m());
-  SetValue(lu,I_ZERO);
+//  lu.Resize(Xsuper_.m());
+//  SetValue(lu,I_ZERO);
 
   IntNumVec marker(Xsuper_.m());
   SetValue(marker,I_ZERO);
@@ -2064,7 +2092,7 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
           logfileptr->OFS()<<supno<<" ";
 #endif
           ++sc[supno-1];
-          lu[supno-1] = s;
+//          lu[supno-1] = s;
         }
 
         marker(supno-1) = s;

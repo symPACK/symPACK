@@ -68,6 +68,11 @@ int main(int argc, char **argv)
   logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<endl;
   logfileptr->OFS()<<"**********************************"<<endl;
 
+#ifdef TRACK_PROGRESS
+  char suffix[50];
+  sprintf(suffix,"%d",iam);
+  progressptr = new LogFile("progress",suffix);
+#endif
 
 
   // *********************************************************************
@@ -556,6 +561,11 @@ else{
 
   MPI_Barrier(worldcomm);
   MPI_Comm_free(&worldcomm);
+
+#ifdef TRACK_PROGRESS
+  delete progressptr;
+#endif
+
   delete logfileptr;
   MPI_Finalize();
   return 0;

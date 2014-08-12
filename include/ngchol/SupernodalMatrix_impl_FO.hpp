@@ -836,9 +836,21 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
       logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
 #endif
 
+#ifdef TRACK_PROGRESS
+  Real timeStaTask =  get_time( );
+#endif
       TIMER_START(FACTOR_PANEL);
       src_snode.Factorize();
       TIMER_STOP(FACTOR_PANEL);
+
+#ifdef TRACK_PROGRESS
+  timeEnd =  get_time( );
+  progressptr->OFS()<<src_snode.Id()<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" F"<<endl;
+#endif
+
+
+
+
 
       //Send my factor to my ancestors. 
       BolNumVec is_factor_sent(np);

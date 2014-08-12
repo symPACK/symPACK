@@ -67,6 +67,7 @@ public:
 
 extern LogFile * logfileptr;
 extern LogFile * profileptr;
+extern LogFile * progressptr;
 
 }
 

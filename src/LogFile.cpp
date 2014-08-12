@@ -7,5 +7,7 @@ LogFile * logfileptr;
 
 LogFile * profileptr;
 
+LogFile * progressptr;
+
 }
 
