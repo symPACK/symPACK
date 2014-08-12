@@ -666,13 +666,23 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
       //Do all my updates (Local and remote)
       //Local updates
       while(!LocalUpdates[iLocalI-1].empty()){
-        SnodeUpdate & cur_update = LocalUpdates[iLocalI-1].front();
-        SuperNode<T> & local_src_snode = *LocalSupernodes_[(cur_update.src_snode_id-1) / np];
-        src_snode.Update(local_src_snode,cur_update, tmpBufs);
+        SnodeUpdate & curUpdate = LocalUpdates[iLocalI-1].front();
+        SuperNode<T> & local_src_snode = *LocalSupernodes_[(curUpdate.src_snode_id-1) / np];
+
+#ifdef TRACK_PROGRESS
+  Real timeStaTask =  get_time( );
+#endif
+        src_snode.Update(local_src_snode,curUpdate, tmpBufs);
+#ifdef TRACK_PROGRESS
+  timeEnd =  get_time( );
+  progressptr->OFS()<<curUpdate.tgt_snode_id<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" U"<<curUpdate.src_snode_id<<"-"<<curUpdate.tgt_snode_id<<" "<<iam<< endl;
+#endif
+
+
         LocalUpdates[iLocalI-1].pop();
         --UpdatesToDo(I-1);
 #ifdef _DEBUG_
-        logfileptr->OFS()<<"LOCAL Supernode "<<src_snode.Id()<<" is updated by Supernode "<<cur_update.src_snode_id<<" from row "<<cur_update.src_first_row<<" "<<cur_update.blkidx<<std::endl;
+        logfileptr->OFS()<<"LOCAL Supernode "<<src_snode.Id()<<" is updated by Supernode "<<curUpdate.src_snode_id<<" from row "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
         logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
 #endif
       }
@@ -703,7 +713,18 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
           if(iTarget == iam){
             Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
             SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+
+#ifdef TRACK_PROGRESS
+  Real timeStaTask =  get_time( );
+#endif
             tgt_snode.Update(dist_src_snode,curUpdate, tmpBufs);
+#ifdef TRACK_PROGRESS
+  timeEnd =  get_time( );
+  progressptr->OFS()<<curUpdate.tgt_snode_id<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" U"<<curUpdate.src_snode_id<<"-"<<curUpdate.tgt_snode_id<<" "<<iam<< endl;
+#endif
+
+
+
             --UpdatesToDo(curUpdate.tgt_snode_id-1);
 
 #ifdef _DEBUG_
@@ -813,7 +834,16 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
           if(iTarget == iam){
             Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
             SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+#ifdef TRACK_PROGRESS
+  Real timeStaTask =  get_time( );
+#endif
             tgt_snode.Update(dist_src_snode,curUpdate, tmpBufs);
+#ifdef TRACK_PROGRESS
+  timeEnd =  get_time( );
+  progressptr->OFS()<<curUpdate.tgt_snode_id<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" U"<<curUpdate.src_snode_id<<"-"<<curUpdate.tgt_snode_id<<" "<<iam<< endl;
+#endif
+
+
             --UpdatesToDo(curUpdate.tgt_snode_id-1);
 
 #if defined(_DEBUG_) || defined(_DEBUG_DELAY_)
@@ -845,7 +875,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
 
 #ifdef TRACK_PROGRESS
   timeEnd =  get_time( );
-  progressptr->OFS()<<src_snode.Id()<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" F"<<endl;
+  progressptr->OFS()<<src_snode.Id()<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" F"<<src_snode.Id()<<" "<<iam<<endl;
 #endif
 
 
