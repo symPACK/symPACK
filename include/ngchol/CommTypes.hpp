@@ -38,6 +38,7 @@ namespace LIBCHOLESKY{
     FBTaskType type;
     SuperNode<T> * src_data;
     Int tgt_snode_id;
+    Int src_snode_id;
 
     //for FanBoth
     Int target;
@@ -48,11 +49,12 @@ namespace LIBCHOLESKY{
     Int src_first_row;
     Int src_last_row;
 
-    FBDelayedComm(FBTaskType a_type,SuperNode<T> * a_src_data, Int a_tgt_snode_id, Int a_src_nzblk_idx,
+    FBDelayedComm(FBTaskType a_type,SuperNode<T> * a_src_data,Int a_src_snode_id, Int a_tgt_snode_id, Int a_src_nzblk_idx,
                    Int a_src_first_row, Int a_target, Int a_tag, Int a_count=0){
           type = a_type;
           src_data = a_src_data;
           tgt_snode_id = a_tgt_snode_id;
+          src_snode_id = a_src_snode_id;
           src_first_row = a_src_first_row;
           src_nzblk_idx = a_src_nzblk_idx;
           target = a_target;
@@ -67,6 +69,7 @@ namespace LIBCHOLESKY{
   template<typename T>
   class FBDelayedCommCompare{
     public:
+    //Logic is: does a go after b ?
     bool compare(const Int a_src_snode_id, const Int a_tgt_snode_id, const FBTaskType a_type,
         const Int b_src_snode_id, const Int b_tgt_snode_id, const FBTaskType b_type) const{
       //If they are the same type, sort by tgt id then by src_id
@@ -94,7 +97,17 @@ namespace LIBCHOLESKY{
               return true;
             }
             else{
-              return false;
+//              return a_src_snode_id<b_tgt_snode_id;
+//              return b_src_snode_id<a_src_snode_id;
+        if(a_tgt_snode_id>b_tgt_snode_id){
+          return true;
+        }
+        else if(a_tgt_snode_id==b_tgt_snode_id){
+          return a_src_snode_id>b_src_snode_id;
+        }
+        else{
+          return false;
+        }
             } 
           }
         }
@@ -110,19 +123,107 @@ namespace LIBCHOLESKY{
               return false;
             }
             else{
-              return true;
+//              return b_src_snode_id>=a_tgt_snode_id;
+//              return b_src_snode_id<a_src_snode_id;
+        if(a_tgt_snode_id>b_tgt_snode_id){
+          return true;
+        }
+        else if(a_tgt_snode_id==b_tgt_snode_id){
+          return a_src_snode_id>b_src_snode_id;
+        }
+        else{
+          return false;
+        }
             } 
           }
         }
       }
     }
 
+    bool unitTest(){
+        Int a_src_snode_id;
+        Int a_tgt_snode_id;
+        FBTaskType a_type;
+        Int b_src_snode_id;
+        Int b_tgt_snode_id;
+        FBTaskType b_type;
+        
+        bool expected_result, passed;
+
+        passed = true;
 
 
-    //Logic is: does a goes after b ?
+        //First case : F1-1 vs F2-2 : F1-1 before F2-2
+        a_src_snode_id = 1;
+        a_tgt_snode_id = 1;
+        a_type = FACTOR;
+        b_src_snode_id = 2;
+        b_tgt_snode_id = 2;
+        b_type = FACTOR;
+        expected_result= false;
+        passed = passed && (compare(a_src_snode_id,a_tgt_snode_id,a_type,b_src_snode_id,b_tgt_snode_id,b_type) == expected_result);
+        expected_result= true;
+        passed = passed && (compare(b_src_snode_id,b_tgt_snode_id,b_type,a_src_snode_id,a_tgt_snode_id,a_type) == expected_result);
+
+        //Second case : A1-1 vs A2-2 : A1-1 before A2-2
+        a_src_snode_id = 1;
+        a_tgt_snode_id = 1;
+        a_type = AGGREGATE;
+        b_src_snode_id = 2;
+        b_tgt_snode_id = 2;
+        b_type = AGGREGATE;
+        expected_result= false;
+        passed = passed && (compare(a_src_snode_id,a_tgt_snode_id,a_type,b_src_snode_id,b_tgt_snode_id,b_type) == expected_result);
+        expected_result= true;
+        passed = passed && (compare(b_src_snode_id,b_tgt_snode_id,b_type,a_src_snode_id,a_tgt_snode_id,a_type) == expected_result);
+
+
+        //Third case : A1-4 vs F4-6 : A1-4 before F4-6
+        a_src_snode_id = 1;
+        a_tgt_snode_id = 4;
+        a_type = AGGREGATE;
+        b_src_snode_id = 4;
+        b_tgt_snode_id = 6;
+        b_type = FACTOR;
+        expected_result= false;
+        passed = passed && (compare(a_src_snode_id,a_tgt_snode_id,a_type,b_src_snode_id,b_tgt_snode_id,b_type) == expected_result);
+        expected_result= true;
+        passed = passed && (compare(b_src_snode_id,b_tgt_snode_id,b_type,a_src_snode_id,a_tgt_snode_id,a_type) == expected_result);
+
+        //4th case : A2-4 vs F1-4 : F1-4 before A2-4
+        a_src_snode_id = 2;
+        a_tgt_snode_id = 4;
+        a_type = AGGREGATE;
+        b_src_snode_id = 1;
+        b_tgt_snode_id = 4;
+        b_type = FACTOR;
+        expected_result= false;
+        passed = passed && (compare(a_src_snode_id,a_tgt_snode_id,a_type,b_src_snode_id,b_tgt_snode_id,b_type) == expected_result);
+        expected_result= true;
+        passed = passed && (compare(b_src_snode_id,b_tgt_snode_id,b_type,a_src_snode_id,a_tgt_snode_id,a_type) == expected_result);
+
+        //5th case : A4-4 vs F4-4 : A4-4 before F4-4
+        a_src_snode_id = 4;
+        a_tgt_snode_id = 4;
+        a_type = AGGREGATE;
+        b_src_snode_id = 4;
+        b_tgt_snode_id = 4;
+        b_type = FACTOR;
+        expected_result= false;
+        passed = passed && (compare(a_src_snode_id,a_tgt_snode_id,a_type,b_src_snode_id,b_tgt_snode_id,b_type) == expected_result);
+        expected_result= true;
+        passed = passed && (compare(b_src_snode_id,b_tgt_snode_id,b_type,a_src_snode_id,a_tgt_snode_id,a_type) == expected_result);
+
+
+
+
+
+        return passed;
+    }
+
     bool operator()(const FBDelayedComm<T> & a,const FBDelayedComm<T> & b) const
     {
-      return compare(a.src_data->Id(),a.tgt_snode_id,a.type,b.src_data->Id(),b.tgt_snode_id,b.type);
+      return compare(a.src_snode_id,a.tgt_snode_id,a.type,b.src_data->Id(),b.tgt_snode_id,b.type);
     }
   };
 

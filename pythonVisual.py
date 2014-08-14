@@ -1,4 +1,7 @@
-import numpy as np
+#import numpy as np
+import matplotlib
+matplotlib.use('GTK3Agg')
+
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import sys
@@ -22,7 +25,10 @@ while nextLine != "":
         largestX = float(splitLine[2])
     nextLine = openedFile.readline()
 
+openedFile.close()
 #print dataList
+
+#plt.ion()
 
 def printLabel(event):
     print event.artist.get_gid()
