@@ -22,7 +22,7 @@ while nextLine != "":
         largestX = float(splitLine[2])
     nextLine = openedFile.readline()
 
-print dataList
+#print dataList
 
 def printLabel(event):
     print event.artist.get_gid()

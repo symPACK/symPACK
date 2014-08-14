@@ -25,6 +25,120 @@
 namespace LIBCHOLESKY{
 
   template<typename T> class NumMat;
+  template<typename T> class SuperNode;
+
+  enum FBTaskType {FACTOR, AGGREGATE};
+  template<typename T> class FBDelayedComm;
+  template<typename T> class FBDelayedCommCompare;
+  template<typename T> using FBCommList = std::priority_queue<FBDelayedComm<T>,deque<FBDelayedComm<T> >,FBDelayedCommCompare<T> >;
+
+  template<typename T>
+  class FBDelayedComm{
+    public:
+    FBTaskType type;
+    SuperNode<T> * src_data;
+    Int tgt_snode_id;
+
+    //for FanBoth
+    Int target;
+    Int tag;
+    Int count;
+
+    Int src_nzblk_idx;
+    Int src_first_row;
+    Int src_last_row;
+
+    FBDelayedComm(FBTaskType a_type,SuperNode<T> * a_src_data, Int a_tgt_snode_id, Int a_src_nzblk_idx,
+                   Int a_src_first_row, Int a_target, Int a_tag, Int a_count=0){
+          type = a_type;
+          src_data = a_src_data;
+          tgt_snode_id = a_tgt_snode_id;
+          src_first_row = a_src_first_row;
+          src_nzblk_idx = a_src_nzblk_idx;
+          target = a_target;
+          tag = a_tag;
+          count = a_count;
+   }
+  };
+
+
+ 
+
+  template<typename T>
+  class FBDelayedCommCompare{
+    public:
+    bool compare(const Int a_src_snode_id, const Int a_tgt_snode_id, const FBTaskType a_type,
+        const Int b_src_snode_id, const Int b_tgt_snode_id, const FBTaskType b_type) const{
+      //If they are the same type, sort by tgt id then by src_id
+      if(a_type == b_type){
+        if(a_tgt_snode_id>b_tgt_snode_id){
+          return true;
+        }
+        else if(a_tgt_snode_id==b_tgt_snode_id){
+          return a_src_snode_id>b_src_snode_id;
+        }
+        else{
+          return false;
+        }
+      }
+      //If they are not of the same type
+      else{
+        if(a_type == FACTOR){
+          //case Fx,* vs Ax,*
+          if(a_src_snode_id == b_src_snode_id){
+            return true; //a is factor ?
+          }
+          else{
+            //case Fx,* vs A*,x
+            if(a_src_snode_id == b_tgt_snode_id){
+              return true;
+            }
+            else{
+              return false;
+            } 
+          }
+        }
+        else{
+
+          //case Fx,* vs Ax,*
+          if(b_src_snode_id == a_src_snode_id){
+            return false; //a is factor ?
+          }
+          else{
+            //case Fx,* vs A*,x
+            if(b_src_snode_id == a_tgt_snode_id){
+              return false;
+            }
+            else{
+              return true;
+            } 
+          }
+        }
+      }
+    }
+
+
+
+    //Logic is: does a goes after b ?
+    bool operator()(const FBDelayedComm<T> & a,const FBDelayedComm<T> & b) const
+    {
+      return compare(a.src_data->Id(),a.tgt_snode_id,a.type,b.src_data->Id(),b.tgt_snode_id,b.type);
+    }
+  };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
   struct SnodeUpdate;

@@ -44,12 +44,10 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
   SetValue(AggregatesDone,0);
 
 
-  CommList AggregatesToSend; 
-  CommList FactorsToSend; 
+  FBCommList<T> MsgToSend; 
   AsyncComms outgoingSend;
 
-  CommList UpdatesToSend; 
-  CommList UpdatesToRecv; 
+  //CommList UpdatesToSend; 
 
 
   //Array for Irecv of factors
@@ -170,7 +168,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 #if 1
   Int I =1;
   Int iLocalI = 1;
-  while(!LocalTasks.empty() || !FactorsToSend.empty() || !AggregatesToSend.empty() || !outgoingSend.empty()){
+  while(!LocalTasks.empty() || !MsgToSend.empty() || !outgoingSend.empty()){
 
     //Check for completion of outgoing communication
     AdvanceOutgoing(outgoingSend);
@@ -392,7 +390,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
                 //need to push the prev src_last_row
  //               FactorsToSend.push(DelayedComm(src_snode.Id(),curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
                 Int tag = FACT_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
-                FactorsToSend.push(DelayedComm((void*)&src_snode,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag));
+                MsgToSend.push(FBDelayedComm<T>(FACTOR,&src_snode,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag));
 #ifdef _DEBUG_DELAY_
                 logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
                 cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
@@ -552,38 +550,6 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
                   bool is_skipped = true;
 
-//                {
-//                  SnodeUpdateFB dummyTask;
-//                  dummyTask.src_snode_id = curUpdate.src_snode_id;
-//                  dummyTask.tgt_snode_id = curUpdate.tgt_snode_id;
-//
-//#ifdef _DEBUG_PROGRESS_
-//                  if(!LocalTasks.empty()){
-//                  logfileptr->OFS()<<"Task {"<<dummyTask.src_snode_id<<" -> "<<dummyTask.tgt_snode_id<<"} vs Task {"<<LocalTasks.top().src_snode_id<<" -> "<<LocalTasks.top().tgt_snode_id<<"}"<<std::endl;
-//                  }
-//#endif
-//                  SnodeUpdateFBCompare compare;
-//                  is_skipped = nextTask!=NULL?compare(dummyTask,*nextTask):false;
-//                }
-//                {
-//                  DelayedComm dummyTask(curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,0);
-//                  DelayedCommCompare compare;
-//
-//#ifdef _DEBUG_PROGRESS_
-//                  if(!AggregatesToSend.empty()){
-//                  logfileptr->OFS()<<"Comm {"<<dummyTask.src_snode_id<<" -> "<<dummyTask.tgt_snode_id<<"} vs Comm {"<<AggregatesToSend.top().src_snode_id<<" -> "<<AggregatesToSend.top().tgt_snode_id<<"}"<<std::endl;
-//                  }
-//#endif
-//                  bool tmp = (!AggregatesToSend.empty())?compare(dummyTask,AggregatesToSend.top()):false;
-//                  is_skipped = is_skipped || tmp;
-//                }
-
-
-
-
-
-
-
                   if( is_skipped ){
                   //if( next_local_snode< curUpdate.tgt_snode_id){
                     //need to push the prev src_last_row
@@ -591,7 +557,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 //                    AggregatesToSend.push(DelayedComm(src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
 
                     Int tag = AGG_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
-                    FactorsToSend.push(DelayedComm((void *)tgt_aggreg,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag,AggregatesDone[curUpdate.tgt_snode_id-1]));
+                    MsgToSend.push(FBDelayedComm<T>(AGGREGATE,tgt_aggreg,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag,AggregatesDone[curUpdate.tgt_snode_id-1]));
 #ifdef _DEBUG_DELAY_
                     //                            logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
                     //                            cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
@@ -647,7 +613,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
     //process some of the delayed send
 //if(FactorsToSend.size()>0){gdb_lock();}
-    SendDelayedMessagesUp(iLocalI-1,FactorsToSend,outgoingSend,LocalSupernodes_,LocalTasks,FACT_TARGET,FACT_TAG,"Factor");
+    SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks);
 //if(AggregatesToSend.size()>0){gdb_lock();}
 //    SendDelayedMessagesUp(iLocalI-1,AggregatesToSend,outgoingSend,aggVectors,LocalTasks,AGG_TARGET,AGG_TAG,"Aggregate");
 
@@ -2502,6 +2468,152 @@ template <typename T> inline void SupernodalMatrix<T>::FBAggregateSuperNode(Supe
 #endif
   TIMER_STOP(AGGREGATE_SNODE);
 }
+
+
+
+
+
+
+
+
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList<T> & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList){
+  if(MsgToSend.empty()) { return;}
+  bool is_last = taskList.empty();
+
+  //Index of the last global snode to do
+  const SnodeUpdateFB * nextTask = (!taskList.empty())?&taskList.top():NULL;
+  FBTaskType nextType = nextTask!=NULL?(nextTask->src_snode_id==nextTask->tgt_snode_id?FACTOR:AGGREGATE):FACTOR;
+
+#ifdef _DEBUG_DELAY_
+  {
+    FBCommList<T> tmp = MsgToSend;
+    logfileptr->OFS()<<"Comm "<<"Queue : ";
+    while( tmp.size()>0){
+      //Pull the highest priority message
+      const FBDelayedComm<T> & comm = tmp.top();
+      if(comm.type==FACTOR){
+        logfileptr->OFS()<<" { F "<<comm.src_data->Id()<<" -> "<<comm.tgt_snode_id<<" }";
+      }
+      else{
+        logfileptr->OFS()<<" { A "<<comm.src_data->Id()<<" -> "<<comm.tgt_snode_id<<" }";
+      }
+      tmp.pop();
+    }
+    logfileptr->OFS()<<endl;
+  }
+#endif
+
+  FBDelayedCommCompare<T> comparator;
+
+  while( MsgToSend.size()>0){
+    //Pull the highest priority message
+    const FBDelayedComm<T> & comm = MsgToSend.top();
+    Int tgt_snode_id = comm.tgt_snode_id;
+    Int src_nzblk_idx = comm.src_nzblk_idx;
+    Int src_first_row = comm.src_first_row;
+    Int iTarget = comm.target;
+    Int tag = comm.tag;
+    Int count = comm.count;
+    FBTaskType type = comm.type;
+    SuperNode<T> * src_data = comm.src_data;
+    Int src_snode_id = src_data->Id();
+
+    bool doSend = nextTask!=NULL?comparator.compare(nextTask->src_snode_id,nextTask->tgt_snode_id,
+                                                      nextType,src_snode_id,tgt_snode_id,type):true;
+#ifdef _DEBUG_PROGRESS_
+      if(nextTask!=NULL){
+        logfileptr->OFS()<<"Comm "<<(type==FACTOR?"F":"A")<<" {"<<src_snode_id<<" -> "<<tgt_snode_id<<"} vs Task "
+                <<(nextType==FACTOR?"F":"A")<<" {"<<nextTask->src_snode_id<<" -> "<<nextTask->tgt_snode_id<<"}"<<std::endl;
+      }
+#endif
+
+
+
+    if(doSend || is_last){
+//    if(tgt_snode_id < next_snode_id || is_last){
+      //Int iLocalSrc = (src_snode_id-1) / np +1 ;
+      SuperNode<T> & src_snode = *src_data; //*snodeColl[iLocalSrc -1];
+
+#ifdef _DEBUG_DELAY_
+      if(type==FACTOR){
+        logfileptr->OFS()<<"Picked Comm { F "<<src_snode_id<<" -> "<<tgt_snode_id<<" }";
+      }
+      else{
+        logfileptr->OFS()<<"Picked Comm { A "<<src_snode_id<<" -> "<<tgt_snode_id<<" }";
+      }
+#endif
+      //this can be sent now
+      //Int iTarget = TARGET(Mapping_,src_snode_id,tgt_snode_id);
+      if(iTarget != iam){
+
+#ifdef _DEBUG_DELAY_
+      if(type==FACTOR){
+        logfileptr->OFS()<<"P"<<iam<<" is sending Factor from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+        cout<<"P"<<iam<<" is sending Factor from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+      }
+      else{
+        logfileptr->OFS()<<"P"<<iam<<" is sending Aggregate from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+        cout<<"P"<<iam<<" is sending Aggregate from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+      }
+#endif
+        NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(src_nzblk_idx);
+        //Create a new Icomm buffer, serialize the contribution
+        // in it and add it to the outgoing comm list
+        Icomm * send_buffer = new Icomm();
+        //if this is an aggregate add the count to the end
+        if(count>0){
+          Serialize(*send_buffer,src_snode,src_nzblk_idx,src_first_row,sizeof(Int));
+          *send_buffer<<count;
+        }
+        else{
+          Serialize(*send_buffer,src_snode,src_nzblk_idx,src_first_row);
+        }
+        AddOutgoingComm(OutgoingSend,send_buffer);
+
+        //Int tag = TAG(src_snode_id,tgt_snode_id);
+        if( OutgoingSend.size() > maxIsend_){
+          TIMER_START(SEND_MPI);
+          MPI_Send(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm());
+          TIMER_STOP(SEND_MPI);
+          OutgoingSend.pop_back();
+        }
+        else{
+          TIMER_START(SEND_MPI);
+          MPI_Isend(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm(),&OutgoingSend.back()->Request);
+          TIMER_STOP(SEND_MPI);
+        }
+#ifdef _DEBUG_DELAY_
+      if(type==FACTOR){
+        logfileptr->OFS()<<"P"<<iam<<" has sent Factor from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+        cout<<"P"<<iam<<" has sent Factor from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+      }
+      else{
+        logfileptr->OFS()<<"P"<<iam<<" has sent Aggregate from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+        cout<<"P"<<iam<<" has sent Aggregate from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+      }
+#endif
+
+
+      }
+      //remove from the list
+      MsgToSend.pop();
+    }
+    else{
+      break;
+    }
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 
