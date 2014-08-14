@@ -838,6 +838,35 @@ template <typename T> inline void Serialize(Icomm & buffer,SuperNode<T> & snode,
   }
 
 
+template <typename T> inline void Serialize(Icomm & buffer,SuperNode<T> & snode, Int first_blkidx, Int first_row, size_t extra_bytespace){
+    NZBlockDesc* nzblk_ptr = &snode.GetNZBlockDesc(first_blkidx);
+    Int local_first_row = first_row - nzblk_ptr->GIndex;
+    Int nzblk_cnt = snode.NZBlockCnt() - first_blkidx;
+    Int nzval_cnt = snode.Size()*(snode.NRowsBelowBlock(first_blkidx)-local_first_row);
+    T* nzval_ptr = snode.GetNZval(nzblk_ptr->Offset) + local_first_row*snode.Size();
+    Int snode_id = snode.Id();
+    Int snode_fc = snode.FirstCol();
+    Int snode_lc = snode.LastCol();
+
+    buffer.clear();
+    buffer.resize(5*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt*sizeof(T) + extra_bytespace);
+
+    buffer<<snode_id;
+    buffer<<snode_fc;
+    buffer<<snode_lc;
+    buffer<<nzblk_cnt;
+    NZBlockDesc * new_nzblk_ptr = reinterpret_cast<NZBlockDesc *>(buffer.back());
+    Serialize(buffer,nzblk_ptr,nzblk_cnt);
+    //replace the GIndex of the serialized block descriptor
+    // by the new first row, and update the offset appropriately
+    new_nzblk_ptr->GIndex = first_row;
+    new_nzblk_ptr->Offset = nzblk_ptr->Offset + local_first_row*snode.Size();
+
+    buffer<<nzval_cnt;
+    Serialize(buffer,nzval_ptr,nzval_cnt);
+  }
+
+
 
 
 template <typename T> inline size_t Deserialize(char * buffer, SuperNode<T> & snode){

@@ -133,11 +133,19 @@ namespace LIBCHOLESKY{
     Int tgt_snode_id;
     Int src_snode_id;
 
+    //for FanBoth
+    Int target;
+    Int tag;
+    void * src_data;
+    Int count;
+
+
     Int src_nzblk_idx;
     Int src_first_row;
     Int src_last_row;
 
     DelayedComm(Int a_src_snode_id, Int a_tgt_snode_id, Int a_src_nzblk_idx, Int a_src_first_row):src_snode_id(a_src_snode_id),tgt_snode_id(a_tgt_snode_id),src_first_row(a_src_first_row),src_nzblk_idx(a_src_nzblk_idx){};
+    DelayedComm(void * a_src_data, Int a_tgt_snode_id, Int a_src_nzblk_idx, Int a_src_first_row, Int a_target, Int a_tag, Int a_count=0):src_data(a_src_data),tgt_snode_id(a_tgt_snode_id),src_first_row(a_src_first_row),src_nzblk_idx(a_src_nzblk_idx),target(a_target),tag(a_tag),count(a_count){};
   };
 
   struct Icomm{

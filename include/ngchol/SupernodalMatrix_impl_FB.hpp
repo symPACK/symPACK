@@ -357,28 +357,42 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
           if(iTarget != iam){
             if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
-                {
-                  SnodeUpdateFB dummyTask;
-                  dummyTask.src_snode_id = curUpdate.src_snode_id;
-                  dummyTask.tgt_snode_id = curUpdate.tgt_snode_id;
+//                {
+//                  SnodeUpdateFB dummyTask;
+//                  dummyTask.src_snode_id = curUpdate.src_snode_id;
+//                  dummyTask.tgt_snode_id = curUpdate.tgt_snode_id;
+//
+//#ifdef _DEBUG_PROGRESS_
+//                  if(!LocalTasks.empty()){
+//                  logfileptr->OFS()<<"Task {"<<dummyTask.src_snode_id<<" -> "<<dummyTask.tgt_snode_id<<"} vs Task {"<<FactorsToSend.top().src_snode_id<<" -> "<<FactorsToSend.top().tgt_snode_id<<"}"<<std::endl;
+//                }
+//#endif
+//                  SnodeUpdateFBCompare compare;
+//                  is_skipped[iTarget] = nextTask!=NULL?compare(dummyTask,*nextTask):false;
+//                }
+//                {
+//                  DelayedComm dummyTask(curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,0);
+//                  DelayedCommCompare compare;
+//
+//#ifdef _DEBUG_PROGRESS_
+//                  if(!FactorsToSend.empty()){
+//                  logfileptr->OFS()<<"Comm {"<<dummyTask.src_snode_id<<" -> "<<dummyTask.tgt_snode_id<<"} vs Comm {"<<FactorsToSend.top().src_snode_id<<" -> "<<FactorsToSend.top().tgt_snode_id<<"}"<<std::endl;
+//                  }
+//#endif
+//                  bool tmp = (!FactorsToSend.empty())?compare(dummyTask,FactorsToSend.top()):false;
+//                  is_skipped[iTarget] = is_skipped[iTarget] || tmp;
+//                }
 
-                  SnodeUpdateFBCompare compare;
-                  is_skipped[iTarget] = nextTask!=NULL?compare(dummyTask,*nextTask):false;
-                }
-                {
-                  DelayedComm dummyTask(curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,0);
-                  DelayedCommCompare compare;
+                is_skipped[iTarget]=true;
 
-                  logfileptr->OFS()<<"Comm {"<<dummyTask.src_snode_id<<" -> "<<dummyTask.tgt_snode_id<<"} vs Comm {"<<FactorsToSend.top().src_snode_id<<" -> "<<FactorsToSend.top().tgt_snode_id<<"}"<<std::endl;
-                  bool tmp = (!FactorsToSend.empty())?compare(dummyTask,FactorsToSend.top()):false;
-                  is_skipped[iTarget] = is_skipped[iTarget] || tmp;
-                }
                   if( is_skipped[iTarget] ){
 //              Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
 //              Int next_local_snode = (!LocalTasks.empty())?LocalTasks.top().tgt_snode_id:Xsuper_.m();
 //              if( next_local_snode< curUpdate.tgt_snode_id){
                 //need to push the prev src_last_row
-                FactorsToSend.push(DelayedComm(src_snode.Id(),curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
+ //               FactorsToSend.push(DelayedComm(src_snode.Id(),curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
+                Int tag = FACT_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
+                FactorsToSend.push(DelayedComm((void*)&src_snode,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag));
 #ifdef _DEBUG_DELAY_
                 logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
                 cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
@@ -536,25 +550,48 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
                   //TODO Do the delay thing
 
-                  bool is_skipped = false;
-                  {
-                  SnodeUpdateFB dummyTask;
-                  dummyTask.src_snode_id = curUpdate.src_snode_id;
-                  dummyTask.tgt_snode_id = curUpdate.tgt_snode_id;
+                  bool is_skipped = true;
 
-                  SnodeUpdateFBCompare compare;
-                  is_skipped = nextTask!=NULL?compare(dummyTask,*nextTask):false;
-                  }
-                {
-                  DelayedComm dummyTask(curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,0);
-                  DelayedCommCompare compare;
-                  is_skipped = is_skipped || (!AggregatesToSend.empty())?compare(dummyTask,AggregatesToSend.top()):false;
-                }
+//                {
+//                  SnodeUpdateFB dummyTask;
+//                  dummyTask.src_snode_id = curUpdate.src_snode_id;
+//                  dummyTask.tgt_snode_id = curUpdate.tgt_snode_id;
+//
+//#ifdef _DEBUG_PROGRESS_
+//                  if(!LocalTasks.empty()){
+//                  logfileptr->OFS()<<"Task {"<<dummyTask.src_snode_id<<" -> "<<dummyTask.tgt_snode_id<<"} vs Task {"<<LocalTasks.top().src_snode_id<<" -> "<<LocalTasks.top().tgt_snode_id<<"}"<<std::endl;
+//                  }
+//#endif
+//                  SnodeUpdateFBCompare compare;
+//                  is_skipped = nextTask!=NULL?compare(dummyTask,*nextTask):false;
+//                }
+//                {
+//                  DelayedComm dummyTask(curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,0);
+//                  DelayedCommCompare compare;
+//
+//#ifdef _DEBUG_PROGRESS_
+//                  if(!AggregatesToSend.empty()){
+//                  logfileptr->OFS()<<"Comm {"<<dummyTask.src_snode_id<<" -> "<<dummyTask.tgt_snode_id<<"} vs Comm {"<<AggregatesToSend.top().src_snode_id<<" -> "<<AggregatesToSend.top().tgt_snode_id<<"}"<<std::endl;
+//                  }
+//#endif
+//                  bool tmp = (!AggregatesToSend.empty())?compare(dummyTask,AggregatesToSend.top()):false;
+//                  is_skipped = is_skipped || tmp;
+//                }
+
+
+
+
+
+
+
                   if( is_skipped ){
                   //if( next_local_snode< curUpdate.tgt_snode_id){
                     //need to push the prev src_last_row
-                    gdb_lock();
-                    AggregatesToSend.push(DelayedComm(src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
+//                    gdb_lock();
+//                    AggregatesToSend.push(DelayedComm(src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
+
+                    Int tag = AGG_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
+                    FactorsToSend.push(DelayedComm((void *)tgt_aggreg,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag,AggregatesDone[curUpdate.tgt_snode_id-1]));
 #ifdef _DEBUG_DELAY_
                     //                            logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
                     //                            cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
@@ -570,9 +607,8 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
                     NZBlockDesc & pivot_desc = tgt_aggreg->GetNZBlockDesc(0);
 
                     Icomm * send_buffer = new Icomm();
-                    Serialize(*send_buffer,*tgt_aggreg,0,pivot_desc.GIndex);
-                    //TEMP NOT SURE it'll work
-                    send_buffer->resize(send_buffer->size()+sizeof(Int));
+                    //serialize the supernode and ask for space to store one more integer
+                    Serialize(*send_buffer,*tgt_aggreg,0,pivot_desc.GIndex,sizeof(Int));
                     *send_buffer<<AggregatesDone[curUpdate.tgt_snode_id-1];
 
                     AddOutgoingComm(outgoingSend,send_buffer);
@@ -613,7 +649,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 //if(FactorsToSend.size()>0){gdb_lock();}
     SendDelayedMessagesUp(iLocalI-1,FactorsToSend,outgoingSend,LocalSupernodes_,LocalTasks,FACT_TARGET,FACT_TAG,"Factor");
 //if(AggregatesToSend.size()>0){gdb_lock();}
-    SendDelayedMessagesUp(iLocalI-1,AggregatesToSend,outgoingSend,aggVectors,LocalTasks,AGG_TARGET,AGG_TAG,"Aggregate");
+//    SendDelayedMessagesUp(iLocalI-1,AggregatesToSend,outgoingSend,aggVectors,LocalTasks,AGG_TARGET,AGG_TAG,"Aggregate");
 
   }
 

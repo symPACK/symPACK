@@ -2056,12 +2056,13 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
 //  bool is_last = prev_snode_id>=last_local_id;
 
 
-  if(snodeColl.empty() || MsgToSend.empty()) { return;}
+  if(MsgToSend.empty()) { return;}
   bool is_last = taskList.empty();
 
   //Index of the last global snode to do
   Int last_snode_id = Xsuper_.m()-1;
   Int next_snode_id = is_last?last_snode_id+1:taskList.top().tgt_snode_id;
+  const SnodeUpdateFB * nextTask = (!taskList.empty())?&taskList.top():NULL;
 
 #ifdef _DEBUG_DELAY_
   {
@@ -2070,7 +2071,8 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
     while( tmp.size()>0){
       //Pull the highest priority message
       const DelayedComm & comm = tmp.top();
-      Int src_snode_id = comm.src_snode_id;
+      SuperNode<T> * src_data = (SuperNode<T>*)comm.src_data;
+      Int src_snode_id = src_data->Id();
       Int tgt_id = comm.tgt_snode_id;
       Int src_nzblk_idx = comm.src_nzblk_idx;
       Int src_first_row = comm.src_first_row;
@@ -2085,21 +2087,42 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
   while( MsgToSend.size()>0){
     //Pull the highest priority message
     const DelayedComm & comm = MsgToSend.top();
-    Int src_snode_id = comm.src_snode_id;
     Int tgt_snode_id = comm.tgt_snode_id;
     Int src_nzblk_idx = comm.src_nzblk_idx;
     Int src_first_row = comm.src_first_row;
+    Int iTarget = comm.target;
+    Int tag = comm.tag;
+    Int count = comm.count;
+    SuperNode<T> * src_data = (SuperNode<T>*)comm.src_data;
+    Int src_snode_id = src_data->Id();
+
+    bool doSend = true;
+    {
+      SnodeUpdateFB dummyTask;
+      dummyTask.src_snode_id = src_snode_id;
+      dummyTask.tgt_snode_id = tgt_snode_id;
+
+#ifdef _DEBUG_PROGRESS_
+      if(!taskList.empty()){
+        logfileptr->OFS()<<"Task {"<<dummyTask.src_snode_id<<" -> "<<dummyTask.tgt_snode_id<<"} vs Task {"<<taskList.top().src_snode_id<<" -> "<<taskList.top().tgt_snode_id<<"}"<<std::endl;
+      }
+#endif
+      SnodeUpdateFBCompare compare;
+      doSend = nextTask!=NULL?!compare(dummyTask,*nextTask):true;
+    }
+
+
+
+    if(doSend || is_last){
+//    if(tgt_snode_id < next_snode_id || is_last){
+      //Int iLocalSrc = (src_snode_id-1) / np +1 ;
+      SuperNode<T> & src_snode = *src_data; //*snodeColl[iLocalSrc -1];
 
 #ifdef _DEBUG_DELAY_
     logfileptr->OFS()<<label<<" "<<"Picked comm { "<<src_snode_id<<" -> "<<tgt_snode_id<<" }"<<endl;
 #endif
-
-    if(tgt_snode_id < next_snode_id || is_last){
-      Int iLocalSrc = (src_snode_id-1) / np +1 ;
-      SuperNode<T> & src_snode = *snodeColl[iLocalSrc -1];
-
       //this can be sent now
-      Int iTarget = TARGET(Mapping_,src_snode_id,tgt_snode_id);
+      //Int iTarget = TARGET(Mapping_,src_snode_id,tgt_snode_id);
       if(iTarget != iam){
 
 #ifdef _DEBUG_DELAY_
@@ -2110,10 +2133,17 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
         //Create a new Icomm buffer, serialize the contribution
         // in it and add it to the outgoing comm list
         Icomm * send_buffer = new Icomm();
-        Serialize(*send_buffer,src_snode,src_nzblk_idx,src_first_row);
+        //if this is an aggregate add the count to the end
+        if(count>0){
+          Serialize(*send_buffer,src_snode,src_nzblk_idx,src_first_row,sizeof(Int));
+          *send_buffer<<count;
+        }
+        else{
+          Serialize(*send_buffer,src_snode,src_nzblk_idx,src_first_row);
+        }
         AddOutgoingComm(OutgoingSend,send_buffer);
 
-        Int tag = TAG(src_snode_id,tgt_snode_id);
+        //Int tag = TAG(src_snode_id,tgt_snode_id);
         if( OutgoingSend.size() > maxIsend_){
           TIMER_START(SEND_MPI);
           MPI_Send(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm());
