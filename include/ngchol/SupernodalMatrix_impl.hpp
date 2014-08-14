@@ -2039,27 +2039,34 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
   }
 }
 
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl,  Int (*TARGET) (MAPCLASS &,Int,Int),  Int (*TAG) (Int,Int) ){
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, FBTasks & taskList,  Int (*TARGET) (MAPCLASS &,Int,Int),  Int (*TAG) (Int,Int) , const char * label){
 //  typedef volatile LIBCHOLESKY::Int Int;
 
+//  if(snodeColl.empty() || MsgToSend.empty()) { return;}
+
+//  //Index of the last global snode to do
+//  Int last_snode_id = Xsuper_.m()-1;
+//  //Index of the last local supernode
+//  Int last_local_id = snodeColl.back()->Id();
+//  //Index of the last PROCESSED supernode
+//  Int prev_snode_id = iLocalI>0?(iLocalI<=snodeColl.size()?snodeColl[iLocalI-1]->Id():last_local_id):0;
+//  //Index of the next local supernode
+//  Int next_snode_id = prev_snode_id>=last_local_id?last_snode_id+1:snodeColl[iLocalI]->Id();
+//
+//  bool is_last = prev_snode_id>=last_local_id;
+
+
   if(snodeColl.empty() || MsgToSend.empty()) { return;}
+  bool is_last = taskList.empty();
 
   //Index of the last global snode to do
   Int last_snode_id = Xsuper_.m()-1;
-  //Index of the last local supernode
-  Int last_local_id = snodeColl.back()->Id();
-  //Index of the last PROCESSED supernode
-  Int prev_snode_id = iLocalI<=snodeColl.size()?snodeColl[iLocalI-1]->Id():last_local_id;
-  //Index of the next local supernode
-  Int next_snode_id = prev_snode_id>=last_local_id?last_snode_id+1:snodeColl[iLocalI]->Id();
-
-  bool is_last = prev_snode_id>=last_local_id;
-
+  Int next_snode_id = is_last?last_snode_id+1:taskList.top().tgt_snode_id;
 
 #ifdef _DEBUG_DELAY_
   {
     CommList tmp = MsgToSend;
-    logfileptr->OFS()<<"Queue : ";
+    logfileptr->OFS()<<label<<" "<<"Queue : ";
     while( tmp.size()>0){
       //Pull the highest priority message
       const DelayedComm & comm = tmp.top();
@@ -2084,29 +2091,26 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
     Int src_first_row = comm.src_first_row;
 
 #ifdef _DEBUG_DELAY_
-    logfileptr->OFS()<<"Picked { "<<src_snode_id<<" -> "<<tgt_snode_id<<" }"<<endl;
+    logfileptr->OFS()<<label<<" "<<"Picked comm { "<<src_snode_id<<" -> "<<tgt_snode_id<<" }"<<endl;
 #endif
 
     if(tgt_snode_id < next_snode_id || is_last){
       Int iLocalSrc = (src_snode_id-1) / np +1 ;
-      SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
+      SuperNode<T> & src_snode = *snodeColl[iLocalSrc -1];
 
       //this can be sent now
       Int iTarget = TARGET(Mapping_,src_snode_id,tgt_snode_id);
       if(iTarget != iam){
-#ifdef _DEBUG_DELAY_
-        logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
-        cout<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
-#endif
 
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<prev_src_snode.Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
+#ifdef _DEBUG_DELAY_
+        logfileptr->OFS()<<label<<" "<<"P"<<iam<<" is sending update from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+        cout<<label<<" "<<"P"<<iam<<" is sending update from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
 #endif
-        NZBlockDesc & pivot_desc = prev_src_snode.GetNZBlockDesc(src_nzblk_idx);
+        NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(src_nzblk_idx);
         //Create a new Icomm buffer, serialize the contribution
         // in it and add it to the outgoing comm list
         Icomm * send_buffer = new Icomm();
-        Serialize(*send_buffer,prev_src_snode,src_nzblk_idx,src_first_row);
+        Serialize(*send_buffer,src_snode,src_nzblk_idx,src_first_row);
         AddOutgoingComm(OutgoingSend,send_buffer);
 
         Int tag = TAG(src_snode_id,tgt_snode_id);
@@ -2121,6 +2125,14 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
           MPI_Isend(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm(),&OutgoingSend.back()->Request);
           TIMER_STOP(SEND_MPI);
         }
+#ifdef _DEBUG_DELAY_
+        logfileptr->OFS()<<label<<" "<<"P"<<iam<<" has sent update from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+        cout<<label<<" "<<"P"<<iam<<" has sent update from Supernode "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+#endif
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<src_snode.Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
+#endif
+
       }
       //remove from the list
       MsgToSend.pop();

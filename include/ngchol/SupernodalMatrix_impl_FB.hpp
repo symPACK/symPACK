@@ -35,7 +35,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
   logfileptr->OFS()<<"Update count time: "<<timeend2-timesta2<<endl;
 
 #ifdef _DEBUG_UPDATES_
-  logfileptr->OFS()<<"LastUpdate: "<<LastUpdate<<endl;
+  //logfileptr->OFS()<<"LastUpdate: "<<LastUpdate<<endl;
   logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
   logfileptr->OFS()<<"AggregatesToRecv: "<<AggregatesToRecv<<endl;
 #endif
@@ -177,7 +177,32 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
     //We have to have a list of remote supernodes for which we are computing updates
 
     if(!LocalTasks.empty()){
-      const SnodeUpdateFB & curTask = LocalTasks.top();
+      //make a copy because we need to pop it
+      SnodeUpdateFB curTask = LocalTasks.top();
+      LocalTasks.pop();
+
+
+#ifdef _DEBUG_PROGRESS_
+  {
+    FBTasks tmp = LocalTasks;
+    logfileptr->OFS()<<"Task Queue : ";
+    while( tmp.size()>0){
+      //Pull the highest priority message
+      const SnodeUpdateFB & comm = tmp.top();
+      Int src_snode_id = comm.src_snode_id;
+      Int tgt_id = comm.tgt_snode_id;
+      logfileptr->OFS()<<" { "<<src_snode_id<<" -> "<<tgt_id<<" }";
+      tmp.pop();
+    }
+    logfileptr->OFS()<<endl;
+  }
+#endif
+
+
+
+#ifdef _DEBUG_PROGRESS_
+        logfileptr->OFS()<<"picked Task: {"<<curTask.src_snode_id<<" -> "<<curTask.tgt_snode_id<<"}"<<std::endl;
+#endif
 
       Int src_snode_id = curTask.src_snode_id;
       Int tgt_snode_id = curTask.tgt_snode_id;
@@ -192,11 +217,15 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
         logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 #endif
 
+#ifdef _DEBUG_PROGRESS_
+        logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
+#endif
 
         //if(I==15){logfileptr->OFS()<<src_snode<<endl;}
 
 
 
+        const SnodeUpdateFB * nextTask = (!LocalTasks.empty())?&LocalTasks.top():NULL;
 
 
 
@@ -299,6 +328,9 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
   Real timeStaTask =  get_time( );
 #endif
 
+#ifdef _DEBUG_PROGRESS_
+        logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
+#endif
 
         TIMER_START(FACTOR_PANEL);
         src_snode.Factorize();
@@ -325,8 +357,26 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
           if(iTarget != iam){
             if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
-              Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
-              if( next_local_snode< curUpdate.tgt_snode_id){
+                {
+                  SnodeUpdateFB dummyTask;
+                  dummyTask.src_snode_id = curUpdate.src_snode_id;
+                  dummyTask.tgt_snode_id = curUpdate.tgt_snode_id;
+
+                  SnodeUpdateFBCompare compare;
+                  is_skipped[iTarget] = nextTask!=NULL?compare(dummyTask,*nextTask):false;
+                }
+                {
+                  DelayedComm dummyTask(curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,0);
+                  DelayedCommCompare compare;
+
+                  logfileptr->OFS()<<"Comm {"<<dummyTask.src_snode_id<<" -> "<<dummyTask.tgt_snode_id<<"} vs Comm {"<<FactorsToSend.top().src_snode_id<<" -> "<<FactorsToSend.top().tgt_snode_id<<"}"<<std::endl;
+                  bool tmp = (!FactorsToSend.empty())?compare(dummyTask,FactorsToSend.top()):false;
+                  is_skipped[iTarget] = is_skipped[iTarget] || tmp;
+                }
+                  if( is_skipped[iTarget] ){
+//              Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
+//              Int next_local_snode = (!LocalTasks.empty())?LocalTasks.top().tgt_snode_id:Xsuper_.m();
+//              if( next_local_snode< curUpdate.tgt_snode_id){
                 //need to push the prev src_last_row
                 FactorsToSend.push(DelayedComm(src_snode.Id(),curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
 #ifdef _DEBUG_DELAY_
@@ -346,6 +396,9 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
                 Serialize(*send_buffer,src_snode,curUpdate.blkidx,curUpdate.src_first_row);
                 AddOutgoingComm(outgoingSend,send_buffer);
 
+#ifdef _DEBUG_PROGRESS_
+                logfileptr->OFS()<<"P"<<iam<<" sending update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" on P"<<iTarget<<" from row "<<curUpdate.src_first_row<<endl;
+#endif
                 Int tag = FACT_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
                 if(outgoingSend.size() > maxIsend_){
                   TIMER_START(SEND_MPI);
@@ -359,6 +412,10 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
                   MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
                   TIMER_STOP(SEND_MPI);
                 }
+
+#ifdef _DEBUG_PROGRESS_
+                logfileptr->OFS()<<"P"<<iam<<" sent update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" on P"<<iTarget<<" from row "<<curUpdate.src_first_row<<endl;
+#endif
               }
             }
 
@@ -374,23 +431,13 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
         //TODO replace this by a PLINDX ? 
 
         //If I am involved in updating tgt_snode_id
-        bool is_skipped = false;
 
 
 
-        Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
-        //          if( next_local_snode< src_snode_id){
-        //
-        //            //push this thing to be done later
-        //            UpdatesToRecv.push(DelayedComm(src_snode_id,tgt_snode_id,-1,-1));
-        //#ifdef _DEBUG_DELAY_
-        //            logfileptr->OFS()<<"P"<<iam<<" has delayed reception of factor from Supernode "<<src_snode_id<<" to "<<tgt_snode_id<<endl;
-        //            cout<<"P"<<iam<<" has delayed reception of factor from Supernode "<<src_snode_id<<" to "<<tgt_snode_id<<endl;
-        //#endif
-        //            is_skipped = true;
-        //          }
+        const SnodeUpdateFB * nextTask = (!LocalTasks.empty())?&LocalTasks.top():NULL;
+//        Int next_local_snode = (!LocalTasks.empty())?LocalTasks.top().tgt_snode_id:Xsuper_.m();
+        //Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
 
-        if(!is_skipped){
 
 
 
@@ -400,7 +447,6 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
           src_blocks.resize(0);
           SuperNode<T> * cur_src_snode = FBRecvFactor(src_snode_id,tgt_snode_id,src_blocks);
 
-//logfileptr->OFS()<<"Processing update from Supernode "<<src_snode_id<<" to Supernode "<<tgt_snode_id<<endl;
           //if(cur_src_snode->Id() == 4){ gdb_lock();}
 
           Int iSrcOwner = Mapping_.Map(src_snode_id-1,src_snode_id-1);
@@ -415,6 +461,10 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
           while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
 
+#ifdef _DEBUG_PROGRESS_
+        logfileptr->OFS()<<"Implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
+logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
+#endif
             Int iTarget = Mapping_.Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
             if(iTarget == iam){
               //if(cur_src_snode->Id()==2){gdb_lock();}
@@ -487,7 +537,21 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
                   //TODO Do the delay thing
 
                   bool is_skipped = false;
-                  if( next_local_snode< curUpdate.tgt_snode_id){
+                  {
+                  SnodeUpdateFB dummyTask;
+                  dummyTask.src_snode_id = curUpdate.src_snode_id;
+                  dummyTask.tgt_snode_id = curUpdate.tgt_snode_id;
+
+                  SnodeUpdateFBCompare compare;
+                  is_skipped = nextTask!=NULL?compare(dummyTask,*nextTask):false;
+                  }
+                {
+                  DelayedComm dummyTask(curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,0);
+                  DelayedCommCompare compare;
+                  is_skipped = is_skipped || (!AggregatesToSend.empty())?compare(dummyTask,AggregatesToSend.top()):false;
+                }
+                  if( is_skipped ){
+                  //if( next_local_snode< curUpdate.tgt_snode_id){
                     //need to push the prev src_last_row
                     gdb_lock();
                     AggregatesToSend.push(DelayedComm(src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
@@ -538,18 +602,18 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
             //clear the buffer
             //{ vector<char>().swap(src_blocks);  }
           }
-        }
       }
 
-      LocalTasks.pop();
+
+      //LocalTasks.pop();
 
     }
 
     //process some of the delayed send
 //if(FactorsToSend.size()>0){gdb_lock();}
-    SendDelayedMessagesUp(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_,FACT_TARGET,FACT_TAG);
+    SendDelayedMessagesUp(iLocalI-1,FactorsToSend,outgoingSend,LocalSupernodes_,LocalTasks,FACT_TARGET,FACT_TAG,"Factor");
 //if(AggregatesToSend.size()>0){gdb_lock();}
-    SendDelayedMessagesUp(iLocalI,AggregatesToSend,outgoingSend,LocalSupernodes_,AGG_TARGET,AGG_TAG);
+    SendDelayedMessagesUp(iLocalI-1,AggregatesToSend,outgoingSend,aggVectors,LocalTasks,AGG_TARGET,AGG_TAG,"Aggregate");
 
   }
 
@@ -2093,6 +2157,12 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
 #endif
           ++sc[supno-1];
 //          lu[supno-1] = s;
+        }
+        else{
+
+#ifdef _DEBUG_UPDATES_
+          logfileptr->OFS()<<supno<<" [P"<<iUpdater<<"] ";
+#endif
         }
 
         marker(supno-1) = s;

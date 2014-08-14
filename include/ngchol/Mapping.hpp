@@ -33,8 +33,8 @@ class Mapping{
   public:
 
       Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize){};
-      Mapping(Mapping & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
-      Mapping():Mapping(0,0,0,0){};
+      Mapping(Mapping & C){};
+      Mapping(){};
       virtual ~Mapping(){};
       virtual inline Int Map(Int i, Int j)=0;
 };
