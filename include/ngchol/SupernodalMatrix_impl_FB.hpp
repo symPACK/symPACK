@@ -464,7 +464,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 #ifndef _USE_TAU_
                     MsgToSend.push(FBDelayedComm<T>(AGGREGATE,tgt_aggreg,curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,pivot_desc.GIndex,iTarget,tag,AggregatesDone[curUpdate.tgt_snode_id-1]));
 #else
-                    MsgToSend.push(FBDelayedComm(AGGREGATE,(void*)tgt_aggreg,curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,0,pivot_desc.GIndex,iTarget,tag,AggregatesDone[curUpdate.tgt_snode_id-1]));
+                    MsgToSend.push(FBDelayedComm(AGGREGATE,(void*)tgt_aggreg,curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,pivot_desc.GIndex,iTarget,tag,AggregatesDone[curUpdate.tgt_snode_id-1]));
 #endif
                     //MsgToSend.emplace(AGGREGATE,tgt_aggreg,curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,pivot_desc.GIndex,iTarget,tag,AggregatesDone[curUpdate.tgt_snode_id-1]);
 #ifdef _DEBUG_DELAY_
@@ -949,6 +949,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
       doSend = comparator.compare(nextTask->src_snode_id,nextTask->tgt_snode_id,
                                                       nextType,src_snode_id,tgt_snode_id,type);
     }
+    //if we still have async send, we can do the send anyway
+    doSend = doSend ||  OutgoingSend.size() <= maxIsend_ ;
+    //if it is the last thing we have to do, do it anyway
+    doSend = doSend || is_last;
+
 #ifdef _DEBUG_PROGRESS_
       if(nextTask!=NULL){
         logfileptr->OFS()<<"Comm "<<(type==FACTOR?"F":"A")<<" {"<<src_snode_id<<" -> "<<tgt_snode_id<<"} vs Task "
@@ -958,7 +963,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
 
 
 
-    if(doSend || is_last){
+    if(doSend){
       SuperNode<T> & src_snode = *src_data;
 
 #ifdef _DEBUG_DELAY_

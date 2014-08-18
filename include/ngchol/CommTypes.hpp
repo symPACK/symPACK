@@ -292,7 +292,7 @@ namespace LIBCHOLESKY{
         if(a_type == FACTOR){
           //case Fx,* vs Ax,*
           if(a_src_snode_id == b_src_snode_id){
-            return true; //a is factor ?
+            return false; //a is factor ?
           }
           else{
             //case Fx,* vs A*,x
@@ -318,7 +318,7 @@ namespace LIBCHOLESKY{
 
           //case Fx,* vs Ax,*
           if(b_src_snode_id == a_src_snode_id){
-            return false; //a is factor ?
+            return true; //a is factor ?
           }
           else{
             //case Fx,* vs A*,x
