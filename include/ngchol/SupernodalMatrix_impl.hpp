@@ -24,8 +24,9 @@ namespace LIBCHOLESKY{
 
 
 
-  template <typename T> void SupernodalMatrix<T>::Init(const DistSparseMatrix<T> & pMat, Int maxSnode,MAPCLASS & pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm ){
+  template <typename T> void SupernodalMatrix<T>::Init(const DistSparseMatrix<T> & pMat, Int maxSnode,Mapping * pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm ){
   //Create the CommEnvironment object if necessary
+    globalAllocated = false;
     if(CommEnv_!=NULL){
       delete CommEnv_;
     }    
@@ -289,7 +290,7 @@ if(iam==0){
       Int li = xlindx_(I)-1;
       Int iHeight = li-fi+1;
 
-      Int iDest = pMapping.Map(I-1,I-1);
+      Int iDest = Mapping_->Map(I-1,I-1);
 
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
@@ -765,7 +766,7 @@ assert(row>0);
     for(Int I=1;I<Xsuper_.m();I++){
       Int src_first_col = Xsuper_(I-1);
       Int src_last_col = Xsuper_(I)-1;
-      Int iOwner = Mapping_.Map(I-1,I-1);
+      Int iOwner = Mapping_->Map(I-1,I-1);
       //If I own the column, factor it
       if( iOwner == iam ){
         Int iLocalI = (I-1) / np +1 ;
@@ -810,7 +811,7 @@ assert(row>0);
     CommEnv_=NULL;
   }
 
-  template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatrix<T> & pMat, Int maxSnode,MAPCLASS & pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm ){
+  template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatrix<T> & pMat, Int maxSnode,Mapping * pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm ){
     CommEnv_ = NULL;
     Init(pMat, maxSnode,pMapping, maxIsend, maxIrecv, pComm );
   }
@@ -856,7 +857,7 @@ assert(row>0);
 
 
 
-      Int iOwner = Mapping_.Map(s-1,s-1);
+      Int iOwner = Mapping_->Map(s-1,s-1);
 #ifdef _DEBUG_UPDATES_
       logfileptr->OFS()<<"Supernode "<<s<<" on P"<<iOwner<<" updates: ";
 #endif
@@ -958,7 +959,7 @@ template <typename T> void SupernodalMatrix<T>::AdvanceOutgoing(AsyncComms & out
 //    TIMER_START(FIND_UPDATE);
 
     if(tgt_snode_id==0){   
-      Int iOwner = Mapping_.Map(src_snode.Id()-1,src_snode.Id()-1);
+      Int iOwner = Mapping_->Map(src_snode.Id()-1,src_snode.Id()-1);
       f_ub = iOwner==iam?1:0;
       n_ub = f_ub;
       n_ur = 0;
@@ -1053,7 +1054,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
     Int iam = CommEnv_->MPI_Rank();
     Int np  = CommEnv_->MPI_Size();
 
-    Int iOwner = Mapping_.Map(src_contrib->Id()-1,src_contrib->Id()-1);
+    Int iOwner = Mapping_->Map(src_contrib->Id()-1,src_contrib->Id()-1);
     Int src_ncols = src_contrib->Size();
     Int tgt_ncols = tgt_contrib->Size();
 
@@ -1191,7 +1192,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
     //This corresponds to the k loop in dtrsm
     for(Int I=1;I<Xsuper_.m();I++){
-      Int iOwner = Mapping_.Map(I-1,I-1);
+      Int iOwner = Mapping_->Map(I-1,I-1);
       //If I own the column, factor it
       if( iOwner == iam ){
         //Create the blocks of my contrib with the same nz structure as L
@@ -1394,7 +1395,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
           if(parent!=0){
             Int parent_snode_id = SupMembership_[parent-1];
 
-            Int iTarget = Mapping_.Map(parent_snode_id-1,parent_snode_id-1);
+            Int iTarget = Mapping_->Map(parent_snode_id-1,parent_snode_id-1);
 
             if(iTarget!=iam){
 #ifdef _DEBUG_
@@ -1533,7 +1534,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
         if(parent!=0){
           Int parent_snode_id = SupMembership_[parent-1];
-          Int iTarget = Mapping_.Map(parent_snode_id-1,parent_snode_id-1);
+          Int iTarget = Mapping_->Map(parent_snode_id-1,parent_snode_id-1);
           //Do all my updates (Local and remote)
           //Local updates
           SuperNode<T> * dist_contrib;
@@ -1621,7 +1622,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
             Int parent = ETree_.PostParent(colIdx-1);
             if(parent!=0){
               if(SupMembership_[parent-1]==cur_snode->Id()){
-                Int iTarget = Mapping_.Map(child_snode_id-1,child_snode_id-1);
+                Int iTarget = Mapping_->Map(child_snode_id-1,child_snode_id-1);
 
                 if(iTarget!=iam){
 
@@ -1722,7 +1723,7 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
     for(Int I=1;I<Xsuper_.m();I++){
       Int src_first_col = Xsuper_(I-1);
       Int src_last_col = Xsuper_(I)-1;
-      Int iOwner = Mapping_.Map(I-1,I-1);
+      Int iOwner = Mapping_->Map(I-1,I-1);
       //If I own the column, factor it
 
 if( iOwner == iam){
@@ -1823,7 +1824,7 @@ template<typename T> void SupernodalMatrix<T>::GetSolution(NumMat<T> & B){
     //Gather B from everybody and put it in the original matrix order
     std::vector<T> tmp_nzval;
     for(Int I=1; I<Xsuper_.m();++I){
-      Int iOwner = Mapping_.Map(I-1,I-1);
+      Int iOwner = Mapping_->Map(I-1,I-1);
       T * data;
       Int snode_size = Xsuper_[I] - Xsuper_[I-1];
       Int nzcnt = snode_size * nrhs;
@@ -1904,7 +1905,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesDown(Int iLoc
       SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
       //this can be sent now
 
-      Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
+      Int iTarget = Mapping_->Map(tgt_snode_id-1,tgt_snode_id-1);
       if(iTarget != iam){
 #ifdef _DEBUG_DELAY_
         logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
@@ -2000,7 +2001,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
       SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
 
       //this can be sent now
-      Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
+      Int iTarget = Mapping_->Map(tgt_snode_id-1,tgt_snode_id-1);
       if(iTarget != iam){
 #ifdef _DEBUG_DELAY_
         logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;

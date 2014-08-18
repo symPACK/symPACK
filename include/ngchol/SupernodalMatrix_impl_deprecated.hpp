@@ -1,6 +1,7 @@
 #ifndef _SUPERNODAL_MATRIX_IMPL_DEPRECATED_HPP_
 #define _SUPERNODAL_MATRIX_IMPL_DEPRECATED_HPP_
 
+#if 0
 #ifdef UPDATE_LIST
 template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> & src_snode, std::list<SnodeUpdateOld> & updates  ){
     Int iam = CommEnv_->MPI_Rank();
@@ -613,6 +614,6 @@ template<typename T> inline void SupernodalMatrix<T>::FindUpdates(SuperNode<T> &
 ////#endif
 ////    TIMER_STOP(UPDATE_SNODE);
 ////  }
-
+#endif
 
 #endif //_SUPERNODAL_MATRIX_IMPL_DEPRECATED_HPP_

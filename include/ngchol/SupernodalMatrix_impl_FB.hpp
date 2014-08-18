@@ -15,7 +15,6 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
 
   Real timeSta, timeEnd;
-  timeSta =  get_time( );
 
 
   Int iam = CommEnv_->MPI_Rank();
@@ -44,7 +43,11 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
   SetValue(AggregatesDone,0);
 
 
+#ifndef _USE_TAU_
   FBCommList<T> MsgToSend; 
+#else
+  FBCommList MsgToSend; 
+#endif
   AsyncComms outgoingSend;
 
   //CommList UpdatesToSend; 
@@ -85,7 +88,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
   //
   //    SnodeUpdate curUpdate;
   //    while(cur_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-  //      Int iTarget = Mapping_.Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+  //      Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
   //      if(iTarget == iam){
   //        Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
   //        LocalUpdates[iLocalJ-1].push((SnodeUpdate)curUpdate);
@@ -106,6 +109,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
 
 
+  timeSta =  get_time( );
 
   FBTasks LocalTasks;
 
@@ -113,7 +117,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
   std::vector< Int > ProcessedSnodes;
   for(Int I = 1; I<Xsuper_.m(); ++I){
-    Int iOwner = Mapping_.Map(I-1,I-1);
+    Int iOwner = Mapping_->Map(I-1,I-1);
     Int J = FBUpdate(I); 
     if(iam==iOwner){
       SnodeUpdateFB curUpdate;
@@ -163,9 +167,6 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
   }
 
 
-
-
-#if 1
   Int I =1;
   Int iLocalI = 1;
   while(!LocalTasks.empty() || !MsgToSend.empty() || !outgoingSend.empty()){
@@ -179,8 +180,9 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
       SnodeUpdateFB curTask = LocalTasks.top();
       LocalTasks.pop();
 
+      const SnodeUpdateFB * nextTask = (!LocalTasks.empty())?&LocalTasks.top():NULL;
 
-#ifdef _DEBUG_PROGRESS_
+#ifdef _DEBUG_DELAY_
   {
     FBTasks tmp = LocalTasks;
     logfileptr->OFS()<<"Task Queue : ";
@@ -219,11 +221,8 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
         logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 #endif
 
-        //if(I==15){logfileptr->OFS()<<src_snode<<endl;}
 
 
-
-        const SnodeUpdateFB * nextTask = (!LocalTasks.empty())?&LocalTasks.top():NULL;
 
 
 
@@ -308,21 +307,14 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
           logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<std::endl;
 #endif
 
-//if(dist_src_snode.Id()==24){
-//          logfileptr->OFS()<<"SRC Aggregate "<<dist_src_snode<<std::endl;
-//          logfileptr->OFS()<<"TGT Supernode "<<src_snode<<std::endl;
-//          gdb_lock();
-//}
           SnodeUpdate curUpdate;
           dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false);
-          //gdb_lock();
           FBAggregateSuperNode(dist_src_snode,src_snode,curUpdate.blkidx, curUpdate.src_first_row);
           AggregatesToRecv(curUpdate.tgt_snode_id-1) -= *aggregatesCnt;
 
         }
         //clear the buffer
-        //        { vector<char>().swap(src_blocks);  }
-        //        { vector<T>().swap(src_nzval);  }
+        { vector<char>().swap(src_blocks);  }
 
 
 
@@ -341,7 +333,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
 #ifdef TRACK_PROGRESS
   timeEnd =  get_time( );
-  progressptr->OFS()<<src_snode.Id()<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" F"<<src_snode.Id()<<" "<<iam<<endl;
+  *progstr<<src_snode.Id()<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" F"<<src_snode.Id()<<" "<<iam<<endl;
 #endif
 
         //Sending factors
@@ -355,59 +347,25 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
         SnodeUpdate curUpdate;
         TIMER_START(FIND_UPDATED_ANCESTORS);
         while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-          Int iTarget = Mapping_.Map(curUpdate.tgt_snode_id-1,src_snode.Id()-1);
+          Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode.Id()-1);
 
           if(iTarget != iam){
-            if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
+            if(!is_factor_sent[iTarget] /*&& !is_skipped[iTarget]*/ ){
 
-                is_skipped[iTarget]=true;
 
-                  if( is_skipped[iTarget] ){
-//              Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
-//              Int next_local_snode = (!LocalTasks.empty())?LocalTasks.top().tgt_snode_id:Xsuper_.m();
-//              if( next_local_snode< curUpdate.tgt_snode_id){
-                //need to push the prev src_last_row
- //               FactorsToSend.push(DelayedComm(src_snode.Id(),curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
                 Int tag = FACT_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
+#ifndef _USE_TAU_
                 MsgToSend.push(FBDelayedComm<T>(FACTOR,&src_snode,curUpdate.src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag));
+#else
+                MsgToSend.push(FBDelayedComm(FACTOR,(void*)&src_snode,curUpdate.src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag));
+#endif
+//                MsgToSend.emplace(FACTOR,&src_snode,curUpdate.src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag,0);
 #ifdef _DEBUG_DELAY_
                 logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
                 cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
-#endif
-                is_skipped[iTarget] = true;
-              }
-
-              if(!is_skipped[iTarget]){
+#endif  
+//                is_skipped[iTarget] = true;
                 is_factor_sent[iTarget] = true;
-
-                //Send
-                NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(curUpdate.blkidx);
-
-                Icomm * send_buffer = new Icomm();
-                Serialize(*send_buffer,src_snode,curUpdate.blkidx,curUpdate.src_first_row);
-                AddOutgoingComm(outgoingSend,send_buffer);
-
-#ifdef _DEBUG_PROGRESS_
-                logfileptr->OFS()<<"P"<<iam<<" sending update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" on P"<<iTarget<<" from row "<<curUpdate.src_first_row<<endl;
-#endif
-                Int tag = FACT_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
-                if(outgoingSend.size() > maxIsend_){
-                  TIMER_START(SEND_MPI);
-                  MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm());
-                  TIMER_STOP(SEND_MPI);
-
-                  outgoingSend.pop_back();
-                }
-                else{
-                  TIMER_START(SEND_MPI);
-                  MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
-                  TIMER_STOP(SEND_MPI);
-                }
-
-#ifdef _DEBUG_PROGRESS_
-                logfileptr->OFS()<<"P"<<iam<<" sent update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" on P"<<iTarget<<" from row "<<curUpdate.src_first_row<<endl;
-#endif
-              }
             }
 
           }
@@ -419,30 +377,13 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
         ++iLocalI; 
       }
       else{
-        //TODO replace this by a PLINDX ? 
-
-        //If I am involved in updating tgt_snode_id
-
-
-
-        const SnodeUpdateFB * nextTask = (!LocalTasks.empty())?&LocalTasks.top():NULL;
-//        Int next_local_snode = (!LocalTasks.empty())?LocalTasks.top().tgt_snode_id:Xsuper_.m();
-        //Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
-
-
-
-
-
-
           //Receive the factor
           src_blocks.resize(0);
           SuperNode<T> * cur_src_snode = FBRecvFactor(src_snode_id,tgt_snode_id,src_blocks);
 
-          //if(cur_src_snode->Id() == 4){ gdb_lock();}
 
-          Int iSrcOwner = Mapping_.Map(src_snode_id-1,src_snode_id-1);
+          Int iSrcOwner = Mapping_->Map(src_snode_id-1,src_snode_id-1);
 
-          //Compute update to tgt_snode_id and put it in my aggregate vector 
 
           //Update everything src_snode_id own with that factor
           //Update the ancestors
@@ -456,13 +397,13 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
         logfileptr->OFS()<<"Implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
 logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
-            Int iTarget = Mapping_.Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
-            if(iTarget == iam){
+            Int iUpdater = Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
+            if(iUpdater == iam){
               //if(cur_src_snode->Id()==2){gdb_lock();}
               SuperNode<T> * tgt_aggreg;
 
-              Int iTgtOwner = Mapping_.Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
-              if(iTgtOwner == iam){
+              Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+              if(iTarget == iam){
                 //the aggregate vector is directly the target snode
                 Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
                 tgt_aggreg = LocalSupernodes_[iLocalJ -1];
@@ -472,10 +413,9 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
               }
               else{
                 //Check if src_snode_id already have an aggregate vector
-                if(aggVectors[curUpdate.tgt_snode_id-1]==NULL){
+//                if(aggVectors[curUpdate.tgt_snode_id-1]==NULL)
+                if(AggregatesDone[curUpdate.tgt_snode_id-1]==0){
                   aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,  xlindx_, lindx_);
-
-                  //if(aggVectors[curUpdate.tgt_snode_id-1]->Id()==15){logfileptr->OFS()<<*aggVectors[curUpdate.tgt_snode_id-1]<<endl;gdb_lock();}
                 }
                 tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
               }
@@ -496,12 +436,8 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
 #ifdef TRACK_PROGRESS
   timeEnd =  get_time( );
-  progressptr->OFS()<<curUpdate.tgt_snode_id<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" U"<<curUpdate.src_snode_id<<"-"<<curUpdate.tgt_snode_id<<" "<<iam<< endl;
+  *progstr<<curUpdate.tgt_snode_id<<" "<<timeStaTask - timeSta<<" "<<timeEnd - timeSta<<" U"<<curUpdate.src_snode_id<<"-"<<curUpdate.tgt_snode_id<<" "<<iam<< endl;
 #endif
-
-
-
-
 
               --UpdatesToDo[curUpdate.tgt_snode_id-1];
               ++AggregatesDone[curUpdate.tgt_snode_id-1];
@@ -511,68 +447,32 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
               //Send the aggregate if it's the last
               //If this is my last update sent it to curUpdate.tgt_snode_id
-              if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0/*src_snode_id == LastUpdate[curUpdate.tgt_snode_id-1]*/){
-
-                if(iTgtOwner == iam){
+              if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
+                if(iTarget == iam){
                   AggregatesToRecv[curUpdate.tgt_snode_id-1]-=AggregatesDone[curUpdate.tgt_snode_id-1];
 #ifdef _DEBUG_
                   logfileptr->OFS()<<AggregatesToRecv(curUpdate.tgt_snode_id-1)<<" aggregates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
                 }
                 else{
-
 #ifdef _DEBUG_
                   logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<src_snode_id<<std::endl;
 #endif
-
-                  //TODO Do the delay thing
-
-                  bool is_skipped = true;
-
-                  if( is_skipped ){
-                  //if( next_local_snode< curUpdate.tgt_snode_id){
-                    //need to push the prev src_last_row
-//                    gdb_lock();
-//                    AggregatesToSend.push(DelayedComm(src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
-
+                  //Push the comm in the comm list
                     Int tag = AGG_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
                     NZBlockDesc & pivot_desc = tgt_aggreg->GetNZBlockDesc(0);
-                    MsgToSend.push(FBDelayedComm<T>(AGGREGATE,tgt_aggreg,curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,pivot_desc.GIndex,iTgtOwner,tag,AggregatesDone[curUpdate.tgt_snode_id-1]));
+#ifndef _USE_TAU_
+                    MsgToSend.push(FBDelayedComm<T>(AGGREGATE,tgt_aggreg,curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,pivot_desc.GIndex,iTarget,tag,AggregatesDone[curUpdate.tgt_snode_id-1]));
+#else
+                    MsgToSend.push(FBDelayedComm(AGGREGATE,(void*)tgt_aggreg,curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,0,pivot_desc.GIndex,iTarget,tag,AggregatesDone[curUpdate.tgt_snode_id-1]));
+#endif
+                    //MsgToSend.emplace(AGGREGATE,tgt_aggreg,curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,pivot_desc.GIndex,iTarget,tag,AggregatesDone[curUpdate.tgt_snode_id-1]);
 #ifdef _DEBUG_DELAY_
                     //                            logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
                     //                            cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
 #endif
-                    is_skipped = true;
-                  }
 
 
-                  if(!is_skipped){
-
-
-                    //Send
-                    NZBlockDesc & pivot_desc = tgt_aggreg->GetNZBlockDesc(0);
-
-                    Icomm * send_buffer = new Icomm();
-                    //serialize the supernode and ask for space to store one more integer
-                    Serialize(*send_buffer,*tgt_aggreg,0,pivot_desc.GIndex,sizeof(Int));
-                    *send_buffer<<AggregatesDone[curUpdate.tgt_snode_id-1];
-
-                    AddOutgoingComm(outgoingSend,send_buffer);
-
-                    Int tag = AGG_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
-                    if( outgoingSend.size() > maxIsend_){
-                      TIMER_START(SEND_MPI);
-                      MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTgtOwner,tag,CommEnv_->MPI_GetComm());
-                      TIMER_STOP(SEND_MPI);
-                      outgoingSend.pop_back();
-                    }
-                    else{
-                      TIMER_START(SEND_MPI);
-                      MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTgtOwner,tag,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
-                      TIMER_STOP(SEND_MPI);
-                    }
-
-                  }
                 }
               }
             }
@@ -583,1490 +483,16 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
             delete cur_src_snode;
             //clear the buffer
             //{ vector<char>().swap(src_blocks);  }
+
+            { vector<char>().swap(src_blocks);  }
           }
-      }
-
-
-      //LocalTasks.pop();
-
-    }
-
-    //process some of the delayed send
-//if(FactorsToSend.size()>0){gdb_lock();}
-    SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks);
-//if(AggregatesToSend.size()>0){gdb_lock();}
-//    SendDelayedMessagesUp(iLocalI-1,AggregatesToSend,outgoingSend,aggVectors,LocalTasks,AGG_TARGET,AGG_TAG,"Aggregate");
-
-  }
-
-#else
-#if 1
-  Int I =1;
-  Int iLocalI=1;
-  Int iUpdateI=1;
-  while(iLocalI<=LocalSupernodes_.size() || iUpdateI<=LocalUpdates.size() || !FactorsToSend.empty() || !AggregatesToSend.empty() || !outgoingSend.empty()){
-
-    //Check for completion of outgoing communication
-    AdvanceOutgoing(outgoingSend);
-    //We have to have a list of remote supernodes for which we are computing updates
-
-    if(iLocalI>0 && iLocalI<=LocalSupernodes_.size()){
-      bool processFacto = false;
-
-      if(iUpdateI>0 && iUpdateI<=LocalUpdates.size()){
-        if(LocalUpdates[iUpdateI-1].tgt_snode_id > LocalSupernodes_[iLocalI-1]->Id()){
-          processFacto = true;
-        }
-      }
-
-      if(processFacto){
-
-//        logfileptr->OFS()<<"Processing factorization of Supernode "<<LocalSupernodes_[iLocalI-1]->Id()<<endl;
-
-
-
-        SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
-
-        I = src_snode.Id();
-        Int iOwner = Mapping_.Map(I-1,I-1);
-
-        Int src_first_col = src_snode.FirstCol();
-        Int src_last_col = src_snode.LastCol();
-
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
-#endif
-
-
-        //if(I==15){logfileptr->OFS()<<src_snode<<endl;}
-
-
-
-
-
-
-        //Receiving aggregates
-        src_blocks.resize(0);
-
-        Int nz_cnt;
-        Int max_bytes;
-        while(AggregatesToRecv(I-1)>0){
-#ifdef _DEBUG_
-          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
-#endif
-
-
-          TIMER_START(RECV_MALLOC);
-          if(src_blocks.size()==0){
-            max_bytes = 5*sizeof(Int); 
-            //The upper bound must be of the width of the "largest" child
-#ifdef _DEBUG_
-            logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;
-#endif
-
-            Int nrows = src_snode.NRowsBelowBlock(0);
-            Int ncols = src_snode.Size();
-            nz_cnt = nrows * ncols;
-
-            max_bytes += nrows*sizeof(NZBlockDesc);
-            max_bytes += nz_cnt*sizeof(T); 
-
-
-            max_bytes += sizeof(Int); 
-
-            src_blocks.resize(max_bytes);
-          }
-          TIMER_STOP(RECV_MALLOC);
-
-          TIMER_START(RECV_MPI);
-          MPI_Status recv_status;
-          int bytes_received = 0;
-
-#ifdef PROBE_FIRST
-          MPI_Probe(MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-
-          bool doabort = false;
-          int prev_size = 0;
-          if(src_blocks.size()<bytes_received){
-            gdb_lock();
-            prev_size = src_blocks.size();
-            doabort = true;
-            //receive anyway
-            src_blocks.resize(bytes_received);
-          }
-#endif
-
-
-//          logfileptr->OFS()<<"RECV2 Bfore"<<endl;
-#ifdef PROBE_FIRST
-          MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-#else
-          //receive the index array
-          MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-#endif
-//          logfileptr->OFS()<<"RECV2 after"<<endl;
-
-          SuperNode<T> dist_src_snode;
-          size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
-
-          //Deserialize the number of aggregates
-          Int * aggregatesCnt = (Int *)(&src_blocks[0]+read_bytes);
-
-
-#ifdef PROBE_FIRST
-          if(doabort){
-            cout<<"We have a problem !!!! on P"<<iam<<"\n";
-            gdb_lock();
-
-            abort();
-          }
-#endif
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<std::endl;
-#endif
-
-          SnodeUpdate curUpdate;
-          dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false);
-          //gdb_lock();
-          FBAggregateSuperNode(dist_src_snode,src_snode,curUpdate.blkidx, curUpdate.src_first_row);
-          AggregatesToRecv(curUpdate.tgt_snode_id-1) -= *aggregatesCnt;
-
-        }
-        //clear the buffer
-        //        { vector<char>().swap(src_blocks);  }
-        //        { vector<T>().swap(src_nzval);  }
-
-
-
-
-
-
-        TIMER_START(FACTOR_PANEL);
-        src_snode.Factorize();
-        TIMER_STOP(FACTOR_PANEL);
-
-
-        //Sending factors
-
-        //Send my factor to my ancestors. 
-        BolNumVec is_factor_sent(np);
-        SetValue(is_factor_sent,false);
-        BolNumVec is_skipped(np);
-        SetValue(is_skipped,false);
-
-        SnodeUpdate curUpdate;
-        TIMER_START(FIND_UPDATED_ANCESTORS);
-        while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-          Int iTarget = Mapping_.Map(curUpdate.tgt_snode_id-1,src_snode.Id()-1);
-
-          if(iTarget != iam){
-            if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
-
-              Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
-              if( next_local_snode< curUpdate.tgt_snode_id){
-                //need to push the prev src_last_row
-                FactorsToSend.push(DelayedComm(src_snode.Id(),curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
-#ifdef _DEBUG_DELAY_
-                logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
-                cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
-#endif
-                is_skipped[iTarget] = true;
-              }
-
-              if(!is_skipped[iTarget]){
-                is_factor_sent[iTarget] = true;
-
-                //Send
-                NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(curUpdate.blkidx);
-
-                Icomm * send_buffer = new Icomm();
-                Serialize(*send_buffer,src_snode,curUpdate.blkidx,curUpdate.src_first_row);
-                AddOutgoingComm(outgoingSend,send_buffer);
-
-                if(outgoingSend.size() > maxIsend_){
-                  TIMER_START(SEND_MPI);
-                  MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,curUpdate.tgt_snode_id,CommEnv_->MPI_GetComm());
-                  TIMER_STOP(SEND_MPI);
-
-                  outgoingSend.pop_back();
-                }
-                else{
-                  TIMER_START(SEND_MPI);
-                  MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,curUpdate.tgt_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
-                  TIMER_STOP(SEND_MPI);
-                }
-              }
-            }
-
-          }
-        }
-        TIMER_STOP(FIND_UPDATED_ANCESTORS);
-
-
-
-        ++iLocalI; 
-      }
-      else{
-        logfileptr->OFS()<<"Delaying factorization of Supernode "<<LocalSupernodes_[iLocalI-1]->Id()<<endl;
-      }
-    } 
-
-    if(iUpdateI>0 && iUpdateI<=LocalUpdates.size()){
-      bool processUpdate = false;
-
-      if(iLocalI>0 && iLocalI<=LocalSupernodes_.size()){
-        if(LocalUpdates[iUpdateI-1].tgt_snode_id <= LocalSupernodes_[iLocalI-1]->Id()){
-          processUpdate = true;
-        }
-      }
-
-      if(processUpdate){
-        Int src_snode_id = LocalUpdates[iUpdateI-1].src_snode_id;
-        Int tgt_snode_id = LocalUpdates[iUpdateI-1].tgt_snode_id;
-//logfileptr->OFS()<<"Processing update from Supernode "<<src_snode_id<<" to Supernode "<<tgt_snode_id<<endl;
-        I = src_snode_id;
-        if(tgt_snode_id!=-1){
-          //TODO replace this by a PLINDX ? 
-
-          //If I am involved in updating tgt_snode_id
-          bool is_skipped = false;
-
-
-
-          Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
-          //          if( next_local_snode< src_snode_id){
-          //
-          //            //push this thing to be done later
-          //            UpdatesToRecv.push(DelayedComm(src_snode_id,tgt_snode_id,-1,-1));
-          //#ifdef _DEBUG_DELAY_
-          //            logfileptr->OFS()<<"P"<<iam<<" has delayed reception of factor from Supernode "<<src_snode_id<<" to "<<tgt_snode_id<<endl;
-          //            cout<<"P"<<iam<<" has delayed reception of factor from Supernode "<<src_snode_id<<" to "<<tgt_snode_id<<endl;
-          //#endif
-          //            is_skipped = true;
-          //          }
-
-          if(!is_skipped){
-            //Receive the factor
-            src_blocks.resize(0);
-            SuperNode<T> * cur_src_snode = FBRecvFactor(src_snode_id,tgt_snode_id,src_blocks);
-
-            //if(cur_src_snode->Id() == 4){ gdb_lock();}
-
-            Int iSrcOwner = Mapping_.Map(src_snode_id-1,src_snode_id-1);
-
-            //Compute update to tgt_snode_id and put it in my aggregate vector 
-
-            //Update everything src_snode_id own with that factor
-            //Update the ancestors
-            SnodeUpdate curUpdate;
-
-            TIMER_START(UPDATE_ANCESTORS);
-
-            while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
-
-              Int iTarget = Mapping_.Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
-              if(iTarget == iam){
-                //if(cur_src_snode->Id()==2){gdb_lock();}
-                SuperNode<T> * tgt_aggreg;
-
-                Int iTgtOwner = Mapping_.Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
-                if(iTgtOwner == iam){
-                  //the aggregate vector is directly the target snode
-                  Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
-                  tgt_aggreg = LocalSupernodes_[iLocalJ -1];
-
-                  assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
-
-                }
-                else{
-                  //Check if src_snode_id already have an aggregate vector
-                  if(aggVectors[curUpdate.tgt_snode_id-1]==NULL){
-                    aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,  xlindx_, lindx_);
-
-                    //if(aggVectors[curUpdate.tgt_snode_id-1]->Id()==15){logfileptr->OFS()<<*aggVectors[curUpdate.tgt_snode_id-1]<<endl;gdb_lock();}
-                  }
-                  tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
-                }
-
-#ifdef _DEBUG_
-                logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-#endif
-
-
-                //Update the aggregate
-                tgt_aggreg->Update(*cur_src_snode,curUpdate,tmpBufs);
-                --UpdatesToDo(curUpdate.tgt_snode_id-1);
-                ++AggregatesDone(curUpdate.tgt_snode_id-1);
-#ifdef _DEBUG_
-                logfileptr->OFS()<<UpdatesToDo(curUpdate.tgt_snode_id-1)<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
-#endif
-
-                //Send the aggregate if it's the last
-                //If this is my last update sent it to curUpdate.tgt_snode_id
-                if(src_snode_id == LastUpdate[curUpdate.tgt_snode_id-1]){
-                  //gdb_lock();
-                  if(iTgtOwner == iam){
-                    AggregatesToRecv[curUpdate.tgt_snode_id-1]-=AggregatesDone[curUpdate.tgt_snode_id-1];
-#ifdef _DEBUG_
-                    logfileptr->OFS()<<AggregatesToRecv(curUpdate.tgt_snode_id-1)<<" aggregates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
-#endif
-                  }
-                  else{
-
-#ifdef _DEBUG_
-                    logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<src_snode_id<<std::endl;
-#endif
-
-                    //TODO Do the delay thing
-
-                    bool is_skipped = false;
-                    if( next_local_snode< curUpdate.tgt_snode_id){
-                      //need to push the prev src_last_row
-                      gdb_lock();
-                      AggregatesToSend.push(DelayedComm(src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
-#ifdef _DEBUG_DELAY_
-                      //                            logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
-                      //                            cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
-#endif
-                      is_skipped = true;
-                    }
-
-
-                    if(!is_skipped){
-
-
-                      //Send
-                      NZBlockDesc & pivot_desc = tgt_aggreg->GetNZBlockDesc(0);
-
-                      Icomm * send_buffer = new Icomm();
-                      Serialize(*send_buffer,*tgt_aggreg,0,pivot_desc.GIndex);
-                      //TEMP NOT SURE it'll work
-                      send_buffer->resize(send_buffer->size()+sizeof(Int));
-                      *send_buffer<<AggregatesDone[curUpdate.tgt_snode_id-1];
-
-                      AddOutgoingComm(outgoingSend,send_buffer);
-
-                      if( outgoingSend.size() > maxIsend_){
-                        TIMER_START(SEND_MPI);
-                        MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTgtOwner,curUpdate.tgt_snode_id,CommEnv_->MPI_GetComm());
-                        TIMER_STOP(SEND_MPI);
-                        outgoingSend.pop_back();
-                      }
-                      else{
-                        TIMER_START(SEND_MPI);
-                        MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTgtOwner,curUpdate.tgt_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
-                        TIMER_STOP(SEND_MPI);
-                      }
-
-                    }
-                  }
-                }
-              }
-            }
-            TIMER_STOP(UPDATE_ANCESTORS);
-
-            if(iSrcOwner!=iam){
-              delete cur_src_snode;
-              //clear the buffer
-              //{ vector<char>().swap(src_blocks);  }
-            }
-          }
-        }
-        iUpdateI++;
-      }
-      else{
-        Int src_snode_id = LocalUpdates[iUpdateI-1].src_snode_id;
-        Int tgt_snode_id = LocalUpdates[iUpdateI-1].tgt_snode_id;
-        logfileptr->OFS()<<"Delaying update from Supernode "<<src_snode_id<<" to Supernode "<<tgt_snode_id<<endl;
       }
     }
 
     //process some of the delayed send
-    //if(FactorsToSend.size()>0){gdb_lock();}
-    SendDelayedMessagesUp(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
-    //if(AggregatesToSend.size()>0){gdb_lock();}
-    SendDelayedMessagesUp(iLocalI,AggregatesToSend,outgoingSend,LocalSupernodes_);
+    SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks,&AggregatesDone[0]);
 
   }
-
-#else
-
-
-
-
-
-  Int I =1;
-  Int iLocalI=1;
-  Int iProcessedI=1;
-  while(iProcessedI<=ProcessedSnodes.size() || !FactorsToSend.empty() || !AggregatesToSend.empty() || !outgoingSend.empty()){
-
-    //Check for completion of outgoing communication
-    AdvanceOutgoing(outgoingSend);
-    //We have to have a list of remote supernodes for which we are computing updates
-
-    if(iProcessedI>0 && iProcessedI<=ProcessedSnodes.size()){
-      I = ProcessedSnodes[iProcessedI-1];
-      Int iOwner = Mapping_.Map(I-1,I-1);
-      if(iam==iOwner){
-        SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
-        Int src_first_col = src_snode.FirstCol();
-        Int src_last_col = src_snode.LastCol();
-
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
-#endif
-
-
-        //if(I==15){logfileptr->OFS()<<src_snode<<endl;}
-
-
-
-
-
-
-        //Receiving aggregates
-        src_blocks.resize(0);
-
-        Int nz_cnt;
-        Int max_bytes;
-        while(AggregatesToRecv(I-1)>0){
-#ifdef _DEBUG_
-          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
-#endif
-
-
-          TIMER_START(RECV_MALLOC);
-          if(src_blocks.size()==0){
-            max_bytes = 5*sizeof(Int); 
-            //The upper bound must be of the width of the "largest" child
-#ifdef _DEBUG_
-            logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;
-#endif
-
-            Int nrows = src_snode.NRowsBelowBlock(0);
-            Int ncols = src_snode.Size();
-            nz_cnt = nrows * ncols;
-
-            max_bytes += nrows*sizeof(NZBlockDesc);
-            max_bytes += nz_cnt*sizeof(T); 
-
-
-            max_bytes += sizeof(Int); 
-
-            src_blocks.resize(max_bytes);
-          }
-          TIMER_STOP(RECV_MALLOC);
-
-          TIMER_START(RECV_MPI);
-          MPI_Status recv_status;
-          int bytes_received = 0;
-
-#ifdef PROBE_FIRST
-          MPI_Probe(MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-
-          bool doabort = false;
-          int prev_size = 0;
-          if(src_blocks.size()<bytes_received){
-            gdb_lock();
-            prev_size = src_blocks.size();
-            doabort = true;
-            //receive anyway
-            src_blocks.resize(bytes_received);
-          }
-#endif
-
-
-//          logfileptr->OFS()<<"RECV2 Bfore"<<endl;
-#ifdef PROBE_FIRST
-          MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-#else
-          //receive the index array
-          MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-#endif
-//          logfileptr->OFS()<<"RECV2 after"<<endl;
-
-          SuperNode<T> dist_src_snode;
-          size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
-
-          //Deserialize the number of aggregates
-          Int * aggregatesCnt = (Int *)(&src_blocks[0]+read_bytes);
-
-
-#ifdef PROBE_FIRST
-          if(doabort){
-            cout<<"We have a problem !!!! on P"<<iam<<"\n";
-            gdb_lock();
-
-            abort();
-          }
-#endif
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<std::endl;
-#endif
-
-          SnodeUpdate curUpdate;
-          dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false);
-          //gdb_lock();
-          FBAggregateSuperNode(dist_src_snode,src_snode,curUpdate.blkidx, curUpdate.src_first_row);
-          AggregatesToRecv(curUpdate.tgt_snode_id-1) -= *aggregatesCnt;
-
-        }
-        //clear the buffer
-        //        { vector<char>().swap(src_blocks);  }
-        //        { vector<T>().swap(src_nzval);  }
-
-
-
-
-
-
-        TIMER_START(FACTOR_PANEL);
-        src_snode.Factorize();
-        TIMER_STOP(FACTOR_PANEL);
-
-
-        //Sending factors
-
-        //Send my factor to my ancestors. 
-        BolNumVec is_factor_sent(np);
-        SetValue(is_factor_sent,false);
-        BolNumVec is_skipped(np);
-        SetValue(is_skipped,false);
-
-        SnodeUpdate curUpdate;
-        TIMER_START(FIND_UPDATED_ANCESTORS);
-        while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-          Int iTarget = Mapping_.Map(curUpdate.tgt_snode_id-1,src_snode.Id()-1);
-
-          if(iTarget != iam){
-            if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
-
-              Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
-                          if( next_local_snode< curUpdate.tgt_snode_id){
-                            //need to push the prev src_last_row
-                            FactorsToSend.push(DelayedComm(src_snode.Id(),curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
-              #ifdef _DEBUG_DELAY_
-                            logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
-                            cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
-              #endif
-                            is_skipped[iTarget] = true;
-                          }
-
-              if(!is_skipped[iTarget]){
-                is_factor_sent[iTarget] = true;
-
-                //Send
-                NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(curUpdate.blkidx);
-
-                Icomm * send_buffer = new Icomm();
-                Serialize(*send_buffer,src_snode,curUpdate.blkidx,curUpdate.src_first_row);
-                AddOutgoingComm(outgoingSend,send_buffer);
-
-                if(outgoingSend.size() > maxIsend_){
-                  TIMER_START(SEND_MPI);
-                  MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,curUpdate.tgt_snode_id,CommEnv_->MPI_GetComm());
-                  TIMER_STOP(SEND_MPI);
-
-                  outgoingSend.pop_back();
-                }
-                else{
-                  TIMER_START(SEND_MPI);
-                  MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,curUpdate.tgt_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
-                  TIMER_STOP(SEND_MPI);
-                }
-              }
-            }
-
-          }
-        }
-        TIMER_STOP(FIND_UPDATED_ANCESTORS);
-
-
-
-        ++iLocalI; 
-      }
-
-
-      {
-        Int src_snode_id = I;
-        //Int tgt_snode_id = FBUpdate(src_snode_id);
-        ++iProcessedI; 
-        Int tgt_snode_id = ProcessedSnodes[iProcessedI-1];
-        if(tgt_snode_id!=-1){
-          //TODO replace this by a PLINDX ? 
-
-          //If I am involved in updating tgt_snode_id
-          bool is_skipped = false;
-
-
-
-          Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
-          //          if( next_local_snode< src_snode_id){
-          //
-          //            //push this thing to be done later
-          //            UpdatesToRecv.push(DelayedComm(src_snode_id,tgt_snode_id,-1,-1));
-          //#ifdef _DEBUG_DELAY_
-          //            logfileptr->OFS()<<"P"<<iam<<" has delayed reception of factor from Supernode "<<src_snode_id<<" to "<<tgt_snode_id<<endl;
-          //            cout<<"P"<<iam<<" has delayed reception of factor from Supernode "<<src_snode_id<<" to "<<tgt_snode_id<<endl;
-          //#endif
-          //            is_skipped = true;
-          //          }
-
-          if(!is_skipped){
-            //Receive the factor
-            src_blocks.resize(0);
-            SuperNode<T> * cur_src_snode = FBRecvFactor(src_snode_id,tgt_snode_id,src_blocks);
-
-            //if(cur_src_snode->Id() == 4){ gdb_lock();}
-
-            Int iSrcOwner = Mapping_.Map(src_snode_id-1,src_snode_id-1);
-
-            //Compute update to tgt_snode_id and put it in my aggregate vector 
-
-            //Update everything src_snode_id own with that factor
-            //Update the ancestors
-            SnodeUpdate curUpdate;
-
-            TIMER_START(UPDATE_ANCESTORS);
-
-            while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
-
-              Int iTarget = Mapping_.Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
-              if(iTarget == iam){
-                //if(cur_src_snode->Id()==2){gdb_lock();}
-                SuperNode<T> * tgt_aggreg;
-
-                Int iTgtOwner = Mapping_.Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
-                if(iTgtOwner == iam){
-                  //the aggregate vector is directly the target snode
-                  Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
-                  tgt_aggreg = LocalSupernodes_[iLocalJ -1];
-
-                  assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
-
-                }
-                else{
-                  //Check if src_snode_id already have an aggregate vector
-                  if(aggVectors[curUpdate.tgt_snode_id-1]==NULL){
-                    aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,  xlindx_, lindx_);
-
-                    //if(aggVectors[curUpdate.tgt_snode_id-1]->Id()==15){logfileptr->OFS()<<*aggVectors[curUpdate.tgt_snode_id-1]<<endl;gdb_lock();}
-                  }
-                  tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
-                }
-
-#ifdef _DEBUG_
-                logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-#endif
-
-
-                //Update the aggregate
-                tgt_aggreg->Update(*cur_src_snode,curUpdate,tmpBufs);
-                --UpdatesToDo(curUpdate.tgt_snode_id-1);
-                ++AggregatesDone(curUpdate.tgt_snode_id-1);
-#ifdef _DEBUG_
-                logfileptr->OFS()<<UpdatesToDo(curUpdate.tgt_snode_id-1)<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
-#endif
-
-                //Send the aggregate if it's the last
-                //If this is my last update sent it to curUpdate.tgt_snode_id
-                if(src_snode_id == LastUpdate[curUpdate.tgt_snode_id-1]){
-                  //gdb_lock();
-                  if(iTgtOwner == iam){
-                    AggregatesToRecv[curUpdate.tgt_snode_id-1]-=AggregatesDone[curUpdate.tgt_snode_id-1];
-#ifdef _DEBUG_
-                    logfileptr->OFS()<<AggregatesToRecv(curUpdate.tgt_snode_id-1)<<" aggregates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
-#endif
-                  }
-                  else{
-
-#ifdef _DEBUG_
-                    logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<src_snode_id<<std::endl;
-#endif
-
-                    //TODO Do the delay thing
-
-                    bool is_skipped = false;
-                    if( next_local_snode< curUpdate.tgt_snode_id){
-                            //need to push the prev src_last_row
-gdb_lock();
-                            AggregatesToSend.push(DelayedComm(src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
-              #ifdef _DEBUG_DELAY_
-//                            logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
-//                            cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
-              #endif
-                            is_skipped = true;
-                          }
-
-
-                    if(!is_skipped){
-
-
-                    //Send
-                    NZBlockDesc & pivot_desc = tgt_aggreg->GetNZBlockDesc(0);
-
-                    Icomm * send_buffer = new Icomm();
-                    Serialize(*send_buffer,*tgt_aggreg,0,pivot_desc.GIndex);
-                    //TEMP NOT SURE it'll work
-                    send_buffer->resize(send_buffer->size()+sizeof(Int));
-                    *send_buffer<<AggregatesDone[curUpdate.tgt_snode_id-1];
-
-                    AddOutgoingComm(outgoingSend,send_buffer);
-
-                    if( outgoingSend.size() > maxIsend_){
-                      TIMER_START(SEND_MPI);
-                      MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTgtOwner,curUpdate.tgt_snode_id,CommEnv_->MPI_GetComm());
-                      TIMER_STOP(SEND_MPI);
-                      outgoingSend.pop_back();
-                    }
-                    else{
-                      TIMER_START(SEND_MPI);
-                      MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTgtOwner,curUpdate.tgt_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
-                      TIMER_STOP(SEND_MPI);
-                    }
-
-                    }
-                  }
-                }
-              }
-            }
-            TIMER_STOP(UPDATE_ANCESTORS);
-
-            if(iSrcOwner!=iam){
-              delete cur_src_snode;
-              //clear the buffer
-              //{ vector<char>().swap(src_blocks);  }
-            }
-          }
-        }
-      }
-    }
-
-    //process some of the delayed send
-//if(FactorsToSend.size()>0){gdb_lock();}
-    SendDelayedMessagesUp(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
-//if(AggregatesToSend.size()>0){gdb_lock();}
-    SendDelayedMessagesUp(iLocalI,AggregatesToSend,outgoingSend,LocalSupernodes_);
-    iProcessedI++;
-
-  }
-#endif
-#endif
-
-
-
-
-
-
-
-
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////  //dummy right looking cholesky factorization
-  ////  Int I =1;
-  ////  Int iLocalI = -1;
-  ////  while(I<Xsuper_.m() || !FactorsToSend.empty() || !outgoingSend.empty()){
-  ////
-  //////////    //Check for completion of outgoing communication
-  //////////    if(!outgoingSend.empty()){
-  //////////      std::list<Icomm *>::iterator it = outgoingSend.begin();
-  //////////      while(it != outgoingSend.end()){
-  //////////        int flag = 0;
-  //////////        MPI_Test(&(*it)->Request,&flag,MPI_STATUS_IGNORE);
-  //////////        if(flag){
-  //////////          it = outgoingSend.erase(it);
-  //////////        }
-  //////////        else{
-  //////////          it++;
-  //////////        }
-  //////////      }
-  //////////    }
-  //////////
-  //////////    //process some of the delayed send
-  //////////    SendDelayedMessages(I,FactorsToSend,outgoingSend);
-  ////////////    SendDelayedMessages2(I,AggregatesToSend,outgoingSend);
-  //////////
-  ////
-  ////    if(I<Xsuper_.m()){
-  ////      Int src_first_col = Xsuper_(I-1);
-  ////      Int src_last_col = Xsuper_(I)-1;
-  ////      Int iOwner = Mapping_.Map(I-1,I-1);
-  ////      //If I own the column, factor it
-  ////      if( iOwner == iam ){
-  ////        iLocalI = (I-1) / np +1 ;
-  ////        SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
-  ////#ifdef _DEBUG_
-  ////        logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
-  ////#endif
-  ////
-  ////
-  ////        //Aggregate all the updates
-  ////
-  //////////        //Do all my updates (Local and remote)
-  //////////        //Local updates
-  //////////        while(!LocalUpdates[iLocalI-1].empty()){
-  //////////          Int src_snode_id = LocalUpdates[iLocalI-1].front();
-  //////////          LocalUpdates[iLocalI-1].pop();
-  //////////          Int src_nzblk_idx = LocalUpdates[iLocalI-1].front();
-  //////////          LocalUpdates[iLocalI-1].pop();
-  //////////          Int src_first_row = LocalUpdates[iLocalI-1].front();
-  //////////          LocalUpdates[iLocalI-1].pop();
-  //////////
-  //////////          SuperNode<T> & local_src_snode = *LocalSupernodes_[(src_snode_id-1) / np];
-  //////////
-  //////////#ifdef _DEBUG_
-  //////////          logfileptr->OFS()<<"LOCAL Supernode "<<src_snode.Id()<<" is updated by Supernode "<<src_snode_id<<" from row "<<src_first_row<<" "<<src_nzblk_idx<<std::endl;
-  //////////#endif
-  //////////
-  //////////#ifdef SINGLE_BLAS
-  //////////          UpdateSuperNode(local_src_snode,src_snode,src_nzblk_idx,tmpBuf, src_first_row);
-  //////////#else
-  //////////          UpdateSuperNode(local_src_snode,src_snode,src_nzblk_idx, src_first_row);
-  //////////#endif
-  //////////          //        logfileptr->OFS()<<"After "<<src_snode<<std::endl;
-  //////////
-  //////////          --UpdatesToDo(I-1);
-  //////////#ifdef _DEBUG_
-  //////////          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
-  //////////#endif
-  //////////        }
-  //////////
-  ////        //Remote Aggregates
-  ////        std::vector<T> src_nzval;
-  ////        std::vector<char> src_blocks;
-  ////
-  ////        Int nz_cnt;
-  ////        Int max_bytes;
-  ////        while(AggregatesToRecv(I-1)>0){
-  ////#ifdef _DEBUG_
-  ////          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
-  ////#endif
-  ////
-  ////
-  ////          TIMER_START(RECV_MALLOC);
-  ////          if(src_blocks.size()==0){
-  ////            max_bytes = 3*sizeof(Int); 
-  ////            //The upper bound must be of the width of the "largest" child
-  ////#ifdef _DEBUG_
-  ////            logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;
-  ////#endif
-  ////
-  ////            Int nrows = src_snode.NRowsBelowBlock(0);
-  ////            Int ncols = UpdateWidth_(I-1);
-  ////            nz_cnt = nrows * ncols;
-  ////
-  ////            max_bytes += (std::max((Int)ceil(nrows/2)+1,src_snode.NZBlockCnt()))*sizeof(NZBlockDesc);
-  ////            max_bytes += nz_cnt*sizeof(T); 
-  ////
-  ////            src_blocks.resize(max_bytes);
-  ////          }
-  ////          TIMER_STOP(RECV_MALLOC);
-  ////
-  ////          TIMER_START(RECV_MPI);
-  ////          MPI_Status recv_status;
-  ////          int bytes_received = 0;
-  ////
-  ////#ifdef PROBE_FIRST
-  ////          MPI_Probe(MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-  ////          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-  ////
-  ////          bool doabort = false;
-  ////          int prev_size = 0;
-  ////          if(src_blocks.size()<bytes_received){
-  ////            prev_size = src_blocks.size();
-  ////            doabort = true;
-  ////            //receive anyway
-  ////            src_blocks.resize(bytes_received);
-  ////          }
-  ////#endif
-  ////
-  ////
-  ////#ifdef PROBE_FIRST
-  ////          MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-  ////#else
-  ////          //receive the index array
-  ////          MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-  ////#endif
-  ////          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-  ////
-  ////          Int src_snode_id = *(Int*)&src_blocks[0];
-  ////          Int src_nzblk_cnt = *(((Int*)&src_blocks[0])+1);
-  ////          NZBlockDesc * src_blocks_ptr = 
-  ////            reinterpret_cast<NZBlockDesc*>(&src_blocks[2*sizeof(Int)]);
-  ////          Int src_nzval_cnt = *(Int*)(src_blocks_ptr + src_nzblk_cnt);
-  ////          T * src_nzval_ptr = (T*)((Int*)(src_blocks_ptr + src_nzblk_cnt)+1);
-  ////          TIMER_STOP(RECV_MPI);
-  ////          //Create the dummy supernode for that data
-  ////          SuperNode<T> dist_src_snode(src_snode_id,Xsuper_[src_snode_id-1],Xsuper_[src_snode_id]-1, Size(), src_blocks_ptr, src_nzblk_cnt, src_nzval_ptr, src_nzval_cnt);
-  ////
-  ////#ifdef PROBE_FIRST
-  ////          if(doabort){
-  ////            cout<<"We have a problem !!!! on P"<<iam<<"\n";
-  ////            gdb_lock();
-  ////
-  ////            abort();
-  ////          }
-  ////#endif
-  ////#ifdef _DEBUG_
-  ////          logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<std::endl;
-  ////#endif
-  ////
-  ////#ifdef UPDATE_LIST
-  ////          TIMER_START(UPDATE_ANCESTORS);
-  ////          FindUpdates(dist_src_snode,updates);
-  ////          //now traverse the list
-  ////          for(std::list<SnodeUpdateOld>::iterator it = updates.begin(); it!=updates.end();it++){
-  ////            Int tgt_snode_id = it->tgt_snode_id;
-  ////            Int src_first_row = it->src_fr;
-  ////            Int src_nzblk_idx = dist_src_snode.FindBlockIdx(src_first_row);
-  ////            Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
-  ////
-  ////            if(iTarget == iam){
-  ////#ifdef _DEBUG_
-  ////              logfileptr->OFS()<<"RECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" from row "<<src_first_row<<" "<<src_nzblk_idx<<std::endl;
-  ////#endif
-  ////
-  ////              Int iLocalJ = (tgt_snode_id-1) / np +1 ;
-  ////              SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
-  ////
-  ////              FBAggregateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, src_first_row);
-  ////
-  ////              --AggregatesToRecv(tgt_snode_id-1);
-  ////#ifdef _DEBUG_
-  ////              logfileptr->OFS()<<AggregatesToRecv(tgt_snode_id-1)<<" aggregates left for Supernode "<<tgt_snode_id<<endl;
-  ////#endif
-  ////            }
-  ////          }
-  ////          TIMER_STOP(UPDATE_ANCESTORS);
-  ////#else
-  ////          //Update everything I own with that factor
-  ////          //Update the ancestors
-  ////          Int tgt_snode_id = 0;
-  ////          Int src_first_row = 0;
-  ////          Int src_last_row = 0;
-  ////          Int src_nzblk_idx = 0;
-  ////
-  ////
-  ////          TIMER_START(UPDATE_ANCESTORS);
-  ////          while(FindNextUpdate(dist_src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
-  ////            Int iTarget = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
-  ////            if(iTarget == iam){
-  ////#ifdef _DEBUG_
-  ////              logfileptr->OFS()<<"RECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
-  ////#endif
-  ////
-  ////              Int iLocalJ = (tgt_snode_id-1) / np +1 ;
-  ////              SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
-  ////
-  ////
-  ////            gdb_lock();
-  ////              FBAggregateSuperNode(dist_src_snode,tgt_snode,src_nzblk_idx, src_first_row);
-  ////
-  ////              --AggregatesToRecv(tgt_snode_id-1);
-  ////#ifdef _DEBUG_
-  ////              logfileptr->OFS()<<AggregatesToRecv(tgt_snode_id-1)<<" aggregates left for Supernode "<<tgt_snode_id<<endl;
-  ////#endif
-  ////
-  ////            }
-  ////          }
-  ////          TIMER_STOP(UPDATE_ANCESTORS);
-  ////#endif
-  ////        }
-  ////        //clear the buffer
-  ////        { vector<char>().swap(src_blocks);  }
-  ////        { vector<T>().swap(src_nzval);  }
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////#ifdef _DEBUG_
-  ////        assert(AggregatesToRecv(src_snode.Id()-1)==0);
-  ////        logfileptr->OFS()<<"  Factoring Supernode "<<I<<std::endl;
-  ////#endif
-  ////        logfileptr->OFS()<<"  Factoring Supernode "<<I<<std::endl;
-  ////
-  ////        TIMER_START(FACTOR_PANEL);
-  ////        //Factorize Diagonal block
-  ////        NZBlockDesc & diag_desc = src_snode.GetNZBlockDesc(0);
-  ////        for(Int col = 0; col<src_snode.Size();col+=BLOCKSIZE){
-  ////          Int bw = min(BLOCKSIZE,src_snode.Size()-col);
-  ////          T * diag_nzval = &src_snode.GetNZval(diag_desc.Offset)[col+col*src_snode.Size()];
-  ////          lapack::Potrf( 'U', bw, diag_nzval, src_snode.Size());
-  ////          T * nzblk_nzval = &src_snode.GetNZval(diag_desc.Offset)[col+(col+bw)*src_snode.Size()];
-  ////          blas::Trsm('L','U','T','N',bw, src_snode.NRowsBelowBlock(0)-(col+bw), ONE<T>(),  diag_nzval, src_snode.Size(), nzblk_nzval, src_snode.Size());
-  ////
-  ////          //update the rest !!! (next blocks columns)
-  ////          T * tgt_nzval = &src_snode.GetNZval(diag_desc.Offset)[col+bw+(col+bw)*src_snode.Size()];
-  ////          blas::Gemm('T','N',src_snode.Size()-(col+bw), src_snode.NRowsBelowBlock(0)-(col+bw),bw,MINUS_ONE<T>(),nzblk_nzval,src_snode.Size(),nzblk_nzval,src_snode.Size(),ONE<T>(),tgt_nzval,src_snode.Size());
-  ////        }
-  ////
-  ////#ifdef _DEBUG_
-  ////        //        logfileptr->OFS()<<src_snode<<std::endl;
-  ////#endif
-  ////
-  ////        TIMER_STOP(FACTOR_PANEL);
-  ////
-  ////        //Send my factor to my ancestors. 
-  ////#ifdef _DEBUG_
-  ////        IntNumVec is_factor_sent(np);
-  ////        SetValue(is_factor_sent,0);
-  ////#else
-  ////        BolNumVec is_factor_sent(np);
-  ////        SetValue(is_factor_sent,false);
-  ////#endif
-  ////
-  ////        BolNumVec is_skipped(np);
-  ////        SetValue(is_skipped,false);
-  ////
-  ////        Int tgt_snode_id = 0;
-  ////        Int src_nzblk_idx = 0;
-  ////        Int src_first_row = 0;
-  ////        Int src_last_row = 0;
-  ////
-  ////
-  ////#ifdef UPDATE_LIST
-  ////        TIMER_START(FIND_UPDATED_ANCESTORS);
-  ////        FindUpdates(src_snode,updates);
-  ////        //now traverse the list
-  ////        for(std::list<SnodeUpdate>::iterator it = updates.begin(); it!=updates.end();it++){
-  ////          Int tgt_snode_id = it->tgt_snode_id;
-  ////          Int src_first_row = it->src_fr;
-  ////          Int src_nzblk_idx = src_snode.FindBlockIdx(src_first_row);
-  ////          Int iTarget = Mapping_.Map(tgt_snode_id-1,src_snode.Id()-1);
-  ////
-  ////          if(iTarget != iam){
-  ////
-  ////#ifdef _DEBUG_
-  ////            logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<I<<" rows "<<src_first_row<<std::endl;
-  ////
-  ////            if(is_factor_sent[iTarget]){
-  ////              logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated Supernode "<<I<<" in factor "<<is_factor_sent[iTarget]<<std::endl;
-  ////            }
-  ////#endif
-  ////
-  ////            if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
-  ////
-  ////#ifdef DELAY_SNODES
-  ////              //need a std::unordered_set to check whether 
-  ////              if(iLocalI < LocalSupernodes_.size()){
-  ////                if(LocalSupernodes_[iLocalI]->Id()< tgt_snode_id){
-  ////                  FactorsToSend.push_back(DelayedComm(src_snode.Id(),tgt_snode_id,src_nzblk_idx,src_first_row));
-  ////#ifdef _DEBUG_
-  ////                  logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
-  ////                  cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
-  ////#endif
-  ////                  is_skipped[iTarget] = true;
-  ////                  continue;
-  ////                }
-  ////              }
-  ////#endif
-  ////
-  ////#ifdef _DEBUG_
-  ////              is_factor_sent[iTarget] = I;
-  ////#else
-  ////              is_factor_sent[iTarget] = true;
-  ////#endif
-  ////
-  ////              Int tgt_first_col = Xsuper_(tgt_snode_id-1);
-  ////              Int tgt_last_col = Xsuper_(tgt_snode_id)-1;
-  ////
-  ////              //Send
-  ////              NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(src_nzblk_idx);
-  ////
-  ////              Int local_first_row = src_first_row-pivot_desc.GIndex;
-  ////              Int nzblk_cnt = src_snode.NZBlockCnt()-src_nzblk_idx;
-  ////              Int nz_cnt = (src_snode.NRowsBelowBlock(src_nzblk_idx) - local_first_row )*src_snode.Size();
-  ////              assert(nz_cnt>0);
-  ////
-  ////              T * nzval_ptr = src_snode.GetNZval(pivot_desc.Offset
-  ////                  +local_first_row*src_snode.Size());
-  ////              TIMER_START(SEND_MALLOC);
-  ////              AddOutgoingComm(outgoingSend, src_snode.Id(), src_snode.Size(), src_first_row, pivot_desc, nzblk_cnt, nzval_ptr, nz_cnt);
-  ////              TIMER_STOP(SEND_MALLOC);
-  ////
-  ////
-  ////
-  ////              if(outgoingSend.size() > maxIsend_){
-  ////                TIMER_START(SEND_MPI);
-  ////                MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm());
-  ////                TIMER_STOP(SEND_MPI);
-  ////
-  ////                outgoingSend.pop_back();
-  ////              }
-  ////              else{
-  ////                TIMER_START(SEND_MPI);
-  ////                MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
-  ////                TIMER_STOP(SEND_MPI);
-  ////              }
-  ////
-  ////
-  ////
-  ////#ifdef _DEBUG_            
-  ////              logfileptr->OFS()<<"Sending "<<nz_cnt*sizeof(T)<<" bytes to P"<<iTarget<<std::endl;
-  ////              logfileptr->OFS()<<"     Sent factor "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
-  ////              logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
-  ////              logfileptr->OFS()<<"Sending "<<src_blocks.size()<<" bytes to P"<<iTarget<<std::endl;
-  ////#endif
-  ////
-  ////            }
-  ////          }
-  ////          else{
-  ////            Int iLocalJ = (tgt_snode_id-1) / np +1 ;
-  ////
-  ////#ifdef _DEBUG_
-  ////            assert(LocalSupernodes_[iLocalJ-1]->Id()==tgt_snode_id);
-  ////#endif
-  ////            LocalUpdates[iLocalJ-1].push(LocalUpdate(src_snode.Id(),src_nzblk_idx,src_first_row));
-  ////          }
-  ////        }
-  ////        TIMER_STOP(FIND_UPDATED_ANCESTORS);
-  ////#else
-  ////        TIMER_START(FIND_UPDATED_ANCESTORS);
-  ////        while(FindNextUpdate(src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){ 
-  ////          Int iTarget = Mapping_.Map(tgt_snode_id-1,src_snode.Id()-1);
-  ////
-  ////          if(iTarget != iam){
-  ////
-  ////
-  ////#ifdef _DEBUG_
-  ////            logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<I<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
-  ////
-  ////            if(is_factor_sent[iTarget]){
-  ////              logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated Supernode "<<I<<" in factor "<<is_factor_sent[iTarget]<<std::endl;
-  ////            }
-  ////#endif
-  ////
-  ////            if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
-  ////
-  ////#ifdef DELAY_SNODES
-  ////              //need a std::unordered_set to check whether 
-  ////              if(iLocalI < LocalSupernodes_.size()){
-  ////                if(LocalSupernodes_[iLocalI]->Id()< tgt_snode_id){
-  ////                  //need to push the prev src_last_row
-  ////                  FactorsToSend.push(DelayedComm(src_snode.Id(),tgt_snode_id,src_nzblk_idx,src_first_row));
-  ////#ifdef _DEBUG_
-  ////                  logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
-  ////                  cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
-  ////#endif
-  ////                  is_skipped[iTarget] = true;
-  ////                  continue;
-  ////                }
-  ////              }
-  ////#endif
-  ////
-  ////
-  ////
-  ////#ifdef _DEBUG_
-  ////              is_factor_sent[iTarget] = I;
-  ////#else
-  ////              is_factor_sent[iTarget] = true;
-  ////#endif
-  ////
-  ////              Int tgt_first_col = Xsuper_(tgt_snode_id-1);
-  ////              Int tgt_last_col = Xsuper_(tgt_snode_id)-1;
-  ////
-  ////              //Send
-  ////              NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(src_nzblk_idx);
-  ////
-  ////              Int local_first_row = src_first_row-pivot_desc.GIndex;
-  ////
-  ////
-  ////
-  ////              //              logfileptr->OFS()<<src_first_row<<std::endl;
-  ////              //              logfileptr->OFS()<<local_first_row<<std::endl;
-  ////              //              logfileptr->OFS()<<pivot_desc.GIndex<<std::endl;
-  ////              //              assert(src_first_row < pivot_desc.GIndex + src_snode.NRows(src_nzblk_idx));
-  ////
-  ////              Int nzblk_cnt = src_snode.NZBlockCnt()-src_nzblk_idx;
-  ////              Int nz_cnt = (src_snode.NRowsBelowBlock(src_nzblk_idx) - local_first_row )*src_snode.Size();
-  ////#ifdef _DEBUG_
-  ////              assert(nz_cnt>0);
-  ////#endif
-  ////              T * nzval_ptr = src_snode.GetNZval(pivot_desc.Offset
-  ////                  +local_first_row*src_snode.Size());
-  ////
-  ////
-  ////              TIMER_START(SEND_MALLOC);
-  ////              AddOutgoingComm(outgoingSend, src_snode.Id(), src_snode.Size(), src_first_row, pivot_desc, nzblk_cnt, nzval_ptr, nz_cnt);
-  ////              TIMER_STOP(SEND_MALLOC);
-  ////
-  //////gdb_lock();
-  ////              if(outgoingSend.size() > maxIsend_){
-  ////                TIMER_START(SEND_MPI);
-  ////                MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm());
-  ////                TIMER_STOP(SEND_MPI);
-  ////
-  ////                outgoingSend.pop_back();
-  ////              }
-  ////              else{
-  ////                TIMER_START(SEND_MPI);
-  ////                MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
-  ////                TIMER_STOP(SEND_MPI);
-  ////              }
-  ////
-  ////
-  ////#ifdef _DEBUG_            
-  ////              logfileptr->OFS()<<"Sending "<<nz_cnt*sizeof(T)<<" bytes to P"<<iTarget<<std::endl;
-  ////              logfileptr->OFS()<<"     Sent factor "<<src_snode.Id()<<" to Supernode "<<tgt_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
-  ////              logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
-  ////              logfileptr->OFS()<<"Sending "<<outgoingSend.size()<<" bytes to P"<<iTarget<<std::endl;
-  ////#endif
-  ////
-  ////            }
-  ////          }
-  //////          else{
-  //////            Int iLocalJ = (tgt_snode_id-1) / np +1 ;
-  //////
-  //////            assert(LocalSupernodes_[iLocalJ-1]->Id()==tgt_snode_id);
-  //////
-  //////            LocalUpdates[iLocalJ-1].push(I);
-  //////            LocalUpdates[iLocalJ-1].push(src_nzblk_idx);
-  //////            LocalUpdates[iLocalJ-1].push(src_first_row);
-  //////          }
-  ////
-  ////        }
-  ////        TIMER_STOP(FIND_UPDATED_ANCESTORS);
-  ////#endif
-  ////      }
-  ////
-  ////
-  ////
-  ////      Int src_snode_id = I;
-  ////      //TODO replace this by a PLINDX ? 
-  ////      Int tgt_snode_id = FBUpdate(src_snode_id); 
-  ////
-  ////      //If I am involved in updating tgt_snode_id
-  ////      if(tgt_snode_id!= -1){
-  ////        bool skipped = false;
-  ////#ifdef DELAY_SNODES
-  ////        if(LocalSupernodes_.size()>0){
-  ////          Int nextLocalI = max(1,iLocalI);
-  ////          Int next_snode_id = LocalSupernodes_[nextLocalI-1]->Id();
-  ////          if(next_snode_id<=src_snode_id){
-  ////            nextLocalI = min((Int)LocalSupernodes_.size()-1,nextLocalI+1);
-  ////            next_snode_id = LocalSupernodes_[nextLocalI-1]->Id();
-  ////          }
-  ////
-  ////          if(next_snode_id < tgt_snode_id){
-  ////            skipped = true;
-  ////
-  ////            //push this thing to be done later
-  ////            UpdatesToRecv.push(DelayedComm(src_snode_id,tgt_snode_id,-1,-1));
-  ////#ifdef _DEBUG_
-  ////                  logfileptr->OFS()<<"P"<<iam<<" has delayed reception of factor from Supernode "<<src_snode_id<<" to "<<tgt_snode_id<<endl;
-  ////#endif
-  ////
-  ////          }
-  ////        }
-  ////#endif
-  ////
-  ////        if(!skipped){
-  ////          std::vector<char> src_blocks;
-  ////          SuperNode<T> * cur_src_snode = FBRecvFactor(src_snode_id,tgt_snode_id,src_blocks);
-  ////
-  ////          Int iSrcOwner = Mapping_.Map(src_snode_id-1,src_snode_id-1);
-  ////
-  ////          //Compute update to tgt_snode_id and put it in my aggregate vector 
-  ////
-  ////          //Update everything src_snode_id own with that factor
-  ////          //Update the ancestors
-  ////          tgt_snode_id = 0;
-  ////          Int src_first_row = 0;
-  ////          Int src_last_row = 0;
-  ////          Int src_nzblk_idx = 0;
-  ////
-  ////          TIMER_START(UPDATE_ANCESTORS);
-  ////          while(FindNextUpdate(*cur_src_snode, src_nzblk_idx, src_first_row, src_last_row, tgt_snode_id)){
-  ////
-  ////            Int iTarget = Mapping_.Map(tgt_snode_id-1,cur_src_snode->Id()-1);
-  ////            if(iTarget == iam){
-  ////              SuperNode<T> * tgt_aggreg;
-  ////
-  ////              Int iTgtOwner = Mapping_.Map(tgt_snode_id-1,tgt_snode_id-1);
-  ////              if(iTgtOwner == iam){
-  ////                //the aggregate vector is directly the target snode
-  ////                Int iLocalJ = (tgt_snode_id-1) / np +1 ;
-  ////                tgt_aggreg = LocalSupernodes_[iLocalJ -1];
-  ////
-  ////                assert(tgt_snode_id == tgt_aggreg->Id());
-  ////
-  ////              }
-  ////              else{
-  ////                //Check if src_snode_id already have an aggregate vector
-  ////                if(aggVectors[tgt_snode_id-1]==NULL){
-  ////                  aggVectors[tgt_snode_id-1] = new SuperNode<T>(tgt_snode_id, Xsuper_[tgt_snode_id-1], Xsuper_[tgt_snode_id]-1,  xlindx_, lindx_);
-  ////                }
-  ////                tgt_aggreg = aggVectors[tgt_snode_id-1];
-  ////              }
-  ////
-  ////#ifdef _DEBUG_
-  ////              logfileptr->OFS()<<"RECV Supernode "<<tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<src_first_row<<" to "<<src_last_row<<" "<<src_nzblk_idx<<std::endl;
-  ////#endif
-  ////
-  ////
-  ////
-  ////
-  ////#ifdef SINGLE_BLAS
-  ////              UpdateSuperNode(*cur_src_snode,*tgt_aggreg,src_nzblk_idx, tmpBuf,src_first_row);
-  ////#else
-  ////              UpdateSuperNode(*cur_src_snode,*tgt_aggreg,src_nzblk_idx, src_first_row);
-  ////#endif
-  ////
-  ////
-  ////              --UpdatesToDo(tgt_snode_id-1);
-  ////#ifdef _DEBUG_
-  ////              logfileptr->OFS()<<UpdatesToDo(tgt_snode_id-1)<<" updates left for Supernode "<<tgt_snode_id<<endl;
-  ////#endif
-  ////
-  ////
-  ////              if(iTgtOwner==iam){
-  ////                --AggregatesToRecv(tgt_snode_id-1);
-  ////#ifdef _DEBUG_
-  ////                logfileptr->OFS()<<AggregatesToRecv(tgt_snode_id-1)<<" aggregates left for Supernode "<<tgt_snode_id<<endl;
-  ////#endif
-  ////              }
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////              //If this is my last update sent it to tgt_snode_id
-  ////              if(src_snode_id == LastUpdate[tgt_snode_id-1]){
-  ////                if(iTgtOwner != iam){
-  ////
-  ////                  gdb_lock();
-  ////#ifdef _DEBUG_
-  ////                  logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<src_snode_id<<std::endl;
-  ////#endif
-  ////
-  ////
-  ////                  //need a std::unordered_set to check whether 
-  ////                  //              if(iLocalI < LocalSupernodes_.size()){
-  ////                  //                if(LocalSupernodes_[iLocalI]->Id()< tgt_snode_id){
-  ////                  //                  //need to push the prev src_last_row
-  ////                  //                  AggregatesToSend.push_back(DelayedComm(src_snode_id,tgt_snode_id,src_nzblk_idx,src_first_row));
-  ////                  //#ifdef _DEBUG_
-  ////                  //                  logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<src_snode_id<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
-  ////                  //                  cout<<"P"<<iam<<" has delayed update from Supernode "<<src_snode_id<<" to "<<tgt_snode_id<<" from row "<<src_first_row<<endl;
-  ////                  //#endif
-  ////                  //                  is_skipped[iTarget] = true;
-  ////                  //                  continue;
-  ////                  //                }
-  ////                  //              }
-  ////
-  ////
-  ////                  Int tgt_first_col = Xsuper_(tgt_snode_id-1);
-  ////                  Int tgt_last_col = Xsuper_(tgt_snode_id)-1;
-  ////
-  ////                  //Send
-  ////                  NZBlockDesc & pivot_desc = tgt_aggreg->GetNZBlockDesc(0);
-  ////                  Int local_first_row = 0;//src_first_row-pivot_desc.GIndex;
-  ////
-  ////                  Int nzblk_cnt = tgt_aggreg->NZBlockCnt();//-src_nzblk_idx;
-  ////                  Int nz_cnt = (tgt_aggreg->NRowsBelowBlock(0) - local_first_row )*tgt_aggreg->Size();
-  ////#ifdef _DEBUG_
-  ////                  assert(nz_cnt>0);
-  ////#endif
-  ////                  T * nzval_ptr = tgt_aggreg->GetNZval(pivot_desc.Offset
-  ////                      +local_first_row*tgt_aggreg->Size());
-  ////
-  ////
-  ////                  TIMER_START(SEND_MALLOC);
-  ////                  AddOutgoingComm(outgoingSend, src_snode_id, tgt_aggreg->Size(), tgt_aggreg->FirstCol(), pivot_desc, nzblk_cnt, nzval_ptr, nz_cnt);
-  ////                  TIMER_STOP(SEND_MALLOC);
-  ////
-  ////                  //gdb_lock();
-  ////                  //              if(outgoingSend.size() > maxIsend_){
-  ////                  TIMER_START(SEND_MPI);
-  ////                  MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTgtOwner,tgt_snode_id,CommEnv_->MPI_GetComm());
-  ////                  TIMER_STOP(SEND_MPI);
-  ////
-  ////                  outgoingSend.pop_back();
-  ////                  //              }
-  ////                  //              else{
-  ////                  //                TIMER_START(SEND_MPI);
-  ////                  //                MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
-  ////                  //                TIMER_STOP(SEND_MPI);
-  ////                  //              }
-  ////
-  ////
-  ////#ifdef _DEBUG_            
-  ////                  logfileptr->OFS()<<"Sending "<<nz_cnt*sizeof(T)<<" bytes to P"<<iTgtOwner<<std::endl;
-  ////                  logfileptr->OFS()<<"     Sent aggregate "<<tgt_snode_id<<" to Supernode "<<tgt_snode_id<<" on P"<<iTgtOwner<<std::endl;
-  ////                  logfileptr->OFS()<<"Sending "<<nzblk_cnt<<" blocks containing "<<nz_cnt<<" nz"<<std::endl;
-  ////                  logfileptr->OFS()<<"Sending "<<outgoingSend.size()<<" bytes to P"<<iTgtOwner<<std::endl;
-  ////#endif
-  ////
-  ////                }
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////              }
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////
-  ////            }
-  ////          }
-  ////          TIMER_STOP(UPDATE_ANCESTORS);
-  ////
-  ////          if(iSrcOwner!=iam){
-  ////            delete cur_src_snode;
-  ////            //clear the buffer
-  ////            { vector<char>().swap(src_blocks);  }
-  ////          }
-  ////
-  ////        }
-  ////
-  ////      }
-  ////
-  ////
-  ////    }
-  ////    I++;
-  ////
-  ////
-  ////  MPI_Barrier(CommEnv_->MPI_GetComm());
-  ////
-  ////  }
 
 
 
@@ -2089,7 +515,7 @@ template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I){
   for(Int idx = fi; idx<=li;++idx){
     Int row = lindx_[idx-1];
     J = SupMembership_[row-1];
-    Int iUpdater = Mapping_.Map(J-1,I-1);
+    Int iUpdater = Mapping_->Map(J-1,I-1);
     if(iUpdater == iam && J>I){
       firstUpdate = J;
       break;
@@ -2130,7 +556,7 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
 
 
 
-        Int iUpdater = Mapping_.Map(supno-1,s-1);
+        Int iUpdater = Mapping_->Map(supno-1,s-1);
 
         if(iam == iUpdater){
 
@@ -2163,7 +589,7 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_sn
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
   SuperNode<T> * cur_src_snode = NULL;
-  Int iSrcOwner = Mapping_.Map(src_snode_id-1,src_snode_id-1);
+  Int iSrcOwner = Mapping_->Map(src_snode_id-1,src_snode_id-1);
 
   if(iSrcOwner==iam){
     Int iLocalI = (src_snode_id-1) / np +1 ;
@@ -2456,7 +882,12 @@ template <typename T> inline void SupernodalMatrix<T>::FBAggregateSuperNode(Supe
 
 
 
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList<T> & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList){
+#ifndef _USE_TAU_
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList<T> & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList, Int * AggregatesDone)
+#else
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList, Int * AggregatesDone)
+#endif
+{
   if(MsgToSend.empty()) { return;}
   bool is_last = taskList.empty();
 
@@ -2464,6 +895,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
   const SnodeUpdateFB * nextTask = (!taskList.empty())?&taskList.top():NULL;
   FBTaskType nextType = nextTask!=NULL?(nextTask->src_snode_id==nextTask->tgt_snode_id?FACTOR:AGGREGATE):FACTOR;
 
+#ifndef _USE_TAU_
 #ifdef _DEBUG_DELAY_
   {
     FBCommList<T> tmp = MsgToSend;
@@ -2482,23 +914,34 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
     logfileptr->OFS()<<endl;
   }
 #endif
+#endif
 
+#ifndef _USE_TAU_
   FBDelayedCommCompare<T> comparator;
+#else
+  FBDelayedCommCompare comparator;
+#endif
 //comparator.unitTest();
 
   while( MsgToSend.size()>0){
     //Pull the highest priority message
+#ifndef _USE_TAU_
     const FBDelayedComm<T> & comm = MsgToSend.top();
-    Int tgt_snode_id = comm.tgt_snode_id;
-    Int src_nzblk_idx = comm.src_nzblk_idx;
-    Int src_first_row = comm.src_first_row;
-    Int iTarget = comm.target;
-    Int tag = comm.tag;
-    Int count = comm.count;
-    FBTaskType type = comm.type;
+    const Int & tgt_snode_id = comm.tgt_snode_id;
+    const Int & src_nzblk_idx = comm.src_nzblk_idx;
+    const Int & src_first_row = comm.src_first_row;
+    const FBTaskType & type = comm.type;
     SuperNode<T> * src_data = comm.src_data;
     Int src_snode_id = src_data->Id();
-
+#else
+    const FBDelayedComm & comm = MsgToSend.top();
+    const Int & tgt_snode_id = comm.tgt_snode_id;
+    const Int & src_nzblk_idx = comm.src_nzblk_idx;
+    const Int & src_first_row = comm.src_first_row;
+    const FBTaskType & type = comm.type;
+    SuperNode<T> * src_data = (SuperNode<T> *)comm.src_data;
+    Int src_snode_id = comm.src_snode_id;
+#endif
     
     bool doSend = true;
     if(nextTask!=NULL){
@@ -2516,9 +959,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
 
 
     if(doSend || is_last){
-//    if(tgt_snode_id < next_snode_id || is_last){
-      //Int iLocalSrc = (src_snode_id-1) / np +1 ;
-      SuperNode<T> & src_snode = *src_data; //*snodeColl[iLocalSrc -1];
+      SuperNode<T> & src_snode = *src_data;
 
 #ifdef _DEBUG_DELAY_
       if(type==FACTOR){
@@ -2529,7 +970,18 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
       }
 #endif
       //this can be sent now
-      //Int iTarget = TARGET(Mapping_,src_snode_id,tgt_snode_id);
+      Int iTarget, tag;
+      if(type==FACTOR){
+        iTarget = FACT_TARGET(Mapping_,src_snode_id,tgt_snode_id);
+        tag = FACT_TAG(src_snode_id,tgt_snode_id);
+      }
+      else{
+        iTarget = AGG_TARGET(Mapping_,src_snode_id,tgt_snode_id);
+        tag = AGG_TAG(src_snode_id,tgt_snode_id);
+      }
+//      iTarget = comm.target;
+
+
       if(iTarget != iam){
 
 #ifdef _DEBUG_DELAY_
@@ -2547,33 +999,20 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
         // in it and add it to the outgoing comm list
         Icomm * send_buffer = new Icomm();
         //if this is an aggregate add the count to the end
-        if(count>0){
-
-//if(src_snode.Id()==24){
-//gdb_lock();
-//}
+        if(type==AGGREGATE){
+#ifdef _DEBUG_
+          assert(AggregatesDone != NULL);
+#endif
           Serialize(*send_buffer,src_snode,src_nzblk_idx,src_first_row,sizeof(Int));
-          *send_buffer<<count;
-//if(src_snode.Id()==24){
-//          logfileptr->OFS()<<"SRC Aggregate "<<src_snode<<std::endl;
-//
-//          SuperNode<T> dist_src_snode;
-//          size_t read_bytes = Deserialize(send_buffer->front(),dist_src_snode);
-//
-//          //Deserialize the number of aggregates
-//          Int * aggregatesCnt = (Int *)(send_buffer->front()+read_bytes);
-//
-//
-//          logfileptr->OFS()<<"SRC Aggregate "<<dist_src_snode<<std::endl;
-//          logfileptr->OFS()<<"agg count "<<*aggregatesCnt<<std::endl;
-//}
+          *send_buffer<<AggregatesDone[tgt_snode_id-1];
+          //set it to 0 agains to indicate that it has been freed
+          AggregatesDone[tgt_snode_id-1] = 0;
         }
         else{
           Serialize(*send_buffer,src_snode,src_nzblk_idx,src_first_row);
         }
         AddOutgoingComm(OutgoingSend,send_buffer);
 
-        //Int tag = TAG(src_snode_id,tgt_snode_id);
         if( OutgoingSend.size() > maxIsend_){
           TIMER_START(SEND_MPI);
           MPI_Send(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm());
@@ -2599,6 +1038,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
 
       }
       //remove from the list
+      //This will also free the aggregate
+
+        if(comm.type==AGGREGATE){
+          delete src_data;
+        }
       MsgToSend.pop();
     }
     else{

@@ -28,6 +28,8 @@ namespace LIBCHOLESKY{
   template<typename T> class SuperNode;
 
   enum FBTaskType {FACTOR, AGGREGATE};
+
+#ifndef _USE_TAU_
   template<typename T> class FBDelayedComm;
   template<typename T> class FBDelayedCommCompare;
   template<typename T> using FBCommList = std::priority_queue<FBDelayedComm<T>,deque<FBDelayedComm<T> >,FBDelayedCommCompare<T> >;
@@ -38,12 +40,6 @@ namespace LIBCHOLESKY{
     FBTaskType type;
     SuperNode<T> * src_data;
     Int tgt_snode_id;
-    Int src_snode_id;
-
-    //for FanBoth
-    Int target;
-    Int tag;
-    Int count;
 
     Int src_nzblk_idx;
     Int src_first_row;
@@ -54,13 +50,20 @@ namespace LIBCHOLESKY{
           type = a_type;
           src_data = a_src_data;
           tgt_snode_id = a_tgt_snode_id;
-          src_snode_id = a_src_snode_id;
+//          src_snode_id = a_src_snode_id;
           src_first_row = a_src_first_row;
           src_nzblk_idx = a_src_nzblk_idx;
-          target = a_target;
-          tag = a_tag;
-          count = a_count;
+//          target = a_target;
+//          tag = a_tag;
+//          count = a_count;
    }
+
+//   ~FBDelayedComm(){
+//        if(type==AGGREGATE){
+//          delete src_data;
+//        }
+//    }
+
   };
 
 
@@ -70,8 +73,8 @@ namespace LIBCHOLESKY{
   class FBDelayedCommCompare{
     public:
     //Logic is: does a go after b ?
-    bool compare(const Int a_src_snode_id, const Int a_tgt_snode_id, const FBTaskType a_type,
-        const Int b_src_snode_id, const Int b_tgt_snode_id, const FBTaskType b_type) const{
+    inline bool compare(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const FBTaskType & a_type,
+        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const FBTaskType & b_type) const{
       //If they are the same type, sort by tgt id then by src_id
       if(a_type == b_type){
         if(a_tgt_snode_id>b_tgt_snode_id){
@@ -97,17 +100,17 @@ namespace LIBCHOLESKY{
               return true;
             }
             else{
-//              return a_src_snode_id<b_tgt_snode_id;
-//              return b_src_snode_id<a_src_snode_id;
-        if(a_tgt_snode_id>b_tgt_snode_id){
-          return true;
-        }
-        else if(a_tgt_snode_id==b_tgt_snode_id){
-          return a_src_snode_id>b_src_snode_id;
-        }
-        else{
-          return false;
-        }
+              //              return a_src_snode_id<b_tgt_snode_id;
+              //              return b_src_snode_id<a_src_snode_id;
+              if(a_tgt_snode_id>b_tgt_snode_id){
+                return true;
+              }
+              else if(a_tgt_snode_id==b_tgt_snode_id){
+                return a_src_snode_id>b_src_snode_id;
+              }
+              else{
+                return false;
+              }
             } 
           }
         }
@@ -123,17 +126,17 @@ namespace LIBCHOLESKY{
               return false;
             }
             else{
-//              return b_src_snode_id>=a_tgt_snode_id;
-//              return b_src_snode_id<a_src_snode_id;
-        if(a_tgt_snode_id>b_tgt_snode_id){
-          return true;
-        }
-        else if(a_tgt_snode_id==b_tgt_snode_id){
-          return a_src_snode_id>b_src_snode_id;
-        }
-        else{
-          return false;
-        }
+              //              return b_src_snode_id>=a_tgt_snode_id;
+              //              return b_src_snode_id<a_src_snode_id;
+              if(a_tgt_snode_id>b_tgt_snode_id){
+                return true;
+              }
+              else if(a_tgt_snode_id==b_tgt_snode_id){
+                return a_src_snode_id>b_src_snode_id;
+              }
+              else{
+                return false;
+              }
             } 
           }
         }
@@ -223,10 +226,130 @@ namespace LIBCHOLESKY{
 
     bool operator()(const FBDelayedComm<T> & a,const FBDelayedComm<T> & b) const
     {
-      return compare(a.src_snode_id,a.tgt_snode_id,a.type,b.src_data->Id(),b.tgt_snode_id,b.type);
+      return compare(a.src_data->Id(),a.tgt_snode_id,a.type,b.src_data->Id(),b.tgt_snode_id,b.type);
+//      return compare(a.src_snode_id,a.tgt_snode_id,a.type,b.src_snode_id,b.tgt_snode_id,b.type);
     }
   };
+#else
+  class FBDelayedComm;
+  class FBDelayedCommCompare;
+  typedef std::priority_queue<FBDelayedComm,deque<FBDelayedComm >,FBDelayedCommCompare > FBCommList;
 
+  class FBDelayedComm{
+    public:
+    FBTaskType type;
+    void * src_data;
+    Int tgt_snode_id;
+    Int src_snode_id;
+
+    Int src_nzblk_idx;
+    Int src_first_row;
+    Int src_last_row;
+
+    FBDelayedComm(FBTaskType a_type,void * a_src_data,Int a_src_snode_id, Int a_tgt_snode_id, Int a_src_nzblk_idx,
+                   Int a_src_first_row, Int a_target, Int a_tag, Int a_count=0){
+          type = a_type;
+          src_data = a_src_data;
+          tgt_snode_id = a_tgt_snode_id;
+          src_snode_id = a_src_snode_id;
+          src_first_row = a_src_first_row;
+          src_nzblk_idx = a_src_nzblk_idx;
+//          target = a_target;
+//          tag = a_tag;
+//          count = a_count;
+   }
+
+//   ~FBDelayedComm(){
+//        if(type==AGGREGATE){
+//          delete src_data;
+//        }
+//    }
+
+  };
+
+
+ 
+
+  class FBDelayedCommCompare{
+    public:
+    //Logic is: does a go after b ?
+    inline bool compare(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const FBTaskType & a_type,
+        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const FBTaskType & b_type) const{
+      //If they are the same type, sort by tgt id then by src_id
+      if(a_type == b_type){
+        if(a_tgt_snode_id>b_tgt_snode_id){
+          return true;
+        }
+        else if(a_tgt_snode_id==b_tgt_snode_id){
+          return a_src_snode_id>b_src_snode_id;
+        }
+        else{
+          return false;
+        }
+      }
+      //If they are not of the same type
+      else{
+        if(a_type == FACTOR){
+          //case Fx,* vs Ax,*
+          if(a_src_snode_id == b_src_snode_id){
+            return true; //a is factor ?
+          }
+          else{
+            //case Fx,* vs A*,x
+            if(a_src_snode_id == b_tgt_snode_id){
+              return true;
+            }
+            else{
+              //              return a_src_snode_id<b_tgt_snode_id;
+              //              return b_src_snode_id<a_src_snode_id;
+              if(a_tgt_snode_id>b_tgt_snode_id){
+                return true;
+              }
+              else if(a_tgt_snode_id==b_tgt_snode_id){
+                return a_src_snode_id>b_src_snode_id;
+              }
+              else{
+                return false;
+              }
+            } 
+          }
+        }
+        else{
+
+          //case Fx,* vs Ax,*
+          if(b_src_snode_id == a_src_snode_id){
+            return false; //a is factor ?
+          }
+          else{
+            //case Fx,* vs A*,x
+            if(b_src_snode_id == a_tgt_snode_id){
+              return false;
+            }
+            else{
+              //              return b_src_snode_id>=a_tgt_snode_id;
+              //              return b_src_snode_id<a_src_snode_id;
+              if(a_tgt_snode_id>b_tgt_snode_id){
+                return true;
+              }
+              else if(a_tgt_snode_id==b_tgt_snode_id){
+                return a_src_snode_id>b_src_snode_id;
+              }
+              else{
+                return false;
+              }
+            } 
+          }
+        }
+      }
+    }
+
+    bool operator()(const FBDelayedComm & a,const FBDelayedComm & b) const
+    {
+//      return compare(a.src_data->Id(),a.tgt_snode_id,a.type,b.src_data->Id(),b.tgt_snode_id,b.type);
+      return compare(a.src_snode_id,a.tgt_snode_id,a.type,b.src_snode_id,b.tgt_snode_id,b.type);
+    }
+  };
+#endif
 
 
 

@@ -68,6 +68,7 @@ public:
 extern LogFile * logfileptr;
 extern LogFile * profileptr;
 extern LogFile * progressptr;
+extern std::stringstream * progstr;
 
 }
 

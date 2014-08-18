@@ -8,7 +8,6 @@
 #include <mpi.h>
 
 #include <time.h>
-#include <random>
 #include <omp.h>
 
 #include  "ngchol.hpp"
@@ -48,14 +47,7 @@ int main(int argc, char **argv)
   MPI_Comm_size(worldcomm,&np);
   MPI_Comm_rank(worldcomm,&iam);
 
-  MAPCLASS * mapping;
-  if( np % (Int)sqrt(np) == 0){
-    mapping = new MAPCLASS(np, sqrt(np), np, 1);
-  }
-  else{
-    mapping = new MAPCLASS(np, np, np, 1);
-  }
-
+  Mapping * mapping;
 
 #if defined(PROFILE) || defined(PMPI)
   TAU_PROFILE_INIT(argc, argv);
@@ -72,6 +64,7 @@ int main(int argc, char **argv)
   char suffix[50];
   sprintf(suffix,"%d",iam);
   progressptr = new LogFile("progress",suffix);
+  progstr = new stringstream();
 #endif
 
 
@@ -112,6 +105,48 @@ int main(int argc, char **argv)
     maxIrecv= atoi(options["-ir"].c_str());
   }
 
+
+  if( options.find("-map") != options.end() ){
+    if(options["-map"] == "Modwrap2D"){
+      if( np % (Int)sqrt((double)np) == 0){
+        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
+      }
+      else{
+        mapping = new Modwrap2D(np, np, np, 1);
+      }
+    }
+    else if(options["-map"] == "Modwrap2DNS"){
+      if( np % (Int)sqrt((double)np) == 0){
+        mapping = new Modwrap2DNS(np, sqrt((double)np), np, 1);
+      }
+      else{
+        mapping = new Modwrap2DNS(np, np, np, 1);
+      }
+    }
+   else if(options["-map"] == "Row2D"){
+        mapping = new Row2D(np, np, np, 1);
+    }
+    else if(options["-map"] == "Col2D"){
+        mapping = new Col2D(np, np, np, 1);
+    }
+    else{
+      if( np % (Int)sqrt((double)np) == 0){
+        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
+      }
+      else{
+        mapping = new Modwrap2D(np, np, np, 1);
+      }
+    }
+
+  }
+  else{
+      if( np % (Int)sqrt((double)np) == 0){
+        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
+      }
+      else{
+        mapping = new Modwrap2D(np, np, np, 1);
+      }
+  }
 
 
   Real timeSta, timeEnd;
@@ -239,7 +274,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
 {
   timeSta = get_time();
   //do the symbolic factorization and build supernodal matrix
-  SupernodalMatrix<double> SMat(HMat,maxSnode,*mapping,maxIsend,maxIrecv,worldcomm);
+  SupernodalMatrix<double> SMat(HMat,maxSnode,mapping,maxIsend,maxIrecv,worldcomm);
 
   timeEnd = get_time();
   if(iam==0){
@@ -563,7 +598,10 @@ else{
   MPI_Comm_free(&worldcomm);
 
 #ifdef TRACK_PROGRESS
+
+  progressptr->OFS() << progstr->str();
   delete progressptr;
+  delete progstr;
 #endif
 
   delete logfileptr;

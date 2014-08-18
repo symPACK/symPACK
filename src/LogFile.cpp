@@ -8,6 +8,7 @@ LogFile * logfileptr;
 LogFile * profileptr;
 
 LogFile * progressptr;
+std::stringstream * progstr;
 
 }
 

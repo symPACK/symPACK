@@ -30,16 +30,21 @@
 namespace LIBCHOLESKY{
 
 
-  Int DEFAULT_TARGET(MAPCLASS & map,Int src, Int tgt){ return map.Map(tgt-1,tgt-1);}
-  Int AGG_TARGET(MAPCLASS & map,Int src, Int tgt){ return map.Map(tgt-1,tgt-1);}
-  Int FACT_TARGET(MAPCLASS & map,Int src, Int tgt){ return map.Map(tgt-1,src-1);}
+  Int DEFAULT_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,tgt-1);}
+  Int AGG_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,tgt-1);}
+  Int FACT_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,src-1);}
 
   Int DEFAULT_TAG(Int src, Int tgt){ return (tgt);}
   Int AGG_TAG(Int src, Int tgt){ return (tgt);}
   Int FACT_TAG(Int src, Int tgt){ return (src);}
 
 
-
+enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNZ};
+enum FactorizationType {FANOUT,FANBOTH};
+struct NGCholOptions{
+  MappingType mapping;
+  FactorizationType factorization;
+};
 
 
 
@@ -50,7 +55,7 @@ template <typename T> class SupernodalMatrix{
 
   //Constructors
   SupernodalMatrix();
-  SupernodalMatrix(const DistSparseMatrix<T> & pMat, Int maxSnode,MAPCLASS & pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm );
+  SupernodalMatrix(const DistSparseMatrix<T> & pMat, Int maxSnode,Mapping * pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm );
   //Destructor
   ~SupernodalMatrix();
 
@@ -93,7 +98,7 @@ template <typename T> class SupernodalMatrix{
 
 
   //Is the global structure of the matrix allocated
-  bool globalAllocated = false;
+  bool globalAllocated;
 
   //Local and Global structure of the matrix (CSC format)
   SparseMatrixStructure Local_;
@@ -110,7 +115,7 @@ template <typename T> class SupernodalMatrix{
 
 
   //MAPCLASS describing the Mapping of the computations
-  MAPCLASS Mapping_;
+  Mapping * Mapping_;
  
   //Array storing the supernodal update count to a target supernode
   IntNumVec UpdateCount_;
@@ -149,7 +154,7 @@ template <typename T> class SupernodalMatrix{
 
 
 
-  void Init(const DistSparseMatrix<T> & pMat, Int maxSnode,MAPCLASS & pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm );
+  void Init(const DistSparseMatrix<T> & pMat, Int maxSnode,Mapping * pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm );
   
 
 
@@ -197,7 +202,11 @@ template <typename T> class SupernodalMatrix{
   inline void FBAggregateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr = I_ZERO);
 
 //  void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, FBTasks & taskList,  Int (*TARGET) (MAPCLASS &,Int,Int),  Int (*TAG) (Int,Int) , const char * label);
-  void SendDelayedMessagesUp(FBCommList<T> & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList);
+#ifndef _USE_TAU_
+  void SendDelayedMessagesUp(FBCommList<T> & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList, Int * AggregatesDone = NULL);
+#else
+  void SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList, Int * AggregatesDone = NULL);
+#endif
 
   //Solve related routines
   void forward_update(SuperNode<T> * src_contrib,SuperNode<T> * tgt_contrib);
@@ -208,12 +217,13 @@ protected:
   //Supernodal elimination tree //deprecated
   ETree SupETree_;
 
+#if 0
   //deprecated
   #ifdef UPDATE_LIST
   inline void FindUpdates(SuperNode<T> & src_snode, std::list<SnodeUpdateOld> & updates  );
   #endif
   inline bool FindNextUpdateOld(SuperNode<T> & src_snode, Int & src_nzblk_idx, Int & src_first_row,  Int & src_last_row, Int & tgt_snode_id);
-
+#endif
 
 
 
