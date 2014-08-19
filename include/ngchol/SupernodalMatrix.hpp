@@ -34,9 +34,9 @@ namespace LIBCHOLESKY{
   Int AGG_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,tgt-1);}
   Int FACT_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,src-1);}
 
-  Int DEFAULT_TAG(Int src, Int tgt){ return (tgt);}
-  Int AGG_TAG(Int src, Int tgt){ return (tgt);}
-  Int FACT_TAG(Int src, Int tgt){ return (src);}
+  Int DEFAULT_TAG(Int src, Int tgt){ return (2*tgt);}
+  Int AGG_TAG(Int src, Int tgt){ return (2*tgt+1);}
+  Int FACT_TAG(Int src, Int tgt){ return (2*tgt);}
 
 
 enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNZ};

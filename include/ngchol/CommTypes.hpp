@@ -27,7 +27,7 @@ namespace LIBCHOLESKY{
   template<typename T> class NumMat;
   template<typename T> class SuperNode;
 
-  enum FBTaskType {FACTOR, AGGREGATE};
+  enum FBTaskType {FACTOR, AGGREGATE, COMPFACT,COMPAGG};
 
 #ifndef _USE_TAU_
   template<typename T> class FBDelayedComm;
@@ -272,11 +272,8 @@ namespace LIBCHOLESKY{
 
   class FBDelayedCommCompare{
     public:
-    //Logic is: does a go after b ?
-    inline bool compare(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const FBTaskType & a_type,
-        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const FBTaskType & b_type) const{
-      //If they are the same type, sort by tgt id then by src_id
-      if(a_type == b_type){
+    inline bool base_compare(const Int & a_src_snode_id, const Int & a_tgt_snode_id,
+        const Int & b_src_snode_id, const Int & b_tgt_snode_id) const{
         if(a_tgt_snode_id>b_tgt_snode_id){
           return true;
         }
@@ -286,61 +283,100 @@ namespace LIBCHOLESKY{
         else{
           return false;
         }
-      }
-      //If they are not of the same type
-      else{
-        if(a_type == FACTOR){
-          //case Fx,* vs Ax,*
-          if(a_src_snode_id == b_src_snode_id){
-            return false; //a is factor ?
+    }
+
+    inline bool base_compare2(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const FBTaskType & a_type,
+        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const FBTaskType & b_type) const{
+        if(a_tgt_snode_id>b_tgt_snode_id){
+          return true;
+        }
+        else if(a_tgt_snode_id==b_tgt_snode_id){
+          if(a_src_snode_id==b_src_snode_id){
+            //factor comes first
+            //case Fx,y   vs   Ax,y    =>   F comes first
+            return !(a_type == FACTOR);
           }
           else{
-            //case Fx,* vs A*,x
-            if(a_src_snode_id == b_tgt_snode_id){
-              return true;
-            }
-            else{
-              //              return a_src_snode_id<b_tgt_snode_id;
-              //              return b_src_snode_id<a_src_snode_id;
-              if(a_tgt_snode_id>b_tgt_snode_id){
-                return true;
-              }
-              else if(a_tgt_snode_id==b_tgt_snode_id){
-                return a_src_snode_id>b_src_snode_id;
-              }
-              else{
-                return false;
-              }
-            } 
+             return a_src_snode_id>b_src_snode_id;
           }
         }
         else{
-
-          //case Fx,* vs Ax,*
-          if(b_src_snode_id == a_src_snode_id){
-            return true; //a is factor ?
-          }
-          else{
-            //case Fx,* vs A*,x
-            if(b_src_snode_id == a_tgt_snode_id){
-              return false;
-            }
-            else{
-              //              return b_src_snode_id>=a_tgt_snode_id;
-              //              return b_src_snode_id<a_src_snode_id;
-              if(a_tgt_snode_id>b_tgt_snode_id){
-                return true;
-              }
-              else if(a_tgt_snode_id==b_tgt_snode_id){
-                return a_src_snode_id>b_src_snode_id;
-              }
-              else{
-                return false;
-              }
-            } 
-          }
+          return false;
         }
+    }
+
+
+    //Logic is: does a go after b ?
+    inline bool compare(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const FBTaskType & a_type,
+        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const FBTaskType & b_type) const{
+
+
+//      return base_compare2(a_src_snode_id, a_tgt_snode_id, a_type, b_src_snode_id, b_tgt_snode_id, b_type);
+
+
+      //If they are the same type, sort by tgt id then by src_id
+      if(a_type == b_type){
+        return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
       }
+      //case Fx,y   vs   Ax,y    =>   F comes first
+      else if(a_type == FACTOR && a_src_snode_id == b_src_snode_id && a_tgt_snode_id == b_tgt_snode_id){
+        return false;
+      }
+      //case Fy,*   vs   A*,y    =>   A comes first
+      else if(a_type == FACTOR && a_src_snode_id == b_tgt_snode_id){
+        return true;
+      }
+      //case Ax,*   vs   Fx,*    =>   F comes first
+      else if(b_type == FACTOR && a_src_snode_id == b_src_snode_id && a_tgt_snode_id == b_tgt_snode_id){
+        return true;
+      }
+      //case A*,y   vs   Fy,*    =>   A comes first
+      else if(b_type == FACTOR && b_src_snode_id == a_tgt_snode_id){
+        return false;
+      }
+      else{
+        return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
+      }
+
+//      if(a_type == b_type){
+//        return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
+//      }
+//      //If they are not of the same type
+//      else{
+//        if(a_type == FACTOR){
+//          //case Fx,* vs Ax,*
+//          if(a_src_snode_id == b_src_snode_id){
+//            return true; //a is factor ?
+//          }
+//          else{
+//            //case Fx,* vs A*,x
+//            if(a_src_snode_id == b_tgt_snode_id){
+//              return true;
+//            }
+//            else{
+//              //              return a_src_snode_id<b_tgt_snode_id;
+//              //              return b_src_snode_id<a_src_snode_id;
+//              return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
+//            } 
+//          }
+//        }
+//        else{
+//
+//          //case Fx,* vs Ax,*
+//          if(b_src_snode_id == a_src_snode_id){
+//            return false; //a is factor ?
+//          }
+//          else{
+//            //case Fx,* vs A*,x
+//            if(b_src_snode_id == a_tgt_snode_id){
+//              return false;
+//            }
+//            else{
+//              return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
+//            } 
+//          }
+//        }
+//      }
     }
 
     bool operator()(const FBDelayedComm & a,const FBDelayedComm & b) const
@@ -399,7 +435,16 @@ namespace LIBCHOLESKY{
         return true;
       }
       else if(a.tgt_snode_id==b.tgt_snode_id){
-       return a.src_snode_id>b.src_snode_id;
+//       if (a.src_snode_id<0){
+//          return false;
+//       }
+//       else if (b.src_snode_id<0){
+//          return true;
+//       }
+//       else
+       {
+        return a.src_snode_id>b.src_snode_id;
+       }
       }
       else{
         return false;

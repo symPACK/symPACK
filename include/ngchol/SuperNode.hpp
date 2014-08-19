@@ -473,7 +473,192 @@ assert(tgt_blk_idx>=0);
 
 
 
+  inline Int Aggregate(SuperNode<T> & src_snode, SnodeUpdate &update, 
+              TempUpdateBuffers<T> & tmpBuffers){
 
+    TIMER_START(AGGREGATE_SNODE);
+
+      Int src_snode_size = src_snode.Size();
+      Int tgt_snode_size = Size();
+
+
+    T * src = src_snode.GetNZval(0);
+    T * tgt = GetNZval(0);
+
+    blas::Axpy(tgt_snode_size*NRowsBelowBlock(0),ONE<T>(),src,1,tgt,1);
+
+    TIMER_STOP(AGGREGATE_SNODE);
+
+    return 0;
+
+
+//
+//    Int & pivot_idx = update.blkidx;
+//    Int & pivot_fr = update.src_first_row;
+//
+//    TIMER_START(AGGREGATE_SNODE);
+//      Int src_snode_size = src_snode.Size();
+//      Int tgt_snode_size = Size();
+//
+//    //find the first row updated by src_snode
+//    TIMER_START(AGGREGATE_SNODE_FIND_INDEX);
+//    Int first_pivot_idx = -1;
+//    Int tgt_fc = pivot_fr;
+//    if(tgt_fc ==I_ZERO ){
+//      tgt_fc = FirstCol();
+//      //find the pivot idx
+//      do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
+//      while(first_pivot_idx<0 && tgt_fc<=LastCol());
+//      tgt_fc--;
+//    }
+//    else{
+//      first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
+//    }
+//assert(first_pivot_idx>=0);
+//    NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
+//
+//    //find the last row updated by src_snode
+//    Int tgt_lc = LastCol();
+//    Int last_pivot_idx = -1;
+//    //find the pivot idx
+//    do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
+//    while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
+//    tgt_lc++;
+//assert(last_pivot_idx>=0);
+//    NZBlockDesc & last_pivot_desc = src_snode.GetNZBlockDesc(last_pivot_idx);
+//    TIMER_STOP(AGGREGATE_SNODE_FIND_INDEX);
+//
+//
+//
+//
+//
+//    //determine the first column that will be updated in the target supernode
+//    Int tgt_local_fc =  tgt_fc - FirstCol();
+//    Int tgt_local_lc =  tgt_lc - FirstCol();
+//
+//    Int tgt_nrows = NRowsBelowBlock(0);
+//    Int src_nrows = src_snode.NRowsBelowBlock(first_pivot_idx)
+//                           - (tgt_fc - first_pivot_desc.GIndex);
+//    Int src_lr = tgt_fc+src_nrows-1;
+//    src_nrows = src_lr - tgt_fc + 1;
+//
+//    Int tgt_width = src_nrows - src_snode.NRowsBelowBlock(last_pivot_idx)
+//                          + (tgt_lc - last_pivot_desc.GIndex)+1;
+//
+//    T * pivot = src_snode.GetNZval(first_pivot_desc.Offset)
+//                  + (tgt_fc-first_pivot_desc.GIndex)*src_snode_size;
+//    T * tgt = GetNZval(0);
+//
+//    //Pointer to the output buffer of the GEMM
+//    T * buf = NULL;
+//    T beta = ZERO<T>();
+//    //If the target supernode has the same structure,
+//    //The GEMM is directly done in place
+//      Int tgt_offset = (tgt_fc - FirstCol());
+////      buf = &tgt[tgt_offset];
+//      //TODO RIGHT NOW src has same structure than TGT so it is correct but need to think about it
+//      buf = pivot;
+//
+//    //If the GEMM wasn't done in place we need to aggregate the update
+//    //This is the assembly phase
+//    if(src_nrows != tgt_nrows){
+////#ifdef _DEBUG_
+////      logfileptr->OFS()<<"tmpBuf is "<<tmpBuffers.tmpBuf<<std::endl;
+////#endif
+//
+//      //now add the update to the target supernode
+//      TIMER_START(AGGREGATE_SNODE_INDEX_MAP);
+//      if(tgt_snode_size==1){
+//        Int rowidx = 0;
+//        Int src_blkcnt = src_snode.NZBlockCnt();
+//        for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
+//          NZBlockDesc & cur_block_desc = src_snode.GetNZBlockDesc(blkidx);
+//          Int cur_src_nrows = src_snode.NRows(blkidx);
+//          Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
+//          Int cur_src_fr = max(tgt_fc, cur_block_desc.GIndex);
+//
+//          Int row = cur_src_fr;
+//          while(row<=cur_src_lr){
+//            Int tgt_blk_idx = FindBlockIdx(row);
+//assert(tgt_blk_idx>=0);
+//            NZBlockDesc & cur_tgt_desc = GetNZBlockDesc(tgt_blk_idx);
+//            Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + NRows(tgt_blk_idx)-1);
+//            Int tgtOffset = cur_tgt_desc.Offset 
+//                              + (row - cur_tgt_desc.GIndex)*tgt_snode_size;
+//            for(Int cr = row ;cr<=lr;++cr){
+//              tgt[tgtOffset + (cr - row)*tgt_snode_size] += buf[rowidx]; 
+//              rowidx++;
+//            }
+//            row += (lr-row+1);
+//          }
+//        }
+//      }
+//      else{
+//        tmpBuffers.src_colindx.Resize(tgt_width);
+//        tmpBuffers.src_to_tgt_offset.Resize(src_nrows);
+//
+//        Int colidx = 0;
+//        Int rowidx = 0;
+//        Int offset = 0;
+//
+//
+//        Int src_blkcnt = src_snode.NZBlockCnt();
+//        for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
+//          NZBlockDesc & cur_block_desc = src_snode.GetNZBlockDesc(blkidx);
+//          Int cur_src_nrows = src_snode.NRows(blkidx);
+//          Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
+//          Int cur_src_fr = max(tgt_fc, cur_block_desc.GIndex);
+//          cur_src_nrows = cur_src_lr - cur_src_fr +1;
+//
+//          //The other one MUST reside into a single block in the target
+//          Int row = cur_src_fr;
+//          while(row<=cur_src_lr){
+//            Int tgt_blk_idx = FindBlockIdx(row);
+//assert(tgt_blk_idx>=0);
+//            NZBlockDesc & cur_tgt_desc = GetNZBlockDesc(tgt_blk_idx);
+//            Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + NRows(tgt_blk_idx)-1);
+//            Int tgtOffset = cur_tgt_desc.Offset 
+//                              + (row - cur_tgt_desc.GIndex)*tgt_snode_size;
+//            for(Int cr = row ;cr<=lr;++cr){
+//              if(cr<=tgt_lc){
+//                tmpBuffers.src_colindx[colidx++] = cr;
+//              }
+//              offset+=tgt_width;
+//              tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
+//              rowidx++;
+//            }
+//            row += (lr-row+1);
+//          }
+//        }
+//
+//
+//        //Multiple cases to consider
+//        TIMER_STOP(AGGREGATE_SNODE_INDEX_MAP);
+//
+//        if(first_pivot_idx==last_pivot_idx){
+//          // Updating contiguous columns
+//          Int tgt_offset = (tgt_fc - FirstCol());
+//          for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
+//            blas::Axpy(tgt_width,ONE<T>(),&buf[rowidx*tgt_width],1,
+//                        &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset],1);
+//          }
+//        }
+//        else{
+//          // full sparse case (done right now)
+//          for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
+//            for(Int colidx = 0; colidx< tmpBuffers.src_colindx.m();++colidx){
+//              Int col = tmpBuffers.src_colindx[colidx];
+//              Int tgt_colidx = col - FirstCol();
+//              tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
+//                                += buf[rowidx*tgt_width+colidx]; 
+//            }
+//          }
+//        }
+//      }
+//    }
+//    TIMER_STOP(AGGREGATE_SNODE);
+//    return 0;
+  }
 
 
 

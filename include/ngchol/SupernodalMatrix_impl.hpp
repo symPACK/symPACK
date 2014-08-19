@@ -1899,7 +1899,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesDown(Int iLoc
     logfileptr->OFS()<<"Picked { "<<src_snode_id<<" -> "<<tgt_snode_id<<" }"<<endl;
 #endif
 
-    if(tgt_snode_id>next_snode_id || is_last){
+    if(tgt_snode_id>next_snode_id || is_last /*|| OutgoingSend.size() <= maxIsend_*/){
 
       Int iLocalSrc = (src_snode_id-1) / np +1 ;
       SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
@@ -1996,7 +1996,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
     logfileptr->OFS()<<"Picked { "<<src_snode_id<<" -> "<<tgt_snode_id<<" }"<<endl;
 #endif
 
-    if(tgt_snode_id < next_snode_id || is_last){
+    if(tgt_snode_id < next_snode_id || is_last /*|| OutgoingSend.size() <= maxIsend_*/){
       Int iLocalSrc = (src_snode_id-1) / np +1 ;
       SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
 

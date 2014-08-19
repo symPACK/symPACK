@@ -660,6 +660,10 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
       logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 #endif
 
+#ifdef _DEBUG_PROGRESS_
+      logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
+#endif
+
       //Launch Irecv for subsequent local supernodes if I can
       AsyncRecvFactors(iLocalI,incomingRecvArr,FactorsToRecv,UpdatesToDo);
 
@@ -668,6 +672,11 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
       while(!LocalUpdates[iLocalI-1].empty()){
         SnodeUpdate & curUpdate = LocalUpdates[iLocalI-1].front();
         SuperNode<T> & local_src_snode = *LocalSupernodes_[(curUpdate.src_snode_id-1) / np];
+
+
+#ifdef _DEBUG_PROGRESS_
+logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
+#endif
 
 #ifdef TRACK_PROGRESS
   Real timeStaTask =  get_time( );
@@ -713,6 +722,10 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
           if(iTarget == iam){
             Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
             SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+
+#ifdef _DEBUG_PROGRESS_
+logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
+#endif
 
 #ifdef TRACK_PROGRESS
   Real timeStaTask =  get_time( );
@@ -834,6 +847,9 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
           if(iTarget == iam){
             Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
             SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+#ifdef _DEBUG_PROGRESS_
+logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
+#endif
 #ifdef TRACK_PROGRESS
   Real timeStaTask =  get_time( );
 #endif
@@ -864,6 +880,9 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
       if(UpdatesToDo(src_snode.Id()-1)!=0){gdb_lock();}
       assert(UpdatesToDo(src_snode.Id()-1)==0);
       logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
+#endif
+#ifdef _DEBUG_PROGRESS_
+      logfileptr->OFS()<<"  Factoring Supernode "<<I<<std::endl;
 #endif
 
 #ifdef TRACK_PROGRESS
