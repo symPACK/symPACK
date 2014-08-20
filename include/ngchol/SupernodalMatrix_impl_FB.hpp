@@ -274,11 +274,15 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
           logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<std::endl;
 #endif
 
+//          FBAggregateSuperNode(dist_src_snode,src_snode,curUpdate.blkidx, curUpdate.src_first_row);
+#ifdef COMPACT_AGGREGATES
+          src_snode.AggregateCompact(dist_src_snode);
+#else
           SnodeUpdate curUpdate;
           dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false);
-//          FBAggregateSuperNode(dist_src_snode,src_snode,curUpdate.blkidx, curUpdate.src_first_row);
           src_snode.Aggregate(dist_src_snode,curUpdate,tmpBufs);
-          AggregatesToRecv(curUpdate.tgt_snode_id-1) -= *aggregatesCnt;
+#endif
+          AggregatesToRecv(src_snode.Id()-1) -= *aggregatesCnt;
 
         }
         //clear the buffer
@@ -391,7 +395,11 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
                 //Check if src_snode_id already have an aggregate vector
 //                if(aggVectors[curUpdate.tgt_snode_id-1]==NULL)
                 if(AggregatesDone[curUpdate.tgt_snode_id-1]==0){
+#ifdef COMPACT_AGGREGATES
+                  aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,0);
+#else
                   aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,  xlindx_, lindx_);
+#endif
                 }
                 tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
               }
@@ -408,6 +416,9 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 #endif
 
 
+#ifdef COMPACT_AGGREGATES
+              tgt_aggreg->Merge(*cur_src_snode,curUpdate);
+#endif
               tgt_aggreg->Update(*cur_src_snode,curUpdate,tmpBufs);
 
 #ifdef TRACK_PROGRESS

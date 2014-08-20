@@ -91,7 +91,7 @@ class SuperNode{
 
   SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
      //this is an upper bound
-     assert(ai_num_rows>0);
+     assert(ai_num_rows>=0);
 
      //compute supernode size / width
      iSize_ = iLastCol_ - iFirstCol_+1;
@@ -224,12 +224,12 @@ class SuperNode{
   }
     
 
- 
 
   inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex){
 
     //Resize the container if I own the storage
     if(b_own_storage_){
+     
       Int cur_fr = aiGIndex;
       Int cur_lr = cur_fr + aiNRows -1;
 
@@ -279,8 +279,142 @@ class SuperNode{
 
 
 
+  //this function merge structure of src_snode into the structure of the current supernode
+  //right now the destination will have a pretty stupid one line per block structure
+  inline Int Merge(SuperNode<T> & src_snode, SnodeUpdate &update){
+    TIMER_START(MERGE_SNODE);
+
+    assert(b_own_storage_);
+
+    Int src_snode_size = src_snode.Size();
+    Int tgt_snode_size = Size();
+
+    Int & pivot_idx = update.blkidx;
+    Int & pivot_fr = update.src_first_row;
+
+    //find the first row updated by src_snode
+    TIMER_START(MERGE_SNODE_FIND_INDEX);
+    Int first_pivot_idx = -1;
+    Int tgt_fc = pivot_fr;
+    if(tgt_fc ==I_ZERO ){
+      tgt_fc = FirstCol();
+      //find the pivot idx
+      do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
+      while(first_pivot_idx<0 && tgt_fc<=LastCol());
+      tgt_fc--;
+    }
+    else{
+      first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
+    }
+    assert(first_pivot_idx>=0);
+
+    TIMER_STOP(MERGE_SNODE_FIND_INDEX);
+
+    //parse src_snode
+    for(Int blkidx = first_pivot_idx; blkidx<src_snode.NZBlockCnt(); ++blkidx){
+      NZBlockDesc & blk_desc = src_snode.GetNZBlockDesc(blkidx);
+      Int nrows = src_snode.NRows(blkidx);
+      for(Int rowidx = 0; rowidx<nrows; ++rowidx){
+        Int row = blk_desc.GIndex + rowidx;
+        //if the row is updating the target
+        if(row>=tgt_fc){
+          //check if the row is not already in the structure
+          if(FindBlockIdx(row)==-1){
+            //add a nzblock with a single row in it
+            AddNZBlock( 1, tgt_snode_size, row);
+          }
+        }
+      }
+    }
+
+    TIMER_STOP(MERGE_SNODE);
+    return 0;
+  }
+
+  inline Int AggregateCompact(SuperNode<T> & src_snode){
+    TIMER_START(AGGREG_SNODE);
+    Int  pivot_idx = 0;
+    Int  pivot_fr = 0;//FirstCol();
+
+    Int src_snode_size = src_snode.Size();
+    Int tgt_snode_size = Size();
+
+//    //find the first row updated by src_snode
+//    Int first_pivot_idx = 0;
+//    Int tgt_fc = pivot_fr;
+//    NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
+//
+//    //find the last row updated by src_snode
+//    Int tgt_lc = LastCol();
+//    Int last_pivot_idx = 0;
+//    NZBlockDesc & last_pivot_desc = src_snode.GetNZBlockDesc(last_pivot_idx);
+
+    TIMER_START(AGGREG_SNODE_FIND_INDEX);
+    Int first_pivot_idx = -1;
+    Int tgt_fc = pivot_fr;
+    if(tgt_fc ==I_ZERO ){
+      tgt_fc = FirstCol();
+      //find the pivot idx
+      do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
+      while(first_pivot_idx<0 && tgt_fc<=LastCol());
+      tgt_fc--;
+    }
+    else{
+      first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
+    }
+assert(first_pivot_idx>=0);
+    NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
+
+//    //find the last row updated by src_snode
+//    Int tgt_lc = LastCol();
+//    Int last_pivot_idx = -1;
+//    //find the pivot idx
+//    do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
+//    while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
+//    tgt_lc++;
+//assert(last_pivot_idx>=0);
+//    NZBlockDesc & last_pivot_desc = src_snode.GetNZBlockDesc(last_pivot_idx);
+    TIMER_STOP(AGGREG_SNODE_FIND_INDEX);
 
 
+
+
+
+
+    //determine the first column that will be updated in the target supernode
+//    Int tgt_local_fc =  tgt_fc - FirstCol();
+//    Int tgt_local_lc =  tgt_lc - FirstCol();
+
+    //parse src_snode and add everything
+
+
+    for(Int blkidx = first_pivot_idx; blkidx<src_snode.NZBlockCnt(); ++blkidx){
+      NZBlockDesc & blk_desc = src_snode.GetNZBlockDesc(blkidx);
+      Int nrows = src_snode.NRows(blkidx);
+      for(Int rowidx = 0; rowidx<nrows; ++rowidx){
+        Int row = blk_desc.GIndex + rowidx;
+
+        if(row>=tgt_fc){
+          Int src_offset = blk_desc.Offset + (row - blk_desc.GIndex)*src_snode_size;
+
+          Int tgt_blkidx = FindBlockIdx(row);
+          assert(tgt_blkidx!=-1);
+          NZBlockDesc & tgt_desc = GetNZBlockDesc(tgt_blkidx);
+          Int tgt_offset = tgt_desc.Offset + (row - tgt_desc.GIndex)*tgt_snode_size;
+
+          T * src = src_snode.GetNZval(src_offset);
+          T * tgt = GetNZval(tgt_offset);
+
+          blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
+
+        }
+      }
+    }
+
+
+    TIMER_STOP(AGGREG_SNODE);
+    return 0;
+  }
 
 
 
