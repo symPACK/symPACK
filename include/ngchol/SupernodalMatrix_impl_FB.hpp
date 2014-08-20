@@ -396,7 +396,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 //                if(aggVectors[curUpdate.tgt_snode_id-1]==NULL)
                 if(AggregatesDone[curUpdate.tgt_snode_id-1]==0){
 #ifdef COMPACT_AGGREGATES
-                  aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,0);
+                  aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1);
 #else
                   aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,  xlindx_, lindx_);
 #endif
@@ -417,7 +417,10 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
 
 #ifdef COMPACT_AGGREGATES
-              tgt_aggreg->Merge(*cur_src_snode,curUpdate);
+              if(iTarget != iam){
+//                if(AggregatesDone[curUpdate.tgt_snode_id-1]==1){ gdb_lock(); }
+                tgt_aggreg->Merge(*cur_src_snode,curUpdate);
+              }
 #endif
               tgt_aggreg->Update(*cur_src_snode,curUpdate,tmpBufs);
 

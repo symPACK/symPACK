@@ -111,6 +111,28 @@ class SuperNode{
 
   }; 
 
+  SuperNode(Int aiId, Int aiFc, Int aiLc) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
+
+     //compute supernode size / width
+     iSize_ = iLastCol_ - iFirstCol_+1;
+
+     nzval_cnt_ = 0;
+     nzval_container_.reserve(iSize_*iSize_);
+     nzval_ = NULL;
+
+     blocks_container_.reserve(1);
+     blocks_ = NULL;
+     blocks_cnt_ = 0;
+
+     idxToBlk_ = new ITree();
+
+     b_own_storage_ = true;
+
+      //add the diagonal block
+     AddNZBlock(iSize_,0,iFirstCol_);
+
+  }; 
+
 
 
   SuperNode(Int aiId, Int aiFc, Int aiLc, IntNumVec & xlindx, IntNumVec & lindx) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
