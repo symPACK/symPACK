@@ -175,6 +175,16 @@ DistSparseMatrix<Real> HMat(worldcomm);
   TIMER_STOP(READING_MATRIX);
   if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
 
+
+
+
+
+//UNIT TEST
+//LIBCHOLESKY::UnitTest::ITree_Test();
+
+
+
+
 #ifdef _CHECK_RESULT_
 
   Int nrhs = 1;
@@ -522,6 +532,18 @@ else{
     cout<<"Starting solve"<<endl;
   }
 
+
+
+
+
+
+
+
+
+
+
+
+
   timeSta = get_time();
 #ifdef _CHECK_RESULT_SEQ_
   fwdSol.Resize(SMat.Size(),nrhs);
@@ -540,15 +562,19 @@ else{
 
 
   SMat.GetSolution(XFinal);
+
+
+//  SMat.Dump();
 }
 
- //     logfileptr->OFS()<<"X:"<<X<<endl;
+  
+//      logfileptr->OFS()<<"XFinal:"<<XFinal<<endl;
 
-  if(iam==0){
+//  if(iam==0){
 //  blas::Axpy(X.m()*X.n(),-1.0,&XTrue(0,0),1,&X(0,0),1);
 //  double norm = lapack::Lange('F',X.m(),X.n(),&X(0,0),X.m());
 //    cout<<"Norm of residual after SPCHOL is "<<norm/normB<<std::endl;
-}
+//}
 
 {
   SparseMatrixStructure Local = HMat.GetLocalStructure();

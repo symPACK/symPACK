@@ -274,6 +274,14 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
           logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<std::endl;
 #endif
 
+//if(src_snode.Id()==11){
+//          logfileptr->OFS()<<"RECV AGGREGATE "<<dist_src_snode<<std::endl;
+//          logfileptr->OFS()<<"TGT "<<src_snode<<std::endl;
+////gdb_lock();
+//}
+
+
+
 //          FBAggregateSuperNode(dist_src_snode,src_snode,curUpdate.blkidx, curUpdate.src_first_row);
 #ifdef COMPACT_AGGREGATES
           src_snode.AggregateCompact(dist_src_snode);
@@ -357,8 +365,8 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
           src_snode_id = cur_src_snode->Id();
 #ifdef _DEBUG_PROGRESS_
 if(abs(curTask.src_snode_id) != src_snode_id){ 
-cout<<"YOUHOU WE HAVE SYNC HERE !!! expected: "<< abs(curTask.src_snode_id) << " vs received: "<<src_snode_id<<endl;
-logfileptr->OFS()<<"YOUHOU WE HAVE SYNC HERE !!! expected: "<< abs(curTask.src_snode_id) << " vs received: "<<src_snode_id<<endl;
+cout<<"YOUHOU WE HAVE ASYNC HERE !!! expected: "<< abs(curTask.src_snode_id) << " vs received: "<<src_snode_id<<endl;
+logfileptr->OFS()<<"YOUHOU WE HAVE ASYNC HERE !!! expected: "<< abs(curTask.src_snode_id) << " vs received: "<<src_snode_id<<endl;
 }
 #endif
           Int iSrcOwner = Mapping_->Map(src_snode_id-1,src_snode_id-1);
@@ -402,6 +410,12 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 #endif
                 }
                 tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
+
+
+if(tgt_aggreg->Id()==7){
+          logfileptr->OFS()<<"CUR AGGREGATE BEFORE MERGE "<<*tgt_aggreg<<std::endl;
+}
+
               }
 
 #ifdef _DEBUG_
@@ -415,14 +429,27 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
   Real timeStaTask =  get_time( );
 #endif
 
-
 #ifdef COMPACT_AGGREGATES
               if(iTarget != iam){
 //                if(AggregatesDone[curUpdate.tgt_snode_id-1]==1){ gdb_lock(); }
                 tgt_aggreg->Merge(*cur_src_snode,curUpdate);
+
+
+//if(tgt_aggreg->Id()==11){
+//          logfileptr->OFS()<<"CUR AGGREGATE "<<*tgt_aggreg<<std::endl;
+//          logfileptr->OFS()<<"RECV FACTOR "<<*cur_src_snode<<std::endl;
+////gdb_lock();
+//}
+
+                tgt_aggreg->UpdateCompact(*cur_src_snode,curUpdate,tmpBufs);
+
               }
-#endif
+              else{
+                tgt_aggreg->Update(*cur_src_snode,curUpdate,tmpBufs);
+              }
+#else
               tgt_aggreg->Update(*cur_src_snode,curUpdate,tmpBufs);
+#endif
 
 #ifdef TRACK_PROGRESS
   timeEnd =  get_time( );

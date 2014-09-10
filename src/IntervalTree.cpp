@@ -113,6 +113,10 @@ namespace LIBCHOLESKY{
     else
       root->right = insert_(root->right, i);
 
+//    logfileptr->OFS()<<" Before ROTATION "<<endl;
+//    Dump();
+
+
     // Update the max value of this ancestor if needed
     if (root->max < i.high)
       root->max = i.high;
@@ -131,22 +135,31 @@ namespace LIBCHOLESKY{
 
     // Left Left Case
     if (balance > 1 && i.low < root->left->i->low)
-      root = rightRotate_(root);
-
-    // Right Right Case
-    if (balance < -1 && i.low > root->right->i->low)
-      root = leftRotate_(root);
-
-    // Left Right Case
-    if (balance > 1 && i.low > root->left->i->low)
     {
+      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
+      //logfileptr->OFS()<<" LEFT LEFT ROTATION "<<endl;
+      root = rightRotate_(root);
+    }
+    // Right Right Case
+    else if (balance < -1 && i.low > root->right->i->low)
+    {
+      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
+      //logfileptr->OFS()<<" RIGHT RIGHT ROTATION "<<endl;
+      root = leftRotate_(root);
+    }
+    // Left Right Case
+    else if (balance > 1 && i.low > root->left->i->low)
+    {
+      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
+      //logfileptr->OFS()<<" LEFT RIGHT ROTATION "<<endl;
       root->left =  leftRotate_(root->left);
       root = rightRotate_(root);
     }
-
     // Right Left Case
-    if (balance < -1 && i.low < root->right->i->low)
+    else if (balance < -1 && i.low < root->right->i->low)
     {
+      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
+      //logfileptr->OFS()<<" RIGHT LEFT ROTATION "<<endl;
       root->right = rightRotate_(root->right);
       root = leftRotate_(root);
     }
@@ -224,12 +237,15 @@ namespace LIBCHOLESKY{
   void ITree::inorder_(ITree::ITNode *root)
   {
     if (root == NULL) return;
-
+    
+    logfileptr->OFS()<< " LEFT of "<< "[" << root->i->low << ", " << root->i->high << "]"<<": "<<endl;
     inorder_(root->left);
-
+    
+    logfileptr->OFS()<< " MIDDLE: "<<endl;
     logfileptr->OFS()<< "[" << root->i->low << ", " << root->i->high << "] on "<<root->i->block_idx
       << " max = " << root->max << endl;
 
+    logfileptr->OFS()<< " RIGHT of "<< "[" << root->i->low << ", " << root->i->high << "]"<<": "<<endl;
     inorder_(root->right);
   }
 
@@ -242,6 +258,106 @@ namespace LIBCHOLESKY{
     size += sizeof(*root);
     size += getSize_(root->right);
     return size;
+  }
+
+
+  namespace UnitTest{
+
+    bool ITree_Test(){
+
+
+      ITree * tree;
+      bool success = true;
+
+
+
+      ITree::Interval * resIt;
+      ITree::Interval it;
+      it.low = 0;
+      it.high = 1;
+
+      //Empty tree
+      // Interval search should return NULL
+////      tree = new ITree();
+////      resIt = tree->IntervalSearch(it);
+////      success &= (resIt==NULL);
+////      delete tree;
+////
+////      //Insertion
+////      //Insert intervals in increasing order
+////      tree = new ITree();
+////      it.low = 2;
+////      it.high = 2;
+////      tree->Insert(it);
+////
+////      it.low = 3;
+////      it.high = 3;
+////      tree->Insert(it);
+////
+////      it.low = 4;
+////      it.high = 4;
+////      tree->Insert(it);
+////
+////
+//////      tree->Dump();
+////
+////      delete tree;
+////      //Insert two intervals with the second going to the left
+////      tree = new ITree();
+////      it.low = 4;
+////      it.high = 4;
+////      tree->Insert(it);
+////
+////      it.low = 3;
+////      it.high = 3;
+////      tree->Insert(it);
+////
+////      it.low = 2;
+////      it.high = 2;
+////      tree->Insert(it);
+////
+//////      tree->Dump();
+////
+////      delete tree;
+
+
+if(iam==0){
+
+
+      tree = new ITree();
+      tree->Insert(14);
+      tree->Dump();
+      tree->Insert(17);
+      tree->Dump();
+      tree->Insert(46);
+      tree->Dump();
+      tree->Insert(15);
+      tree->Dump();
+      tree->Insert(16);
+      tree->Dump();
+      tree->Insert(35);
+      tree->Dump();
+      tree->Insert(36);
+      tree->Dump();
+      tree->Insert(40);
+      tree->Dump();
+      tree->Insert(42);
+      tree->Dump();
+      tree->Insert(43);
+      tree->Dump();
+      tree->Insert(45);
+      tree->Dump();
+      tree->Insert(47);
+      tree->Dump();
+
+      delete tree;
+
+}
+
+
+      return success;
+
+    }
   }
 
 }

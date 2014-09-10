@@ -90,7 +90,7 @@ template <typename T> class SupernodalMatrix{
   void GetFullFactors( NumMat<T> & fullMatrix);
   void GetSolution(NumMat<T> & B);
 
-
+  void Dump();
 
 
   protected:

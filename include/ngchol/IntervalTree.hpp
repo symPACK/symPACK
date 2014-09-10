@@ -326,6 +326,14 @@ public:
         
       }
 
+      void Insert(Int i)
+      {
+        Interval it;  
+        it.low = i;
+        it.high = i;
+        Insert(it);
+      }
+
 
       Interval * IntervalSearch(Interval & i){
         return intervalSearch_(root_,i.low,i.high);
@@ -344,6 +352,9 @@ public:
 
   };
 
+  namespace UnitTest{
+    bool ITree_Test();
+  }
 }
 
 #endif

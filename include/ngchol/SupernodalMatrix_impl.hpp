@@ -2040,7 +2040,47 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
   }
 }
 
+template<typename T>
+void SupernodalMatrix<T>::Dump(){
+    for(Int I=1;I<Xsuper_.m();I++){
+      Int src_first_col = Xsuper_(I-1);
+      Int src_last_col = Xsuper_(I)-1;
+      Int iOwner = Mapping_->Map(I-1,I-1);
+      //If I own the column, factor it
+      if( iOwner == iam ){
+        Int iLocalI = (I-1) / np +1 ;
+        SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
+          
 
+        logfileptr->OFS()<<"+++++++++++++"<<I<<"++++++++"<<std::endl;
+
+          logfileptr->OFS()<<"cols: ";
+          for(Int i = 0; i< src_snode.Size(); ++i){
+              logfileptr->OFS()<<" "<<Order_.perm[src_first_col+i-1];
+          }
+            logfileptr->OFS()<<std::endl;
+            logfileptr->OFS()<<std::endl;
+        for(int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
+
+          NZBlockDesc & desc = src_snode.GetNZBlockDesc(blkidx);
+          T * val = src_snode.GetNZval(desc.Offset);
+          Int nRows = src_snode.NRows(blkidx);
+
+          Int row = desc.GIndex;
+          for(Int i = 0; i< nRows; ++i){
+              logfileptr->OFS()<<row+i<<" | "<<Order_.perm[row+i-1]<<":   ";
+            for(Int j = 0; j< src_snode.Size(); ++j){
+              logfileptr->OFS()<<val[i*src_snode.Size()+j]<<" ";
+            }
+            logfileptr->OFS()<<std::endl;
+          }
+
+        logfileptr->OFS()<<"_______________________________"<<std::endl;
+        }
+      }
+    }
+
+}
 
 #include "SupernodalMatrix_impl_deprecated.hpp"
 
