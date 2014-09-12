@@ -196,7 +196,7 @@ template <typename T> class SupernodalMatrix{
 
 
   //FanBoth related routines
-  Int FBUpdate(Int I);
+  Int FBUpdate(Int I,Int prevJ=-1);
   void FBGetUpdateCount(IntNumVec & sc, IntNumVec & lu);
   SuperNode<T> * FBRecvFactor(Int src_snode_id,Int tgt_snode_id, std::vector<char> & src_blocks);
 

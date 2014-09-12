@@ -70,58 +70,35 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
   FBTasks LocalTasks;
 
-  std::vector<SnodeUpdate> LocalUpdates;
 
-  std::vector< Int > ProcessedSnodes;
   for(Int I = 1; I<Xsuper_.m(); ++I){
     Int iOwner = Mapping_->Map(I-1,I-1);
-    Int J = FBUpdate(I); 
     if(iam==iOwner){
       SnodeUpdateFB curUpdate;
       curUpdate.src_snode_id = I;
       curUpdate.tgt_snode_id = I;
       LocalTasks.push(curUpdate);
-      
-      if(J!=-1){
-      SnodeUpdateFB curUpdate;
-      //set it to be negative as it is a local update
-      curUpdate.src_snode_id = -I;
-      curUpdate.tgt_snode_id = J;
-      LocalTasks.push(curUpdate);
+      Int J = -1;
+     
+      bool is_first = true; 
+      while( (J=FBUpdate(I,J))!= -1 ){
+        SnodeUpdateFB curUpdate;
+        //set it to be negative as it is a local update
+        curUpdate.src_snode_id = is_first?I:-I;
+        curUpdate.tgt_snode_id = J;
+        LocalTasks.push(curUpdate);
+        is_first=false;
       }
-
-      ProcessedSnodes.push_back(I);
-      //      if(J!=-1){
-      //I may have to do local updates
-      ProcessedSnodes.push_back(J);
-      //      }
     }
     else{
-
+      Int J = FBUpdate(I); 
       if(J!=-1){
-      SnodeUpdateFB curUpdate;
-      curUpdate.src_snode_id = I;
-      curUpdate.tgt_snode_id = J;
-      LocalTasks.push(curUpdate);
-      }
-      //TODO replace this by a PLINDX ? 
-      //am I updating the snode ?
-      if(J!=-1){
-        ProcessedSnodes.push_back(I);
-        ProcessedSnodes.push_back(J);
+        SnodeUpdateFB curUpdate;
+        curUpdate.src_snode_id = I;
+        curUpdate.tgt_snode_id = J;
+        LocalTasks.push(curUpdate);
       }
     }
-
-
-    if(J!=-1){
-      SnodeUpdate curUpdate;
-      curUpdate.src_snode_id = I;
-      curUpdate.tgt_snode_id = J;
-      LocalUpdates.push_back(curUpdate);
-    }
-
-
-
   }
 
 
@@ -370,7 +347,14 @@ logfileptr->OFS()<<"YOUHOU WE HAVE ASYNC HERE !!! expected: "<< abs(curTask.src_
           //Update everything src_snode_id own with that factor
           //Update the ancestors
           SnodeUpdate curUpdate;
-
+          if(curTask.src_snode_id<0){
+//gdb_lock();
+            curUpdate.tgt_snode_id  = curTask.tgt_snode_id;
+            curUpdate.src_first_row = Xsuper_[curTask.tgt_snode_id-1];
+            while( (curUpdate.next_blkidx = cur_src_snode->FindBlockIdx(curUpdate.src_first_row)) == -1){curUpdate.src_first_row++;} 
+            curUpdate.src_next_row  = curUpdate.src_first_row;
+            curUpdate.blkidx        = curUpdate.next_blkidx;
+          }
           TIMER_START(UPDATE_ANCESTORS);
 
           while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
@@ -407,9 +391,6 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
                 tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
 
 
-if(tgt_aggreg->Id()==7){
-          logfileptr->OFS()<<"CUR AGGREGATE BEFORE MERGE "<<*tgt_aggreg<<std::endl;
-}
 
               }
 
@@ -492,14 +473,26 @@ if(tgt_aggreg->Id()==7){
 
 //if local update, push a new task in the queue and stop the while loop
 if(iam==iSrcOwner ){
-  if(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
-gdb_lock();
-    SnodeUpdateFB newTask;
-    newTask.src_snode_id = -curUpdate.src_snode_id;
-    newTask.tgt_snode_id = curUpdate.tgt_snode_id;
-    LocalTasks.push(newTask);
-    break;
-  }
+break;
+
+//  bool next_local = false;
+//
+//  while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+//    Int iUpdater = Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
+//    if(iUpdater == iam){
+//      next_local = true;
+//      break;
+//    }
+//  }
+//
+//  if(next_local){
+////    gdb_lock();
+//    SnodeUpdateFB newTask;
+//    newTask.src_snode_id = -curUpdate.src_snode_id;
+//    newTask.tgt_snode_id = curUpdate.tgt_snode_id;
+//    LocalTasks.push(newTask);
+//    break;
+//  }
 }
 
 
@@ -532,7 +525,7 @@ gdb_lock();
   TIMER_STOP(FACTORIZATION_FB);
 }
 
-template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I){
+template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I,Int prevJ){
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
   //Check if I have anything to update with that supernode
@@ -540,6 +533,7 @@ template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I){
   Int fi = xlindx_(I-1);
   Int li = xlindx_(I)-1;
 
+  Int iOwner = Mapping_->Map(I-1,I-1);
 
   Int firstUpdate = -1; 
   Int J = -1; 
@@ -548,8 +542,17 @@ template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I){
     J = SupMembership_[row-1];
     Int iUpdater = Mapping_->Map(J-1,I-1);
     if(iUpdater == iam && J>I){
-      firstUpdate = J;
-      break;
+      if(iUpdater==iOwner){
+        if(J>prevJ){
+//if(prevJ!=-1){ gdb_lock();}
+          firstUpdate = J;
+          break;
+        }
+      }
+      else{
+        firstUpdate = J;
+        break;
+      }
     }
   }
 
