@@ -489,7 +489,24 @@ if(tgt_aggreg->Id()==7){
 
                 }
               }
+
+//if local update, push a new task in the queue and stop the while loop
+if(iam==iSrcOwner ){
+  if(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+gdb_lock();
+    SnodeUpdateFB newTask;
+    newTask.src_snode_id = -curUpdate.src_snode_id;
+    newTask.tgt_snode_id = curUpdate.tgt_snode_id;
+    LocalTasks.push(newTask);
+    break;
+  }
+}
+
+
             }
+
+
+
           }
           TIMER_STOP(UPDATE_ANCESTORS);
 
