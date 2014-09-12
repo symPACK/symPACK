@@ -161,7 +161,8 @@ namespace LIBCHOLESKY{
 
       double time = get_time();
       function_timers.push_back(function_timer(name, time, 0.0)); 
-    } else {
+    } 
+    else{
       for (i=0; i<(int)function_timers.size(); i++){
         if (strcmp(function_timers[i].name, name) == 0){
           /*function_timers[i].start_time = MPI_Wtime();
@@ -259,103 +260,104 @@ namespace LIBCHOLESKY{
       //    core=0;
       //#endif
 
-      int ismpi=0;
-      MPI_Initialized( &ismpi);
+//      int ismpi=0;
+//      MPI_Initialized( &ismpi);
+      int ismpi=1;
 
 
-      if (ismpi && set_contxt){ 
-        int rank, np, i, j, p, len_symbols;
-
-        if(ismpi){
-          MPI_Comm_rank(comm, &rank);
-          MPI_Comm_size(comm, &np);
-        }
-        //      else{
-        //        rank=MYTHREAD;
-        //        np=THREADS;
-        //      }
-
-
-
-        char all_symbols[10000];
-
-        if (rank == 0){
-          char part[300];
-
-          char heading[MAX_NAME_LENGTH+200];
-          for (i=0; i<MAX_NAME_LENGTH; i++){
-            part[i] = ' ';
-          }
-          part[i] = '\0';
-          sprintf(heading,"%s",part);
-          sprintf(part,"       inclusive         exclusive\n");
-          strcat(heading,part);
-
-          outstream.write(heading,(strlen(heading))*sizeof(char));
-
-          for (i=0; i<MAX_NAME_LENGTH; i++){
-            part[i] = ' ';
-          }
-          part[i] = '\0';
-          sprintf(heading,"%s",part);
-          sprintf(part, "calls        sec       %%"); 
-          strcat(heading,part);
-          sprintf(part, "       sec       %%\n"); 
-          strcat(heading,part);
-          outstream.write(heading,(strlen(heading))*sizeof(char));
-
-          len_symbols = 0;
-          for (i=0; i<(int)function_timers.size(); i++){
-            sprintf(all_symbols+len_symbols, "%s", function_timers[i].name);
-            len_symbols += strlen(function_timers[i].name)+1;
-          }
-
-        }
-        if (np > 1){
-          for (p=0; p<np; p++){
-            if (rank == p){
-              MPI_Send(&len_symbols, 1, MPI_INT, (p+1)%np, 1, comm);
-              MPI_Send(all_symbols, len_symbols, MPI_CHAR, (p+1)%np, 2, comm);
-            }
-            if (rank == (p+1)%np){
-              MPI_Status stat;
-              MPI_Recv(&len_symbols, 1, MPI_INT, p, 1, comm, &stat);
-              MPI_Recv(all_symbols, len_symbols, MPI_CHAR, p, 2, comm, &stat);
-              for (i=0; i<(int)function_timers.size(); i++){
-                j=0;
-                while (j<len_symbols && strcmp(all_symbols+j, function_timers[i].name) != 0){
-                  j+=strlen(all_symbols+j)+1;
-                }
-
-                if (j>=len_symbols){
-                  sprintf(all_symbols+len_symbols, "%s", function_timers[i].name);
-                  len_symbols += strlen(function_timers[i].name)+1;
-                }
-              }
-            }
-          }
-          MPI_Bcast(&len_symbols, 1, MPI_INT, 0, comm);
-          MPI_Bcast(all_symbols, len_symbols, MPI_CHAR, 0, comm);
-          j=0;
-          while (j<len_symbols){
-            CTF_timer t(all_symbols+j);
-            j+=strlen(all_symbols+j)+1;
-          }
-        }
-
-        std::sort(function_timers.begin(), function_timers.end(),comp_name);
-        for (i=0; i<(int)function_timers.size(); i++){
-          function_timers[i].compute_totals(comm);
-        }
-        std::sort(function_timers.begin(), function_timers.end());
-        complete_time = function_timers[0].total_time;
-        for (i=0; i<(int)function_timers.size(); i++){
-          function_timers[i].print(comm,rank,np);
-        }
-
-        function_timers.clear();
-      }  
-      else{
+//      if (ismpi && set_contxt){ 
+//        int rank, np, i, j, p, len_symbols;
+//
+//        if(ismpi){
+//          MPI_Comm_rank(comm, &rank);
+//          MPI_Comm_size(comm, &np);
+//        }
+//        //      else{
+//        //        rank=MYTHREAD;
+//        //        np=THREADS;
+//        //      }
+//
+//
+//
+//        char all_symbols[10000];
+//
+//        if (rank == 0){
+//          char part[300];
+//
+//          char heading[MAX_NAME_LENGTH+200];
+//          for (i=0; i<MAX_NAME_LENGTH; i++){
+//            part[i] = ' ';
+//          }
+//          part[i] = '\0';
+//          sprintf(heading,"%s",part);
+//          sprintf(part,"       inclusive         exclusive\n");
+//          strcat(heading,part);
+//
+//          outstream.write(heading,(strlen(heading))*sizeof(char));
+//
+//          for (i=0; i<MAX_NAME_LENGTH; i++){
+//            part[i] = ' ';
+//          }
+//          part[i] = '\0';
+//          sprintf(heading,"%s",part);
+//          sprintf(part, "calls        sec       %%"); 
+//          strcat(heading,part);
+//          sprintf(part, "       sec       %%\n"); 
+//          strcat(heading,part);
+//          outstream.write(heading,(strlen(heading))*sizeof(char));
+//
+//          len_symbols = 0;
+//          for (i=0; i<(int)function_timers.size(); i++){
+//            sprintf(all_symbols+len_symbols, "%s", function_timers[i].name);
+//            len_symbols += strlen(function_timers[i].name)+1;
+//          }
+//
+//        }
+//        if (np > 1){
+//          for (p=0; p<np; p++){
+//            if (rank == p){
+//              MPI_Send(&len_symbols, 1, MPI_INT, (p+1)%np, 1, comm);
+//              MPI_Send(all_symbols, len_symbols, MPI_CHAR, (p+1)%np, 2, comm);
+//            }
+//            if (rank == (p+1)%np){
+//              MPI_Status stat;
+//              MPI_Recv(&len_symbols, 1, MPI_INT, p, 1, comm, &stat);
+//              MPI_Recv(all_symbols, len_symbols, MPI_CHAR, p, 2, comm, &stat);
+//              for (i=0; i<(int)function_timers.size(); i++){
+//                j=0;
+//                while (j<len_symbols && strcmp(all_symbols+j, function_timers[i].name) != 0){
+//                  j+=strlen(all_symbols+j)+1;
+//                }
+//
+//                if (j>=len_symbols){
+//                  sprintf(all_symbols+len_symbols, "%s", function_timers[i].name);
+//                  len_symbols += strlen(function_timers[i].name)+1;
+//                }
+//              }
+//            }
+//          }
+//          MPI_Bcast(&len_symbols, 1, MPI_INT, 0, comm);
+//          MPI_Bcast(all_symbols, len_symbols, MPI_CHAR, 0, comm);
+//          j=0;
+//          while (j<len_symbols){
+//            CTF_timer t(all_symbols+j);
+//            j+=strlen(all_symbols+j)+1;
+//          }
+//        }
+//
+//        std::sort(function_timers.begin(), function_timers.end(),comp_name);
+//        for (i=0; i<(int)function_timers.size(); i++){
+//          function_timers[i].compute_totals(comm);
+//        }
+//        std::sort(function_timers.begin(), function_timers.end());
+//        complete_time = function_timers[0].total_time;
+//        for (i=0; i<(int)function_timers.size(); i++){
+//          function_timers[i].print(comm,rank,np);
+//        }
+//
+//        function_timers.clear();
+//      }  
+//      else{
         int i, j, p, len_symbols;
         int np, rank;
 
@@ -406,16 +408,16 @@ namespace LIBCHOLESKY{
         }
 
         function_timers.clear();
-      }
+//      }
 
-      int iam=0;
-      if(!ismpi){
-        //      iam = MYTHREAD;
-        abort();
-      }
-      else{
-        MPI_Comm_rank(MPI_COMM_WORLD,&iam);
-      }
+//      int iam=0;
+//      if(!ismpi){
+//        //      iam = MYTHREAD;
+//        abort();
+//      }
+//      else{
+//        MPI_Comm_rank(MPI_COMM_WORLD,&iam);
+//      }
       char suffix[50];
       sprintf(suffix,"%d",iam);
       profileptr = new LogFile("profile",suffix);

@@ -51,6 +51,7 @@ int main(int argc, char **argv)
 
 #if defined(PROFILE) || defined(PMPI)
   TAU_PROFILE_INIT(argc, argv);
+  //TAU_PROFILE_SET_CONTEXT(worldcomm);
 #endif
 
 
@@ -213,7 +214,6 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
   timeSta = get_time();
 
-#if 1
 {
   SparseMatrixStructure Local = HMat.GetLocalStructure();
   SparseMatrixStructure Global;
@@ -242,28 +242,6 @@ DistSparseMatrix<Real> HMat(worldcomm);
   //Do a reduce of RHS
   MPI_Allreduce(MPI_IN_PLACE,&RHS(0,0),RHS.Size(),MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 }
-#else
-
-
-
-
-
-
-
-
-#if 0
-  sp_dgemm_dist("N","N", n, XTrue.n(), n, 
-      LIBCHOLESKY::ONE<MYSCALAR>(), HMat, XTrue.Data(), XTrue.m(), 
-      LIBCHOLESKY::ZERO<MYSCALAR>(), RHS.Data(), RHS.m());
-#else
-  for(Int i = 0; i<n;++i){ 
-    for(Int j=0;j<nrhs;++j){
-      RHS(i,j) = i+1;
-    }
-  }
-#endif
-
-#endif
 
   timeEnd = get_time();
   if(iam==0){

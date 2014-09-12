@@ -431,24 +431,29 @@ namespace LIBCHOLESKY{
   struct SnodeUpdateFBCompare{
     bool operator()(const SnodeUpdateFB & a,const SnodeUpdateFB & b) const
     {
-      if(a.tgt_snode_id>b.tgt_snode_id){
-        return true;
-      }
-      else if(a.tgt_snode_id==b.tgt_snode_id){
-//       if (a.src_snode_id<0){
-//          return false;
-//       }
-//       else if (b.src_snode_id<0){
-//          return true;
-//       }
-//       else
-       {
-        return a.src_snode_id>b.src_snode_id;
-       }
-      }
-      else{
-        return false;
-      }
+
+      //check whether it is an update or a factorization
+      bool a_factor = a.tgt_snode_id == a.src_snode_id;
+      bool b_factor = b.tgt_snode_id == b.src_snode_id;
+
+      //if same type apply the usual priorities
+//      if(a_factor == b_factor){
+        if(a.tgt_snode_id>b.tgt_snode_id){
+          return true;
+        }
+        else if(a.tgt_snode_id==b.tgt_snode_id){
+          return a.src_snode_id>b.src_snode_id;
+        }
+        else{
+          return false;
+        }
+//      }
+//      else if (a_factor){
+//        if(a.tgt_snode_id
+//      }
+//      else if (b_factor){
+//
+//      }
     }
   };
 

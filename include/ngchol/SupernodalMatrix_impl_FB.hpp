@@ -4,15 +4,7 @@
 
 
 template <typename T> void SupernodalMatrix<T>::FanBoth(){
-
   TIMER_START(FACTORIZATION_FB);
-
-
-
-
-
-
-
 
   Real timeSta, timeEnd;
 
@@ -193,6 +185,8 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
 
         //Receiving aggregates
+
+        TIMER_START(RECV_AGGREGATES);
         src_blocks.resize(0);
 
         Int nz_cnt;
@@ -297,6 +291,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
         //{ vector<char>().swap(src_blocks);  }
 
 
+        TIMER_STOP(RECV_AGGREGATES);
 
 
 #ifdef TRACK_PROGRESS
@@ -517,7 +512,7 @@ if(tgt_aggreg->Id()==7){
 
   MPI_Barrier(CommEnv_->MPI_GetComm());
 
-  TIMER_STOP(FACTORIZATION_FO);
+  TIMER_STOP(FACTORIZATION_FB);
 }
 
 template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I){
@@ -656,152 +651,6 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_sn
   }
   return cur_src_snode;
 }
-
-
-template <typename T> inline void SupernodalMatrix<T>::FBAggregateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr)
-{
-
-  TIMER_START(AGGREGATE_SNODE);
-
-
-  TIMER_START(AGGREGATE_SNODE_FIND_INDEX);
-  Int first_pivot_idx = -1;
-  Int tgt_fc = pivot_fr;
-  if(tgt_fc ==I_ZERO ){
-#ifdef FAST_INDEX_SEARCH
-    Int tgt_fc = tgt_snode.FirstCol();
-    first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
-    if(first_pivot_idx<0){
-      tgt_fc = -first_pivot_idx;
-    }
-#else
-    tgt_fc = tgt_snode.FirstCol();
-    //find the pivot idx
-    do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
-    while(first_pivot_idx<0 && tgt_fc<=tgt_snode.LastCol());
-    tgt_fc--;
-#endif
-  }
-  else{
-    first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
-  }
-  NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
-
-#ifdef FAST_INDEX_SEARCH
-  //    TIMER_START(UPDATE_SNODE_FIND_INDEX_LAST2);
-  Int tgt_lc = tgt_snode.LastCol();
-  Int last_pivot_idx = src_snode.FindBlockIdx(tgt_lc);
-  if(last_pivot_idx<0){
-    if(last_pivot_idx == -(iSize_+1)){
-      last_pivot_idx = src_snode.NZBlockCnt()-1;
-    }
-    else{
-      last_pivot_idx = src_snode.FindBlockIdx(-last_pivot_idx)-1;
-    }
-    assert(last_pivot_idx>=0);
-  }
-  NZBlockDesc & last_pivot_desc = src_snode.GetNZBlockDesc(last_pivot_idx);
-  tgt_lc = min(tgt_lc,last_pivot_desc.GIndex + src_snode.NRows(last_pivot_idx)-1);
-  //    TIMER_STOP(UPDATE_SNODE_FIND_INDEX_LAST2);
-#else
-  //    TIMER_START(UPDATE_SNODE_FIND_INDEX_LAST);
-  Int tgt_lc = tgt_snode.LastCol();
-  Int last_pivot_idx = -1;
-  //find the pivot idx
-  do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
-  while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
-  tgt_lc++;
-  NZBlockDesc & last_pivot_desc = src_snode.GetNZBlockDesc(last_pivot_idx);
-  //    TIMER_STOP(UPDATE_SNODE_FIND_INDEX_LAST);
-#endif
-
-  TIMER_STOP(AGGREGATE_SNODE_FIND_INDEX);
-
-  //determine the first column that will be updated in the target supernode
-  Int tgt_local_fc =  tgt_fc - tgt_snode.FirstCol();
-  Int tgt_local_lc =  tgt_lc - tgt_snode.FirstCol();
-
-  Int src_nrows = src_snode.NRowsBelowBlock(first_pivot_idx) - (tgt_fc - first_pivot_desc.GIndex);
-  Int src_lr = tgt_fc+src_nrows-1;
-  src_nrows = src_lr - tgt_fc + 1;
-
-  Int tgt_width = src_snode.NRowsBelowBlock(first_pivot_idx) - (tgt_fc - first_pivot_desc.GIndex) - src_snode.NRowsBelowBlock(last_pivot_idx) + (tgt_lc - last_pivot_desc.GIndex)+1;
-  //tmpBuf.Resize(tgt_width,src_nrows);
-
-  T * pivot = &(src_snode.GetNZval(first_pivot_desc.Offset)[(tgt_fc-first_pivot_desc.GIndex)*src_snode.Size()]);
-
-  if(1){
-
-    TIMER_START(AGGREGATE_SNODE_INDEX_MAP);
-    Int src_snode_size = src_snode.Size();
-    Int tgt_snode_size = tgt_snode.Size();
-    IntNumVec src_colindx(tgt_width);
-    IntNumVec src_rowindx(src_nrows);
-    IntNumVec src_to_tgt_offset(src_nrows);
-    IntNumVec src_offset(src_nrows);
-    SetValue(src_offset,-1);
-    SetValue(src_to_tgt_offset,-1);
-
-    Int colidx = 0;
-    Int rowidx = 0;
-    Int offset = 0;
-    for(Int blkidx = first_pivot_idx; blkidx < src_snode.NZBlockCnt(); ++blkidx){
-      NZBlockDesc & cur_block_desc = src_snode.GetNZBlockDesc(blkidx);
-      Int cur_src_nrows = src_snode.NRows(blkidx);
-      Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
-      Int cur_src_fr = max(tgt_fc, cur_block_desc.GIndex);
-      cur_src_nrows = cur_src_lr - cur_src_fr +1;
-
-      for(Int row = cur_src_fr; row<= cur_src_lr;++row){
-        if(row<=tgt_lc){
-          src_colindx[colidx++] = row;
-        }
-        src_rowindx[rowidx] = row;
-        src_offset[rowidx] = offset;
-        //cur_block_desc.Offset - (first_pivot_desc.Offset + (tgt_fc - first_pivot_desc.GIndex)*src_snode_size ) + (row - cur_block_desc.GIndex)*src_snode_size;
-        offset+=src_snode_size;
-
-        Int tgt_blk_idx = tgt_snode.FindBlockIdx(row);
-        NZBlockDesc & cur_tgt_desc = tgt_snode.GetNZBlockDesc(tgt_blk_idx);
-        src_to_tgt_offset[rowidx] = cur_tgt_desc.Offset + (row - cur_tgt_desc.GIndex)*tgt_snode_size; 
-        rowidx++;
-      }
-    }
-    TIMER_STOP(AGGREGATE_SNODE_INDEX_MAP);
-
-#ifdef _DEBUG_ 
-    logfileptr->OFS()<<"src_rowindx :"<<src_rowindx<<std::endl;
-    logfileptr->OFS()<<"src_colindx :"<<src_colindx<<std::endl;
-    logfileptr->OFS()<<"Index map tgt :"<<src_to_tgt_offset<<std::endl;
-    logfileptr->OFS()<<"Index map src :"<<src_offset<<std::endl;
-#endif
-
-    TIMER_START(AGGREGATE_SNODE_ASSEMBLY);
-    T* tgt = tgt_snode.GetNZval(0);
-    for(Int rowidx = 0; rowidx < src_rowindx.m(); ++rowidx){
-      Int row = src_rowindx[rowidx];
-      for(Int colidx = 0; colidx< src_colindx.m();++colidx){
-        Int col = src_colindx[colidx];
-        Int tgt_colidx = col - tgt_snode.FirstCol();
-        Int src_colidx = col - src_snode.FirstCol();
-        tgt[src_to_tgt_offset[rowidx] + tgt_colidx] += pivot[src_offset[rowidx]+src_colidx]; 
-      }
-    }
-    TIMER_STOP(AGGREGATE_SNODE_ASSEMBLY);
-    //logfileptr->OFS()<<"After "<<std::endl<<tgt_snode<<std::endl;
-
-
-
-  }
-
-  TIMER_STOP(AGGREGATE_SNODE);
-}
-
-
-
-
-
-
 
 
 #ifndef _USE_TAU_

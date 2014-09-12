@@ -199,7 +199,6 @@ template <typename T> class SupernodalMatrix{
   Int FBUpdate(Int I);
   void FBGetUpdateCount(IntNumVec & sc, IntNumVec & lu);
   SuperNode<T> * FBRecvFactor(Int src_snode_id,Int tgt_snode_id, std::vector<char> & src_blocks);
-  inline void FBAggregateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode, Int &pivot_idx, Int  pivot_fr = I_ZERO);
 
 //  void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, FBTasks & taskList,  Int (*TARGET) (MAPCLASS &,Int,Int),  Int (*TAG) (Int,Int) , const char * label);
 #ifndef _USE_TAU_

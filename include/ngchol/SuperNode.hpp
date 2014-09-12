@@ -15,6 +15,14 @@
 
 #include <list>
 
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) 
+#define TIMER_STOP(a) 
+#endif
+#endif
+
+
 namespace LIBCHOLESKY{
 
 
@@ -35,7 +43,11 @@ struct NZBlockDesc{
 };
 
 
-
+/////////////////////////////////////////
+/// Class representing a supernode.
+/// Class representing a supernode stored as a collection of 
+/// blocks of contiguous rows in row-major format.
+/////////////////////////////////////////
 template<typename T>
 class SuperNode{
 
@@ -86,8 +98,8 @@ class SuperNode{
 
   inline Int StorageSize(){ return nzval_cnt_*sizeof(T) + blocks_cnt_*sizeof(NZBlockDesc);}
 
-  SuperNode() :iId_(-1),iFirstCol_(-1),iLastCol_(-1) {
-  }
+  
+  SuperNode() :iId_(-1),iFirstCol_(-1),iLastCol_(-1) { }
 
   SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
      //this is an upper bound
@@ -132,8 +144,6 @@ class SuperNode{
      AddNZBlock(iSize_,0,iFirstCol_);
 
   }; 
-
-
 
   SuperNode(Int aiId, Int aiFc, Int aiLc, IntNumVec & xlindx, IntNumVec & lindx) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
 
@@ -191,9 +201,6 @@ class SuperNode{
 
 
   }
-
-
-
 
 
   void Init(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt,
@@ -255,10 +262,6 @@ class SuperNode{
       Int cur_fr = aiGIndex;
       Int cur_lr = cur_fr + aiNRows -1;
 
-//if(iId_==14){
-//    logfileptr->OFS()<<"ITREE: Insert "<<cur_fr<<","<<cur_lr<<endl;
-//}
-
       ITree::Interval cur_interv = { cur_fr, cur_lr, blocks_cnt_};
       idxToBlk_->Insert(cur_interv);
 
@@ -293,7 +296,6 @@ class SuperNode{
 
   Int Shrink(){
     if(b_own_storage_){
-      //blocks_container_.shrink_to_fit();
       blocks_ = &blocks_container_.front();
 
       nzval_container_.resize(nzval_cnt_);
@@ -1234,14 +1236,23 @@ assert(tgt_blk_idx>=0);
 
   }
 
-  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const IntNumVec & Xsuper,  const IntNumVec & SupMembership,bool isLocal=true){
-    Int & tgt_snode_id = nextUpdate.tgt_snode_id;
+  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const IntNumVec & Xsuper,  const IntNumVec & SupMembership,bool isLocal=true); 
+
+
+
+
+
+};
+
+
+template<typename T>
+bool SuperNode<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const IntNumVec & Xsuper,  const IntNumVec & SupMembership, bool isLocal){
+  Int & tgt_snode_id = nextUpdate.tgt_snode_id;
     Int & f_ur = nextUpdate.src_first_row;
     Int & f_ub = nextUpdate.blkidx;
     Int & n_ur = nextUpdate.src_next_row;
     Int & n_ub = nextUpdate.next_blkidx;
  
-//    TIMER_START(FIND_UPDATE);
 
     if(tgt_snode_id==0){   
       f_ub = isLocal?1:0;
@@ -1260,7 +1271,6 @@ assert(tgt_blk_idx>=0);
       Int tgt_lc = Xsuper[tgt_snode_id]-1;
 
       //or use FindBlockIdx
-//      if(f_ub<NZBlockCnt()-1){
         Int src_tgt_lb = FindBlockIdx(tgt_lc);
         //if tgt_lc not found in the current column we need to resume at the next block 
         if(src_tgt_lb==-1){
@@ -1297,16 +1307,6 @@ assert(tgt_blk_idx>=0);
       return false;
     }
   }
-
-
-
-
-
-};
-
-
-
-
 template <typename T> inline std::ostream& operator<<( std::ostream& os,  SuperNode<T>& snode){
   os<<"ooooooooooo   Supernode "<<snode.Id()<<" oooooooooooo"<<std::endl;
   os<<"     size = "<<snode.Size()<<std::endl;
@@ -1430,6 +1430,14 @@ template <typename T> inline size_t Deserialize(char * buffer, SuperNode<T> & sn
 
 
 } // namespace LIBCHOLESKY
+
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) TAU_FSTART(a);
+#define TIMER_STOP(a) TAU_FSTOP(a);
+#endif
+#endif
+
 
 
 #endif // _SUPERNODE_FACT_HPP_
