@@ -127,6 +127,7 @@ namespace LIBCHOLESKY{
     /* 2. Update height of this ancestor node */
     root->height = max(height_(root->left), height_(root->right)) + 1;
 
+#ifdef _SELF_BALANCE_TREE_
     /* 3. Get the balance factor of this ancestor node to check whether
        this node became unbalanced */
     Int balance = getBalance_(root);
@@ -165,6 +166,7 @@ namespace LIBCHOLESKY{
     }
     //recompute max
     recomputeMax_(root);
+#endif
 
     return root;
   }

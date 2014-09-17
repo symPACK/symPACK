@@ -130,6 +130,12 @@ if(iam==0){
     logfileptr->OFS()<<"xsuper "<<Xsuper_<<std::endl;
 #endif
 
+
+#ifdef _OUTPUT_ETREE_
+    logfileptr->OFS()<<"ETree is "<<ETree_<<std::endl;
+    logfileptr->OFS()<<"Supernodal ETree is "<<ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_)<<std::endl;
+#endif
+
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_);
 
 
@@ -358,7 +364,7 @@ if(iam==0){
 //        }
 
         Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
-#if 1
+//#if 1
 
 
 
@@ -420,266 +426,6 @@ if(iam==0){
           }
         }
 
-#else
-        buffer.clear();
-        buffer.resize(iHeight*(sizeof(Int) + sizeof(T)));
-        //If the column comes later in the permuted matrix,
-        //NZvals are already in the LT part of the original matrix
-        //Otherwise we need to look at the structure of row orig_col
-
-
-        //If I own the column in the original matrix
-        //Copy the appropriate values in the string stream
-
-
-
-        //NZvals are in row orig_col of original matrix
-        Int prev_col = col;
-        do{
-          Int orig_prev_col = Order_.perm[prev_col-1];
-          Int iOwnerCurCol = std::min((orig_prev_col-1)/numColFirst,np-1);
-
-          if(iam == iOwnerCurCol){
-            Int local_col = (orig_prev_col-(numColFirst)*iOwnerCurCol);
-            Int colbeg = Local_.colptr[local_col-1];
-            Int colend = Local_.colptr[local_col]-1;
-            const T * pdData = &pMat.nzvalLocal[0];
-
-            for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-              Int orig_row = Local_.rowind[rowidx-1];
-              Int row = Order_.invp[orig_row-1];
-              //serialize the value
-              if(orig_prev_col == orig_col){
-                if(row>=col){
-                  buffer<<row;
-                  assert(row>0);
-                  T val = pdData[rowidx-1];
-                  buffer<<val;
-                }
-              }
-              else if(row == col){
-                buffer<<prev_col;
-                assert(prev_col>0);
-                T val = pdData[rowidx-1];
-                buffer<<val;
-                break;
-              }
-            }
-          }
-
-          prev_col = ETree_.PostParent(prev_col-1);
-        }while(prev_col!=0);
-
-
-
-#if 1
-          mpi::Gatherv(buffer,recv_buffer,iDest,CommEnv_->MPI_GetComm());
-          //now I know if I need to send something and who I'm receiving from
-          if(iam == iDest){
-            denseA.resize(iSize_);
-                char * pRecvData;
-                Int size = recv_buffer.size();
-                pRecvData = recv_buffer.front();
-
-                //Unpack
-                Int pos = 0;
-                while(pos<size){
-                  Int row = *reinterpret_cast<Int *>(&pRecvData[pos]);
-assert(row>0);
-                  pos += sizeof(Int);
-                  T val = *reinterpret_cast<T *>(&pRecvData[pos]);
-                  pos += sizeof(T);
-
-                  //put this into denseA
-                  denseA.at(row-1) = val;
-                }
-
-            //now parse A, pick the values in denseA and put it in L
-
-            SuperNode<T> & snode = *LocalSupernodes_.back();
-            {
-              Int colbeg = Global_.expColptr[orig_col-1];
-              Int colend = Global_.expColptr[orig_col]-1;
-              for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-                Int orig_row = Global_.expRowind[rowidx-1];
-                Int row = Order_.invp[orig_row-1];
-
-                if(row>=col){
-                  Int blkidx = snode.FindBlockIdx(row);
-                  NZBlockDesc & blk_desc = snode.GetNZBlockDesc(blkidx);
-                  Int local_row = row - blk_desc.GIndex + 1;
-                  Int local_col = col - fc + 1;
-                  T * nzval = snode.GetNZval(blk_desc.Offset);
-                  nzval[(local_row-1)*iWidth+local_col-1] = denseA.at(row-1);
-                }
-              }
-            }
-          }
-#else
-        std::vector<Int> isSender(np,0);
-        if(iam==iDest){
-          //If I'm the destination, I should count the number of senders
-
-          Int prev_col = col;
-          do{
-            Int orig_prev_col = Order_.perm[prev_col-1];
-            Int iOwnerCurCol = std::min((orig_prev_col-1)/numColFirst,np-1);
-
-            Int colbeg = Global_.expColptr[orig_prev_col-1];
-            Int colend = Global_.expColptr[orig_prev_col]-1;
-
-            for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-              Int orig_row = Global_.expRowind[rowidx-1];
-              Int row = Order_.invp[orig_row-1];
-              //Look only at the lower triangular part
-              if(orig_row>= orig_prev_col){
-                //serialize the value
-                if(orig_prev_col == orig_col){
-                  if(row>=col){
-                    isSender[iOwnerCurCol] = 1;//true;      
-                  }
-                }
-                else if(row == col){
-                  isSender[iOwnerCurCol] = 1;//true;      
-                  break;
-                }
-              }
-            }
-
-            prev_col = ETree_.PostParent(prev_col-1);
-          }while(prev_col!=0);
-
-          //              logfileptr->OFS()<<isSender<<endl;
-        }
-
-
-          //now I know if I need to send something and who I'm receiving from
-          if(iam == iDest){
-
-            denseA.resize(iSize_);
-            std::vector<Icomm> recvBuffers(np);
-
-            std::vector<MPI_Request> requestSizes(np,MPI_REQUEST_NULL);
-            std::vector<MPI_Request> requestContents(np,MPI_REQUEST_NULL);
-            std::vector<Int> sizes(np,0);
-            Int senderCnt = 0;
-            for(Int psrc = 0; psrc<np; ++psrc){
-              if(isSender[psrc]){
-                if(psrc!=iam){
-                  senderCnt++;
-                  MPI_Irecv(&sizes[psrc],sizeof(Int),MPI_BYTE,psrc,2*col+0,CommEnv_->MPI_GetComm(),&requestSizes[psrc]);
-                }
-              }
-            }
-
-            //MPI_Waitall(np,&requestSizes[0],MPI_STATUSES_IGNORE);
-
-            Int indx = MPI_UNDEFINED;
-            MPI_Status recv_status;
-            if(senderCnt>0){
-              MPI_Waitany(np,&requestSizes[0],&indx,&recv_status);
-              while(indx!=MPI_UNDEFINED){
-                //Post the corresponding Irecv for content
-                //MPI_Request & req = requestSizes[indx];
-                Int psrc = recv_status.MPI_SOURCE;
-                Int size = sizes[psrc];
-                recvBuffers[psrc].resize(size);
-                //Do the Irecv for content
-                assert(isSender[psrc]);
-                MPI_Irecv(recvBuffers[psrc].front(),size,MPI_BYTE,psrc,2*col+1,CommEnv_->MPI_GetComm(),&requestContents[psrc]);
-
-                //Wait for another size
-                indx = MPI_UNDEFINED;
-                MPI_Waitany(np,&requestSizes[0],&indx,&recv_status);
-              }
-            }
-
-            //If there is some local data, unpackit while we receive the remote content
-            if(isSender[iam]){
-              Int size = buffer.size();
-              char * pRecvData = buffer.front();
-              //Unpack
-              Int pos = 0;
-              while(pos<size){
-                Int row = *reinterpret_cast<Int *>(&pRecvData[pos]);
-                assert(row>0);
-                pos += sizeof(Int);
-                T val = *reinterpret_cast<T *>(&pRecvData[pos]);
-                pos += sizeof(T);
-
-                //put this into denseA
-                denseA.at(row-1) = val;
-              }
-            }
-
-
-
-            if(senderCnt>0){
-              //While there is a new content
-              indx = MPI_UNDEFINED;
-              MPI_Waitany(np,&requestContents[0],&indx,&recv_status);
-              while(indx!=MPI_UNDEFINED){
-                MPI_Request & req = requestContents[indx];
-                Int psrc = recv_status.MPI_SOURCE;
-
-                Icomm & buffer = recvBuffers[psrc];
-                Int size = buffer.size();
-                char * pRecvData = buffer.front();
-                //Unpack
-                Int pos = 0;
-                while(pos<size){
-                  Int row = *reinterpret_cast<Int *>(&pRecvData[pos]);
-                  assert(row>0);
-                  pos += sizeof(Int);
-                  T val = *reinterpret_cast<T *>(&pRecvData[pos]);
-                  pos += sizeof(T);
-
-                  //put this into denseA
-                  denseA.at(row-1) = val;
-                }
-
-
-                //Wait for another content
-                indx = MPI_UNDEFINED;
-                MPI_Waitany(np,&requestContents[0],&indx,&recv_status);
-              }
-            }
-
-            //now parse A, pick the values in denseA and put it in L
-
-            SuperNode<T> & snode = *LocalSupernodes_.back();
-            {
-              Int colbeg = Global_.expColptr[orig_col-1];
-              Int colend = Global_.expColptr[orig_col]-1;
-              for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-                Int orig_row = Global_.expRowind[rowidx-1];
-                Int row = Order_.invp[orig_row-1];
-
-                if(row>=col){
-                  Int blkidx = snode.FindBlockIdx(row);
-                  NZBlockDesc & blk_desc = snode.GetNZBlockDesc(blkidx);
-                  Int local_row = row - blk_desc.GIndex + 1;
-                  Int local_col = col - fc + 1;
-                  T * nzval = snode.GetNZval(blk_desc.Offset);
-                  nzval[(local_row-1)*iWidth+local_col-1] = denseA.at(row-1);
-                }
-              }
-            }
-
-
-          } 
-          else{
-            if(buffer.size()>0){
-              //Send the size first
-              Int size = buffer.size();
-              MPI_Send(&size,sizeof(Int),MPI_BYTE,iDest,2*col+0,CommEnv_->MPI_GetComm());
-              MPI_Send(buffer.front(),size,MPI_BYTE,iDest,2*col+1,CommEnv_->MPI_GetComm());
-            }
-          }
-
-//        MPI_Barrier(CommEnv_->MPI_GetComm()); 
-#endif
-#endif
 
 
 
@@ -942,85 +688,6 @@ template <typename T> void SupernodalMatrix<T>::AdvanceOutgoing(AsyncComms & out
     }
   }
 }
-
-
-
-
-
-
-
-
-/// Routines used to find the next update in the current supernode
-/// They must be called in a while loop style
-  template <typename T> inline bool SupernodalMatrix<T>::FindNextUpdate(SuperNode<T> & src_snode, Int & tgt_snode_id, Int & f_ur, Int & f_ub, Int & n_ur, Int & n_ub){
-
-    Int iam = CommEnv_->MPI_Rank();
-    Int np  = CommEnv_->MPI_Size();
-//    TIMER_START(FIND_UPDATE);
-
-    if(tgt_snode_id==0){   
-      Int iOwner = Mapping_->Map(src_snode.Id()-1,src_snode.Id()-1);
-      f_ub = iOwner==iam?1:0;
-      n_ub = f_ub;
-      n_ur = 0;
-    }
-    else{
-      f_ub = n_ub;
-    }
-
-    if(src_snode.NZBlockCnt()>f_ub){
-      NZBlockDesc * cur_desc = &src_snode.GetNZBlockDesc(f_ub); 
-      f_ur = max(n_ur,cur_desc->GIndex); 
-      //find the snode updated by that row
-      tgt_snode_id = SupMembership_[f_ur-1];
-      Int tgt_lc = Xsuper_[tgt_snode_id]-1;
-
-      //or use FindBlockIdx
-//      if(f_ub<src_snode.NZBlockCnt()-1){
-        Int src_tgt_lb = src_snode.FindBlockIdx(tgt_lc);
-        //if tgt_lc not found in the current column we need to resume at the next block 
-        if(src_tgt_lb==-1){
-          for(n_ub;n_ub<src_snode.NZBlockCnt();++n_ub){
-            cur_desc = &src_snode.GetNZBlockDesc(n_ub);
-            if(cur_desc->GIndex > tgt_lc){
-              break;
-            }
-          }
-          if(n_ub<src_snode.NZBlockCnt()){
-            n_ur = cur_desc->GIndex;
-          }
-          else{
-            n_ur = -1;
-          }
-        }
-        else{
-            n_ub = src_tgt_lb;
-            cur_desc = &src_snode.GetNZBlockDesc(n_ub);
-            if(cur_desc->GIndex + src_snode.NRows(n_ub)-1>tgt_lc){
-              n_ur = tgt_lc+1;
-            }
-            else{
-              ++n_ub;
-              n_ur = (n_ub<src_snode.NZBlockCnt())?src_snode.GetNZBlockDesc(n_ub).GIndex:-1;
-            }
-        }
-      //src_snode updates tgt_snode_id. Then we need to look from row n_ur and block l_ub
-      return true;
-    }
-    else{
-      return false;
-    }
-  }
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -1558,6 +1225,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
             dist_contrib = new SuperNode<T>();
             Deserialize(&src_blocks[0],*dist_contrib); 
+            dist_contrib->InitIdxToBlk();
 
 
             #ifdef _DEBUG_
@@ -1873,7 +1541,12 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesDown(Int iLoc
     logfileptr->OFS()<<"Queue : ";
     while( tmp.size()>0){
       //Pull the highest priority message
+
+#ifdef _DEADLOCK_
+      const DelayedComm & comm = tmp.front();
+#else
       const DelayedComm & comm = tmp.top();
+#endif
       Int src_snode_id = comm.src_snode_id;
       Int tgt_id = comm.tgt_snode_id;
       Int src_nzblk_idx = comm.src_nzblk_idx;
@@ -1889,7 +1562,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesDown(Int iLoc
 
   while( MsgToSend.size()>0){
     //Pull the highest priority message
+#ifdef _DEADLOCK_
+    const DelayedComm & comm = MsgToSend.front();
+#else
     const DelayedComm & comm = MsgToSend.top();
+#endif
     Int src_snode_id = comm.src_snode_id;
     Int tgt_snode_id = comm.tgt_snode_id;
     Int src_nzblk_idx = comm.src_nzblk_idx;
@@ -1971,7 +1648,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
     logfileptr->OFS()<<"Queue : ";
     while( tmp.size()>0){
       //Pull the highest priority message
+#ifdef _DEADLOCK_
+      const DelayedComm & comm = tmp.front();
+#else
       const DelayedComm & comm = tmp.top();
+#endif
       Int src_snode_id = comm.src_snode_id;
       Int tgt_id = comm.tgt_snode_id;
       Int src_nzblk_idx = comm.src_nzblk_idx;
@@ -1986,7 +1667,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
 #endif
   while( MsgToSend.size()>0){
     //Pull the highest priority message
+#ifdef _DEADLOCK_
+    const DelayedComm & comm = MsgToSend.front();
+#else
     const DelayedComm & comm = MsgToSend.top();
+#endif
     Int src_snode_id = comm.src_snode_id;
     Int tgt_snode_id = comm.tgt_snode_id;
     Int src_nzblk_idx = comm.src_nzblk_idx;

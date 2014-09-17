@@ -674,58 +674,41 @@ TIMER_STOP(Construct_Etree_Classic);
 
 
 
-//  ETree ETree::ToSupernodalETree(IntNumVec & aXsuper) const{
-//    ETree newTree;
-//    newTree.n_ = aXsuper.m()-1;
-//    newTree.parent_.Resize(aXsuper.m()-1);
-//    
-//
-//assert(bIsPostOrdered_);
-//
-//    IntNumVec colToSup(this->parent_.m());
-//    for(Int i=1; i<aXsuper.m(); ++i){
-//      for(Int j = aXsuper(i-1); j< aXsuper(i); ++j){
-//        colToSup(j-1) = i;
-//      }
-//    }
-//    colToSup(this->parent_.m()-1) = 0;
-//
-////    logfileptr->OFS()<<aXsuper<<std::endl;
-////    logfileptr->OFS()<<this->parent_<<std::endl;
-////    logfileptr->OFS()<<colToSup<<std::endl;
-//
-//
-//    for(Int i=1; i<=colToSup.m(); ++i){
-//        Int curSnode = colToSup(i-1);
-//        Int parent_col = this->PostParent(i-1);
-//        Int parentSnode = ( parent_col == 0) ? 0:colToSup(parent_col-1);
-//
+  ETree ETree::ToSupernodalETree(IntNumVec & aXsuper,IntNumVec & aSupMembership,Ordering & aOrder) const{
+    ETree newTree;
+    newTree.n_ = aXsuper.m()-1;
+    newTree.parent_.Resize(aXsuper.m()-1);
+    
+
+assert(bIsPostOrdered_);
+
+    for(Int snode=1; snode<=newTree.n_; ++snode){
+        Int lc = aXsuper[snode]-1;
+        Int parent_col = this->PostParent(lc-1);
+        Int parentSnode = ( parent_col == 0) ? 0:aSupMembership[parent_col-1];
+
+          newTree.parent_(snode-1) = parentSnode;
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"parent of curSnode "<<snode<<" is "<<parentSnode<<std::endl;
+#endif
+    } 
+
+//    Ordering tmp = aOrder;
+//    newTree.PostOrderTree(tmp);
+
+    return newTree;
+
+//      //translate from columns to supernodes etree using supIdx
+//      etree_supno.resize(this->NumSuper());
+//      for(Int i = 0; i < superNode->etree.m(); ++i){
+//        Int curSnode = superNode->superIdx[i];
+//        Int parentSnode = (superNode->etree[i]>= superNode->etree.m()) ?this->NumSuper():superNode->superIdx[superNode->etree[i]];
 //        if( curSnode != parentSnode){
-//          newTree.parent_(curSnode-1) = parentSnode;
-//#ifdef _DEBUG_
-//          logfileptr->OFS()<<"parent of curSnode "<<curSnode<<" is "<<parentSnode<<std::endl;
-//#endif
+//          etree_supno[curSnode] = parentSnode;
 //        }
-//    } 
-//
-//    newTree.PostOrderTree();
-//
-//    return newTree;
-//
-////      //translate from columns to supernodes etree using supIdx
-////      etree_supno.resize(this->NumSuper());
-////      for(Int i = 0; i < superNode->etree.m(); ++i){
-////        Int curSnode = superNode->superIdx[i];
-////        Int parentSnode = (superNode->etree[i]>= superNode->etree.m()) ?this->NumSuper():superNode->superIdx[superNode->etree[i]];
-////        if( curSnode != parentSnode){
-////          etree_supno[curSnode] = parentSnode;
-////        }
-////      }
-//
-//
-//
-//    return newTree;
-//  }
+//      }
+
+  }
 
 
 

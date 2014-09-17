@@ -32,7 +32,11 @@ namespace LIBCHOLESKY{
 #ifndef _USE_TAU_
   template<typename T> class FBDelayedComm;
   template<typename T> class FBDelayedCommCompare;
+#ifdef _DEADLOCK_
+  template<typename T> using FBCommList = std::queue<FBDelayedComm<T>,deque<FBDelayedComm<T> > >;
+#else
   template<typename T> using FBCommList = std::priority_queue<FBDelayedComm<T>,deque<FBDelayedComm<T> >,FBDelayedCommCompare<T> >;
+#endif
 
   template<typename T>
   class FBDelayedComm{
@@ -233,7 +237,11 @@ namespace LIBCHOLESKY{
 #else
   class FBDelayedComm;
   class FBDelayedCommCompare;
+#ifdef _DEADLOCK_
+  typedef std::queue<FBDelayedComm,deque<FBDelayedComm > > FBCommList;
+#else
   typedef std::priority_queue<FBDelayedComm,deque<FBDelayedComm >,FBDelayedCommCompare > FBCommList;
+#endif
 
   class FBDelayedComm{
     public:
@@ -411,9 +419,15 @@ namespace LIBCHOLESKY{
   struct SnodeUpdateFBCompare;
 
   class AsyncComms;
+#ifdef _DEADLOCK_
+  typedef std::queue<DelayedComm,deque<DelayedComm> > CommList;
+  typedef std::queue<DelayedComm,deque<DelayedComm> > DownCommList;
+  typedef std::queue<SnodeUpdateFB,deque<SnodeUpdateFB> > FBTasks;
+#else
   typedef std::priority_queue<DelayedComm,deque<DelayedComm>,DelayedCommCompare> CommList;
   typedef std::priority_queue<DelayedComm,deque<DelayedComm>,DelayedCommReverseCompare> DownCommList;
   typedef std::priority_queue<SnodeUpdateFB,deque<SnodeUpdateFB>,SnodeUpdateFBCompare> FBTasks;
+#endif
 
   template <typename T> inline void Serialize( Icomm& os,  const T * val, const Int count);
   template <typename T> inline Icomm& operator<<( Icomm& os,  const T & val);

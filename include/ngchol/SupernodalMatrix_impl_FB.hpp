@@ -112,10 +112,18 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
     if(!LocalTasks.empty()){
       //make a copy because we need to pop it
+#ifdef _DEADLOCK_
+      SnodeUpdateFB curTask = LocalTasks.front();
+#else
       SnodeUpdateFB curTask = LocalTasks.top();
+#endif
       LocalTasks.pop();
 
+#ifdef _DEADLOCK_
+      const SnodeUpdateFB * nextTask = (!LocalTasks.empty())?&LocalTasks.front():NULL;
+#else
       const SnodeUpdateFB * nextTask = (!LocalTasks.empty())?&LocalTasks.top():NULL;
+#endif
 
 #ifdef _DEBUG_DELAY_
   {
@@ -123,7 +131,11 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
     logfileptr->OFS()<<"Task Queue : ";
     while( tmp.size()>0){
       //Pull the highest priority message
+#ifdef _DEADLOCK_
+      const SnodeUpdateFB & comm = tmp.front();
+#else
       const SnodeUpdateFB & comm = tmp.top();
+#endif
       Int src_snode_id = comm.src_snode_id;
       Int tgt_id = comm.tgt_snode_id;
       logfileptr->OFS()<<" { "<<src_snode_id<<" -> "<<tgt_id<<" }";
@@ -155,10 +167,6 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 #ifdef _DEBUG_PROGRESS_
         logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 #endif
-
-
-
-
 
 
         //Receiving aggregates
@@ -228,6 +236,9 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 
           SuperNode<T> dist_src_snode;
           size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
+#ifndef _LINEAR_SEARCH_FCLC_
+          dist_src_snode.InitIdxToBlk();
+#endif
 
           //Deserialize the number of aggregates
           Int * aggregatesCnt = (Int *)(&src_blocks[0]+read_bytes);
@@ -245,22 +256,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
           logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<std::endl;
 #endif
 
-//if(src_snode.Id()==11){
-//          logfileptr->OFS()<<"RECV AGGREGATE "<<dist_src_snode<<std::endl;
-//          logfileptr->OFS()<<"TGT "<<src_snode<<std::endl;
-////gdb_lock();
-//}
-
-
-
-//          FBAggregateSuperNode(dist_src_snode,src_snode,curUpdate.blkidx, curUpdate.src_first_row);
-#ifdef COMPACT_AGGREGATES
-          src_snode.AggregateCompact(dist_src_snode);
-#else
-          SnodeUpdate curUpdate;
-          dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false);
-          src_snode.Aggregate(dist_src_snode,curUpdate,tmpBufs);
-#endif
+          src_snode.Aggregate(dist_src_snode);
           AggregatesToRecv(src_snode.Id()-1) -= *aggregatesCnt;
 
         }
@@ -405,27 +401,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
   Real timeStaTask =  get_time( );
 #endif
 
-#ifdef COMPACT_AGGREGATES
-              if(iTarget != iam){
-//                if(AggregatesDone[curUpdate.tgt_snode_id-1]==1){ gdb_lock(); }
-                tgt_aggreg->Merge(*cur_src_snode,curUpdate);
-
-
-//if(tgt_aggreg->Id()==11){
-//          logfileptr->OFS()<<"CUR AGGREGATE "<<*tgt_aggreg<<std::endl;
-//          logfileptr->OFS()<<"RECV FACTOR "<<*cur_src_snode<<std::endl;
-////gdb_lock();
-//}
-
-                tgt_aggreg->UpdateCompact(*cur_src_snode,curUpdate,tmpBufs);
-
-              }
-              else{
-                tgt_aggreg->Update(*cur_src_snode,curUpdate,tmpBufs);
-              }
-#else
-              tgt_aggreg->Update(*cur_src_snode,curUpdate,tmpBufs);
-#endif
+              tgt_aggreg->UpdateAggregate(*cur_src_snode,curUpdate,tmpBufs,iTarget);
 
 #ifdef TRACK_PROGRESS
   timeEnd =  get_time( );
@@ -658,6 +634,9 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_sn
 
     SuperNode<T> * dist_src_snode = new SuperNode<T>();
     Deserialize(&src_blocks[0],*dist_src_snode);
+#ifndef _LINEAR_SEARCH_FCLC_
+    dist_src_snode->InitIdxToBlk();
+#endif
 
 #ifdef _DEBUG_PROGRESS_
     logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode->Id()<<std::endl;
@@ -683,7 +662,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
   bool is_last = taskList.empty();
 
   //Index of the last global snode to do
+#ifdef _DEADLOCK_
+  const SnodeUpdateFB * nextTask = (!taskList.empty())?&taskList.front():NULL;
+#else
   const SnodeUpdateFB * nextTask = (!taskList.empty())?&taskList.top():NULL;
+#endif
 
 #ifdef _DEBUG_DELAY_
   {
@@ -696,7 +679,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
     while( tmp.size()>0){
       //Pull the highest priority message
       #ifndef _USE_TAU_
+#ifdef _DEADLOCK_
+      const FBDelayedComm<T> & comm = tmp.front();
+#else
       const FBDelayedComm<T> & comm = tmp.top();
+#endif
 
       if(comm.type==FACTOR){
         logfileptr->OFS()<<" { F "<<comm.src_data->Id()<<" -> "<<comm.tgt_snode_id<<" }";
@@ -705,7 +692,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
         logfileptr->OFS()<<" { A "<<comm.src_data->Id()<<" -> "<<comm.tgt_snode_id<<" }";
       }
       #else
+#ifdef _DEADLOCK_
+      const FBDelayedComm & comm = tmp.front();
+#else
       const FBDelayedComm & comm = tmp.top();
+#endif
 
       if(comm.type==FACTOR){
         logfileptr->OFS()<<" { F "<<comm.src_snode_id<<" -> "<<comm.tgt_snode_id<<" }";
@@ -730,7 +721,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
   while( MsgToSend.size()>0){
     //Pull the highest priority message
 #ifndef _USE_TAU_
+#ifdef _DEADLOCK_
+    const FBDelayedComm<T> & comm = MsgToSend.front();
+#else
     const FBDelayedComm<T> & comm = MsgToSend.top();
+#endif
     const Int & tgt_snode_id = comm.tgt_snode_id;
     const Int & src_nzblk_idx = comm.src_nzblk_idx;
     const Int & src_first_row = comm.src_first_row;
@@ -738,7 +733,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
     SuperNode<T> * src_data = comm.src_data;
     Int src_snode_id = src_data->Id();
 #else
+#ifdef _DEADLOCK_
+    const FBDelayedComm & comm = MsgToSend.front();
+#else
     const FBDelayedComm & comm = MsgToSend.top();
+#endif
     const Int & tgt_snode_id = comm.tgt_snode_id;
     const Int & src_nzblk_idx = comm.src_nzblk_idx;
     const Int & src_first_row = comm.src_first_row;

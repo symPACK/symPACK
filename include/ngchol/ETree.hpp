@@ -47,7 +47,7 @@ public:
 
   void PostOrderTree(Ordering & aOrder);
 
-//  ETree ToSupernodalETree(IntNumVec & aXsuper) const;
+  ETree ToSupernodalETree(IntNumVec & aXsuper,IntNumVec & aSupMembership,Ordering & aOrder) const;
 
   inline bool IsPostOrdered() const { return bIsPostOrdered_;};
   inline Int n() const { return n_; };

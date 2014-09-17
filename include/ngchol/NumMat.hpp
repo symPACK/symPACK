@@ -12,6 +12,8 @@
 
 namespace LIBCHOLESKY{
 
+template <typename T> class SuperNode;
+
 /// @class NumMat
 ///
 /// @brief Numerical matrix.
