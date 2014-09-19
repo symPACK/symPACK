@@ -8,6 +8,14 @@
 #include "ngchol/Environment.hpp"
 #include "ngchol/LogFile.hpp"
 
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) 
+#define TIMER_STOP(a) 
+#endif
+#endif
+
+
 using namespace std;
 
 namespace LIBCHOLESKY{
@@ -58,17 +66,11 @@ protected:
       Int height_(ITNode *N);
       Int max_(ITNode *N);
 
-      // A utility function to right rotate subtree rooted with y
-      // See the diagram given above.
-      ITNode * rightRotate_(ITNode *y);
 
-      ITNode * leftRotate_(ITNode *x);
-      // Get Balance factor of node N
-      Int getBalance_(ITNode *N);
       // A utility function to insert a new Interval Search Tree Node
       // This is similar to BST Insert.  Here the low value of interval
       // is used tomaintain BST property
-      ITNode *insert_(ITNode *root, Interval & i);
+      virtual ITNode *insert_(ITNode *root, Interval & i);
       Int recomputeMax_(ITNode * root);
 
       // A utility function to check if given two intervals overlap
@@ -82,220 +84,6 @@ protected:
       Int getSize_(ITNode *root);
 
 
-
-
-///
-///
-///      // A utility function to create a new Interval Search Tree Node
-///      ITNode * newNode_(Interval & i)
-///      {
-///        ITNode *temp = new ITNode;
-///        temp->i = new Interval(i);
-///        temp->max = i.high;
-///        temp->left = temp->right = NULL;
-///        temp->height = 1;
-///        return temp;
-///      };
-///
-///
-///Int height_(ITNode *N)
-///{
-///    if (N == NULL)
-///        return 0;
-///    return N->height;
-///}
-///
-///Int max_(ITNode *N)
-///{
-///    if (N == NULL)
-///        return 0;
-///    return N->max;
-///}
-///
-///
-///// A utility function to right rotate subtree rooted with y
-///// See the diagram given above.
-///ITNode * rightRotate_(ITNode *y)
-///{
-///    ITNode *x = y->left;
-///    ITNode *T2 = x->right;
-/// 
-///    // Perform rotation
-///    x->right = y;
-///    y->left = T2;
-/// 
-///    // Update heights
-///    y->height = max(height_(y->left), height_(y->right))+1;
-///    x->height = max(height_(x->left), height_(x->right))+1;
-/// 
-///    // Return new root
-///    return x;
-///}
-///ITNode * leftRotate_(ITNode *x)
-///{
-///    ITNode *y = x->right;
-///    ITNode *T2 = y->left;
-/// 
-///    // Perform rotation
-///    y->left = x;
-///    x->right = T2;
-/// 
-///    //  Update heights
-///    x->height = max(height_(x->left), height_(x->right))+1;
-///    y->height = max(height_(y->left), height_(y->right))+1;
-/// 
-///    // Return new root
-///    return y;
-///}
-///
-///// Get Balance factor of node N
-///Int getBalance_(ITNode *N)
-///{
-///    if (N == NULL)
-///        return 0;
-///    return height_(N->left) - height_(N->right);
-///}
-///
-///
-///      // A utility function to insert a new Interval Search Tree Node
-///      // This is similar to BST Insert.  Here the low value of interval
-///      // is used tomaintain BST property
-///      ITNode *insert_(ITNode *root, Interval & i)
-///      {
-///        // Base case: Tree is empty, new node becomes root
-///        if (root == NULL)
-///          return newNode_(i);
-///
-///        // Get low value of interval at root
-///        Int l = root->i->low;
-///
-///        // If root's low value is smaller, then new interval goes to
-///        // left subtree
-///        if (i.low < l)
-///          root->left = insert_(root->left, i);
-///
-///        // Else, new node goes to right subtree.
-///        else
-///          root->right = insert_(root->right, i);
-///
-///        // Update the max value of this ancestor if needed
-///        if (root->max < i.high)
-///          root->max = i.high;
-///
-///
-///
-///
-///    /* 2. Update height of this ancestor node */
-///    root->height = max(height_(root->left), height_(root->right)) + 1;
-/// 
-///    /* 3. Get the balance factor of this ancestor node to check whether
-///       this node became unbalanced */
-///    Int balance = getBalance_(root);
-/// 
-///    // If this node becomes unbalanced, then there are 4 cases
-/// 
-///    // Left Left Case
-///    if (balance > 1 && i.low < root->left->i->low)
-///        root = rightRotate_(root);
-/// 
-///    // Right Right Case
-///    if (balance < -1 && i.low > root->right->i->low)
-///        root = leftRotate_(root);
-/// 
-///    // Left Right Case
-///    if (balance > 1 && i.low > root->left->i->low)
-///    {
-///       root->left =  leftRotate_(root->left);
-///       root = rightRotate_(root);
-///    }
-/// 
-///    // Right Left Case
-///    if (balance < -1 && i.low < root->right->i->low)
-///    {
-///        root->right = rightRotate_(root->right);
-///        root = leftRotate_(root);
-///    }
-///    //recompute max
-///    recomputeMax_(root);
-///
-///        return root;
-///      }
-///
-///      Int recomputeMax_(ITNode * root){
-///        root->max = root->i->high;
-///
-///        if(root->left != NULL){
-///          recomputeMax_(root->left);
-///          if(root->max < max_(root->left)){
-///            root->max = max_(root->left);
-///          } 
-///        }
-///
-///        if(root->right != NULL){
-///          recomputeMax_(root->right);
-///          if(root->max < max_(root->right)){
-///            root->max = max_(root->right);
-///          } 
-///        }
-///        return root->max;
-///      }
-///
-///
-///      // A utility function to check if given two intervals overlap
-///      bool doOVerlap_(Interval &i1, Interval &i2)
-///      {
-///        if (i1.low <= i2.high && i2.low <= i1.high)
-///          return true;
-///        return false;
-///      }
-///
-///
-///      // The main function that searches a given interval i in a given
-///      // Interval Tree.
-///      Interval *intervalSearch_(ITNode *root, Interval &i)
-///      {
-///        // Base Case, tree is empty
-///        if (root == NULL) return NULL;
-///
-///        // If given interval overlaps with root
-///        if (doOVerlap_(*(root->i), i))
-///          return root->i;
-///
-///        // If left child of root is present and max of left child is
-///        // greater than or equal to given interval, then i may
-///        // overlap with an interval is left subtree
-///        if (root->left != NULL && root->left->max >= i.low)
-///          return intervalSearch_(root->left, i);
-///
-///        // Else interval can only overlap with right subtree
-///        return intervalSearch_(root->right, i);
-///      }
-///
-///
-///      void inorder_(ITNode *root)
-///      {
-///        if (root == NULL) return;
-///
-///        inorder_(root->left);
-///
-///        logfileptr->OFS()<< "[" << root->i->low << ", " << root->i->high << "] on "<<root->i->block_idx
-///          << " max = " << root->max << endl;
-///
-///        inorder_(root->right);
-///      }
-///
-///
-///      Int getSize_(ITNode *root)
-///      {
-///        if (root == NULL) return 0;
-///
-///        Int size = getSize_(root->left);
-///        size += sizeof(*root);
-///        size += getSize_(root->right);
-///        return size;
-///      }
-///
-
 public:
 
 
@@ -304,13 +92,15 @@ public:
       }
 
 
-      ~ITree()
+      virtual ~ITree()
       {
         if(root_!=NULL){
           delete root_;
         }
       }
 
+
+      virtual void Rebalance(){};
 
       void Dump()
       {
@@ -321,9 +111,11 @@ public:
 
       void Insert(Interval & i)
       {
+        TIMER_START(ITREE_INSERT);
         //logfileptr->OFS()<<"Interval ["<<i.low<<" -- "<<i.high<<"] is inserted"<<endl;
         root_ = insert_(root_,i);
         
+        TIMER_STOP(ITREE_INSERT);
       }
 
       void Insert(Int i)
@@ -352,9 +144,188 @@ public:
 
   };
 
+
+  class AVLITree: public ITree{
+    public:
+
+protected:
+      // A utility function to right rotate subtree rooted with y
+      // See the diagram given above.
+      ITNode * rightRotate_(ITNode *y);
+
+      ITNode * leftRotate_(ITNode *x);
+      // Get Balance factor of node N
+      Int getBalance_(ITNode *N);
+
+      // A utility function to insert a new Interval Search Tree Node
+      // This is similar to BST Insert.  Here the low value of interval
+      // is used tomaintain BST property
+      virtual ITNode *insert_(ITNode *root, Interval & i);
+
+
+public:
+
+
+      AVLITree():ITree()
+      {
+      }
+
+
+      virtual ~AVLITree()
+      {
+      }
+  };
+
+  class DSWITree: public ITree{
+    public:
+
+protected:
+      inline Int fullSize_ ( Int size );
+      void tree_to_vine_ (ITNode * root, Int &size);
+      void compression_  (ITNode * root, Int count);
+      void vine_to_tree_ (ITNode * root, Int n);
+      void correctTree_  (ITNode * root);
+
+
+public:
+
+
+      DSWITree():ITree()
+      {
+      }
+
+
+      virtual ~DSWITree()
+      {
+      }
+      
+      virtual void Rebalance();
+  };
+
+
+
+
+
+
+
   namespace UnitTest{
     bool ITree_Test();
   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+////
+////struct TreeNode
+////{
+////    enum Kind {RED, BLUE};
+////
+////    TreeNode(Kind kind_, TreeNode* left_ = NULL, TreeNode* right_ = NULL)
+////        : kind(kind_), left(left_), right(right_)
+////    {}
+////
+////    Kind kind;
+////    TreeNode *left, *right;
+////};
+////
+////template <typename Derived>
+////class GenericVisitor
+////{
+////public:
+////    void visit_preorder(TreeNode* node)
+////    {
+////        if (node) {
+////            dispatch_node(node);
+////            visit_preorder(node->left);
+////            visit_preorder(node->right);
+////        }
+////    }
+////
+////    void visit_inorder(TreeNode* node)
+////    {
+////        if (node) {
+////            visit_inorder(node->left);
+////            dispatch_node(node);
+////            visit_inorder(node->right);
+////        }
+////    }
+////
+////    void visit_postorder(TreeNode* node)
+////    {
+////        if (node) {
+////            visit_postorder(node->left);
+////            visit_postorder(node->right);
+////            dispatch_node(node);
+////        }
+////    }
+////
+////    void handle_RED(TreeNode* node)
+////    {
+////        cerr << "Generic handle RED\n";
+////    }
+////
+////    void handle_BLUE(TreeNode* node)
+////    {
+////        cerr << "Generic handle BLUE\n";
+////    }
+////
+////private:
+////    // Convenience method for CRTP
+////    //
+////    Derived& derived()
+////    {
+////        return *static_cast<Derived*>(this);
+////    }
+////
+////    void dispatch_node(TreeNode* node)
+////    {
+////        switch (node->kind) {
+////            case TreeNode::RED:
+////                derived().handle_RED(node);
+////                break;
+////            case TreeNode::BLUE:
+////                derived().handle_BLUE(node);
+////                break;
+////            default:
+////                assert(0);
+////        }
+////    }
+////};
+////
+////class SpecialVisitor : public GenericVisitor<SpecialVisitor>
+////{
+////public:
+////    void handle_RED(TreeNode* node)
+////    {
+////        cerr << "RED is special\n";
+////    }
+////};
+////
+
+
+
+
+
+
+
+
 }
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) TAU_FSTART(a);
+#define TIMER_STOP(a) TAU_FSTOP(a);
+#endif
+#endif
+
 
 #endif

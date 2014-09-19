@@ -233,12 +233,13 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
           MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&recv_status);
 #endif
 //          logfileptr->OFS()<<"RECV2 after"<<endl;
+          TIMER_STOP(RECV_MPI);
 
           SuperNode<T> dist_src_snode;
           size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
-#ifndef _LINEAR_SEARCH_FCLC_
-          dist_src_snode.InitIdxToBlk();
-#endif
+//#if not(defined(_LINEAR_SEARCH_FCLC_) || defined(_LAZY_INIT))
+//          dist_src_snode.InitIdxToBlk();
+//#endif
 
           //Deserialize the number of aggregates
           Int * aggregatesCnt = (Int *)(&src_blocks[0]+read_bytes);
@@ -329,6 +330,14 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
           src_blocks.resize(0);
           src_snode_id = abs(src_snode_id);
           SuperNode<T> * cur_src_snode = FBRecvFactor(src_snode_id,tgt_snode_id,src_blocks);
+
+
+///#ifdef _LINEAR_SEARCH_FCLC_
+///  if(!cur_src_snode->ITreeInitialized()){ 
+///    cur_src_snode->InitIdxToBlk();
+///  }
+///#endif
+
           //need to be updated because we might have received from someone else
           src_snode_id = cur_src_snode->Id();
 #ifdef _DEBUG_PROGRESS_
@@ -345,6 +354,7 @@ logfileptr->OFS()<<"YOUHOU WE HAVE ASYNC HERE !!! expected: "<< abs(curTask.src_
           SnodeUpdate curUpdate;
           if(curTask.src_snode_id<0){
 //gdb_lock();
+
             curUpdate.tgt_snode_id  = curTask.tgt_snode_id;
             curUpdate.src_first_row = Xsuper_[curTask.tgt_snode_id-1];
             while( (curUpdate.next_blkidx = cur_src_snode->FindBlockIdx(curUpdate.src_first_row)) == -1){curUpdate.src_first_row++;} 
@@ -630,11 +640,12 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_sn
 //    logfileptr->OFS()<<"RECV After"<<endl;
 
 
+    TIMER_STOP(RECV_MPI);
 
 
     SuperNode<T> * dist_src_snode = new SuperNode<T>();
     Deserialize(&src_blocks[0],*dist_src_snode);
-#ifndef _LINEAR_SEARCH_FCLC_
+#if not(defined(_LINEAR_SEARCH_FCLC_) || defined(_LAZY_INIT))
     dist_src_snode->InitIdxToBlk();
 #endif
 

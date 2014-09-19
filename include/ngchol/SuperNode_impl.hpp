@@ -28,7 +28,7 @@
       blocks_ = NULL;
       blocks_cnt_ = 0;
 
-      idxToBlk_ = new ITree();
+      idxToBlk_ = CreateITree();
 
       b_own_storage_ = true;
 
@@ -49,7 +49,7 @@
       blocks_ = NULL;
       blocks_cnt_ = 0;
 
-      idxToBlk_ = new ITree();
+      idxToBlk_ = CreateITree();
 
       b_own_storage_ = true;
 
@@ -110,7 +110,7 @@
       blocks_ = &blocks_container_.front();
 
 
-      idxToBlk_ = new ITree();
+      idxToBlk_ = CreateITree();
 
     }
 
@@ -144,7 +144,7 @@
       }
 
       //initIdxToBlk_(true);
-      idxToBlk_ = new ITree();
+      idxToBlk_ = CreateITree();
 #else
       trc_SNodeInit(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt, *this);
 #endif
@@ -159,11 +159,11 @@
         Int cur_fr = aiGIndex;
         Int cur_lr = cur_fr + aiNRows -1;
 
-#ifdef INTERVAL_TREE
+//#ifdef INTERVAL_TREE
         
         ITree::Interval cur_interv = { cur_fr, cur_lr, blocks_cnt_};
         idxToBlk_->Insert(cur_interv);
-#endif
+//#endif
 
         blocks_container_.push_back(NZBlockDesc(aiGIndex,nzval_cnt_));
 
@@ -178,17 +178,28 @@
 
   template<typename T>
     inline Int SuperNode<T>::FindBlockIdx(Int aiGIndex){
+      TIMER_START(FindBlockIdx);
+//      if(Id()==3 && aiGIndex==46){gdb_lock(0);}
       //      ITree::Interval it = {aiGIndex, aiGIndex,0};
       //      ITree::Interval * res = idxToBlk_->IntervalSearch(it);
-#ifdef INTERVAL_TREE
+//#ifdef INTERVAL_TREE
+#ifdef _LAZY_INIT_
+    if(!ITreeInitialized()){
+      InitIdxToBlk();
+    }
+#endif
+
+
       ITree::Interval * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex);
       if (res == NULL){
+        TIMER_STOP(FindBlockIdx);
         return -1;
       }
       else{
+        TIMER_STOP(FindBlockIdx);
         return res->block_idx;
       }
-#endif
+//#endif
     }
 
   template<typename T>
@@ -307,15 +318,17 @@
 ////
 ////      TIMER_STOP(AGGREG_SNODE_FIND_INDEX);
 
-      Int tgt_fc;
-      Int first_pivot_idx;
-      FindUpdatedFirstCol(src_snode, 0, tgt_fc, first_pivot_idx);
-      NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
+//      Int tgt_fc;
+//      Int first_pivot_idx;
+//      FindUpdatedFirstCol(src_snode, 0, tgt_fc, first_pivot_idx);
+//      NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
 
 
 
       //parse src_snode and add everything
 
+      Int first_pivot_idx = 0 ;
+      Int tgt_fc = FirstCol();
 
       for(Int blkidx = first_pivot_idx; blkidx<src_snode.NZBlockCnt(); ++blkidx){
         NZBlockDesc & blk_desc = src_snode.GetNZBlockDesc(blkidx);
@@ -603,9 +616,14 @@
 
   template<typename T>
     inline void SuperNode<T>::FindUpdatedFirstCol(SuperNode<T> & src_snode, Int pivot_fr, Int & tgt_fc, Int & first_pivot_idx){
+//gdb_lock();
       //find the first row updated by src_snode
       TIMER_START(UPDATE_SNODE_FIND_INDEX);
-#ifndef _LINEAR_SEARCH_FCLC_
+
+
+#ifdef _LINEAR_SEARCH_FCLC_
+    if(src_snode.ITreeInitialized()){
+#endif 
       tgt_fc = pivot_fr;
       first_pivot_idx = -1;
       if(tgt_fc == I_ZERO ){
@@ -618,7 +636,9 @@
       else{
         first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
       }
-#else
+#ifdef _LINEAR_SEARCH_FCLC_
+    }
+    else{
       tgt_fc = pivot_fr;
       first_pivot_idx = -1;
       if(tgt_fc == I_ZERO ){
@@ -653,15 +673,20 @@
           }
         }
       }
+    }
 #endif
+      if(first_pivot_idx<0){gdb_lock();}
       assert(first_pivot_idx>=0);
       TIMER_STOP(UPDATE_SNODE_FIND_INDEX);
   }
 
   template<typename T>
     inline void SuperNode<T>::FindUpdatedLastCol(SuperNode<T> & src_snode, Int tgt_fc, Int first_pivot_idx , Int & tgt_lc,  Int & last_pivot_idx){
+//gdb_lock();
       TIMER_START(UPDATE_SNODE_FIND_INDEX);
-#ifndef _LINEAR_SEARCH_FCLC_
+#ifdef _LINEAR_SEARCH_FCLC_
+    if(src_snode.ITreeInitialized()){
+#endif 
       //find the last row updated by src_snode
       tgt_lc = LastCol();
       last_pivot_idx = -1;
@@ -669,7 +694,9 @@
       do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
       while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
       tgt_lc++;
-#else
+#ifdef _LINEAR_SEARCH_FCLC_
+    }
+    else{
         tgt_lc = tgt_fc;
         for(Int blkidx = first_pivot_idx; blkidx<src_snode.NZBlockCnt();++blkidx){
           NZBlockDesc & cur_block = src_snode.GetNZBlockDesc(blkidx);
@@ -678,18 +705,25 @@
           
           
           if(cur_fr <= LastCol()){
-             if(LastCol()<=cur_lr){
+             if(LastCol()<cur_lr){
+              last_pivot_idx = blkidx;
               tgt_lc = LastCol();
              }
+             else if(LastCol() == cur_lr){
+              last_pivot_idx = blkidx;
+              tgt_lc = LastCol();
+              break;
+             }
              else{
+              last_pivot_idx = blkidx;
               tgt_lc = cur_lr;
             }
-            last_pivot_idx = blkidx;
           }
           else{
             break;
           }
         }
+    }
 #endif
       assert(last_pivot_idx>=0);
       TIMER_STOP(UPDATE_SNODE_FIND_INDEX);
@@ -954,8 +988,28 @@
         tgt_snode_id = SupMembership[f_ur-1];
         Int tgt_lc = Xsuper[tgt_snode_id]-1;
 
+        
+        Int src_tgt_lb = -1;
+#ifdef _LINEAR_SEARCH_FCLC_
+    if(ITreeInitialized()){
+#endif 
         //or use FindBlockIdx
-        Int src_tgt_lb = FindBlockIdx(tgt_lc);
+        src_tgt_lb = FindBlockIdx(tgt_lc);
+#ifdef _LINEAR_SEARCH_FCLC_
+    }
+    else{
+        for(Int blkidx = n_ub; blkidx<NZBlockCnt();++blkidx){
+          NZBlockDesc & cur_block = GetNZBlockDesc(blkidx);
+          Int cur_fr = cur_block.GIndex;
+          Int cur_lr = cur_block.GIndex + NRows(blkidx)-1;
+
+          if(cur_fr<= tgt_lc && tgt_lc<=cur_lr){
+            src_tgt_lb = blkidx;
+            break;
+          }
+        }
+    }
+#endif
         //if tgt_lc not found in the current column we need to resume at the next block 
         if(src_tgt_lb==-1){
           for(n_ub;n_ub<NZBlockCnt();++n_ub){
@@ -982,6 +1036,7 @@
             n_ur = (n_ub<NZBlockCnt())?GetNZBlockDesc(n_ub).GIndex:-1;
           }
         }
+
         //src_snode updates tgt_snode_id. Then we need to look from row n_ur and block l_ub
         nextUpdate.src_snode_id = Id();
         return true;
@@ -993,10 +1048,20 @@
     }
 
 
+  template<typename T>
+  inline ITree * SuperNode<T>::CreateITree(){
+    #if defined(_AVL_ITREE_)
+      return new AVLITree();
+    #elif defined(_DSW_ITREE_)
+      return new DSWITree();
+    #else
+      return new ITree();
+    #endif
+  } 
 
   template<typename T>
   inline void SuperNode<T>::InitIdxToBlk(){
-#ifdef INTERVAL_TREE
+//#ifdef INTERVAL_TREE
         for(Int blkidx=0; blkidx<blocks_cnt_;++blkidx){
           Int cur_fr = blocks_[blkidx].GIndex;
           Int cur_lr = cur_fr + NRows(blkidx) -1;
@@ -1004,7 +1069,8 @@
           ITree::Interval cur_interv = { cur_fr, cur_lr, blkidx};
           idxToBlk_->Insert(cur_interv);
         }
-#endif
+      idxToBlk_->Rebalance();
+//#endif
   }
 
 

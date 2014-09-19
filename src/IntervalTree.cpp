@@ -48,48 +48,6 @@ namespace LIBCHOLESKY{
   }
 
 
-  // A utility function to right rotate subtree rooted with y
-  // See the diagram given above.
-  ITree::ITNode * ITree::rightRotate_(ITree::ITNode *y)
-  {
-    ITree::ITNode *x = y->left;
-    ITree::ITNode *T2 = x->right;
-
-    // Perform rotation
-    x->right = y;
-    y->left = T2;
-
-    // Update heights
-    y->height = max(height_(y->left), height_(y->right))+1;
-    x->height = max(height_(x->left), height_(x->right))+1;
-
-    // Return new root
-    return x;
-  }
-  ITree::ITNode * ITree::leftRotate_(ITree::ITNode *x)
-  {
-    ITree::ITNode *y = x->right;
-    ITree::ITNode *T2 = y->left;
-
-    // Perform rotation
-    y->left = x;
-    x->right = T2;
-
-    //  Update heights
-    x->height = max(height_(x->left), height_(x->right))+1;
-    y->height = max(height_(y->left), height_(y->right))+1;
-
-    // Return new root
-    return y;
-  }
-
-  // Get Balance factor of node N
-  Int ITree::getBalance_(ITree::ITNode *N)
-  {
-    if (N == NULL)
-      return 0;
-    return height_(N->left) - height_(N->right);
-  }
 
 
   // A utility function to insert a new ITree::Interval Search Tree Node
@@ -126,47 +84,6 @@ namespace LIBCHOLESKY{
 
     /* 2. Update height of this ancestor node */
     root->height = max(height_(root->left), height_(root->right)) + 1;
-
-#ifdef _SELF_BALANCE_TREE_
-    /* 3. Get the balance factor of this ancestor node to check whether
-       this node became unbalanced */
-    Int balance = getBalance_(root);
-
-    // If this node becomes unbalanced, then there are 4 cases
-
-    // Left Left Case
-    if (balance > 1 && i.low < root->left->i->low)
-    {
-      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
-      //logfileptr->OFS()<<" LEFT LEFT ROTATION "<<endl;
-      root = rightRotate_(root);
-    }
-    // Right Right Case
-    else if (balance < -1 && i.low > root->right->i->low)
-    {
-      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
-      //logfileptr->OFS()<<" RIGHT RIGHT ROTATION "<<endl;
-      root = leftRotate_(root);
-    }
-    // Left Right Case
-    else if (balance > 1 && i.low > root->left->i->low)
-    {
-      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
-      //logfileptr->OFS()<<" LEFT RIGHT ROTATION "<<endl;
-      root->left =  leftRotate_(root->left);
-      root = rightRotate_(root);
-    }
-    // Right Left Case
-    else if (balance < -1 && i.low < root->right->i->low)
-    {
-      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
-      //logfileptr->OFS()<<" RIGHT LEFT ROTATION "<<endl;
-      root->right = rightRotate_(root->right);
-      root = leftRotate_(root);
-    }
-    //recompute max
-    recomputeMax_(root);
-#endif
 
     return root;
   }
@@ -263,6 +180,205 @@ namespace LIBCHOLESKY{
   }
 
 
+  //AVLITree
+
+
+
+  // A utility function to insert a new ITree::Interval Search Tree Node
+  // This is similar to BST Insert.  Here the low value of interval
+  // is used tomaintain BST property
+  ITree::ITNode * AVLITree::insert_(ITree::ITNode *root, ITree::Interval & i)
+  {
+    root = ITree::insert_(root,i);
+
+    TIMER_START(ITREE_BALANCE_AVL);
+    /* 3. Get the balance factor of this ancestor node to check whether
+       this node became unbalanced */
+    Int balance = getBalance_(root);
+
+    // If this node becomes unbalanced, then there are 4 cases
+
+    // Left Left Case
+    if (balance > 1 && i.low < root->left->i->low)
+    {
+      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
+      //logfileptr->OFS()<<" LEFT LEFT ROTATION "<<endl;
+      root = rightRotate_(root);
+    }
+    // Right Right Case
+    else if (balance < -1 && i.low > root->right->i->low)
+    {
+      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
+      //logfileptr->OFS()<<" RIGHT RIGHT ROTATION "<<endl;
+      root = leftRotate_(root);
+    }
+    // Left Right Case
+    else if (balance > 1 && i.low > root->left->i->low)
+    {
+      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
+      //logfileptr->OFS()<<" LEFT RIGHT ROTATION "<<endl;
+      root->left =  leftRotate_(root->left);
+      root = rightRotate_(root);
+    }
+    // Right Left Case
+    else if (balance < -1 && i.low < root->right->i->low)
+    {
+      //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
+      //logfileptr->OFS()<<" RIGHT LEFT ROTATION "<<endl;
+      root->right = rightRotate_(root->right);
+      root = leftRotate_(root);
+    }
+    //recompute max
+    recomputeMax_(root);
+    TIMER_STOP(ITREE_BALANCE_AVL);
+
+    return root;
+  }
+
+
+  // A utility function to right rotate subtree rooted with y
+  // See the diagram given above.
+  ITree::ITNode * AVLITree::rightRotate_(ITree::ITNode *y)
+  {
+    ITree::ITNode *x = y->left;
+    ITree::ITNode *T2 = x->right;
+
+    // Perform rotation
+    x->right = y;
+    y->left = T2;
+
+    // Update heights
+    y->height = max(height_(y->left), height_(y->right))+1;
+    x->height = max(height_(x->left), height_(x->right))+1;
+
+    // Return new root
+    return x;
+  }
+  ITree::ITNode * AVLITree::leftRotate_(ITree::ITNode *x)
+  {
+    ITree::ITNode *y = x->right;
+    ITree::ITNode *T2 = y->left;
+
+    // Perform rotation
+    y->left = x;
+    x->right = T2;
+
+    //  Update heights
+    x->height = max(height_(x->left), height_(x->right))+1;
+    y->height = max(height_(y->left), height_(y->right))+1;
+
+    // Return new root
+    return y;
+  }
+
+  // Get Balance factor of node N
+  Int AVLITree::getBalance_(ITree::ITNode *N)
+  {
+    if (N == NULL)
+      return 0;
+    return height_(N->left) - height_(N->right);
+  }
+
+
+  //DSWITree
+
+// Tree to Vine algorithm:  a "pseudo-root" is passed ---
+// comparable with a dummy header for a linked list.
+void DSWITree::tree_to_vine_( ITree::ITNode* root, Int &size )
+{  
+  ITree::ITNode* vineTail, *remainder, *tempPtr;
+
+   vineTail = root;
+   remainder = vineTail->right;
+   size = 0;
+
+   while ( remainder != NULL )
+   {//If no leftward subtree, move rightward
+      if ( remainder->left == NULL )
+      {  vineTail = remainder;
+         remainder = remainder->right;
+         size++;
+      }
+//    else eliminate the leftward subtree by rotations
+      else  /* Rightward rotation */
+      {  tempPtr = remainder->left;
+         remainder->left = tempPtr->right;
+         tempPtr->right = remainder;
+         remainder = tempPtr;
+         vineTail->right = tempPtr;
+      }
+   }
+}
+
+void DSWITree::compression_( ITree::ITNode* root, Int count )
+{  
+    ITree::ITNode * scanner, *child;
+   Int     j;
+
+   scanner = root;
+   for ( j = 0; j < count; j++ )
+   {//Leftward rotation
+      child = scanner->right;
+      scanner->right = child->right;
+      scanner = scanner->right;
+      child->right = scanner->left;
+      scanner->left = child;
+   }  // end for
+}  // end compression
+
+// Code added by Tim Rolfe:  Expands on Warren & Stout's
+// notation involving powers, floors, and base-2 logs
+Int DSWITree::fullSize_( Int size )    // Full portion complete tree
+{  Int Rtn = 1;
+   while ( Rtn <= size )      // Drive one step PAST FULL
+      Rtn = Rtn + Rtn + 1;   // next pow(2,k)-1
+   return Rtn/2;
+}
+
+void DSWITree::vine_to_tree_ ( ITree::ITNode * root, Int size )
+{
+   Int full_count = fullSize_(size);
+   compression_(root, size - full_count);
+   for ( size = full_count ; size > 1 ; size /= 2 )
+      compression_( root, size / 2 );
+}
+
+// Traverse entire tree, correcting heights and parents
+void DSWITree::correctTree_( ITree::ITNode* node )
+{  if ( node != NULL )
+   {  Int LtHt, RtHt;
+
+      correctTree_ (node->left);
+      correctTree_ (node->right);
+      LtHt = node->left  ? node->left->height  : 0;
+      RtHt = node->right ? node->right->height : 0;
+      node->height = 1 + std::max( LtHt, RtHt );
+   }
+}
+
+void DSWITree::Rebalance()
+// Public member function:  Do the DSW algorithm to balance the tree
+{//Declare as automatic variable; remember to pass as pointer
+    TIMER_START(ITREE_BALANCE_DSW);
+//   BaseCell pseudo_root( -1, NULL, NULL, Root );
+
+   Int size;
+
+// Stout/Warren transformation of tree to vine
+   tree_to_vine_ (root_, size);
+
+   vine_to_tree_ (root_, size);
+
+   correctTree_ (root_->right);
+   recomputeMax_(root_);
+    TIMER_STOP(ITREE_BALANCE_DSW);
+}
+
+
+
+
+
+
   namespace UnitTest{
 
     bool ITree_Test(){
@@ -328,28 +444,32 @@ if(iam==0){
 
       tree = new ITree();
       tree->Insert(14);
-      tree->Dump();
+//      tree->Dump();
       tree->Insert(17);
-      tree->Dump();
+//     tree->Dump();
       tree->Insert(46);
-      tree->Dump();
+//      tree->Dump();
       tree->Insert(15);
-      tree->Dump();
+//      tree->Dump();
       tree->Insert(16);
-      tree->Dump();
+//      tree->Dump();
       tree->Insert(35);
-      tree->Dump();
+//      tree->Dump();
       tree->Insert(36);
-      tree->Dump();
+//      tree->Dump();
       tree->Insert(40);
-      tree->Dump();
+//      tree->Dump();
       tree->Insert(42);
-      tree->Dump();
+//      tree->Dump();
       tree->Insert(43);
-      tree->Dump();
+//      tree->Dump();
       tree->Insert(45);
-      tree->Dump();
+//      tree->Dump();
       tree->Insert(47);
+      tree->Dump();
+
+logfileptr->OFS()<<"Rebalancing the tree"<<endl;
+      tree->Rebalance();
       tree->Dump();
 
       delete tree;

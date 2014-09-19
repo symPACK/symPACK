@@ -25,6 +25,7 @@ namespace LIBCHOLESKY{
 
 
   template <typename T> void SupernodalMatrix<T>::Init(const DistSparseMatrix<T> & pMat, Int maxSnode,Mapping * pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm ){
+    TIMER_START(SUPERMATRIX_INIT);
   //Create the CommEnvironment object if necessary
     globalAllocated = false;
     if(CommEnv_!=NULL){
@@ -550,6 +551,7 @@ if(iam==0){
 
 
 
+    TIMER_STOP(SUPERMATRIX_INIT);
 
   }
 
@@ -944,10 +946,12 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
           MPI_Status recv_status;
           int bytes_received = 0;
 #if 1
+          TIMER_START(RECV_MPI);
           MPI_Probe(MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
           MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
           src_blocks.resize(bytes_received);
           MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
+          TIMER_STOP(RECV_MPI);
 #else
           TIMER_START(RECV_MALLOC);
           max_bytes = 5*sizeof(Int); 
@@ -988,6 +992,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 #else
           MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
 #endif
+          TIMER_STOP(RECV_MPI);
 #endif
 
           SuperNode<T> dist_contrib;

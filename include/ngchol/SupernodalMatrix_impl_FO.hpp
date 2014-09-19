@@ -533,6 +533,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
         //receive the index array
         MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
 #endif
+        TIMER_STOP(RECV_MPI);
 
         SuperNode<T> dist_src_snode;
         Deserialize(&src_blocks[0],dist_src_snode);

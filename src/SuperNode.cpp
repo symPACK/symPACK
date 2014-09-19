@@ -600,7 +600,7 @@ namespace LIBCHOLESKY{
         tgt_snode.blocks_[blkidx].Offset -= tgt_snode.blocks_[0].Offset;
       }
 
-      tgt_snode.idxToBlk_ = new ITree();
+      tgt_snode.idxToBlk_ = tgt_snode.CreateITree();
       //  tgt_snode.initIdxToBlk_(true);
 
 
