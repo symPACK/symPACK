@@ -138,6 +138,8 @@ class SuperNode{
 
 
   inline Int FindBlockIdx(Int aiGIndex);
+  inline Int FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap);
+
   inline void DumpITree();
   inline Int Shrink();
   

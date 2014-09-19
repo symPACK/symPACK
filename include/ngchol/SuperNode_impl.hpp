@@ -202,6 +202,36 @@
 //#endif
     }
 
+
+
+  template<typename T>
+  inline Int SuperNode<T>::FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap){
+      TIMER_START(FindBlockIdx);
+      //      ITree::Interval it = {aiGIndex, aiGIndex,0};
+      //      ITree::Interval * res = idxToBlk_->IntervalSearch(it);
+#ifdef _LAZY_INIT_
+    if(!ITreeInitialized()){
+      InitIdxToBlk();
+    }
+#endif
+
+
+      ITree::Interval * res = idxToBlk_->IntervalSearch(fr,lr);
+      if (res == NULL){
+        TIMER_STOP(FindBlockIdx);
+        return -1;
+      }
+      else{
+        TIMER_STOP(FindBlockIdx);
+        overlap = *res;
+        return res->block_idx;
+      }
+    }
+
+
+
+
+
   template<typename T>
     inline void SuperNode<T>::DumpITree(){
       logfileptr->OFS()<<"Number of blocks: "<<blocks_cnt_<<endl;
@@ -259,26 +289,55 @@
 ////
 ////      TIMER_STOP(MERGE_SNODE_FIND_INDEX);
 
+
       Int tgt_fc;
       Int first_pivot_idx;
       FindUpdatedFirstCol(src_snode, 0, tgt_fc, first_pivot_idx);
       NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
 
       //parse src_snode
+      ITree::Interval overlap;
       for(Int blkidx = first_pivot_idx; blkidx<src_snode.NZBlockCnt(); ++blkidx){
         NZBlockDesc & blk_desc = src_snode.GetNZBlockDesc(blkidx);
-        Int nrows = src_snode.NRows(blkidx);
-        for(Int rowidx = 0; rowidx<nrows; ++rowidx){
-          Int row = blk_desc.GIndex + rowidx;
-          //if the row is updating the target
-          if(row>=tgt_fc){
-            //check if the row is not already in the structure
-            if(FindBlockIdx(row)==-1){
-              //add a nzblock with a single row in it
-              AddNZBlock( 1, tgt_snode_size, row);
-            }
+        Int fr = blk_desc.GIndex;
+        Int lr = blk_desc.GIndex + src_snode.NRows(blkidx) -1;
+        
+        if(FindBlockIdx(fr,lr,overlap)==-1){
+          //Add the full block
+          AddNZBlock( lr - fr + 1, tgt_snode_size, fr);
+        }
+        else{
+          
+          //check the overlap
+          //                l-----overlap------h
+          //            l---------block-------------h
+          //        l--block----h
+          //                              l-----block----h
+          
+          if(overlap.high < lr){
+            //we need to add from high+1 to lr 
+            AddNZBlock( lr - overlap.high, tgt_snode_size, overlap.high+1);
+          }
+          
+          if(overlap.low>fr){
+            //we need to add fr to low-1 
+            AddNZBlock( overlap.low - fr, tgt_snode_size, fr);
           }
         }
+
+
+//        Int nrows = src_snode.NRows(blkidx);
+//        for(Int rowidx = 0; rowidx<nrows; ++rowidx){
+//          Int row = blk_desc.GIndex + rowidx;
+//          //if the row is updating the target
+//          if(row>=tgt_fc){
+//            //check if the row is not already in the structure
+//            if(FindBlockIdx(row)==-1){
+//              //add a nzblock with a single row in it
+//              AddNZBlock( 1, tgt_snode_size, row);
+//            }
+//          }
+//        }
       }
 
       TIMER_STOP(MERGE_SNODE);
@@ -545,6 +604,7 @@
               cur_src_nrows = cur_src_lr - cur_src_fr +1;
 
               //The other one MUST reside into a single block in the target
+              //NOT TRUE
               Int row = cur_src_fr;
               while(row<=cur_src_lr){
                 Int tgt_blk_idx = FindBlockIdx(row);

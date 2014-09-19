@@ -182,57 +182,70 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 #endif
 
 
-          TIMER_START(RECV_MALLOC);
-          if(src_blocks.size()==0){
-            max_bytes = 5*sizeof(Int); 
-            //The upper bound must be of the width of the "largest" child
-#ifdef _DEBUG_
-            logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;
-#endif
-
-            Int nrows = src_snode.NRowsBelowBlock(0);
-            Int ncols = src_snode.Size();
-            nz_cnt = nrows * ncols;
-
-            max_bytes += nrows*sizeof(NZBlockDesc);
-            max_bytes += nz_cnt*sizeof(T); 
-
-
-            max_bytes += sizeof(Int); 
-
-            src_blocks.resize(max_bytes);
-          }
-          TIMER_STOP(RECV_MALLOC);
+////          TIMER_START(RECV_MALLOC);
+////          if(src_blocks.size()==0){
+////            max_bytes = 5*sizeof(Int); 
+////            //The upper bound must be of the width of the "largest" child
+////#ifdef _DEBUG_
+////            logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;
+////#endif
+////
+////            Int nrows = src_snode.NRowsBelowBlock(0);
+////            Int ncols = src_snode.Size();
+////            nz_cnt = nrows * ncols;
+////
+////            max_bytes += nrows*sizeof(NZBlockDesc);
+////            max_bytes += nz_cnt*sizeof(T); 
+////
+////
+////            max_bytes += sizeof(Int); 
+////
+////            src_blocks.resize(max_bytes);
+////          }
+////          TIMER_STOP(RECV_MALLOC);
 
           TIMER_START(RECV_MPI);
           MPI_Status recv_status;
           int bytes_received = 0;
 
           Int tag = AGG_TAG(src_snode_id,tgt_snode_id);
-#ifdef PROBE_FIRST
+////#ifdef PROBE_FIRST
+////          MPI_Probe(MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&recv_status);
+////          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
+////
+////          bool doabort = false;
+////          int prev_size = 0;
+////          if(src_blocks.size()<bytes_received){
+////            gdb_lock();
+////            prev_size = src_blocks.size();
+////            doabort = true;
+////            //receive anyway
+////            src_blocks.resize(bytes_received);
+////          }
+////#endif
+////
+////
+////
+////
+//////          logfileptr->OFS()<<"RECV2 Bfore"<<endl;
+////#ifdef PROBE_FIRST
+////          MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,recv_status.MPI_SOURCE,tag,CommEnv_->MPI_GetComm(),&recv_status);
+////#else
+////          //receive the index array
+////          MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&recv_status);
+////#endif
+//////          logfileptr->OFS()<<"RECV2 after"<<endl;
+
+
           MPI_Probe(MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&recv_status);
           MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-
-          bool doabort = false;
-          int prev_size = 0;
-          if(src_blocks.size()<bytes_received){
-            gdb_lock();
-            prev_size = src_blocks.size();
-            doabort = true;
-            //receive anyway
-            src_blocks.resize(bytes_received);
-          }
-#endif
-
-
-//          logfileptr->OFS()<<"RECV2 Bfore"<<endl;
-#ifdef PROBE_FIRST
+          TIMER_START(RECV_MALLOC);
+          src_blocks.resize(bytes_received);
+          TIMER_STOP(RECV_MALLOC);
           MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,recv_status.MPI_SOURCE,tag,CommEnv_->MPI_GetComm(),&recv_status);
-#else
-          //receive the index array
-          MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&recv_status);
-#endif
-//          logfileptr->OFS()<<"RECV2 after"<<endl;
+
+
+
           TIMER_STOP(RECV_MPI);
 
           SuperNode<T> dist_src_snode;
@@ -606,6 +619,7 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
 
 
 template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_snode_id,Int tgt_snode_id, std::vector<char> & src_blocks){
+  TIMER_START(RECV_FACTORS);
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
   SuperNode<T> * cur_src_snode = NULL;
@@ -659,6 +673,7 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_sn
     cur_src_snode = dist_src_snode;
 
   }
+  TIMER_STOP(RECV_FACTORS);
   return cur_src_snode;
 }
 

@@ -16,6 +16,7 @@
 #endif
 
 
+
 using namespace std;
 
 namespace LIBCHOLESKY{
@@ -61,27 +62,27 @@ protected:
 
 
       // A utility function to create a new Interval Search Tree Node
-      ITNode * newNode_(Interval & i);
+      inline ITNode * newNode_(Interval & i);
 
-      Int height_(ITNode *N);
-      Int max_(ITNode *N);
+      inline Int height_(ITNode *N);
+      inline Int max_(ITNode *N);
 
 
       // A utility function to insert a new Interval Search Tree Node
       // This is similar to BST Insert.  Here the low value of interval
       // is used tomaintain BST property
-      virtual ITNode *insert_(ITNode *root, Interval & i);
-      Int recomputeMax_(ITNode * root);
+      virtual inline ITNode *insert_(ITNode *root, Interval & i);
+      inline Int recomputeMax_(ITNode * root);
 
       // A utility function to check if given two intervals overlap
-      bool doOVerlap_(Interval &i1, Interval &i2);
-      bool doOVerlap_(ITree::Interval &i1, Int & low, Int & high);
+      inline bool doOVerlap_(Interval &i1, Interval &i2);
+      inline bool doOVerlap_(ITree::Interval &i1, Int & low, Int & high);
       //Interval *intervalSearch_(ITNode *root, Interval &i);
-      Interval *intervalSearch_(ITNode *root, Int & begin, Int & end);
+      inline Interval *intervalSearch_(ITNode *root, Int & begin, Int & end);
 
-      void inorder_(ITNode *root);
+      inline void inorder_(ITNode *root);
 
-      Int getSize_(ITNode *root);
+      inline Int getSize_(ITNode *root);
 
 
 public:
@@ -100,16 +101,16 @@ public:
       }
 
 
-      virtual void Rebalance(){};
+      virtual inline void Rebalance(){};
 
-      void Dump()
+      inline void Dump()
       {
         logfileptr->OFS()<<"Height of tree is "<<height_(root_)<<endl;
         inorder_(root_);
       }
 
 
-      void Insert(Interval & i)
+      inline void Insert(Interval & i)
       {
         TIMER_START(ITREE_INSERT);
         //logfileptr->OFS()<<"Interval ["<<i.low<<" -- "<<i.high<<"] is inserted"<<endl;
@@ -118,7 +119,7 @@ public:
         TIMER_STOP(ITREE_INSERT);
       }
 
-      void Insert(Int i)
+      inline void Insert(Int i)
       {
         Interval it;  
         it.low = i;
@@ -127,15 +128,15 @@ public:
       }
 
 
-      Interval * IntervalSearch(Interval & i){
+      inline Interval * IntervalSearch(Interval & i){
         return intervalSearch_(root_,i.low,i.high);
       }
 
-      Interval * IntervalSearch(Int & low, Int & high){
+      inline Interval * IntervalSearch(Int & low, Int & high){
         return intervalSearch_(root_,low,high);
       }
 
-      Int StorageSize(){
+      inline Int StorageSize(){
         Int size = 0;
         size = getSize_(root_);
         return size;
@@ -151,16 +152,16 @@ public:
 protected:
       // A utility function to right rotate subtree rooted with y
       // See the diagram given above.
-      ITNode * rightRotate_(ITNode *y);
+      inline ITNode * rightRotate_(ITNode *y);
 
-      ITNode * leftRotate_(ITNode *x);
+      inline ITNode * leftRotate_(ITNode *x);
       // Get Balance factor of node N
-      Int getBalance_(ITNode *N);
+      inline Int getBalance_(ITNode *N);
 
       // A utility function to insert a new Interval Search Tree Node
       // This is similar to BST Insert.  Here the low value of interval
       // is used tomaintain BST property
-      virtual ITNode *insert_(ITNode *root, Interval & i);
+      virtual inline ITNode *insert_(ITNode *root, Interval & i);
 
 
 public:
@@ -181,10 +182,10 @@ public:
 
 protected:
       inline Int fullSize_ ( Int size );
-      void tree_to_vine_ (ITNode * root, Int &size);
-      void compression_  (ITNode * root, Int count);
-      void vine_to_tree_ (ITNode * root, Int n);
-      void correctTree_  (ITNode * root);
+      inline void tree_to_vine_ (ITNode * root, Int &size);
+      inline void compression_  (ITNode * root, Int count);
+      inline void vine_to_tree_ (ITNode * root, Int n);
+      inline void correctTree_  (ITNode * root);
 
 
 public:
@@ -199,11 +200,11 @@ public:
       {
       }
       
-      virtual void Rebalance();
+      virtual inline void Rebalance();
   };
 
 
-
+  #include "ngchol/IntervalTree_impl.hpp"
 
 
 
@@ -320,12 +321,16 @@ public:
 
 
 }
+
+
+
 #ifdef NO_INTRA_PROFILE
 #if defined (PROFILE)
 #define TIMER_START(a) TAU_FSTART(a);
 #define TIMER_STOP(a) TAU_FSTOP(a);
 #endif
 #endif
+
 
 
 #endif
