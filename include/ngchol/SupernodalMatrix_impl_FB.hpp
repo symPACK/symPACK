@@ -328,6 +328,9 @@ template <typename T> void SupernodalMatrix<T>::FanBoth(){
 #endif  
 //                is_skipped[iTarget] = true;
                 is_factor_sent[iTarget] = true;
+
+    //process some of the delayed send
+    //SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks,&AggregatesDone[0]);
             }
 
           }
@@ -466,6 +469,8 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
                     //                            cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
 #endif
 
+                  //process some of the delayed send
+                  //SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks,&AggregatesDone[0]);
 
                 }
               }

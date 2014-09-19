@@ -38,22 +38,49 @@ namespace LIBCHOLESKY{
       tgt_snode.FindUpdatedFirstCol(src_snode, 0, tgt_fc, first_pivot_idx);
       NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
 
-
       //parse src_snode
+      ITree::Interval overlap;
       for(Int blkidx = first_pivot_idx; blkidx<src_snode.NZBlockCnt(); ++blkidx){
         NZBlockDesc & blk_desc = src_snode.GetNZBlockDesc(blkidx);
-        Int nrows = src_snode.NRows(blkidx);
-        for(Int rowidx = 0; rowidx<nrows; ++rowidx){
-          Int row = blk_desc.GIndex + rowidx;
-          //if the row is updating the target
-          if(row>=tgt_fc){
-            //check if the row is not already in the structure
-            if(tgt_snode.FindBlockIdx(row)==-1){
-              //add a nzblock with a single row in it
-              tgt_snode.AddNZBlock( 1, tgt_snode_size, row);
-            }
+        Int fr = blk_desc.GIndex;
+        Int lr = blk_desc.GIndex + src_snode.NRows(blkidx) -1;
+        
+        if(tgt_snode.FindBlockIdx(fr,lr,overlap)==-1){
+          //Add the full block
+          tgt_snode.AddNZBlock( lr - fr + 1, tgt_snode_size, fr);
+        }
+        else{
+          
+          //check the overlap
+          //                l-----overlap------h
+          //            l---------block-------------h
+          //        l--block----h
+          //                              l-----block----h
+          
+          if(overlap.high < lr){
+            //we need to add from high+1 to lr 
+            tgt_snode.AddNZBlock( lr - overlap.high, tgt_snode_size, overlap.high+1);
+          }
+          
+          if(overlap.low>fr){
+            //we need to add fr to low-1 
+            tgt_snode.AddNZBlock( overlap.low - fr, tgt_snode_size, fr);
           }
         }
+
+
+//        Int nrows = src_snode.NRows(blkidx);
+//        for(Int rowidx = 0; rowidx<nrows; ++rowidx){
+//          Int row = blk_desc.GIndex + rowidx;
+//          //if the row is updating the target
+//          if(row>=tgt_fc){
+//            //check if the row is not already in the structure
+//            if(FindBlockIdx(row)==-1){
+//              //add a nzblock with a single row in it
+//              AddNZBlock( 1, tgt_snode_size, row);
+//            }
+//          }
+//        }
       }
 
       TIMER_STOP(MERGE_SNODE_OBJ);
@@ -90,12 +117,9 @@ namespace LIBCHOLESKY{
 ///
 ///      TIMER_STOP(AGGREG_SNODE_FIND_INDEX);
 
-      Int tgt_fc;
-      Int first_pivot_idx;
-      tgt_snode.FindUpdatedFirstCol(src_snode, 0, tgt_fc, first_pivot_idx);
-      NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
 
-
+      Int first_pivot_idx = 0 ;
+      Int tgt_fc = tgt_snode.FirstCol();
 
       //parse src_snode and add everything
 
