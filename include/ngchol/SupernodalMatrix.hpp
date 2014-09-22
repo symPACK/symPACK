@@ -154,6 +154,21 @@ template <typename T> class SupernodalMatrix{
 
 
 
+
+    AsyncComms outgoingSend;
+    FBCommList MsgToSend;
+    FBTasks LocalTasks;
+    TempUpdateBuffers<T> tmpBufs;
+
+
+  void FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, IntNumVec & AggregatesDone, IntNumVec & AggregatesToRecv, std::vector<char> & src_blocks);
+  void FBUpdateTask(SnodeUpdateFB & curTask, IntNumVec & UpdatesToDo, IntNumVec & AggregatesDone, IntNumVec & AggregatesToRecv, std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks);
+
+
+
+
+
+
   void Init(const DistSparseMatrix<T> & pMat, Int maxSnode,Mapping * pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm );
   
 

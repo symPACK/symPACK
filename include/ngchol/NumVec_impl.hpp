@@ -261,6 +261,17 @@ template <class F> const F& NumVec<F>::operator[]	( Int i ) const
 } 		// -----  end of method NumVec<F>::operator[]  ----- 
 
 
+ template <class F> void NumVec<F>::Clear()  {
+		if( owndata_ == false ){
+			throw std::logic_error("Vector being cleared must own data.");
+		}
+
+      if (data_==NULL){
+        free(data_);
+      }
+  }
+
+
 
 template <class F> void SetValue( NumVec<F>& vec, F val )
 {

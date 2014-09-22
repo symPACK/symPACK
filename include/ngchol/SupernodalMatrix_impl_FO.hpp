@@ -298,16 +298,16 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
 
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
+
   IntNumVec UpdatesToDo = UpdateCount_;
 
   CommList FactorsToSend; 
-  AsyncComms outgoingSend;
+  //FBCommList FactorsToSend; 
 
   std::vector<AsyncComms> incomingRecvArr(LocalSupernodes_.size());
   incomingRecvCnt_ = 0;
   IntNumVec FactorsToRecv(LocalSupernodes_.size());
 
-  std::vector<T> src_nzval;
   std::vector<char> src_blocks;
 
   std::vector<std::queue<SnodeUpdate> > LocalUpdates(LocalSupernodes_.size());
@@ -319,7 +319,8 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
       maxwidth = width;
     }
   }
-  TempUpdateBuffers<T> tmpBufs(Size(),maxwidth);
+  
+  tmpBufs.Resize(Size(),maxwidth);
 
 
 
@@ -587,7 +588,6 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
       }
       //clear the buffer
       //        { vector<char>().swap(src_blocks);  }
-      //        { vector<T>().swap(src_nzval);  }
 
 
       timeEnd =  get_time( );
@@ -643,16 +643,23 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
             //need a std::unordered_set to check whether 
             Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
 #ifndef _DEADLOCK_
-            if( next_local_snode< curUpdate.tgt_snode_id){
+//            if( next_local_snode< curUpdate.tgt_snode_id){
               //need to push the prev src_last_row
               FactorsToSend.push(DelayedComm(src_snode.Id(),curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row));
+//              Int tag =curUpdate.tgt_snode_id;
+//              FactorsToSend.push(FBDelayedComm(FACTOR,(void*)&src_snode,curUpdate.src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag));
 #ifdef _DEBUG_DELAY_
               logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
               cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
 #endif
               is_skipped[iTarget] = true;
-            }
-#endif
+
+
+              SendDelayedMessagesUp(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
+
+
+//            }
+#else
             if(!is_skipped[iTarget]){
               is_factor_sent[iTarget] = true;
 
@@ -675,6 +682,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
                 TIMER_STOP(SEND_MPI);
               }
             }
+#endif
 
           }
         }
@@ -685,6 +693,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
     //process some of the delayed send
     SendDelayedMessagesUp(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
+//    SendDelayedMessagesUp(FactorsToSend, outgoingSend, FBTasks & taskList, NULL);
     iLocalI++;
   }
 
@@ -694,6 +703,8 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
   } 
 
   MPI_Barrier(CommEnv_->MPI_GetComm());
+
+  tmpBufs.Clear();
 
   TIMER_STOP(FACTORIZATION_FO);
 }

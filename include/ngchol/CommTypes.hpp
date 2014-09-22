@@ -519,13 +519,25 @@ namespace LIBCHOLESKY{
     public:
     NumMat<T> tmpBuf;
     IntNumVec src_colindx;
-    //IntNumVec src_rowindx;
     IntNumVec src_to_tgt_offset;
-    TempUpdateBuffers(Int size, Int mw){
+
+    void Resize(Int size, Int mw){
       tmpBuf.Resize(size,mw);
       src_colindx.Resize(mw);
-      //src_rowindx.Resize(size);
       src_to_tgt_offset.Resize(size);
+    }
+
+    void Clear(){
+      tmpBuf.Clear();
+      src_colindx.Clear();
+      src_to_tgt_offset.Clear();
+     }
+
+
+    TempUpdateBuffers(){
+    }
+    TempUpdateBuffers(Int size, Int mw){
+      Resize(size,mw);
     }
   };
 

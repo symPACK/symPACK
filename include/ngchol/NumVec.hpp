@@ -37,6 +37,7 @@ public:
 	NumVec& operator=(const NumVec& C);
 
 	void Resize ( Int m );
+	void Clear();
 
 	const F& operator()(Int i) const;  
 	F& operator()(Int i);  
