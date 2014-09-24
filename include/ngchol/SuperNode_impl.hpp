@@ -111,7 +111,7 @@
 
 
       idxToBlk_ = CreateITree();
-
+      InitIdxToBlk();
     }
 
   template<typename T>
@@ -529,15 +529,6 @@
         //Pointer to the output buffer of the GEMM
         T * buf = NULL;
         T beta = ZERO<T>();
-        //If the target supernode has the same structure,
-        //The GEMM is directly done in place
-        //    if(src_nrows == tgt_nrows){
-        //      Int tgt_offset = (tgt_fc - FirstCol());
-        //      buf = &tgt[tgt_offset];
-        //      beta = ONE<T>();
-        //    }
-        //    else{
-        //Compute the update in a temporary buffer
 #ifdef _DEBUG_
         tmpBuffers.tmpBuf.Resize(tgt_width,src_nrows);
 #endif

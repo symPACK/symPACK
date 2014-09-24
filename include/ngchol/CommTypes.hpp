@@ -27,7 +27,7 @@ namespace LIBCHOLESKY{
   template<typename T> class NumMat;
   template<typename T> class SuperNode;
 
-  enum FBTaskType {FACTOR, AGGREGATE, COMPFACT,COMPAGG};
+  enum TaskType {FACTOR, AGGREGATE, UPDATE};
 
 #ifndef _USE_TAU_
   template<typename T> class FBDelayedComm;
@@ -41,7 +41,7 @@ namespace LIBCHOLESKY{
   template<typename T>
   class FBDelayedComm{
     public:
-    FBTaskType type;
+    TaskType type;
     SuperNode<T> * src_data;
     Int tgt_snode_id;
 
@@ -49,7 +49,7 @@ namespace LIBCHOLESKY{
     Int src_first_row;
     Int src_last_row;
 
-    FBDelayedComm(FBTaskType a_type,SuperNode<T> * a_src_data,Int a_src_snode_id, Int a_tgt_snode_id, Int a_src_nzblk_idx,
+    FBDelayedComm(TaskType a_type,SuperNode<T> * a_src_data,Int a_src_snode_id, Int a_tgt_snode_id, Int a_src_nzblk_idx,
                    Int a_src_first_row, Int a_target, Int a_tag, Int a_count=0){
           type = a_type;
           src_data = a_src_data;
@@ -77,8 +77,8 @@ namespace LIBCHOLESKY{
   class FBDelayedCommCompare{
     public:
     //Logic is: does a go after b ?
-    inline bool compare(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const FBTaskType & a_type,
-        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const FBTaskType & b_type) const{
+    inline bool compare(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const TaskType & a_type,
+        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const TaskType & b_type) const{
       //If they are the same type, sort by tgt id then by src_id
       if(a_type == b_type){
         if(a_tgt_snode_id>b_tgt_snode_id){
@@ -150,10 +150,10 @@ namespace LIBCHOLESKY{
     bool unitTest(){
         Int a_src_snode_id;
         Int a_tgt_snode_id;
-        FBTaskType a_type;
+        TaskType a_type;
         Int b_src_snode_id;
         Int b_tgt_snode_id;
-        FBTaskType b_type;
+        TaskType b_type;
         
         bool expected_result, passed;
 
@@ -245,7 +245,7 @@ namespace LIBCHOLESKY{
 
   class FBDelayedComm{
     public:
-    FBTaskType type;
+    TaskType type;
     void * src_data;
     Int tgt_snode_id;
     Int src_snode_id;
@@ -254,7 +254,7 @@ namespace LIBCHOLESKY{
     Int src_first_row;
     Int src_last_row;
 
-    FBDelayedComm(FBTaskType a_type,void * a_src_data,Int a_src_snode_id, Int a_tgt_snode_id, Int a_src_nzblk_idx,
+    FBDelayedComm(TaskType a_type,void * a_src_data,Int a_src_snode_id, Int a_tgt_snode_id, Int a_src_nzblk_idx,
                    Int a_src_first_row, Int a_target, Int a_tag, Int a_count=0){
           type = a_type;
           src_data = a_src_data;
@@ -293,8 +293,8 @@ namespace LIBCHOLESKY{
         }
     }
 
-    inline bool base_compare2(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const FBTaskType & a_type,
-        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const FBTaskType & b_type) const{
+    inline bool base_compare2(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const TaskType & a_type,
+        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const TaskType & b_type) const{
         if(a_tgt_snode_id>b_tgt_snode_id){
           return true;
         }
@@ -315,8 +315,8 @@ namespace LIBCHOLESKY{
 
 
     //Logic is: does a go after b ?
-    inline bool compare(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const FBTaskType & a_type,
-        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const FBTaskType & b_type) const{
+    inline bool compare(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const TaskType & a_type,
+        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const TaskType & b_type) const{
 
 
 //      return base_compare2(a_src_snode_id, a_tgt_snode_id, a_type, b_src_snode_id, b_tgt_snode_id, b_type);
@@ -437,6 +437,7 @@ namespace LIBCHOLESKY{
 
 
   struct SnodeUpdateFB{
+    TaskType type;
     Int src_snode_id;
     Int tgt_snode_id;
   };

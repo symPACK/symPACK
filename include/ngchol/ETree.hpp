@@ -46,6 +46,7 @@ public:
 //  void ConstructETree(int n, int * xadj, int * adj);
 
   void PostOrderTree(Ordering & aOrder);
+  void DeepestFirst(Ordering & aOrder);
 
   ETree ToSupernodalETree(IntNumVec & aXsuper,IntNumVec & aSupMembership,Ordering & aOrder) const;
 

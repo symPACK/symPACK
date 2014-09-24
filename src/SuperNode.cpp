@@ -400,33 +400,6 @@ namespace LIBCHOLESKY{
       Int tgt_snode_size = tgt_snode.Size();
 
       //find the first row updated by src_snode
-////      TIMER_START(UPDATE_SNODE_FIND_INDEX);
-////      Int first_pivot_idx = -1;
-////      Int tgt_fc = pivot_fr;
-////      if(tgt_fc ==I_ZERO ){
-////        tgt_fc = tgt_snode.FirstCol();
-////        //find the pivot idx
-////        do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
-////        while(first_pivot_idx<0 && tgt_fc<=tgt_snode.LastCol());
-////        tgt_fc--;
-////      }
-////      else{
-////        first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
-////      }
-////      assert(first_pivot_idx>=0);
-////      NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
-////
-////      //find the last row updated by src_snode
-////      Int tgt_lc = tgt_snode.LastCol();
-////      Int last_pivot_idx = -1;
-////      //find the pivot idx
-////      do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
-////      while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
-////      tgt_lc++;
-////      assert(last_pivot_idx>=0);
-////      NZBlockDesc & last_pivot_desc = src_snode.GetNZBlockDesc(last_pivot_idx);
-////      TIMER_STOP(UPDATE_SNODE_FIND_INDEX);
-
       Int tgt_fc,tgt_lc;
       Int first_pivot_idx,last_pivot_idx;
       tgt_snode.FindUpdatedFirstCol(src_snode, update.src_first_row, tgt_fc, first_pivot_idx);

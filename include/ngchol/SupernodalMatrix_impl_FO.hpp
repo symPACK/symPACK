@@ -292,6 +292,9 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
 
   TIMER_START(FACTORIZATION_FO);
 
+  xlindx_.Clear();
+  lindx_.Clear();
+
   Real timeSta, timeEnd;
   timeSta =  get_time( );
 
@@ -300,6 +303,10 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
   Int np  = CommEnv_->MPI_Size();
 
   IntNumVec UpdatesToDo = UpdateCount_;
+
+
+
+
 
   CommList FactorsToSend; 
   //FBCommList FactorsToSend; 

@@ -283,30 +283,6 @@ namespace LIBCHOLESKY{
 
   }
 
-//  void ETree::PermuteTree(IntNumVec & perm){
-//      //Compose the two permutations
-//      for(Int i = 1; i <= n_; ++i){
-//            Int interm = postNumber_(i-1);
-//            postNumber_(i-1) = perm(interm-1);
-//      }
-//      for(Int i = 1; i <= n_; ++i){
-//        Int node = postNumber_(i-1);
-//        invPostNumber_(node-1) = i;
-//      } 
-//
-//            for(Int i=1; i<=n_;i++){
-//              Int nunode = postNumber_[i-1];
-//              Int ndpar = parent_[i-1];
-//              if(ndpar>0){
-//                ndpar = postNumber_[ndpar-1];
-//              }
-//              poparent_[nunode-1] = ndpar;
-//            }
-//
-//
-//
-//  }
-
 
   void ETree::ConstructETree(SparseMatrixStructure & aGlobal, Ordering & aOrder){
     bIsPostOrdered_=false;
@@ -373,303 +349,6 @@ TIMER_STOP(Construct_Etree_Classic);
 
   }
 
-////  void ETree::ConstructETree(SparseMatrixStructure & aGlobal, IntNumVec & perm, IntNumVec & invp){
-////    bIsPostOrdered_=false;
-////    n_ = aGlobal.size;
-////
-////    //Expand to symmetric storage
-////    aGlobal.ExpandSymmetric();
-////
-////TIMER_START(Construct_Etree_Classic);
-////    parent_.Resize(n_);
-////    SetValue(parent_,I_ZERO );
-////
-////
-////    IntNumVec ancstr(n_);
-////
-////
-////
-////    for(Int i = 1; i<=n_; ++i){
-////            parent_(i-1) = 0;
-////            ancstr(i-1) = 0;
-////            Int node = perm[i-1];
-////
-////            Int jstrt = aGlobal.expColptr(node-1);
-////            Int jstop = aGlobal.expColptr(node) - 1;
-////            if  ( jstrt < jstop ){
-////              for(Int j = jstrt; j<=jstop; ++j){
-////                    Int nbr = aGlobal.expRowind(j-1);
-////                    nbr = invp[nbr-1];
-////                    if  ( nbr < i ){
-//////                       -------------------------------------------
-//////                       for each nbr, find the root of its current
-//////                       elimination tree.  perform path compression
-//////                       as the subtree is traversed.
-//////                       -------------------------------------------
-////                      Int break_loop = 0;
-////                      if  ( ancstr(nbr-1) == i ){
-////                        break_loop = 1;
-////                      }
-////                      else{
-////                        while(ancstr(nbr-1) >0){
-////                          if  ( ancstr(nbr-1) == i ){
-////                            break_loop = 1;
-////                            break;
-////                          }
-////                          Int next = ancstr(nbr-1);
-////                          ancstr(nbr-1) = i;
-////                          nbr = next;
-////                        }
-////                        //                       --------------------------------------------
-////                        //                       now, nbr is the root of the subtree.  make i
-////                        //                       the parent node of this root.
-////                        //                       --------------------------------------------
-////                        if(!break_loop){
-////                          parent_(nbr-1) = i;
-////                          ancstr(nbr-1) = i;
-////                        }
-////                      }
-////                    }
-////              }
-////            }
-////  }
-////
-////TIMER_STOP(Construct_Etree_Classic);
-////
-////  }
-////
-////
-////
-////  void ETree::ConstructETree2(SparseMatrixStructure & aGlobal){
-////
-////    //Expand to symmetric storage
-////    aGlobal.ExpandSymmetric();
-////
-////    TIMER_START(ConstructETree);
-////    n_ = aGlobal.size;
-////
-////
-////    parent_.Resize(n_);
-////    SetValue(parent_,I_ZERO );
-////
-////    DisjointSet sets;
-////    sets.Initialize(n_);
-////
-////    Int cset,croot,rset,rroot,row;
-////
-////
-////    for (Int col = 1; col <= n_; col++) {
-////      parent_(col-1)=col; //1 based indexes
-////      cset = sets.makeSet (col);
-////      sets.Root(cset-1) = col;
-////      parent_(col-1) = 0; 
-////    }
-////
-/////*
-////    for (Int col = 1; col <= n_; col++) {
-////      cset = sets.find (col);
-////
-////
-////#ifdef _DEBUG_
-////      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
-////#endif
-////      for (Int p = aGlobal.expColptr(col-1); p < aGlobal.expColptr(col); p++) {
-////        row = aGlobal.expRowind(p-1);
-////
-////#ifdef _DEBUG_
-////        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
-////#endif
-////
-////
-////        if (row <= col) continue;
-////
-////        rset = sets.find(row);
-////        croot = sets.Root(cset-1);
-////        rroot = sets.Root(rset-1);
-////#ifdef _DEBUG_
-////        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
-////#endif
-////
-////        if (croot != row) {
-////          parent_(croot-1) = row;
-////          cset = sets.link(cset, rset);
-////          sets.Root(cset-1) = row;
-////#ifdef _DEBUG_
-////          logfileptr->OFS()<<"Parent of "<<croot<<" is "<<row<<" which now represents set"<<cset<<std::endl;
-////#endif
-////          break;
-////        }
-////      }
-////
-////    }
-////*/
-////
-////
-////
-////
-////
-////
-////
-////    for (Int col = 1; col <= n_; col++) {
-////      parent_(col-1)=col; //1 based indexes
-////      cset = sets.makeSet (col);
-////      sets.Root(cset-1) = col;
-////      parent_(col-1) = 0; 
-////
-////#ifdef _DEBUG_
-////      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
-////#endif
-////      for (Int p = aGlobal.expColptr(col-1); p < aGlobal.expColptr(col); p++) {
-////        row = aGlobal.expRowind(p-1);
-////
-////#ifdef _DEBUG_
-////        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
-////#endif
-////
-////
-////        if (row >= col) continue;
-////
-////        rset = sets.find(row);
-////        rroot = sets.Root(rset-1);
-////#ifdef _DEBUG_
-////        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
-////#endif
-////
-////        if (rroot != col) {
-////          parent_(rroot-1) = col;
-////          cset = sets.link(cset, rset);
-////          sets.Root(cset-1) = col;
-////#ifdef _DEBUG_
-////          logfileptr->OFS()<<"Parent of "<<rroot<<" is "<<col<<" which now represents set"<<cset<<std::endl;
-////#endif
-////        }
-////      }
-////
-////    }
-////
-////
-////    parent_(n_-1) = 0;
-////
-////    TIMER_STOP(ConstructETree);
-////  }
-////
-////
-////
-////
-////  void ETree::ConstructETree(int n, int * xadj, int * adj){
-////
-////////
-////////    TIMER_START(ConstructETree);
-////////    n_ = n;
-////////
-////////
-////////    parent_.Resize(n_);
-////////    SetValue(parent_,I_ZERO );
-////////
-////////    DisjointSet sets;
-////////    sets.Initialize(n_);
-////////
-////////    Int cset,croot,rset,rroot,row;
-////////
-////////
-////////    for (Int col = 1; col <= n_; col++) {
-////////      parent_(col-1)=col; //1 based indexes
-////////      cset = sets.makeSet (col);
-////////      sets.Root(cset-1) = col;
-////////      parent_(col-1) = 0; 
-////////    }
-////////
-/////////*
-////////    for (Int col = 1; col <= n_; col++) {
-////////      cset = sets.find (col);
-////////
-////////
-////////#ifdef _DEBUG_
-////////      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
-////////#endif
-////////      for (Int p = aGlobal.expColptr(col-1); p < aGlobal.expColptr(col); p++) {
-////////        row = aGlobal.expRowind(p-1);
-////////
-////////#ifdef _DEBUG_
-////////        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
-////////#endif
-////////
-////////
-////////        if (row <= col) continue;
-////////
-////////        rset = sets.find(row);
-////////        croot = sets.Root(cset-1);
-////////        rroot = sets.Root(rset-1);
-////////#ifdef _DEBUG_
-////////        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
-////////#endif
-////////
-////////        if (croot != row) {
-////////          parent_(croot-1) = row;
-////////          cset = sets.link(cset, rset);
-////////          sets.Root(cset-1) = row;
-////////#ifdef _DEBUG_
-////////          logfileptr->OFS()<<"Parent of "<<croot<<" is "<<row<<" which now represents set"<<cset<<std::endl;
-////////#endif
-////////          break;
-////////        }
-////////      }
-////////
-////////    }
-////////*/
-////////
-////////
-////////
-////////
-////////
-////////
-////////
-////////    for (Int col = 1; col <= n_; col++) {
-////////      parent_(col-1)=col; //1 based indexes
-////////      cset = sets.makeSet (col);
-////////      sets.Root(cset-1) = col;
-////////      parent_(col-1) = 0; 
-////////
-////////#ifdef _DEBUG_
-////////      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
-////////#endif
-////////      for (Int p = xadj[col-1]; p < xadj[col]; p++) {
-////////        row = adj[p-1];
-////////
-////////#ifdef _DEBUG_
-////////        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
-////////#endif
-////////
-////////
-////////        if (row >= col) continue;
-////////
-////////        rset = sets.find(row);
-////////        rroot = sets.Root(rset-1);
-////////#ifdef _DEBUG_
-////////        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
-////////#endif
-////////
-////////        if (rroot != col) {
-////////          parent_(rroot-1) = col;
-////////          cset = sets.link(cset, rset);
-////////          sets.Root(cset-1) = col;
-////////#ifdef _DEBUG_
-////////          logfileptr->OFS()<<"Parent of "<<rroot<<" is "<<col<<" which now represents set"<<cset<<std::endl;
-////////#endif
-////////        }
-////////      }
-////////
-////////    }
-////////
-////////
-////////    parent_(n_-1) = 0;
-////////
-////////    TIMER_STOP(ConstructETree);
-////  }
-////
-////
-
-
 
 
 
@@ -693,23 +372,56 @@ assert(bIsPostOrdered_);
 #endif
     } 
 
-//    Ordering tmp = aOrder;
-//    newTree.PostOrderTree(tmp);
 
     return newTree;
-
-//      //translate from columns to supernodes etree using supIdx
-//      etree_supno.resize(this->NumSuper());
-//      for(Int i = 0; i < superNode->etree.m(); ++i){
-//        Int curSnode = superNode->superIdx[i];
-//        Int parentSnode = (superNode->etree[i]>= superNode->etree.m()) ?this->NumSuper():superNode->superIdx[superNode->etree[i]];
-//        if( curSnode != parentSnode){
-//          etree_supno[curSnode] = parentSnode;
-//        }
-//      }
 
   }
 
 
 
+
+
+void ETree::DeepestFirst(Ordering & aOrder)
+  {
+  assert(bIsPostOrdered_);
+
+
+
+
+
+
+
+
+
+    std::vector<Int> treesize(n_,0);
+    std::vector<Int> depths(n_);
+    //first, compute the depth of each node
+    for(Int col=n_; col>=1; --col){
+      Int parent = PostParent(col-1);
+      if(parent==0){
+        depths[col-1]=0;
+      }
+      else{
+        treesize[parent-1]++;
+        depths[col-1]=depths[parent-1]+1;
+      }
+    }
+
+
+    for(Int col=n_; col>=1; --col){
+      Int parent = PostParent(col-1);
+      if(parent!=0){
+        depths[parent-1]=max(depths[col-1],depths[parent-1]);
+      }
+    }
+
+
+
+
+    //relabel the nodes within a subtree based on their depths
+
+  }
+
+
 }
+

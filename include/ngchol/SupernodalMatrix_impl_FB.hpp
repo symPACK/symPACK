@@ -393,6 +393,11 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
   
   double timesta2 = get_time(); 
   FBGetUpdateCount(UpdatesToDo,LastUpdate);
+#ifdef COMPACT_AGGREGATES
+  xlindx_.Clear();
+  lindx_.Clear();
+#endif
+
   double timeend2 = get_time(); 
   logfileptr->OFS()<<"Update count time: "<<timeend2-timesta2<<endl;
 
@@ -432,6 +437,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
     Int iOwner = Mapping_->Map(I-1,I-1);
     if(iam==iOwner){
       SnodeUpdateFB curUpdate;
+      curUpdate.type=FACTOR;
       curUpdate.src_snode_id = I;
       curUpdate.tgt_snode_id = I;
       LocalTasks.push(curUpdate);
@@ -440,6 +446,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
       bool is_first = true; 
       while( (J=FBUpdate(I,J))!= -1 ){
         SnodeUpdateFB curUpdate;
+        curUpdate.type=AGGREGATE;
         //set it to be negative as it is a local update
         curUpdate.src_snode_id = is_first?I:-I;
         curUpdate.tgt_snode_id = J;
@@ -451,6 +458,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
       Int J = FBUpdate(I); 
       if(J!=-1){
         SnodeUpdateFB curUpdate;
+        curUpdate.type=AGGREGATE;
         curUpdate.src_snode_id = I;
         curUpdate.tgt_snode_id = J;
         LocalTasks.push(curUpdate);
@@ -509,7 +517,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
       Int src_snode_id = curTask.src_snode_id;
       Int tgt_snode_id = curTask.tgt_snode_id;
       //If it is a factorization
-      if(src_snode_id == tgt_snode_id){
+      if(curTask.type == FACTOR){
         FBFactorizationTask(curTask,iLocalI,AggregatesDone,AggregatesToRecv,src_blocks);
         ++iLocalI; 
       }
@@ -530,40 +538,6 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
 
   tmpBufs.Clear();
   TIMER_STOP(FACTORIZATION_FB);
-}
-
-template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I,Int prevJ){
-  Int iam = CommEnv_->MPI_Rank();
-  Int np  = CommEnv_->MPI_Size();
-  //Check if I have anything to update with that supernode
-  //look at lindx_
-  Int fi = xlindx_(I-1);
-  Int li = xlindx_(I)-1;
-
-  Int iOwner = Mapping_->Map(I-1,I-1);
-
-  Int firstUpdate = -1; 
-  Int J = -1; 
-  for(Int idx = fi; idx<=li;++idx){
-    Int row = lindx_[idx-1];
-    J = SupMembership_[row-1];
-    Int iUpdater = Mapping_->Map(J-1,I-1);
-    if(iUpdater == iam && J>I){
-      if(iUpdater==iOwner){
-        if(J>prevJ){
-//if(prevJ!=-1){ gdb_lock();}
-          firstUpdate = J;
-          break;
-        }
-      }
-      else{
-        firstUpdate = J;
-        break;
-      }
-    }
-  }
-
-  return firstUpdate;
 }
 
 
@@ -667,9 +641,9 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_sn
 
     SuperNode<T> * dist_src_snode = new SuperNode<T>();
     Deserialize(&src_blocks[0],*dist_src_snode);
-#if not(defined(_LINEAR_SEARCH_FCLC_) || defined(_LAZY_INIT))
+//#if not(defined(_LINEAR_SEARCH_FCLC_) || defined(_LAZY_INIT) )
     dist_src_snode->InitIdxToBlk();
-#endif
+//#endif
 
 #ifdef _DEBUG_PROGRESS_
     logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode->Id()<<std::endl;
@@ -685,18 +659,37 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_sn
   return cur_src_snode;
 }
 
+template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I,Int prevJ){
+  Int iam = CommEnv_->MPI_Rank();
+  Int np  = CommEnv_->MPI_Size();
+  //Check if I have anything to update with that supernode
+  //look at lindx_
+  Int fi = xlindx_(I-1);
+  Int li = xlindx_(I)-1;
 
+  Int iOwner = Mapping_->Map(I-1,I-1);
 
+  Int firstUpdate = -1; 
+  Int J = -1; 
+  for(Int idx = fi; idx<=li;++idx){
+    Int row = lindx_[idx-1];
+    J = SupMembership_[row-1];
+    Int iUpdater = Mapping_->Map(J-1,I-1);
+    if(iUpdater == iam && J>I){
+      if(iUpdater==iOwner){
+        if(J>prevJ){
+          firstUpdate = J;
+          break;
+        }
+      }
+      else{
+        firstUpdate = J;
+        break;
+      }
+    }
+  }
 
-
-
-
-
-
-
-
-
-
-
+  return firstUpdate;
+}
 
 #endif

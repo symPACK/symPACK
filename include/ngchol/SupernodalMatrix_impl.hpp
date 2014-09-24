@@ -281,14 +281,11 @@ if(iam==0){
 }
 }
 
-//exit(-1);
     //copy
 
       Icomm buffer;
       std::vector<T> denseA;
-//      std::vector<char> recv_buffer;
       Icomm recv_buffer;
-#if 1
     for(Int I=1;I<Xsuper_.m();I++){
       Int fc = Xsuper_(I-1);
       Int lc = Xsuper_(I)-1;
@@ -507,7 +504,6 @@ if(iam==0){
       logfileptr->OFS()<<"--------------------------------------------------"<<std::endl;
 #endif
     }
-#endif
 
 #ifdef _DEBUG_
     for(Int I=1;I<Xsuper_.m();I++){
@@ -1855,7 +1851,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
     const Int & tgt_snode_id = comm.tgt_snode_id;
     const Int & src_nzblk_idx = comm.src_nzblk_idx;
     const Int & src_first_row = comm.src_first_row;
-    const FBTaskType & type = comm.type;
+    const TaskType & type = comm.type;
     SuperNode<T> * src_data = comm.src_data;
     Int src_snode_id = src_data->Id();
 #else
@@ -1867,7 +1863,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
     const Int & tgt_snode_id = comm.tgt_snode_id;
     const Int & src_nzblk_idx = comm.src_nzblk_idx;
     const Int & src_first_row = comm.src_first_row;
-    const FBTaskType & type = comm.type;
+    const TaskType & type = comm.type;
     SuperNode<T> * src_data = (SuperNode<T> *)comm.src_data;
     Int src_snode_id = comm.src_snode_id;
 #endif
@@ -1875,7 +1871,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
     bool doSend = true;
     if(nextTask!=NULL){
       //gdb_lock(3);
-      FBTaskType nextType = nextTask->src_snode_id==nextTask->tgt_snode_id?FACTOR:AGGREGATE;
+      TaskType nextType = nextTask->type;
 //      doSend = !comparator.compare(src_snode_id,tgt_snode_id,type,nextTask->src_snode_id,nextTask->tgt_snode_id, nextType);
       doSend = !comparator.base_compare(src_snode_id,tgt_snode_id,nextTask->src_snode_id,nextTask->tgt_snode_id);
 
