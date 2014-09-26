@@ -121,6 +121,7 @@ template <typename T> class SupernodalMatrix{
   IntNumVec UpdateCount_;
   //Array storing the width of the widest supernode updating a target supernode
   IntNumVec UpdateWidth_;
+  IntNumVec UpdateHeight_;
 
   //Column-based elimination tree
   ETree ETree_;
@@ -161,8 +162,9 @@ template <typename T> class SupernodalMatrix{
     TempUpdateBuffers<T> tmpBufs;
 
 
-  void FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, IntNumVec & AggregatesDone, IntNumVec & AggregatesToRecv, std::vector<char> & src_blocks);
-  void FBUpdateTask(SnodeUpdateFB & curTask, IntNumVec & UpdatesToDo, IntNumVec & AggregatesDone, IntNumVec & AggregatesToRecv, std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks);
+  void FBAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & AggregatesToRecv, IntNumVec & FactorsToRecv);
+  void FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, IntNumVec & AggregatesDone, IntNumVec & AggregatesToRecv, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr);
+  void FBUpdateTask(SnodeUpdateFB & curTask, IntNumVec & UpdatesToDo, IntNumVec & AggregatesDone, std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks,std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & FactorsToRecv);
 
 
 
@@ -190,7 +192,7 @@ template <typename T> class SupernodalMatrix{
 
 
 
-  void GetUpdatingSupernodeCount( IntNumVec & sc,IntNumVec & mw);
+  void GetUpdatingSupernodeCount( IntNumVec & sc,IntNumVec & mw, IntNumVec & mh);
 
 
 
@@ -212,8 +214,8 @@ template <typename T> class SupernodalMatrix{
 
   //FanBoth related routines
   Int FBUpdate(Int I,Int prevJ=-1);
-  void FBGetUpdateCount(IntNumVec & sc, IntNumVec & lu);
-  SuperNode<T> * FBRecvFactor(Int src_snode_id,Int tgt_snode_id, std::vector<char> & src_blocks);
+  void FBGetUpdateCount(IntNumVec & UpdatesToDo, IntNumVec & AggregatesToRecv);
+  SuperNode<T> * FBRecvFactor(Int src_snode_id,Int tgt_snode_id, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv);
 
 //  void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, FBTasks & taskList,  Int (*TARGET) (MAPCLASS &,Int,Int),  Int (*TAG) (Int,Int) , const char * label);
 #ifndef _USE_TAU_

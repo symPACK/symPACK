@@ -137,7 +137,7 @@ if(iam==0){
     logfileptr->OFS()<<"Supernodal ETree is "<<ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_)<<std::endl;
 #endif
 
-    GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_);
+    GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_,UpdateHeight_);
 
 
 
@@ -573,20 +573,22 @@ if(iam==0){
     }
   }
 
-  template <typename T> void SupernodalMatrix<T>::GetUpdatingSupernodeCount(IntNumVec & sc,IntNumVec & mw){
+  template <typename T> void SupernodalMatrix<T>::GetUpdatingSupernodeCount(IntNumVec & sc,IntNumVec & mw, IntNumVec & mh){
     sc.Resize(Xsuper_.m());
     SetValue(sc,I_ZERO);
     IntNumVec marker(Xsuper_.m());
     SetValue(marker,I_ZERO);
     mw.Resize(Xsuper_.m());
     SetValue(mw,I_ZERO);
+    mh.Resize(Xsuper_.m());
+    SetValue(mh,I_ZERO);
 
     for(Int s = 1; s<Xsuper_.m(); ++s){
-      Int first_col = Xsuper_(s-1);
-      Int last_col = Xsuper_(s)-1;
+      Int first_col = Xsuper_[s-1];
+      Int last_col = Xsuper_[s]-1;
 
-      Int fi = xlindx_(s-1);
-      Int li = xlindx_(s)-1;
+      Int fi = xlindx_[s-1];
+      Int li = xlindx_[s]-1;
 
 //#ifndef _DEBUG_
 //  #define nodebugtmp
@@ -599,7 +601,7 @@ if(iam==0){
 //  #undef _DEBUG_
 //#endif
 
-
+      mh[s-1] = li-fi+1;
 
       Int iOwner = Mapping_->Map(s-1,s-1);
 #ifdef _DEBUG_UPDATES_
@@ -607,18 +609,18 @@ if(iam==0){
 #endif
 
       for(Int row_idx = fi; row_idx<=li;++row_idx){
-        Int row = lindx_(row_idx-1);
+        Int row = lindx_[row_idx-1];
         Int supno = SupMembership_(row-1);
 
-        if(marker(supno-1)!=s && supno!=s){
+        if(marker[supno-1]!=s && supno!=s){
 
 #ifdef _DEBUG_UPDATES_
           logfileptr->OFS()<<supno<<" ";
 #endif
-          ++sc(supno-1);
-          marker(supno-1) = s;
+          ++sc[supno-1];
+          marker[supno-1] = s;
 
-          mw(supno-1) = max(mw(supno-1),last_col - first_col+1);
+          mw[supno-1] = max(mw[supno-1],last_col - first_col+1);
 
         }
       }

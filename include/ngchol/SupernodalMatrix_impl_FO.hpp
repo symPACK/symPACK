@@ -228,29 +228,6 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
   }
 
   template <typename T> inline AsyncComms::iterator SupernodalMatrix<T>::WaitIncomingFactors(AsyncComms & cur_incomingRecv, MPI_Status & recv_status, AsyncComms & outgoingSend) {
-    //        vector<MPI_Request> reqs;
-    //        reqs.reserve(cur_incomingRecv.size());
-    //      for(AsyncComms::iterator it = cur_incomingRecv.begin(); it!=cur_incomingRecv.end();++it){
-    //        reqs.push_back((*it)->Request);
-    //      }
-    //
-    //          TIMER_START(IRECV_MPI2);
-    //
-    //          AsyncComms::iterator it = cur_incomingRecv.begin();
-    //          if(cur_incomingRecv.size()==0){
-    //            it = cur_incomingRecv.end();
-    //          }
-    //          else{
-    //          int index=-1;
-    //          MPI_Waitany(reqs.size(),&reqs[0],&index,&recv_status);
-    //          advance(it,index);
-    //          }
-    //          TIMER_STOP(IRECV_MPI2);
-    //          return it;
-    //
-
-
-
     TIMER_START(IRECV_MPI);
     if(cur_incomingRecv.size()==0){
       TIMER_STOP(IRECV_MPI);
@@ -262,11 +239,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
         Int index = 0;
         for(AsyncComms::iterator it = cur_incomingRecv.begin(); it!=cur_incomingRecv.end();++it, ++index){
           Icomm * curComm = *it;
-          //MPI_Request req = (curComm->Request);
-          //MPI_Test(&(curComm->Request),&done,&recv_status);
- //     set_mpi_handler(MPI_COMM_WORLD);
-      int error_code = MPI_Test(&(curComm->Request),&done,&recv_status);
-//      check_mpi_error(error_code, MPI_COMM_WORLD, true);
+          int error_code = MPI_Test(&(curComm->Request),&done,&recv_status);
 
           //Test if comm is done
           if(done==1){
@@ -279,8 +252,6 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
             return it;
           }
         }
-
-        //   AdvanceOutgoing(outgoingSend);
       }
     }
   }

@@ -297,34 +297,55 @@
 
       //parse src_snode
       ITree::Interval overlap;
+      ITree::Interval curInter;
+      ITree::Interval newInter;
+      std::queue< ITree::Interval > toInsert;
+
+
+
+
       for(Int blkidx = first_pivot_idx; blkidx<src_snode.NZBlockCnt(); ++blkidx){
         NZBlockDesc & blk_desc = src_snode.GetNZBlockDesc(blkidx);
-        Int fr = blk_desc.GIndex;
+        Int fr = max(FirstCol(),blk_desc.GIndex);
         Int lr = blk_desc.GIndex + src_snode.NRows(blkidx) -1;
-        
-        if(FindBlockIdx(fr,lr,overlap)==-1){
-          //Add the full block
-          AddNZBlock( lr - fr + 1, tgt_snode_size, fr);
-        }
-        else{
-          
-          //check the overlap
-          //                l-----overlap------h
-          //            l---------block-------------h
-          //        l--block----h
-          //                              l-----block----h
-          
-          if(overlap.high < lr){
-            //we need to add from high+1 to lr 
-            AddNZBlock( lr - overlap.high, tgt_snode_size, overlap.high+1);
-          }
-          
-          if(overlap.low>fr){
-            //we need to add fr to low-1 
-            AddNZBlock( overlap.low - fr, tgt_snode_size, fr);
-          }
-        }
 
+        curInter.low = fr;
+        curInter.high = lr;
+        toInsert.push(curInter);
+
+        while(!toInsert.empty()){
+          curInter = toInsert.front();
+          toInsert.pop();
+          if(FindBlockIdx(curInter.low,curInter.high,overlap)==-1){
+            //Add the full block
+            AddNZBlock( curInter.high - curInter.low + 1, tgt_snode_size, curInter.low);
+          }
+          else{
+
+            //check the overlap
+            //fr is curInter.low and lr is curInter.high
+            //                l-----overlap------h
+            //            l---------block-------------h
+            //        l--block----h
+            //                              l-----block----h
+            //we have two segments to look for : [overlap.high+1 - lr] and [fr - overlap.low -1]         
+            if(overlap.low>curInter.low){
+              newInter.low = curInter.low;
+              newInter.high = overlap.low-1;
+              toInsert.push(newInter);
+            }
+
+            if(overlap.high < curInter.high){
+              newInter.low = overlap.high+1;
+              newInter.high = curInter.high;
+              toInsert.push(newInter);
+            }
+
+          }
+
+
+        }
+      }
 
 //        Int nrows = src_snode.NRows(blkidx);
 //        for(Int rowidx = 0; rowidx<nrows; ++rowidx){

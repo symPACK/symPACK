@@ -40,33 +40,77 @@ namespace LIBCHOLESKY{
 
       //parse src_snode
       ITree::Interval overlap;
+      ITree::Interval curInter;
+      ITree::Interval newInter;
+      std::queue< ITree::Interval > toInsert;
       for(Int blkidx = first_pivot_idx; blkidx<src_snode.NZBlockCnt(); ++blkidx){
         NZBlockDesc & blk_desc = src_snode.GetNZBlockDesc(blkidx);
-        Int fr = blk_desc.GIndex;
+        Int fr = max(tgt_snode.FirstCol(),blk_desc.GIndex);
         Int lr = blk_desc.GIndex + src_snode.NRows(blkidx) -1;
-        
-        if(tgt_snode.FindBlockIdx(fr,lr,overlap)==-1){
-          //Add the full block
-          tgt_snode.AddNZBlock( lr - fr + 1, tgt_snode_size, fr);
-        }
-        else{
-          
-          //check the overlap
-          //                l-----overlap------h
-          //            l---------block-------------h
-          //        l--block----h
-          //                              l-----block----h
-          
-          if(overlap.high < lr){
-            //we need to add from high+1 to lr 
-            tgt_snode.AddNZBlock( lr - overlap.high, tgt_snode_size, overlap.high+1);
+      
+        curInter.low = fr;
+        curInter.high = lr;
+        toInsert.push(curInter);
+
+        while(!toInsert.empty()){
+          curInter = toInsert.front();
+          toInsert.pop();
+          if(tgt_snode.FindBlockIdx(curInter.low,curInter.high,overlap)==-1){
+            //Add the full block
+            tgt_snode.AddNZBlock( curInter.high - curInter.low + 1, tgt_snode_size, curInter.low);
           }
-          
-          if(overlap.low>fr){
-            //we need to add fr to low-1 
-            tgt_snode.AddNZBlock( overlap.low - fr, tgt_snode_size, fr);
+          else{
+
+            //check the overlap
+            //fr is curInter.low and lr is curInter.high
+            //                l-----overlap------h
+            //            l---------block-------------h
+            //        l--block----h
+            //                              l-----block----h
+            //we have two segments to look for : [overlap.high+1 - lr] and [fr - overlap.low -1]         
+            if(overlap.low>curInter.low){
+//gdb_lock();
+              newInter.low = curInter.low;
+              newInter.high = overlap.low-1;
+              toInsert.push(newInter);
+            }
+
+            if(overlap.high < curInter.high){
+//gdb_lock();
+              newInter.low = overlap.high+1;
+              newInter.high = curInter.high;
+              toInsert.push(newInter);
+            }
+
           }
+
+
         }
+
+
+//        if(tgt_snode.FindBlockIdx(fr,lr,overlap)==-1){
+//          //Add the full block
+//          tgt_snode.AddNZBlock( lr - fr + 1, tgt_snode_size, fr);
+//        }
+//        else{
+//          
+//          //check the overlap
+//          //                l-----overlap------h
+//          //            l---------block-------------h
+//          //        l--block----h
+//          //                              l-----block----h
+//          //we have two segments to look for : [overlap.high+1 - lr] and [fr - overlap.low -1]         
+//         
+//          if(overlap.high < lr){
+//            //we need to add from high+1 to lr 
+//            tgt_snode.AddNZBlock( lr - overlap.high, tgt_snode_size, overlap.high+1);
+//          }
+//          
+//          if(overlap.low>fr){
+//            //we need to add fr to low-1 
+//            tgt_snode.AddNZBlock( overlap.low - fr, tgt_snode_size, fr);
+//          }
+//        }
 
 
 //        Int nrows = src_snode.NRows(blkidx);

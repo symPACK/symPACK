@@ -17,17 +17,17 @@
 #include  "ngchol/Ordering.hpp"
 
 extern "C" {
-#include <bebop/util/config.h>
-#include <bebop/smc/sparse_matrix.h>
-#include <bebop/smc/csr_matrix.h>
-#include <bebop/smc/csc_matrix.h>
-#include <bebop/smc/sparse_matrix_ops.h>
+#include "bebop/util/config.h"
+#include "bebop/smc/sparse_matrix.h"
+#include "bebop/smc/csr_matrix.h"
+#include "bebop/smc/csc_matrix.h"
+#include "bebop/smc/sparse_matrix_ops.h"
 
-#include <bebop/util/get_options.h>
-#include <bebop/util/init.h>
-#include <bebop/util/malloc.h>
-#include <bebop/util/timer.h>
-#include <bebop/util/util.h>
+#include "bebop/util/get_options.h"
+#include "bebop/util/init.h"
+#include "bebop/util/malloc.h"
+#include "bebop/util/timer.h"
+#include "bebop/util/util.h"
 }
 
 
