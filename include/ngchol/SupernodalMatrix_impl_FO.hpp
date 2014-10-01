@@ -227,36 +227,6 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
 
   }
 
-  template <typename T> inline AsyncComms::iterator SupernodalMatrix<T>::WaitIncomingFactors(AsyncComms & cur_incomingRecv, MPI_Status & recv_status, AsyncComms & outgoingSend) {
-    TIMER_START(IRECV_MPI);
-    if(cur_incomingRecv.size()==0){
-      TIMER_STOP(IRECV_MPI);
-      return cur_incomingRecv.end();
-    }
-    else{
-      Int done = 0;
-      while(cur_incomingRecv.size()>0){
-        Int index = 0;
-        for(AsyncComms::iterator it = cur_incomingRecv.begin(); it!=cur_incomingRecv.end();++it, ++index){
-          Icomm * curComm = *it;
-          int error_code = MPI_Test(&(curComm->Request),&done,&recv_status);
-
-          //Test if comm is done
-          if(done==1){
-
-            Int bytes_received = 0;
-            MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-            curComm->setHead(bytes_received);
-
-            TIMER_STOP(IRECV_MPI);
-            return it;
-          }
-        }
-      }
-    }
-  }
-
-
 
 
 template <typename T> void SupernodalMatrix<T>::FanOut( ){

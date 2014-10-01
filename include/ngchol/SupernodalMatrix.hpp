@@ -215,7 +215,7 @@ template <typename T> class SupernodalMatrix{
   //FanBoth related routines
   Int FBUpdate(Int I,Int prevJ=-1);
   void FBGetUpdateCount(IntNumVec & UpdatesToDo, IntNumVec & AggregatesToRecv);
-  SuperNode<T> * FBRecvFactor(Int src_snode_id,Int tgt_snode_id, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv);
+  SuperNode<T> * FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv);
 
 //  void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, FBTasks & taskList,  Int (*TARGET) (MAPCLASS &,Int,Int),  Int (*TAG) (Int,Int) , const char * label);
 #ifndef _USE_TAU_

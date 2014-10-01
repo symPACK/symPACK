@@ -1,121 +1,111 @@
 #ifndef _SUPERNODAL_MATRIX_IMPL_FB_HPP_
 #define _SUPERNODAL_MATRIX_IMPL_FB_HPP_
 
-//void MyProbe(std::function<bool(Int)> tag_validator){
-//    bool flag = false;
-//    while(!flag){
-//          MPI_Status recv_status;
-//          int bytes_received = 0;
-//
-//          MPI_Probe(MPI_ANY_SOURCE,MPI_ANY_TAG,CommEnv_->MPI_GetComm(),&recv_status);
-//          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-//
-//          Int tag = recv_status.MPI_TAG;
-//        if
-//    }
-// }
+template<typename T> 
+Int getAggBufSize(const SnodeUpdateFB & curTask, const IntNumVec & Xsuper, const IntNumVec & UpdateHeight){
+  Int max_bytes = 5*sizeof(Int); 
+  //The upper bound must be of the width of the "largest" child
+  Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
+  Int ncols = Xsuper[curTask.tgt_snode_id] - Xsuper[curTask.tgt_snode_id-1];
+  Int nz_cnt = nrows * ncols;
+  Int nblocks = nrows;
+  max_bytes += (nblocks)*sizeof(NZBlockDesc);
+  max_bytes += nz_cnt*sizeof(T);
+  //extra int to store the number of updates within the aggregate
+  max_bytes += sizeof(Int); 
 
+  return max_bytes;
+}
 
+ template<typename T> 
+Int getFactBufSize(const SnodeUpdateFB & curTask, const IntNumVec & UpdateWidth, const IntNumVec & UpdateHeight){
+  Int max_bytes = 5*sizeof(Int); 
+  //The upper bound must be of the width of the "largest" child
+  Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
+  Int ncols = UpdateWidth[curTask.tgt_snode_id-1];
+  Int nz_cnt = nrows * ncols;
+  Int nblocks = nrows;
+  max_bytes += (nblocks)*sizeof(NZBlockDesc);
+  max_bytes += nz_cnt*sizeof(T);
 
+  return max_bytes;
+} 
 
-#if 1
-  template<typename T> void SupernodalMatrix<T>::FBAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & AggregatesToRecv, IntNumVec & FactorsToRecv){
+template<typename T> void SupernodalMatrix<T>::FBAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & AggregatesToRecv, IntNumVec & FactorsToRecv){
 
-    Int iam = CommEnv_->MPI_Rank();
-    Int np  = CommEnv_->MPI_Size();
-    std::vector<SnodeUpdateFB> tmpTasks;
-    Int nextLocalI = iLocalI;
-    while(!LocalTasks.empty()){ 
-      SnodeUpdateFB curTask = LocalTasks.top();
+  Int iam = CommEnv_->MPI_Rank();
+  Int np  = CommEnv_->MPI_Size();
+  std::vector<SnodeUpdateFB> tmpTasks;
+  Int nextLocalI = iLocalI;
+  while(!LocalTasks.empty()){ 
+    SnodeUpdateFB curTask = LocalTasks.top();
 
-        Int IrecvCnt = 0; 
-      if(curTask.type == FACTOR){
-        AsyncComms & incomingRecvAgg = incomingRecvAggArr[nextLocalI-1]; 
-        nextLocalI++;
-        //this is a factorization task: we have to receive aggregates
-        Int maxRecvCnt = AggregatesToRecv[curTask.tgt_snode_id-1];
-        Int tag = AGG_TAG(curTask.src_snode_id,curTask.tgt_snode_id);
-//if(maxRecvCnt>0 && curTask.tgt_snode_id==14){gdb_lock();}
-//if(curTask.tgt_snode_id==14){logfileptr->OFS()<<*LocalSupernodes_[nextLocalI-2]<<endl;}
+    Int IrecvCnt = 0; 
+    if(curTask.type == FACTOR){
+      AsyncComms & incomingRecvAgg = incomingRecvAggArr[nextLocalI-1]; 
+      nextLocalI++;
+      //this is a factorization task: we have to receive aggregates
+      Int maxRecvCnt = AggregatesToRecv[curTask.tgt_snode_id-1];
+      Int tag = AGG_TAG(curTask.src_snode_id,curTask.tgt_snode_id);
 
-        for(Int idx =0; idx<maxRecvCnt && incomingRecvCnt_ + IrecvCnt < maxIrecv_;
+      for(Int idx =0; idx<maxRecvCnt && incomingRecvCnt_ + IrecvCnt < maxIrecv_;
           ++idx){
-          Int max_bytes = 5*sizeof(Int); 
-          //The upper bound must be of the width of the "largest" child
-          Int nrows = UpdateHeight_[curTask.tgt_snode_id-1];
-          Int ncols = Xsuper_[curTask.tgt_snode_id] - Xsuper_[curTask.tgt_snode_id-1];
-          Int nz_cnt = nrows * ncols;
-          Int nblocks = nrows;
-          max_bytes += (nblocks)*sizeof(NZBlockDesc);
-          max_bytes += nz_cnt*sizeof(T);
-          //extra int to store the number of updates within the aggregate
-          max_bytes += sizeof(Int); 
+        Int max_bytes = getAggBufSize<T>(curTask, Xsuper_, UpdateHeight_);
 
-          incomingRecvAgg.push_back(new Icomm(max_bytes,MPI_REQUEST_NULL));
-          Icomm & Irecv = *incomingRecvAgg.back();
-          MPI_Irecv(Irecv.front(),Irecv.capacity(),MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&Irecv.Request);
+        TIMER_START(ICOMM_MALLOC_AGG);
+        incomingRecvAgg.push_back(new Icomm(max_bytes,MPI_REQUEST_NULL));
+        TIMER_STOP(ICOMM_MALLOC_AGG);
+        Icomm & Irecv = *incomingRecvAgg.back();
+        MPI_Irecv(Irecv.front(),Irecv.capacity(),MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&Irecv.Request);
 
-          ++IrecvCnt;
-        }
-
-//        AggregatesToRecv[curTask.tgt_snode_id-1] = maxRecvCnt - IrecvCnt;
-        AggregatesToRecv[curTask.tgt_snode_id-1] -= IrecvCnt;
+        ++IrecvCnt;
       }
-      else{
 
-        //this is an update task: we potentially have to receive factors
-//        Int iSrcOwner = Mapping_->Map(curTask.src_snode_id-1,curTask.src_snode_id-1);
-//        if(iSrcOwner!=iam){
-          if(incomingRecvFactArr[curTask.tgt_snode_id-1] == NULL){
-            incomingRecvFactArr[curTask.tgt_snode_id-1] = new AsyncComms();
-          }
-          AsyncComms * incomingRecvFact = incomingRecvFactArr[curTask.tgt_snode_id-1];
+      AggregatesToRecv[curTask.tgt_snode_id-1] -= IrecvCnt;
+    }
+    else{
 
-          Int maxRecvCnt = FactorsToRecv[curTask.tgt_snode_id-1];
-          Int tag = FACT_TAG(curTask.src_snode_id,curTask.tgt_snode_id);
-
-          for(Int idx =0; idx<maxRecvCnt && incomingRecvCnt_ + IrecvCnt < maxIrecv_;
-              ++idx){
-
-//if( curTask.tgt_snode_id==24){gdb_lock();}
-//gdb_lock();
-            Int max_bytes = 5*sizeof(Int); 
-            //The upper bound must be of the width of the "largest" child
-            Int nrows = UpdateHeight_[curTask.tgt_snode_id-1];//next_src_snode->NRowsBelowBlock(0);
-            Int ncols = UpdateWidth_[curTask.tgt_snode_id-1];
-            Int nz_cnt = nrows * ncols;
-            Int nblocks = nrows;
-            max_bytes += (nblocks)*sizeof(NZBlockDesc);
-            max_bytes += nz_cnt*sizeof(T);
-
-            incomingRecvFact->push_back(new Icomm(max_bytes,MPI_REQUEST_NULL));
-            Icomm & Irecv = *incomingRecvFact->back();
-            MPI_Irecv(Irecv.front(),Irecv.capacity(),MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&Irecv.Request);
-            ++IrecvCnt;
-          }
-          FactorsToRecv[curTask.tgt_snode_id-1] -= IrecvCnt;
-          assert(FactorsToRecv[curTask.tgt_snode_id-1]>=0);
-//        }
+      //this is an update task: we potentially have to receive factors
+      if(incomingRecvFactArr[curTask.tgt_snode_id-1] == NULL){
+        incomingRecvFactArr[curTask.tgt_snode_id-1] = new AsyncComms();
       }
-      
-      incomingRecvCnt_+=IrecvCnt;
+      AsyncComms * incomingRecvFact = incomingRecvFactArr[curTask.tgt_snode_id-1];
 
-      if( incomingRecvCnt_ >= maxIrecv_){
-        break;
+      Int maxRecvCnt = FactorsToRecv[curTask.tgt_snode_id-1];
+      Int tag = FACT_TAG(curTask.src_snode_id,curTask.tgt_snode_id);
+
+      for(Int idx =0; idx<maxRecvCnt && incomingRecvCnt_ + IrecvCnt < maxIrecv_;
+          ++idx){
+        Int max_bytes = getFactBufSize<T>(curTask, UpdateWidth_, UpdateHeight_);
+
+        TIMER_START(ICOMM_MALLOC_FACT);
+        incomingRecvFact->push_back(new Icomm(max_bytes,MPI_REQUEST_NULL));
+        TIMER_STOP(ICOMM_MALLOC_FACT);
+        Icomm & Irecv = *incomingRecvFact->back();
+        MPI_Irecv(Irecv.front(),Irecv.capacity(),MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&Irecv.Request);
+        ++IrecvCnt;
       }
-      
-      LocalTasks.pop();
-      tmpTasks.push_back(curTask);
+      FactorsToRecv[curTask.tgt_snode_id-1] -= IrecvCnt;
+      assert(FactorsToRecv[curTask.tgt_snode_id-1]>=0);
     }
 
-    //put the tasks back into the task queue
-    for(auto it = tmpTasks.begin(); it != tmpTasks.end(); it++){
-      LocalTasks.push(*it);
+    incomingRecvCnt_+=IrecvCnt;
+
+    if( incomingRecvCnt_ >= maxIrecv_){
+      break;
     }
 
-
+    LocalTasks.pop();
+    tmpTasks.push_back(curTask);
   }
-#endif
+
+  //put the tasks back into the task queue
+  for(auto it = tmpTasks.begin(); it != tmpTasks.end(); it++){
+    LocalTasks.push(*it);
+  }
+
+
+}
 
 
 
@@ -234,16 +224,8 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
           TIMER_START(RECV_MPI);
           MPI_Status recv_status;
 
-          Int max_bytes = 5*sizeof(Int); 
-          //The upper bound must be of the width of the "largest" child
-          Int nrows = UpdateHeight_[curTask.tgt_snode_id-1];
-          Int ncols = Xsuper_[curTask.tgt_snode_id] - Xsuper_[curTask.tgt_snode_id-1];
-          Int nz_cnt = nrows * ncols;
-          Int nblocks = nrows;
-          max_bytes += (nblocks)*sizeof(NZBlockDesc);
-          max_bytes += nz_cnt*sizeof(T);
-          //extra int to store the number of updates within the aggregate
-          max_bytes += sizeof(Int); 
+          Int max_bytes = getAggBufSize<T>(curTask, Xsuper_, UpdateHeight_);
+
           TIMER_START(RECV_MALLOC);
           src_blocks.resize(max_bytes);
           TIMER_STOP(RECV_MALLOC);
@@ -274,6 +256,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
       AsyncComms & cur_incomingRecv = incomingRecvAggArr[iLocalI-1];
       MPI_Status recv_status;
 
+        TIMER_START(IRECV_MPI_AGG);
       AsyncComms::iterator it = WaitIncomingFactors(cur_incomingRecv, recv_status,outgoingSend);
       while( it != cur_incomingRecv.end() ){
         Icomm * curComm = *it;
@@ -296,6 +279,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
 
         it = WaitIncomingFactors(cur_incomingRecv,recv_status,outgoingSend);
       }
+        TIMER_STOP(IRECV_MPI_AGG);
 
 
         TIMER_STOP(RECV_AGGREGATES);
@@ -379,7 +363,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
   src_blocks.resize(0);
   AsyncComms::iterator it;
   AsyncComms * cur_incomingRecv = incomingRecvFactArr[tgt_snode_id-1];
-  cur_src_snode = FBRecvFactor(src_snode_id,tgt_snode_id,src_blocks,cur_incomingRecv,it,FactorsToRecv);
+  cur_src_snode = FBRecvFactor(curTask,src_blocks,cur_incomingRecv,it,FactorsToRecv);
 
   //need to be updated because we might have received from someone else
   src_snode_id = cur_src_snode->Id();
@@ -772,22 +756,22 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
 }
 
 
-template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_snode_id,Int tgt_snode_id, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv){
+template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv){
   TIMER_START(RECV_FACTORS);
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
   SuperNode<T> * cur_src_snode = NULL;
-  Int iSrcOwner = Mapping_->Map(src_snode_id-1,src_snode_id-1);
+  Int iSrcOwner = Mapping_->Map(curTask.src_snode_id-1,curTask.src_snode_id-1);
   
 
   //This is a local update, iSrcOwner matters
   if(iSrcOwner==iam){
-    Int iLocalI = (src_snode_id-1) / np +1 ;
+    Int iLocalI = (curTask.src_snode_id-1) / np +1 ;
     cur_src_snode = LocalSupernodes_[iLocalI -1];
   }
   else{
 
-    Int tag = FACT_TAG(src_snode_id,tgt_snode_id);
+    Int tag = FACT_TAG(curTask.src_snode_id,curTask.tgt_snode_id);
 #if 0
     TIMER_START(RECV_MPI);
     MPI_Status recv_status;
@@ -815,6 +799,7 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_sn
       //first wait for the Irecv
       bool do_blocking_recv = true;
       if(cur_incomingRecv != NULL){
+        TIMER_START(IRECV_MPI_FACT);
         MPI_Status recv_status;
         it = WaitIncomingFactors(*cur_incomingRecv, recv_status,outgoingSend);
         if( it != cur_incomingRecv->end() ){
@@ -823,22 +808,16 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(Int src_sn
 
           do_blocking_recv = false;
         }
+        TIMER_STOP(IRECV_MPI_FACT);
       }
 
       //do a blocking recv otherwise
       if( do_blocking_recv){
-assert(FactorsToRecv[tgt_snode_id-1]>0);
+assert(FactorsToRecv[curTask.tgt_snode_id-1]>0);
         MPI_Status recv_status;
         int bytes_received = 0;
 
-        Int max_bytes = 5*sizeof(Int); 
-        //The upper bound must be of the width of the "largest" child
-        Int nrows = UpdateHeight_[tgt_snode_id-1];
-        Int ncols = UpdateWidth_[tgt_snode_id-1];
-        Int nz_cnt = nrows * ncols;
-        Int nblocks = nrows;
-        max_bytes += (nblocks)*sizeof(NZBlockDesc);
-        max_bytes += nz_cnt*sizeof(T);
+        Int max_bytes = getFactBufSize<T>(curTask, UpdateWidth_, UpdateHeight_);
 
         TIMER_START(RECV_MALLOC);
         src_blocks.resize(max_bytes);
@@ -847,7 +826,7 @@ assert(FactorsToRecv[tgt_snode_id-1]>0);
         MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&recv_status);
         //    logfileptr->OFS()<<"RECV After"<<endl;
 #endif
-        FactorsToRecv[tgt_snode_id-1]--;
+        FactorsToRecv[curTask.tgt_snode_id-1]--;
 
         Deserialize(&src_blocks[0],*dist_src_snode);
         //#if not(defined(_LINEAR_SEARCH_FCLC_) || defined(_LAZY_INIT) )
