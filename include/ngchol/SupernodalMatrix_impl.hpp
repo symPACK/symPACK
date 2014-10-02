@@ -1819,11 +1819,112 @@ void SupernodalMatrix<T>::Dump(){
 
 
 
-#ifndef _USE_TAU_
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList<T> & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList, Int * AggregatesDone)
-#else
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList, Int * AggregatesDone)
+
+
+
+
+
+
+
+
+
+
+
+
+template <typename T> void SupernodalMatrix<T>::SendMessage(const FBDelayedComm & comm, AsyncComms & OutgoingSend, FBTasks & taskList){
+    const Int & tgt_snode_id = comm.tgt_snode_id;
+    const Int & src_nzblk_idx = comm.src_nzblk_idx;
+    const Int & src_first_row = comm.src_first_row;
+    const TaskType & type = comm.type;
+    SuperNode<T> * src_data = (SuperNode<T> *)comm.src_data;
+    Int src_snode_id = comm.src_snode_id;
+ 
+      SuperNode<T> & src_snode = *src_data;
+
+#ifdef _DEBUG_DELAY_
+      if(type==FACTOR){
+        logfileptr->OFS()<<"Picked Comm { F "<<src_snode_id<<" -> "<<tgt_snode_id<<" }"<<endl;
+      }
+      else{
+        logfileptr->OFS()<<"Picked Comm { A "<<src_snode_id<<" -> "<<tgt_snode_id<<" }"<<endl;
+      }
 #endif
+      //this can be sent now
+      Int iTarget, tag;
+      if(type==FACTOR){
+        iTarget = FACT_TARGET(Mapping_,src_snode_id,tgt_snode_id);
+        tag = FACT_TAG(src_snode_id,tgt_snode_id);
+      }
+      else{
+        iTarget = AGG_TARGET(Mapping_,src_snode_id,tgt_snode_id);
+        tag = AGG_TAG(src_snode_id,tgt_snode_id);
+      }
+
+
+      if(iTarget != iam){
+
+#ifdef _DEBUG_DELAY_
+      if(type==FACTOR){
+        logfileptr->OFS()<<"P"<<iam<<" is sending Factor from Supernode "<<src_snode_id<<" to Supernode "<<tgt_snode_id<<" on P"<<iTarget<<endl;
+        cout<<"P"<<iam<<" is sending Factor from Supernode "<<src_snode_id<<" to Supernode "<<tgt_snode_id<<" on P"<<iTarget<<endl;
+      }
+      else{
+        logfileptr->OFS()<<"P"<<iam<<" is sending Aggregate from Supernode "<<src_snode_id<<" to Supernode "<<tgt_snode_id<<" on P"<<iTarget<<endl;
+        cout<<"P"<<iam<<" is sending Aggregate from Supernode "<<src_snode_id<<" to Supernode "<<tgt_snode_id<<" on P"<<iTarget<<endl;
+      }
+#endif
+        NZBlockDesc & pivot_desc = src_snode.GetNZBlockDesc(src_nzblk_idx);
+        //Create a new Icomm buffer, serialize the contribution
+        // in it and add it to the outgoing comm list
+        Icomm * send_buffer = new Icomm();
+        Serialize(*send_buffer,src_snode,src_nzblk_idx,src_first_row);
+        //if this is an aggregate add the count to the end
+        AddOutgoingComm(OutgoingSend,send_buffer);
+
+        if( OutgoingSend.size() > maxIsend_){
+          TIMER_START(SEND_MPI);
+          MPI_Send(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm());
+          TIMER_STOP(SEND_MPI);
+          OutgoingSend.pop_back();
+        }
+        else{
+          TIMER_START(SEND_MPI);
+          MPI_Isend(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm(),&OutgoingSend.back()->Request);
+          TIMER_STOP(SEND_MPI);
+        }
+#ifdef _DEBUG_DELAY_
+      if(type==FACTOR){
+        logfileptr->OFS()<<"P"<<iam<<" has sent Factor from Supernode "<<src_snode_id<<" to Supernode "<<tgt_snode_id<<" on P"<<iTarget<<endl;
+        cout<<"P"<<iam<<" has sent Factor from Supernode "<<src_snode_id<<" to Supernode "<<tgt_snode_id<<" on P"<<iTarget<<endl;
+      }
+      else{
+        logfileptr->OFS()<<"P"<<iam<<" has sent Aggregate from Supernode "<<src_snode_id<<" to Supernode "<<tgt_snode_id<<" on P"<<iTarget<<endl;
+        cout<<"P"<<iam<<" has sent Aggregate from Supernode "<<src_snode_id<<" to Supernode "<<tgt_snode_id<<" on P"<<iTarget<<endl;
+      }
+#endif
+
+
+      }
+      //remove from the list
+      //This will also free the aggregate
+
+        if(comm.type==AGGREGATE){
+          delete src_data;
+        }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList)
 {
   if(MsgToSend.empty()) { return;}
   bool is_last = taskList.empty();
@@ -1837,28 +1938,10 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
 
 #ifdef _DEBUG_DELAY_
   {
-    #ifndef _USE_TAU_
-    FBCommList<T> tmp = MsgToSend;
-    #else
     FBCommList tmp = MsgToSend;
-    #endif
     logfileptr->OFS()<<"Comm "<<"Queue : ";
     while( tmp.size()>0){
       //Pull the highest priority message
-      #ifndef _USE_TAU_
-#ifdef _DEADLOCK_
-      const FBDelayedComm<T> & comm = tmp.front();
-#else
-      const FBDelayedComm<T> & comm = tmp.top();
-#endif
-
-      if(comm.type==FACTOR){
-        logfileptr->OFS()<<" { F "<<comm.src_data->Id()<<" -> "<<comm.tgt_snode_id<<" }";
-      }
-      else{
-        logfileptr->OFS()<<" { A "<<comm.src_data->Id()<<" -> "<<comm.tgt_snode_id<<" }";
-      }
-      #else
 #ifdef _DEADLOCK_
       const FBDelayedComm & comm = tmp.front();
 #else
@@ -1871,35 +1954,17 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
       else{
         logfileptr->OFS()<<" { A "<<comm.src_snode_id<<" -> "<<comm.tgt_snode_id<<" }";
       }
-      #endif
       tmp.pop();
     }
     logfileptr->OFS()<<endl;
   }
 #endif
 
-#ifndef _USE_TAU_
-  FBDelayedCommCompare<T> comparator;
-#else
   FBDelayedCommCompare comparator;
-#endif
 //comparator.unitTest();
 
   while( MsgToSend.size()>0){
     //Pull the highest priority message
-#ifndef _USE_TAU_
-#ifdef _DEADLOCK_
-    const FBDelayedComm<T> & comm = MsgToSend.front();
-#else
-    const FBDelayedComm<T> & comm = MsgToSend.top();
-#endif
-    const Int & tgt_snode_id = comm.tgt_snode_id;
-    const Int & src_nzblk_idx = comm.src_nzblk_idx;
-    const Int & src_first_row = comm.src_first_row;
-    const TaskType & type = comm.type;
-    SuperNode<T> * src_data = comm.src_data;
-    Int src_snode_id = src_data->Id();
-#else
 #ifdef _DEADLOCK_
     const FBDelayedComm & comm = MsgToSend.front();
 #else
@@ -1911,7 +1976,6 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
     const TaskType & type = comm.type;
     SuperNode<T> * src_data = (SuperNode<T> *)comm.src_data;
     Int src_snode_id = comm.src_snode_id;
-#endif
     
     bool doSend = true;
     if(nextTask!=NULL){
@@ -1934,6 +1998,9 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
 
 
     if(doSend){
+#if 1
+      SendMessage(comm, OutgoingSend, taskList);
+#else
       SuperNode<T> & src_snode = *src_data;
 
 #ifdef _DEBUG_DELAY_
@@ -2017,6 +2084,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
         if(comm.type==AGGREGATE){
           delete src_data;
         }
+#endif
       MsgToSend.pop();
     }
     else{

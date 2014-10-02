@@ -199,6 +199,13 @@ template <typename T> class SupernodalMatrix{
   inline bool FindNextUpdate(SuperNode<T> & src_snode, Int & tgt_snode_id, Int & f_ur, Int & f_ub, Int & n_ur, Int & n_ub);
 
   //FanOut related routines
+
+
+
+  void SendMessage(const FBDelayedComm & comm, AsyncComms & OutgoingSend, FBTasks & taskList);
+
+
+
   void SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, bool reverse=false);
   void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl);
   void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl);
@@ -208,6 +215,7 @@ template <typename T> class SupernodalMatrix{
 #else
   inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
 #endif
+  void SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList);
 
 
 
@@ -217,12 +225,6 @@ template <typename T> class SupernodalMatrix{
   void FBGetUpdateCount(IntNumVec & UpdatesToDo, IntNumVec & AggregatesToRecv);
   SuperNode<T> * FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv);
 
-//  void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, FBTasks & taskList,  Int (*TARGET) (MAPCLASS &,Int,Int),  Int (*TAG) (Int,Int) , const char * label);
-#ifndef _USE_TAU_
-  void SendDelayedMessagesUp(FBCommList<T> & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList, Int * AggregatesDone = NULL);
-#else
-  void SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList, Int * AggregatesDone = NULL);
-#endif
 
   //Solve related routines
   void forward_update(SuperNode<T> * src_contrib,SuperNode<T> * tgt_contrib);
