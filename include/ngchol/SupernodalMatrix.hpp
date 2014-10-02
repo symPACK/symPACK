@@ -202,11 +202,13 @@ template <typename T> class SupernodalMatrix{
 
 
 
-  void SendMessage(const FBDelayedComm & comm, AsyncComms & OutgoingSend, FBTasks & taskList);
+  void SendMessage(const FBDelayedComm & comm, AsyncComms & OutgoingSend);
 
+  void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl);
 
 
   void SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, bool reverse=false);
+
   void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl);
   void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl);
 #ifdef SINGLE_BLAS
@@ -215,6 +217,8 @@ template <typename T> class SupernodalMatrix{
 #else
   inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
 #endif
+
+  void SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, const SnodeUpdateFB * nextTask);
   void SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList);
 
 

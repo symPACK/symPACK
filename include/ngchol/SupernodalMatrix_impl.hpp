@@ -1671,6 +1671,64 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesDown(Int iLoc
 
 
 
+
+
+
+
+
+
+
+
+
+
+template <typename T> void SupernodalMatrix<T>::SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
+    Int src_snode_id = comm.src_snode_id;
+    Int tgt_snode_id = comm.tgt_snode_id;
+    Int src_nzblk_idx = comm.src_nzblk_idx;
+    Int src_first_row = comm.src_first_row;
+
+
+      Int iLocalSrc = (src_snode_id-1) / np +1 ;
+      SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
+
+      //this can be sent now
+      Int iTarget = Mapping_->Map(tgt_snode_id-1,tgt_snode_id-1);
+      if(iTarget != iam){
+#ifdef _DEBUG_DELAY_
+        logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+        cout<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+#endif
+
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<prev_src_snode.Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
+#endif
+        NZBlockDesc & pivot_desc = prev_src_snode.GetNZBlockDesc(src_nzblk_idx);
+        //Create a new Icomm buffer, serialize the contribution
+        // in it and add it to the outgoing comm list
+        Icomm * send_buffer = new Icomm();
+        Serialize(*send_buffer,prev_src_snode,src_nzblk_idx,src_first_row);
+        AddOutgoingComm(OutgoingSend,send_buffer);
+
+
+        if( OutgoingSend.size() > maxIsend_){
+          TIMER_START(SEND_MPI);
+          MPI_Send(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm());
+          TIMER_STOP(SEND_MPI);
+          OutgoingSend.pop_back();
+        }
+        else{
+          TIMER_START(SEND_MPI);
+          MPI_Isend(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm(),&OutgoingSend.back()->Request);
+          TIMER_STOP(SEND_MPI);
+        }
+      }
+    }
+
+
+
+
+
+
 template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
 //  typedef volatile LIBCHOLESKY::Int Int;
 
@@ -1728,6 +1786,16 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
 #endif
 
     if(tgt_snode_id < next_snode_id || is_last /*|| OutgoingSend.size() <= maxIsend_*/){
+
+
+#if 1
+      SendMessage(comm, OutgoingSend, snodeColl);
+#else
+
+
+
+
+
       Int iLocalSrc = (src_snode_id-1) / np +1 ;
       SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
 
@@ -1762,6 +1830,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
           TIMER_STOP(SEND_MPI);
         }
       }
+#endif
       //remove from the list
       MsgToSend.pop();
     }
@@ -1831,7 +1900,7 @@ void SupernodalMatrix<T>::Dump(){
 
 
 
-template <typename T> void SupernodalMatrix<T>::SendMessage(const FBDelayedComm & comm, AsyncComms & OutgoingSend, FBTasks & taskList){
+template <typename T> void SupernodalMatrix<T>::SendMessage(const FBDelayedComm & comm, AsyncComms & OutgoingSend){
     const Int & tgt_snode_id = comm.tgt_snode_id;
     const Int & src_nzblk_idx = comm.src_nzblk_idx;
     const Int & src_first_row = comm.src_first_row;
@@ -1921,47 +1990,12 @@ template <typename T> void SupernodalMatrix<T>::SendMessage(const FBDelayedComm 
 
 
 
-
-
-
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList)
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, const SnodeUpdateFB * nextTask)
 {
   if(MsgToSend.empty()) { return;}
-  bool is_last = taskList.empty();
-
-  //Index of the last global snode to do
-#ifdef _DEADLOCK_
-  const SnodeUpdateFB * nextTask = (!taskList.empty())?&taskList.front():NULL;
-#else
-  const SnodeUpdateFB * nextTask = (!taskList.empty())?&taskList.top():NULL;
-#endif
-
-#ifdef _DEBUG_DELAY_
-  {
-    FBCommList tmp = MsgToSend;
-    logfileptr->OFS()<<"Comm "<<"Queue : ";
-    while( tmp.size()>0){
-      //Pull the highest priority message
-#ifdef _DEADLOCK_
-      const FBDelayedComm & comm = tmp.front();
-#else
-      const FBDelayedComm & comm = tmp.top();
-#endif
-
-      if(comm.type==FACTOR){
-        logfileptr->OFS()<<" { F "<<comm.src_snode_id<<" -> "<<comm.tgt_snode_id<<" }";
-      }
-      else{
-        logfileptr->OFS()<<" { A "<<comm.src_snode_id<<" -> "<<comm.tgt_snode_id<<" }";
-      }
-      tmp.pop();
-    }
-    logfileptr->OFS()<<endl;
-  }
-#endif
-
+  bool is_last = nextTask == NULL;
+ 
   FBDelayedCommCompare comparator;
-//comparator.unitTest();
 
   while( MsgToSend.size()>0){
     //Pull the highest priority message
@@ -1999,7 +2033,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
 
     if(doSend){
 #if 1
-      SendMessage(comm, OutgoingSend, taskList);
+      SendMessage(comm, OutgoingSend);
 #else
       SuperNode<T> & src_snode = *src_data;
 
@@ -2091,6 +2125,46 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
       break;
     }
   }
+
+}
+
+
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, FBTasks & taskList)
+{
+  if(MsgToSend.empty()) { return;}
+
+  //Index of the last global snode to do
+#ifdef _DEADLOCK_
+  const SnodeUpdateFB * nextTask = (!taskList.empty())?&taskList.front():NULL;
+#else
+  const SnodeUpdateFB * nextTask = (!taskList.empty())?&taskList.top():NULL;
+#endif
+
+#ifdef _DEBUG_DELAY_
+  {
+    FBCommList tmp = MsgToSend;
+    logfileptr->OFS()<<"Comm "<<"Queue : ";
+    while( tmp.size()>0){
+      //Pull the highest priority message
+#ifdef _DEADLOCK_
+      const FBDelayedComm & comm = tmp.front();
+#else
+      const FBDelayedComm & comm = tmp.top();
+#endif
+
+      if(comm.type==FACTOR){
+        logfileptr->OFS()<<" { F "<<comm.src_snode_id<<" -> "<<comm.tgt_snode_id<<" }";
+      }
+      else{
+        logfileptr->OFS()<<" { A "<<comm.src_snode_id<<" -> "<<comm.tgt_snode_id<<" }";
+      }
+      tmp.pop();
+    }
+    logfileptr->OFS()<<endl;
+  }
+#endif
+
+  SendDelayedMessagesUp(MsgToSend, OutgoingSend, nextTask);
 }
 
 

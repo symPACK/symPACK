@@ -257,7 +257,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
                 FBDelayedComm comm(FACTOR,(void*)&src_snode,curUpdate.src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag);
                 //Try to do the async send first
                 if(outgoingSend.size() < maxIsend_){
-                  SendMessage(comm, outgoingSend, LocalTasks);
+                  SendMessage(comm, outgoingSend);
                 }
                 else{
 TIMER_START(PUSH_MSG);
@@ -405,7 +405,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
           FBDelayedComm comm(AGGREGATE,(void*)tgt_aggreg,curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,pivot_desc.GIndex,iTarget,tag,AggregatesDone[curUpdate.tgt_snode_id-1]);
 
             if(outgoingSend.size() < maxIsend_){
-              SendMessage(comm, outgoingSend, LocalTasks);
+              SendMessage(comm, outgoingSend);
             }
             else{
 TIMER_START(PUSH_MSG);

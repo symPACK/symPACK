@@ -590,6 +590,24 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
             //need a std::unordered_set to check whether 
             Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
+
+#if 1
+
+              DelayedComm comm(src_snode.Id(),curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row);
+
+            if(outgoingSend.size() < maxIsend_){
+              SendMessage(comm, outgoingSend,LocalSupernodes_);
+            }
+            else{
+TIMER_START(PUSH_MSG);
+              FactorsToSend.push(comm);
+TIMER_STOP(PUSH_MSG);
+            }
+
+              is_skipped[iTarget] = true;
+              SendDelayedMessagesUp(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
+
+#else
 #ifndef _DEADLOCK_
 //            if( next_local_snode< curUpdate.tgt_snode_id){
               //need to push the prev src_last_row
@@ -630,6 +648,8 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
                 TIMER_STOP(SEND_MPI);
               }
             }
+#endif
+
 #endif
 
           }
