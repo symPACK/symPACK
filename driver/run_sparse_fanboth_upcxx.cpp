@@ -107,13 +107,56 @@ int main(int argc, char **argv)
   }
 
 
+  Real timeSta, timeEnd;
+
+  sparse_matrix_file_format_t informat;
+  TIMER_START(READING_MATRIX);
+DistSparseMatrix<Real> HMat(worldcomm);
+  //Read the input matrix
+  if(informatstr == "CSC"){
+       ParaReadDistSparseMatrix( filename.c_str(), HMat, worldcomm ); 
+  }
+  else{
+
+  informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
+
+
+
+  sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
+  sparse_matrix_convert (Atmp, CSC);
+  const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
+  HMat.CopyData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,(MYSCALAR *)cscptr->values);
+
+
+  destroy_sparse_matrix (Atmp);
+  }
+
+
+
   if( options.find("-map") != options.end() ){
     if(options["-map"] == "Modwrap2D"){
+      std::vector<Int> procMap(HMat.size);
+      for(Int i = HMat.size-1; i>=0; i--){
+        procMap[HMat.size-i-1] = i%np;
+      }
+
       if( np % (Int)sqrt((double)np) == 0){
-        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
+        mapping = new Modwrap2D(np, sqrt((double)np), np, procMap, 1);
       }
       else{
-        mapping = new Modwrap2D(np, np, np, 1);
+        mapping = new Modwrap2D(np, np, np, procMap, 1);
+      }
+
+      //test mapping
+      logfileptr->OFS()<<"Processor map: "<<endl;
+      logfileptr->OFS()<<procMap<<endl;
+
+      logfileptr->OFS()<<"Resulting mapping: "<<endl;
+      for(Int i = 0; i< 50;++i){
+        for(Int j = 0; j< 50;++j){
+          logfileptr->OFS()<<mapping->Map(i,j)<<" ";
+        }
+        logfileptr->OFS()<<endl;
       }
     }
     else if(options["-map"] == "Modwrap2DNS"){
@@ -150,29 +193,8 @@ int main(int argc, char **argv)
   }
 
 
-  Real timeSta, timeEnd;
-
-  sparse_matrix_file_format_t informat;
-  TIMER_START(READING_MATRIX);
-DistSparseMatrix<Real> HMat(worldcomm);
-  //Read the input matrix
-  if(informatstr == "CSC"){
-       ParaReadDistSparseMatrix( filename.c_str(), HMat, worldcomm ); 
-  }
-  else{
-
-  informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
 
 
-
-  sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
-  sparse_matrix_convert (Atmp, CSC);
-  const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
-  HMat.CopyData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,(MYSCALAR *)cscptr->values);
-
-
-  destroy_sparse_matrix (Atmp);
-  }
   TIMER_STOP(READING_MATRIX);
   if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
 
@@ -447,10 +469,15 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
 
   timeSta = get_time();
-if(doFB){
+if(doFB==1){
   TIMER_START(SPARSE_FAN_BOTH);
   SMat.FanBoth();
   TIMER_STOP(SPARSE_FAN_BOTH);
+}
+else if (doFB==-1){
+  TIMER_START(SPARSE_FAN_OUT);
+  SMat.FanOutTask();
+  TIMER_STOP(SPARSE_FAN_OUT);
 }
 else{
   TIMER_START(SPARSE_FAN_OUT);

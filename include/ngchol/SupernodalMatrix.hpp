@@ -46,6 +46,36 @@ struct NGCholOptions{
   FactorizationType factorization;
 };
 
+template<typename T> 
+Int getAggBufSize(const SnodeUpdateFB & curTask, const IntNumVec & Xsuper, const IntNumVec & UpdateHeight){
+  Int max_bytes = 5*sizeof(Int); 
+  //The upper bound must be of the width of the "largest" child
+  Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
+  Int ncols = Xsuper[curTask.tgt_snode_id] - Xsuper[curTask.tgt_snode_id-1];
+  Int nz_cnt = nrows * ncols;
+  Int nblocks = nrows;
+  max_bytes += (nblocks)*sizeof(NZBlockDesc);
+  max_bytes += nz_cnt*sizeof(T);
+  //extra int to store the number of updates within the aggregate
+  //max_bytes += sizeof(Int); 
+
+  return max_bytes;
+}
+
+ template<typename T> 
+Int getFactBufSize(const SnodeUpdateFB & curTask, const IntNumVec & UpdateWidth, const IntNumVec & UpdateHeight){
+  Int max_bytes = 5*sizeof(Int); 
+  //The upper bound must be of the width of the "largest" child
+  Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
+  Int ncols = UpdateWidth[curTask.tgt_snode_id-1];
+  Int nz_cnt = nrows * ncols;
+  Int nblocks = nrows;
+  max_bytes += (nblocks)*sizeof(NZBlockDesc);
+  max_bytes += nz_cnt*sizeof(T);
+
+  return max_bytes;
+} 
+
 
 
 template <typename T> class SupernodalMatrix{
@@ -76,6 +106,7 @@ template <typename T> class SupernodalMatrix{
 
   void Factorize();
   void FanOut( );
+  void FanOutTask( );
   void FanBoth( );
 
   void FanOut2( );
@@ -185,6 +216,12 @@ template <typename T> class SupernodalMatrix{
   //FanOut communication routines
   //AsyncRecvFactors tries to post some MPI_Irecv on the next updates (targetting current to next supernodes)
   void AsyncRecvFactors(Int iLocalI, std::vector<AsyncComms> & incomingRecvArr,IntNumVec & FactorsToRecv,IntNumVec & UpdatesToDo);
+  void AsyncRecv(Int iLocalI, std::vector<AsyncComms> * incomingRecvFactArr, Int * FactorsToRecv, Int * UpdatesToDo);
+
+
+
+
+
   //WaitIncomingFactors returns an iterator to the first completed asynchronous factor receive. It must be called in a while loop.
   //Returns cur_incomingRecv.end() if everything has been received.
   inline AsyncComms::iterator WaitIncomingFactors(AsyncComms & cur_incomingRecv, MPI_Status & recv_status, AsyncComms & outgoingSend);
