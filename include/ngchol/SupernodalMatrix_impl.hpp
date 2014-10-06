@@ -137,6 +137,31 @@ if(iam==0){
     logfileptr->OFS()<<"Supernodal ETree is "<<ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_)<<std::endl;
 #endif
 
+
+
+//Do a greedy load balancing heuristic
+      std::vector<Int> procMap(Xsuper_.m()-1);
+      //Do a greedy heuristic to balance the number of nnz ?
+      std::vector<double> load(np,0.0);
+      
+      for(Int i = 1; i< Xsuper_.m();  ++i){
+        //find least loaded processor
+        vector<double>::iterator it = std::min_element(load.begin(),load.end());
+        Int proc = (Int)(it - load.begin());
+        Int width = Xsuper_[i] - Xsuper_[i-1];
+        Int height = cc[i-1];
+        *it += (double)(width*height);
+        procMap[i-1] = proc;
+      } 
+
+logfileptr->OFS()<<"Proc load: "<<load<<endl;
+logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
+
+    //Update the mapping
+    Mapping_->Update(procMap);  
+
+
+
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_,UpdateHeight_);
 
 
@@ -304,6 +329,11 @@ if(iam==0){
       if(iam==iDest){
         LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight));
         SuperNode<T> & snode = *LocalSupernodes_.back();
+        
+        ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
+        globToLocSnodes_.Insert(snode_inter);
+
+
 
 
         for(Int idx = fi; idx<=li;idx++){
@@ -512,7 +542,8 @@ if(iam==0){
       Int iOwner = Mapping_->Map(I-1,I-1);
       //If I own the column, factor it
       if( iOwner == iam ){
-        Int iLocalI = (I-1) / np +1 ;
+        Int iLocalI = globToLocSnodes_.IntervalSearch(I,I)->block_idx;
+//        Int iLocalI = (I-1) / np +1 ;
         SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
           
 
@@ -907,7 +938,8 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
       if( iOwner == iam ){
         //Create the blocks of my contrib with the same nz structure as L
         //and the same width as the final solution
-        Int iLocalI = (I-1) / np +1 ;
+        //Int iLocalI = (I-1) / np +1 ;
+        Int iLocalI = globToLocSnodes_.IntervalSearch(I,I)->block_idx;
         SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
         SuperNode<T> * contrib = new SuperNode<T>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) );
         Contributions_[iLocalI-1] = contrib;
@@ -963,7 +995,8 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
           Int contrib_snode_id = LocalUpdates[iLocalI-1].top();
           LocalUpdates[iLocalI-1].pop();
 
-          SuperNode<T> * dist_contrib = Contributions_[(contrib_snode_id-1) / np];
+          Int iLocalJ = globToLocSnodes_.IntervalSearch(contrib_snode_id,contrib_snode_id)->block_idx;
+          SuperNode<T> * dist_contrib = Contributions_[iLocalJ-1];
 
 #ifdef _DEBUG_
           logfileptr->OFS()<<"LOCAL Supernode "<<I<<" is updated by contrib of Supernode "<<contrib_snode_id<<std::endl;
@@ -1162,7 +1195,8 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 #ifdef _DEBUG_
               logfileptr->OFS()<<"Local Supernode "<<parent_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
 #endif
-              Int iLocalJ = (parent_snode_id-1) / np +1 ;
+//              Int iLocalJ = (parent_snode_id-1) / np +1 ;
+              Int iLocalJ = globToLocSnodes_.IntervalSearch(parent_snode_id,parent_snode_id)->block_idx;
               LocalUpdates[iLocalJ-1].push((Int)I);
             }
           }
@@ -1254,8 +1288,9 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
           if(!LocalUpdates[iLocalI-1].empty()){
             Int contrib_snode_id = LocalUpdates[iLocalI-1].top();
             LocalUpdates[iLocalI-1].pop();
-
-            dist_contrib = Contributions_[(contrib_snode_id-1) / np];
+            //Int iLocalJ = (contrib_snode_id -1) / np +1;
+            Int iLocalJ = globToLocSnodes_.IntervalSearch(contrib_snode_id,contrib_snode_id)->block_idx;
+            dist_contrib = Contributions_[iLocalJ-1];
             back_update(dist_contrib,contrib);
           }
           else{
@@ -1396,7 +1431,9 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 #ifdef _DEBUG_
                   logfileptr->OFS()<<"Local Supernode "<<child_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
 #endif
-                  Int iLocalJ = (child_snode_id-1) / np +1 ;
+//                  Int iLocalJ = (child_snode_id-1) / np +1 ;
+                  Int iLocalJ = globToLocSnodes_.IntervalSearch(child_snode_id,child_snode_id)->block_idx;
+
                   LocalUpdates[iLocalJ-1].push((Int)I);
                 }
                 children_found++;
@@ -1441,7 +1478,8 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
       //If I own the column, factor it
 
 if( iOwner == iam){
-        Int iLocalI = (I-1) / np +1 ;
+        //Int iLocalI = (I-1) / np +1 ;
+        Int iLocalI = globToLocSnodes_.IntervalSearch(I,I)->block_idx;
         SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
 #ifdef _DEBUG_
         logfileptr->OFS()<<"Supernode "<<I<<"("<<src_snode.Id()<<") is on P"<<iOwner<<" local index is "<<iLocalI<<std::endl; 
@@ -1452,7 +1490,8 @@ if( iOwner == iam){
 
 
 
-        Int iLocalI = (I-1) / np +1 ;
+        //Int iLocalI = (I-1) / np +1 ;
+        Int iLocalI = globToLocSnodes_.IntervalSearch(I,I)->block_idx;
         SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
 
 
@@ -1507,7 +1546,8 @@ if( iOwner == iam){
         }
         else{
 
-          Int iLocalI = (I-1) / np +1 ;
+          //Int iLocalI = (I-1) / np +1 ;
+          Int iLocalI = globToLocSnodes_.IntervalSearch(I,I)->block_idx;
           SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
           for(int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
             NZBlockDesc & nzblk_desc = src_snode.GetNZBlockDesc(blkidx);
@@ -1545,7 +1585,8 @@ template<typename T> void SupernodalMatrix<T>::GetSolution(NumMat<T> & B){
       tmp_nzval.resize(nzcnt);
 
       if( iOwner == iam ){
-        Int iLocalI = (I-1) / np +1 ;
+//        Int iLocalI = (I-1) / np +1 ;
+        Int iLocalI = globToLocSnodes_.IntervalSearch(I,I)->block_idx;
         SuperNode<T> * contrib = Contributions_[iLocalI-1];
         data = contrib->GetNZval(0);
       }
@@ -1624,7 +1665,8 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesDown(Int iLoc
 
     if(tgt_snode_id>next_snode_id || is_last /*|| OutgoingSend.size() <= maxIsend_*/){
 
-      Int iLocalSrc = (src_snode_id-1) / np +1 ;
+//      Int iLocalSrc = (src_snode_id-1) / np +1 ;
+      Int iLocalSrc = globToLocSnodes_.IntervalSearch(src_snode_id,src_snode_id)->block_idx;
       SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
       //this can be sent now
 
@@ -1688,7 +1730,8 @@ template <typename T> void SupernodalMatrix<T>::SendMessage(const DelayedComm & 
     Int src_first_row = comm.src_first_row;
 
 
-      Int iLocalSrc = (src_snode_id-1) / np +1 ;
+//      Int iLocalSrc = (src_snode_id-1) / np +1 ;
+      Int iLocalSrc = globToLocSnodes_.IntervalSearch(src_snode_id,src_snode_id)->block_idx;
       SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
 
       //this can be sent now
@@ -1848,7 +1891,8 @@ void SupernodalMatrix<T>::Dump(){
       Int iOwner = Mapping_->Map(I-1,I-1);
       //If I own the column, factor it
       if( iOwner == iam ){
-        Int iLocalI = (I-1) / np +1 ;
+        //Int iLocalI = (I-1) / np +1 ;
+        Int iLocalI = globToLocSnodes_.IntervalSearch(I,I)->block_idx;
         SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
           
 
@@ -2016,7 +2060,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
       //gdb_lock(3);
       TaskType nextType = nextTask->type;
 //      doSend = !comparator.compare(src_snode_id,tgt_snode_id,type,nextTask->src_snode_id,nextTask->tgt_snode_id, nextType);
-      doSend = !comparator.base_compare(src_snode_id,tgt_snode_id,nextTask->src_snode_id,nextTask->tgt_snode_id);
+      doSend = !comparator.compare_task(src_snode_id,tgt_snode_id,type,nextTask->src_snode_id,nextTask->tgt_snode_id,nextTask->type);
 
 #ifdef _DEBUG_DELAY_
         logfileptr->OFS()<<"Comm "<<(type==FACTOR?"F":"A")<<" {"<<src_snode_id<<" -> "<<tgt_snode_id<<"} vs Task "

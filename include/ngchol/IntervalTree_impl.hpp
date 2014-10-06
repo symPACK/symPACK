@@ -95,14 +95,14 @@ inline   Int ITree::recomputeMax_(ITree::ITNode * root)
 
 
   // A utility function to check if given two intervals overlap
-inline   bool ITree::doOVerlap_(ITree::Interval &i1, ITree::Interval &i2)
+inline   bool ITree::doOVerlap_(const ITree::Interval &i1, const ITree::Interval &i2)
   {
     if (i1.low <= i2.high && i2.low <= i1.high)
       return true;
     return false;
   }
 
-inline   bool ITree::doOVerlap_(ITree::Interval &i1, Int & low, Int & high)
+inline   bool ITree::doOVerlap_(const ITree::Interval &i1, const Int & low, const Int & high)
   {
     if (i1.low <= high && low <= i1.high)
       return true;
@@ -113,7 +113,7 @@ inline   bool ITree::doOVerlap_(ITree::Interval &i1, Int & low, Int & high)
 
   // The main function that searches a given interval i in a given
   // Interval Tree.
-inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, Int & begin, Int &end)
+inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int & begin,const Int &end)
 //  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, ITree::Interval &i)
   {
     // Base Case, tree is empty

@@ -185,7 +185,7 @@ template <typename T> class SupernodalMatrix{
 
 
 
-
+    ITree globToLocSnodes_;
 
     AsyncComms outgoingSend;
     FBCommList MsgToSend;

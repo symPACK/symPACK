@@ -240,15 +240,15 @@ TIMER_STOP(PUSH_MSG);
 #endif  
                 is_factor_sent[iTarget] = true;
 
-              //process some of the delayed send
-              AdvanceOutgoing(outgoingSend);
-              SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks);
             }
 
           }
         }
         TIMER_STOP(FIND_UPDATED_ANCESTORS);
 
+       //process some of the delayed send
+//       AdvanceOutgoing(outgoingSend);
+//       SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks);
 
 
 
@@ -310,7 +310,8 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
       Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
       if(iTarget == iam){
         //the aggregate vector is directly the target snode
-        Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
+        //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
+        Int iLocalJ = globToLocSnodes_.IntervalSearch(curUpdate.tgt_snode_id,curUpdate.tgt_snode_id)->block_idx;
         tgt_aggreg = LocalSupernodes_[iLocalJ -1];
 
         assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
@@ -386,11 +387,6 @@ TIMER_STOP(PUSH_MSG);
 
 
 
-
-          //process some of the delayed send
-          AdvanceOutgoing(outgoingSend);
-          SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks);
-
         }
       }
 
@@ -401,6 +397,12 @@ TIMER_STOP(PUSH_MSG);
     }
   }
   TIMER_STOP(UPDATE_ANCESTORS);
+
+  //process some of the delayed send
+//  AdvanceOutgoing(outgoingSend);
+//  SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks);
+
+
 
   if(iSrcOwner!=iam){
     //if the recv was from an async recv, delete the request
@@ -685,7 +687,8 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const Snod
 
   //This is a local update, iSrcOwner matters
   if(iSrcOwner==iam){
-    Int iLocalI = (curTask.src_snode_id-1) / np +1 ;
+    //Int iLocalI = (curTask.src_snode_id-1) / np +1 ;
+    Int iLocalI = globToLocSnodes_.IntervalSearch(curTask.src_snode_id,curTask.src_snode_id)->block_idx;
     cur_src_snode = LocalSupernodes_[iLocalI -1];
   }
   else{

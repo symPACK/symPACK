@@ -32,7 +32,16 @@ class Mapping{
 //      inline Int modwrap2Dns(Int i, Int j) {return(i/iBlockSize_)%iPRows_ + iPRows_*floor((double)((j/iBlockSize_)%iNumProc_)/(double)iPRows_);}
 
   public:
-
+      void Update(std::vector<Int> & aProcMap){
+        if(pProcMap_==NULL){
+          pProcMap_ = new std::vector<Int>(aProcMap);
+        }
+        else{
+          pProcMap_->clear();
+          pProcMap_->insert(aProcMap.begin(),aProcMap.end(),pProcMap_->begin());
+        }
+      }
+  
       Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pProcMap_(NULL){};
       Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):
           iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize){

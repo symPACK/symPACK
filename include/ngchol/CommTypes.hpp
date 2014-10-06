@@ -121,7 +121,7 @@ namespace LIBCHOLESKY{
         return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
       }
       //case Fx,y   vs   Ax,y    =>   F comes first
-      else if(a_type == FACTOR && a_src_snode_id == b_src_snode_id && a_tgt_snode_id == b_tgt_snode_id){
+      else if(a_type == FACTOR && /*a_src_snode_id == b_src_snode_id &&*/ a_tgt_snode_id == b_tgt_snode_id){
         return false;
       }
       //case Fy,*   vs   A*,y    =>   A comes first
@@ -129,57 +129,63 @@ namespace LIBCHOLESKY{
         return true;
       }
       //case Ax,*   vs   Fx,*    =>   F comes first
-      else if(b_type == FACTOR && a_src_snode_id == b_src_snode_id && a_tgt_snode_id == b_tgt_snode_id){
+      else if(b_type == FACTOR && /*a_src_snode_id == b_src_snode_id &&*/ a_tgt_snode_id == b_tgt_snode_id){
         return true;
       }
       //case A*,y   vs   Fy,*    =>   A comes first
       else if(b_type == FACTOR && b_src_snode_id == a_tgt_snode_id){
         return false;
       }
+
       else{
         return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
       }
-
-//      if(a_type == b_type){
-//        return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
-//      }
-//      //If they are not of the same type
-//      else{
-//        if(a_type == FACTOR){
-//          //case Fx,* vs Ax,*
-//          if(a_src_snode_id == b_src_snode_id){
-//            return true; //a is factor ?
-//          }
-//          else{
-//            //case Fx,* vs A*,x
-//            if(a_src_snode_id == b_tgt_snode_id){
-//              return true;
-//            }
-//            else{
-//              //              return a_src_snode_id<b_tgt_snode_id;
-//              //              return b_src_snode_id<a_src_snode_id;
-//              return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
-//            } 
-//          }
-//        }
-//        else{
-//
-//          //case Fx,* vs Ax,*
-//          if(b_src_snode_id == a_src_snode_id){
-//            return false; //a is factor ?
-//          }
-//          else{
-//            //case Fx,* vs A*,x
-//            if(b_src_snode_id == a_tgt_snode_id){
-//              return false;
-//            }
-//            else{
-//              return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
-//            } 
-//          }
-//        }
-//      }
     }
+
+
+
+
+    // b is the task
+    inline bool compare_task(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const TaskType & a_type,
+        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const TaskType & b_type) const{
+
+
+      //If they are the same type, sort by tgt id then by src_id
+      if(a_type == b_type){
+        return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
+      }
+      //case Fx,y   vs   Ax,y    =>   F comes first
+      else if(a_type == FACTOR && /*a_src_snode_id == abs(b_src_snode_id) &&*/ a_tgt_snode_id == b_tgt_snode_id){
+        return false;
+      }
+      //case Fy,*   vs   A*,y    =>   A comes first
+      else if(a_type == FACTOR && a_src_snode_id == b_tgt_snode_id){
+        return true;
+      }
+      //case Ax,*   vs   Fx,*    =>   F comes first
+      else if(b_type == FACTOR && /*a_src_snode_id == abs(b_src_snode_id) &&*/ a_tgt_snode_id == b_tgt_snode_id){
+        return true;
+      }
+      //case A*,y   vs   Fy,*    =>   A comes first
+      else if(b_type == FACTOR && abs(b_src_snode_id) == a_tgt_snode_id){
+        return false;
+      }
+      else{
+        return base_compare(a_src_snode_id, a_tgt_snode_id, abs(b_src_snode_id), b_tgt_snode_id);
+      }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
 
     bool operator()(const FBDelayedComm & a,const FBDelayedComm & b) const
     {

@@ -75,10 +75,10 @@ protected:
       inline Int recomputeMax_(ITNode * root);
 
       // A utility function to check if given two intervals overlap
-      inline bool doOVerlap_(Interval &i1, Interval &i2);
-      inline bool doOVerlap_(ITree::Interval &i1, Int & low, Int & high);
+      inline bool doOVerlap_(const Interval &i1,const Interval &i2);
+      inline bool doOVerlap_(const ITree::Interval &i1, const Int & low, const Int & high);
       //Interval *intervalSearch_(ITNode *root, Interval &i);
-      inline Interval *intervalSearch_(ITNode *root, Int & begin, Int & end);
+      inline Interval *intervalSearch_(ITNode *root, const Int & begin, const Int & end);
 
       inline void inorder_(ITNode *root);
 
@@ -128,11 +128,11 @@ public:
       }
 
 
-      inline Interval * IntervalSearch(Interval & i){
+      inline Interval * IntervalSearch(const Interval & i){
         return intervalSearch_(root_,i.low,i.high);
       }
 
-      inline Interval * IntervalSearch(Int & low, Int & high){
+      inline Interval * IntervalSearch(const Int & low,const Int & high){
         return intervalSearch_(root_,low,high);
       }
 

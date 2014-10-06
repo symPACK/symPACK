@@ -1133,7 +1133,6 @@
 
   template<typename T>
   inline void SuperNode<T>::InitIdxToBlk(){
-//#ifdef INTERVAL_TREE
         for(Int blkidx=0; blkidx<blocks_cnt_;++blkidx){
           Int cur_fr = blocks_[blkidx].GIndex;
           Int cur_lr = cur_fr + NRows(blkidx) -1;
@@ -1142,7 +1141,6 @@
           idxToBlk_->Insert(cur_interv);
         }
       idxToBlk_->Rebalance();
-//#endif
   }
 
 

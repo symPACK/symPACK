@@ -135,29 +135,24 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
   if( options.find("-map") != options.end() ){
     if(options["-map"] == "Modwrap2D"){
-      std::vector<Int> procMap(HMat.size);
-      for(Int i = HMat.size-1; i>=0; i--){
-        procMap[HMat.size-i-1] = i%np;
-      }
+
+//      std::vector<Int> procMap(HMat.size);
+//
+//      for(Int i = HMat.size-1; i>=0; i--){
+//        procMap[HMat.size-i-1] = i%np;
+//      }
 
       if( np % (Int)sqrt((double)np) == 0){
-        mapping = new Modwrap2D(np, sqrt((double)np), np, procMap, 1);
+        mapping = new Modwrap2D(np, sqrt((double)np), np/*, procMap*/, 1);
       }
       else{
-        mapping = new Modwrap2D(np, np, np, procMap, 1);
+        mapping = new Modwrap2D(np, np, np/*, procMap*/, 1);
       }
 
       //test mapping
-      logfileptr->OFS()<<"Processor map: "<<endl;
-      logfileptr->OFS()<<procMap<<endl;
+//      logfileptr->OFS()<<"Processor map: "<<endl;
+//      logfileptr->OFS()<<procMap<<endl;
 
-      logfileptr->OFS()<<"Resulting mapping: "<<endl;
-      for(Int i = 0; i< 50;++i){
-        for(Int j = 0; j< 50;++j){
-          logfileptr->OFS()<<mapping->Map(i,j)<<" ";
-        }
-        logfileptr->OFS()<<endl;
-      }
     }
     else if(options["-map"] == "Modwrap2DNS"){
       if( np % (Int)sqrt((double)np) == 0){
@@ -291,6 +286,13 @@ DistSparseMatrix<Real> HMat(worldcomm);
     cout<<"Allocation time: "<<timeEnd-timeSta<<endl;
   }
 
+      logfileptr->OFS()<<"Resulting mapping: "<<endl;
+      for(Int i = 0; i< 50;++i){
+        for(Int j = 0; j< 50;++j){
+          logfileptr->OFS()<<mapping->Map(i,j)<<" ";
+        }
+        logfileptr->OFS()<<endl;
+      }
 
 #ifdef _CHECK_RESULT_
 #ifdef _CHECK_RESULT_SEQ_
