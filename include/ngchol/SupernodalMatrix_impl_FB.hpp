@@ -26,8 +26,11 @@ template<typename T> void SupernodalMatrix<T>::FBAsyncRecv(Int iLocalI, std::vec
         incomingRecvAgg.push_back(new Icomm(max_bytes,MPI_REQUEST_NULL));
         TIMER_STOP(ICOMM_MALLOC_AGG);
         Icomm & Irecv = *incomingRecvAgg.back();
+#ifdef _SEPARATE_COMM_
+        MPI_Irecv(Irecv.front(),Irecv.capacity(),MPI_BYTE,MPI_ANY_SOURCE,tag,FBAggCommEnv_->MPI_GetComm(),&Irecv.Request);
+#else
         MPI_Irecv(Irecv.front(),Irecv.capacity(),MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&Irecv.Request);
-
+#endif
         ++IrecvCnt;
       }
 
@@ -119,41 +122,14 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
         src_blocks.resize(0);
 
         Int nz_cnt;
+        
         Int max_bytes;
-        //Wait for all the aggregates BUT receive from any
-        while(AggregatesToRecv(tgt_snode_id-1)>0){
-#ifdef _DEBUG_
-          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
+#ifdef _SEPARATE_COMM_
+        max_bytes = getMaxBufSize<T>( UpdateWidth_, UpdateHeight_);
 #endif
 
-          TIMER_START(RECV_MPI);
-          MPI_Status recv_status;
 
-          Int max_bytes = getAggBufSize<T>(curTask, Xsuper_, UpdateHeight_);
 
-          TIMER_START(RECV_MALLOC);
-          src_blocks.resize(max_bytes);
-          TIMER_STOP(RECV_MALLOC);
-
-          Int tag = AGG_TAG(curTask.src_snode_id,curTask.tgt_snode_id);
-          MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&recv_status);
-          TIMER_STOP(RECV_MPI);
-
-          SuperNode<T> dist_src_snode;
-          size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
-          //Deserialize the number of aggregates
-          //Int * aggregatesCnt = (Int *)(&src_blocks[0]+read_bytes);
-
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<std::endl;
-#endif
-
-          src_snode.Aggregate(dist_src_snode);
-          AggregatesToRecv[src_snode.Id()-1] -=1;
-
-        }
-        //clear the buffer
-        //{ vector<char>().swap(src_blocks);  }
 
       //first wait for the Irecv
       AsyncComms & cur_incomingRecv = incomingRecvAggArr[iLocalI-1];
@@ -184,6 +160,83 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
       }
         TIMER_STOP(IRECV_MPI_AGG);
 
+
+
+
+
+
+
+        //Wait for all the aggregates BUT receive from any
+        while(AggregatesToRecv(tgt_snode_id-1)>0){
+#ifdef _DEBUG_
+          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
+#endif
+
+          TIMER_START(RECV_MPI);
+          MPI_Status recv_status;
+
+#ifdef _SEPARATE_COMM_
+          TIMER_START(RECV_MALLOC);
+          src_blocks.resize(max_bytes);
+          TIMER_STOP(RECV_MALLOC);
+
+          //Do an IProbe on the TAG we want to receive 
+          Int tag = AGG_TAG(curTask.src_snode_id,curTask.tgt_snode_id);
+          Int flag = 0;
+          MPI_Iprobe(MPI_ANY_SOURCE,tag,FBAggCommEnv_->MPI_GetComm(), &flag,&recv_status);
+          if(flag){
+            MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,recv_status.MPI_SOURCE,tag,FBAggCommEnv_->MPI_GetComm(),&recv_status);
+          }
+          //if nothing available, receive from any tag
+          else{
+            MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,MPI_ANY_SOURCE,MPI_ANY_TAG,FBAggCommEnv_->MPI_GetComm(),&recv_status);
+            tag = recv_status.MPI_TAG;
+          }
+
+          Int tgt_id = AGG_TAG_TO_ID(tag);
+
+          Int iLocalJ = globToLocSnodes_.IntervalSearch(tgt_id,tgt_id)->block_idx;
+          SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ-1];
+
+          SuperNode<T> dist_src_snode;
+          Deserialize(&src_blocks[0],dist_src_snode);
+
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<" for Supernode "<<tgt_snode.Id()<<std::endl;
+#endif
+
+
+          tgt_snode.Aggregate(dist_src_snode);
+          AggregatesToRecv[tgt_snode.Id()-1] -=1;
+
+
+#else
+          Int max_bytes = getAggBufSize<T>(curTask, Xsuper_, UpdateHeight_);
+
+          TIMER_START(RECV_MALLOC);
+          src_blocks.resize(max_bytes);
+          TIMER_STOP(RECV_MALLOC);
+
+          Int tag = AGG_TAG(curTask.src_snode_id,curTask.tgt_snode_id);
+          MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&recv_status);
+          TIMER_STOP(RECV_MPI);
+
+          SuperNode<T> dist_src_snode;
+          size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
+          //Deserialize the number of aggregates
+          //Int * aggregatesCnt = (Int *)(&src_blocks[0]+read_bytes);
+
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<std::endl;
+#endif
+
+          src_snode.Aggregate(dist_src_snode);
+          AggregatesToRecv[src_snode.Id()-1] -=1;
+#endif
+
+        }
+        //clear the buffer
+        //{ vector<char>().swap(src_blocks);  }
 
         TIMER_STOP(RECV_AGGREGATES);
 
@@ -450,6 +503,11 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
   lindx_.Clear();
 #endif
 
+
+#ifdef _SEPARATE_COMM_
+  FBAggCommEnv_ = new CommEnvironment(*CommEnv_);
+#endif
+
   double timeend2 = get_time(); 
   logfileptr->OFS()<<"Update count time: "<<timeend2-timesta2<<endl;
 
@@ -465,7 +523,6 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
   std::vector<T> src_nzval;
   std::vector<char> src_blocks;
 
-  //std::vector<std::queue<SnodeUpdate> > LocalUpdates(LocalSupernodes_.size());
 
   Int maxwidth = 0;
   for(Int i = 1; i<Xsuper_.m(); ++i){
@@ -604,6 +661,11 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
   MPI_Barrier(CommEnv_->MPI_GetComm());
 
   tmpBufs.Clear();
+
+#ifdef _SEPARATE_COMM_
+  delete FBAggCommEnv_;
+#endif
+
   TIMER_STOP(FACTORIZATION_FB);
 }
 

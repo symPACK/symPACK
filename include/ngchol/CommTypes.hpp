@@ -56,9 +56,6 @@ namespace LIBCHOLESKY{
           src_snode_id = a_src_snode_id;
           src_first_row = a_src_first_row;
           src_nzblk_idx = a_src_nzblk_idx;
-//          target = a_target;
-//          tag = a_tag;
-//          count = a_count;
    }
 
 //   ~FBDelayedComm(){
@@ -87,25 +84,25 @@ namespace LIBCHOLESKY{
         }
     }
 
-    inline bool base_compare2(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const TaskType & a_type,
-        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const TaskType & b_type) const{
-        if(a_tgt_snode_id>b_tgt_snode_id){
-          return true;
-        }
-        else if(a_tgt_snode_id==b_tgt_snode_id){
-          if(a_src_snode_id==b_src_snode_id){
-            //factor comes first
-            //case Fx,y   vs   Ax,y    =>   F comes first
-            return !(a_type == FACTOR);
-          }
-          else{
-             return a_src_snode_id>b_src_snode_id;
-          }
-        }
-        else{
-          return false;
-        }
-    }
+//    inline bool base_compare2(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const TaskType & a_type,
+//        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const TaskType & b_type) const{
+//        if(a_tgt_snode_id>b_tgt_snode_id){
+//          return true;
+//        }
+//        else if(a_tgt_snode_id==b_tgt_snode_id){
+//          if(a_src_snode_id==b_src_snode_id){
+//            //factor comes first
+//            //case Fx,y   vs   Ax,y    =>   F comes first
+//            return !(a_type == FACTOR);
+//          }
+//          else{
+//             return a_src_snode_id>b_src_snode_id;
+//          }
+//        }
+//        else{
+//          return false;
+//        }
+//    }
 
 
     //Logic is: does a go after b ?
@@ -278,13 +275,6 @@ namespace LIBCHOLESKY{
 
 
 
-
-
-  struct SnodeUpdateOld{
-    Int tgt_snode_id;
-    Int src_fr;
-    SnodeUpdateOld(Int aSnodeId, Int aSrcFr):tgt_snode_id(aSnodeId),src_fr(aSrcFr){};
-  };
 
 
   struct LocalUpdate{
@@ -590,6 +580,31 @@ namespace LIBCHOLESKY{
         }
       }
 
+      CommEnvironment(CommEnvironment & C){
+        if(C.isMpi_){
+          isMpi_ = true;
+          MPI_Comm_dup(C.pComm_,&pComm_);
+          MPI_Comm_size(pComm_,&MPI_size_);
+          MPI_Comm_rank(pComm_,&MPI_rank_);
+        }
+        else{
+          isMpi_ = false;
+          pComm_ = MPI_COMM_NULL;
+          MPI_size_ = -1;
+          MPI_rank_ = -1;
+        }
+      }
+
+
+      ~CommEnvironment(){
+        if(isMpi_){
+          MPI_Comm_free(&pComm_);
+        }
+        else{
+
+        }
+      }
+
       inline bool IsMPI(){return isMpi_;}
       inline MPI_Comm & MPI_GetComm() {return pComm_;}
       inline Int MPI_Size(){return MPI_size_;}
@@ -597,6 +612,13 @@ namespace LIBCHOLESKY{
   };
 
 
+
+
+  struct SnodeUpdateOld{
+    Int tgt_snode_id;
+    Int src_fr;
+    SnodeUpdateOld(Int aSnodeId, Int aSrcFr):tgt_snode_id(aSnodeId),src_fr(aSrcFr){};
+  };
 
 
 

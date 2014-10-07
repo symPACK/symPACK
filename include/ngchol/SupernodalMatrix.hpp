@@ -38,6 +38,7 @@ namespace LIBCHOLESKY{
   Int AGG_TAG(Int src, Int tgt){ return (2*tgt+1);}
   Int FACT_TAG(Int src, Int tgt){ return (2*tgt);}
 
+  Int AGG_TAG_TO_ID(Int tag){ return ((Int)(tag-1)/2);}
 
 enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNZ};
 enum FactorizationType {FANOUT,FANBOTH};
@@ -76,7 +77,22 @@ Int getFactBufSize(const SnodeUpdateFB & curTask, const IntNumVec & UpdateWidth,
   return max_bytes;
 } 
 
+ template<typename T> 
+Int getMaxBufSize(const IntNumVec & UpdateWidth, const IntNumVec & UpdateHeight){
+  Int max_bytes = 5*sizeof(Int); 
+  //The upper bound must be of the width of the "largest" child
+  Int nrows = 0;
+  for(Int i = 0; i<UpdateHeight.m(); ++i ){ nrows = max(nrows, UpdateHeight[i]); }
+  Int ncols = 0;
+  for(Int i = 0; i<UpdateWidth.m(); ++i ){ ncols = max(ncols, UpdateWidth[i]); }
 
+  Int nz_cnt = nrows * ncols;
+  Int nblocks = nrows;
+  max_bytes += (nblocks)*sizeof(NZBlockDesc);
+  max_bytes += nz_cnt*sizeof(T);
+
+  return max_bytes;
+}
 
 template <typename T> class SupernodalMatrix{
 
@@ -184,8 +200,12 @@ template <typename T> class SupernodalMatrix{
     std::vector<SuperNode<T> *> Contributions_;
 
 
-
+    
     ITree globToLocSnodes_;
+
+#ifdef _SEPARATE_COMM_
+    CommEnvironment * FBAggCommEnv_;
+#endif
 
     AsyncComms outgoingSend;
     FBCommList MsgToSend;

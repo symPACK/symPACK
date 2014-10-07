@@ -1964,13 +1964,18 @@ template <typename T> void SupernodalMatrix<T>::SendMessage(const FBDelayedComm 
 #endif
       //this can be sent now
       Int iTarget, tag;
+      MPI_Comm * pMpi_comm = &CommEnv_->MPI_GetComm();
       if(type==FACTOR){
         iTarget = FACT_TARGET(Mapping_,src_snode_id,tgt_snode_id);
         tag = FACT_TAG(src_snode_id,tgt_snode_id);
+        
       }
       else{
         iTarget = AGG_TARGET(Mapping_,src_snode_id,tgt_snode_id);
         tag = AGG_TAG(src_snode_id,tgt_snode_id);
+#ifdef _SEPARATE_COMM_
+        pMpi_comm = &FBAggCommEnv_->MPI_GetComm();
+#endif
       }
 
 
@@ -1996,13 +2001,13 @@ template <typename T> void SupernodalMatrix<T>::SendMessage(const FBDelayedComm 
 
         if( OutgoingSend.size() > maxIsend_){
           TIMER_START(SEND_MPI);
-          MPI_Send(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm());
+          MPI_Send(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tag,*pMpi_comm);
           TIMER_STOP(SEND_MPI);
           OutgoingSend.pop_back();
         }
         else{
           TIMER_START(SEND_MPI);
-          MPI_Isend(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tag,CommEnv_->MPI_GetComm(),&OutgoingSend.back()->Request);
+          MPI_Isend(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tag,*pMpi_comm,&OutgoingSend.back()->Request);
           TIMER_STOP(SEND_MPI);
         }
 #ifdef _DEBUG_DELAY_
