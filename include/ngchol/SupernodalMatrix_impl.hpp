@@ -138,7 +138,7 @@ if(iam==0){
 #endif
 
 
-
+#ifdef _LOAD_BALANCE_
 //Do a greedy load balancing heuristic
       std::vector<Int> procMap(Xsuper_.m()-1);
       //Do a greedy heuristic to balance the number of nnz ?
@@ -159,7 +159,7 @@ logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
 
     //Update the mapping
     Mapping_->Update(procMap);  
-
+#endif
 
 
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_,UpdateHeight_);

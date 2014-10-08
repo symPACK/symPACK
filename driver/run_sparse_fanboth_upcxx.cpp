@@ -136,22 +136,12 @@ DistSparseMatrix<Real> HMat(worldcomm);
   if( options.find("-map") != options.end() ){
     if(options["-map"] == "Modwrap2D"){
 
-//      std::vector<Int> procMap(HMat.size);
-//
-//      for(Int i = HMat.size-1; i>=0; i--){
-//        procMap[HMat.size-i-1] = i%np;
-//      }
-
       if( np % (Int)sqrt((double)np) == 0){
         mapping = new Modwrap2D(np, sqrt((double)np), np/*, procMap*/, 1);
       }
       else{
         mapping = new Modwrap2D(np, np, np/*, procMap*/, 1);
       }
-
-      //test mapping
-//      logfileptr->OFS()<<"Processor map: "<<endl;
-//      logfileptr->OFS()<<procMap<<endl;
 
     }
     else if(options["-map"] == "Modwrap2DNS"){

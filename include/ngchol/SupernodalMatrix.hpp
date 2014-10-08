@@ -39,6 +39,7 @@ namespace LIBCHOLESKY{
   Int FACT_TAG(Int src, Int tgt){ return (2*tgt);}
 
   Int AGG_TAG_TO_ID(Int tag){ return ((Int)(tag-1)/2);}
+  Int FACT_TAG_TO_ID(Int tag){ return ((Int)(tag)/2);}
 
 enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNZ};
 enum FactorizationType {FANOUT,FANBOTH};
@@ -284,8 +285,11 @@ template <typename T> class SupernodalMatrix{
   //FanBoth related routines
   Int FBUpdate(Int I,Int prevJ=-1);
   void FBGetUpdateCount(IntNumVec & UpdatesToDo, IntNumVec & AggregatesToRecv);
+#ifdef _SEPARATE_COMM_
+  SuperNode<T> * FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv, Int & recv_tgt_id);
+#else
   SuperNode<T> * FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv);
-
+#endif
 
   //Solve related routines
   void forward_update(SuperNode<T> * src_contrib,SuperNode<T> * tgt_contrib);
