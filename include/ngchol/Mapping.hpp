@@ -41,6 +41,19 @@ class Mapping{
           pProcMap_->insert(aProcMap.begin(),aProcMap.end(),pProcMap_->begin());
         }
       }
+
+      void Dump(Int n){
+        logfileptr->OFS()<<"Resulting mapping: "<<endl;
+        logfileptr->OFS()<<"np = "<<iNumProc_<<endl;
+        logfileptr->OFS()<<"prows = "<<iPRows_<<endl;
+        logfileptr->OFS()<<"pcols = "<<iPCols_<<endl;
+        for(Int i =0;i<n;++i){
+          for(Int j = 0;j<=i;++j){
+            logfileptr->OFS()<<Map(i,j)<<" ";
+          }
+          logfileptr->OFS()<<endl;
+        }
+      }
   
       Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pProcMap_(NULL){};
       Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):
@@ -84,9 +97,12 @@ class Modwrap2D: public Mapping{
       Modwrap2D(Modwrap2D & C):Mapping(C){};
       Modwrap2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){ 
-        Int proc =modwrap2D_(i,j);
+        Int proc = 0;
         if(pProcMap_!=NULL){
           proc = modwrap2D_((*pProcMap_)[i],(*pProcMap_)[j]);
+        }
+        else{
+          proc = modwrap2D_(i,j);
         }
         return proc;
       }
@@ -99,10 +115,20 @@ class Modwrap2DNS: public Mapping{
     inline Int modwrap2DNS_(Int i, Int j) { Int p = i/iBlockSize_%iPRows_ + iPRows_*floor((double)((j/iBlockSize_)%iNumProc_)/(double)iPRows_); return p;}
   public:
       Modwrap2DNS(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
+      Modwrap2DNS(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
 //      Modwrap2DNS(Modwrap2DNS & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Modwrap2DNS(Modwrap2DNS & C):Mapping(C){};
       Modwrap2DNS():Mapping(0,0,0,0){};
-      inline Int Map(Int i, Int j){ return modwrap2DNS_(i,j);}
+      inline Int Map(Int i, Int j){
+       Int proc = 0;
+        if(pProcMap_!=NULL){
+          proc = modwrap2DNS_((*pProcMap_)[i],(*pProcMap_)[j]);
+        }
+        else{
+          proc = modwrap2DNS_(i,j);
+        }
+        return proc;
+      }
       ~Modwrap2DNS(){};
 };
 
@@ -111,25 +137,100 @@ class Row2D: public Mapping{
   protected:
     inline Int row2D_(Int i, Int j) { Int p = (i/iBlockSize_)%iNumProc_; return p;}
   public:
-      Row2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiNumProc,aiPCols,aiBlockSize){};
+      Row2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
+      Row2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
       //Row2D(Row2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Row2D(Row2D & C):Mapping(C){};
       Row2D():Mapping(0,0,0,0){};
-      inline Int Map(Int i, Int j){ return row2D_(i,j);}
+      inline Int Map(Int i, Int j){
+       Int proc = 0;
+        if(pProcMap_!=NULL){
+          proc = row2D_((*pProcMap_)[i],(*pProcMap_)[j]);
+        }
+        else{
+          proc = row2D_(i,j);
+        }
+        return proc;
+      }
+
       ~Row2D(){};
 };
+
+class Wrap2D: public Mapping{
+  protected:
+    inline Int wrap2D_(Int i, Int j) { Int p = (i/iBlockSize_)%iPRows_ + iPRows_*((j/iBlockSize_)%iPCols_); return p;}
+  public:
+      Wrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
+      Wrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      //Wrap2D(Row2D & C):Mapping(C){}
+      Wrap2D(Wrap2D & C):Mapping(C){};
+      Wrap2D():Mapping(0,0,0,0){};
+      inline Int Map(Int i, Int j){
+       Int proc = 0;
+        if(pProcMap_!=NULL){
+          proc = wrap2D_((*pProcMap_)[i],(*pProcMap_)[j]);
+        }
+        else{
+          proc = wrap2D_(i,j);
+        }
+        return proc;
+      }
+      ~Wrap2D(){};
+};
+
+
+
+
+
+class AntiDiag2D: public Mapping{
+  protected:
+    inline Int antidiag2D_(Int i, Int j) { Int p = (i/iBlockSize_+j/iBlockSize_)%iNumProc_; return p;}
+  public:
+      AntiDiag2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
+      AntiDiag2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      //AntiDiag2D(Row2D & C):Mapping(C){}
+      AntiDiag2D(AntiDiag2D & C):Mapping(C){};
+      AntiDiag2D():Mapping(0,0,0,0){};
+      inline Int Map(Int i, Int j){
+       Int proc = 0;
+        if(pProcMap_!=NULL){
+          proc = antidiag2D_((*pProcMap_)[i],(*pProcMap_)[j]);
+        }
+        else{
+          proc = antidiag2D_(i,j);
+        }
+        return proc;
+      }
+      ~AntiDiag2D(){};
+};
+
+
 
 class Col2D: public Mapping{
   protected:
     inline Int col2D_(Int i, Int j) { Int p = (j/iBlockSize_)%iNumProc_; return p;}
   public:
-      Col2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiNumProc,aiPCols,aiBlockSize){};
-      //Col2D(Row2D & C):Mapping(C){}
+      Col2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
+      Col2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      //Col2D(Col2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Col2D(Col2D & C):Mapping(C){};
       Col2D():Mapping(0,0,0,0){};
-      inline Int Map(Int i, Int j){ return col2D_(i,j);}
+      inline Int Map(Int i, Int j){
+       Int proc = 0;
+        if(pProcMap_!=NULL){
+          proc = col2D_((*pProcMap_)[i],(*pProcMap_)[j]);
+        }
+        else{
+          proc = col2D_(i,j);
+        }
+        return proc;
+      }
+
       ~Col2D(){};
 };
+
+
+
 
 
 }

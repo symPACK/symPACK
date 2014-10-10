@@ -204,6 +204,14 @@ template <typename T> class SupernodalMatrix{
     
     ITree globToLocSnodes_;
 
+    //returns the 1-based index of supernode id global in the local supernode array
+    Int snodeLocalIndex(Int global);
+    //returns a reference to  a local supernode with id global
+    SuperNode<T> * snodeLocal(Int global);
+    SuperNode<T> * snodeLocal(Int global, std::vector<SuperNode<T> *> & snodeColl);
+
+
+
 #ifdef _SEPARATE_COMM_
     CommEnvironment * FBAggCommEnv_;
 #endif

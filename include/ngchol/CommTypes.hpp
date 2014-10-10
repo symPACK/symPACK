@@ -121,19 +121,20 @@ namespace LIBCHOLESKY{
       else if(a_type == FACTOR && /*a_src_snode_id == b_src_snode_id &&*/ a_tgt_snode_id == b_tgt_snode_id){
         return false;
       }
-      //case Fy,*   vs   A*,y    =>   A comes first
-      else if(a_type == FACTOR && a_src_snode_id == b_tgt_snode_id){
-        return true;
-      }
       //case Ax,*   vs   Fx,*    =>   F comes first
       else if(b_type == FACTOR && /*a_src_snode_id == b_src_snode_id &&*/ a_tgt_snode_id == b_tgt_snode_id){
+        return true;
+      }
+//#ifndef _SEPARATE_COMM_
+      //case Fy,*   vs   A*,y    =>   A comes first
+      else if(a_type == FACTOR && a_src_snode_id == b_tgt_snode_id){
         return true;
       }
       //case A*,y   vs   Fy,*    =>   A comes first
       else if(b_type == FACTOR && b_src_snode_id == a_tgt_snode_id){
         return false;
       }
-
+//#endif
       else{
         return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
       }
@@ -151,22 +152,24 @@ namespace LIBCHOLESKY{
       if(a_type == b_type){
         return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
       }
+//#ifndef _SEPARATE_COMM_
       //case Fx,y   vs   Ax,y    =>   F comes first
       else if(a_type == FACTOR && /*a_src_snode_id == abs(b_src_snode_id) &&*/ a_tgt_snode_id == b_tgt_snode_id){
         return false;
       }
-      //case Fy,*   vs   A*,y    =>   A comes first
-      else if(a_type == FACTOR && a_src_snode_id == b_tgt_snode_id){
-        return true;
-      }
       //case Ax,*   vs   Fx,*    =>   F comes first
       else if(b_type == FACTOR && /*a_src_snode_id == abs(b_src_snode_id) &&*/ a_tgt_snode_id == b_tgt_snode_id){
+        return true;
+      }
+      //case Fy,*   vs   A*,y    =>   A comes first
+      else if(a_type == FACTOR && a_src_snode_id == b_tgt_snode_id){
         return true;
       }
       //case A*,y   vs   Fy,*    =>   A comes first
       else if(b_type == FACTOR && abs(b_src_snode_id) == a_tgt_snode_id){
         return false;
       }
+//#endif
       else{
         return base_compare(a_src_snode_id, a_tgt_snode_id, abs(b_src_snode_id), b_tgt_snode_id);
       }

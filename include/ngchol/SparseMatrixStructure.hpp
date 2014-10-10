@@ -32,7 +32,7 @@ class SparseMatrixStructure{
 
   void ExpandSymmetric();
 
-  void ToGlobal(SparseMatrixStructure & pGlobal);
+  void ToGlobal(SparseMatrixStructure & pGlobal,MPI_Comm & comm);
 
 
   void GetLColRowCount(ETree & tree, Ordering & aOrder, IntNumVec & cc, IntNumVec & rc);

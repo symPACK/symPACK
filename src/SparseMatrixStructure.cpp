@@ -185,7 +185,7 @@ namespace LIBCHOLESKY{
   }
 
 
-  void SparseMatrixStructure::ToGlobal(SparseMatrixStructure & pGlobal){
+  void SparseMatrixStructure::ToGlobal(SparseMatrixStructure & pGlobal,MPI_Comm & comm){
 
     TIMER_START(ToGlobalStructure);
     // test if structure hasn't been allocated yet
@@ -202,7 +202,7 @@ namespace LIBCHOLESKY{
       MPI_Initialized( &ismpi);
 
       //FIXME needs to be passed as an argument ?
-      MPI_Comm comm = MPI_COMM_WORLD;
+      //MPI_Comm comm = MPI_COMM_WORLD;
 
       int isnull= (comm == MPI_COMM_NULL);
       //    logfileptr->OFS()<<ismpi<<std::endl;

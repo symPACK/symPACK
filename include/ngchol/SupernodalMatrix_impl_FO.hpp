@@ -667,7 +667,9 @@ TIMER_STOP(PUSH_MSG);
             }
 
               is_skipped[iTarget] = true;
-//              SendDelayedMessagesUp(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
+#ifndef _LOAD_BALANCE_
+              SendDelayedMessagesUp(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
+#endif
 
 #else
 #ifndef _DEADLOCK_

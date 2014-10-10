@@ -109,12 +109,100 @@ int main(int argc, char **argv)
 
   Real timeSta, timeEnd;
 
+
+  if( options.find("-map") != options.end() ){
+    if(options["-map"] == "Modwrap2D"){
+
+      Int nr = (Int)sqrt((double)np);
+      Int nc = np/nr;
+      np= nr*nc;
+      mapping = new Modwrap2D(np, nr, nc, 1);
+//      if( np % (Int)sqrt((double)np) == 0){
+//        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
+//      }
+//      else{
+//        mapping = new Modwrap2D(np, np, np, 1);
+//      }
+
+    }
+    else if(options["-map"] == "Modwrap2DNS"){
+
+      Int nr = (Int)sqrt((double)np);
+      Int nc = np/nr;
+      np= nr*nc;
+      mapping = new Modwrap2DNS(np, nr, nc, 1);
+//      if( np % (Int)sqrt((double)np) == 0){
+//        mapping = new Modwrap2DNS(np, sqrt((double)np), np, 1);
+//      }
+//      else{
+//        mapping = new Modwrap2DNS(np, np, np, 1);
+//      }
+    }
+    else if(options["-map"] == "Wrap2D"){
+
+      Int nr = (Int)sqrt((double)np);
+      Int nc = np/nr;
+      np= nr*nc;
+      mapping = new Wrap2D(np, nr, nc, 1);
+//      if( np % (Int)sqrt((double)np) == 0){
+//        mapping = new Modwrap2DNS(np, sqrt((double)np), np, 1);
+//      }
+//      else{
+//        mapping = new Modwrap2DNS(np, np, np, 1);
+//      }
+    }
+   else if(options["-map"] == "Row2D"){
+        mapping = new Row2D(np, np, np, 1);
+    }
+    else if(options["-map"] == "Col2D"){
+        mapping = new Col2D(np, np, np, 1);
+    }
+    else if(options["-map"] == "AntiDiag2D"){
+        mapping = new AntiDiag2D(np, np, np, 1);
+    }
+    else{
+
+      Int nr = (Int)sqrt((double)np);
+      Int nc = np/nr;
+      np= nr*nc;
+      mapping = new Modwrap2D(np, nr, nc, 1);
+//      if( np % (Int)sqrt((double)np) == 0){
+//        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
+//      }
+//      else{
+//        mapping = new Modwrap2D(np, np, np, 1);
+//      }
+    }
+
+  }
+  else{
+      Int nr = (Int)sqrt((double)np);
+      Int nc = np/nr;
+      np= nr*nc;
+      mapping = new Modwrap2D(np, nr, nc, 1);
+//      if( np % (Int)sqrt((double)np) == 0){
+//        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
+//      }
+//      else{
+//        mapping = new Modwrap2D(np, np, np, 1);
+//      }
+  }
+
+  MPI_Comm workcomm;
+  MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
+  
+  if(iam<np){
+    //  int np, iam;
+    MPI_Comm_size(workcomm,&np);
+    MPI_Comm_rank(workcomm,&iam);
+
+
   sparse_matrix_file_format_t informat;
   TIMER_START(READING_MATRIX);
-DistSparseMatrix<Real> HMat(worldcomm);
+DistSparseMatrix<Real> HMat(workcomm);
   //Read the input matrix
   if(informatstr == "CSC"){
-       ParaReadDistSparseMatrix( filename.c_str(), HMat, worldcomm ); 
+       ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
   }
   else{
 
@@ -129,52 +217,6 @@ DistSparseMatrix<Real> HMat(worldcomm);
 
 
   destroy_sparse_matrix (Atmp);
-  }
-
-
-
-  if( options.find("-map") != options.end() ){
-    if(options["-map"] == "Modwrap2D"){
-
-      if( np % (Int)sqrt((double)np) == 0){
-        mapping = new Modwrap2D(np, sqrt((double)np), np/*, procMap*/, 1);
-      }
-      else{
-        mapping = new Modwrap2D(np, np, np/*, procMap*/, 1);
-      }
-
-    }
-    else if(options["-map"] == "Modwrap2DNS"){
-      if( np % (Int)sqrt((double)np) == 0){
-        mapping = new Modwrap2DNS(np, sqrt((double)np), np, 1);
-      }
-      else{
-        mapping = new Modwrap2DNS(np, np, np, 1);
-      }
-    }
-   else if(options["-map"] == "Row2D"){
-        mapping = new Row2D(np, np, np, 1);
-    }
-    else if(options["-map"] == "Col2D"){
-        mapping = new Col2D(np, np, np, 1);
-    }
-    else{
-      if( np % (Int)sqrt((double)np) == 0){
-        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
-      }
-      else{
-        mapping = new Modwrap2D(np, np, np, 1);
-      }
-    }
-
-  }
-  else{
-      if( np % (Int)sqrt((double)np) == 0){
-        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
-      }
-      else{
-        mapping = new Modwrap2D(np, np, np, 1);
-      }
   }
 
 
@@ -224,7 +266,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
 {
   SparseMatrixStructure Local = HMat.GetLocalStructure();
   SparseMatrixStructure Global;
-  Local.ToGlobal(Global);
+  Local.ToGlobal(Global,workcomm);
   Global.ExpandSymmetric();
 
   Int numColFirst = std::max(1,n / np);
@@ -247,7 +289,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
     }
   }
   //Do a reduce of RHS
-  MPI_Allreduce(MPI_IN_PLACE,&RHS(0,0),RHS.Size(),MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE,&RHS(0,0),RHS.Size(),MPI_DOUBLE,MPI_SUM,workcomm);
 }
 
   timeEnd = get_time();
@@ -269,7 +311,7 @@ DistSparseMatrix<Real> HMat(worldcomm);
 {
   timeSta = get_time();
   //do the symbolic factorization and build supernodal matrix
-  SupernodalMatrix<double> SMat(HMat,maxSnode,mapping,maxIsend,maxIrecv,worldcomm);
+  SupernodalMatrix<double> SMat(HMat,maxSnode,mapping,maxIsend,maxIrecv,workcomm);
 
   timeEnd = get_time();
   if(iam==0){
@@ -513,10 +555,10 @@ else{
 
 #ifdef _CHECK_RESULT_SEQ_
   RHS2.Resize(SMat.Size(),nrhs);
-  MPI_Bcast(RHS2.Data(),RHS2.ByteSize(),MPI_BYTE,0,worldcomm);
+  MPI_Bcast(RHS2.Data(),RHS2.ByteSize(),MPI_BYTE,0,workcomm);
 
   XTrue2.Resize(SMat.Size(),nrhs);
-  MPI_Bcast(XTrue2.Data(),XTrue2.ByteSize(),MPI_BYTE,0,worldcomm);
+  MPI_Bcast(XTrue2.Data(),XTrue2.ByteSize(),MPI_BYTE,0,workcomm);
   //    logfileptr->OFS()<<"RHS:"<<RHS<<endl;
 #endif
 
@@ -546,7 +588,7 @@ else{
   timeSta = get_time();
 #ifdef _CHECK_RESULT_SEQ_
   fwdSol.Resize(SMat.Size(),nrhs);
-  MPI_Bcast(fwdSol.Data(),fwdSol.ByteSize(),MPI_BYTE,0,worldcomm);
+  MPI_Bcast(fwdSol.Data(),fwdSol.ByteSize(),MPI_BYTE,0,workcomm);
 
   DblNumMat poFwdSol = fwdSol;
   SMat.Solve(&XFinal,poFwdSol);
@@ -600,7 +642,7 @@ else{
     }
   }
   //Do a reduce of RHS
-  MPI_Allreduce(MPI_IN_PLACE,&AX(0,0),AX.Size(),MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+  MPI_Allreduce(MPI_IN_PLACE,&AX(0,0),AX.Size(),MPI_DOUBLE,MPI_SUM,workcomm);
 
   if(iam==0){
   blas::Axpy(AX.m()*AX.n(),-1.0,&RHS(0,0),1,&AX(0,0),1);
@@ -616,8 +658,13 @@ else{
 
 #endif
 
+}
+
+
   delete mapping;
 
+  MPI_Barrier(workcomm);
+  MPI_Comm_free(&workcomm);
 
   MPI_Barrier(worldcomm);
   MPI_Comm_free(&worldcomm);
