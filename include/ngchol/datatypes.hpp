@@ -10,6 +10,7 @@
 
 namespace LIBCHOLESKY {
 
+typedef    long long int              LongInt;
 typedef    int                   Int;
 typedef    double                Real;
 typedef    std::complex<double>  Complex; // Must use elemental form of complex
