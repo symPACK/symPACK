@@ -88,8 +88,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
       logfileptr->OFS()<<"Picked { "<<src_snode_id<<" -> "<<tgt_id<<" }"<<endl;
 #endif
 
-//      Int iLocalSrc = (src_snode_id-1) / np +1 ;
-      Int iLocalSrc = globToLocSnodes_.IntervalSearch(src_snode_id,src_snode_id)->block_idx;
+      Int iLocalSrc = snodeLocalIndex(src_snode_id);
       SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
 
       //        assert(prev_src_snode.Id()==src_snode_id);
@@ -337,7 +336,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
       Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
       if(iTarget == iam){
         //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
-        Int iLocalJ = globToLocSnodes_.IntervalSearch(curUpdate.tgt_snode_id,curUpdate.tgt_snode_id)->block_idx;
+        Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
         LocalUpdates[iLocalJ-1].push((SnodeUpdate)curUpdate);
 
 #ifdef _DEBUG_
@@ -385,7 +384,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
       while(!LocalUpdates[iLocalI-1].empty()){
         SnodeUpdate & curUpdate = LocalUpdates[iLocalI-1].front();
         //Int iLocalJ = (curUpdate.src_snode_id-1) / np +1; 
-        Int iLocalJ = globToLocSnodes_.IntervalSearch(curUpdate.src_snode_id,curUpdate.src_snode_id)->block_idx;
+          Int iLocalJ = snodeLocalIndex(curUpdate.src_snode_id);
         SuperNode<T> & local_src_snode = *LocalSupernodes_[iLocalJ-1];
 
 
@@ -422,7 +421,14 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
         Icomm * curComm = *it;
 
         SuperNode<T> dist_src_snode;
-        Deserialize(curComm->front(),dist_src_snode);
+        size_t read_bytes = Deserialize(curComm->front(),dist_src_snode);
+
+#ifdef _STAT_COMM_
+          maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
+          sizesFactorsRecv_ += read_bytes;
+          countFactorsRecv_++;
+#endif
+
 #ifndef _LINEAR_SEARCH_FCLC_
         dist_src_snode.InitIdxToBlk();
 #endif
@@ -440,7 +446,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
           Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
           if(iTarget == iam){
             //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
-            Int iLocalJ = globToLocSnodes_.IntervalSearch(curUpdate.tgt_snode_id,curUpdate.tgt_snode_id)->block_idx;
+          Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
             SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 
 #ifdef _DEBUG_PROGRESS_
@@ -546,7 +552,13 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
         TIMER_STOP(RECV_MPI);
 
         SuperNode<T> dist_src_snode;
-        Deserialize(&src_blocks[0],dist_src_snode);
+        size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
+
+#ifdef _STAT_COMM_
+          maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
+          sizesFactorsRecv_ += read_bytes;
+          countFactorsRecv_++;
+#endif
 #ifndef _LINEAR_SEARCH_FCLC_
         dist_src_snode.InitIdxToBlk();
 #endif
@@ -571,7 +583,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
           Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
           if(iTarget == iam){
             //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
-            Int iLocalJ = globToLocSnodes_.IntervalSearch(curUpdate.tgt_snode_id,curUpdate.tgt_snode_id)->block_idx;
+          Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
             SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 #ifdef _DEBUG_PROGRESS_
 logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
@@ -635,7 +647,6 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
       SnodeUpdate curUpdate;
       TIMER_START(FIND_UPDATED_ANCESTORS);
-//if(src_snode.Id()==774){gdb_lock();};
       while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
         Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
 
@@ -725,7 +736,6 @@ TIMER_STOP(PUSH_MSG);
 
     //process some of the delayed send
     SendDelayedMessagesUp(iLocalI,FactorsToSend,outgoingSend,LocalSupernodes_);
-//    SendDelayedMessagesUp(FactorsToSend, outgoingSend, FBTasks & taskList, NULL);
     iLocalI++;
   }
 
@@ -803,7 +813,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
       Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
       if(iTarget == iam){
         //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
-        Int iLocalJ = globToLocSnodes_.IntervalSearch(curUpdate.tgt_snode_id,curUpdate.tgt_snode_id)->block_idx;
+          Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
         LocalUpdates[iLocalJ-1].push((SnodeUpdate)curUpdate);
 
 #ifdef _DEBUG_
@@ -873,7 +883,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
         //Local updates
         while(!LocalUpdates[iLocalI-1].empty()){
           SnodeUpdate & curUpdate = LocalUpdates[iLocalI-1].front();
-          Int iLocalJ = globToLocSnodes_.IntervalSearch(curUpdate.src_snode_id,curUpdate.src_snode_id)->block_idx;
+          Int iLocalJ = snodeLocalIndex(curUpdate.src_snode_id);
           SuperNode<T> & local_src_snode = *LocalSupernodes_[iLocalJ-1];
 
 
@@ -910,7 +920,13 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
           Icomm * curComm = *it;
 
           SuperNode<T> dist_src_snode;
-          Deserialize(curComm->front(),dist_src_snode);
+          size_t read_bytes = Deserialize(curComm->front(),dist_src_snode);
+
+#ifdef _STAT_COMM_
+          maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
+          sizesFactorsRecv_ += read_bytes;
+          countFactorsRecv_++;
+#endif
 #ifndef _LINEAR_SEARCH_FCLC_
           dist_src_snode.InitIdxToBlk();
 #endif
@@ -928,7 +944,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
             Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
             if(iTarget == iam){
               //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
-              Int iLocalJ = globToLocSnodes_.IntervalSearch(curUpdate.tgt_snode_id,curUpdate.tgt_snode_id)->block_idx;
+              Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
               SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 
 #ifdef _DEBUG_PROGRESS_
@@ -1034,7 +1050,13 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
           TIMER_STOP(RECV_MPI);
 
           SuperNode<T> dist_src_snode;
-          Deserialize(&src_blocks[0],dist_src_snode);
+          size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
+
+#ifdef _STAT_COMM_
+          maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
+          sizesFactorsRecv_ += read_bytes;
+          countFactorsRecv_++;
+#endif
 #ifndef _LINEAR_SEARCH_FCLC_
           dist_src_snode.InitIdxToBlk();
 #endif
@@ -1059,7 +1081,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
             Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
             if(iTarget == iam){
               //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
-              Int iLocalJ = globToLocSnodes_.IntervalSearch(curUpdate.tgt_snode_id,curUpdate.tgt_snode_id)->block_idx;
+              Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
               SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 #ifdef _DEBUG_PROGRESS_
               logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;

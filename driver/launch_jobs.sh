@@ -11,7 +11,7 @@ MATRIX=$NGCHOLDIR/matrices/boneS10/boneS10.csc
 
 MAPPING=Row2D
 NUMTRIES=5
-FB=1
+FB=0
 ISEND=0
 IRECV=0
 BLOCK=100
@@ -40,8 +40,9 @@ echo "#PBS -l walltime=$WALLTIME" >> tmp.pbs
 echo "#PBS -j eo" >> tmp.pbs
 echo "#PBS -V" >> tmp.pbs
 echo "#PBS -S /bin/sh" >> tmp.pbs
+echo "#PBS -A mp127" >> tmp.pbs
 echo "#PBS -m ae" >> tmp.pbs
- >> tmp.pbs
+echo "cd $NGCHOLDIR" >> tmp.pbs
 echo "echo \"-------------$p-----------\"" >> tmp.pbs
 echo "echo \"aprun -n $p $EXEC -in $MATRIX  -inf CSC -map $MAPPING -b $BLOCK -ir $IRECV -is $ISEND -fb $FB\"" >> tmp.pbs
 echo "for i in \`seq 1 $NUMTRIES\`;" >> tmp.pbs

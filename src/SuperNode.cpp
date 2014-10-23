@@ -641,7 +641,16 @@ namespace LIBCHOLESKY{
         tgt_snode.blocks_[blkidx].Offset -= tgt_snode.blocks_[0].Offset;
       }
 
+
+
+#ifndef ITREE
+      tgt_snode.iLastRow_ = max(tgt_snode.iLastCol_,tgt_snode.iFirstCol_ + tgt_snode.nzval_cnt_/tgt_snode.iSize_ - 1);
+      tgt_snode.globalToLocal_ = new std::vector<Int>(tgt_snode.iLastRow_ - tgt_snode.iFirstCol_ + 1 );
+#else
       tgt_snode.idxToBlk_ = tgt_snode.CreateITree();
+#endif
+
+
       //  tgt_snode.initIdxToBlk_(true);
 
 

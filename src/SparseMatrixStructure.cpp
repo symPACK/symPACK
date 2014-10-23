@@ -664,9 +664,17 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
 
   //minsize
-  Int nrelax0 = min(4,maxSize);
-  Int nrelax1 = min(16,maxSize);
-  Int nrelax2 = min(48,maxSize);
+//  Int nrelax0 = min(4,maxSize);
+//  Int nrelax1 = min(16,maxSize);
+//  Int nrelax2 = min(48,maxSize);
+
+  Int nrelax0 = min(8,maxSize);
+  Int nrelax1 = min(32,maxSize);
+  Int nrelax2 = min(64,maxSize);
+
+
+
+
 
   double zrelax0 = 0.8;
   double zrelax1 = 0.1;

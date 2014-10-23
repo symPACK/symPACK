@@ -67,7 +67,12 @@ class SuperNode{
 
   protected:
 
+#ifndef ITREE
+  Int iLastRow_;
+  std::vector<Int> * globalToLocal_;
+#else
   ITree * idxToBlk_;
+#endif
 
   inline ITree * CreateITree();
 
@@ -143,7 +148,9 @@ class SuperNode{
   inline void DumpITree();
   inline Int Shrink();
   
+#ifdef ITREE
   inline bool ITreeInitialized(){return idxToBlk_->StorageSize()!=0;};
+#endif
 
   inline void FindUpdatedFirstCol(SuperNode<T> & src_snode, Int pivot_fr, Int & tgt_fc, Int & first_pivot_idx);
   inline void FindUpdatedLastCol(SuperNode<T> & src_snode, Int tgt_fc, Int first_pivot_idx, Int & tgt_lc, Int & last_pivot_idx);

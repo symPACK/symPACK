@@ -6,11 +6,19 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
+#include <assert.h>
+#include <sys/time.h>
 
 #include "util.h"
 
 using namespace std;
 
+double mysecond()
+{
+  struct timeval tv; 
+  gettimeofday(&tv, 0); 
+  return tv.tv_sec + ((double) tv.tv_usec / 1000000);
+}
 
 struct node_t{
   int id;
@@ -18,28 +26,31 @@ struct node_t{
   int elim_step;
 };
 
+
 bool node_comp(node_t * & a, node_t * & b){
   if (a->degree>b->degree)
-    return true;
+    return false;
   else{
     if(a->degree == b->degree){
-      double tmp = fmod(rand(),10.0);
-      return (tmp>5.0);
+//      double tmp = fmod(rand(),10.0);
+//      return (tmp>5.0);
+      return false;
     }
     else{
-      return false;
+      return true;
     }
   }
 }
 
 
 
-void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> & nodes, const node_t & min_node, const int elim_step, list<node_t*> & reach_set){
+void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> & nodes, const node_t & min_node, const int elim_step, vector<node_t*> & reach_set){
   //this array is used to mark the node so that 
   //they are not added twice into the reachable set
-  vector<int> explored(nodes.size(),0);
+  vector<bool> explored(nodes.size(),false);
   //this list contains the nodes to explore
-  list<node_t *> explore_set;
+  //list<node_t *> explore_set;
+  vector<node_t *> explore_set;
 
   //initialize explore_set with the neighborhood
   // of min_node in the original graph 
@@ -49,7 +60,7 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> 
     if(adj[i-1]!=0){
       node_t * next_node = nodes[adj[i-1]-1];
       explore_set.push_back(next_node);
-      explored[adj[i-1]-1]=1;
+      explored[adj[i-1]-1]=true;
     }
     else{
       abort();
@@ -60,7 +71,6 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> 
   while(explore_set.size()>0){
     //pop a node
     node_t * cur_node = explore_set.back();
-
     explore_set.pop_back();
 
     if(cur_node->id == min_node.id ){
@@ -78,7 +88,7 @@ void get_reach(const vector<int> & xadj,const vector<int> & adj,vector<node_t*> 
           if(!explored[adj[i-1]-1]){
             node_t * next_node = nodes[adj[i-1]-1];
             explore_set.push_back(next_node);
-            explored[adj[i-1]-1]=1;
+            explored[adj[i-1]-1]=true;
           }
         }
         else{
@@ -135,42 +145,70 @@ int main(int argc, char *argv[]) {
       }
     }
     node_heap[i] = &cur_node;
+    //node_heap.push_back(&cur_node);
+
+
+    //cout<<"deg("<<cur_node.id<<")="<<cur_node.degree<<endl;
   }
 
-  //make heap
-  std::make_heap(node_heap.begin(),node_heap.end(),node_comp);
+  double mdtime = mysecond();
 
   vector<node_t*> schedule; 
   vector<int> perm; 
   vector<int> invperm(n); 
   //process with MD algorithm
+  auto node_heap_end = node_heap.end();
   for(int step = 1; step<=n;++step){
-    //sort heap
-    std::make_heap(node_heap.begin(),node_heap.end(),node_comp);
-    //get the min degree node
-    std::pop_heap (node_heap.begin(),node_heap.end(),node_comp);
-    node_t & min_node = *node_heap.back();
-    node_heap.pop_back();
+    //int min_degree = -1;
+    //int min_id = 0;
+    //for(int i=0;i<node_heap_end-node_heap.begin();++i){
+    //  if(min_degree == -1 || min_degree >= node_heap[i]->degree){
+    //    min_id = i;
+    //    min_degree = node_heap[i]->degree;
+    //  }
+    //}
+
+    auto it = std::min_element(node_heap.begin(),node_heap_end,node_comp);
+    node_t & min_node = *(*it);
+
+    //assert(min_node.degree==min_degree);
+
+    *it = *(node_heap_end-1);
+    //remove one node by moving the end iterator down one by one element
+    node_heap_end--;
     schedule.push_back(&min_node);
 
     perm.push_back(min_node.id);
 
     min_node.elim_step = step;
     //update the degree of its reachable set
-    list<node_t *> reach;
+    vector<node_t *> reach;
     get_reach(xadj,adj,nodes,min_node,step,reach);
 
-    for(list<node_t *>::iterator it = reach.begin();it!=reach.end();++it){
+    //cout<<"Reach of node "<<min_node.id<<endl;
+    //for(auto it2 = reach.begin(); it2!=reach.end();++it2){
+    //  cout<<(*it2)->id<<" ";
+    //}
+    //cout<<endl;
+
+    for(auto it = reach.begin();it!=reach.end();++it){
       node_t * cur_neighbor = *it;
       if(cur_neighbor->id != min_node.id){
-        list<node_t *> nghb_reach;
+        vector<node_t *> nghb_reach;
         get_reach(xadj,adj,nodes,*cur_neighbor,step+1,nghb_reach);
         cur_neighbor->degree = nghb_reach.size();
+
+    //cout<<"Nghb reach of node "<<cur_neighbor->id<<endl;
+    //for(auto it2 = nghb_reach.begin(); it2!=nghb_reach.end();++it2){
+    //  cout<<(*it2)->id<<" ";
+    //}
+    //cout<<endl;
       }
     }
   }
 
 
+  mdtime = mysecond() - mdtime;
 
 
 
@@ -179,6 +217,8 @@ int main(int argc, char *argv[]) {
     cout<<" "<<schedule[step-1]->id;
   }
   cout<<endl;
+
+ printf("  main algorithm time (compute the minimum degree ordering): %g s\n", mdtime);
 
 }
 

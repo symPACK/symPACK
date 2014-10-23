@@ -28,7 +28,13 @@
       blocks_ = NULL;
       blocks_cnt_ = 0;
 
+#ifndef ITREE
+      iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
+      globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+#else
       idxToBlk_ = CreateITree();
+#endif
+
 
       b_own_storage_ = true;
 
@@ -49,7 +55,13 @@
       blocks_ = NULL;
       blocks_cnt_ = 0;
 
+
+#ifndef ITREE
+      iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
+      globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+#else
       idxToBlk_ = CreateITree();
+#endif
 
       b_own_storage_ = true;
 
@@ -109,14 +121,22 @@
       nzval_ = &nzval_container_.front();
       blocks_ = &blocks_container_.front();
 
-
+#ifndef ITREE
+      iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
+      globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+#else
       idxToBlk_ = CreateITree();
+#endif
       InitIdxToBlk();
     }
 
   template<typename T>
     SuperNode<T>::~SuperNode(){
+#ifndef ITREE
+      delete globalToLocal_;
+#else
       delete idxToBlk_;
+#endif
     }
 
   template<typename T>
@@ -144,7 +164,13 @@
       }
 
       //initIdxToBlk_(true);
+#ifndef ITREE
+      iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
+      globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+#else
       idxToBlk_ = CreateITree();
+#endif
+
 #else
       trc_SNodeInit(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt, *this);
 #endif
@@ -159,11 +185,17 @@
         Int cur_fr = aiGIndex;
         Int cur_lr = cur_fr + aiNRows -1;
 
-//#ifdef INTERVAL_TREE
         
+#ifndef ITREE
+        if(cur_lr>iLastRow_){
+          iLastRow_=cur_lr;
+          globalToLocal_->resize(iLastRow_-iFirstCol_+1); 
+        }
+        std::fill(&(*globalToLocal_)[cur_fr-iFirstCol_],&(*globalToLocal_)[cur_lr-iFirstCol_]+1,blocks_cnt_); 
+#else
         ITree::Interval cur_interv = { cur_fr, cur_lr, blocks_cnt_};
         idxToBlk_->Insert(cur_interv);
-//#endif
+#endif
 
         blocks_container_.push_back(NZBlockDesc(aiGIndex,nzval_cnt_));
 
@@ -177,12 +209,16 @@
 
 
   template<typename T>
-    inline Int SuperNode<T>::FindBlockIdx(Int aiGIndex){
-      TIMER_START(FindBlockIdx);
-//      if(Id()==3 && aiGIndex==46){gdb_lock(0);}
-      //      ITree::Interval it = {aiGIndex, aiGIndex,0};
-      //      ITree::Interval * res = idxToBlk_->IntervalSearch(it);
-//#ifdef INTERVAL_TREE
+  inline Int SuperNode<T>::FindBlockIdx(Int aiGIndex){
+    TIMER_START(FindBlockIdx);
+    Int rval = -1;
+
+#ifndef ITREE
+    if(aiGIndex>=iFirstCol_ && aiGIndex<=iLastRow_){
+      rval = globalToLocal_->at(aiGIndex-iFirstCol_);
+    }
+#else
+
 #ifdef _LAZY_INIT_
     if(!ITreeInitialized()){
       InitIdxToBlk();
@@ -190,17 +226,14 @@
 #endif
 
 
-      ITree::Interval * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex);
-      if (res == NULL){
-        TIMER_STOP(FindBlockIdx);
-        return -1;
-      }
-      else{
-        TIMER_STOP(FindBlockIdx);
-        return res->block_idx;
-      }
-//#endif
+    ITree::Interval * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex);
+    if (res != NULL){
+      rval = res->block_idx;
     }
+#endif
+    TIMER_STOP(FindBlockIdx);
+    return rval;
+  }
 
 
 
@@ -209,6 +242,18 @@
       TIMER_START(FindBlockIdx);
       //      ITree::Interval it = {aiGIndex, aiGIndex,0};
       //      ITree::Interval * res = idxToBlk_->IntervalSearch(it);
+
+      Int rval = -1;
+
+#ifndef ITREE
+      //search interval
+      //do something stupid
+      while( (rval = FindBlockIdx(fr))<0){++fr;};
+      overlap.low = fr;
+      NZBlockDesc desc = GetNZBlockDesc(rval);
+      overlap.high = min(lr,desc.GIndex + NRows(rval)-1);
+#else
+
 #ifdef _LAZY_INIT_
     if(!ITreeInitialized()){
       InitIdxToBlk();
@@ -217,15 +262,14 @@
 
 
       ITree::Interval * res = idxToBlk_->IntervalSearch(fr,lr);
-      if (res == NULL){
-        TIMER_STOP(FindBlockIdx);
-        return -1;
-      }
-      else{
-        TIMER_STOP(FindBlockIdx);
+      if (res != NULL){
         overlap = *res;
-        return res->block_idx;
+        rval = res->block_idx;
       }
+#endif
+      TIMER_STOP(FindBlockIdx);
+      return rval;
+
     }
 
 
@@ -234,9 +278,11 @@
 
   template<typename T>
     inline void SuperNode<T>::DumpITree(){
+#ifdef ITREE
       logfileptr->OFS()<<"Number of blocks: "<<blocks_cnt_<<endl;
       logfileptr->OFS()<<"log2(Number of blocks): "<<log2(blocks_cnt_)<<endl;
       idxToBlk_->Dump();
+#endif
     }
 
   template<typename T>
@@ -259,151 +305,87 @@
 
 #ifdef COMPACT_AGGREGATES
   template<typename T>
-    inline Int SuperNode<T>::Merge(SuperNode<T> & src_snode, SnodeUpdate &update){
+  inline Int SuperNode<T>::Merge(SuperNode<T> & src_snode, SnodeUpdate &update){
 #ifndef _TAU_TRACE_
-      TIMER_START(MERGE_SNODE);
+    TIMER_START(MERGE_SNODE);
 
-      assert(b_own_storage_);
+    assert(b_own_storage_);
 
-      Int src_snode_size = src_snode.Size();
-      Int tgt_snode_size = Size();
+    Int src_snode_size = src_snode.Size();
+    Int tgt_snode_size = Size();
 
-      Int & pivot_idx = update.blkidx;
-      Int & pivot_fr = update.src_first_row;
+    Int & pivot_idx = update.blkidx;
+    Int & pivot_fr = update.src_first_row;
 
-////      //find the first row updated by src_snode
-////      TIMER_START(MERGE_SNODE_FIND_INDEX);
-////      Int first_pivot_idx = -1;
-////      Int tgt_fc = pivot_fr;
-////      if(tgt_fc ==I_ZERO ){
-////        tgt_fc = FirstCol();
-////        //find the pivot idx
-////        do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
-////        while(first_pivot_idx<0 && tgt_fc<=LastCol());
-////        tgt_fc--;
-////      }
-////      else{
-////        first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
-////      }
-////      assert(first_pivot_idx>=0);
-////
-////      TIMER_STOP(MERGE_SNODE_FIND_INDEX);
+    Int tgt_fc;
+    Int first_pivot_idx;
+    FindUpdatedFirstCol(src_snode, 0, tgt_fc, first_pivot_idx);
+    NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
 
+    //parse src_snode
+    ITree::Interval overlap;
+    ITree::Interval curInter;
+    ITree::Interval newInter;
+    std::queue< ITree::Interval > toInsert;
+    for(Int blkidx = first_pivot_idx; blkidx<src_snode.NZBlockCnt(); ++blkidx){
+      NZBlockDesc & blk_desc = src_snode.GetNZBlockDesc(blkidx);
+      Int fr = max(FirstCol(),blk_desc.GIndex);
+      Int lr = blk_desc.GIndex + src_snode.NRows(blkidx) -1;
 
-      Int tgt_fc;
-      Int first_pivot_idx;
-      FindUpdatedFirstCol(src_snode, 0, tgt_fc, first_pivot_idx);
-      NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
+      curInter.low = fr;
+      curInter.high = lr;
+      toInsert.push(curInter);
 
-      //parse src_snode
-      ITree::Interval overlap;
-      ITree::Interval curInter;
-      ITree::Interval newInter;
-      std::queue< ITree::Interval > toInsert;
+      while(!toInsert.empty()){
+        curInter = toInsert.front();
+        toInsert.pop();
+        if(FindBlockIdx(curInter.low,curInter.high,overlap)==-1){
+          //Add the full block
+          AddNZBlock( curInter.high - curInter.low + 1, tgt_snode_size, curInter.low);
+        }
+        else{
 
-
-
-
-      for(Int blkidx = first_pivot_idx; blkidx<src_snode.NZBlockCnt(); ++blkidx){
-        NZBlockDesc & blk_desc = src_snode.GetNZBlockDesc(blkidx);
-        Int fr = max(FirstCol(),blk_desc.GIndex);
-        Int lr = blk_desc.GIndex + src_snode.NRows(blkidx) -1;
-
-        curInter.low = fr;
-        curInter.high = lr;
-        toInsert.push(curInter);
-
-        while(!toInsert.empty()){
-          curInter = toInsert.front();
-          toInsert.pop();
-          if(FindBlockIdx(curInter.low,curInter.high,overlap)==-1){
-            //Add the full block
-            AddNZBlock( curInter.high - curInter.low + 1, tgt_snode_size, curInter.low);
-          }
-          else{
-
-            //check the overlap
-            //fr is curInter.low and lr is curInter.high
-            //                l-----overlap------h
-            //            l---------block-------------h
-            //        l--block----h
-            //                              l-----block----h
-            //we have two segments to look for : [overlap.high+1 - lr] and [fr - overlap.low -1]         
-            if(overlap.low>curInter.low){
-              newInter.low = curInter.low;
-              newInter.high = overlap.low-1;
-              toInsert.push(newInter);
-            }
-
-            if(overlap.high < curInter.high){
-              newInter.low = overlap.high+1;
-              newInter.high = curInter.high;
-              toInsert.push(newInter);
-            }
-
+          //check the overlap
+          //fr is curInter.low and lr is curInter.high
+          //                l-----overlap------h
+          //            l---------block-------------h
+          //        l--block----h
+          //                              l-----block----h
+          //we have two segments to look for : [overlap.high+1 - lr] and [fr - overlap.low -1]         
+          if(overlap.low>curInter.low){
+            newInter.low = curInter.low;
+            newInter.high = overlap.low-1;
+            toInsert.push(newInter);
           }
 
+          if(overlap.high < curInter.high){
+            newInter.low = overlap.high+1;
+            newInter.high = curInter.high;
+            toInsert.push(newInter);
+          }
 
         }
       }
+    }
 
-//        Int nrows = src_snode.NRows(blkidx);
-//        for(Int rowidx = 0; rowidx<nrows; ++rowidx){
-//          Int row = blk_desc.GIndex + rowidx;
-//          //if the row is updating the target
-//          if(row>=tgt_fc){
-//            //check if the row is not already in the structure
-//            if(FindBlockIdx(row)==-1){
-//              //add a nzblock with a single row in it
-//              AddNZBlock( 1, tgt_snode_size, row);
-//            }
-//          }
-//        }
-      }
-
-      TIMER_STOP(MERGE_SNODE);
-      return 0;
+    TIMER_STOP(MERGE_SNODE);
+    return 0;
 #else
     return trc_Merge(src_snode, update,*this);
 #endif
-    }
+  }
 #endif
 
 #ifndef _TAU_TRACE_
 #ifdef COMPACT_AGGREGATES
   template<typename T>
     inline Int SuperNode<T>::Aggregate(SuperNode<T> & src_snode){
-      TIMER_START(AGGREG_SNODE);
+      TIMER_START(AGGREGATE_SNODE);
       Int  pivot_idx = 0;
       Int  pivot_fr = 0;//FirstCol();
 
       Int src_snode_size = src_snode.Size();
       Int tgt_snode_size = Size();
-
-////      TIMER_START(AGGREG_SNODE_FIND_INDEX);
-////      Int first_pivot_idx = -1;
-////      Int tgt_fc = pivot_fr;
-////      if(tgt_fc ==I_ZERO ){
-////        tgt_fc = FirstCol();
-////        //find the pivot idx
-////        do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
-////        while(first_pivot_idx<0 && tgt_fc<=LastCol());
-////        tgt_fc--;
-////      }
-////      else{
-////        first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
-////      }
-////      assert(first_pivot_idx>=0);
-////      NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
-////
-////      TIMER_STOP(AGGREG_SNODE_FIND_INDEX);
-
-//      Int tgt_fc;
-//      Int first_pivot_idx;
-//      FindUpdatedFirstCol(src_snode, 0, tgt_fc, first_pivot_idx);
-//      NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
-
-
 
       //parse src_snode and add everything
 
@@ -427,17 +409,15 @@
             T * src = src_snode.GetNZval(src_offset);
             T * tgt = GetNZval(tgt_offset);
 
-            //blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
-            for(Int i = 0; i< tgt_snode_size;i+=1){
-              tgt[i] += src[i];
-            }
+            blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
+            //for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
 
           }
         }
       }
 
 
-      TIMER_STOP(AGGREG_SNODE);
+      TIMER_STOP(AGGREGATE_SNODE);
       return 0;
     }
 #else
@@ -453,10 +433,8 @@
       T * src = src_snode.GetNZval(0);
       T * tgt = GetNZval(0);
 
-      //blas::Axpy(tgt_snode_size*NRowsBelowBlock(0),ONE<T>(),src,1,tgt,1);
-      for(Int i = 0; i< tgt_snode_size*NRowsBelowBlock(0);i+=1){
-        tgt[i] += src[i];
-      }
+      blas::Axpy(tgt_snode_size*NRowsBelowBlock(0),ONE<T>(),src,1,tgt,1);
+      //for(Int i = 0; i< tgt_snode_size*NRowsBelowBlock(0);i+=1){ tgt[i] += src[i]; }
 
 
 
@@ -489,34 +467,6 @@
         TIMER_START(UPDATE_SNODE);
         Int src_snode_size = src_snode.Size();
         Int tgt_snode_size = Size();
-
-////        //find the first row updated by src_snode
-////        TIMER_START(UPDATE_SNODE_FIND_INDEX);
-////        Int first_pivot_idx = -1;
-////        Int tgt_fc = pivot_fr;
-////        if(tgt_fc ==I_ZERO ){
-////          tgt_fc = FirstCol();
-////          //find the pivot idx
-////          do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
-////          while(first_pivot_idx<0 && tgt_fc<=LastCol());
-////          tgt_fc--;
-////        }
-////        else{
-////          first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
-////        }
-////        assert(first_pivot_idx>=0);
-////        NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
-////
-////        //find the last row updated by src_snode
-////        Int tgt_lc = LastCol();
-////        Int last_pivot_idx = -1;
-////        //find the pivot idx
-////        do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
-////        while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
-////        tgt_lc++;
-////        assert(last_pivot_idx>=0);
-////        NZBlockDesc & last_pivot_desc = src_snode.GetNZBlockDesc(last_pivot_idx);
-////        TIMER_STOP(UPDATE_SNODE_FIND_INDEX);
 
       Int tgt_fc,tgt_lc;
       Int first_pivot_idx,last_pivot_idx;
@@ -555,7 +505,6 @@
 #endif
 
         buf = tmpBuffers.tmpBuf.Data();
-        //    }
 
         //everything is in row-major
         TIMER_START(UPDATE_SNODE_GEMM);
@@ -812,32 +761,6 @@
       Int src_snode_size = src_snode.Size();
       Int tgt_snode_size = Size();
 
-      //find the first row updated by src_snode
-////      TIMER_START(UPDATE_SNODE_FIND_INDEX);
-////      Int first_pivot_idx = -1;
-////      Int tgt_fc = pivot_fr;
-////      if(tgt_fc ==I_ZERO ){
-////        tgt_fc = FirstCol();
-////        //find the pivot idx
-////        do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
-////        while(first_pivot_idx<0 && tgt_fc<=LastCol());
-////        tgt_fc--;
-////      }
-////      else{
-////        first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
-////      }
-////      assert(first_pivot_idx>=0);
-////
-////      //find the last row updated by src_snode
-////      Int tgt_lc = LastCol();
-////      Int last_pivot_idx = -1;
-////      //find the pivot idx
-////      do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
-////      while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
-////      tgt_lc++;
-////      assert(last_pivot_idx>=0);
-////      TIMER_STOP(UPDATE_SNODE_FIND_INDEX);
-
       Int tgt_fc,tgt_lc;
       Int first_pivot_idx,last_pivot_idx;
       FindUpdatedFirstCol(src_snode, update.src_first_row, tgt_fc, first_pivot_idx);
@@ -858,7 +781,8 @@
       Int src_lr = tgt_fc+src_nrows-1;
       src_nrows = src_lr - tgt_fc + 1;
 
-      Int tgt_width = src_nrows - src_snode.NRowsBelowBlock(last_pivot_idx)
+      Int src_belowLast = src_snode.NRowsBelowBlock(last_pivot_idx);
+      Int tgt_width = src_nrows - src_belowLast;
         + (tgt_lc - last_pivot_desc.GIndex)+1;
 
       T * pivot = src_snode.GetNZval(first_pivot_desc.Offset)
@@ -1037,6 +961,7 @@
 
   template<typename T>
     bool SuperNode<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const IntNumVec & Xsuper,  const IntNumVec & SupMembership, bool isLocal){
+      TIMER_START(FIND_NEXT_UPDATE);
       Int & tgt_snode_id = nextUpdate.tgt_snode_id;
       Int & f_ur = nextUpdate.src_first_row;
       Int & f_ub = nextUpdate.blkidx;
@@ -1117,6 +1042,8 @@
         nextUpdate.src_snode_id = -1;
         return false;
       }
+
+      TIMER_STOP(FIND_NEXT_UPDATE);
     }
 
 
@@ -1133,6 +1060,21 @@
 
   template<typename T>
   inline void SuperNode<T>::InitIdxToBlk(){
+#ifndef ITREE
+    TIMER_START(ARRAY_INSERT);
+        for(Int blkidx=0; blkidx<blocks_cnt_;++blkidx){
+          Int cur_fr = blocks_[blkidx].GIndex;
+          Int cur_lr = cur_fr + NRows(blkidx) -1;
+
+          if(cur_lr>iLastRow_){
+            iLastRow_=cur_lr;
+            globalToLocal_->resize(iLastRow_-iFirstCol_+1); 
+          }
+          std::fill(&(*globalToLocal_)[cur_fr-iFirstCol_],&(*globalToLocal_)[cur_lr-iFirstCol_]+1,blkidx); 
+        }
+    TIMER_STOP(ARRAY_INSERT);
+#else
+    TIMER_START(BST_INSERT);
         for(Int blkidx=0; blkidx<blocks_cnt_;++blkidx){
           Int cur_fr = blocks_[blkidx].GIndex;
           Int cur_lr = cur_fr + NRows(blkidx) -1;
@@ -1140,7 +1082,9 @@
           ITree::Interval cur_interv = { cur_fr, cur_lr, blkidx};
           idxToBlk_->Insert(cur_interv);
         }
+    TIMER_STOP(BST_INSERT);
       idxToBlk_->Rebalance();
+#endif
   }
 
 
@@ -1175,7 +1119,7 @@
 
   template <typename T> inline void Serialize(Icomm & buffer,SuperNode<T> & snode){
     Int nzblk_cnt = snode.NZBlockCnt();
-    Int nzval_cnt = snode.Size()*snode.NRowsBelowBlock(0);
+    Int nzval_cnt_ = snode.Size()*snode.NRowsBelowBlock(0);
     T* nzval_ptr = snode.GetNZval(0);
     NZBlockDesc* nzblk_ptr = &snode.GetNZBlockDesc(0);
     Int snode_id = snode.Id();
@@ -1183,29 +1127,29 @@
     Int snode_lc = snode.LastCol();
 
     buffer.clear();
-    buffer.resize(5*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt*sizeof(T));
+    buffer.resize(5*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T));
 
     buffer<<snode_id;
     buffer<<snode_fc;
     buffer<<snode_lc;
     buffer<<nzblk_cnt;
     Serialize(buffer,nzblk_ptr,nzblk_cnt);
-    buffer<<nzval_cnt;
-    Serialize(buffer,nzval_ptr,nzval_cnt);
+    buffer<<nzval_cnt_;
+    Serialize(buffer,nzval_ptr,nzval_cnt_);
   }
 
   template <typename T> inline void Serialize(Icomm & buffer,SuperNode<T> & snode, Int first_blkidx, Int first_row){
     NZBlockDesc* nzblk_ptr = &snode.GetNZBlockDesc(first_blkidx);
     Int local_first_row = first_row - nzblk_ptr->GIndex;
     Int nzblk_cnt = snode.NZBlockCnt() - first_blkidx;
-    Int nzval_cnt = snode.Size()*(snode.NRowsBelowBlock(first_blkidx)-local_first_row);
+    Int nzval_cnt_ = snode.Size()*(snode.NRowsBelowBlock(first_blkidx)-local_first_row);
     T* nzval_ptr = snode.GetNZval(nzblk_ptr->Offset) + local_first_row*snode.Size();
     Int snode_id = snode.Id();
     Int snode_fc = snode.FirstCol();
     Int snode_lc = snode.LastCol();
 
     buffer.clear();
-    buffer.resize(5*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt*sizeof(T));
+    buffer.resize(5*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T));
 
     buffer<<snode_id;
     buffer<<snode_fc;
@@ -1218,8 +1162,8 @@
     new_nzblk_ptr->GIndex = first_row;
     new_nzblk_ptr->Offset = nzblk_ptr->Offset + local_first_row*snode.Size();
 
-    buffer<<nzval_cnt;
-    Serialize(buffer,nzval_ptr,nzval_cnt);
+    buffer<<nzval_cnt_;
+    Serialize(buffer,nzval_ptr,nzval_cnt_);
   }
 
 
@@ -1227,14 +1171,14 @@
     NZBlockDesc* nzblk_ptr = &snode.GetNZBlockDesc(first_blkidx);
     Int local_first_row = first_row - nzblk_ptr->GIndex;
     Int nzblk_cnt = snode.NZBlockCnt() - first_blkidx;
-    Int nzval_cnt = snode.Size()*(snode.NRowsBelowBlock(first_blkidx)-local_first_row);
+    Int nzval_cnt_ = snode.Size()*(snode.NRowsBelowBlock(first_blkidx)-local_first_row);
     T* nzval_ptr = snode.GetNZval(nzblk_ptr->Offset) + local_first_row*snode.Size();
     Int snode_id = snode.Id();
     Int snode_fc = snode.FirstCol();
     Int snode_lc = snode.LastCol();
 
     buffer.clear();
-    buffer.resize(5*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt*sizeof(T) + extra_bytespace);
+    buffer.resize(5*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T) + extra_bytespace);
 
     buffer<<snode_id;
     buffer<<snode_fc;
@@ -1247,8 +1191,8 @@
     new_nzblk_ptr->GIndex = first_row;
     new_nzblk_ptr->Offset = nzblk_ptr->Offset + local_first_row*snode.Size();
 
-    buffer<<nzval_cnt;
-    Serialize(buffer,nzval_ptr,nzval_cnt);
+    buffer<<nzval_cnt_;
+    Serialize(buffer,nzval_ptr,nzval_cnt_);
   }
 
 
@@ -1261,12 +1205,12 @@
     Int nzblk_cnt = *(((Int*)&buffer[0])+3);
     NZBlockDesc * blocks_ptr = 
       reinterpret_cast<NZBlockDesc*>(&buffer[4*sizeof(Int)]);
-    Int nzval_cnt = *(Int*)(blocks_ptr + nzblk_cnt);
+    Int nzval_cnt_ = *(Int*)(blocks_ptr + nzblk_cnt);
     T * nzval_ptr = (T*)((Int*)(blocks_ptr + nzblk_cnt)+1);
-    char * last_ptr = (char *)(nzval_ptr+nzval_cnt);
+    char * last_ptr = (char *)(nzval_ptr+nzval_cnt_);
 
     //Create the dummy supernode for that data
-    snode.Init(snode_id,snode_fc,snode_lc, blocks_ptr, nzblk_cnt, nzval_ptr, nzval_cnt);
+    snode.Init(snode_id,snode_fc,snode_lc, blocks_ptr, nzblk_cnt, nzval_ptr, nzval_cnt_);
 
     return (last_ptr - buffer);
   }

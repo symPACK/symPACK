@@ -239,6 +239,9 @@ namespace LIBCHOLESKY{
     TaskType type;
     Int src_snode_id;
     Int tgt_snode_id;
+    //unused but preparing for task scheduling priorities
+    Int rank;
+    SnodeUpdateFB():rank(-1){}
   };
 
 
@@ -246,21 +249,33 @@ namespace LIBCHOLESKY{
     bool operator()(const SnodeUpdateFB & a,const SnodeUpdateFB & b) const
     {
 
+      bool b_factor = b.tgt_snode_id == b.src_snode_id;
+
+
+      //use the ranks first
+      if(a.rank>=0 && b.rank>=0){
+        return a.rank<b.rank;
+      }
+    
+
+
       //check whether it is an update or a factorization
       bool a_factor = a.tgt_snode_id == a.src_snode_id;
-      bool b_factor = b.tgt_snode_id == b.src_snode_id;
 
       //if same type apply the usual priorities
 //      if(a_factor == b_factor){
-        if(a.tgt_snode_id>b.tgt_snode_id){
-          return true;
-        }
-        else if(a.tgt_snode_id==b.tgt_snode_id){
-          return a.src_snode_id>b.src_snode_id;
-        }
-        else{
-          return false;
-        }
+
+      //use the classic priorities otherwise
+      if(a.tgt_snode_id>b.tgt_snode_id){
+        return true;
+      }
+      else if(a.tgt_snode_id==b.tgt_snode_id){
+        return a.src_snode_id>b.src_snode_id;
+      }
+      else{
+        return false;
+      }
+
 //      }
 //      else if (a_factor){
 //        if(a.tgt_snode_id
@@ -357,7 +372,7 @@ namespace LIBCHOLESKY{
 
   struct Icomm{
     std::vector<char> * pSrcBlocks;
-    Int head;
+    size_t head;
     MPI_Request Request;
     Icomm(){
       Request = MPI_REQUEST_NULL;
@@ -367,7 +382,7 @@ namespace LIBCHOLESKY{
       head = 0;
     };
 
-    Icomm(Int aSize, MPI_Request aRequest):Request(aRequest){
+    Icomm(size_t aSize, MPI_Request aRequest):Request(aRequest){
       TIMER_START(ICOMM_MALLOC);
       pSrcBlocks = new std::vector<char>(aSize);
       TIMER_STOP(ICOMM_MALLOC);
@@ -378,10 +393,7 @@ namespace LIBCHOLESKY{
       if(Request !=MPI_REQUEST_NULL){
         MPI_Status recv_status;
         int flag = 0;
-
-//        set_mpi_handler(MPI_COMM_WORLD);
         int error_code = MPI_Test(&Request,&flag,&recv_status);
-//        check_mpi_error(error_code, MPI_COMM_WORLD, true);
         if(!flag){
           MPI_Cancel(&Request);
         }
@@ -390,28 +402,23 @@ namespace LIBCHOLESKY{
     };
     inline char * back(){ return &pSrcBlocks->at(head);}
     inline char * front(){ return &pSrcBlocks->front();}
-    inline Int capacity(){ return pSrcBlocks->size();}
-    inline Int size(){ return head;}
-    inline void resize(Int size){
-      //head = 0; 
+    inline size_t capacity(){ return pSrcBlocks->size();}
+    inline size_t size(){ return head;}
+    inline void resize(size_t size){
       pSrcBlocks->resize(size);
     }
     inline void setHead(Int phead){ 
-//if(this == 0x1cb5e00){gdb_lock();}
       assert(phead <= pSrcBlocks->size()); 
       head = phead;
     }
     inline void clear(){ 
       head = 0; 
       pSrcBlocks->resize(0); 
-//      pSrcBlocks->clear();
  
       if(Request !=MPI_REQUEST_NULL){
         MPI_Status recv_status;
         int flag = 0;
-//        set_mpi_handler(MPI_COMM_WORLD);
         int error_code = MPI_Test(&Request,&flag,&recv_status);
-//        check_mpi_error(error_code, MPI_COMM_WORLD, true);
         assert(!flag);
         MPI_Request_free(&Request);
       }
@@ -499,7 +506,7 @@ namespace LIBCHOLESKY{
         return list_.back();
       }
 
-      int size(){
+      size_t size(){
         return list_.size();
       }
 

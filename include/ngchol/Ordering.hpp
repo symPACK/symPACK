@@ -19,6 +19,7 @@ class Ordering{
     
     void SetStructure(SparseMatrixStructure & aGlobal);
     void MMD();
+    void AMD();
     void Compose(IntNumVec & invp2);
 };
 

@@ -37,10 +37,10 @@ void CTF_set_context(MPI_Comm ctxt);
 
 #ifdef TAU
 #define TAU_FSTART(ARG)                                           \
-  do { CTF_timer t(#ARG); t.start(); } while (0);
+  do { CTF_timer t(#ARG); t.start(); } while (0)
 
 #define TAU_FSTOP(ARG)                                            \
-  do { CTF_timer t(#ARG); t.stop(); } while (0);
+  do { CTF_timer t(#ARG); t.stop(); } while (0)
 
 #define TAU_PROFILE_TIMER(ARG1, ARG2, ARG3, ARG4)                 
 

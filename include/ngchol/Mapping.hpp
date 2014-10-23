@@ -178,6 +178,28 @@ class Wrap2D: public Mapping{
       ~Wrap2D(){};
 };
 
+class Wrap2DForced: public Mapping{
+  protected:
+    inline Int wrap2D_(Int i, Int j) { Int p = (i!=j)?(i/iBlockSize_)%iPRows_ + iPRows_*((j/iBlockSize_)%iPCols_):j%iNumProc_; return p;}
+  public:
+      Wrap2DForced(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
+      Wrap2DForced(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      //Wrap2D(Row2D & C):Mapping(C){}
+      Wrap2DForced(Wrap2DForced & C):Mapping(C){};
+      Wrap2DForced():Mapping(0,0,0,0){};
+      inline Int Map(Int i, Int j){
+       Int proc = 0;
+        if(pProcMap_!=NULL){
+          proc = wrap2D_((*pProcMap_)[i],(*pProcMap_)[j]);
+        }
+        else{
+          proc = wrap2D_(i,j);
+        }
+        return proc;
+      }
+      ~Wrap2DForced(){};
+};
+
 
 
 

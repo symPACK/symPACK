@@ -1,7 +1,7 @@
 #DEBUG_LIB = ${HOME}/software/duma_2_5_15/libduma.a -lpthread
 
 CXX=CC
-CXXFLAGS =-I./  -O3 -std=c++11
+CXXFLAGS =-I./  -fast -std=c++11
 #CXXFLAGS =-I./  -g -O0 -std=c++11
 
 all: check_md md vmd call_cost maxd genetic

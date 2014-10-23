@@ -143,8 +143,17 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
       while( it != cur_incomingRecv.end() ){
         Icomm * curComm = *it;
 
+
           SuperNode<T> dist_src_snode;
           size_t read_bytes = Deserialize(curComm->front(),dist_src_snode);
+
+
+#ifdef _STAT_COMM_
+          maxAggregRecv_ = max(maxAggregRecv_,read_bytes);
+          sizesAggregRecv_ += read_bytes;
+          countAggregRecv_++;
+#endif
+
           //Deserialize the number of aggregates
           //Int * aggregatesCnt = (Int *)(curComm->front()+read_bytes);
 
@@ -201,7 +210,13 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
           SuperNode<T> & tgt_snode = *snodeLocal(tgt_id);
 
           SuperNode<T> dist_src_snode;
-          Deserialize(&src_blocks[0],dist_src_snode);
+          size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
+
+#ifdef _STAT_COMM_
+          maxAggregRecv_ = max(maxAggregRecv_,read_bytes);
+          sizesAggregRecv_ += read_bytes;
+          countAggregRecv_++;
+#endif
 
 #ifdef _DEBUG_
           logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<" for Supernode "<<tgt_snode.Id()<<std::endl;
@@ -227,6 +242,12 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
           size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
           //Deserialize the number of aggregates
           //Int * aggregatesCnt = (Int *)(&src_blocks[0]+read_bytes);
+
+#ifdef _STAT_COMM_
+          maxAggregRecv_ = max(maxAggregRecv_,read_bytes);
+          sizesAggregRecv_ += read_bytes;
+          countAggregRecv_++;
+#endif
 
 #ifdef _DEBUG_
           logfileptr->OFS()<<"RECV Supernode "<<dist_src_snode.Id()<<std::endl;
@@ -263,49 +284,50 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
 
         //Sending factors
 
-        //Send my factor to my ancestors. 
-        BolNumVec is_factor_sent(np);
-        SetValue(is_factor_sent,false);
-        BolNumVec is_skipped(np);
-        SetValue(is_skipped,false);
+  if(np>1){
+    //Send my factor to my ancestors. 
+    BolNumVec is_factor_sent(np);
+    SetValue(is_factor_sent,false);
+    BolNumVec is_skipped(np);
+    SetValue(is_skipped,false);
 
-        SnodeUpdate curUpdate;
-        TIMER_START(FIND_UPDATED_ANCESTORS);
-        while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-          Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode.Id()-1);
+    SnodeUpdate curUpdate;
+    TIMER_START(FIND_UPDATED_ANCESTORS);
+    while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
+      Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode.Id()-1);
 
-          if(iTarget != iam){
-            if(!is_factor_sent[iTarget]){
+      if(iTarget != iam){
+        if(!is_factor_sent[iTarget]){
 
 
-                Int tag = FACT_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
-                FBDelayedComm comm(FACTOR,(void*)&src_snode,curUpdate.src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag);
-                //Try to do the async send first
-                if(outgoingSend.size() < maxIsend_){
-                  SendMessage(comm, outgoingSend);
-                }
-                else{
-TIMER_START(PUSH_MSG);
-                  MsgToSend.push(comm);
-TIMER_STOP(PUSH_MSG);
-                }
+          Int tag = FACT_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
+          FBDelayedComm comm(FACTOR,(void*)&src_snode,curUpdate.src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag);
+          //Try to do the async send first
+          if(outgoingSend.size() < maxIsend_){
+            SendMessage(comm, outgoingSend);
+          }
+          else{
+            TIMER_START(PUSH_MSG);
+            MsgToSend.push(comm);
+            TIMER_STOP(PUSH_MSG);
+          }
 #ifdef _DEBUG_DELAY_
-                logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
-                cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
+          logfileptr->OFS()<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
+          cout<<"P"<<iam<<" has delayed update from Supernode "<<I<<" to "<<curUpdate.tgt_snode_id<<" from row "<<curUpdate.src_first_row<<endl;
 #endif  
-                is_factor_sent[iTarget] = true;
+          is_factor_sent[iTarget] = true;
 
 #ifndef _LOAD_BALANCE
-    AdvanceOutgoing(outgoingSend);
-    SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks);
+          AdvanceOutgoing(outgoingSend);
+          SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks);
 #endif
 
-            }
-
-          }
         }
-        TIMER_STOP(FIND_UPDATED_ANCESTORS);
 
+      }
+    }
+    TIMER_STOP(FIND_UPDATED_ANCESTORS);
+  }
        //process some of the delayed send
 //       AdvanceOutgoing(outgoingSend);
 //       SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks);
@@ -785,8 +807,13 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const Snod
         it = WaitIncomingFactors(*cur_incomingRecv, recv_status,outgoingSend);
         if( it != cur_incomingRecv->end() ){
           Icomm * curComm = *it;
-          Deserialize(curComm->front(),*dist_src_snode);
+          size_t read_bytes = Deserialize(curComm->front(),*dist_src_snode);
 
+#ifdef _STAT_COMM_
+          maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
+          sizesFactorsRecv_ += read_bytes;
+          countFactorsRecv_++;
+#endif
           do_blocking_recv = false;
         }
         TIMER_STOP(IRECV_MPI_FACT);
@@ -827,8 +854,13 @@ logfileptr->OFS()<<"DIFFERENT TARGET"<<endl;
 
         FactorsToRecv[recv_tgt_id-1]--;
 
-        Deserialize(&src_blocks[0],*dist_src_snode);
+        size_t read_bytes = Deserialize(&src_blocks[0],*dist_src_snode);
 
+#ifdef _STAT_COMM_
+          maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
+          sizesFactorsRecv_ += read_bytes;
+          countFactorsRecv_++;
+#endif
 
 
 #else
@@ -847,7 +879,14 @@ assert(FactorsToRecv[curTask.tgt_snode_id-1]>0);
         //    logfileptr->OFS()<<"RECV After"<<endl;
         FactorsToRecv[curTask.tgt_snode_id-1]--;
 
-        Deserialize(&src_blocks[0],*dist_src_snode);
+        size_t read_bytes = Deserialize(&src_blocks[0],*dist_src_snode);
+
+#ifdef _STAT_COMM_
+          maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
+          sizesFactorsRecv_ += read_bytes;
+          countFactorsRecv_++;
+#endif
+
 #endif
         //#if not(defined(_LINEAR_SEARCH_FCLC_) || defined(_LAZY_INIT) )
       }
