@@ -9,19 +9,21 @@ EXEC=$NGCHOLDIR/driver/run_sparse_fanboth_upcxx
 MATRIX=$NGCHOLDIR/matrices/boneS10/boneS10.csc
 
 
-MAPPING=Row2D
+MAPPING=Col2D
+ORDER=AMD
+LB=NNZ
 NUMTRIES=5
 FB=0
 ISEND=0
 IRECV=0
-BLOCK=100
+BLOCK=60
 #PROCS=(24)
 #PROCS=(4 16 24)
 #PROCS=(32 48)
-#PROCS=(64 96 128 192 256 384)
+PROCS=(1 4 16 24 32 48 64 96 128 192 256 384)
 #PROCS=(512 768 1024)
 #PROCS=(1024 768 512 384 256 192 128 96 64)
-PROCS=(1225 1444 1600 1764 1936 2025)
+#PROCS=(1225 1444 1600 1764 1936 2025)
 
 #QUEUE=regular
 #WALLTIME=01:20:00
@@ -44,14 +46,14 @@ echo "#PBS -A mp127" >> tmp.pbs
 echo "#PBS -m ae" >> tmp.pbs
 echo "cd $NGCHOLDIR" >> tmp.pbs
 echo "echo \"-------------$p-----------\"" >> tmp.pbs
-echo "echo \"aprun -n $p $EXEC -in $MATRIX  -inf CSC -map $MAPPING -b $BLOCK -ir $IRECV -is $ISEND -fb $FB\"" >> tmp.pbs
+echo "echo \"aprun -n $p $EXEC -in $MATRIX  -inf CSC -map $MAPPING -b $BLOCK -ir $IRECV -is $ISEND -fb $FB -ordering $ORDER -lb $LB\"" >> tmp.pbs
 echo "for i in \`seq 1 $NUMTRIES\`;" >> tmp.pbs
 echo "do " >> tmp.pbs
 echo "rm -f core;" >> tmp.pbs
 echo "rm -f logTest*;" >> tmp.pbs
 echo "rm -f progress*;" >> tmp.pbs
 echo "rm -f profile*;" >> tmp.pbs
-echo "aprun -n $p $EXEC -in $MATRIX -inf CSC -map $MAPPING -b $BLOCK -ir $IRECV -is $ISEND -fb $FB" >> tmp.pbs
+echo "aprun -n $p $EXEC -in $MATRIX -inf CSC -map $MAPPING -b $BLOCK -ir $IRECV -is $ISEND -fb $FB -ordering $ORDER -lb $LB" >> tmp.pbs
 echo "done" >> tmp.pbs
 
 qsub tmp.pbs

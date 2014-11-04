@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
   }
 
 
-  ReadAdjacency(argv[1], ixadj, iadj);
+  ReadAdjacencyHB(argv[1], ixadj, iadj);
 
   int n = ixadj.size()-1;
 

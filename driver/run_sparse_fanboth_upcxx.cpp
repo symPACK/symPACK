@@ -108,6 +108,9 @@ int main(int argc, char **argv)
     else if(options["-lb"]=="FLOPS"){
       optionsFact.load_balance = FLOPS;
     }
+    else if(options["-lb"]=="SUBCUBE"){
+      optionsFact.load_balance = SUBCUBE;
+    }
     else{
       optionsFact.load_balance = NOLB;
     }

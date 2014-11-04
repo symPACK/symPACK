@@ -10,10 +10,11 @@
 
 //SuperNode implementation
   template<typename T>
-    SuperNode<T>::SuperNode() :iId_(-1),iFirstCol_(-1),iLastCol_(-1) { }
+    SuperNode<T>::SuperNode() :iId_(-1),iFirstCol_(-1),iLastCol_(-1),iN_(-1) { }
 
   template<typename T>
-    SuperNode<T>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
+    SuperNode<T>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
+      iN_=aiN;
       //this is an upper bound
       assert(ai_num_rows>=0);
 
@@ -29,8 +30,9 @@
       blocks_cnt_ = 0;
 
 #ifndef ITREE
-      iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
-      globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      //iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
+      //globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      globalToLocal_ = new std::vector<Int>(iN_+1,-1);
 #else
       idxToBlk_ = CreateITree();
 #endif
@@ -42,8 +44,9 @@
     }; 
 
   template<typename T>
-    SuperNode<T>::SuperNode(Int aiId, Int aiFc, Int aiLc) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
+    SuperNode<T>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
 
+      iN_=aiN;
       //compute supernode size / width
       iSize_ = iLastCol_ - iFirstCol_+1;
 
@@ -57,8 +60,9 @@
 
 
 #ifndef ITREE
-      iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
-      globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      //iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
+      //globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      globalToLocal_ = new std::vector<Int>(iN_+1,-1);
 #else
       idxToBlk_ = CreateITree();
 #endif
@@ -72,13 +76,14 @@
 
   template<typename T>
     SuperNode<T>::SuperNode(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt,
-        T * a_nzval, Int a_nzval_cnt) {
-      Init(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt);
+        T * a_nzval, Int a_nzval_cnt, Int aiN) {
+      Init(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt,aiN);
     }
 
   template<typename T>
-    SuperNode<T>::SuperNode(Int aiId, Int aiFc, Int aiLc, IntNumVec & xlindx, IntNumVec & lindx) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
+    SuperNode<T>::SuperNode(Int aiId, Int aiFc, Int aiLc, IntNumVec & xlindx, IntNumVec & lindx, Int aiN) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
 
+      iN_=aiN;
       //compute supernode size / width
       iSize_ = iLastCol_ - iFirstCol_+1;
       b_own_storage_ = true;
@@ -122,8 +127,9 @@
       blocks_ = &blocks_container_.front();
 
 #ifndef ITREE
-      iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
-      globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      //iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
+      //globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      globalToLocal_ = new std::vector<Int>(iN_+1,-1);
 #else
       idxToBlk_ = CreateITree();
 #endif
@@ -141,8 +147,9 @@
 
   template<typename T>
     void SuperNode<T>::Init(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt,
-        T * a_nzval, Int a_nzval_cnt) {
+        T * a_nzval, Int a_nzval_cnt, Int aiN) {
 #ifndef _TAU_TRACE_
+      iN_=aiN;
       iId_ = aiId;
       iFirstCol_=aiFc;
       iLastCol_ =aiLc;
@@ -165,14 +172,15 @@
 
       //initIdxToBlk_(true);
 #ifndef ITREE
-      iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
-      globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      //iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
+      //globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      globalToLocal_ = new std::vector<Int>(iN_+1,-1);
 #else
       idxToBlk_ = CreateITree();
 #endif
 
 #else
-      trc_SNodeInit(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt, *this);
+      trc_SNodeInit(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt, *this,aiN);
 #endif
     }
 
@@ -187,11 +195,12 @@
 
         
 #ifndef ITREE
-        if(cur_lr>iLastRow_){
-          iLastRow_=cur_lr;
-          globalToLocal_->resize(iLastRow_-iFirstCol_+1); 
-        }
-        std::fill(&(*globalToLocal_)[cur_fr-iFirstCol_],&(*globalToLocal_)[cur_lr-iFirstCol_]+1,blocks_cnt_); 
+//        if(cur_lr>iLastRow_){
+//          iLastRow_=cur_lr;
+//          globalToLocal_->resize(iLastRow_-iFirstCol_+1); 
+//        }
+//        std::fill(&(*globalToLocal_)[cur_fr-iFirstCol_],&(*globalToLocal_)[cur_lr-iFirstCol_]+1,blocks_cnt_); 
+        std::fill(&(*globalToLocal_)[cur_fr],&(*globalToLocal_)[cur_lr]+1,blocks_cnt_); 
 #else
         ITree::Interval cur_interv = { cur_fr, cur_lr, blocks_cnt_};
         idxToBlk_->Insert(cur_interv);
@@ -214,9 +223,10 @@
     Int rval = -1;
 
 #ifndef ITREE
-    if(aiGIndex>=iFirstCol_ && aiGIndex<=iLastRow_){
-      rval = globalToLocal_->at(aiGIndex-iFirstCol_);
-    }
+    //if(aiGIndex>=iFirstCol_ && aiGIndex<=iLastRow_){
+      //rval = globalToLocal_->at(aiGIndex-iFirstCol_);
+      rval = globalToLocal_->at(aiGIndex);
+    //}
 #else
 
 #ifdef _LAZY_INIT_
@@ -1066,11 +1076,12 @@
           Int cur_fr = blocks_[blkidx].GIndex;
           Int cur_lr = cur_fr + NRows(blkidx) -1;
 
-          if(cur_lr>iLastRow_){
-            iLastRow_=cur_lr;
-            globalToLocal_->resize(iLastRow_-iFirstCol_+1); 
-          }
-          std::fill(&(*globalToLocal_)[cur_fr-iFirstCol_],&(*globalToLocal_)[cur_lr-iFirstCol_]+1,blkidx); 
+          std::fill(&(*globalToLocal_)[cur_fr],&(*globalToLocal_)[cur_lr]+1,blkidx); 
+//          if(cur_lr>iLastRow_){
+//            iLastRow_=cur_lr;
+//            globalToLocal_->resize(iLastRow_-iFirstCol_+1); 
+//          }
+//          std::fill(&(*globalToLocal_)[cur_fr-iFirstCol_],&(*globalToLocal_)[cur_lr-iFirstCol_]+1,blkidx); 
         }
     TIMER_STOP(ARRAY_INSERT);
 #else
@@ -1101,6 +1112,7 @@
     os<<"     size = "<<snode.Size()<<std::endl;
     os<<"     fc   = "<<snode.FirstCol()<<std::endl;
     os<<"     lc   = "<<snode.LastCol()<<std::endl;
+    os<<"     n    = "<<snode.N()<<std::endl;
     for(Int blkidx =0; blkidx<snode.NZBlockCnt();++blkidx){
       NZBlockDesc & nzblk_desc = snode.GetNZBlockDesc(blkidx);
       T * nzblk_nzval = snode.GetNZval(nzblk_desc.Offset);
@@ -1127,11 +1139,12 @@
     Int snode_lc = snode.LastCol();
 
     buffer.clear();
-    buffer.resize(5*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T));
+    buffer.resize(6*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T));
 
     buffer<<snode_id;
     buffer<<snode_fc;
     buffer<<snode_lc;
+    buffer<<snode.N();
     buffer<<nzblk_cnt;
     Serialize(buffer,nzblk_ptr,nzblk_cnt);
     buffer<<nzval_cnt_;
@@ -1149,11 +1162,12 @@
     Int snode_lc = snode.LastCol();
 
     buffer.clear();
-    buffer.resize(5*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T));
+    buffer.resize(6*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T));
 
     buffer<<snode_id;
     buffer<<snode_fc;
     buffer<<snode_lc;
+    buffer<<snode.N();
     buffer<<nzblk_cnt;
     NZBlockDesc * new_nzblk_ptr = reinterpret_cast<NZBlockDesc *>(buffer.back());
     Serialize(buffer,nzblk_ptr,nzblk_cnt);
@@ -1178,11 +1192,12 @@
     Int snode_lc = snode.LastCol();
 
     buffer.clear();
-    buffer.resize(5*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T) + extra_bytespace);
+    buffer.resize(6*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T) + extra_bytespace);
 
     buffer<<snode_id;
     buffer<<snode_fc;
     buffer<<snode_lc;
+    buffer<<snode.N();
     buffer<<nzblk_cnt;
     NZBlockDesc * new_nzblk_ptr = reinterpret_cast<NZBlockDesc *>(buffer.back());
     Serialize(buffer,nzblk_ptr,nzblk_cnt);
@@ -1202,15 +1217,16 @@
     Int snode_id = *(Int*)&buffer[0];
     Int snode_fc = *(((Int*)&buffer[0])+1);
     Int snode_lc = *(((Int*)&buffer[0])+2);
-    Int nzblk_cnt = *(((Int*)&buffer[0])+3);
+    Int n = *(((Int*)&buffer[0])+3);
+    Int nzblk_cnt = *(((Int*)&buffer[0])+4);
     NZBlockDesc * blocks_ptr = 
-      reinterpret_cast<NZBlockDesc*>(&buffer[4*sizeof(Int)]);
+      reinterpret_cast<NZBlockDesc*>(&buffer[5*sizeof(Int)]);
     Int nzval_cnt_ = *(Int*)(blocks_ptr + nzblk_cnt);
     T * nzval_ptr = (T*)((Int*)(blocks_ptr + nzblk_cnt)+1);
     char * last_ptr = (char *)(nzval_ptr+nzval_cnt_);
 
     //Create the dummy supernode for that data
-    snode.Init(snode_id,snode_fc,snode_lc, blocks_ptr, nzblk_cnt, nzval_ptr, nzval_cnt_);
+    snode.Init(snode_id,snode_fc,snode_lc, blocks_ptr, nzblk_cnt, nzval_ptr, nzval_cnt_,n);
 
     return (last_ptr - buffer);
   }

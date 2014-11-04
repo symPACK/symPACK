@@ -46,7 +46,7 @@ namespace LIBCHOLESKY{
 
 enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNS,WRAP2D,WRAP2DFORCED};
 enum FactorizationType {FANOUT,FANBOTH};
-enum LoadBalanceType {NOLB,NNZ,NCOLS,FLOPS};
+enum LoadBalanceType {NOLB,NNZ,NCOLS,FLOPS,SUBCUBE};
 enum OrderingType {MMD,AMD};
 class NGCholOptions{
   public:
@@ -99,7 +99,7 @@ public:
 
 template<typename T> 
 Int getAggBufSize(const SnodeUpdateFB & curTask, const IntNumVec & Xsuper, const IntNumVec & UpdateHeight){
-  Int max_bytes = 5*sizeof(Int); 
+  Int max_bytes = 6*sizeof(Int); 
   //The upper bound must be of the width of the "largest" child
   Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
   Int ncols = Xsuper[curTask.tgt_snode_id] - Xsuper[curTask.tgt_snode_id-1];
@@ -115,7 +115,7 @@ Int getAggBufSize(const SnodeUpdateFB & curTask, const IntNumVec & Xsuper, const
 
  template<typename T> 
 Int getFactBufSize(const SnodeUpdateFB & curTask, const IntNumVec & UpdateWidth, const IntNumVec & UpdateHeight){
-  Int max_bytes = 5*sizeof(Int); 
+  Int max_bytes = 6*sizeof(Int); 
   //The upper bound must be of the width of the "largest" child
   Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
   Int ncols = UpdateWidth[curTask.tgt_snode_id-1];
@@ -129,7 +129,7 @@ Int getFactBufSize(const SnodeUpdateFB & curTask, const IntNumVec & UpdateWidth,
 
  template<typename T> 
 Int getMaxBufSize(const IntNumVec & UpdateWidth, const IntNumVec & UpdateHeight){
-  Int max_bytes = 5*sizeof(Int); 
+  Int max_bytes = 6*sizeof(Int); 
   //The upper bound must be of the width of the "largest" child
   Int nrows = 0;
   for(Int i = 0; i<UpdateHeight.m(); ++i ){ nrows = max(nrows, UpdateHeight[i]); }
@@ -252,7 +252,7 @@ template <typename T> class SupernodalMatrix{
 
 
     
-#ifndef ITREE
+#ifndef ITREE2
     std::vector<Int> globToLocSnodes_;
 #else
     ITree globToLocSnodes_;

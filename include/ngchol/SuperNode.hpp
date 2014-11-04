@@ -49,7 +49,7 @@ Int trc_Update(SuperNode<double> & src_snode, SnodeUpdate &update, TempUpdateBuf
 Int trc_UpdateAggregate(SuperNode<double> & src_snode, SnodeUpdate &update, TempUpdateBuffers<double> & tmpBuffers, Int iTarget,SuperNode<double> & tgt_snode);
 Int trc_Factorize(SuperNode<double> & tgt_snode);
 Int trc_Aggregate(SuperNode<double> & src_snode,SuperNode<double> & tgt_snode);
-void trc_SNodeInit(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt, double * a_nzval, Int a_nzval_cnt, SuperNode<double> & tgt_snode);
+void trc_SNodeInit(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt, double * a_nzval, Int a_nzval_cnt, SuperNode<double> & tgt_snode, Int aiN);
 
 /////////////////////////////////////////
 /// Class representing a supernode.
@@ -63,7 +63,7 @@ class SuperNode{
   friend Int trc_UpdateAggregate(SuperNode<double> & src_snode, SnodeUpdate &update, TempUpdateBuffers<double> & tmpBuffers, Int iTarget,SuperNode<double> & tgt_snode);
   friend Int trc_Factorize(SuperNode<double> & tgt_snode);
   friend Int trc_Aggregate(SuperNode<double> & src_snode,SuperNode<double> & tgt_snode);
-  friend void trc_SNodeInit(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt, double * a_nzval, Int a_nzval_cnt, SuperNode<double> & tgt_snode);
+  friend void trc_SNodeInit(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt, double * a_nzval, Int a_nzval_cnt, SuperNode<double> & tgt_snode, Int aiN);
 
   protected:
 
@@ -89,7 +89,7 @@ class SuperNode{
   Int iSize_;
   Int iFirstCol_;
   Int iLastCol_;
-  
+  Int iN_; 
 
   public:
 
@@ -99,6 +99,8 @@ class SuperNode{
   inline Int FirstCol(){ return iFirstCol_;}
   inline Int LastCol(){ return iLastCol_;}
   inline Int Size(){ return iSize_;}
+  inline Int N(){ return iN_;}
+
   inline Int NZBlockCnt(){ return blocks_cnt_;}
 
   inline NZBlockDesc & GetNZBlockDesc(Int aiLocIndex){ return blocks_[aiLocIndex];}
@@ -124,19 +126,19 @@ class SuperNode{
   
   SuperNode();
 
-  SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows);
-  SuperNode(Int aiId, Int aiFc, Int aiLc);
-  SuperNode(Int aiId, Int aiFc, Int aiLc, IntNumVec & xlindx, IntNumVec & lindx);
+  SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN);
+  SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN);
+  SuperNode(Int aiId, Int aiFc, Int aiLc, IntNumVec & xlindx, IntNumVec & lindx, Int aiN);
 
   SuperNode(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt,
-              T * a_nzval, Int a_nzval_cnt);
+              T * a_nzval, Int a_nzval_cnt, Int aiN);
 
 
   ~SuperNode();
 
     
   void Init(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt,
-              T * a_nzval, Int a_nzval_cnt);
+              T * a_nzval, Int a_nzval_cnt, Int aiN);
 
 
   inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex);

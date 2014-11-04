@@ -195,7 +195,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
 
       for(Int idx =0; idx<maxRecvCnt && incomingRecvCnt_ + IrecvCnt < maxIrecv_;
           ++idx){
-        Int max_bytes = 5*sizeof(Int); 
+        Int max_bytes = 6*sizeof(Int); 
         //The upper bound must be of the width of the "largest" child
         Int nrows = next_src_snode->NRowsBelowBlock(0);
         Int ncols = UpdateWidth_(next_src_snode->Id()-1);
@@ -506,7 +506,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
         TIMER_START(RECV_MALLOC);
         if(src_blocks.size()==0){
-          max_bytes = 5*sizeof(Int); 
+          max_bytes = 6*sizeof(Int); 
           //The upper bound must be of the width of the "largest" child
 #ifdef _DEBUG_
           logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;
@@ -1004,7 +1004,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
           TIMER_START(RECV_MALLOC);
           if(src_blocks.size()==0){
-            max_bytes = 5*sizeof(Int); 
+            max_bytes = 6*sizeof(Int); 
             //The upper bound must be of the width of the "largest" child
 #ifdef _DEBUG_
             logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;

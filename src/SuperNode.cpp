@@ -619,8 +619,9 @@ namespace LIBCHOLESKY{
     }
 
 
-    void trc_SNodeInit(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt, SCALAR * a_nzval, Int a_nzval_cnt, SuperNode<SCALAR> & tgt_snode) {
+    void trc_SNodeInit(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt, SCALAR * a_nzval, Int a_nzval_cnt, SuperNode<SCALAR> & tgt_snode, Int aiN) {
       tgt_snode.iId_ = aiId;
+      tgt_snode.iN_ = aiN;
       tgt_snode.iFirstCol_=aiFc;
       tgt_snode.iLastCol_ =aiLc;
       //compute supernode size / width
@@ -644,8 +645,9 @@ namespace LIBCHOLESKY{
 
 
 #ifndef ITREE
-      tgt_snode.iLastRow_ = max(tgt_snode.iLastCol_,tgt_snode.iFirstCol_ + tgt_snode.nzval_cnt_/tgt_snode.iSize_ - 1);
-      tgt_snode.globalToLocal_ = new std::vector<Int>(tgt_snode.iLastRow_ - tgt_snode.iFirstCol_ + 1 );
+      //tgt_snode.iLastRow_ = max(tgt_snode.iLastCol_,tgt_snode.iFirstCol_ + tgt_snode.nzval_cnt_/tgt_snode.iSize_ - 1);
+      //tgt_snode.globalToLocal_ = new std::vector<Int>(tgt_snode.iLastRow_ - tgt_snode.iFirstCol_ + 1 );
+      tgt_snode.globalToLocal_ = new std::vector<Int>(tgt_snode.iN_+1,-1);
 #else
       tgt_snode.idxToBlk_ = tgt_snode.CreateITree();
 #endif
