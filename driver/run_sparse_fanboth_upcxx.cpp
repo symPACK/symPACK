@@ -41,13 +41,14 @@ int main(int argc, char **argv)
 {
   MPI_Init(&argc,&argv);
 
+  NGCholOptions optionsFact;
+
   MPI_Comm worldcomm;
   MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
   //  int np, iam;
   MPI_Comm_size(worldcomm,&np);
   MPI_Comm_rank(worldcomm,&iam);
 
-  Mapping * mapping;
 
 #if defined(PROFILE) || defined(PMPI)
   TAU_PROFILE_INIT(argc, argv);
@@ -100,6 +101,40 @@ int main(int argc, char **argv)
   }
 
 
+  if( options.find("-lb") != options.end() ){
+    if(options["-lb"]=="NNZ"){
+      optionsFact.load_balance = NNZ;
+    }
+    else if(options["-lb"]=="FLOPS"){
+      optionsFact.load_balance = FLOPS;
+    }
+    else if(options["-lb"]=="SUBCUBE"){
+      optionsFact.load_balance = SUBCUBE;
+    }
+    else{
+      optionsFact.load_balance = NOLB;
+    }
+  }
+
+
+
+
+  if( options.find("-ordering") != options.end() ){
+    if(options["-ordering"]=="AMD"){
+      optionsFact.ordering = AMD;
+    }
+    else{
+      optionsFact.ordering = MMD;
+    }
+  }
+
+
+
+
+
+
+
+
 
   Int maxIrecv = 0;
   if( options.find("-ir") != options.end() ){
@@ -112,82 +147,32 @@ int main(int argc, char **argv)
 
   if( options.find("-map") != options.end() ){
     if(options["-map"] == "Modwrap2D"){
-
-      Int nr = (Int)sqrt((double)np);
-      Int nc = np/nr;
-      np= nr*nc;
-      mapping = new Modwrap2D(np, nr, nc, 1);
-//      if( np % (Int)sqrt((double)np) == 0){
-//        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
-//      }
-//      else{
-//        mapping = new Modwrap2D(np, np, np, 1);
-//      }
-
+      optionsFact.mappingType = MODWRAP2D;
     }
     else if(options["-map"] == "Modwrap2DNS"){
-
-      Int nr = (Int)sqrt((double)np);
-      Int nc = np/nr;
-      np= nr*nc;
-      mapping = new Modwrap2DNS(np, nr, nc, 1);
-//      if( np % (Int)sqrt((double)np) == 0){
-//        mapping = new Modwrap2DNS(np, sqrt((double)np), np, 1);
-//      }
-//      else{
-//        mapping = new Modwrap2DNS(np, np, np, 1);
-//      }
+      optionsFact.mappingType = MODWRAP2DNS;
     }
     else if(options["-map"] == "Wrap2D"){
-
-      Int nr = (Int)sqrt((double)np);
-      Int nc = np/nr;
-      np= nr*nc;
-      mapping = new Wrap2D(np, nr, nc, 1);
-//      if( np % (Int)sqrt((double)np) == 0){
-//        mapping = new Modwrap2DNS(np, sqrt((double)np), np, 1);
-//      }
-//      else{
-//        mapping = new Modwrap2DNS(np, np, np, 1);
-//      }
+      optionsFact.mappingType = WRAP2D;
+    }
+    else if(options["-map"] == "Wrap2DForced"){
+      optionsFact.mappingType = WRAP2DFORCED;
     }
    else if(options["-map"] == "Row2D"){
-        mapping = new Row2D(np, np, np, 1);
+      optionsFact.mappingType = ROW2D;
     }
     else if(options["-map"] == "Col2D"){
-        mapping = new Col2D(np, np, np, 1);
-    }
-    else if(options["-map"] == "AntiDiag2D"){
-        mapping = new AntiDiag2D(np, np, np, 1);
+      optionsFact.mappingType = COL2D;
     }
     else{
-
-      Int nr = (Int)sqrt((double)np);
-      Int nc = np/nr;
-      np= nr*nc;
-      mapping = new Modwrap2D(np, nr, nc, 1);
-//      if( np % (Int)sqrt((double)np) == 0){
-//        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
-//      }
-//      else{
-//        mapping = new Modwrap2D(np, np, np, 1);
-//      }
+      optionsFact.mappingType = MODWRAP2D;
     }
-
   }
   else{
-      Int nr = (Int)sqrt((double)np);
-      Int nc = np/nr;
-      np= nr*nc;
-      mapping = new Modwrap2D(np, nr, nc, 1);
-//      if( np % (Int)sqrt((double)np) == 0){
-//        mapping = new Modwrap2D(np, sqrt((double)np), np, 1);
-//      }
-//      else{
-//        mapping = new Modwrap2D(np, np, np, 1);
-//      }
+      optionsFact.mappingType = MODWRAP2D;
   }
 
+  np = optionsFact.used_procs(np);
   MPI_Comm workcomm;
   MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
   
@@ -311,20 +296,33 @@ DistSparseMatrix<Real> HMat(workcomm);
 {
   timeSta = get_time();
   //do the symbolic factorization and build supernodal matrix
-  SupernodalMatrix<double> SMat(HMat,maxSnode,mapping,maxIsend,maxIrecv,workcomm);
+  optionsFact.maxSnode = maxSnode;
+  optionsFact.maxIsend = maxIsend;
+  optionsFact.maxIrecv = maxIrecv;
+
+  if(doFB){
+    optionsFact.factorization = FANBOTH;
+  }
+  else{
+    optionsFact.factorization = FANOUT;
+  }
+
+
+  optionsFact.commEnv = new CommEnvironment(workcomm);
+  SupernodalMatrix<double> SMat(HMat,optionsFact);
 
   timeEnd = get_time();
   if(iam==0){
     cout<<"Allocation time: "<<timeEnd-timeSta<<endl;
   }
 
-      logfileptr->OFS()<<"Resulting mapping: "<<endl;
-      for(Int i = 0; i< 50;++i){
-        for(Int j = 0; j< 50;++j){
-          logfileptr->OFS()<<mapping->Map(i,j)<<" ";
-        }
-        logfileptr->OFS()<<endl;
-      }
+//      logfileptr->OFS()<<"Resulting mapping: "<<endl;
+//      for(Int i = 0; i< 50;++i){
+//        for(Int j = 0; j< 50;++j){
+//          logfileptr->OFS()<<mapping->Map(i,j)<<" ";
+//        }
+//        logfileptr->OFS()<<endl;
+//      }
 
 #ifdef _CHECK_RESULT_
 #ifdef _CHECK_RESULT_SEQ_
@@ -503,21 +501,9 @@ DistSparseMatrix<Real> HMat(workcomm);
 
 
   timeSta = get_time();
-if(doFB==1){
-  TIMER_START(SPARSE_FAN_BOTH);
-  SMat.FanBoth();
-  TIMER_STOP(SPARSE_FAN_BOTH);
-}
-else if (doFB==-1){
-  TIMER_START(SPARSE_FAN_OUT);
-  SMat.FanOutTask();
-  TIMER_STOP(SPARSE_FAN_OUT);
-}
-else{
-  TIMER_START(SPARSE_FAN_OUT);
-  SMat.FanOut();
-  TIMER_STOP(SPARSE_FAN_OUT);
-}
+  TIMER_START(FACTORIZATION);
+  SMat.Factorize();
+  TIMER_STOP(FACTORIZATION);
   timeEnd = get_time();
 
   if(iam==0){
@@ -658,10 +644,10 @@ else{
 
 #endif
 
+  delete optionsFact.commEnv;
 }
 
 
-  delete mapping;
 
   MPI_Barrier(workcomm);
   MPI_Comm_free(&workcomm);

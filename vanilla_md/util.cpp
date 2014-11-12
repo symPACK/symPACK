@@ -3,6 +3,8 @@
 
 #include <iostream>
 #include <algorithm>
+#include <numeric>
+#include <cmath>
 
 #include <fstream>
 #include <string>
@@ -291,6 +293,150 @@ void SymbolicFactorization(ETree& tree,const vector<int> & colptr,const vector<i
 
 }
 
+int ReadAdjacencyHB(const char * pfilename, vector<int> & xadj, vector<int> & adj){
+  string filename(pfilename);
+  ifstream infile;
+  infile.open(filename.c_str());
+
+//  if(infile.fail()){
+//    return -2;
+ // }
+
+  adj.resize(0);
+  xadj.resize(0);
+  vector<int> ixadj;
+
+  string line;
+  //read xadj on the first line of the input file
+  stringstream iss;
+  //skip 1st and 2nd lines
+  if(getline(infile, line)){}
+  if(getline(infile, line)){}
+  //read from third line
+  int m,n,nnz;
+  if(getline(infile, line))
+  {
+    iss.str("");
+    iss.clear();
+    iss<<line;
+//    cout<<line<<endl;
+    string type;
+    iss>>type;
+    iss>>m>>n>>nnz;
+//    cout<<type<<" "<<m<<" "<<n<<" "<<nnz<<endl;
+  }
+
+  //read from 4th line
+  int colptrCnt;
+  int rowindCnt;
+  if(getline(infile, line))
+  {
+    iss.str("");
+    iss.clear();
+    iss<<line;
+    string format;
+    iss>>format;
+    int dummy;
+    sscanf(format.c_str(),"(%dI%d)",&colptrCnt,&dummy);
+//    cout<<format<<" "<<colptrCnt<<" "<<dummy<<" "<<endl;
+    iss>>format;
+    sscanf(format.c_str(),"(%dI%d)",&rowindCnt,&dummy);
+//    cout<<format<<" "<<rowindCnt<<" "<<dummy<<" "<<endl;
+
+//    cout<<line<<" "<<colptrCnt<<" "<<rowindCnt<<" "<<endl;
+  }
+
+  //now compute the actual number of rows
+  colptrCnt = std::ceil((n+1)/(double)colptrCnt); 
+  rowindCnt = std::ceil((nnz)/(double)rowindCnt); 
+  //cerr<<" "<<colptrCnt<<" "<<rowindCnt<<" "<<endl;
+  ixadj.reserve(n+1);
+  for(int i=0;i<colptrCnt;++i){
+    if(getline(infile, line))
+    {
+//cout<<line<<endl;
+    iss.str("");
+    iss.clear();
+    iss<<line;
+      int j;
+      while(iss >> j){
+        ixadj.push_back(j);
+      }
+    }
+  }
+//for(int i=0;i<ixadj.size();++i){cout<<ixadj[i]<<" ";}
+//cout<<endl;
+//  cout<<ixadj.size()<<endl;
+
+  for(int i=0;i<rowindCnt;++i){
+    if(getline(infile, line))
+    {
+//cout<<line<<endl;
+    iss.str("");
+    iss.clear();
+    iss<<line;
+    int j;
+    int col = -1;
+    int xpos = 0;
+    int pos = 0;
+    int offset = 0;
+    int ifound =0;
+    xadj.push_back(1);
+    while(iss>> j){
+//      if(col==-1){col=j;}
+//       pos++;
+//       if(pos>=ixadj.at(col)){
+//        if(!ifound){
+//cout<<col<<" ";
+//          adj.push_back(col);
+//        }
+//        col++;
+//        ifound=0; 
+//        xadj.push_back(adj.size()+1);
+//       }
+//       if(j==col){
+//        ifound=1;
+//       }
+//cout<<j<<" ";
+       adj.push_back(j);
+    }
+//    if(!ifound){
+//cout<<col<<" ";
+//      adj.push_back(col);
+//    }
+//cout<<endl<<endl;
+//    xadj.push_back(nnz+1);
+    }
+  }
+
+xadj = ixadj;
+
+  infile.close();
+
+//cout<<"done"<<endl;
+
+#ifdef _verbose_
+  cout<<"ixadj: ";
+  for(int i = 0;i<ixadj.size();++i){
+    cout<<" "<<ixadj[i];
+  }
+  cout<<endl;
+
+  cout<<"xadj: ";
+  for(int i = 0;i<xadj.size();++i){
+    cout<<" "<<xadj[i];
+  }
+  cout<<endl;
+  cout<<"adj: ";
+  for(int i = 0;i<adj.size();++i){
+    cout<<" "<<adj[i];
+  }
+  cout<<endl;
+#endif
+
+  return 0;
+
+}
 
 int ReadAdjacency(const char * pfilename, vector<int> & xadj, vector<int> & adj){
   string filename(pfilename);
@@ -309,6 +455,7 @@ int ReadAdjacency(const char * pfilename, vector<int> & xadj, vector<int> & adj)
     int i;
     while(iss>> i){
        ixadj.push_back(i);
+assert(ixadj.size()>0);
     }
   }    
   else{

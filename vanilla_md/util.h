@@ -28,6 +28,7 @@ void SymbolicFactorization(ETree& tree,const vector<int> & colptr,const vector<i
 void GetLColRowCount(ETree & tree,const int * xadj, const int * adj, vector<int> & cc, vector<int> & rc);
 void displayMatrix(vector<int> & xadj, vector<int> & adj);
 int ReadAdjacency(const char * pfilename, vector<int> & xadj, vector<int> & adj);
+int ReadAdjacencyHB(const char * pfilename, vector<int> & xadj, vector<int> & adj);
 
 #endif
 

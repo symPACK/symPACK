@@ -30,6 +30,9 @@
 namespace LIBCHOLESKY{
 
 
+
+
+
   Int DEFAULT_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,tgt-1);}
   Int AGG_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,tgt-1);}
   Int FACT_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,src-1);}
@@ -41,16 +44,62 @@ namespace LIBCHOLESKY{
   Int AGG_TAG_TO_ID(Int tag){ return ((Int)(tag-1)/2);}
   Int FACT_TAG_TO_ID(Int tag){ return ((Int)(tag)/2);}
 
-enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNZ};
+enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNS,WRAP2D,WRAP2DFORCED};
 enum FactorizationType {FANOUT,FANBOTH};
-struct NGCholOptions{
-  MappingType mapping;
+enum LoadBalanceType {NOLB,NNZ,NCOLS,FLOPS,SUBCUBE};
+enum OrderingType {MMD,AMD};
+class NGCholOptions{
+  public:
+  MappingType mappingType;
   FactorizationType factorization;
+  LoadBalanceType load_balance;
+  OrderingType ordering;
+  Int maxIsend;
+  Int maxIrecv;
+  Int maxSnode;
+  CommEnvironment * commEnv;
+
+protected:
+bool isSqrtP(){
+  bool val = false;
+  switch(mappingType){
+    case MODWRAP2D: case MODWRAP2DNS: case WRAP2D: case WRAP2DFORCED:
+      val = true;
+    break;
+    default:
+      val = false;
+    break;
+  }
+  return val;
+}
+
+public:
+  NGCholOptions(){
+    mappingType = MODWRAP2D;
+    factorization = FANBOTH;
+    load_balance = NNZ;
+    maxIsend = 0;
+    maxIrecv=0;
+    maxSnode=-1;
+    commEnv = NULL;
+    ordering = MMD;
+  }
+
+  Int used_procs(Int np){
+    if(isSqrtP()){
+      Int nr = (Int)sqrt((double)np);
+      Int nc = np/nr;
+      np= nr*nc;
+    }
+    return np;
+  }
+
 };
+
 
 template<typename T> 
 Int getAggBufSize(const SnodeUpdateFB & curTask, const IntNumVec & Xsuper, const IntNumVec & UpdateHeight){
-  Int max_bytes = 5*sizeof(Int); 
+  Int max_bytes = 6*sizeof(Int); 
   //The upper bound must be of the width of the "largest" child
   Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
   Int ncols = Xsuper[curTask.tgt_snode_id] - Xsuper[curTask.tgt_snode_id-1];
@@ -66,7 +115,7 @@ Int getAggBufSize(const SnodeUpdateFB & curTask, const IntNumVec & Xsuper, const
 
  template<typename T> 
 Int getFactBufSize(const SnodeUpdateFB & curTask, const IntNumVec & UpdateWidth, const IntNumVec & UpdateHeight){
-  Int max_bytes = 5*sizeof(Int); 
+  Int max_bytes = 6*sizeof(Int); 
   //The upper bound must be of the width of the "largest" child
   Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
   Int ncols = UpdateWidth[curTask.tgt_snode_id-1];
@@ -80,7 +129,7 @@ Int getFactBufSize(const SnodeUpdateFB & curTask, const IntNumVec & UpdateWidth,
 
  template<typename T> 
 Int getMaxBufSize(const IntNumVec & UpdateWidth, const IntNumVec & UpdateHeight){
-  Int max_bytes = 5*sizeof(Int); 
+  Int max_bytes = 6*sizeof(Int); 
   //The upper bound must be of the width of the "largest" child
   Int nrows = 0;
   for(Int i = 0; i<UpdateHeight.m(); ++i ){ nrows = max(nrows, UpdateHeight[i]); }
@@ -102,7 +151,7 @@ template <typename T> class SupernodalMatrix{
 
   //Constructors
   SupernodalMatrix();
-  SupernodalMatrix(const DistSparseMatrix<T> & pMat, Int maxSnode,Mapping * pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm );
+  SupernodalMatrix(const DistSparseMatrix<T> & pMat, NGCholOptions & options );
   //Destructor
   ~SupernodalMatrix();
 
@@ -142,6 +191,7 @@ template <typename T> class SupernodalMatrix{
 
 
   protected:
+  NGCholOptions options_;
   CommEnvironment * CommEnv_;
 
 
@@ -202,7 +252,11 @@ template <typename T> class SupernodalMatrix{
 
 
     
+#ifndef ITREE2
+    std::vector<Int> globToLocSnodes_;
+#else
     ITree globToLocSnodes_;
+#endif
 
     //returns the 1-based index of supernode id global in the local supernode array
     Int snodeLocalIndex(Int global);
@@ -221,6 +275,21 @@ template <typename T> class SupernodalMatrix{
     FBTasks LocalTasks;
     TempUpdateBuffers<T> tmpBufs;
 
+#ifdef _STAT_COMM_
+    size_t maxAggreg_ ;
+    size_t sizesAggreg_;
+    Int countAggreg_;
+    size_t maxFactors_ ;
+    size_t sizesFactors_;
+    Int countFactors_;
+
+    size_t maxAggregRecv_ ;
+    size_t sizesAggregRecv_;
+    Int countAggregRecv_;
+    size_t maxFactorsRecv_ ;
+    size_t sizesFactorsRecv_;
+    Int countFactorsRecv_;
+#endif
 
   void FBAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & AggregatesToRecv, IntNumVec & FactorsToRecv);
   void FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, IntNumVec & AggregatesDone, IntNumVec & AggregatesToRecv, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr);
@@ -231,7 +300,7 @@ template <typename T> class SupernodalMatrix{
 
 
 
-  void Init(const DistSparseMatrix<T> & pMat, Int maxSnode,Mapping * pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm );
+  void Init(const DistSparseMatrix<T> & pMat, NGCholOptions & options );
   
 
 

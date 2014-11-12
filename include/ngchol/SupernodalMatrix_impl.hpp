@@ -20,7 +20,7 @@
 #define TOP() front()
 #else
 #define TOP() top()
-#else
+#endif
 
 #ifdef _DEBUG_DELAY_
 #define DUMP_COMM_LIST() \
@@ -38,7 +38,6 @@
     }\
     logfileptr->OFS()<<endl;\
   }while(0)
-#endif
 #else
 #define DUMP_COMM_LIST() do {}while(0)
 #endif
@@ -93,20 +92,67 @@ namespace LIBCHOLESKY{
 
 
 
-  template <typename T> void SupernodalMatrix<T>::Init(const DistSparseMatrix<T> & pMat, Int maxSnode,Mapping * pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm ){
+  template <typename T> void SupernodalMatrix<T>::Init(const DistSparseMatrix<T> & pMat, NGCholOptions & options ){
+
+
+#ifdef _STAT_COMM_
+          maxAggreg_ =0;
+          sizesAggreg_ =0;
+          countAggreg_=0;
+          maxFactors_ =0;
+          sizesFactors_ =0;
+          countFactors_=0;
+
+          maxAggregRecv_ =0;
+          sizesAggregRecv_ =0;
+          countAggregRecv_=0;
+          maxFactorsRecv_ =0;
+          sizesFactorsRecv_ =0;
+          countFactorsRecv_=0;
+#endif
+
     TIMER_START(SUPERMATRIX_INIT);
   //Create the CommEnvironment object if necessary
     globalAllocated = false;
     if(CommEnv_!=NULL){
       delete CommEnv_;
-    }    
-    CommEnv_ = new CommEnvironment(pComm);
+    }
 
-    Mapping_ = pMapping;
+    if(options.commEnv == NULL){
+      throw std::runtime_error("The communication environment must be initialized in the options");
+    }
+
+    options_ = options;
+
+    CommEnv_ = new CommEnvironment(*options.commEnv);
+
+    //create the mapping
+    Int pmapping = options.used_procs(np);
+    Int pr = (Int)sqrt((double)pmapping);
+    switch(options.mappingType){
+      case WRAP2D:
+        Mapping_ = new Wrap2D(pmapping, pr, pr, 1);
+        break;
+      case WRAP2DFORCED:
+        Mapping_ = new Wrap2DForced(pmapping, pr, pr, 1);
+        break;
+      case MODWRAP2DNS:
+        Mapping_ = new Modwrap2DNS(pmapping, pr, pr, 1);
+        break;
+      case ROW2D:
+        Mapping_ = new Row2D(pmapping, pmapping, pmapping, 1);
+        break;
+      case COL2D:
+        Mapping_ = new Col2D(pmapping, pmapping, pmapping, 1);
+        break;
+      case MODWRAP2D: default:
+        Mapping_ = new Modwrap2D(pmapping, pr, pr, 1);
+        break;
+    }
 
     //Options
-    maxIsend_ = maxIsend;
-    maxIrecv_ = maxIrecv;
+    maxIsend_ = options.maxIsend;
+    maxIrecv_ = options.maxIrecv;
 
     iSize_ = pMat.size;
     Local_ = pMat.GetLocalStructure();
@@ -116,8 +162,18 @@ namespace LIBCHOLESKY{
     //Create an Ordering object to hold the permutation
     Order_.SetStructure(Global_);
 
-    //Reoder the matrix with MMD
-    Order_.MMD();
+    switch(options_.ordering){
+      case MMD:
+        //Reoder the matrix with MMD
+        Order_.MMD();
+        break;
+      case AMD:
+        Order_.AMD();
+        break;
+      default:
+        Order_.MMD();
+        break;
+    }
 
     ETree_.ConstructETree(Global_,Order_);
     ETree_.PostOrderTree(Order_);
@@ -138,11 +194,11 @@ if(iam==0){
   cout<<"Flops: "<<flops<<endl;
 }
 
-    Global_.FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,maxSnode);
+    Global_.FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
 
 
 #ifdef RELAXED_SNODE
-    Global_.RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, maxSnode );
+    Global_.RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options.maxSnode );
     Global_.SymbolicFactorizationRelaxed(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
 
 #else
@@ -182,28 +238,186 @@ if(iam==0){
 #endif
 
 
-#ifdef _LOAD_BALANCE_
-//Do a greedy load balancing heuristic
-      std::vector<Int> procMap(Xsuper_.m()-1);
-      //Do a greedy heuristic to balance the number of nnz ?
-      std::vector<double> load(np,0.0);
-      
-      for(Int i = 1; i< Xsuper_.m();  ++i){
-        //find least loaded processor
-        vector<double>::iterator it = std::min_element(load.begin(),load.end());
-        Int proc = (Int)(it - load.begin());
-        Int width = Xsuper_[i] - Xsuper_[i-1];
-        Int height = cc[i-1];
-        *it += (double)(width*height);
-        procMap[i-1] = proc;
-      } 
 
-logfileptr->OFS()<<"Proc load: "<<load<<endl;
-logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
 
-    //Update the mapping
-    Mapping_->Update(procMap);  
-#endif
+    switch(options.load_balance){
+      case SUBCUBE:
+      {
+        if(iam==0){ cout<<"Subtree to subcube mapping used"<<endl;}
+
+        //Int np = 4;
+
+        //compute children array and subtree costs
+        ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+
+//        if(iam == 0){
+//          cout<<"Supernodal ETree is "<<SupETree<<std::endl;
+//        }
+
+        //compute number of children and load
+        vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
+        vector<Int> children(SupETree.Size()+1,0);
+        for(Int I=1;I<=SupETree.Size();I++){
+          Int parent = SupETree.Parent(I-1);
+          ++children[parent];
+          Int fc = Xsuper_[I-1];
+          Int width = Xsuper_[I] - Xsuper_[I-1];
+          Int height = cc[fc-1];
+          double local_load = width*height*height;
+          SubTreeLoad[I]+=local_load;
+          SubTreeLoad[parent]+=SubTreeLoad[I];
+        }
+
+        logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
+
+
+        //procmaps[0]/pstart[0] represents the complete list
+        vector<vector<Int> * > procmaps(SupETree.Size()+1);
+        for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new vector<Int>();}
+        vector<Int> pstart(SupETree.Size()+1,0);
+        procmaps[0]->reserve(np);
+        for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
+
+
+        for(Int I=SupETree.Size(); I>= 1;I--){
+
+          Int parent = SupETree.Parent(I-1);
+
+          //split parent's proc list
+          double parent_load = 0.0;
+
+          if(parent!=0){
+            Int fc = Xsuper_[parent-1];
+            Int width = Xsuper_[parent] - Xsuper_[parent-1];
+            Int height = cc[fc-1];
+            parent_load = width*height*height;
+          }
+
+
+          double proportion = SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load);
+          Int npParent = procmaps[parent]->size();
+          Int pFirstIdx = min(pstart[parent],npParent-1);
+//          Int numProcs = max(1,children[parent]==1?npParent-pFirstIdx:min((Int)std::floor(npParent*proportion),npParent-pFirstIdx));
+          Int npIdeal =(Int)std::round(npParent*proportion);
+          Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
+          Int pFirst = procmaps[parent]->at(pFirstIdx);
+
+          logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
+          pstart[parent]+= numProcs;//= min(pstart[parent] + numProcs,npParent-1);
+//          children[parent]--;
+
+//          Int pFirstIdx = pstart[parent]*npParent/children[parent];
+//          Int pFirst = procmaps[parent]->at(pFirstIdx);
+//          Int numProcs = max(pstart[parent]==children[parent]-1?npParent-pFirstIdx:npParent/children[parent],1);
+
+
+
+          procmaps[I]->reserve(numProcs);
+          for(Int p = pFirst; p<pFirst+numProcs;++p){ procmaps[I]->push_back(p);}
+
+          logfileptr->OFS()<<I<<": "; 
+          for(Int i = 0; i<procmaps[I]->size();++i){logfileptr->OFS()<<procmaps[I]->at(i)<<" ";}
+          logfileptr->OFS()<<endl;
+//
+//          if(iam==0){
+//            cout<<I<<": "; 
+//            for(Int i = 0; i<procmaps[I]->size();++i){cout<<procmaps[I]->at(i)<<" ";}
+//            cout<<endl;
+//          }
+          pstart[parent]++;
+        }
+
+
+        //now choose which processor to get
+        std::vector<Int> procMap(SupETree.Size());
+        std::vector<double> load(np,0.0);
+        for(Int I=1;I<=SupETree.Size();I++){
+          Int minLoadP= -1;
+          double minLoad = -1;
+          for(Int i = 0; i<procmaps[I]->size();++i){
+            Int proc = procmaps[I]->at(i);
+            if(load[proc]<minLoad || minLoad==-1){
+              minLoad = load[proc];
+              minLoadP = proc;
+            }
+          }
+
+          procMap[I-1] = minLoadP;
+
+
+          Int fc = Xsuper_[I-1];
+          Int width = Xsuper_[I] - Xsuper_[I-1];
+          Int height = cc[fc-1];
+          double local_load = width*height*height;
+
+          load[minLoadP]+=local_load;
+        }
+
+
+        //for(Int i = 0; i<procMap.size();++i){ logfileptr->OFS()<<i+1<<" is on "<<procMap[i]<<endl;}
+          logfileptr->OFS()<<"Proc load: "<<load<<endl;
+          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
+
+        //Update the mapping
+        Mapping_->Update(procMap);
+
+        for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
+      }       
+      break;
+      case NNZ:
+        {
+          if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
+          //Do a greedy load balancing heuristic
+          std::vector<Int> procMap(Xsuper_.m()-1);
+          //Do a greedy heuristic to balance the number of nnz ?
+          std::vector<double> load(np,0.0);
+
+          for(Int i = 1; i< Xsuper_.m();  ++i){
+            //find least loaded processor
+            vector<double>::iterator it = std::min_element(load.begin(),load.end());
+            Int proc = (Int)(it - load.begin());
+            Int width = Xsuper_[i] - Xsuper_[i-1];
+            Int height = cc[i-1];
+            *it += (double)(width*height);
+            procMap[i-1] = proc;
+          } 
+
+          logfileptr->OFS()<<"Proc load: "<<load<<endl;
+          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
+
+          //Update the mapping
+          Mapping_->Update(procMap);
+        }
+        break;
+      case FLOPS:
+        {
+          if(iam==0){ cout<<"Load Balancing on FLOPS used"<<endl;}
+          //Do a greedy load balancing heuristic
+          std::vector<Int> procMap(Xsuper_.m()-1);
+          //Do a greedy heuristic to balance the number of nnz ?
+          std::vector<double> load(np,0.0);
+
+          for(Int i = 1; i< Xsuper_.m();  ++i){
+            //find least loaded processor
+            vector<double>::iterator it = std::min_element(load.begin(),load.end());
+            Int proc = (Int)(it - load.begin());
+            Int width = Xsuper_[i] - Xsuper_[i-1];
+            Int height = cc[i-1];
+            *it += (double)(height*height);
+            procMap[i-1] = proc;
+          } 
+
+          logfileptr->OFS()<<"Proc load: "<<load<<endl;
+          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
+
+          //Update the mapping
+          Mapping_->Update(procMap);
+        }
+        break;
+
+      default:
+        break;
+    }
 
 #ifdef _DEBUG_MAPPING_
     Mapping_->Dump(2*np);
@@ -374,12 +588,16 @@ if(iam==0){
       
       //parse the first column to create the supernode structure
       if(iam==iDest){
-        LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight));
+        LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight,iSize_));
         SuperNode<T> & snode = *LocalSupernodes_.back();
-        
+       
+#ifndef ITREE2
+        globToLocSnodes_.push_back(I-1);
+//]=LocalSupernodes_.size();
+#else 
         ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
         globToLocSnodes_.Insert(snode_inter);
-
+#endif
 
 
 
@@ -631,9 +849,9 @@ if(iam==0){
     CommEnv_=NULL;
   }
 
-  template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatrix<T> & pMat, Int maxSnode,Mapping * pMapping, Int maxIsend, Int maxIrecv, MPI_Comm & pComm ){
+  template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatrix<T> & pMat, NGCholOptions & options ){
     CommEnv_ = NULL;
-    Init(pMat, maxSnode,pMapping, maxIsend, maxIrecv, pComm );
+    Init(pMat, options);
   }
 
   template <typename T> SupernodalMatrix<T>::~SupernodalMatrix(){
@@ -644,6 +862,53 @@ if(iam==0){
     for(Int i=0;i<Contributions_.size();++i){
       delete Contributions_[i];
     }
+
+
+    if(Mapping_!=NULL){
+      delete Mapping_;
+    }
+
+
+#ifdef _STAT_COMM_
+    if(CommEnv_!=NULL){
+      for(Int p =0; p<np;++p){
+        if(iam==p){
+          cout<<"---------- P"<<p<<" ---------"<<endl;
+          cout<<"Maximum factors size:\t"<<maxFactors_<<"\t"<<maxFactorsRecv_<<endl;
+          cout<<"Total factors size:\t"<<sizesFactors_<<"\t"<<sizesFactorsRecv_<<endl;
+          Int meanFactors = 0;
+          if(countFactors_!=0){
+            meanFactors = sizesFactors_/countFactors_;
+          }
+          Int meanFactorsRecv = 0;
+          if(countFactorsRecv_!=0){
+            meanFactorsRecv = sizesFactorsRecv_/countFactorsRecv_;
+          }
+          cout<<"Mean factors size:\t"<<meanFactors<<"\t"<<meanFactorsRecv<<endl;
+          cout<<"Number of factors sent:\t"<<countFactors_<<"\t"<<countFactorsRecv_<<endl;
+
+
+          cout<<"Maximum aggregates size:\t"<<maxAggreg_<<"\t"<<maxAggregRecv_<<endl;
+          cout<<"Total aggregates size:\t"<<sizesAggreg_<<"\t"<<sizesAggregRecv_<<endl;
+          Int meanAggreg = 0;
+          if(countAggreg_!=0){
+            meanAggreg = sizesAggreg_/countAggreg_;
+          }
+          Int meanAggregRecv = 0;
+          if(countAggregRecv_!=0){
+            meanAggregRecv = sizesAggregRecv_/countAggregRecv_;
+          }
+          cout<<"Mean aggregates size:\t"<<meanAggreg<<"\t"<<meanAggregRecv<<endl;
+          cout<<"Number of aggregates sent:\t"<<countAggreg_<<"\t"<<countAggregRecv_<<endl;
+
+
+        }
+        MPI_Barrier(CommEnv_->MPI_GetComm()); 
+      }
+    }
+#endif
+
+
     if(CommEnv_!=NULL){
       delete CommEnv_;
     }
@@ -828,7 +1093,17 @@ template <typename T> void SupernodalMatrix<T>::AdvanceOutgoing(AsyncComms & out
 
 template <typename T> void SupernodalMatrix<T>::Factorize(){
   TIMER_START(FACTORIZATION);
-  FanOut();
+  switch(options_.factorization){
+    case FANBOTH:
+      FanBoth();
+      break;
+    case FANOUT:
+      FanOut();
+      break;
+    default:
+      FanBoth();
+      break;
+  }
   TIMER_STOP(FACTORIZATION);
 }
 
@@ -986,7 +1261,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
         //Int iLocalI = (I-1) / np +1 ;
         Int iLocalI = snodeLocalIndex(I);
         SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-        SuperNode<T> * contrib = new SuperNode<T>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) );
+        SuperNode<T> * contrib = new SuperNode<T>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
         Contributions_[iLocalI-1] = contrib;
 
 
@@ -1063,65 +1338,15 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
           MPI_Status recv_status;
           int bytes_received = 0;
-#if 1
           TIMER_START(RECV_MPI);
           MPI_Probe(MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
           MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
           src_blocks.resize(bytes_received);
           MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
           TIMER_STOP(RECV_MPI);
-#else
-          TIMER_START(RECV_MALLOC);
-          max_bytes = 5*sizeof(Int); 
-          Int nrows = cur_snode->NRowsBelowBlock(0);
-          Int ncols = nrhs;
-          nz_cnt = nrows * ncols;
-
-          Int nblocks = nrows;//std::max((Int)ceil(nrows/2)+1,cur_snode->NZBlockCnt());
-          max_bytes += (nblocks)*sizeof(NZBlockDesc);
-          max_bytes += nz_cnt*sizeof(T); 
-
-          src_blocks.resize(max_bytes);
-          TIMER_STOP(RECV_MALLOC);
-
-          TIMER_START(RECV_MPI);
-#ifdef PROBE_FIRST
-          MPI_Probe(MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-
-          logfileptr->OFS()<<"Preparing to receive "<<bytes_received<<" bytes"<<endl;
-
-          bool doabort = false;
-          int prev_size = 0;
-          if(src_blocks.size()<bytes_received){
-
-            cout<<"We have a problem !!!! on P"<<iam<<"\n";
-            gdb_lock();
-            prev_size = src_blocks.size();
-            doabort = true;
-            //receive anyway
-            src_blocks.resize(bytes_received);
-          }
-#endif
-
-#ifdef PROBE_FIRST
-          logfileptr->OFS()<<"Receiving from P"<<recv_status.MPI_SOURCE<<endl;
-          MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-#else
-          MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-#endif
-          TIMER_STOP(RECV_MPI);
-#endif
 
           SuperNode<T> dist_contrib;
           Deserialize(&src_blocks[0],dist_contrib);
-//#ifdef PROBE_FIRST
-//          if(doabort){
-//
-//            abort();
-//          }
-//#endif
-
 #ifdef _DEBUG_
           logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib.Id()<<std::endl;
 #endif
@@ -1135,7 +1360,6 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
         assert(UpdatesToDo(I-1)==0);
 
         if(UpdatesToDo(I-1)==0){
-//          logfileptr->OFS()<<"FORW Processing contrib "<<I<<std::endl;
 
           //This corresponds to the i loop in dtrsm
           for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
@@ -1649,9 +1873,14 @@ template<typename T> void SupernodalMatrix<T>::GetSolution(NumMat<T> & B){
 
 //returns the 1-based index of supernode id global in the local supernode array
 template <typename T> Int SupernodalMatrix<T>::snodeLocalIndex(Int global){
+#ifndef ITREE2
+      auto it = std::lower_bound(globToLocSnodes_.begin(),globToLocSnodes_.end(),global);
+      return it - globToLocSnodes_.begin();
+#else
       ITree::Interval * ptr = globToLocSnodes_.IntervalSearch(global,global);
       assert(ptr!=NULL);
       return ptr->block_idx;
+#endif
 }
 
 //returns a reference to  a local supernode with id global
@@ -1704,6 +1933,14 @@ template <typename T> void SupernodalMatrix<T>::SendMessage(const DelayedComm & 
           MPI_Isend(OutgoingSend.back()->front(),OutgoingSend.back()->size(), MPI_BYTE,iTarget,tgt_snode_id,CommEnv_->MPI_GetComm(),&OutgoingSend.back()->Request);
           TIMER_STOP(SEND_MPI);
         }
+
+#ifdef _STAT_COMM_
+        maxFactors_ = max(maxFactors_,send_buffer->size());
+        sizesFactors_ += send_buffer->size();
+        countFactors_++;
+#endif
+
+
       }
     }
 
@@ -1886,6 +2123,22 @@ template <typename T> void SupernodalMatrix<T>::SendMessage(const FBDelayedComm 
         Serialize(*send_buffer,src_snode,src_nzblk_idx,src_first_row);
         //if this is an aggregate add the count to the end
         AddOutgoingComm(OutgoingSend,send_buffer);
+
+
+
+#ifdef _STAT_COMM_
+        if(comm.type==AGGREGATE){
+          maxAggreg_ = max(maxAggreg_,send_buffer->size());
+          sizesAggreg_ += send_buffer->size();
+          countAggreg_++;
+        }
+        if(comm.type==FACTOR){
+          maxFactors_ = max(maxFactors_,send_buffer->size());
+          sizesFactors_ += send_buffer->size();
+          countFactors_++;
+        }
+#endif
+
 
         if( OutgoingSend.size() > maxIsend_){
           TIMER_START(SEND_MPI);
