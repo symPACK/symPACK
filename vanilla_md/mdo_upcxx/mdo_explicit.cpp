@@ -38,66 +38,76 @@ double mysecond()
 struct my_node_t {
   int id;
   int degree;
-  int elim_step;
+  int label;
   int adj_sz; // # of edges of this node, which is the size of adj
   upcxx::global_ptr<int> adj;
 };
-
-void dump_local_nodes(my_node_t *local_nodes, int n);
-
-bool node_comp(my_node_t * & a, my_node_t * & b)
-{
-  if (a->degree < b->degree) {
-    return true;
-  } else {
-    if(a->degree == b->degree) {
-#ifdef USE_RANDOM_TIE_BREAK
-      double tmp = fmod(rand(),10.0);
-      return (tmp>5.0);
-#else
-      return a->id < b->id; // use deterministic tie break
-#endif
-    } else {
-      return false;
-    }
-  }
-}
-
 
 
 int main(int argc, char *argv[]) 
 {
   upcxx::init(&argc, &argv);
-  double io_time = mysecond();
+//  double io_time = mysecond();
+//
+//  /* initialize random seed: */
+//  int seed =time(NULL); 
+//  srand (seed);
+//
+//
+//
+//  // Don't need xadj any more as its info is stored in node_t
+//  vector<int> xadj;
+//  // upcxx::shared_array<int> xadj_shared;
+//  // xadj doesn't need to be shared because it's static and relatively small.
+//  
+//  vector<int> local_adj;
+//  vector<int> ixadj;
+//  vector<int> iadj;
+//
+//
+//  int n;
+//  ReadAdjacencyHB(argv[1], ixadj, iadj);
+//  n = ixadj.size()-1;
+//
+//  //expand to asymmetric storage
+//  ExpandSymmetric(n,&ixadj[0],&iadj[0], xadj, local_adj);
+//
+//
+//  io_time = mysecond() - io_time;
+//  double init_time = mysecond();
+//
+//  // vector<node_t> nodes(n);
+//
+//  upcxx::shared_array<node_t> nodes(n);
+//  nodes.init();
 
-  /* initialize random seed: */
-  int seed =time(NULL); 
-  srand (seed);
 
 
 
-  // Don't need xadj any more as its info is stored in my_node_t
-  vector<int> xadj;
-  // upcxx::shared_array<int> xadj_shared;
-  // xadj doesn't need to be shared because it's static and relatively small.
-  
-  vector<int> local_adj;
-  vector<int> ixadj;
-  vector<int> iadj;
 
 
-  int n;
-  ReadAdjacencyHB(argv[1], ixadj, iadj);
-  n = ixadj.size()-1;
 
-  //expand to asymmetric storage
-  ExpandSymmetric(n,&ixadj[0],&iadj[0], xadj, local_adj);
+TIMER_START(io);
 
 
-  io_time = mysecond() - io_time;
+
+  int n,nnz;
+  upcxx::shared_array<node_t> * nodes_ptr;
+  ReadAdjacencyHB_PARA(argv[1], nodes_ptr, n, nnz);
+
+  //io_time = mysecond() - io_time;
+  upcxx::shared_array<node_t> & nodes = *nodes_ptr;
+
+  logfile<<"Input file read"<<endl;
+
+TIMER_STOP(io);
+
+    upcxx::barrier(); 
+//  ExpandSymmetric_PARA(n, nodes);
+
+  logfile<<"Matrix expanded"<<endl;
   double init_time = mysecond();
 
-  // vector<my_node_t> nodes(n);
 
 
 
@@ -105,9 +115,6 @@ int main(int argc, char *argv[])
 
 
 
-
-  upcxx::shared_array<my_node_t> nodes(n);
-  nodes.init();
 
 
 
@@ -118,35 +125,35 @@ int main(int argc, char *argv[])
   unsigned int tag =0;
 
   //initialize nodes
-  for (int i = upcxx::myrank(); i < n; i += upcxx::ranks()) {
-    upcxx::global_ptr<my_node_t> cur_node = &nodes[i];
-    // cur_node.id = i+1;
-    memberof(cur_node, id) = i+1;
-    // cur_node.degree = xadj[i+1] - xadj[i];
-    memberof(cur_node, degree) = xadj[i+1] - xadj[i];
-    // cur_node.elim_step = -1;
-    memberof(cur_node, elim_step) = -1;
-
-    int adj_sz = xadj[i+1] - xadj[i];
-    upcxx::global_ptr<int> adj = upcxx::allocate<int>(upcxx::myrank(), adj_sz);
-    assert(adj != NULL);
-    memberof(cur_node, adj) = adj;
-    memberof(cur_node, adj_sz) = adj_sz;
-    for (int j=0; j<adj_sz; j++) {
-      adj[j] = local_adj[xadj[i] - 1 + j];
-      // printf("adj[%lu] %d ", i+j, (int)adj[j]);
-    }
-    /*
-    for(int idx = xadj[i]; idx <= xadj[i+1]-1; ++idx) {
-      if(local_adj[idx-1]>i+1){
-        initEdgeCnt++;
-      }
-    }
-    */
-  }
+//  for (int i = upcxx::myrank(); i < n; i += upcxx::ranks()) {
+//    upcxx::global_ptr<node_t> cur_node = &nodes[i];
+//    // cur_node.id = i+1;
+//    memberof(cur_node, id) = i+1;
+//    // cur_node.degree = xadj[i+1] - xadj[i];
+//    memberof(cur_node, degree) = xadj[i+1] - xadj[i];
+//    // cur_node.label = -1;
+//    memberof(cur_node, label) = -1;
+//
+//    int adj_sz = xadj[i+1] - xadj[i];
+//    upcxx::global_ptr<int> adj = upcxx::allocate<int>(upcxx::myrank(), adj_sz);
+//    assert(adj != NULL);
+//    memberof(cur_node, adj) = adj;
+//    memberof(cur_node, adj_sz) = adj_sz;
+//    for (int j=0; j<adj_sz; j++) {
+//      adj[j] = local_adj[xadj[i] - 1 + j];
+//      // printf("adj[%lu] %d ", i+j, (int)adj[j]);
+//    }
+//    /*
+//    for(int idx = xadj[i]; idx <= xadj[i+1]-1; ++idx) {
+//      if(local_adj[idx-1]>i+1){
+//        initEdgeCnt++;
+//      }
+//    }
+//    */
+//  }
 
   // Finish reading the data from file and initializing the data structures
-  // dump_local_nodes((my_node_t *)&nodes[upcxx::myrank()], nodes.size());
+  // dump_local_nodes((node_t *)&nodes[upcxx::myrank()], nodes.size());
 
   upcxx::shared_array<int> all_min_degrees(upcxx::ranks());
   upcxx::shared_array<int> all_min_ids(upcxx::ranks());
@@ -157,13 +164,13 @@ int main(int argc, char *argv[])
   double mdo_time = mysecond();
 
   vector<int> schedule;
-  // vector< upcxx::global_ptr<my_node_t> > schedule_shared;
+  // vector< upcxx::global_ptr<node_t> > schedule_shared;
 
   // YZ: loop-carried dependencies between steps
   //process with MD algorithm
   for (int step=1; step<=n; ++step) {
-    my_node_t *local_nodes = (my_node_t *)&nodes[upcxx::myrank()];
-    my_node_t *my_min = NULL;
+    node_t *local_nodes = (node_t *)&nodes[upcxx::myrank()];
+    node_t *my_min = NULL;
     // YZ: need to handle the case when n is not a multiple of ranks()!!
     int local_size = n / upcxx::ranks();
     if (upcxx::myrank() < (n - local_size * upcxx::ranks())) {
@@ -172,8 +179,8 @@ int main(int argc, char *argv[])
     // printf("step %d, local_size %d\n", step, local_size);
     int cur_min_degree = -1;
     for (int i = 0; i < local_size; i++) {
-      my_node_t *cur_node = &local_nodes[i];
-      if (cur_node->elim_step == -1) {
+      node_t *cur_node = &local_nodes[i];
+      if (cur_node->label == 0) {
         if (cur_min_degree == -1 || cur_node->degree < cur_min_degree) {
           cur_min_degree = cur_node->degree;
           my_min = cur_node;
@@ -204,9 +211,9 @@ int main(int argc, char *argv[])
         }
       }
 
-      upcxx::global_ptr<my_node_t> min_node = &nodes[all_min_ids[min_rank]-1];
+      upcxx::global_ptr<node_t> min_node = &nodes[all_min_ids[min_rank]-1];
       global_min_id = all_min_ids[min_rank]; // memberof(min_node, id);
-      memberof(min_node, elim_step) = step;
+      memberof(min_node, label) = step;
     }
 
     upcxx::barrier();
@@ -216,7 +223,7 @@ int main(int argc, char *argv[])
     schedule.push_back(global_min_id);
 
     //update the degree of its reachable set
-    upcxx::global_ptr<my_node_t> min_ptr = &nodes[global_min_id-1];
+    upcxx::global_ptr<node_t> min_ptr = &nodes[global_min_id-1];
     vector< int > reach(memberof(min_ptr,adj_sz));
     upcxx::copy(memberof(min_ptr,adj).get(),upcxx::global_ptr<int>(&reach[0]),memberof(min_ptr,adj_sz).get());
 
@@ -225,13 +232,13 @@ int main(int argc, char *argv[])
     // the original graph (and the adjacency list) though some nodes' degree
     // might be changed.
 #ifdef USE_UPCXX
-    // vector< upcxx::global_ptr<my_node_t> >::iterator
+    // vector< upcxx::global_ptr<node_t> >::iterator
     for (auto it = reach.begin();
         it < reach.end();
         it++) {
 #else
 #pragma omp parallel for
-    for (vector<my_node_t *>::iterator it = reach.begin();
+    for (vector<node_t *>::iterator it = reach.begin();
          it != reach.end();
          ++it) {
 #endif
@@ -240,11 +247,11 @@ int main(int argc, char *argv[])
         continue;
       }
 
-      // my_node_t *cur_neighbor = *it;
-      upcxx::global_ptr<my_node_t> cur_neighbor = &nodes[*it-1];
+      // node_t *cur_neighbor = *it;
+      upcxx::global_ptr<node_t> cur_neighbor = &nodes[*it-1];
       assert(cur_neighbor.where()==upcxx::myrank());
 
-      my_node_t * node_ptr = cur_neighbor;
+      node_t * node_ptr = cur_neighbor;
 
       int old_adj_sz = node_ptr->adj_sz;
       int new_adj_sz = 0;
@@ -338,7 +345,7 @@ int main(int argc, char *argv[])
 
   if (upcxx::myrank() == 0) {
     printf("\nMinimum degree ordering algorithm time breakdown on rank 0:\n");
-    printf("  io time (read graph from file into memory): %g s\n", io_time);
+//    printf("  io time (read graph from file into memory): %g s\n", io_time);
     printf("  setup time (initialize data structures): %g s\n", init_time);
     printf("  main algorithm time (compute the minimum degree ordering): %g s\n", mdo_time);
     printf("\n");
@@ -350,16 +357,16 @@ int main(int argc, char *argv[])
   return 0;
 }
   
-void dump_local_nodes(my_node_t *local_nodes, int n)
+void dump_local_nodes(node_t *local_nodes, int n)
 {
   int local_size = n / upcxx::ranks();
   if (upcxx::myrank() < (n - local_size * upcxx::ranks())) {
     local_size++;
   }
   for (int i = 0; i < local_size; i++) {
-    my_node_t *cur_node = &local_nodes[i];
-    fprintf(stdout, "local_nodes[%d], id %d, degree %d, elim_step %d, adj_sz %d, adj: ",
-            i, cur_node->id, cur_node->degree, cur_node->elim_step, cur_node->adj_sz);
+    node_t *cur_node = &local_nodes[i];
+    fprintf(stdout, "local_nodes[%d], id %d, degree %d, label %d, adj_sz %d, adj: ",
+            i, cur_node->id, cur_node->degree, cur_node->label, cur_node->adj_sz);
     for (int j = 0; j < cur_node->adj_sz; j++) {
       fprintf(stdout, "%d ", (int)cur_node->adj[j]);
     }

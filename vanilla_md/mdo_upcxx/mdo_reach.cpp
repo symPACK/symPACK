@@ -114,6 +114,7 @@ void get_reach(upcxx::shared_array<node_t> &nodes,
       upcxx::copy(cur_node.adj, upcxx::global_ptr<int>(local_adj), cur_node.adj_sz);
       for(int i = 0; i< cur_node.adj_sz; ++i){
         int curr_adj = local_adj[i];
+
         if (curr_adj != 0) {
 //          if (next_node.marker != tag) {
           if (!explored[curr_adj-1]) {
@@ -199,7 +200,7 @@ int main(int argc, char *argv[])
     // cur_node.id = i+1;
     memberof(cur_node, id) = i+1;
     // cur_node.degree = xadj[i+1] - xadj[i] -1;
-    memberof(cur_node, degree) = xadj[i+1] - xadj[i] -1;
+    memberof(cur_node, degree) = xadj[i+1] - xadj[i] ;
     // cur_node.label = 0;
     memberof(cur_node, label) = 0;
 
@@ -346,7 +347,7 @@ int main(int argc, char *argv[])
       tag++;
       get_reach(nodes, memberof(cur_neighbor, id).get(), tag, nghb_reach);
 
-     memberof(cur_neighbor, degree) = nghb_reach.size();
+     memberof(cur_neighbor, degree) = nghb_reach.size()+1;
     }
     upcxx::barrier();
 

@@ -736,9 +736,9 @@ int ReadAdjacencyHB_PARA(const char * pfilename, upcxx::shared_array<node_t> * &
   upcxx::global_ptr<int> adj = memberof(cur_node,adj);
   int xadj_i = memberof(cur_node,label) - memberof(cur_node,adj_sz); 
   int xadj_ip1 = memberof(cur_node,label);
-//logfile<<"---"<<xadj_i<<"--"<<xadj_ip1<<"---"<<endl;
+logfile<<"---"<<xadj_i<<"--"<<xadj_ip1<<"---"<<endl;
   memberof(cur_node, label) = 0;
-  int elem_idx = 1;
+  int elem_idx = 0;
   for(int i=0;i<rowindCnt;++i){
     if(getline(infile, line))
     {
@@ -748,10 +748,12 @@ int ReadAdjacencyHB_PARA(const char * pfilename, upcxx::shared_array<node_t> * &
       int j;
       while(iss>> j){
       
+        elem_idx++;
+
         if(elem_idx>=xadj_i){
           if(elem_idx<xadj_ip1){
             adj[adj_idx++] = j;  
-//logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
+logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
           }
           else{
             //advance to the next local node
@@ -766,13 +768,14 @@ int ReadAdjacencyHB_PARA(const char * pfilename, upcxx::shared_array<node_t> * &
             xadj_i = memberof(cur_node,label) - memberof(cur_node,adj_sz); 
             xadj_ip1 = memberof(cur_node,label);
             memberof(cur_node, label) = 0;
-//logfile<<"---"<<xadj_i<<"--"<<xadj_ip1<<"---"<<endl;
+
+            //add current element
+logfile<<"---"<<xadj_i<<"--"<<xadj_ip1<<"---"<<endl;
             adj[adj_idx++] = j;  
-//logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
+logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
           }
         }
 
-        elem_idx++;
       }
     }
 
@@ -788,7 +791,7 @@ int ReadAdjacencyHB_PARA(const char * pfilename, upcxx::shared_array<node_t> * &
 
 
   for (int i = upcxx::myrank(); i < n; i+=upcxx::ranks()){ 
-    upcxx::global_ptr<node_t> cur_node = &nodes[i-1];
+    upcxx::global_ptr<node_t> cur_node = &nodes[i];
     assert(cur_node.where()==upcxx::myrank());
 
     int adj_sz = memberof(cur_node,adj_sz);
@@ -835,7 +838,7 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
   local_new_nnz[upcxx::myrank()] = 0;
 
   for (int i = upcxx::myrank(); i < size; i+=upcxx::ranks()){ 
-    upcxx::global_ptr<node_t> cur_node = &nodes[i-1];
+    upcxx::global_ptr<node_t> cur_node = &nodes[i];
     cur_col_nnz[i] = memberof(cur_node,adj_sz);
     new_col_nnz[i] = cur_col_nnz[i];
     local_new_nnz[upcxx::myrank()] += new_col_nnz[i];
@@ -846,7 +849,7 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
   
 
   for (int i = upcxx::myrank(); i < size; i+=upcxx::ranks()){ 
-    upcxx::global_ptr<node_t> cur_node = &nodes[i-1];
+    upcxx::global_ptr<node_t> cur_node = &nodes[i];
     int adj_sz = memberof(cur_node,adj_sz);
     upcxx::global_ptr<int> adj = memberof(cur_node,adj);
 
@@ -897,7 +900,7 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
    *    new_col_nnz[i] reset to be equal to cur_col_nnz[i].
    */
   for (int i = upcxx::myrank(); i < size; i+=upcxx::ranks()){ 
-    upcxx::global_ptr<node_t> cur_node = &nodes[i-1];
+    upcxx::global_ptr<node_t> cur_node = &nodes[i];
 
     int old_adj_sz = memberof(cur_node,adj_sz);
     //save old value in label
@@ -941,7 +944,7 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
 
   for (int i = 0; i < size; i++){ 
     if( i%upcxx::ranks()== upcxx::myrank() ){
-      upcxx::global_ptr<node_t> cur_node = &nodes[i-1];
+      upcxx::global_ptr<node_t> cur_node = &nodes[i];
 
       //get the old value of adj_sz
       int adj_sz = memberof(cur_node,label);
@@ -972,7 +975,7 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
   }
 
   for (int i = upcxx::myrank(); i < size; i+=upcxx::ranks()){ 
-    upcxx::global_ptr<node_t> cur_node = &nodes[i-1];
+    upcxx::global_ptr<node_t> cur_node = &nodes[i];
 
     int adj_sz = memberof(cur_node,adj_sz);
     logfile<<adj_sz<<" vs "<<memberof(cur_node,label)<<endl;
