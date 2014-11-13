@@ -43,6 +43,58 @@ struct my_node_t {
   upcxx::global_ptr<int> adj;
 };
 
+void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> & ref_node, std::vector<int> & marker, int & tag){
+  int ref_adj_sz = memberof(ref_node,adj_sz);
+  vector<int> local_adj(ref_adj_sz);
+  //vector<int> marker(nodes.size()+1,0);
+  upcxx::copy(memberof(ref_node,adj).get(),upcxx::global_ptr<int>(&local_adj[0]),local_adj.size());
+
+
+  //mark nodes
+  tag++;
+  if(tag==INT_MAX){tag=0;}
+
+  for(int i=0;i<local_adj.size();++i){
+    marker[local_adj[i]] = tag;
+  }
+
+  for(int i=upcxx::myrank();i<nodes.size();i+=upcxx::ranks()){
+    upcxx::global_ptr<node_t> cur_ptr = &nodes[i];
+    int adj_sz = memberof(cur_ptr,adj_sz); 
+    if(adj_sz!=ref_adj_sz){
+      continue;
+    }
+
+    int * loc_adj = memberof(cur_ptr,adj).get(); 
+    bool indist = true;
+    for(int j=0;j<adj_sz;++j){
+      if(marker[loc_adj[j]]!=tag){
+        indist = false;
+        break;
+      }
+    }
+
+    if(indist){
+      marker[i+1] = INT_MAX;
+    }
+  }
+
+  //all local indistinguishable nodes are marked
+  //we need to do a reduce 
+  upcxx::upcxx_reduce(&marker[0],&marker[0],marker.size(),UPCXX_MAX,UPCXX_INT);
+
+  int ref_id = memberof(ref_node,id); 
+  logfile<<"Nodes "<<ref_id<<" and [";
+  for(int i=0;i<local_adj.size();++i){
+    if(marker[local_adj[i]]==INT_MAX){
+      logfile<<loc_adj[i]<<" ";
+    }
+  }
+  logfile<<"] are indist."<<endl;
+    
+
+}
+
 
 int main(int argc, char *argv[]) 
 {
@@ -100,9 +152,10 @@ TIMER_START(io);
 
   logfile<<"Input file read"<<endl;
 
+    upcxx::barrier(); 
 TIMER_STOP(io);
 
-    upcxx::barrier(); 
+  TIMER_START(init);
   ExpandSymmetric_PARA(n, nodes);
 
   logfile<<"Matrix expanded"<<endl;
@@ -124,34 +177,6 @@ TIMER_STOP(io);
   vector<unsigned int> marker(n+1,0);
   unsigned int tag =0;
 
-  //initialize nodes
-//  for (int i = upcxx::myrank(); i < n; i += upcxx::ranks()) {
-//    upcxx::global_ptr<node_t> cur_node = &nodes[i];
-//    // cur_node.id = i+1;
-//    memberof(cur_node, id) = i+1;
-//    // cur_node.degree = xadj[i+1] - xadj[i];
-//    memberof(cur_node, degree) = xadj[i+1] - xadj[i];
-//    // cur_node.label = -1;
-//    memberof(cur_node, label) = -1;
-//
-//    int adj_sz = xadj[i+1] - xadj[i];
-//    upcxx::global_ptr<int> adj = upcxx::allocate<int>(upcxx::myrank(), adj_sz);
-//    assert(adj != NULL);
-//    memberof(cur_node, adj) = adj;
-//    memberof(cur_node, adj_sz) = adj_sz;
-//    for (int j=0; j<adj_sz; j++) {
-//      adj[j] = local_adj[xadj[i] - 1 + j];
-//      // printf("adj[%lu] %d ", i+j, (int)adj[j]);
-//    }
-//    /*
-//    for(int idx = xadj[i]; idx <= xadj[i+1]-1; ++idx) {
-//      if(local_adj[idx-1]>i+1){
-//        initEdgeCnt++;
-//      }
-//    }
-//    */
-//  }
-
   // Finish reading the data from file and initializing the data structures
   // dump_local_nodes((node_t *)&nodes[upcxx::myrank()], nodes.size());
 
@@ -161,9 +186,13 @@ TIMER_STOP(io);
   all_min_ids.init();
   
   init_time = mysecond() - init_time;
+  TIMER_STOP(init);
+  TIMER_START(mdo_time);
   double mdo_time = mysecond();
 
   vector<int> schedule;
+  vector<int> marker(n+1,0);
+  int tag=0;
   // vector< upcxx::global_ptr<node_t> > schedule_shared;
 
   // YZ: loop-carried dependencies between steps
@@ -198,7 +227,9 @@ TIMER_STOP(io);
 
     upcxx::barrier();
     
+
     int global_min_id;
+    int global_min_degree;
     
     if (upcxx::myrank() == 0) {
       int cur_min_degree = INT_MAX;
@@ -214,18 +245,48 @@ TIMER_STOP(io);
       upcxx::global_ptr<node_t> min_node = &nodes[all_min_ids[min_rank]-1];
       global_min_id = all_min_ids[min_rank]; // memberof(min_node, id);
       memberof(min_node, label) = step;
+      global_min_degree = cur_min_degree;
     }
 
     upcxx::barrier();
     upcxx::upcxx_bcast(&global_min_id, &global_min_id, sizeof(int), 0);
+    upcxx::upcxx_bcast(&global_min_degree, &global_min_degree, sizeof(int), 0);
     assert(global_min_id != -1);
-    
+
+
+
+    if(global_min_degree == n-step){
+      //add remaining nodes to the schedule
+      //TODO this is very inefficient
+      for(int i = 0;i<n;i++){
+        upcxx::global_ptr<node_t> cur_ptr = &nodes[i];
+        if(memberof(cur_ptr,label)==0){
+          schedule.push_back(i+1);
+        }
+      }
+      break;
+    }   
     schedule.push_back(global_min_id);
 
     //update the degree of its reachable set
     upcxx::global_ptr<node_t> min_ptr = &nodes[global_min_id-1];
     vector< int > reach(memberof(min_ptr,adj_sz));
-    upcxx::copy(memberof(min_ptr,adj).get(),upcxx::global_ptr<int>(&reach[0]),memberof(min_ptr,adj_sz).get());
+    if(upcxx::myrank()==min_ptr.where()){
+      upcxx::copy(memberof(min_ptr,adj).get(),upcxx::global_ptr<int>(&reach[0]),memberof(min_ptr,adj_sz).get());
+    }
+    upcxx::upcxx_bcast(&reach[0], &reach[0], reach.size()*sizeof(int), min_ptr.where());
+
+
+
+
+
+    find_indist(nodes, min_ptr, marker, tag);
+
+
+
+
+
+
 
     // YZ: Use UPC++ to parallel this loop.  There is no data dependencies
     // inside the for loop because the get_reach function does not change
@@ -249,7 +310,7 @@ TIMER_STOP(io);
 
       // node_t *cur_neighbor = *it;
       upcxx::global_ptr<node_t> cur_neighbor = &nodes[*it-1];
-      assert(cur_neighbor.where()==upcxx::myrank());
+//      assert(cur_neighbor.where()==upcxx::myrank());
 
       node_t * node_ptr = cur_neighbor;
 
@@ -291,6 +352,7 @@ TIMER_STOP(io);
   } // close of  for (int step=1; step<=n; ++step)
 
   mdo_time = mysecond() - mdo_time;
+  TIMER_STOP(mdo_time);
 
 //  for (int i = 0; i < upcxx::ranks(); i++) {
     if (upcxx::myrank() == 0) {

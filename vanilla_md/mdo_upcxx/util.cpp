@@ -769,11 +769,13 @@ logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
             xadj_ip1 = memberof(cur_node,label);
             memberof(cur_node, label) = 0;
 
-            //add current element
-logfile<<"---"<<xadj_i<<"--"<<xadj_ip1<<"---"<<endl;
-            adj[adj_idx++] = j;  
-            assert(j==memberof(cur_node,id));
-logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
+            logfile<<"---"<<xadj_i<<"--"<<xadj_ip1<<"---"<<endl;
+            if(elem_idx>=xadj_i){
+              //add current element
+              adj[adj_idx++] = j;  
+              logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
+              assert(j==memberof(cur_node,id));
+            }
           }
         }
 
