@@ -103,7 +103,7 @@ TIMER_START(io);
 TIMER_STOP(io);
 
     upcxx::barrier(); 
-//  ExpandSymmetric_PARA(n, nodes);
+  ExpandSymmetric_PARA(n, nodes);
 
   logfile<<"Matrix expanded"<<endl;
   double init_time = mysecond();
@@ -286,45 +286,6 @@ TIMER_STOP(io);
       delete new_local_adj;
       //delete local_adj;
 
-//
-//
-//
-//      //update the adjacency of that node
-//
-//      int old_adj_sz = memberof(cur_neighbor,adj_sz);
-//      int new_adj_sz = 0;
-//      int *new_local_adj = new int[reach.size()+old_adj_sz];
-//      upcxx::global_ptr<int> cur_adj = memberof(cur_neighbor,adj);
-//      tag++;
-//      marker[global_min_id]=tag;
-//      for(int i =0;i<old_adj_sz;++i){
-//        if(marker[cur_adj[i]]!=tag){
-//          new_local_adj[new_adj_sz++]=cur_adj[i];
-//          marker[cur_adj[i]]=tag;
-//        }
-//      }
-//
-//      for(int i =0; i<reach.size();++i){
-//        if(marker[reach[i]]!=tag){
-//          new_local_adj[new_adj_sz++]=reach[i];
-//          marker[reach[i]]=tag;
-//        }
-//      }
-//
-//      memberof(cur_neighbor,adj_sz) = new_adj_sz; 
-//      memberof(cur_neighbor, degree) = new_adj_sz-1;
-//
-//      if(old_adj_sz < new_adj_sz){
-//        upcxx::deallocate(cur_adj);
-//        upcxx::global_ptr<int> adj = upcxx::allocate<int>(cur_neighbor.where(), new_adj_sz);
-//        memberof(cur_neighbor,adj) = adj; 
-//      }
-//
-//      upcxx::copy(upcxx::global_ptr<int>(new_local_adj), memberof(cur_neighbor,adj).get(), new_adj_sz);
-//
-//      delete new_local_adj;
-//      //delete local_adj;
-
     }
     upcxx::barrier();
   } // close of  for (int step=1; step<=n; ++step)
@@ -357,21 +318,5 @@ TIMER_STOP(io);
   return 0;
 }
   
-void dump_local_nodes(node_t *local_nodes, int n)
-{
-  int local_size = n / upcxx::ranks();
-  if (upcxx::myrank() < (n - local_size * upcxx::ranks())) {
-    local_size++;
-  }
-  for (int i = 0; i < local_size; i++) {
-    node_t *cur_node = &local_nodes[i];
-    fprintf(stdout, "local_nodes[%d], id %d, degree %d, label %d, adj_sz %d, adj: ",
-            i, cur_node->id, cur_node->degree, cur_node->label, cur_node->adj_sz);
-    for (int j = 0; j < cur_node->adj_sz; j++) {
-      fprintf(stdout, "%d ", (int)cur_node->adj[j]);
-    }
-    fprintf(stdout, "\n");
-  }
-  printf("\n");
-}
+
 

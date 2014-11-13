@@ -243,7 +243,7 @@ TIMER_START(io);
 TIMER_STOP(io);
 
     upcxx::barrier(); 
-//  ExpandSymmetric_PARA(n, nodes);
+  ExpandSymmetric_PARA(n, nodes);
 
   logfile<<"Matrix expanded"<<endl;
   double init_time = mysecond();

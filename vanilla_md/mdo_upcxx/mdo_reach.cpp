@@ -152,6 +152,10 @@ int main(int argc, char *argv[])
     cerr<<"Usage is: "<<argv[0]<<" input.file"<<endl;
     return -1;
   }
+  stringstream filename;
+  filename<<"logTest"<<upcxx::myrank();
+  logfile.open(filename.str().c_str());
+
 
   double io_time = mysecond();
 
@@ -216,10 +220,6 @@ int main(int argc, char *argv[])
     }
   }
 
-  stringstream filename;
-  filename<<"logTest"<<upcxx::myrank();
-  logfile.open(filename.str().c_str());
-
 
 
 
@@ -232,7 +232,6 @@ int main(int argc, char *argv[])
 
 
   // Finish reading the data from file and initializing the data structures
-  // dump_local_nodes((node_t *)&nodes[upcxx::myrank()], nodes.size());
 
   upcxx::shared_array<int> all_min_degrees(upcxx::ranks());
   upcxx::shared_array<int> all_min_ids(upcxx::ranks());

@@ -772,6 +772,7 @@ logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
             //add current element
 logfile<<"---"<<xadj_i<<"--"<<xadj_ip1<<"---"<<endl;
             adj[adj_idx++] = j;  
+            assert(j==memberof(cur_node,id));
 logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
           }
         }
@@ -843,7 +844,7 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
     new_col_nnz[i] = cur_col_nnz[i];
     local_new_nnz[upcxx::myrank()] += new_col_nnz[i];
   }    
-
+  
 
   logfile<<"EXPAND I'm alive"<<endl;
   
@@ -883,13 +884,11 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
   } 
   logfile<<"REDUCE EXPAND I'm alive"<<endl;
 
-  if(upcxx::myrank()==0){
-    cout<<"New_col_nnz: "; 
+    logfile<<"New_col_nnz: "; 
       for (int j = 0; j < size; j++){
-        cout<<new_col_nnz[j]<<" ";
+        logfile<<new_col_nnz[j]<<" ";
       }
-    cout<<endl;
-  }
+    logfile<<endl;
   upcxx::barrier();
 
   /*
@@ -906,7 +905,7 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
     //save old value in label
     memberof(cur_node,label) = old_adj_sz;
 
-    int new_adj_sz = old_adj_sz + new_col_nnz[i];
+    int new_adj_sz = new_col_nnz[i];
     memberof(cur_node,adj_sz) = new_adj_sz ;
     memberof(cur_node,degree) = new_adj_sz ;
 
@@ -955,17 +954,18 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
       for(int k = 0; k<adj_sz;++k){
         int j = adj[k];
         //if lower triangular elem
-        if(i<j){
+        if(i+1<j){
           upcxx::global_ptr<node_t> tgt_node = &nodes[j-1];
           int tgt_pos = memberof(tgt_node,label);
           
           int tgt_adj_sz = memberof(tgt_node,adj_sz);
-          logfile<<"try adding elem  ("<<j<<"."<<i<<")"<<endl;
+          logfile<<"try adding elem  ("<<j<<","<<i+1<<")"<<endl;
           logfile<<tgt_pos<<" vs "<<tgt_adj_sz<<endl;
-          assert(tgt_pos<tgt_adj_sz);
+          assert(tgt_pos<=tgt_adj_sz);
 
-          upcxx::global_ptr<int> tgt_adj = memberof(tgt_node,adj);
-          upcxx::copy(upcxx::global_ptr<int>(&i),tgt_adj+tgt_pos,1);
+          upcxx::global_ptr<int> tgt_adj = memberof(tgt_node,adj)+tgt_pos;
+          *tgt_adj = i+1;
+          //upcxx::copy(upcxx::global_ptr<int>(&i),tgt_adj+tgt_pos,1);
 //          adj[tgt_pos] = i;
           memberof(tgt_node,label) = tgt_pos+1;
         }
@@ -978,14 +978,24 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
     upcxx::global_ptr<node_t> cur_node = &nodes[i];
 
     int adj_sz = memberof(cur_node,adj_sz);
+
+    upcxx::global_ptr<int> adj = memberof(cur_node,adj);
+    int * loc_adj = adj;
+
+    logfile<<"Adj["<<i+1<<"] : ";
+      for(int k = 0; k<adj_sz;++k){
+        logfile <<loc_adj[k]<<" ";
+      }
+    logfile<<endl;
+
+
     logfile<<adj_sz<<" vs "<<memberof(cur_node,label)<<endl;
     assert(adj_sz==memberof(cur_node,label));
     memberof(cur_node,label)=0;
 
-    upcxx::global_ptr<int> adj = memberof(cur_node,adj);
+
 
     //sort
-    int * loc_adj = adj;
     std::sort(&loc_adj[0],&loc_adj[adj_sz-1]+1);
     for(int j=0;j<adj_sz;++j){
       assert(loc_adj[j]!=0);
@@ -1014,6 +1024,21 @@ void ExpandSymmetric(int size,const int * colptr,const int * rowind, vector<int>
    *   new_nnz == total # of non-zeros to be stored in the final expanded 
    *              matrix.
    */
+
+
+  for (int i = 0; i < size; i++)
+  {
+    int beg = colptr[i];
+    int end = colptr[i+1]-1;
+    logfile<<"Orig Adj["<<i+1<<"] : ";
+      for(int k = beg; k<=end;++k){
+        logfile <<rowind[k-1]<<" ";
+      }
+    logfile<<endl;
+  }
+
+
+
   int new_nnz = 0; 
   int orig_nnz = 0; 
   for (int i = 0; i < size; i++) 
@@ -1054,6 +1079,20 @@ void ExpandSymmetric(int size,const int * colptr,const int * rowind, vector<int>
       }
     }
   }
+
+
+
+   logfile<<"New_col_nnz: "; 
+      for (int j = 0; j < size; j++){
+        logfile<<new_col_nnz[j]<<" ";
+      }
+    logfile<<endl;
+
+
+
+
+
+
 
   /*
    *  Initialize row pointers in expanded matrix.
@@ -1117,6 +1156,18 @@ void ExpandSymmetric(int size,const int * colptr,const int * rowind, vector<int>
 
     //sort
     std::sort(&expRowind[expColptr[i]-1],&expRowind[expColptr[i+1]-1]);
+  }
+
+
+  for (int i = 0; i < size; i++)
+  {
+    int beg = expColptr[i];
+    int end = expColptr[i+1]-1;
+    logfile<<"Adj["<<i+1<<"] : ";
+      for(int k = beg; k<=end;++k){
+        logfile <<expRowind[k-1]<<" ";
+      }
+    logfile<<endl;
   }
 }
 
