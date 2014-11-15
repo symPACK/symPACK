@@ -49,28 +49,23 @@ void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> 
   vector<int> local_adj(ref_adj_sz);
   upcxx::copy(memberof(ref_node,adj).get(),upcxx::global_ptr<int>(&local_adj[0]),local_adj.size());
 
-  vector<int> local_marker(ref_adj_sz,0);
+  vector<int> local_marker(ref_adj_sz);
 
     //mark nodes
     tag++;
     if(tag==INT_MAX){tag=0;}
     marker[ref_id] = tag;
-    //for(int i=0;i<local_adj.size();++i){ marker[local_adj[i]] = tag; }
+    for(int i=0;i<local_adj.size();++i){
+       local_marker[i]=tag;
+       marker[local_adj[i]] = tag; 
+    }
     //use it a global to local index map
-    for(int i=0;i<local_adj.size();++i){ marker[local_adj[i]] = -(i+1); }
+    //for(int i=0;i<local_adj.size();++i){ marker[local_adj[i]] = -(i+1); }
 
-//    //compute my local node set
-//    node_t *local_nodes = (node_t *)&nodes[upcxx::myrank()];
-//    // YZ: need to handle the case when n is not a multiple of ranks()!!
-//    int local_size = n / upcxx::ranks();
-//    if (upcxx::myrank() < (n - local_size * upcxx::ranks())) {
-//      local_size++;
-//    }
 
   vector<int> loc_adj_cont;
 
   for(auto it = local_adj.begin()+upcxx::myrank();it<local_adj.end();it+=upcxx::ranks()){
-//  for(int i=upcxx::myrank();i<nodes.size();i+=upcxx::ranks()){
     upcxx::global_ptr<node_t> cur_ptr = &nodes[*it-1];
     int adj_sz = memberof(cur_ptr,adj_sz); 
     if(*it == ref_id || adj_sz!=ref_adj_sz){
@@ -84,8 +79,7 @@ void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> 
 
     bool indist = true;
     for(int j=0;j<adj_sz;++j){
-      //if(marker[loc_adj[j]]!=tag && marker[loc_adj[j]]!=INT_MAX){
-      if(marker[loc_adj[j]]>=0){
+      if(marker[loc_adj[j]]!=tag && marker[loc_adj[j]]!=INT_MAX){
         indist = false;
         break;
       }
@@ -93,25 +87,30 @@ void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> 
 
     if(indist){
       //marker[i+1] = INT_MAX;
-      local_marker[it-local_adj.begin()] = -INT_MAX;
+      local_marker[it-local_adj.begin()] = INT_MAX;
     }
   }
+logfile<<"Local mark is ";
+for(int i = 0;i<local_marker.size();++i){ logfile<<local_marker[i]<<" ";}
+logfile<<endl;
 
   //all local indistinguishable nodes are marked
   //we need to do a reduce 
-  upcxx::upcxx_reduce(&local_marker[0],&local_marker[0],local_marker.size(),ref_node.where(),UPCXX_MIN,UPCXX_INT);
+  upcxx::upcxx_reduce(&local_marker[0],&local_marker[0],local_marker.size(),ref_node.where(),UPCXX_MAX,UPCXX_INT);
   upcxx::upcxx_bcast(&local_marker[0], &local_marker[0], local_marker.size()*sizeof(int), ref_node.where());
+
+
+logfile<<"Reduced Local mark is ";
+for(int i = 0;i<local_marker.size();++i){ logfile<<local_marker[i]<<" ";}
+logfile<<endl;
+
   
-  //mark the local_marker in marker
   
     for(int i=0;i<local_marker.size();++i){ 
-      if(local_marker[i]==-INT_MAX){
-        marker[local_adj[i]] = -INT_MAX;
-      } 
+        marker[local_adj[i]] = local_marker[i];
     }
   
 
-    for(int i=0;i<local_adj.size();++i){ if(marker[local_adj[i]]<0){ marker[local_adj[i]] = tag;} }
 ////  logfile<<"Nodes "<<ref_id<<" and [";
 ////  for(int i=0;i<local_adj.size();++i){
 ////    if(marker[local_adj[i]]==INT_MAX){
@@ -360,7 +359,7 @@ TIMER_STOP(io);
 
       upcxx::global_ptr<node_t> cur_neighbor = &nodes[*it-1];
       //if this node is indist, label it now
-      if(*it != global_min_id && marker[*it]==-INT_MAX){
+      if(*it != global_min_id && marker[*it]==INT_MAX){
         if(cur_neighbor.where()==upcxx::myrank()){
           memberof(cur_neighbor,label) = label;
         }
@@ -403,7 +402,7 @@ TIMER_STOP(io);
       marker[global_min_id]=tag;
       for(int i =0;i<old_adj_sz;++i){
         int mark = marker[node_ptr->adj[i]];
-        if(mark!=tag && mark!=-INT_MAX){
+        if(mark!=tag && mark!=INT_MAX){
           new_local_adj[new_adj_sz++]=node_ptr->adj[i];
           marker[node_ptr->adj[i]]=tag;
         }
@@ -411,7 +410,7 @@ TIMER_STOP(io);
 
       for(int i =0; i<reach.size();++i){
         int mark = marker[reach[i]];
-        if(mark!=tag && mark!=-INT_MAX){
+        if(mark!=tag && mark!=INT_MAX){
           new_local_adj[new_adj_sz++]=reach[i];
           marker[reach[i]]=tag;
         }
