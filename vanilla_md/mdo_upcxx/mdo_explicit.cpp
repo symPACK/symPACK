@@ -49,44 +49,69 @@ void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> 
   vector<int> local_adj(ref_adj_sz);
   upcxx::copy(memberof(ref_node,adj).get(),upcxx::global_ptr<int>(&local_adj[0]),local_adj.size());
 
+  vector<int> local_marker(ref_adj_sz,0);
+
     //mark nodes
     tag++;
     if(tag==INT_MAX){tag=0;}
     marker[ref_id] = tag;
-    for(int i=0;i<local_adj.size();++i){ marker[local_adj[i]] = tag; }
+    //for(int i=0;i<local_adj.size();++i){ marker[local_adj[i]] = tag; }
+    //use it a global to local index map
+    for(int i=0;i<local_adj.size();++i){ marker[local_adj[i]] = -(i+1); }
 
+//    //compute my local node set
+//    node_t *local_nodes = (node_t *)&nodes[upcxx::myrank()];
+//    // YZ: need to handle the case when n is not a multiple of ranks()!!
+//    int local_size = n / upcxx::ranks();
+//    if (upcxx::myrank() < (n - local_size * upcxx::ranks())) {
+//      local_size++;
+//    }
 
+  vector<int> loc_adj_cont;
 
-  for(int i=upcxx::myrank();i<nodes.size();i+=upcxx::ranks()){
-    upcxx::global_ptr<node_t> cur_ptr = &nodes[i];
+  for(auto it = local_adj.begin()+upcxx::myrank();it<local_adj.end();it+=upcxx::ranks()){
+//  for(int i=upcxx::myrank();i<nodes.size();i+=upcxx::ranks()){
+    upcxx::global_ptr<node_t> cur_ptr = &nodes[*it-1];
     int adj_sz = memberof(cur_ptr,adj_sz); 
-    if(i == ref_id || adj_sz!=ref_adj_sz){
+    if(*it == ref_id || adj_sz!=ref_adj_sz){
       continue;
     }
 
+    loc_adj_cont.resize(adj_sz);
 
+    int * loc_adj = &loc_adj_cont[0];
+    upcxx::copy(memberof(cur_ptr,adj).get(),upcxx::global_ptr<int>(loc_adj),adj_sz);
 
-
-    int * loc_adj = memberof(cur_ptr,adj).get(); 
     bool indist = true;
     for(int j=0;j<adj_sz;++j){
-      if(marker[loc_adj[j]]!=tag && marker[loc_adj[j]]!=INT_MAX){
+      //if(marker[loc_adj[j]]!=tag && marker[loc_adj[j]]!=INT_MAX){
+      if(marker[loc_adj[j]]>=0){
         indist = false;
         break;
       }
     }
 
     if(indist){
-      marker[i+1] = INT_MAX;
+      //marker[i+1] = INT_MAX;
+      local_marker[it-local_adj.begin()] = -INT_MAX;
     }
   }
 
   //all local indistinguishable nodes are marked
   //we need to do a reduce 
-  upcxx::upcxx_reduce(&marker[0],&marker[0],marker.size(),ref_node.where(),UPCXX_MAX,UPCXX_INT);
-  upcxx::upcxx_bcast(&marker[0], &marker[0], marker.size()*sizeof(int), ref_node.where());
+  upcxx::upcxx_reduce(&local_marker[0],&local_marker[0],local_marker.size(),ref_node.where(),UPCXX_MIN,UPCXX_INT);
+  upcxx::upcxx_bcast(&local_marker[0], &local_marker[0], local_marker.size()*sizeof(int), ref_node.where());
+  
+  //mark the local_marker in marker
+  
+    for(int i=0;i<local_marker.size();++i){ 
+      if(local_marker[i]==-INT_MAX){
+        marker[local_adj[i]] = -INT_MAX;
+      } 
+    }
+  
 
-
+    for(int i=0;i<local_adj.size();++i){ if(marker[local_adj[i]]<0){ marker[local_adj[i]] = tag;} }
 ////  logfile<<"Nodes "<<ref_id<<" and [";
 ////  for(int i=0;i<local_adj.size();++i){
 ////    if(marker[local_adj[i]]==INT_MAX){
@@ -205,6 +230,11 @@ TIMER_STOP(io);
 
   vector<int> schedule;
   vector<int> marker(n+1,0);
+  //vector<int> perm(n,0);
+  vector<int> local_adj_container;
+  vector<int> new_local_adj_container;
+  vector< int > reach;
+
   int tag=0;
   // vector< upcxx::global_ptr<node_t> > schedule_shared;
 
@@ -288,7 +318,7 @@ TIMER_STOP(io);
 
     //update the degree of its reachable set
     upcxx::global_ptr<node_t> min_ptr = &nodes[global_min_id-1];
-    vector< int > reach(memberof(min_ptr,adj_sz));
+    reach.resize(memberof(min_ptr,adj_sz));
     //if(upcxx::myrank()==min_ptr.where()){
       upcxx::copy(memberof(min_ptr,adj).get(),upcxx::global_ptr<int>(&reach[0]),memberof(min_ptr,adj_sz).get());
     //}
@@ -312,9 +342,14 @@ TIMER_STOP(io);
     // might be changed.
 #ifdef USE_UPCXX
     // vector< upcxx::global_ptr<node_t> >::iterator
-    for (auto it = reach.begin();
+
+    for (auto it = reach.begin() + upcxx::myrank();
         it < reach.end();
-        it++) {
+        it+=upcxx::ranks()) {
+//    for (auto it = reach.begin();
+//        it < reach.end();
+//        it++) {
+//        if( (*it-1)%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
 #else
 #pragma omp parallel for
     for (vector<node_t *>::iterator it = reach.begin();
@@ -325,7 +360,7 @@ TIMER_STOP(io);
 
       upcxx::global_ptr<node_t> cur_neighbor = &nodes[*it-1];
       //if this node is indist, label it now
-      if(*it != global_min_id && marker[*it]==INT_MAX){
+      if(*it != global_min_id && marker[*it]==-INT_MAX){
         if(cur_neighbor.where()==upcxx::myrank()){
           memberof(cur_neighbor,label) = label;
         }
@@ -335,7 +370,7 @@ TIMER_STOP(io);
       }
 
 
-      if(*it == global_min_id || (*it-1)%(upcxx::ranks())!=upcxx::myrank() ){
+      if(*it == global_min_id){
         continue;
       }
 
@@ -345,14 +380,30 @@ TIMER_STOP(io);
 
 
       int old_adj_sz = node_ptr->adj_sz;
+
+
+      int *local_adj;
+
+
+      if(cur_neighbor.where()==upcxx::myrank()){
+        local_adj = node_ptr->adj;
+      }
+      else{
+        local_adj_container.resize(old_adj_sz);
+        local_adj = &local_adj_container[0];
+        upcxx::copy(node_ptr->adj,upcxx::global_ptr<int>(&local_adj[0]), old_adj_sz);
+      }
+
       int new_adj_sz = 0;
-      int *new_local_adj = new int[reach.size()+old_adj_sz];
+      //int *new_local_adj = new int[reach.size()+old_adj_sz];
+      new_local_adj_container.resize(reach.size()+old_adj_sz);
+      int *new_local_adj = &new_local_adj_container[0];
       tag++;
       if(tag==INT_MAX){tag=0;}
       marker[global_min_id]=tag;
       for(int i =0;i<old_adj_sz;++i){
         int mark = marker[node_ptr->adj[i]];
-        if(mark!=tag && mark!=INT_MAX){
+        if(mark!=tag && mark!=-INT_MAX){
           new_local_adj[new_adj_sz++]=node_ptr->adj[i];
           marker[node_ptr->adj[i]]=tag;
         }
@@ -360,7 +411,7 @@ TIMER_STOP(io);
 
       for(int i =0; i<reach.size();++i){
         int mark = marker[reach[i]];
-        if(mark!=tag && mark!=INT_MAX){
+        if(mark!=tag && mark!=-INT_MAX){
           new_local_adj[new_adj_sz++]=reach[i];
           marker[reach[i]]=tag;
         }
@@ -375,10 +426,13 @@ TIMER_STOP(io);
         node_ptr->adj = adj; 
       }
 
-      upcxx::copy(upcxx::global_ptr<int>(new_local_adj), node_ptr->adj, new_adj_sz);
+      upcxx::copy(upcxx::global_ptr<int>(&new_local_adj[0]), node_ptr->adj, new_adj_sz);
 
-      delete new_local_adj;
+      //delete [] new_local_adj;
 
+      //if(cur_neighbor.where()!=upcxx::myrank()){
+      //  delete [] local_adj;
+      //}
     }
     step++;
     upcxx::barrier();
