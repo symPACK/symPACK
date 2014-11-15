@@ -1,0 +1,86 @@
+\documentclass[a4paper]{article}
+
+\usepackage{todonotes}
+\usepackage{adjustbox}
+\usepackage{scalefnt}
+\usepackage{algorithm2e}
+\usepackage{tikz}
+\usepackage{pgf}
+\usetikzlibrary{patterns,calc}
+\usetikzlibrary{positioning}
+
+
+\newcommand{\reach}[1]{\ensuremath{R_{#1}}}
+\newcommand{\reachb}[1]{\ensuremath{\bar{R}_{#1}}}
+
+
+
+\tikzstyle{treenode} = [circle,fill=white,solid, draw=black, text centered,minimum size=2.6em, text width=2.6em,inner sep=0pt]
+
+
+
+
+
+
+
+
+
+
+
+
+\title{Parallel Minimum degree ordering}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{itemize}
+  \item algorithms not explicitely changing the graph
+  \item algorithms changing the graph
+\end{itemize}
+
+
+\section{finding indinstinguishable nodes when computing reachable set}
+
+\begin{algorithm}
+\DontPrintSemicolon
+\KwIn{ $v$ is the node eliminated at step $s$. \reach{v} is its reachable set. $marker$ and $label$ arrays, $tag$}
+$I \gets \emptyset$\;
+$D \gets \emptyset$\;
+
+$label(v) = s$\;
+
+\ForAll{node $t \in \reach{v}$}{
+  $tag = tag+1$\;
+  \ForAll{node $u \in \reach{v}$}{
+    $marker(u) = tag$\;
+  }
+
+  $tag = tag+1$\;
+  $indist,\reachb{t} \gets get\_reach(t,tag,s,marker,label)$\;
+  
+  $deg(t) = \| \reachb{t} \|$\;
+
+  \If{indist}{
+    $I \gets I \cup {t}$\;
+  }
+  else{
+    $D \gets D \cup {t}$\;
+  }
+
+}
+
+\ForAll{node $t \in D$}{
+  $deg(t) = deg(t) - \| I \|$\;
+}
+
+\ForAll{node $t \in I$}{
+  $s = s+1$\;
+  $label(t) = s$\;
+}
+
+
+\caption{Sketch of the MDO algorithm calling $get\_reach$}
+\end{algorithm}
+
+\end{document}
