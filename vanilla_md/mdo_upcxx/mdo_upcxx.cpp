@@ -41,150 +41,87 @@ double mysecond()
 void dump_local_nodes(node_t *local_nodes, int n);
 
 
-void get_reach2(upcxx::shared_array<node_t> &nodes,
+
+
+void update_degree(upcxx::shared_array<node_t> &nodes,
                const int root_node_id,
-               const int tag, 
-               vector< upcxx::global_ptr<node_t> > &reach_set,
-               vector< int> &marker
-              ) 
-{
-  //this array is used to mark the node so that 
-  //they are not added twice into the reachable set
-//  vector<bool> explored(nodes.size(), false);
-
-  //this list contains the nodes to explore
-  stack< upcxx::global_ptr<node_t> > explore_set;
-  
-  //initialize explore_set with the neighborhood
-  // of min_node in the original graph 
-//  node_t min_node = nodes[min_node_id-1];
-//  // copy adj to local
-//  int *local_adj = new int[min_node.adj_sz];
-//  upcxx::copy(min_node.adj, upcxx::global_ptr<int>(local_adj), min_node.adj_sz);
-//
-//  for(int i = 0; i < min_node.adj_sz; ++i){
-//    int curr_adj = local_adj[i];
-//    if(curr_adj != 0) {
-//      // node_t * next_node = &nodes[curr_adj-1];
-//      upcxx::global_ptr<node_t> next_node = &nodes[curr_adj-1];
-//      explore_set.push_back(next_node);
-//      explored[curr_adj-1] = true;
-//    } else {
-//      fprintf(stderr, "get_reach() Fatal error 1: adj[%d]=0 \n", i-1);
-//      exit(1);
-//    }
-//  }  
-//  delete local_adj;
-
-  upcxx::global_ptr<node_t> root_node_p = &nodes[root_node_id-1];
-  explore_set.push( root_node_p );
-//  memberof(root_node_p,marker)=tag;
-  
-  marker[root_node_id-1]=tag;
-
-  //now find path between min_nodes and other nodes
-  while (explore_set.size()>0) {
-    //pop a node
-    upcxx::global_ptr<node_t> cur_node_p = explore_set.top();
-    explore_set.pop();
-    assert(cur_node_p.raw_ptr() != NULL);
-    node_t cur_node = *cur_node_p;
-
-      int *local_adj = new int[cur_node.adj_sz];
-      upcxx::copy(cur_node.adj, upcxx::global_ptr<int>(local_adj), cur_node.adj_sz);
-      for(int i = 0; i< cur_node.adj_sz; ++i){
-        int curr_adj = local_adj[i];
-        if(curr_adj==cur_node.id){ continue;}
-
-        if (curr_adj != 0) {
-//          if (next_node.marker != tag) {
-          if (marker[curr_adj-1]!=tag) {
-            upcxx::global_ptr<node_t> next_node_p = &nodes[curr_adj-1];
-            if(memberof(next_node_p,label).get()==0){
-              reach_set.push_back(next_node_p);
-            }
-            else{
-              explore_set.push(next_node_p);
-            }
-//            memberof(next_node_p,marker)=tag;
-            marker[curr_adj-1] = tag;
-          }
-        } else {
-          fprintf(stderr, "get_reach() Fatal error 2: adj[%d]=0 \n", i);
-          exit(1);
-        }
-      }
-      delete local_adj;
-
-
-
-  }
-}
-
-
-void get_reach3(upcxx::shared_array<node_t> &nodes,
-               const int root_node_id,
-               const int tag, 
-               vector< int > &reach_set,
+               const int tag,
+               const int elim_node_id,
+               const int deg_v, 
+               const int tag_v, 
                vector< int> &marker,
-               vector< int> &perm
+               vector< int> &mask,
+               vector< int> &perm,
+               bool & indist,
+               int & newDeg,
+               vector<int> &work_adj
               ) 
 {
-  //this array is used to mark the node so that 
-  //they are not added twice into the reachable set
-
-  TIMER_START(GET_REACH);
+  TIMER_START(UPDATE_DEGREE);
   //this list contains the nodes to explore
   stack< int > explore_set;
-  reach_set.resize(0);
-
   explore_set.push( root_node_id );
-  marker[root_node_id-1]=tag;
-  //  memberof(root_node_p,marker)=tag;
+  marker[root_node_id]=tag;
 
+  indist = true;
+  //newDeg = 1 + | reach(v) \ {u} |
+  newDeg = deg_v-1;//memberof(&nodes[elim_node_id-1],degree);
+  int count = 1;
 
   //now find path between min_nodes and other nodes
   while (explore_set.size()>0) {
     //pop a node
-//  TIMER_START(GET_EXPLORE_NODE);
     upcxx::global_ptr<node_t> cur_node_p = &nodes[explore_set.top()-1];
-//  TIMER_STOP(GET_EXPLORE_NODE);
-  
     explore_set.pop();
-    assert(cur_node_p.raw_ptr() != NULL);
     node_t cur_node = *cur_node_p;
 
-    int *local_adj = new int[cur_node.adj_sz];
-//  TIMER_START(GET_ADJ_SET);
+    work_adj.resize(cur_node.adj_sz);
+    int * local_adj = &work_adj[0];
+
+    //int *local_adj = new int[cur_node.adj_sz];
     upcxx::copy(cur_node.adj, upcxx::global_ptr<int>(local_adj), cur_node.adj_sz);
-//  TIMER_STOP(GET_ADJ_SET);
     for(int i = 0; i< cur_node.adj_sz; ++i){
       int curr_adj = local_adj[i];
       if(curr_adj==cur_node.id){ continue;}
 
       if (curr_adj != 0) {
-        if (marker[curr_adj-1]!=tag) {
-  //TIMER_START(GET_ADJ_NODE);
-//          upcxx::global_ptr<node_t> next_node_p = &nodes[curr_adj-1];
-  //TIMER_STOP(GET_ADJ_NODE);
-          if(perm[curr_adj-1]==0){
-            reach_set.push_back(curr_adj);
+        if (marker[curr_adj]!=tag) {
+          if(perm[curr_adj-1]!=0 ){
+            if(elim_node_id != curr_adj){
+              explore_set.push(curr_adj);
+            }
           }
           else{
-            explore_set.push(curr_adj);
+            if(mask[curr_adj] != tag_v){
+//logfile<<"["<<curr_adj<<","<<mask[curr_adj]<<"] ";
+              newDeg++;
+              indist=false;
+            }
+            else{
+//logfile<<""<<curr_adj<<","<<mask[curr_adj]<<" ";
+              count++;
+            }
           }
-          marker[curr_adj-1] = tag;
+          marker[curr_adj] = tag;
         }
-      } else {
+      }
+      else {
         fprintf(stderr, "get_reach() Fatal error 2: adj[%d]=0 \n", i);
         exit(1);
       }
     }
-    delete local_adj;
+    //delete local_adj;
+  }
+//  logfile<<endl;
+
+  if(indist && count+1 != deg_v){
+    indist = false;
   }
 
-  TIMER_STOP(GET_REACH);
+  TIMER_STOP(UPDATE_DEGREE);
 }
+
+
 
 
 
@@ -192,7 +129,9 @@ void get_reach(upcxx::shared_array<node_t> &nodes,
                const int root_node_id,
                const int tag, 
                vector< int > &reach_set,
-               vector< int> &marker
+               vector< int> &marker,
+               vector< int> &perm,
+               vector<int> &work_adj
               ) 
 {
   //this array is used to mark the node so that 
@@ -204,48 +143,43 @@ void get_reach(upcxx::shared_array<node_t> &nodes,
   reach_set.resize(0);
 
   explore_set.push( root_node_id );
-  marker[root_node_id-1]=tag;
+  marker[root_node_id]=tag;
   //  memberof(root_node_p,marker)=tag;
 
 
   //now find path between min_nodes and other nodes
   while (explore_set.size()>0) {
     //pop a node
-//  TIMER_START(GET_EXPLORE_NODE);
     upcxx::global_ptr<node_t> cur_node_p = &nodes[explore_set.top()-1];
-//  TIMER_STOP(GET_EXPLORE_NODE);
   
     explore_set.pop();
     assert(cur_node_p.raw_ptr() != NULL);
     node_t cur_node = *cur_node_p;
 
-    int *local_adj = new int[cur_node.adj_sz];
-//  TIMER_START(GET_ADJ_SET);
+    work_adj.resize(cur_node.adj_sz);
+    int * local_adj = &work_adj[0];
+    //int *local_adj = new int[cur_node.adj_sz];
     upcxx::copy(cur_node.adj, upcxx::global_ptr<int>(local_adj), cur_node.adj_sz);
-//  TIMER_STOP(GET_ADJ_SET);
     for(int i = 0; i< cur_node.adj_sz; ++i){
       int curr_adj = local_adj[i];
       if(curr_adj==cur_node.id){ continue;}
 
       if (curr_adj != 0) {
-        if (marker[curr_adj-1]!=tag) {
-  //TIMER_START(GET_ADJ_NODE);
-          upcxx::global_ptr<node_t> next_node_p = &nodes[curr_adj-1];
-  //TIMER_STOP(GET_ADJ_NODE);
-          if(memberof(next_node_p,label).get()==0){
+        if (marker[curr_adj]!=tag) {
+          if(perm[curr_adj-1]==0){
             reach_set.push_back(curr_adj);
           }
           else{
             explore_set.push(curr_adj);
           }
-          marker[curr_adj-1] = tag;
+          marker[curr_adj] = tag;
         }
       } else {
         fprintf(stderr, "get_reach() Fatal error 2: adj[%d]=0 \n", i);
         exit(1);
       }
     }
-    delete local_adj;
+    //delete local_adj;
   }
 
   TIMER_STOP(GET_REACH);
@@ -295,7 +229,7 @@ void merge_path(upcxx::shared_array<node_t> &nodes,
         for(int i = 0;i<last;++i){ 
           int node_id = local_adj[i];
           //upcxx::global_ptr<node_t> adj_node = &nodes[node_id-1];
-          if(marker[node_id-1]==tag && perm[node_id-1]!=0 ){
+          if(marker[node_id]==tag && perm[node_id-1]!=0 ){
             if(!labeled){
               if(new_label==-1){
                 new_label = node_id;
@@ -388,7 +322,7 @@ void merge_path(upcxx::shared_array<node_t> &nodes,
        for(int i = 0;i<last;++i){ 
          int node_id = local_adj[i];
          //upcxx::global_ptr<node_t> adj_node = &nodes[node_id-1];
-         if(marker[node_id-1]==tag && perm[node_id-1]!=0 ){
+         if(marker[node_id]==tag && perm[node_id-1]!=0 ){
            if(!labeled){
              if(new_label==-1){
                new_label = node_id;
@@ -487,7 +421,7 @@ void merge_path2(upcxx::shared_array<node_t> &nodes,
         for(int i = 0;i<last;++i){ 
           int node_id = local_adj[i];
           upcxx::global_ptr<node_t> adj_node = &nodes[node_id-1];
-          if(marker[node_id-1]==tag && memberof(adj_node,label)!=0 ){
+          if(marker[node_id]==tag && memberof(adj_node,label)!=0 ){
             if(!labeled){
               if(new_label==-1){
                 new_label = node_id;
@@ -638,8 +572,10 @@ int main(int argc, char *argv[])
 
     vector< int > reach;
     vector< int > nghb_reach;
+    vector< int > work_adj;
     reach.reserve(n);
     nghb_reach.reserve(n);
+    work_adj.reserve(n);
   TIMER_STOP(init);
 
 
@@ -655,7 +591,8 @@ TIMER_START(mdo_time);
 //  schedule.reserve(n);
 
   int tag = 0;
-  vector<int> marker(n+1);
+  vector<int> marker(n+1,0);
+  vector<int> mask(n+1,0);
 
   // vector< upcxx::global_ptr<node_t> > schedule_shared;
 
@@ -743,11 +680,7 @@ TIMER_START(mdo_time);
     //update the degree of its reachable set
     //logfile<<"Reach of root "<<global_min_id<<endl;
     advance_tag(tag);
-    get_reach3(nodes, global_min_id, tag, reach,marker,perm);
-//    vector<upcxx::global_ptr<node_t>> reach2;
-//    get_reach2(nodes, global_min_id, tag, reach2,marker);
-//    reach.resize(0);
-//    for(int i =0;i<reach2.size();++i){ reach.push_back(memberof(reach2[i],id)); }
+    get_reach(nodes, global_min_id, tag, reach,marker,perm,work_adj);
 
 
     bool doMerge = (always_merge || (step%period==0) || (step>=threshold) || (step==mergeAt)) && !never_merge;
@@ -759,7 +692,12 @@ TIMER_START(mdo_time);
     }
 
 
-
+    advance_tag(tag);
+    int tag_v = tag;
+    for (auto it = reach.begin(); it < reach.end(); ++it) {
+      if(*it == global_min_id){continue;}
+      mask[*it] = tag_v;
+    }
 
 
     // YZ: Use UPC++ to parallel this loop.  There is no data dependencies
@@ -768,17 +706,13 @@ TIMER_START(mdo_time);
     // might be changed.
 #ifdef USE_UPCXX
     // vector< upcxx::global_ptr<node_t> >::iterator
-//    for (auto it = reach2.begin() + upcxx::myrank();
-//        it < reach2.end();
+//    for (auto it = reach.begin() + upcxx::myrank();
+//        it < reach.end();
 //        it += upcxx::ranks()) {
 
-    for (auto it = reach.begin() + upcxx::myrank();
+    for (auto it = reach.begin();
         it < reach.end();
-        it += upcxx::ranks()) {
-//    for (auto it = reach.begin();
-//        it != reach.end();
-//        it++) {
-//        if((*it-1)%upcxx::ranks()!=upcxx::myrank()){continue;}
+        it++) {
 #else
 #pragma omp parallel for
     for (vector<node_t *>::iterator it = reach.begin();
@@ -787,17 +721,66 @@ TIMER_START(mdo_time);
 #endif
       //upcxx::global_ptr<node_t> cur_neighbor = *it;
       upcxx::global_ptr<node_t> cur_neighbor = &nodes[*it-1];
-    
-      //vector<int> nghb_reach;  
-      advance_tag(tag);
-      get_reach3(nodes, *it, tag, nghb_reach,marker,perm);
-//    vector<upcxx::global_ptr<node_t>> nghb_reach2;
-//    get_reach2(nodes, memberof(cur_neighbor,id).get(), tag, nghb_reach2,marker);
-    //nghb_reach.resize(0);
-    //for(int i =0;i<nghb_reach2.size();++i){ nghb_reach.push_back(memberof(nghb_reach2[i],id));} 
+   
+      //if this node is indist, label it now
+//      if(marker[*it]==INT_MAX){
+//#ifdef VERBOSE
+//          logfile<<"Node "<<*it<<" is indist with node "<<global_min_id<<endl;
+//#endif
+//        //if(cur_neighbor.where()==upcxx::myrank()){
+//          memberof(cur_neighbor,label) = label;
+//        //}
+//        schedule.push_back(*it);
+//        label++;
+//        continue;
+//      }
 
-     //memberof(cur_neighbor, degree) = nghb_reach2.size()+1;
-     memberof(cur_neighbor, degree) = nghb_reach.size()+1;
+      //skip this node if I'm not supposed to process it
+      if( (it - reach.begin())%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
+
+
+
+
+
+
+ 
+      //vector<int> nghb_reach;  
+//      advance_tag(tag);
+//      get_reach(nodes, *it, tag, nghb_reach,marker,perm,work_adj);
+//      memberof(cur_neighbor, degree) = nghb_reach.size()+1;
+//
+//    logfile<<"Reach("<<*it<<") = Reach("<<global_min_id<<"){ ";
+//    for (auto it2 = reach.begin(); it2 < reach.end(); ++it2) {
+//      logfile<<*it2<<" ";
+//    }
+//    logfile<<"} U { ";
+//
+//
+//    for (auto it2 = nghb_reach.begin(); it2 < nghb_reach.end(); ++it2) {
+//      logfile<<*it2<<" ";
+//    }
+//    logfile<<"}"<<endl;
+//
+//    for (auto it2 = reach.begin(); it2 < reach.end(); ++it2) {
+////      if(*it2 == global_min_id){continue;}
+//      mask[*it2] = tag_v;
+//    }
+
+      advance_tag(tag);
+      bool indist = false;
+      int new_degree =0;
+      update_degree(nodes, *it, tag, global_min_id,global_min_degree, tag_v, marker,mask, perm, indist, new_degree, work_adj);
+      memberof(cur_neighbor, degree) = new_degree;
+
+//      if(doMassElim && indist){
+//        //mark as indist
+//        
+//      }
+
+
+
+//      logfile<<new_degree<<" vs "<<nghb_reach.size()+1<<endl;
+//      assert(new_degree == nghb_reach.size()+1);
     }
     //updated nodes are now local so barrier is probably not necessary
     upcxx::barrier();
