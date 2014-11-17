@@ -4,12 +4,14 @@
 \usepackage{adjustbox}
 \usepackage{scalefnt}
 \usepackage{algorithm2e}
+\usepackage{paralist}
 \usepackage{tikz}
 \usepackage{pgf}
 \usetikzlibrary{patterns,calc}
 \usetikzlibrary{positioning}
 
 
+\newcommand{\adj}[1]{\ensuremath{Adj_{#1}}}
 \newcommand{\reach}[1]{\ensuremath{R_{#1}}}
 \newcommand{\reachb}[1]{\ensuremath{\bar{R}_{#1}}}
 
@@ -45,42 +47,102 @@
 \begin{algorithm}
 \DontPrintSemicolon
 \KwIn{ $v$ is the node eliminated at step $s$. \reach{v} is its reachable set. $marker$ and $label$ arrays, $tag$}
-$I \gets \emptyset$\;
-$D \gets \emptyset$\;
 
 $label(v) = s$\;
+$indistCount = 0$\;
+
+
+$tag = tag+1$\;
+$tag_v = tag$\;
+\ForAll{node $u \in \reach{v}$}{
+  $mask(u) = tag_v$\;
+}
+
 
 \ForAll{node $t \in \reach{v}$}{
   $tag = tag+1$\;
-  \ForAll{node $u \in \reach{v}$}{
-    $marker(u) = tag$\;
-  }
-
-  $tag = tag+1$\;
-  $indist,\reachb{t} \gets get\_reach(t,tag,s,marker,label)$\;
+  $indist,deg(t) \gets update\_degree(t,v,deg(v),label,marker,tag,tag_v,mask)$\;
   
-  $deg(t) = \| \reachb{t} \|$\;
-
   \If{indist}{
-    $I \gets I \cup {t}$\;
+    $s = s+1$\;
+    $label(t) = s$\;
+    $indistCount \gets indistCount +1$\;
   }
-  else{
-    $D \gets D \cup {t}$\;
+}
+
+\ForAll{node $t \in \reach{v}$}{
+  \If{$label(t) = 0$}{
+    $deg(t) \gets deg(t) - indistCount$\;
   }
-
 }
 
-\ForAll{node $t \in D$}{
-  $deg(t) = deg(t) - \| I \|$\;
-}
-
-\ForAll{node $t \in I$}{
-  $s = s+1$\;
-  $label(t) = s$\;
-}
-
-
-\caption{Sketch of the MDO algorithm calling $get\_reach$}
+\caption{Sketch of the MDO algorithm calling $update\_degree$}
 \end{algorithm}
+
+
+\begin{algorithm}
+\DontPrintSemicolon
+\caption{$update\_degree$}
+\KwIn{
+       \begin{compactenum}
+        \item $u$, node of which we're computing the reachable set (starting point of the exploration).
+        \item $v$, node eliminated at current step. 
+        \item $deg(v)$, degree of $v$. 
+        \item $label$, array of size $n$ indicating if a node has been labeled or not.
+        \item $marker$, array of size $n$ used to mark explored nodes with value $tag$.
+        \item $tag_v$, special tag value used to mark nodes in \reach{v}.
+        \item $mask$, array of size $n$ used to mark nodes in \reach{v} with $tag_v$.
+       \end{compactenum}
+     }
+\KwOut{
+       \begin{compactenum}
+        \item $indist$, boolean indicating if $v$ and $u$ are indistinguishable.
+        \item $\bar{deg}(u)$, updated degree of $u$ after the elimination of $v$. 
+       \end{compactenum}
+      }
+\;
+$\bar{deg}(u) \gets deg(v) -1$\;
+$explore \gets \{u\}$\;
+$indist \gets true$\;
+$count \gets 1$\;
+
+\ForAll{node $t$ in $explore$}{
+  \ForAll{node $x$ in \adj{t}}{
+    \If{$marker(x) \neq tag$}{
+      \If{$label(x) \neq 0$}{
+        \If{$x \neq v$}{
+          $explore \gets explore \cup \{x\}$\;
+        }
+      }
+      \Else{
+        \If{$mask(x) \neq tag_v$}{
+          $indist \gets false$\;
+          $\bar{deg}(u) \gets \bar{deg}(u)+1$\;
+        }
+        \Else{
+          $count \gets count +1$\;
+        }
+      }
+      $marker(x) = tag$\;
+    }
+  }
+}
+
+\If{$indist = true$ AND $count + 1 \neq deg(v)$}{
+  $indist \gets false$\;
+}
+
+%\If{$ \reach{u} \cup {u} = \reach{v} \cup {v}$}{
+%  $indist \gets true$\;
+%}
+%else{
+%  $indist \gets false$\;
+%}
+
+%$\reachb{u} \gets \reach{u} \cup \reach{v}$\;
+
+
+\end{algorithm}
+
 
 \end{document}
