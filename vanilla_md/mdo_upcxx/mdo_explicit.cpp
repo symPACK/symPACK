@@ -90,24 +90,29 @@ void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> 
       local_marker[it-local_adj.begin()] = INT_MAX;
     }
   }
-logfile<<"Local mark is ";
+logfile<<ref_id<<" Local mark is ";
 for(int i = 0;i<local_marker.size();++i){ logfile<<local_marker[i]<<" ";}
 logfile<<endl;
 
   //all local indistinguishable nodes are marked
   //we need to do a reduce 
+    upcxx::barrier(); 
   upcxx::upcxx_reduce(&local_marker[0],&local_marker[0],local_marker.size(),ref_node.where(),UPCXX_MAX,UPCXX_INT);
+    upcxx::barrier(); 
   upcxx::upcxx_bcast(&local_marker[0], &local_marker[0], local_marker.size()*sizeof(int), ref_node.where());
+    upcxx::barrier(); 
 
 
-logfile<<"Reduced Local mark is ";
+logfile<<ref_id<<" Reduced Local mark is ";
 for(int i = 0;i<local_marker.size();++i){ logfile<<local_marker[i]<<" ";}
 logfile<<endl;
 
   
   
     for(int i=0;i<local_marker.size();++i){ 
-        marker[local_adj[i]] = local_marker[i];
+        if(marker[local_adj[i]]==INT_MAX){
+          marker[local_adj[i]] = local_marker[i];
+        }
     }
   
 
@@ -327,7 +332,9 @@ TIMER_STOP(io);
 
 
     if(doMassElim){
+    upcxx::barrier(); 
       find_indist(nodes, min_ptr, marker, tag);
+    upcxx::barrier(); 
     }
 
 
@@ -433,6 +440,8 @@ TIMER_STOP(io);
       //  delete [] local_adj;
       //}
     }
+    upcxx::barrier(); 
+
     step++;
     upcxx::barrier();
   } // close of  for (int step=1; step<=n; ++step)
