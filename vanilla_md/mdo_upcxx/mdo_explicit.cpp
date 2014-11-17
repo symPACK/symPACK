@@ -90,43 +90,26 @@ void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> 
       local_marker[it-local_adj.begin()] = INT_MAX;
     }
   }
-logfile<<ref_id<<" Local mark is ";
-for(int i = 0;i<local_marker.size();++i){ logfile<<local_marker[i]<<" ";}
-logfile<<endl;
 
   //all local indistinguishable nodes are marked
   //we need to do a reduce 
-    upcxx::barrier(); 
   upcxx::upcxx_reduce(&local_marker[0],&local_marker[0],local_marker.size(),ref_node.where(),UPCXX_MAX,UPCXX_INT);
-    upcxx::barrier(); 
   upcxx::upcxx_bcast(&local_marker[0], &local_marker[0], local_marker.size()*sizeof(int), ref_node.where());
-    upcxx::barrier(); 
 
 
+#ifdef VERBOSE
 logfile<<ref_id<<" Reduced Local mark is ";
 for(int i = 0;i<local_marker.size();++i){ logfile<<local_marker[i]<<" ";}
 logfile<<endl;
-
+#endif
   
   
     for(int i=0;i<local_marker.size();++i){ 
-        if(marker[local_adj[i]]==INT_MAX){
+        if(local_marker[i]==INT_MAX){
           marker[local_adj[i]] = local_marker[i];
         }
     }
   
-
-////  logfile<<"Nodes "<<ref_id<<" and [";
-////  for(int i=0;i<local_adj.size();++i){
-////    if(marker[local_adj[i]]==INT_MAX){
-////      logfile<<local_adj[i]<<" ";
-////    }
-//////    cerr<<marker[local_adj[i]]<<" ";
-////  }
-//////  cerr<<endl;
-////  logfile<<"] are indist."<<endl;
-    
-
 }
 
 
@@ -246,7 +229,7 @@ TIMER_STOP(io);
   //process with MD algorithm
   //for (int step=1; step<=n; ++step) {
   int label=1;
-  int step = 1;
+  int step = 0;
   while(label<=n) {
     node_t *local_nodes = (node_t *)&nodes[upcxx::myrank()];
     node_t *my_min = NULL;
@@ -347,15 +330,9 @@ TIMER_STOP(io);
     // the original graph (and the adjacency list) though some nodes' degree
     // might be changed.
 #ifdef USE_UPCXX
-    // vector< upcxx::global_ptr<node_t> >::iterator
-
-    for (auto it = reach.begin() + upcxx::myrank();
+    for (auto it = reach.begin();
         it < reach.end();
-        it+=upcxx::ranks()) {
-//    for (auto it = reach.begin();
-//        it < reach.end();
-//        it++) {
-//        if( (*it-1)%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
+        it++) {
 #else
 #pragma omp parallel for
     for (vector<node_t *>::iterator it = reach.begin();
@@ -363,41 +340,46 @@ TIMER_STOP(io);
          ++it) {
 #endif
 
-
-      upcxx::global_ptr<node_t> cur_neighbor = &nodes[*it-1];
-      //if this node is indist, label it now
-      if(*it != global_min_id && marker[*it]==INT_MAX){
-        if(cur_neighbor.where()==upcxx::myrank()){
-          memberof(cur_neighbor,label) = label;
-        }
-        schedule.push_back(*it);
-        label++;
-        continue;
-      }
-
-
       if(*it == global_min_id){
         continue;
       }
 
 
-      node_t * node_ptr = cur_neighbor;
+
+      upcxx::global_ptr<node_t> cur_neighbor = &nodes[*it-1];
+      //if this node is indist, label it now
+      if(marker[*it]==INT_MAX){
+#ifdef VERBOSE
+          logfile<<"Node "<<*it<<" is indist with node "<<global_min_id<<endl;
+#endif
+        //if(cur_neighbor.where()==upcxx::myrank()){
+          memberof(cur_neighbor,label) = label;
+        //}
+        schedule.push_back(*it);
+        label++;
+        continue;
+      }
+
+      //skip this node if I'm not supposed to process it
+      if( (it - reach.begin())%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
+
+      node_t node = *cur_neighbor;
 
 
 
-      int old_adj_sz = node_ptr->adj_sz;
+      int old_adj_sz = node.adj_sz;
 
 
       int *local_adj;
 
 
       if(cur_neighbor.where()==upcxx::myrank()){
-        local_adj = node_ptr->adj;
+        local_adj = node.adj;
       }
       else{
         local_adj_container.resize(old_adj_sz);
         local_adj = &local_adj_container[0];
-        upcxx::copy(node_ptr->adj,upcxx::global_ptr<int>(&local_adj[0]), old_adj_sz);
+        upcxx::copy(node.adj,upcxx::global_ptr<int>(&local_adj[0]), old_adj_sz);
       }
 
       int new_adj_sz = 0;
@@ -408,10 +390,10 @@ TIMER_STOP(io);
       if(tag==INT_MAX){tag=0;}
       marker[global_min_id]=tag;
       for(int i =0;i<old_adj_sz;++i){
-        int mark = marker[node_ptr->adj[i]];
+        int mark = marker[local_adj[i]];
         if(mark!=tag && mark!=INT_MAX){
-          new_local_adj[new_adj_sz++]=node_ptr->adj[i];
-          marker[node_ptr->adj[i]]=tag;
+          new_local_adj[new_adj_sz++]=local_adj[i];
+          marker[local_adj[i]]=tag;
         }
       }
 
@@ -423,22 +405,20 @@ TIMER_STOP(io);
         }
       }
 
-      node_ptr->adj_sz = new_adj_sz; 
-      node_ptr->degree = new_adj_sz;
+      node.adj_sz = new_adj_sz; 
+      node.degree = new_adj_sz;
 
       if(old_adj_sz < new_adj_sz){
-        upcxx::deallocate(node_ptr->adj);
+        upcxx::deallocate(node.adj);
         upcxx::global_ptr<int> adj = upcxx::allocate<int>(cur_neighbor.where(), new_adj_sz);
-        node_ptr->adj = adj; 
+        node.adj = adj; 
       }
 
-      upcxx::copy(upcxx::global_ptr<int>(&new_local_adj[0]), node_ptr->adj, new_adj_sz);
+      upcxx::copy(upcxx::global_ptr<int>(&new_local_adj[0]), node.adj, new_adj_sz);
 
-      //delete [] new_local_adj;
+      //copy the node structure back on remote processor
+      upcxx::copy(upcxx::global_ptr<node_t>(&node),cur_neighbor,1);
 
-      //if(cur_neighbor.where()!=upcxx::myrank()){
-      //  delete [] local_adj;
-      //}
     }
     upcxx::barrier(); 
 
@@ -449,7 +429,6 @@ TIMER_STOP(io);
   mdo_time = mysecond() - mdo_time;
   TIMER_STOP(mdo_time);
 
-//  for (int i = 0; i < upcxx::ranks(); i++) {
     if (upcxx::myrank() == 0) {
       cout << "\n";
       cout<<"Rank " << upcxx::myrank() << " Schedule: ";
@@ -458,13 +437,10 @@ TIMER_STOP(io);
       }
       cout << "\n";
     }
-//    upcxx::barrier();
-//  }
 
   if (upcxx::myrank() == 0) {
     printf("\nMinimum degree ordering done in %d vs %d steps\n",step,n);
     printf("\nMinimum degree ordering algorithm time breakdown on rank 0:\n");
-//    printf("  io time (read graph from file into memory): %g s\n", io_time);
     printf("  setup time (initialize data structures): %g s\n", init_time);
     printf("  main algorithm time (compute the minimum degree ordering): %g s\n", mdo_time);
     printf("\n");
