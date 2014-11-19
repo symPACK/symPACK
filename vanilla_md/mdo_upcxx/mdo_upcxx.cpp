@@ -66,8 +66,10 @@ void update_degree(upcxx::shared_array<node_t> &nodes,
   indist = true;
   //newDeg = 1 + | reach(v) \ {u} |
   newDeg = deg_v-1;//memberof(&nodes[elim_node_id-1],degree);
+  //u is in reach(v) so take it into account
   int count = 1;
 
+  logfile<<"[ "<<root_node_id<<" ";
   //now find path between min_nodes and other nodes
   while (explore_set.size()>0) {
     //pop a node
@@ -92,14 +94,16 @@ void update_degree(upcxx::shared_array<node_t> &nodes,
             }
           }
           else{
-            if(mask[curr_adj] != tag_v){
-//logfile<<"["<<curr_adj<<","<<mask[curr_adj]<<"] ";
-              newDeg++;
-              indist=false;
+            if(mask[curr_adj] == tag_v || mask[curr_adj]==INT_MAX){
+//logfile<<""<<curr_adj<<","<<mask[curr_adj]<<" ";
+//logfile<<""<<curr_adj<<" ";
+              count++;
             }
             else{
-//logfile<<""<<curr_adj<<","<<mask[curr_adj]<<" ";
-              count++;
+logfile<<"["<<curr_adj<<","<<mask[curr_adj]<<"] ";
+//logfile<<""<<curr_adj<<" ";
+              newDeg++;
+              indist=false;
             }
           }
           marker[curr_adj] = tag;
@@ -112,10 +116,18 @@ void update_degree(upcxx::shared_array<node_t> &nodes,
     }
     //delete local_adj;
   }
-//  logfile<<endl;
+  logfile<<"]"<<endl;
 
+  if(indist){
+    logfile<<"count = "<<count+1<<" vs "<<deg_v<<endl;
+  }
   if(indist && count+1 != deg_v){
     indist = false;
+  }
+
+  if(indist){
+    logfile<<"Node "<<root_node_id<<" is indist"<<endl;
+    mask[root_node_id]=INT_MAX;
   }
 
   TIMER_STOP(UPDATE_DEGREE);
@@ -186,101 +198,8 @@ void get_reach(upcxx::shared_array<node_t> &nodes,
 }
 
 
-void merge_path(upcxx::shared_array<node_t> &nodes,
-                const int root_node_id, 
-                const int tag,  
-                vector< int > &reach_set,
-                vector< int > &marker,
-                vector<int> & perm){
-  
-  //now the reachable set is complete, and the visited node list as well
-    TIMER_START(COMPRESS_PATH);
-    upcxx::global_ptr<node_t> root_node_ptr = &nodes[root_node_id-1];
-   if(upcxx::myrank()==root_node_ptr.where()){
-      //node_t root_node = *root_node_ptr; 
-      int new_label = -1;
-      if(perm[root_node_id-1]!=0){
-        new_label = root_node_id;
-      }
 
-
-      vector<int> local_adj;
-//      for(auto it = reach_set.begin()+upcxx::myrank();it<reach_set.end();it+=upcxx::ranks())
-      for(auto it = reach_set.begin();it!=reach_set.end();++it)
-      {
-
-        if(perm[*it-1]!=0){
-          continue;
-        }
-
-        upcxx::global_ptr<node_t> cur_node_ptr = &nodes[*it-1];
-        node_t cur_node = *cur_node_ptr;
-        
-        //node_t * cur_node = *it;
-        int old_sz = cur_node.adj_sz;
-
-        //int * local_adj = new int[old_sz];
-        local_adj.resize(old_sz);
-        upcxx::copy(cur_node.adj,upcxx::global_ptr<int>(&local_adj[0]),old_sz);
-
-        int labeled = 0;
-        //find last
-        int last = old_sz;
-        for(int i = 0;i<last;++i){ 
-          int node_id = local_adj[i];
-          //upcxx::global_ptr<node_t> adj_node = &nodes[node_id-1];
-          if(marker[node_id]==tag && perm[node_id-1]!=0 ){
-            if(!labeled){
-              if(new_label==-1){
-                new_label = node_id;
-              }
-              //nodes[node_id-1]->merged = -new_label;
-              local_adj[i] = new_label;
-              labeled=1;
-            }
-            else{
-              //nodes[cur_node->adj[i]-1]->merged = -new_label;
-              local_adj[i]=local_adj[last-1];
-              --i;
-              --last;
-            }
-          }
-        }
-        memberof(cur_node_ptr,adj_sz)=last;
-        upcxx::copy(upcxx::global_ptr<int>(&local_adj[0]),cur_node.adj,last);
-//        delete [] local_adj;
-      }
-
-      if(new_label!=-1){
-        upcxx::global_ptr<node_t> merged_node_ptr = &nodes[new_label-1];
-        node_t merged_node = *merged_node_ptr;
-        //go through their adjacency list
-        int new_adj_sz = reach_set.size()+1;
-        upcxx::global_ptr<int> new_adj = merged_node.adj;
-        if(new_adj_sz>merged_node.adj_sz){
-          new_adj = upcxx::allocate<int>(merged_node_ptr.where(),new_adj_sz);
-          upcxx::deallocate(merged_node.adj);
-          memberof(merged_node_ptr,adj) = new_adj;
-        }
-
-        memberof(merged_node_ptr,adj_sz)=new_adj_sz;
-
-        int * new_local_adj = new int[new_adj_sz];
-        new_local_adj[0] = merged_node.id;
-        for(int i=1;i<new_adj_sz;++i){
-          //new_local_adj[i] = memberof(reach_set[i-1],id);
-          new_local_adj[i] = reach_set[i-1];
-        }
-        upcxx::copy(upcxx::global_ptr<int>(new_local_adj),new_adj,new_adj_sz);
-  
-        delete [] new_local_adj;
-      }
-    }
-    upcxx::barrier();
-    TIMER_STOP(COMPRESS_PATH);
-}
-
-   void merge_path3(upcxx::shared_array<node_t> &nodes,
+   void merge_path(upcxx::shared_array<node_t> &nodes,
                 const int root_node_id, 
                 const int tag,  
                 vector< int > &reach_set,
@@ -382,97 +301,6 @@ void merge_path(upcxx::shared_array<node_t> &nodes,
 
 
 
-void merge_path2(upcxx::shared_array<node_t> &nodes,
-                const int root_node_id, 
-                const int tag,  
-                vector< upcxx::global_ptr<node_t> > &reach_set,
-                vector<int> & marker){
-  
-  //now the reachable set is complete, and the visited node list as well
-    TIMER_START(COMPRESS_PATH);
-    upcxx::global_ptr<node_t> root_node_ptr = &nodes[root_node_id-1];
-    if(upcxx::myrank()==root_node_ptr.where()){
-      node_t root_node = *root_node_ptr; 
-      int new_label = -1;
-      if(root_node.label!=0){
-        new_label = root_node.id;
-      }
-
-
-      for(auto it = reach_set.begin();it!=reach_set.end();++it)
-      {
-        upcxx::global_ptr<node_t> cur_node_ptr = *it;
-
-        node_t cur_node = *cur_node_ptr;
-        if(cur_node.label!=0){
-          continue;
-        }
-
-        
-        //node_t * cur_node = *it;
-        int old_sz = cur_node.adj_sz;
-
-        int * local_adj = new int[old_sz];
-        upcxx::copy(cur_node.adj,upcxx::global_ptr<int>(local_adj),old_sz);
-
-        int labeled = 0;
-        //find last
-        int last = old_sz;
-        for(int i = 0;i<last;++i){ 
-          int node_id = local_adj[i];
-          upcxx::global_ptr<node_t> adj_node = &nodes[node_id-1];
-          if(marker[node_id]==tag && memberof(adj_node,label)!=0 ){
-            if(!labeled){
-              if(new_label==-1){
-                new_label = node_id;
-              }
-              //nodes[node_id-1]->merged = -new_label;
-              local_adj[i] = new_label;
-              labeled=1;
-            }
-            else{
-              //nodes[cur_node->adj[i]-1]->merged = -new_label;
-              local_adj[i]=local_adj[last-1];
-              --i;
-              --last;
-            }
-          }
-        }
-        memberof(cur_node_ptr,adj_sz)=last;
-        upcxx::copy(upcxx::global_ptr<int>(local_adj),cur_node.adj,last);
-        delete [] local_adj;
-      }
-
-      if(new_label!=-1){
-        upcxx::global_ptr<node_t> merged_node_ptr = &nodes[new_label-1];
-        node_t merged_node = *merged_node_ptr;
-        //go through their adjacency list
-        int new_adj_sz = reach_set.size()+1;
-        upcxx::global_ptr<int> new_adj = merged_node.adj;
-        if(new_adj_sz>merged_node.adj_sz){
-          new_adj = upcxx::allocate<int>(merged_node_ptr.where(),new_adj_sz);
-          upcxx::deallocate(merged_node.adj);
-          memberof(merged_node_ptr,adj) = new_adj;
-        }
-
-        memberof(merged_node_ptr,adj_sz)=new_adj_sz;
-
-        int * new_local_adj = new int[new_adj_sz];
-        new_local_adj[0] = merged_node.id;
-        for(int i=1;i<new_adj_sz;++i){
-          new_local_adj[i] = memberof(reach_set[i-1],id);
-        }
-        upcxx::copy(upcxx::global_ptr<int>(new_local_adj),new_adj,new_adj_sz);
-  
-        delete [] new_local_adj;
-      }
-    }
-    upcxx::barrier();
-    TIMER_STOP(COMPRESS_PATH);
-}
-
-
-
 
 int main(int argc, char *argv[]) 
 {
@@ -563,8 +391,10 @@ int main(int argc, char *argv[])
   // Finish reading the data from file and initializing the data structures
   // dump_local_nodes((node_t *)&nodes[upcxx::myrank()], nodes.size());
 
+  upcxx::shared_array<int> all_indist_count(upcxx::ranks());
   upcxx::shared_array<int> all_min_degrees(upcxx::ranks());
   upcxx::shared_array<int> all_min_ids(upcxx::ranks());
+  all_indist_count.init();
   all_min_degrees.init();
   all_min_ids.init();
   
@@ -578,8 +408,8 @@ int main(int argc, char *argv[])
     work_adj.reserve(n);
   TIMER_STOP(init);
 
-
-
+bool doMassElim = true;
+bool doEarlyExit = false;
 
 TIMER_START(mdo_time);
   double mdo_time = mysecond();
@@ -598,19 +428,27 @@ TIMER_START(mdo_time);
 
   // YZ: loop-carried dependencies between steps
   //process with MD algorithm
-  for (int step=1; step<=n; ++step) {
-    node_t *local_nodes = (node_t *)&nodes[upcxx::myrank()];
+  int step=0;
+  int label =1;
+
+  node_t *local_nodes = (node_t *)&nodes[upcxx::myrank()];
+  // YZ: need to handle the case when n is not a multiple of ranks()!!
+  int other_size = n / upcxx::ranks();
+  int local_size = n / upcxx::ranks();
+  if (upcxx::myrank() < (n - local_size * upcxx::ranks())) {
+    local_size++;
+  }
+
+  int * work_prefix = new int[upcxx::ranks()+1];
+
+  while(label<=n){
     node_t *my_min = NULL;
-    // YZ: need to handle the case when n is not a multiple of ranks()!!
-    int local_size = n / upcxx::ranks();
-    if (upcxx::myrank() < (n - local_size * upcxx::ranks())) {
-      local_size++;
-    }
     // printf("step %d, local_size %d\n", step, local_size);
     int cur_min_degree = -1;
     for (int i = 0; i < local_size; i++) {
       node_t *cur_node = &local_nodes[i];
-      if (cur_node->label == 0) {
+      //if (cur_node->label == 0) {
+      if (perm[cur_node->id-1] == 0) {
         if (cur_min_degree == -1 || cur_node->degree <= cur_min_degree) {
           cur_min_degree = cur_node->degree;
           my_min = cur_node;
@@ -636,6 +474,7 @@ TIMER_START(mdo_time);
       int min_rank = 0;
       // find the global min node
       for (int i=0; i<upcxx::ranks(); i++) {
+        //logfile<<all_min_degrees[i]<<endl;
         if (cur_min_degree > all_min_degrees[i]) {
           cur_min_degree = all_min_degrees[i];
           min_rank = i;
@@ -644,8 +483,11 @@ TIMER_START(mdo_time);
 
       upcxx::global_ptr<node_t> min_node = &nodes[all_min_ids[min_rank]-1];
       global_min_id = all_min_ids[min_rank]; // memberof(min_node, id);
-      memberof(min_node, label) = step;
-      global_min_degree = cur_min_degree;
+      //memberof(min_node, label) = step;
+      global_min_degree = all_min_degrees[min_rank];
+      //logfile<<memberof(min_node,degree)<<" vs "<<global_min_degree<<endl;
+      assert(memberof(min_node,id).get() == global_min_id);
+      assert(memberof(min_node,degree).get() == global_min_degree);
     }
 
     //upcxx::barrier();
@@ -653,27 +495,68 @@ TIMER_START(mdo_time);
     upcxx::upcxx_bcast(&global_min_degree, &global_min_degree, sizeof(int), 0);
     assert(global_min_id != -1);
 
-//    upcxx::global_ptr<node_t> min_ptr = &nodes[global_min_id-1];
+    upcxx::global_ptr<node_t> min_ptr = &nodes[global_min_id-1];
+//    int global_min_degree = memberof(min_ptr,degree);
+    assert(global_min_degree == memberof(min_ptr,degree));
 
-    if(global_min_degree == n-step){
-//    if(memberof(min_ptr,degree) == n-step){
+    if(doEarlyExit && global_min_degree == n-step){
       //add remaining nodes to the schedule
       //TODO this is very inefficient
-      for(int i = 0;i<n;i++){
-        upcxx::global_ptr<node_t> cur_ptr = &nodes[i];
-        if(memberof(cur_ptr,label)==0){
-          schedule.push_back(i+1);
+
+      int local_label_count = 0;
+      for (int i = 0; i < local_size; i++) {
+        node_t *cur_node = &local_nodes[i];
+        if(perm[cur_node->id-1] == 0){
+          local_label_count++;
         }
       }
+      all_indist_count[upcxx::myrank()]=local_label_count;
+      upcxx::barrier();
+      //compute sequentially for now
+      int total_label_count =0;
+      if(upcxx::myrank()==0){
+        for(int i=0;i<upcxx::ranks();++i){ work_prefix[i] = all_indist_count[i]; }
+
+        for(int i=0;i<upcxx::ranks();++i){ logfile<<work_prefix[i]<<" "; } logfile<<" >> ";
+
+        //Get prefix sum
+        partial_sum(work_prefix,work_prefix+upcxx::ranks(),work_prefix);
+
+        for(int i=0;i<upcxx::ranks();++i){ logfile<<work_prefix[i]<< " "; } logfile<<endl;
+
+        //Shift by one
+        for(int i=1;i<upcxx::ranks();++i){ all_indist_count[i] = work_prefix[i-1]; }
+        all_indist_count[0] = 0 ;
+        total_label_count = work_prefix[upcxx::ranks()-1];
+      }
+      upcxx::upcxx_bcast(&total_label_count,&total_label_count, sizeof(int), 0);
+
+      label+=all_indist_count[upcxx::myrank()];
+      //logfile<<"Labeling from "<<label<<endl;
+      for (int i = 0; i < local_size; i++) {
+        node_t *cur_node = &local_nodes[i];
+        if(perm[cur_node->id-1] == 0){
+          //logfile<<cur_node->id<<" is labeled "<<label<<endl;
+          perm[cur_node->id-1]=label++;
+        }
+      }
+
+#ifdef VERBOSE
+      logfile<<"PERM     : "; for(int i=0;i<perm.size();++i){logfile<<perm[i]<<" ";}; logfile<<endl;
+#endif
+      upcxx::upcxx_reduce(&perm[0],&perm[0],perm.size(),0,UPCXX_MAX,UPCXX_INT);
+      upcxx::upcxx_bcast(&perm[0], &perm[0],perm.size()*sizeof(int),0);
+#ifdef VERBOSE
+      logfile<<"RED PERM : "; for(int i=0;i<perm.size();++i){logfile<<perm[i]<<" ";}; logfile<<endl;
+#endif
       break;
     }
 
 
-    //cout<<"Global min id is "<<global_min_id<<endl;
-
-    
-    schedule.push_back(global_min_id);
-    perm[global_min_id-1]=schedule.size();
+#ifdef VERBOSE
+    logfile<<"Node "<<global_min_id<<" is labeled "<<label<<endl;
+#endif
+    perm[global_min_id-1]=label++;
 
     //cerr << " " << schedule.back();
 
@@ -681,38 +564,27 @@ TIMER_START(mdo_time);
     //logfile<<"Reach of root "<<global_min_id<<endl;
     advance_tag(tag);
     get_reach(nodes, global_min_id, tag, reach,marker,perm,work_adj);
-
+    assert(reach.size() == global_min_degree-1);
 
     bool doMerge = (always_merge || (step%period==0) || (step>=threshold) || (step==mergeAt)) && !never_merge;
     if(doMerge){
-      //merge_path2(nodes,global_min_id,tag,reach2,marker);
-      //merge_path(nodes,global_min_id,tag,reach,marker);
-      merge_path3(nodes,global_min_id,tag,reach,marker,perm);
-//      merge_path(nodes,global_min_id,tag,reach,marker,perm);
+      merge_path(nodes,global_min_id,tag,reach,marker,perm);
     }
 
+    //all_indist_count[upcxx::myrank()] = 0;        
+    int local_indist_count = 0;
 
+
+    //mark the nodes in reach(v) with tag_v
     advance_tag(tag);
     int tag_v = tag;
-    for (auto it = reach.begin(); it < reach.end(); ++it) {
-      if(*it == global_min_id){continue;}
-      mask[*it] = tag_v;
-    }
+    for (auto it = reach.begin(); it < reach.end(); ++it) { mask[*it] = tag_v; }
 
-
-    // YZ: Use UPC++ to parallel this loop.  There is no data dependencies
-    // inside the for loop because the get_reach function does not change
-    // the original graph (and the adjacency list) though some nodes' degree
-    // might be changed.
 #ifdef USE_UPCXX
     // vector< upcxx::global_ptr<node_t> >::iterator
-//    for (auto it = reach.begin() + upcxx::myrank();
-//        it < reach.end();
-//        it += upcxx::ranks()) {
-
-    for (auto it = reach.begin();
+    for (auto it = reach.begin() + upcxx::myrank();
         it < reach.end();
-        it++) {
+        it += upcxx::ranks()) {
 #else
 #pragma omp parallel for
     for (vector<node_t *>::iterator it = reach.begin();
@@ -721,79 +593,149 @@ TIMER_START(mdo_time);
 #endif
       //upcxx::global_ptr<node_t> cur_neighbor = *it;
       upcxx::global_ptr<node_t> cur_neighbor = &nodes[*it-1];
-   
-      //if this node is indist, label it now
-//      if(marker[*it]==INT_MAX){
-//#ifdef VERBOSE
-//          logfile<<"Node "<<*it<<" is indist with node "<<global_min_id<<endl;
-//#endif
-//        //if(cur_neighbor.where()==upcxx::myrank()){
-//          memberof(cur_neighbor,label) = label;
-//        //}
-//        schedule.push_back(*it);
-//        label++;
-//        continue;
-//      }
-
-      //skip this node if I'm not supposed to process it
-      if( (it - reach.begin())%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
-
-
-
-
-
-
- 
+  
+#ifdef VERBOSE 
       //vector<int> nghb_reach;  
-//      advance_tag(tag);
-//      get_reach(nodes, *it, tag, nghb_reach,marker,perm,work_adj);
-//      memberof(cur_neighbor, degree) = nghb_reach.size()+1;
-//
-//    logfile<<"Reach("<<*it<<") = Reach("<<global_min_id<<"){ ";
-//    for (auto it2 = reach.begin(); it2 < reach.end(); ++it2) {
-//      logfile<<*it2<<" ";
-//    }
-//    logfile<<"} U { ";
-//
-//
-//    for (auto it2 = nghb_reach.begin(); it2 < nghb_reach.end(); ++it2) {
-//      logfile<<*it2<<" ";
-//    }
-//    logfile<<"}"<<endl;
-//
-//    for (auto it2 = reach.begin(); it2 < reach.end(); ++it2) {
-////      if(*it2 == global_min_id){continue;}
-//      mask[*it2] = tag_v;
-//    }
+      advance_tag(tag);
+      get_reach(nodes, *it, tag, nghb_reach,marker,perm,work_adj);
+      memberof(cur_neighbor, degree) = nghb_reach.size()+1;
+
+    logfile<<"{ "<<global_min_id<<"| ";
+    for (auto it2 = reach.begin(); it2 < reach.end(); ++it2) {
+      logfile<<*it2<<" ";
+    }
+    logfile<<"}"<<endl;
+
+    logfile<<"[[ "<<*it<<"| ";
+    for (auto it2 = nghb_reach.begin(); it2 < nghb_reach.end(); ++it2) {
+      logfile<<*it2<<" ";
+    }
+    logfile<<"]]"<<endl;
+
+    for (auto it2 = reach.begin(); it2 < reach.end(); ++it2) {
+      if(mask[*it2]!=INT_MAX){ mask[*it2] = tag_v; }
+    }
+#endif
 
       advance_tag(tag);
       bool indist = false;
       int new_degree =0;
       update_degree(nodes, *it, tag, global_min_id,global_min_degree, tag_v, marker,mask, perm, indist, new_degree, work_adj);
       memberof(cur_neighbor, degree) = new_degree;
+//      memberof(cur_neighbor, degree) = nghb_reach.size()+1;
 
-//      if(doMassElim && indist){
+      if(doMassElim && indist){
 //        //mark as indist
-//        
-//      }
+        local_indist_count++;
+      }
 
 
-
+#ifdef VERBOSE
+//      logfile<<global_min_degree<<endl;
 //      logfile<<new_degree<<" vs "<<nghb_reach.size()+1<<endl;
-//      assert(new_degree == nghb_reach.size()+1);
-    }
-    //updated nodes are now local so barrier is probably not necessary
-    upcxx::barrier();
-
-
-    if(upcxx::myrank()==0 && step%(n/10)==0){
-      cerr<<ceil(step*100/n)<<"  ";
+      assert(new_degree == nghb_reach.size()+1);
+#endif
     }
 
+    if(doMassElim){
+      //compute prefix sum of local indist nodes counts
+      all_indist_count[upcxx::myrank()]=local_indist_count;        
+      upcxx::barrier();
+      //compute sequentially for now
+      int total_indist_count =0;
+      if(upcxx::myrank()==0){
+
+
+        for(int i=0;i<upcxx::ranks();++i){
+          work_prefix[i] = all_indist_count[i];
+        }
+
+        for(int i=0;i<upcxx::ranks();++i){ logfile<<work_prefix[i]<<" "; } logfile<<" >> ";
+
+        //Get prefix sum
+        partial_sum(work_prefix,work_prefix+upcxx::ranks(),work_prefix);
+
+        for(int i=0;i<upcxx::ranks();++i){ logfile<<work_prefix[i]<< " "; } logfile<<endl;
+
+        for(int i=1;i<upcxx::ranks();++i){
+          all_indist_count[i] = work_prefix[i-1];
+        }
+        all_indist_count[0] = 0 ;
+        total_indist_count = work_prefix[upcxx::ranks()-1];
+
+
+//        total_indist_count = all_indist_count[0];
+//        for(int i=1;i<upcxx::ranks();++i){
+//          int cur = all_indist_count[i];
+//          total_indist_count+= cur;
+//          all_indist_count[i] = cur + all_indist_count[i-1] - all_indist_count[0];
+//        }
+//        all_indist_count[0] = 0 ;
+      }
+      upcxx::upcxx_bcast(&total_indist_count,&total_indist_count, sizeof(int), 0);
+
+      //now assign labels and update degrees of other nodes 
+      int newlabel = label + all_indist_count[upcxx::myrank()];     
+      for (auto it = reach.begin() + upcxx::myrank();
+          it < reach.end();
+          it += upcxx::ranks()) {
+        if(mask[*it]==INT_MAX){
+//          memberof(&nodes[*it-1],label) = newlabel;
+          perm[*it-1] = newlabel++;
+        }
+        else{
+          memberof(&nodes[*it-1],degree) = memberof(&nodes[*it-1],degree) - total_indist_count;
+        }
+      }
+      label += total_indist_count;
+//      logfile<<"Label is now "<<label<<endl;
+    }
+
+    if(doMassElim){
+
+//      //get global node updates
+//      for (auto it = reach.begin();
+//          it < reach.end();
+//          it++) {
+//        perm[*it-1] = memberof(&nodes[*it-1],label);
+//      }
+//      upcxx::barrier();
+
+    //reduce perm to get global nodes updates
+#ifdef VERBOSE
+    logfile<<"PERM     : "; for(int i=0;i<perm.size();++i){logfile<<perm[i]<<" ";}; logfile<<endl;
+#endif
+
+    upcxx::upcxx_reduce(&perm[0],&perm[0],perm.size(),0,UPCXX_MAX,UPCXX_INT);
+    upcxx::upcxx_bcast(&perm[0], &perm[0], perm.size()*sizeof(int),0);
+
+#ifdef VERBOSE
+    logfile<<"RED PERM : "; for(int i=0;i<perm.size();++i){logfile<<perm[i]<<" ";}; logfile<<endl;
+#endif
+    }
+    else{
+      upcxx::barrier();
+    }
+
+    if(n>10){
+      if(upcxx::myrank()==0 && step%(n/10)==0){
+        cerr<<ceil(step*100/n)<<"  ";
+      }
+    }
+    else{
+      if(upcxx::myrank()==0){
+        cerr<<step<<"  ";
+      }
+    }
+
+    step++;
   } // close of  for (int step=1; step<=n; ++step)
   if(upcxx::myrank()==0){
   cerr<<endl;
   }
+
+  //reduce the perm array
+
 
   mdo_time = mysecond() - mdo_time;
 TIMER_STOP(mdo_time);
@@ -802,6 +744,12 @@ TIMER_STOP(mdo_time);
     if (upcxx::myrank() == 0) {
       cout << "\n";
       cout<<"Rank " << upcxx::myrank() << " Schedule: ";
+      schedule.resize(n);
+      for (int node=1; node<=n; ++node) {
+        int label = perm[node-1];
+        schedule[label-1] = node;
+      }
+
       for (int step=1; step<=n; ++step) {
         cout << " " << schedule[step-1];
       }
@@ -810,12 +758,15 @@ TIMER_STOP(mdo_time);
 //    upcxx::barrier();
 //  }
   if (upcxx::myrank() == 0) {
+    printf("\nMinimum degree ordering done in %d vs %d steps\n",step,n);
     printf("\nMinimum degree ordering algorithm time breakdown on rank 0:\n");
     printf("  io time (read graph from file into memory): %g s\n", io_time);
     printf("  setup time (initialize data structures): %g s\n", init_time);
     printf("  main algorithm time (compute the minimum degree ordering): %g s\n", mdo_time);
     printf("\n");
   }
+
+  delete [] work_prefix;
 
   upcxx::barrier();
   upcxx::finalize();

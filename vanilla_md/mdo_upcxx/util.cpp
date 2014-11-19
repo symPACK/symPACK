@@ -736,7 +736,9 @@ int ReadAdjacencyHB_PARA(const char * pfilename, upcxx::shared_array<node_t> * &
   upcxx::global_ptr<int> adj = memberof(cur_node,adj);
   int xadj_i = memberof(cur_node,label) - memberof(cur_node,adj_sz); 
   int xadj_ip1 = memberof(cur_node,label);
+#ifdef VERBOSE
 logfile<<"---"<<xadj_i<<"--"<<xadj_ip1<<"---"<<endl;
+#endif
   memberof(cur_node, label) = 0;
   int elem_idx = 0;
   for(int i=0;i<rowindCnt;++i){
@@ -753,7 +755,9 @@ logfile<<"---"<<xadj_i<<"--"<<xadj_ip1<<"---"<<endl;
         if(elem_idx>=xadj_i){
           if(elem_idx<xadj_ip1){
             adj[adj_idx++] = j;  
+#ifdef VERBOSE
 logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
+#endif
           }
           else{
             //advance to the next local node
@@ -769,11 +773,15 @@ logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
             xadj_ip1 = memberof(cur_node,label);
             memberof(cur_node, label) = 0;
 
+#ifdef VERBOSE
             logfile<<"---"<<xadj_i<<"--"<<xadj_ip1<<"---"<<endl;
+#endif
             if(elem_idx>=xadj_i){
               //add current element
               adj[adj_idx++] = j;  
+#ifdef VERBOSE
               logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
+#endif
               assert(j==memberof(cur_node,id));
             }
           }
@@ -815,8 +823,6 @@ logfile<<"("<<adj[adj_idx-1]<<","<<memberof(cur_node,id)<<")"<<endl;
 bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
   //code from sparsematrixconverter
   /* set-up */
-//  vector<int> cur_col_nnz(size);
-//  vector<int> new_col_nnz(size);
 
   upcxx::shared_array<int> cur_col_nnz(size);
   cur_col_nnz.init();
@@ -844,11 +850,10 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
     upcxx::global_ptr<node_t> cur_node = &nodes[i];
     cur_col_nnz[i] = memberof(cur_node,adj_sz);
     new_col_nnz[i] = cur_col_nnz[i];
-    local_new_nnz[upcxx::myrank()] += new_col_nnz[i];
+    local_new_nnz[upcxx::myrank()] = local_new_nnz[upcxx::myrank()] + new_col_nnz[i];
   }    
   
 
-  logfile<<"EXPAND I'm alive"<<endl;
   
 
   for (int i = upcxx::myrank(); i < size; i+=upcxx::ranks()){ 
@@ -873,6 +878,7 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
     }
   }
 
+  upcxx::barrier();
   //reduce
   for (int i = 0; i < upcxx::ranks();++i){
     if(i==upcxx::myrank()){
@@ -884,14 +890,20 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
     }
     upcxx::barrier();
   } 
-  logfile<<"REDUCE EXPAND I'm alive"<<endl;
+
+#ifdef VERBOSE
+    logfile<<"Cur_col_nnz: "; 
+      for (int j = 0; j < size; j++){
+        logfile<<cur_col_nnz[j]<<" ";
+      }
+    logfile<<endl;
 
     logfile<<"New_col_nnz: "; 
       for (int j = 0; j < size; j++){
         logfile<<new_col_nnz[j]<<" ";
       }
     logfile<<endl;
-  upcxx::barrier();
+#endif
 
   /*
    *  Initialize row pointers in expanded matrix.
@@ -912,6 +924,9 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
     memberof(cur_node,degree) = new_adj_sz ;
 
     if(new_adj_sz != old_adj_sz){
+#ifdef VERBOSE
+      logfile<<"Size of "<<i+1<<" is now "<<new_adj_sz<<endl;
+#endif
       //resize adj...
       upcxx::global_ptr<int> adj = memberof(cur_node,adj);
 
@@ -926,7 +941,6 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
       memberof(cur_node,adj) = new_adj ;
     }
   }
-  logfile<<"RESIZE EXPAND I'm alive"<<endl;
 
   /*
    *  Complete expansion of A to full storage.
@@ -959,10 +973,12 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
         if(i+1<j){
           upcxx::global_ptr<node_t> tgt_node = &nodes[j-1];
           int tgt_pos = memberof(tgt_node,label);
-          
+           
           int tgt_adj_sz = memberof(tgt_node,adj_sz);
-          logfile<<"try adding elem  ("<<j<<","<<i+1<<")"<<endl;
+#ifdef VERBOSE
+          logfile<<"try adding elem  ("<<j<<","<<i+1<<") on P"<<tgt_node.where()<<endl;
           logfile<<tgt_pos<<" vs "<<tgt_adj_sz<<endl;
+#endif
           assert(tgt_pos<=tgt_adj_sz);
 
           upcxx::global_ptr<int> tgt_adj = memberof(tgt_node,adj)+tgt_pos;
@@ -984,6 +1000,7 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
     upcxx::global_ptr<int> adj = memberof(cur_node,adj);
     int * loc_adj = adj;
 
+#ifdef VERBOSE
     logfile<<"Adj["<<i+1<<"] : ";
       for(int k = 0; k<adj_sz;++k){
         logfile <<loc_adj[k]<<" ";
@@ -992,6 +1009,7 @@ bool ExpandSymmetric_PARA(int size,  upcxx::shared_array<node_t> & nodes){
 
 
     logfile<<adj_sz<<" vs "<<memberof(cur_node,label)<<endl;
+#endif
     assert(adj_sz==memberof(cur_node,label));
     memberof(cur_node,label)=0;
 
