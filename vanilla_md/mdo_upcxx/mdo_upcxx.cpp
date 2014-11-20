@@ -12,6 +12,7 @@
 #include <string>
 #include <sstream>
 #include <climits>
+#include <numeric>
 
 #include <stdlib.h>
 #include <time.h>
@@ -69,7 +70,9 @@ void update_degree(upcxx::shared_array<node_t> &nodes,
   //u is in reach(v) so take it into account
   int count = 1;
 
+#ifdef VERBOSE
   logfile<<"[ "<<root_node_id<<" ";
+#endif
   //now find path between min_nodes and other nodes
   while (explore_set.size()>0) {
     //pop a node
@@ -95,13 +98,17 @@ void update_degree(upcxx::shared_array<node_t> &nodes,
           }
           else{
             if(mask[curr_adj] == tag_v || mask[curr_adj]==INT_MAX){
+#ifdef VERBOSE
 //logfile<<""<<curr_adj<<","<<mask[curr_adj]<<" ";
 //logfile<<""<<curr_adj<<" ";
+#endif
               count++;
             }
             else{
+#ifdef VERBOSE
 logfile<<"["<<curr_adj<<","<<mask[curr_adj]<<"] ";
 //logfile<<""<<curr_adj<<" ";
+#endif
               newDeg++;
               indist=false;
             }
@@ -116,20 +123,25 @@ logfile<<"["<<curr_adj<<","<<mask[curr_adj]<<"] ";
     }
     //delete local_adj;
   }
+#ifdef VERBOSE
   logfile<<"]"<<endl;
+#endif
 
+#ifdef VERBOSE
   if(indist){
     logfile<<"count = "<<count+1<<" vs "<<deg_v<<endl;
   }
+#endif
   if(indist && count+1 != deg_v){
     indist = false;
   }
 
   if(indist){
+#ifdef VERBOSE
     logfile<<"Node "<<root_node_id<<" is indist"<<endl;
+#endif
     mask[root_node_id]=INT_MAX;
   }
-
   TIMER_STOP(UPDATE_DEGREE);
 }
 
@@ -315,15 +327,41 @@ int main(int argc, char *argv[])
     return -1;
   }
 
+bool doMassElim = false;
 
+  if(argc>2){
+    //process the doMerge parameter
+    string strMass(argv[2]);
+    if(strMass == "YES"){
+      doMassElim = true;
+    }
+    if(strMass == "NO"){
+      doMassElim = false;
+    }
+   }
+
+
+
+bool doEarlyExit = true;
+
+  if(argc>3){
+    //process the doMerge parameter
+    string str(argv[3]);
+    if(str == "YES"){
+      doEarlyExit = true;
+    }
+    if(str == "NO"){
+      doEarlyExit = false;
+    }
+   }
   bool always_merge = false;
   bool never_merge = false;
   int period = -1;
   int threshold = -1;
   int mergeAt = -1;
-  if(argc>2){
+  if(argc>4){
     //process the doMerge parameter
-    string strMerge(argv[2]);
+    string strMerge(argv[4]);
     if(strMerge == "YES"){
       always_merge = true;
     }
@@ -331,25 +369,25 @@ int main(int argc, char *argv[])
       never_merge = true;
     }
     else if(strMerge=="PERIODIC"){
-      if(argc<4){
+      if(argc<6){
         cerr<<"You must specify a period"<<endl;
         return -1;
       }
-      period = atoi(argv[3]);
+      period = atoi(argv[5]);
     }
     else if(strMerge == "AFTER"){
-      if(argc<4){
+      if(argc<6){
         cerr<<"You must specify a starting step"<<endl;
         return -1;
       }
-      threshold = atoi(argv[3]);
+      threshold = atoi(argv[5]);
     }
     else if(strMerge == "AT"){
-      if(argc<4){
+      if(argc<6){
         cerr<<"You must specify a step"<<endl;
         return -1;
       }
-      mergeAt = atoi(argv[3]);
+      mergeAt = atoi(argv[5]);
     }
   }
 
@@ -408,8 +446,6 @@ int main(int argc, char *argv[])
     work_adj.reserve(n);
   TIMER_STOP(init);
 
-bool doMassElim = true;
-bool doEarlyExit = false;
 
 TIMER_START(mdo_time);
   double mdo_time = mysecond();
@@ -649,13 +685,15 @@ TIMER_START(mdo_time);
         for(int i=0;i<upcxx::ranks();++i){
           work_prefix[i] = all_indist_count[i];
         }
-
+#ifdef VERBOSE
         for(int i=0;i<upcxx::ranks();++i){ logfile<<work_prefix[i]<<" "; } logfile<<" >> ";
-
+#endif
         //Get prefix sum
         partial_sum(work_prefix,work_prefix+upcxx::ranks(),work_prefix);
 
+#ifdef VERBOSE
         for(int i=0;i<upcxx::ranks();++i){ logfile<<work_prefix[i]<< " "; } logfile<<endl;
+#endif
 
         for(int i=1;i<upcxx::ranks();++i){
           all_indist_count[i] = work_prefix[i-1];
@@ -680,7 +718,9 @@ TIMER_START(mdo_time);
           it < reach.end();
           it += upcxx::ranks()) {
         if(mask[*it]==INT_MAX){
-//          memberof(&nodes[*it-1],label) = newlabel;
+#if 1
+          memberof(&nodes[*it-1],label) = newlabel;
+#endif
           perm[*it-1] = newlabel++;
         }
         else{
@@ -692,15 +732,17 @@ TIMER_START(mdo_time);
     }
 
     if(doMassElim){
-
-//      //get global node updates
-//      for (auto it = reach.begin();
-//          it < reach.end();
-//          it++) {
-//        perm[*it-1] = memberof(&nodes[*it-1],label);
-//      }
-//      upcxx::barrier();
-
+TIMER_START(REDUCE_DEG_UPDATES);
+#if 1
+      upcxx::barrier();
+      //get global node updates
+      for (auto it = reach.begin();
+          it < reach.end();
+          it++) {
+        perm[*it-1] = memberof(&nodes[*it-1],label);
+      }
+      upcxx::barrier();
+#else
     //reduce perm to get global nodes updates
 #ifdef VERBOSE
     logfile<<"PERM     : "; for(int i=0;i<perm.size();++i){logfile<<perm[i]<<" ";}; logfile<<endl;
@@ -712,6 +754,8 @@ TIMER_START(mdo_time);
 #ifdef VERBOSE
     logfile<<"RED PERM : "; for(int i=0;i<perm.size();++i){logfile<<perm[i]<<" ";}; logfile<<endl;
 #endif
+#endif
+TIMER_STOP(REDUCE_DEG_UPDATES);
     }
     else{
       upcxx::barrier();

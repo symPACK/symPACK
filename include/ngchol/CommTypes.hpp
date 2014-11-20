@@ -445,6 +445,17 @@ namespace LIBCHOLESKY{
     return os;
   }
 
+  template <typename T> inline Icomm& operator>>( Icomm& os,  T & val){
+    TIMER_START(ICOMM_DESERIALIZE);
+    T* dest = reinterpret_cast<T*>(&os.pSrcBlocks->at(os.head));
+    std::copy(dest,dest+1,&val);
+    os.head += sizeof(T);
+    TIMER_STOP(ICOMM_DESERIALIZE);
+
+    return os;
+  }
+
+
 
   struct DelayedCommCompare{
     bool operator()(const DelayedComm & a,const DelayedComm & b) const

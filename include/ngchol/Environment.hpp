@@ -207,8 +207,8 @@ inline double get_time()
 #include "TAU.h"
 #elif defined (PROFILE) || defined(PMPI)
 #define TAU
-#include "ngchol/timer.hpp"
 #endif
+#include "ngchol/timer.hpp"
 
 #define VAL(str) #str
 #define TOSTRING(str) VAL(str)

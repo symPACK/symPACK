@@ -205,6 +205,9 @@ namespace LIBCHOLESKY{
       function_timers[index].arr_start_excl_time[core] = arr_excl_time[core];
       function_timers[index].start_time = time;
     }
+    else{
+      abort();
+    }
 #endif
   }
 
@@ -234,6 +237,9 @@ namespace LIBCHOLESKY{
       exit();
       exited = 1;
     }
+    else{
+      abort();
+    }
 #endif
   }
 
@@ -246,6 +252,10 @@ namespace LIBCHOLESKY{
 
   void CTF_timer::exit(){
 #ifdef PROFILE
+    if(exited){
+      abort();
+    }
+
     if (original && !exited) {
       int core, nc;
 

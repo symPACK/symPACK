@@ -12,6 +12,8 @@
 
 namespace LIBCHOLESKY{
 
+
+
 class CTF_timer{
   public:
     char const * timer_name;
@@ -132,6 +134,43 @@ void CTF_set_context(MPI_Comm ctxt);
     PMPI_Barrier(__VA_ARGS__);                                    \
               __t.stop(); }
 #endif
+
+
+
+#ifdef USE_TAU 
+#define TIMER_START(a) TAU_START(TOSTRING(a));
+#define TIMER_STOP(a) TAU_STOP(TOSTRING(a));
+#define scope_timer(a)
+#elif defined (PROFILE)
+#define TIMER_START(a) TAU_FSTART(a);
+#define TIMER_STOP(a) TAU_FSTOP(a);
+#define scope_timer(a) CTF_scope_timer(#a)
+#else
+#define TIMER_START(a)
+#define TIMER_STOP(a)
+#define scope_timer(a)
+#endif
+
+
+
+class CTF_scope_timer{
+  char const * name;
+  public:
+//  scope_timer(){
+//    name = "DEFAULT";
+//    TIMER_START(name);
+//  }
+
+  CTF_scope_timer(const char * pname){
+    name = pname;
+    TIMER_START(name);
+  }
+  ~CTF_scope_timer(){
+    TIMER_STOP(name);
+  }
+};
+
+
 
 }
 

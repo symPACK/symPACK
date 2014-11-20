@@ -359,11 +359,9 @@ namespace LIBCHOLESKY{
           else{
             tmpBuffers.src_colindx.Resize(tgt_width);
             tmpBuffers.src_to_tgt_offset.Resize(src_nrows);
-
             Int colidx = 0;
             Int rowidx = 0;
             Int offset = 0;
-
 
             Int src_blkcnt = src_snode.NZBlockCnt();
             for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
@@ -452,10 +450,6 @@ namespace LIBCHOLESKY{
       NZBlockDesc & first_pivot_desc = src_snode.GetNZBlockDesc(first_pivot_idx);
       NZBlockDesc & last_pivot_desc = src_snode.GetNZBlockDesc(last_pivot_idx);
 
-
-
-
-
       //determine the first column that will be updated in the target supernode
       Int tgt_local_fc =  tgt_fc - tgt_snode.FirstCol();
       Int tgt_local_lc =  tgt_lc - tgt_snode.FirstCol();
@@ -488,7 +482,6 @@ namespace LIBCHOLESKY{
 #ifdef _DEBUG_
         tmpBuffers.tmpBuf.Resize(tgt_width,src_nrows);
 #endif
-
         buf = tmpBuffers.tmpBuf.Data();
       }
 
@@ -536,11 +529,9 @@ namespace LIBCHOLESKY{
         else{
           tmpBuffers.src_colindx.Resize(tgt_width);
           tmpBuffers.src_to_tgt_offset.Resize(src_nrows);
-
           Int colidx = 0;
           Int rowidx = 0;
           Int offset = 0;
-
 
           Int src_blkcnt = src_snode.NZBlockCnt();
           for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
@@ -570,8 +561,6 @@ namespace LIBCHOLESKY{
               row += (lr-row+1);
             }
           }
-
-
           //Multiple cases to consider
           TIMER_STOP(UPDATE_SNODE_INDEX_MAP);
 
