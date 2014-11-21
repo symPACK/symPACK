@@ -30,6 +30,9 @@
 
 #define advance_tag(tag) do{tag++; if(tag==INT_MAX){tag=0;}}while(0)
 
+#define PERM_BCAST
+#define SHORT_REDUCE
+
 using namespace std;
 
 double mysecond()
@@ -58,7 +61,7 @@ void update_degree(upcxx::shared_array<node_t> &nodes,
                vector<int> &work_adj
               ) 
 {
-  TIMER_START(UPDATE_DEGREE);
+//  TIMER_START(UPDATE_DEGREE);
   //this list contains the nodes to explore
   stack< int > explore_set;
   explore_set.push( root_node_id );
@@ -106,8 +109,7 @@ void update_degree(upcxx::shared_array<node_t> &nodes,
             }
             else{
 #ifdef VERBOSE
-logfile<<"["<<curr_adj<<","<<mask[curr_adj]<<"] ";
-//logfile<<""<<curr_adj<<" ";
+logfile<<"["<<curr_adj<<"] ";
 #endif
               newDeg++;
               indist=false;
@@ -142,7 +144,7 @@ logfile<<"["<<curr_adj<<","<<mask[curr_adj]<<"] ";
 #endif
     mask[root_node_id]=INT_MAX;
   }
-  TIMER_STOP(UPDATE_DEGREE);
+//  TIMER_STOP(UPDATE_DEGREE);
 }
 
 
@@ -158,18 +160,14 @@ void get_reach(upcxx::shared_array<node_t> &nodes,
                vector<int> &work_adj
               ) 
 {
-  //this array is used to mark the node so that 
-  //they are not added twice into the reachable set
+//  TIMER_START(GET_REACH);
 
-  TIMER_START(GET_REACH);
   //this list contains the nodes to explore
   stack< int > explore_set;
   reach_set.resize(0);
 
   explore_set.push( root_node_id );
   marker[root_node_id]=tag;
-  //  memberof(root_node_p,marker)=tag;
-
 
   //now find path between min_nodes and other nodes
   while (explore_set.size()>0) {
@@ -206,7 +204,7 @@ void get_reach(upcxx::shared_array<node_t> &nodes,
     //delete local_adj;
   }
 
-  TIMER_STOP(GET_REACH);
+//  TIMER_STOP(GET_REACH);
 }
 
 
@@ -217,9 +215,9 @@ void get_reach(upcxx::shared_array<node_t> &nodes,
                 vector< int > &reach_set,
                 vector< int > &marker,
                 vector<int> & perm){
+     //TIMER_START(COMPRESS_PATH);
 
      //now the reachable set is complete, and the visited node list as well
-     TIMER_START(COMPRESS_PATH);
      upcxx::global_ptr<node_t> root_node_ptr = &nodes[root_node_id-1];
      //node_t root_node = *root_node_ptr; 
      int new_label = -1;
@@ -308,7 +306,7 @@ void get_reach(upcxx::shared_array<node_t> &nodes,
        }
      }
      upcxx::barrier();
-     TIMER_STOP(COMPRESS_PATH);
+   //  TIMER_STOP(COMPRESS_PATH);
    }
 
 
@@ -444,48 +442,44 @@ bool doEarlyExit = true;
     reach.reserve(n);
     nghb_reach.reserve(n);
     work_adj.reserve(n);
+
+  vector<int> schedule;
+  vector<int> perm(n,0);
+
+  int tag = 0;
+  vector<int> marker(n+1,0);
+  vector<int> mask(n+1,0);
+  int * work_prefix = new int[upcxx::ranks()+1];
+  vector<int> loc_perm;
+
+  // YZ: need to handle the case when n is not a multiple of ranks()!!
+  node_t *local_nodes = (node_t *)&nodes[upcxx::myrank()];
+  int local_size = n / upcxx::ranks();
+  if (upcxx::myrank() < (n - local_size * upcxx::ranks())) {
+    local_size++;
+  }
+
+
+
+
   TIMER_STOP(init);
 
 
 TIMER_START(mdo_time);
   double mdo_time = mysecond();
 
-  vector<int> schedule;
-  schedule.reserve(n);
-
-  vector<int> perm(n,0);
-//  schedule.reserve(n);
-
-  int tag = 0;
-  vector<int> marker(n+1,0);
-  vector<int> mask(n+1,0);
-
-  // vector< upcxx::global_ptr<node_t> > schedule_shared;
-
-  // YZ: loop-carried dependencies between steps
   //process with MD algorithm
   int step=0;
   int label =1;
-
-  node_t *local_nodes = (node_t *)&nodes[upcxx::myrank()];
-  // YZ: need to handle the case when n is not a multiple of ranks()!!
-  int other_size = n / upcxx::ranks();
-  int local_size = n / upcxx::ranks();
-  if (upcxx::myrank() < (n - local_size * upcxx::ranks())) {
-    local_size++;
-  }
-
-  int * work_prefix = new int[upcxx::ranks()+1];
-
   while(label<=n){
+    TIMER_START(FIND_MIN);
     node_t *my_min = NULL;
-    // printf("step %d, local_size %d\n", step, local_size);
     int cur_min_degree = -1;
     for (int i = 0; i < local_size; i++) {
       node_t *cur_node = &local_nodes[i];
       //if (cur_node->label == 0) {
       if (perm[cur_node->id-1] == 0) {
-        if (cur_min_degree == -1 || cur_node->degree <= cur_min_degree) {
+        if (cur_min_degree == -1 || cur_node->degree < cur_min_degree) {
           cur_min_degree = cur_node->degree;
           my_min = cur_node;
         }
@@ -522,20 +516,25 @@ TIMER_START(mdo_time);
       //memberof(min_node, label) = step;
       global_min_degree = all_min_degrees[min_rank];
       //logfile<<memberof(min_node,degree)<<" vs "<<global_min_degree<<endl;
+#ifdef DEBUG
       assert(memberof(min_node,id).get() == global_min_id);
       assert(memberof(min_node,degree).get() == global_min_degree);
+#endif
     }
 
     //upcxx::barrier();
     upcxx::upcxx_bcast(&global_min_id, &global_min_id, sizeof(int), 0);
     upcxx::upcxx_bcast(&global_min_degree, &global_min_degree, sizeof(int), 0);
     assert(global_min_id != -1);
+    TIMER_STOP(FIND_MIN);
 
+#ifdef DEBUG
     upcxx::global_ptr<node_t> min_ptr = &nodes[global_min_id-1];
-//    int global_min_degree = memberof(min_ptr,degree);
     assert(global_min_degree == memberof(min_ptr,degree));
+#endif
 
-    if(doEarlyExit && global_min_degree == n-step){
+    if(doEarlyExit && global_min_degree == n-label){
+      logfile<<"EARLY EXIT"<<endl;
       //add remaining nodes to the schedule
       //TODO this is very inefficient
 
@@ -553,12 +552,16 @@ TIMER_START(mdo_time);
       if(upcxx::myrank()==0){
         for(int i=0;i<upcxx::ranks();++i){ work_prefix[i] = all_indist_count[i]; }
 
+#ifdef VERBOSE
         for(int i=0;i<upcxx::ranks();++i){ logfile<<work_prefix[i]<<" "; } logfile<<" >> ";
+#endif
 
         //Get prefix sum
         partial_sum(work_prefix,work_prefix+upcxx::ranks(),work_prefix);
 
+#ifdef VERBOSE
         for(int i=0;i<upcxx::ranks();++i){ logfile<<work_prefix[i]<< " "; } logfile<<endl;
+#endif
 
         //Shift by one
         for(int i=1;i<upcxx::ranks();++i){ all_indist_count[i] = work_prefix[i-1]; }
@@ -589,9 +592,9 @@ TIMER_START(mdo_time);
     }
 
 
-#ifdef VERBOSE
+//#ifdef VERBOSE
     logfile<<"Node "<<global_min_id<<" is labeled "<<label<<endl;
-#endif
+//#endif
     perm[global_min_id-1]=label++;
 
     //cerr << " " << schedule.back();
@@ -600,7 +603,11 @@ TIMER_START(mdo_time);
     //logfile<<"Reach of root "<<global_min_id<<endl;
     advance_tag(tag);
     get_reach(nodes, global_min_id, tag, reach,marker,perm,work_adj);
+    sort(reach.begin(),reach.end());
+
+#ifdef DEBUG
     assert(reach.size() == global_min_degree-1);
+#endif
 
     bool doMerge = (always_merge || (step%period==0) || (step>=threshold) || (step==mergeAt)) && !never_merge;
     if(doMerge){
@@ -611,10 +618,15 @@ TIMER_START(mdo_time);
     int local_indist_count = 0;
 
 
+    TIMER_START(DEGREE_UPDATE);
     //mark the nodes in reach(v) with tag_v
     advance_tag(tag);
     int tag_v = tag;
     for (auto it = reach.begin(); it < reach.end(); ++it) { mask[*it] = tag_v; }
+
+#ifdef SHORT_REDUCE
+    loc_perm.assign(reach.size(),-INT_MAX);
+#endif
 
 #ifdef USE_UPCXX
     // vector< upcxx::global_ptr<node_t> >::iterator
@@ -657,21 +669,30 @@ TIMER_START(mdo_time);
       bool indist = false;
       int new_degree =0;
       update_degree(nodes, *it, tag, global_min_id,global_min_degree, tag_v, marker,mask, perm, indist, new_degree, work_adj);
+      //THIS IS A COMMUNICATION
+#ifdef SHORT_REDUCE
+      if(doMassElim){
+        loc_perm[it-reach.begin()] = -new_degree;
+      }
+      else{
+        memberof(cur_neighbor, degree) = new_degree;
+      }
+#else
       memberof(cur_neighbor, degree) = new_degree;
-//      memberof(cur_neighbor, degree) = nghb_reach.size()+1;
+#endif
 
       if(doMassElim && indist){
-//        //mark as indist
+        //mark as indist
         local_indist_count++;
       }
 
-
+#ifdef DEBUG
 #ifdef VERBOSE
-//      logfile<<global_min_degree<<endl;
-//      logfile<<new_degree<<" vs "<<nghb_reach.size()+1<<endl;
       assert(new_degree == nghb_reach.size()+1);
 #endif
+#endif
     }
+    TIMER_STOP(DEGREE_UPDATE);
 
     if(doMassElim){
       //compute prefix sum of local indist nodes counts
@@ -680,11 +701,8 @@ TIMER_START(mdo_time);
       //compute sequentially for now
       int total_indist_count =0;
       if(upcxx::myrank()==0){
+        for(int i=0;i<upcxx::ranks();++i){ work_prefix[i] = all_indist_count[i]; }
 
-
-        for(int i=0;i<upcxx::ranks();++i){
-          work_prefix[i] = all_indist_count[i];
-        }
 #ifdef VERBOSE
         for(int i=0;i<upcxx::ranks();++i){ logfile<<work_prefix[i]<<" "; } logfile<<" >> ";
 #endif
@@ -700,15 +718,6 @@ TIMER_START(mdo_time);
         }
         all_indist_count[0] = 0 ;
         total_indist_count = work_prefix[upcxx::ranks()-1];
-
-
-//        total_indist_count = all_indist_count[0];
-//        for(int i=1;i<upcxx::ranks();++i){
-//          int cur = all_indist_count[i];
-//          total_indist_count+= cur;
-//          all_indist_count[i] = cur + all_indist_count[i-1] - all_indist_count[0];
-//        }
-//        all_indist_count[0] = 0 ;
       }
       upcxx::upcxx_bcast(&total_indist_count,&total_indist_count, sizeof(int), 0);
 
@@ -718,22 +727,27 @@ TIMER_START(mdo_time);
           it < reach.end();
           it += upcxx::ranks()) {
         if(mask[*it]==INT_MAX){
-#if 1
+#ifndef PERM_BCAST
           memberof(&nodes[*it-1],label) = newlabel;
+#else
+#ifdef SHORT_REDUCE
+          loc_perm[it-reach.begin()] = newlabel;
+#endif
 #endif
           perm[*it-1] = newlabel++;
         }
         else{
-          memberof(&nodes[*it-1],degree) = memberof(&nodes[*it-1],degree) - total_indist_count;
+          loc_perm[it-reach.begin()] += total_indist_count;
+          //memberof(&nodes[*it-1],degree) = memberof(&nodes[*it-1],degree) - total_indist_count;
         }
       }
       label += total_indist_count;
-//      logfile<<"Label is now "<<label<<endl;
     }
 
     if(doMassElim){
-TIMER_START(REDUCE_DEG_UPDATES);
-#if 1
+      
+#ifndef PERM_BCAST
+TIMER_START(GLOB_DEG_UPDATES);
       upcxx::barrier();
       //get global node updates
       for (auto it = reach.begin();
@@ -742,7 +756,26 @@ TIMER_START(REDUCE_DEG_UPDATES);
         perm[*it-1] = memberof(&nodes[*it-1],label);
       }
       upcxx::barrier();
+TIMER_STOP(GLOB_DEG_UPDATES);
 #else
+#ifdef SHORT_REDUCE
+TIMER_START(REDUCE_DEG_UPDATES_SHORT);
+    upcxx::upcxx_reduce(&loc_perm[0],&loc_perm[0], loc_perm.size(),0,UPCXX_MAX,UPCXX_INT);
+    upcxx::upcxx_bcast(&loc_perm[0], &loc_perm[0], loc_perm.size()*sizeof(int),0);
+    //update perm and degrees
+    for (auto it = reach.begin();it < reach.end();it++) {
+      int newlabel = loc_perm[it-reach.begin()];
+      if( newlabel > 0 ){
+        perm[*it-1] = newlabel;
+        logfile<<"Node "<<*it<<" is indist with node "<<global_min_id<<endl;
+      }
+      else if((*it-1)%upcxx::ranks()==upcxx::myrank()){
+        memberof(&nodes[*it-1],degree) = -newlabel;
+      }
+    }
+TIMER_STOP(REDUCE_DEG_UPDATES_SHORT);
+#else
+TIMER_START(REDUCE_DEG_UPDATES);
     //reduce perm to get global nodes updates
 #ifdef VERBOSE
     logfile<<"PERM     : "; for(int i=0;i<perm.size();++i){logfile<<perm[i]<<" ";}; logfile<<endl;
@@ -754,13 +787,15 @@ TIMER_START(REDUCE_DEG_UPDATES);
 #ifdef VERBOSE
     logfile<<"RED PERM : "; for(int i=0;i<perm.size();++i){logfile<<perm[i]<<" ";}; logfile<<endl;
 #endif
-#endif
 TIMER_STOP(REDUCE_DEG_UPDATES);
+#endif
+#endif
     }
     else{
       upcxx::barrier();
     }
 
+#ifdef SHOW_PROGRESS
     if(n>10){
       if(upcxx::myrank()==0 && step%(n/10)==0){
         cerr<<ceil(step*100/n)<<"  ";
@@ -771,20 +806,19 @@ TIMER_STOP(REDUCE_DEG_UPDATES);
         cerr<<step<<"  ";
       }
     }
+#endif
 
     step++;
   } // close of  for (int step=1; step<=n; ++step)
+#ifdef SHOW_PROGRESS
   if(upcxx::myrank()==0){
   cerr<<endl;
   }
-
-  //reduce the perm array
-
+#endif
 
   mdo_time = mysecond() - mdo_time;
 TIMER_STOP(mdo_time);
 
-//  for (int i = 0; i < upcxx::ranks(); i++) {
     if (upcxx::myrank() == 0) {
       cout << "\n";
       cout<<"Rank " << upcxx::myrank() << " Schedule: ";
@@ -799,8 +833,7 @@ TIMER_STOP(mdo_time);
       }
       cout << "\n";
     }
-//    upcxx::barrier();
-//  }
+
   if (upcxx::myrank() == 0) {
     printf("\nMinimum degree ordering done in %d vs %d steps\n",step,n);
     printf("\nMinimum degree ordering algorithm time breakdown on rank 0:\n");
