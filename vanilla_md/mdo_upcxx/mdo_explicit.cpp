@@ -36,14 +36,6 @@ double mysecond()
   return tv.tv_sec + ((double) tv.tv_usec / 1000000);
 }
 
-struct my_node_t {
-  int id;
-  int degree;
-  int label;
-  int adj_sz; // # of edges of this node, which is the size of adj
-  upcxx::global_ptr<int> adj;
-};
-
 void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> & ref_node, std::vector<int> & marker, int & tag){
   TIMER_START(FIND_INDIST);
   int ref_adj_sz = memberof(ref_node,adj_sz);
@@ -67,17 +59,30 @@ void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> 
 
   vector<int> loc_adj_cont;
 
-  for(auto it = local_adj.begin()+upcxx::myrank();it<local_adj.end();it+=upcxx::ranks()){
+  for(auto it = local_adj.begin();it<local_adj.end();it++){
+      //skip this node if I'm not supposed to process it
+      if( (*it)%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
+      //if( (it - local_adj.begin())%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
+
+
     upcxx::global_ptr<node_t> cur_ptr = &nodes[*it-1];
     int adj_sz = memberof(cur_ptr,adj_sz); 
     if(*it == ref_id || adj_sz!=ref_adj_sz){
       continue;
     }
 
-    loc_adj_cont.resize(adj_sz);
 
-    int * loc_adj = &loc_adj_cont[0];
-    upcxx::copy(memberof(cur_ptr,adj).get(),upcxx::global_ptr<int>(loc_adj),adj_sz);
+    int * loc_adj;
+
+
+      if(cur_ptr.where()==upcxx::myrank()){
+        loc_adj = memberof(cur_ptr,adj).get();
+      }
+      else{
+        loc_adj_cont.resize(adj_sz);
+        loc_adj = &loc_adj_cont[0];
+        upcxx::copy(memberof(cur_ptr,adj).get(),upcxx::global_ptr<int>(loc_adj),adj_sz);
+      }
 
     bool indist = true;
     for(int j=0;j<adj_sz;++j){
@@ -222,7 +227,7 @@ TIMER_STOP(io);
   vector<int> new_local_adj_container;
   vector< int > reach;
 
-  vector<int> work_prefix_container(upcxx::ranks());
+  vector<int> work_prefix_container(upcxx::ranks()+1);
   int * work_prefix = &work_prefix_container[0];
 
   int tag=0;
@@ -307,17 +312,6 @@ TIMER_STOP(io);
     if(global_min_degree == n-label){
       logfile<<"EARLY EXIT"<<endl;
       //add remaining nodes to the schedule
-      //TODO this is very inefficient
-//      for(int i = 0;i<n;i++){
-//        upcxx::global_ptr<node_t> cur_ptr = &nodes[i];
-//        if(memberof(cur_ptr,label)==0){
-//          schedule.push_back(i+1);
-//          label++;
-//        }
-//      }
-
-      //add remaining nodes to the schedule
-      //TODO this is very inefficient
 
       int local_label_count = 0;
       for (int i = 0; i < local_size; i++) {
@@ -338,16 +332,20 @@ TIMER_STOP(io);
 #endif
 
         //Get prefix sum
-        partial_sum(work_prefix,work_prefix+upcxx::ranks(),work_prefix);
+        partial_sum(work_prefix,work_prefix+upcxx::ranks(),&work_prefix[1]);
+        work_prefix[0] = 0 ;
+        total_label_count = work_prefix[upcxx::ranks()];
 
+        for(int i=0;i<upcxx::ranks()+1;++i){
+          all_min_ids[i] = work_prefix[i];
 #ifdef VERBOSE
-        for(int i=0;i<upcxx::ranks();++i){ logfile<<work_prefix[i]<< " "; } logfile<<endl;
+          logfile<<all_min_ids[i]<< " "; 
+#endif
+        }
+#ifdef VERBOSE
+logfile<<endl;
 #endif
 
-        //Shift by one
-        for(int i=1;i<upcxx::ranks();++i){ all_min_ids[i] = work_prefix[i-1]; }
-        all_min_ids[0] = 0 ;
-        total_label_count = work_prefix[upcxx::ranks()-1];
       }
       upcxx::upcxx_bcast(&total_label_count,&total_label_count, sizeof(int), 0);
 
@@ -372,9 +370,9 @@ TIMER_STOP(io);
 
       break;
     }   
-//#ifdef VERBOSE
+#ifdef VERBOSE
     logfile<<"Node "<<global_min_id<<" is labeled "<<label<<endl;
-//#endif
+#endif
     perm[global_min_id-1] = label++;
 
     //update the degree of its reachable set
@@ -382,7 +380,7 @@ TIMER_STOP(io);
     reach.resize(memberof(min_ptr,adj_sz));
     if(upcxx::myrank()==min_ptr.where()){
       upcxx::copy(memberof(min_ptr,adj).get(),upcxx::global_ptr<int>(&reach[0]),memberof(min_ptr,adj_sz).get());
-      sort(reach.begin(),reach.end());
+      //sort(reach.begin(),reach.end());
     }
     upcxx::upcxx_bcast(&reach[0], &reach[0], reach.size()*sizeof(int), min_ptr.where());
 
@@ -425,7 +423,6 @@ TIMER_STOP(io);
       upcxx::global_ptr<node_t> cur_neighbor = &nodes[*it-1];
       //if this node is indist, label it now
       if(marker[*it]==INT_MAX){
-          logfile<<"Node "<<*it<<" is indist with node "<<global_min_id<<endl;
 #ifdef VERBOSE
           logfile<<"Node "<<*it<<" is indist with node "<<global_min_id<<endl;
 #endif
@@ -439,19 +436,16 @@ TIMER_STOP(io);
       }
 
       //skip this node if I'm not supposed to process it
-      if( (it - reach.begin())%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
+      if( (*it)%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
+      //if( (it - reach.begin())%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
 
       node_t node = *cur_neighbor;
 
-
-
       int old_adj_sz = node.adj_sz;
-
-
       int *local_adj;
 
-
-      if(cur_neighbor.where()==upcxx::myrank()){
+      bool isLocal =  cur_neighbor.where()==upcxx::myrank();
+      if(isLocal){
         local_adj = node.adj;
       }
       else{
