@@ -158,11 +158,9 @@ class SuperNode{
   inline void FindUpdatedLastCol(SuperNode<T> & src_snode, Int tgt_fc, Int first_pivot_idx, Int & tgt_lc, Int & last_pivot_idx);
 
   inline Int Aggregate(SuperNode<T> & src_snode);
-#ifdef COMPACT_AGGREGATES
   //this function merge structure of src_snode into the structure of the current supernode
   //right now the destination will have a pretty stupid one line per block structure
   inline Int Merge(SuperNode<T> & src_snode, SnodeUpdate &update);
-#endif
 
   //Update an Aggregate
   inline Int UpdateAggregate(SuperNode<T> & src_snode, SnodeUpdate &update, 

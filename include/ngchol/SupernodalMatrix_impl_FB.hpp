@@ -405,11 +405,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
           else{
             //Check if src_snode_id already have an aggregate vector
             if(AggregatesDone[curUpdate.tgt_snode_id-1]==0){
-#ifdef COMPACT_AGGREGATES
               aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,iSize_);
-#else
-              aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,  xlindx_, lindx_, iSize_);
-#endif
             }
             tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
           }
@@ -533,10 +529,8 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
  
    
   FBGetUpdateCount(UpdatesToDo,AggregatesToRecv);
-#ifdef COMPACT_AGGREGATES
   xlindx_.Clear();
   lindx_.Clear();
-#endif
 
 
 #ifdef _SEPARATE_COMM_

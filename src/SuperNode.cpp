@@ -3,7 +3,6 @@
 #define SCALAR double
 namespace LIBCHOLESKY{
 
-#ifdef COMPACT_AGGREGATES
     Int trc_Merge(SuperNode<SCALAR> & src_snode, SnodeUpdate &update,SuperNode<SCALAR> & tgt_snode){
       TIMER_START(MERGE_SNODE_OBJ);
 
@@ -130,11 +129,9 @@ namespace LIBCHOLESKY{
       TIMER_STOP(MERGE_SNODE_OBJ);
       return 0;
     }
-#endif
 
 
 
-#ifdef COMPACT_AGGREGATES
    Int trc_Aggregate(SuperNode<SCALAR> & src_snode,SuperNode<SCALAR> & tgt_snode){
       TIMER_START(AGGREG_SNODE_OBJ);
       Int  pivot_idx = 0;
@@ -198,30 +195,6 @@ namespace LIBCHOLESKY{
       TIMER_STOP(AGGREG_SNODE_OBJ);
       return 0;
     }
-#else
-   Int trc_Aggregate(SuperNode<SCALAR> & src_snode,SuperNode<SCALAR> & tgt_snode){
-
-      TIMER_START(AGGREGATE_SNODE_OBJ);
-
-      Int src_snode_size = src_snode.Size();
-      Int tgt_snode_size = tgt_snode.Size();
-
-
-      SCALAR * src = src_snode.GetNZval(0);
-      SCALAR * tgt = tgt_snode.GetNZval(0);
-
-      //blas::Axpy(tgt_snode_size*NRowsBelowBlock(0),ONE<T>(),src,1,tgt,1);
-      for(Int i = 0; i< tgt_snode_size*tgt_snode.NRowsBelowBlock(0);i+=1){
-        tgt[i] += src[i];
-      }
-
-
-
-      TIMER_STOP(AGGREGATE_SNODE_OBJ);
-
-      return 0;
-    }
-#endif
 
 
 
@@ -231,10 +204,6 @@ namespace LIBCHOLESKY{
 
 
 
-
-
-
-#ifdef COMPACT_AGGREGATES
   Int trc_UpdateAggregate(SuperNode<SCALAR> & src_snode, SnodeUpdate &update, TempUpdateBuffers<SCALAR> & tmpBuffers, Int iTarget,SuperNode<SCALAR> & tgt_snode){
 
       if(iTarget != iam){
@@ -426,11 +395,6 @@ namespace LIBCHOLESKY{
       }
 
     }
-#else
-  Int trc_UpdateAggregate(SuperNode<SCALAR> & src_snode, SnodeUpdate &update, TempUpdateBuffers<SCALAR> & tmpBuffers, Int iTarget,SuperNode<SCALAR> & tgt_snode){
-    trc_Update(src_snode, update, tmpBuffers,tgt_snode);
-  }
-#endif
 
 
     Int trc_Update(SuperNode<SCALAR> & src_snode, SnodeUpdate &update, TempUpdateBuffers<SCALAR> & tmpBuffers,SuperNode<SCALAR> & tgt_snode){

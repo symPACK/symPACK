@@ -27,6 +27,9 @@
 #include "util.h"
 #include "timer.h"
 
+#ifdef LOCAL_TASK
+
+
 using namespace std;
 
 double mysecond()
@@ -45,28 +48,30 @@ void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> 
 
   vector<int> local_marker(ref_adj_sz);
 
-    //mark nodes
-    tag++;
-    if(tag==INT_MAX){tag=0;}
-    marker[ref_id] = tag;
-    for(int i=0;i<local_adj.size();++i){
-       local_marker[i]=tag;
-       marker[local_adj[i]] = tag; 
-    }
-    //use it a global to local index map
-    //for(int i=0;i<local_adj.size();++i){ marker[local_adj[i]] = -(i+1); }
+  //mark nodes
+  tag++;
+  if(tag==INT_MAX){tag=0;}
+  marker[ref_id] = tag;
+  for(int i=0;i<local_adj.size();++i){
+    local_marker[i]=tag;
+    marker[local_adj[i]] = tag; 
+  }
 
 
   vector<int> loc_adj_cont;
 
   for(auto it = local_adj.begin();it<local_adj.end();it++){
-      //skip this node if I'm not supposed to process it
-      if( (*it)%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
-      //if( (it - local_adj.begin())%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
-
+    //skip this node if I'm not supposed to process it
+#ifdef LOCAL_TASK
+    if( (*it)%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
+#else
+    if( (it - local_adj.begin())%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
+#endif
 
     upcxx::global_ptr<node_t> cur_ptr = &nodes[*it-1];
     int adj_sz = memberof(cur_ptr,adj_sz); 
+    //simple checks: if *it is the node we are comparing to, 
+    //or it the adjacency size is different, then we skip
     if(*it == ref_id || adj_sz!=ref_adj_sz){
       continue;
     }
@@ -75,14 +80,14 @@ void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> 
     int * loc_adj;
 
 
-      if(cur_ptr.where()==upcxx::myrank()){
-        loc_adj = memberof(cur_ptr,adj).get();
-      }
-      else{
-        loc_adj_cont.resize(adj_sz);
-        loc_adj = &loc_adj_cont[0];
-        upcxx::copy(memberof(cur_ptr,adj).get(),upcxx::global_ptr<int>(loc_adj),adj_sz);
-      }
+    if(cur_ptr.where()==upcxx::myrank()){
+      loc_adj = memberof(cur_ptr,adj).get();
+    }
+    else{
+      loc_adj_cont.resize(adj_sz);
+      loc_adj = &loc_adj_cont[0];
+      upcxx::copy(memberof(cur_ptr,adj).get(),upcxx::global_ptr<int>(loc_adj),adj_sz);
+    }
 
     bool indist = true;
     for(int j=0;j<adj_sz;++j){
@@ -106,19 +111,19 @@ void find_indist(upcxx::shared_array<node_t> & nodes, upcxx::global_ptr<node_t> 
 
 
 #ifdef VERBOSE
-logfile<<ref_id<<" Reduced Local mark is ";
-for(int i = 0;i<local_marker.size();++i){ logfile<<local_marker[i]<<" ";}
-logfile<<endl;
+  logfile<<ref_id<<" Reduced Local mark is ";
+  for(int i = 0;i<local_marker.size();++i){ logfile<<local_marker[i]<<" ";}
+  logfile<<endl;
 #endif
   TIMER_STOP(FIND_INDIST_REDUCE);
-  
-  
-    for(int i=0;i<local_marker.size();++i){ 
-        if(local_marker[i]==INT_MAX){
-          marker[local_adj[i]] = local_marker[i];
-        }
+
+
+  for(int i=0;i<local_marker.size();++i){ 
+    if(local_marker[i]==INT_MAX){
+      marker[local_adj[i]] = local_marker[i];
     }
-  
+  }
+
   TIMER_STOP(FIND_INDIST);
 }
 
@@ -126,41 +131,6 @@ logfile<<endl;
 int main(int argc, char *argv[]) 
 {
   upcxx::init(&argc, &argv);
-//  double io_time = mysecond();
-//
-//  /* initialize random seed: */
-//  int seed =time(NULL); 
-//  srand (seed);
-//
-//
-//
-//  // Don't need xadj any more as its info is stored in node_t
-//  vector<int> xadj;
-//  // upcxx::shared_array<int> xadj_shared;
-//  // xadj doesn't need to be shared because it's static and relatively small.
-//  
-//  vector<int> local_adj;
-//  vector<int> ixadj;
-//  vector<int> iadj;
-//
-//
-//  int n;
-//  ReadAdjacencyHB(argv[1], ixadj, iadj);
-//  n = ixadj.size()-1;
-//
-//  //expand to asymmetric storage
-//  ExpandSymmetric(n,&ixadj[0],&iadj[0], xadj, local_adj);
-//
-//
-//  io_time = mysecond() - io_time;
-//  double init_time = mysecond();
-//
-//  // vector<node_t> nodes(n);
-//
-//  upcxx::shared_array<node_t> nodes(n);
-//  nodes.init();
-
-
 
   stringstream filename;
   filename<<"logTest"<<upcxx::myrank();
@@ -174,7 +144,7 @@ int main(int argc, char *argv[])
   }
 
 
-TIMER_START(io);
+  TIMER_START(io);
 
 
 
@@ -187,33 +157,14 @@ TIMER_START(io);
 
   logfile<<"Input file read"<<endl;
 
-    upcxx::barrier(); 
-TIMER_STOP(io);
+  upcxx::barrier(); 
+  TIMER_STOP(io);
 
   TIMER_START(init);
   ExpandSymmetric_PARA(n, nodes);
 
   logfile<<"Matrix expanded"<<endl;
   double init_time = mysecond();
-
-
-
-
-
-
-
-
-
-
-
-  // YZ: comment out unused variables
-  // int initEdgeCnt = 0;
-  // int edgeCnt = 0;
-  //vector<unsigned int> marker(n+1,0);
-  //unsigned int tag =0;
-
-  // Finish reading the data from file and initializing the data structures
-  // dump_local_nodes((node_t *)&nodes[upcxx::myrank()], nodes.size());
 
   upcxx::shared_array<int> all_min_degrees(upcxx::ranks());
   upcxx::shared_array<int> all_min_ids(upcxx::ranks()+1);
@@ -223,39 +174,38 @@ TIMER_STOP(io);
   vector<int> schedule;
   vector<int> marker(n+1,0);
   vector<int> perm(n,0);
-  vector<int> local_adj_container;
-  vector<int> new_local_adj_container;
   vector< int > reach;
 
+  //tmp space
+  vector<int> local_adj_container;
+  vector<int> new_local_adj_container;
   vector<int> work_prefix_container(upcxx::ranks()+1);
   int * work_prefix = &work_prefix_container[0];
 
   int tag=0;
-    node_t *local_nodes = (node_t *)&nodes[upcxx::myrank()];
-    // YZ: need to handle the case when n is not a multiple of ranks()!!
-    int local_size = n / upcxx::ranks();
-    if (upcxx::myrank() < (n - local_size * upcxx::ranks())) {
-      local_size++;
-    }
+  node_t *local_nodes = (node_t *)&nodes[upcxx::myrank()];
+  // YZ: need to handle the case when n is not a multiple of ranks()!!
+  int local_size = n / upcxx::ranks();
+  if (upcxx::myrank() < (n - local_size * upcxx::ranks())) {
+    local_size++;
+  }
 
 
 
-  
+
   init_time = mysecond() - init_time;
   TIMER_STOP(init);
   TIMER_START(mdo_time);
   double mdo_time = mysecond();
 
 
-
-  // vector< upcxx::global_ptr<node_t> > schedule_shared;
-
   // YZ: loop-carried dependencies between steps
   //process with MD algorithm
-  //for (int step=1; step<=n; ++step) {
   int label=1;
   int step = 0;
   while(label<=n) {
+
+    //Find minimum index
     TIMER_START(FIND_MIN);
     node_t *my_min = NULL;
     // printf("step %d, local_size %d\n", step, local_size);
@@ -269,7 +219,7 @@ TIMER_STOP(io);
         }
       }
     }
-    
+
     if (my_min != NULL) {
       all_min_degrees[upcxx::myrank()] = my_min->degree;
       all_min_ids[upcxx::myrank()] = my_min->id;
@@ -279,11 +229,11 @@ TIMER_STOP(io);
     }
 
     upcxx::barrier();
-    
+
 
     int global_min_id;
     int global_min_degree;
-    
+
     if (upcxx::myrank() == 0) {
       int cur_min_degree = INT_MAX;
       int min_rank = 0;
@@ -308,9 +258,9 @@ TIMER_STOP(io);
 
     TIMER_STOP(FIND_MIN);
 
-
+    //Early exit if possible
     if(global_min_degree == n-label){
-      logfile<<"EARLY EXIT"<<endl;
+      //logfile<<"EARLY EXIT"<<endl;
       //add remaining nodes to the schedule
 
       int local_label_count = 0;
@@ -343,7 +293,7 @@ TIMER_STOP(io);
 #endif
         }
 #ifdef VERBOSE
-logfile<<endl;
+        logfile<<endl;
 #endif
 
       }
@@ -385,38 +335,16 @@ logfile<<endl;
     upcxx::upcxx_bcast(&reach[0], &reach[0], reach.size()*sizeof(int), min_ptr.where());
 
 
-
-
     if(doMassElim){
-    upcxx::barrier(); 
+      //upcxx::barrier(); 
       find_indist(nodes, min_ptr, marker, tag);
-    //upcxx::barrier(); 
     }
 
 
-
-
-
-
-    // YZ: Use UPC++ to parallel this loop.  There is no data dependencies
-    // inside the for loop because the get_reach function does not change
-    // the original graph (and the adjacency list) though some nodes' degree
-    // might be changed.
-  TIMER_START(ADJ_UPDATE);
-#ifdef USE_UPCXX
-    for (auto it = reach.begin();
-        it < reach.end();
-        it++) {
-#else
-#pragma omp parallel for
-    for (vector<node_t *>::iterator it = reach.begin();
-         it != reach.end();
-         ++it) {
-#endif
-
-      if(*it == global_min_id){
-        continue;
-      }
+    TIMER_START(ADJ_UPDATE);
+    for (auto it = reach.begin(); it < reach.end(); it++) {
+      //skip node if it's the eliminated node (shouldn't happen)
+      if(*it == global_min_id){ continue; }
 
 
 
@@ -424,21 +352,20 @@ logfile<<endl;
       //if this node is indist, label it now
       if(marker[*it]==INT_MAX){
 #ifdef VERBOSE
-          logfile<<"Node "<<*it<<" is indist with node "<<global_min_id<<endl;
+        logfile<<"Node "<<*it<<" is indist with node "<<global_min_id<<endl;
 #endif
-        //if(cur_neighbor.where()==upcxx::myrank()){
-        //  memberof(cur_neighbor,label) = label;
-        //}
         perm[*it-1] = label++;
-//        schedule.push_back(*it);
-//        label++;
         continue;
       }
 
       //skip this node if I'm not supposed to process it
+#ifdef LOCAL_TASK
       if( (*it)%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
-      //if( (it - reach.begin())%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
+#else
+      if( (it - reach.begin())%(upcxx::ranks())!=upcxx::myrank() ){ continue; }
+#endif
 
+      //get infos on node
       node_t node = *cur_neighbor;
 
       int old_adj_sz = node.adj_sz;
@@ -455,7 +382,6 @@ logfile<<endl;
       }
 
       int new_adj_sz = 0;
-      //int *new_local_adj = new int[reach.size()+old_adj_sz];
       new_local_adj_container.resize(reach.size()+old_adj_sz);
       int *new_local_adj = &new_local_adj_container[0];
       tag++;
@@ -492,7 +418,7 @@ logfile<<endl;
       upcxx::copy(upcxx::global_ptr<node_t>(&node),cur_neighbor,1);
 
     }
-  TIMER_STOP(ADJ_UPDATE);
+    TIMER_STOP(ADJ_UPDATE);
     upcxx::barrier(); 
 
     step++;
@@ -501,21 +427,21 @@ logfile<<endl;
   mdo_time = mysecond() - mdo_time;
   TIMER_STOP(mdo_time);
 
-    if (upcxx::myrank() == 0) {
-      cout << "\n";
-      cout<<"Rank " << upcxx::myrank() << " Schedule: ";
-      schedule.resize(n);
-      for (int node=1; node<=n; ++node) {
-        int label = perm[node-1];
-        schedule[label-1] = node;
-      }
-
-      for (int step=1; step<=n; ++step) {
-        cout << " " << schedule[step-1];
-      }
-      cout << "\n";
-
+  if (upcxx::myrank() == 0) {
+    cout << "\n";
+    cout<<"Rank " << upcxx::myrank() << " Schedule: ";
+    schedule.resize(n);
+    for (int node=1; node<=n; ++node) {
+      int label = perm[node-1];
+      schedule[label-1] = node;
     }
+
+    for (int step=1; step<=n; ++step) {
+      cout << " " << schedule[step-1];
+    }
+    cout << "\n";
+
+  }
 
   if (upcxx::myrank() == 0) {
     printf("\nMinimum degree ordering done in %d vs %d steps\n",step,n);
@@ -530,6 +456,6 @@ logfile<<endl;
 
   return 0;
 }
-  
+
 
 

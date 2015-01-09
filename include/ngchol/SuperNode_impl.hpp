@@ -429,7 +429,7 @@
 
 
 
-#ifdef COMPACT_AGGREGATES
+//#ifdef COMPACT_AGGREGATES
   template<typename T>
   inline Int SuperNode<T>::Merge(SuperNode<T> & src_snode, SnodeUpdate &update){
 #if not defined(_TAU_TRACE_) or defined(FORCE)
@@ -501,13 +501,19 @@
     return trc_Merge(src_snode, update,*this);
 #endif
   }
-#endif
+//#endif
 
 //#ifndef _TAU_TRACE_
-#if not defined(_TAU_TRACE_) or defined(FORCE)
-#ifdef COMPACT_AGGREGATES
+//#ifdef COMPACT_AGGREGATES
   template<typename T>
     inline Int SuperNode<T>::Aggregate(SuperNode<T> & src_snode){
+
+
+#if defined(_NO_COMPUTATION_)
+  return 0;
+#endif
+
+#if not defined(_TAU_TRACE_) or defined(FORCE)
       TIMER_START(AGGREGATE_SNODE);
       Int  pivot_idx = 0;
       Int  pivot_fr = 0;
@@ -547,45 +553,23 @@
 
       TIMER_STOP(AGGREGATE_SNODE);
       return 0;
-    }
 #else
-  template<typename T>
-    inline Int SuperNode<T>::Aggregate(SuperNode<T> & src_snode){
-
-      TIMER_START(AGGREGATE_SNODE);
-
-      Int src_snode_size = src_snode.Size();
-      Int tgt_snode_size = Size();
-
-
-      T * src = src_snode.GetNZval(0);
-      T * tgt = GetNZval(0);
-
-      blas::Axpy(tgt_snode_size*NRowsBelowBlock(0),ONE<T>(),src,1,tgt,1);
-      //for(Int i = 0; i< tgt_snode_size*NRowsBelowBlock(0);i+=1){ tgt[i] += src[i]; }
-
-
-
-      TIMER_STOP(AGGREGATE_SNODE);
-
-      return 0;
-    }
-#endif
-#else
-  template<typename T>
-    inline Int SuperNode<T>::Aggregate(SuperNode<T> & src_snode){
     return trc_Aggregate(src_snode,*this);
-  }
 #endif
+    }
 
 
-#if not defined(_TAU_TRACE_) or defined(FORCE)
-#ifdef COMPACT_AGGREGATES
+//#ifdef COMPACT_AGGREGATES
   //CHECKED ON 11-18-2014
   template<typename T>
     inline Int SuperNode<T>::UpdateAggregate(SuperNode<T> & src_snode, SnodeUpdate &update, 
         TempUpdateBuffers<T> & tmpBuffers, Int iTarget){
 
+#if defined(_NO_COMPUTATION_)
+  return 0;
+#endif
+
+#if not defined(_TAU_TRACE_) or defined(FORCE)
       if(iTarget != iam){
         Merge(src_snode, update);
 
@@ -738,27 +722,26 @@
         Update(src_snode, update, tmpBuffers);
       }
 
-    }
+
 #else
-  template<typename T>
-    inline Int SuperNode<T>::UpdateAggregate(SuperNode<T> & src_snode, SnodeUpdate &update, 
-        TempUpdateBuffers<T> & tmpBuffers, Int iTarget){
-    Update(src_snode, update, tmpBuffers);
-  }
-#endif
-#else
-  template<typename T>
-    inline Int SuperNode<T>::UpdateAggregate(SuperNode<T> & src_snode, SnodeUpdate &update, 
-        TempUpdateBuffers<T> & tmpBuffers, Int iTarget){
     return trc_UpdateAggregate(src_snode, update, tmpBuffers, iTarget,*this);
-  }
 #endif
 
-#if not defined(_TAU_TRACE_) or defined(FORCE)
+
+
+    }
+
+
   //CHECKED ON 11-18-2014
   template<typename T>
     inline Int SuperNode<T>::Update(SuperNode<T> & src_snode, SnodeUpdate &update, 
         TempUpdateBuffers<T> & tmpBuffers){
+
+#if defined(_NO_COMPUTATION_)
+  return 0;
+#endif
+
+#if not defined(_TAU_TRACE_) or defined(FORCE)
       Int & pivot_idx = update.blkidx;
       Int & pivot_fr = update.src_first_row;
 
@@ -913,20 +896,21 @@
       }
       TIMER_STOP(UPDATE_SNODE);
       return 0;
-    }
 #else
-  template<typename T>
-    inline Int SuperNode<T>::Update(SuperNode<T> & src_snode, SnodeUpdate &update, 
-        TempUpdateBuffers<T> & tmpBuffers){
     return trc_Update(src_snode, update, tmpBuffers, *this);
-  }
 #endif
+  }
 
 
   //CHECKED ON 11-18-2014
   template<typename T>
     inline Int SuperNode<T>::Factorize(){
+#if defined(_NO_COMPUTATION_)
+  return 0;
+#endif
+
 #if not defined(_TAU_TRACE_) or defined(FORCE)
+
 //#ifndef _TAU_TRACE_
       Int BLOCKSIZE = Size();
       NZBlockDesc & diag_desc = GetNZBlockDesc(0);

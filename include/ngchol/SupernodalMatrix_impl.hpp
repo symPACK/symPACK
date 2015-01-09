@@ -1112,6 +1112,7 @@ namespace LIBCHOLESKY{
 #endif
 
 
+    MPI_Barrier(CommEnv_->MPI_GetComm());
 
     TIMER_STOP(SUPERMATRIX_INIT);
 
