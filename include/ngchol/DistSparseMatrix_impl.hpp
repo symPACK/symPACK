@@ -29,7 +29,7 @@ namespace LIBCHOLESKY{
 
   template <class F> SparseMatrixStructure DistSparseMatrix<F>::GetGlobalStructure(){
     if(!globalAllocated){
-      Local_.ToGlobal(Global_);
+      Local_.ToGlobal(Global_,comm);
       globalAllocated = true;
     }
     return Global_;
