@@ -369,11 +369,11 @@ template <class F> inline std::ostream& operator<<( std::ostream& os, const std:
 }
 
 // NumVec
-template <class F> inline std::ostream& operator<<( std::ostream& os, const NumVec<F>& vec)
+template <typename F, typename TIdx> inline std::ostream& operator<<( std::ostream& os, const NumVec<F,TIdx>& vec)
 {
 	os<<vec.m()<<std::endl;
 	os.setf(std::ios_base::scientific, std::ios_base::floatfield);
-	for(Int i=0; i<vec.m(); i++){ 
+	for(TIdx i=0; i<vec.m(); i++){ 
 		os<<" "<<vec(i);
     if(((i+1)%10)==0){
 	    os<<std::endl;
@@ -883,29 +883,29 @@ inline Int combine(CpxNumMat& val, CpxNumMat& ext)
 
 //-------------------
 //NumVec
-template<class T>
-Int inline serialize(const NumVec<T>& val, std::ostream& os, const std::vector<Int>& mask)
+template<typename T, typename TIdx>
+Int inline serialize(const NumVec<T,TIdx>& val, std::ostream& os, const std::vector<Int>& mask)
 {
-  Int m = val.m();
-  os.write((char*)&m, sizeof(Int));
-  for(Int i=0; i<m; i++)
+  TIdx m = val.m();
+  os.write((char*)&m, sizeof(TIdx));
+  for(TIdx i=0; i<m; i++)
 	serialize(val(i), os, mask);
   return 0;
 }
 
-template<class T>
-Int inline deserialize(NumVec<T>& val, std::istream& is, const std::vector<Int>& mask)
+template<typename T, typename TIdx>
+Int inline deserialize(NumVec<T,TIdx>& val, std::istream& is, const std::vector<Int>& mask)
 {
-  Int m;
-  is.read((char*)&m, sizeof(Int));
+  TIdx m;
+  is.read((char*)&m, sizeof(TIdx));
   val.Resize(m);
-  for(Int i=0; i<m; i++)
+  for(TIdx i=0; i<m; i++)
     deserialize(val(i), is, mask);
   return 0;
 }
 
-template<class T>
-Int inline combine(NumVec<T>& val, NumVec<T>& ext)
+template<typename T, typename TIdx>
+Int inline combine(NumVec<T,TIdx>& val, NumVec<T,TIdx>& ext)
 {
 	throw  std::logic_error( "Combine operation not implemented." );
   return 0;
@@ -1002,7 +1002,7 @@ Int SharedWrite(std::string name, std::ostringstream& os);
 // *********************************************************************
 // Ej
 // *********************************************************************
-inline void IdentityCol( Int col, NumVec<Real>& vec )
+inline void IdentityCol( Int col, NumVec<Real,Int>& vec )
 {
 	for(Int i=0; i<std::min(col,vec.m()); i++)
 		vec(i) = 0.0;
@@ -1015,7 +1015,7 @@ inline void IdentityCol( Int col, NumVec<Real>& vec )
 		vec(i) = 0.0;
 }
 
-inline void IdentityCol( Int col, NumVec<Complex>& vec )
+inline void IdentityCol( Int col, NumVec<Complex,Int>& vec )
 {
 	for(Int i=0; i<std::min(col,vec.m()); i++)
 		vec(i) = Complex(0.0,0.0);
@@ -1087,13 +1087,13 @@ inline void UniformRandom( Real * vec, Int size )
 
 
 
-inline void UniformRandom( NumVec<Real>& vec )
+inline void UniformRandom( NumVec<Real,Int>& vec )
 {
 	for(Int i=0; i<vec.m(); i++)
 		vec(i) = UniformRandom();
 }
 
-inline void UniformRandom( NumVec<Complex>& vec )
+inline void UniformRandom( NumVec<Complex,Int>& vec )
 {
 	for(Int i=0; i<vec.m(); i++)
 		vec(i) = Complex(UniformRandom(), UniformRandom());
@@ -1185,7 +1185,7 @@ CopyPattern	( const SparseMatrix<F1>& A, SparseMatrix<F2>& B )
 // TODO Real format
 void
 GetDiagonal ( const DistSparseMatrix<Complex>& A, 
-		NumVec<Complex>& diag );
+		NumVec<Complex,Int>& diag );
 
 
 // Functions for DistSparseMatrix

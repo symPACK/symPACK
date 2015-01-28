@@ -13,102 +13,94 @@ namespace LIBCHOLESKY{
 // either own (owndata == true) or view (owndata == false) a piece of
 // data.
 
-
-template <class F> NumVec<F>::NumVec	( Int m ) : m_(m), owndata_(true)
+  template <class F, class TIdx> inline void NumVec<F,TIdx>::alloc_data()
 {
-	if(m_>0) { 
-//		data_ = new F[m_]; 
-		data_ = (F*) malloc(m_*sizeof(F));
-		if( data_ == NULL ){
+#ifdef _ASSERT_
+    if(!allocated_) {
+      if(owndata_) {
+        if(m_>0) { 
+		      data_ = (F*) malloc(m_*sizeof(F));
+          if( data_ == NULL ) 
+            throw std::runtime_error("Cannot allocate memory."); 
+        } 
+        else 
+          data_=NULL;
+
+        allocated_=true;
+      }
+
+    }
+    else{
 
 #ifdef USE_ABORT
-      printf("%s","Cannot allocate memory.");
+      printf("%s","Data already allocated.");
       abort();
 #endif
-			throw std::runtime_error("Cannot allocate memory.");
-		}
-	} 
-	else 
-		data_=NULL;
-} 		// -----  end of method NumVec<F>::NumVec  ----- 
+          throw std::runtime_error("Data already allocated."); 
+    }
+#else
+      if(owndata_) {
+        if(m_>0 ) { 
+		      data_ = (F*) malloc(m_*sizeof(F));
+          if( data_ == NULL ) 
+            throw std::runtime_error("Cannot allocate memory."); 
+        } 
+        else 
+          data_=NULL;
+      }
+#endif
+  }
 
-template <class F> NumVec<F>::NumVec	( Int m, bool owndata, F* data ) : m_(m), owndata_(owndata)
+
+
+template <class F, class TIdx> NumVec<F,TIdx>::NumVec	( TIdx m ) : m_(m), owndata_(true)
+{
+  alloc_data();
+} 		// -----  end of method NumVec<F,TIdx>::NumVec  ----- 
+
+template <class F, class TIdx> NumVec<F,TIdx>::NumVec	( TIdx m, bool owndata, F* data ) : m_(m), owndata_(owndata)
 {
 	if( owndata_ ){
-		if( m_ > 0 ) { 
-//			data_ = new F[m_]; 
-  		data_ = (F*) malloc(m_*sizeof(F));
-			if( data_ == NULL ){
-
-#ifdef USE_ABORT
-      printf("%s","Cannot allocate memory.");
-      abort();
-#endif
-				throw std::runtime_error("Cannot allocate memory.");
-			}
-		}
-		else
-			data_ = NULL;
-
+    alloc_data();
 		if( m_ > 0 ) {
-			for( Int i = 0; i < m_; i++ ){
-				data_[i] = data[i];
-			}
+      std::copy(data,data+m_,data_);
 		}
 	}
 	else{
 		data_ = data;
 	}
-} 		// -----  end of method NumVec<F>::NumVec  ----- 
+} 		// -----  end of method NumVec<F,TIdx>::NumVec  ----- 
 
-template <class F> NumVec<F>::NumVec	( const NumVec<F>& C ) : m_(C.m_), owndata_(C.owndata_)
+template <class F, class TIdx> NumVec<F,TIdx>::NumVec	( const NumVec<F,TIdx>& C ) : m_(C.m_), owndata_(C.owndata_)
 {
 	if( owndata_ ){
-		if( m_ > 0 ) { 
-			//data_ = new F[m_]; 
-		  data_ = (F*) malloc(m_*sizeof(F));
-			if( data_ == NULL ){
-
-#ifdef USE_ABORT
-      printf("%s","Cannot allocate memory.");
-      abort();
-#endif
-				throw std::runtime_error("Cannot allocate memory.");
-			}
-		}
-		else
-			data_ = NULL;
-
+    alloc_data();
 		if( m_ > 0 ) {
-			for( Int i = 0; i < m_; i++ ){
-				data_[i] = C.data_[i];
-			}
+      std::copy(C.data_,C.data_+m_,data_);
 		}
 	}
 	else{
 		data_ = C.data_;
 	}
-} 		// -----  end of method NumVec<F>::NumVec  ----- 
+} 		// -----  end of method NumVec<F,TIdx>::NumVec  ----- 
 
 
-template < class F > NumVec<F>::~NumVec	(  )
+template < class F, class TIdx > NumVec<F,TIdx>::~NumVec	(  )
 {
 	if( owndata_ ){
 		if( m_ > 0 ){
-//			delete[] data_;  
       free(data_);
 			data_ = NULL;
 		}
 	}
 
-} 		// -----  end of method NumVec<F>::~NumVec  ----- 
+} 		// -----  end of method NumVec<F,TIdx>::~NumVec  ----- 
 
 
-template < class F > NumVec<F>& NumVec<F>::operator =	( const NumVec& C  )
+template < class F, class TIdx > NumVec<F,TIdx>& NumVec<F,TIdx>::operator =	( const NumVec& C  )
 {
 	if( owndata_ ){
 		if( m_ > 0 ){
-//			delete[]  data_;
       free(data_);
 			data_ = NULL;
 		}
@@ -117,26 +109,9 @@ template < class F > NumVec<F>& NumVec<F>::operator =	( const NumVec& C  )
 	owndata_ = C.owndata_;
 
 	if( owndata_ ) {
+    alloc_data();
 		if( m_ > 0 ){
-//			data_ = new F[m_];
-		  data_ = (F*) malloc(m_*sizeof(F));
-			if( data_ == NULL ){
-
-#ifdef USE_ABORT
-      printf("%s","Cannot allocate memory.");
-      abort();
-#endif
-				throw std::runtime_error("Cannot allocate memory.");
-			}
-		}
-		else{
-			data_ = NULL;
-		}
-
-		if( m_ > 0 ){
-			for( Int i = 0; i < m_; i++ ){
-				data_[i] = C.data_[i];
-			}
+      std::copy(C.data_,C.data_+m_,data_);
 		}
 	}
 	else{
@@ -145,10 +120,10 @@ template < class F > NumVec<F>& NumVec<F>::operator =	( const NumVec& C  )
 
 
 	return *this;
-} 		// -----  end of method NumVec<F>::operator=  ----- 
+} 		// -----  end of method NumVec<F,TIdx>::operator=  ----- 
 
 
-template < class F > void NumVec<F>::Resize	( const Int m )
+template < class F, class TIdx > void NumVec<F,TIdx>::Resize	( const TIdx m )
 {
 	if( owndata_ == false ){
 
@@ -159,7 +134,6 @@ template < class F > void NumVec<F>::Resize	( const Int m )
 		throw std::logic_error("Vector being resized must own data.");
 	}
 	if( m != m_ ){
-//    if( m_ > 0 ){
       F* newdata = (F*) realloc((void *)data_, m*sizeof(F));
       if (newdata==NULL){
         free(data_);
@@ -174,26 +148,13 @@ template < class F > void NumVec<F>::Resize	( const Int m )
         data_ = newdata;
         m_ = m;
       }
-//    }
-
-//		if( m_ > 0 ){
-//			delete[] data_;
-//			data_ = NULL;
-//		}
-//		m_ = m;
-//		if( m_ > 0 ){
-//			data_ = new F[m_];
-//			if( data_ == NULL ){
-//				throw std::runtime_error("Cannot allocate memory.");
-//			}
-//		}
 	}
 
 	return ;
-} 		// -----  end of method NumVec<F>::Resize  ----- 
+} 		// -----  end of method NumVec<F,TIdx>::Resize  ----- 
 
 
-template <class F> F& NumVec<F>::operator()	( Int i )
+template <class F, class TIdx> F& NumVec<F,TIdx>::operator()	( TIdx i )
 {
 #ifndef _RELEASE_
 	if( i < 0 || i >= m_ ){
@@ -207,11 +168,11 @@ template <class F> F& NumVec<F>::operator()	( Int i )
 #endif  // ifndef _RELEASE_
 	return data_[i];
 
-} 		// -----  end of method NumVec<F>::operator()  ----- 
+} 		// -----  end of method NumVec<F,TIdx>::operator()  ----- 
 
 
-template <class F> const F&
-NumVec<F>::operator()	( Int i ) const
+template <class F, class TIdx> const F&
+NumVec<F,TIdx>::operator()	( TIdx i ) const
 {
 #ifndef _RELEASE_
 	if( i < 0 || i >= m_ ){
@@ -225,10 +186,10 @@ NumVec<F>::operator()	( Int i ) const
 #endif  // ifndef _RELEASE_
 	return data_[i];
 
-} 		// -----  end of method NumVec<F>::operator()  ----- 
+} 		// -----  end of method NumVec<F,TIdx>::operator()  ----- 
 
 
-template <class F> F& NumVec<F>::operator[]	( Int i )
+template <class F, class TIdx> F& NumVec<F,TIdx>::operator[]	( TIdx i )
 {
 #ifndef _RELEASE_
 	if( i < 0 || i >= m_ ){
@@ -241,10 +202,10 @@ template <class F> F& NumVec<F>::operator[]	( Int i )
 	}
 #endif  // ifndef _RELEASE_
 	return data_[i];
-} 		// -----  end of method NumVec<F>::operator[]  ----- 
+} 		// -----  end of method NumVec<F,TIdx>::operator[]  ----- 
 
 
-template <class F> const F& NumVec<F>::operator[]	( Int i ) const
+template <class F, class TIdx> const F& NumVec<F,TIdx>::operator[]	( TIdx i ) const
 {
 #ifndef _RELEASE_
 	if( i < 0 || i >= m_ ){
@@ -258,10 +219,11 @@ template <class F> const F& NumVec<F>::operator[]	( Int i ) const
 #endif  // ifndef _RELEASE_
 	return data_[i];
 
-} 		// -----  end of method NumVec<F>::operator[]  ----- 
+} 		// -----  end of method NumVec<F,TIdx>::operator[]  ----- 
 
 
- template <class F> void NumVec<F>::Clear()  {
+ template <class F, class TIdx> void NumVec<F,TIdx>::Clear()  
+{
 		if( owndata_ == false ){
 			throw std::logic_error("Vector being cleared must own data.");
 		}
@@ -273,19 +235,11 @@ template <class F> const F& NumVec<F>::operator[]	( Int i ) const
 
 
 
-template <class F> void SetValue( NumVec<F>& vec, F val )
+template <class F, class TIdx> void SetValue( NumVec<F,TIdx>& vec, F val )
 {
-	for(Int i=0; i<vec.m(); i++)
-		vec(i) = val;
+  std::fill(&vec[0],&vec[0]+vec.m(),val);
 }
 
-template <class F> Real Energy( const NumVec<F>& vec )
-{
-	Real sum = 0;
-	for(Int i=0; i<vec.m(); i++)
-		sum += abs(vec(i)*vec(i));
-	return sum;
-}  
 }
 
 #endif

@@ -77,7 +77,7 @@ template <typename F> class DistSparseMatrix{
 	Int          nnz;                             
 
 	/// @brief Dimension nnzLocal, storing the nonzero values.
-	NumVec<F>    nzvalLocal;                      
+	NumVec<F,Int>    nzvalLocal;                      
 
 	/// @brief MPI communicator
 	MPI_Comm     comm;        

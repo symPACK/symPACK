@@ -9,7 +9,7 @@
 
 namespace LIBCHOLESKY{
 
-/// @class NumVec
+/// @class NNumVec
 ///
 /// @brief Numerical vector.
 /// 
@@ -17,39 +17,44 @@ namespace LIBCHOLESKY{
 /// vector. The main difference between NumVec<F> and std::vector<F> is
 /// that NumVec<F> allows the vector to not owning the data, by
 /// specifying (owndata_ == false).
-template <class F> class NumVec
+
+template <class F, class TIdx = Int > class NumVec
 {
 public:
 	/// @brief The size of the vector.
-	Int  m_;                                
+	TIdx  m_;                                
 	///
 	/// @brief Whether it owns the data.
 	bool owndata_;                          
 
 	/// @brief The pointer for the actual data.
-	F* data_;                                
+	F* data_;        
+                        
+  void alloc_data();
 public:
-	NumVec(Int m = 0);
-	NumVec(Int m, bool owndata, F* data);
+	NumVec(TIdx m = 0);
+	NumVec(TIdx m, bool owndata, F* data);
 	NumVec(const NumVec& C);
 	~NumVec();
 
 	NumVec& operator=(const NumVec& C);
 
-	void Resize ( Int m );
+	void Resize ( TIdx m );
 	void Clear();
 
-	const F& operator()(Int i) const;  
-	F& operator()(Int i);  
-	const F& operator[](Int i) const;
-	F& operator[](Int i);
+	const F& operator()(TIdx i) const;  
+	F& operator()(TIdx i);  
+	const F& operator[](TIdx i) const;
+	F& operator[](TIdx i);
 
 	bool IsOwnData() const { return owndata_; }
 	F*   Data() const { return data_; }
-	Int  m () const { return m_; }
+	TIdx  m () const { return m_; }
 };
 
 // Commonly used
+//template <class F> using NumVec = NumVec<F,Int>;
+
 typedef NumVec<bool>       BolNumVec;
 typedef NumVec<Int>        IntNumVec;
 typedef NumVec<Real>       DblNumVec;
@@ -60,10 +65,7 @@ typedef NumVec<Complex>    CpxNumVec;
 // Utility functions
 // *********************************************************************
 /// @brief SetValue sets a numerical vector to a constant val.
-template <class F> void SetValue( NumVec<F>& vec, F val );
-
-/// @brief Energy computes the L2 norm of a vector.
-template <class F> Real Energy( const NumVec<F>& vec );
+template <class F, class TIdx> void SetValue( NumVec<F,TIdx>& vec, F val );
 
 
 } // namespace LIBCHOLESKY

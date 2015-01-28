@@ -7,6 +7,7 @@
 
 namespace LIBCHOLESKY{
 
+
   void DisjointSet::Initialize(Int n){
     pp_.Resize(n);
     SetValue(pp_,I_ZERO);

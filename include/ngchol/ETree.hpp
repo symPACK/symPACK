@@ -12,11 +12,12 @@
 #include "ngchol/SparseMatrixStructure.hpp"
 #include "ngchol/Ordering.hpp"
 
+
 namespace LIBCHOLESKY{
   class DisjointSet{
     protected:
-      NumVec<Int> pp_;
-      NumVec<Int> root_;
+      NumVec<Int,Int> pp_;
+      NumVec<Int,Int> root_;
     public:
       void Initialize(Int n);
       void Finalize();
@@ -79,8 +80,8 @@ protected:
   Int n_;
   bool bIsPostOrdered_;
 
-  NumVec<Int> parent_;
-  NumVec<Int> poparent_;
+  NumVec<Int,Int> parent_;
+  NumVec<Int,Int> poparent_;
 //  NumVec<Int> postNumber_;
 //  NumVec<Int> invPostNumber_;
 

@@ -300,7 +300,7 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 				<< "size of values = " << tmp << std::endl;
 			throw std::logic_error( msg.str().c_str() );
 		}
-		NumVec<Real> buf;
+		NumVec<Real,Int> buf;
 		Int numRead;
 		for( Int ip = 0; ip < mpisize; ip++ ){
 			numRead = colptr[ip*numColFirst + numColLocalVec[ip]] - 
@@ -835,7 +835,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 
 	// Read colptr
 
-	NumVec<Int>  colptr(pspmat.size+1);
+	NumVec<Int,Int>  colptr(pspmat.size+1);
 	if( mpirank == 0 ){
 		Int* ptr = colptr.Data();
 		for( Int i = 0; i < pspmat.size+1; i++ )
@@ -907,7 +907,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 	// Read and distribute the nonzero values
 	if( mpirank == 0 ){
 		Int tmp;
-		NumVec<Real> buf;
+		NumVec<Real,Int> buf;
 		Int numRead;
 		for( Int ip = 0; ip < mpisize; ip++ ){
 			numRead = colptr[ip*numColFirst + numColLocalVec[ip]] - 
