@@ -693,8 +693,8 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
     Int first_col = Xsuper_(s-1);
     Int last_col = Xsuper_(s)-1;
 
-    Int fi = xlindx_(s-1);
-    Int li = xlindx_(s)-1;
+    Idx64 fi = xlindx_[s-1];
+    Idx64 li = xlindx_[s]-1;
 
 
 #ifdef _DEBUG_UPDATES_
@@ -702,8 +702,8 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
 #endif
 
 
-    for(Int row_idx = fi; row_idx<=li;++row_idx){
-      Int row = lindx_(row_idx-1);
+    for(Idx64 row_idx = fi; row_idx<=li;++row_idx){
+      Idx32 row = lindx_[row_idx-1];
       Int supno = SupMembership_(row-1);
 
       if(marker(supno-1)!=s && supno!=s){
@@ -892,16 +892,16 @@ template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I,Int prevJ){
   Int np  = CommEnv_->MPI_Size();
   //Check if I have anything to update with that supernode
   //look at lindx_
-  Int fi = xlindx_(I-1);
-  Int li = xlindx_(I)-1;
+  Idx64 fi = xlindx_(I-1);
+  Idx64 li = xlindx_(I)-1;
 
   Int iOwner = Mapping_->Map(I-1,I-1);
 
 
   Int firstUpdate = -1; 
   Int J = -1; 
-  for(Int idx = fi; idx<=li;++idx){
-    Int row = lindx_[idx-1];
+  for(Idx64 idx = fi; idx<=li;++idx){
+    Idx32 row = lindx_[idx-1];
     J = SupMembership_[row-1];
     Int iUpdater = Mapping_->Map(J-1,I-1);
 

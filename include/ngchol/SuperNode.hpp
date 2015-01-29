@@ -128,7 +128,7 @@ class SuperNode{
 
   SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN);
   SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN);
-  SuperNode(Int aiId, Int aiFc, Int aiLc, IntNumVec & xlindx, IntNumVec & lindx, Int aiN);
+  SuperNode(Int aiId, Int aiFc, Int aiLc, PtrVec & xlindx, IdxVec & lindx, Int aiN);
 
   SuperNode(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt,
               T * a_nzval, Int a_nzval_cnt, Int aiN);

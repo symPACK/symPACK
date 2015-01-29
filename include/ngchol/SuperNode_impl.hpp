@@ -81,7 +81,7 @@
     }
 
   template<typename T>
-    SuperNode<T>::SuperNode(Int aiId, Int aiFc, Int aiLc, IntNumVec & xlindx, IntNumVec & lindx, Int aiN) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
+    SuperNode<T>::SuperNode(Int aiId, Int aiFc, Int aiLc, PtrVec & xlindx, IdxVec & lindx, Int aiN) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
 
       iN_=aiN;
       //compute supernode size / width
@@ -90,8 +90,8 @@
 
       std::list<NZBlockDesc> tmpBlockIndex;
 
-      Int fi = xlindx(iId_-1);
-      Int li = xlindx(iId_)-1;
+      Idx64 fi = xlindx[iId_-1];
+      Idx64 li = xlindx[iId_]-1;
 
 
 
@@ -100,8 +100,8 @@
       blocks_cnt_ = 0;
 
 
-      for(Int idx= fi ; idx<=li; ++idx){
-        Int curRow = lindx[idx-1];
+      for(Idx64 idx= fi ; idx<=li; ++idx){
+        Idx32 curRow = lindx[idx-1];
         //create a new block
         if(curRow==iFirstCol_ || curRow != prevRow+1 || (curRow>iLastCol_ && blocks_cnt_==1) ){
 

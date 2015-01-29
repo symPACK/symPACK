@@ -1,11 +1,11 @@
 #DEBUG_LIB = ${HOME}/software/duma_2_5_15/libduma.a -lpthread
 
-FC=ftn
-CXX=CC
+FC=gfortran
+CXX=g++-4.8
 
 FFLAGS=
 
-CXXFLAGS =-I./ -DAdd_ -fast -std=c++11 -openmp -DPROFILE
+CXXFLAGS =-I./ -DAdd_ -O3 -std=c++11 -fopenmp -DPROFILE
 #CXXFLAGS =-I./  -DAdd_ -g -O0 -std=c++11 -openmp 
 #-DPROFILE -openmp
 

@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include <cfloat>
+#include <cstdint>
 #include <complex>
 #include <string>
 

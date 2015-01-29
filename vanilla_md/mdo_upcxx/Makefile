@@ -13,14 +13,15 @@ clean:
 
 #UPCXX_INSTALL_DIR ?= $(HOME)/upcxx_install
 #UPCXX_INSTALL_DIR ?= $(HOME)/install/upcxx_clang
-UPCXX_INSTALL_DIR ?= $(PREFIX)/upcxx_install
+#UPCXX_INSTALL_DIR ?= $(PREFIX)/upcxx_install
+UPCXX_INSTALL_DIR ?= $(HOME)/software/release/upcxx_install
 include $(UPCXX_INSTALL_DIR)/include/upcxx.mak
 
 VPATH=$(UPCXX_INSTALL_DIR)/include
 
-#MYCXXFLAGS = -openmp -DPROFILE -O0 -g
-MYCXXFLAGS =-fast -openmp -DPROFILE
-CXX=CC 
+MYCXXFLAGS =-O3 -fopenmp -DPROFILE
+#MYCXXFLAGS =-O0 -g -fopenmp -DPROFILE
+CXX=mpicxx 
 
 
 util.o: util.cpp

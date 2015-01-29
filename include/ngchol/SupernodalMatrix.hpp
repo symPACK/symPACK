@@ -202,8 +202,8 @@ namespace LIBCHOLESKY{
       SparseMatrixStructure Local_;
       SparseMatrixStructure Global_;
       //CSC structure of L factor
-      IntNumVec xlindx_;
-      IntNumVec lindx_;
+      PtrVec xlindx_;
+      IdxVec lindx_;
 
 
       //Supernodal partition array: supernode I ranges from column Xsuper_[I-1] to Xsuper_[I]-1

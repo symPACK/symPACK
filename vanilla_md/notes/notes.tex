@@ -36,13 +36,42 @@
 \begin{document}
 \maketitle
 
+
+When factoring sparse matrices, new non-zero entries are created. This phenomenon,
+known as ``fill-in'', has a significant impact on performance. This amount
+of extra non-zero entries created depends on column ordering. Determining good
+column orderings is therefore an extremely precomputing phase of any sparse matrix
+factorization.
+
+\section{Elimination game}
+
+The \textbf{elimination game} consists in simulating the factorization itself while
+monitoring newly created non-zero entries. Based on this knowledge, it is possible to
+design heuristics intenting to reduce the amount of fill-in.
+
+Sparse matrix row-column dependencies are represented using a graph structure $\mathcal{G} = (V,E)$.
+Each node $v \in V$ corresponds to a column in the sparse matrix. Every edge $(u,v) \in E$ between two
+nodes $u$ and $v$ represents a dependency between these two columns, i.e. a non zero entry in $(u,v)$
+and $(v,u)$ entries of the sparse matrix. 
+
+At every step, the elimination game processes as follows:
+  \begin{enumerate}
+    \item Pick a node $v$ and eliminate it.
+    \item Create a clique between all nodes adjacent to $v$
+  \end{enumerate}
+
+\section{Minimum degree algorithm}
+
+\subsection{Parallelization schemes}
+
 \begin{itemize}
   \item algorithms not explicitely changing the graph
   \item algorithms changing the graph
 \end{itemize}
 
 
-\section{finding indinstinguishable nodes when computing reachable set}
+
+\section{Finding indistinguishable nodes when computing reachable set}
 
 \begin{algorithm}
 \DontPrintSemicolon
@@ -143,6 +172,19 @@ $count \gets 1$\;
 
 
 \end{algorithm}
+
+\section{Performance}
+
+\begin{table}
+\begin{tabular}{c | c | c | c | c | c}
+P & Reach & Reach \& comp. & Reach, comp. \& mass. & Explicit & Explicit \& mass. \\
+1   &     & 4.9444  & 5.2108  & 3.5210  & 0.2097  \\
+4   &     & 1.9232  & 2.1678  & 1.4694  & 0.2074  \\
+8   &     & 1.1575  & 1.4402  & 0.9910  & 0.1702  \\
+16  &     & 0.8842  & 1.3877  & 0.8215  & 0.1937  \\
+24  &     & 0.8289  & 1.3861  & 0.8287  & 0.2133  \\
+\end{tabular}
+\end{table}
 
 
 \end{document}

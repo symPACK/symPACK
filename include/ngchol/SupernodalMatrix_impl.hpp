@@ -586,8 +586,8 @@ namespace LIBCHOLESKY{
       Int fc = Xsuper_(I-1);
       Int lc = Xsuper_(I)-1;
       Int iWidth = lc-fc+1;
-      Int fi = xlindx_(I-1);
-      Int li = xlindx_(I)-1;
+      Idx64 fi = xlindx_(I-1);
+      Idx64 li = xlindx_(I)-1;
       Int iHeight = li-fi+1;
 
       Int iDest = Mapping_->Map(I-1,I-1);
@@ -671,8 +671,8 @@ namespace LIBCHOLESKY{
       Int fc = Xsuper_(I-1);
       Int lc = Xsuper_(I)-1;
       Int iWidth = lc-fc+1;
-      Int fi = xlindx_(I-1);
-      Int li = xlindx_(I)-1;
+      Idx64 fi = xlindx_(I-1);
+      Idx64 li = xlindx_(I)-1;
       Int iHeight = li-fi+1;
 
       Int iDest = Mapping_->Map(I-1,I-1);
@@ -696,12 +696,12 @@ namespace LIBCHOLESKY{
 
 
 
-        for(Int idx = fi; idx<=li;idx++){
-          Int iStartRow = lindx_(idx-1);
-          Int iPrevRow = iStartRow;
+        for(Idx64 idx = fi; idx<=li;idx++){
+          Idx32 iStartRow = lindx_(idx-1);
+          Idx32 iPrevRow = iStartRow;
           Int iContiguousRows = 1;
           for(Int idx2 = idx+1; idx2<=li;idx2++){
-            Int iCurRow = lindx_(idx2-1);
+            Idx32 iCurRow = lindx_(idx2-1);
             if(iStartRow == lindx_(fi-1)){
               if(iCurRow>iStartRow+iWidth-1){
                 //enforce the first block to be a square diagonal block
@@ -839,8 +839,8 @@ namespace LIBCHOLESKY{
       Int fc = Xsuper_(I-1);
       Int lc = Xsuper_(I)-1;
       Int iWidth = lc-fc+1;
-      Int fi = xlindx_(I-1);
-      Int li = xlindx_(I)-1;
+      Idx64 fi = xlindx_(I-1);
+      Idx64 li = xlindx_(I)-1;
       Int iHeight = li-fi+1;
 
       Int iDest = Mapping_->Map(I-1,I-1);
@@ -864,12 +864,12 @@ namespace LIBCHOLESKY{
 
 
 
-        for(Int idx = fi; idx<=li;idx++){
-          Int iStartRow = lindx_(idx-1);
-          Int iPrevRow = iStartRow;
+        for(Idx64 idx = fi; idx<=li;idx++){
+          Idx32 iStartRow = lindx_(idx-1);
+          Idx32 iPrevRow = iStartRow;
           Int iContiguousRows = 1;
           for(Int idx2 = idx+1; idx2<=li;idx2++){
-            Int iCurRow = lindx_(idx2-1);
+            Idx32 iCurRow = lindx_(idx2-1);
             if(iStartRow == lindx_(fi-1)){
               if(iCurRow>iStartRow+iWidth-1){
                 //enforce the first block to be a square diagonal block
@@ -1242,8 +1242,8 @@ namespace LIBCHOLESKY{
       Int first_col = Xsuper_[s-1];
       Int last_col = Xsuper_[s]-1;
 
-      Int fi = xlindx_[s-1];
-      Int li = xlindx_[s]-1;
+      Idx64 fi = xlindx_[s-1];
+      Idx64 li = xlindx_[s]-1;
 
 //#ifndef _DEBUG_
 //  #define nodebugtmp
@@ -1263,8 +1263,8 @@ namespace LIBCHOLESKY{
       logfileptr->OFS()<<"Supernode "<<s<<" on P"<<iOwner<<" updates: ";
 #endif
 
-      for(Int row_idx = fi; row_idx<=li;++row_idx){
-        Int row = lindx_[row_idx-1];
+      for(Idx64 row_idx = fi; row_idx<=li;++row_idx){
+        Idx32 row = lindx_[row_idx-1];
         Int supno = SupMembership_(row-1);
 
         if(marker[supno-1]!=s && supno!=s){

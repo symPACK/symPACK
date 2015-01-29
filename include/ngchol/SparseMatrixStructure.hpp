@@ -39,15 +39,15 @@ class SparseMatrixStructure{
   void FindSupernodes(ETree& tree, Ordering & aOrder, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, Int maxSize = -1);
 
 #ifdef REFINED_SNODE
-  void RefineSupernodes(ETree& tree, Ordering & aOrder, IntNumVec & supMembership, IntNumVec & xsuper, IntNumVec & xlindx, IntNumVec & lindx, IntNumVec & perm);
+  void RefineSupernodes(ETree& tree, Ordering & aOrder, IntNumVec & supMembership, IntNumVec & xsuper, PtrVec & xlindx, IdxVec & lindx, IntNumVec & perm);
 #endif
 
 #ifdef RELAXED_SNODE
   void RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, Int maxSize );
-  void SymbolicFactorizationRelaxed(ETree& tree, Ordering & aOrder,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, IntNumVec & xlindx, IntNumVec & lindx);
+  void SymbolicFactorizationRelaxed(ETree& tree, Ordering & aOrder,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, PtrVec & xlindx, IdxVec & lindx);
 #endif
 
-  void SymbolicFactorization(ETree& tree, Ordering & aOrder,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, IntNumVec & xlindx, IntNumVec & lindx);
+  void SymbolicFactorization(ETree& tree, Ordering & aOrder,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, PtrVec & xlindx, IdxVec & lindx);
 
 
 
