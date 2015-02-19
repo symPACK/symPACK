@@ -1355,6 +1355,7 @@ TIMER_STOP(ADVANCE_OUTGOING_COMM);
 #include "SupernodalMatrix_impl_FB.hpp"
 
 
+#include "SupernodalMatrix_impl_FB_pull.hpp"
 
 
 
@@ -1368,7 +1369,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
   TIMER_START(FACTORIZATION);
   switch(options_.factorization){
     case FANBOTH:
-      FanBoth();
+      FanBothPull();
       break;
     case FANOUT:
       FanOut();

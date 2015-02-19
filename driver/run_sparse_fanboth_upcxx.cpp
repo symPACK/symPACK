@@ -30,6 +30,7 @@ extern "C" {
 #include "bebop/util/util.h"
 }
 
+#include <upcxx.h>
 
 #define MYSCALAR double
 
@@ -40,6 +41,7 @@ using namespace LIBCHOLESKY;
 int main(int argc, char **argv) 
 {
   MPI_Init(&argc,&argv);
+  upcxx::init(&argc, &argv);
 
   NGCholOptions optionsFact;
 
@@ -494,7 +496,6 @@ DistSparseMatrix<Real> HMat(workcomm);
 
 
 
-
   if(iam==0){
     cout<<"Starting Factorization"<<endl;
   }
@@ -663,6 +664,8 @@ DistSparseMatrix<Real> HMat(workcomm);
 #endif
 
   delete logfileptr;
+
+  upcxx::finalize();
   MPI_Finalize();
   return 0;
 }

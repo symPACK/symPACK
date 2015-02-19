@@ -178,6 +178,30 @@ namespace LIBCHOLESKY{
       void FanOut2( );
 
 
+
+
+      void FanBothPull( );
+      void FBPullAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & AggregatesToRecv, IntNumVec & FactorsToRecv);
+      void FBPullFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, IntNumVec & AggregatesDone, IntNumVec & AggregatesToRecv, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr);
+      void FBPullUpdateTask(SnodeUpdateFB & curTask, IntNumVec & UpdatesToDo, IntNumVec & AggregatesDone, std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks,std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & FactorsToRecv);
+
+#ifdef _SEPARATE_COMM_
+      SuperNode<T> * FBPullRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv, Int & recv_tgt_id);
+#else
+      SuperNode<T> * FBPullRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv);
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
 #ifdef _CHECK_RESULT_SEQ_
       void Solve(NumMat<T> * RHS, NumMat<T> & forwardSol, NumMat<T> * Xptr=NULL);
 #else

@@ -59,10 +59,21 @@ run_dense_fanboth_mpi.o: run_dense_fanboth_mpi.cpp
 
 
 run_sparse_fanboth_upcxx: run_sparse_fanboth_upcxx.o ${NGCHOL_LIB}
-	($(LOADER) $(LDFLAGS)  -o $@ run_sparse_fanboth_upcxx.o  $(LOADOPTS)   )
+	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@ run_sparse_fanboth_upcxx.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
 
 run_sparse_fanboth_upcxx.o: run_sparse_fanboth_upcxx.cpp 
-	${CXX} -g  -c ${CXXFLAGS} ${CPPDEFS} $< 
+	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
+
+
+run_pull_test: run_pull_test.o ${NGCHOL_LIB}
+	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@ run_pull_test.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
+
+run_pull_test.o: run_pull_test.cpp 
+	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
+
+
+
+
 
 unit_test: unit_test.o ${NGCHOL_LIB}
 	($(LOADER) $(LDFLAGS)  -o $@ unit_test.o  $(LOADOPTS)    )

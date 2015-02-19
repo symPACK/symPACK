@@ -388,6 +388,17 @@ namespace LIBCHOLESKY{
       TIMER_STOP(ICOMM_MALLOC);
       head = 0;
     };
+
+    Icomm(size_t aSize){
+      Request = MPI_REQUEST_NULL;
+      TIMER_START(ICOMM_MALLOC);
+      pSrcBlocks = new std::vector<char>(aSize);
+      TIMER_STOP(ICOMM_MALLOC);
+      head = 0;
+    };
+
+
+
     ~Icomm(){  
       delete pSrcBlocks; 
       if(Request !=MPI_REQUEST_NULL){

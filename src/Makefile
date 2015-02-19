@@ -1,7 +1,7 @@
 include ../make.inc
 
 SRCS_C   = 
-SRCS_CPP = ETree.cpp utility.cpp timer.cpp blas.cpp lapack.cpp global.cpp LogFile.cpp SparseMatrixStructure.cpp IntervalTree.cpp Ordering.cpp SuperNode.cpp 
+SRCS_CPP = ETree.cpp utility.cpp timer.cpp blas.cpp lapack.cpp global.cpp LogFile.cpp SparseMatrixStructure.cpp IntervalTree.cpp Ordering.cpp SuperNode.cpp CommPull.cpp 
 #UPCXX_CPP = FBMatrix.cpp FBMatrix_mpi.cpp FBMatrix_upcxx.cpp
 UPCXX_CPP = 
 SRCS_F   = genmmd.f  mmdelm.f  mmdint.f  mmdnum.f  mmdupd.f  ordmmd.f amdbar.f
@@ -22,7 +22,7 @@ DEPS     = ${UPCXX_CPP:.cpp=.d} ${SRCS_CPP:.cpp=.d} ${SRCS_C:.c=.d} ${SRCS_F:.f=
 %.o: %.c
 	${CC} -c ${CFLAGS} ${CCDEFS} $< 
 %.o: %.cpp
-	${CXX} -c $< ${CXXFLAGS} ${CPPDEFS} 
+	${CXX} -c $<  ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} 
 %.o: %.f
 	${FC} -c ${FFLAGS} $<
 %.o: %.F
