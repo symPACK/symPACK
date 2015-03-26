@@ -1,0 +1,64 @@
+mfh 08 May 2007:
+    
+	split_t and its member functions are untested, though they
+	compile and link just fine.  I recommmend using manysplit_t
+	(the non-consing, optimized version of split_t) for now.
+
+mfh 06 May 2007:
+
+	tests/test_split breaks.  manysplit() doesn't seem to break at
+	spaces when it should.  Getting a new manysplit token spot
+	fails (NULL).
+
+	mfh 08 May 2007: manysplit() and kin largely fixed, though
+	test_split still a little broken.  One reason is that
+	manysplit() shouldn't be adding pointers from the buffer into
+	the list of tokens, because the buffer may get realloc'd (and
+	thus moved around).  The list should be constructed all at
+	once, directly from the buffer, inside manysplit_tokens().
+
+	mfh 08 May 2007: Implemented the change above to manysplit().
+	It works now, even on long files.
+
+	Valgrind (3.2.1) reports extstring_terminate() at "str->s[str->len]"
+	reads uninitialized value.  Code seems to work though.
+
+mfh 23 Feb 2006:
+
+	Some compilers (e.g. Cray's C Compiler on the X1) have trouble
+	with "void*+int" constructs.  I think there are some still left 
+	in the code.  The obvious (hackish, but obvious) solution is to
+	cast the void* to char* before adding the int.
+
+	mfh 24 Feb 2006: Removed all the "void* + int" constructs.
+
+mfh 22 July 2005:
+
+	Renamed some functions in smvm_util, smvm_malloc and
+	random_number that were clashing with names in other people's
+	projects, because the names were too common.
+
+mfh 7 July 2005:
+
+	sort_joint_arrays was doing pointer arithmetic with void*, which
+	is perfectly fine in gcc, but not OK with other compilers
+	(including IBM's VisualAge C++ Professional / C for AIX
+	Compiler, Version 6).  It's tempting just to cast the void* to
+	(unsigned int), but if we are compiling with 64-bit pointers,
+	thhat will mess everything up.  
+
+	mfh 7 July 2005:  My implementation of the bugfix requires
+	including <stdint.h>, which is part of the POSIX standard.
+	void* are cast to uintptr_t, which unfortunately is only
+	optional in the POSIX standard (though it is required for
+	XSI-conformant systems).  A more portable solution would be to 
+	test for if the macro INTPTR_MIN is defined; if it is, then we 
+	can use uintptr_t, otherwise we have to resort to a config.h 
+	option for the pointer size, and use uint32_t or uint64_t as 
+	appropriate.
+
+	mfh 10 July 2005:  I came up with a more portable but also more
+	hackish bugfix:  Cast the pointer to (char*), do pointer
+	arithmetic with the char* (hoping that sizeof(char) == 1, which
+	it is guaranteed to be in the C99 standard, from what I
+	understand), and then cast the result to (void*).

@@ -1,0 +1,182 @@
+;;; -*- Mode: lisp -*-
+;;; template-parser (BeBOP C "templates" parser and code generator)
+;;; Copyright (C) 2008 Mark Hoemmen <mhoemmen@cs.berkeley.edu>
+;;;
+;;; This file is part of the template-parser library, which parses C
+;;; "templates" and generates code for different data types.
+;;; template-parser is free software: you can redistribute it and/or
+;;; modify it under the terms of the GNU General Public License as
+;;; published by the Free Software Foundation, either version 3 of the
+;;; License, or (at your option) any later version.
+;;;
+;;; template-parser is distributed in the hope that it will be useful,
+;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+;;; General Public License for more details.
+;;;
+;;; You should have received a copy of the GNU General Public License
+;;; along with the source code of this library.  If not, see
+;;; <http://www.gnu.org/licenses/>.
+;;;
+
+
+Here is an example of a "template" pragma:
+
+#pragma bebop template start
+void
+foo_${ValName}_${IndName} (${ValType}* x, ${IndType} i)
+{
+  ...
+}
+#pragma bebop template end
+
+The dictionary needs to associate ValName and ValType so that they
+always have the same values together.  For example, "r64" and
+"double", "c64" and "double _complex", "r32" and "float", "c32" and
+"float _complex".
+
+Here is an example of a dictionary that accomplishes this association:
+
+1. Associated variable names:
+
+(("ValType" "ValName") ("IndName" "IndType"))
+
+2. Dictionary of values:
+
+(("ValType" "float" "double") 
+ ("ValName" "r32" "r64") 
+ ("IndName" . "i32") 
+ ("IndType" . "int32_t"))
+
+Here's how we do the association:
+
+1. Read in the list of variable names that are to be bound together.
+Each group of bound-together variables go into a set.  
+
+2. Read in the dictionary of (key, values) items.
+
+3. For any two keys in the same set, ensure that they have the same
+number of values.
+
+
+
+1. Read in the dictionary of values.
+
+2. Read in the variable names that are to be bound together.
+   Each group of "bound" variables go into a set.  
+
+3. For each _set_, map over all possible combinations of the values.
+
+
+How do we represent the sets of variables that are bound together?
+- Hash table from variable name to list of variable names in the set.
+
+
+
+
+
+until seen a code start pragma or file is empty:
+    read a line
+    if line is a macro pragma:
+        read a line
+        if no line:
+            error
+        else:
+            parse macro from line
+until file empty:
+    read a line
+    if line is a code start pragma:
+        invoke code start routine
+    else:
+        output line verbatim
+done. 
+
+code start routine:
+    until seen a code end pragma or file empty:
+        read a line
+        if line is a code end pragma:
+            invoke code generation on collected lines
+            return.
+        else:
+            do macro substitution on line
+            add result to current collection of lines
+
+
+
+
+* map-alist-tuples, but with sets (a generalization)
+** If keys are in the same set, they vary in lockstep, rather than
+   over all possible combinations
+** Keys that initially aren't in any set each go in a singleton set 
+*** This is why it's a generalization of map-alist-tuples
+**** In map-alist-tuples, all sets are singletons
+
+These "sets" are like union-find:  initially each key is in its own
+singleton set, and then the sets are unioned.  
+
+If I'm in a set with somebody else, then our values need to move in
+lockstep.
+
+Would it be better to set up "namespaces" so that we don't have to
+identify common set membership in advance?
+
+(loop :for s :in sets :collect (loop :for key :in s :collect 
+                                     (cons key (gethash ... item))))
+
+Namespace:
+
+Val: Type Name
+Ind: Type Name
+
+Val:Type float double
+Val:Name r32 r64
+
+Ind:Type int32_t int64_t
+Ind:Name i32 i64
+
+
+list of sets
+  each set is (setkey (key0 val00 val01 val02 ...)
+                      (key1 val10 val11 val12 ...)
+                      ...)
+
+(defun heads (lists)
+  (if (endp lists)
+      nil
+      (cons (caar lists) (heads (cdr lists)))))
+(defun tails (lists)
+  (if (endp lists)
+      nil
+      (cons (cdar lists) (tails (cdr lists)))))
+
+;; Idea: Map over possible dictionaries of substitutions.
+(defun map-possible-substs (sets f)
+  (if (endp sets) 
+      nil
+      (destructuring-bind (setkey &rest set) (car sets)
+        (labels ((current-dictionary (keys val-lists)
+                   (if (endp keys)
+                       nil
+		       (append (loop :for key :in keys
+                                     :for vals :in val-lists
+                                     :collect (cons key (car vals)))
+                               (current-dictionary keys (tails val-lists))))))
+          (
+          (construct (heads set) (tails set)))                               
+
+
+
+        (map-sets-tuples-helper (cdr sets) f (cons (loop :for key :in (heads set)
+                                                         :for vals :in (tails set)	   
+	                                                 :collect (cons 
+
+	      (map-sets-tuples-helper (cdr sets) f (cons (
+
+
+              :collect (cons key (listify vals)	
+	
+	(let ((keys (heads set))
+	
+        ;; TODO: extract keys, and combine tuples
+
+

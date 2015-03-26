@@ -1,0 +1,138 @@
+Author: Mark Hoemmen <mhoemmen@cs.berkeley.edu>
+First version: 26 June 2005
+Time-stamp: <2008-08-19 09:43:05 mhoemmen>
+
+----------------------------------------------------------------------
+
+Copyright (c) 2008, Regents of the University of California 
+All rights reserved.
+Redistribution and use in source and binary forms, with or
+without modification, are permitted provided that the
+following conditions are met:
+
+* Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright 
+  notice, this list of conditions and the following disclaimer in 
+  the documentation and/or other materials provided with the 
+  distribution.
+
+* Neither the name of the University of California, Berkeley, nor
+  the names of its contributors may be used to endorse or promote
+  products derived from this software without specific prior
+  written permission.  
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+OF THE POSSIBILITY OF SUCH DAMAGE.
+
+----------------------------------------------------------------------
+
+Welcome to the BeBOP Utility Library!  This is a collection of C
+routines and macros that I wrote over the course of several years for
+my colleagues in the Berkeley Benchmarking and Optimization Group
+(bebop.cs.berkeley.edu).
+
+Build instructions:
+
+1. Unpack BeBOP Makefiles (bebop_make) and set it up according to the
+   instructions in its README file.
+
+2. Unpack the BeBOP utility library (bebop_util): bebop_make and
+   bebop_util should be sibling subdirectories of one common parent
+   directory.
+
+3. Build the library:  run GNU Make to build the library:
+
+   $ make
+
+   You should use GNU Make only; depending on how your system is
+   configured, you may have to run "gmake" instead of "make".
+
+4. Install the library
+
+   Currently, it's the user's responsibility to put the library
+   (libbebop_util) and header files in a place where other projects
+   can find them.  You will have to modify the Makefiles of those
+   projects to point to these files and directories.  If there is
+   sufficient interest, we may automate this process via the GNU
+   Autotools.
+
+5. Optionally, build documentation
+
+   You can build the documentation in HTML format using Doxygen.  Type
+   the following at the prompt:
+
+   $ doxygen Doxyfile
+
+   You will need to have Doxygen installed.  You may also need to edit
+   some options in the Doxyfile configuration file (e.g., PERL_PATH,
+   the absolute path and name of the Perl script interpreter).
+
+6. Library initialization at runtime
+
+   You need to initialize the BeBOP Utility Library at runtime before
+   you can use any of its functionality.  The minimal-fuss solution is
+   to call
+
+   bebop_default_initialize(argc, argv, info);
+
+   which you can find in the header file <bebop/util/init.h>.  This
+   sets up the following systems:
+
+   * Reads the BEBOP_DEBUG_LEVEL environment variable.  Uses its
+     nonnegative integer value to set the debug output level.  Zero
+     means no debug output, and increasingly higher levels mean
+     increasingly more debug output.
+
+   * Sets stderr as the file stream for debug output, warnings,
+     and errors.
+
+   * Initializes the timer system.
+
+   * Initializes the pseudorandom number generator (PRNG).  We use a
+     custom PRNG for thread-safety and also for more "random" results.
+     First we try to generate a random seed using one of the operating
+     system's entropy pools; if this doesn't work, we use the current
+     system time.
+
+   * Sets up other useful systems.
+
+   If you'd like to change one or more of these defaults, you can edit
+   the source code for bebop_default_initialize(), or create your own
+   initialization function and call that instead.  In particular, you
+   may wish to log debug output to a file, in which case you should
+   read the documentation for bebop_start_logging() in the
+   <bebop/util/log.h> header file.
+
+7. Library deinitialization at program exit
+
+   You should call bebop_exit() at program exit.  This function safely
+   closes various log files and resources that the BeBOP Utility
+   Library uses, and then calls the C standard library function
+   exit(), with the supplied return code.  Any atexit() hooks you have
+   registered will be invoked by exit(), but only after the BeBOP
+   Utility Library releases its resources.  This means that your
+   atexit() hooks should NOT use the BeBOP Utility Library's logging
+   (bebop_log()) or error reporting (bebop_error() or
+   bebop_fatal_error()) routines.
+
+Notes:
+
+1. If you build with ECL (Embedded Common Lisp) support, you'll have
+   trouble running libbebop_util programs under Valgrind.  This is
+   because ECL uses the Boehm-Demers-Weiser garbage collector, which
+   is known to confuse Valgrind (as of Aug 2008, from what I can
+   tell).  If you build without ECL support, you should be able to run
+   libbebop_util programs under Valgrind.
+

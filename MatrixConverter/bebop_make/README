@@ -1,0 +1,79 @@
+Author: Mark Hoemmen <mhoemmen@cs.berkeley.edu>
+Time-stamp: <2008-07-21 15:21:09 mhoemmen>
+
+----------------------------------------------------------------------
+
+The BeBOP Sparse Matrix Converter and its associated projects
+(bebop_make, bebop_util, and sparse_matrix_converter) are subject to
+the following licensing terms:
+
+Copyright (c) 2008, Regents of the University of California
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or
+without modification, are permitted provided that the
+following conditions are met:
+
+    * Redistributions of source code must retain the above
+copyright notice, this list of conditions and the following
+disclaimer.
+
+    * Redistributions in binary form must reproduce the
+above copyright notice, this list of conditions and the
+following disclaimer in the documentation and/or other
+materials provided with the distribution.
+
+    * Neither the name of the University of California,
+Berkeley, nor the names of its contributors may be used to
+endorse or promote products derived from this software
+without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+SUCH DAMAGE.
+
+----------------------------------------------------------------------
+
+The bebop_make project is a collection of Makefile options for
+building various Berkeley Benchmarking and Optimization Group (BeBOP)
+projects.  For more details on BeBOP, see
+
+http://bebop.cs.berkeley.edu
+
+Build instructions:
+
+1. Unpack the bebop_make project.  (You must have done that already,
+   else how could you be reading this README?)
+
+2. Look at the "options" file to make sure that the
+   platform-independent build options are set as desired.  In most
+   cases, you won't have to edit this file.  If you do have to edit
+   it, the options are documented in the file itself.
+
+3. Create a platform-specific build file: if your platform is
+   <platform> (e.g., linux, darwin) and a Makefile.include.<platform>
+   is provided, use that file as a template.  Often you won't have to
+   edit this file.  If no such file is provided for your platform, use
+   one of the Makefile.include.<platform> files as a template to make
+   your own.
+
+4. Create a symlink from your Makefile.include.<platform> file to
+   Makefile.include in this directory.  If the latter exists as a file
+   or symlink, just overwrite it.
+
+5. If you are using ECL (see the "options" file), edit the "ecl" file
+   in this directory and check the paths of the ecl and ecl-config
+   executables.  Change them if necessary.  The system is set up NOT
+   to use ECL by default, so you don't have to change these unless you
+   modify the "options" file and request to use ECL.

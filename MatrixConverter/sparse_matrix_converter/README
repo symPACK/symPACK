@@ -1,0 +1,127 @@
+Author: Mark Hoemmen <mhoemmen@cs.berkeley.edu>
+First version: 26 June 2005
+Time-stamp: <2008-07-16 10:47:46 mhoemmen>
+
+----------------------------------------------------------------------
+
+Copyright (c) 2008, Regents of the University of California 
+All rights reserved.
+Redistribution and use in source and binary forms, with or
+without modification, are permitted provided that the
+following conditions are met:
+
+* Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright 
+  notice, this list of conditions and the following disclaimer in 
+  the documentation and/or other materials provided with the 
+  distribution.
+
+* Neither the name of the University of California, Berkeley, nor
+  the names of its contributors may be used to endorse or promote
+  products derived from this software without specific prior
+  written permission.  
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
+STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED
+OF THE POSSIBILITY OF SUCH DAMAGE.
+
+----------------------------------------------------------------------
+
+Welcome to the BeBOP Sparse Matrix Converter Library!  This is a
+collection of C routines and macros that I wrote over the course of
+several years for my colleagues in the Berkeley Benchmarking and
+Optimization Group (bebop.cs.berkeley.edu).  It converts between three
+different sparse matrix file formats (Matlab, MatrixMarket and
+Harwell-Boeing), and converts between a number of different internal
+sparse matrix storage formats.  It also offers a convenient wrapper
+that hides implementation details of the various sparse matrix data
+structures.
+
+NOTE WELL:  DO NOT swap out the Harwell-Boeing routines in this
+package with those found on the MatrixMarket website!  I've modified
+the routines in slight but important ways.
+
+
+1. Unpack BeBOP Makefiles (bebop_make) and set it up according to the
+   instructions in its README file.
+
+2. Build and install the BeBOP Utility Library.  See that project's
+   README for instructions.
+
+3. Unpack the BeBOP Sparse Matrix Converter library
+   (sparse_matrix_converter) into the parent directory of bebop_make
+   and bebop_util.  These three directories should be sibling
+   directories.  
+
+4. If you've installed the BeBOP Utility Library somewhere else,
+   you'll have to edit the Sparse Matrix Converter's Makefiles to make
+   sure that CPPFLAGS points to the include directory for bebop/util,
+   and that LIBS points to the directory in which the library itself
+   is installed.  For example:
+
+   CPPFLAGS += -I/usr/local/include
+   LIBS += -L/usr/local/lib -lbebop_util
+
+   assumes that the header files for the BeBOP Utility Library are
+   installed in /usr/local/include and the libbebop_util.a library is
+   in /usr/local/lib.  Alternately, if you're building the library for
+   your own personal use, you might have unpacked bebop_util and
+   sparse_matrix_converter into sibling directories, in which case you
+   don't have to do anything, since that is what we assume.
+
+5. Build the library:  run GNU Make to build the library:
+
+   $ make
+
+   You should use GNU Make only; depending on how your system is
+   configured, you may have to run "gmake" instead of "make".
+
+6. Install the library
+
+   Currently, it's the user's responsibility to put the library
+   (libsparse_matrix_converter) and header files in a place where
+   other projects can find them.  You will have to modify the
+   Makefiles of those projects to point to these files and
+   directories.  If there is sufficient interest, we may automate this
+   process via the GNU Autotools.
+
+7. Optionally, build documentation
+
+   You can build the documentation in HTML format using Doxygen.  Type
+   the following at the prompt:
+
+   $ doxygen Doxyfile
+
+   You will need to have Doxygen installed.  You may also need to edit
+   some options in the Doxyfile configuration file (e.g., PERL_PATH,
+   the absolute path and name of the Perl script interpreter).
+
+8. Using the executable utility
+
+   Run 
+
+   $ ./sparse_matrix_converter -h
+
+   to get a usage message.  You may have to add the directory
+   containing the bebop_util library to your LD_LIBRARY_PATH (on
+   GNU/Linux or some other flavors of *nix) or DYLD_LIBRARY_PATH on
+   MacOS X (a.k.a. "Darwin")).
+
+9. Library initialization at runtime, and deinitialization at program
+   exit
+
+   If you are interested in using the Sparse Matrix Converter API
+   rather than just invoking the executable, see bebop_util/README for
+   instructions on how to initialize and deinitialize the BeBOP
+   Utility Library.

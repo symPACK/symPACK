@@ -1,0 +1,93 @@
+### -*- mode: Makefile;-*-
+### Time-stamp: "2008-08-18 21:57:56 mhoemmen"
+### 
+### Build options (that are relatively platform-independent)
+###
+### ----------------------------------------------------------- 
+### The BeBOP Sparse Matrix Converter and its associated projects
+### (bebop_make, bebop_util, and sparse_matrix_converter) are subject
+### to the following licensing terms:
+### 
+### Copyright (c) 2008, Regents of the University of California
+### All rights reserved.
+### 
+### Redistribution and use in source and binary forms, with or
+### without modification, are permitted provided that the
+### following conditions are met:
+### 
+###     * Redistributions of source code must retain the above
+### copyright notice, this list of conditions and the following
+### disclaimer.
+### 
+###     * Redistributions in binary form must reproduce the
+### above copyright notice, this list of conditions and the
+### following disclaimer in the documentation and/or other
+### materials provided with the distribution.
+### 
+###     * Neither the name of the University of California,
+### Berkeley, nor the names of its contributors may be used to
+### endorse or promote products derived from this software
+### without specific prior written permission.
+### 
+### THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
+### CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+### INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+### MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+### DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+### CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+### SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+### BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+### SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+### INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+### WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+### NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+### OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+### SUCH DAMAGE.
+### 
+######################################################################
+
+##
+## "debug" or "release" build mode
+##
+#BUILD_MODE=debug
+BUILD_MODE=release
+
+##
+## Set to 1 if you want to use Valgrind client requests (see
+## http://valgrind.org) to help debug this code.  Otherwise set to 0.
+## Note that Valgrind must be installed; you probably need to use gcc,
+## and Valgrind is currently only (well-)supported on x86 platforms.
+## Only recommended for developers.
+##
+VALGRIND_SUPPORTED=0
+
+##
+## 1 if you want to include Pthreads support / thread safety, else 0.
+##
+USE_PTHREADS=1
+
+##
+## 1 if you want to use ECL (Embedded Common Lisp), else 0.  For now,
+## we default to no, so that (a) users don't have to install ECL, and
+## (b) users aren't constrained to accept ECL's LGPL license.  We
+## can't think of a good reason why LGPL is bad, even if you are
+## incorporating our library into a commercial product (that's the
+## whole point of the LGPL -- to let the library be open-source,
+## without forcing your product to be open-source), but we don't want
+## to force you to argue with your pointy-haired bosses or lawyers.
+##
+USE_ECL=0
+
+##
+## Set to 1 if you have <complex.h> and the C99 complex data types,
+## and want to use them.  Else, set to 0.  Set this to 0 if you are
+## building with Cygwin (tip thanks to Evgenii Rudnyi).
+##
+USE_C99_COMPLEX=1
+
+##
+## Set to 1 if you have the isnan() boolean predicate in math.h, else
+## set to 0.  Set this to 0 if you are building with Cygwin (tip
+## thanks to Evgenii Rudnyi).
+##
+USE_ISNAN=1

@@ -1,0 +1,26 @@
+# -*- mode: Makefile;-*-
+# Time-stamp: <2008-07-03 20:01:30 mhoemmen>
+#
+# ECL (Embeddable Common Lisp) Makefile configuration variables
+#
+
+ifeq "$(USE_ECL)" "1"
+  #
+  # Modify ECL and ECL_CONFIG as necessary to point to the 
+  # full paths of these executables.
+  #
+  ECL=ecl
+  ECL_CONFIG=ecl-config
+
+  #
+  # You don't have to modify these.  They invoke the ecl-config
+  # executable in order to extract the right CFLAGS and LDFLAGS
+  # options to add in order to fetch the ECL headers and link in
+  # the ECL library.
+  #
+  ECL_CFLAGS=$(shell $(ECL_CONFIG) --cflags)
+  ECL_LDFLAGS=$(shell $(ECL_CONFIG) --ldflags)
+
+  CFLAGS += $(ECL_CFLAGS) -DUSE_ECL=1
+  LDFLAGS += $(ECL_LDFLAGS)
+endif

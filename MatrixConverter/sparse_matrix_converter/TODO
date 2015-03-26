@@ -1,0 +1,294 @@
+mfh 04 Jul 2008:
+
+    I can now link libbebop_util with ECL (Embeddable Common Lisp).
+    This is great because I have a nice Harwell-Boeing file format
+    parser in Common Lisp.  Linking to it from C space should be
+    fairly transparent.
+
+mfh 09 May 2007:
+
+    I'm rewriting the I/O routines to use more robust parsers.  The
+    results of this (in progress) can be seen in the "io" subdirectory.
+    This has no dependencies on matrix storage types -- it only handles 
+    raw arrays (either COO or CSC).
+
+    Matlab-format parser have been written (not quite done yet, but 
+    the stuff is there), along with optimizations for balancing memory
+    usage and number of file reads.
+
+    Harwell-Boeing parser needs to be rewritten next, though this will 
+    likely be quite ugly.  Matrix Market parser isn't so hard, as it's
+    based on the Matlab-format parser.
+
+    GNU's C library has a handy "getline()" function which can get a
+    line of unlimited size (unlike fgets()), without clobbering memory 
+    (like gets() does).  Unfortunately other POSIX systems (Darwin in
+    MacOS X 10.4.9) seem to lack this extension.  It might be worthwhile
+    harvesting the source code for getline() from the GNU C library and
+    including it.  Then watch the licensing -- it's probably LGPL.
+
+mfh 01 Sep 2006:
+
+    Kazlib has a nice portable ANSI C exception handling library.
+    There are a lot of places in the SMC where it would pay off to 
+    handle things like memory allocation in a more rational way.  For
+    example, sometimes we want memory allocation to be protected by
+    something like an assert:  it _must_ succeed or we have to abort the
+    program.  But at other times, it may not be necessary to abort the
+    program on failure of an allocation.  For example, most of the
+    matrix type conversion routines require holding a copy of the
+    original matrix in memory.  If it doesn't succeed, the library
+    shouldn't abort; it should clean up properly and report a message 
+    to the user.  But we don't want to have two different memory
+    allocation routines, one that aborts and one that doesn't.
+
+    With Kazlib, if you're calling the SMC from e.g. Lisp or some other
+    language, you can protect the outer language from longjmp's by
+    setting Kazlib's "unhandled exception handler" appropriately.  Or
+    can you?  
+
+mfh 27 Aug 2006:
+
+    You can see from the entries below that I'm aiming towards
+    integration of OSKI and the Sparse Matrix Converter.  One of the
+    main problems that crosses my mind is the datatype issue.  I
+    consider it perfectly normal that a user may want to load two
+    matrices of different value types during the same session.  You
+    can imagine for example that Matlab may link to the SMC to do its
+    matrix I/O and type conversions.  Why should we have to load (at
+    least) two different shared libraries just so that users can do
+    the sensible thing?  Or wait, does OSKI do what I want it to do
+    already?
+
+mfh 27 Aug 2006:
+
+    Here are some operations that are specific to one matrix type
+    only:
+
+    - matrix creation / destruction / copying
+    - validity checks
+    - linear algebra operations
+    - accessing the matrix metadata (e.g. size, element type)
+    - expanding from / compacting into symmetric storage 
+    - expanding into dense matrix
+    - testing for equality of two matrices
+    - getting / setting individual entries of the matrix, or cliques,
+      or the diagonal values
+
+    Here are some operations that require two different matrix types:
+
+    - Conversions
+    - Testing equality of two matrices of different types
+    - Matrix-matrix multiplication and triple product for different
+      matrix types (the sensible way to do this is via automatic
+      conversion)
+
+    Here are some operations that tend always to produce matrices of
+    one type, and so it doesn't make much sense to implement them for
+    all the different types:
+
+    - file input: COO is the right format for Matrix Market, CSC for
+      Harwell-Boeing.
+    - file output:  For Harwell-Boeing, CSC is necessary.
+
+    This means the file I/O routines don't belong to any one matrix
+    type but are above all of them (they should be part of the wrapper
+    "sparse_matrix_t" API, as I/O of a matrix of arbitrary type
+    requires both conversion and basic file I/O (specific to COO or
+    CSC).
+
+
+mfh 27 Aug 2006:
+
+    Kazlib is a great thing!  Its exception handling facility does
+    work under POSIX threads, but there is a question whether it would
+    work correctly under MPI.  You first of all would need to tell the
+    Exception facility to call the appropriate MPI shutdown routine(s)
+    if an exception isn't handled.  Another question is whether the
+    exception handling could cause deadlock, though POSIX threads
+    would have the same problem, no?
+
+mfh 27 Aug 2006:
+
+    One question is whether it is more efficient to use lt_dlsym()
+    every time you want a symbol, or to maintain your own "symbol
+    table" (using some sort of dictionary data structure) and cache
+    handles that you get back from lt_dlsym().  You would load symbols
+    lazily into the symbol table:  the first time you look up a
+    symbol, you add its handle to the symbol table; the next time, you
+    look in the symbol table.  If you can't find the symbol using
+    lt_dlsym(), that operation isn't implemented.
+
+    There is a question of whether to use a sorted tree or a hash
+    table for the lookup structure that implements the symbol table.
+    Space is at a premium if you start using a lot of different matrix
+    types and operations.  However, the sorted tree requires O(log n)
+    string comparisons for a lookup, while the hash table requires
+    O(1) string comparisons.  Of course if the table is small, the hash
+    function evaluation time is significant.
+
+mfh 27 Aug 2006:
+
+    The module / dynamic library system would work in a slightly
+    different way than with OSKI.  The thing is, there are e.g. CSR
+    only routines (like outputting CSR to Matrix Market format) and
+    there are conversion routines (like converting CSR to CSC).  We
+    can't just have a "CSR module" and a "CSC module" because the
+    conversion routines need access to both modules, which circumvents
+    the whole dynamic library lazy loading and encapsulation
+    strategy.  (The idea is that LTDL (a nice wrapper for dlopen(),
+    etc.) should take care of all the module loading, and all the
+    module loading is done explicitly (rather than the usual implicit
+    loading of shared libraries along with the need to set
+    LD_LIBRARY_PATH, etc.).)
+
+    One possible strategy is to have two different kinds of modules:
+    those that belong to only one matrix type, and conversion routines
+    (which belong to two matrix types).  To support encapsulation, the
+    conversion routines should access the matrix types' interfaces
+    only through the module system.
+
+    LTDL is nice -- you should look at it.
+
+mfh 25 Aug 2006:
+
+    For the type conversion system:  Consider the type graph (in which
+    the edges are weighted by estimated conversion costs).  To find
+    the "optimal" type graph, find the min weight path.  There are no 
+    negative weights so we can pick the appropriate faster algorithm
+    (TODO: look up the name of that algorithm).
+
+mfh 24 June 2005:
+
+	BCSR and BCOO data structures badly need debugging.  A CSR ->
+	BCSR conversion routine (can get it from Rich Vuduc's Sparsity
+	code) is needed.
+
+	Use sort-in-place in the COO -> CSR conversion routine.
+
+mfh 9 June 2005:
+
+	Add matrix verifier.
+
+	mfh 9 June 2005: Done, but untested.
+
+
+mfh 4 June 2005:
+
+	Add Matlab output option for all the matrix types.  Here is how
+	sparse matrices are created in Matlab (quote from the users'
+	manual):
+
+	-- BEGIN QUOTE --
+	S = sparse(i,j,s,m,n)
+
+	i and j are vectors of row and column indices, respectively, for
+	the nonzero elements of the matrix. s is a vector of nonzero
+	values whose indices are specified by the corresponding (i,j)
+	pairs. m is the row dimension for the resulting matrix, and n is
+	the column dimension.
+
+	...
+
+	For example, consider a three-column text file T.dat whose first
+	column is a list of row indices, second column is a list of
+	column indices, and third column is a list of nonzero values.
+	These statements load T.dat into MATLAB and convert it into a
+	sparse matrix S: 
+	
+	load T.dat
+	S = spconvert(T)
+	-- END QUOTE --
+
+	(Note that if the file ends in .mat then Matlab assumes that it
+	contains binary data, instead of the ASCII format that we are
+	outputting.)
+
+	There is no optimization for symmetric storage, so if the matrix
+	is stored in a symmetric format, we first have to expand the
+	matrix.  Furthermore, m and n are not explicitly stored, so if
+	the last row or column of the matrix contains all zeros, we have
+	to output an explicit zero at (m,n) in order that the matrix
+	dimensions are correctly stored.
+
+	mfh 5 June 2005:  
+	
+	Matlab output is tricky, because Matlab refuses to save complex
+	values in ASCII format.  We assume that complex sparse matrices
+	are stored in four columns, with the third column containing the
+	real parts of the nonzeros, and the fourth column containing the
+	imaginary parts.  Matlab is able to read such files correctly as
+	complex matrices, so this assumption is justified.
+
+	mfh 6 June 2005:
+
+	Matlab output seems OK, except that columns are not necessarily
+	in sorted order in the output, which makes it hard to compare
+	results.
+
+
+mfh 31 May 2005:
+	
+	Make sure that COO -> CSC conversion supports nonzero index
+	bases:  done.
+
+	Not all compilers support the C99 standard.  We use "double
+	_Complex", which is part of C99.  We should offer an alternate
+	implementation of complex numbers if C99 is not implemented.
+
+		mfh 2 June 2005: Added an alternate implementation of
+		complex numbers, and wrapper #defines for when we are
+		using the "double _Complex" implementation.  It's pretty
+		hackishly done, but it works, at least with gcc.  (Note:
+		gcc 3.4.3 doesn't use the C99 standard by default; you
+		have to tell it to use C99, e.g. with "-std=gnu99".)
+
+mfh 28 May 2005:
+
+Add support for CSR-format sparse matrices.
+
+	mfh 31 May 2005:  Added basic support today.  It's definitely
+	not optimized, and not yet tested.  All six possible conversion
+	functions (amongst {COO, CSC, CSR}) have been implemented.
+
+Add support for other value types, such as complex and pattern.
+
+	mfh 28 May 2005:  Added support in coo_matrix_t for complex and
+	pattern value types.  We can read in MatrixMarket matrices with
+	those value types, but we can't yet output them in
+	Harwell-Boeing format.
+
+	The Harwell-Boeing input routines use an array of
+	double-precision values, and if the matrix is complex, they
+	interlace the real and imaginary parts.  We could either rewrite
+	their routines to use "double _Complex", or just recopy the
+	values into a new "double _Complex" array.  I chose the
+	recopying approach.
+
+	mfh 0107 29 May 2005: Finished rewriting all the CSC routines
+	and the COO <-> CSC conversion routines, but the converter
+	segfaults on complex symmetric MatrixMarket to HB.
+
+	mfh 1402 29 May 2005: I think I've fixed the converter -- tests
+	on a complex symmetric matrix seem to work out without
+	segfaulting.
+
+mfh 27 May 2005:
+
+Working on adding support for "expanding" symmetric-storage matrices
+into "unsymmetric"-storage matrices.
+
+	mfh 28 May 2005: Finished (not debugged yet, though I took the
+	algorithms from Rich Vuduc's sparsity code, so it should work).
+	COO and CSC matrices are supported.
+
+
+mfh 26 May 2005:
+
+Currently only real unsymmetric storage is supported.  Adding support
+for matrices stored symmetrically would be helpful.
+
+	mfh 27 May 2005:  Support for symmetric storage is finished,
+	more or less.  Debugging is necessary.  
+
+

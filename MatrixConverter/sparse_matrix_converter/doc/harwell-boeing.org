@@ -1,0 +1,33 @@
+* Harwell-Boeing sparse matrix file format
+** Held at 80 columns
+*** Presumably this could be relaxed for higher-precision values, esp. for complex matrices
+** Right-hand sides, starting guesses, and solution vectors
+*** If no right-hand sides, then header block is four lines long, else five lines
+*** For right-hand sides, must have numerical values in matrix (i.e., can't be a pattern matrix)
+*** Right-hand sides
+**** Can be full ('F') or sparse ('M' for same format as the matrix)
+**** Sparse right-hand sides 
+***** Only allowed for assembled matrix
+***** Stored exactly as a standard sparse matrix
+***** Same number of rows as the coefficient matrix
+***** Same number of columns as NRHS (number of right-hand sides), obviously
+
+*** Starting guesses and solution vectors
+**** Can only be present when right-hand side(s) are present
+**** Only full storage is allowed
+*** Line 5 of header 
+**** Only present if there are right-hand sides
+
+| Column(s) | Purpose                                                           |
+|-----------+-------------------------------------------------------------------|
+|         1 | RHS type ('F' for full, 'M' for same format as matrix)            |
+|         2 | 'G' if (a) starting vector(s) is/are supplied (RHSTYP)            |
+|         3 | 'X' if an eXact solution vector(s) is/are supplied                |
+|     15-28 | NRHS                                                              |
+|     29-42 | NRHSIX - number of row indices (ignored for unassembled matrices) |
+ 
+** Use RHSFMT as format for reading right-hand sides
+*** RHSFMT is header line 4, cols 53:72
+**** Text column index numbering starts at 1
+
+

@@ -1,0 +1,1768 @@
+   0 read_mm.c            307 const int nnz = A->nnz;
+   1 read_mm.c            313 if (A->value_type == REAL)
+   2 read_mm.c            322 double* values = (double*) (A->val);
+   3 read_mm.c            326 coord_array[k].r = A->II[k];
+   4 read_mm.c            327 coord_array[k].c = A->JJ[k];
+   5 read_mm.c            332 else if (A->value_type == COMPLEX)
+   6 read_mm.c            341 double_Complex* values = (double_Complex*) (A->val);
+   7 read_mm.c            345 coord_array[k].r = A->II[k];
+   8 read_mm.c            346 coord_array[k].c = A->JJ[k];
+   9 read_mm.c            351 else if (A->value_type == PATTERN)
+  10 read_mm.c            362 coord_array[k].r = A->II[k];
+  11 read_mm.c            363 coord_array[k].c = A->JJ[k];
+  12 read_mm.c            791 A->II = NULL;
+  13 read_mm.c            792 A->JJ = NULL;
+  14 read_mm.c            793 A->val = NULL;
+  15 read_mm.c            794 A->m = 0;
+  16 read_mm.c            795 A->n = 0;
+  17 read_mm.c            796 A->nnz = 0;
+  18 read_mm.c            801 A->II   = II;
+  19 read_mm.c            802 A->JJ   = JJ;
+  20 read_mm.c            803 A->val = val;
+  21 read_mm.c            804 A->m   = M;
+  22 read_mm.c            805 A->n   = N;
+  23 read_mm.c            806 A->nnz = nnz;
+  24 read_mm.c            807 A->symmetry_type = symmetry_type;
+  25 read_mm.c            808 A->symmetric_storage_location = symmetric_storage_location;
+  26 read_mm.c            809 A->value_type = value_type;
+  27 read_mm.c            810 A->index_base = 0;
+  28 read_mm.c            811 A->ownership = LIBRARY_DEALLOCATES;
+  29 read_mm.c            812 A->deallocator = &free;
+  30 read_mm.c            990 A->II = NULL;
+  31 read_mm.c            991 A->JJ = NULL;
+  32 read_mm.c            992 A->val = NULL;
+  33 read_mm.c            993 A->m = 0;
+  34 read_mm.c            994 A->n = 0;
+  35 read_mm.c            995 A->nnz = 0;
+  36 read_mm.c           1000 A->II   = II;
+  37 read_mm.c           1001 A->JJ   = JJ;
+  38 read_mm.c           1002 A->val = val;
+  39 read_mm.c           1003 A->m   = M;
+  40 read_mm.c           1004 A->n   = N;
+  41 read_mm.c           1005 A->nnz = nnz;
+  42 read_mm.c           1006 A->symmetry_type = symmetry_type;
+  43 read_mm.c           1007 A->symmetric_storage_location = symmetric_storage_location;
+  44 read_mm.c           1008 A->index_base = 0;
+  45 read_mm.c           1009 A->value_type = value_type;
+  46 read_mm.c           1010 A->ownership = LIBRARY_DEALLOCATES;
+  47 read_mm.c           1011 A->deallocator = &free;
+  48 read_mm.c           1144 int m   = A->m;
+  49 read_mm.c           1145 int n   = A->n;
+  50 read_mm.c           1146 int nnz = A->nnz;
+  51 read_mm.c           1147 enum symmetry_type_t symmetry_type = A->symmetry_type;
+  52 read_mm.c           1148 enum symmetric_storage_location_t symmetric_storage_location = A->symmetric_storage_location;
+  53 read_mm.c           1149 enum value_type_t value_type = A->value_type;
+  54 read_mm.c           1156 int index_base = A->index_base;
+  55 read_mm.c           1163 if (A->value_type == REAL)
+  56 read_mm.c           1165 else if (A->value_type == COMPLEX)
+  57 read_mm.c           1167 else if (A->value_type == PATTERN)
+  58 read_mm.c           1172 " invalid value type %d ***\n", A->value_type);
+  59 read_mm.c           1393 B->m = A->m;
+  60 read_mm.c           1394 B->n = A->n;
+  61 read_mm.c           1395 B->nnz = A->nnz;
+  62 read_mm.c           1396 B->symmetry_type = A->symmetry_type;
+  63 read_mm.c           1397 B->symmetric_storage_location = A->symmetric_storage_location;
+  64 read_mm.c           1398 B->value_type = A->value_type;
+  65 read_mm.c           1401 II = bebop_malloc (A->nnz * sizeof (int));
+  66 read_mm.c           1402 JJ = bebop_malloc (A->nnz * sizeof (int));
+  67 read_mm.c           1404 if (A->value_type == REAL)
+  68 read_mm.c           1406 B->val = bebop_malloc (A->nnz * sizeof (double));
+  69 read_mm.c           1407 memcpy (B->val, A->values, A->nnz * sizeof (double));
+  70 read_mm.c           1409 else if (A->value_type == COMPLEX)
+  71 read_mm.c           1411 B->val = bebop_malloc (A->nnz * sizeof (double_Complex));
+  72 read_mm.c           1412 memcpy (B->val, A->values, A->nnz * sizeof (double_Complex));
+  73 read_mm.c           1414 else if (A->value_type == PATTERN)
+  74 read_mm.c           1420 for (i = 0; i < A->m; i++)
+  75 read_mm.c           1422 const int start = A->rowptr[i];
+  76 read_mm.c           1423 const int end   = A->rowptr[i+1];
+  77 read_mm.c           1428 JJ[k] = A->colidx[k];
+  78 read_mm.c           1452 B->m = A->m;
+  79 read_mm.c           1453 B->n = A->n;
+  80 read_mm.c           1454 B->nnz = A->nnz;
+  81 read_mm.c           1455 B->symmetry_type = A->symmetry_type;
+  82 read_mm.c           1456 B->symmetric_storage_location = A->symmetric_storage_location;
+  83 read_mm.c           1457 B->value_type = A->value_type;
+  84 read_mm.c           1460 II = bebop_malloc (A->nnz * sizeof (int));
+  85 read_mm.c           1461 JJ = bebop_malloc (A->nnz * sizeof (int));
+  86 read_mm.c           1464 if (A->value_type == REAL)
+  87 read_mm.c           1466 B->val = bebop_malloc (A->nnz * sizeof (double));
+  88 read_mm.c           1467 memcpy (B->val, A->values, A->nnz * sizeof (double));
+  89 read_mm.c           1469 else if (A->value_type == COMPLEX)
+  90 read_mm.c           1471 B->val = bebop_malloc (A->nnz * sizeof (double_Complex));
+  91 read_mm.c           1472 memcpy (B->val, A->values, A->nnz * sizeof (double_Complex));
+  92 read_mm.c           1474 else if (A->value_type == PATTERN)
+  93 read_mm.c           1481 for (j = 0; j < A->n; j++)
+  94 read_mm.c           1483 const int start = A->colptr[j];
+  95 read_mm.c           1484 const int end   = A->colptr[j+1];
+  96 read_mm.c           1488 II[k] = A->rowidx[k];
+  97 sparse_matrix_ops.c   62 if (A->format == BCOO)
+  98 sparse_matrix_ops.c   63 return print_bcoo_matrix_in_matrix_market_format (out, A->repr);
+  99 sparse_matrix_ops.c   64 else if (A->format == BCSR)
+ 100 sparse_matrix_ops.c   65 return print_bcsr_matrix_in_matrix_market_format (out, A->repr);
+ 101 sparse_matrix_ops.c   66 else if (A->format == COO)
+ 102 sparse_matrix_ops.c   67 return print_coo_matrix_in_matrix_market_format (out, A->repr);
+ 103 sparse_matrix_ops.c   68 else if (A->format == CSC)
+ 104 sparse_matrix_ops.c   69 return print_csc_matrix_in_matrix_market_format (out, A->repr);
+ 105 sparse_matrix_ops.c   70 else if (A->format == CSR)
+ 106 sparse_matrix_ops.c   71 return print_csr_matrix_in_matrix_market_format (out, A->repr);
+ 107 sparse_matrix_ops.c   72 else if (A->format == JAD)
+ 108 sparse_matrix_ops.c   83 bebop_log (0, "*** print_sparse_matrix: invalid format %d ***\n", A->format);
+ 109 sparse_matrix_ops.c   95 if (A->format == BCOO)
+ 110 sparse_matrix_ops.c  101 else if (A->format == COO)
+ 111 sparse_matrix_ops.c  105 return save_coo_matrix_in_harwell_boeing_format (filename, A->repr);
+ 112 sparse_matrix_ops.c  107 else if (A->format == CSC)
+ 113 sparse_matrix_ops.c  111 return save_csc_matrix_in_harwell_boeing_format (filename, A->repr);
+ 114 sparse_matrix_ops.c  113 else if (A->format == CSR)
+ 115 sparse_matrix_ops.c  117 return save_csr_matrix_in_harwell_boeing_format (filename, A->repr);
+ 116 sparse_matrix_ops.c  119 else if (A->format == JAD)
+ 117 sparse_matrix_ops.c  129 "ix internal storage format %d ***\n", A->format);
+ 118 sparse_matrix_ops.c  135 if (A->format == BCOO)
+ 119 sparse_matrix_ops.c  139 return save_bcoo_matrix_in_matrix_market_format (filename, A->repr);
+ 120 sparse_matrix_ops.c  141 else if (A->format == BCSR)
+ 121 sparse_matrix_ops.c  145 return save_bcsr_matrix_in_matrix_market_format (filename, A->repr);
+ 122 sparse_matrix_ops.c  147 else if (A->format == COO)
+ 123 sparse_matrix_ops.c  151 return save_coo_matrix_in_matrix_market_format (filename, A->repr);
+ 124 sparse_matrix_ops.c  153 else if (A->format == CSC)
+ 125 sparse_matrix_ops.c  157 return save_csc_matrix_in_matrix_market_format (filename, A->repr);
+ 126 sparse_matrix_ops.c  159 else if (A->format == CSR)
+ 127 sparse_matrix_ops.c  163 return save_csr_matrix_in_matrix_market_format (filename, A->repr);
+ 128 sparse_matrix_ops.c  165 else if (A->format == JAD)
+ 129 sparse_matrix_ops.c  175 "x internal storage format %d ***\n", A->format);
+ 130 sparse_matrix_ops.c  181 if (A->format == BCOO)
+ 131 sparse_matrix_ops.c  187 else if (A->format == BCSR)
+ 132 sparse_matrix_ops.c  193 else if (A->format == COO)
+ 133 sparse_matrix_ops.c  197 return save_coo_matrix_in_matlab_format (filename, A->repr);
+ 134 sparse_matrix_ops.c  199 else if (A->format == CSC)
+ 135 sparse_matrix_ops.c  203 return save_csc_matrix_in_matlab_format (filename, A->repr);
+ 136 sparse_matrix_ops.c  205 else if (A->format == CSR)
+ 137 sparse_matrix_ops.c  209 return save_csr_matrix_in_matlab_format (filename, A->repr);
+ 138 sparse_matrix_ops.c  211 else if (A->format == JAD)
+ 139 sparse_matrix_ops.c  221 "x internal storage format %d ***\n", A->format);
+ 140 sparse_matrix_ops.c  343 if (A->format == CSC)
+ 141 sparse_matrix_ops.c  344 errcode = csc_matrix_expand_symmetric_storage ((struct csc_matrix_t*) A->repr);
+ 142 sparse_matrix_ops.c  345 else if (A->format == COO)
+ 143 sparse_matrix_ops.c  346 errcode = coo_matrix_expand_symmetric_storage ((struct coo_matrix_t*) A->repr);
+ 144 sparse_matrix_ops.c  347 else if (A->format == CSR)
+ 145 sparse_matrix_ops.c  348 errcode = csr_matrix_expand_symmetric_storage ((struct csr_matrix_t*) A->repr);
+ 146 sparse_matrix_ops.c  349 else if (A->format == BCOO)
+ 147 sparse_matrix_ops.c  355 else if (A->format == BCSR)
+ 148 sparse_matrix_ops.c  361 else if (A->format == JAD)
+ 149 sparse_matrix_ops.c  370 "matrix format %d ***\n", A->format);
+ 150 sparse_matrix_ops.c  382 if (A->format == output_format)
+ 151 sparse_matrix_ops.c  384 else if (A->format == BCOO)
+ 152 sparse_matrix_ops.c  388 struct bcsr_matrix_t* B = bcoo_to_bcsr (A->repr);
+ 153 sparse_matrix_ops.c  392 destroy_bcoo_matrix (A->repr);
+ 154 sparse_matrix_ops.c  393 A->repr = B;
+ 155 sparse_matrix_ops.c  394 A->format = BCSR;
+ 156 sparse_matrix_ops.c  403 else if (A->format == BCSR)
+ 157 sparse_matrix_ops.c  409 else if (A->format == COO)
+ 158 sparse_matrix_ops.c  413 struct csc_matrix_t* B = coo_to_csc (A->repr);
+ 159 sparse_matrix_ops.c  417 destroy_coo_matrix (A->repr);
+ 160 sparse_matrix_ops.c  418 A->repr = B;
+ 161 sparse_matrix_ops.c  419 A->format = CSC;
+ 162 sparse_matrix_ops.c  424 struct csr_matrix_t* B = coo_to_csr (A->repr);
+ 163 sparse_matrix_ops.c  428 destroy_coo_matrix (A->repr);
+ 164 sparse_matrix_ops.c  429 A->repr = B;
+ 165 sparse_matrix_ops.c  430 A->format = CSR;
+ 166 sparse_matrix_ops.c  439 else if (A->format == CSC)
+ 167 sparse_matrix_ops.c  443 struct csr_matrix_t* B = csc_to_csr (A->repr);
+ 168 sparse_matrix_ops.c  447 destroy_csc_matrix (A->repr);
+ 169 sparse_matrix_ops.c  448 A->repr = B;
+ 170 sparse_matrix_ops.c  449 A->format = CSR;
+ 171 sparse_matrix_ops.c  454 struct coo_matrix_t* B = csc_to_coo (A->repr);
+ 172 sparse_matrix_ops.c  458 destroy_csc_matrix (A->repr);
+ 173 sparse_matrix_ops.c  459 A->repr = B;
+ 174 sparse_matrix_ops.c  460 A->format = COO;
+ 175 sparse_matrix_ops.c  469 else if (A->format == CSR)
+ 176 sparse_matrix_ops.c  473 struct csc_matrix_t* B = csr_to_csc (A->repr);
+ 177 sparse_matrix_ops.c  477 destroy_csr_matrix (A->repr);
+ 178 sparse_matrix_ops.c  478 A->repr = B;
+ 179 sparse_matrix_ops.c  479 A->format = CSC;
+ 180 sparse_matrix_ops.c  484 struct coo_matrix_t* B = csr_to_coo (A->repr);
+ 181 sparse_matrix_ops.c  488 destroy_csr_matrix (A->repr);
+ 182 sparse_matrix_ops.c  489 A->repr = B;
+ 183 sparse_matrix_ops.c  490 A->format = COO;
+ 184 sparse_matrix_ops.c  495 struct jad_matrix_t* B = csr_to_jad (A->repr);
+ 185 sparse_matrix_ops.c  499 destroy_csr_matrix (A->repr);
+ 186 sparse_matrix_ops.c  500 A->repr = B;
+ 187 sparse_matrix_ops.c  501 A->format = JAD;
+ 188 sparse_matrix_ops.c  522 else if (A->format == COO)
+ 189 sparse_matrix_ops.c  523 return valid_coo_matrix_p (A->repr);
+ 190 sparse_matrix_ops.c  524 else if (A->format == CSR)
+ 191 sparse_matrix_ops.c  525 return valid_csr_matrix_p (A->repr);
+ 192 sparse_matrix_ops.c  526 else if (A->format == CSC)
+ 193 sparse_matrix_ops.c  527 return valid_csc_matrix_p (A->repr);
+ 194 sparse_matrix_ops.c  528 else if (A->format == BCOO)
+ 195 sparse_matrix_ops.c  529 return valid_bcoo_matrix_p (A->repr);
+ 196 sparse_matrix_ops.c  530 else if (A->format == BCSR)
+ 197 sparse_matrix_ops.c  531 return valid_bcsr_matrix_p (A->repr);
+ 198 sparse_matrix_ops.c  532 else if (A->format == JAD)
+ 199 sparse_matrix_ops.c  541 "storage format %d ***\n", A->format);
+ 200 bcoo_io.c             72 "matrix! ***\n", A->symmetry_type);
+ 201 jad_matrix.c         129 for (i = 0; i < A->n_jagged_diagonals; i++)
+ 202 jad_matrix.c         134 return create_csr_matrix (A->m, A->n, A->nnz, val, ind, ptr, UNSYMMETRIC, 0, A->value_type, LIBRARY_DEALLOCATES, NULL, NO_COPY);  
+ 203 jad_matrix.c         169 else if (A->m <= 0)
+ 204 jad_matrix.c         171 bebop_log (0, "*** csr_to_jad: A->m <= 0 ***\n");
+ 205 jad_matrix.c         174 else if (A->n <= 0)
+ 206 jad_matrix.c         176 bebop_log (0, "*** csr_to_jad: A->n <= 0 ***\n");
+ 207 jad_matrix.c         179 else if (A->nnz < 0)
+ 208 jad_matrix.c         181 bebop_log (0, "*** csr_to_jad: A->nnz < 0 ***\n");
+ 209 jad_matrix.c         185 num_rows = A->m;
+ 210 jad_matrix.c         186 num_cols = A->n;
+ 211 jad_matrix.c         187 n_nz = A->nnz;
+ 212 jad_matrix.c         188 row_start = A->rowptr;
+ 213 jad_matrix.c         189 col_ind = A->colidx;
+ 214 jad_matrix.c         198 if (A->value_type == REAL)
+ 215 jad_matrix.c         203 else if (A->value_type == COMPLEX)
+ 216 jad_matrix.c         208 else if (A->value_type == PATTERN)
+ 217 jad_matrix.c         246 if (A->value_type == REAL)
+ 218 jad_matrix.c         248 double *inval = (double*) (A->values);
+ 219 jad_matrix.c         265 else if (A->value_type == COMPLEX)
+ 220 jad_matrix.c         267 double_Complex *inval = (double_Complex*) (A->values);
+ 221 jad_matrix.c         284 else if (A->value_type == PATTERN)
+ 222 jad_matrix.c         317 jS->value_type = A->value_type;
+ 223 jad_matrix.c         318 jS->symmetry_type = A->symmetry_type;
+ 224 jad_matrix.c         319 jS->symmetric_storage_location = A->symmetric_storage_location;
+ 225 coo_matrix.c         118 if (A->value_type == REAL)
+ 226 coo_matrix.c         120 else if (A->value_type == COMPLEX)
+ 227 coo_matrix.c         141 if (A->value_type == REAL)  \
+ 228 coo_matrix.c         148 else if (A->value_type == COMPLEX) \
+ 229 coo_matrix.c         161 if (A->value_type == REAL)        \
+ 230 coo_matrix.c         163 else if (A->value_type == COMPLEX) \
+ 231 coo_matrix.c         172 SWAP_INTS( (A->II), low, i );
+ 232 coo_matrix.c         173 SWAP_INTS( (A->JJ), low, i );
+ 233 coo_matrix.c         174 SWAP( (A->val), low, i );
+ 234 coo_matrix.c         177 int_pivot_item1 = A->II[low];
+ 235 coo_matrix.c         178 int_pivot_item2 = A->JJ[low];
+ 236 coo_matrix.c         179 ASSIGN (pivot_item, VOIDAREF(A->val, block_size*low));
+ 237 coo_matrix.c         187 while (my_compare_lexicographically (A->II[left], int_pivot_item1, 
+ 238 coo_matrix.c         188 A->JJ[left], int_pivot_item2) <= 0 && 
+ 239 coo_matrix.c         193 while (my_compare_lexicographically (A->II[right], int_pivot_item1, 
+ 240 coo_matrix.c         194 A->JJ[right], int_pivot_item2) > 0 && 
+ 241 coo_matrix.c         200 SWAP_INTS( (A->II), left, right );
+ 242 coo_matrix.c         201 SWAP_INTS( (A->JJ), left, right );
+ 243 coo_matrix.c         202 SWAP( (A->val), left, right );
+ 244 coo_matrix.c         207 A->II[low] = A->II[right];
+ 245 coo_matrix.c         208 A->JJ[low] = A->JJ[right];
+ 246 coo_matrix.c         209 ASSIGN( VOIDAREF(A->val, block_size*low), VOIDAREF(A->val, block_size*right) );
+ 247 coo_matrix.c         211 A->II[right] = int_pivot_item1;
+ 248 coo_matrix.c         212 A->JJ[right] = int_pivot_item2;
+ 249 coo_matrix.c         213 ASSIGN( VOIDAREF(A->val, block_size*right), pivot_item );
+ 250 coo_matrix.c         244 if (A->value_type == REAL)
+ 251 coo_matrix.c         246 else if (A->value_type == COMPLEX)
+ 252 coo_matrix.c         248 else if (A->value_type == PATTERN)
+ 253 coo_matrix.c         256 quicksort (A, 0, A->nnz - 1, workspace);
+ 254 coo_matrix.c         273 const int m = A->m;
+ 255 coo_matrix.c         274 const int n = A->n;
+ 256 coo_matrix.c         275 const int nnz = A->nnz;
+ 257 coo_matrix.c         276 const int *colptr = A->colptr;
+ 258 coo_matrix.c         277 const int *rowidx = A->rowidx;
+ 259 coo_matrix.c         278 const double *values = A->values;
+ 260 coo_matrix.c         292 B->symmetry_type = A->symmetry_type;
+ 261 coo_matrix.c         293 B->symmetric_storage_location = A->symmetric_storage_location;
+ 262 coo_matrix.c         357 A->m = m;
+ 263 coo_matrix.c         358 A->n = n;
+ 264 coo_matrix.c         359 A->nnz = nnz;
+ 265 coo_matrix.c         361 A->II = bebop_calloc (nnz, sizeof (int));
+ 266 coo_matrix.c         362 A->JJ = bebop_calloc (nnz, sizeof (int));
+ 267 coo_matrix.c         364 A->val = bebop_calloc (nnz, sizeof (double));
+ 268 coo_matrix.c         366 A->val = bebop_calloc (nnz, sizeof (double_Complex));
+ 269 coo_matrix.c         368 A->val = NULL;
+ 270 coo_matrix.c         370 A->index_base = index_base;
+ 271 coo_matrix.c         371 A->symmetry_type = symmetry_type;
+ 272 coo_matrix.c         372 A->symmetric_storage_location = symmetric_storage_location;
+ 273 coo_matrix.c         373 A->value_type = value_type;
+ 274 coo_matrix.c         374 A->ownership = LIBRARY_DEALLOCATES;
+ 275 coo_matrix.c         375 A->deallocator = &free;
+ 276 coo_matrix.c         388 if (A->ownership == LIBRARY_DEALLOCATES)
+ 277 coo_matrix.c         390 if (A->deallocator == NULL)
+ 278 coo_matrix.c         392 if (A->II != NULL) 
+ 279 coo_matrix.c         393 bebop_free (A->II);
+ 280 coo_matrix.c         394 if (A->JJ != NULL) 
+ 281 coo_matrix.c         395 bebop_free (A->JJ);
+ 282 coo_matrix.c         396 if (A->val != NULL) 
+ 283 coo_matrix.c         397 bebop_free (A->val);
+ 284 coo_matrix.c         401 if (A->II != NULL) 
+ 285 coo_matrix.c         402 (A->deallocator) (A->II);
+ 286 coo_matrix.c         403 if (A->JJ != NULL) 
+ 287 coo_matrix.c         404 (A->deallocator) (A->JJ);
+ 288 coo_matrix.c         405 if (A->val != NULL) 
+ 289 coo_matrix.c         406 (A->deallocator) (A->val);
+ 290 coo_matrix.c         409 A->II = NULL;
+ 291 coo_matrix.c         410 A->JJ = NULL;
+ 292 coo_matrix.c         411 A->val = NULL;
+ 293 coo_matrix.c         412 A->m = 0;
+ 294 coo_matrix.c         413 A->n = 0;
+ 295 coo_matrix.c         414 A->nnz = 0;
+ 296 coo_matrix.c         430 if (A->symmetry_type == UNSYMMETRIC)
+ 297 coo_matrix.c         432 else if (A->symmetry_type == SYMMETRIC)
+ 298 coo_matrix.c         434 else if (A->symmetry_type == SKEW_SYMMETRIC)
+ 299 coo_matrix.c         436 else if (A->symmetry_type == HERMITIAN)
+ 300 coo_matrix.c         442 "sparse matrix! ***\n", A->symmetry_type);
+ 301 coo_matrix.c         447 if (A->value_type == REAL)
+ 302 coo_matrix.c         449 else if (A->value_type == COMPLEX)
+ 303 coo_matrix.c         451 else if (A->value_type == PATTERN)
+ 304 coo_matrix.c         463 fprintf (out, "%d %d %d\n", A->m, A->n, A->nnz);
+ 305 coo_matrix.c         465 if (A->value_type == REAL)
+ 306 coo_matrix.c         467 double* val = (double*) (A->val);
+ 307 coo_matrix.c         471 for (i = 0; i < A->nnz; i++)
+ 308 coo_matrix.c         472 fprintf (out, "%d %d %.13e\n", A->II[i] + (1 - A->index_base), A->JJ[i] + (1 - A->index_base), val[i]);
+ 309 coo_matrix.c         474 else if (A->value_type == COMPLEX)
+ 310 coo_matrix.c         476 double_Complex* val = (double_Complex*) (A->val);
+ 311 coo_matrix.c         478 for (i = 0; i < A->nnz; i++)
+ 312 coo_matrix.c         480 A->II[i] + (1 - A->index_base), 
+ 313 coo_matrix.c         481 A->JJ[i] + (1 - A->index_base), 
+ 314 coo_matrix.c         485 else if (A->value_type == PATTERN)
+ 315 coo_matrix.c         487 for (i = 0; i < A->nnz; i++)
+ 316 coo_matrix.c         488 fprintf (out, "%d %d\n", A->II[i] + (1 - A->index_base), A->JJ[i] + (1 - A->index_base));
+ 317 coo_matrix.c         512 const int nnz = A->nnz;
+ 318 coo_matrix.c         513 int* II = A->II;
+ 319 coo_matrix.c         514 int* JJ = A->JJ;
+ 320 coo_matrix.c         518 if (A->index_base == ONE)
+ 321 coo_matrix.c         530 A->index_base = ONE;
+ 322 coo_matrix.c         538 const int nnz = A->nnz;
+ 323 coo_matrix.c         539 int* II = A->II;
+ 324 coo_matrix.c         540 int* JJ = A->JJ;
+ 325 coo_matrix.c         544 if (A->index_base == ZERO)
+ 326 coo_matrix.c         556 A->index_base = ZERO;
+ 327 coo_matrix.c         592 m = A->m;
+ 328 coo_matrix.c         600 n = A->n;
+ 329 coo_matrix.c         608 nnz = A->nnz;
+ 330 coo_matrix.c         623 II = A->II;
+ 331 coo_matrix.c         631 bebop_log (2, "Checking if A->II is readable\n");
+ 332 coo_matrix.c         637 bebop_log (0, "*** valid_coo_matrix_p: Pointer A->II "
+ 333 coo_matrix.c         644 JJ = A->JJ;
+ 334 coo_matrix.c         652 bebop_log (2, "Checking if A->JJ is readable\n");
+ 335 coo_matrix.c         658 bebop_log (0, "*** valid_coo_matrix_p: Pointer A->JJ "
+ 336 coo_matrix.c         665 val = A->val;
+ 337 coo_matrix.c         666 if (val == NULL && A->value_type != PATTERN) 
+ 338 coo_matrix.c         674 bebop_log (2, "Checking if A->val is readable\n");
+ 339 coo_matrix.c         677 if (A->value_type == REAL)
+ 340 coo_matrix.c         681 else if (A->value_type == COMPLEX)
+ 341 coo_matrix.c         685 else if (A->value_type == PATTERN)
+ 342 coo_matrix.c         691 bebop_log (0, "*** valid_coo_matrix_p: Pointer A->val "
+ 343 coo_matrix.c         700 index_base = A->index_base;
+ 344 coo_matrix.c         769 const int nnz = A->nnz;
+ 345 coo_matrix.c         770 const int m   = A->m;
+ 346 coo_matrix.c         771 const int n   = A->n;
+ 347 coo_matrix.c         772 const enum index_base_t index_base = A->index_base;
+ 348 coo_matrix.c         773 const enum symmetry_type_t symmetry_type = A->symmetry_type;
+ 349 coo_matrix.c         774 const enum symmetric_storage_location_t symmetric_storage_location = A->symmetric_storage_location;
+ 350 coo_matrix.c         775 const enum value_type_t value_type = A->value_type;
+ 351 coo_matrix.c         799 memcpy (B->II, A->II, nnz * sizeof (int));
+ 352 coo_matrix.c         800 memcpy (B->JJ, A->JJ, nnz * sizeof (int));
+ 353 coo_matrix.c         803 memcpy (B->val, A->val, nnz * sizeof (double));
+ 354 coo_matrix.c         805 memcpy (B->val, A->val, nnz * sizeof (double_Complex));
+ 355 coo_matrix.c         815 const int nnz = A->nnz;
+ 356 coo_matrix.c         824 if (A->m != B->m) return 0;
+ 357 coo_matrix.c         825 if (A->n != B->n) return 0;
+ 358 coo_matrix.c         826 if (A->nnz != B->nnz) return 0;
+ 359 coo_matrix.c         827 if (A->index_base != B->index_base) return 0;
+ 360 coo_matrix.c         828 if (A->symmetry_type != B->symmetry_type) return 0;
+ 361 coo_matrix.c         829 if (A->symmetric_storage_location != B->symmetric_storage_location) return 0;
+ 362 coo_matrix.c         830 if (A->value_type != B->value_type) return 0;
+ 363 coo_matrix.c         852 if (A->value_type == REAL)
+ 364 coo_matrix.c         854 const double* const aval = (double*) (A->val);
+ 365 coo_matrix.c         859 if (A->II[k] != B->II[k]) return 0;
+ 366 coo_matrix.c         860 if (A->JJ[k] != B->JJ[k]) return 0;
+ 367 coo_matrix.c         864 else if (A->value_type == COMPLEX)
+ 368 coo_matrix.c         866 const double_Complex* const aval = (double_Complex*) (A->val);
+ 369 coo_matrix.c         871 if (A->II[k] != B->II[k]) return 0;
+ 370 coo_matrix.c         872 if (A->JJ[k] != B->JJ[k]) return 0;
+ 371 coo_matrix.c         876 else if (A->value_type == PATTERN)
+ 372 coo_matrix.c         880 if (A->II[k] != B->II[k]) return 0;
+ 373 coo_matrix.c         881 if (A->JJ[k] != B->JJ[k]) return 0;
+ 374 coo_matrix.c         901 A->m = m;
+ 375 coo_matrix.c         902 A->n = n;
+ 376 coo_matrix.c         903 A->nnz = nnz;
+ 377 coo_matrix.c         904 A->index_base = index_base;
+ 378 coo_matrix.c         905 A->symmetry_type = symmetry_type;
+ 379 coo_matrix.c         906 A->symmetric_storage_location = symmetric_storage_location;
+ 380 coo_matrix.c         907 A->value_type = value_type;
+ 381 coo_matrix.c         908 A->ownership = ownership;
+ 382 coo_matrix.c         909 A->deallocator = deallocator;
+ 383 coo_matrix.c         912 A->II   = II;
+ 384 coo_matrix.c         913 A->JJ   = JJ;
+ 385 coo_matrix.c         914 A->val = val;
+ 386 coo_matrix.c         918 A->ownership = LIBRARY_DEALLOCATES;
+ 387 coo_matrix.c         919 A->II = bebop_malloc (nnz * sizeof (int));
+ 388 coo_matrix.c         920 memcpy (A->II, II, nnz * sizeof (int));
+ 389 coo_matrix.c         921 A->JJ = bebop_malloc (nnz * sizeof (int));
+ 390 coo_matrix.c         922 memcpy (A->JJ, JJ, nnz * sizeof (int));
+ 391 coo_matrix.c         925 A->val = bebop_malloc (nnz * sizeof (double));
+ 392 coo_matrix.c         926 memcpy (A->val, val, nnz * sizeof (double));
+ 393 coo_matrix.c         930 A->val = bebop_malloc (nnz * sizeof (double_Complex));
+ 394 coo_matrix.c         931 memcpy (A->val, val, nnz * sizeof (double_Complex));
+ 395 coo_matrix.c         935 A->val = NULL;
+ 396 coo_matrix.c        1069 int old_nnz = A->nnz;
+ 397 coo_matrix.c        1070 int new_nnz = A->nnz; /* To be changed */
+ 398 coo_matrix.c        1073 int current_idx = A->nnz;
+ 399 coo_matrix.c        1077 if (A->symmetry_type == UNSYMMETRIC)
+ 400 coo_matrix.c        1087 if (A->II[k] == A->JJ[k])
+ 401 coo_matrix.c        1099 if (A->ownership == LIBRARY_DEALLOCATES && 
+ 402 coo_matrix.c        1100 (A->deallocator == &free || A->deallocator == NULL))
+ 403 coo_matrix.c        1102 A->II = bebop_realloc (A->II, new_nnz * sizeof (int));
+ 404 coo_matrix.c        1103 A->JJ = bebop_realloc (A->JJ, new_nnz * sizeof (int));
+ 405 coo_matrix.c        1104 if (A->value_type == REAL)
+ 406 coo_matrix.c        1105 A->val = bebop_realloc (A->val, new_nnz * sizeof (double));
+ 407 coo_matrix.c        1106 else if (A->value_type == COMPLEX)
+ 408 coo_matrix.c        1107 A->val = bebop_realloc (A->val, new_nnz * sizeof (double_Complex));
+ 409 coo_matrix.c        1114 memcpy (newII, A->II, old_nnz * sizeof (int));
+ 410 coo_matrix.c        1115 if (A->ownership == LIBRARY_DEALLOCATES)
+ 411 coo_matrix.c        1117 if (A->deallocator == NULL)
+ 412 coo_matrix.c        1118 bebop_free (A->II);
+ 413 coo_matrix.c        1120 (A->deallocator) (A->II);
+ 414 coo_matrix.c        1122 A->II = newII;
+ 415 coo_matrix.c        1125 memcpy (newJJ, A->JJ, old_nnz * sizeof (int));
+ 416 coo_matrix.c        1126 if (A->ownership == LIBRARY_DEALLOCATES)
+ 417 coo_matrix.c        1128 if (A->deallocator == NULL)
+ 418 coo_matrix.c        1129 bebop_free (A->JJ);
+ 419 coo_matrix.c        1131 (A->deallocator) (A->JJ);
+ 420 coo_matrix.c        1133 A->JJ = newJJ;
+ 421 coo_matrix.c        1135 if (A->value_type == REAL)        
+ 422 coo_matrix.c        1138 memcpy (newval, A->val, old_nnz * sizeof (double));
+ 423 coo_matrix.c        1139 if (A->ownership == LIBRARY_DEALLOCATES)
+ 424 coo_matrix.c        1141 if (A->deallocator == NULL)
+ 425 coo_matrix.c        1142 bebop_free (A->val);
+ 426 coo_matrix.c        1144 (A->deallocator) (A->val);
+ 427 coo_matrix.c        1146 A->val = (void*) newval;
+ 428 coo_matrix.c        1148 else if (A->value_type == COMPLEX)
+ 429 coo_matrix.c        1151 memcpy (newval, A->val, old_nnz * sizeof (double_Complex));
+ 430 coo_matrix.c        1152 if (A->ownership == LIBRARY_DEALLOCATES)
+ 431 coo_matrix.c        1154 if (A->deallocator == NULL)
+ 432 coo_matrix.c        1155 bebop_free (A->val);
+ 433 coo_matrix.c        1157 (A->deallocator) (A->val);
+ 434 coo_matrix.c        1159 A->val = (void*) newval;
+ 435 coo_matrix.c        1163 A->ownership = LIBRARY_DEALLOCATES;
+ 436 coo_matrix.c        1164 A->deallocator = &free;
+ 437 coo_matrix.c        1175 if (A->symmetry_type == SYMMETRIC)
+ 438 coo_matrix.c        1179 if (A->II[k] != A->JJ[k]) /* If not a diagonal element */
+ 439 coo_matrix.c        1181 const int i = A->II[k];
+ 440 coo_matrix.c        1182 const int j = A->JJ[k];
+ 441 coo_matrix.c        1184 A->II[current_idx] = j;
+ 442 coo_matrix.c        1185 A->JJ[current_idx] = i;
+ 443 coo_matrix.c        1186 if (A->value_type == REAL)
+ 444 coo_matrix.c        1188 double* val = (double*) (A->val);
+ 445 coo_matrix.c        1192 else if (A->value_type == COMPLEX)
+ 446 coo_matrix.c        1194 double_Complex* val = (double_Complex*) (A->val);
+ 447 coo_matrix.c        1203 else if (A->symmetry_type == SKEW_SYMMETRIC)
+ 448 coo_matrix.c        1207 if (A->II[k] != A->JJ[k]) /* If not a diagonal element */
+ 449 coo_matrix.c        1209 const int i = A->II[k];
+ 450 coo_matrix.c        1210 const int j = A->JJ[k];
+ 451 coo_matrix.c        1212 A->II[current_idx] = j;
+ 452 coo_matrix.c        1213 A->JJ[current_idx] = i;
+ 453 coo_matrix.c        1214 if (A->value_type == REAL)
+ 454 coo_matrix.c        1216 double* val = (double*) (A->val);
+ 455 coo_matrix.c        1220 else if (A->value_type == COMPLEX)
+ 456 coo_matrix.c        1222 double_Complex* val = (double_Complex*) (A->val);
+ 457 coo_matrix.c        1231 else if (A->symmetry_type == HERMITIAN)
+ 458 coo_matrix.c        1235 if (A->II[k] != A->JJ[k]) /* If not a diagonal element */
+ 459 coo_matrix.c        1237 const int i = A->II[k];
+ 460 coo_matrix.c        1238 const int j = A->JJ[k];
+ 461 coo_matrix.c        1240 A->II[current_idx] = j;
+ 462 coo_matrix.c        1241 A->JJ[current_idx] = i;
+ 463 coo_matrix.c        1242 if (A->value_type == REAL)
+ 464 coo_matrix.c        1246 double* val = (double*) (A->val);
+ 465 coo_matrix.c        1250 else if (A->value_type == COMPLEX)
+ 466 coo_matrix.c        1252 double_Complex* val = (double_Complex*) (A->val);
+ 467 coo_matrix.c        1264 A->symmetry_type = UNSYMMETRIC;
+ 468 coo_matrix.c        1265 A->nnz = new_nnz;
+ 469 coo_matrix.c        1275 const int m = A->m;
+ 470 coo_matrix.c        1276 const int n = A->n;
+ 471 coo_matrix.c        1277 const int index_base = A->index_base;
+ 472 coo_matrix.c        1284 if (A->symmetry_type != UNSYMMETRIC)
+ 473 coo_matrix.c        1344 for (i = 0; i < A->nnz; i++)
+ 474 coo_matrix.c        1346 if (A->II[i] == m - (1 - index_base) && 
+ 475 coo_matrix.c        1347 A->JJ[i] == n - (1 - index_base))
+ 476 coo_matrix.c        1353 A->II = bebop_realloc (A->II, (A->nnz + 1) * sizeof (int));
+ 477 coo_matrix.c        1354 A->JJ = bebop_realloc (A->JJ, (A->nnz + 1) * sizeof (int));
+ 478 coo_matrix.c        1356 A->II[A->nnz] = m - (1 - index_base);
+ 479 coo_matrix.c        1357 A->JJ[A->nnz] = n - (1 - index_base);
+ 480 coo_matrix.c        1359 if (A->value_type == REAL)
+ 481 coo_matrix.c        1363 A->val = bebop_realloc (A->val, (A->nnz + 1) * sizeof (double));
+ 482 coo_matrix.c        1364 val = (double*) (A->val);
+ 483 coo_matrix.c        1365 val[A->nnz] = 0.0;
+ 484 coo_matrix.c        1367 else if (A->value_type == COMPLEX)
+ 485 coo_matrix.c        1371 A->val = bebop_realloc (A->val, 
+ 486 coo_matrix.c        1372 (A->nnz + 1) * sizeof (double_Complex));
+ 487 coo_matrix.c        1373 val = (double_Complex*) (A->val);
+ 488 coo_matrix.c        1374 val[A->nnz] = double_Complex_ZERO;
+ 489 coo_matrix.c        1377 A->nnz = A->nnz + 1;
+ 490 coo_matrix.c        1386 if (A->value_type == REAL)
+ 491 coo_matrix.c        1402 const double* const val = (const double* const) (A->val);
+ 492 coo_matrix.c        1404 for (i = 0; i < A->nnz; i++)
+ 493 coo_matrix.c        1406 A->II[i] + (1 - A->index_base), 
+ 494 coo_matrix.c        1407 A->JJ[i] + (1 - A->index_base), 
+ 495 coo_matrix.c        1411 else if (A->value_type == COMPLEX)
+ 496 coo_matrix.c        1426 const double_Complex* const val = (const double_Complex* const) (A->val);
+ 497 coo_matrix.c        1428 for (i = 0; i < A->nnz; i++)
+ 498 coo_matrix.c        1430 A->II[i] + (1 - A->index_base), 
+ 499 coo_matrix.c        1431 A->JJ[i] + (1 - A->index_base), 
+ 500 coo_matrix.c        1436 else if (A->value_type == PATTERN)
+ 501 coo_matrix.c        1447 for (i = 0; i < A->nnz; i++)
+ 502 coo_matrix.c        1449 A->II[i] + (1 - A->index_base), 
+ 503 coo_matrix.c        1450 A->JJ[i] + (1 - A->index_base));
+ 504 coo_matrix.c        1496 int old_nnz = A->nnz;
+ 505 coo_matrix.c        1497 int new_nnz = A->nnz; /* To be changed */
+ 506 coo_matrix.c        1500 int current_idx = A->nnz;
+ 507 coo_matrix.c        1515 if (A->symmetry_type == UNSYMMETRIC)
+ 508 coo_matrix.c        1527 if (A->II[k] == A->JJ[k])
+ 509 coo_matrix.c        1535 init_coo_matrix (B, A->m, A->n, new_nnz, NULL, NULL, NULL, A->index_base, 
+ 510 coo_matrix.c        1536 UNSYMMETRIC, 0, A->value_type, LIBRARY_DEALLOCATES, &free,
+ 511 coo_matrix.c        1541 memcpy (B->II, A->II, old_nnz * sizeof (int));
+ 512 coo_matrix.c        1543 memcpy (B->JJ, A->JJ, old_nnz * sizeof (int));
+ 513 coo_matrix.c        1545 if (A->value_type == REAL)
+ 514 coo_matrix.c        1548 memcpy (B->val, A->val, old_nnz * sizeof (double));
+ 515 coo_matrix.c        1550 else if (A->value_type == COMPLEX)
+ 516 coo_matrix.c        1553 memcpy (B->val, A->val, old_nnz * sizeof (double_Complex));
+ 517 coo_matrix.c        1563 if (A->symmetry_type == SYMMETRIC)
+ 518 coo_matrix.c        1567 if (A->II[k] != A->JJ[k]) /* If not a diagonal element */
+ 519 coo_matrix.c        1569 const int i = A->II[k];
+ 520 coo_matrix.c        1570 const int j = A->JJ[k];
+ 521 coo_matrix.c        1574 if (A->value_type == REAL)
+ 522 coo_matrix.c        1576 double temp = ((double*) A->val)[k];
+ 523 coo_matrix.c        1579 else if (A->value_type == COMPLEX)
+ 524 coo_matrix.c        1581 double_Complex temp = ((double_Complex*) A->val)[k];
+ 525 coo_matrix.c        1589 else if (A->symmetry_type == SKEW_SYMMETRIC)
+ 526 coo_matrix.c        1593 if (A->II[k] != A->JJ[k]) /* If not a diagonal element */
+ 527 coo_matrix.c        1595 const int i = A->II[k];
+ 528 coo_matrix.c        1596 const int j = A->JJ[k];
+ 529 coo_matrix.c        1598 A->II[current_idx] = j;
+ 530 coo_matrix.c        1599 A->JJ[current_idx] = i;
+ 531 coo_matrix.c        1600 if (A->value_type == REAL)
+ 532 coo_matrix.c        1602 double temp = ((double*) A->val)[k];
+ 533 coo_matrix.c        1605 else if (A->value_type == COMPLEX)
+ 534 coo_matrix.c        1607 double_Complex temp = ((double_Complex*) A->val)[k];
+ 535 coo_matrix.c        1615 else if (A->symmetry_type == HERMITIAN)
+ 536 coo_matrix.c        1619 if (A->II[k] != A->JJ[k]) /* If not a diagonal element */
+ 537 coo_matrix.c        1621 const int i = A->II[k];
+ 538 coo_matrix.c        1622 const int j = A->JJ[k];
+ 539 coo_matrix.c        1624 A->II[current_idx] = j;
+ 540 coo_matrix.c        1625 A->JJ[current_idx] = i;
+ 541 coo_matrix.c        1626 if (A->value_type == REAL)
+ 542 coo_matrix.c        1630 double temp = ((double*) A->val)[k];
+ 543 coo_matrix.c        1633 else if (A->value_type == COMPLEX)
+ 544 coo_matrix.c        1635 double_Complex temp = ((double_Complex*) A->val)[k];
+ 545 interface.c          126 if (RT->format != CSR || A->format != CSR || P->format != CSR)
+ 546 interface.c          129 return create_sparse_matrix (CSR, (void*) csr_matrix_triple_product (RT->repr, A->repr, P->repr));
+ 547 csc_matrix.c         149 int a = A->colptr[j];
+ 548 csc_matrix.c         150 int b = A->colptr[j+1];
+ 549 csc_matrix.c         156 if (A->value_type == REAL)
+ 550 csc_matrix.c         159 const double* const values = (const double* const) (A->values);
+ 551 csc_matrix.c         164 _col[k].index = A->rowidx[a+k];
+ 552 csc_matrix.c         168 else if (A->value_type == COMPLEX)
+ 553 csc_matrix.c         171 const double_Complex* const values = (const double_Complex* const) (A->values);
+ 554 csc_matrix.c         176 _col[k].index = A->rowidx[a+k];
+ 555 csc_matrix.c         180 else if (A->value_type == PATTERN)
+ 556 csc_matrix.c         187 _col[k] = A->rowidx[a+k];
+ 557 csc_matrix.c         201 int a = A->colptr[j];
+ 558 csc_matrix.c         202 int b = A->colptr[j+1];
+ 559 csc_matrix.c         209 if (A->value_type == REAL)
+ 560 csc_matrix.c         212 double* values = (double*) (A->values);
+ 561 csc_matrix.c         217 A->rowidx[a+k] = _col[k].index;
+ 562 csc_matrix.c         221 else if (A->value_type == COMPLEX)
+ 563 csc_matrix.c         224 double_Complex* values = (double_Complex*) (A->values);
+ 564 csc_matrix.c         229 A->rowidx[a+k] = _col[k].index;
+ 565 csc_matrix.c         233 else if (A->value_type == PATTERN)
+ 566 csc_matrix.c         240 A->rowidx[a+k] = _col[k];
+ 567 csc_matrix.c         256 bebop_log (2, "Matrix is %d x %d with %d nonzeros\n", A->m, A->n, A->nnz);
+ 568 csc_matrix.c         258 if (A->n <= 0)
+ 569 csc_matrix.c         269 max_nnz = A->colptr[1] - A->colptr[0];
+ 570 csc_matrix.c         270 assert (A->colptr[1] - A->colptr[0] >= 0);
+ 571 csc_matrix.c         271 for (j = 1; j < A->n; j++)
+ 572 csc_matrix.c         273 int nnz = A->colptr[j+1] - A->colptr[j];
+ 573 csc_matrix.c         276 bebop_log (0, "*** csc_matrix_sort_rowidx: at column %d, A->colptr[%d]="
+ 574 csc_matrix.c         277 "%d < A->colptr[%d]=%d ***\n", 
+ 575 csc_matrix.c         278 j, j+1, A->colptr[j+1], j, A->colptr[j]);
+ 576 csc_matrix.c         286 if (A->value_type == REAL)
+ 577 csc_matrix.c         293 for (j = 0; j < A->n; j++)
+ 578 csc_matrix.c         295 int nnz = A->colptr[j+1] - A->colptr[j];
+ 579 csc_matrix.c         315 else if (A->value_type == COMPLEX)
+ 580 csc_matrix.c         320 for (j = 0; j < A->n; j++)
+ 581 csc_matrix.c         322 int nnz = A->colptr[j+1] - A->colptr[j];
+ 582 csc_matrix.c         338 else if (A->value_type == PATTERN)
+ 583 csc_matrix.c         343 for (j = 0; j < A->n; j++)
+ 584 csc_matrix.c         345 int nnz = A->colptr[j+1] - A->colptr[j];
+ 585 csc_matrix.c         412 A->m = m;
+ 586 csc_matrix.c         413 A->n = n;
+ 587 csc_matrix.c         414 A->nnz = nnz;
+ 588 csc_matrix.c         415 A->symmetry_type = symmetry_type;
+ 589 csc_matrix.c         416 A->symmetric_storage_location = symmetric_storage_location;
+ 590 csc_matrix.c         417 A->value_type = value_type;
+ 591 csc_matrix.c         418 A->ownership = ownership;
+ 592 csc_matrix.c         419 A->deallocator = deallocator == NULL ? &free : deallocator;
+ 593 csc_matrix.c         422 A->values = values;
+ 594 csc_matrix.c         423 A->rowidx = rowidx;
+ 595 csc_matrix.c         424 A->colptr = colptr;
+ 596 csc_matrix.c         428 A->ownership = LIBRARY_DEALLOCATES;
+ 597 csc_matrix.c         429 A->deallocator = &free;
+ 598 csc_matrix.c         432 A->values = malloc_and_copy (values, nnz, sizeof (double));
+ 599 csc_matrix.c         434 A->values = malloc_and_copy (values, nnz, sizeof (double_Complex));
+ 600 csc_matrix.c         436 A->values = NULL;
+ 601 csc_matrix.c         438 A->rowidx = malloc_and_copy (rowidx, (m+1), sizeof (int));
+ 602 csc_matrix.c         439 A->colptr = malloc_and_copy (colptr, nnz, sizeof (int));
+ 603 csc_matrix.c         468 const int m = A->m;
+ 604 csc_matrix.c         469 const int n = A->n;
+ 605 csc_matrix.c         470 const int nnz = A->nnz;
+ 606 csc_matrix.c         471 const int* colptr = A->colptr;
+ 607 csc_matrix.c         472 const int* rowidx = A->rowidx;
+ 608 csc_matrix.c         568 A->nnz = nnz;
+ 609 csc_matrix.c         569 A->m   = m;
+ 610 csc_matrix.c         570 A->n   = n;
+ 611 csc_matrix.c         572 A->colptr = (int*) bebop_calloc ((n+1), sizeof (int));
+ 612 csc_matrix.c         573 A->rowidx = (int*) bebop_calloc (nnz, sizeof (int));
+ 613 csc_matrix.c         578 A->colptr[i] = i;
+ 614 csc_matrix.c         579 A->rowidx[i] = i;
+ 615 csc_matrix.c         586 A->colptr[i] = nnz;
+ 616 csc_matrix.c         590 A->symmetry_type = UNSYMMETRIC;
+ 617 csc_matrix.c         591 A->value_type = REAL;
+ 618 csc_matrix.c         592 A->values = (void*) values;
+ 619 csc_matrix.c         593 A->ownership = LIBRARY_DEALLOCATES;
+ 620 csc_matrix.c         594 A->deallocator = &free;
+ 621 csc_matrix.c         611 if (A->value_type == REAL)
+ 622 csc_matrix.c         613 else if (A->value_type == COMPLEX)
+ 623 csc_matrix.c         615 else if (A->value_type == PATTERN)
+ 624 csc_matrix.c         623 if (A->symmetry_type == UNSYMMETRIC)
+ 625 csc_matrix.c         625 else if (A->symmetry_type == SYMMETRIC)
+ 626 csc_matrix.c         627 else if (A->symmetry_type == SKEW_SYMMETRIC)
+ 627 csc_matrix.c         629 else if (A->symmetry_type == HERMITIAN)
+ 628 csc_matrix.c         642 fprintf (out, "%% colptr[%d]: ", A->n + 1);
+ 629 csc_matrix.c         643 for (i = 0; i <= A->n; i++)
+ 630 csc_matrix.c         644 fprintf (out, " %d", A->colptr[i]);
+ 631 csc_matrix.c         646 fprintf (out, "\n%% rowidx[%d]: ", A->nnz);
+ 632 csc_matrix.c         647 for (i = 0; i < A->nnz; i++)
+ 633 csc_matrix.c         648 fprintf (out, " %d", A->rowidx[i]);
+ 634 csc_matrix.c         650 if (A->value_type != PATTERN)
+ 635 csc_matrix.c         652 fprintf (out, "\n%% values[%d]: ", A->nnz);
+ 636 csc_matrix.c         654 if (A->value_type == REAL)
+ 637 csc_matrix.c         656 const double* const values = (const double* const) (A->values);
+ 638 csc_matrix.c         658 for (i = 0; i < A->nnz; i++)
+ 639 csc_matrix.c         661 else if (A->value_type == COMPLEX)
+ 640 csc_matrix.c         663 const double_Complex* const values = (const double_Complex* const) (A->values);
+ 641 csc_matrix.c         665 for (i = 0; i < A->nnz; i++)
+ 642 csc_matrix.c         675 fprintf (out, "%d %d %d\n", A->m, A->n, A->nnz);
+ 643 csc_matrix.c         677 if (A->value_type == REAL)
+ 644 csc_matrix.c         679 const double* const values = (const double* const) (A->values);
+ 645 csc_matrix.c         681 for (j = 0; j < A->n; j++)
+ 646 csc_matrix.c         683 start = A->colptr[j];
+ 647 csc_matrix.c         684 end   = A->colptr[j+1];
+ 648 csc_matrix.c         688 fprintf (out, "%d %d %.13e\n", A->rowidx[i] + 1, j + 1, values[i]);
+ 649 csc_matrix.c         691 else if (A->value_type == COMPLEX)
+ 650 csc_matrix.c         693 const double_Complex* const values = (const double_Complex* const) (A->values);
+ 651 csc_matrix.c         695 for (j = 0; j < A->n; j++)
+ 652 csc_matrix.c         697 start = A->colptr[j];
+ 653 csc_matrix.c         698 end   = A->colptr[j+1];
+ 654 csc_matrix.c         702 fprintf (out, "%d %d %.13e %.13e\n", A->rowidx[i] + 1, j + 1, double_Complex_real_part(values[i]), double_Complex_imag_part(values[i]));
+ 655 csc_matrix.c         705 else if (A->value_type == PATTERN)
+ 656 csc_matrix.c         707 for (j = 0; j < A->n; j++)
+ 657 csc_matrix.c         709 start = A->colptr[j];
+ 658 csc_matrix.c         710 end   = A->colptr[j+1];
+ 659 csc_matrix.c         714 fprintf (out, "%d %d\n", A->rowidx[i] + 1, j + 1);
+ 660 csc_matrix.c         732 if (A->m != B->m)
+ 661 csc_matrix.c         734 bebop_log (1, "*** A->m = %d != B->m = %d\n ***\n", A->m, B->m);
+ 662 csc_matrix.c         737 m = A->m;
+ 663 csc_matrix.c         739 if (A->n != B->n)
+ 664 csc_matrix.c         741 bebop_log (1, "*** A->n = %d != B->n = %d\n ***\n", A->n, B->n);
+ 665 csc_matrix.c         744 n = A->n;
+ 666 csc_matrix.c         746 if (A->nnz != B->nnz)
+ 667 csc_matrix.c         748 bebop_log (1, "*** A->nnz = %d != B->nnz = %d\n ***\n", A->nnz, B->nnz);
+ 668 csc_matrix.c         751 nnz = A->nnz;
+ 669 csc_matrix.c         756 if (A->colptr[n] != nnz)
+ 670 csc_matrix.c         761 n, A->colptr[n], nnz);
+ 671 csc_matrix.c         767 int a_start = A->colptr[i];
+ 672 csc_matrix.c         768 int a_end   = A->colptr[i+1];
+ 673 csc_matrix.c         774 bebop_log (1, "*** At column %d: A->colptr[%d] = %d "
+ 674 csc_matrix.c         776 i, i, A->colptr[i], i, B->colptr[i]);
+ 675 csc_matrix.c         781 bebop_log (1, "*** At column %d: A->colptr[%d] = %d "
+ 676 csc_matrix.c         783 i, i+1, A->colptr[i+1], i+1, B->colptr[i+1]);
+ 677 csc_matrix.c         788 if (A->rowidx[j] != B->rowidx[j])
+ 678 csc_matrix.c         790 bebop_log (1, "*** At column %d:  A->rowidx[%d] "
+ 679 csc_matrix.c         792 i, j, A->rowidx[j], j, B->rowidx[j]);
+ 680 csc_matrix.c         797 if (A->colptr[n] != B->colptr[n])
+ 681 csc_matrix.c         799 bebop_log (1, "*** A->colptr[n = %d] = %d != B->colptr[n"
+ 682 csc_matrix.c         801 n, A->colptr[n], n, B->colptr[n]);
+ 683 csc_matrix.c         821 if (A->ownership == USER_DEALLOCATES)
+ 684 csc_matrix.c         824 if (A->deallocator == NULL)
+ 685 csc_matrix.c         826 if (A->values != NULL && A->nnz > 0) 
+ 686 csc_matrix.c         828 bebop_free (A->values);
+ 687 csc_matrix.c         829 A->values = NULL;
+ 688 csc_matrix.c         832 if (A->rowidx != NULL && A->nnz > 0)
+ 689 csc_matrix.c         834 bebop_free (A->rowidx);
+ 690 csc_matrix.c         835 A->rowidx = NULL;
+ 691 csc_matrix.c         838 if (A->colptr != NULL && A->n > 0)
+ 692 csc_matrix.c         840 bebop_free (A->colptr);
+ 693 csc_matrix.c         841 A->colptr = NULL;
+ 694 csc_matrix.c         846 if (A->values != NULL && A->nnz > 0) 
+ 695 csc_matrix.c         848 (A->deallocator) (A->values);
+ 696 csc_matrix.c         849 A->values = NULL;
+ 697 csc_matrix.c         852 if (A->rowidx != NULL && A->nnz > 0)
+ 698 csc_matrix.c         854 (A->deallocator) (A->rowidx);
+ 699 csc_matrix.c         855 A->rowidx = NULL;
+ 700 csc_matrix.c         858 if (A->colptr != NULL && A->n > 0)
+ 701 csc_matrix.c         860 (A->deallocator) (A->colptr);
+ 702 csc_matrix.c         861 A->colptr = NULL;
+ 703 csc_matrix.c         865 A->m = 0;
+ 704 csc_matrix.c         866 A->n = 0;
+ 705 csc_matrix.c         867 A->nnz = 0;
+ 706 csc_matrix.c         926 *m = A->m;
+ 707 csc_matrix.c         927 *n = A->n;
+ 708 csc_matrix.c         928 *nnz = A->nnz;
+ 709 csc_matrix.c         930 *values = A->values;
+ 710 csc_matrix.c         931 *rowidx = A->rowidx;
+ 711 csc_matrix.c         932 *colptr = A->colptr;
+ 712 csc_matrix.c         934 *symmetry_type = A->symmetry_type;
+ 713 csc_matrix.c         935 *symmetric_storage_location = A->symmetric_storage_location;
+ 714 csc_matrix.c         936 *value_type = A->value_type;
+ 715 csc_matrix.c         947 int m           = A->m; 
+ 716 csc_matrix.c         948 int n           = A->n;
+ 717 csc_matrix.c         949 int     *rowind = A->rowidx;
+ 718 csc_matrix.c         950 int     *colptr = A->colptr;
+ 719 csc_matrix.c         958 if (A->colptr[n] == 0)
+ 720 csc_matrix.c        1258 if (A->value_type == REAL)
+ 721 csc_matrix.c        1260 else if (A->value_type == COMPLEX)
+ 722 csc_matrix.c        1262 else if (A->value_type == PATTERN)
+ 723 csc_matrix.c        1270 if (A->m == A->n)
+ 724 csc_matrix.c        1272 if (A->symmetry_type == SYMMETRIC)
+ 725 csc_matrix.c        1274 else if (A->symmetry_type == SKEW_SYMMETRIC)
+ 726 csc_matrix.c        1276 else if (A->symmetry_type == HERMITIAN)
+ 727 csc_matrix.c        1282 if (A->value_type == REAL)
+ 728 csc_matrix.c        1284 const double* const values = (const double* const) (A->values);
+ 729 csc_matrix.c        1286 A->m, A->n, A->nnz, 
+ 730 csc_matrix.c        1287 A->colptr, A->rowidx, values,
+ 731 csc_matrix.c        1293 else if (A->value_type == COMPLEX)
+ 732 csc_matrix.c        1297 const double_Complex* const values = (const double_Complex* const) (A->values);
+ 733 csc_matrix.c        1298 double *interlaced_values = bebop_malloc (A->nnz * 2 * sizeof(double));
+ 734 csc_matrix.c        1299 for (k = 0; k < A->nnz; k++)
+ 735 csc_matrix.c        1305 A->m, A->n, A->nnz, 
+ 736 csc_matrix.c        1306 A->colptr, A->rowidx, 
+ 737 csc_matrix.c        1314 else if (A->value_type == PATTERN)
+ 738 csc_matrix.c        1317 A->m, A->n, A->nnz, 
+ 739 csc_matrix.c        1318 A->colptr, A->rowidx, NULL,
+ 740 csc_matrix.c        1441 else if (A->m != A->n)
+ 741 csc_matrix.c        1446 else if (A->symmetry_type == UNSYMMETRIC)
+ 742 csc_matrix.c        1455 A->m, A->n, A->nnz);
+ 743 csc_matrix.c        1457 cur_col_nnz = (int*) bebop_calloc (A->n, sizeof (int));
+ 744 csc_matrix.c        1458 new_col_nnz = (int*) bebop_calloc (A->n, sizeof (int));
+ 745 csc_matrix.c        1471 for (j = 0; j < A->n; j++)
+ 746 csc_matrix.c        1474 cur_col_nnz[j] = A->colptr[j+1] - A->colptr[j];
+ 747 csc_matrix.c        1482 for (j = 0; j < A->n; j++)
+ 748 csc_matrix.c        1490 else if (cur_col_nnz[j] > A->nnz)
+ 749 csc_matrix.c        1493 "l_nnz[%d] = %d > nnz = %d ***", j, cur_col_nnz[j], A->nnz);
+ 750 csc_matrix.c        1496 else if (A->colptr[j] > A->colptr[j+1])
+ 751 csc_matrix.c        1498 bebop_log (0, "*** csc_matrix_expand_symmetric_storage: A->c"
+ 752 csc_matrix.c        1499 "olptr[%d] = %d > A->colptr[%d] = %d ***\n", 
+ 753 csc_matrix.c        1500 j, A->colptr[j], j+1, A->colptr[j+1]);
+ 754 csc_matrix.c        1507 for (j = 0; j < A->n; j++)
+ 755 csc_matrix.c        1510 for (k = A->colptr[j]; k < A->colptr[j+1]; k++)
+ 756 csc_matrix.c        1512 int ii = A->rowidx[k];
+ 757 csc_matrix.c        1528 colptr = (int*) bebop_malloc ((A->n + 1) * sizeof (int));
+ 758 csc_matrix.c        1532 memcpy (colptr, A->colptr, (A->n + 1) * sizeof (int));
+ 759 csc_matrix.c        1542 for (j = 1; j <= A->n; j++)
+ 760 csc_matrix.c        1547 colptr[A->n] = new_nnz;
+ 761 csc_matrix.c        1552 for (j = 0; j < A->n; j++)
+ 762 csc_matrix.c        1560 else if (colptr[j] < A->colptr[j])
+ 763 csc_matrix.c        1563 "tr[%d] = %d < A->colptr[%d] = %d ***\n", j, colptr[j], 
+ 764 csc_matrix.c        1564 j, A->colptr[j]);
+ 765 csc_matrix.c        1584 for (j = 0; j < A->n; j++)
+ 766 csc_matrix.c        1604 if (A->value_type == REAL)
+ 767 csc_matrix.c        1607 for (j = 0; j < A->n; j++)
+ 768 csc_matrix.c        1610 int k_cur = A->colptr[j];    /* current position in old matrix */
+ 769 csc_matrix.c        1618 if (k_cur >= A->nnz)
+ 770 csc_matrix.c        1621 "for column %d, k_cur = %d >= A->nnz = %d ***\n", 
+ 771 csc_matrix.c        1622 j, k_cur, A->nnz);
+ 772 csc_matrix.c        1637 memcpy (&rowidx[k_new], &(A->rowidx[k_cur]), cur_nnz * sizeof (int));
+ 773 csc_matrix.c        1638 memcpy (values + k_new, ((double*) (A->values)) + k_cur, cur_nnz * sizeof (double));
+ 774 csc_matrix.c        1641 while (k_cur < A->colptr[j+1])
+ 775 csc_matrix.c        1644 int ii = A->rowidx[k_cur];
+ 776 csc_matrix.c        1649 double a = ((double*) A->values)[k_cur];
+ 777 csc_matrix.c        1656 if (A->symmetry_type == SYMMETRIC)
+ 778 csc_matrix.c        1658 else if (A->symmetry_type == SKEW_SYMMETRIC)
+ 779 csc_matrix.c        1660 else if (A->symmetry_type == HERMITIAN)
+ 780 csc_matrix.c        1678 bebop_free (A->colptr);
+ 781 csc_matrix.c        1679 bebop_free (A->rowidx);
+ 782 csc_matrix.c        1680 bebop_free (A->values);
+ 783 csc_matrix.c        1682 A->colptr = colptr;
+ 784 csc_matrix.c        1683 A->rowidx = rowidx;
+ 785 csc_matrix.c        1684 A->values = values;
+ 786 csc_matrix.c        1685 A->nnz = new_nnz;
+ 787 csc_matrix.c        1687 else if (A->value_type == COMPLEX)
+ 788 csc_matrix.c        1690 for (j = 0; j < A->n; j++)
+ 789 csc_matrix.c        1693 int k_cur = A->colptr[j];    /* current position in old matrix */
+ 790 csc_matrix.c        1697 memcpy (&rowidx[k_new], &(A->rowidx[k_cur]), cur_nnz * sizeof (int));
+ 791 csc_matrix.c        1698 memcpy (values + k_new, ((double_Complex*) A->values) + k_cur, cur_nnz * sizeof (double_Complex));
+ 792 csc_matrix.c        1701 while (k_cur < A->colptr[j+1])
+ 793 csc_matrix.c        1704 int ii = A->rowidx[k_cur];
+ 794 csc_matrix.c        1709 double_Complex a = ((double_Complex*) A->values)[k_cur];
+ 795 csc_matrix.c        1716 if (A->symmetry_type == SYMMETRIC)
+ 796 csc_matrix.c        1718 else if (A->symmetry_type == SKEW_SYMMETRIC)
+ 797 csc_matrix.c        1720 else if (A->symmetry_type == HERMITIAN)
+ 798 csc_matrix.c        1737 bebop_free (A->colptr);
+ 799 csc_matrix.c        1738 bebop_free (A->rowidx);
+ 800 csc_matrix.c        1739 bebop_free (A->values);
+ 801 csc_matrix.c        1741 A->colptr = colptr;
+ 802 csc_matrix.c        1742 A->rowidx = rowidx;
+ 803 csc_matrix.c        1743 A->values = values;
+ 804 csc_matrix.c        1744 A->nnz = new_nnz;
+ 805 csc_matrix.c        1746 else if (A->value_type == PATTERN)
+ 806 csc_matrix.c        1748 for (j = 0; j < A->n; j++)
+ 807 csc_matrix.c        1751 int k_cur = A->colptr[j];    /* current position in old matrix */
+ 808 csc_matrix.c        1757 memcpy (&rowidx[k_new], &(A->rowidx[k_cur]), cur_nnz * sizeof (int));
+ 809 csc_matrix.c        1760 while (k_cur < A->colptr[j+1])
+ 810 csc_matrix.c        1763 int ii = A->rowidx[k_cur];
+ 811 csc_matrix.c        1787 bebop_free (A->colptr);
+ 812 csc_matrix.c        1788 bebop_free (A->rowidx);
+ 813 csc_matrix.c        1790 A->colptr = colptr;
+ 814 csc_matrix.c        1791 A->rowidx = rowidx;
+ 815 csc_matrix.c        1792 A->values = NULL;
+ 816 csc_matrix.c        1793 A->nnz = new_nnz;
+ 817 csc_matrix.c        1799 for (j = 0; j < A->n; j++)
+ 818 csc_matrix.c        1818 A->symmetry_type = UNSYMMETRIC;
+ 819 bcoo_matrix.c        417 const int r = A->r;
+ 820 bcoo_matrix.c        418 const int c = A->c;
+ 821 bcoo_matrix.c        424 if (A->value_type == REAL)
+ 822 bcoo_matrix.c        426 else if (A->value_type == COMPLEX)
+ 823 bcoo_matrix.c        447 if (A->value_type == REAL)  \
+ 824 bcoo_matrix.c        454 else if (A->value_type == COMPLEX) \
+ 825 bcoo_matrix.c        467 if (A->value_type == REAL)        \
+ 826 bcoo_matrix.c        469 else if (A->value_type == COMPLEX) \
+ 827 bcoo_matrix.c        478 retval = VALGRIND_CHECK_READABLE( A->II + low, sizeof (int) );
+ 828 bcoo_matrix.c        481 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A-"
+ 829 bcoo_matrix.c        483 "ng from A->II[low])! ***\n", low, high, low);
+ 830 bcoo_matrix.c        487 retval = VALGRIND_CHECK_READABLE( A->JJ + low, sizeof (int) );
+ 831 bcoo_matrix.c        490 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 832 bcoo_matrix.c        492 " from A->JJ[low])! ***\n", low, high, low);
+ 833 bcoo_matrix.c        504 SWAP_INTS( (A->II), low, i );
+ 834 bcoo_matrix.c        505 SWAP_INTS( (A->JJ), low, i );
+ 835 bcoo_matrix.c        506 SWAP( (A->val), low, i );
+ 836 bcoo_matrix.c        509 int_pivot_item1 = A->II[low];
+ 837 bcoo_matrix.c        510 int_pivot_item2 = A->JJ[low];
+ 838 bcoo_matrix.c        511 ASSIGN (pivot_item, VOIDAREF( A->val, block_size*low ));
+ 839 bcoo_matrix.c        523 retval = VALGRIND_CHECK_READABLE( A->II + left, sizeof (int) );
+ 840 bcoo_matrix.c        526 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A-"
+ 841 bcoo_matrix.c        533 retval = VALGRIND_CHECK_READABLE( A->JJ + left, sizeof (int) );
+ 842 bcoo_matrix.c        536 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 843 bcoo_matrix.c        546 while (my_compare_lexicographically (A->II[left], int_pivot_item1, 
+ 844 bcoo_matrix.c        547 A->JJ[left], int_pivot_item2) <= 0 && 
+ 845 bcoo_matrix.c        556 retval = VALGRIND_CHECK_READABLE( A->II + right, sizeof (int) );
+ 846 bcoo_matrix.c        559 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A-"
+ 847 bcoo_matrix.c        566 retval = VALGRIND_CHECK_READABLE( A->JJ + right, sizeof (int) );
+ 848 bcoo_matrix.c        569 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 849 bcoo_matrix.c        579 while (my_compare_lexicographically (A->II[right], int_pivot_item1, 
+ 850 bcoo_matrix.c        580 A->JJ[right], int_pivot_item2) > 0 && 
+ 851 bcoo_matrix.c        591 retval = VALGRIND_CHECK_WRITABLE( A->II + left, sizeof (int) );
+ 852 bcoo_matrix.c        594 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 853 bcoo_matrix.c        601 retval = VALGRIND_CHECK_WRITABLE( A->JJ + left, sizeof (int) );
+ 854 bcoo_matrix.c        604 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 855 bcoo_matrix.c        610 retval = VALGRIND_CHECK_WRITABLE( A->II + right, sizeof (int) );
+ 856 bcoo_matrix.c        613 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 857 bcoo_matrix.c        620 retval = VALGRIND_CHECK_WRITABLE( A->JJ + right, sizeof (int) );
+ 858 bcoo_matrix.c        623 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 859 bcoo_matrix.c        632 SWAP_INTS( (A->II), left, right );
+ 860 bcoo_matrix.c        633 SWAP_INTS( (A->JJ), left, right );
+ 861 bcoo_matrix.c        634 SWAP( (A->val), left, right );
+ 862 bcoo_matrix.c        645 retval = VALGRIND_CHECK_WRITABLE( A->II + low, sizeof (int) );
+ 863 bcoo_matrix.c        648 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A-"
+ 864 bcoo_matrix.c        650 "gnment to A->II[low]) ***\n", low, high, low);
+ 865 bcoo_matrix.c        654 retval = VALGRIND_CHECK_WRITABLE( A->JJ + low, sizeof (int) );
+ 866 bcoo_matrix.c        657 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 867 bcoo_matrix.c        659 "ment to A->II[low]) ***\n", low, high, low);
+ 868 bcoo_matrix.c        663 retval = VALGRIND_CHECK_READABLE( A->II + right, sizeof (int) );
+ 869 bcoo_matrix.c        666 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 870 bcoo_matrix.c        668 "g from A->II[right] in order to assign to A->II[low])! ***\n",
+ 871 bcoo_matrix.c        673 retval = VALGRIND_CHECK_READABLE( A->JJ + right, sizeof (int) );
+ 872 bcoo_matrix.c        676 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 873 bcoo_matrix.c        678 "g from A->JJ[right] in order to assign to A->JJ[low])! ***\n",
+ 874 bcoo_matrix.c        685 A->II[low] = A->II[right];
+ 875 bcoo_matrix.c        686 A->JJ[low] = A->JJ[right];
+ 876 bcoo_matrix.c        687 ASSIGN( VOIDAREF(A->val, block_size*low), VOIDAREF(A->val, block_size*right) );
+ 877 bcoo_matrix.c        695 retval = VALGRIND_CHECK_WRITABLE( A->II + right, sizeof (int) );
+ 878 bcoo_matrix.c        698 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 879 bcoo_matrix.c        700 "ing int_pivot_item1 to A->II[right])! ***\n",
+ 880 bcoo_matrix.c        705 retval = VALGRIND_CHECK_WRITABLE( A->JJ + right, sizeof (int) );
+ 881 bcoo_matrix.c        708 bebop_log (0, "*** partition: low=%d, high=%d:  Valgrind says A->"
+ 882 bcoo_matrix.c        710 "ing int_pivot_item2 to A->JJ[right])! ***\n",
+ 883 bcoo_matrix.c        718 A->II[right] = int_pivot_item1;
+ 884 bcoo_matrix.c        719 A->JJ[right] = int_pivot_item2;
+ 885 bcoo_matrix.c        720 ASSIGN( VOIDAREF(A->val, block_size*right), pivot_item );
+ 886 bcoo_matrix.c        742 * Verify A->II, A->JJ and A->val (the latter only if A is a matrix 
+ 887 bcoo_matrix.c        763 retval = VALGRIND_CHECK_READABLE( A->II + k, sizeof(int) );
+ 888 bcoo_matrix.c        768 bebop_log (0, "*** quicksort: Valgrind says A->II[%d] is"
+ 889 bcoo_matrix.c        770 A->nnzb, low, high);
+ 890 bcoo_matrix.c        773 retval = VALGRIND_CHECK_READABLE( A->JJ + k, sizeof(int) );
+ 891 bcoo_matrix.c        778 bebop_log (0, "*** quicksort: Valgrind says A->JJ[%d] is"
+ 892 bcoo_matrix.c        780 A->nnzb, low, high);
+ 893 bcoo_matrix.c        788 retval = VALGRIND_CHECK_READABLE( A->II + low, (high - low + 1) * sizeof(int) );
+ 894 bcoo_matrix.c        791 bebop_log (0, "*** quicksort: Valgrind says A->II[%d:%d] is"
+ 895 bcoo_matrix.c        792 " not readable! nnzb=%d ***\n", low, high, A->nnzb);
+ 896 bcoo_matrix.c        795 retval = VALGRIND_CHECK_READABLE( A->JJ + low, (high - low + 1) * sizeof(int) );
+ 897 bcoo_matrix.c        798 bebop_log (0, "*** quicksort: Valgrind says A->JJ[%d:%d] is"
+ 898 bcoo_matrix.c        799 " not readable! nnzb=%d ***\n", low, high, A->nnzb);
+ 899 bcoo_matrix.c        803 retval = VALGRIND_CHECK_WRITABLE( A->II + low, (high - low + 1) * sizeof(int) );
+ 900 bcoo_matrix.c        806 bebop_log (0, "*** quicksort: Valgrind says A->II[%d:%d] is"
+ 901 bcoo_matrix.c        807 " not writable! nnzb=%d ***\n", low, high, A->nnzb);
+ 902 bcoo_matrix.c        810 retval = VALGRIND_CHECK_WRITABLE( A->JJ + low, (high - low + 1) * sizeof(int) );
+ 903 bcoo_matrix.c        813 bebop_log (0, "*** quicksort: Valgrind says A->JJ[%d:%d] is"
+ 904 bcoo_matrix.c        814 " not writable! nnzb=%d ***\n", low, high, A->nnzb);
+ 905 bcoo_matrix.c        818 if (A->value_type == REAL)
+ 906 bcoo_matrix.c        820 retval = VALGRIND_CHECK_READABLE( A->val + low, (high - low + 1) * sizeof(double) );
+ 907 bcoo_matrix.c        823 bebop_log (0, "*** quicksort: Valgrind says A->val in th"
+ 908 bcoo_matrix.c        825 ", c=%d ***\n", low, high, A->nnzb, A->r, A->c);
+ 909 bcoo_matrix.c        829 retval = VALGRIND_CHECK_WRITABLE( A->val + low, (high - low + 1) * sizeof(double) );
+ 910 bcoo_matrix.c        832 bebop_log (0, "*** quicksort: Valgrind says A->val in th"
+ 911 bcoo_matrix.c        834 ", c=%d ***\n", low, high, A->nnzb, A->r, A->c);
+ 912 bcoo_matrix.c        838 else if (A->value_type == COMPLEX)
+ 913 bcoo_matrix.c        840 VALGRIND_CHECK_READABLE( A->val + low, (high - low + 1) * sizeof(double_Complex) );
+ 914 bcoo_matrix.c        843 bebop_log (0, "*** quicksort: Valgrind says A->val in th"
+ 915 bcoo_matrix.c        845 ", c=%d ***\n", low, high, A->nnzb, A->r, A->c);
+ 916 bcoo_matrix.c        849 VALGRIND_CHECK_WRITABLE( A->val + low, (high - low + 1) * sizeof(double_Complex) );
+ 917 bcoo_matrix.c        852 bebop_log (0, "*** quicksort: Valgrind says A->val in th"
+ 918 bcoo_matrix.c        854 ", c=%d ***\n", low, high, A->nnzb, A->r, A->c);
+ 919 bcoo_matrix.c        885 if (A->value_type == REAL)
+ 920 bcoo_matrix.c        886 workspace = bebop_calloc (3 * A->r * A->c, MAX(sizeof(double), sizeof(int)));
+ 921 bcoo_matrix.c        887 else if (A->value_type == COMPLEX)
+ 922 bcoo_matrix.c        888 workspace = bebop_calloc (3 * A->r * A->c, MAX(sizeof(double_Complex), sizeof(int)));
+ 923 bcoo_matrix.c        889 else if (A->value_type == PATTERN)
+ 924 bcoo_matrix.c        890 workspace = bebop_calloc (3 * A->r * A->c, sizeof(int));
+ 925 bcoo_matrix.c        898 * Verify A->II, A->JJ and A->val (the latter only if A is a matrix 
+ 926 bcoo_matrix.c        907 retval = VALGRIND_CHECK_READABLE( A->II, A->nnzb * sizeof(int) );
+ 927 bcoo_matrix.c        910 bebop_log (0, "*** sort_bcoo_matrix_by_rows_then_columns: Valgrind says A->II[0:A->nnzb-1] is invalid! ***\n");
+ 928 bcoo_matrix.c        913 retval = VALGRIND_CHECK_READABLE( A->JJ, A->nnzb * sizeof(int) );
+ 929 bcoo_matrix.c        916 bebop_log (0, "*** sort_bcoo_matrix_by_rows_then_columns: Valgrind says A->JJ[0:A->nnzb-1] is invalid! ***\n");
+ 930 bcoo_matrix.c        919 if (A->value_type == REAL)
+ 931 bcoo_matrix.c        921 retval = VALGRIND_CHECK_READABLE( A->val, A->nnzb * A->r * A->c * sizeof(double) );
+ 932 bcoo_matrix.c        924 bebop_log (0, "*** sort_bcoo_matrix_by_rows_then_columns: Valgrind says A->val is invalid! ***\n");
+ 933 bcoo_matrix.c        928 else if (A->value_type == COMPLEX)
+ 934 bcoo_matrix.c        930 retval = VALGRIND_CHECK_READABLE( A->val, A->nnzb * A->r * A->c * sizeof(double_Complex) );
+ 935 bcoo_matrix.c        933 bebop_log (0, "*** sort_bcoo_matrix_by_rows_then_columns: Valgrind says A->val is invalid! ***\n");
+ 936 bcoo_matrix.c        942 quicksort (A, 0, A->nnzb - 1, workspace);
+ 937 bcoo_matrix.c        957 const int nnzb = A->nnzb;
+ 938 bcoo_matrix.c        958 const int r = A->r;
+ 939 bcoo_matrix.c        959 const int c = A->c;
+ 940 bcoo_matrix.c        961 const int bm = A->bm;
+ 941 bcoo_matrix.c        962 const int bn = A->bn;
+ 942 bcoo_matrix.c        969 if (A->symmetry_type == UNSYMMETRIC)
+ 943 bcoo_matrix.c        971 else if (A->symmetry_type == SYMMETRIC)
+ 944 bcoo_matrix.c        973 else if (A->symmetry_type == SKEW_SYMMETRIC)
+ 945 bcoo_matrix.c        975 else if (A->symmetry_type == HERMITIAN)
+ 946 bcoo_matrix.c        981 "matrix! ***\n", A->symmetry_type);
+ 947 bcoo_matrix.c        986 if (A->value_type == REAL)
+ 948 bcoo_matrix.c        988 else if (A->value_type == COMPLEX)
+ 949 bcoo_matrix.c        990 else if (A->value_type == PATTERN)
+ 950 bcoo_matrix.c       1002 if (A->value_type == REAL)
+ 951 bcoo_matrix.c       1004 double* val = (double*) (A->val);
+ 952 bcoo_matrix.c       1011 const int rowindexbase = A->II[i] + (1 - A->index_base);
+ 953 bcoo_matrix.c       1012 const int colindexbase = A->JJ[i] + (1 - A->index_base);
+ 954 bcoo_matrix.c       1014 if (A->col_oriented_p)
+ 955 bcoo_matrix.c       1016 for (ii = 0; ii < A->r; ii++)
+ 956 bcoo_matrix.c       1017 for (jj = 0; jj < A->c; jj++)
+ 957 bcoo_matrix.c       1023 for (ii = 0; ii < A->r; ii++)
+ 958 bcoo_matrix.c       1024 for (jj = 0; jj < A->c; jj++)
+ 959 bcoo_matrix.c       1030 else if (A->value_type == COMPLEX)
+ 960 bcoo_matrix.c       1032 double_Complex* val = (double_Complex*) (A->val);
+ 961 bcoo_matrix.c       1039 const int rowindexbase = A->II[i] + (1 - A->index_base);
+ 962 bcoo_matrix.c       1040 const int colindexbase = A->JJ[i] + (1 - A->index_base);
+ 963 bcoo_matrix.c       1042 if (A->col_oriented_p)
+ 964 bcoo_matrix.c       1062 else if (A->value_type == PATTERN)
+ 965 bcoo_matrix.c       1069 const int rowindexbase = A->II[i] + (1 - A->index_base);
+ 966 bcoo_matrix.c       1070 const int colindexbase = A->JJ[i] + (1 - A->index_base);
+ 967 bcoo_matrix.c       1112 A->bm = bm;
+ 968 bcoo_matrix.c       1113 A->bn = bn;
+ 969 bcoo_matrix.c       1116 A->r = r;
+ 970 bcoo_matrix.c       1117 A->c = c;
+ 971 bcoo_matrix.c       1120 A->nnzb = nnzb;
+ 972 bcoo_matrix.c       1121 A->nnzb_upper_bound = nnzb_upper_bound;
+ 973 bcoo_matrix.c       1122 A->index_base = index_base;
+ 974 bcoo_matrix.c       1123 A->symmetry_type = symmetry_type;
+ 975 bcoo_matrix.c       1124 A->symmetric_storage_location = symmetric_storage_location;
+ 976 bcoo_matrix.c       1125 A->value_type = value_type;
+ 977 bcoo_matrix.c       1126 A->ownership = ownership;
+ 978 bcoo_matrix.c       1128 A->deallocator = deallocator;
+ 979 bcoo_matrix.c       1130 A->deallocator = &free;
+ 980 bcoo_matrix.c       1134 A->II = II;
+ 981 bcoo_matrix.c       1135 A->JJ = JJ;
+ 982 bcoo_matrix.c       1136 A->val = val;
+ 983 bcoo_matrix.c       1142 A->ownership = LIBRARY_DEALLOCATES;
+ 984 bcoo_matrix.c       1143 A->deallocator = &free;
+ 985 bcoo_matrix.c       1145 A->II = bebop_malloc (nnz * sizeof (int));
+ 986 bcoo_matrix.c       1146 memcpy (A->II, II, nnz * sizeof (int));
+ 987 bcoo_matrix.c       1147 A->JJ = bebop_malloc (nnz * sizeof (int));
+ 988 bcoo_matrix.c       1148 memcpy (A->JJ, JJ, nnz * sizeof (int));
+ 989 bcoo_matrix.c       1152 A->val = bebop_malloc (nnz * sizeof (double));
+ 990 bcoo_matrix.c       1153 memcpy (A->val, val, nnz * sizeof (double));
+ 991 bcoo_matrix.c       1157 A->val = bebop_malloc (nnz * sizeof (double));
+ 992 bcoo_matrix.c       1158 memcpy (A->val, val, nnz * sizeof (double));
+ 993 bcoo_matrix.c       1161 A->val = NULL;
+ 994 bcoo_matrix.c       1261 if (A != NULL && A->ownership == LIBRARY_DEALLOCATES)
+ 995 bcoo_matrix.c       1263 if (A->deallocator == NULL)
+ 996 bcoo_matrix.c       1264 A->deallocator = &free;
+ 997 bcoo_matrix.c       1266 if (A->II != NULL)
+ 998 bcoo_matrix.c       1267 (A->deallocator) (A->II);
+ 999 bcoo_matrix.c       1268 if (A->JJ != NULL)
+1000 bcoo_matrix.c       1269 (A->deallocator) (A->JJ);
+1001 bcoo_matrix.c       1270 if (A->val != NULL && A->value_type != PATTERN) /* just in case */
+1002 bcoo_matrix.c       1271 (A->deallocator) (A->val);
+1003 bcoo_matrix.c       1284 A->nnzb_upper_bound, newmaxlength);
+1004 bcoo_matrix.c       1286 A->ownership = LIBRARY_DEALLOCATES;
+1005 bcoo_matrix.c       1287 A->deallocator = &free;
+1006 bcoo_matrix.c       1289 A->nnzb_upper_bound = newmaxlength;
+1007 bcoo_matrix.c       1290 A->II = (int*) bebop_realloc (A->II, newmaxlength * sizeof (int));
+1008 bcoo_matrix.c       1291 A->JJ = (int*) bebop_realloc (A->JJ, newmaxlength * sizeof (int));
+1009 bcoo_matrix.c       1293 if (A->value_type == REAL)
+1010 bcoo_matrix.c       1294 A->val = bebop_realloc (A->val, newmaxlength * sizeof (double));
+1011 bcoo_matrix.c       1295 else if (A->value_type == COMPLEX)
+1012 bcoo_matrix.c       1296 A->val = bebop_realloc (A->val, newmaxlength * sizeof (double_Complex));
+1013 bcoo_matrix.c       1298 if (A->nnzb > newmaxlength)
+1014 bcoo_matrix.c       1302 A->nnzb, newmaxlength);
+1015 bcoo_matrix.c       1303 A->nnzb = newmaxlength;
+1016 bcoo_matrix.c       1311 bebop_log (2, "\told upper bound:  %d\n", A->nnzb_upper_bound);
+1017 bcoo_matrix.c       1313 if (A->nnzb == newlength)
+1018 bcoo_matrix.c       1320 A->nnzb = newlength;
+1019 bcoo_matrix.c       1322 if (newlength > A->nnzb_upper_bound)
+1020 bcoo_matrix.c       1333 newlength, A->nnzb_upper_bound);
+1021 bcoo_matrix.c       1346 A->ownership = LIBRARY_DEALLOCATES;
+1022 bcoo_matrix.c       1347 A->deallocator =  &free;
+1023 bcoo_matrix.c       1350 bebop_log (2, "\tcurrent nnzb = %d; bi,bj = %d,%d\n", A->nnzb, bi, bj);
+1024 bcoo_matrix.c       1352 oldlen = A->nnzb;
+1025 bcoo_matrix.c       1378 retval = VALGRIND_CHECK_WRITABLE( A->II + oldlen, sizeof (int) );
+1026 bcoo_matrix.c       1381 bebop_log (0, "*** bcoo_matrix_add_entry: Valgrind says A->II[oldlen=%d] is not writable! ***\n", oldlen);
+1027 bcoo_matrix.c       1385 retval = VALGRIND_CHECK_WRITABLE( A->JJ + oldlen, sizeof (int) );
+1028 bcoo_matrix.c       1388 bebop_log (0, "*** bcoo_matrix_add_entry: Valgrind says A->JJ[oldlen=%d] is not writable! ***\n", oldlen);
+1029 bcoo_matrix.c       1395 A->II[oldlen] = bi * A->r;
+1030 bcoo_matrix.c       1396 A->JJ[oldlen] = bj * A->c;
+1031 bcoo_matrix.c       1398 if (A->value_type == REAL)
+1032 bcoo_matrix.c       1400 double* val = (double*) (A->val);
+1033 bcoo_matrix.c       1404 else if (A->value_type == COMPLEX)
+1034 bcoo_matrix.c       1406 double_Complex* val = (double_Complex*) (A->val);
+1035 bcoo_matrix.c       1432 if (A->bm < 0)
+1036 bcoo_matrix.c       1434 bebop_log (1, "*** valid_bcoo_matrix_p: A->bm=%d < 0 ***\n", A->bm);
+1037 bcoo_matrix.c       1437 else if (A->bn < 0)
+1038 bcoo_matrix.c       1439 bebop_log (1, "*** valid_bcoo_matrix_p: A->bn=%d < 0 ***\n", A->bn);
+1039 bcoo_matrix.c       1442 else if (A->r < 1)
+1040 bcoo_matrix.c       1444 bebop_log (1, "*** valid_bcoo_matrix_p: A->r=%d < 0 ***\n", A->r);
+1041 bcoo_matrix.c       1447 else if (A->c < 1)
+1042 bcoo_matrix.c       1449 bebop_log (1, "*** valid_bcoo_matrix_p: A->c=%d < 0 ***\n", A->c);
+1043 bcoo_matrix.c       1452 else if (A->bm < A->r)
+1044 bcoo_matrix.c       1454 bebop_log (1, "*** valid_bcoo_matrix_p: A->bm=%d < A->r=%d ***\n", A->bm, A->r);
+1045 bcoo_matrix.c       1457 else if (A->bn < A->c)
+1046 bcoo_matrix.c       1459 bebop_log (1, "*** valid_bcoo_matrix_p: A->bn=%d < A->c=%d ***\n", A->bn, A->c);
+1047 bcoo_matrix.c       1462 else if (A->nnzb < 0)
+1048 bcoo_matrix.c       1464 bebop_log (1, "*** valid_bcoo_matrix_p: A->nnzb=%d < 0 ***\n", A->nnzb);
+1049 bcoo_matrix.c       1467 else if (A->nnzb > A->nnzb_upper_bound)
+1050 bcoo_matrix.c       1469 bebop_log (1, "*** valid_bcoo_matrix_p: A->nnzb=%d > A->nnzb_uppe"
+1051 bcoo_matrix.c       1470 "r_bound=%d ***\n", A->nnzb, A->nnzb_upper_bound);
+1052 bcoo_matrix.c       1473 else if (A->nnzb > 0)
+1053 bcoo_matrix.c       1479 if (A->II == NULL)
+1054 bcoo_matrix.c       1481 bebop_log (1, "*** valid_bcoo_matrix_p: A->II == NULL, but A"
+1055 bcoo_matrix.c       1482 "->nnzb=%d > 0 ***\n", A->nnzb);
+1056 bcoo_matrix.c       1485 else if (A->JJ == NULL)
+1057 bcoo_matrix.c       1487 bebop_log (1, "*** valid_bcoo_matrix_p: A->JJ == NULL, but A->"
+1058 bcoo_matrix.c       1488 "nnzb=%d > 0 ***\n", A->nnzb);
+1059 bcoo_matrix.c       1491 else if ((A->value_type == REAL || A->value_type == COMPLEX) && A->val == NULL)
+1060 bcoo_matrix.c       1493 bebop_log (1, "*** valid_bcoo_matrix_p: A->value_type is REAL or COMPLEX, but A->val == NULL ***\n");
+1061 bcoo_matrix.c       1499 if ((unsigned long) (A->JJ) > (unsigned long) (A->II))
+1062 bcoo_matrix.c       1500 diff = (unsigned long) (A->JJ) - (unsigned long) (A->II);
+1063 bcoo_matrix.c       1502 diff = (unsigned long) (A->II) - (unsigned long) (A->JJ);
+1064 bcoo_matrix.c       1504 if (diff < A->nnzb * sizeof (int))
+1065 bcoo_matrix.c       1508 bebop_log (0, "*** valid_bcoo_matrix_p: A->II and A->JJ "
+1066 bcoo_matrix.c       1510 "A->nnzb=%d and sizeof(int)=%lu ***\n", 
+1067 bcoo_matrix.c       1512 A->nnzb, 
+1068 bcoo_matrix.c       1519 for (k = 0; k < A->nnzb; k++)
+1069 bcoo_matrix.c       1521 retval = VALGRIND_CHECK_READABLE( A->II + k, sizeof(int) );
+1070 bcoo_matrix.c       1526 bebop_log (1, "*** valid_bcoo_matrix_p: Valgrind says A->II[%d]"
+1071 bcoo_matrix.c       1527 " is not readable! nnzb=%d ***\n", k, A->nnzb);
+1072 bcoo_matrix.c       1530 retval = VALGRIND_CHECK_READABLE( A->JJ + k, sizeof(int) );
+1073 bcoo_matrix.c       1536 "says A->JJ[%d] is not readable! nnzb=%d ***\n",
+1074 bcoo_matrix.c       1537 k, A->nnzb);
+1075 bcoo_matrix.c       1546 VALGRIND_CHECK_READABLE( A->II, A->nnzb * sizeof (int) );
+1076 bcoo_matrix.c       1547 VALGRIND_CHECK_READABLE( A->JJ, A->nnzb * sizeof (int) );
+1077 bcoo_matrix.c       1548 VALGRIND_CHECK_WRITABLE( A->II, A->nnzb * sizeof (int) );
+1078 bcoo_matrix.c       1549 VALGRIND_CHECK_WRITABLE( A->JJ, A->nnzb * sizeof (int) );
+1079 bcoo_matrix.c       1550 if (A->value_type == REAL)
+1080 bcoo_matrix.c       1552 VALGRIND_CHECK_READABLE( A->val, A->nnzb * A->r * A->c * sizeof (double) );
+1081 bcoo_matrix.c       1553 VALGRIND_CHECK_WRITABLE( A->val, A->nnzb * A->r * A->c * sizeof (double) );
+1082 bcoo_matrix.c       1555 else if (A->value_type == COMPLEX)
+1083 bcoo_matrix.c       1557 VALGRIND_CHECK_READABLE( A->val, A->nnzb * A->r * A->c * sizeof (double_Complex) );
+1084 bcoo_matrix.c       1558 VALGRIND_CHECK_WRITABLE( A->val, A->nnzb * A->r * A->c * sizeof (double_Complex) );
+1085 bcoo_matrix.c       1563 for (k = 0; k < A->nnzb; k++)
+1086 bcoo_matrix.c       1565 const int i = A->II[k];
+1087 bcoo_matrix.c       1566 const int j = A->JJ[k];
+1088 bcoo_matrix.c       1568 if (i < A->index_base || i >= A->bm * A->r + A->index_base)
+1089 bcoo_matrix.c       1572 k, i, j, A->bm * A->r + A->index_base, 
+1090 bcoo_matrix.c       1573 A->bn * A->c + A->index_base);
+1091 bcoo_matrix.c       1576 else if (j < A->index_base || j >= A->bn * A->c + A->index_base)
+1092 bcoo_matrix.c       1580 k, i, j, A->bm * A->r + A->index_base, 
+1093 bcoo_matrix.c       1581 A->bn * A->c + A->index_base);
+1094 bcoo_matrix.c       1628 * We should always have abs(diff) >= sizeof(int) * A->nnzb, 
+1095 bcoo_matrix.c       1630 long diff = (unsigned long) (A->JJ) - (unsigned long) (A->II);
+1096 bcoo_matrix.c       1631 if (ABS(diff) < sizeof(int) * A->nnzb)
+1097 bcoo_matrix.c       1637 bebop_log (0, "*** bcoo_matrix_to_random_bcsr_matrix: A->II and "
+1098 bcoo_matrix.c       1638 "A->JJ overlap by %ld elements! ***\n", 
+1099 bcoo_matrix.c       1639 (long) (A->nnzb) - ABS(diff/sizeof(int)));
+1100 bcoo_matrix.c       1641 A->nnzb, diff/sizeof(int));
+1101 bcoo_matrix.c       1645 sort_joint_arrays (A->II, A->JJ, A->nnzb, sizeof(int), 
+1102 bcoo_matrix.c       1667 rowptr = bebop_malloc ((A->bm + 1) * sizeof (int));
+1103 bcoo_matrix.c       1668 colidx = bebop_malloc (A->nnzb * sizeof (int));
+1104 bcoo_matrix.c       1669 values = bebop_malloc (A->nnzb * A->r * A->c * sizeof (double));
+1105 bcoo_matrix.c       1673 for (i = 0; i < A->nnzb * A->r * A->c; i++)
+1106 bcoo_matrix.c       1684 for (i = 0; i < A->nnzb; i++)
+1107 bcoo_matrix.c       1686 if ((A->II[i] - A->index_base) / (A->r) > currow)
+1108 bcoo_matrix.c       1692 for (j = currow+1; j <= (A->II[i] - A->index_base) / (A->r); j++)
+1109 bcoo_matrix.c       1695 currow = (A->II[i] - A->index_base) / (A->r);
+1110 bcoo_matrix.c       1698 colidx[i] = A->JJ[i] - A->index_base;
+1111 bcoo_matrix.c       1704 VALGRIND_CHECK_WRITABLE( rowptr, (A->bm + 1) * sizeof (int) );
+1112 bcoo_matrix.c       1709 for (j = currow+1; j <= A->bm; j++)
+1113 bcoo_matrix.c       1710 rowptr[j] = A->nnzb;
+1114 bcoo_matrix.c       1717 create_bcsr_matrix (A->bm, A->bn, A->r, A->c, A->nnzb, values, colidx, 
+1115 bcoo_matrix.c       1718 rowptr, A->symmetry_type, A->symmetric_storage_location,
+1116 bcoo_matrix.c       1738 return create_bcsr_matrix (A->bm, A->bn, A->r, A->c, A->nnzb, values, colidx, 
+1117 bcoo_matrix.c       1739 rowptr, A->symmetry_type, A->symmetric_storage_location,
+1118 bcoo_matrix.c       1805 rowptr = bebop_malloc ((A->bm + 1) * sizeof (int));
+1119 bcoo_matrix.c       1806 colidx = bebop_malloc (A->nnzb * sizeof (int));
+1120 bcoo_matrix.c       1807 values = bebop_malloc (A->nnzb * A->r * A->c * sizeof (double));
+1121 bcoo_matrix.c       1811 rowptr = bebop_malloc (A->bm * sizeof (int));
+1122 bcoo_matrix.c       1812 colidx = bebop_malloc (A->nnzb * sizeof (int));
+1123 bcoo_matrix.c       1813 if (A->value_type == REAL)
+1124 bcoo_matrix.c       1814 values = bebop_malloc (A->nnzb * A->r * A->c * sizeof (double));
+1125 bcoo_matrix.c       1815 else if (A->value_type == COMPLEX)
+1126 bcoo_matrix.c       1816 values = bebop_malloc (A->nnzb * A->r * A->c * sizeof (double_Complex));
+1127 bcoo_matrix.c       1817 else if (A->value_type == PATTERN)
+1128 bcoo_matrix.c       1821 if (A->value_type == REAL) 
+1129 bcoo_matrix.c       1824 double *v_in = (double*) (A->val);
+1130 bcoo_matrix.c       1826 for (i = 0; i < A->nnzb * A->r * A->c; i++) 
+1131 bcoo_matrix.c       1829 else if (A->value_type == COMPLEX)
+1132 bcoo_matrix.c       1832 double_Complex *v_in = (double_Complex*) (A->val);
+1133 bcoo_matrix.c       1834 for (i = 0; i < A->nnzb * A->r * A->c; i++) 
+1134 bcoo_matrix.c       1846 for (i = 0; i < A->nnzb; i++)
+1135 bcoo_matrix.c       1848 if ((A->II[i] - A->index_base) / (A->r) > currow)
+1136 bcoo_matrix.c       1854 for (j = currow+1; j <= (A->II[i] - A->index_base) / (A->r); j++)
+1137 bcoo_matrix.c       1857 currow = (A->II[i] - A->index_base) / (A->r);
+1138 bcoo_matrix.c       1860 colidx[i] = A->JJ[i] - A->index_base;
+1139 bcoo_matrix.c       1865 for (j = currow+1; j <= A->bm; j++)
+1140 bcoo_matrix.c       1866 rowptr[j] = A->nnzb;
+1141 bcoo_matrix.c       1873 create_bcsr_matrix (A->bm, A->bn, A->r, A->c, A->nnzb, values, colidx, 
+1142 bcoo_matrix.c       1874 rowptr, A->symmetry_type, A->symmetric_storage_location,
+1143 bcoo_matrix.c       1875 A->value_type, A->col_oriented_p, LIBRARY_DEALLOCATES,
+1144 bcoo_matrix.c       1893 return create_bcsr_matrix (A->bm, A->bn, A->r, A->c, A->nnzb, values, colidx, 
+1145 bcoo_matrix.c       1894 rowptr, A->symmetry_type, A->symmetric_storage_location,
+1146 bcoo_matrix.c       1895 A->value_type, A->col_oriented_p, LIBRARY_DEALLOCATES,
+1147 bcoo_matrix.c       1945 else if (A->nnzb <= 0)
+1148 bcoo_matrix.c       1962 bebop_log (2, "\tOriginal nnzb:  %d\n", A->nnzb);
+1149 bcoo_matrix.c       1979 for (cur = 1; cur < A->nnzb; cur++)
+1150 bcoo_matrix.c       1981 if (A->II[cur] != A->II[prev] || A->JJ[cur] != A->JJ[prev])
+1151 bcoo_matrix.c       1983 A->II[prev+1] = A->II[cur];
+1152 bcoo_matrix.c       1984 A->JJ[prev+1] = A->JJ[cur];
+1153 bcoo_matrix.c       1986 if (A->value_type == REAL)
+1154 bcoo_matrix.c       1988 double* val = A->val;
+1155 bcoo_matrix.c       1991 else if (A->value_type == COMPLEX)
+1156 bcoo_matrix.c       1993 double_Complex* val = A->val;
+1157 bcoo_matrix.c       2007 if (__num_removed + prev + 1 != A->nnzb)
+1158 bcoo_matrix.c       2010 "removed=%d + prev=%d + 1 != A->nnzb=%d ***\n", 
+1159 bcoo_matrix.c       2011 __num_removed, prev, A->nnzb);
+1160 bcoo_matrix.c       2014 A->nnzb = prev + 1;
+1161 bcoo_matrix.c       2016 bebop_log (2, "\tNew nnzb:  %d\n", A->nnzb);
+1162 sparse_matrix.c       78 A->format = format;
+1163 sparse_matrix.c       79 A->repr = repr;
+1164 sparse_matrix.c       88 if (A->repr != NULL)
+1165 sparse_matrix.c       90 if (A->format == CSC)
+1166 sparse_matrix.c       91 destroy_csc_matrix (A->repr);
+1167 sparse_matrix.c       92 else if (A->format == CSR)
+1168 sparse_matrix.c       93 destroy_csr_matrix (A->repr);
+1169 sparse_matrix.c       94 else if (A->format == COO)
+1170 sparse_matrix.c       95 destroy_coo_matrix (A->repr);
+1171 sparse_matrix.c       96 else if (A->format == BCOO)
+1172 sparse_matrix.c       97 destroy_bcoo_matrix (A->repr);
+1173 sparse_matrix.c       98 else if (A->format == BCSR)
+1174 sparse_matrix.c       99 destroy_bcsr_matrix (A->repr);
+1175 sparse_matrix.c      100 else if (A->format == JAD)
+1176 sparse_matrix.c      101 destroy_jad_matrix (A->repr);
+1177 sparse_matrix.c      105 "format %d ***\n", A->format);
+1178 sparse_matrix.c      108 A->repr = NULL;
+1179 sparse_matrix.c      124 enum sparse_matrix_storage_format_t format = A->format;
+1180 sparse_matrix.c      147 enum sparse_matrix_storage_format_t format = A->format;
+1181 sparse_matrix.c      165 (struct csr_matrix_t*) (A->repr));
+1182 csr_matrix.c         151 int a = A->rowptr[i];
+1183 csr_matrix.c         152 int b = A->rowptr[i+1];
+1184 csr_matrix.c         158 if (A->value_type == REAL)
+1185 csr_matrix.c         161 const double* const values = (const double* const) (A->values);
+1186 csr_matrix.c         166 _row[k].index = A->colidx[a+k];
+1187 csr_matrix.c         170 else if (A->value_type == COMPLEX)
+1188 csr_matrix.c         173 const double_Complex* const values = (const double_Complex* const) (A->values);
+1189 csr_matrix.c         178 _row[k].index = A->colidx[a+k];
+1190 csr_matrix.c         182 else if (A->value_type == PATTERN)
+1191 csr_matrix.c         189 _row[k] = A->colidx[a+k];
+1192 csr_matrix.c         203 int a = A->rowptr[i];
+1193 csr_matrix.c         204 int b = A->rowptr[i+1];
+1194 csr_matrix.c         211 if (A->value_type == REAL)
+1195 csr_matrix.c         214 double* values = (double*) (A->values);
+1196 csr_matrix.c         219 A->colidx[a+k] = _row[k].index;
+1197 csr_matrix.c         223 else if (A->value_type == COMPLEX)
+1198 csr_matrix.c         226 double_Complex* values = (double_Complex*) (A->values);
+1199 csr_matrix.c         231 A->colidx[a+k] = _row[k].index;
+1200 csr_matrix.c         235 else if (A->value_type == PATTERN)
+1201 csr_matrix.c         242 A->colidx[a+k] = _row[k];
+1202 csr_matrix.c         272 if (A->m <= 0)
+1203 csr_matrix.c         274 bebop_log (2, "m = %d <= 0\n", A->m);
+1204 csr_matrix.c         283 max_nnz = A->rowptr[1] - A->rowptr[0];
+1205 csr_matrix.c         284 for (i = 1; i < A->m; i++)
+1206 csr_matrix.c         286 int nnz = A->rowptr[i+1] - A->rowptr[i];
+1207 csr_matrix.c         291 if (A->value_type == REAL)
+1208 csr_matrix.c         296 for (i = 0; i < A->m; i++)
+1209 csr_matrix.c         298 int nnz = A->rowptr[i+1] - A->rowptr[i];
+1210 csr_matrix.c         310 else if (A->value_type == COMPLEX)
+1211 csr_matrix.c         313 for (i = 0; i < A->m; i++)
+1212 csr_matrix.c         315 int nnz = A->rowptr[i+1] - A->rowptr[i];
+1213 csr_matrix.c         323 else if (A->value_type == PATTERN)
+1214 csr_matrix.c         327 for (i = 0; i < A->m; i++)
+1215 csr_matrix.c         329 int nnz = A->rowptr[i+1] - A->rowptr[i];
+1216 csr_matrix.c         369 A->m = m;
+1217 csr_matrix.c         370 A->n = n;
+1218 csr_matrix.c         371 A->nnz = nnz;
+1219 csr_matrix.c         374 A->values = values;
+1220 csr_matrix.c         375 A->colidx = colidx;
+1221 csr_matrix.c         376 A->rowptr = rowptr;
+1222 csr_matrix.c         384 A->ownership = LIBRARY_DEALLOCATES;
+1223 csr_matrix.c         388 A->values = bebop_malloc (nnz * sizeof (double));
+1224 csr_matrix.c         389 memcpy (A->values, values, nnz * sizeof (double));
+1225 csr_matrix.c         393 A->values = bebop_malloc (nnz * sizeof (double_Complex));
+1226 csr_matrix.c         394 memcpy (A->values, values, nnz * sizeof (double_Complex));
+1227 csr_matrix.c         397 A->values = NULL;
+1228 csr_matrix.c         399 A->colidx = bebop_malloc (nnz * sizeof (int));
+1229 csr_matrix.c         400 memcpy (A->colidx, colidx, nnz * sizeof (int));
+1230 csr_matrix.c         402 A->rowptr = bebop_malloc ((n+1) * sizeof (int));
+1231 csr_matrix.c         403 memcpy (A->rowptr, rowptr, (n+1) * sizeof (int));
+1232 csr_matrix.c         405 A->symmetry_type = symmetry_type;
+1233 csr_matrix.c         406 A->symmetric_storage_location = symmetric_storage_location;
+1234 csr_matrix.c         407 A->value_type = value_type;
+1235 csr_matrix.c         408 A->ownership = ownership;
+1236 csr_matrix.c         410 A->deallocator = &free;
+1237 csr_matrix.c         412 A->deallocator = deallocator;
+1238 csr_matrix.c         458 if (A->ownership == USER_DEALLOCATES)
+1239 csr_matrix.c         468 if (A->deallocator == NULL)
+1240 csr_matrix.c         469 A->deallocator = &free;
+1241 csr_matrix.c         471 if (A->values != NULL && A->nnz > 0) 
+1242 csr_matrix.c         474 if (A->value_type != PATTERN && A->nnz > 0)
+1243 csr_matrix.c         477 if (A->value_type == REAL)
+1244 csr_matrix.c         478 retval = VALGRIND_CHECK_READABLE( A->values, A->nnz * sizeof (double) );
+1245 csr_matrix.c         479 else if (A->value_type == COMPLEX)
+1246 csr_matrix.c         480 retval = VALGRIND_CHECK_READABLE( A->values, A->nnz * sizeof (double_Complex) );
+1247 csr_matrix.c         484 "%d ***\n", A->value_type);
+1248 csr_matrix.c         496 (A->deallocator) (A->values);
+1249 csr_matrix.c         498 A->values = NULL;
+1250 csr_matrix.c         501 if (A->colidx != NULL && A->nnz > 0)
+1251 csr_matrix.c         505 retval = VALGRIND_CHECK_READABLE( A->colidx, A->nnz * sizeof (int) );
+1252 csr_matrix.c         514 (A->deallocator) (A->colidx);
+1253 csr_matrix.c         516 A->colidx = NULL;
+1254 csr_matrix.c         519 if (A->rowptr != NULL && A->n > 0)
+1255 csr_matrix.c         523 retval = VALGRIND_CHECK_READABLE( A->rowptr, (A->m + 1) * sizeof (int) );
+1256 csr_matrix.c         532 (A->deallocator) (A->rowptr);
+1257 csr_matrix.c         534 A->rowptr = NULL;
+1258 csr_matrix.c         537 A->m = 0;
+1259 csr_matrix.c         538 A->n = 0;
+1260 csr_matrix.c         539 A->nnz = 0;
+1261 csr_matrix.c         675 *m = A->m;
+1262 csr_matrix.c         676 *n = A->n;
+1263 csr_matrix.c         677 *nnz = A->nnz;
+1264 csr_matrix.c         679 *values = A->values;
+1265 csr_matrix.c         680 *colidx = A->colidx;
+1266 csr_matrix.c         681 *rowptr = A->rowptr;
+1267 csr_matrix.c         683 *symmetry_type = A->symmetry_type;
+1268 csr_matrix.c         684 *symmetric_storage_location = A->symmetric_storage_location;
+1269 csr_matrix.c         685 *value_type = A->value_type;
+1270 csr_matrix.c         770 B->m = A->m;
+1271 csr_matrix.c         771 B->n = A->n;
+1272 csr_matrix.c         772 B->nnz = A->nnz;
+1273 csr_matrix.c         773 B->symmetry_type = A->symmetry_type;
+1274 csr_matrix.c         774 B->symmetric_storage_location = A->symmetric_storage_location;
+1275 csr_matrix.c         775 B->value_type = A->value_type;
+1276 csr_matrix.c         777 B->colptr = bebop_malloc ((A->n + 1) * sizeof (int));
+1277 csr_matrix.c         778 B->rowidx = bebop_malloc (A->nnz * sizeof (int));
+1278 csr_matrix.c         779 if (A->value_type == REAL)
+1279 csr_matrix.c         780 B->values = bebop_malloc (A->nnz * sizeof (double));
+1280 csr_matrix.c         781 else if (A->value_type == COMPLEX)
+1281 csr_matrix.c         782 B->values = bebop_malloc (A->nnz * sizeof (double_Complex));
+1282 csr_matrix.c         783 else if (A->value_type == PATTERN)
+1283 csr_matrix.c         789 if (A->symmetry_type == SYMMETRIC)
+1284 csr_matrix.c         795 assert (A->m == A->n);
+1285 csr_matrix.c         797 memcpy (B->colptr, A->rowptr, (A->n + 1) * sizeof (int));
+1286 csr_matrix.c         798 memcpy (B->rowidx, A->colidx, A->nnz * sizeof (int));
+1287 csr_matrix.c         800 if (A->value_type == REAL)
+1288 csr_matrix.c         801 memcpy ((double*) (B->values), (double*) (A->values), 
+1289 csr_matrix.c         802 A->nnz * sizeof (double));
+1290 csr_matrix.c         803 else if (A->value_type == COMPLEX)
+1291 csr_matrix.c         805 (double_Complex*) (A->values), 
+1292 csr_matrix.c         806 A->nnz * sizeof (double));
+1293 csr_matrix.c         814 col_nnz = bebop_calloc (A->n, sizeof(int));
+1294 csr_matrix.c         816 for (i = 0; i < A->nnz; i++)
+1295 csr_matrix.c         818 int k = A->colidx[i];
+1296 csr_matrix.c         827 for (i = 1; i <= A->n; i++)
+1297 csr_matrix.c         838 if (A->value_type == REAL)
+1298 csr_matrix.c         840 double* in_values  = (double*) (A->values);
+1299 csr_matrix.c         843 for (i = 0; i < A->m; i++)
+1300 csr_matrix.c         848 nnz_row = A->rowptr[i+1] - A->rowptr[i];
+1301 csr_matrix.c         850 for (k = A->rowptr[i]; k < (A->rowptr[i]+nnz_row); k++)
+1302 csr_matrix.c         852 int j = A->colidx[ k ];             /* col index */
+1303 csr_matrix.c         865 else if (A->value_type == COMPLEX)
+1304 csr_matrix.c         867 double_Complex* in_values  = (double_Complex*) (A->values);
+1305 csr_matrix.c         870 for (i = 0; i < A->m; i++)
+1306 csr_matrix.c         875 nnz_row = A->rowptr[i+1] - A->rowptr[i];
+1307 csr_matrix.c         877 for (k = A->rowptr[i]; k < (A->rowptr[i]+nnz_row); k++)
+1308 csr_matrix.c         879 int j = A->colidx[ k ];               /* col index */
+1309 csr_matrix.c         892 else if (A->value_type == PATTERN)
+1310 csr_matrix.c         894 for (i = 0; i < A->m; i++)
+1311 csr_matrix.c         899 nnz_row = A->rowptr[i+1] - A->rowptr[i];
+1312 csr_matrix.c         901 for (k = A->rowptr[i]; k < (A->rowptr[i]+nnz_row); k++)
+1313 csr_matrix.c         903 int j = A->colidx[ k ];             /* col index */
+1314 csr_matrix.c         929 B->m = A->m;
+1315 csr_matrix.c         930 B->n = A->n;
+1316 csr_matrix.c         931 B->nnz = A->nnz;
+1317 csr_matrix.c         932 B->symmetry_type = A->symmetry_type;
+1318 csr_matrix.c         933 B->symmetric_storage_location = A->symmetric_storage_location;
+1319 csr_matrix.c         934 B->value_type = A->value_type;
+1320 csr_matrix.c         936 B->rowptr = bebop_malloc ((A->m + 1) * sizeof (int));
+1321 csr_matrix.c         937 B->colidx = bebop_malloc (A->nnz * sizeof (int));
+1322 csr_matrix.c         938 if (A->value_type == REAL)
+1323 csr_matrix.c         939 B->values = bebop_malloc (A->nnz * sizeof (double));
+1324 csr_matrix.c         940 else if (A->value_type == COMPLEX)
+1325 csr_matrix.c         941 B->values = bebop_malloc (A->nnz * sizeof (double_Complex));
+1326 csr_matrix.c         942 else if (A->value_type == PATTERN)
+1327 csr_matrix.c         948 if (A->symmetry_type == SYMMETRIC)
+1328 csr_matrix.c         954 assert (A->m == A->n);
+1329 csr_matrix.c         956 memcpy (B->rowptr, A->colptr, (A->m + 1) * sizeof (int));
+1330 csr_matrix.c         957 memcpy (B->colidx, A->rowidx, A->nnz * sizeof (int));
+1331 csr_matrix.c         959 if (A->value_type == REAL)
+1332 csr_matrix.c         960 memcpy ((double*) (B->values), (double*) (A->values), 
+1333 csr_matrix.c         961 A->nnz * sizeof (double));
+1334 csr_matrix.c         962 else if (A->value_type == COMPLEX)
+1335 csr_matrix.c         964 (double_Complex*) (A->values), 
+1336 csr_matrix.c         965 A->nnz * sizeof (double));
+1337 csr_matrix.c         972 row_nnz = bebop_calloc (A->m, sizeof(int));
+1338 csr_matrix.c         974 for (i = 0; i < A->nnz; i++)
+1339 csr_matrix.c         976 int k = A->rowidx[i];
+1340 csr_matrix.c         985 for (i = 1; i <= A->m; i++)
+1341 csr_matrix.c         996 if (A->value_type == REAL)
+1342 csr_matrix.c         998 double* in_values  = (double*) (A->values);
+1343 csr_matrix.c        1001 for (j = 0; j < A->n; j++)
+1344 csr_matrix.c        1006 nnz_col = A->colptr[j+1] - A->colptr[j];
+1345 csr_matrix.c        1008 for (k = A->colptr[j]; k < (A->colptr[j]+nnz_col); k++)
+1346 csr_matrix.c        1010 int i = A->rowidx[ k ];             /* row index */
+1347 csr_matrix.c        1023 else if (A->value_type == COMPLEX)
+1348 csr_matrix.c        1025 double_Complex* in_values  = (double_Complex*) (A->values);
+1349 csr_matrix.c        1028 for (j = 0; j < A->n; j++)
+1350 csr_matrix.c        1033 nnz_col = A->colptr[j+1] - A->colptr[j];
+1351 csr_matrix.c        1035 for (k = A->colptr[j]; k < (A->colptr[j]+nnz_col); k++)
+1352 csr_matrix.c        1037 int i = A->rowidx[ k ];               /* row index */
+1353 csr_matrix.c        1050 else if (A->value_type == PATTERN)
+1354 csr_matrix.c        1052 for (j = 0; j < A->n; j++)
+1355 csr_matrix.c        1057 nnz_col = A->colptr[j+1] - A->colptr[j];
+1356 csr_matrix.c        1059 for (k = A->colptr[j]; k < (A->colptr[j]+nnz_col); k++)
+1357 csr_matrix.c        1061 int i = A->rowidx[ k ];  /* row index */
+1358 csr_matrix.c        1146 if (A->value_type == REAL)
+1359 csr_matrix.c        1148 else if (A->value_type == COMPLEX)
+1360 csr_matrix.c        1150 else if (A->value_type == PATTERN)
+1361 csr_matrix.c        1156 A->value_type, REAL, COMPLEX, PATTERN);
+1362 csr_matrix.c        1161 if (A->symmetry_type == UNSYMMETRIC)
+1363 csr_matrix.c        1163 else if (A->symmetry_type == SYMMETRIC)
+1364 csr_matrix.c        1165 else if (A->symmetry_type == SKEW_SYMMETRIC)
+1365 csr_matrix.c        1167 else if (A->symmetry_type == HERMITIAN)
+1366 csr_matrix.c        1173 ", %d, %d and %d ***\n", A->symmetry_type, UNSYMMETRIC, 
+1367 csr_matrix.c        1184 fprintf (out, "%% rowptr[%d]: ", A->m + 1);
+1368 csr_matrix.c        1185 for (i = 0; i <= A->m; i++)
+1369 csr_matrix.c        1186 fprintf (out, " %d", A->rowptr[i]);
+1370 csr_matrix.c        1188 fprintf (out, "\n%% colidx[%d]: ", A->nnz);
+1371 csr_matrix.c        1189 for (i = 0; i < A->nnz; i++)
+1372 csr_matrix.c        1190 fprintf (out, " %d", A->colidx[i]);
+1373 csr_matrix.c        1192 if (A->value_type != PATTERN)
+1374 csr_matrix.c        1194 fprintf (out, "\n%% values[%d]: ", A->nnz);
+1375 csr_matrix.c        1196 if (A->value_type == REAL)
+1376 csr_matrix.c        1198 const double* const values = (const double* const) (A->values);
+1377 csr_matrix.c        1200 for (i = 0; i < A->nnz; i++)
+1378 csr_matrix.c        1203 else if (A->value_type == COMPLEX)
+1379 csr_matrix.c        1205 const double_Complex* const values = (const double_Complex* const) (A->values);
+1380 csr_matrix.c        1207 for (i = 0; i < A->nnz; i++)
+1381 csr_matrix.c        1215 fprintf (out, "%d %d %d\n", A->m, A->n, A->nnz);
+1382 csr_matrix.c        1217 if (A->value_type == REAL)
+1383 csr_matrix.c        1219 const double* const values = (const double* const) (A->values);
+1384 csr_matrix.c        1221 for (i = 0; i < A->m; i++)
+1385 csr_matrix.c        1223 start = A->rowptr[i];
+1386 csr_matrix.c        1224 end   = A->rowptr[i+1];
+1387 csr_matrix.c        1228 fprintf (out, "%d %d %.13e\n", i+1, A->colidx[k] + 1, values[k]);
+1388 csr_matrix.c        1231 else if (A->value_type == COMPLEX)
+1389 csr_matrix.c        1233 const double_Complex* const values = (const double_Complex* const) (A->values);
+1390 csr_matrix.c        1235 for (i = 0; i < A->m; i++)
+1391 csr_matrix.c        1237 start = A->rowptr[i];
+1392 csr_matrix.c        1238 end   = A->rowptr[i+1];
+1393 csr_matrix.c        1242 fprintf (out, "%d %d %.13e %.13e\n", i+1, A->colidx[k] + 1, 
+1394 csr_matrix.c        1247 else if (A->value_type == PATTERN)
+1395 csr_matrix.c        1249 for (i = 0; i < A->m; i++)
+1396 csr_matrix.c        1251 start = A->rowptr[i];
+1397 csr_matrix.c        1252 end   = A->rowptr[i+1];
+1398 csr_matrix.c        1256 fprintf (out, "%d %d\n", i+1, A->colidx[k] + 1);
+1399 csr_matrix.c        1346 if (A->m != A->n)
+1400 csr_matrix.c        1352 else if (A->symmetry_type == UNSYMMETRIC)
+1401 csr_matrix.c        1362 cur_row_nnz = bebop_calloc (A->m, sizeof (int));
+1402 csr_matrix.c        1363 new_row_nnz = bebop_calloc (A->m, sizeof(int));
+1403 csr_matrix.c        1377 for (i = 0; i < A->m; i++)
+1404 csr_matrix.c        1379 cur_row_nnz[i] = A->rowptr[i+1] - A->rowptr[i];
+1405 csr_matrix.c        1383 for (i = 0; i < A->m; i++)
+1406 csr_matrix.c        1386 for (k = A->rowptr[i]; k < A->rowptr[i+1]; k++)
+1407 csr_matrix.c        1388 int j = A->colidx[k];
+1408 csr_matrix.c        1404 new_rowptr = bebop_calloc (A->m + 1, sizeof(int));
+1409 csr_matrix.c        1405 for (i = 1; i <= A->m; i++)
+1410 csr_matrix.c        1410 new_rowptr[A->m] = new_nnz;
+1411 csr_matrix.c        1413 if (A->value_type == REAL)
+1412 csr_matrix.c        1415 else if (A->value_type == COMPLEX)
+1413 csr_matrix.c        1417 else if (A->value_type == PATTERN)
+1414 csr_matrix.c        1427 for (i = 0; i < A->m; i++)
+1415 csr_matrix.c        1430 int k_cur   = A->rowptr[i];
+1416 csr_matrix.c        1434 memcpy (new_colidx + k_new, A->colidx + k_cur, cur_nnz * sizeof(int));
+1417 csr_matrix.c        1436 if (A->value_type == REAL)
+1418 csr_matrix.c        1440 else if (A->value_type == COMPLEX)
+1419 csr_matrix.c        1446 while (k_cur < A->rowptr[i+1])
+1420 csr_matrix.c        1449 int j = A->colidx[k_cur];
+1421 csr_matrix.c        1458 if (A->value_type == REAL)
+1422 csr_matrix.c        1460 double* old_values = (double*) (A->values);
+1423 csr_matrix.c        1464 if (A->symmetry_type == SYMMETRIC)
+1424 csr_matrix.c        1466 else if (A->symmetry_type == SKEW_SYMMETRIC)
+1425 csr_matrix.c        1468 else if (A->symmetry_type == HERMITIAN)
+1426 csr_matrix.c        1471 else if (A->value_type == COMPLEX)
+1427 csr_matrix.c        1473 double_Complex* old_values = (double_Complex*) (A->values);
+1428 csr_matrix.c        1477 if (A->symmetry_type == SYMMETRIC)
+1429 csr_matrix.c        1479 else if (A->symmetry_type == SKEW_SYMMETRIC)
+1430 csr_matrix.c        1481 else if (A->symmetry_type == HERMITIAN)
+1431 csr_matrix.c        1498 A->nnz = new_nnz;
+1432 csr_matrix.c        1499 bebop_free (A->values);
+1433 csr_matrix.c        1500 A->values = new_values;
+1434 csr_matrix.c        1501 bebop_free (A->colidx);
+1435 csr_matrix.c        1502 A->colidx = new_colidx;
+1436 csr_matrix.c        1503 bebop_free (A->rowptr);
+1437 csr_matrix.c        1504 A->rowptr = new_rowptr;
+1438 csr_matrix.c        1511 A->ownership = LIBRARY_DEALLOCATES;
+1439 csr_matrix.c        1512 A->deallocator = &free;
+1440 csr_matrix.c        1590 m = A->m;
+1441 csr_matrix.c        1591 n = A->n;
+1442 csr_matrix.c        1592 nnz = A->nnz;
+1443 csr_matrix.c        1593 colidx = (int*) (A->colidx);
+1444 csr_matrix.c        1594 rowptr = (int*) (A->rowptr);
+1445 csr_matrix.c        1619 retval = VALGRIND_CHECK_READABLE( A->rowptr, (A->m + 1) * sizeof (int) );
+1446 csr_matrix.c        1622 bebop_log (1, "*** valid_csr_matrix_p: Valgrind says A->rowptr does not "
+1447 csr_matrix.c        1623 "have m+1 = %d entries! ***\n", A->m + 1);
+1448 csr_matrix.c        1627 retval = VALGRIND_CHECK_READABLE( A->colidx, (A->nnz) * sizeof (int) );
+1449 csr_matrix.c        1630 bebop_log (1, "*** valid_csr_matrix_p: Valgrind says A->colidx does not "
+1450 csr_matrix.c        1631 "have nnz = %d entries! ***\n", A->nnz);
+1451 csr_matrix.c        1635 if (A->value_type == REAL)
+1452 csr_matrix.c        1637 retval = VALGRIND_CHECK_READABLE( A->values, (A->nnz) * sizeof (double) );
+1453 csr_matrix.c        1640 bebop_log (1, "*** valid_csr_matrix_p: Valgrind says A->values does not "
+1454 csr_matrix.c        1641 "have nnz = %d entries! ***\n", A->nnz);
+1455 csr_matrix.c        1645 else if (A->value_type == COMPLEX)
+1456 csr_matrix.c        1647 retval = VALGRIND_CHECK_READABLE( A->values, (A->nnz) * sizeof (double_Complex) );
+1457 csr_matrix.c        1650 bebop_log (1, "*** valid_csr_matrix_p: Valgrind says A->values does not "
+1458 csr_matrix.c        1651 "have nnz = %d entries! ***\n", A->nnz);
+1459 csr_matrix.c        1730 const int n = A->n;
+1460 csr_matrix.c        1773 if (p != A->m)
+1461 csr_matrix.c        1777 B->m, B->n, A->m, A->n);
+1462 csr_matrix.c        1780 else if (B->symmetry_type != UNSYMMETRIC || A->symmetry_type != UNSYMMETRIC)
+1463 csr_matrix.c        1787 else if (B->value_type != A->value_type)
+1464 csr_matrix.c        1802 double* Avalues = (double*) A->values;
+1465 csr_matrix.c        1806 A->rowptr, A->colidx, Avalues,
+1466 csr_matrix.c        1841 double_Complex* Avalues = (double_Complex*) A->values;
+1467 csr_matrix.c        1846 A->rowptr, A->colidx, Avalues,
+1468 csr_matrix.c        1865 A->rowptr, A->colidx, 
+1469 csr_matrix.c        1886 const int m = A->m;
+1470 csr_matrix.c        1887 const int* ptr = A->rowptr;
+1471 csr_matrix.c        1888 const enum value_type_t value_type = A->value_type;
+1472 csr_matrix.c        1907 assert (A->symmetry_type == UNSYMMETRIC);
+1473 csr_matrix.c        1911 double* val = (double*) (A->values);
+1474 csr_matrix.c        1931 double_Complex* val = (double_Complex*) (A->values);
+1475 csr_matrix.c        1959 const enum value_type_t value_type = A->value_type;
+1476 csr_matrix.c        1961 const int n = A->n; 
+1477 csr_matrix.c        2002 if (A->n != A->m) 
+1478 csr_matrix.c        2004 else if (A->n != P->m) 
+1479 csr_matrix.c        2012 else if (A->symmetry_type != UNSYMMETRIC)
+1480 csr_matrix.c        2023 errcode = ptap_csr_dr (A->m, P->n, 
+1481 csr_matrix.c        2024 A->values, A->colidx, A->rowptr,
+1482 csr_matrix.c        2036 RT->rowptr, A->values,  
+1483 csr_matrix.c        2037 A->colidx, A->rowptr, 
+1484 csr_matrix.c        2047 RT->rowptr, A->values, A->colidx,
+1485 csr_matrix.c        2048 A->rowptr, P->values, P->colidx,
+1486 csr_matrix.c        2055 A->colidx, A->rowptr,
+1487 csr_matrix.c        2078 const enum value_type_t value_type = A->value_type;
+1488 csr_matrix.c        2079 const enum symmetry_type_t symmetry_type = A->symmetry_type;
+1489 csr_matrix.c        2120 expandedA->m, 
+1490 csr_matrix.c        2121 expandedA->n, 
+1491 csr_matrix.c        2123 expandedA->values, 
+1492 csr_matrix.c        2124 expandedA->colidx, 
+1493 csr_matrix.c        2125 expandedA->rowptr);
+1494 csr_matrix.c        2129 expandedA->m, 
+1495 csr_matrix.c        2130 expandedA->n, 
+1496 csr_matrix.c        2132 expandedA->values, 
+1497 csr_matrix.c        2133 expandedA->colidx, 
+1498 csr_matrix.c        2134 expandedA->rowptr);
+1499 csr_matrix.c        2141 A->m, A->n, ldb, A->values, 
+1500 csr_matrix.c        2142 A->colidx, A->rowptr);
+1501 csr_matrix.c        2146 A->m, A->n, ldb, 
+1502 csr_matrix.c        2147 A->values, A->colidx, 
+1503 csr_matrix.c        2148 A->rowptr);
+1504 csr_matrix.c        2162 const enum value_type_t value_type = A->value_type;
+1505 csr_matrix.c        2186 if (A->value_type == REAL)
+1506 csr_matrix.c        2195 retval = VALGRIND_CHECK_READABLE( r, (A->m) * sizeof (double) );
+1507 csr_matrix.c        2202 retval = VALGRIND_CHECK_READABLE( y, (A->n) * sizeof (double) );
+1508 csr_matrix.c        2210 else if (A->value_type == COMPLEX)
+1509 csr_matrix.c        2219 retval = VALGRIND_CHECK_READABLE( r, (A->m) * sizeof (double_Complex) );
+1510 csr_matrix.c        2226 retval = VALGRIND_CHECK_READABLE( y, (A->n) * sizeof (double_Complex) );
+1511 csr_matrix.c        2240 csr_weighted_jacobi_kernel_real_double ((double*) y, w, A->values, 
+1512 csr_matrix.c        2241 A->colidx, A->rowptr, A->n, 
+1513 csr_matrix.c        2248 csr_weighted_jacobi_kernel_complex_double ((double_Complex*) y, w, A->values, 
+1514 csr_matrix.c        2249 A->colidx, A->rowptr, A->n, 
+1515 csr_matrix.c        2272 return A->m;
+1516 csr_matrix.c        2290 return A->n;
+1517 csr_matrix.c        2315 value_type = A->value_type;
+1518 csr_matrix.c        2321 csr_spmv_double_real ((double*) y, A->m, _beta, _alpha, 
+1519 csr_matrix.c        2322 (const double*) A->values, A->colidx, A->rowptr, 
+1520 csr_matrix.c        2323 (double*) x, A->n);
+1521 csr_matrix.c        2330 csr_spmv_double_complex ((double_Complex*) y, A->m, _beta, _alpha,
+1522 csr_matrix.c        2331 (const double_Complex*) A->values,
+1523 csr_matrix.c        2332 A->colidx, A->rowptr, (double_Complex*) x,
+1524 csr_matrix.c        2333 A->n);
+1525 csr_matrix.c        2341 const enum value_type_t value_type = A->value_type;
+1526 csr_matrix.c        2343 if (A->m != A->n)
+1527 csr_matrix.c        2349 csr_upper_trisolve_double_real ((double*) x, A->values, A->colidx, A->rowptr, A->m);
+1528 csr_matrix.c        2351 csr_upper_trisolve_double_complex ((double_Complex*) x, A->values, A->colidx, A->rowptr, A->m);
+1529 csr_matrix.c        2357 const enum value_type_t value_type = A->value_type;
+1530 csr_matrix.c        2358 if (A->m != A->n)
+1531 csr_matrix.c        2364 csr_lower_trisolve_double_real ((double*) x, A->values, A->colidx, A->rowptr, A->m);
+1532 csr_matrix.c        2366 csr_lower_trisolve_double_complex ((double_Complex*) x, A->values, A->colidx, A->rowptr, A->m);
+1533 csr_matrix.c        2397 value_type = A->value_type;
+1534 csr_matrix.c        2404 A->m, 
+1535 csr_matrix.c        2407 (const double*) A->values, 
+1536 csr_matrix.c        2408 A->colidx, 
+1537 csr_matrix.c        2409 A->rowptr, 
+1538 csr_matrix.c        2411 A->n);
+1539 csr_matrix.c        2419 A->m, 
+1540 csr_matrix.c        2422 (const double_Complex*) A->values,
+1541 csr_matrix.c        2423 A->colidx, 
+1542 csr_matrix.c        2424 A->rowptr, 
+1543 csr_matrix.c        2426 A->n);
+1544 csr_matrix.c        2554 value_type = A->value_type;
+1545 csr_matrix.c        2555 if (A->symmetry_type == SYMMETRIC)
+1546 csr_matrix.c        2560 else if (A->symmetry_type != UNSYMMETRIC) 
+1547 csr_matrix.c        2564 A->symmetry_type);
+1548 csr_matrix.c        2570 int* ptr = (int*) bebop_calloc (A->n + 1, sizeof (int));
+1549 csr_matrix.c        2571 int* ind = (int*) bebop_calloc (A->nnz, sizeof (int));
+1550 csr_matrix.c        2572 double* val = (double*) bebop_calloc (A->nnz, sizeof (double));
+1551 csr_matrix.c        2585 for (i = 0; i < A->nnz; i++)
+1552 csr_matrix.c        2587 int j = A->colidx[i];
+1553 csr_matrix.c        2588 if (j < 0 || j >= A->n)
+1554 csr_matrix.c        2590 bebop_log (0, "*** csr_matrix_transpose: A->colidx[%d] = %d "
+1555 csr_matrix.c        2592 0, A->n - 1);
+1556 csr_matrix.c        2598 assert (j+1 >= 0 && j+1 < A->n + 1);
+1557 csr_matrix.c        2610 e = VALGRIND_CHECK_READABLE(ptr, (A->n + 1) * sizeof (int));
+1558 csr_matrix.c        2613 bebop_log (0, "*** csr_matrix_transpose: ptr is an invalid pointer -- it does not point to n+1 = %d integers! ***\n", A->n + 1);
+1559 csr_matrix.c        2619 for (i = 2; i < A->n; i++)
+1560 csr_matrix.c        2629 for (i = 0; i < A->m; i++)
+1561 csr_matrix.c        2631 for (j = A->rowptr[i]; j < A->rowptr[i+1]; j++)
+1562 csr_matrix.c        2633 if (ptr[A->colidx[j]] < 0 || ptr[A->colidx[j]] >= A->nnz)
+1563 csr_matrix.c        2637 A->colidx[j], ptr[A->colidx[j]], j, 0, A->nnz - 1);
+1564 csr_matrix.c        2642 ind[ptr[A->colidx[j]]] = i;
+1565 csr_matrix.c        2643 val[ptr[A->colidx[j]]] = ((double*) (A->values))[j];
+1566 csr_matrix.c        2644 ptr[A->colidx[j]]++;
+1567 csr_matrix.c        2653 for (i = A->n; i > 0; i--)
+1568 csr_matrix.c        2660 struct csr_matrix_t* Retval = create_csr_matrix (A->n, A->m, A->nnz, (void*) val, ind, ptr, A->symmetry_type, 1 - A->symmetric_storage_location, A->value_type, LIBRARY_DEALL
+                              OCATES, NULL, NO_COPY);
+1569 csr_matrix.c        2667 int* ptr = bebop_calloc (A->n + 1, sizeof (int));
+1570 csr_matrix.c        2668 int* ind = bebop_calloc (A->nnz, sizeof (int));
+1571 csr_matrix.c        2669 double_Complex* val = bebop_calloc (A->nnz, sizeof (double_Complex));
+1572 csr_matrix.c        2681 for (i = 0; i < A->nnz; i++)
+1573 csr_matrix.c        2683 assert (A->colidx[i] >= 0 && A->colidx[i] < A->n);
+1574 csr_matrix.c        2684 ++ptr[A->colidx[i]+1];
+1575 csr_matrix.c        2690 for (i = 2; i < A->n; i++)
+1576 csr_matrix.c        2698 for (i = 0; i < A->m; i++)
+1577 csr_matrix.c        2700 for (j = A->rowptr[i]; j < A->rowptr[i+1]; j++)
+1578 csr_matrix.c        2702 assert (ptr[A->colidx[j]] >= 0);
+1579 csr_matrix.c        2703 assert (ptr[A->colidx[j]] < A->nnz);
+1580 csr_matrix.c        2704 ind[ptr[A->colidx[j]]] = i;
+1581 csr_matrix.c        2705 val[ptr[A->colidx[j]]] = ((double_Complex*) (A->values))[j];
+1582 csr_matrix.c        2706 ptr[A->colidx[j]]++;
+1583 csr_matrix.c        2714 for (i = A->n; i > 0; i--)
+1584 csr_matrix.c        2721 return create_csr_matrix (A->n, A->m, A->nnz, (void*) val, ind, ptr, 
+1585 csr_matrix.c        2722 A->symmetry_type, 1 - A->symmetric_storage_location, 
+1586 csr_matrix.c        2723 A->value_type, LIBRARY_DEALLOCATES, NULL, NO_COPY);
+1587 csr_matrix.c        2727 int* ptr = bebop_calloc (A->n + 1, sizeof (int));
+1588 csr_matrix.c        2728 int* ind = bebop_calloc (A->nnz, sizeof (int));
+1589 csr_matrix.c        2740 for (i = 0; i < A->nnz; i++)
+1590 csr_matrix.c        2742 assert (A->colidx[i] >= 0 && A->colidx[i] < A->n);
+1591 csr_matrix.c        2743 ++ptr[A->colidx[i]+1];
+1592 csr_matrix.c        2749 for (i = 2; i < A->n; i++)
+1593 csr_matrix.c        2757 for (i = 0; i < A->m; i++)
+1594 csr_matrix.c        2759 for (j = A->rowptr[i]; j < A->rowptr[i+1]; j++)
+1595 csr_matrix.c        2761 assert (ptr[A->colidx[j]] >= 0);
+1596 csr_matrix.c        2762 assert (ptr[A->colidx[j]] < A->nnz);
+1597 csr_matrix.c        2763 ind[ptr[A->colidx[j]]] = i;
+1598 csr_matrix.c        2764 ptr[A->colidx[j]]++;
+1599 csr_matrix.c        2772 for (i = A->n; i > 0; i--)
+1600 csr_matrix.c        2779 return create_csr_matrix (A->n, A->m, A->nnz, (void*) NULL, ind, ptr, 
+1601 csr_matrix.c        2780 A->symmetry_type, 1 - A->symmetric_storage_location, 
+1602 csr_matrix.c        2781 A->value_type, LIBRARY_DEALLOCATES, NULL, NO_COPY);
+1603 csr_matrix.c        2796 const enum value_type_t value_type = A->value_type;
+1604 csr_matrix.c        3053 enum value_type_t value_type = A->value_type;
+1605 csr_matrix.c        3058 assert (A->symmetry_type == UNSYMMETRIC);
+1606 csr_matrix.c        3060 if (A->symmetry_type == UNSYMMETRIC)
+1607 csr_matrix.c        3063 csr_gauss_seidel_double_real_unsymmetric ((double*) x, A->m, 
+1608 csr_matrix.c        3064 A->rowptr, A->colidx, 
+1609 csr_matrix.c        3065 (const double*) (A->values), 
+1610 csr_matrix.c        3069 A->m, A->rowptr, A->colidx,
+1611 csr_matrix.c        3070 (const double_Complex*) (A->values),
+1612 bcsr_matrix.c         64 A->bm = bm;
+1613 bcsr_matrix.c         65 A->bn = bn;
+1614 bcsr_matrix.c         66 A->r = r;
+1615 bcsr_matrix.c         67 A->c = c;
+1616 bcsr_matrix.c         68 A->nnzb = nnzb;
+1617 bcsr_matrix.c         69 A->symmetry_type = symmetry_type;
+1618 bcsr_matrix.c         70 A->symmetric_storage_location = symmetric_storage_location;
+1619 bcsr_matrix.c         71 A->value_type = value_type;
+1620 bcsr_matrix.c         72 A->col_oriented_p = col_oriented_p;
+1621 bcsr_matrix.c         73 A->ownership = ownership;
+1622 bcsr_matrix.c         75 A->deallocator = &free;
+1623 bcsr_matrix.c         77 A->deallocator = deallocator;
+1624 bcsr_matrix.c         81 A->values = values;
+1625 bcsr_matrix.c         82 A->colind = colind;
+1626 bcsr_matrix.c         83 A->rowptr = rowptr;
+1627 bcsr_matrix.c         92 A->ownership = LIBRARY_DEALLOCATES;
+1628 bcsr_matrix.c         93 A->deallocator = &free;
+1629 bcsr_matrix.c         96 A->values = bebop_malloc (nnz * sizeof (double));
+1630 bcsr_matrix.c         97 memcpy (A->values, values, nnz * sizeof (double));
+1631 bcsr_matrix.c        101 A->values = bebop_malloc (nnz * sizeof (double_Complex));
+1632 bcsr_matrix.c        102 memcpy (A->values, values, nnz * sizeof (double_Complex));
+1633 bcsr_matrix.c        106 A->values = NULL;
+1634 bcsr_matrix.c        108 A->rowptr = bebop_malloc ((bm+1) * sizeof (int)); 
+1635 bcsr_matrix.c        109 memcpy (A->rowptr, rowptr, (bm+1) * sizeof (int));
+1636 bcsr_matrix.c        110 A->colind = bebop_malloc (nnzb * sizeof (int)); 
+1637 bcsr_matrix.c        111 memcpy (A->colind, colind, nnzb * sizeof (int));
+1638 bcsr_matrix.c        125 *bm = A->bm;
+1639 bcsr_matrix.c        126 *bn = A->bn;
+1640 bcsr_matrix.c        127 *r = A->r;
+1641 bcsr_matrix.c        128 *c = A->c;
+1642 bcsr_matrix.c        129 *nnzb = A->nnzb;
+1643 bcsr_matrix.c        130 *values = A->values;
+1644 bcsr_matrix.c        131 *colind = A->colind;
+1645 bcsr_matrix.c        132 *rowptr = A->rowptr;
+1646 bcsr_matrix.c        133 *symmetry_type = A->symmetry_type;
+1647 bcsr_matrix.c        134 *symmetric_storage_location = A->symmetric_storage_location;
+1648 bcsr_matrix.c        135 *value_type = A->value_type;
+1649 bcsr_matrix.c        136 *col_oriented_p = A->col_oriented_p;
+1650 bcsr_matrix.c        185 if (A->ownership == LIBRARY_DEALLOCATES)
+1651 bcsr_matrix.c        187 if (A->deallocator == NULL)
+1652 bcsr_matrix.c        189 bebop_free (A->values);
+1653 bcsr_matrix.c        190 bebop_free (A->colind);
+1654 bcsr_matrix.c        191 bebop_free (A->rowptr);
+1655 bcsr_matrix.c        195 (A->deallocator) (A->values);
+1656 bcsr_matrix.c        196 (A->deallocator) (A->colind);
+1657 bcsr_matrix.c        197 (A->deallocator) (A->rowptr);
+1658 bcsr_matrix.c        209 const int bm = A->bm;
+1659 bcsr_matrix.c        210 const int bn = A->bn;
+1660 bcsr_matrix.c        211 const int r = A->r;
+1661 bcsr_matrix.c        212 const int c = A->c;
+1662 bcsr_matrix.c        213 const int nnzb = A->nnzb;
+1663 bcsr_matrix.c        219 if (A->value_type == REAL)
+1664 bcsr_matrix.c        222 memcpy (v, A->values, nnz * sizeof (double));
+1665 bcsr_matrix.c        225 else if (A->value_type == COMPLEX)
+1666 bcsr_matrix.c        228 memcpy (v, A->values, nnz * sizeof (double_Complex));
+1667 bcsr_matrix.c        231 else if (A->value_type == PATTERN)
+1668 bcsr_matrix.c        235 memcpy (colind, A->colind, nnzb * sizeof (int));
+1669 bcsr_matrix.c        238 memcpy (rowptr, A->rowptr, (bm + 1) * sizeof (int));
+1670 bcsr_matrix.c        241 A->symmetry_type, A->symmetric_storage_location, 
+1671 bcsr_matrix.c        242 A->value_type, A->col_oriented_p,
+1672 bcsr_matrix.c        254 fprintf (out, "bm, bn = %d, %d\n", A->bm, A->bn);
+1673 bcsr_matrix.c        255 fprintf (out, "r, c = %d, %d\n", A->r, A->c);
+1674 bcsr_matrix.c        256 if (A->col_oriented_p)
+1675 bcsr_matrix.c        261 fprintf (out, "rowptr[0:%d]:", A->bm);
+1676 bcsr_matrix.c        262 for (i = 0; i <= A->bm; i++)
+1677 bcsr_matrix.c        263 fprintf (out, " %d", A->rowptr[i]);
+1678 bcsr_matrix.c        265 fprintf (out, "\ncolind[0:%d]:", A->nnzb - 1);
+1679 bcsr_matrix.c        266 for (i = 0; i < A->nnzb; i++)
+1680 bcsr_matrix.c        267 fprintf (out, " %d", A->colind[i]);
+1681 bcsr_matrix.c        269 fprintf (out, "\nvalues[0:%d]:", A->nnzb * A->r * A->c - 1);
+1682 bcsr_matrix.c        270 if (A->value_type == REAL)
+1683 bcsr_matrix.c        272 double* values = (double*) (A->values);
+1684 bcsr_matrix.c        274 for (i = 0; i < A->nnzb * A->r * A->c; i++)
+1685 bcsr_matrix.c        277 else if (A->value_type == COMPLEX)
+1686 bcsr_matrix.c        279 double_Complex* values = (double_Complex*) (A->values);
+1687 bcsr_matrix.c        281 for (i = 0; i < A->nnzb * A->r * A->c; i++)
+1688 bcsr_matrix.c        294 const int nnzb           = A->nnzb;
+1689 bcsr_matrix.c        295 const int bm             = A->bm;
+1690 bcsr_matrix.c        296 const int bn             = A->bn;
+1691 bcsr_matrix.c        297 const int r              = A->r;
+1692 bcsr_matrix.c        298 const int c              = A->c;
+1693 bcsr_matrix.c        327 else if (nnzb > 0 && (A->value_type == REAL || A->value_type == COMPLEX) && A->values == NULL)
+1694 bcsr_matrix.c        330 "and has nonzero values, yet A->values is NULL! ***\n");
+1695 bcsr_matrix.c        337 const int start = A->rowptr[i];
+1696 bcsr_matrix.c        338 const int end   = A->rowptr[i+1];
+1697 bcsr_matrix.c        357 if (A->rowptr[bm] != nnzb)
+1698 bcsr_matrix.c        360 "%d ***\n", bm, A->rowptr[bm], nnzb);
+1699 bcsr_matrix.c        368 const int j = A->colind[i];
+1700 bcsr_matrix.c        399 const int col_oriented_p = A->col_oriented_p;
+1701 bcsr_matrix.c        400 const int nnzb           = A->nnzb;
+1702 bcsr_matrix.c        401 const int bm             = A->bm;
+1703 bcsr_matrix.c        402 const int bn             = A->bn;
+1704 bcsr_matrix.c        403 const int r              = A->r;
+1705 bcsr_matrix.c        404 const int c              = A->c;
+1706 bcsr_matrix.c        413 if (A->symmetry_type == UNSYMMETRIC)
+1707 bcsr_matrix.c        415 else if (A->symmetry_type == SYMMETRIC)
+1708 bcsr_matrix.c        417 else if (A->symmetry_type == SKEW_SYMMETRIC)
+1709 bcsr_matrix.c        419 else if (A->symmetry_type == HERMITIAN)
+1710 bcsr_matrix.c        425 "matrix! ***\n", A->symmetry_type);
+1711 bcsr_matrix.c        430 if (A->value_type == REAL)
+1712 bcsr_matrix.c        432 else if (A->value_type == COMPLEX)
+1713 bcsr_matrix.c        434 else if (A->value_type == PATTERN)
+1714 bcsr_matrix.c        452 start = A->rowptr[i];
+1715 bcsr_matrix.c        453 end   = A->rowptr[i+1];
+1716 bcsr_matrix.c        457 if (A->value_type == REAL)
+1717 bcsr_matrix.c        459 double* values = (double*) (A->values);
+1718 bcsr_matrix.c        462 OUTPUT_INDEX_BASE + A->colind[j],
+1719 bcsr_matrix.c        465 else if (A->value_type == COMPLEX)
+1720 bcsr_matrix.c        467 double_Complex* values = (double_Complex*) (A->values);
+1721 bcsr_matrix.c        470 OUTPUT_INDEX_BASE + A->colind[j],
+1722 bcsr_matrix.c        474 else if (A->value_type == PATTERN)
+1723 bcsr_matrix.c        478 OUTPUT_INDEX_BASE + A->colind[j]);
+1724 bcsr_matrix.c        485 for (i = 0; i < A->bm; i++)
+1725 bcsr_matrix.c        487 start = A->rowptr[i];
+1726 bcsr_matrix.c        488 end   = A->rowptr[i+1];
+1727 bcsr_matrix.c        494 if (A->value_type == REAL)
+1728 bcsr_matrix.c        496 double* values = (double*) (A->values);
+1729 bcsr_matrix.c        499 OUTPUT_INDEX_BASE + A->colind[j] + (k / r), 
+1730 bcsr_matrix.c        502 else if (A->value_type == COMPLEX)
+1731 bcsr_matrix.c        504 double_Complex* values = (double_Complex*) (A->values);
+1732 bcsr_matrix.c        507 OUTPUT_INDEX_BASE + A->colind[j] + (k / r), 
+1733 bcsr_matrix.c        511 else if (A->value_type == PATTERN)
+1734 bcsr_matrix.c        515 OUTPUT_INDEX_BASE + A->colind[j] + (k / r));
+1735 bcsr_matrix.c        523 for (i = 0; i < A->bm; i++)
+1736 bcsr_matrix.c        525 start = A->rowptr[i];
+1737 bcsr_matrix.c        526 end   = A->rowptr[i+1];
+1738 bcsr_matrix.c        532 if (A->value_type == REAL)
+1739 bcsr_matrix.c        534 double* values = (double*) (A->values);
+1740 bcsr_matrix.c        537 OUTPUT_INDEX_BASE + A->colind[j] + (k % c), 
+1741 bcsr_matrix.c        540 else if (A->value_type == COMPLEX)
+1742 bcsr_matrix.c        542 double_Complex* values = (double_Complex*) (A->values);
+1743 bcsr_matrix.c        545 OUTPUT_INDEX_BASE + A->colind[j] + (k % c), 
+1744 bcsr_matrix.c        549 else if (A->value_type == PATTERN)
+1745 bcsr_matrix.c        553 OUTPUT_INDEX_BASE + A->colind[j] + (k % c));
+1746 convert2csc.c        198 fprintf(stderr,"m=%d n=%d\n",A->m,A->n);
+1747 convert2csc.c        199 fprintf(stderr,"symmetry=%d\n",A->symmetry_type);
+1748 convert2csc.c        200 assert( (A->m == A->n) );//&& (A->symmetry_type == SYMMETRIC));
+1749 convert2csc.c        211 fwrite(&A->n,sizeof(A->n),1,out_file);
+1750 convert2csc.c        212 fwrite(&A->nnz,sizeof(A->nnz),1,out_file);
+1751 convert2csc.c        219 int np1 = A->n+1;
+1752 convert2csc.c        223 int entry = A->colptr[i]+offset;
+1753 convert2csc.c        229 fwrite(&A->nnz,sizeof(A->nnz),1,out_file);
+1754 convert2csc.c        231 for (i=0;i<A->nnz;i++)
+1755 convert2csc.c        233 int entry = A->rowidx[i]+offset;
+1756 convert2csc.c        237 fwrite(&A->nnz,sizeof(A->nnz),1,out_file);
+1757 convert2csc.c        241 if(A->value_type == REAL){
+1758 convert2csc.c        242 double * val = (double*)A->values;
+1759 convert2csc.c        243 for (i=0;i<A->nnz;i++)
+1760 convert2csc.c        248 else if(A->value_type == COMPLEX){
+1761 convert2csc.c        249 double _Complex * val = (double _Complex*)A->values;
+1762 convert2csc.c        250 for (i=0;i<A->nnz;i++)
+1763 convert2csc.c        370 if(A->format == CSC){
+1764 convert2csc.c        371 struct csc_matrix_t * B = (struct csc_matrix_t*)A->repr;
+1765 convert2csc.c        374 else if(A->format == CSR){
+1766 convert2csc.c        375 struct csr_matrix_t * B = (struct csr_matrix_t*)A->repr;

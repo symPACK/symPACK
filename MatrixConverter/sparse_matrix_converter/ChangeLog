@@ -1,0 +1,134 @@
+mfh 2007-11-26:
+	* main.c (main): Removed call to init_timer(), since 
+	bebop_default_initialize() now calls it.
+
+mfh 2007-11-23:
+	* main.c (main): Changed init code to call
+	bebop_default_initialize().
+
+mfh 2007-11-14:
+	* Makefile: Fixed up the top-level Makefile so that recursive
+	Make works correctly.
+
+mfh 2007-11-12:
+	* Nearly all files: Moved headers into bebop/smc directory
+	namespace, moved source files into their own src/ directory, and
+	moved io/ files into src/io/.  Added bebop/src/io header
+	namespace.  Fixed up Makefile to account for these changes, and
+	moved the body of Makefile compilation and linking work into a
+	new src/Makefile.
+
+mfh 2007-11-11:
+	* *.c: fixed up #includes pointing to bebop_util headers, to
+	account for the new bebop/util namespace.  Changed function
+	calls starting with "smvm_" to "bebop_".
+
+mfh 2006-10-03:
+	* iohb.c (ParseIfmt, ParseRfmt): was calling upcase on constant
+	strings (the format strings in the HB file) which is a Bad
+	Thing.  I fixed it to make a copy of the string first (calling
+	mfh_upcase instead of upcase, and freeing the string before
+	returning from the function).
+
+mfh 2006-08-19:
+	* csr_triple_product.c (ptap_csr_dr): Slight modification due to
+	change in list_t API.
+
+mfh 2006-08-17:
+	* csr_triple_product.c: Working on new triple product
+	implementation.
+	
+	* csr_triple_product.c, csr_matrix.c: Fixed triple product.
+
+	* csr_transpose.c (csr_matrix_transpose_kernel_double_real):
+	Fixed transpose: was not filling in last row of matrix.
+
+mfh 2006-08-13:
+	* csr_matrix.c: Fixed a silly bug in Gauss-Seidel smoothing.
+
+mfh 2006-08-03:
+	* coo_matrix.c (coo_matrix_expand_symmetric_storage,
+	coo_matrix_expand_symmetric_storage_copy): Segfault caused by
+	copying new_nnz values (instead of old_nnz values) from the old
+	arrays to the new arrays.  Fixed.
+
+	* csr_matrix.c: fixed bugs in csr_matrix_equal_p (cast to wrong
+	data type) and csr_matrix_restrict (another wrong cast).
+
+mfh 2006-08-02:
+	* csr_matmatmult.c: added preprocessor switches to test for 
+	presence of C99 features (NAN, isnan and fpclassify) before 
+	trying to use them.
+
+mfh 2006-08-01:
+	* csr_matrix.c,csr_matrix.h: added Gauss-Seidel (forward,
+	backward and symmetric).
+
+	* csr_matrix.c (csr_matrix_scale_by_rowsums): the symmetric,
+	skew-symmetric and hermitian cases were broken.  I removed them
+	for now and put an assert(false) in their place.
+
+	* csr_matmatmult.c: fixed CSR matrix-matrix multiplication for
+	pattern matrices.
+
+mfh 2006-07-31:
+	* csr_matrix.c,csr_matmatmult.c: fixed complex-valued matrix
+	matrix multiplication.
+
+	* csr_matrix.c (csr_matrix_transpose): fixed killer bug -- was
+	iterating through ptr with the wrong matrix dimension (m instead
+	of n, as n is the number of rows in A^T, and therefore ptr is of
+	length n+1 rather than m+1).
+
+	* bcoo_matrix.c,sparse_matrix.c,sparse_matrix.h: got rid of
+	minor compiler warnings by moving code appropriately and
+	ditching superfluous "const" characterizers.
+
+	* csr_matrix.c: Added a whole lot of Valgrind checks for input
+	pointers, so even the pointer has to be valid.
+
+mfh 2006-07-28:
+	* coo_matrix.c (print_coo_matrix_in_matlab_format): fixed bug
+	that was causing the "size-defining" extra entry to have invalid
+	indices.    
+
+mfh 2006-07-13:
+	* iohb.c (ParseIfmt, ParseRfmt): fixed bug in which *perline 
+	was not being set if a number of elements per line was not 
+	specified in the format spec.  I found that matrix files 
+	produced by ANSYS don't specify the number of elements per line, 
+	but it should be one.  I made one the default if the number of 
+	elements per line is not specified.
+
+mfh 2006-07-10:
+	* csr_expand_to_dense.c: replaced assignment to double_Complex 
+	type with 0.0, to assignment with double_Complex_ZERO.
+
+	* csr_spmv.c: replaced double_Complex == with 
+	double_Complex_equal.
+
+mfh 2006-07-04:
+	* coo_matrix.c: Fixed some spots in read_matrix_market_*sparse
+	where I wasn't setting index_base.
+
+mfh 2006-07-04:
+	* bebop_util/enumerations.h: added enumerations for ownership
+	mode and copy mode.
+
+	* bcoo_matrix.c (bcoo_to_bcsr): rowptr of the return matrix was
+	allocated one entry too small.  Fixed.  For some reason the 
+	corresponding code in bcoo_matrix_to_random_bcsr_matrix was
+	correct.
+
+	* bcoo_matrix.h, bcoo_matrix.c: incorporated new data ownership
+	and copy mode interface.
+
+	* bcsr_matrix.h, bcsr_matrix.c: incorporated new data ownership
+	and copy mode interface.
+
+	* coo_matrix.h, coo_matrix.c: incorporated new data ownership
+	and copy mode interface.
+
+	* jad_matrix.h, jad_matrix.c: incorporated new data ownership
+	and copy mode interface.
+	

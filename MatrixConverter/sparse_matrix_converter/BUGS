@@ -1,0 +1,129 @@
+mfh 01 May 2007:
+
+coo_to_csc_matrix
+  m = 400, n = 400, nnz = 1921
+but the original Matlab format file has only 1920 lines!  it's the fault of load_coo_matrix_in_matlab_format! it adds an extra nonzero when there is a space at the end of the input file! (?)
+
+fixed bug in load_coo_matrix_in_matlab_format -- was checking type REAL but doing to-complex-number pointer cast.  
+
+mfh 15 Jun 2006:
+
+coo_to_csr was fixed today -- I need to check on coo_to_csc.
+
+
+mfh 24 Feb 2006:
+
+Removed "void* + int" constructs that give trouble on some compilers.
+
+
+mfh 6 July 2005:
+
+Had forgotten to increment the "prev" index in
+bcoo_matrix_coalesce_duplicate_entries.  Fixed this.
+
+
+mfh 1 July 2005:
+
+The removal of duplicates from sections of (B)COO matrices has a bug
+that causes one element to be removed when it shouldn't be.  Namely, the
+duplicate-finding loop should start on the second element of the
+sequence of elements to scan for duplicates (if it starts on the first
+element, then of course the first element will be considered a duplicate
+of itself).
+
+	mfh 3 July 2005: 
+
+	Prototyped and verified correct algorithm, and fixed the
+	relevant sections of code.
+
+
+mfh 6 June 2005:
+
+Segfault in csc_to_coo on matrix 02-raefsky3.rua:
+
+./sparse_matrix_converter -v ~/sparsity-matrix-collection/02-raefsky3.rua HB 02.mat ML./sparse_matrix_converter -v ~/sparsity-matrix-collection/02-raefsky3.rua HB 02.mat ML
+
+Cause:  had forgotten to allocate II and JJ arrays in csc_to_coo (and csr_to_coo).
+
+
+mfh 6 June 2005:
+
+./sparse_matrix_converter -v -e ~/sparsity-matrix-collection/04-bcsstk35.rsa HB 04.mtx MM
+
+When sorting row indices in columns after expanding symmetric storage
+(of the CSC matrix):
+
+	sorting col 12758 with -552750 nonzeros
+	Segmentation fault
+
+More specifically:
+
+	=== csc_matrix_sort_rowidx ===
+	Matrix is 30237 x 30237 with 1480400 nonzeros
+	Finding max # of nonzeros in each column...it is 553856
+	value_type==REAL
+	*** csc_matrix_sort_rowidx: At column 12758, nnz = -552750 < 0 ***
+
+which means that the bug is not necessary in the sorting code, but is
+probably in the expansion code.  In fact, it happens in the "complete
+expansion of the matrix to full storage" section.  We also know that 
+no column j in the original matrix has A->colptr[j+1] - A->colptr[j] < 0.
+
+=== csc_matrix_sort_rowidx ===
+Matrix is 30237 x 30237 with 1480400 nonzeros
+Finding max # of nonzeros in each column...*** csc_matrix_sort_rowidx: at column 12758, A->colptr[12759]=30213 < A->colptr[12758]=582963 ***
+
+Somehow the expansion section is messing up colptr, since colptr[j+1] -
+colptr[j] >= 0 for all j _before_ the expansion section, but not after
+it (immediately before calling the rowidx sorting routine).
+
+When reading symmetric Harwell-Boeing matrices, it seems that the
+original nnz is kept, even if certain anomalous entries are discarded
+(in this case, we mean elements in the lower triangle when all the rest
+of the elements are in the upper triangle).  It seems that this is
+causing colptr to be off.  Actually, it's not true that these anomalous
+elements are being discarded -- all that happens is that a warning is
+printed out.  So this probably isn't the cause.
+
+Actually the input matrix to csc_matrix_expand_symmetric_storage is invalid!
+
+=== valid_csc_matrix ===
+*** valid_csc_matrix: Matrix: at col 30213, rowidx[739923]=30237 out of range [0,30237) ***
+=== Done with valid_csc_matrix ===
+*** csc_matrix_expand_symmetric_storage: A is invalid! ***
+
+Either the matrix is messed up, or the read_harwell_boeing_mat_double is
+messed up (or perhaps both).  Could it be that the Harwell-Boeing matrix 
+is using one-based indices?  Here is what we get from reading matrix #28
+from the Sparsity suite:
+
+=== valid_csc_matrix ===
+*** valid_csc_matrix: Matrix: at col 2916, rowidx[62337]=12328 out of range [0,12328) ***
+=== Done with valid_csc_matrix ===
+*** csc_matrix_expand_symmetric_storage: A is invalid! ***
+
+/*---------------------------------------------------------------------*/
+/* If zero-based indexing is desired, _SP_base should be set to 0      */
+/* This will cause indices read from H-B files to be decremented by 1  */
+/*             and indices written to H-B files to be incremented by 1 */
+/*            <<<  Standard usage is _SP_base = 1  >>>                 */
+#ifndef _SP_base
+#define _SP_base 1
+#endif
+/*---------------------------------------------------------------------*/
+
+Aha! The Harwell-Boeing files are using one-based indices!  Fixing that
+(changing it to "#define _SP_base 0") fixes all the
+csc_matrix_expand_symmetric_storage problems.  We don't have to change
+csr_matrix_expand_symmetric_storage, because _SP_base appears to have
+been the entire cause of the bug.
+
+
+mfh 27 May 2005:
+
+Nonzero values read from the matrix are interpreted as double-precision
+floating-point values, rather than as character strings.  This means
+that the values may change slightly, due to rounding error, if they are
+read in and written out.  The Harwell-Boeing routines offer functions
+for preserving the nonzero values as character strings.  I'm not using
+those currently.

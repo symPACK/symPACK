@@ -1,0 +1,21 @@
+mfh 08 Nov 2007
+
+Should have a single routine, LAPACK - style, that's called once to get the
+value type, and called again to get all the values.  The first call must save
+the first line in a struct so as not to throw away the first value(s).
+
+typedef struct __rsm_t {
+  void* values;
+  void* __I;
+  void* __J;
+  ...
+} rsm_t;
+
+We can optimistically set the index type to uint32_t, and then pop it up to
+uint64_t if strtol() fails with errno == ERANGE.  Much better than writing our
+own integer parser in C!  There's probably a "long long" version of strtol(); if
+it fails with ERANGE, then we're stuck.  I don't want to standardize on a bignum
+library...
+
+int
+read_sparse_matrix (rsm_t* matrix, FILE* f);

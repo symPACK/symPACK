@@ -1,0 +1,155 @@
+mfh 2008-07-01:
+	* src/init.[ch]: incompatible API change --
+	bebop_default_initialize() now takes three arguments instead of
+	none.  (Necessary for invoking lisp_boot().)
+	* README: updated to reflect bebop_default_initialize() API change.
+
+mfh 2007-11-26:
+	* COPYING: Updated the date (from 2006 to 2007).
+	* README: Updated API documentation for init and deinit.
+	* tests/*.c: Since I put calls to initialize timer and PRNG in 
+        bebop_default_initialize(), I could remove these initialization 
+	calls from the test executable.
+	* random_number.[ch]: Added (thread-safe) function for generating
+	a random seed for the PRNG.  It first tries reading entropy from
+	standard device files (/dev/random and /dev/urandom, in that
+	order), and if those don't exist or the reads fail, it uses
+	time(NULL).  The latter function is not thread-safe, so we protect
+	it with its own mutex, if USE_PTHREADS is #defined.
+	* init.c (bebop_default_initialize): now this function initializes
+	the timer (via init_timer()) and PRNG (it generates a random seed
+	and initializes the PRNG).
+
+mfh 2007-11-23:
+	* tests/*.c: standardized main() calls to bebop_* initialization
+	and deinitialization functions.
+	* extstring.[ch],tests/test_split_pathname.c: moved definition
+	of bebop_safe_getline() into extstring.[ch], where it belongs.
+	* tests/*.c: fixed up include paths (necessary due to changes
+	below that I made today).
+	* src/Makefile,util.c,util.h,init.c,init.h,...: Stripped out
+	BeBOP Utility Library initialization functions from util.[ch] 
+	and moved them into init.[ch].
+	* src/Makefile,util.c,util.h,file.c,file.h,...: Stripped out
+	filesystem utility functions from util.[ch] and moved them into
+	file.[ch].
+	* util.c: replaced calls to strdup() with calls to
+	bebop_strdup(), as the latter uses bebop_malloc() and the former
+	uses malloc().
+	* src/Makefile,avlstree.c,split.c,token.c,util.c: Added 
+	bebop/util/string.h to list of includes.
+	* util.c,util.h,string.c,string.h: Stripped out string
+	manipulation utility functions from util.[ch] and moved them
+	into string.[ch].  
+	* log.c: Fixed bugs in Pthreads code (made the mutex globally
+	scoped, instead of scoped in each function that (un)locks it).
+	Added comment to bebop_log() which explains why we don't lock
+	the debug level before reading it there.  
+	* util.c (bebop_exit): Added a comment explaining why I chose
+	not to register bebop_exit() with atexit() and thus obviate the
+	need for calling bebop_exit().  
+	* util.c: Removed all references to DMALLOC stuff (see below).
+	* sort_joint_arrays.c: Removed "#include <dmalloc.h>" and its
+	enclosing "#ifdef DMALLOC ... #endif".
+	* get_options.c: Made the_usage_function variable static, as it
+	is only accessed (and only _needs_ to be accessed) by
+	get_options.c code.
+	* get_options.c (dump_usage): Fixed bug in Pthreads code -- was
+	unlocking the mutex twice (once after calling the custom usage
+        function (the necessary place), and once at the end of the 
+	function (the unnecessary place)).  
+	* get_options.c: Removed DMALLOC calls (to Valgrind's runtime
+        API).
+
+mfh 2007-11-14:
+	* Makefile,tests/Makefile: Fixed up the top-level Makefile and
+	some of the subdirectory Makefiles so that recursive Make works 
+	correctly.
+
+mfh 2007-11-11:
+	* (many files): Have spent since 08/09 Nov 2007 changing the 
+	function prefix from "smvm_" to "bebop_", moving include files 
+	into their own directory namespace, and removing files that 
+	aren't used anymore.  Also moved source files into their own
+	"src/" directory.
+
+mfh 2006-08-25:
+	* avlstree.c,avlstree.h: Added an AVL tree implementation
+	with string keys and arbitrary values.
+
+	* smvm_util.c,smvm_util.h (smvm_strdup): Implmented a version of
+	strdup() that uses smvm_malloc() instead of malloc().  This
+	means it is unnecessary to check the return value.
+
+mfh 2006-08-19:
+	* list.h,list.c,get_matches.c: Changed "struct list_t" and
+	"struct list_node_t" into typedefs so you don't have to put
+	"struct" there when you use them.
+
+	* smvm_util.h,smvm_util.c (djb2_hash): Added a classic string
+	hash function.
+
+mfh 2006-08-17:
+	* list.h,list.c: Added many new functions, including a merge
+	sort (not necessarily stable), a find function that takes a
+	functional argument, and circular structure detection.  Cleaned up
+	all the list functions and added circular structure detection (in
+	asserts) to protect against infinite loops.  
+
+mfh 2006-08-12:
+	* smvm_util.h,smvm_util.c (make_nan): Added smvm_swap() function.
+
+	* smvm_util.h,smvm_util.c (make_nan): Added make_nan() function.
+
+mfh 2006-08-09:
+	* config.h: Added "restrict" keyword test: #defined to nothing 
+	unless HAVE_C99 is #defined.  (NOTE: later removed.)
+
+mfh 2006-08-02:
+	* config.h,__complex.h: Fixed the C99 question using the macros 
+	__STDC__ and __STDC_VERSION__.
+
+mfh 2006-07-31:
+	* __complex.c,__complex.h: added double_Complex_isnan.
+
+	* __complex.c,__complex.h: Added a double_Complex_subtract
+	operator.  Reimplemented double_Complex_divide to scale the
+	denominator to avoid overflow.  I still need to check whether it
+	does the right thing in corner cases (NaNs, etc.) -- e.g. c.imag
+	should be Inf and not NaN if a and b are finite (and not NaN)
+	and a/b overflows.
+
+mfh 2006-07-30:
+	* log.c,log.h (smvm_log_string): added function for logging a
+	string, which is handy for calling from other programming
+	languages (e.g. Lisp via an FFI).  Changed initial log banner so
+	that it only prints if the debug level is at least one.
+
+mfh 2006-07-28:
+	* smvm_util.c,smvm_util.h (max_linelength_in_file): added 
+	function max_linelength_in_file() and tested it successfully
+	using tests/test_max_linelength_in_file.c.
+
+mfh 2006-07-27:
+	* log.c,log.h: finished changing over from fprintf logging to 
+	smvm_log logging.
+
+mfh 2006-07-11:
+	* smvm_util.c,smvm_util.h: added get_substring function.
+
+mfh 2006-07-11:
+	* list.c,list.h,get_matches.c,get_matches.h: added files to the
+	project.  list.h defines a general list interface and 
+	get_matches.h is an extension of the POSIX regex library.
+
+mfh 2006-07-08:
+	* __complex.c: Was using the MAX(a,b) macro without #defining
+	it; it worked because my version of gcc has it pre-defined, but
+	gcc 3.4.4 that comes with Cygwin did not.  Fixed by adding a
+	definition local to this file.
+
+mfh 2006-07-07:
+	* __complex.h, __complex.c: Fixed some mixed-up #ifdefs based on
+	a misunderstanding of what HAVE__COMPLEX meant.  Added a
+	compiler warning if the C99 standard header file complex.h is
+	not used.

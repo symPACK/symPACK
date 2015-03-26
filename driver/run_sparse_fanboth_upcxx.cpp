@@ -41,7 +41,7 @@ using namespace LIBCHOLESKY;
 int main(int argc, char **argv) 
 {
   MPI_Init(&argc,&argv);
-  upcxx::init(&argc, &argv);
+  //upcxx::init(&argc, &argv);
 
   NGCholOptions optionsFact;
 
@@ -118,9 +118,6 @@ int main(int argc, char **argv)
     }
   }
 
-
-
-
   if( options.find("-ordering") != options.end() ){
     if(options["-ordering"]=="AMD"){
       optionsFact.ordering = AMD;
@@ -129,14 +126,6 @@ int main(int argc, char **argv)
       optionsFact.ordering = MMD;
     }
   }
-
-
-
-
-
-
-
-
 
   Int maxIrecv = 0;
   if( options.find("-ir") != options.end() ){
@@ -160,7 +149,7 @@ int main(int argc, char **argv)
     else if(options["-map"] == "Wrap2DForced"){
       optionsFact.mappingType = WRAP2DFORCED;
     }
-   else if(options["-map"] == "Row2D"){
+    else if(options["-map"] == "Row2D"){
       optionsFact.mappingType = ROW2D;
     }
     else if(options["-map"] == "Col2D"){
@@ -171,482 +160,222 @@ int main(int argc, char **argv)
     }
   }
   else{
-      optionsFact.mappingType = MODWRAP2D;
+    optionsFact.mappingType = MODWRAP2D;
   }
 
   np = optionsFact.used_procs(np);
   MPI_Comm workcomm;
   MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
-  
+
   if(iam<np){
     //  int np, iam;
     MPI_Comm_size(workcomm,&np);
     MPI_Comm_rank(workcomm,&iam);
 
 
-  sparse_matrix_file_format_t informat;
-  TIMER_START(READING_MATRIX);
-DistSparseMatrix<Real> HMat(workcomm);
-  //Read the input matrix
-  if(informatstr == "CSC"){
-       ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
-  }
-  else{
-
-  informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
-
-
-
-  sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
-  sparse_matrix_convert (Atmp, CSC);
-  const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
-  HMat.CopyData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,(MYSCALAR *)cscptr->values);
-
-
-  destroy_sparse_matrix (Atmp);
-  }
-
-
-
-
-  TIMER_STOP(READING_MATRIX);
-  if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
-
-
-
-
-
-//UNIT TEST
-//LIBCHOLESKY::UnitTest::ITree_Test();
-
-
-
-
-#ifdef _CHECK_RESULT_
-
-  Int nrhs = 1;
-  DblNumMat RHS;
-  DblNumMat XTrue;
-
-  Int n = HMat.size;
-
-
-  RHS.Resize(n,nrhs);
-  XTrue.Resize(n,nrhs);
-
-  //SetValue(XTrue,1.0);
-  Int val = 1.0;
-  for(Int i = 0; i<n;++i){ 
-    for(Int j=0;j<nrhs;++j){
-      XTrue(i,j) = val;
-      val = -val;
+    sparse_matrix_file_format_t informat;
+    TIMER_START(READING_MATRIX);
+    DistSparseMatrix<Real> HMat(workcomm);
+    //Read the input matrix
+    if(informatstr == "CSC"){
+      ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
     }
-  }
-//        UniformRandom(XTrue);
-
-  if(iam==0){
-    cout<<"Starting spGEMM"<<endl;
-  }
-
-  timeSta = get_time();
-
-{
-  SparseMatrixStructure Local = HMat.GetLocalStructure();
-  SparseMatrixStructure Global;
-  Local.ToGlobal(Global,workcomm);
-  Global.ExpandSymmetric();
-
-  Int numColFirst = std::max(1,n / np);
-
-  SetValue(RHS,0.0);
-  for(Int j = 1; j<=n; ++j){
-    Int iOwner = std::min((j-1)/numColFirst,np-1);
-    if(iam == iOwner){
-      Int iLocal = (j-(numColFirst)*iOwner);
-      //do I own the column ?
-      double t = XTrue(j-1,0);
-      //do a dense mat mat mul ?
-      for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
-        Int row = Local.rowind[ii-1];
-        RHS(row-1,0) += t*HMat.nzvalLocal[ii-1];
-        if(row>j){
-          RHS(j-1,0) += XTrue(row-1,0)*HMat.nzvalLocal[ii-1];
-        }
-      }
-    }
-  }
-  //Do a reduce of RHS
-  MPI_Allreduce(MPI_IN_PLACE,&RHS(0,0),RHS.Size(),MPI_DOUBLE,MPI_SUM,workcomm);
-}
-
-  timeEnd = get_time();
-  if(iam==0){
-    cout<<"spGEMM time: "<<timeEnd-timeSta<<endl;
-  }
-
-
-  //   logfileptr->OFS()<<RHS<<endl;
-#endif
-
-
-  if(iam==0){
-    cout<<"Starting allocation"<<endl;
-  }
-
-
-  DblNumMat XFinal;
-{
-  timeSta = get_time();
-  //do the symbolic factorization and build supernodal matrix
-  optionsFact.maxSnode = maxSnode;
-  optionsFact.maxIsend = maxIsend;
-  optionsFact.maxIrecv = maxIrecv;
-
-  if(doFB){
-    optionsFact.factorization = FANBOTH;
-  }
-  else{
-    optionsFact.factorization = FANOUT;
-  }
-
-
-  optionsFact.commEnv = new CommEnvironment(workcomm);
-  SupernodalMatrix<double> SMat(HMat,optionsFact);
-
-  timeEnd = get_time();
-  if(iam==0){
-    cout<<"Allocation time: "<<timeEnd-timeSta<<endl;
-  }
-
-//      logfileptr->OFS()<<"Resulting mapping: "<<endl;
-//      for(Int i = 0; i< 50;++i){
-//        for(Int j = 0; j< 50;++j){
-//          logfileptr->OFS()<<mapping->Map(i,j)<<" ";
-//        }
-//        logfileptr->OFS()<<endl;
-//      }
-
-#ifdef _CHECK_RESULT_
-#ifdef _CHECK_RESULT_SEQ_
-  DblNumMat fwdSol;
-  DblNumMat RHS2;
-  DblNumMat XTrue2;
-  DblNumMat A;
-  {
-    if(iam==0){
+    else{
+      informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
       sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
-      sparse_matrix_expand_symmetric_storage (Atmp);
-      sparse_matrix_convert (Atmp, CSR);
-      const csr_matrix_t * csrptr = (const csr_matrix_t *) Atmp->repr;
-      A.Resize(csrptr->n,csrptr->n);
-      csr_matrix_expand_to_dense (A.Data(), 0, A.m(), csrptr);
+      sparse_matrix_convert (Atmp, CSC);
+      const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
+      HMat.CopyData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,(MYSCALAR *)cscptr->values);
+      destroy_sparse_matrix (Atmp);
+    }
 
-      RHS2 = RHS;//.Resize(n,nrhs);
-      XTrue2 = XTrue;//.Resize(n,nrhs);
-      //SetValue(XTrue2,1.0);
-      //      UniformRandom(XTrue);
-      blas::Gemm('N','N',n,nrhs,n,1.0,&A(0,0),n,&XTrue2(0,0),n,0.0,&RHS2(0,0),n);
-
-      double norm = 0;
-      DblNumMat tmp = RHS2;
-      blas::Axpy(n*nrhs,-1.0,&RHS(0,0),1,&tmp(0,0),1);
-      norm = lapack::Lange('F',n,nrhs,&tmp(0,0),n);
-      cout<<"Norm between RHS is "<<norm<<std::endl;
+    TIMER_STOP(READING_MATRIX);
+    if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
 
 
-      //Order the matrix
-      Ordering order = SMat.GetOrdering();
+#ifdef _CHECK_RESULT_
 
-      DblNumMat Aperm(A.m(),A.n());
-      for(Int i = 0; i<A.m(); ++i){
-        for(Int j = 0; j<A.n(); ++j){
-          Aperm(i,j) = A(order.perm[i]-1,order.perm[j]-1);
-        }
+    Int nrhs = 1;
+    DblNumMat RHS;
+    DblNumMat XTrue;
+
+    Int n = HMat.size;
+
+
+    RHS.Resize(n,nrhs);
+    XTrue.Resize(n,nrhs);
+
+    //SetValue(XTrue,1.0);
+    Int val = 1.0;
+    for(Int i = 0; i<n;++i){ 
+      for(Int j=0;j<nrhs;++j){
+        XTrue(i,j) = val;
+        val = -val;
       }
+    }
+    //        UniformRandom(XTrue);
 
+    if(iam==0){
+      cout<<"Starting spGEMM"<<endl;
+    }
 
-      //cal dposv
-      norm = 0;
+    timeSta = get_time();
 
-      //do a solve
-      DblNumMat X(RHS2.m(),RHS2.n());
-      DblNumMat XTrue3(XTrue2.m(),XTrue2.n());
-      for(Int i = 0; i<n;++i){ 
-        for(Int j=0;j<nrhs;++j){
-          X(i,j) = RHS2(order.perm[i]-1,j);
-          XTrue3(i,j) = XTrue2(order.perm[i]-1,j);
-        }
-      }
+    {
+      SparseMatrixStructure Local = HMat.GetLocalStructure();
+      SparseMatrixStructure Global;
+      Local.ToGlobal(Global,workcomm);
+      Global.ExpandSymmetric();
 
+      Int numColFirst = std::max(1,n / np);
 
-
-//logfileptr->OFS()<<"RHS2 "<<X<<endl;
-//logfileptr->OFS()<<"Aperm "<<Aperm<<endl;
-
-
-
-{
-      DblNumMat B = Aperm;
-      DblNumMat XTrue4 = XTrue3;
-      DblNumMat X3 = X;
-
-      lapack::Potrf('L',n,&B(0,0),n);
-      lapack::Potrs('L',n,nrhs,&B(0,0),n,&X3(0,0),n);
-
-  blas::Axpy(X3.m()*X3.n(),-1.0,&XTrue4(0,0),1,&X3(0,0),1);
-  double norm2 = lapack::Lange('F',X3.m(),X3.n(),&X3(0,0),X3.m());
-    cout<<"Norm of residual after potrf (potrs) is "<<norm2<<std::endl;
-
-}
-
-
-
-
-
-
-      lapack::Potrf('L',n,&Aperm(0,0),n);
-
-
-      for(Int i = 0; i<A.m();++i){
-        for(Int j = 0; j<A.n();++j){
-          if(j>i){
-            Aperm(i,j)=LIBCHOLESKY::ZERO<double>();
-          }
-        }
-      }
-//logfileptr->OFS()<<"Lperm "<<Aperm<<endl;
-
-      //simulate a potrs in order to get the intermediate values
-      for(Int j = 0; j<nrhs;++j){
-        for(Int k = 0; k<A.m();++k){
-          if(X(k,j)!=0){
-            X(k,j) = X(k,j) / Aperm(k,k);
-            for(Int i = k+1;i<A.m();++i){
-              X(i,j) -= X(k,j)*Aperm(i,k);
+      SetValue(RHS,0.0);
+      for(Int j = 1; j<=n; ++j){
+        Int iOwner = std::min((j-1)/numColFirst,np-1);
+        if(iam == iOwner){
+          Int iLocal = (j-(numColFirst)*iOwner);
+          //do I own the column ?
+          double t = XTrue(j-1,0);
+          //do a dense mat mat mul ?
+          for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
+            Int row = Local.rowind[ii-1];
+            RHS(row-1,0) += t*HMat.nzvalLocal[ii-1];
+            if(row>j){
+              RHS(j-1,0) += XTrue(row-1,0)*HMat.nzvalLocal[ii-1];
             }
           }
         }
       }
+      //Do a reduce of RHS
+      MPI_Allreduce(MPI_IN_PLACE,&RHS(0,0),RHS.Size(),MPI_DOUBLE,MPI_SUM,workcomm);
+    }
 
-      //blas::Trsm('L','L','N','N',n,nrhs,1.0,&A(0,0),n,&X(0,0),n);
-      fwdSol.Resize(X.m(),X.n());
-      for(Int i = 0; i<n;++i){ 
-        for(Int j=0;j<nrhs;++j){
-          fwdSol(i,j) = X(order.invp[i]-1,j);
-        }
+    timeEnd = get_time();
+    if(iam==0){
+      cout<<"spGEMM time: "<<timeEnd-timeSta<<endl;
+    }
+
+#endif
+
+
+    if(iam==0){
+      cout<<"Starting allocation"<<endl;
+    }
+
+
+    DblNumMat XFinal;
+    {
+      //do the symbolic factorization and build supernodal matrix
+      optionsFact.maxSnode = maxSnode;
+      optionsFact.maxIsend = maxIsend;
+      optionsFact.maxIrecv = maxIrecv;
+
+      if(doFB){
+        optionsFact.factorization = FANBOTH;
+      }
+      else{
+        optionsFact.factorization = FANOUT;
       }
 
 
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Solution after forward substitution:"<<X<<std::endl;
-#endif
-      blas::Trsm('L','L','T','N',n,nrhs,1.0,&Aperm(0,0),n,&X(0,0),n);
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Solution after back substitution:"<<X<<std::endl;
-#endif
+      optionsFact.commEnv = new CommEnvironment(workcomm);
+      SupernodalMatrix<double>*  SMat;
 
-      blas::Axpy(n*nrhs,-1.0,&XTrue3(0,0),1,&X(0,0),1);
-      norm = lapack::Lange('F',n,nrhs,&X(0,0),n);
-      cout<<"Norm of residual after MYPOSV is "<<norm<<std::endl;
+      try{
+        timeSta = get_time();
+        SMat = new SupernodalMatrix<double>(HMat,optionsFact);
+        timeEnd = get_time();
+      }
+      catch(const std::bad_alloc& e){
+        std::cout << "Allocation failed: " << e.what() << '\n';
+        SMat = NULL;
+        abort();
+      }
 
-      destroy_sparse_matrix (Atmp);
+      if(iam==0){
+        cout<<"Allocation time: "<<timeEnd-timeSta<<endl;
+      }
 
-    }
-    //
-  }
-  A.Clear();
-#endif
-
-
-#ifdef _CHECK_RESULT_SEQ_
-//  if(iam==0){
-//    DblNumMat RHSDiff = RHS;
-//
-//    blas::Axpy(RHS.m()*RHS.n(),-1.0,&RHS2(0,0),1,&RHSDiff(0,0),1);
-//    double norm = lapack::Lange('F',RHS.m(),RHS.n(),&RHSDiff(0,0),RHS.m());
-//    logfileptr->OFS()<<"Norm of residual between RHS is "<<norm<<std::endl;
-//
-//    if(abs(norm)>=1e-5){
-//      for(Int i = 0;i<RHS.m();++i){
-//        logfileptr->OFS()<<i+1<<"   "<<RHS(i,0)-RHS2(i,0)<<endl;
-//      }
-//      abort();
-//    }
-//
-//  }
-#endif
+      if(iam==0){
+        cout<<"Starting Factorization"<<endl;
+      }
 
 
+      timeSta = get_time();
+      TIMER_START(FACTORIZATION);
+      SMat->Factorize();
+      TIMER_STOP(FACTORIZATION);
+      timeEnd = get_time();
 
-
-#endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  if(iam==0){
-    cout<<"Starting Factorization"<<endl;
-  }
-
-
-  timeSta = get_time();
-  TIMER_START(FACTORIZATION);
-  SMat.Factorize();
-  TIMER_STOP(FACTORIZATION);
-  timeEnd = get_time();
-
-  if(iam==0){
-    cout<<"Factorization time: "<<timeEnd-timeSta<<endl;
-  }
-    logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
+      if(iam==0){
+        cout<<"Factorization time: "<<timeEnd-timeSta<<endl;
+      }
+      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
 #ifdef _CHECK_RESULT_
-#ifdef _CHECK_RESULT_POTRS_SEQ_
-      NumMat<Real> fullMatrix;
-      SMat.GetFullFactors(fullMatrix);
-  if(iam==0){
-//      logfileptr->OFS()<<"FullRes "<<fullMatrix<<std::endl;
-      Ordering order = SMat.GetOrdering();
-      DblNumMat X(RHS.m(),RHS.n());
-      DblNumMat XTrue3(XTrue.m(),XTrue.n());
-      for(Int i = 0; i<n;++i){ 
-        for(Int j=0;j<nrhs;++j){
-          X(i,j) = RHS(order.perm[i]-1,j);
-          XTrue3(i,j) = XTrue(order.perm[i]-1,j);
-        }
+      //sort X the same way (permute rows)
+      XFinal = RHS;
+
+      if(iam==0){
+        cout<<"Starting solve"<<endl;
       }
 
+      timeSta = get_time();
+      SMat->Solve(&XFinal);
+      timeEnd = get_time();
 
-      lapack::Potrs('L',n,nrhs,&fullMatrix(0,0),n,&X(0,0),n);
+      if(iam==0){
+        cout<<"Solve time: "<<timeEnd-timeSta<<endl;
+      }
 
-  blas::Axpy(X.m()*X.n(),-1.0,&XTrue3(0,0),1,&X(0,0),1);
-  double norm2 = lapack::Lange('F',X.m(),X.n(),&X(0,0),X.m());
-    cout<<"Norm of residual after SPCHOL (potrs) is "<<norm2<<std::endl;
-
-  }
+      SMat->GetSolution(XFinal);
+      //  SMat->Dump();
 #endif
 
+      delete SMat;
+
+    }
 
 
-#ifdef _CHECK_RESULT_SEQ_
-  RHS2.Resize(SMat.Size(),nrhs);
-  MPI_Bcast(RHS2.Data(),RHS2.ByteSize(),MPI_BYTE,0,workcomm);
+#ifdef _CHECK_RESULT_
+    {
+      SparseMatrixStructure Local = HMat.GetLocalStructure();
 
-  XTrue2.Resize(SMat.Size(),nrhs);
-  MPI_Bcast(XTrue2.Data(),XTrue2.ByteSize(),MPI_BYTE,0,workcomm);
-  //    logfileptr->OFS()<<"RHS:"<<RHS<<endl;
-#endif
+      Int numColFirst = std::max(1,n / np);
 
-  //sort X the same way (permute rows)
-#ifdef _CHECK_RESULT_SEQ_
-  XFinal = RHS2;
-#else
-  XFinal = RHS;
-#endif
+      DblNumMat AX(n,nrhs);
+      SetValue(AX,0.0);
 
-  if(iam==0){
-    cout<<"Starting solve"<<endl;
-  }
-
-
-
-
-
-
-
-
-
-
-
-
-
-  timeSta = get_time();
-#ifdef _CHECK_RESULT_SEQ_
-  fwdSol.Resize(SMat.Size(),nrhs);
-  MPI_Bcast(fwdSol.Data(),fwdSol.ByteSize(),MPI_BYTE,0,workcomm);
-
-  DblNumMat poFwdSol = fwdSol;
-  SMat.Solve(&XFinal,poFwdSol);
-#else
-  SMat.Solve(&XFinal);
-#endif
-  timeEnd = get_time();
-
-  if(iam==0){
-    cout<<"Solve time: "<<timeEnd-timeSta<<endl;
-  }
-
-
-  SMat.GetSolution(XFinal);
-
-
-//  SMat.Dump();
-}
-
-  
-//      logfileptr->OFS()<<"XFinal:"<<XFinal<<endl;
-
-//  if(iam==0){
-//  blas::Axpy(X.m()*X.n(),-1.0,&XTrue(0,0),1,&X(0,0),1);
-//  double norm = lapack::Lange('F',X.m(),X.n(),&X(0,0),X.m());
-//    cout<<"Norm of residual after SPCHOL is "<<norm/normB<<std::endl;
-//}
-
-{
-  SparseMatrixStructure Local = HMat.GetLocalStructure();
-
-  Int numColFirst = std::max(1,n / np);
-
-  DblNumMat AX(n,nrhs);
-  SetValue(AX,0.0);
-  
-  for(Int j = 1; j<=n; ++j){
-    Int iOwner = std::min((j-1)/numColFirst,np-1);
-    if(iam == iOwner){
-      Int iLocal = (j-(numColFirst)*iOwner);
-      //do I own the column ?
-      double t = XFinal(j-1,0);
-      //do a dense mat mat mul ?
-      for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
-        Int row = Local.rowind[ii-1];
-        AX(row-1,0) += t*HMat.nzvalLocal[ii-1];
-        if(row>j){
-          AX(j-1,0) += XFinal(row-1,0)*HMat.nzvalLocal[ii-1];
+      for(Int j = 1; j<=n; ++j){
+        Int iOwner = std::min((j-1)/numColFirst,np-1);
+        if(iam == iOwner){
+          Int iLocal = (j-(numColFirst)*iOwner);
+          //do I own the column ?
+          double t = XFinal(j-1,0);
+          //do a dense mat mat mul ?
+          for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
+            Int row = Local.rowind[ii-1];
+            AX(row-1,0) += t*HMat.nzvalLocal[ii-1];
+            if(row>j){
+              AX(j-1,0) += XFinal(row-1,0)*HMat.nzvalLocal[ii-1];
+            }
+          }
         }
+      }
+      //Do a reduce of RHS
+      MPI_Allreduce(MPI_IN_PLACE,&AX(0,0),AX.Size(),MPI_DOUBLE,MPI_SUM,workcomm);
+
+      if(iam==0){
+        blas::Axpy(AX.m()*AX.n(),-1.0,&RHS(0,0),1,&AX(0,0),1);
+        double normAX = lapack::Lange('F',AX.m(),AX.n(),&AX(0,0),AX.m());
+        double normRHS = lapack::Lange('F',RHS.m(),RHS.n(),&RHS(0,0),RHS.m());
+        cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
       }
     }
-  }
-  //Do a reduce of RHS
-  MPI_Allreduce(MPI_IN_PLACE,&AX(0,0),AX.Size(),MPI_DOUBLE,MPI_SUM,workcomm);
-
-  if(iam==0){
-  blas::Axpy(AX.m()*AX.n(),-1.0,&RHS(0,0),1,&AX(0,0),1);
-  double normAX = lapack::Lange('F',AX.m(),AX.n(),&AX(0,0),AX.m());
-  double normRHS = lapack::Lange('F',RHS.m(),RHS.n(),&RHS(0,0),RHS.m());
-    cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
-  }
-}
-
-
-
-
-
 #endif
 
-  delete optionsFact.commEnv;
-}
+    delete optionsFact.commEnv;
+  }
 
 
 
@@ -665,7 +394,7 @@ DistSparseMatrix<Real> HMat(workcomm);
 
   delete logfileptr;
 
-  upcxx::finalize();
+  //upcxx::finalize();
   MPI_Finalize();
   return 0;
 }
