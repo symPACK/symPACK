@@ -74,7 +74,7 @@ DYLIB_CREATE_FLAG=-shared
 CC = gcc
 LINKER = gcc
 AR = ar
-ARFLAGS = rvcu
+ARFLAGS = rvu
 RM = rm -f
 
 ##

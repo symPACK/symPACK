@@ -1412,7 +1412,39 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 #endif
 
 
+
+#ifdef PREALLOC_IRECV
+    TIMER_START(ALLOC_IRECV_BUFFER);
+    //Init asyncRecv buffers
+    auto maxwit = max_element(&UpdateWidth_[0],&UpdateWidth_[0]+UpdateWidth_.m());
+    auto maxhit = max_element(&UpdateHeight_[0],&UpdateHeight_[0]+UpdateHeight_.m());
+
+    int maxh = *maxhit;
+    int maxw = *maxwit;
+    for(Int I=1;I<Xsuper_.m();++I){
+      int width = Xsuper_(I) - Xsuper_(I-1);
+      maxw = max(maxw,width);
+    }
+    
+
+      Int max_bytes = 6*sizeof(Int); 
+      Int nrows = maxh;
+      Int ncols = maxw;
+      Int nz_cnt = nrows * ncols;
+      Int nblocks = nrows;
+      max_bytes += (nblocks)*sizeof(NZBlockDesc);
+      max_bytes += nz_cnt*sizeof(T);
+
+
+
+    for(int i = 0; i<maxIrecv_;++i){
+      availRecvBuffers_.push_back( new Icomm(max_bytes,MPI_REQUEST_NULL) );
+    }
+    TIMER_STOP(ALLOC_IRECV_BUFFER);
+#endif
+
     MPI_Barrier(CommEnv_->MPI_GetComm());
+
 
     TIMER_STOP(SUPERMATRIX_INIT);
 
@@ -1436,6 +1468,11 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
       delete Contributions_[i];
     }
 
+#ifdef PREALLOC_IRECV
+    for(auto it = availRecvBuffers_.begin(); it != availRecvBuffers_.end();++it){
+      delete *it;
+    }
+#endif
 
     if(Mapping_!=NULL){
       delete Mapping_;

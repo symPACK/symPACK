@@ -371,6 +371,19 @@ namespace LIBCHOLESKY{
   };
 
   struct Icomm{
+
+
+#ifdef PREALLOC_IRECV
+    list<Icomm*>::iterator bufferPos_;
+    void SetPos(list<Icomm*>::iterator pos){
+      bufferPos_=pos;
+    }
+
+    list<Icomm*>::iterator GetPos(){
+      return bufferPos_;
+    }
+#endif
+
     std::vector<char> * pSrcBlocks;
     size_t head;
     MPI_Request Request;
@@ -435,6 +448,20 @@ namespace LIBCHOLESKY{
       }
       Request = MPI_REQUEST_NULL;     
     }
+
+    inline void reset(){ 
+      head = 0; 
+ 
+      if(Request !=MPI_REQUEST_NULL){
+        MPI_Status recv_status;
+        int flag = 0;
+        int error_code = MPI_Test(&Request,&flag,&recv_status);
+        assert(!flag);
+        MPI_Request_free(&Request);
+      }
+      Request = MPI_REQUEST_NULL;     
+    }
+
 
   };
 
@@ -515,15 +542,6 @@ namespace LIBCHOLESKY{
       //pop_back
       //back
 
-      void push_back(Icomm * elem){
-        list_.push_back(elem);
-      }
-      void pop_back(){
-        Icomm * elem = list_.back();
-        delete elem;
-        list_.pop_back();
-      }
-
       Icomm * & back(){
         return list_.back();
       }
@@ -544,6 +562,44 @@ namespace LIBCHOLESKY{
         return list_.end();
       }
 
+      void push_back(Icomm * elem){
+        list_.push_back(elem);
+      }
+
+#ifdef PREALLOC_IRECV
+      list<int>::iterator bufferPos_;
+
+
+      iterator erase(iterator position){
+        return list_.erase(position);
+      }
+
+      Icomm * pop_back(){
+        Icomm * elem = list_.back();
+        list_.pop_back();
+        return elem;
+      }
+
+      void clear(){
+        list_.clear();
+      }
+
+
+#else
+      iterator erase(iterator position){
+        if(position!=end()){
+          Icomm * elem = *position;
+          delete elem;
+        }
+        return list_.erase(position);
+      }
+
+      void pop_back(){
+        Icomm * elem = list_.back();
+        delete elem;
+        list_.pop_back();
+      }
+
       void clear(){
         for(iterator it = list_.begin();it!=list_.end();++it){
           delete *it;
@@ -551,16 +607,10 @@ namespace LIBCHOLESKY{
         list_.clear();
       }
 
-      iterator erase(iterator position){
-        static int count = 0;
-        count++;
 
-        if(position!=end()){
-          Icomm * elem = *position;
-          delete elem;
-        }
-        return list_.erase(position);
-      }
+#endif
+
+
 
       friend std::ostream& operator<<(std::ostream& out, AsyncComms& comm) // output 
       {
