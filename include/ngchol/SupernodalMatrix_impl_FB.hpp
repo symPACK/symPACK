@@ -289,9 +289,11 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
   if( incomingRecvCnt_ < maxIrecv_){
     Int IrecvCnt = FBTaskAsyncRecv(iLocalI, curTask, incomingRecvAggArr, incomingRecvFactArr, AggregatesToRecv, FactorsToRecv);
     incomingRecvCnt_+=IrecvCnt;
+#ifdef _DEBUG_
     if(IrecvCnt>0){
       logfileptr->OFS()<<"FACT Posting "<<IrecvCnt<<" additionnal Irecv"<<std::endl;
     }
+#endif
   }
 
   //first wait for the Irecv that have been issued previously
@@ -475,8 +477,6 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
   SuperNode<T> * cur_src_snode; 
 
   src_blocks.resize(0);
-  AsyncComms::iterator it;
-  AsyncComms * cur_incomingRecv = incomingRecvFactArr[tgt_snode_id-1];
 
   Int iExpectedSrcOwner = Mapping_->Map(abs(curTask.src_snode_id)-1,abs(curTask.src_snode_id)-1);
 
@@ -487,10 +487,15 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
   if( incomingRecvCnt_ < maxIrecv_){
     Int IrecvCnt = FBTaskAsyncRecv(-1, curTask, incomingRecvAggArr, incomingRecvFactArr, AggregatesToRecv, FactorsToRecv);
     incomingRecvCnt_+=IrecvCnt;
+#ifdef _DEBUG_
     if(IrecvCnt>0){
       logfileptr->OFS()<<"AGG Posting "<<IrecvCnt<<" additionnal Irecv"<<std::endl;
     }
+#endif
   }
+
+  AsyncComms::iterator it;
+  AsyncComms * cur_incomingRecv = incomingRecvFactArr[tgt_snode_id-1];
 
       cur_src_snode = FBRecvFactor(curTask,src_blocks,cur_incomingRecv,it,FactorsToRecv);
 
@@ -709,9 +714,9 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
       curUpdate.type=FACTOR;
       curUpdate.src_snode_id = I;
       curUpdate.tgt_snode_id = I;
+      curUpdate.in_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
       LocalTasks.push(curUpdate);
       //TODO have to replace this
-      curUpdate.in_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
       Int J = -1;
      
       bool is_first = true; 
@@ -916,6 +921,7 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const Snod
       //first wait for the Irecv
       bool do_blocking_recv = true;
 #if 1
+//      if(curTask.src_snode_id==1 && curTask.tgt_snode_id==2){gdb_lock();}
       if(cur_incomingRecv != NULL){
         TIMER_START(IRECV_MPI_FACT);
         MPI_Status recv_status;

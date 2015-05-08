@@ -87,7 +87,7 @@ namespace LIBCHOLESKY{
     if(!this->allocated_) {
       if(this->owndata_) {
         if(this->m_>0 && this->n_>0) { 
-          gdata_ = allocate<F>(MYTHREAD,this->m_*this->n_);     
+          gdata_ = allocate<F>(upcxx::myrank(),this->m_*this->n_);     
           this->data_ = (F*)gdata_; 
 
           if( this->data_ == NULL ) 
@@ -110,7 +110,7 @@ namespace LIBCHOLESKY{
 #else
       if(this->owndata_) {
         if(this->m_>0 && this->n_>0) { 
-          gdata_ = allocate<F>(MYTHREAD,this->m_*this->n_);     
+          gdata_ = allocate<F>(upcxx::myrank(),this->m_*this->n_);     
           this->data_ = (F*)gdata_; 
 
           if( this->data_ == NULL ) 
@@ -176,11 +176,11 @@ template <typename F> NumMat_upcxx<F>& NumMat_upcxx<F>::Copy(const NumMat_upcxx<
 
 
   template<typename F> void NumMat_upcxx<F>::error_message(std::stringstream & ss,Int i, Int j){
-      ss<<"P"<<MYTHREAD<<" ";
+      ss<<"P"<<upcxx::myrank()<<" ";
       NumMat<F>::error_message(ss,i,j);
   }
   template<typename F> void NumMat_upcxx<F>::error_message(std::stringstream & ss, Int j){
-      ss<<"P"<<MYTHREAD<<" ";
+      ss<<"P"<<upcxx::myrank()<<" ";
       NumMat<F>::error_message(ss,j);
   }
 

@@ -16,7 +16,8 @@ namespace upcxx{
     template <typename T> void delete_fctn(global_ptr<T> gptr){
       ((T*)gptr)->~T();
     }
-    template <typename T> global_ptr<T>& Create(int where=MYTHREAD){
+    template <typename T> global_ptr<T>& Create(int where=-1){
+      if(where==-1){where = upcxx::myrank();}
       //currently it only works with local assignments
       global_ptr<T> gptr = allocate<T>(where,1);
       async(where)(new_fctn<T>,gptr);

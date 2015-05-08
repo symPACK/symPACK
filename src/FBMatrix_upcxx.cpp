@@ -53,7 +53,7 @@ namespace LIBCHOLESKY{
 
   void signal_exit()
   {
-    for (int i = 0; i < THREADS; i++) {
+    for (int i = 0; i < upcxx::ranks(); i++) {
       async(i)(signal_exit_am);
     }
   }
@@ -73,8 +73,8 @@ namespace LIBCHOLESKY{
   void FBMatrix_upcxx::Initialize(){
     aggregate_comm_time=0.0;
     factor_comm_time=0.0;
-    np=THREADS;
-    iam=MYTHREAD;
+    np=upcxx::ranks();
+    iam=upcxx::myrank();
 
     TIMER_START(RemotePtr_fetch);
     upcxx::shared_array<upcxx::global_ptr<FBMatrix_upcxx> > Aobjects;
@@ -478,7 +478,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 
 
   void Gathercopy(upcxx::global_ptr<FBMatrix_upcxx> Objptr, global_ptr<double> Adest, Int j){
-    assert(Objptr.where()==MYTHREAD);
+    assert(Objptr.where()==upcxx::myrank());
     FBMatrix_upcxx & A = *Objptr.raw_ptr();
     Int local_j = A.global_col_to_local(j);
     Int jb = min(A.blksize, A.n-j);
@@ -497,7 +497,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
   void Factor_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j){
     TIMER_START(Factor_Async);
 #ifdef _ASSERT_
-    assert(Aptr.tid()==MYTHREAD);
+    assert(Aptr.tid()==upcxx::myrank());
 #endif
     FBMatrix_upcxx & A = *Aptr.raw_ptr();
 
@@ -576,7 +576,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 
     TIMER_START(Update_Async);
 #ifdef _ASSERT_
-    assert(Aptr.tid()==MYTHREAD);
+    assert(Aptr.tid()==upcxx::myrank());
 #endif
     const FBMatrix_upcxx & A = *Aptr;
 
@@ -754,7 +754,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
 #endif
     TIMER_START(Update_Async_fetch);
 #ifdef _ASSERT_
-    assert(Aptr.tid()==MYTHREAD);
+    assert(Aptr.tid()==upcxx::myrank());
 #endif
     FBMatrix_upcxx & A = *Aptr.raw_ptr();
 
@@ -832,7 +832,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
   void Aggregate_Async(upcxx::global_ptr<FBMatrix_upcxx> Aptr, Int j, global_ptr<double> remoteAggregatePtr){
     TIMER_START(Aggregate_Async);
 #ifdef _ASSERT_
-    assert(Aptr.tid()==MYTHREAD);
+    assert(Aptr.tid()==upcxx::myrank());
 #endif
     const FBMatrix_upcxx & A = *Aptr;
     //fetch data
@@ -887,7 +887,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
     TIMER_START(Aggregate_Async_compute);
 
 #ifdef _ASSERT_
-    assert(Aptr.tid()==MYTHREAD);
+    assert(Aptr.tid()==upcxx::myrank());
 #endif
     FBMatrix_upcxx & A = *Aptr.raw_ptr();
 
@@ -955,7 +955,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
     TIMER_START(Aggregate_Async_fetch);
 //    TIMER_START(Aggregate_Async);
 #ifdef _ASSERT_
-    assert(Aptr.tid()==MYTHREAD);
+    assert(Aptr.tid()==upcxx::myrank());
 #endif
     FBMatrix_upcxx & A = *Aptr.raw_ptr();
     //fetch data

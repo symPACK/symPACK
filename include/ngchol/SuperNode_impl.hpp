@@ -543,8 +543,8 @@
             T * src = src_snode.GetNZval(src_offset);
             T * tgt = GetNZval(tgt_offset);
 
-            //blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
-            for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
+            blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
+            //for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
 
           }
         }
