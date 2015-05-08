@@ -117,6 +117,9 @@ int main(int argc, char **argv)
 
   gMaxIrecv = atoi(argv[1]);
  
+  upcxx::barrier();
+  double tstart = get_time();
+
   //this is a all to all
   for(int msg = 0; msg<nummsg; ++msg){
     for(int p = 0; p<np; ++p){
@@ -133,7 +136,7 @@ int main(int argc, char **argv)
   int numRecv = nummsg*(np-1);
   while(numRecv>0){
     //upcxx::advance(1,1);
-    upcxx::advance(10,1);
+    upcxx::advance();
     bool comm_found = false;
     if(!gIncomingRecvAsync.empty()){
       //find if there is some finished async comm
@@ -191,9 +194,11 @@ int main(int argc, char **argv)
     }
   }
 
-  upcxx::wait();
+  upcxx::async_wait();
 
   upcxx::barrier();
+
+  double tstop = get_time();
 
   for(int p = 0; p<np; ++p){
     int dest = (p+iam)%np;
@@ -207,7 +212,10 @@ int main(int argc, char **argv)
 
   delete logfileptr;
 
-  //MPI_Finalize();
+  if(iam==0){
+  cout<<"Time: "<<tstop-tstart<<endl;
+  }
+  
   upcxx::finalize();
   return 0;
 }

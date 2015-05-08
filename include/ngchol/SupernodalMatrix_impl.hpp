@@ -595,7 +595,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
       Int numColFirst = std::max(1,iSize_ / np);
 
       logfileptr->OFS()<<"Starting Send"<<endl;
-#if 0
+#if 1
       try{
         for(Int I=1;I<Xsuper_.m();I++){
           Int fc = Xsuper_(I-1);
@@ -1142,7 +1142,6 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
       Int iDest = Mapping_->Map(I-1,I-1);
 
-      logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
 #endif

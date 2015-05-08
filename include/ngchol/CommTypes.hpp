@@ -239,9 +239,11 @@ namespace LIBCHOLESKY{
     TaskType type;
     Int src_snode_id;
     Int tgt_snode_id;
+    //dependencies
+    Int in_deps;
     //unused but preparing for task scheduling priorities
     Int rank;
-    SnodeUpdateFB():rank(-1){}
+    SnodeUpdateFB():rank(-1),in_deps(0){}
   };
 
 

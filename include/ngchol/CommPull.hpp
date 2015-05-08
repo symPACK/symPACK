@@ -110,7 +110,7 @@ class IncomingMessage{
   inline void remote_delete(upcxx::global_ptr<char> pRemote_ptr){
       if(upcxx::myrank()!=pRemote_ptr.where()){
 //        upcxx::async(pRemote_ptr.where())(remote_delete,pRemote_ptr);
-cout<<"Performing remote delete on P"<<pRemote_ptr.where()<<endl;
+logfileptr->OFS()<<"Performing remote delete on P"<<pRemote_ptr.where()<<endl;
         upcxx::deallocate(pRemote_ptr);
       }
       else{
@@ -132,7 +132,7 @@ cout<<"Performing remote delete on P"<<pRemote_ptr.where()<<endl;
 
       upcxx::async_copy(pRemote_ptr,upcxx::global_ptr<char>(msg_ptr->GetLocalPtr()),pMsg_size,msg_ptr->event_ptr);
 
-      logfileptr->OFS()<<gIncomingRecvAsync.size()<<" vs "<<gMaxIrecv<<endl;
+//      logfileptr->OFS()<<gIncomingRecvAsync.size()<<" vs "<<gMaxIrecv<<endl;
       //add the function to the async queue
       //      upcxx::async(A.iam)(Aggregate_Compute_Async,Aptr,j,RemoteAggregate, async_copy_event,tstart);
     }

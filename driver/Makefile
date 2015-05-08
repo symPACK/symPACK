@@ -71,6 +71,12 @@ run_pull_test: run_pull_test.o ${NGCHOL_LIB}
 run_pull_test.o: run_pull_test.cpp 
 	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
 
+run_isendrecv_test: run_isendrecv_test.o ${NGCHOL_LIB}
+	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@ run_isendrecv_test.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
+
+run_isendrecv_test.o: run_isendrecv_test.cpp 
+	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
+
 
 
 
