@@ -113,7 +113,11 @@ template<typename T> void SupernodalMatrix<T>::FBAsyncRecv(Int iLocalI, std::vec
 if(iterCount>10){break;}
 
 //      TIMER_START(ASYNC_RECV_TOP);
-    SnodeUpdateFB curTask = LocalTasks.top();
+#ifdef _TASKLIST_
+    SnodeUpdateFB curTask = LocalTasks.front();
+#else
+    SnodeUpdateFB curTask = LocalTasks.TOP();
+#endif
 //      TIMER_STOP(ASYNC_RECV_TOP);
 
 
@@ -221,7 +225,11 @@ logfileptr->OFS()<<"maxIrecv_: "<<maxIrecv_<<endl;
     }
 
 //      TIMER_START(ASYNC_RECV_POP);
+#ifdef _TASKLIST_
+    LocalTasks.pop_front();
+#else
     LocalTasks.pop();
+#endif
 //      TIMER_STOP(ASYNC_RECV_POP);
 //        TIMER_START(RESTORE_TASK_QUEUE);
     tmpTasks.push_back(curTask);
@@ -715,7 +723,12 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
       curUpdate.src_snode_id = I;
       curUpdate.tgt_snode_id = I;
       curUpdate.in_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
+#ifdef _TASKLIST_
+      LocalTasks.push_back(curUpdate);
+#else
       LocalTasks.push(curUpdate);
+#endif
+
       //TODO have to replace this
       Int J = -1;
      
@@ -728,7 +741,11 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
 
         curUpdate.src_snode_id = is_first?I:-I;
         curUpdate.tgt_snode_id = J;
+#ifdef _TASKLIST_
+        LocalTasks.push_back(curUpdate);
+#else
         LocalTasks.push(curUpdate);
+#endif
         is_first=false;
       }
     }
@@ -739,13 +756,27 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
         curUpdate.type=AGGREGATE;
         curUpdate.src_snode_id = I;
         curUpdate.tgt_snode_id = J;
+#ifdef _TASKLIST_
+        LocalTasks.push_back(curUpdate);
+#else
         LocalTasks.push(curUpdate);
+#endif
+
         curUpdate.in_deps = 1;
         FactorsToRecv[J-1]++;
-        
       }
     }
   }
+
+#ifdef _TASKLIST_
+  //sort the task queue
+  {
+    SnodeUpdateFBCompare comp;
+    //LocalTasks.sort(CompareSnodeUpdateFB);
+    LocalTasks.sort(comp);
+  }
+#endif
+
   TIMER_STOP(BUILD_TASK_LIST);
 
 #ifdef _DEBUG_UPDATES_
@@ -765,12 +796,16 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
     if(!LocalTasks.empty()){
       //make a copy because we need to pop it
       TIMER_START(POP_TASK);
+#ifdef _TASKLIST_
+      SnodeUpdateFB curTask = LocalTasks.front();
+#else
       SnodeUpdateFB curTask = LocalTasks.TOP();
+#endif
       TIMER_STOP(POP_TASK);
 
       DUMP_TASK_LIST();
 #ifdef _DEBUG_PROGRESS_
-        logfileptr->OFS()<<"picked Task: {"<<curTask.src_snode_id<<" -> "<<curTask.tgt_snode_id<<"}"<<std::endl;
+        logfileptr->OFS()<<"picked Task: {"<<curTask.src_snode_id<<" -> "<<curTask.tgt_snode_id<<"}. Still "<<LocalTasks.size()<<" to do"<<std::endl;
 #endif
 
       //Launch Irecv for subsequent local supernodes if I can
@@ -785,7 +820,11 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
         FBUpdateTask(curTask, UpdatesToDo, AggregatesDone, aggVectors, src_blocks,incomingRecvAggArr,incomingRecvFactArr,FactorsToRecv,AggregatesToRecv);
       }
       TIMER_START(POP_TASK);
+#ifdef _TASKLIST_
+      LocalTasks.pop_front();
+#else
       LocalTasks.pop();
+#endif
       TIMER_STOP(POP_TASK);
     }
 

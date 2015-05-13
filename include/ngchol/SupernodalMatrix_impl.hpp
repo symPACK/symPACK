@@ -2839,7 +2839,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
   if(!MsgToSend.empty()) {
 
     //Index of the last global snode to do
+#ifdef _TASKLIST_
+    const SnodeUpdateFB * nextTask = (!taskList.empty())?&taskList.front():NULL;
+#else
     const SnodeUpdateFB * nextTask = (!taskList.empty())?&taskList.TOP():NULL;
+#endif
 
     DUMP_FBCOMM_LIST();
 

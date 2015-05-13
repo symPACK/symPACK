@@ -408,10 +408,10 @@ namespace LIBCHOLESKY{
 #endif      
 
 
-      //Supernodal elimination tree //deprecated
-      ETree SupETree_;
 
 #if 0
+      //Supernodal elimination tree //deprecated
+      ETree SupETree_;
       //deprecated
 #ifdef UPDATE_LIST
       inline void FindUpdates(SuperNode<T> & src_snode, std::list<SnodeUpdateOld> & updates  );

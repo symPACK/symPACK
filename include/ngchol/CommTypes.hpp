@@ -225,7 +225,12 @@ namespace LIBCHOLESKY{
 #else
   typedef std::priority_queue<DelayedComm,deque<DelayedComm>,DelayedCommCompare> CommList;
   typedef std::priority_queue<DelayedComm,deque<DelayedComm>,DelayedCommReverseCompare> DownCommList;
+#ifdef _TASKLIST_
+  typedef std::list<SnodeUpdateFB> FBTasks;
+#else
   typedef std::priority_queue<SnodeUpdateFB,deque<SnodeUpdateFB>,SnodeUpdateFBCompare> FBTasks;
+#endif
+
 #endif
 
   template <typename T> inline void Serialize( Icomm& os,  const T * val, const Int count);
@@ -288,9 +293,47 @@ namespace LIBCHOLESKY{
     }
   };
 
+/*
+    bool CompareSnodeUpdateFB(const SnodeUpdateFB & a,const SnodeUpdateFB & b)
+    {
+
+      bool b_factor = b.tgt_snode_id == b.src_snode_id;
 
 
+      //use the ranks first
+      if(a.rank>=0 && b.rank>=0){
+        return a.rank<b.rank;
+      }
+    
 
+
+      //check whether it is an update or a factorization
+      bool a_factor = a.tgt_snode_id == a.src_snode_id;
+
+      //if same type apply the usual priorities
+//      if(a_factor == b_factor){
+
+      //use the classic priorities otherwise
+      if(a.tgt_snode_id>b.tgt_snode_id){
+        return true;
+      }
+      else if(a.tgt_snode_id==b.tgt_snode_id){
+        return a.src_snode_id>b.src_snode_id;
+      }
+      else{
+        return false;
+      }
+
+//      }
+//      else if (a_factor){
+//        if(a.tgt_snode_id
+//      }
+//      else if (b_factor){
+//
+//      }
+    }
+ 
+*/
 
 
 
