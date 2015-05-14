@@ -172,13 +172,13 @@ logfileptr->OFS()<<"Structure set"<<endl;
     switch(options_.ordering){
       case MMD:
         //Reoder the matrix with MMD
-//        Order_.MMD();
+        Order_.MMD();
         break;
       case AMD:
-//        Order_.AMD();
+        Order_.AMD();
         break;
       default:
-//        Order_.MMD();
+        Order_.MMD();
         break;
     }
 logfileptr->OFS()<<"Ordering done"<<endl;
