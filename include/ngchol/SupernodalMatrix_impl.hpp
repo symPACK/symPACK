@@ -597,6 +597,529 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
       logfileptr->OFS()<<"Starting Send"<<endl;
 #if 1
       try{
+#ifdef _BIG_DISTRIBUTION_
+        //first, count 
+        map<Int,pair<size_t,Icomm *> > recv_map;
+        map<Int,pair<size_t,Icomm *> > send_map;
+        Int snodeCount = 0;
+        for(Int I=1;I<Xsuper_.m();I++){
+          Int fc = Xsuper_(I-1);
+          Int lc = Xsuper_(I)-1;
+          Int iWidth = lc-fc+1;
+          Idx64 fi = xlindx_(I-1);
+          Idx64 li = xlindx_(I)-1;
+          Int iHeight = li-fi+1;
+
+          Int iDest = Mapping_->Map(I-1,I-1);
+
+          if(iDest==iam){
+            ++snodeCount;
+          }
+
+          //look at the owner of the first column of the supernode
+          Int numColFirst = std::max(1,iSize_ / np);
+
+          //post all the recv and sends
+          //      logfileptr->OFS()<<"Sending columns of SuperNode "<<I<<endl;
+          for(Int col = fc;col<=lc;col++){
+            //corresponding column in the unsorted matrix A
+            Int orig_col = Order_.perm[col-1];
+            Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+
+            if(iam == iDest){
+              if(iam != iOwnerCol){
+                Int nrows = Global_.expColptr[orig_col] - Global_.expColptr[orig_col-1];
+                size_t & recv_bytes = recv_map[iOwnerCol].first;
+                recv_bytes += sizeof(Int)+sizeof(Int)+nrows*(sizeof(Int) + sizeof(T));
+              }
+            }
+            else if(iam == iOwnerCol){
+              Int local_col = (orig_col-(numColFirst)*iOwnerCol);
+              Int nrows = ExpA.Local_.colptr[local_col]-ExpA.Local_.colptr[local_col-1];
+              size_t & send_bytes = send_map[iDest].first;
+              send_bytes += sizeof(Int)+sizeof(Int)+nrows*(sizeof(Int)+sizeof(T));
+            }
+          }
+        }
+
+
+        //Resize the local supernodes array
+        LocalSupernodes_.reserve(snodeCount);
+
+
+        for(Int I=1;I<Xsuper_.m();I++){
+
+          Int iDest = Mapping_->Map(I-1,I-1);
+
+          //parse the first column to create the supernode structure
+          if(iam==iDest){
+            Int fc = Xsuper_(I-1);
+            Int lc = Xsuper_(I)-1;
+            Int iWidth = lc-fc+1;
+            Idx64 fi = xlindx_(I-1);
+            Idx64 li = xlindx_(I)-1;
+            Int iHeight = li-fi+1;
+
+#ifndef ITREE2
+            globToLocSnodes_.push_back(I-1);
+#else 
+            ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
+            globToLocSnodes_.Insert(snode_inter);
+#endif
+
+            LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight,iSize_));
+          }
+        }
+
+
+
+        //Create the remote ones when we receive something
+        for(Int p=0;p<np;++p){
+          if(iam==p){
+            //ONE BY ONE            
+            //second, pack and alloc send/recv buffer
+            for(auto it = send_map.begin(); it!=send_map.end();it++){
+              Int iCurDest = it->first;
+              size_t & send_bytes = it->second.first;
+
+
+              Icomm * IsendPtr = new Icomm(send_bytes,MPI_REQUEST_NULL);
+              //get the Isend
+              Icomm & Isend = *IsendPtr;
+
+              for(Int I=1;I<Xsuper_.m();I++){
+                Int fc = Xsuper_(I-1);
+                Int lc = Xsuper_(I)-1;
+                Int iWidth = lc-fc+1;
+                Idx64 fi = xlindx_(I-1);
+                Idx64 li = xlindx_(I)-1;
+                Int iHeight = li-fi+1;
+
+                Int iDest = Mapping_->Map(I-1,I-1);
+
+                if(iDest == iCurDest){
+#ifdef _DEBUG_
+                  logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
+#endif
+
+                  //look at the owner of the first column of the supernode
+                  Int numColFirst = std::max(1,iSize_ / np);
+
+                  //post all the recv and sends
+                  //      logfileptr->OFS()<<"Sending columns of SuperNode "<<I<<endl;
+                  bool isSend = false;
+                  for(Int col = fc;col<=lc;col++){
+                    //corresponding column in the unsorted matrix A
+                    Int orig_col = Order_.perm[col-1];
+                    Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+
+                    if(iam == iOwnerCol){
+                      isSend = true;
+                    }
+                  }
+
+                  if(isSend){
+
+                    //Serialize
+                    //logfileptr->OFS()<<"Sending SuperNode "<<I<<" cols {";
+                    for(Int col = fc;col<=lc;col++){
+                      Int orig_col = Order_.perm[col-1];
+                      Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+                      if(iam==iOwnerCol && iDest!=iam){
+
+                        Int local_col = (orig_col-(numColFirst)*iOwnerCol);
+                        Int nrows = ExpA.Local_.colptr[local_col]-ExpA.Local_.colptr[local_col-1];
+                        Isend<<col;
+                        Isend<<nrows;
+                        Serialize(Isend,(char*)&ExpA.Local_.rowind[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(Int));
+                        Serialize(Isend,(char*)&ExpA.nzvalLocal[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(T));
+                      }
+                    }
+                  }
+                }
+              }
+
+
+              Int tag = p;
+              MPI_Send(Isend.front(),Isend.size(),MPI_BYTE,iCurDest,tag,CommEnv_->MPI_GetComm()/*,&Isend.Request*/);
+
+
+
+              delete IsendPtr;
+            }
+          }
+          else{
+            auto it = recv_map.find(p);
+            if(it!=recv_map.end()){
+
+              Int iOwnerCol = it->first;
+              size_t & exp_recv_bytes = it->second.first;
+
+              Icomm * Irecv = new Icomm(exp_recv_bytes,MPI_REQUEST_NULL);
+              Int tag = p;
+              assert(p==iOwnerCol);
+              MPI_Status recv_status;
+              MPI_Recv(Irecv->front(),Irecv->capacity(),MPI_BYTE,iOwnerCol,tag,CommEnv_->MPI_GetComm(),&recv_status/*,&Irecv.Request*/);
+
+              int recv_bytes;
+              MPI_Get_count(&recv_status,MPI_BYTE,&recv_bytes);
+              Irecv->setHead(0);
+
+              //logfileptr->OFS()<<"Receiving SuperNode "<<I<<" from P"<<recv_status.MPI_SOURCE<<" ("<<recv_bytes<<") cols {";
+              while(Irecv->head <Irecv->capacity()){ 
+                char * buffer = Irecv->back();
+
+                //Deserialize
+                Int col = *(Int*)&buffer[0];
+
+                Int I = SupMembership_[col-1];
+
+                Int iDest = Mapping_->Map(I-1,I-1);
+                assert(iam==iDest);
+
+                Int fc = Xsuper_(I-1);
+                Int lc = Xsuper_(I)-1;
+                Int iWidth = lc-fc+1;
+                Idx64 fi = xlindx_(I-1);
+                Idx64 li = xlindx_(I)-1;
+                Int iHeight = li-fi+1;
+
+                SuperNode<T> & snode = *snodeLocal(I);
+
+                if(snode.NZBlockCnt()==0){
+                  for(Idx64 idx = fi; idx<=li;idx++){
+                    Idx32 iStartRow = lindx_(idx-1);
+                    Idx32 iPrevRow = iStartRow;
+                    Int iContiguousRows = 1;
+                    for(Int idx2 = idx+1; idx2<=li;idx2++){
+                      Idx32 iCurRow = lindx_(idx2-1);
+                      if(iStartRow == lindx_(fi-1)){
+                        if(iCurRow>iStartRow+iWidth-1){
+                          //enforce the first block to be a square diagonal block
+                          break;
+                        }
+                      }
+
+                      if(iCurRow==iPrevRow+1){
+                        idx++;
+                        ++iContiguousRows;
+                        iPrevRow=iCurRow;
+                      }
+                      else{
+                        break;
+                      }
+                    }
+
+                    Int iCurNZcnt = iContiguousRows * iWidth;
+                    snode.AddNZBlock(iContiguousRows , iWidth,iStartRow);
+                  }
+
+                  snode.Shrink();
+                }
+
+                Int nrows = *((Int*)&buffer[sizeof(Int)]);
+                Int * rowind = (Int*)(&buffer[2*sizeof(Int)]);
+                T * nzvalA = (T*)(&buffer[(2+nrows)*sizeof(Int)]);
+                //advance in the buffer
+                Irecv->setHead(Irecv->head + 2*sizeof(Int) + nrows*(sizeof(Int)+sizeof(T)));
+
+                //logfileptr->OFS()<<col<<" ";
+
+                Int orig_col = Order_.perm[col-1];
+                Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+
+                Int colbeg = 1;
+                Int colend = nrows;
+
+                for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
+                  Int orig_row = rowind[rowidx-1];
+                  Int row = Order_.invp[orig_row-1];
+
+                  if(row>=col){
+                    Int blkidx = snode.FindBlockIdx(row);
+                    NZBlockDesc & blk_desc = snode.GetNZBlockDesc(blkidx);
+                    Int local_row = row - blk_desc.GIndex + 1;
+                    Int local_col = col - fc + 1;
+                    T * nzval = snode.GetNZval(blk_desc.Offset);
+                    nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
+                  }
+                }
+              }
+              //logfileptr->OFS()<<"}"<<endl;
+
+
+
+              delete Irecv;
+
+
+            }
+
+          }
+        }
+
+
+        //do the local and resize my SuperNode structure
+        for(Int I=1;I<Xsuper_.m();I++){
+
+          Int iDest = Mapping_->Map(I-1,I-1);
+
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
+#endif
+
+          //parse the first column to create the supernode structure
+          if(iam==iDest){
+            Int fc = Xsuper_(I-1);
+            Int lc = Xsuper_(I)-1;
+            Int iWidth = lc-fc+1;
+            Idx64 fi = xlindx_(I-1);
+            Idx64 li = xlindx_(I)-1;
+            Int iHeight = li-fi+1;
+
+
+            SuperNode<T> & snode = *snodeLocal(I);
+
+            if(snode.NZBlockCnt()==0){
+              for(Idx64 idx = fi; idx<=li;idx++){
+                Idx32 iStartRow = lindx_(idx-1);
+                Idx32 iPrevRow = iStartRow;
+                Int iContiguousRows = 1;
+                for(Int idx2 = idx+1; idx2<=li;idx2++){
+                  Idx32 iCurRow = lindx_(idx2-1);
+                  if(iStartRow == lindx_(fi-1)){
+                    if(iCurRow>iStartRow+iWidth-1){
+                      //enforce the first block to be a square diagonal block
+                      break;
+                    }
+                  }
+
+                  if(iCurRow==iPrevRow+1){
+                    idx++;
+                    ++iContiguousRows;
+                    iPrevRow=iCurRow;
+                  }
+                  else{
+                    break;
+                  }
+                }
+
+                Int iCurNZcnt = iContiguousRows * iWidth;
+                snode.AddNZBlock(iContiguousRows , iWidth,iStartRow);
+              }
+
+              snode.Shrink();
+            }
+
+
+
+
+
+
+            //do the local
+            for(Int col = fc;col<=lc;col++){
+              //corresponding column in the unsorted matrix A
+              Int orig_col = Order_.perm[col-1];
+              Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+
+              if(iam == iOwnerCol){
+                int * colptr = ExpA.Local_.colptr.Data();
+                int * rowind = ExpA.Local_.rowind.Data();
+                T * nzvalA = ExpA.nzvalLocal.Data();
+
+                Int local_col = (orig_col-(numColFirst)*iOwnerCol);
+
+                Int colbeg = colptr[local_col-1];
+                Int colend = colptr[local_col]-1;
+                for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
+                  Int orig_row = rowind[rowidx-1];
+                  Int row = Order_.invp[orig_row-1];
+
+                  if(row>=col){
+                    Int blkidx = snode.FindBlockIdx(row);
+                    NZBlockDesc & blk_desc = snode.GetNZBlockDesc(blkidx);
+                    Int local_row = row - blk_desc.GIndex + 1;
+                    Int local_col = col - fc + 1;
+                    T * nzval = snode.GetNZval(blk_desc.Offset);
+                    nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
+                  }
+                }
+              }
+            }
+          }
+        }
+
+
+
+
+
+
+
+#if 0
+        //second, pack and alloc send/recv buffer
+        for(auto it = send_map.begin(); it!=send_map.end();it++){
+          Int iDest = it->first;
+          size_t & send_bytes = it->second.first;
+          outgoingSend.push_back(new Icomm(send_bytes,MPI_REQUEST_NULL));
+          //keep track of the index
+          it->second.second = outgoingSend.back();
+        }
+
+
+        for(Int I=1;I<Xsuper_.m();I++){
+          Int fc = Xsuper_(I-1);
+          Int lc = Xsuper_(I)-1;
+          Int iWidth = lc-fc+1;
+          Idx64 fi = xlindx_(I-1);
+          Idx64 li = xlindx_(I)-1;
+          Int iHeight = li-fi+1;
+
+          Int iDest = Mapping_->Map(I-1,I-1);
+
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
+#endif
+
+          //look at the owner of the first column of the supernode
+          Int numColFirst = std::max(1,iSize_ / np);
+
+          //post all the recv and sends
+          //      logfileptr->OFS()<<"Sending columns of SuperNode "<<I<<endl;
+          bool isSend = false;
+          for(Int col = fc;col<=lc;col++){
+            //corresponding column in the unsorted matrix A
+            Int orig_col = Order_.perm[col-1];
+            Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+
+            if(iam == iOwnerCol){
+              isSend = true;
+            }
+          }
+
+          if(isSend){
+
+            //Serialize
+            //logfileptr->OFS()<<"Sending SuperNode "<<I<<" cols {";
+            for(Int col = fc;col<=lc;col++){
+              Int orig_col = Order_.perm[col-1];
+              Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+              if(iam==iOwnerCol && iDest!=iam){
+                //get the Isend
+                Icomm & Isend = *send_map[iDest].second;
+
+                Int local_col = (orig_col-(numColFirst)*iOwnerCol);
+                Int nrows = ExpA.Local_.colptr[local_col]-ExpA.Local_.colptr[local_col-1];
+                Isend<<col;
+                Isend<<nrows;
+                Serialize(Isend,(char*)&ExpA.Local_.rowind[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(Int));
+                Serialize(Isend,(char*)&ExpA.nzvalLocal[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(T));
+              }
+            }
+          }
+        }
+
+
+        //resize the recv buffers
+//        for(auto it = recv_bytes_map.begin(); it!=recv_bytes_map.end();it++){
+//          Int iOwnerCol = it->first;
+//          size_t & recv_bytes = it->second.first;
+//          incomingRecv.push_back(new Icomm(recv_bytes,MPI_REQUEST_NULL));
+//          it->second.second = incomingRecv.size()-1;
+//        }
+
+
+        //do a sequence of send/recv
+        for(Int p=0;p<np;++p){
+          //if I'm the sender
+          if(p==iam){
+            for(auto it = send_map.begin(); it!=send_map.end();it++){
+              Int iDest = it->first;
+              assert(iDest!=p);
+              size_t & send_bytes = it->second.first;
+              Icomm & Isend = *it->second.second;
+              Int tag = p;
+              MPI_Send(Isend.front(),Isend.size(),MPI_BYTE,iDest,tag,CommEnv_->MPI_GetComm()/*,&Isend.Request*/);
+            }
+
+
+
+          }
+          else{
+            auto it = recv_map.find(p);
+            if(it!=recv_map.end()){
+
+              Int iOwnerCol = it->first;
+              size_t & exp_recv_bytes = it->second.first;
+
+              Icomm * Irecv = new Icomm(exp_recv_bytes,MPI_REQUEST_NULL);
+              Int tag = p;
+              assert(p==iOwnerCol);
+              MPI_Status recv_status;
+              MPI_Recv(Irecv->front(),Irecv->capacity(),MPI_BYTE,iOwnerCol,tag,CommEnv_->MPI_GetComm(),&recv_status/*,&Irecv.Request*/);
+
+              int recv_bytes;
+              MPI_Get_count(&recv_status,MPI_BYTE,&recv_bytes);
+              Irecv->setHead(0);
+
+              //logfileptr->OFS()<<"Receiving SuperNode "<<I<<" from P"<<recv_status.MPI_SOURCE<<" ("<<recv_bytes<<") cols {";
+              while(Irecv->head <Irecv->capacity()){ 
+                char * buffer = Irecv->back();
+
+                //Deserialize
+                Int col = *(Int*)&buffer[0];
+
+                Int I = SupMembership_[col-1];
+                SuperNode<T> & snode = *snodeLocal(I);
+                Int fc = snode.FirstCol();
+                Int lc = snode.LastCol();
+                Int iWidth = snode.Size();
+
+
+
+
+                Int nrows = *((Int*)&buffer[sizeof(Int)]);
+                Int * rowind = (Int*)(&buffer[2*sizeof(Int)]);
+                T * nzvalA = (T*)(&buffer[(2+nrows)*sizeof(Int)]);
+                //advance in the buffer
+                Irecv->setHead(Irecv->head + 2*sizeof(Int) + nrows*(sizeof(Int)+sizeof(T)));
+
+                //logfileptr->OFS()<<col<<" ";
+
+                Int orig_col = Order_.perm[col-1];
+                Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+
+                Int colbeg = 1;
+                Int colend = nrows;
+
+                for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
+                  Int orig_row = rowind[rowidx-1];
+                  Int row = Order_.invp[orig_row-1];
+
+                  if(row>=col){
+                    Int blkidx = snode.FindBlockIdx(row);
+                    NZBlockDesc & blk_desc = snode.GetNZBlockDesc(blkidx);
+                    Int local_row = row - blk_desc.GIndex + 1;
+                    Int local_col = col - fc + 1;
+                    T * nzval = snode.GetNZval(blk_desc.Offset);
+                    nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
+                  }
+                }
+              }
+              //logfileptr->OFS()<<"}"<<endl;
+
+
+
+              delete Irecv;
+
+            }
+          }
+        }
+#endif
+
+#else
+
+
+
+
         for(Int I=1;I<Xsuper_.m();I++){
           Int fc = Xsuper_(I-1);
           Int lc = Xsuper_(I)-1;
@@ -843,6 +1366,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
         while(!outgoingSend.empty()){
           AdvanceOutgoing(outgoingSend);
         }
+#endif
 
 
       }
