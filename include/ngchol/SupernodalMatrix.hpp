@@ -46,7 +46,7 @@ namespace LIBCHOLESKY{
 
   enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNS,WRAP2D,WRAP2DFORCED};
   enum FactorizationType {FANOUT,FANBOTH};
-  enum LoadBalanceType {NOLB,NNZ,NCOLS,FLOPS,SUBCUBE};
+  enum LoadBalanceType {NOLB,NNZ,NCOLS,FLOPS,SUBCUBE,SUBCUBE_NNZ};
   enum OrderingType {MMD,AMD};
   class NGCholOptions{
     public:

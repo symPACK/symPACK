@@ -24,75 +24,15 @@ class IncomingMessage{
     char * local_ptr;
     SnodeUpdateFB * task_ptr;
     bool isDone; 
-    IncomingMessage(){
-      event_ptr=NULL;
-      task_ptr =NULL;
-      local_ptr=NULL;
-      isDone = false;
-    }
-
-    ~IncomingMessage(){
-      //assert(IsDone());
-      if(event_ptr!=NULL){
-        delete event_ptr;
-      }
-      if(task_ptr!=NULL){
-        delete task_ptr;
-      }
-      if(local_ptr!=NULL){
-        delete local_ptr;
-      }
-    }
-
-    int Sender(){
-      return remote_ptr.where();
-    }
-
-    void Wait(){
-      if(event_ptr!=NULL){
-        event_ptr->wait();
-        assert(event_ptr->isdone());
-        delete event_ptr;
-        event_ptr = NULL;
-        isDone = true;
-      }
-      else{
-        //allocate receive buffer
-        AllocLocal();
-
-        upcxx::copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr()),msg_size);
-
-        isDone = true;
-      }
-    }
-
-    bool IsDone(){
-      if(event_ptr!=NULL){
-        return event_ptr->isdone();
-      }
-      else{
-        return isDone;
-      } 
-    }
-
-    bool IsAsync(){
-      return (event_ptr==NULL);
-    }
-
-    void AllocLocal(){
-      local_ptr = (char *)malloc(msg_size);
-    }
-
-
-    char * GetLocalPtr(){
-      return (char*)local_ptr;
-    }
-    
-    upcxx::global_ptr<char> GetRemotePtr(){
-      return remote_ptr;
-    }
-    
-
+    IncomingMessage();
+    ~IncomingMessage();
+    int Sender();
+    void Wait();
+    bool IsDone();
+    bool IsAsync();
+    void AllocLocal();
+    char * GetLocalPtr();
+    upcxx::global_ptr<char> GetRemotePtr();
 };
 
   extern std::list< IncomingMessage * > gIncomingRecv;
@@ -109,8 +49,8 @@ class IncomingMessage{
 
   inline void remote_delete(upcxx::global_ptr<char> pRemote_ptr){
       if(upcxx::myrank()!=pRemote_ptr.where()){
-//        upcxx::async(pRemote_ptr.where())(remote_delete,pRemote_ptr);
-logfileptr->OFS()<<"Performing remote delete on P"<<pRemote_ptr.where()<<endl;
+        //logfileptr->OFS()<<"Performing remote delete on P"<<pRemote_ptr.where()<<endl;
+        //upcxx::async(pRemote_ptr.where())(remote_delete,pRemote_ptr);
         upcxx::deallocate(pRemote_ptr);
       }
       else{
@@ -132,7 +72,7 @@ logfileptr->OFS()<<"Performing remote delete on P"<<pRemote_ptr.where()<<endl;
 
       upcxx::async_copy(pRemote_ptr,upcxx::global_ptr<char>(msg_ptr->GetLocalPtr()),pMsg_size,msg_ptr->event_ptr);
 
-//      logfileptr->OFS()<<gIncomingRecvAsync.size()<<" vs "<<gMaxIrecv<<endl;
+      //      logfileptr->OFS()<<gIncomingRecvAsync.size()<<" vs "<<gMaxIrecv<<endl;
       //add the function to the async queue
       //      upcxx::async(A.iam)(Aggregate_Compute_Async,Aptr,j,RemoteAggregate, async_copy_event,tstart);
     }
@@ -149,6 +89,23 @@ logfileptr->OFS()<<"Performing remote delete on P"<<pRemote_ptr.where()<<endl;
       //      Aggregate_Compute_Async(Aptr, j, RemoteAggregate, NULL,tstart);
     }
   }
+
+  inline std::list< IncomingMessage * >::iterator TestAsyncIncomingMessage(){
+    if(!gIncomingRecvAsync.empty()){
+      //find if there is some finished async comm
+      auto it = gIncomingRecvAsync.begin();
+      for(; it!=gIncomingRecvAsync.end();++it){
+        if( (*it)->IsDone() /*&& (*it)->IsAsync()*/ ){
+          break;
+        }
+      }
+      return it;
+    }
+  }
+
+
+
+
 }
 
 #endif

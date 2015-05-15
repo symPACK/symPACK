@@ -109,9 +109,12 @@ int main(int argc, char **argv)
     int dest = (p+iam)%np;
     for(int msg = 0; msg<nummsg; ++msg){
       myComms[p*nummsg + msg] = upcxx::allocate<int>(iam,numint);
-      int* ptr = (int*)myComms[p];
-      ptr[0]=iam;
-      ptr[1]=dest;
+      int* ptr = (int*)myComms[p*nummsg];
+
+      for(int curi = 0; curi<numint; curi++){
+        ptr[curi]=dest;
+      }
+      ptr[numint-1] = iam;
     }
   }
 
@@ -125,8 +128,9 @@ int main(int argc, char **argv)
     for(int p = 0; p<np; ++p){
       int dest = (p+iam)%np;
       if(dest!=iam){
-        signal_data((char*)(int*)myComms[p*nummsg + msg],numint*sizeof(int),dest);
-        logfileptr->OFS()<<"Sending to "<<dest<<endl;
+        int * ptr = (int*)myComms[p*nummsg + msg];
+        signal_data((char*)ptr,numint*sizeof(int),dest);
+        logfileptr->OFS()<<"Sending {"<<ptr[0]<<"..."<<ptr[numint-1]<<"} to "<<dest<<endl;
       }
     }
   }
@@ -139,13 +143,9 @@ int main(int argc, char **argv)
     upcxx::advance();
     bool comm_found = false;
     if(!gIncomingRecvAsync.empty()){
+
       //find if there is some finished async comm
-      auto it = gIncomingRecvAsync.begin();
-      for(; it!=gIncomingRecvAsync.end();++it){
-        if( (*it)->IsDone() /*&& (*it)->IsAsync()*/ ){
-          break;
-        }
-      }
+      auto it = TestAsyncIncomingMessage();
       if(it!=gIncomingRecvAsync.end()){
         comm_found = true;
 
@@ -153,7 +153,7 @@ int main(int argc, char **argv)
         msg->Wait(); 
         logfileptr->OFS()<<"Received async msg from "<<msg->Sender()<<endl;
         int * ptr = (int*)msg->GetLocalPtr();
-        logfileptr->OFS()<<" message is "<<ptr[0]<<" "<<ptr[1]<<endl;
+        logfileptr->OFS()<<"Message is {"<<ptr[0]<<"..."<<ptr[numint-1]<<"} "<<endl;
 
         remote_delete(msg->GetRemotePtr());
 
@@ -161,29 +161,16 @@ int main(int argc, char **argv)
 
         gIncomingRecvAsync.erase(it);
         numRecv--;
-
-
       }
     }
 
     if(!comm_found && !gIncomingRecv.empty()){
-      //find the first finished comm
       auto it = gIncomingRecv.begin();
-      //      for(; it!=gIncomingRecv.end();++it){
-      //        if( (*it)->IsDone() /*&& (*it)->IsAsync()*/ ){
-      //          break;
-      //        }
-      //      }
-      //      if(it==gIncomingRecv.end()){
-      //        it = gIncomingRecv.begin();
-      //      }
-
-
       IncomingMessage * msg = *it;
       msg->Wait(); 
       logfileptr->OFS()<<"Received msg from "<<msg->Sender()<<endl;
       int * ptr = (int*)msg->GetLocalPtr();
-      logfileptr->OFS()<<" message is "<<ptr[0]<<" "<<ptr[1]<<endl;
+      logfileptr->OFS()<<"Message is {"<<ptr[0]<<"..."<<ptr[numint-1]<<"} "<<endl;
 
       remote_delete(msg->GetRemotePtr());
 

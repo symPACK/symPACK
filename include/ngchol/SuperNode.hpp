@@ -27,14 +27,11 @@ namespace LIBCHOLESKY{
 
 
 
+  struct Icomm;
+template<typename T> class SuperNode;
+  template<typename T> class TempUpdateBuffers;
+struct SnodeUpdate;
 template <typename T> class NumMat;
-
-
-
-
-
-
-
 struct NZBlockDesc{
     Int GIndex;
     size_t Offset;
@@ -44,12 +41,12 @@ struct NZBlockDesc{
 
 
 //TRACE functions
-Int trc_Merge(SuperNode<double> & src_snode, SnodeUpdate &update,SuperNode<double> & tgt_snode);
-Int trc_Update(SuperNode<double> & src_snode, SnodeUpdate &update, TempUpdateBuffers<double> & tmpBuffers,SuperNode<double> & tgt_snode);
-Int trc_UpdateAggregate(SuperNode<double> & src_snode, SnodeUpdate &update, TempUpdateBuffers<double> & tmpBuffers, Int iTarget,SuperNode<double> & tgt_snode);
-Int trc_Factorize(SuperNode<double> & tgt_snode);
-Int trc_Aggregate(SuperNode<double> & src_snode,SuperNode<double> & tgt_snode);
-void trc_SNodeInit(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt, double * a_nzval, Int a_nzval_cnt, SuperNode<double> & tgt_snode, Int aiN);
+//Int trc_Merge(SuperNode<double> & src_snode, SnodeUpdate &update,SuperNode<double> & tgt_snode);
+//Int trc_Update(SuperNode<double> & src_snode, SnodeUpdate &update, TempUpdateBuffers<double> & tmpBuffers,SuperNode<double> & tgt_snode);
+//Int trc_UpdateAggregate(SuperNode<double> & src_snode, SnodeUpdate &update, TempUpdateBuffers<double> & tmpBuffers, Int iTarget,SuperNode<double> & tgt_snode);
+//Int trc_Factorize(SuperNode<double> & tgt_snode);
+//Int trc_Aggregate(SuperNode<double> & src_snode,SuperNode<double> & tgt_snode);
+//void trc_SNodeInit(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt, double * a_nzval, Int a_nzval_cnt, SuperNode<double> & tgt_snode, Int aiN);
 
 /////////////////////////////////////////
 /// Class representing a supernode.
@@ -58,12 +55,12 @@ void trc_SNodeInit(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int
 /////////////////////////////////////////
 template<typename T>
 class SuperNode{
-  friend Int trc_Merge(SuperNode<double> & src_snode, SnodeUpdate &update,SuperNode<double> & tgt_snode);
-  friend Int trc_Update(SuperNode<double> & src_snode, SnodeUpdate &update, TempUpdateBuffers<double> & tmpBuffers,SuperNode<double> & tgt_snode);
-  friend Int trc_UpdateAggregate(SuperNode<double> & src_snode, SnodeUpdate &update, TempUpdateBuffers<double> & tmpBuffers, Int iTarget,SuperNode<double> & tgt_snode);
-  friend Int trc_Factorize(SuperNode<double> & tgt_snode);
-  friend Int trc_Aggregate(SuperNode<double> & src_snode,SuperNode<double> & tgt_snode);
-  friend void trc_SNodeInit(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt, double * a_nzval, Int a_nzval_cnt, SuperNode<double> & tgt_snode, Int aiN);
+//  friend Int trc_Merge(SuperNode<double> & src_snode, SnodeUpdate &update,SuperNode<double> & tgt_snode);
+//  friend Int trc_Update(SuperNode<double> & src_snode, SnodeUpdate &update, TempUpdateBuffers<double> & tmpBuffers,SuperNode<double> & tgt_snode);
+//  friend Int trc_UpdateAggregate(SuperNode<double> & src_snode, SnodeUpdate &update, TempUpdateBuffers<double> & tmpBuffers, Int iTarget,SuperNode<double> & tgt_snode);
+//  friend Int trc_Factorize(SuperNode<double> & tgt_snode);
+//  friend Int trc_Aggregate(SuperNode<double> & src_snode,SuperNode<double> & tgt_snode);
+//  friend void trc_SNodeInit(Int aiId, Int aiFc, Int aiLc, NZBlockDesc * a_block_desc, Int a_desc_cnt, double * a_nzval, Int a_nzval_cnt, SuperNode<double> & tgt_snode, Int aiN);
 
   protected:
 
