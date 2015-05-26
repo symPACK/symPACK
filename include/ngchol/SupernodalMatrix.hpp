@@ -2,6 +2,7 @@
 #define _SUPERNODAL_MATRIX_DECL_HPP_
 
 #include "ngchol/Environment.hpp"
+#include "ngchol/SupernodalMatrixBase.hpp"
 #include "ngchol/SuperNode.hpp"
 
 #include "ngchol/NumVec.hpp"
@@ -12,6 +13,7 @@
 #include "ngchol/Ordering.hpp"
 
 
+#include <upcxx.h>
 
 #include <list>
 #include <deque>
@@ -28,73 +30,16 @@
 
 
 namespace LIBCHOLESKY{
+  inline Int DEFAULT_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,tgt-1);}
+  inline Int AGG_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,tgt-1);}
+  inline Int FACT_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,src-1);}
 
+  inline Int DEFAULT_TAG(Int src, Int tgt){ return (2*tgt);}
+  inline Int AGG_TAG(Int src, Int tgt){ return (2*tgt+1);}
+  inline Int FACT_TAG(Int src, Int tgt){ return (2*tgt);}
 
-
-
-
-  Int DEFAULT_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,tgt-1);}
-  Int AGG_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,tgt-1);}
-  Int FACT_TARGET(Mapping * map,Int src, Int tgt){ return map->Map(tgt-1,src-1);}
-
-  Int DEFAULT_TAG(Int src, Int tgt){ return (2*tgt);}
-  Int AGG_TAG(Int src, Int tgt){ return (2*tgt+1);}
-  Int FACT_TAG(Int src, Int tgt){ return (2*tgt);}
-
-  Int AGG_TAG_TO_ID(Int tag){ return ((Int)(tag-1)/2);}
-  Int FACT_TAG_TO_ID(Int tag){ return ((Int)(tag)/2);}
-
-  enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNS,WRAP2D,WRAP2DFORCED};
-  enum FactorizationType {FANOUT,FANBOTH};
-  enum LoadBalanceType {NOLB,NNZ,NCOLS,FLOPS,SUBCUBE,SUBCUBE_NNZ};
-  enum OrderingType {MMD,AMD};
-  class NGCholOptions{
-    public:
-      MappingType mappingType;
-      FactorizationType factorization;
-      LoadBalanceType load_balance;
-      OrderingType ordering;
-      Int maxIsend;
-      Int maxIrecv;
-      Int maxSnode;
-      CommEnvironment * commEnv;
-
-    protected:
-      bool isSqrtP(){
-        bool val = false;
-        switch(mappingType){
-          case MODWRAP2D: case MODWRAP2DNS: case WRAP2D: case WRAP2DFORCED:
-            val = true;
-            break;
-          default:
-            val = false;
-            break;
-        }
-        return val;
-      }
-
-    public:
-      NGCholOptions(){
-        mappingType = MODWRAP2D;
-        factorization = FANBOTH;
-        load_balance = NNZ;
-        maxIsend = 0;
-        maxIrecv=0;
-        maxSnode=-1;
-        commEnv = NULL;
-        ordering = MMD;
-      }
-
-      Int used_procs(Int np){
-        if(isSqrtP()){
-          Int nr = (Int)sqrt((double)np);
-          Int nc = np/nr;
-          np= nr*nc;
-        }
-        return np;
-      }
-
-  };
+  inline Int AGG_TAG_TO_ID(Int tag){ return ((Int)(tag-1)/2);}
+  inline Int FACT_TAG_TO_ID(Int tag){ return ((Int)(tag)/2);}
 
 
   template<typename T> 
@@ -144,7 +89,7 @@ namespace LIBCHOLESKY{
       return max_bytes;
     }
 
-  template <typename T> class SupernodalMatrix{
+  template <typename T> class SupernodalMatrix: public SupernodalMatrixBase{
 
 
     public:
@@ -235,9 +180,14 @@ namespace LIBCHOLESKY{
       //Supernode membership array: column i belongs to supernode SupMembership_[i-1]
       IntNumVec SupMembership_;
 
-
+      //TODO Task lists
+      std::vector<std::list<SnodeUpdateFB> * > taskLists_;
+      std::list<SnodeUpdateFB*> readyTasks_;
+      
       //MAPCLASS describing the Mapping of the computations
       Mapping * Mapping_;
+
+
 
       //Array storing the supernodal update count to a target supernode
       IntNumVec UpdateCount_;
@@ -282,6 +232,7 @@ namespace LIBCHOLESKY{
       ITree globToLocSnodes_;
 #endif
 
+      /******************* Global to Local Indexes utility routines ******************/
       //returns the 1-based index of supernode id global in the local supernode array
       Int snodeLocalIndex(Int global);
       //returns a reference to  a local supernode with id global
@@ -426,6 +377,177 @@ namespace LIBCHOLESKY{
 
 
   };
+
+
+
+
+
+
+  template <typename T> class SupernodalMatrix2: public SupernodalMatrixBase{
+
+
+    public:
+
+      //Constructors
+      SupernodalMatrix2();
+      SupernodalMatrix2(const DistSparseMatrix<T> & pMat, NGCholOptions & options );
+      //TODO
+      SupernodalMatrix2( SupernodalMatrix2 & M){};
+      //Destructor
+      ~SupernodalMatrix2();
+
+      //operators
+      //TODO
+      SupernodalMatrix2 & operator=( SupernodalMatrix2 & M){return M;};
+
+
+
+      //Accessors
+      Int Size(){return iSize_;}
+      Int SupernodeCnt(){ return LocalSupernodes_.size(); } 
+      IntNumVec & GetSupernodalPartition(){ return Xsuper_;}
+      const ETree & GetETree(){return ETree_;}
+      const Ordering & GetOrdering(){return Order_;}
+      const IntNumVec & GetSupMembership(){return SupMembership_;}
+      std::vector<SuperNode2<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 
+      //TODO Check if that's useful
+      SuperNode2<T> & GetLocalSupernode(Int i){ return *LocalSupernodes_[i]; } 
+
+      SparseMatrixStructure GetGlobalStructure();
+      SparseMatrixStructure GetLocalStructure() const;
+
+      //core functionalities
+      void Factorize();
+      void Solve(NumMat<T> * RHS, NumMat<T> * Xptr=NULL);
+      void GetSolution(NumMat<T> & B);
+
+      void FanBoth( );
+
+
+      void Dump();
+
+
+    protected:
+      NGCholOptions options_;
+      CommEnvironment * CommEnv_;
+
+      //Order of the matrix
+      Int iSize_;
+      //Column-based elimination tree
+      ETree ETree_;
+      //Column permutation
+      Ordering Order_;
+      //MAPCLASS describing the Mapping of the computations
+      Mapping * Mapping_;
+
+      //Local and Global structure of the matrix (CSC format)
+      SparseMatrixStructure Local_;
+      SparseMatrixStructure Global_;
+      //Is the global structure of the matrix allocated
+      bool isGlobStructAllocated_;
+
+      //CSC structure of L factor
+      PtrVec xlindx_;
+      IdxVec lindx_;
+      bool isXlindxAllocated_;
+      bool isLindxAllocated_;
+
+
+      //Supernodal partition array: supernode I ranges from column Xsuper_[I-1] to Xsuper_[I]-1
+      IntNumVec Xsuper_;
+      //Supernode membership array: column i belongs to supernode SupMembership_[i-1]
+      IntNumVec SupMembership_;
+
+      //TODO Task lists
+      std::vector<std::list<FBTask> * > taskLists_;
+      std::list<std::list<FBTask>::iterator > readyTasks_;
+      
+
+      //Array storing the supernodal update count to a target supernode
+      std::vector<Int> UpdateCount_;
+      //Array storing the width of the widest supernode updating a target supernode
+      std::vector<Int> UpdateWidth_;
+      std::vector<Int> UpdateHeight_;
+
+
+      //This has to be moved to an option structure
+      Int maxIsend_;
+      Int maxIrecv_;
+      Int incomingRecvCnt_;
+
+
+      //Vector holding pointers to local SuperNode2 objects (L factor)
+      std::vector<SuperNode2<T> * > LocalSupernodes_;
+
+
+
+      //Vector holding pointers to local contributions
+      //This has to be renamed because it contains the distributed solution
+      std::vector<SuperNode2<T> *> Contributions_;
+
+
+#ifndef ITREE2
+      std::vector<Int> globToLocSnodes_;
+#else
+      ITree globToLocSnodes_;
+#endif
+
+
+      TempUpdateBuffers<T> tmpBufs;
+
+
+
+
+      protected:
+
+      void Init(const DistSparseMatrix<T> & pMat, NGCholOptions & options );
+
+      /******************* Global to Local Indexes utility routines ******************/
+      //returns the 1-based index of supernode id global in the local supernode array
+      Int snodeLocalIndex(Int global);
+      //returns a reference to  a local supernode with id global
+      SuperNode2<T> * snodeLocal(Int global);
+      SuperNode2<T> * snodeLocal(Int global, std::vector<SuperNode2<T> *> & snodeColl);
+
+
+
+
+      void GetUpdatingSupernodeCount( std::vector<Int> & sc,std::vector<Int> & mw, std::vector<Int> & mh);
+      inline bool FindNextUpdate(SuperNode2<T> & src_snode, Int & tgt_snode_id, Int & f_ur, Int & f_ub, Int & n_ur, Int & n_ub);
+
+      //FanBoth related routines
+      Int FBUpdate(Int I,Int prevJ=-1);
+      void FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv, std::vector<Int> & LocalAggregates);
+      void FBFactorizationTask(FBTask & curTask, Int iLocalI);
+
+      //Solve related routines
+      void forward_update(SuperNode2<T> * src_contrib,SuperNode2<T> * tgt_contrib);
+      void back_update(SuperNode2<T> * src_contrib,SuperNode2<T> * tgt_contrib);
+
+
+      //Communication related routines
+      void AddOutgoingComm(AsyncComms & outgoingSend, Icomm * send_buffer);
+      void AdvanceOutgoing(AsyncComms & outgoingSend);
+      void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode2<T> *> & snodeColl);
+      void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode2<T> *> & snodeColl);
+      void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, std::vector<SuperNode2<T> *> & snodeColl);
+
+
+
+
+  };
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

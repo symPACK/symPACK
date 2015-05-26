@@ -64,15 +64,22 @@ run_sparse_fanboth_upcxx: run_sparse_fanboth_upcxx.o ${NGCHOL_LIB}
 run_sparse_fanboth_upcxx.o: run_sparse_fanboth_upcxx.cpp 
 	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
 
+run_sparse_pull: run_sparse_pull.o ${NGCHOL_LIB}
+	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@ run_sparse_pull.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
+
+run_sparse_pull.o: run_sparse_pull.cpp 
+	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
+
+
 
 run_pull_test: run_pull_test.o ${NGCHOL_LIB}
-	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@ run_pull_test.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
+	($(LOADER) $(UPCXX_LDFLAGS)  $(LDFLAGS) -o $@ run_pull_test.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
 
 run_pull_test.o: run_pull_test.cpp 
 	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
 
 run_isendrecv_test: run_isendrecv_test.o ${NGCHOL_LIB}
-	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@ run_isendrecv_test.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
+	($(LOADER) $(UPCXX_LDFLAGS)  $(LDFLAGS) -o $@ run_isendrecv_test.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
 
 run_isendrecv_test.o: run_isendrecv_test.cpp 
 	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 

@@ -6,13 +6,13 @@
 #define _NUMMAT_DECL_HPP_
 
 #include "ngchol/Environment.hpp"
-#include "ngchol/SuperNode.hpp"
+//#include "ngchol/SuperNode.hpp"
 
 
 
 namespace LIBCHOLESKY{
 
-template <typename T> class SuperNode;
+//template <typename T> class SuperNode;
 
 /// @class NumMat
 ///
@@ -49,15 +49,15 @@ class NumMat
     NumMat(Int m=0, Int n=0);
     NumMat(Int m, Int n, bool owndata, F* data);
     NumMat(const NumMat& C);
-    NumMat(const SuperNode<F>& S);
+//    NumMat(const SuperNode<F>& S);
     virtual ~NumMat();
     NumMat& Copy(const NumMat& C);
-    NumMat& SnodeToDense(const SuperNode<F>& S);
+//    NumMat& SnodeToDense(const SuperNode<F>& S);
     virtual void Resize(Int m, Int n);
     virtual void Clear();
 
     NumMat& operator=(const NumMat& C);
-    NumMat& operator=(const SuperNode<F>& S);
+//    NumMat& operator=(const SuperNode<F>& S);
 
     inline const F& operator()(Int i, Int j) const;
     inline F& operator()(Int i, Int j);

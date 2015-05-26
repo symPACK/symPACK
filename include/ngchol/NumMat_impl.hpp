@@ -6,6 +6,7 @@
 #define _NUMMAT_IMPL_HPP_
 
 #include "ngchol/Environment.hpp"
+#include "ngchol/LogFile.hpp"
 #include "ngchol/lapack.hpp"
 ////#include "NZBlock.hpp"
 #include <sstream>
@@ -150,49 +151,49 @@ template <typename F> NumMat<F>& NumMat<F>::Copy(const NumMat& C) {
     return this->Copy(C);
   }
 
-
-  template <typename F> NumMat<F>::NumMat(const SuperNode<F>& S){
-#ifdef _ASSERT_
-    allocated_=false;
-#endif
-    this->SnodeToDense(S);
-  }
-
-
-
-
-
-template <typename F> NumMat<F>& NumMat<F>::SnodeToDense(const SuperNode<F>& S){
-//    delete_data();
 //
-//    owndata_ = true;
-//
-//    //compute m_ and n_
-//    n_ = S.Size();
-//    m_=0;
-//    for(Int blkidx=0; blkidx < S.NZBlockCnt(); ++blkidx){
-//      m_+=S.GetNZBlock(blkidx).NRows();
-//    }
-//    
-//    alloc_data();
-//
-//    if(m_>0 && n_>0) {
-//      Int head =0;
-//      for(Int blkidx=0; blkidx < S.NZBlockCnt(); ++blkidx){
-//        NZBlock<F> & cur_block = S.GetNZBlock(blkidx);
-//        lapack::Lacpy('N',cur_block.NRows(),cur_block.NCols(),
-//                            cur_block.Nzval(),cur_block.NRows(), 
-//                                                        &at(head,0), m_);
-//        head+=cur_block.NRows();
-//      }
-//    }
-//
-    return *this; 
-}
+//  template <typename F> NumMat<F>::NumMat(const SuperNode<F>& S){
+//#ifdef _ASSERT_
+//    allocated_=false;
+//#endif
+//    this->SnodeToDense(S);
+//  }
 
-  template <typename F> NumMat<F>& NumMat<F>::operator=(const SuperNode<F>& S) {
-    return this->SnodeToDense(S);
-  }
+
+
+
+
+//template <typename F> NumMat<F>& NumMat<F>::SnodeToDense(const SuperNode<F>& S){
+////    delete_data();
+////
+////    owndata_ = true;
+////
+////    //compute m_ and n_
+////    n_ = S.Size();
+////    m_=0;
+////    for(Int blkidx=0; blkidx < S.NZBlockCnt(); ++blkidx){
+////      m_+=S.GetNZBlock(blkidx).NRows();
+////    }
+////    
+////    alloc_data();
+////
+////    if(m_>0 && n_>0) {
+////      Int head =0;
+////      for(Int blkidx=0; blkidx < S.NZBlockCnt(); ++blkidx){
+////        NZBlock<F> & cur_block = S.GetNZBlock(blkidx);
+////        lapack::Lacpy('N',cur_block.NRows(),cur_block.NCols(),
+////                            cur_block.Nzval(),cur_block.NRows(), 
+////                                                        &at(head,0), m_);
+////        head+=cur_block.NRows();
+////      }
+////    }
+////
+//    return *this; 
+//}
+//
+////  template <typename F> NumMat<F>& NumMat<F>::operator=(const SuperNode<F>& S) {
+////    return this->SnodeToDense(S);
+////  }
 
 
 

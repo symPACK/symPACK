@@ -102,7 +102,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
         //this can be sent now
         Int tgt_snode_id = tgt_id;
 
-        Int iTarget = Mapping_->Map(tgt_snode_id-1,tgt_snode_id-1);
+        Int iTarget = this->Mapping_->Map(tgt_snode_id-1,tgt_snode_id-1);
         if(iTarget != iam){
 #ifdef _DEBUG_
           logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
@@ -333,7 +333,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
 
     SnodeUpdate curUpdate;
     while(cur_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-      Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+      Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
       if(iTarget == iam){
         //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
         Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
@@ -443,7 +443,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
         TIMER_START(UPDATE_ANCESTORS);
         SnodeUpdate curUpdate;
         while(dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false)){ 
-          Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+          Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
           if(iTarget == iam){
             //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
           Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
@@ -580,7 +580,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
         SnodeUpdate curUpdate;
         TIMER_START(UPDATE_ANCESTORS);
         while(dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false)){ 
-          Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+          Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
           if(iTarget == iam){
             //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
           Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
@@ -648,7 +648,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
       SnodeUpdate curUpdate;
       TIMER_START(FIND_UPDATED_ANCESTORS);
       while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-        Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+        Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
 
         if(iTarget != iam){
 
@@ -792,7 +792,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
   TIMER_START(BUILD_TASK_LIST);
   for(Int I = 1; I<Xsuper_.m(); ++I){
-    Int iOwner = Mapping_->Map(I-1,I-1);
+    Int iOwner = this->Mapping_->Map(I-1,I-1);
     if(iam==iOwner){
       SnodeUpdateFB curUpdate;
       curUpdate.type=FACTOR;
@@ -810,7 +810,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
     SnodeUpdate curUpdate;
     while(cur_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-      Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+      Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
       if(iTarget == iam){
         //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
           Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
@@ -941,7 +941,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
           TIMER_START(UPDATE_ANCESTORS);
           SnodeUpdate curUpdate;
           while(dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false)){ 
-            Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+            Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
             if(iTarget == iam){
               //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
               Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
@@ -1078,7 +1078,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
           SnodeUpdate curUpdate;
           TIMER_START(UPDATE_ANCESTORS);
           while(dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false)){ 
-            Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+            Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
             if(iTarget == iam){
               //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
               Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
@@ -1146,7 +1146,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
         SnodeUpdate curUpdate;
         TIMER_START(FIND_UPDATED_ANCESTORS);
         while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-          Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+          Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
 
           if(iTarget != iam){
 

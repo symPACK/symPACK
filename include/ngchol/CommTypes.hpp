@@ -10,6 +10,7 @@
 
 #include "ngchol/Environment.hpp"
 #include "ngchol/NumMat.hpp"
+#include "ngchol/Task.hpp"
 //#include "ngchol/debug.hpp"
 
 #ifdef NO_INTRA_PROFILE
@@ -19,7 +20,7 @@
 #endif
 #endif
 
-
+using namespace std;
 
 
 namespace LIBCHOLESKY{
@@ -27,14 +28,13 @@ namespace LIBCHOLESKY{
   template<typename T> class NumMat;
   template<typename T> class SuperNode;
 
-  enum TaskType {FACTOR, AGGREGATE, UPDATE};
 
   class FBDelayedComm;
   class FBDelayedCommCompare;
 #ifdef _DEADLOCK_
-  typedef std::queue<FBDelayedComm,deque<FBDelayedComm > > FBCommList;
+  typedef std::queue<FBDelayedComm,std::deque<FBDelayedComm > > FBCommList;
 #else
-  typedef std::priority_queue<FBDelayedComm,deque<FBDelayedComm >,FBDelayedCommCompare > FBCommList;
+  typedef std::priority_queue<FBDelayedComm,std::deque<FBDelayedComm >,FBDelayedCommCompare > FBCommList;
 #endif
 
   class FBDelayedComm{
@@ -219,16 +219,16 @@ namespace LIBCHOLESKY{
 
   class AsyncComms;
 #ifdef _DEADLOCK_
-  typedef std::queue<DelayedComm,deque<DelayedComm> > CommList;
-  typedef std::queue<DelayedComm,deque<DelayedComm> > DownCommList;
-  typedef std::queue<SnodeUpdateFB,deque<SnodeUpdateFB> > FBTasks;
+  typedef std::queue<DelayedComm,std::deque<DelayedComm> > CommList;
+  typedef std::queue<DelayedComm,std::deque<DelayedComm> > DownCommList;
+  typedef std::queue<SnodeUpdateFB,std::deque<SnodeUpdateFB> > FBTasks;
 #else
-  typedef std::priority_queue<DelayedComm,deque<DelayedComm>,DelayedCommCompare> CommList;
-  typedef std::priority_queue<DelayedComm,deque<DelayedComm>,DelayedCommReverseCompare> DownCommList;
+  typedef std::priority_queue<DelayedComm,std::deque<DelayedComm>,DelayedCommCompare> CommList;
+  typedef std::priority_queue<DelayedComm,std::deque<DelayedComm>,DelayedCommReverseCompare> DownCommList;
 #ifdef _TASKLIST_
   typedef std::list<SnodeUpdateFB> FBTasks;
 #else
-  typedef std::priority_queue<SnodeUpdateFB,deque<SnodeUpdateFB>,SnodeUpdateFBCompare> FBTasks;
+  typedef std::priority_queue<SnodeUpdateFB,std::deque<SnodeUpdateFB>,SnodeUpdateFBCompare> FBTasks;
 #endif
 
 #endif
@@ -240,159 +240,8 @@ namespace LIBCHOLESKY{
   class CommEnvironment;
 
 
-  struct SnodeUpdateFB{
-    TaskType type;
-    Int src_snode_id;
-    Int tgt_snode_id;
-    //dependencies
-    Int in_deps;
-    //unused but preparing for task scheduling priorities
-    Int rank;
-    SnodeUpdateFB():rank(-1),in_deps(0){}
-  };
 
 
-  struct SnodeUpdateFBCompare{
-    bool operator()(const SnodeUpdateFB & a,const SnodeUpdateFB & b) const
-    {
-
-      bool b_factor = b.tgt_snode_id == b.src_snode_id;
-
-
-      //use the ranks first
-      if(a.rank>=0 && b.rank>=0){
-        return a.rank<b.rank;
-      }
-    
-
-
-      //check whether it is an update or a factorization
-      bool a_factor = a.tgt_snode_id == a.src_snode_id;
-
-      //if same type apply the usual priorities
-//      if(a_factor == b_factor){
-
-      //use the classic priorities otherwise
-      if(a.tgt_snode_id>b.tgt_snode_id){
-        return true;
-      }
-      else if(a.tgt_snode_id==b.tgt_snode_id){
-        return a.src_snode_id>b.src_snode_id;
-      }
-      else{
-        return false;
-      }
-
-//      }
-//      else if (a_factor){
-//        if(a.tgt_snode_id
-//      }
-//      else if (b_factor){
-//
-//      }
-    }
-  };
-
-/*
-    bool CompareSnodeUpdateFB(const SnodeUpdateFB & a,const SnodeUpdateFB & b)
-    {
-
-      bool b_factor = b.tgt_snode_id == b.src_snode_id;
-
-
-      //use the ranks first
-      if(a.rank>=0 && b.rank>=0){
-        return a.rank<b.rank;
-      }
-    
-
-
-      //check whether it is an update or a factorization
-      bool a_factor = a.tgt_snode_id == a.src_snode_id;
-
-      //if same type apply the usual priorities
-//      if(a_factor == b_factor){
-
-      //use the classic priorities otherwise
-      if(a.tgt_snode_id>b.tgt_snode_id){
-        return true;
-      }
-      else if(a.tgt_snode_id==b.tgt_snode_id){
-        return a.src_snode_id>b.src_snode_id;
-      }
-      else{
-        return false;
-      }
-
-//      }
-//      else if (a_factor){
-//        if(a.tgt_snode_id
-//      }
-//      else if (b_factor){
-//
-//      }
-    }
- 
-*/
-
-
-
-
-
-
-  struct LocalUpdate{
-    Int src_snode_id;
-    Int src_nzblk_idx;
-    Int src_first_row;
-    LocalUpdate(Int snode_id,Int nzblk_idx,Int first_row):src_snode_id(snode_id),src_nzblk_idx(nzblk_idx),src_first_row(first_row){};
-  };
-
-  struct SnodeUpdate{
-    Int src_snode_id;
-    Int tgt_snode_id;
-    Int src_first_row;
-    Int src_next_row;
-    Int blkidx;
-    Int next_blkidx;
-    //std::vector<bool> is_factor_sent;
-
-    SnodeUpdate(){
-      src_snode_id = 0;
-      tgt_snode_id = 0;
-      src_first_row = 0;
-      src_next_row = 0;
-      blkidx = 0;
-      next_blkidx = 0;
-      //is_factor_sent.assign(np,false);
-    }
-  };
-
-  template<typename T>
-  class TempUpdateBuffers{
-    public:
-    NumMat<T> tmpBuf;
-    IntNumVec src_colindx;
-    IntNumVec src_to_tgt_offset;
-
-    void Resize(Int size, Int mw){
-      tmpBuf.Resize(size,mw);
-      src_colindx.Resize(mw);
-      src_to_tgt_offset.Resize(size);
-    }
-
-    void Clear(){
-      tmpBuf.Clear();
-      src_colindx.Clear();
-      src_to_tgt_offset.Clear();
-     }
-
-
-    TempUpdateBuffers(){
-    }
-    TempUpdateBuffers(Int size, Int mw){
-      Resize(size,mw);
-    }
-  };
 
 
 

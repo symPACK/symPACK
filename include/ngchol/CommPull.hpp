@@ -15,6 +15,7 @@
 namespace LIBCHOLESKY{
 
 struct SnodeUpdateFB;
+class SupernodalMatrixBase;
 
 class IncomingMessage{
   public:
@@ -38,12 +39,23 @@ class IncomingMessage{
   extern std::list< IncomingMessage * > gIncomingRecv;
   extern std::list< IncomingMessage * > gIncomingRecvAsync;
   extern int gMaxIrecv;
+  extern SupernodalMatrixBase * gSuperMatrixPtr;
 
-  void signal_data(char * local_ptr, size_t pMsg_size, int dest);
-  void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size);
+  struct MsgMetadata{
+    //sender taskid
+    int src;
+    //receiver taskid
+    int tgt;
+    //type of message
+//    TaskType type;
+  };
 
-  inline void signal_data(char * local_ptr, size_t pMsg_size, int dest){
-      upcxx::async(dest)(rcv_async,upcxx::global_ptr<char>(local_ptr),pMsg_size);
+
+  void signal_data(char * local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
+  void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta);
+
+  inline void signal_data(char * local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
+      upcxx::async(dest)(rcv_async,upcxx::global_ptr<char>(local_ptr),pMsg_size,meta);
   }
 
 
@@ -58,7 +70,7 @@ class IncomingMessage{
       }
   }
 
-  inline void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size){
+  inline void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
 
     //if we still have async buffers
     if(gIncomingRecvAsync.size() < gMaxIrecv){
@@ -88,6 +100,7 @@ class IncomingMessage{
       //call the function inline
       //      Aggregate_Compute_Async(Aptr, j, RemoteAggregate, NULL,tstart);
     }
+
   }
 
   inline std::list< IncomingMessage * >::iterator TestAsyncIncomingMessage(){
@@ -102,8 +115,6 @@ class IncomingMessage{
       return it;
     }
   }
-
-
 
 
 }

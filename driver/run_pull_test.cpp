@@ -129,7 +129,10 @@ int main(int argc, char **argv)
       int dest = (p+iam)%np;
       if(dest!=iam){
         int * ptr = (int*)myComms[p*nummsg + msg];
-        signal_data((char*)ptr,numint*sizeof(int),dest);
+        MsgMetadata meta;
+        meta.src=iam;
+        meta.tgt=dest;
+        signal_data((char*)ptr,numint*sizeof(int),dest,meta);
         logfileptr->OFS()<<"Sending {"<<ptr[0]<<"..."<<ptr[numint-1]<<"} to "<<dest<<endl;
       }
     }

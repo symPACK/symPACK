@@ -5,7 +5,7 @@ template<typename T> Int SupernodalMatrix<T>::FBTaskAsyncRecv(Int iLocalI, Snode
     Int IrecvCnt = 0; 
     if(curTask.type == FACTOR){
 
-      assert(curTask.in_deps == AggregatesToRecv[curTask.tgt_snode_id-1]);
+      assert(curTask.remote_deps == AggregatesToRecv[curTask.tgt_snode_id-1]);
       AsyncComms & incomingRecvAgg = incomingRecvAggArr[iLocalI-1]; 
       //this is a factorization task: we have to receive aggregates
       Int maxRecvCnt = AggregatesToRecv[curTask.tgt_snode_id-1];
@@ -47,7 +47,7 @@ template<typename T> Int SupernodalMatrix<T>::FBTaskAsyncRecv(Int iLocalI, Snode
       assert(AggregatesToRecv[curTask.tgt_snode_id-1]>=0);
     }
     else{
-      assert(curTask.in_deps <= FactorsToRecv[curTask.tgt_snode_id-1]);
+      assert(curTask.remote_deps <= FactorsToRecv[curTask.tgt_snode_id-1]);
       Int maxRecvCnt = FactorsToRecv[curTask.tgt_snode_id-1];
 //      if(maxRecvCnt==0){ return 0;}
 
@@ -432,7 +432,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
     SnodeUpdate curUpdate;
     TIMER_START(FIND_UPDATED_ANCESTORS);
     while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-      Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode.Id()-1);
+      Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode.Id()-1);
 
       if(iTarget != iam){
         if(!is_factor_sent[iTarget]){
@@ -486,7 +486,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
 
   src_blocks.resize(0);
 
-  Int iExpectedSrcOwner = Mapping_->Map(abs(curTask.src_snode_id)-1,abs(curTask.src_snode_id)-1);
+  Int iExpectedSrcOwner = this->Mapping_->Map(abs(curTask.src_snode_id)-1,abs(curTask.src_snode_id)-1);
 
 
   {
@@ -516,7 +516,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
           logfileptr->OFS()<<"YOUHOU WE HAVE ASYNC HERE !!! expected: "<< abs(curTask.src_snode_id) << " vs received: "<<cur_src_snode->Id()<<endl;
         }
 #endif
-        Int iSrcOwner = Mapping_->Map(cur_src_snode->Id()-1,cur_src_snode->Id()-1);
+        Int iSrcOwner = this->Mapping_->Map(cur_src_snode->Id()-1,cur_src_snode->Id()-1);
 
 
         //Update everything src_snode_id own with that factor
@@ -533,7 +533,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
 
         TIMER_START(UPDATE_ANCESTORS);
         while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
-          Int iUpdater = Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
+          Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
           if(iUpdater == iam){
 
 #ifdef _DEBUG_PROGRESS_
@@ -542,7 +542,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
 #endif
             SuperNode<T> * tgt_aggreg;
 
-            Int iTarget = Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+            Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
             if(iTarget == iam){
               //the aggregate vector is directly the target snode
               tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
@@ -716,13 +716,13 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
   for(Int I = 1; I<Xsuper_.m(); ++I){
 
 
-    Int iOwner = Mapping_->Map(I-1,I-1);
+    Int iOwner = this->Mapping_->Map(I-1,I-1);
     if(iam==iOwner){
       SnodeUpdateFB curUpdate;
       curUpdate.type=FACTOR;
       curUpdate.src_snode_id = I;
       curUpdate.tgt_snode_id = I;
-      curUpdate.in_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
+      curUpdate.remote_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
 #ifdef _TASKLIST_
       LocalTasks.push_back(curUpdate);
 #else
@@ -762,7 +762,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
         LocalTasks.push(curUpdate);
 #endif
 
-        curUpdate.in_deps = 1;
+        curUpdate.remote_deps = 1;
         FactorsToRecv[J-1]++;
       }
     }
@@ -896,13 +896,14 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
       if(marker(supno-1)!=s && supno!=s){
 
 
-        Int iFactorizer = Mapping_->Map(supno-1,supno-1);
-        Int iUpdater = Mapping_->Map(supno-1,s-1);
+        Int iFactorizer = this->Mapping_->Map(supno-1,supno-1);
+        Int iUpdater = this->Mapping_->Map(supno-1,s-1);
 
 #ifdef _DEBUG_UPDATES_
           logfileptr->OFS()<<iFactorizer<<" "<<iUpdater<<endl;
 #endif
 
+        
         if(!isSent[(supno-1)*np+iUpdater] && iUpdater!=iFactorizer){
           atr[supno-1]++;
           isSent[(supno-1)*np+iUpdater]=true;
@@ -942,7 +943,7 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const Snod
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
   SuperNode<T> * cur_src_snode = NULL;
-  Int iSrcOwner = Mapping_->Map(curTask.src_snode_id-1,curTask.src_snode_id-1);
+  Int iSrcOwner = this->Mapping_->Map(curTask.src_snode_id-1,curTask.src_snode_id-1);
   
 
   //This is a local update, iSrcOwner matters
@@ -1048,7 +1049,7 @@ template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I,Int prevJ){
   Idx64 fi = xlindx_(I-1);
   Idx64 li = xlindx_(I)-1;
 
-  Int iOwner = Mapping_->Map(I-1,I-1);
+  Int iOwner = this->Mapping_->Map(I-1,I-1);
 
 
   Int firstUpdate = -1; 
@@ -1056,7 +1057,7 @@ template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I,Int prevJ){
   for(Idx64 idx = fi; idx<=li;++idx){
     Idx32 row = lindx_[idx-1];
     J = SupMembership_[row-1];
-    Int iUpdater = Mapping_->Map(J-1,I-1);
+    Int iUpdater = this->Mapping_->Map(J-1,I-1);
 
 
     if(iUpdater == iam && J>I){

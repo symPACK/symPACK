@@ -39,6 +39,7 @@
 // Always use complex data.
 #define _USE_COMPLEX_
 #include "ngchol/datatypes.hpp"
+#include "ngchol/Types.hpp"
 
 
 

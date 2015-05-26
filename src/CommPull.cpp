@@ -1,9 +1,12 @@
 #include "ngchol/CommPull.hpp"
 #include "ngchol/CommTypes.hpp"
+#include "ngchol/SupernodalMatrixBase.hpp"
 
 namespace LIBCHOLESKY{
   std::list< IncomingMessage * > gIncomingRecv;
   std::list< IncomingMessage * > gIncomingRecvAsync;
+  SupernodalMatrixBase * gSuperMatrixPtr = NULL;
+
   int gMaxIrecv = 0;
 
 
@@ -24,6 +27,7 @@ namespace LIBCHOLESKY{
         delete task_ptr;
       }
       if(local_ptr!=NULL){
+        //TODO use upcxx::deallocate
         delete local_ptr;
       }
     }
@@ -34,6 +38,7 @@ namespace LIBCHOLESKY{
 
     void IncomingMessage::Wait(){
       if(event_ptr!=NULL){
+        //TODO wait is not necessary if calling async_try/isdone
         event_ptr->wait();
         assert(event_ptr->isdone());
         delete event_ptr;
@@ -53,6 +58,8 @@ namespace LIBCHOLESKY{
     bool IncomingMessage::IsDone(){
       if(event_ptr!=NULL){
         return event_ptr->isdone();
+        //return event_ptr->async_try();
+        //TODO also look at event_ptr async_try because it calls "progress"
       }
       else{
         return isDone;
@@ -65,6 +72,7 @@ namespace LIBCHOLESKY{
 
     void IncomingMessage::AllocLocal(){
       local_ptr = (char *)malloc(msg_size);
+      //TODO replace this by a upcxx::allocate
     }
 
 
