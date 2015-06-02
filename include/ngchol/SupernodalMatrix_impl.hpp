@@ -4484,7 +4484,6 @@ void SupernodalMatrix2<T>::Dump(){
       Int src_first_col = Xsuper_(I-1);
       Int src_last_col = Xsuper_(I)-1;
       Int iOwner = this->Mapping_->Map(I-1,I-1);
-      //If I own the column, factor it
       if( iOwner == iam ){
         SuperNode2<T> & src_snode = *snodeLocal(I);
           

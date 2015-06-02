@@ -12,6 +12,9 @@
 #include "ngchol/CommTypes.hpp"
 #include "ngchol/Ordering.hpp"
 
+#include "ngchol/CommPull.hpp"
+#include "ngchol/Types.hpp"
+#include "ngchol/Task.hpp"
 
 #include <upcxx.h>
 
@@ -518,7 +521,9 @@ namespace LIBCHOLESKY{
       //FanBoth related routines
       Int FBUpdate(Int I,Int prevJ=-1);
       void FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv, std::vector<Int> & LocalAggregates);
+
       void FBFactorizationTask(FBTask & curTask, Int iLocalI);
+      void FBUpdateTask(FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesDone,std::vector< SuperNode2<T> * > & aggVectors,  std::vector<Int> & FactorsToRecv, std::vector<Int> & AggregatesToRecv);
 
       //Solve related routines
       void forward_update(SuperNode2<T> * src_contrib,SuperNode2<T> * tgt_contrib);

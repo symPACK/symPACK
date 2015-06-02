@@ -134,12 +134,14 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
 //#endif
   TIMER_STOP(FB_INIT);
 
+#if 1
 while(localTaskCount>0){
   //CheckIncomingMessages();
 
   if(!readyTasks_.empty()){
     //Pick a ready task
     auto taskit = readyTasks_.front();
+    auto rtaskit = readyTasks_.begin();
     //auto taskit = *rtaskit;
     //process task
     FBTask & curTask = *taskit;
@@ -147,10 +149,12 @@ while(localTaskCount>0){
     switch(curTask.type){
       case FACTOR:
         {
+          FBFactorizationTask(curTask, iLocalTGT);
         }
       break;
       case AGGREGATE:
         {
+          FBUpdateTask(curTask, UpdatesToDo, AggregatesDone,aggVectors, AggregatesToRecv, AggregatesToRecv);
         }
       break;
       defaut:
@@ -162,12 +166,13 @@ while(localTaskCount>0){
 
     //remove task
     taskLists_[curTask.tgt_snode_id-1]->erase(taskit);
+    readyTasks_.erase(rtaskit);
     localTaskCount--;
   }
   //TODO REMOVE THIS
   localTaskCount--;
 }
-
+#endif
 
 upcxx::barrier();
 
@@ -392,7 +397,7 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
 
   //Applying aggregates
   TIMER_START(APPLY_AGGREGATES);
-  src_blocks.resize(0);
+  //src_blocks.resize(0);
 
 
   //TODO we might have to create a third AGGREGATE type of task
@@ -404,7 +409,7 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
 
     SuperNode2<T> dist_src_snode;
     //TODO this has to be written again for the new supernode type
-    size_t read_bytes = Deserialize(dataPtr,dist_src_snode);
+    //size_t read_bytes = Deserialize(dataPtr,dist_src_snode);
 
     src_snode.Aggregate(dist_src_snode);
 
@@ -425,8 +430,7 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
   src_snode.Factorize();
   TIMER_STOP(FACTOR_PANEL);
 
-  //Sending factors
-  if(np>1){
+  //Sending factors and update local tasks
     //Send my factor to my ancestors. 
     BolNumVec is_factor_sent(np);
     SetValue(is_factor_sent,false);
@@ -438,7 +442,7 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
 
       if(iTarget != iam){
         if(!is_factor_sent[iTarget]){
-          MsgMetaData meta;
+          MsgMetadata meta;
           meta.src = curUpdate.src_snode_id;
           meta.tgt = curUpdate.tgt_snode_id;
          
@@ -457,162 +461,219 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
           is_factor_sent[iTarget] = true;
         }
       }
+      else{
+        //Update local tasks
+        //find task corresponding to curUpdate
+        for(auto taskit = taskLists_[curUpdate.tgt_snode_id-1]->begin();
+            taskit!=taskLists_[curUpdate.tgt_snode_id-1]->end();
+            taskit++){
+          if(taskit->src_snode_id==curUpdate.src_snode_id
+              && taskit->tgt_snode_id==curUpdate.tgt_snode_id){
+            taskit->local_deps--;
+
+
+            if(taskit->remote_deps==0 && taskit->local_deps==0){
+              readyTasks_.push_back(taskit);    
+            }
+
+
+            break;
+          }
+        }
+        
+      }
     }
     TIMER_STOP(FIND_UPDATED_ANCESTORS);
+
+
+
+}
+
+
+
+template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesDone,std::vector< SuperNode2<T> * > & aggVectors,  std::vector<Int> & FactorsToRecv, std::vector<Int> & AggregatesToRecv)
+{
+  scope_timer(FB_UPDATE_TASK);
+  Int src_snode_id = curTask.src_snode_id;
+  Int tgt_snode_id = curTask.tgt_snode_id;
+
+  src_snode_id = abs(src_snode_id);
+  bool is_first_local = curTask.src_snode_id <0;
+  curTask.src_snode_id = src_snode_id;
+
+  SuperNode2<T> * cur_src_snode; 
+
+
+  Int iSrcOwner = this->Mapping_->Map(abs(curTask.src_snode_id)-1,abs(curTask.src_snode_id)-1);
+
+
+  {
+    //AsyncComms::iterator it;
+    //AsyncComms * cur_incomingRecv = incomingRecvFactArr[tgt_snode_id-1];
+
+
+    IncomingMessage * msgPtr = NULL;
+    //Local or remote factor
+    //we have only one local or one remote incoming aggregate
+    if(curTask.data.size()==0){
+      cur_src_snode = snodeLocal(curTask.src_snode_id);
+    }
+    else{
+      auto msgit = curTask.data.begin();
+      msgPtr = *msgit;
+      assert(msgPtr->IsDone());
+      char* dataPtr = msgPtr->GetLocalPtr();
+
+      cur_src_snode = new SuperNode2<T>();
+      //TODO this has to be written again for the new supernode type
+      //size_t read_bytes = Deserialize(dataPtr,*cur_src_snode);
+    }
+
+
+
+
+
+//    cur_src_snode = FBRecvFactor(curTask,src_blocks,cur_incomingRecv,it,FactorsToRecv);
+
+
+
+    //Update everything src_snode_id own with that factor
+    //Update the ancestors
+    SnodeUpdate curUpdate;
+    TIMER_START(UPDATE_ANCESTORS);
+    while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+
+      //skip if this update is "lower"
+      if(curUpdate.tgt_snode_id<curTask.tgt_snode_id){continue;}
+
+      Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
+      if(iUpdater == iam){
+#ifdef _DEBUG_PROGRESS_
+        logfileptr->OFS()<<"implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
+        logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
+#endif
+
+        SuperNode2<T> * tgt_aggreg;
+
+        Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+        if(iTarget == iam){
+          //the aggregate vector is directly the target snode
+          tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
+          assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
+        }
+        else{
+          //Check if src_snode_id already have an aggregate vector
+          if(AggregatesDone[curUpdate.tgt_snode_id-1]==0){
+            //use number of rows below factor as initializer
+            Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
+//            Int blkidx = cur_src_snode->FindBlockIdx(Xsuper_[curUpdate.tgt_snode_id-1]);
+//            if(blkidx < cur_src_snode->NZBlockCnt()){
+//
+//              Int blkidx2 = cur_src_snode->FindBlockIdx(Xsuper_[curUpdate.tgt_snode_id]-1);
+//              if(blkidx!=blkidx2){
+//              }
+//
+//            }
+
+
+            aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode2<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
+          }
+          tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
+        }
+
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
+#endif
+
+
+        //Update the aggregate
+        tgt_aggreg->UpdateAggregate(*cur_src_snode,curUpdate,tmpBufs,iTarget);
+
+
+        --UpdatesToDo[curUpdate.tgt_snode_id-1];
+        ++AggregatesDone[curUpdate.tgt_snode_id-1];
+#ifdef _DEBUG_
+        logfileptr->OFS()<<UpdatesToDo(curUpdate.tgt_snode_id-1)<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
+#endif
+
+        //Send the aggregate if it's the last
+        //If this is my last update sent it to curUpdate.tgt_snode_id
+        if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
+          if(iTarget != iam){
+#ifdef _DEBUG_
+            logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
+#endif
+
+
+            MsgMetadata meta;
+            meta.src = curUpdate.src_snode_id;
+            meta.tgt = curUpdate.tgt_snode_id;
+
+
+
+            NZBlockDesc2 & nzblk_desc = tgt_aggreg->GetNZBlockDesc(0);
+            Int local_first_row = nzblk_desc.GIndex;
+            Int nzblk_cnt = tgt_aggreg->NZBlockCnt() - curUpdate.blkidx;
+            Int nzval_cnt_ = tgt_aggreg->Size()*(tgt_aggreg->NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
+            T* nzval_ptr = tgt_aggreg->GetNZval(nzblk_desc.Offset) + local_first_row*tgt_aggreg->Size();
+
+            char * sendPtr = (char*)nzval_ptr;
+            //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
+            size_t msgSize = (char*)&nzblk_desc - sendPtr +1;
+            signal_data(sendPtr, msgSize, iTarget, meta);
+
+          }
+        }
+
+
+        if(iTarget == iam)
+        {
+
+          //TODO Maybe it is not necessary to ADD the task in the first place.
+          //find the task
+          for(auto taskit = taskLists_[curUpdate.tgt_snode_id-1]->begin();
+              taskit!=taskLists_[curUpdate.tgt_snode_id-1]->end();
+              taskit++){
+            if(taskit->src_snode_id==curUpdate.tgt_snode_id
+                && taskit->tgt_snode_id==curUpdate.tgt_snode_id){
+
+              taskit->local_deps--;
+
+              if(taskit->remote_deps==0 && taskit->local_deps==0){
+                readyTasks_.push_back(taskit);    
+              }
+
+              break;
+            }
+          }
+        }
+
+        //if local update, push a new task in the queue and stop the while loop
+        if(iam==iSrcOwner ){
+          break;
+        }
+
+      }
+    }
+    TIMER_STOP(UPDATE_ANCESTORS);
+
+
+
+    if(curTask.data.size()>0){
+      delete cur_src_snode;
+      auto msgit = curTask.data.begin();
+      IncomingMessage * msgPtr = *msgit;
+      delete msgPtr;
+    }
+
+
+
+
+
   }
 }
 
-//
-//
-//template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesDone,std::vector< SuperNode2<T> * > & aggVectors,  std::vector<Int> & FactorsToRecv, std::vector<Int> & AggregatesToRecv)
-//{
-//  scope_timer(FB_UPDATE_TASK);
-//  Int src_snode_id = curTask.src_snode_id;
-//  Int tgt_snode_id = curTask.tgt_snode_id;
-//
-//  src_snode_id = abs(src_snode_id);
-//  bool is_first_local = curTask.src_snode_id <0;
-//  curTask.src_snode_id = src_snode_id;
-//
-//  SuperNode2<T> * cur_src_snode; 
-//
-//
-//  Int iExpectedSrcOwner = this->Mapping_->Map(abs(curTask.src_snode_id)-1,abs(curTask.src_snode_id)-1);
-//
-//
-//  {
-//    AsyncComms::iterator it;
-//    AsyncComms * cur_incomingRecv = incomingRecvFactArr[tgt_snode_id-1];
-//
-//    cur_src_snode = FBRecvFactor(curTask,src_blocks,cur_incomingRecv,it,FactorsToRecv);
-//
-//
-//    //we have only one local or one remote incoming aggregate
-//
-//    if(curTask.local_deps>0){
-//      cur_src_snode = snodeLocal(curTask.src_snode_id);
-//    }
-//    else{
-//      auto msgit = curTask.data.begin();
-//      IncomingMessage * msgPtr = *msgit;
-//      assert(msgPtr->IsDone());
-//      char* dataPtr = msgPtr->GetLocalPtr();
-//
-//      cur_src_snode = new SuperNode2<T>();
-//      //SuperNode2<T> dist_src_snode;
-//      //TODO this has to be written again for the new supernode type
-//      size_t read_bytes = Deserialize(dataPtr,*cur_src_snode);
-//    }
-//
-//    Int iSrcOwner = this->Mapping_->Map(cur_src_snode->Id()-1,cur_src_snode->Id()-1);
-//
-//    //Update everything src_snode_id own with that factor
-//    //Update the ancestors
-//    SnodeUpdate curUpdate;
-//    TIMER_START(UPDATE_ANCESTORS);
-//    while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
-//      Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
-//      if(iUpdater == iam){
-//#ifdef _DEBUG_PROGRESS_
-//        logfileptr->OFS()<<"implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
-//        logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
-//#endif
-//
-//        //TODO Maybe it is not necessary to ADD the task in the first place.
-//        //find the task
-//        ///            for(auto taskit = taskLists_[curUpdate.tgt_snode_id-1]->begin();
-//        ///                          taskit!=taskLists_[curUpdate.tgt_snode_id-1]->end();
-//        ///                                                                      taskit++){
-//        ///              if(taskit->src_snode_id==curUpdate.src_snode_id
-//        ///                  && taskit->tgt_snode_id==curUpdate.tgt_snode_id){
-//        ///
-//        ///                break;
-//        ///              }
-//        ///            }
-//
-//
-//        SuperNode2<T> * tgt_aggreg;
-//
-//        Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
-//        if(iTarget == iam){
-//          //the aggregate vector is directly the target snode
-//          tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
-//          assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
-//        }
-//        else{
-//          //Check if src_snode_id already have an aggregate vector
-//          if(AggregatesDone[curUpdate.tgt_snode_id-1]==0){
-//            aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode2<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,iSize_);
-//          }
-//          tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
-//        }
-//
-//#ifdef _DEBUG_
-//        logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-//#endif
-//
-//
-//        //Update the aggregate
-//        tgt_aggreg->UpdateAggregate(*cur_src_snode,curUpdate,tmpBufs,iTarget);
-//
-//
-//        --UpdatesToDo[curUpdate.tgt_snode_id-1];
-//        ++AggregatesDone[curUpdate.tgt_snode_id-1];
-//#ifdef _DEBUG_
-//        logfileptr->OFS()<<UpdatesToDo(curUpdate.tgt_snode_id-1)<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
-//#endif
-//
-//        //Send the aggregate if it's the last
-//        //If this is my last update sent it to curUpdate.tgt_snode_id
-//        if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
-//          if(iTarget != iam){
-//#ifdef _DEBUG_
-//            logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
-//#endif
-//
-//
-//            MsgMetaData meta;
-//            meta.src = curUpdate.src_snode_id;
-//            meta.tgt = curUpdate.tgt_snode_id;
-//
-//
-//
-//            NZBlockDesc2 & nzblk_desc = tgt_aggreg->GetNZBlockDesc(0);
-//            Int local_first_row = nzblk_desc.GIndex;
-//            Int nzblk_cnt = tgt_aggreg->NZBlockCnt() - curUpdate.blkidx;
-//            Int nzval_cnt_ = tgt_aggreg->Size()*(tgt_aggreg->NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
-//            T* nzval_ptr = tgt_aggreg->GetNZval(nzblk_desc.Offset) + local_first_row*tgt_aggreg->Size();
-//
-//            char * sendPtr = (char*)nzval_ptr;
-//            //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
-//            size_t msgSize = (char*)&nzblk_desc - sendPtr +1;
-//            signal_data(sendPtr, msgSize, iTarget, meta);
-//
-//          }
-//        }
-//
-//        //if local update, push a new task in the queue and stop the while loop
-//        if(iam==iSrcOwner ){
-//          break;
-//        }
-//      }
-//    }
-//    TIMER_STOP(UPDATE_ANCESTORS);
-//
-//
-//
-//    if(curTask.remote_deps>0){
-//      auto msgit = curTask.data.begin();
-//      IncomingMessage * msgPtr = *msgit;
-//      delete msgPtr;
-//    }
-//
-//
-//
-//  }
-//}
-//
-//
+
 
 
 #endif

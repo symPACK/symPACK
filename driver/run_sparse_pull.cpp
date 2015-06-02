@@ -41,7 +41,7 @@ using namespace LIBCHOLESKY;
 int main(int argc, char **argv) 
 {
   MPI_Init(&argc,&argv);
-  //upcxx::init(&argc, &argv);
+  upcxx::init(&argc, &argv);
 
   NGCholOptions optionsFact;
 
@@ -297,6 +297,7 @@ int main(int argc, char **argv)
         cout<<"Starting Factorization"<<endl;
       }
 
+      SMat->Dump();
 
       timeSta = get_time();
       TIMER_START(FACTORIZATION);
@@ -391,7 +392,7 @@ int main(int argc, char **argv)
 
   delete logfileptr;
 
-  //upcxx::finalize();
+  upcxx::finalize();
   MPI_Finalize();
   return 0;
 }

@@ -1232,13 +1232,18 @@
 
       //compute supernode size / width
       Int size = aiLc - aiFc +1;
-      storage_container_.resize( sizeof(T)*size*ai_num_rows + ai_num_rows*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc)); 
+      //compute maximum number of blocks, number of off-diagonal rows + 1
+      Int num_blocks = ai_num_rows-size + 1;
+      storage_container_.resize( sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc)); 
+//      storage_container_.resize( sizeof(T)*size*ai_num_rows + ai_num_rows*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc)); 
       nzval_ = (T*)&storage_container_[0];
       meta_ = (SuperNodeDesc*)(nzval_+size*ai_num_rows);
-      blocks_ = (NZBlockDesc2*)&storage_container_.back(); 
+      char * last = (char*)&storage_container_.back() - (sizeof(NZBlockDesc2) -1);
+      blocks_ = (NZBlockDesc2*) last;
 
-
-
+      meta_->iId_ = aiId;
+      meta_->iFirstCol_ = aiFc;
+      meta_->iLastCol_ = aiLc;
       meta_->iN_=aiN;
       meta_->iSize_ = size;
       meta_->nzval_cnt_ = 0;
@@ -1304,13 +1309,14 @@
 
 
       //loop through the block descriptors
-      blocks_ = (NZBlockDesc2*)(storage_ptr+storage_size-1);
+      char * last = (char*)(storage_ptr+storage_size-1) - (sizeof(NZBlockDesc2) -1);
+      blocks_ = (NZBlockDesc2*) last;
 
       Int blkCnt = 0;
-      Int offset = blocks_[0].Offset;
-      while(!blocks_[-blkCnt].Last){
+      Int offset = GetNZBlockDesc(0).Offset;
+      while(!GetNZBlockDesc(blkCnt).Last){
         //restore 0-based offsets and compute global_to_local indices
-        blocks_[-blkCnt].Offset -= offset;
+        GetNZBlockDesc(blkCnt).Offset -= offset;
         ++blkCnt;
       }
       
@@ -1353,7 +1359,7 @@
 #endif
 
       //if there is no more room for either nzval or blocks, extend
-      Int block_space = (Int)(blocks_ - (NZBlockDesc2*)(meta_ +1)) - meta_->blocks_cnt_;
+      Int block_space = (Int)(blocks_+1 - (NZBlockDesc2*)(meta_ +1)) - meta_->blocks_cnt_;
       Int nzval_space = (Int)((T*)meta_ - nzval_) - meta_->nzval_cnt_;
 
       if(block_space==0 || nzval_space<cur_nzval_cnt){
@@ -1375,7 +1381,7 @@
         //we need to move everything, starting from the blocks, then meta
         //blocks need to be moved by extra_nzvals + extra_blocks
         char * new_blocks_ptr = cur_blocks_ptr + extra_nzvals*sizeof(T) +extra_blocks*sizeof(NZBlockDesc2);
-        std::copy(cur_blocks_ptr,cur_blocks_ptr + meta_->blocks_cnt_*sizeof(NZBlockDesc2),new_blocks_ptr);
+        std::copy_backward(cur_blocks_ptr - (meta_->blocks_cnt_-1)*sizeof(NZBlockDesc2),cur_blocks_ptr+sizeof(NZBlockDesc2),new_blocks_ptr+sizeof(NZBlockDesc2));
 
         //now move the meta data by extra_nzvals
         char * new_meta_ptr = cur_meta_ptr + extra_nzvals*sizeof(T);
@@ -1383,15 +1389,14 @@
 
         //update pointers
         meta_ = (SuperNodeDesc*) new_meta_ptr;
-        blocks_ = (NZBlockDesc2*) storage_container_.back();
-
+        blocks_ = (NZBlockDesc2*) new_blocks_ptr;
       }
 
-      blocks_[-meta_->blocks_cnt_].GIndex = aiGIndex;
-      blocks_[-meta_->blocks_cnt_].Offset = meta_->nzval_cnt_;
-      blocks_[-meta_->blocks_cnt_].Last = true;
+      GetNZBlockDesc(meta_->blocks_cnt_).GIndex = aiGIndex;
+      GetNZBlockDesc(meta_->blocks_cnt_).Offset = meta_->nzval_cnt_;
+      GetNZBlockDesc(meta_->blocks_cnt_).Last = true;
       if(meta_->blocks_cnt_>0){
-        blocks_[-(meta_->blocks_cnt_-1)].Last = false;
+        GetNZBlockDesc(meta_->blocks_cnt_-1).Last = false;
       }
 
       //blocks_container_.push_back(NZBlockDesc2(aiGIndex,nzval_cnt_));
@@ -1474,8 +1479,8 @@
   template<typename T>
     inline void SuperNode2<T>::DumpITree(){
 #ifdef ITREE
-      logfileptr->OFS()<<"Number of blocks: "<<blocks_cnt_<<endl;
-      logfileptr->OFS()<<"log2(Number of blocks): "<<log2(blocks_cnt_)<<endl;
+      logfileptr->OFS()<<"Number of blocks: "<<meta_->blocks_cnt_<<endl;
+      logfileptr->OFS()<<"log2(Number of blocks): "<<log2(meta_->blocks_cnt_)<<endl;
       idxToBlk_->Dump();
 #endif
     }

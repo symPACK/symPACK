@@ -269,7 +269,7 @@ class SuperNode2{
   inline Int Size(){ return meta_->iSize_;}
   inline Int N(){ return meta_->iN_;}
   inline Int NZBlockCnt(){ return meta_->blocks_cnt_;}
-  inline NZBlockDesc2 & GetNZBlockDesc(Int aiLocIndex){ return blocks_[-aiLocIndex];}
+  inline NZBlockDesc2 & GetNZBlockDesc(Int aiLocIndex){ return *(blocks_ -aiLocIndex);}
   inline T* GetNZval(size_t offset){ return &nzval_[offset];}
   inline Int NRows(Int blkidx){
       NZBlockDesc2 & desc = GetNZBlockDesc(blkidx);
