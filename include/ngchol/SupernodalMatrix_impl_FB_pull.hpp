@@ -123,6 +123,21 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   logfileptr->OFS()<<"AggregatesToRecv: "<<AggregatesToRecv<<endl;
   logfileptr->OFS()<<"LocalAggregates: "<<LocalAggregates<<endl;
 
+
+  Int cnt = 0;
+  logfileptr->OFS()<<"All Tasks: "<<endl;
+  for(Int I = 1; I<Xsuper_.m(); ++I){
+    logfileptr->OFS()<<I<<": "<<endl;
+    for(auto taskit = taskLists_[I-1]->begin();
+        taskit!=taskLists_[I-1]->end();
+        taskit++){
+      logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
+      cnt++;
+    }
+    logfileptr->OFS()<<endl;
+  }
+  assert(localTaskCount == cnt);
+
   logfileptr->OFS()<<"Ready Tasks: "<<endl;
   for(auto rtaskit = readyTasks_.begin(); rtaskit!=readyTasks_.end();rtaskit++){
     auto taskit = *rtaskit;
@@ -169,8 +184,6 @@ while(localTaskCount>0){
     readyTasks_.erase(rtaskit);
     localTaskCount--;
   }
-  //TODO REMOVE THIS
-  localTaskCount--;
 }
 #endif
 
@@ -319,14 +332,14 @@ template <typename T> void SupernodalMatrix2<T>::FBGetUpdateCount(std::vector<In
         Int iFactorizer = Mapping_->Map(supno-1,supno-1);
         Int iUpdater = Mapping_->Map(supno-1,s-1);
 
-        if(!isSent[(supno-1)*np+iUpdater]){
-          if( iUpdater!=iFactorizer){
+        if( iUpdater==iFactorizer){
+          LocalAggregates[supno-1]++;
+        }
+        else{
+          if(!isSent[(supno-1)*np+iUpdater]){
             AggregatesToRecv[supno-1]++;
+            isSent[(supno-1)*np+iUpdater]=true;
           }
-          else{
-            LocalAggregates[supno-1]++;
-          }
-          isSent[(supno-1)*np+iUpdater]=true;
         }
 
 
@@ -360,18 +373,18 @@ template<typename T> Int SupernodalMatrix2<T>::FBUpdate(Int I,Int prevJ){
 
 
     if(iUpdater == iam && J>I){
-      if(iUpdater==iOwner){
+      //if(iUpdater==iOwner){
         if(J>prevJ){
           firstUpdate = J;
           break;
         }
-      }
-      else{
-        if(J>prevJ){
-          firstUpdate = J;
-          break;
-        }
-      }
+      //}
+      //else{
+      //  if(J>prevJ){
+      //    firstUpdate = J;
+      //    break;
+      //  }
+      //}
     }
   }
 
