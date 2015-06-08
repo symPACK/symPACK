@@ -13,6 +13,7 @@
 #include "ngchol/IntervalTree.hpp"
 #include "ngchol/CommTypes.hpp"
 
+#include <upcxx.h>
 #include <list>
 
 #ifdef NO_INTRA_PROFILE
@@ -244,17 +245,16 @@ class SuperNode2{
 #endif
 
   //actual storage
-  std::vector<char> storage_container_;
+  //std::vector<char> storage_container_;
+  upcxx::global_ptr<char> storage_container_;
+  char * loc_storage_container_;
+  size_t storage_size_;
   
   //utility pointers
   SuperNodeDesc * meta_;
   T * nzval_;
   NZBlockDesc2 * blocks_;
   
-
-  //TODO remove this
-  std::vector<T> nzval_container_;
-  std::vector<NZBlockDesc> blocks_container_;
 
   protected:
   inline ITree * CreateITree();
@@ -286,8 +286,11 @@ class SuperNode2{
   }
 
 
-  inline Int StorageSize(){ return storage_container_.size();}
-
+  inline Int StorageSize(){ return storage_size_;}
+  upcxx::global_ptr<char> GetGlobalPtr(Int row){
+    //TODO fix this
+    return storage_container_;
+  }
   
   SuperNode2();
 

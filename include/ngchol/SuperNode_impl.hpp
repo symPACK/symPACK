@@ -1234,11 +1234,18 @@
       Int size = aiLc - aiFc +1;
       //compute maximum number of blocks, number of off-diagonal rows + 1
       Int num_blocks = ai_num_rows-size + 1;
-      storage_container_.resize( sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc)); 
+      //storage_container_.resize( sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc)); 
+      storage_size_ = sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc);
+      storage_container_ = upcxx::allocate<char>(iam,storage_size_); 
+      loc_storage_container_ = (char *)storage_container_;
+      
+
+
+
 //      storage_container_.resize( sizeof(T)*size*ai_num_rows + ai_num_rows*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc)); 
-      nzval_ = (T*)&storage_container_[0];
+      nzval_ = (T*)&loc_storage_container_[0];
       meta_ = (SuperNodeDesc*)(nzval_+size*ai_num_rows);
-      char * last = (char*)&storage_container_.back() - (sizeof(NZBlockDesc2) -1);
+      char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc2) -1);
       blocks_ = (NZBlockDesc2*) last;
 
       meta_->iId_ = aiId;
@@ -1296,6 +1303,9 @@
 
   template<typename T>
     SuperNode2<T>::~SuperNode2(){
+      if(meta_->b_own_storage_){
+        upcxx::deallocate(storage_container_);
+      }
 #ifndef ITREE
       delete globalToLocal_;
 #else
@@ -1310,17 +1320,21 @@
 
       //loop through the block descriptors
       char * last = (char*)(storage_ptr+storage_size-1) - (sizeof(NZBlockDesc2) -1);
+      
       blocks_ = (NZBlockDesc2*) last;
 
       Int blkCnt = 0;
       Int offset = GetNZBlockDesc(0).Offset;
-      while(!GetNZBlockDesc(blkCnt).Last){
+      NZBlockDesc2 * curBlockPtr = NULL;
+      do{
+        curBlockPtr = &GetNZBlockDesc(blkCnt);
         //restore 0-based offsets and compute global_to_local indices
-        GetNZBlockDesc(blkCnt).Offset -= offset;
+        curBlockPtr->Offset -= offset;
         ++blkCnt;
       }
+      while(!curBlockPtr->Last);
       
-      meta_= (SuperNodeDesc*)(blocks_ - blkCnt) - 1;
+      meta_= (SuperNodeDesc*)(blocks_ - blkCnt +1) - 1;
       nzval_ = (T*) storage_ptr;
 
       //we now need to update the meta data
@@ -1366,12 +1380,20 @@
         //need to resize storage space. this is expensive !
         Int extra_nzvals = max(0,cur_nzval_cnt - nzval_space);
         Int extra_blocks = max(0,1 - block_space);
-        size_t new_size = storage_container_.size() + extra_nzvals*sizeof(T) + extra_blocks*sizeof(NZBlockDesc2);
+        size_t new_size = storage_size_ + extra_nzvals*sizeof(T) + extra_blocks*sizeof(NZBlockDesc2);
         size_t offset_meta = (char*)meta_ - (char*)nzval_;
         size_t offset_block = (char*)blocks_ - (char*)nzval_;
-        storage_container_.resize(new_size);
 
-        nzval_=(T*)&storage_container_[0];
+        upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,new_size);
+        char * locTmpPtr = (char*)tmpPtr;
+        std::copy(loc_storage_container_,loc_storage_container_+storage_size_,locTmpPtr);
+        upcxx::deallocate(storage_container_);
+        storage_container_=tmpPtr;
+        loc_storage_container_=locTmpPtr;
+        storage_size_=new_size;
+        //storage_container_.resize(new_size);
+
+        nzval_=(T*)&loc_storage_container_[0];
         //move the block descriptors if required
         char * cur_blocks_ptr = &storage_container_[0] + offset_block;
 
@@ -1489,6 +1511,42 @@
     inline Int SuperNode2<T>::Shrink(){
       if(meta_->b_own_storage_){
         //TODO make sure that we do not have any extra space anywhere.
+
+      //if there is no more room for either nzval or blocks, extend
+      Int block_space = (Int)(blocks_+1 - (NZBlockDesc2*)(meta_ +1)) - meta_->blocks_cnt_;
+      Int nzval_space = (Int)((T*)meta_ - nzval_) - meta_->nzval_cnt_;
+
+      if(block_space >0 || nzval_space >0){
+
+        size_t new_size = storage_size_ - nzval_space*sizeof(T) - block_space*sizeof(NZBlockDesc2);
+        size_t offset_meta = meta_->nzval_cnt_*sizeof(T);
+        size_t offset_block = meta_->nzval_cnt_*sizeof(T)+sizeof(SuperNodeDesc);//+meta_->blocks_cnt_*sizeof(NZBlockDesc2);
+
+        upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,new_size);
+        char * locTmpPtr = (char*)tmpPtr;
+        //copy nzvals
+        std::copy(loc_storage_container_,loc_storage_container_+meta_->nzval_cnt_*sizeof(T),locTmpPtr);
+        //copy meta
+        std::copy(meta_,meta_+1,(SuperNodeDesc*)(locTmpPtr+offset_meta));
+        //copy blocks
+        std::copy(blocks_-meta_->blocks_cnt_+1,blocks_+1,(NZBlockDesc2*)(locTmpPtr+offset_block));
+
+        upcxx::deallocate(storage_container_);
+        storage_container_=tmpPtr;
+        loc_storage_container_=locTmpPtr;
+        storage_size_=new_size;
+
+        nzval_=(T*)&loc_storage_container_[0];
+        //move the block descriptors if required
+        char * new_blocks_ptr = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc2) -1);
+
+        //move the meta data if required
+        char * new_meta_ptr = loc_storage_container_ + offset_meta;
+
+        //update pointers
+        meta_ = (SuperNodeDesc*) new_meta_ptr;
+        blocks_ = (NZBlockDesc2*) new_blocks_ptr;
+      }
 
 
 
@@ -2228,6 +2286,24 @@
 #endif
   }
 
+
+//  template <typename T> inline size_t Deserialize(char * buffer, SuperNode2<T> & snode){
+//    Int snode_id = *(Int*)&buffer[0];
+//    Int snode_fc = *(((Int*)&buffer[0])+1);
+//    Int snode_lc = *(((Int*)&buffer[0])+2);
+//    Int n = *(((Int*)&buffer[0])+3);
+//    Int nzblk_cnt = *(((Int*)&buffer[0])+4);
+//    NZBlockDesc * blocks_ptr = 
+//      reinterpret_cast<NZBlockDesc*>(&buffer[5*sizeof(Int)]);
+//    Int nzval_cnt_ = *(Int*)(blocks_ptr + nzblk_cnt);
+//    T * nzval_ptr = (T*)((Int*)(blocks_ptr + nzblk_cnt)+1);
+//    char * last_ptr = (char *)(nzval_ptr+nzval_cnt_);
+//
+//    //Create the dummy supernode for that data
+//    snode.Init(snode_id,snode_fc,snode_lc, blocks_ptr, nzblk_cnt, nzval_ptr, nzval_cnt_,n);
+//
+//    return (last_ptr - buffer);
+//  }
 
 
 

@@ -17,10 +17,21 @@ namespace LIBCHOLESKY{
 struct SnodeUpdateFB;
 class SupernodalMatrixBase;
 
+  struct MsgMetadata{
+    //sender taskid
+    int src;
+    //receiver taskid
+    int tgt;
+    //type of message
+//    TaskType type;
+  };
+
+
 class IncomingMessage{
   public:
     upcxx::global_ptr<char> remote_ptr;
     size_t msg_size;
+    MsgMetadata meta;
     upcxx::event * event_ptr;
     char * local_ptr;
     SnodeUpdateFB * task_ptr;
@@ -33,6 +44,8 @@ class IncomingMessage{
     bool IsAsync();
     void AllocLocal();
     char * GetLocalPtr();
+    size_t Size(){return msg_size;}
+
     upcxx::global_ptr<char> GetRemotePtr();
 };
 
@@ -41,21 +54,11 @@ class IncomingMessage{
   extern int gMaxIrecv;
   extern SupernodalMatrixBase * gSuperMatrixPtr;
 
-  struct MsgMetadata{
-    //sender taskid
-    int src;
-    //receiver taskid
-    int tgt;
-    //type of message
-//    TaskType type;
-  };
-
-
-  void signal_data(char * local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
+  void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
   void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta);
 
-  inline void signal_data(char * local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
-      upcxx::async(dest)(rcv_async,upcxx::global_ptr<char>(local_ptr),pMsg_size,meta);
+  inline void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
+      upcxx::async(dest)(rcv_async,local_ptr,pMsg_size,meta);
   }
 
 
@@ -76,6 +79,7 @@ class IncomingMessage{
     if(gIncomingRecvAsync.size() < gMaxIrecv){
       gIncomingRecvAsync.push_back(new IncomingMessage() );
       IncomingMessage * msg_ptr = gIncomingRecvAsync.back();
+      msg_ptr->meta = meta;
       msg_ptr->event_ptr = new upcxx::event;
       msg_ptr->remote_ptr = pRemote_ptr;
       msg_ptr->msg_size = pMsg_size;
@@ -93,6 +97,7 @@ class IncomingMessage{
       IncomingMessage * msg_ptr = gIncomingRecv.back();
       msg_ptr->remote_ptr = pRemote_ptr;
       msg_ptr->msg_size = pMsg_size;
+      msg_ptr->meta = meta;
 //      //allocate receive buffer
 //      msg_ptr->AllocLocal();
 //
@@ -104,16 +109,17 @@ class IncomingMessage{
   }
 
   inline std::list< IncomingMessage * >::iterator TestAsyncIncomingMessage(){
+    auto it = gIncomingRecvAsync.end();
     if(!gIncomingRecvAsync.empty()){
       //find if there is some finished async comm
-      auto it = gIncomingRecvAsync.begin();
+      it = gIncomingRecvAsync.begin();
       for(; it!=gIncomingRecvAsync.end();++it){
         if( (*it)->IsDone() /*&& (*it)->IsAsync()*/ ){
           break;
         }
       }
-      return it;
     }
+    return it;
   }
 
 

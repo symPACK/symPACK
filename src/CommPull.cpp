@@ -28,7 +28,9 @@ namespace LIBCHOLESKY{
       }
       if(local_ptr!=NULL){
         //TODO use upcxx::deallocate
-        delete local_ptr;
+        //delete local_ptr;
+        upcxx::global_ptr<char> tmp(local_ptr);
+        upcxx::deallocate(tmp);
       }
     }
 
@@ -57,8 +59,8 @@ namespace LIBCHOLESKY{
 
     bool IncomingMessage::IsDone(){
       if(event_ptr!=NULL){
-        return event_ptr->isdone();
-        //return event_ptr->async_try();
+        //return event_ptr->isdone();
+        return event_ptr->async_try();
         //TODO also look at event_ptr async_try because it calls "progress"
       }
       else{
@@ -71,8 +73,10 @@ namespace LIBCHOLESKY{
     }
 
     void IncomingMessage::AllocLocal(){
-      local_ptr = (char *)malloc(msg_size);
+      //local_ptr = (char *)malloc(msg_size);
       //TODO replace this by a upcxx::allocate
+      upcxx::global_ptr<char> tmp = upcxx::allocate<char>(iam,msg_size);
+      local_ptr=(char*)tmp; 
     }
 
 
