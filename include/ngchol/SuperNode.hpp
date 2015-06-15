@@ -298,14 +298,14 @@ class SuperNode2{
   SuperNode2(Int aiId, Int aiFc, Int aiLc, Int aiN);
   //SuperNode2(Int aiId, Int aiFc, Int aiLc, NZBlockDesc2 * a_block_desc, Int a_desc_cnt,
   //            T * a_nzval, Int a_nzval_cnt, Int aiN);
-  SuperNode2(char * storage_ptr,size_t storage_size);
+  SuperNode2(char * storage_ptr,size_t storage_size, Int GIndex = -1);
   ~SuperNode2();
 
     
   //void Init(Int aiId, Int aiFc, Int aiLc, NZBlockDesc2 * a_block_desc, Int a_desc_cnt,
   //            T * a_nzval, Int a_nzval_cnt, Int aiN);
   
-  void Init(char * storage_ptr,size_t storage_size);
+  void Init(char * storage_ptr,size_t storage_size, Int GIndex = -1);
 
   inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex);
 
@@ -347,6 +347,7 @@ class SuperNode2{
 
 
 
+  template <typename T> inline void Serialize(Icomm & buffer,SuperNode2<T> & snode, Int first_blkidx, Int first_row);
 
 //template <typename T> inline void Serialize(char ** local_ptr,SuperNode2<T> & snode, Int first_blkidx = -1, Int first_row = -1);
 //template <typename T> inline std::ostream& operator<<( std::ostream& os,  SuperNode2<T>& snode);

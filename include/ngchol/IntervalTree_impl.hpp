@@ -40,6 +40,10 @@ inline   Int ITree::max_(ITree::ITNode *N)
   // is used tomaintain BST property
 inline   ITree::ITNode * ITree::insert_(ITree::ITNode *root, ITree::Interval & i)
   {
+
+if(i.low>i.high){gdb_lock();}
+assert(i.low<=i.high);
+
     // Base case: Tree is empty, new node becomes root
     if (root == NULL)
       return newNode_(i);

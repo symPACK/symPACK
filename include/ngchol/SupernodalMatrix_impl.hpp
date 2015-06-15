@@ -1411,7 +1411,6 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
                   Int row = Order_.invp[orig_row-1];
 
                   if(row>=col){
-                    //gdb_lock();
                     Int blkidx = snode.FindBlockIdx(row);
                     NZBlockDesc & blk_desc = snode.GetNZBlockDesc(blkidx);
                     Int local_row = row - blk_desc.GIndex + 1;
@@ -1695,7 +1694,6 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
               Int row = Order_.invp[orig_row-1];
 
               if(row>=col){
-                //gdb_lock();
                 Int blkidx = snode.FindBlockIdx(row);
                 NZBlockDesc & blk_desc = snode.GetNZBlockDesc(blkidx);
                 Int local_row = row - blk_desc.GIndex + 1;
@@ -1910,7 +1908,6 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
             Int row = Order_.invp[orig_row-1];
 
             if(row>=col){
-              //gdb_lock();
               Int blkidx = snode.FindBlockIdx(row);
               NZBlockDesc & blk_desc = snode.GetNZBlockDesc(blkidx);
               Int local_row = row - blk_desc.GIndex + 1;
@@ -3465,7 +3462,6 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
     
     bool doSend = true;
     if(nextTask!=NULL){
-      //gdb_lock(3);
       TaskType nextType = nextTask->type;
 //      doSend = !comparator.compare(src_snode_id,tgt_snode_id,type,nextTask->src_snode_id,nextTask->tgt_snode_id, nextType);
       doSend = !comparator.compare_task(src_snode_id,tgt_snode_id,type,nextTask->src_snode_id,nextTask->tgt_snode_id,nextTask->type);
@@ -3805,8 +3801,7 @@ template <typename T> void SupernodalMatrix2<T>::Factorize(){
           src_blocks.resize(bytes_received);
           MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
           TIMER_STOP(RECV_MPI);
-
-          SuperNode2<T> dist_contrib;
+          SuperNode2<T> dist_contrib(&src_blocks[0],bytes_received);
           //TODO Put this back
           //Deserialize(&src_blocks[0],dist_contrib);
 #ifdef _DEBUG_
@@ -3877,6 +3872,7 @@ template <typename T> void SupernodalMatrix2<T>::Factorize(){
 #ifdef _DEBUG_
               logfileptr->OFS()<<"Remote Supernode "<<parent_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
 #endif
+
               Int tgt_first_col = Xsuper_(parent_snode_id-1);
               Int tgt_last_col = Xsuper_(parent_snode_id)-1;
               Int src_nzblk_idx = 1;
@@ -3900,8 +3896,7 @@ template <typename T> void SupernodalMatrix2<T>::Factorize(){
                     //Create a new Icomm buffer, serialize the contribution
                     // in it and add it to the outgoing comm list
                     Icomm * send_buffer = new Icomm();
-                    //TODO replace this
-                    //Serialize(*send_buffer,*contrib,src_nzblk_idx,src_first_row);
+                    Serialize(*send_buffer,*contrib,src_nzblk_idx,src_first_row);
                     AddOutgoingComm(outgoingSend,send_buffer);
 
                     if( outgoingSend.size() > maxIsend_){
@@ -4031,8 +4026,7 @@ template <typename T> void SupernodalMatrix2<T>::Factorize(){
 
             MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
 
-
-            dist_contrib = new SuperNode2<T>();
+            dist_contrib = new SuperNode2<T>(&src_blocks[0],bytes_received);
             //TODO Replace this
             //Deserialize(&src_blocks[0],*dist_contrib); 
             dist_contrib->InitIdxToBlk();
@@ -4133,7 +4127,7 @@ template <typename T> void SupernodalMatrix2<T>::Factorize(){
                     // in it and add it to the outgoing comm list
                     Icomm * send_buffer = new Icomm();
                     //TODO replace this
-                    //Serialize(*send_buffer,*contrib,src_nzblk_idx,src_first_row);
+                    Serialize(*send_buffer,*contrib,src_nzblk_idx,src_first_row);
                     AddOutgoingComm(outgoingSend,send_buffer);
 
 
@@ -4316,7 +4310,7 @@ template <typename T> void SupernodalMatrix2<T>::SendDelayedMessagesDown(Int iLo
         // in it and add it to the outgoing comm list
         Icomm * send_buffer = new Icomm();
         //TODO replace this
-        //Serialize(*send_buffer,prev_src_snode,src_nzblk_idx,src_first_row);
+        Serialize(*send_buffer,prev_src_snode,src_nzblk_idx,src_first_row);
         AddOutgoingComm(OutgoingSend,send_buffer);
 
 
@@ -4367,7 +4361,7 @@ template <typename T> void SupernodalMatrix2<T>::SendMessage(const DelayedComm &
         // in it and add it to the outgoing comm list
         Icomm * send_buffer = new Icomm();
         //TODO replace this
-        //Serialize(*send_buffer,prev_src_snode,src_nzblk_idx,src_first_row);
+        Serialize(*send_buffer,prev_src_snode,src_nzblk_idx,src_first_row);
         AddOutgoingComm(OutgoingSend,send_buffer);
 
 
@@ -4579,6 +4573,8 @@ void SupernodalMatrix2<T>::Dump(){
     //Options
     maxIsend_ = options.maxIsend;
     maxIrecv_ = options.maxIrecv;
+
+    gMaxIrecv = maxIrecv_;
 
     iSize_ = pMat.size;
     Local_ = pMat.GetLocalStructure();

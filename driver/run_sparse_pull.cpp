@@ -166,7 +166,9 @@ int main(int argc, char **argv)
     optionsFact.mappingType = MODWRAP2D;
   }
 
+  Int all_np = np;
   np = optionsFact.used_procs(np);
+
   MPI_Comm workcomm;
   MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
 
@@ -174,6 +176,7 @@ int main(int argc, char **argv)
     //  int np, iam;
     MPI_Comm_size(workcomm,&np);
     MPI_Comm_rank(workcomm,&iam);
+
 
 
     sparse_matrix_file_format_t informat;
@@ -297,7 +300,7 @@ int main(int argc, char **argv)
         cout<<"Starting Factorization"<<endl;
       }
 
-      SMat->Dump();
+      //SMat->Dump();
 
       timeSta = get_time();
       TIMER_START(FACTORIZATION);
@@ -374,8 +377,11 @@ int main(int argc, char **argv)
 
     delete optionsFact.commEnv;
   }
-
-
+  else{
+    gdb_lock();
+    //missing barrier at the end of FanBoth()
+    upcxx::barrier();
+  }
 
   MPI_Barrier(workcomm);
   MPI_Comm_free(&workcomm);
@@ -392,8 +398,8 @@ int main(int argc, char **argv)
 
   delete logfileptr;
 
+  //MPI_Finalize();
   upcxx::finalize();
-  MPI_Finalize();
   return 0;
 }
 

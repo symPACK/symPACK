@@ -24,6 +24,47 @@ namespace LIBCHOLESKY{
     FBTask():rank(-1),remote_deps(0),local_deps(0){}
   };
 
+  struct FBTaskCompare{
+    bool operator()(const FBTask & a,const FBTask & b) const
+    {
+
+      bool b_factor = b.tgt_snode_id == b.src_snode_id;
+
+
+      //use the ranks first
+      if(a.rank>=0 && b.rank>=0){
+        return a.rank<b.rank;
+      }
+    
+
+
+      //check whether it is an update or a factorization
+      bool a_factor = a.tgt_snode_id == a.src_snode_id;
+
+      //if same type apply the usual priorities
+//      if(a_factor == b_factor){
+
+      //use the classic priorities otherwise
+      if(a.tgt_snode_id>b.tgt_snode_id){
+        return true;
+      }
+      else if(a.tgt_snode_id==b.tgt_snode_id){
+        return a.src_snode_id>b.src_snode_id;
+      }
+      else{
+        return false;
+      }
+
+//      }
+//      else if (a_factor){
+//        if(a.tgt_snode_id
+//      }
+//      else if (b_factor){
+//
+//      }
+    }
+  };
+
 
   
 
@@ -40,11 +81,7 @@ namespace LIBCHOLESKY{
   };
 
 
-  
-
-
-
-  struct SnodeUpdateFBCompare{
+   struct SnodeUpdateFBCompare{
     bool operator()(const SnodeUpdateFB & a,const SnodeUpdateFB & b) const
     {
 
@@ -84,6 +121,10 @@ namespace LIBCHOLESKY{
 //      }
     }
   };
+
+ 
+
+
 
 /*
     bool CompareSnodeUpdateFB(const SnodeUpdateFB & a,const SnodeUpdateFB & b)

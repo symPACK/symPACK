@@ -22,6 +22,8 @@ class SupernodalMatrixBase;
     int src;
     //receiver taskid
     int tgt;
+    
+    int GIndex;
     //type of message
 //    TaskType type;
   };

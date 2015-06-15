@@ -1296,9 +1296,9 @@
 ///    }; 
 
   template<typename T>
-    SuperNode2<T>::SuperNode2(char * storage_ptr,size_t storage_size) {
+    SuperNode2<T>::SuperNode2(char * storage_ptr,size_t storage_size, Int GIndex ) {
       //Init(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt,aiN);
-      Init(storage_ptr,storage_size);
+      Init(storage_ptr,storage_size,GIndex);
     }
 
   template<typename T>
@@ -1315,7 +1315,7 @@
 
   //CHECKED ON 11-18-2014
   template<typename T>
-    void SuperNode2<T>::Init(char * storage_ptr,size_t storage_size) {
+    void SuperNode2<T>::Init(char * storage_ptr,size_t storage_size, Int GIndex ) {
 
 
       //loop through the block descriptors
@@ -1324,26 +1324,36 @@
       blocks_ = (NZBlockDesc2*) last;
 
       Int blkCnt = 0;
-      Int offset = GetNZBlockDesc(0).Offset;
       NZBlockDesc2 * curBlockPtr = NULL;
       do{
         curBlockPtr = &GetNZBlockDesc(blkCnt);
-        //restore 0-based offsets and compute global_to_local indices
-        curBlockPtr->Offset -= offset;
         ++blkCnt;
       }
       while(!curBlockPtr->Last);
       
       meta_= (SuperNodeDesc*)(blocks_ - blkCnt +1) - 1;
       nzval_ = (T*) storage_ptr;
-
       //we now need to update the meta data
       meta_->b_own_storage_ = false;
       meta_->blocks_cnt_ = blkCnt;
       meta_->nzval_cnt_ = (T*)meta_ - nzval_;
+    
+      if(GIndex==-1){
+        GIndex = GetNZBlockDesc(0).GIndex;
+      }
 
-      //TODO what to do with the GIndex of the first block ?
+      Int loc_fr = GIndex - GetNZBlockDesc(0).GIndex;
+      Int offset = GetNZBlockDesc(0).Offset + loc_fr*Size();
+      //restore 0-based offsets and compute global_to_local indices
+      GetNZBlockDesc(0).Offset = 0;
+      for(Int blkidx=1; blkidx<NZBlockCnt();++blkidx){
+        curBlockPtr = &GetNZBlockDesc(blkidx);
+        curBlockPtr->Offset -= offset;
+      }
 
+
+
+      blocks_->GIndex = GIndex;
 
 
 #ifndef ITREE
@@ -1781,6 +1791,7 @@
             Int src_offset = blk_desc.Offset + (row - blk_desc.GIndex)*src_snode_size;
 
             Int tgt_blkidx = FindBlockIdx(row);
+if(tgt_blkidx==-1){gdb_lock();}
             assert(tgt_blkidx!=-1);
             NZBlockDesc2 & tgt_desc = GetNZBlockDesc(tgt_blkidx);
             Int tgt_offset = tgt_desc.Offset + (row - tgt_desc.GIndex)*tgt_snode_size;
@@ -2057,6 +2068,7 @@
             Int row = cur_src_fr;
             while(row<=cur_src_lr){
               Int tgt_blk_idx = FindBlockIdx(row);
+if(tgt_blk_idx<0){src_snode.DumpITree(); DumpITree(); gdb_lock();}
               assert(tgt_blk_idx>=0);
               NZBlockDesc2 & cur_tgt_desc = GetNZBlockDesc(tgt_blk_idx);
               Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + NRows(tgt_blk_idx)-1);
@@ -2089,6 +2101,7 @@
             Int row = cur_src_fr;
             while(row<=cur_src_lr){
               Int tgt_blk_idx = FindBlockIdx(row);
+if(tgt_blk_idx<0){gdb_lock();}
               assert(tgt_blk_idx>=0);
               NZBlockDesc2 & cur_tgt_desc = GetNZBlockDesc(tgt_blk_idx);
               Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + NRows(tgt_blk_idx)-1);
@@ -2305,6 +2318,38 @@
 //    return (last_ptr - buffer);
 //  }
 
+
+  template <typename T> inline void Serialize(Icomm & buffer,SuperNode2<T> & snode, Int first_blkidx, Int first_row){
+    NZBlockDesc2* nzblk_ptr = &snode.GetNZBlockDesc(first_blkidx);
+    Int local_first_row = first_row - nzblk_ptr->GIndex;
+    
+    Int nzblk_cnt = snode.NZBlockCnt() - first_blkidx;
+    T* nzval_ptr = snode.GetNZval(nzblk_ptr->Offset) + local_first_row*snode.Size();
+if(local_first_row!=0){gdb_lock();}
+
+    size_t size = (char*)(nzblk_ptr+1)-(char*)nzval_ptr;
+    buffer.clear();
+    buffer.resize(size);
+    //copy the whole thing in the buffer
+    Serialize(buffer,(char*)nzval_ptr,size);
+    //now we need to modify the first block data
+    char * tail = buffer.front()+size; 
+    NZBlockDesc2* new_blk_ptr= (NZBlockDesc2*)(tail-sizeof(NZBlockDesc2));
+
+      Int offset = new_blk_ptr->Offset + local_first_row*snode.Size();
+ 
+      Int blkCnt = 1;
+      if(blkCnt<nzblk_cnt){
+        NZBlockDesc2 * curBlockPtr = NULL;
+        do{
+          curBlockPtr = new_blk_ptr - blkCnt;
+          curBlockPtr->Offset -= offset;
+          ++blkCnt;
+        }
+        while(!curBlockPtr->Last);
+      }
+      new_blk_ptr->Offset = 0;
+  }
 
 
 

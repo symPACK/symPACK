@@ -464,7 +464,8 @@ namespace LIBCHOLESKY{
       //TODO Task lists
       std::vector<std::list<FBTask> * > taskLists_;
       std::list<std::list<FBTask>::iterator > readyTasks_;
-      
+      void update_deps(Int src, Int tgt);
+      std::list<FBTask>::iterator find_task(Int src, Int tgt);
 
       //Array storing the supernodal update count to a target supernode
       std::vector<Int> UpdateCount_;
