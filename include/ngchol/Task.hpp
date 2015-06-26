@@ -18,7 +18,7 @@ namespace LIBCHOLESKY{
     Int remote_deps;
     Int local_deps;
     //unused but preparing for task scheduling priorities
-    Int rank;
+    double rank;
     //list of incoming messages
     std::list<IncomingMessage*> data;
     FBTask():rank(-1),remote_deps(0),local_deps(0){}
@@ -63,6 +63,12 @@ namespace LIBCHOLESKY{
 //
 //      }
     }
+    bool operator()(const std::list<FBTask>::iterator & a,const std::list<FBTask>::iterator & b) const
+    {
+      return (*this)(*a,*b);
+//      return (*this)(*b,*a);
+    }
+
   };
 
 
@@ -167,6 +173,45 @@ namespace LIBCHOLESKY{
     }
  
 */
+
+
+
+  struct MCTTaskCompare{
+    double cost(const FBTask & t) const{
+      double retVal = 0.0;
+      switch(t.type){
+        case FACTOR:
+
+        //we have to parse all the aggregates
+
+        //then we need to compute factorization cost
+
+        break;
+        case AGGREGATE:
+        break;
+        case UPDATE:
+
+        //if remote factor, then there are multiple updates to do
+
+        break;
+      }
+
+      retVal = (double)t.rank;
+
+      return retVal;
+    }
+
+    bool operator()(const FBTask & a,const FBTask & b) const
+    {
+      return cost(a)<cost(b);
+    }
+    bool operator()(const std::list<FBTask>::iterator & a,const std::list<FBTask>::iterator & b) const
+    {
+      return (*this)(*a,*b);
+    }
+
+  };
+
 
 }
 

@@ -11,6 +11,7 @@
 #include <omp.h>
 
 #include  "ngchol.hpp"
+#include  "ngchol/SupernodalMatrix2.hpp"
 
 #include  "ngchol/sp_blas.hpp"
 #include  "ngchol/CommTypes.hpp"

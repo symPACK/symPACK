@@ -9,6 +9,9 @@
 
 #include <mpi.h>
 #include <sys/time.h>
+#include "ngchol/LogFile.hpp"
+#include <iostream>
+#include <string>
 
 namespace LIBCHOLESKY{
 
@@ -39,10 +42,10 @@ void CTF_set_context(MPI_Comm ctxt);
 
 #ifdef TAU
 #define TAU_FSTART(ARG)                                           \
-  do { CTF_timer t(#ARG); t.start(); } while (0)
+  do { CTF_timer t(#ARG);/* logfileptr->OFS()<<"DEBUG START "<<#ARG<<std::endl;*/ t.start(); } while (0)
 
 #define TAU_FSTOP(ARG)                                            \
-  do { CTF_timer t(#ARG); t.stop(); } while (0)
+  do { CTF_timer t(#ARG);/* logfileptr->OFS()<<"DEBUG STOP "<<#ARG<<std::endl;*/ t.stop(); } while (0)
 
 #define TAU_PROFILE_TIMER(ARG1, ARG2, ARG3, ARG4)                 
 
@@ -140,7 +143,8 @@ void CTF_set_context(MPI_Comm ctxt);
 #ifdef USE_TAU 
 #define TIMER_START(a) TAU_START(TOSTRING(a));
 #define TIMER_STOP(a) TAU_STOP(TOSTRING(a));
-#define scope_timer(a)
+//#define scope_timer(a)
+#define scope_timer(a) CTF_scope_timer(#a)
 #elif defined (PROFILE)
 #define TIMER_START(a) TAU_FSTART(a);
 #define TIMER_STOP(a) TAU_FSTOP(a);
@@ -148,13 +152,14 @@ void CTF_set_context(MPI_Comm ctxt);
 #else
 #define TIMER_START(a)
 #define TIMER_STOP(a)
-#define scope_timer(a)
+#define scope_timer(a) CTF_scope_timer(#a)
+//#define scope_timer(a)
 #endif
 
 
 
 class CTF_scope_timer{
-  char const * name;
+  std::string name;
   public:
 //  scope_timer(){
 //    name = "DEFAULT";
@@ -163,10 +168,12 @@ class CTF_scope_timer{
 
   CTF_scope_timer(const char * pname){
     name = pname;
-    TIMER_START(name);
+  //  TIMER_START(name.c_str());
+    do { CTF_timer t(name.c_str()); t.start(); } while (0);
   }
   ~CTF_scope_timer(){
-    TIMER_STOP(name);
+  //  TIMER_STOP(name.c_str());
+  do { CTF_timer t(name.c_str()); t.stop(); } while (0);
   }
 };
 

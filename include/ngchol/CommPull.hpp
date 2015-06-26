@@ -12,6 +12,17 @@
 #include "ngchol/Environment.hpp"
 //#include "ngchol/CommTypes.hpp"
 
+
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) TAU_FSTART(a);
+#define TIMER_STOP(a) TAU_FSTOP(a);
+#endif
+#endif
+
+
+
+
 namespace LIBCHOLESKY{
 
 struct SnodeUpdateFB;
@@ -60,11 +71,13 @@ class IncomingMessage{
   void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta);
 
   inline void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
+      scope_timer(SIGNAL_DATA);
       upcxx::async(dest)(rcv_async,local_ptr,pMsg_size,meta);
   }
 
 
   inline void remote_delete(upcxx::global_ptr<char> pRemote_ptr){
+      scope_timer(REMOTE_DELETE);
       if(upcxx::myrank()!=pRemote_ptr.where()){
         //logfileptr->OFS()<<"Performing remote delete on P"<<pRemote_ptr.where()<<endl;
         //upcxx::async(pRemote_ptr.where())(remote_delete,pRemote_ptr);
@@ -76,6 +89,7 @@ class IncomingMessage{
   }
 
   inline void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
+      scope_timer(RCV_ASYNC);
 
     //if we still have async buffers
     if(gIncomingRecvAsync.size() < gMaxIrecv){
@@ -126,5 +140,17 @@ class IncomingMessage{
 
 
 }
+
+
+
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a)
+#define TIMER_STOP(a)
+#endif
+#endif
+
+
+
 
 #endif

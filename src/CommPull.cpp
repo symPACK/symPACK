@@ -1,6 +1,17 @@
 #include "ngchol/CommPull.hpp"
 #include "ngchol/CommTypes.hpp"
 #include "ngchol/SupernodalMatrixBase.hpp"
+#include "ngchol/timer.hpp"
+
+#define USE_LOCAL_ALLOCATE
+
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a) TAU_FSTART(a);
+#define TIMER_STOP(a) TAU_FSTOP(a);
+#endif
+#endif
+
 
 namespace LIBCHOLESKY{
   std::list< IncomingMessage * > gIncomingRecv;
@@ -27,10 +38,13 @@ namespace LIBCHOLESKY{
         delete task_ptr;
       }
       if(local_ptr!=NULL){
+#ifndef USE_LOCAL_ALLOCATE
+        delete local_ptr;
+#else
         //TODO use upcxx::deallocate
-        //delete local_ptr;
         upcxx::global_ptr<char> tmp(local_ptr);
         upcxx::deallocate(tmp);
+#endif
       }
     }
 
@@ -39,6 +53,7 @@ namespace LIBCHOLESKY{
     }
 
     void IncomingMessage::Wait(){
+      scope_timer(IN_MSG_WAIT);
       if(event_ptr!=NULL){
         //TODO wait is not necessary if calling async_try/isdone
         event_ptr->wait();
@@ -58,6 +73,7 @@ namespace LIBCHOLESKY{
     }
 
     bool IncomingMessage::IsDone(){
+      scope_timer(IN_MSG_ISDONE);
       if(event_ptr!=NULL){
         //return event_ptr->isdone();
         return event_ptr->async_try();
@@ -73,10 +89,13 @@ namespace LIBCHOLESKY{
     }
 
     void IncomingMessage::AllocLocal(){
-      //local_ptr = (char *)malloc(msg_size);
+#ifndef USE_LOCAL_ALLOCATE
+      local_ptr = (char *)malloc(msg_size);
+#else
       //TODO replace this by a upcxx::allocate
       upcxx::global_ptr<char> tmp = upcxx::allocate<char>(iam,msg_size);
       local_ptr=(char*)tmp; 
+#endif
     }
 
 
@@ -90,6 +109,9 @@ namespace LIBCHOLESKY{
     
 
 
+#ifdef USE_LOCAL_ALLOCATE
+#undef USE_LOCAL_ALLOCATE
+#endif
 
 
 
@@ -97,3 +119,12 @@ namespace LIBCHOLESKY{
 
 
 }
+
+#ifdef NO_INTRA_PROFILE
+#if defined (PROFILE)
+#define TIMER_START(a)
+#define TIMER_STOP(a)
+#endif
+#endif
+
+

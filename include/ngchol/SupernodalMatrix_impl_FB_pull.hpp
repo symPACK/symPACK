@@ -235,7 +235,7 @@ defaut:
 }
 #endif
 
-
+upcxx::async_wait();
 upcxx::barrier();
 
 ////  Int iLocalI = 1;
