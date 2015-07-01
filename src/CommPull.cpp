@@ -5,13 +5,6 @@
 
 #define USE_LOCAL_ALLOCATE
 
-#ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a) TAU_FSTART(a);
-#define TIMER_STOP(a) TAU_FSTOP(a);
-#endif
-#endif
-
 
 namespace LIBCHOLESKY{
   std::list< IncomingMessage * > gIncomingRecv;
@@ -53,7 +46,7 @@ namespace LIBCHOLESKY{
     }
 
     void IncomingMessage::Wait(){
-      scope_timer(IN_MSG_WAIT);
+      scope_timer(a,IN_MSG_WAIT);
       if(event_ptr!=NULL){
         //TODO wait is not necessary if calling async_try/isdone
         event_ptr->wait();
@@ -73,7 +66,7 @@ namespace LIBCHOLESKY{
     }
 
     bool IncomingMessage::IsDone(){
-      scope_timer(IN_MSG_ISDONE);
+      scope_timer(a,IN_MSG_ISDONE);
       if(event_ptr!=NULL){
         //return event_ptr->isdone();
         return event_ptr->async_try();
@@ -119,12 +112,5 @@ namespace LIBCHOLESKY{
 
 
 }
-
-#ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a)
-#define TIMER_STOP(a)
-#endif
-#endif
 
 

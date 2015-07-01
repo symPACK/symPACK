@@ -151,7 +151,7 @@
 
     //Resize the container if I own the storage
     if(meta_->b_own_storage_){
-      scope_timer(RESIZE_SUPERNODE);
+      scope_timer(a,RESIZE_SUPERNODE);
 
       Int cur_fr = aiGIndex;
       Int cur_lr = cur_fr + aiNRows -1;
@@ -230,7 +230,7 @@
 
   template<typename T>
   inline Int SuperNode2<T>::FindBlockIdx(Int aiGIndex){
-    TIMER_START(FindBlockIdx);
+    scope_timer(a,FindBlockIdx);
     Int rval = -1;
 
 #ifndef ITREE
@@ -249,7 +249,6 @@
       rval = res->block_idx;
     }
 #endif
-    TIMER_STOP(FindBlockIdx);
     return rval;
   }
 
@@ -257,7 +256,7 @@
 
   template<typename T>
   inline Int SuperNode2<T>::FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap){
-      TIMER_START(FindBlockIdx);
+    scope_timer(a,FindBlockIdx);
 
       Int rval = -1;
 
@@ -283,7 +282,6 @@
         rval = res->block_idx;
       }
 #endif
-      TIMER_STOP(FindBlockIdx);
       return rval;
     }
 
@@ -355,7 +353,7 @@
   template<typename T>
     inline void SuperNode2<T>::FindUpdatedFirstCol(SuperNode2<T> & src_snode, Int pivot_fr, Int & tgt_fc, Int & first_pivot_idx){
       //find the first row updated by src_snode
-      TIMER_START(UPDATE_SNODE_FIND_INDEX);
+      scope_timer(a,UPDATE_SNODE_FIND_INDEX);
 
 
 #ifdef _LINEAR_SEARCH_FCLC_
@@ -414,13 +412,12 @@
 #endif
       if(first_pivot_idx<0){gdb_lock();}
       assert(first_pivot_idx>=0);
-      TIMER_STOP(UPDATE_SNODE_FIND_INDEX);
   }
 
   template<typename T>
     inline void SuperNode2<T>::FindUpdatedLastCol(SuperNode2<T> & src_snode, Int tgt_fc, Int first_pivot_idx , Int & tgt_lc,  Int & last_pivot_idx){
 //gdb_lock();
-      TIMER_START(UPDATE_SNODE_FIND_INDEX);
+      scope_timer(a,UPDATE_SNODE_FIND_INDEX);
 #ifdef _LINEAR_SEARCH_FCLC_
     if(src_snode.ITreeInitialized()){
 #endif 
@@ -463,7 +460,6 @@
     }
 #endif
       assert(last_pivot_idx>=0);
-      TIMER_STOP(UPDATE_SNODE_FIND_INDEX);
   }
 
 
@@ -476,7 +472,7 @@
   template<typename T>
   inline Int SuperNode2<T>::Merge(SuperNode2<T> & src_snode, SnodeUpdate &update){
 //#ifndef _TAU_TRACE_
-    TIMER_START(MERGE_SNODE);
+    scope_timer(a,MERGE_SNODE);
 
     assert(meta_->b_own_storage_);
 
@@ -537,7 +533,6 @@
       }
     }
 
-    TIMER_STOP(MERGE_SNODE);
     return 0;
   }
 //#endif
@@ -547,12 +542,12 @@
   template<typename T>
     inline Int SuperNode2<T>::Aggregate(SuperNode2<T> & src_snode){
 
+      scope_timer(a,AGGREGATE_SNODE);
 
 #if defined(_NO_COMPUTATION_)
   return 0;
 #endif
 
-      TIMER_START(AGGREGATE_SNODE);
       Int  pivot_idx = 0;
       Int  pivot_fr = 0;
 
@@ -590,7 +585,6 @@ if(tgt_blkidx==-1){gdb_lock();}
       }
 
 
-      TIMER_STOP(AGGREGATE_SNODE);
       return 0;
     }
 
@@ -601,6 +595,7 @@ if(tgt_blkidx==-1){gdb_lock();}
     inline Int SuperNode2<T>::UpdateAggregate(SuperNode2<T> & src_snode, SnodeUpdate &update, 
         TempUpdateBuffers<T> & tmpBuffers, Int iTarget){
 
+        scope_timer(a,UPDATE_AGGREGATE_SNODE);
 #if defined(_NO_COMPUTATION_)
   return 0;
 #endif
@@ -611,7 +606,6 @@ if(tgt_blkidx==-1){gdb_lock();}
         Int & pivot_idx = update.blkidx;
         Int & pivot_fr = update.src_first_row;
 
-        TIMER_START(UPDATE_SNODE);
         Int src_snode_size = src_snode.Size();
         Int tgt_snode_size = Size();
 
@@ -747,7 +741,6 @@ if(tgt_blkidx==-1){gdb_lock();}
               }
             }
           }
-        TIMER_STOP(UPDATE_SNODE);
         return 0;
 
       }
@@ -767,6 +760,7 @@ if(tgt_blkidx==-1){gdb_lock();}
     inline Int SuperNode2<T>::Update(SuperNode2<T> & src_snode, SnodeUpdate &update, 
         TempUpdateBuffers<T> & tmpBuffers){
 
+      scope_timer(a,UPDATE_SNODE);
 #if defined(_NO_COMPUTATION_)
   return 0;
 #endif
@@ -774,7 +768,6 @@ if(tgt_blkidx==-1){gdb_lock();}
       Int & pivot_idx = update.blkidx;
       Int & pivot_fr = update.src_first_row;
 
-      TIMER_START(UPDATE_SNODE);
       Int src_snode_size = src_snode.Size();
       Int tgt_snode_size = Size();
 
@@ -925,7 +918,6 @@ if(tgt_blk_idx<0){gdb_lock();}
           }
         }
       }
-      TIMER_STOP(UPDATE_SNODE);
       return 0;
   }
 
@@ -960,7 +952,7 @@ if(tgt_blk_idx<0){gdb_lock();}
 
   template<typename T>
     bool SuperNode2<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const IntNumVec & Xsuper,  const IntNumVec & SupMembership, bool isLocal){
-      TIMER_START(FIND_NEXT_UPDATE);
+      scope_timer(a,FIND_NEXT_UPDATE);
       Int & tgt_snode_id = nextUpdate.tgt_snode_id;
       Int & f_ur = nextUpdate.src_first_row;
       Int & f_ub = nextUpdate.blkidx;
@@ -1042,7 +1034,6 @@ if(tgt_blk_idx<0){gdb_lock();}
         return false;
       }
 
-      TIMER_STOP(FIND_NEXT_UPDATE);
     }
 
 

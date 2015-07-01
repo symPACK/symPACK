@@ -9,6 +9,7 @@
 
 #include <mpi.h>
 #include <sys/time.h>
+#include "ngchol/Environment.hpp"
 #include "ngchol/LogFile.hpp"
 #include <iostream>
 #include <string>
@@ -144,19 +145,18 @@ void CTF_set_context(MPI_Comm ctxt);
 #define TIMER_START(a) TAU_START(TOSTRING(a));
 #define TIMER_STOP(a) TAU_STOP(TOSTRING(a));
 //#define scope_timer(a)
-#define scope_timer(a) CTF_scope_timer(#a)
+#define scope_timer(b,a) CTF_scope_timer b(#a)
 #elif defined (PROFILE)
 #define TIMER_START(a) TAU_FSTART(a);
 #define TIMER_STOP(a) TAU_FSTOP(a);
-#define scope_timer(a) CTF_scope_timer(#a)
+#define scope_timer(b,a) CTF_scope_timer b(#a)
 #else
 #define TIMER_START(a)
 #define TIMER_STOP(a)
-#define scope_timer(a) CTF_scope_timer(#a)
-//#define scope_timer(a)
+#define scope_timer(b,a)
 #endif
 
-
+extern int iam;
 
 class CTF_scope_timer{
   std::string name;
@@ -169,11 +169,35 @@ class CTF_scope_timer{
   CTF_scope_timer(const char * pname){
     name = pname;
   //  TIMER_START(name.c_str());
-    do { CTF_timer t(name.c_str()); t.start(); } while (0);
+
+//    if(iam==0){
+//      pid_t pid = getpid();
+//      std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
+//      volatile int lock = 1;
+//      while (lock == 1){ }
+//      std::cout<<"P"<<iam<<" is unlocked"<<std::endl;
+//    }
+
+
+
+
+    CTF_timer t(name.c_str()); 
+    t.start();
   }
   ~CTF_scope_timer(){
   //  TIMER_STOP(name.c_str());
-  do { CTF_timer t(name.c_str()); t.stop(); } while (0);
+
+//    if(iam==0){
+//      pid_t pid = getpid();
+//      std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
+//      volatile int lock = 1;
+//      while (lock == 1){ }
+//      std::cout<<"P"<<iam<<" is unlocked"<<std::endl;
+//    }
+
+    CTF_timer t(name.c_str());
+
+    t.stop();
   }
 };
 

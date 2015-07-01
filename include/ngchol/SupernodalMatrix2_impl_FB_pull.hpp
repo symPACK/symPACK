@@ -5,7 +5,7 @@
 //#define TASKCOMPARE  MCTTaskCompare
 
 template <typename T> void SupernodalMatrix2<T>::FanBoth() {
-  scope_timer(FACTORIZATION_FB);
+  TIMER_START(FACTORIZATION_FB);
 
   TIMER_START(FB_INIT);
   Real timeSta, timeEnd;
@@ -186,7 +186,9 @@ while(localTaskCount>0){
   CheckIncomingMessages();
 
   if(!readyTasks_.empty()){
-    readyTasks_.sort(comp);
+//  TIMER_START(SORT_TASK);
+//    readyTasks_.sort(comp);
+//  TIMER_STOP(SORT_TASK);
 
     //Pick a ready task
     auto taskit = readyTasks_.front();
@@ -216,10 +218,12 @@ defaut:
         break;
     }
 
+  TIMER_START(REMOVE_TASK);
     //remove task
     taskLists_[curTask.tgt_snode_id-1]->erase(taskit);
     readyTasks_.erase(rtaskit);
     localTaskCount--;
+  TIMER_STOP(REMOVE_TASK);
   }
 
 #if 0
@@ -260,123 +264,14 @@ defaut:
 upcxx::async_wait();
 upcxx::barrier();
 
-////  Int iLocalI = 1;
-////  while(!LocalTasks.empty() || !MsgToSend.empty() || !outgoingSend.empty()){
-////
-////     if(!LocalTasks.empty()){
-////      //Peek task
-////      TIMER_START(POP_TASK);
-////#ifdef _TASKLIST_
-////      SnodeUpdateFB curTask = LocalTasks.front();
-////#else
-////      SnodeUpdateFB curTask = LocalTasks.TOP();
-////#endif
-////      TIMER_STOP(POP_TASK);
-////
-////      //check if all the incoming communications are present
-////
-////
-////     }
-////   
-////    //Check for completion of incoming communication
-////    upcxx::advance();
-////    bool comm_found = false;
-////    if(!gIncomingRecvAsync.empty()){
-////
-////      //find if there is some finished async comm
-////      auto it = TestAsyncIncomingMessage();
-////      if(it!=gIncomingRecvAsync.end()){
-////        comm_found = true;
-////
-////        IncomingMessage * msg = *it;
-////        msg->Wait(); 
-////        logfileptr->OFS()<<"Received async msg from "<<msg->Sender()<<endl;
-////        int * ptr = (int*)msg->GetLocalPtr();
-////        logfileptr->OFS()<<"Message is {"<<ptr[0]<<"..."<<ptr[numint-1]<<"} "<<endl;
-////
-////        remote_delete(msg->GetRemotePtr());
-////
-////        delete msg;
-////
-////        gIncomingRecvAsync.erase(it);
-////        numRecv--;
-////      }
-////    }
-////
-////    //We have to have a list of remote supernodes for which we are computing updates
-////
-////    if(!LocalTasks.empty()){
-////      //make a copy because we need to pop it
-////      TIMER_START(POP_TASK);
-////#ifdef _TASKLIST_
-////      SnodeUpdateFB curTask = LocalTasks.front();
-////#else
-////      SnodeUpdateFB curTask = LocalTasks.TOP();
-////#endif
-////      TIMER_STOP(POP_TASK);
-////
-////      DUMP_TASK_LIST();
-////#ifdef _DEBUG_PROGRESS_
-////        logfileptr->OFS()<<"picked Task: {"<<curTask.src_snode_id<<" -> "<<curTask.tgt_snode_id<<"}. Still "<<LocalTasks.size()<<" to do"<<std::endl;
-////#endif
-////
-////      //Launch Irecv for subsequent local supernodes if I can
-////      //FBAsyncRecv(iLocalI,incomingRecvAggArr,incomingRecvFactArr,AggregatesToRecv, FactorsToRecv);
-////
-////      //If it is a factorization
-////      if(curTask.type == FACTOR){
-////        FBFactorizationTask(curTask,iLocalI,AggregatesDone,FactorsToRecv,AggregatesToRecv, src_blocks,incomingRecvAggArr,incomingRecvFactArr);
-////        ++iLocalI; 
-////      }
-////      else{
-////        FBUpdateTask(curTask, UpdatesToDo, AggregatesDone, aggVectors, src_blocks,incomingRecvAggArr,incomingRecvFactArr,FactorsToRecv,AggregatesToRecv);
-////      }
-////      TIMER_START(POP_TASK);
-////#ifdef _TASKLIST_
-////      LocalTasks.pop_front();
-////#else
-////      LocalTasks.pop();
-////#endif
-////      TIMER_STOP(POP_TASK);
-////    }
-////
-////    //process some of the delayed send
-////    AdvanceOutgoing(outgoingSend);
-////    SendDelayedMessagesUp(MsgToSend,outgoingSend,LocalTasks);
-////
-////  }
-////
-////  TIMER_START(SAFETY_ASSERT);
-////  for(Int idx = 0; idx <incomingRecvAggArr.size();++idx){
-////    assert(incomingRecvAggArr[idx].size()==0);
-////  } 
-////
-////  bool babort=false;
-////  logfileptr->OFS()<<"CHECK: ";
-////  for(Int idx = 0; idx <incomingRecvFactArr.size();++idx){
-////    if(incomingRecvFactArr[idx]!=NULL){
-////      if(incomingRecvFactArr[idx]->size()!=0){logfileptr->OFS()<<idx<<" "; babort=true;}
-//////      if(incomingRecvFactArr[idx]->size()!=0){gdb_lock();}
-//////      assert(incomingRecvFactArr[idx]->size()==0);
-////    }
-////  }
-////  logfileptr->OFS()<<endl;
-////  if(babort){abort();}
-//// 
-////  TIMER_STOP(SAFETY_ASSERT);
-////
-////  TIMER_START(FINAL_BARRIER);
-////  MPI_Barrier(CommEnv_->MPI_GetComm());
-////  TIMER_STOP(FINAL_BARRIER);
-
-  upcxx::barrier();
   tmpBufs.Clear();
 
+  TIMER_STOP(FACTORIZATION_FB);
 }
 
 
 template <typename T> void SupernodalMatrix2<T>::FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv,std::vector<Int> & LocalAggregates){
-  scope_timer(FB_GET_UPDATE_COUNT);
+  TIMER_START(FB_GET_UPDATE_COUNT);
   UpdatesToDo.resize(Xsuper_.m(),I_ZERO);
   AggregatesToRecv.resize(Xsuper_.m(),I_ZERO);
   LocalAggregates.resize(Xsuper_.m(),I_ZERO);
@@ -422,6 +317,7 @@ template <typename T> void SupernodalMatrix2<T>::FBGetUpdateCount(std::vector<In
       }
     }
   }
+  TIMER_STOP(FB_GET_UPDATE_COUNT);
 }
 
 template<typename T> Int SupernodalMatrix2<T>::FBUpdate(Int I,Int prevJ){
@@ -465,7 +361,7 @@ template<typename T> Int SupernodalMatrix2<T>::FBUpdate(Int I,Int prevJ){
 
 
 template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & curTask, Int iLocalI){
-  scope_timer(FB_FACTORIZATION_TASK);
+  TIMER_START(FB_FACTORIZATION_TASK);
 
   Int src_snode_id = curTask.src_snode_id;
   Int tgt_snode_id = curTask.tgt_snode_id;
@@ -494,8 +390,6 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
 
     src_snode.Aggregate(dist_src_snode);
 
-    //ask for remote delete
-    remote_delete(msgPtr->GetRemotePtr());
 
     delete msgPtr;
   }
@@ -572,26 +466,28 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
 
 
 
+  TIMER_STOP(FB_FACTORIZATION_TASK);
 }
 
 
 template <typename T> std::list<FBTask>::iterator SupernodalMatrix2<T>::find_task(Int src, Int tgt){
-scope_timer(FB_FIND_TASK);
+TIMER_START(FB_FIND_TASK);
         //find task corresponding to curUpdate
-        for(auto taskit = taskLists_[tgt-1]->begin();
+        auto taskit = taskLists_[tgt-1]->begin();
+        for(;
             taskit!=taskLists_[tgt-1]->end();
             taskit++){
           if(taskit->src_snode_id==src && taskit->tgt_snode_id==tgt){
-            return taskit;
+            break;
           }
         }
-abort();
-        return taskLists_[tgt-1]->end();
+TIMER_STOP(FB_FIND_TASK);
+        return taskit;
 }
 
 template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesDone,std::vector< SuperNode2<T> * > & aggVectors,  std::vector<Int> & FactorsToRecv, std::vector<Int> & AggregatesToRecv,Int & localTaskCount)
 {
-  scope_timer(FB_UPDATE_TASK);
+  TIMER_START(FB_UPDATE_TASK);
   Int src_snode_id = curTask.src_snode_id;
   Int tgt_snode_id = curTask.tgt_snode_id;
 
@@ -795,10 +691,12 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
 
 
   }
+  TIMER_STOP(FB_UPDATE_TASK);
 }
 
 
 template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(){
+  TIMER_START(CHECK_MESSAGE);
 //return;
 
   //call advance
@@ -841,6 +739,14 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(){
 
         taskit->remote_deps--;
         taskit->data.push_back(msg);
+
+
+        //if this is a factor task, then we should delete the aggregate
+        if(taskit->type==FACTOR){
+          //ask for remote delete
+          remote_delete(msg->GetRemotePtr());
+        }
+
         if(taskit->remote_deps==0 && taskit->local_deps==0){
 
             //compute cost 
@@ -859,7 +765,7 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(){
         }
       }
        
-
+  TIMER_STOP(CHECK_MESSAGE);
 }
 
 

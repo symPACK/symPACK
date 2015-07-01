@@ -3,7 +3,7 @@
 
 
 template <typename T> void SupernodalMatrix2<T>::FanBoth() {
-  scope_timer(FACTORIZATION_FB);
+  scope_timer(a,FACTORIZATION_FB);
 
   TIMER_START(FB_INIT);
   Real timeSta, timeEnd;
@@ -354,7 +354,7 @@ upcxx::barrier();
 
 
 template <typename T> void SupernodalMatrix2<T>::FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv,std::vector<Int> & LocalAggregates){
-  scope_timer(FB_GET_UPDATE_COUNT);
+  scope_timer(a,FB_GET_UPDATE_COUNT);
   UpdatesToDo.resize(Xsuper_.m(),I_ZERO);
   AggregatesToRecv.resize(Xsuper_.m(),I_ZERO);
   LocalAggregates.resize(Xsuper_.m(),I_ZERO);
@@ -443,7 +443,7 @@ template<typename T> Int SupernodalMatrix2<T>::FBUpdate(Int I,Int prevJ){
 
 
 template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & curTask, Int iLocalI){
-  scope_timer(FB_FACTORIZATION_TASK);
+  scope_timer(a,FB_FACTORIZATION_TASK);
 
   Int src_snode_id = curTask.src_snode_id;
   Int tgt_snode_id = curTask.tgt_snode_id;
@@ -555,7 +555,7 @@ abort();
 
 template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesDone,std::vector< SuperNode2<T> * > & aggVectors,  std::vector<Int> & FactorsToRecv, std::vector<Int> & AggregatesToRecv,Int & localTaskCount)
 {
-  scope_timer(FB_UPDATE_TASK);
+  scope_timer(a,FB_UPDATE_TASK);
   Int src_snode_id = curTask.src_snode_id;
   Int tgt_snode_id = curTask.tgt_snode_id;
 

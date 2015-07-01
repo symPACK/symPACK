@@ -8,6 +8,7 @@
 #include "ngchol/mpi_interf.hpp"
 
 #include <queue>
+#include <stdlib.h>
 
 #ifdef _DEADLOCK_
 #define TOP() front()
@@ -18,8 +19,6 @@
 namespace LIBCHOLESKY{
 
 template <typename T> void SupernodalMatrix2<T>::Factorize(){
-  scope_timer(FACTORIZATION2);
-
   TIMER_START(FACTORIZATION);
   switch(options_.factorization){
     case FANBOTH:

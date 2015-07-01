@@ -266,7 +266,7 @@ logfileptr->OFS()<<"maxIrecv_: "<<maxIrecv_<<endl;
 
 template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, IntNumVec & AggregatesDone,  IntNumVec & FactorsToRecv, IntNumVec & AggregatesToRecv, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr)
 {
-  scope_timer(FB_FACTORIZATION_TASK);
+  scope_timer(a,FB_FACTORIZATION_TASK);
 
   Int src_snode_id = curTask.src_snode_id;
   Int tgt_snode_id = curTask.tgt_snode_id;
@@ -474,7 +474,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
 
 template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & curTask, IntNumVec & UpdatesToDo, IntNumVec & AggregatesDone,std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr,  IntNumVec & FactorsToRecv, IntNumVec & AggregatesToRecv)
 {
-  scope_timer(FB_UPDATE_TASK);
+  scope_timer(a,FB_UPDATE_TASK);
   Int src_snode_id = curTask.src_snode_id;
   Int tgt_snode_id = curTask.tgt_snode_id;
 
@@ -662,7 +662,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
 
 template <typename T> void SupernodalMatrix<T>::FanBoth()
 {
-  scope_timer(FACTORIZATION_FB);
+  scope_timer(a,FACTORIZATION_FB);
 
   TIMER_START(FB_INIT);
   Real timeSta, timeEnd;
@@ -863,7 +863,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
 
 
 template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc, IntNumVec & atr){
-  scope_timer(FB_GET_UPDATE_COUNT);
+  scope_timer(a,FB_GET_UPDATE_COUNT);
   sc.Resize(Xsuper_.m());
   SetValue(sc,I_ZERO);
 
@@ -938,7 +938,7 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
 
 template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv)
 {
-  scope_timer(RECV_FACTORS);
+  scope_timer(a,RECV_FACTORS);
   //TIMER_START(RECV_FACTORS);
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();

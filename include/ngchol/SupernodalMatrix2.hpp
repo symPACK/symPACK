@@ -27,6 +27,7 @@
 #if defined (PROFILE)
 #define TIMER_START(a) 
 #define TIMER_STOP(a) 
+#define scope_timer(b,a)
 #endif
 #endif
 
@@ -198,6 +199,7 @@ namespace LIBCHOLESKY{
 #if defined (PROFILE)
 #define TIMER_START(a) TAU_FSTART(a);
 #define TIMER_STOP(a) TAU_FSTOP(a);
+#define scope_timer(b,a) CTF_scope_timer b(#a)
 #endif
 #endif
 

@@ -2189,7 +2189,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
 
   template <typename T> inline AsyncComms::iterator SupernodalMatrix<T>::WaitIncomingFactors(AsyncComms & cur_incomingRecv, MPI_Status & recv_status, AsyncComms & outgoingSend) {
-    scope_timer(IRECV_MPI);
+    scope_timer(a,IRECV_MPI);
     if(cur_incomingRecv.size()==0){
       return cur_incomingRecv.end();
     }
