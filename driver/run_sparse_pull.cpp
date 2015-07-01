@@ -400,7 +400,7 @@ int main(int argc, char **argv)
   delete logfileptr;
 
   //MPI_Finalize();
-  upcxx::finalize();
+  //upcxx::finalize();
   return 0;
 }
 
