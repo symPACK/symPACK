@@ -1000,6 +1000,7 @@ void SupernodalMatrix2<T>::Dump(){
 
     CommEnv_ = new CommEnvironment(*options.commEnv);
 
+
     //create the mapping
     Int pmapping = options.used_procs(np);
     Int pr = (Int)sqrt((double)pmapping);
@@ -1029,6 +1030,12 @@ void SupernodalMatrix2<T>::Dump(){
     maxIrecv_ = options.maxIrecv;
 
     gMaxIrecv = maxIrecv_;
+
+
+    scheduler_ = new MCTScheduler<std::list<FBTask>::iterator>();
+
+
+
 
     iSize_ = pMat.size;
     Local_ = pMat.GetLocalStructure();
@@ -2046,6 +2053,8 @@ isLindxAllocated_=true;
 
   template <typename T> SupernodalMatrix2<T>::SupernodalMatrix2(){
     CommEnv_=NULL;
+    Mapping_ = NULL;
+    scheduler_ = NULL;
     isGlobStructAllocated_ = false;
     isXlindxAllocated_=false;
     isLindxAllocated_=false;
@@ -2053,6 +2062,8 @@ isLindxAllocated_=true;
 
   template <typename T> SupernodalMatrix2<T>::SupernodalMatrix2(const DistSparseMatrix<T> & pMat, NGCholOptions & options ){
     CommEnv_ = NULL;
+    Mapping_ = NULL;
+    scheduler_ = NULL;
     isGlobStructAllocated_ = false;
     isXlindxAllocated_=false;
     isLindxAllocated_=false;
@@ -2073,6 +2084,10 @@ isLindxAllocated_=true;
 //      delete *it;
 //    }
 #endif
+
+    if(this->scheduler_!=NULL){
+      delete this->scheduler_;
+    }
 
     if(this->Mapping_!=NULL){
       delete this->Mapping_;

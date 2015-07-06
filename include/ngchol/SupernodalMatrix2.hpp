@@ -15,6 +15,7 @@
 #include "ngchol/CommPull.hpp"
 #include "ngchol/Types.hpp"
 #include "ngchol/Task.hpp"
+#include "ngchol/Scheduler.hpp"
 
 #include <upcxx.h>
 
@@ -110,9 +111,9 @@ namespace LIBCHOLESKY{
       IntNumVec SupMembership_;
 
       //TODO Task lists
+      Scheduler<std::list<FBTask>::iterator> * scheduler_;
       std::vector<std::list<FBTask> * > taskLists_;
       std::list<std::list<FBTask>::iterator > readyTasks_;
-      void update_deps(Int src, Int tgt);
       std::list<FBTask>::iterator find_task(Int src, Int tgt);
 
       //Array storing the supernodal update count to a target supernode

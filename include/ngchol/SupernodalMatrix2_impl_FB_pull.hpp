@@ -112,10 +112,10 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
 
   //sort the task queues
   {
-    TASKCOMPARE comp;
+//    TASKCOMPARE comp;
     for(int i = 0; i<taskLists_.size(); ++i){
       if(taskLists_[i] != NULL){
-        taskLists_[i]->sort(comp);
+//        taskLists_[i]->sort(comp);
         //now see if there are some ready tasks
         for(auto taskit = taskLists_[i]->begin(); taskit!=taskLists_[i]->end();taskit++){
           if(taskit->remote_deps==0 && taskit->local_deps==0){
@@ -133,9 +133,8 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
             }
 
 
+            scheduler_->push(taskit);
 
-
-            readyTasks_.push_back(taskit);    
           }
         }
       }
@@ -167,10 +166,11 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   assert(localTaskCount == cnt);
 
   logfileptr->OFS()<<"Ready Tasks: "<<endl;
-  for(auto rtaskit = readyTasks_.begin(); rtaskit!=readyTasks_.end();rtaskit++){
-    auto taskit = *rtaskit;
-    
+  std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
+  while(!tmp.empty()){
+    auto taskit = tmp.top();
     logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
+    tmp.pop();
   }
   logfileptr->OFS()<<endl;
 
@@ -185,17 +185,18 @@ TASKCOMPARE comp;
 while(localTaskCount>0){
   CheckIncomingMessages();
 
-  if(!readyTasks_.empty()){
+  if(!scheduler_->done()){
 //  TIMER_START(SORT_TASK);
 //    readyTasks_.sort(comp);
 //  TIMER_STOP(SORT_TASK);
 
     //Pick a ready task
-    auto taskit = readyTasks_.front();
-    auto rtaskit = readyTasks_.begin();
+    auto taskit = scheduler_->top();
+    scheduler_->pop();
     //auto taskit = *rtaskit;
     //process task
     FBTask & curTask = *taskit;
+//    assert(find(taskLists_[curTask.tgt_snode_id-1]->begin(),taskLists_[curTask.tgt_snode_id-1]->end(),curTask)!=taskLists_[curTask.tgt_snode_id-1]->end());
 #ifdef _DEBUG_PROGRESS_
     logfileptr->OFS()<<"Processing T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") "<<endl;
 #endif
@@ -221,7 +222,6 @@ defaut:
   TIMER_START(REMOVE_TASK);
     //remove task
     taskLists_[curTask.tgt_snode_id-1]->erase(taskit);
-    readyTasks_.erase(rtaskit);
     localTaskCount--;
   TIMER_STOP(REMOVE_TASK);
   }
@@ -458,7 +458,7 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
             }
 
 
-          readyTasks_.push_back(taskit);    
+          scheduler_->push(taskit);    
         }
       }
     }
@@ -662,7 +662,7 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
             }
 
 
-            readyTasks_.push_back(taskit);    
+            scheduler_->push(taskit);    
           }
         }
 
@@ -760,8 +760,7 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(){
               taskit->rank = 0.0;
             }
 
-
-          readyTasks_.push_back(taskit);    
+          scheduler_->push(taskit);    
         }
       }
        
