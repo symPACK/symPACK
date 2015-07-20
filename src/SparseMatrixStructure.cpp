@@ -484,9 +484,6 @@ namespace LIBCHOLESKY{
 void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, IntNumVec & supMembership, IntNumVec & xsuper, PtrVec & xlindx, IdxVec & lindx, IntNumVec & perm){
 
   perm.Resize(size);
-//  for(Int i =1; i<=size; ++i){
-//    perm[i-1]=i;
-//  }
 
   Int nsuper = xsuper.m()-1;
   //Using std datatypes first

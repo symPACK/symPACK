@@ -218,7 +218,7 @@ logfileptr->OFS()<<"Relaxation done"<<endl;
 
 logfileptr->OFS()<<"Symbfact done"<<endl;
 
-#ifdef REFINED_SNODES
+#ifdef REFINED_SNODE
     IntNumVec permRefined;
     //    IntNumVec newPerm(Size());
     Global_.RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
