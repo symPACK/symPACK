@@ -40,7 +40,7 @@ class SparseMatrixStructure{
 
   void GetLColRowCount(ETree & tree, Ordering & aOrder, vector<int> & cc, vector<int> & rc);
   void FindSupernodes(ETree& tree, Ordering & aOrder, vector<int> & cc,vector<int> & supMembership, vector<int> & xsuper, int maxSize = -1);
-  void RefineSupernodes(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx, vector<int> & perm, vector<int> & origPerm, vector<int> & newxsuper);
+  void RefineSupernodes(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx, vector<int> & perm, vector<int> & origPerm);
 
   void RelaxSupernodes(ETree& tree, vector<int> & cc,vector<int> & supMembership, vector<int> & xsuper, int maxSize );
   void SymbolicFactorizationRelaxed(ETree& tree, Ordering & aOrder,const vector<int> & cc,const vector<int> & xsuper,const vector<int> & SupMembership, vector<int64_t> & xlindx, vector<int32_t> & lindx);

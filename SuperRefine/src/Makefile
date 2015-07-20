@@ -8,16 +8,17 @@ PREFIX = ${HOME}/software
 
 #NGCHOL directory
 NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/cholesky
-SPARSELIB_DIR = ${NGCHOL_DIR}/MatrixConverter
-SPARSELIB_INCLUDE = -I${SPARSELIB_DIR}/bebop_util/include -I${SPARSELIB_DIR}/sparse_matrix_converter/include
-INCLUDES          = -I${NGCHOL_DIR}/SuperRefine/include ${SPARSELIB_INCLUDE}
+#SPARSELIB_DIR = ${NGCHOL_DIR}/MatrixConverter
+#SPARSELIB_INCLUDE = -I${SPARSELIB_DIR}/bebop_util/include -I${SPARSELIB_DIR}/sparse_matrix_converter/include
+INCLUDES          = -I${NGCHOL_DIR}/SuperRefine/include 
+#${SPARSELIB_INCLUDE}
 
 GFORTRAN_LIB     = -lgfortran
-SPARSELIB_LIB    = ${SPARSELIB_DIR}/sparse_matrix_converter/libsparse_matrix_converter.a  ${SPARSELIB_DIR}/bebop_util/libbebop_util.a
+#SPARSELIB_LIB    = ${SPARSELIB_DIR}/sparse_matrix_converter/libsparse_matrix_converter.a  ${SPARSELIB_DIR}/bebop_util/libbebop_util.a
 
 
 COMPILE_FLAG   = -O0 -w -g
-LIBS  = ${SPARSELIB_LIB} ${GFORTRAN_LIB}
+LIBS  = ${GFORTRAN_LIB}
 
 
 
@@ -46,7 +47,7 @@ LOADOPTS     = ${PROFILE_FLAG} ${LIBS} -fopenmp
 	sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@;\
 	rm -f $@.$$$$
 
-SRCS_C   = 
+SRCS_C   = iohb.c 
 SRCS_CPP = ETree.cpp SparseMatrixStructure.cpp Ordering.cpp main.cpp 
 SRCS_F   = genmmd.f  mmdelm.f  mmdint.f  mmdnum.f  mmdupd.f  ordmmd.f amdbar.f
 

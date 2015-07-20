@@ -418,7 +418,11 @@ namespace LIBCHOLESKY{
   typedef std::set<int> nodeset;
   typedef std::list<nodeset*> partitions;
   typedef std::vector<nodeset*> vecset;
-void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx, vector<int> & perm,vector<int> & origPerm, vector<int> & newXsuper){
+void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx, vector<int> & perm,vector<int> & origPerm){
+
+#if 0
+vector<int> newXsuper;
+#endif
 
   perm.resize(size);
 
@@ -457,6 +461,8 @@ void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vec
 
 
     partitions::iterator it;
+
+#if 0
     for(it = L.begin();it != L.end(); ++it){
       cerr<<"[ ";
       for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
@@ -465,7 +471,7 @@ void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vec
       cerr<<"] ";
     }
     cerr<<std::endl;
-
+#endif
 
 
 
@@ -546,19 +552,26 @@ void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vec
 
 
   //construct perm
+    pos = 1;
+    for(it = L.begin();it != L.end(); ++it){
+      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
+        perm[*nit-1] = pos++;
+      }
+    }
+
+
+#if 0
     newXsuper.resize(L.size()+1);
     pos = 1;
     int I = 1;
     newXsuper[I-1] = 1;
     for(it = L.begin();it != L.end(); ++it){
       for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
-        perm[*nit-1] = pos++;
+        pos++;
       }
       newXsuper[I]=pos;
       I++;
     }
-
-
 
     for(it = L.begin();it != L.end(); ++it){
       cerr<<"[ ";
@@ -575,7 +588,7 @@ void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vec
       cerr<<newXsuper[i]<<" ";
     }
     cerr<<endl;
-
+#endif
 
 
 

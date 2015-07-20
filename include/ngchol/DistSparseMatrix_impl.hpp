@@ -37,7 +37,7 @@ namespace LIBCHOLESKY{
 
 
 
-  template <class F> void DistSparseMatrix<F>::CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval ){
+  template <class F> void DistSparseMatrix<F>::CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval ,bool onebased){
     int np;
     int iam;
 
@@ -54,9 +54,11 @@ namespace LIBCHOLESKY{
     this->Global_.rowind.Resize(nnz+1);
     std::copy(rowidx,rowidx+nnz+1,this->Global_.rowind.Data());
 
+if(!onebased){
     //move to 1 based indices
     for(int i=0;i<this->Global_.colptr.m();i++){ ++this->Global_.colptr[i]; }
     for(int i=0;i<this->Global_.rowind.m();i++){ ++this->Global_.rowind[i]; }
+}
 
     this->globalAllocated = true;
 

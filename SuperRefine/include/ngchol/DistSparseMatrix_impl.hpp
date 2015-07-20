@@ -33,12 +33,12 @@ namespace LIBCHOLESKY{
 
 
 
-  template <class F> void DistSparseMatrix<F>::CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval ){
+  template <class F> void DistSparseMatrix<F>::CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval, bool onebased ){
     int np;
     int iam;
 
-      MPI_Comm_size(comm,&np);
-      MPI_Comm_rank(comm, &iam);
+    MPI_Comm_size(comm,&np);
+    MPI_Comm_rank(comm, &iam);
 
     //fill global structure info as we have it directly
     this->size = n; 
@@ -51,8 +51,10 @@ namespace LIBCHOLESKY{
     std::copy(rowidx,rowidx+nnz+1,&this->Global_.rowind[0]);
 
     //move to 1 based indices
-    for(int i=0;i<this->Global_.colptr.size();i++){ ++this->Global_.colptr[i]; }
-    for(int i=0;i<this->Global_.rowind.size();i++){ ++this->Global_.rowind[i]; }
+    if(!onebased){
+      for(int i=0;i<this->Global_.colptr.size();i++){ ++this->Global_.colptr[i]; }
+      for(int i=0;i<this->Global_.rowind.size();i++){ ++this->Global_.rowind[i]; }
+    }
 
     this->globalAllocated = true;
 
@@ -76,21 +78,26 @@ namespace LIBCHOLESKY{
 
     // resize rowind and nzval appropriately 
     this->Local_.rowind.resize( this->Local_.nnz );
-    this->nzvalLocal.resize ( this->Local_.nnz );
+
+    if(nzval!=NULL){
+      this->nzvalLocal.resize ( this->Local_.nnz );
+    }
 
     //Read my row indices
     int prevRead = 0;
     int numRead = 0;
     for( int ip = 0; ip <iam; ip++ ){	
       prevRead += this->Global_.colptr[ip*numColFirst + numColLocalVec[ip]]
-        - this->Global_.colptr[ip*numColFirst];
+      - this->Global_.colptr[ip*numColFirst];
     }
 
     numRead = this->Global_.colptr[iam*numColFirst + numColLocalVec[iam]] - this->Global_.colptr[iam*numColFirst];
     std::copy(&this->Global_.rowind[prevRead],&this->Global_.rowind[prevRead+numRead],&this->Local_.rowind[0]);
 
-    //copy appropriate nnz values
-    std::copy(&((const F*)nzval)[prevRead],&((const F*)nzval)[prevRead+numRead],&this->nzvalLocal[0]);
+    if(nzval!=NULL){
+      //copy appropriate nnz values
+      std::copy(&((const F*)nzval)[prevRead],&((const F*)nzval)[prevRead+numRead],&this->nzvalLocal[0]);
+    }
   }
 
 
