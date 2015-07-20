@@ -13,12 +13,14 @@ namespace LIBCHOLESKY{
   enum FactorizationType {FANOUT,FANBOTH};
   enum LoadBalanceType {NOLB,NNZ,NCOLS,FLOPS,SUBCUBE,SUBCUBE_NNZ};
   enum OrderingType {MMD,AMD};
+  enum SchedulerType {DL,MCT};
   class NGCholOptions{
     public:
       MappingType mappingType;
       FactorizationType factorization;
       LoadBalanceType load_balance;
       OrderingType ordering;
+      SchedulerType scheduler;
       Int maxIsend;
       Int maxIrecv;
       Int maxSnode;
@@ -43,6 +45,7 @@ namespace LIBCHOLESKY{
         mappingType = MODWRAP2D;
         factorization = FANBOTH;
         load_balance = NNZ;
+        scheduler = DL;
         maxIsend = 0;
         maxIrecv=0;
         maxSnode=-1;

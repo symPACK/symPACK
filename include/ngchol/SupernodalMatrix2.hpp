@@ -39,6 +39,7 @@ namespace LIBCHOLESKY{
 
 
     public:
+      upcxx::team * team_;
 
       //Constructors
       SupernodalMatrix2();
@@ -114,7 +115,7 @@ namespace LIBCHOLESKY{
       Scheduler<std::list<FBTask>::iterator> * scheduler_;
       std::vector<std::list<FBTask> * > taskLists_;
       std::list<std::list<FBTask>::iterator > readyTasks_;
-      std::list<FBTask>::iterator find_task(Int src, Int tgt);
+      std::list<FBTask>::iterator find_task(Int src, Int tgt, TaskType type );
 
       //Array storing the supernodal update count to a target supernode
       std::vector<Int> UpdateCount_;
@@ -149,6 +150,7 @@ namespace LIBCHOLESKY{
       TempUpdateBuffers<T> tmpBufs;
 
 
+      Int localTaskCount_;
 
 
       protected:
@@ -173,6 +175,7 @@ namespace LIBCHOLESKY{
       void FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv, std::vector<Int> & LocalAggregates);
 
       void FBFactorizationTask(FBTask & curTask, Int iLocalI);
+      void FBAggregationTask(FBTask & curTask, Int iLocalI);
       void FBUpdateTask(FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesDone,std::vector< SuperNode2<T> * > & aggVectors,  std::vector<Int> & FactorsToRecv, std::vector<Int> & AggregatesToRecv,Int & localTaskCount);
 
       //Solve related routines

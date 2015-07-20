@@ -587,6 +587,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
 #endif
 
 
+            logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" on P"<<iTarget<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
 
                 //if(curUpdate.tgt_snode_id==14){logfileptr->OFS()<<*tgt_aggreg<<endl;}
 

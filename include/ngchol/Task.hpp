@@ -21,20 +21,37 @@ namespace LIBCHOLESKY{
     double rank;
     //list of incoming messages
     std::list<IncomingMessage*> data;
-    FBTask():rank(-1),remote_deps(0),local_deps(0){}
+    FBTask():rank(-1.0),remote_deps(0),local_deps(0){}
+
+    void update_rank(){
+      if(rank==-1.0 || 1){
+            if(type==FACTOR){
+              //taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
+              rank = 4.0;
+            }
+            else if(type == AGGREGATE){
+              rank = 2.0;
+            }
+            else if(type == UPDATE){
+              rank = 1.0;
+            }
+      }
+    }
+
   };
 
   struct FBTaskCompare{
     bool operator()(const FBTask & a,const FBTask & b) const
     {
+      bool retval = false;
 
       bool b_factor = b.tgt_snode_id == b.src_snode_id;
 
 
       //use the ranks first
-      if(a.rank>=0 && b.rank>=0){
-        return a.rank<b.rank;
-      }
+//      if(a.rank>=0 && b.rank>=0){
+//        return a.rank<b.rank;
+//      }
     
 
 
@@ -46,22 +63,19 @@ namespace LIBCHOLESKY{
 
       //use the classic priorities otherwise
       if(a.tgt_snode_id>b.tgt_snode_id){
-        return true;
+//        return true;
+        retval = true;
       }
       else if(a.tgt_snode_id==b.tgt_snode_id){
-        return a.src_snode_id>b.src_snode_id;
+//        return a.src_snode_id>b.src_snode_id;
+        retval = a.src_snode_id>b.src_snode_id;
       }
       else{
-        return false;
+//        return false;
+        retval = false;
       }
 
-//      }
-//      else if (a_factor){
-//        if(a.tgt_snode_id
-//      }
-//      else if (b_factor){
-//
-//      }
+      return retval;
     }
     bool operator()(const std::list<FBTask>::iterator & a,const std::list<FBTask>::iterator & b) const
     {

@@ -410,7 +410,10 @@
       }
     }
 #endif
-      if(first_pivot_idx<0){gdb_lock();}
+      if(first_pivot_idx<0){
+        logfileptr->OFS()<<"LOCK 1: first_pivot_idx<0"<<endl;
+        gdb_lock();
+      }
       assert(first_pivot_idx>=0);
   }
 
@@ -569,7 +572,10 @@
             Int src_offset = blk_desc.Offset + (row - blk_desc.GIndex)*src_snode_size;
 
             Int tgt_blkidx = FindBlockIdx(row);
-if(tgt_blkidx==-1){gdb_lock();}
+if(tgt_blkidx==-1){
+        logfileptr->OFS()<<"LOCK 2: tgt_blkidx=-1"<<endl;
+gdb_lock();
+}
             assert(tgt_blkidx!=-1);
             NZBlockDesc2 & tgt_desc = GetNZBlockDesc(tgt_blkidx);
             Int tgt_offset = tgt_desc.Offset + (row - tgt_desc.GIndex)*tgt_snode_size;
@@ -844,7 +850,10 @@ if(tgt_blkidx==-1){gdb_lock();}
             Int row = cur_src_fr;
             while(row<=cur_src_lr){
               Int tgt_blk_idx = FindBlockIdx(row);
-if(tgt_blk_idx<0){src_snode.DumpITree(); DumpITree(); gdb_lock();}
+if(tgt_blk_idx<0){src_snode.DumpITree(); DumpITree(); 
+
+        logfileptr->OFS()<<"LOCK 3: tgt_blk_idx<0"<<endl;
+gdb_lock();}
               assert(tgt_blk_idx>=0);
               NZBlockDesc2 & cur_tgt_desc = GetNZBlockDesc(tgt_blk_idx);
               Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + NRows(tgt_blk_idx)-1);
@@ -877,7 +886,9 @@ if(tgt_blk_idx<0){src_snode.DumpITree(); DumpITree(); gdb_lock();}
             Int row = cur_src_fr;
             while(row<=cur_src_lr){
               Int tgt_blk_idx = FindBlockIdx(row);
-if(tgt_blk_idx<0){gdb_lock();}
+if(tgt_blk_idx<0){
+        logfileptr->OFS()<<"LOCK 4: tgt_blk_idx<0"<<endl;
+gdb_lock();}
               assert(tgt_blk_idx>=0);
               NZBlockDesc2 & cur_tgt_desc = GetNZBlockDesc(tgt_blk_idx);
               Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + NRows(tgt_blk_idx)-1);
@@ -1099,7 +1110,10 @@ if(tgt_blk_idx<0){gdb_lock();}
     
     Int nzblk_cnt = snode.NZBlockCnt() - first_blkidx;
     T* nzval_ptr = snode.GetNZval(nzblk_ptr->Offset) + local_first_row*snode.Size();
-if(local_first_row!=0){gdb_lock();}
+if(local_first_row!=0){
+
+        logfileptr->OFS()<<"LOCK 5: serialize"<<endl;
+gdb_lock();}
 
     size_t size = (char*)(nzblk_ptr+1)-(char*)nzval_ptr;
     buffer.clear();

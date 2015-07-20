@@ -1032,8 +1032,17 @@ void SupernodalMatrix2<T>::Dump(){
     gMaxIrecv = maxIrecv_;
 
 
-    scheduler_ = new MCTScheduler<std::list<FBTask>::iterator>();
-
+    switch(options_.scheduler){
+      case DL:
+        scheduler_ = new DLScheduler<std::list<FBTask>::iterator>();
+        break;
+      case MCT:
+        scheduler_ = new MCTScheduler<std::list<FBTask>::iterator>();
+        break;
+      default:
+        scheduler_ = new DLScheduler<std::list<FBTask>::iterator>();
+        break;
+    }
 
 
 

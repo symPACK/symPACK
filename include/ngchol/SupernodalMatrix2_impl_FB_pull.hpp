@@ -4,6 +4,9 @@
 #define TASKCOMPARE  FBTaskCompare
 //#define TASKCOMPARE  MCTTaskCompare
 
+#define SEPARATE_AGGREG
+#define DYN_TASK_CREATE
+
 template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   TIMER_START(FACTORIZATION_FB);
 
@@ -15,13 +18,11 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
 
   incomingRecvCnt_ = 0;
 
-   
+
   std::vector<Int> UpdatesToDo;
   std::vector<Int> AggregatesToRecv;
   std::vector<Int> LocalAggregates;
   FBGetUpdateCount(UpdatesToDo,AggregatesToRecv,LocalAggregates);
-  xlindx_.Clear();
-  lindx_.Clear();
   std::vector<Int> AggregatesDone(Xsuper_.m(),I_ZERO);
 
   //tmp buffer space
@@ -46,7 +47,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   //resize taskLists_
   taskLists_.resize(Xsuper_.m(),NULL);
 
-  Int localTaskCount =0;
+  localTaskCount_ =0;
   for(Int I = 1; I<Xsuper_.m(); ++I){
     Int iOwner = Mapping_->Map(I-1,I-1);
 
@@ -59,6 +60,10 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
       curUpdate.remote_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
       curUpdate.local_deps = LocalAggregates[curUpdate.tgt_snode_id-1];
 
+      {
+        SuperNode2<T> & src_snode = *snodeLocal(curUpdate.src_snode_id);
+        curUpdate.rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
+      }
 
       //create the list if needed
       if(taskLists_[I-1] == NULL){
@@ -66,22 +71,25 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
       }
 
       taskLists_[I-1]->push_back(curUpdate);
-      localTaskCount++;
+      localTaskCount_++;
 
-//      //task might be ready
-//      auto taskit = --taskLists_[I-1]->end();
-//      if(taskit->remote_deps==0 && taskit->local_deps==0){
-//        readyTasks_.push_back(taskit);    
-//      }
+      //      //task might be ready
+      //      auto taskit = --taskLists_[I-1]->end();
+      //      if(taskit->remote_deps==0 && taskit->local_deps==0){
+      //        readyTasks_.push_back(taskit);    
+      //      }
 
     }
 
-
-      //TODO Update tasks receiving REMOTE factors need only the FIRST task
+    //TODO create tasks only if local factor
+    //TODO Update tasks receiving REMOTE factors need only the FIRST task
+#ifdef DYN_TASK_CREATE
+    if(iam==iOwner){
+#endif
       Int J = -1;
       while( (J=FBUpdate(I,J))!= -1 ){
         FBTask curUpdate;
-        curUpdate.type=AGGREGATE;
+        curUpdate.type=UPDATE;
         curUpdate.src_snode_id = I;
         curUpdate.tgt_snode_id = J;
 
@@ -101,38 +109,34 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
           taskLists_[J-1]=new std::list<FBTask>();
         }
         taskLists_[J-1]->push_back(curUpdate);
-        localTaskCount++;
+        localTaskCount_++;
 
         //create only one task if I don't own the factor
         if(iam!=iOwner){
           break;
         }
       }
+#ifdef DYN_TASK_CREATE
+    }
+#endif
   }
+
+  xlindx_.Clear();
+  lindx_.Clear();
 
   //sort the task queues
   {
-//    TASKCOMPARE comp;
+    TASKCOMPARE comp;
     for(int i = 0; i<taskLists_.size(); ++i){
       if(taskLists_[i] != NULL){
-//        taskLists_[i]->sort(comp);
+        //        taskLists_[i]->sort(comp);
         //now see if there are some ready tasks
         for(auto taskit = taskLists_[i]->begin(); taskit!=taskLists_[i]->end();taskit++){
           if(taskit->remote_deps==0 && taskit->local_deps==0){
 
 
             //compute cost 
-            if(taskit->type==FACTOR){
-              //TODO this is the factorization cost only. There is also the aggregation cost to take into account
-              SuperNode2<T> & src_snode = *snodeLocal(taskit->src_snode_id);
-              taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
-            }
-            else if(taskit->type == AGGREGATE){
-              //TODO loop through the source snode and compute cost for ONE target or ALL targets (if source is remote)
-              taskit->rank = 0.0;
-            }
-
-
+            taskit->update_rank();
             scheduler_->push(taskit);
 
           }
@@ -154,16 +158,16 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   for(Int I = 1; I<Xsuper_.m(); ++I){
     logfileptr->OFS()<<I<<": "<<endl;
     if(taskLists_[I-1]!=NULL){
-    for(auto taskit = taskLists_[I-1]->begin();
-        taskit!=taskLists_[I-1]->end();
-        taskit++){
-      logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
-      cnt++;
-    }
+      for(auto taskit = taskLists_[I-1]->begin();
+          taskit!=taskLists_[I-1]->end();
+          taskit++){
+        logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
+        cnt++;
+      }
     }
     logfileptr->OFS()<<endl;
   }
-  assert(localTaskCount == cnt);
+  assert(localTaskCount_ == cnt);
 
   logfileptr->OFS()<<"Ready Tasks: "<<endl;
   std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
@@ -179,90 +183,99 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
 
 #if 1
 
-bool doPrint = true;
-Int prevCnt = -1;
-TASKCOMPARE comp;
-while(localTaskCount>0){
-  CheckIncomingMessages();
+  bool doPrint = true;
+  Int prevCnt = -1;
+  TASKCOMPARE comp;
+  while(localTaskCount_>0){
+    //  if(scheduler_->done()){
+    CheckIncomingMessages();
+    //  }
 
-  if(!scheduler_->done()){
-//  TIMER_START(SORT_TASK);
-//    readyTasks_.sort(comp);
-//  TIMER_STOP(SORT_TASK);
+    if(!scheduler_->done()){
+      //  TIMER_START(SORT_TASK);
+      //    readyTasks_.sort(comp);
+      //  TIMER_STOP(SORT_TASK);
 
-    //Pick a ready task
-    auto taskit = scheduler_->top();
-    scheduler_->pop();
-    //auto taskit = *rtaskit;
-    //process task
-    FBTask & curTask = *taskit;
-//    assert(find(taskLists_[curTask.tgt_snode_id-1]->begin(),taskLists_[curTask.tgt_snode_id-1]->end(),curTask)!=taskLists_[curTask.tgt_snode_id-1]->end());
+      //Pick a ready task
+      auto taskit = scheduler_->top();
+      scheduler_->pop();
+      //auto taskit = *rtaskit;
+      //process task
+      FBTask & curTask = *taskit;
+      //    assert(find(taskLists_[curTask.tgt_snode_id-1]->begin(),taskLists_[curTask.tgt_snode_id-1]->end(),curTask)!=taskLists_[curTask.tgt_snode_id-1]->end());
 #ifdef _DEBUG_PROGRESS_
-    logfileptr->OFS()<<"Processing T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") "<<endl;
+      logfileptr->OFS()<<"Processing T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") "<<endl;
 #endif
-    Int iLocalTGT = snodeLocalIndex(curTask.tgt_snode_id);
-    switch(curTask.type){
-      case FACTOR:
-        {
-          FBFactorizationTask(curTask, iLocalTGT);
-        }
-        break;
-      case AGGREGATE:
-        {
-          FBUpdateTask(curTask, UpdatesToDo, AggregatesDone,aggVectors, AggregatesToRecv, AggregatesToRecv,localTaskCount);
-        }
-        break;
+      Int iLocalTGT = snodeLocalIndex(curTask.tgt_snode_id);
+      switch(curTask.type){
+        case FACTOR:
+          {
+            FBFactorizationTask(curTask, iLocalTGT);
+          }
+          break;
+        case AGGREGATE:
+          {
+            FBAggregationTask(curTask, iLocalTGT);
+          }
+          break;
+        case UPDATE:
+          {
+            FBUpdateTask(curTask, UpdatesToDo, AggregatesDone,aggVectors, AggregatesToRecv, AggregatesToRecv,localTaskCount_);
+          }
+          break;
 defaut:
-        {
-          abort();
-        }
-        break;
-    }
+          {
+            abort();
+          }
+          break;
+      }
 
-  TIMER_START(REMOVE_TASK);
-    //remove task
-    taskLists_[curTask.tgt_snode_id-1]->erase(taskit);
-    localTaskCount--;
-  TIMER_STOP(REMOVE_TASK);
-  }
+      TIMER_START(REMOVE_TASK);
+      //remove task
+      taskLists_[curTask.tgt_snode_id-1]->erase(taskit);
+      localTaskCount_--;
+      TIMER_STOP(REMOVE_TASK);
+    }
 
 #if 0
-  //dump what still needs to be done
-  if(localTaskCount==prevCnt){
-    if(doPrint){
-    logfileptr->OFS()<<"=================================="<<endl;
-    logfileptr->OFS()<<"Still to do: "<<endl;
-    Int cnt = 0;
-    for(Int I = 1; I<Xsuper_.m(); ++I){
-      logfileptr->OFS()<<I<<": "<<endl;
-      if(taskLists_[I-1]!=NULL){
-        for(auto taskit = taskLists_[I-1]->begin();
-            taskit!=taskLists_[I-1]->end();
-            taskit++){
-          logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
-          cnt++;
+    //dump what still needs to be done
+    if(localTaskCount==prevCnt){
+      if(doPrint){
+        logfileptr->OFS()<<"=================================="<<endl;
+        logfileptr->OFS()<<"Still to do: "<<endl;
+        Int cnt = 0;
+        for(Int I = 1; I<Xsuper_.m(); ++I){
+          logfileptr->OFS()<<I<<": "<<endl;
+          if(taskLists_[I-1]!=NULL){
+            for(auto taskit = taskLists_[I-1]->begin();
+                taskit!=taskLists_[I-1]->end();
+                taskit++){
+              logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
+              cnt++;
+            }
+          }
+          logfileptr->OFS()<<endl;
         }
+        logfileptr->OFS()<<"=================================="<<endl;
+        if(cnt==0){
+          logfileptr->OFS()<<localTaskCount<<endl;
+          break;
+        }
+        doPrint = false;
       }
-      logfileptr->OFS()<<endl;
     }
-    logfileptr->OFS()<<"=================================="<<endl;
-    if(cnt==0){
-      logfileptr->OFS()<<localTaskCount<<endl;
-      break;
+    else{
+      doPrint = true;
     }
-    doPrint = false;
-    }
-  }
-  else{
-    doPrint = true;
-  }
 #endif
-  prevCnt=localTaskCount;
-}
+    prevCnt=localTaskCount_;
+  }
 #endif
 
-upcxx::async_wait();
-upcxx::barrier();
+  TIMER_START(BARRIER);
+  upcxx::async_wait();
+  team_->barrier();
+  TIMER_STOP(BARRIER);
 
   tmpBufs.Clear();
 
@@ -341,10 +354,10 @@ template<typename T> Int SupernodalMatrix2<T>::FBUpdate(Int I,Int prevJ){
 
     if(iUpdater == iam && J>I){
       //if(iUpdater==iOwner){
-        if(J>prevJ){
-          firstUpdate = J;
-          break;
-        }
+      if(J>prevJ){
+        firstUpdate = J;
+        break;
+      }
       //}
       //else{
       //  if(J>prevJ){
@@ -356,6 +369,70 @@ template<typename T> Int SupernodalMatrix2<T>::FBUpdate(Int I,Int prevJ){
   }
 
   return firstUpdate;
+}
+
+
+template <typename T> void SupernodalMatrix2<T>::FBAggregationTask(FBTask & curTask, Int iLocalI){
+  TIMER_START(FB_AGGREGATION_TASK);
+
+#ifdef _DEBUG_PROGRESS_
+  logfileptr->OFS()<<"Processing T_AGGREG("<<curTask.src_snode_id<<","<<curTask.tgt_snode_id<<") "<<endl;
+#endif
+  Int src_snode_id = curTask.src_snode_id;
+  Int tgt_snode_id = curTask.tgt_snode_id;
+  Int I = src_snode_id;
+  SuperNode2<T> & src_snode = *LocalSupernodes_[iLocalI -1];
+  Int src_first_col = src_snode.FirstCol();
+  Int src_last_col = src_snode.LastCol();
+
+#ifdef _DEBUG_PROGRESS_
+  logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
+#endif
+
+
+  //Applying aggregates
+  //TODO we might have to create a third UPDATE type of task
+  //process them one by one
+  assert(curTask.data.size()==1);
+  for(auto msgit = curTask.data.begin();msgit!=curTask.data.end();msgit++){
+    IncomingMessage * msgPtr = *msgit;
+    assert(msgPtr->IsDone());
+    char* dataPtr = msgPtr->GetLocalPtr();
+
+    SuperNode2<T> dist_src_snode(dataPtr,msgPtr->Size());
+    dist_src_snode.InitIdxToBlk();
+
+    src_snode.Aggregate(dist_src_snode);
+
+    if(msgPtr->IsLocal()){
+          msgPtr->DeallocRemote();
+    }
+
+    delete msgPtr;
+  }
+
+
+  //need to update dependencies of the factorization task
+  auto taskit = find_task(tgt_snode_id,tgt_snode_id,FACTOR);
+  taskit->remote_deps--;
+
+  if(taskit->remote_deps==0 && taskit->local_deps==0){
+
+    //    //compute cost 
+    //    if(taskit->type==FACTOR){
+    //      //TODO this is the factorization cost only. There is also the aggregation cost to take into account
+    //      SuperNode2<T> & src_snode = *snodeLocal(taskit->src_snode_id);
+    //      taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
+    //    }
+    //    else if(taskit->type == UPDATE){
+    //      //TODO loop through the source snode and compute cost for ONE target or ALL targets (if source is remote)
+    //      taskit->rank = 0.0;
+    //    }
+    //compute cost 
+    taskit->update_rank();
+    scheduler_->push(taskit);    
+  }
+  TIMER_STOP(FB_AGGREGATION_TASK);
 }
 
 
@@ -374,16 +451,16 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
   logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 #endif
 
-
+#ifndef SEPARATE_AGGREG
   //Applying aggregates
   TIMER_START(APPLY_AGGREGATES);
-  //TODO we might have to create a third AGGREGATE type of task
+  //TODO we might have to create a third UPDATE type of task
   for(auto msgit = curTask.data.begin();msgit!=curTask.data.end();msgit++){
     IncomingMessage * msgPtr = *msgit;
     assert(msgPtr->IsDone());
     char* dataPtr = msgPtr->GetLocalPtr();
 
-//if( msgPtr->meta.src == 84  && msgPtr->meta.tgt == 86 ){gdb_lock();}
+    //if( msgPtr->meta.src == 84  && msgPtr->meta.tgt == 86 ){gdb_lock();}
 
     SuperNode2<T> dist_src_snode(dataPtr,msgPtr->Size());
     dist_src_snode.InitIdxToBlk();
@@ -394,6 +471,7 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
     delete msgPtr;
   }
   TIMER_STOP(APPLY_AGGREGATES);
+#endif
 
 #ifdef _DEBUG_PROGRESS_
   logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
@@ -404,65 +482,67 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
   TIMER_STOP(FACTOR_PANEL);
 
   //Sending factors and update local tasks
-    //Send my factor to my ancestors. 
-    BolNumVec is_factor_sent(np);
-    SetValue(is_factor_sent,false);
+  //Send my factor to my ancestors. 
+  BolNumVec is_factor_sent(np);
+  SetValue(is_factor_sent,false);
 
-    SnodeUpdate curUpdate;
-    TIMER_START(FIND_UPDATED_ANCESTORS);
-    while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-      Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode.Id()-1);
+  SnodeUpdate curUpdate;
+  TIMER_START(FIND_UPDATED_ANCESTORS);
+  while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
+    Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode.Id()-1);
 
-      if(iTarget != iam){
-        if(!is_factor_sent[iTarget]){
-          MsgMetadata meta;
-         
-//if(curUpdate.tgt_snode_id==29 && curUpdate.src_snode_id==28){gdb_lock(0);}
-          //TODO Replace all this by a Serialize function
-          NZBlockDesc2 & nzblk_desc = src_snode.GetNZBlockDesc(curUpdate.blkidx);
-          Int local_first_row = curUpdate.src_first_row - nzblk_desc.GIndex;
-    Int nzblk_cnt = src_snode.NZBlockCnt() - curUpdate.blkidx;
-    Int nzval_cnt_ = src_snode.Size()*(src_snode.NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
-    T* nzval_ptr = src_snode.GetNZval(nzblk_desc.Offset) + local_first_row*src_snode.Size();
+    if(iTarget != iam){
+      if(!is_factor_sent[iTarget]){
+        MsgMetadata meta;
 
-          upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
-          //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
-          
-          meta.src = curUpdate.src_snode_id;
-          meta.tgt = curUpdate.tgt_snode_id;
-          meta.GIndex = curUpdate.src_first_row;
+        //if(curUpdate.tgt_snode_id==29 && curUpdate.src_snode_id==28){gdb_lock(0);}
+        //TODO Replace all this by a Serialize function
+        NZBlockDesc2 & nzblk_desc = src_snode.GetNZBlockDesc(curUpdate.blkidx);
+        Int local_first_row = curUpdate.src_first_row - nzblk_desc.GIndex;
+        Int nzblk_cnt = src_snode.NZBlockCnt() - curUpdate.blkidx;
+        Int nzval_cnt_ = src_snode.Size()*(src_snode.NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
+        T* nzval_ptr = src_snode.GetNZval(nzblk_desc.Offset) + local_first_row*src_snode.Size();
 
-          char * last_byte_ptr = (char*)&nzblk_desc + sizeof(NZBlockDesc2);
-          size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
-          signal_data(sendPtr, msgSize, iTarget, meta);
-          is_factor_sent[iTarget] = true;
-        }
-      }
-      else{
-        //Update local tasks
-        //find task corresponding to curUpdate
+        upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
+        //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
 
-        auto taskit = find_task(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
-        taskit->local_deps--;
-        if(taskit->remote_deps==0 && taskit->local_deps==0){
+        //Send factor 
+        meta.src = curUpdate.src_snode_id;
+        meta.tgt = curUpdate.tgt_snode_id;
+        meta.GIndex = curUpdate.src_first_row;
 
-            //compute cost 
-            if(taskit->type==FACTOR){
-              //TODO this is the factorization cost only. There is also the aggregation cost to take into account
-              SuperNode2<T> & src_snode = *snodeLocal(taskit->src_snode_id);
-              taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
-            }
-            else if(taskit->type == AGGREGATE){
-              //TODO loop through the source snode and compute cost for ONE target or ALL targets (if source is remote)
-              taskit->rank = 0.0;
-            }
-
-
-          scheduler_->push(taskit);    
-        }
+        char * last_byte_ptr = (char*)&nzblk_desc + sizeof(NZBlockDesc2);
+        size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
+        signal_data(sendPtr, msgSize, iTarget, meta);
+        is_factor_sent[iTarget] = true;
       }
     }
-    TIMER_STOP(FIND_UPDATED_ANCESTORS);
+    else{
+      //Update local tasks
+      //find task corresponding to curUpdate
+
+      auto taskit = find_task(curUpdate.src_snode_id,curUpdate.tgt_snode_id,UPDATE);
+      taskit->local_deps--;
+      if(taskit->remote_deps==0 && taskit->local_deps==0){
+
+        //            //compute cost 
+        //            if(taskit->type==FACTOR){
+        //              //TODO this is the factorization cost only. There is also the aggregation cost to take into account
+        //              SuperNode2<T> & src_snode = *snodeLocal(taskit->src_snode_id);
+        //              taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
+        //            }
+        //            else if(taskit->type == UPDATE){
+        //              //TODO loop through the source snode and compute cost for ONE target or ALL targets (if source is remote)
+        //              taskit->rank = 0.0;
+        //            }
+
+        //compute cost 
+        taskit->update_rank();
+        scheduler_->push(taskit);    
+      }
+    }
+  }
+  TIMER_STOP(FIND_UPDATED_ANCESTORS);
 
 
 
@@ -470,19 +550,19 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
 }
 
 
-template <typename T> std::list<FBTask>::iterator SupernodalMatrix2<T>::find_task(Int src, Int tgt){
-TIMER_START(FB_FIND_TASK);
-        //find task corresponding to curUpdate
-        auto taskit = taskLists_[tgt-1]->begin();
-        for(;
-            taskit!=taskLists_[tgt-1]->end();
-            taskit++){
-          if(taskit->src_snode_id==src && taskit->tgt_snode_id==tgt){
-            break;
-          }
-        }
-TIMER_STOP(FB_FIND_TASK);
-        return taskit;
+template <typename T> std::list<FBTask>::iterator SupernodalMatrix2<T>::find_task(Int src, Int tgt, TaskType type ){
+  TIMER_START(FB_FIND_TASK);
+  //find task corresponding to curUpdate
+  auto taskit = taskLists_[tgt-1]->begin();
+  for(;
+      taskit!=taskLists_[tgt-1]->end();
+      taskit++){
+    if(taskit->src_snode_id==src && taskit->tgt_snode_id==tgt && taskit->type==type){
+      break;
+    }
+  }
+  TIMER_STOP(FB_FIND_TASK);
+  return taskit;
 }
 
 template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesDone,std::vector< SuperNode2<T> * > & aggVectors,  std::vector<Int> & FactorsToRecv, std::vector<Int> & AggregatesToRecv,Int & localTaskCount)
@@ -524,14 +604,6 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
       //size_t read_bytes = Deserialize(dataPtr,*cur_src_snode);
     }
 
-
-
-
-
-//    cur_src_snode = FBRecvFactor(curTask,src_blocks,cur_incomingRecv,it,FactorsToRecv);
-
-
-
     //Update everything src_snode_id own with that factor
     //Update the ancestors
     SnodeUpdate curUpdate;
@@ -558,18 +630,9 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
         }
         else{
           //Check if src_snode_id already have an aggregate vector
-          if(AggregatesDone[curUpdate.tgt_snode_id-1]==0){
+          if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==NULL){
             //use number of rows below factor as initializer
             Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
-//            Int blkidx = cur_src_snode->FindBlockIdx(Xsuper_[curUpdate.tgt_snode_id-1]);
-//            if(blkidx < cur_src_snode->NZBlockCnt()){
-//
-//              Int blkidx2 = cur_src_snode->FindBlockIdx(Xsuper_[curUpdate.tgt_snode_id]-1);
-//              if(blkidx!=blkidx2){
-//              }
-//
-//            }
-
 
             aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode2<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
           }
@@ -586,7 +649,7 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
 
 
         --UpdatesToDo[curUpdate.tgt_snode_id-1];
-        ++AggregatesDone[curUpdate.tgt_snode_id-1];
+        //++AggregatesDone[curUpdate.tgt_snode_id-1];
 #ifdef _DEBUG_
         logfileptr->OFS()<<UpdatesToDo(curUpdate.tgt_snode_id-1)<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
@@ -604,7 +667,7 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
             MsgMetadata meta;
 
 
-//if(curUpdate.tgt_snode_id==86 && curUpdate.src_snode_id==84){gdb_lock();}
+            //if(curUpdate.tgt_snode_id==86 && curUpdate.src_snode_id==84){gdb_lock();}
 
             NZBlockDesc2 & nzblk_desc = tgt_aggreg->GetNZBlockDesc(0);
             T* nzval_ptr = tgt_aggreg->GetNZval(0);
@@ -614,6 +677,7 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
             meta.tgt = curUpdate.tgt_snode_id;
             meta.GIndex = nzblk_desc.GIndex;
 
+            //            logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" on P"<<iTarget<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
 
             upcxx::global_ptr<char> sendPtr = tgt_aggreg->GetGlobalPtr(meta.GIndex);
             //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
@@ -630,16 +694,16 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
           taskLists_[curUpdate.tgt_snode_id-1]->erase(taskit);
           localTaskCount--;
 
-//          for(auto taskit = taskLists_[curUpdate.tgt_snode_id-1]->begin();
-//              taskit!=taskLists_[curUpdate.tgt_snode_id-1]->end();
-//              taskit++){
-//            if(taskit->src_snode_id==curUpdate.src_snode_id
-//                && taskit->tgt_snode_id==curUpdate.tgt_snode_id){
-//              taskLists_[curUpdate.tgt_snode_id-1]->erase(taskit); 
-//              localTaskCount--; 
-//              break;
-//            }
-//          }
+          //          for(auto taskit = taskLists_[curUpdate.tgt_snode_id-1]->begin();
+          //              taskit!=taskLists_[curUpdate.tgt_snode_id-1]->end();
+          //              taskit++){
+          //            if(taskit->src_snode_id==curUpdate.src_snode_id
+          //                && taskit->tgt_snode_id==curUpdate.tgt_snode_id){
+          //              taskLists_[curUpdate.tgt_snode_id-1]->erase(taskit); 
+          //              localTaskCount--; 
+          //              break;
+          //            }
+          //          }
 
         }
 #endif
@@ -647,21 +711,21 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
         if(iTarget == iam)
         {
           //update the dependency of the factorization
-          auto taskit = find_task(curUpdate.tgt_snode_id,curUpdate.tgt_snode_id);
+          auto taskit = find_task(curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,FACTOR);
           taskit->local_deps--;
           if(taskit->remote_deps==0 && taskit->local_deps==0){
+            //            //compute cost 
+            //            if(taskit->type==FACTOR){
+            //              //TODO this is the factorization cost only. There is also the aggregation cost to take into account
+            //              SuperNode2<T> & src_snode = *snodeLocal(taskit->src_snode_id);
+            //              taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
+            //            }
+            //            else if(taskit->type == UPDATE){
+            //              //TODO loop through the source snode and compute cost for ONE target or ALL targets (if source is remote)
+            //              taskit->rank = 0.0;
+            //            }
             //compute cost 
-            if(taskit->type==FACTOR){
-              //TODO this is the factorization cost only. There is also the aggregation cost to take into account
-              SuperNode2<T> & src_snode = *snodeLocal(taskit->src_snode_id);
-              taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
-            }
-            else if(taskit->type == AGGREGATE){
-              //TODO loop through the source snode and compute cost for ONE target or ALL targets (if source is remote)
-              taskit->rank = 0.0;
-            }
-
-
+            taskit->update_rank();
             scheduler_->push(taskit);    
           }
         }
@@ -697,44 +761,196 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
 
 template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(){
   TIMER_START(CHECK_MESSAGE);
-//return;
+  //return;
 
-  //call advance
+  //if(1 || upcxx::peek())
+  {
+    //call advance
+    TIMER_START(UPCXX_ADVANCE);
     upcxx::advance();
+    TIMER_STOP(UPCXX_ADVANCE);
     bool comm_found = false;
-    
+
     IncomingMessage * msg = NULL;
 
-      //find if there is some finished async comm
-      auto it = TestAsyncIncomingMessage();
-      if(it!=gIncomingRecvAsync.end()){
-        msg = *it;
-        gIncomingRecvAsync.erase(it);
+    do{
+      msg=NULL;
+      //    if(!gIncomingRecv.empty()){
+      TIMER_START(MV_MSG_SYNC);
+
+      //if we have some room, turn blocking comms into async comms
+      if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
+        while((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()){
+          auto it = gIncomingRecv.top();
+          (it)->AllocLocal();
+          (it)->AsyncGet();
+          gIncomingRecvAsync.push_back(it);
+          gIncomingRecv.pop();
+          //auto it = gIncomingRecv.begin();
+          //(*it)->AllocLocal();
+          //(*it)->AsyncGet();
+          //gIncomingRecvAsync.splice(gIncomingRecvAsync.end(),gIncomingRecv,it);
+#ifdef _DEBUG_PROGRESS_
+          logfileptr->OFS()<<"TRANSFERRED TO ASYNC COMM"<<endl;
+#endif
+        }
       }
-      else if(!gIncomingRecv.empty()){
-        auto it = gIncomingRecv.begin();
+      TIMER_STOP(MV_MSG_SYNC);
+      //    }
+
+#ifdef HANDLE_LOCAL_POINTER
+      //find if there is some local (SHMEM) comms
+      if(!gIncomingRecvLocal.empty()){
+        auto it = gIncomingRecvLocal.begin();
         msg = *it;
-        gIncomingRecv.erase(it);
+        gIncomingRecvLocal.erase(it);
+
+#ifdef _DEBUG_PROGRESS_
+          logfileptr->OFS()<<"COMM LOCAL: AVAILABLE MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<msg->remote_ptr.where()<<endl;
+#endif
+      }
+      else
+#endif
+      {
+
+        //find if there is some finished async comm
+        auto it = TestAsyncIncomingMessage();
+        if(it!=gIncomingRecvAsync.end()){
+          TIMER_START(RM_MSG_ASYNC);
+          msg = *it;
+          gIncomingRecvAsync.erase(it);
+          TIMER_STOP(RM_MSG_ASYNC);
+#ifdef _DEBUG_PROGRESS_
+          logfileptr->OFS()<<"COMM ASYNC: AVAILABLE MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<msg->remote_ptr.where()<<endl;
+#endif
+        }
+        else if(scheduler_->done() && !gIncomingRecv.empty()){
+          //find a "high priority" task
+
+#if 0
+          {
+            auto tmp = gIncomingRecv;
+            while(!tmp.empty()){
+              auto it = tmp.top();
+              msg = it;
+              tmp.pop();
+              logfileptr->OFS()<<"COMM: AVAILABLE MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<msg->remote_ptr.where()<<endl;
+            }
+          }
+#endif
+
+          TIMER_START(RM_MSG_SYNC);
+          auto it = gIncomingRecv.top();
+          msg = it;
+          gIncomingRecv.pop();
+          //auto it = gIncomingRecv.begin();
+          //msg = *it;
+          //gIncomingRecv.erase(it);
+
+          TIMER_STOP(RM_MSG_SYNC);
+        }
+
       }
 
+      //weird because I'm blocking on a comm which might be useless... need to look at the task closest to be ready or something
       if(msg!=NULL){
+        scope_timer(a,WAIT_AND_UPDATE_DEPS);
         msg->Wait(); 
 
         //int * ptr = (int*)msg->GetLocalPtr();
         //update task dependency
         //find task corresponding to curUpdate
-//if(msg->meta.src==28 && msg->meta.tgt==29){gdb_lock(1);}
+        //if(msg->meta.src==28 && msg->meta.tgt==29){gdb_lock(1);}
 
         Int iOwner = Mapping_->Map(msg->meta.tgt-1,msg->meta.tgt-1);
         Int iUpdater = Mapping_->Map(msg->meta.tgt-1,msg->meta.src-1);
         //this is an aggregate
         std::list<FBTask>::iterator taskit;
         if(iOwner==iam && iUpdater!=iam){
+#ifdef _DEBUG_PROGRESS_
+          logfileptr->OFS()<<"COMM: FETCHED AGGREG MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<iUpdater<<endl;
+#endif
+
+#ifdef SEPARATE_AGGREG
+          //insert an aggregation task
+          Int I = msg->meta.src;
+          Int J = msg->meta.tgt;
+          FBTask curUpdate;
+          curUpdate.type=AGGREGATE;
+          curUpdate.src_snode_id = I;
+          curUpdate.tgt_snode_id = J;
+
+          curUpdate.remote_deps = 1;
+          curUpdate.local_deps = 0;
+
+          if(taskLists_[J-1] == NULL){
+            taskLists_[J-1]=new std::list<FBTask>();
+          }
+          taskLists_[J-1]->push_back(curUpdate);
+          localTaskCount_++;
+          taskit = --taskLists_[J-1]->end();
+
+          {
+            SuperNode2<T> & tgt_snode = *snodeLocal(taskit->tgt_snode_id);
+            char* dataPtr = msg->GetLocalPtr();
+            SuperNode2<T> dist_src_snode(dataPtr,msg->Size());
+            taskit->rank = dist_src_snode.NRowsBelowBlock(0)*tgt_snode.Size();
+          }
+#else
           //need to update dependencies of the factorization task
-          taskit = find_task(msg->meta.tgt,msg->meta.tgt);
+          taskit = find_task(msg->meta.tgt,msg->meta.tgt,FACTOR);
+
+#endif
         }
         else{
-          taskit = find_task(msg->meta.src,msg->meta.tgt);
+          Int iOwner = Mapping_->Map(msg->meta.src-1,msg->meta.src-1);
+#ifdef _DEBUG_PROGRESS_
+          logfileptr->OFS()<<"COMM: FETCHED FACTOR MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<iOwner<<endl;
+#endif
+
+#ifdef DYN_TASK_CREATE
+          {
+            FBTask curTask;
+            curTask.type=UPDATE;
+            curTask.src_snode_id = msg->meta.src;
+            curTask.tgt_snode_id = msg->meta.tgt;
+
+            //If I own the factor, it is a local dependency
+            curTask.remote_deps = 1;
+            curTask.local_deps = 0;
+
+            //create the list if needed
+            Int J = msg->meta.tgt;
+            if(taskLists_[J-1] == NULL){
+              taskLists_[J-1]=new std::list<FBTask>();
+            }
+            taskLists_[J-1]->push_back(curTask);
+            localTaskCount_++;
+            taskit = --taskLists_[J-1]->end();
+
+            //compute cost
+            if(1){
+              char* dataPtr = msg->GetLocalPtr();
+              SuperNode2<T> dist_src_snode(dataPtr,msg->Size(),msg->meta.GIndex);
+              dist_src_snode.InitIdxToBlk();
+              SnodeUpdate curUpdate;
+              taskit->rank = 0.0;
+              while(dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false)){
+                //skip if this update is "lower"
+                if(curUpdate.tgt_snode_id<curTask.tgt_snode_id){continue;}
+                Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curTask.src_snode_id-1);
+                if(iUpdater == iam){
+                  Int tgt_snode_width = Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1];
+                  taskit->rank += dist_src_snode.NRowsBelowBlock(0)*pow(tgt_snode_width,2.0);
+                }
+              }
+              taskit->rank*=-1;
+            }
+
+          }
+#else
+          taskit = find_task(msg->meta.src,msg->meta.tgt,UPDATE);
+#endif
         } 
 
         taskit->remote_deps--;
@@ -742,28 +958,37 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(){
 
 
         //if this is a factor task, then we should delete the aggregate
-        if(taskit->type==FACTOR){
+        if(!msg->IsLocal() && taskit->type==AGGREGATE){
+          msg->DeallocRemote();
           //ask for remote delete
-          remote_delete(msg->GetRemotePtr());
+//          remote_delete(msg->GetRemotePtr());
+        }
+
+        if(taskit->type==AGGREGATE){
+          assert(taskit->remote_deps==0 && taskit->local_deps==0);
         }
 
         if(taskit->remote_deps==0 && taskit->local_deps==0){
 
-            //compute cost 
-            if(taskit->type==FACTOR){
-              //TODO this is the factorization cost only. There is also the aggregation cost to take into account
-              SuperNode2<T> & src_snode = *snodeLocal(taskit->src_snode_id);
-              taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
-            }
-            else if(taskit->type == AGGREGATE){
-              //TODO loop through the source snode and compute cost for ONE target or ALL targets (if source is remote)
-              taskit->rank = 0.0;
-            }
-
+          //        //compute cost 
+          //        if(taskit->type==FACTOR){
+          //          //TODO this is the factorization cost only. There is also the aggregation cost to take into account
+          //          SuperNode2<T> & src_snode = *snodeLocal(taskit->src_snode_id);
+          //          taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
+          //        }
+          //        else if(taskit->type == UPDATE){
+          //          //TODO loop through the source snode and compute cost for ONE target or ALL targets (if source is remote)
+          //          taskit->rank = 0.0;
+          //        }
+          //compute cost 
+          taskit->update_rank();
           scheduler_->push(taskit);    
         }
       }
-       
+
+
+    }while(msg!=NULL);
+  } 
   TIMER_STOP(CHECK_MESSAGE);
 }
 

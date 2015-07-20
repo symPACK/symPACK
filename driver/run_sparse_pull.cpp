@@ -131,6 +131,17 @@ int main(int argc, char **argv)
     }
   }
 
+  if( options.find("-scheduler") != options.end() ){
+    if(options["-scheduler"]=="MCT"){
+      optionsFact.scheduler = MCT;
+    }
+    else{
+      optionsFact.scheduler = DL;
+    }
+  }
+
+
+
   Int maxIrecv = 0;
   if( options.find("-ir") != options.end() ){
     maxIrecv= atoi(options["-ir"].c_str());
@@ -172,6 +183,10 @@ int main(int argc, char **argv)
 
   MPI_Comm workcomm;
   MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
+
+  upcxx::team * workteam;
+  upcxx::team_all.split(iam<np,iam, workteam);
+
 
   if(iam<np){
     //  int np, iam;
@@ -286,6 +301,7 @@ int main(int argc, char **argv)
         timeSta = get_time();
         SMat = new SupernodalMatrix2<double>(HMat,optionsFact);
         timeEnd = get_time();
+        SMat->team_ = workteam;
       }
       catch(const std::bad_alloc& e){
         std::cout << "Allocation failed: " << e.what() << '\n';
@@ -379,9 +395,9 @@ int main(int argc, char **argv)
     delete optionsFact.commEnv;
   }
   else{
-    gdb_lock();
-    //missing barrier at the end of FanBoth()
-    upcxx::barrier();
+//    gdb_lock();
+//    //missing barrier at the end of FanBoth()
+//    upcxx::barrier();
   }
 
   MPI_Barrier(workcomm);
@@ -399,8 +415,12 @@ int main(int argc, char **argv)
 
   delete logfileptr;
 
-  //MPI_Finalize();
-  //upcxx::finalize();
+  MPI_Finalize();
+  upcxx::finalize();
+
+  //LOCK FOR PROFILING
+  //gdb_lock();
+
   return 0;
 }
 

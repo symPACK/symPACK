@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <iostream>
 #include <vector>
+#include <deque>
 #include <cstring>
 #include <sstream>
 
@@ -18,6 +19,9 @@
 #define MAX_NAME_LENGTH 38
 
 //#include <upcxx.h>
+//upcxx timers
+#include <gasnet.h>
+#include <gasnet_tools.h>
 
 namespace LIBCHOLESKY{
 
@@ -31,78 +35,78 @@ namespace LIBCHOLESKY{
 
   std::stringstream outstream;
 
-  std::vector<double> arr_excl_time;
-  std::vector<double> arr_complete_time;
+  std::vector<gasnett_tick_t> arr_excl_tick;
+  std::vector<gasnett_tick_t> arr_complete_tick;
 
   class function_timer{
     public:
       char name[MAX_NAME_LENGTH];
-      double start_time;
-      double start_excl_time;
-      double acc_time;
-      double acc_excl_time;
+      gasnett_tick_t start_tick;
+      gasnett_tick_t start_excl_tick;
+      gasnett_tick_t acc_tick;
+      gasnett_tick_t acc_excl_tick;
       int calls;
       int numcore;
 
-      std::vector<double> arr_start_time;
-      std::vector<double> arr_start_excl_time;
-      std::vector<double> arr_acc_time;
-      std::vector<double> arr_acc_excl_time;
+      std::vector<gasnett_tick_t> arr_start_tick;
+      std::vector<gasnett_tick_t> arr_start_excl_tick;
+      std::vector<gasnett_tick_t> arr_acc_tick;
+      std::vector<gasnett_tick_t> arr_acc_excl_tick;
       std::vector<int> arr_calls;
 
 
-      double total_time;
-      double total_excl_time;
+      gasnett_tick_t total_tick;
+      gasnett_tick_t total_excl_tick;
       int total_calls;
 
     public: 
       function_timer(char const * name_, 
-          double const start_time_,
-          double const start_excl_time_){
+          gasnett_tick_t const start_tick_,
+          gasnett_tick_t const start_excl_tick_){
         sprintf(name, "%s", name_);
-        start_time = start_time_;
-        start_excl_time = start_excl_time_;
+        start_tick = start_tick_;
+        start_excl_tick = start_excl_tick_;
 
         numcore = omp_get_num_threads();
 
-        arr_start_time.resize(numcore,0.0); 
-        arr_start_excl_time.resize(numcore,0.0); 
-        arr_acc_time.resize(numcore,0.0); 
-        arr_acc_excl_time.resize(numcore,0.0); 
+        arr_start_tick.resize(numcore,0.0); 
+        arr_start_excl_tick.resize(numcore,0.0); 
+        arr_acc_tick.resize(numcore,0.0); 
+        arr_acc_excl_tick.resize(numcore,0.0); 
         arr_calls.resize(numcore,0); 
 
         if (strlen(name) > MAX_NAME_LENGTH) {
           printf("function name must be fewer than %d characters\n",MAX_NAME_LENGTH);
           assert(0);
         }
-        acc_time = 0.0;
-        acc_excl_time = 0.0;
+        acc_tick = 0.0;
+        acc_excl_tick = 0.0;
         calls = 0;
       }
 
       void compute_totals(MPI_Comm comm){ 
         if(set_contxt){
-          MPI_Allreduce(&acc_time, &total_time, 1, 
-              MPI_DOUBLE, MPI_SUM, comm);
-          MPI_Allreduce(&acc_excl_time, &total_excl_time, 1, 
-              MPI_DOUBLE, MPI_SUM, comm);
-          MPI_Allreduce(&calls, &total_calls, 1, 
-              MPI_INT, MPI_SUM, comm);
+//          MPI_Allreduce(&acc_time, &total_time, 1, 
+//              MPI_DOUBLE, MPI_SUM, comm);
+//          MPI_Allreduce(&acc_excl_time, &total_excl_time, 1, 
+//              MPI_DOUBLE, MPI_SUM, comm);
+//          MPI_Allreduce(&calls, &total_calls, 1, 
+//              MPI_INT, MPI_SUM, comm);
         }
         else{
-          total_time=0.0;
-          total_excl_time=0.0;
+          total_tick=0.0;
+          total_excl_tick=0.0;
           total_calls=0;
-          for(int i =0;i<arr_acc_time.size();i++){
-            total_time += arr_acc_time[i];
-            total_excl_time += arr_acc_excl_time[i];
+          for(int i =0;i<arr_acc_tick.size();i++){
+            total_tick += arr_acc_tick[i];
+            total_excl_tick += arr_acc_excl_tick[i];
             total_calls += arr_calls[i];
           }
         }
       }
 
       bool operator<(function_timer const & w) const {
-        return total_time > w.total_time;
+        return total_tick > w.total_tick;
       }
 
       void print( 
@@ -123,12 +127,12 @@ namespace LIBCHOLESKY{
           char outstr[100];
           sprintf(outstr,"%5d    %7.7lg  %3d.%02d  %7.7lg  %3d.%02d\n",
               total_calls/(np*numcore),
-              (double)(total_time/(np*numcore)),
-              (int)(100.*(total_time)/complete_time),
-              ((int)(10000.*(total_time)/complete_time))%100,
-              (double)(total_excl_time/(np*numcore)),
-              (int)(100.*(total_excl_time)/complete_time),
-              ((int)(10000.*(total_excl_time)/complete_time))%100);
+              (double)((gasnett_ticks_to_ns(total_tick) / 1.0E9)/(np*numcore)),
+              (int)(100.*((gasnett_ticks_to_ns(total_tick) / 1.0E9))/complete_time),
+              ((int)(10000.*((gasnett_ticks_to_ns(total_tick) / 1.0E9))/complete_time))%100,
+              (double)((gasnett_ticks_to_ns(total_excl_tick) / 1.0E9)/(np*numcore)),
+              (int)(100.*((gasnett_ticks_to_ns(total_excl_tick) / 1.0E9))/complete_time),
+              ((int)(10000.*((gasnett_ticks_to_ns(total_excl_tick) / 1.0E9))/complete_time))%100);
 
           outstream.write(outstr,(strlen(outstr))*sizeof(char));
 
@@ -141,7 +145,7 @@ namespace LIBCHOLESKY{
     return strcmp(w1.name, w2.name)>0;
   }
 
-  std::vector<function_timer> function_timers;
+  std::deque<function_timer> function_timers;
 
   CTF_timer::CTF_timer(const char * name){
 #ifdef PROFILE
@@ -157,10 +161,12 @@ namespace LIBCHOLESKY{
       index = 0;
 
       int numcore = omp_get_num_threads();
-      arr_excl_time.resize(numcore,0.0);
+      arr_excl_tick.resize(numcore,0.0);
 
-      double time = get_time();
-      function_timers.push_back(function_timer(name, time, 0.0)); 
+      gasnett_tick_t cur_tick;
+      cur_tick = gasnett_ticks_now();
+
+      function_timers.push_back(function_timer(name, cur_tick, 0.0)); 
     } 
     else{
       for (i=0; i<(int)function_timers.size(); i++){
@@ -174,13 +180,14 @@ namespace LIBCHOLESKY{
       original = (index==0);
     }
     if (index == (int)function_timers.size()) {
-      double time = get_time();
+      gasnett_tick_t cur_tick;
+      cur_tick = gasnett_ticks_now();
       int core = omp_get_thread_num();
 
-      if(arr_excl_time.size()<core+1){
-        arr_excl_time.resize(core+1,0.0);
+      if(arr_excl_tick.size()<core+1){
+        arr_excl_tick.resize(core+1,0.0);
       }
-      function_timers.push_back(function_timer(name, time, arr_excl_time[core])); 
+      function_timers.push_back(function_timer(name, cur_tick, arr_excl_tick[core])); 
     }
     timer_name = name;
     exited = 0;
@@ -191,19 +198,20 @@ namespace LIBCHOLESKY{
 #ifdef PROFILE
     if (!exited){
       int core = omp_get_thread_num();
-      double time = get_time();
-      if(function_timers[index].arr_start_time.size()<core+1){
-        function_timers[index].arr_start_time.resize(core+1);
-        function_timers[index].arr_start_excl_time.resize(core+1);
+      gasnett_tick_t cur_tick;
+      cur_tick = gasnett_ticks_now();
+      if(function_timers[index].arr_start_tick.size()<core+1){
+        function_timers[index].arr_start_tick.resize(core+1);
+        function_timers[index].arr_start_excl_tick.resize(core+1);
       }
-      function_timers[index].arr_start_time[core] = time;
+      function_timers[index].arr_start_tick[core] = cur_tick;
 
-      if(arr_excl_time.size()<core+1){
-        arr_excl_time.resize(core+1,0.0);
+      if(arr_excl_tick.size()<core+1){
+        arr_excl_tick.resize(core+1,0.0);
       }
 
-      function_timers[index].arr_start_excl_time[core] = arr_excl_time[core];
-      function_timers[index].start_time = time;
+      function_timers[index].arr_start_excl_tick[core] = arr_excl_tick[core];
+      function_timers[index].start_tick = cur_tick;
     }
     else{
       abort();
@@ -215,21 +223,22 @@ namespace LIBCHOLESKY{
 #ifdef PROFILE
     if (!exited){
       int core = omp_get_thread_num();
-      double time = get_time();
-      if(function_timers[index].arr_acc_time.size()<core+1){
-        function_timers[index].arr_acc_time.resize(core+1);
-        function_timers[index].arr_acc_excl_time.resize(core+1);
+      gasnett_tick_t cur_tick;
+      cur_tick = gasnett_ticks_now();
+      if(function_timers[index].arr_acc_tick.size()<core+1){
+        function_timers[index].arr_acc_tick.resize(core+1);
+        function_timers[index].arr_acc_excl_tick.resize(core+1);
       }
 
-      if(arr_excl_time.size()<core+1){
-        arr_excl_time.resize(core+1,0.0);
+      if(arr_excl_tick.size()<core+1){
+        arr_excl_tick.resize(core+1,0.0);
       }
-      double delta_time = time - function_timers[index].start_time;
-      function_timers[index].arr_acc_time[core] += delta_time;
-      function_timers[index].arr_acc_excl_time[core] += delta_time - 
-        (arr_excl_time[core]- function_timers[index].arr_start_excl_time[core]); 
+      gasnett_tick_t delta_tick = cur_tick - function_timers[index].start_tick;
+      function_timers[index].arr_acc_tick[core] += delta_tick;
+      function_timers[index].arr_acc_excl_tick[core] += delta_tick - 
+        (arr_excl_tick[core]- function_timers[index].arr_start_excl_tick[core]); 
 
-      arr_excl_time[core] = function_timers[index].arr_start_excl_time[core] + delta_time;
+      arr_excl_tick[core] = function_timers[index].arr_start_excl_tick[core] + delta_tick;
 
       function_timers[index].arr_calls[core]++;
 
@@ -412,7 +421,7 @@ namespace LIBCHOLESKY{
           function_timers[i].compute_totals(comm);
         }
         std::sort(function_timers.begin(), function_timers.end());
-        complete_time = function_timers[0].total_time;
+        complete_time = gasnett_ticks_to_ns(function_timers[0].total_tick)/1.0E9;
         for (i=0; i<(int)function_timers.size(); i++){
           function_timers[i].print(comm,rank,np);
         }

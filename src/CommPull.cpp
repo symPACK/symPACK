@@ -7,8 +7,10 @@
 
 
 namespace LIBCHOLESKY{
-  std::list< IncomingMessage * > gIncomingRecv;
+  //std::list< IncomingMessage * > gIncomingRecv;
+  std::priority_queue< IncomingMessage *, vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
   std::list< IncomingMessage * > gIncomingRecvAsync;
+  std::list< IncomingMessage * > gIncomingRecvLocal;
   SupernodalMatrixBase * gSuperMatrixPtr = NULL;
 
   int gMaxIrecv = 0;
@@ -20,6 +22,8 @@ namespace LIBCHOLESKY{
       task_ptr =NULL;
       local_ptr=NULL;
       isDone = false;
+      isLocal = false;
+      remoteDealloc = false;
     }
 
     IncomingMessage::~IncomingMessage(){
@@ -30,7 +34,7 @@ namespace LIBCHOLESKY{
       if(task_ptr!=NULL){
         delete task_ptr;
       }
-      if(local_ptr!=NULL){
+      if(!isLocal && local_ptr!=NULL){
 #ifndef USE_LOCAL_ALLOCATE
         delete local_ptr;
 #else
@@ -41,13 +45,22 @@ namespace LIBCHOLESKY{
       }
     }
 
+    void IncomingMessage::AsyncGet(){
+      assert(event_ptr==NULL);
+      event_ptr = new upcxx::event;
+      upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr()),msg_size,event_ptr);
+    }
+
     int IncomingMessage::Sender(){
       return remote_ptr.where();
     }
 
     void IncomingMessage::Wait(){
       scope_timer(a,IN_MSG_WAIT);
-      if(event_ptr!=NULL){
+      if(isLocal){
+        isDone = true;
+      }
+      else if(event_ptr!=NULL){
         //TODO wait is not necessary if calling async_try/isdone
         event_ptr->wait();
         assert(event_ptr->isdone());
@@ -63,6 +76,17 @@ namespace LIBCHOLESKY{
 
         isDone = true;
       }
+    }
+
+    bool IncomingMessage::IsLocal(){
+      return isLocal;
+    }
+
+    void IncomingMessage::DeallocRemote(){
+        if(!remoteDealloc){
+          remote_delete(GetRemotePtr());
+          remoteDealloc=true;
+        }
     }
 
     bool IncomingMessage::IsDone(){

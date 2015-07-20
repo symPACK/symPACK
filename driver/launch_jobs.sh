@@ -2,7 +2,8 @@
 
 
 NGCHOLDIR=$HOME/ngchol_scratch
-EXEC=$NGCHOLDIR/driver/run_sparse_fanboth_upcxx
+#EXEC=$NGCHOLDIR/driver/run_sparse_fanboth_upcxx
+EXEC=$NGCHOLDIR/driver/run_sparse_pull
 #EXEC=$NGCHOLDIR/driver/run_sparse_fanboth_upcxx_nolb
 
 
@@ -14,13 +15,13 @@ ORDER=AMD
 LB=SUBCUBE
 NUMTRIES=5
 FB=1
-ISEND=400
+ISEND=0
 IRECV=0
 BLOCK=50
 #PROCS=(24)
 #PROCS=(4 16 24)
 #PROCS=(32 48)
-PROCS=(1 4 16 24 32 48 64 96 128 192 256 384 512)
+PROCS=(1 4 16 24 32 48 64 96 128 192 256 384)
 #PROCS=(512 768 1024)
 #PROCS=(1024 768 512 384 256 192 128 96 64)
 #PROCS=(1225 1444 1600 1764 1936 2025)
@@ -44,6 +45,7 @@ echo "#PBS -V" >> tmp.pbs
 echo "#PBS -S /bin/sh" >> tmp.pbs
 echo "#PBS -A mp127" >> tmp.pbs
 echo "#PBS -m ae" >> tmp.pbs
+echo "export GASNET_MAX_SEGSIZE=1.5G" >> tmp.pbs
 echo "cd $NGCHOLDIR" >> tmp.pbs
 echo "echo \"-------------$p-----------\"" >> tmp.pbs
 echo "echo \"aprun -n $p $EXEC -in $MATRIX  -inf CSC -map $MAPPING -b $BLOCK -ir $IRECV -is $ISEND -fb $FB -ordering $ORDER -lb $LB\"" >> tmp.pbs

@@ -41,7 +41,9 @@ inline   Int ITree::max_(ITree::ITNode *N)
 inline   ITree::ITNode * ITree::insert_(ITree::ITNode *root, ITree::Interval & i)
   {
 
-if(i.low>i.high){gdb_lock();}
+if(i.low>i.high){
+logfileptr->OFS()<<"LOCK 6: interval tree"<<endl;
+gdb_lock();}
 assert(i.low<=i.high);
 
     // Base case: Tree is empty, new node becomes root
