@@ -1,6 +1,8 @@
 #include "ngchol/Ordering.hpp"
 #include <cassert>
 #include <stdexcept>
+#include <iostream>
+using namespace std;
 
 #ifndef Add_
 #define FORTRAN(name) name
@@ -124,6 +126,14 @@ void Ordering::AMD(){
 
 void Ordering::Compose(vector<int> & invp2){
     assert(pStructure!=NULL);
+
+    cout<<"composing: ";
+    for(int i=0;i<invp2.size();++i){
+      cout<<invp2[i]<<" ";
+    }
+    cout<<endl;
+
+
       //Compose the two permutations
       for(int i = 1; i <= invp.size(); ++i){
             int interm = invp[i-1];

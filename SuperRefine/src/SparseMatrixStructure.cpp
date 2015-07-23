@@ -225,9 +225,9 @@ namespace LIBCHOLESKY{
 
   void SparseMatrixStructure::GetLColRowCount(ETree & tree, Ordering & aOrder, vector<int> & cc, vector<int> & rc){
      //The tree need to be postordered
-    if(!tree.IsPostOrdered()){
-      tree.PostOrderTree(aOrder);
-    }
+//    if(!tree.IsPostOrdered()){
+//      tree.PostOrderTree(aOrder);
+//    }
 
     ExpandSymmetric();
     
@@ -443,7 +443,10 @@ vector<int> newXsuper;
     int64_t fi = xlindx[i-1];
     int64_t li = xlindx[i]-1;
     for(int64_t idx = fi; idx<=li;idx++){
-       adj[i-1]->insert(lindx[idx-1]);
+       int32_t row = lindx[idx-1];
+       if(row>xsuper[i]-1){
+          adj[i-1]->insert(row);
+       }
     }
 
     L.push_back(new nodeset());
@@ -559,6 +562,10 @@ vector<int> newXsuper;
       }
     }
 
+    for(int i=0;i<perm.size();++i){
+      cout<<perm[i]<<" ";
+    }
+    cout<<endl;
 
 #if 0
     newXsuper.resize(L.size()+1);
