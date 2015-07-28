@@ -1,0 +1,183 @@
+-------------1-----------
+-------------/global/homes/m/mjac/ngchol_scratch/driver/run_sparse_pull-----------
+aprun -n 1 /global/homes/m/mjac/ngchol_scratch/driver/run_sparse_pull -in /global/homes/m/mjac/pexsi_project/UFL-Matrices/pwtk/pwtk.rb  -inf CSC -map ModWrap2D -b 50 -ir -1 -is 100 -fb 1 -ordering AMD -lb SUBCUBE -scheduler DL
+/global/homes/m/mjac/ngchol_scratch/experiments/NGCHOL_pwtk.rb_1_FB_1_ModWrap2D_50_DL/run_sparse_pull/1
+Matrix order is 217918
+Starting spGEMM
+spGEMM time: 0.226091
+Starting allocation
+Flops: 4.25157e+10
+Subtree to subcube mapping used
+Time for expanding matrix to asymmetric: 0.150763
+Allocation time: 1.56529
+Starting Factorization
+Total volume of communication: 0
+Total number of messages: 0
+Factorization time: 4.75828
+Starting solve
+Solve time: 0.764859
+Norm of residual after SPCHOL is 1.71022e-15
+Application 14280188 resources: utime ~10s, stime ~2s, Rss ~352928, inblocks ~392691, outblocks ~134539
+/global/homes/m/mjac/ngchol_scratch/experiments/NGCHOL_pwtk.rb_1_FB_1_ModWrap2D_50_DL/run_sparse_pull/2
+Matrix order is 217918
+Starting spGEMM
+spGEMM time: 0.224378
+Starting allocation
+Flops: 4.25157e+10
+Subtree to subcube mapping used
+Time for expanding matrix to asymmetric: 0.149566
+Allocation time: 1.55064
+Starting Factorization
+Total volume of communication: 0
+Total number of messages: 0
+Factorization time: 4.75613
+Starting solve
+Solve time: 0.764475
+Norm of residual after SPCHOL is 1.71022e-15
+Application 14280195 resources: utime ~10s, stime ~2s, Rss ~352928, inblocks ~392691, outblocks ~134539
+/global/homes/m/mjac/ngchol_scratch/experiments/NGCHOL_pwtk.rb_1_FB_1_ModWrap2D_50_DL/run_sparse_pull/3
+Matrix order is 217918
+Starting spGEMM
+spGEMM time: 0.224434
+Starting allocation
+Flops: 4.25157e+10
+Subtree to subcube mapping used
+Time for expanding matrix to asymmetric: 0.149634
+Allocation time: 1.66743
+Starting Factorization
+Total volume of communication: 0
+Total number of messages: 0
+Factorization time: 4.75341
+Starting solve
+Solve time: 0.764718
+Norm of residual after SPCHOL is 1.71022e-15
+Application 14280198 resources: utime ~10s, stime ~2s, Rss ~352928, inblocks ~392691, outblocks ~134539
+/global/homes/m/mjac/ngchol_scratch/experiments/NGCHOL_pwtk.rb_1_FB_1_ModWrap2D_50_DL/run_sparse_pull/4
+Matrix order is 217918
+Starting spGEMM
+spGEMM time: 0.224868
+Starting allocation
+Flops: 4.25157e+10
+Subtree to subcube mapping used
+Time for expanding matrix to asymmetric: 0.14998
+Allocation time: 1.54482
+Starting Factorization
+Total volume of communication: 0
+Total number of messages: 0
+Factorization time: 4.75561
+Starting solve
+Solve time: 0.764822
+Norm of residual after SPCHOL is 1.71022e-15
+Application 14280206 resources: utime ~10s, stime ~2s, Rss ~352928, inblocks ~392691, outblocks ~134539
+/global/homes/m/mjac/ngchol_scratch/experiments/NGCHOL_pwtk.rb_1_FB_1_ModWrap2D_50_DL/run_sparse_pull/5
+Matrix order is 217918
+Starting spGEMM
+spGEMM time: 0.224586
+Starting allocation
+Flops: 4.25157e+10
+Subtree to subcube mapping used
+Time for expanding matrix to asymmetric: 0.149051
+Allocation time: 1.54694
+Starting Factorization
+Total volume of communication: 0
+Total number of messages: 0
+Factorization time: 4.754
+Starting solve
+Solve time: 0.764218
+Norm of residual after SPCHOL is 1.71022e-15
+Application 14280211 resources: utime ~10s, stime ~2s, Rss ~352928, inblocks ~392691, outblocks ~134539
+-------------/global/homes/m/mjac/ngchol_scratch/driver/run_sparse_fanboth_upcxx-----------
+aprun -n 1 /global/homes/m/mjac/ngchol_scratch/driver/run_sparse_fanboth_upcxx -in /global/homes/m/mjac/pexsi_project/UFL-Matrices/pwtk/pwtk.rb  -inf CSC -map ModWrap2D -b 50 -ir -1 -is 100 -fb 1 -ordering AMD -lb SUBCUBE -scheduler DL
+/global/homes/m/mjac/ngchol_scratch/experiments/NGCHOL_pwtk.rb_1_FB_1_ModWrap2D_50_DL/run_sparse_fanboth_upcxx/1
+Matrix order is 217918
+Starting spGEMM
+spGEMM time: 0.231694
+Starting allocation
+Flops: 4.25157e+10
+Subtree to subcube mapping used
+Time for expanding matrix to asymmetric: 0.152293
+Allocation time: 1.30921
+Starting Factorization
+Factorization time: 4.45706
+Starting solve
+Solve time: 0.582849
+Norm of residual after SPCHOL is 1.66914e-15
+Application 14280213 resources: utime ~9s, stime ~1s, Rss ~882792, inblocks ~391128, outblocks ~130676
+/global/homes/m/mjac/ngchol_scratch/experiments/NGCHOL_pwtk.rb_1_FB_1_ModWrap2D_50_DL/run_sparse_fanboth_upcxx/2
+Matrix order is 217918
+Starting spGEMM
+spGEMM time: 0.230537
+Starting allocation
+Flops: 4.25157e+10
+Subtree to subcube mapping used
+Time for expanding matrix to asymmetric: 0.151162
+Allocation time: 1.29421
+Starting Factorization
+Factorization time: 4.43803
+Starting solve
+Solve time: 0.582463
+Norm of residual after SPCHOL is 1.66914e-15
+Application 14280217 resources: utime ~9s, stime ~1s, Rss ~882792, inblocks ~391128, outblocks ~130676
+/global/homes/m/mjac/ngchol_scratch/experiments/NGCHOL_pwtk.rb_1_FB_1_ModWrap2D_50_DL/run_sparse_fanboth_upcxx/3
+Matrix order is 217918
+Starting spGEMM
+spGEMM time: 0.229721
+Starting allocation
+Flops: 4.25157e+10
+Subtree to subcube mapping used
+Time for expanding matrix to asymmetric: 0.150671
+Allocation time: 1.32312
+Starting Factorization
+Factorization time: 4.42902
+Starting solve
+Solve time: 0.583095
+Norm of residual after SPCHOL is 1.66914e-15
+Application 14280225 resources: utime ~9s, stime ~1s, Rss ~882792, inblocks ~391128, outblocks ~130676
+/global/homes/m/mjac/ngchol_scratch/experiments/NGCHOL_pwtk.rb_1_FB_1_ModWrap2D_50_DL/run_sparse_fanboth_upcxx/4
+Matrix order is 217918
+Starting spGEMM
+spGEMM time: 0.229539
+Starting allocation
+Flops: 4.25157e+10
+Subtree to subcube mapping used
+Time for expanding matrix to asymmetric: 0.151208
+Allocation time: 1.30023
+Starting Factorization
+Factorization time: 4.42829
+Starting solve
+Solve time: 0.583119
+Norm of residual after SPCHOL is 1.66914e-15
+Application 14280227 resources: utime ~9s, stime ~1s, Rss ~882792, inblocks ~391128, outblocks ~130676
+/global/homes/m/mjac/ngchol_scratch/experiments/NGCHOL_pwtk.rb_1_FB_1_ModWrap2D_50_DL/run_sparse_fanboth_upcxx/5
+Matrix order is 217918
+Starting spGEMM
+spGEMM time: 0.229032
+Starting allocation
+Flops: 4.25157e+10
+Subtree to subcube mapping used
+Time for expanding matrix to asymmetric: 0.150486
+Allocation time: 1.27437
+Starting Factorization
+Factorization time: 4.43151
+Starting solve
+Solve time: 0.582765
+Norm of residual after SPCHOL is 1.66914e-15
+Application 14280230 resources: utime ~9s, stime ~1s, Rss ~882792, inblocks ~391128, outblocks ~130676
+
+ + --------------------------------------------------------------------------
+ +        Job name: NGCHOL_pwtk.rb_1_FB_1_ModWrap2D_50_DL
+ +          Job Id: 3334271.edique02
+ +          System: edison
+ +     Queued Time: Mon Jul 27 16:00:24 2015
+ +      Start Time: Mon Jul 27 16:00:36 2015
+ + Completion Time: Mon Jul 27 16:03:22 2015
+ +            User: mjac
+ +        MOM Host: nid02432
+ +           Queue: debug
+ +  Req. Resources: mppnodect=1,mppnppn=1,mppwidth=1,walltime=00:30:00
+ +  Used Resources: cput=00:00:14,energy_used=0,mem=12856kb,vmem=163372kb,walltime=00:02:48
+ +     Acct String: mp127
+ +   PBS_O_WORKDIR: /scratch1/scratchdirs/mjac/ngchol/driver
+ +     Submit Args: tmp.pbs
+ + --------------------------------------------------------------------------
+
