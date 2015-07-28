@@ -1,11 +1,7 @@
 #ifndef _SUPERNODAL_MATRIX_IMPL_FB_PULL_HPP_
 #define _SUPERNODAL_MATRIX_IMPL_FB_PULL_HPP_
 
-#define TASKCOMPARE  FBTaskCompare
-//#define TASKCOMPARE  MCTTaskCompare
 
-#define SEPARATE_AGGREG
-#define DYN_TASK_CREATE
 
 template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   TIMER_START(FACTORIZATION_FB);
@@ -126,7 +122,6 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
 
   //sort the task queues
   {
-    TASKCOMPARE comp;
     for(int i = 0; i<taskLists_.size(); ++i){
       if(taskLists_[i] != NULL){
         //        taskLists_[i]->sort(comp);
@@ -185,7 +180,6 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
 
   bool doPrint = true;
   Int prevCnt = -1;
-  TASKCOMPARE comp;
   while(localTaskCount_>0){
     //  if(scheduler_->done()){
     CheckIncomingMessages();
@@ -852,7 +846,6 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(){
 
       }
 
-      //weird because I'm blocking on a comm which might be useless... need to look at the task closest to be ready or something
       if(msg!=NULL){
         scope_timer(a,WAIT_AND_UPDATE_DEPS);
         msg->Wait(); 

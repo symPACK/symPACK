@@ -226,6 +226,37 @@ namespace LIBCHOLESKY{
 
   };
 
+  struct PRTaskCompare{
+    bool operator()(const FBTask & a,const FBTask & b) const
+    {
+      bool retval = false;
+
+      //check whether it is an update or a factorization/aggregate
+      bool b_factor = b.tgt_snode_id == b.src_snode_id;
+      bool a_factor = a.tgt_snode_id == a.src_snode_id;
+
+      if(a.type==FACTOR && b.type==FACTOR){
+        retval= a.tgt_snode_id<b.tgt_snode_id;
+      }
+      else if(a.type==FACTOR){
+        retval= a.tgt_snode_id<b.tgt_snode_id;
+      }
+      else if(b.type==FACTOR){
+        retval= a.tgt_snode_id<b.tgt_snode_id;
+      }
+      else{
+        retval= a.tgt_snode_id<b.tgt_snode_id;
+      }
+
+      return retval;
+    }
+    bool operator()(const std::list<FBTask>::iterator & a,const std::list<FBTask>::iterator & b) const
+    {
+      return (*this)(*a,*b);
+    }
+
+  };
+
 
 }
 

@@ -14,7 +14,7 @@ namespace LIBCHOLESKY {
 typedef    long long int              LongInt;
 typedef    int                   Int;
 typedef    uint32_t              Idx32;
-typedef    uint32_t              Idx64;
+typedef    uint64_t              Idx64;
 //typedef    uint64_t              Idx64;
 typedef    double                Real;
 typedef    std::complex<double>  Complex; // Must use elemental form of complex

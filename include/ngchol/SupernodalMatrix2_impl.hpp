@@ -29,6 +29,24 @@ template <typename T> void SupernodalMatrix2<T>::Factorize(){
       break;
   }
   TIMER_STOP(FACTORIZATION);
+
+#ifdef PROFILE_COMM
+  logfileptr->OFS()<<"Local volume of communication: "<<gVolComm<<endl;
+  logfileptr->OFS()<<"Local number of messages: "<<gNumMsg<<endl;
+
+  size_t totalVolComm = 0;
+  team_->reduce(&gVolComm,&totalVolComm,1,0,UPCXX_SUM);
+  size_t totalNumMsg = 0;
+  team_->reduce(&gNumMsg,&totalNumMsg,1,0,UPCXX_SUM);
+
+  if(iam==0){
+    cout<<"Total volume of communication: "<<totalVolComm<<endl;
+    cout<<"Total number of messages: "<<totalNumMsg<<endl;
+  }
+
+  gVolComm=0;
+  gNumMsg=0;
+#endif
 }
 
 
@@ -1038,6 +1056,9 @@ void SupernodalMatrix2<T>::Dump(){
         break;
       case MCT:
         scheduler_ = new MCTScheduler<std::list<FBTask>::iterator>();
+        break;
+      case PR:
+        scheduler_ = new PRScheduler<std::list<FBTask>::iterator>();
         break;
       default:
         scheduler_ = new DLScheduler<std::list<FBTask>::iterator>();

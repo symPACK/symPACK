@@ -15,6 +15,8 @@ namespace LIBCHOLESKY{
 
   int gMaxIrecv = 0;
 
+  size_t gVolComm=0;
+  size_t gNumMsg=0;
 
  
     IncomingMessage::IncomingMessage(){
@@ -76,6 +78,10 @@ namespace LIBCHOLESKY{
 
         isDone = true;
       }
+#ifdef PROFILE_COMM
+      gVolComm+= msg_size;
+      gNumMsg++;
+#endif
     }
 
     bool IncomingMessage::IsLocal(){

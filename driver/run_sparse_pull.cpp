@@ -135,6 +135,9 @@ int main(int argc, char **argv)
     if(options["-scheduler"]=="MCT"){
       optionsFact.scheduler = MCT;
     }
+    else if(options["-scheduler"]=="PR"){
+      optionsFact.scheduler = PR;
+    }
     else{
       optionsFact.scheduler = DL;
     }

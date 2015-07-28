@@ -109,6 +109,8 @@ struct MSGCompare{
   };
 
 
+  extern size_t gVolComm;
+  extern size_t gNumMsg;
 
 
   extern std::priority_queue< IncomingMessage * ,  vector<IncomingMessage *>, MSGCompare > gIncomingRecv;

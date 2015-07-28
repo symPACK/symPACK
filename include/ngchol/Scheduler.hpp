@@ -65,6 +65,25 @@ class MCTScheduler: public Scheduler<T>{
 };
 
 
+template <class T >
+class PRScheduler: public Scheduler<T>{
+  public:
+    PRScheduler(){
+    }
+
+    virtual const T& top(){ return readyTasks_.top();}
+    virtual void pop() { readyTasks_.pop();}
+
+    virtual void push( const T& val) { readyTasks_.push(val);}
+    virtual unsigned int size() { return readyTasks_.size();}
+
+    virtual bool done(){ return readyTasks_.empty();}
+    const std::priority_queue<T, vector<T>, PRTaskCompare > & GetQueue(){return  readyTasks_;}
+  protected:
+      std::priority_queue<T, vector<T>, PRTaskCompare > readyTasks_;
+};
+
+
 
 
 

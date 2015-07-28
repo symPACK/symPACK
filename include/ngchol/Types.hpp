@@ -13,7 +13,7 @@ namespace LIBCHOLESKY{
   enum FactorizationType {FANOUT,FANBOTH};
   enum LoadBalanceType {NOLB,NNZ,NCOLS,FLOPS,SUBCUBE,SUBCUBE_NNZ};
   enum OrderingType {MMD,AMD};
-  enum SchedulerType {DL,MCT};
+  enum SchedulerType {DL,MCT,PR};
   class NGCholOptions{
     public:
       MappingType mappingType;
