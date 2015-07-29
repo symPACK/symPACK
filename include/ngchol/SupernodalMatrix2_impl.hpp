@@ -932,15 +932,16 @@ TIMER_STOP(ADVANCE_OUTGOING_COMM);
 
 
   template <typename T> SparseMatrixStructure SupernodalMatrix2<T>::GetLocalStructure() const {
-    return Local_;
+    return *Local_;
   }
 
   template <typename T> SparseMatrixStructure SupernodalMatrix2<T>::GetGlobalStructure(){
     if(isGlobStructAllocated_){
-      Local_.ToGlobal(Global_,CommEnv_->MPI_GetComm());
+      Global_=new SparseMatrixStructure();
+      Local_->ToGlobal(*Global_,CommEnv_->MPI_GetComm());
       isGlobStructAllocated_= true;
     }
-    return Global_;
+    return *Global_;
   }
 
 
@@ -1068,16 +1069,18 @@ void SupernodalMatrix2<T>::Dump(){
 
 
     iSize_ = pMat.size;
-    Local_ = pMat.GetLocalStructure();
+    Local_ = new SparseMatrixStructure();
+    Global_ = new SparseMatrixStructure();
+    *Local_ = pMat.GetLocalStructure();
 
-    Local_.ToGlobal(Global_,CommEnv_->MPI_GetComm());
-    Global_.ExpandSymmetric();
+    Local_->ToGlobal(*Global_,CommEnv_->MPI_GetComm());
+    Global_->ExpandSymmetric();
     isGlobStructAllocated_ = true;
 
 logfileptr->OFS()<<"Matrix expanded"<<endl;
 
     //Create an Ordering object to hold the permutation
-    Order_.SetStructure(Global_);
+    Order_.SetStructure(*Global_);
 logfileptr->OFS()<<"Structure set"<<endl;
 
     switch(options_.ordering){
@@ -1094,11 +1097,11 @@ logfileptr->OFS()<<"Structure set"<<endl;
     }
 logfileptr->OFS()<<"Ordering done"<<endl;
 
-    ETree_.ConstructETree(Global_,Order_);
+    ETree_.ConstructETree(*Global_,Order_);
     ETree_.PostOrderTree(Order_);
 logfileptr->OFS()<<"ETREE done"<<endl;
     IntNumVec cc,rc;
-    Global_.GetLColRowCount(ETree_,Order_,cc,rc);
+    Global_->GetLColRowCount(ETree_,Order_,cc,rc);
     ETree_.SortChildren(cc,Order_);
 
 #ifdef _DEBUG_
@@ -1114,17 +1117,17 @@ logfileptr->OFS()<<"ETREE done"<<endl;
       cout<<"Flops: "<<flops<<endl;
     }
 
-    Global_.FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
+    Global_->FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
 
 logfileptr->OFS()<<"Supernodes found"<<endl;
 
 #ifdef RELAXED_SNODE
-    Global_.RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options.maxSnode );
+    Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options.maxSnode );
 logfileptr->OFS()<<"Relaxation done"<<endl;
-    Global_.SymbolicFactorizationRelaxed(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+    Global_->SymbolicFactorizationRelaxed(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
 
 #else
-    Global_.SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+    Global_->SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
 #endif
 
 logfileptr->OFS()<<"Symbfact done"<<endl;
@@ -1132,7 +1135,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 #ifdef REFINED_SNODE
     IntNumVec permRefined;
     //    IntNumVec newPerm(Size());
-    Global_.RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
+    Global_->RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
 
     //      Perm_.Resize(Size());
     //      for(Int i =0; i<Perm_.m();++i){
@@ -1496,22 +1499,22 @@ isLindxAllocated_=true;
       ExpA.Local_.colptr.Resize(numColLocal+1);
 
       for( Int i = 0; i < numColLocal + 1; i++ ){
-        ExpA.Local_.colptr[i] = Global_.expColptr[iam * numColFirst+i] - Global_.expColptr[iam * numColFirst] + 1;
+        ExpA.Local_.colptr[i] = Global_->expColptr[iam * numColFirst+i] - Global_->expColptr[iam * numColFirst] + 1;
       }
 
       ExpA.Local_.nnz = ExpA.Local_.colptr[numColLocal] - ExpA.Local_.colptr[0];
 
       ExpA.Local_.rowind.Resize(ExpA.Local_.nnz);
 
-      Int globalColBeg = Global_.expColptr[iam*numColFirst];
-      std::copy(&Global_.expRowind[globalColBeg-1],&Global_.expRowind[globalColBeg-1]+ExpA.Local_.nnz,ExpA.Local_.rowind.Data());
+      Int globalColBeg = Global_->expColptr[iam*numColFirst];
+      std::copy(&Global_->expRowind[globalColBeg-1],&Global_->expRowind[globalColBeg-1]+ExpA.Local_.nnz,ExpA.Local_.rowind.Data());
       ExpA.nzvalLocal.Resize(ExpA.Local_.nnz);
 
 #ifdef _DEBUG_
-      logfileptr->OFS()<<"Global_.colptr: "<<Global_.colptr<<endl;
-      logfileptr->OFS()<<"Global_.rowind: "<<Global_.rowind<<endl;
-      logfileptr->OFS()<<"Global_.expColptr: "<<Global_.expColptr<<endl;
-      logfileptr->OFS()<<"Global_.expRowind: "<<Global_.expRowind<<endl;
+      logfileptr->OFS()<<"Global_.colptr: "<<Global_->colptr<<endl;
+      logfileptr->OFS()<<"Global_.rowind: "<<Global_->rowind<<endl;
+      logfileptr->OFS()<<"Global_.expColptr: "<<Global_->expColptr<<endl;
+      logfileptr->OFS()<<"Global_.expRowind: "<<Global_->expRowind<<endl;
       logfileptr->OFS()<<"ExpA.colptr: "<<ExpA.Local_.colptr<<endl;
       logfileptr->OFS()<<"ExpA.rowind: "<<ExpA.Local_.rowind<<endl;
       logfileptr->OFS()<<"pMat.colptr: "<<pMat.Local_.colptr<<endl;
@@ -1658,7 +1661,7 @@ isLindxAllocated_=true;
 
             if(iam == iDest){
               if(iam != iOwnerCol){
-                Int nrows = Global_.expColptr[orig_col] - Global_.expColptr[orig_col-1];
+                Int nrows = Global_->expColptr[orig_col] - Global_->expColptr[orig_col-1];
                 size_t & recv_bytes = recv_map[iOwnerCol].first;
                 recv_bytes += sizeof(Int)+sizeof(Int)+nrows*(sizeof(Int) + sizeof(T));
               }
@@ -1677,6 +1680,7 @@ isLindxAllocated_=true;
         LocalSupernodes_.reserve(snodeCount);
 
 
+        
         for(Int I=1;I<Xsuper_.m();I++){
 
           Int iDest = this->Mapping_->Map(I-1,I-1);
@@ -1697,7 +1701,24 @@ isLindxAllocated_=true;
             globToLocSnodes_.Insert(snode_inter);
 #endif
 
-            LocalSupernodes_.push_back( new SuperNode2<T>(I,fc,lc,iHeight,iSize_));
+                  //count number of contiguous blocks (at least one diagonal block)
+                  Int nzBlockCnt = 1;
+                  Idx32 iPrevRow = lindx_(fi-1)-1;
+                  for(Idx64 idx = fi; idx<=li;idx++){
+                    Idx32 iRow = lindx_(idx-1);
+    
+                    //enforce the first block to be a square diagonal block
+                    if(nzBlockCnt==1 && iRow>fc/*lindx_(fi-1)*/+iWidth-1){
+                      nzBlockCnt++;
+                    }
+                    else if(iRow!=iPrevRow+1){
+                      nzBlockCnt++;
+                    }
+
+                    iPrevRow=iRow;
+                  }
+
+            LocalSupernodes_.push_back( new SuperNode2<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
           }
         }
 
@@ -1906,7 +1927,14 @@ isLindxAllocated_=true;
             Idx64 li = xlindx_(I)-1;
             Int iHeight = li-fi+1;
 
+#ifndef ITREE2
+            globToLocSnodes_.push_back(I-1);
+#else 
+            ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
+            globToLocSnodes_.Insert(snode_inter);
+#endif
 
+            LocalSupernodes_.push_back( new SuperNode2<T>(I,fc,lc,iHeight,iSize_));
             SuperNode2<T> & snode = *snodeLocal(I);
 
             if(snode.NZBlockCnt()==0){
@@ -2065,7 +2093,12 @@ isLindxAllocated_=true;
 
 
 
-
+    gdb_lock();
+    xlindx_.Clear();
+    lindx_.Clear();
+    delete Local_;
+    delete Global_;
+    gdb_lock();
 
 
 
@@ -2085,6 +2118,8 @@ isLindxAllocated_=true;
     CommEnv_=NULL;
     Mapping_ = NULL;
     scheduler_ = NULL;
+    Local_=NULL;
+    Global_=NULL;
     isGlobStructAllocated_ = false;
     isXlindxAllocated_=false;
     isLindxAllocated_=false;
@@ -2094,6 +2129,8 @@ isLindxAllocated_=true;
     CommEnv_ = NULL;
     Mapping_ = NULL;
     scheduler_ = NULL;
+    Local_=NULL;
+    Global_=NULL;
     isGlobStructAllocated_ = false;
     isXlindxAllocated_=false;
     isLindxAllocated_=false;
@@ -2125,6 +2162,14 @@ isLindxAllocated_=true;
 
     if(CommEnv_!=NULL){
       delete CommEnv_;
+    }
+
+    if(Local_!=NULL){
+      delete Local_;
+    }
+
+    if(Global_!=NULL){
+      delete Global_;
     }
   }
 

@@ -115,7 +115,7 @@ class SuperNode2{
   
   SuperNode2();
 
-  SuperNode2(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN);
+  SuperNode2(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
   SuperNode2(Int aiId, Int aiFc, Int aiLc, Int aiN);
   //SuperNode2(Int aiId, Int aiFc, Int aiLc, NZBlockDesc2 * a_block_desc, Int a_desc_cnt,
   //            T * a_nzval, Int a_nzval_cnt, Int aiN);

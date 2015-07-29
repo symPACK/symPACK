@@ -94,8 +94,8 @@ namespace LIBCHOLESKY{
       Mapping * Mapping_;
 
       //Local and Global structure of the matrix (CSC format)
-      SparseMatrixStructure Local_;
-      SparseMatrixStructure Global_;
+      SparseMatrixStructure * Local_;
+      SparseMatrixStructure * Global_;
       //Is the global structure of the matrix allocated
       bool isGlobStructAllocated_;
 

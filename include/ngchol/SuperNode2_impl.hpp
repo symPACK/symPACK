@@ -7,7 +7,7 @@
     SuperNode2<T>::SuperNode2() : meta_(NULL), blocks_(NULL), nzval_(NULL) { }
 
   template<typename T>
-    SuperNode2<T>::SuperNode2(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN) {
+    SuperNode2<T>::SuperNode2(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {
 
       //this is an upper bound
       assert(ai_num_rows>=0);
@@ -16,15 +16,15 @@
       Int size = aiLc - aiFc +1;
       //compute maximum number of blocks, number of off-diagonal rows + 1
       Int num_blocks = ai_num_rows-size + 1;
-      //storage_container_.resize( sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc)); 
+      if(aiNZBlkCnt!=-1){
+        num_blocks=aiNZBlkCnt;
+      }
+
       storage_size_ = sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc);
       storage_container_ = upcxx::allocate<char>(iam,storage_size_); 
       loc_storage_container_ = (char *)storage_container_;
-      
+      assert(loc_storage_container_!=NULL);
 
-
-
-//      storage_container_.resize( sizeof(T)*size*ai_num_rows + ai_num_rows*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc)); 
       nzval_ = (T*)&loc_storage_container_[0];
       meta_ = (SuperNodeDesc*)(nzval_+size*ai_num_rows);
       char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc2) -1);
@@ -179,6 +179,8 @@
 
         upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,new_size);
         char * locTmpPtr = (char*)tmpPtr;
+        assert(locTmpPtr!=NULL);
+
         std::copy(loc_storage_container_,loc_storage_container_+storage_size_,locTmpPtr);
         upcxx::deallocate(storage_container_);
         storage_container_=tmpPtr;
@@ -303,7 +305,7 @@
       if(meta_->b_own_storage_){
         //TODO make sure that we do not have any extra space anywhere.
 
-      //if there is no more room for either nzval or blocks, extend
+      //if there is too much room for either nzval or blocks, contract
       Int block_space = (Int)(blocks_+1 - (NZBlockDesc2*)(meta_ +1)) - meta_->blocks_cnt_;
       Int nzval_space = (Int)((T*)meta_ - nzval_) - meta_->nzval_cnt_;
 
@@ -315,6 +317,8 @@
 
         upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,new_size);
         char * locTmpPtr = (char*)tmpPtr;
+        assert(locTmpPtr!=NULL);
+
         //copy nzvals
         std::copy(loc_storage_container_,loc_storage_container_+meta_->nzval_cnt_*sizeof(T),locTmpPtr);
         //copy meta
