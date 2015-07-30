@@ -1,6 +1,7 @@
 #include "ngchol/SparseMatrixStructure.hpp"
 #include "ngchol/ETree.hpp"
-//#include "ngchol/utility.hpp"
+#include "ngchol/Utility.hpp"
+
 #include <limits>       // std::numeric_limits
 
 #include <iostream>
@@ -414,10 +415,77 @@ namespace LIBCHOLESKY{
     xsuper[0]=1;
   }
 
+
+
+  void SparseMatrixStructure::FindFundamentalSupernodes(ETree& tree, Ordering & aOrder, vector<int> & cc,vector<int> & supMembership, vector<int> & xsuper, int maxSize ){
+
+    if(!bIsGlobal){
+			throw std::logic_error( "SparseMatrixStructure must be global in order to call FindSupernodes\n" );
+    }
+
+    supMembership.resize(size);
+
+    int nsuper = 1;
+    int supsize = 1;
+    supMembership[0] = 1;
+
+
+
+
+    vector<int> children(size,0);
+    for(int I=1;I<=size;I++){
+      int parent = tree.PostParent(I-1);
+      if(parent!=0){
+        ++children[parent-1];
+      }
+    }
+
+
+    for(int i =2; i<=size;i++){
+      int prev_parent = tree.PostParent(i-1-1);
+      if(prev_parent == i){
+        if(cc[i-1-1] == cc[i-1]+1 && children[i-1]==1) {
+          if(supsize<maxSize || maxSize==-1){
+            ++supsize;
+            supMembership[i-1] = nsuper;
+            continue;
+          }
+        }
+      }
+
+        nsuper++;
+      supsize = 1;
+      supMembership[i-1] = nsuper;
+    }
+
+    xsuper.resize(nsuper+1);
+    int lstsup = nsuper+1;
+    for(int i = size; i>=1;--i){
+      int ksup = supMembership[i-1];
+      if(ksup!=lstsup){
+       xsuper[lstsup-1] = i + 1; 
+      }
+      lstsup = ksup;
+    }
+    xsuper[0]=1;
+  }
+
+
+
+
 //EXPERIMENTAL STUFF
+
   typedef std::set<int> nodeset;
-  typedef std::list<nodeset*> partitions;
+  //typedef std::list<nodeset*> partitions;
   typedef std::vector<nodeset*> vecset;
+
+  struct snode{
+    int id;
+    nodeset members;
+  };
+
+  typedef std::list<snode*> partitions;
+
 void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx, vector<int> & perm,vector<int> & origPerm){
 
 #if 0
@@ -425,18 +493,19 @@ vector<int> newXsuper;
 #endif
 
   perm.resize(size);
+  origPerm.resize(size);
 
   int nsuper = xsuper.size()-1;
   //Using std datatypes first
-
+  //adj[i-1] is the monotone adjacency set of supernode i 
+  //(nodes numbered higher than the highest-numbered vertex in Supernode i)
   vecset adj(nsuper);
-  vecset snodes(nsuper);
+
+  //vecset snodes(nsuper);
+  vector<snode*> snodes(nsuper);
 
   partitions L;
-
-  origPerm.resize(size);
-
-  //init L with curent supernodal partition
+  //initialize L with curent supernodal partition
   int pos = 1;
   for(int i = 1; i<=nsuper; ++i){
     adj[i-1] = new nodeset();
@@ -449,13 +518,29 @@ vector<int> newXsuper;
        }
     }
 
-    L.push_back(new nodeset());
-    snodes[i-1] = L.back();
-    nodeset * curL = L.back();
+    L.push_back(new snode());
+    snode * curL = L.back();
+    curL->id = i;
+    snodes[i-1] = curL;
+
     int fc = xsuper[i-1];
     int lc = xsuper[i]-1;
     for(int node = fc; node<=lc;++node){
-      curL->insert(node);
+      curL->members.insert(node);
+    }
+
+//    L.push_back(new nodeset());
+//    nodeset * curL = L.back();
+//
+//    snodes[i-1] = curL;
+//
+//    int fc = xsuper[i-1];
+//    int lc = xsuper[i]-1;
+//    for(int node = fc; node<=lc;++node){
+//      curL->insert(node);
+//    }
+
+    for(int node = fc; node<=lc;++node){
       origPerm[node-1] = pos++;
     }
   }
@@ -465,15 +550,15 @@ vector<int> newXsuper;
 
     partitions::iterator it;
 
-#if 0
+#if 1
     for(it = L.begin();it != L.end(); ++it){
-      cerr<<"[ ";
-      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
-        cerr<<*nit<<" ";
+      cout<<"[ ";
+      for(nodeset::iterator nit = (*it)->members.begin();nit != (*it)->members.end(); ++nit){
+        cout<<*nit<<" ";
       }
-      cerr<<"] ";
+      cout<<"] ";
     }
-    cerr<<std::endl;
+    cout<<std::endl;
 #endif
 
 
@@ -482,90 +567,116 @@ vector<int> newXsuper;
 
 
 
-  int K = nsuper;
   partitions::reverse_iterator Kit;
-  for(Kit = L.rbegin();Kit != L.rend(); ++Kit){
-    assert( snodes[K-1] == *Kit);
 
-//        logfileptr->OFS()<<"Adj is "<<*adj[K-1]<<std::endl;
+  int prevK = nsuper+1;  
+  for(Kit = L.rbegin();Kit != L.rend(); ++Kit){
+    //assert( snodes[K-1] == *Kit);
+    int K = (*Kit)->id;
+    if(K<0 || K>=prevK){cout<<"K="<<K<<endl; continue;}
+
+    cout<<"K_"<<K<<" is "<<(*Kit)->members<<std::endl;
+    cout<<"Adj of K_"<<K<<" is "<<*adj[K-1]<<std::endl;
 
     partitions::reverse_iterator Jit;
 //    partitions tmp;
-    Jit = L.rbegin();
-    int count = L.size() - K;
-    while(count>0)
-    {
-//        logfileptr->OFS()<<"L is "<<**Jit<<std::endl;
+    int newSets=0;
+    auto KKit = Kit;
+    for(Jit = L.rbegin(); Jit != KKit; ++Jit){
+      cout<<"    L_"<<std::distance(L.begin(),Jit.base())<<" is "<<(*Jit)->members<<std::endl;
       //compute I = J inter M(Ki)
       nodeset * inter = new nodeset();
-      std::set_intersection((*Jit)->begin(),(*Jit)->end(),
+      std::set_intersection((*Jit)->members.begin(),(*Jit)->members.end(),
                               adj[K-1]->begin(),adj[K-1]->end(),
                                 std::inserter(*inter, inter->begin()));
-//        logfileptr->OFS()<<"intersect is "<<*inter<<std::endl;
 
       if(inter->size()>0){
         //compute I' = J \ M(Ki)
         nodeset * diff = new nodeset();
-        std::set_difference((*Jit)->begin(),(*Jit)->end(),
+        std::set_difference((*Jit)->members.begin(),(*Jit)->members.end(),
                               adj[K-1]->begin(),adj[K-1]->end(),
                                 std::inserter(*diff, diff->begin()));
 
-//        logfileptr->OFS()<<"Diff is "<<*diff<<std::endl;
+          //cout<<"        intersect is "<<*inter<<std::endl;
+          //cout<<"        diff is "<<*diff<<std::endl;
 
         if(diff->size()>0){
+          //increase Kit only if we are splitting an original set of L...
+          int curJ =(*Jit)->id;
+          int newJ = -abs(curJ);
+
           //replace J by I'
-          (*Jit)->swap(*diff);
+          (*Jit)->members.swap(*diff);
+          (*Jit)->id=newJ;
           //Insert I before I'
-          L.insert(Jit.base(),inter);
           ++Jit; 
+          L.insert(Jit.base(),new snode());
+          (*Jit)->members.swap(*inter);
+          (*Jit)->id=newJ;
+
+          --Jit; 
+          cout<<"B    L_"<<std::distance(L.begin(),Jit.base())<<" is now "<<(*Jit)->members<<std::endl;
           ++Jit; 
+          cout<<"C    L_"<<std::distance(L.begin(),Jit.base())<<" is now "<<(*Jit)->members<<std::endl;
+
+          KKit++;
         }
         delete diff;
-      }
-      else{
-//        tmp.push_back(*Jit);
         delete inter;
       }
-      ++Jit;
-      --count;
+      else{
+        delete inter;
+      }
     }
-    
-
-//    partitions::iterator it;
-//    for(it = L.begin();it != L.end(); ++it){
-//      //logfileptr->OFS()<<"[ ";
-//      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
-//        //logfileptr->OFS()<<*nit<<" ";
-//      }
-//      //logfileptr->OFS()<<"] ";
-//    }
-    //logfileptr->OFS()<<std::endl;
-    --K;
+    prevK=K;
   }
+/////
+/////assert(K==0);
+/////
+///////    partitions::iterator it;
+///////    for(it = L.begin();it != L.end(); ++it){
+///////      //logfileptr->OFS()<<"[ ";
+///////      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
+///////      //  logfileptr->OFS()<<*nit<<" ";
+///////      }
+///////      //logfileptr->OFS()<<"] ";
+///////    }
+///////    //logfileptr->OFS()<<std::endl;
+/////
 
-//    partitions::iterator it;
-//    for(it = L.begin();it != L.end(); ++it){
-//      //logfileptr->OFS()<<"[ ";
-//      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
-//      //  logfileptr->OFS()<<*nit<<" ";
-//      }
-//      //logfileptr->OFS()<<"] ";
-//    }
-//    //logfileptr->OFS()<<std::endl;
+
+
+
+
+#if 1
+    for(it = L.begin();it != L.end(); ++it){
+      cout<<"["<< (*it)->id <<": ";
+      for(nodeset::iterator nit = (*it)->members.begin();nit != (*it)->members.end(); ++nit){
+        cout<<*nit<<" ";
+      }
+      cout<<"] ";
+    }
+    cout<<std::endl;
+#endif
+
+
+
+
+
+
+
 
 
   //construct perm
     pos = 1;
     for(it = L.begin();it != L.end(); ++it){
-      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
+      for(nodeset::iterator nit = (*it)->members.begin();nit != (*it)->members.end(); ++nit){
         perm[*nit-1] = pos++;
       }
     }
 
-    for(int i=0;i<perm.size();++i){
-      cout<<perm[i]<<" ";
-    }
-    cout<<endl;
+    cout<<perm<<endl;
+
 
 #if 0
     newXsuper.resize(L.size()+1);

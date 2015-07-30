@@ -17,7 +17,7 @@ GFORTRAN_LIB     = -lgfortran
 #SPARSELIB_LIB    = ${SPARSELIB_DIR}/sparse_matrix_converter/libsparse_matrix_converter.a  ${SPARSELIB_DIR}/bebop_util/libbebop_util.a
 
 
-COMPILE_FLAG   = -O3 -w -g
+COMPILE_FLAG   = -O0 -w -g
 LIBS  = ${GFORTRAN_LIB}
 
 

@@ -1,5 +1,6 @@
 #include "ngchol/Ordering.hpp"
 #include "ngchol/mmd.hpp"
+#include "ngchol/utility.hpp"
 
 namespace LIBCHOLESKY{
 
@@ -33,12 +34,35 @@ void Ordering::MMD(){
     Int iflag =0;
 
     IntNumVec tmpXadj = pStructure->expColptr;
-    IntNumVec tmpAdj = pStructure->expRowind;
+    IntNumVec tmpAdj(pStructure->expRowind.m()-pStructure->size);
+
+    int pos = 0;
+    for(int col=0; col<tmpXadj.m()-1;++col){
+      for(int j=tmpXadj[col]; j<tmpXadj[col+1];++j){
+        if( pStructure->expRowind[j-1]-1 != col){
+          tmpAdj[pos++] = pStructure->expRowind[j-1];
+        }
+      }
+    }
+
+    int rm = 0;
+    for(int col=0; col<tmpXadj.m();++col){
+      tmpXadj[col]-=rm;
+      rm++;
+    }
+
+
+
+
+
+
+
+
     FORTRAN(ordmmd)( &pStructure->size , &nadj , tmpXadj.Data() , tmpAdj.Data(), 
             &invp[0] , &perm[0] , &iwsiz , &iwork[0] , &nofsub, &iflag ) ;
 
 
-//  logfileptr->OFS()<<"perm "<<perm<<endl;
+  logfileptr->OFS()<<"perm "<<perm<<endl;
 //  logfileptr->OFS()<<"invperm "<<invp<<endl;
 
 //    Permute(perm);

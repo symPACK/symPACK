@@ -5,9 +5,46 @@
 
 #include "iohb.h"
 
+#include "ngchol/Utility.hpp"
 #include "ngchol/DistSparseMatrix.hpp"
 #include "ngchol/SparseMatrixStructure.hpp"
 
+//int countBlock(vector<int> & Xsuper, vector<int64_t> & Xlindx, vector<int32_t> & Lindx){
+//        int num_blocks = 0;
+//        for(int I = 1; I<Xlindx.size();++I){
+//          cout<<I<<"("<<Xsuper[I-1]<<".."<<Xsuper[I]-1<<"): ";
+//
+//                  //count number of contiguous blocks (at least one diagonal block)
+//                  int32_t fc = Xsuper[I-1];
+//                  int32_t lc = Xsuper[I]-1;
+//                  int32_t fi = Xlindx[I-1];
+//                  int32_t li = Xlindx[I]-1;
+//                  int32_t nzBlockCnt = 1;
+//                  int32_t iPrevRow = Lindx[fi-1]-1;
+//                
+//                  for(int64_t idx = fi; idx<=li;idx++){
+//                    int32_t iRow = Lindx[idx-1];
+//    
+//                    //enforce the first block to be a square diagonal block
+//                    if(nzBlockCnt==1 && iRow>lc){
+//                      nzBlockCnt++;
+//                      cout<<"| ";
+//                    }
+//                    else if(iRow!=iPrevRow+1){
+//                      nzBlockCnt++;
+//                      cout<<"| ";
+//                    }
+//                    cout<<iRow<<" ";
+//
+//                    iPrevRow=iRow;
+//                  }
+//                cout<<" || "<<nzBlockCnt<<endl;
+//            num_blocks+=nzBlockCnt;
+//          }
+//
+//
+//    return num_blocks;
+//}
 
 using namespace LIBCHOLESKY;
 
@@ -223,7 +260,7 @@ int main(int argc, char **argv)
     }
     else{
       DistSparseMatrix<complex<double> > HMat(worldcomm);
-      HMat.CopyData(N,nonzeros,colptr,rowind,(complex<double> *)val);
+      HMat.CopyData(N,nonzeros,colptr,rowind,(complex<double> *)val,true);
       free(colptr);
       free(rowind);
       free(val);
@@ -243,9 +280,11 @@ int main(int argc, char **argv)
 
     SparseMatrixStructure Global;
     Local.ToGlobal(Global,worldcomm);
+    cout<<"Adj: "<<Local.rowind<<endl;
+    cout<<"Adj: "<<Global.rowind<<endl;
+
     Global.ExpandSymmetric();
     if(iam==0){ cout<<"Matrix expanded"<<endl; }
-
     //Create an Ordering object to hold the permutation
     Ordering Order;
     Order.SetStructure(Global);
@@ -253,22 +292,22 @@ int main(int argc, char **argv)
 
     //Reoder the matrix with MMD
     Order.MMD();
-    //        Order.AMD();
+    //Order.AMD();
     if(iam==0){ cout<<"Ordering done"<<endl; }
+    cout<<"MMD perm: "<<Order.perm<<endl;
+
 
     ETree Etree;
     Etree.ConstructETree(Global,Order);
     Etree.PostOrderTree(Order);
     if(iam==0){ cout<<"ETree done"<<endl; }
+    //cout<<"etree "<<Etree<<std::endl;
     vector<int> cc,rc;
     Global.GetLColRowCount(Etree,Order,cc,rc);
+    //cout<<"colcnt "<<cc<<std::endl;
     Etree.SortChildren(cc,Order);
+    cout<<"colcnt sorted "<<cc<<std::endl;
 
-
-    if(iam==0){
-      //  cout<<"colcnt "<<cc<<std::endl;
-      //  cout<<"rowcnt "<<rc<<std::endl;
-    }
 
     double flops = 0.0;
     for(int i = 0; i<cc.size();++i){
@@ -279,7 +318,8 @@ int main(int argc, char **argv)
       cout<<"Flops: "<<flops<<endl;
     }
 
-    Global.FindSupernodes(Etree,Order,cc,SupMembership,Xsuper,maxSnode);
+//    Global.FindSupernodes(Etree,Order,cc,SupMembership,Xsuper,maxSnode);
+    Global.FindFundamentalSupernodes(Etree,Order,cc,SupMembership,Xsuper,maxSnode);
     if(iam==0){ cout<<"Supernodes found"<<endl; }
 
 #ifdef RELAX_SNODE
@@ -291,7 +331,8 @@ int main(int argc, char **argv)
     if(iam==0){ cout<<"Symbfact done"<<endl; }
 #endif
 
-#ifdef VERBOSE
+#if 1
+//VERBOSE
     if(iam==0){ 
       cout<<"1 Xsuper is:"<<endl;
       for(int i =0; i<Xsuper.size();++i){
@@ -304,6 +345,20 @@ int main(int argc, char **argv)
         cout<<Order.perm[i]<<" "; 
       }
       cout<<endl;
+
+
+      cout<<"perm is:"<<Order.perm<<endl;
+      cout<<"Xsuper is "<<Xsuper<<endl;
+      cout<<"Xlindx is "<<Xlindx<<endl;
+      cout<<"Lindx is "<<Lindx<<endl;
+
+
+
+
+
+
+
+
     }
 #endif
 
@@ -335,18 +390,15 @@ int main(int argc, char **argv)
       }
       cout<<endl;
 //#endif
-      cout<<"2 Xsuper is:"<<endl;
-      for(int i =0; i<Xsuper.size();++i){
-        cout<<Xsuper[i]<<" "; 
-      }
-      cout<<endl;
 
+      if(iam==0){ cout<<"Original Supernodes: "<<Xsuper<<endl; }
 
 
     }
 
-    //safety check
     {
+#if 0
+      //safety check
       {
         ETree Etree2;
         Etree2.ConstructETree(Global,OrderSave);
@@ -361,7 +413,7 @@ int main(int argc, char **argv)
 
 
       }
-
+#endif
 
       vector<int> SupMembership2,Xsuper2;
       vector<int64_t> Xlindx2;
@@ -372,7 +424,7 @@ int main(int argc, char **argv)
       Etree2.PostOrderTree(Order);
       vector<int> cc2,rc2;
       Global.GetLColRowCount(Etree2,Order,cc2,rc2);
-      //Etree2.SortChildren(cc2,Order);
+      Etree2.SortChildren(cc2,Order);
 
       double flops2 = 0.0;
       for(int i = 0; i<cc2.size();++i){
@@ -383,67 +435,137 @@ int main(int argc, char **argv)
         cout<<"Flops 2: "<<flops2<<endl;
       }
 
-      Global.FindSupernodes(Etree2,Order,cc2,SupMembership2,Xsuper2,maxSnode);
+//      Global.FindSupernodes(Etree2,Order,cc2,SupMembership2,Xsuper2,maxSnode);
+      Global.FindFundamentalSupernodes(Etree2,Order,cc2,SupMembership2,Xsuper2,maxSnode);
       if(iam==0){ cout<<"Supernodes found"<<endl; }
 
 #ifdef RELAX_SNODE
       Global.RelaxSupernodes(Etree2, cc2,SupMembership2, Xsuper2, maxSnode );
       if(iam==0){ cout<<"Relaxation done"<<endl; }
+      if(iam==0){ cout<<"Supernodes: "<<Xsuper2<<endl; }
       Global.SymbolicFactorizationRelaxed(Etree2,Order,cc2,Xsuper2,SupMembership2,Xlindx2,Lindx2);
 #else
+      if(iam==0){ cout<<"Supernodes: "<<Xsuper2<<endl; }
       Global.SymbolicFactorization(Etree2,Order,cc2,Xsuper2,SupMembership2,Xlindx2,Lindx2);
       if(iam==0){ cout<<"Symbfact done"<<endl; }
 #endif
-
-      cout<<"3 Xsuper3 is:"<<endl;
-      for(int i =0; i<Xsuper2.size();++i){
-        //assert(Xsuper[i]==Xsuper2[i]);
-        cout<<Xsuper2[i]<<" "; 
-      }
-      cout<<endl;
 
 
 
 
       if(iam==0){
 
-        int num_blocks2 = 0;
-        for(int I = 1; I<Xlindx.size();++I){
-          cout<<I<<"("<<Xsuper[I-1]<<".."<<Xsuper[I]-1<<"): ";
-          int32_t prevRow = -1;
-          for(int64_t rowi = Xlindx[I-1]; rowi<=Xlindx[I]-1; ++rowi){
-            int32_t row = Lindx[rowi-1];
-            cout<<row<<" ";
-            if(prevRow == -1 || prevRow!=row-1){
-              num_blocks2++;
-            }
-            prevRow=row;
-          }
-          cout<<" | "<<num_blocks2<<endl;
-        }
 
         int num_blocks = 0;
+        for(int I = 1; I<Xlindx.size();++I){
+          cout<<I<<"("<<Xsuper[I-1]<<".."<<Xsuper[I]-1<<"): ";
+
+                  //count number of contiguous blocks (at least one diagonal block)
+                  int32_t fc = Xsuper[I-1];
+                  int32_t lc = Xsuper[I]-1;
+                  int32_t fi = Xlindx[I-1];
+                  int32_t li = Xlindx[I]-1;
+                  int32_t nzBlockCnt = 1;
+                  int32_t iPrevRow = Lindx[fi-1]-1;
+                
+                  for(int64_t idx = fi; idx<=li;idx++){
+                    int32_t iRow = Lindx[idx-1];
+    
+                    //enforce the first block to be a square diagonal block
+                    if(nzBlockCnt==1 && iRow>lc){
+                      nzBlockCnt++;
+                      cout<<"| ";
+                    }
+                    else if(iRow!=iPrevRow+1){
+                      nzBlockCnt++;
+                      cout<<"| ";
+                    }
+                    cout<<iRow<<" ";
+
+                    iPrevRow=iRow;
+                  }
+                cout<<" || "<<nzBlockCnt<<endl;
+            num_blocks+=nzBlockCnt;
+          }
+
+
+        int num_blocks2 = 0;
         for(int I = 1; I<Xlindx2.size();++I){
           cout<<I<<"("<<Xsuper2[I-1]<<".."<<Xsuper2[I]-1<<"): ";
-          int32_t prevRow = -1;
-          for(int64_t rowi = Xlindx2[I-1]; rowi<=Xlindx2[I]-1; ++rowi){
-            int32_t row = Lindx2[rowi-1];
-            cout<<row<<" ";
-            if(prevRow == -1 || prevRow!=row-1){
-              num_blocks++;
-            }
-            prevRow=row;
-          }
-          cout<<" | "<<num_blocks<<endl;
-        }
 
-        cout<<"Contiguous blocks: "<<num_blocks2<<" vs "<<num_blocks<<endl;
+                  //count number of contiguous blocks (at least one diagonal block)
+                  int32_t fc = Xsuper2[I-1];
+                  int32_t lc = Xsuper2[I]-1;
+                  int32_t fi = Xlindx2[I-1];
+                  int32_t li = Xlindx2[I]-1;
+                  int32_t nzBlockCnt = 1;
+                  int32_t iPrevRow = Lindx2[fi-1]-1;
+                
+                  for(int64_t idx = fi; idx<=li;idx++){
+                    int32_t iRow = Lindx2[idx-1];
+    
+                    //enforce the first block to be a square diagonal block
+                    if(nzBlockCnt==1 && iRow>lc){
+                      nzBlockCnt++;
+                      cout<<"| ";
+                    }
+                    else if(iRow!=iPrevRow+1){
+                      nzBlockCnt++;
+                      cout<<"| ";
+                    }
+                    cout<<iRow<<" ";
+
+                    iPrevRow=iRow;
+                  }
+                cout<<" || "<<nzBlockCnt<<endl;
+            num_blocks2+=nzBlockCnt;
+          }
+
+
+//    Global.SymbolicFactorizationRelaxed(Etree,Order,cc,Xsuper,SupMembership,Xlindx,Lindx);
+
+
+
+
+//        for(int I = 1; I<Xlindx.size();++I){
+//          cout<<I<<"("<<Xsuper[I-1]<<".."<<Xsuper[I]-1<<"): ";
+//          int32_t prevRow = -1;
+//          for(int64_t rowi = Xlindx[I-1]; rowi<=Xlindx[I]-1; ++rowi){
+//            int32_t row = Lindx[rowi-1];
+//            cout<<row<<" ";
+//            if(prevRow == -1 || prevRow!=row-1){
+//              num_blocks2++;
+//            }
+//            prevRow=row;
+//          }
+//          cout<<" | "<<num_blocks2<<endl;
+//        }
+//
+//        int num_blocks = 0;
+//        for(int I = 1; I<Xlindx2.size();++I){
+//          cout<<I<<"("<<Xsuper2[I-1]<<".."<<Xsuper2[I]-1<<"): ";
+//          int32_t prevRow = -1;
+//          for(int64_t rowi = Xlindx2[I-1]; rowi<=Xlindx2[I]-1; ++rowi){
+//            int32_t row = Lindx2[rowi-1];
+//            cout<<row<<" ";
+//            if(prevRow == -1 || prevRow!=row-1){
+//              num_blocks++;
+//            }
+//            prevRow=row;
+//          }
+//          cout<<" | "<<num_blocks<<endl;
+//        }
+
+        cout<<"Contiguous blocks: "<<num_blocks<<" vs "<<num_blocks2<<endl;
 
 
         int nnz = 0;
         for(int i =0; i<cc.size();++i){
-          //        cout<<cc[i]<<" "; 
           nnz+=cc[i];
+        }
+        for(int i =0; i<Xsuper.size()-1;++i){
+          int x = Xsuper[i+1]-Xsuper[i];
+          nnz+= x*(x-1)/2;
         }
         //      cout<<endl;
         cout<<nnz<<endl;
@@ -453,8 +575,14 @@ int main(int argc, char **argv)
           //        cout<<cc2[i]<<" "; 
           nnz2+=cc2[i];
         }
+        for(int i =0; i<Xsuper2.size()-1;++i){
+          int x = Xsuper2[i+1]-Xsuper2[i];
+          nnz2+= x*(x-1)/2;
+        }
         //      cout<<endl;
         cout<<nnz2<<endl;
+
+
       }
     }
 

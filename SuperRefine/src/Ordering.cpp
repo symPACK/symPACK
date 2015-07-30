@@ -1,4 +1,5 @@
 #include "ngchol/Ordering.hpp"
+#include "ngchol/Utility.hpp"
 #include <cassert>
 #include <stdexcept>
 #include <iostream>
@@ -61,13 +62,27 @@ void Ordering::MMD(){
     int iflag =0;
 
     vector<int> tmpXadj = pStructure->expColptr;
-    vector<int> tmpAdj = pStructure->expRowind;
+    vector<int> tmpAdj;
+    tmpAdj.reserve(pStructure->expRowind.size());
+
+    for(int col=0; col<tmpXadj.size()-1;++col){
+      for(int j=tmpXadj[col]; j<tmpXadj[col+1];++j){
+        if( pStructure->expRowind[j-1]-1 != col){
+          tmpAdj.push_back(pStructure->expRowind[j-1]);
+        }
+      }
+    }
+
+    int rm = 0;
+    for(int col=0; col<tmpXadj.size();++col){
+      tmpXadj[col]-=rm;
+      rm++;
+    }
+
+
     FORTRAN(ordmmd)( &pStructure->size , &nadj , &tmpXadj[0] , &tmpAdj[0], 
             &invp[0] , &perm[0] , &iwsiz , &iwork[0] , &nofsub, &iflag ) ;
 
-
-//  logfileptr->OFS()<<"perm "<<perm<<endl;
-//  logfileptr->OFS()<<"invperm "<<invp<<endl;
 
 //    Permute(perm);
 
