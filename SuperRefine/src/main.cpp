@@ -8,43 +8,110 @@
 #include "ngchol/Utility.hpp"
 #include "ngchol/DistSparseMatrix.hpp"
 #include "ngchol/SparseMatrixStructure.hpp"
+#include "ngchol/timer.hpp"
 
-//int countBlock(vector<int> & Xsuper, vector<int64_t> & Xlindx, vector<int32_t> & Lindx){
-//        int num_blocks = 0;
-//        for(int I = 1; I<Xlindx.size();++I){
-//          cout<<I<<"("<<Xsuper[I-1]<<".."<<Xsuper[I]-1<<"): ";
-//
-//                  //count number of contiguous blocks (at least one diagonal block)
-//                  int32_t fc = Xsuper[I-1];
-//                  int32_t lc = Xsuper[I]-1;
-//                  int32_t fi = Xlindx[I-1];
-//                  int32_t li = Xlindx[I]-1;
-//                  int32_t nzBlockCnt = 1;
-//                  int32_t iPrevRow = Lindx[fi-1]-1;
-//                
-//                  for(int64_t idx = fi; idx<=li;idx++){
-//                    int32_t iRow = Lindx[idx-1];
-//    
-//                    //enforce the first block to be a square diagonal block
-//                    if(nzBlockCnt==1 && iRow>lc){
-//                      nzBlockCnt++;
-//                      cout<<"| ";
-//                    }
-//                    else if(iRow!=iPrevRow+1){
-//                      nzBlockCnt++;
-//                      cout<<"| ";
-//                    }
-//                    cout<<iRow<<" ";
-//
-//                    iPrevRow=iRow;
-//                  }
-//                cout<<" || "<<nzBlockCnt<<endl;
-//            num_blocks+=nzBlockCnt;
-//          }
-//
-//
-//    return num_blocks;
-//}
+#define FUNDAMENTAL
+
+struct Stats{
+  int64_t totalSnodeBlocks = 0;
+  int64_t totalBlocks = 0;
+  double blocksPerSnode = 0;
+  double blocksPerCol = 0;
+  double avgSnodeBlockSize = 0;
+  double avgBlockSize = 0;
+  void reset(){
+   totalSnodeBlocks = 0;
+   totalBlocks = 0;
+   blocksPerSnode = 0;
+   blocksPerCol = 0;
+   avgSnodeBlockSize = 0;
+   avgBlockSize = 0;
+  }
+  void print(){
+   cout<<"totalSnodeBlocks: "<<totalSnodeBlocks<<endl;
+   cout<<"totalBlocks: "<<totalBlocks<<endl;
+   cout<<"blocksPerSnode: "<<blocksPerSnode<<endl;
+   cout<<"blocksPerCol: "<<blocksPerCol<<endl;
+   cout<<"avgSnodeBlockSize: "<<avgSnodeBlockSize<<endl;
+   cout<<"avgBlockSize: "<<avgBlockSize<<endl;
+  }
+};
+
+void countBlock(vector<int> & Xsuper, vector<int64_t> & Xlindx, vector<int32_t> & Lindx, Stats & stats){
+        stats.reset();
+
+        int64_t supNrows = 0;
+        for(int I = 1; I<Xlindx.size();++I){
+#ifdef VERBOSE1
+          cout<<I<<"("<<Xsuper[I-1]<<".."<<Xsuper[I]-1<<"): ";
+#endif
+                  //count number of contiguous blocks (at least one diagonal block)
+                  int32_t fc = Xsuper[I-1];
+                  int32_t lc = Xsuper[I]-1;
+                  int32_t fi = Xlindx[I-1];
+                  int32_t li = Xlindx[I]-1;
+                  int32_t iPrevRow = Lindx[fi-1]-1;
+                  int32_t iFirstRow = Lindx[fi-1];
+              
+                  int32_t width = lc - fc + 1; 
+ 
+                  for(int col = fc; col<=lc;col++){ 
+                    int32_t nzBlockCnt = 1;
+                    int32_t height = li - fi + 1;
+                    for(int64_t idx = fi; idx<=li;idx++){
+                      int32_t iRow = Lindx[idx-1];
+                      if(iRow<col){
+                        --height; 
+                      }
+                      //enforce the first block to be a square diagonal block
+                      if(nzBlockCnt==1 && iRow>col){
+                        nzBlockCnt++;
+                        stats.avgBlockSize+=col-iFirstRow+1;
+                        if(col==fc){
+                          stats.avgSnodeBlockSize+=width;
+                        }
+                        iFirstRow=iRow;
+#ifdef VERBOSE1
+                        cout<<"| ";
+#endif
+                      }
+                      else if(iRow!=iPrevRow+1){
+                        nzBlockCnt++;
+                        stats.avgBlockSize+=iPrevRow-iFirstRow+1;
+                        if(col==fc){
+                          stats.avgSnodeBlockSize+=iPrevRow-iFirstRow+1;
+                        }
+                        iFirstRow=iRow;
+#ifdef VERBOSE1
+                        cout<<"| ";
+#endif
+                      }
+#ifdef VERBOSE1
+                      cout<<iRow<<" ";
+#endif
+
+                      iPrevRow=iRow;
+                    }
+#ifdef VERBOSE1
+                    cout<<" || "<<nzBlockCnt<<endl;
+#endif
+
+
+                    stats.totalBlocks+=nzBlockCnt;
+                    if(col==lc){
+                      stats.totalSnodeBlocks+=nzBlockCnt;
+                      supNrows+=height;
+                    }
+                  }
+          }
+
+        stats.avgBlockSize/=stats.totalBlocks;
+        stats.avgSnodeBlockSize/=stats.totalSnodeBlocks;
+
+        stats.blocksPerCol=stats.totalBlocks/(Xsuper.back()-1);
+        stats.blocksPerSnode=stats.totalSnodeBlocks/(Xsuper.size()-1);
+        cout<<"N is "<<Xsuper.back()-1<<endl;
+}
 
 using namespace LIBCHOLESKY;
 
@@ -280,8 +347,6 @@ int main(int argc, char **argv)
 
     SparseMatrixStructure Global;
     Local.ToGlobal(Global,worldcomm);
-    cout<<"Adj: "<<Local.rowind<<endl;
-    cout<<"Adj: "<<Global.rowind<<endl;
 
     Global.ExpandSymmetric();
     if(iam==0){ cout<<"Matrix expanded"<<endl; }
@@ -289,13 +354,34 @@ int main(int argc, char **argv)
     Ordering Order;
     Order.SetStructure(Global);
     if(iam==0){ cout<<"Structure set"<<endl; }
+{
 
+TIMER_START(ORDERING);
+double tstart = MPI_Wtime();
     //Reoder the matrix with MMD
-    Order.MMD();
-    //Order.AMD();
-    if(iam==0){ cout<<"Ordering done"<<endl; }
-    cout<<"MMD perm: "<<Order.perm<<endl;
+    if(argc>2){
+      string ordering(argv[2]);
+      if(ordering == "AMD"){
+        Order.AMD();
+      }
+      else if (ordering == "ND"){
+        Order.METIS();
+      }
+      else{
+        Order.MMD();
+      }
+    }
+    else{
+      Order.MMD();
+    }
 
+double tstop = MPI_Wtime();
+TIMER_STOP(ORDERING);
+    if(iam==0){ cout<<"Ordering done in "<<tstop-tstart<<endl; }
+}
+#ifdef VERBOSE
+    cout<<"MMD perm: "<<Order.perm<<endl;
+#endif
 
     ETree Etree;
     Etree.ConstructETree(Global,Order);
@@ -306,8 +392,9 @@ int main(int argc, char **argv)
     Global.GetLColRowCount(Etree,Order,cc,rc);
     //cout<<"colcnt "<<cc<<std::endl;
     Etree.SortChildren(cc,Order);
+#ifdef VERBOSE
     cout<<"colcnt sorted "<<cc<<std::endl;
-
+#endif
 
     double flops = 0.0;
     for(int i = 0; i<cc.size();++i){
@@ -318,8 +405,11 @@ int main(int argc, char **argv)
       cout<<"Flops: "<<flops<<endl;
     }
 
-//    Global.FindSupernodes(Etree,Order,cc,SupMembership,Xsuper,maxSnode);
+#ifdef FUNDAMENTAL
     Global.FindFundamentalSupernodes(Etree,Order,cc,SupMembership,Xsuper,maxSnode);
+#else
+    Global.FindSupernodes(Etree,Order,cc,SupMembership,Xsuper,maxSnode);
+#endif
     if(iam==0){ cout<<"Supernodes found"<<endl; }
 
 #ifdef RELAX_SNODE
@@ -331,70 +421,45 @@ int main(int argc, char **argv)
     if(iam==0){ cout<<"Symbfact done"<<endl; }
 #endif
 
-#if 1
-//VERBOSE
-    if(iam==0){ 
-      cout<<"1 Xsuper is:"<<endl;
-      for(int i =0; i<Xsuper.size();++i){
-        cout<<Xsuper[i]<<" "; 
-      }
-      cout<<endl;
-
-      cout<<"1 perm is:"<<endl;
-      for(int i =0; i<Order.perm.size();++i){
-        cout<<Order.perm[i]<<" "; 
-      }
-      cout<<endl;
-
-
-      cout<<"perm is:"<<Order.perm<<endl;
+      cout<<"Non refined perm is:"<<Order.perm<<endl;
+#ifdef VERBOSE
       cout<<"Xsuper is "<<Xsuper<<endl;
-      cout<<"Xlindx is "<<Xlindx<<endl;
-      cout<<"Lindx is "<<Lindx<<endl;
-
-
-
-
-
-
-
-
-    }
+      //cout<<"Xlindx is "<<Xlindx<<endl;
+      //cout<<"Lindx is "<<Lindx<<endl;
 #endif
+
+
+
 
     Ordering OrderSave = Order;
 
     vector<int> permRefined,origPerm,newXsuper;
+{
+double tstart = MPI_Wtime();
     Global.RefineSupernodes(Etree,Order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
-    if(iam==0){ cout<<"Refinement done"<<endl; }
+double tstop = MPI_Wtime();
+    if(iam==0){ cout<<"Refinement done in "<<tstop-tstart<<endl; }
+}
 
 
     if(iam==0){ 
-//#ifdef VERBOSE
-      cout<<"2 origPerm is:"<<endl;
-      for(int i =0; i<origPerm.size();++i){
-        cout<<origPerm[i]<<" "; 
-      }
-      cout<<endl;
-
-
-      cout<<"2 permRefined is:"<<endl;
-      for(int i =0; i<permRefined.size();++i){
-        cout<<permRefined[i]<<" "; 
-      }
-      cout<<endl;
-
-      cout<<"2 Final perm is:"<<endl;
-      for(int i =0; i<Order.perm.size();++i){
-        cout<<Order.perm[i]<<" "; 
-      }
-      cout<<endl;
-//#endif
-
-      if(iam==0){ cout<<"Original Supernodes: "<<Xsuper<<endl; }
-
-
+      cout<<"Refined perm is:"<<Order.perm<<endl;
+#ifdef VERBOSE
+      cout<<"Original Supernodes: "<<Xsuper<<endl; 
+#endif
     }
+
+int nsuper = Xsuper.size()-1;
+cout<<"=========================================="<<endl;
+        Stats stats;
+        countBlock(Xsuper, Xlindx, Lindx,stats);
+
+{
+vector<int64_t> dummy;
+Xlindx.swap(dummy);
+vector<int32_t> dummy2;
+Lindx.swap(dummy2);
+}
 
     {
 #if 0
@@ -435,17 +500,26 @@ int main(int argc, char **argv)
         cout<<"Flops 2: "<<flops2<<endl;
       }
 
-//      Global.FindSupernodes(Etree2,Order,cc2,SupMembership2,Xsuper2,maxSnode);
+#ifdef FUNDAMENTAL
       Global.FindFundamentalSupernodes(Etree2,Order,cc2,SupMembership2,Xsuper2,maxSnode);
+#else
+      Global.FindSupernodes(Etree2,Order,cc2,SupMembership2,Xsuper2,maxSnode);
+#endif
+
       if(iam==0){ cout<<"Supernodes found"<<endl; }
 
 #ifdef RELAX_SNODE
       Global.RelaxSupernodes(Etree2, cc2,SupMembership2, Xsuper2, maxSnode );
       if(iam==0){ cout<<"Relaxation done"<<endl; }
-      if(iam==0){ cout<<"Supernodes: "<<Xsuper2<<endl; }
+#ifdef VERBOSE
+      if(iam==0){ cout<<"New Supernodes: "<<Xsuper2<<endl; }
+#endif
       Global.SymbolicFactorizationRelaxed(Etree2,Order,cc2,Xsuper2,SupMembership2,Xlindx2,Lindx2);
 #else
-      if(iam==0){ cout<<"Supernodes: "<<Xsuper2<<endl; }
+
+#ifdef VERBOSE
+      if(iam==0){ cout<<"New Supernodes: "<<Xsuper2<<endl; }
+#endif
       Global.SymbolicFactorization(Etree2,Order,cc2,Xsuper2,SupMembership2,Xlindx2,Lindx2);
       if(iam==0){ cout<<"Symbfact done"<<endl; }
 #endif
@@ -455,111 +529,24 @@ int main(int argc, char **argv)
 
       if(iam==0){
 
+cout<<"=========================================="<<endl;
+        Stats statsRefined;
+        countBlock(Xsuper2, Xlindx2, Lindx2,statsRefined);
 
-        int num_blocks = 0;
-        for(int I = 1; I<Xlindx.size();++I){
-          cout<<I<<"("<<Xsuper[I-1]<<".."<<Xsuper[I]-1<<"): ";
+{
+vector<int64_t> dummy;
+Xlindx2.swap(dummy);
+vector<int32_t> dummy2;
+Lindx2.swap(dummy2);
+}
 
-                  //count number of contiguous blocks (at least one diagonal block)
-                  int32_t fc = Xsuper[I-1];
-                  int32_t lc = Xsuper[I]-1;
-                  int32_t fi = Xlindx[I-1];
-                  int32_t li = Xlindx[I]-1;
-                  int32_t nzBlockCnt = 1;
-                  int32_t iPrevRow = Lindx[fi-1]-1;
-                
-                  for(int64_t idx = fi; idx<=li;idx++){
-                    int32_t iRow = Lindx[idx-1];
-    
-                    //enforce the first block to be a square diagonal block
-                    if(nzBlockCnt==1 && iRow>lc){
-                      nzBlockCnt++;
-                      cout<<"| ";
-                    }
-                    else if(iRow!=iPrevRow+1){
-                      nzBlockCnt++;
-                      cout<<"| ";
-                    }
-                    cout<<iRow<<" ";
+cout<<"=========================================="<<endl;
+        stats.print();
+cout<<"=========================================="<<endl;
+        statsRefined.print();
+cout<<"=========================================="<<endl;
 
-                    iPrevRow=iRow;
-                  }
-                cout<<" || "<<nzBlockCnt<<endl;
-            num_blocks+=nzBlockCnt;
-          }
-
-
-        int num_blocks2 = 0;
-        for(int I = 1; I<Xlindx2.size();++I){
-          cout<<I<<"("<<Xsuper2[I-1]<<".."<<Xsuper2[I]-1<<"): ";
-
-                  //count number of contiguous blocks (at least one diagonal block)
-                  int32_t fc = Xsuper2[I-1];
-                  int32_t lc = Xsuper2[I]-1;
-                  int32_t fi = Xlindx2[I-1];
-                  int32_t li = Xlindx2[I]-1;
-                  int32_t nzBlockCnt = 1;
-                  int32_t iPrevRow = Lindx2[fi-1]-1;
-                
-                  for(int64_t idx = fi; idx<=li;idx++){
-                    int32_t iRow = Lindx2[idx-1];
-    
-                    //enforce the first block to be a square diagonal block
-                    if(nzBlockCnt==1 && iRow>lc){
-                      nzBlockCnt++;
-                      cout<<"| ";
-                    }
-                    else if(iRow!=iPrevRow+1){
-                      nzBlockCnt++;
-                      cout<<"| ";
-                    }
-                    cout<<iRow<<" ";
-
-                    iPrevRow=iRow;
-                  }
-                cout<<" || "<<nzBlockCnt<<endl;
-            num_blocks2+=nzBlockCnt;
-          }
-
-
-//    Global.SymbolicFactorizationRelaxed(Etree,Order,cc,Xsuper,SupMembership,Xlindx,Lindx);
-
-
-
-
-//        for(int I = 1; I<Xlindx.size();++I){
-//          cout<<I<<"("<<Xsuper[I-1]<<".."<<Xsuper[I]-1<<"): ";
-//          int32_t prevRow = -1;
-//          for(int64_t rowi = Xlindx[I-1]; rowi<=Xlindx[I]-1; ++rowi){
-//            int32_t row = Lindx[rowi-1];
-//            cout<<row<<" ";
-//            if(prevRow == -1 || prevRow!=row-1){
-//              num_blocks2++;
-//            }
-//            prevRow=row;
-//          }
-//          cout<<" | "<<num_blocks2<<endl;
-//        }
-//
-//        int num_blocks = 0;
-//        for(int I = 1; I<Xlindx2.size();++I){
-//          cout<<I<<"("<<Xsuper2[I-1]<<".."<<Xsuper2[I]-1<<"): ";
-//          int32_t prevRow = -1;
-//          for(int64_t rowi = Xlindx2[I-1]; rowi<=Xlindx2[I]-1; ++rowi){
-//            int32_t row = Lindx2[rowi-1];
-//            cout<<row<<" ";
-//            if(prevRow == -1 || prevRow!=row-1){
-//              num_blocks++;
-//            }
-//            prevRow=row;
-//          }
-//          cout<<" | "<<num_blocks<<endl;
-//        }
-
-        cout<<"Contiguous blocks: "<<num_blocks<<" vs "<<num_blocks2<<endl;
-
-
-        int nnz = 0;
+        int64_t nnz = 0;
         for(int i =0; i<cc.size();++i){
           nnz+=cc[i];
         }
@@ -570,7 +557,7 @@ int main(int argc, char **argv)
         //      cout<<endl;
         cout<<nnz<<endl;
 
-        int nnz2 = 0;
+        int64_t nnz2 = 0;
         for(int i =0; i<cc2.size();++i){
           //        cout<<cc2[i]<<" "; 
           nnz2+=cc2[i];

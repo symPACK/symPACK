@@ -8,23 +8,28 @@ PREFIX = ${HOME}/software
 
 #NGCHOL directory
 NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/cholesky
+METIS_DIR     = $(PREFIX)/release/metis-5.1.0/build/Linux-x86_64
+PARMETIS_DIR  = $(PREFIX)/release/parmetis-4.0.3/build/Linux-x86_64
 #SPARSELIB_DIR = ${NGCHOL_DIR}/MatrixConverter
 #SPARSELIB_INCLUDE = -I${SPARSELIB_DIR}/bebop_util/include -I${SPARSELIB_DIR}/sparse_matrix_converter/include
-INCLUDES          = -I${NGCHOL_DIR}/SuperRefine/include 
+METIS_INCLUDE        = -I${METIS_DIR}/../../include
+INCLUDES          = -I${NGCHOL_DIR}/SuperRefine/include ${METIS_INCLUDE}  
 #${SPARSELIB_INCLUDE}
 
 GFORTRAN_LIB     = -lgfortran
 #SPARSELIB_LIB    = ${SPARSELIB_DIR}/sparse_matrix_converter/libsparse_matrix_converter.a  ${SPARSELIB_DIR}/bebop_util/libbebop_util.a
 
+METIS_LIB        = -L${METIS_DIR}/libmetis -lmetis
+PARMETIS_LIB     = -L${PARMETIS_DIR}/libparmetis -lparmetis 
 
-COMPILE_FLAG   = -O0 -w -g
-LIBS  = ${GFORTRAN_LIB}
+COMPILE_FLAG   = -O3 -w -g
+LIBS  = ${METIS_LIB} ${GFORTRAN_LIB}
 
 
 
 
 
-COMPILE_DEF += -fopenmp -std=c++11 -DAdd_ 
+COMPILE_DEF += -fopenmp -std=c++11 -DAdd_ -DPROFILE 
 
 CFLAGS       = ${COMPILE_FLAG} ${INCLUDES}
 FFLAGS       = ${COMPILE_FLAG} ${INCLUDES}
@@ -48,7 +53,7 @@ LOADOPTS     = ${PROFILE_FLAG} ${LIBS} -fopenmp
 	rm -f $@.$$$$
 
 SRCS_C   = iohb.c 
-SRCS_CPP = ETree.cpp SparseMatrixStructure.cpp Ordering.cpp main.cpp 
+SRCS_CPP = ETree.cpp SparseMatrixStructure.cpp Ordering.cpp main.cpp timer.cpp LogFile.cpp 
 SRCS_F   = genmmd.f  mmdelm.f  mmdint.f  mmdnum.f  mmdupd.f  ordmmd.f amdbar.f
 
 OBJS     = ${UPCXX_CPP:.cpp=.o} ${SRCS_CPP:.cpp=.o} ${SRCS_C:.c=.o} ${SRCS_F:.f=.o}

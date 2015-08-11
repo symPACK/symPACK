@@ -21,6 +21,7 @@ class Ordering{
     void SetStructure(SparseMatrixStructure & aGlobal);
     void MMD();
     void AMD();
+    void METIS();
     void Compose(vector<int> & invp2);
 };
 
