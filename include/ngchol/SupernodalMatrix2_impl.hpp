@@ -1927,14 +1927,14 @@ isLindxAllocated_=true;
             Idx64 li = xlindx_(I)-1;
             Int iHeight = li-fi+1;
 
-#ifndef ITREE2
-            globToLocSnodes_.push_back(I-1);
-#else 
-            ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
-            globToLocSnodes_.Insert(snode_inter);
-#endif
-
-            LocalSupernodes_.push_back( new SuperNode2<T>(I,fc,lc,iHeight,iSize_));
+//#ifndef ITREE2
+//            globToLocSnodes_.push_back(I-1);
+//#else 
+//            ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
+//            globToLocSnodes_.Insert(snode_inter);
+//#endif
+//
+//            LocalSupernodes_.push_back( new SuperNode2<T>(I,fc,lc,iHeight,iSize_));
             SuperNode2<T> & snode = *snodeLocal(I);
 
             if(snode.NZBlockCnt()==0){
