@@ -171,7 +171,7 @@ class SuperNode2{
   template <typename T> inline void Serialize(Icomm & buffer,SuperNode2<T> & snode, Int first_blkidx, Int first_row);
 
 //template <typename T> inline void Serialize(char ** local_ptr,SuperNode2<T> & snode, Int first_blkidx = -1, Int first_row = -1);
-//template <typename T> inline std::ostream& operator<<( std::ostream& os,  SuperNode2<T>& snode);
+template <typename T> inline std::ostream& operator<<( std::ostream& os,  SuperNode2<T>& snode);
 //template <typename T> inline size_t Deserialize(char * buffer, SuperNode2<T> & snode);
 
 } // namespace LIBCHOLESKY

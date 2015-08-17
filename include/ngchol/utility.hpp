@@ -16,6 +16,10 @@
 
 namespace LIBCHOLESKY{
 
+//exact cost of a mxn panel
+#define CHOLESKY_COST(m,n)  ((n)*pow((m),2.0) + 2*(n)*(m)-pow((n),3.0)/3.0 - 3.0*pow((n),2.0)/2.0 - (n)/6.0 -1.0)
+
+
 
 // *********************************************************************
 // Define constants

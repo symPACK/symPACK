@@ -499,9 +499,9 @@ void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, Int
   Int pos = 1;
   for(Int i = 1; i<=nsuper; ++i){
     adj[i-1] = new nodeset();
-    Idx64 fi = xlindx(i-1);
-    Idx64 li = xlindx(i)-1;
-    for(Idx64 idx = fi; idx<=li;idx++){
+    Ptr fi = xlindx(i-1);
+    Ptr li = xlindx(i)-1;
+    for(Ptr idx = fi; idx<=li;idx++){
        adj[i-1]->insert(lindx[idx-1]);
     }
 
@@ -790,23 +790,23 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
 
 
-    Idx64 nzbeg = 0;
+    Ptr nzbeg = 0;
     //nzend points to the last used slot in lindx
-    Idx64 nzend = 0;
+    Ptr nzend = 0;
 
     //tail is the end of list indicator (in rchlnk, not mrglnk)
-    Idx32 tail = size +1;
+    Idx tail = size +1;
 
-    Idx32 head = 0;
+    Idx head = 0;
 
     //Array of length nsuper containing the children of 
     //each supernode as a linked list
-    NumVec<Idx32,Idx32> mrglnk(nsuper);
-    SetValue(mrglnk,(Idx32)0);
+    NumVec<Idx,Idx> mrglnk(nsuper);
+    SetValue(mrglnk,(Idx)0);
 
     //Array of length n+1 containing the current linked list 
     //of merged indices (the "reach" set)
-    NumVec<Idx32,Idx32> rchlnk(size+1);
+    NumVec<Idx,Idx> rchlnk(size+1);
 
     //Array of length n used to mark indices as they are introduced
     // into each supernode's index set
@@ -818,7 +818,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
     xlindx.Resize(nsuper+1);
 
     //Compute the sum of the column count and resize lindx accordingly
-    Idx64 nofsub = 1;
+    Ptr nofsub = 1;
     for(Int i =0; i<cc.m();++i){
       nofsub+=cc(i);
     }
@@ -826,7 +826,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
     lindx.Resize(nofsub);
 
 
-    Idx64 point = 1;
+    Ptr point = 1;
     for(Int ksup = 1; ksup<=nsuper; ++ksup){
       Int fstcol = xsuper(ksup-1);
       xlindx(ksup-1) = point;
@@ -841,7 +841,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
       Int lstcol = xsuper(ksup)-1;
       Int width = lstcol - fstcol +1;
       Int length = cc(fstcol-1);
-      Idx64 knz = 0;
+      Ptr knz = 0;
       rchlnk(head) = tail;
       Int jsup = mrglnk(ksup-1);
 
@@ -851,10 +851,10 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
         //the linked list, and mark each with the value 
         //ksup.
         Int jwidth = xsuper(jsup)-xsuper(jsup-1);
-        Idx64 jnzbeg = xlindx(jsup-1) + jwidth;
-        Idx64 jnzend = xlindx(jsup) -1;
-        for(Idx64 jptr = jnzend; jptr>=jnzbeg; --jptr){
-          Idx32 newi = lindx[jptr-1];
+        Ptr jnzbeg = xlindx(jsup-1) + jwidth;
+        Ptr jnzend = xlindx(jsup) -1;
+        for(Ptr jptr = jnzend; jptr>=jnzbeg; --jptr){
+          Idx newi = lindx[jptr-1];
           ++knz;
           marker[newi-1] = ksup;
           rchlnk[newi] = rchlnk[head];
@@ -871,9 +871,9 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
           jnzbeg = xlindx(jsup-1) + jwidth;
           jnzend = xlindx(jsup) -1;
           Int nexti = head;
-          for(Idx64 jptr = jnzbeg; jptr<=jnzend; ++jptr){
-            Idx32 newi = lindx(jptr-1);
-            Idx32 i;
+          for(Ptr jptr = jnzbeg; jptr<=jnzend; ++jptr){
+            Idx newi = lindx(jptr-1);
+            Idx i;
             do{
               i = nexti;
               nexti = rchlnk(i);
@@ -900,12 +900,12 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
       //list.
       if(knz < length){
         for(Int row = fstcol; row<=lstcol; ++row){
-          Idx32 newi = row;
+          Idx newi = row;
           if(newi > fstcol && marker[newi-1] != ksup){
             //position and insert newi in list and
             // mark it with kcol
-            Idx32 nexti = head;
-            Idx32 i;
+            Idx nexti = head;
+            Idx i;
             do{
               i = nexti;
               nexti = rchlnk[i];
@@ -921,17 +921,17 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
         for(Int col = fstcol; col<=lstcol; ++col){
           Int node = aOrder.perm[col-1];
 
-          Idx64 knzbeg = expColptr[node-1];
-          Idx64 knzend = expColptr[node]-1;
-          for(Idx64 kptr = knzbeg; kptr<=knzend;++kptr){
-            Idx32 newi = expRowind[kptr-1];
+          Ptr knzbeg = expColptr[node-1];
+          Ptr knzend = expColptr[node]-1;
+          for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
+            Idx newi = expRowind[kptr-1];
             newi = aOrder.invp[newi-1];
             
             if(newi > fstcol && marker[newi-1] != ksup){
               //position and insert newi in list and
               // mark it with kcol
-              Idx32 nexti = head;
-              Idx32 i;
+              Idx nexti = head;
+              Idx i;
               do{
                 i = nexti;
                 nexti = rchlnk[i];
@@ -960,8 +960,8 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
       nzbeg = nzend+1;
       nzend += knz;
       assert(nzend+1 == xlindx[ksup]);
-      Idx32 i = head;
-      for(Idx64 kptr = nzbeg; kptr<=nzend;++kptr){
+      Idx i = head;
+      for(Ptr kptr = nzbeg; kptr<=nzend;++kptr){
         i = rchlnk[i];
         lindx[kptr-1] = i;
       } 
@@ -969,7 +969,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
       //if ksup has a parent, insert ksup into its parent's 
       //"merge" list.
       if(length > width){
-        Idx32 pcol = lindx[xlindx[ksup-1] + width -1];
+        Idx pcol = lindx[xlindx[ksup-1] + width -1];
         Int psup = SupMembership[pcol-1];
         mrglnk[ksup-1] = mrglnk[psup-1];
         mrglnk[psup-1] = ksup;
@@ -992,23 +992,23 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
 
     Int nsuper = xsuper.m()-1;
 
-    Idx64 nzbeg = 0;
+    Ptr nzbeg = 0;
     //nzend points to the last used slot in lindx
-    Idx64 nzend = 0;
+    Ptr nzend = 0;
 
     //tail is the end of list indicator (in rchlnk, not mrglnk)
-    Idx32 tail = size +1;
+    Idx tail = size +1;
 
-    Idx32 head = 0;
+    Idx head = 0;
 
     //Array of length nsuper containing the children of 
     //each supernode as a linked list
-    NumVec<Idx32,Idx32> mrglnk(nsuper);
-    SetValue(mrglnk,(Idx32)0);
+    NumVec<Idx,Idx> mrglnk(nsuper);
+    SetValue(mrglnk,(Idx)0);
 
     //Array of length n+1 containing the current linked list 
     //of merged indices (the "reach" set)
-    NumVec<Idx32,Idx32> rchlnk(size+1);
+    NumVec<Idx,Idx> rchlnk(size+1);
 
     //Array of length n used to mark indices as they are introduced
     // into each supernode's index set
@@ -1020,7 +1020,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
     xlindx.Resize(nsuper+1);
 
     //Compute the sum of the column count and resize lindx accordingly
-    Idx64 nofsub = 1;
+    Ptr nofsub = 1;
     for(Int i =0; i<cc.m();++i){
       nofsub+=cc[i];
     }
@@ -1028,7 +1028,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
     lindx.Resize(nofsub);
 
 
-    Idx64 point = 1;
+    Ptr point = 1;
     for(Int ksup = 1; ksup<=nsuper; ++ksup){
       Int fstcol = xsuper[ksup-1];
       xlindx[ksup-1] = point;
@@ -1041,7 +1041,7 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
       Int lstcol = xsuper[ksup]-1;
       Int width = lstcol - fstcol +1;
       Int length = cc[fstcol-1];
-      Idx32 knz = 0;
+      Idx knz = 0;
       rchlnk[head] = tail;
       Int jsup = mrglnk[ksup-1];
 
@@ -1051,10 +1051,10 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
         //the linked list, and mark each with the value 
         //ksup.
         Int jwidth = xsuper[jsup]-xsuper[jsup-1];
-        Idx64 jnzbeg = xlindx[jsup-1] + jwidth;
-        Idx64 jnzend = xlindx[jsup] -1;
-        for(Idx64 jptr = jnzend; jptr>=jnzbeg; --jptr){
-          Idx32 newi = lindx[jptr-1];
+        Ptr jnzbeg = xlindx[jsup-1] + jwidth;
+        Ptr jnzend = xlindx[jsup] -1;
+        for(Ptr jptr = jnzend; jptr>=jnzbeg; --jptr){
+          Idx newi = lindx[jptr-1];
           ++knz;
           marker[newi-1] = ksup;
           rchlnk[newi] = rchlnk[head];
@@ -1070,10 +1070,10 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
           jwidth = xsuper[jsup]-xsuper[jsup-1];
           jnzbeg = xlindx[jsup-1] + jwidth;
           jnzend = xlindx[jsup] -1;
-          Idx32 nexti = head;
-          for(Idx64 jptr = jnzbeg; jptr<=jnzend; ++jptr){
-            Idx32 newi = lindx[jptr-1];
-            Idx32 i;
+          Idx nexti = head;
+          for(Ptr jptr = jnzbeg; jptr<=jnzend; ++jptr){
+            Idx newi = lindx[jptr-1];
+            Idx i;
             do{
               i = nexti;
               nexti = rchlnk[i];
@@ -1100,16 +1100,16 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
       //list.
       if(knz < length){
         Int node = aOrder.perm[fstcol-1];
-        Idx64 knzbeg = expColptr[node-1];
-        Idx64 knzend = expColptr[node]-1;
-        for(Idx64 kptr = knzbeg; kptr<=knzend;++kptr){
-          Idx32 newi = expRowind[kptr-1];
+        Ptr knzbeg = expColptr[node-1];
+        Ptr knzend = expColptr[node]-1;
+        for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
+          Idx newi = expRowind[kptr-1];
           newi = aOrder.invp[newi-1];
           if(newi > fstcol && marker[newi-1] != ksup){
             //position and insert newi in list and
             // mark it with kcol
-            Idx32 nexti = head;
-            Idx32 i;
+            Idx nexti = head;
+            Idx i;
             do{
               i = nexti;
               nexti = rchlnk[i];

@@ -20,6 +20,7 @@ class Ordering{
     void SetStructure(SparseMatrixStructure & aGlobal);
     void MMD();
     void AMD();
+    void METIS();
     void Compose(IntNumVec & invp2);
 };
 

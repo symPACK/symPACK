@@ -1147,6 +1147,28 @@ gdb_lock();}
 
 
 
+  template <typename T> inline std::ostream& operator<<( std::ostream& os,  SuperNode2<T>& snode){
+    os<<"ooooooooooo   Supernode "<<snode.Id()<<" oooooooooooo"<<std::endl;
+    os<<"     size = "<<snode.Size()<<std::endl;
+    os<<"     fc   = "<<snode.FirstCol()<<std::endl;
+    os<<"     lc   = "<<snode.LastCol()<<std::endl;
+    os<<"     n    = "<<snode.N()<<std::endl;
+    for(Int blkidx =0; blkidx<snode.NZBlockCnt();++blkidx){
+      NZBlockDesc2 & nzblk_desc = snode.GetNZBlockDesc(blkidx);
+      T * nzblk_nzval = snode.GetNZval(nzblk_desc.Offset);
+      os<<"--- NZBlock "<<nzblk_desc.GIndex<<" ---"<<std::endl;
+      for(Int i = 0; i<snode.NRows(blkidx);++i){
+        for(Int j = 0; j<snode.Size();++j){
+          os<<nzblk_nzval[i*snode.Size()+j]<<" ";
+        }
+        os<<std::endl;
+      }
+    }
+    os<<"oooooooooooooooooooooooooooooooooooooooo"<<std::endl;
+    return os;
+  }
+
+
 
 
 

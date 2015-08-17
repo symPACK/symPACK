@@ -5,6 +5,7 @@
 
 #include "ngchol/blas.hpp"
 #include "ngchol/Ordering.hpp"
+#include "ngchol/LoadBalancer.hpp"
 #include "ngchol/mpi_interf.hpp"
 
 #include <queue>
@@ -897,8 +898,8 @@ TIMER_STOP(ADVANCE_OUTGOING_COMM);
       Int first_col = Xsuper_[s-1];
       Int last_col = Xsuper_[s]-1;
 
-      Idx64 fi = xlindx_[s-1];
-      Idx64 li = xlindx_[s]-1;
+      Ptr fi = xlindx_[s-1];
+      Ptr li = xlindx_[s]-1;
 
       mh[s-1] = li-fi+1;
 
@@ -907,8 +908,8 @@ TIMER_STOP(ADVANCE_OUTGOING_COMM);
       logfileptr->OFS()<<"Supernode "<<s<<" on P"<<iOwner<<" updates: ";
 #endif
 
-      for(Idx64 row_idx = fi; row_idx<=li;++row_idx){
-        Idx32 row = lindx_[row_idx-1];
+      for(Ptr row_idx = fi; row_idx<=li;++row_idx){
+        Idx row = lindx_[row_idx-1];
         Int supno = SupMembership_(row-1);
 
         if(marker[supno-1]!=s && supno!=s){
@@ -1169,125 +1170,128 @@ isLindxAllocated_=true;
     switch(options.load_balance){
       case SUBCUBE:
         {
+    LoadBalancer * balancer;
           if(iam==0){ cout<<"Subtree to subcube mapping used"<<endl;}
-
-          //Int np = 4;
-
-          //compute children array and subtree costs
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-
-          //        if(iam == 0){
-          //          cout<<"Supernodal ETree is "<<SupETree<<std::endl;
-          //        }
-
-          //compute number of children and load
-          vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
-          vector<Int> children(SupETree.Size()+1,0);
-          for(Int I=1;I<=SupETree.Size();I++){
-            Int parent = SupETree.Parent(I-1);
-            ++children[parent];
-            Int fc = Xsuper_[I-1];
-            Int width = Xsuper_[I] - Xsuper_[I-1];
-            Int height = cc[fc-1];
-            double local_load = width*height*height;
-            SubTreeLoad[I]+=local_load;
-            SubTreeLoad[parent]+=SubTreeLoad[I];
-          }
-
-          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
-
-
-          //procmaps[0]/pstart[0] represents the complete list
-          vector<vector<Int> * > procmaps(SupETree.Size()+1);
-          for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new vector<Int>();}
-          vector<Int> pstart(SupETree.Size()+1,0);
-          procmaps[0]->reserve(np);
-          for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
-
-
-          for(Int I=SupETree.Size(); I>= 1;I--){
-
-            Int parent = SupETree.Parent(I-1);
-
-            //split parent's proc list
-            double parent_load = 0.0;
-
-            if(parent!=0){
-              Int fc = Xsuper_[parent-1];
-              Int width = Xsuper_[parent] - Xsuper_[parent-1];
-              Int height = cc[fc-1];
-              parent_load = width*height*height;
-            }
-
-
-            double proportion = SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load);
-            Int npParent = procmaps[parent]->size();
-            Int pFirstIdx = min(pstart[parent],npParent-1);
-            //          Int numProcs = max(1,children[parent]==1?npParent-pFirstIdx:min((Int)std::floor(npParent*proportion),npParent-pFirstIdx));
-            Int npIdeal =(Int)std::round(npParent*proportion);
-            Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
-            Int pFirst = procmaps[parent]->at(pFirstIdx);
-
-            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
-            pstart[parent]+= numProcs;//= min(pstart[parent] + numProcs,npParent-1);
-            //          children[parent]--;
-
-            //          Int pFirstIdx = pstart[parent]*npParent/children[parent];
-            //          Int pFirst = procmaps[parent]->at(pFirstIdx);
-            //          Int numProcs = max(pstart[parent]==children[parent]-1?npParent-pFirstIdx:npParent/children[parent],1);
-
-
-
-            procmaps[I]->reserve(numProcs);
-            for(Int p = pFirst; p<pFirst+numProcs;++p){ procmaps[I]->push_back(p);}
-
-            logfileptr->OFS()<<I<<": "; 
-            for(Int i = 0; i<procmaps[I]->size();++i){logfileptr->OFS()<<procmaps[I]->at(i)<<" ";}
-            logfileptr->OFS()<<endl;
-            //
-            //          if(iam==0){
-            //            cout<<I<<": "; 
-            //            for(Int i = 0; i<procmaps[I]->size();++i){cout<<procmaps[I]->at(i)<<" ";}
-            //            cout<<endl;
-            //          }
-            pstart[parent]++;
-          }
-
-
-          //now choose which processor to get
-          std::vector<Int> procMap(SupETree.Size());
-          std::vector<double> load(np,0.0);
-          for(Int I=1;I<=SupETree.Size();I++){
-            Int minLoadP= -1;
-            double minLoad = -1;
-            for(Int i = 0; i<procmaps[I]->size();++i){
-              Int proc = procmaps[I]->at(i);
-              if(load[proc]<minLoad || minLoad==-1){
-                minLoad = load[proc];
-                minLoadP = proc;
-              }
-            }
-
-            procMap[I-1] = minLoadP;
-
-
-            Int fc = Xsuper_[I-1];
-            Int width = Xsuper_[I] - Xsuper_[I-1];
-            Int height = cc[fc-1];
-            double local_load = width*height*height;
-
-            load[minLoadP]+=local_load;
-          }
-
-
-          //for(Int i = 0; i<procMap.size();++i){ logfileptr->OFS()<<i+1<<" is on "<<procMap[i]<<endl;}
-          logfileptr->OFS()<<"Proc load: "<<load<<endl;
-          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
-
+          balancer = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc);
+////
+////
+////          //Int np = 4;
+////
+////          //compute children array and subtree costs
+////
+////          //        if(iam == 0){
+////          //          cout<<"Supernodal ETree is "<<SupETree<<std::endl;
+////          //        }
+////
+////          //compute number of children and load
+////          vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
+////          vector<Int> children(SupETree.Size()+1,0);
+////          for(Int I=1;I<=SupETree.Size();I++){
+////            Int parent = SupETree.Parent(I-1);
+////            ++children[parent];
+////            Int fc = Xsuper_[I-1];
+////            Int width = Xsuper_[I] - Xsuper_[I-1];
+////            Int height = cc[fc-1];
+////            double local_load = width*height*height;
+////            SubTreeLoad[I]+=local_load;
+////            SubTreeLoad[parent]+=SubTreeLoad[I];
+////          }
+////
+////          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
+////
+////
+////          //procmaps[0]/pstart[0] represents the complete list
+////          vector<vector<Int> * > procmaps(SupETree.Size()+1);
+////          for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new vector<Int>();}
+////          vector<Int> pstart(SupETree.Size()+1,0);
+////          procmaps[0]->reserve(np);
+////          for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
+////
+////
+////          for(Int I=SupETree.Size(); I>= 1;I--){
+////
+////            Int parent = SupETree.Parent(I-1);
+////
+////            //split parent's proc list
+////            double parent_load = 0.0;
+////
+////            if(parent!=0){
+////              Int fc = Xsuper_[parent-1];
+////              Int width = Xsuper_[parent] - Xsuper_[parent-1];
+////              Int height = cc[fc-1];
+////              parent_load = width*height*height;
+////            }
+////
+////
+////            double proportion = SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load);
+////            Int npParent = procmaps[parent]->size();
+////            Int pFirstIdx = min(pstart[parent],npParent-1);
+////            //          Int numProcs = max(1,children[parent]==1?npParent-pFirstIdx:min((Int)std::floor(npParent*proportion),npParent-pFirstIdx));
+////            Int npIdeal =(Int)std::round(npParent*proportion);
+////            Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
+////            Int pFirst = procmaps[parent]->at(pFirstIdx);
+////
+////            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
+////            pstart[parent]+= numProcs;//= min(pstart[parent] + numProcs,npParent-1);
+////            //          children[parent]--;
+////
+////            //          Int pFirstIdx = pstart[parent]*npParent/children[parent];
+////            //          Int pFirst = procmaps[parent]->at(pFirstIdx);
+////            //          Int numProcs = max(pstart[parent]==children[parent]-1?npParent-pFirstIdx:npParent/children[parent],1);
+////
+////
+////
+////            procmaps[I]->reserve(numProcs);
+////            for(Int p = pFirst; p<pFirst+numProcs;++p){ procmaps[I]->push_back(p);}
+////
+////            logfileptr->OFS()<<I<<": "; 
+////            for(Int i = 0; i<procmaps[I]->size();++i){logfileptr->OFS()<<procmaps[I]->at(i)<<" ";}
+////            logfileptr->OFS()<<endl;
+////            //
+////            //          if(iam==0){
+////            //            cout<<I<<": "; 
+////            //            for(Int i = 0; i<procmaps[I]->size();++i){cout<<procmaps[I]->at(i)<<" ";}
+////            //            cout<<endl;
+////            //          }
+////            pstart[parent]++;
+////          }
+////
+////
+////          //now choose which processor to get
+////          std::vector<Int> procMap(SupETree.Size());
+////          std::vector<double> load(np,0.0);
+////          for(Int I=1;I<=SupETree.Size();I++){
+////            Int minLoadP= -1;
+////            double minLoad = -1;
+////            for(Int i = 0; i<procmaps[I]->size();++i){
+////              Int proc = procmaps[I]->at(i);
+////              if(load[proc]<minLoad || minLoad==-1){
+////                minLoad = load[proc];
+////                minLoadP = proc;
+////              }
+////            }
+////
+////            procMap[I-1] = minLoadP;
+////
+////
+////            Int fc = Xsuper_[I-1];
+////            Int width = Xsuper_[I] - Xsuper_[I-1];
+////            Int height = cc[fc-1];
+////            double local_load = width*height*height;
+////
+////            load[minLoadP]+=local_load;
+////          }
+////
+////
+////          //for(Int i = 0; i<procMap.size();++i){ logfileptr->OFS()<<i+1<<" is on "<<procMap[i]<<endl;}
+////          logfileptr->OFS()<<"Proc load: "<<load<<endl;
           //Update the mapping
-          this->Mapping_->Update(procMap);
+          logfileptr->OFS()<<"Proc Mapping: "<<balancer->GetMap()<<endl;
+          this->Mapping_->Update(balancer->GetMap());
 
-          for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
+////          for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
+delete balancer;
         }       
         break;
       case SUBCUBE_NNZ:
@@ -1416,27 +1420,36 @@ isLindxAllocated_=true;
 
       case NNZ:
         {
+          LoadBalancer * balancer;
           if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
-          //Do a greedy load balancing heuristic
-          std::vector<Int> procMap(Xsuper_.m()-1);
-          //Do a greedy heuristic to balance the number of nnz ?
-          std::vector<double> load(np,0.0);
+          balancer = new NNZBalancer(np,Xsuper_,cc);
 
-          for(Int i = 1; i< Xsuper_.m();  ++i){
-            //find least loaded processor
-            vector<double>::iterator it = std::min_element(load.begin(),load.end());
-            Int proc = (Int)(it - load.begin());
-            Int width = Xsuper_[i] - Xsuper_[i-1];
-            Int height = cc[i-1];
-            *it += (double)(width*height);
-            procMap[i-1] = proc;
-          } 
-
-          logfileptr->OFS()<<"Proc load: "<<load<<endl;
-          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
+//          //Do a greedy load balancing heuristic
+//          std::vector<Int> procMap(Xsuper_.m()-1);
+//          //Do a greedy heuristic to balance the number of nnz ?
+//          std::vector<double> load(np,0.0);
+//
+//          for(Int i = 1; i< Xsuper_.m();  ++i){
+//            //find least loaded processor
+//            vector<double>::iterator it = std::min_element(load.begin(),load.end());
+//            Int proc = (Int)(it - load.begin());
+//            Int width = Xsuper_[i] - Xsuper_[i-1];
+//            Int height = cc[i-1];
+//            *it += (double)(width*height);
+//            procMap[i-1] = proc;
+//          } 
+//
+//          logfileptr->OFS()<<"Proc load: "<<load<<endl;
+//          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
 
           //Update the mapping
-          this->Mapping_->Update(procMap);
+//          this->Mapping_->Update(procMap);
+
+          logfileptr->OFS()<<"Proc Mapping: "<<balancer->GetMap()<<endl;
+          this->Mapping_->Update(balancer->GetMap());
+
+////          for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
+delete balancer;
         }
         break;
       case FLOPS:
@@ -1466,6 +1479,8 @@ isLindxAllocated_=true;
         break;
 
       default:
+        {
+        }
         break;
     }
 
@@ -1639,8 +1654,8 @@ isLindxAllocated_=true;
           Int fc = Xsuper_(I-1);
           Int lc = Xsuper_(I)-1;
           Int iWidth = lc-fc+1;
-          Idx64 fi = xlindx_(I-1);
-          Idx64 li = xlindx_(I)-1;
+          Ptr fi = xlindx_(I-1);
+          Ptr li = xlindx_(I)-1;
           Int iHeight = li-fi+1;
 
           Int iDest = this->Mapping_->Map(I-1,I-1);
@@ -1690,8 +1705,8 @@ isLindxAllocated_=true;
             Int fc = Xsuper_(I-1);
             Int lc = Xsuper_(I)-1;
             Int iWidth = lc-fc+1;
-            Idx64 fi = xlindx_(I-1);
-            Idx64 li = xlindx_(I)-1;
+            Ptr fi = xlindx_(I-1);
+            Ptr li = xlindx_(I)-1;
             Int iHeight = li-fi+1;
 
 #ifndef ITREE2
@@ -1703,9 +1718,9 @@ isLindxAllocated_=true;
 
                   //count number of contiguous blocks (at least one diagonal block)
                   Int nzBlockCnt = 1;
-                  Idx32 iPrevRow = lindx_(fi-1)-1;
-                  for(Idx64 idx = fi; idx<=li;idx++){
-                    Idx32 iRow = lindx_(idx-1);
+                  Idx iPrevRow = lindx_(fi-1)-1;
+                  for(Ptr idx = fi; idx<=li;idx++){
+                    Idx iRow = lindx_(idx-1);
     
                     //enforce the first block to be a square diagonal block
                     if(nzBlockCnt==1 && iRow>fc/*lindx_(fi-1)*/+iWidth-1){
@@ -1742,8 +1757,8 @@ isLindxAllocated_=true;
                 Int fc = Xsuper_(I-1);
                 Int lc = Xsuper_(I)-1;
                 Int iWidth = lc-fc+1;
-                Idx64 fi = xlindx_(I-1);
-                Idx64 li = xlindx_(I)-1;
+                Ptr fi = xlindx_(I-1);
+                Ptr li = xlindx_(I)-1;
                 Int iHeight = li-fi+1;
 
                 Int iDest = this->Mapping_->Map(I-1,I-1);
@@ -1831,19 +1846,19 @@ isLindxAllocated_=true;
                 Int fc = Xsuper_(I-1);
                 Int lc = Xsuper_(I)-1;
                 Int iWidth = lc-fc+1;
-                Idx64 fi = xlindx_(I-1);
-                Idx64 li = xlindx_(I)-1;
+                Ptr fi = xlindx_(I-1);
+                Ptr li = xlindx_(I)-1;
                 Int iHeight = li-fi+1;
 
                 SuperNode2<T> & snode = *snodeLocal(I);
 
                 if(snode.NZBlockCnt()==0){
-                  for(Idx64 idx = fi; idx<=li;idx++){
-                    Idx32 iStartRow = lindx_(idx-1);
-                    Idx32 iPrevRow = iStartRow;
+                  for(Ptr idx = fi; idx<=li;idx++){
+                    Idx iStartRow = lindx_(idx-1);
+                    Idx iPrevRow = iStartRow;
                     Int iContiguousRows = 1;
                     for(Int idx2 = idx+1; idx2<=li;idx2++){
-                      Idx32 iCurRow = lindx_(idx2-1);
+                      Idx iCurRow = lindx_(idx2-1);
                       if(iStartRow == lindx_(fi-1)){
                         if(iCurRow>iStartRow+iWidth-1){
                           //enforce the first block to be a square diagonal block
@@ -1923,8 +1938,8 @@ isLindxAllocated_=true;
             Int fc = Xsuper_(I-1);
             Int lc = Xsuper_(I)-1;
             Int iWidth = lc-fc+1;
-            Idx64 fi = xlindx_(I-1);
-            Idx64 li = xlindx_(I)-1;
+            Ptr fi = xlindx_(I-1);
+            Ptr li = xlindx_(I)-1;
             Int iHeight = li-fi+1;
 
 //#ifndef ITREE2
@@ -1938,12 +1953,12 @@ isLindxAllocated_=true;
             SuperNode2<T> & snode = *snodeLocal(I);
 
             if(snode.NZBlockCnt()==0){
-              for(Idx64 idx = fi; idx<=li;idx++){
-                Idx32 iStartRow = lindx_(idx-1);
-                Idx32 iPrevRow = iStartRow;
+              for(Ptr idx = fi; idx<=li;idx++){
+                Idx iStartRow = lindx_(idx-1);
+                Idx iPrevRow = iStartRow;
                 Int iContiguousRows = 1;
                 for(Int idx2 = idx+1; idx2<=li;idx2++){
-                  Idx32 iCurRow = lindx_(idx2-1);
+                  Idx iCurRow = lindx_(idx2-1);
                   if(iStartRow == lindx_(fi-1)){
                     if(iCurRow>iStartRow+iWidth-1){
                       //enforce the first block to be a square diagonal block
@@ -2052,7 +2067,7 @@ isLindxAllocated_=true;
       }
     }
 #endif
-
+    Dump();
 
 
 #ifdef PREALLOC_IRECV
@@ -2087,22 +2102,10 @@ isLindxAllocated_=true;
 
 
 
-
-
-
-
-
-
-    gdb_lock();
-    xlindx_.Clear();
-    lindx_.Clear();
-    delete Local_;
-    delete Global_;
-    gdb_lock();
-
-
-
-
+    //xlindx_.Clear();
+    //lindx_.Clear();
+    //delete Local_;
+    //delete Global_;
 
     MPI_Barrier(CommEnv_->MPI_GetComm());
 
