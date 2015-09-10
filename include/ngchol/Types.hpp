@@ -7,6 +7,8 @@
 #include "ngchol/NumMat.hpp"
 #include "ngchol/CommTypes.hpp"
 
+#include <string>
+
 namespace LIBCHOLESKY{
 
   enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNS,WRAP2D,WRAP2DFORCED};
@@ -19,6 +21,7 @@ namespace LIBCHOLESKY{
       MappingType mappingType;
       FactorizationType factorization;
       LoadBalanceType load_balance;
+      std::string load_balance_str;
       OrderingType ordering;
       SchedulerType scheduler;
       Int maxIsend;

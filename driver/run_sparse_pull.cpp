@@ -41,7 +41,7 @@ using namespace LIBCHOLESKY;
 
 int main(int argc, char **argv) 
 {
-//  MPI_Init(&argc,&argv);
+  MPI_Init(&argc,&argv);
   upcxx::init(&argc, &argv);
 
   NGCholOptions optionsFact;
@@ -105,6 +105,7 @@ int main(int argc, char **argv)
 
 
   if( options.find("-lb") != options.end() ){
+      optionsFact.load_balance_str = options["-lb"];
     if(options["-lb"]=="NNZ"){
       optionsFact.load_balance = NNZ;
     }
@@ -418,7 +419,7 @@ int main(int argc, char **argv)
 
   delete logfileptr;
 
-//  MPI_Finalize();
+  MPI_Finalize();
   upcxx::finalize();
 
   //LOCK FOR PROFILING
