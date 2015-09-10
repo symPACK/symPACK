@@ -15,7 +15,7 @@
 #include <stdexcept>
 #include <cassert>
 
-//#define NO_EXTRA_SPLIT
+#define NO_EXTRA_SPLIT -1
 
 namespace LIBCHOLESKY{
 
@@ -502,7 +502,7 @@ namespace LIBCHOLESKY{
 #define BITCLEAR(a, b) ((a)[BITSLOT(b)] &= ~BITMASK(b))
 #define BITTEST(a, b) ((a)[BITSLOT(b)] & BITMASK(b))
 #define BITNSLOTS(nb) ((nb + CHAR_BIT - 1) / CHAR_BIT)
-#define BITSCLEAR(bitarray, nb) ( memset(bitarray, 0, BITNSLOTS(nb)))
+#define BITSCLEAR(bitarray, nb) ( std::fill(bitarray, bitarray + BITNSLOTS(nb),0))
 
 void my_bitset_intersection(int n, const vector<int> & a, const vector<int>& b, vector<int> &c){
   
@@ -713,10 +713,11 @@ TIMER_START(REFINE);
       //might have been replaced by its subsets
       Jit=supPtr[J-1];
       int curJ = (*Jit)->id;
-#ifdef NO_EXTRA_SPLIT
-      if(curJ>0)
-#endif
+//#ifdef NO_EXTRA_SPLIT
+//      if(curJ>0)
+//#endif
       {
+        int numRefine = 0;
       do{
 
 #ifdef VERBOSE
@@ -726,13 +727,19 @@ TIMER_START(REFINE);
         //nodeset * inter = new nodeset();
 TIMER_START(INTERSECT);
         inter.clear();
+        std::set_intersection(
+            adj[K-1]->begin(),adj[K-1]->end(),
+            (*Jit)->members.begin(),(*Jit)->members.end(),
+            std::inserter(inter, inter.begin()));
 //        std::set_intersection((*Jit)->members.begin(),(*Jit)->members.end(),
 //            adj[K-1]->begin(),adj[K-1]->end(),
 //            std::inserter(inter, inter.begin()));
-        my_set_intersection((*Jit)->members, *adj[K-1], inter);
+//        my_set_intersection((*Jit)->members, *adj[K-1], inter);
+//        my_set_intersection(*adj[K-1],(*Jit)->members, inter);
 //        my_bitset_intersection(n,(*Jit)->members, *adj[K-1], inter);
 TIMER_STOP(INTERSECT);
             //std::inserter(*inter, inter->begin()));
+#if 0
 TIMER_START(DIFF2);
           diff.clear();
 //          std::set_difference((*Jit)->members.begin(),(*Jit)->members.end(),
@@ -740,15 +747,16 @@ TIMER_START(DIFF2);
 //              std::inserter(diff, diff.begin()));
           my_set_difference((*Jit)->members, *adj[K-1], diff);
 TIMER_STOP(DIFF2);
+#endif
         if(inter.size()>0){
           //compute I' = J \ M(Ki)
           //nodeset * diff = new nodeset();
 TIMER_START(DIFF);
           diff.clear();
-//          std::set_difference((*Jit)->members.begin(),(*Jit)->members.end(),
-//              adj[K-1]->begin(),adj[K-1]->end(),
-//              std::inserter(diff, diff.begin()));
-          my_set_difference((*Jit)->members, *adj[K-1], diff);
+          std::set_difference((*Jit)->members.begin(),(*Jit)->members.end(),
+              adj[K-1]->begin(),adj[K-1]->end(),
+              std::inserter(diff, diff.begin()));
+//          my_set_difference((*Jit)->members, *adj[K-1], diff);
 TIMER_STOP(DIFF);
               //std::inserter(*diff, diff->begin()));
           if(diff.size()>0){
@@ -787,12 +795,9 @@ TIMER_STOP(INSERT);
 
         Jit++;
         curJ = (*Jit)->id;
+        numRefine++;
       }
-#ifdef NO_EXTRA_SPLIT
-while(curJ==J);
-#else
-while(curJ==J || curJ==-J);
-#endif
+while((curJ==J || curJ==-J) && (NO_EXTRA_SPLIT==-1 || numRefine < NO_EXTRA_SPLIT));
       }
     }
 #else

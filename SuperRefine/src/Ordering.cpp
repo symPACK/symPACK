@@ -11,7 +11,9 @@ using namespace std;
 #define FORTRAN(name) name##_
 #endif
 
+#if 0
 #include <metis.h>
+#endif
 
 namespace LIBCHOLESKY {
 
@@ -25,8 +27,7 @@ void FORTRAN(ordmmd)( int * neqns , int * nadj  , int * xadj  ,
 void FORTRAN(amdbar) (int * N, int * PE, int * IW, int * LEN, int * IWLEN, int * PFREE, int * NV, int * NEXT, int *
          LAST, int * HEAD, int * ELEN, int * DEGREE, int * NCMPA, int * W, int * IOVFLO);
 
-//int metis_nodend (int * N     , int* XADJ2 , int* ADJ2  , int * VWGT, int* OPTION, int* dback , int* dforw);
-//int METIS_SetDefaultOptions (int *options);
+int metis_nodend (int * N     , int* XADJ2 , int* ADJ2  , int * VWGT, int* OPTION, int* dback , int* dforw);
  }
 
 
@@ -101,51 +102,26 @@ void Ordering::METIS(){
 
   invp.resize(pStructure->size);
   perm.resize(pStructure->size);
+
+#if 0
   int options[METIS_NOPTIONS];
   METIS_SetDefaultOptions(&options[0]);
 options[METIS_OPTION_NUMBERING] = 1;
-//options[METIS_OPTION_RTYPE] = METIS_RTYPE_FM;
-////options[METIS_OPTION_OFLAGS] = 0;
-//options[METIS_OPTION_PFACTOR] = 0;
-//options[METIS_OPTION_NSEPS] = 0;
 options[METIS_OPTION_DBGLVL] = 8;
-
-
-
-//    Opt [0] = 0 ; /* use defaults */
-////    Opt [1] = 3 ; /* matching type */
-//options[METIS_OPTION_CTYPE] = METIS_CTYPE_SHEM;
-//    Opt [2] = 1 ; /* init. partitioning algo*/
-//    Opt [3] = 2 ; /* refinement algorithm */
-//    Opt [4] = 0 ; /* no debug */
-//    Opt [5] = 1 ; /* initial compression */
-//    Opt [6] = 0 ; /* no dense node removal */
-//    Opt [7] = 1 ; /* number of separators @ each step */
-
-
-
-
-
-
-
-
-//METIS_OPTION_CTYPE, METIS_OPTION_RTYPE, METIS_OPTION_NO2HOP,
-//METIS_OPTION_NSEPS, METIS_OPTION_NITER, METIS_OPTION_UFACTOR,
-//METIS_OPTION_COMPRESS, METIS_OPTION_CCORDER, METIS_OPTION_SEED,
-//METIS_OPTION_PFACTOR, METIS_OPTION_NUMBERING, METIS_OPTION_DBGLVL
-
-
+#endif
 
 //options[METIS_OPTION_CCORDER] = 1;
 //options[METIS_OPTION_COMPRESS] = 1;
-//  OPTION[0] = 0;
-//    OPTION[1] = 3;
-//    OPTION[2] = 1;
-//    OPTION[3] = 2;
-//    OPTION[4] = 0;
-//    OPTION[5] = 1;
-//    OPTION[6] = 0;
-//    OPTION[7] = 1;
+// int OPTION[8];
+// OPTION[0] = 0;
+// OPTION[1] = 3;
+// OPTION[2] = 1;
+// OPTION[3] = 2;
+// OPTION[4] = 0;
+// OPTION[5] = 1;
+// OPTION[6] = 0;
+// OPTION[7] = 1;
+
     int N = pStructure->size; 
 
     vector<int> tmpXadj = pStructure->expColptr;
@@ -166,15 +142,28 @@ options[METIS_OPTION_DBGLVL] = 8;
       rm++;
     }
 
+//    cout<<tmpXadj<<endl;
+//    cout<<tmpAdj<<endl;
 
-//    vector<int> tmpXadj = pStructure->expColptr;
-//    vector<int> tmpAdj = pStructure->expRowind;
+    //switch everything to 0 based
+    for(int col=0; col<tmpXadj.size();++col){ tmpXadj[col]--;}
+    for(int col=0; col<tmpAdj.size();++col){ tmpAdj[col]--;}
 
-  //convert to 0 based
-//  for(int i =0; i<tmpXadj.size();++i){tmpXadj[i]--;}
-//  for(int i =0; i<tmpAdj.size();++i){tmpAdj[i]--;}
-  METIS_NodeND( &N, &tmpXadj[0] , &tmpAdj[0]  , NULL, &options[0], &perm[0] , &invp[0] );
-//  METIS_NodeND( &N, &tmpXadj[0] , &tmpAdj[0]  , NULL, &options[0], &invp[0] , &perm[0] );
+//    cout<<tmpXadj<<endl;
+//    cout<<tmpAdj<<endl;
+
+#ifdef USE_METIS
+  metis_nodend( &N, &tmpXadj[0] , &tmpAdj[0]  , NULL , NULL, &perm[0] , &invp[0] );
+#else
+  int numflag = 0;
+  metis_nodend( &N, &tmpXadj[0] , &tmpAdj[0]  , &numflag , NULL, &perm[0] , &invp[0] );
+#endif
+
+    //switch everything to 1 based
+    for(int col=0; col<invp.size();++col){ invp[col]++;}
+    for(int col=0; col<perm.size();++col){ perm[col]++;}
+//    for(int col=0; col<tmpXadj.size();++col){ tmpXadj[col]++;}
+//    for(int col=0; col<tmpAdj.size();++col){ tmpAdj[col]++;}
 }
 
 void Ordering::AMD(){
