@@ -15,7 +15,9 @@
 #include <stdexcept>
 #include <cassert>
 
-#define NO_EXTRA_SPLIT -1
+#define REFINEMENT_LIMIT -1
+#define DISTANCE_LIMIT -1
+#define DEPTH_LIMIT -1
 
 namespace LIBCHOLESKY{
 
@@ -689,6 +691,11 @@ TIMER_START(REFINE);
   nodeset inter,diff;
   int prevK = nsuper+1;  
   for(Kit = L.rbegin();Kit != L.rend(); ++Kit){
+
+    if(DEPTH_LIMIT!=-1){
+    if(distance(Kit,L.rend()) > DEPTH_LIMIT*distance(L.rbegin(),L.rend())){break;}
+    }
+
     //assert( snodes[K-1] == *Kit);
     int K = (*Kit)->id;
 #ifdef VERBOSE
@@ -705,8 +712,14 @@ TIMER_START(REFINE);
     int newSets=0;
     auto KKit = Kit;
 #if 1
+    auto it = supadj[K-1].rbegin();
+    if(DISTANCE_LIMIT!=-1){
+      while(distance(it,supadj[K-1].rend())>DISTANCE_LIMIT){it++;}
+    }
+
     //for each adjacent supernode
-    for(auto it = supadj[K-1].rbegin();it!=supadj[K-1].rend();++it){
+    for(it;it!=supadj[K-1].rend();++it){
+//    for(auto it = supadj[K-1].begin();it!=supadj[K-1].end();++it){
       //J is the index of the original supernode
       int J = *it;
       //Jit is an iterator (pointer) over the "original" supernode, which
@@ -765,16 +778,35 @@ TIMER_STOP(DIFF);
             int newJ = -abs(curJ);
 
 TIMER_START(INSERT);
+#if 0
+//            if(1){
+//            if(rand()>=0.5){
+            if(distance(Jit,L.rend())%2!=0){
+            //replace J by I
+            (*Jit)->members.swap(inter);
+            (*Jit)->id=newJ;
+            //Insert I' before I
+            ++Jit; 
+            L.insert(Jit.base(),new snode());
+            (*Jit)->members.swap(diff);
+            (*Jit)->id=newJ;
+
+
+            }
+            else
+#endif
+            {
             //replace J by I'
             (*Jit)->members.swap(diff);
-            //(*Jit)->members.swap(*diff);
             (*Jit)->id=newJ;
             //Insert I before I'
             ++Jit; 
             L.insert(Jit.base(),new snode());
-            //(*Jit)->members.swap(*inter);
             (*Jit)->members.swap(inter);
             (*Jit)->id=newJ;
+
+
+            }
 TIMER_STOP(INSERT);
 
 #ifdef VERBOSE
@@ -797,7 +829,7 @@ TIMER_STOP(INSERT);
         curJ = (*Jit)->id;
         numRefine++;
       }
-while((curJ==J || curJ==-J) && (NO_EXTRA_SPLIT==-1 || numRefine < NO_EXTRA_SPLIT));
+while((curJ==J || curJ==-J) && (REFINEMENT_LIMIT==-1 || numRefine < REFINEMENT_LIMIT));
       }
     }
 #else

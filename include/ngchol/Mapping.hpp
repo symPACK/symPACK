@@ -255,6 +255,70 @@ class Col2D: public Mapping{
 
 
 
+
+
+
+
+
+//
+//
+//
+//class TreeMapping{
+//  protected:
+//    TreeLoadBalancer * pBalancer_;
+//    ETree * pSupETree_;
+//
+//
+//
+//
+//    Int iNumProc_;
+//    Int iPRows_;
+//    Int iPCols_;
+//    Int iBlockSize_;
+//  public:
+//      void Update(TreeLoadBalancer * apBalancer, ETree * apSupETree_){
+//        pBalancer_ = apBalancer;
+//        pSupETree_ = apSupETree_;
+//      }
+//
+// 
+//      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pBalancer_(NULL),pSupETree_(NULL){};
+////      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):
+////          iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize){
+////          pProcMap_ = new std::vector<Int>(aProcMap);
+////      };
+////
+////      TreeMapping(TreeMapping & C){
+////        iNumProc_   = C.iNumProc_;
+////        iPRows_     = C.iPRows_;
+////        iPCols_     = C.iPCols_;
+////        iBlockSize_ = C.iBlockSize_;
+////        if(C.pProcMap_!=NULL){
+////          pProcMap_ = new std::vector<Int>(*C.pProcMap_);
+////        }
+////      }
+//      TreeMapping(){
+//        pBalancer_=NULL;
+//        pSupETree_=NULL;
+//      };
+//      virtual inline Int Map(Int i, Int j)=0;
+//};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }
 
 #endif //_MAPPING_HPP_

@@ -1169,26 +1169,36 @@ isLindxAllocated_=true;
 
     if(options.load_balance_str=="SUBCUBE-FI"){
           LoadBalancer * balancer;
-          if(iam==0){ cout<<"Subtree to subcube mapping used"<<endl;}
+          if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
           balancer = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
           logfileptr->OFS()<<"Proc Mapping: "<<balancer->GetMap()<<endl;
           this->Mapping_->Update(balancer->GetMap());
+          delete balancer;
     }
     else if(options.load_balance_str=="SUBCUBE-FO"){
           LoadBalancer * balancer;
-          if(iam==0){ cout<<"Subtree to subcube mapping used"<<endl;}
+          if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
           balancer = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
           logfileptr->OFS()<<"Proc Mapping: "<<balancer->GetMap()<<endl;
           this->Mapping_->Update(balancer->GetMap());
           delete balancer;
     }
-    else if(options.load_balance_str=="SUBCUBE-VOLUME"){
+    else if(options.load_balance_str=="SUBCUBE-VOLUME-FI"){
           LoadBalancer * balancer;
-          if(iam==0){ cout<<"Subtree to subcube mapping used"<<endl;}
+          if(iam==0){ cout<<"Subtree to subcube volume FI mapping used"<<endl;}
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-          balancer = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc);
+          balancer = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
+          logfileptr->OFS()<<"Proc Mapping: "<<balancer->GetMap()<<endl;
+          this->Mapping_->Update(balancer->GetMap());
+          delete balancer;
+    }
+    else if(options.load_balance_str=="SUBCUBE-VOLUME-FO"){
+          LoadBalancer * balancer;
+          if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
+          ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+          balancer = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
           logfileptr->OFS()<<"Proc Mapping: "<<balancer->GetMap()<<endl;
           this->Mapping_->Update(balancer->GetMap());
           delete balancer;

@@ -419,7 +419,11 @@ int main(int argc, char **argv)
 
   delete logfileptr;
 
-  MPI_Finalize();
+  int finalized = 0;
+  MPI_Finalized(&finalized);
+  if(!finalized){ 
+    MPI_Finalize();
+  }
   upcxx::finalize();
 
   //LOCK FOR PROFILING

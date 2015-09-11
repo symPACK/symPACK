@@ -10,31 +10,35 @@ PREFIX = ${HOME}/software
 NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/cholesky
 METIS_DIR     = $(PREFIX)/release/metis-5.1.0/build/Linux-x86_64
 PARMETIS_DIR  = $(PREFIX)/release/parmetis-4.0.3/build/Linux-x86_64
-SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.0
+#SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.0
+#SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.4
+SCOTCH_DIR    = $(PREFIX)/release/scotch_5.1.12_esmumps
 
 #SPARSELIB_DIR = ${NGCHOL_DIR}/MatrixConverter
 #SPARSELIB_INCLUDE = -I${SPARSELIB_DIR}/bebop_util/include -I${SPARSELIB_DIR}/sparse_matrix_converter/include
 METIS_INCLUDE        = -I${METIS_DIR}/../../include
-INCLUDES          = -I${NGCHOL_DIR}/SuperRefine/include ${METIS_INCLUDE}  
+SCOTCH_INCLUDE        = -I${SCOTCH_DIR}/include
+INCLUDES          = -I${NGCHOL_DIR}/SuperRefine/include ${METIS_INCLUDE} ${SCOTCH_INCLUDE} 
 #${SPARSELIB_INCLUDE}
 
 #GFORTRAN_LIB     = -lgfortran
 #SPARSELIB_LIB    = ${SPARSELIB_DIR}/sparse_matrix_converter/libsparse_matrix_converter.a  ${SPARSELIB_DIR}/bebop_util/libbebop_util.a
 
-SCOTCH_LIB       = -L${SCOTCH_DIR}/lib -lscotchmetis -lscotch -lscotcherr
+SCOTCH_LIB       = -L${SCOTCH_DIR}/lib -lscotch -lscotcherr
 METIS_LIB        = -L${METIS_DIR}/libmetis -lmetis
 PARMETIS_LIB     = -L${PARMETIS_DIR}/libparmetis -lparmetis 
 
 COMPILE_FLAG   = -O3 -w -g
 LIBS  += ${SCOTCH_LIB} ${GFORTRAN_LIB}
-#LIBS  += ${METIS_LIB} ${GFORTRAN_LIB}
+LIBS  += ${METIS_LIB} ${GFORTRAN_LIB}
 
 
 
 
 
 COMPILE_DEF += -fopenmp -std=c++11 -DAdd_ -DPROFILE 
-#COMPILE_DEF += -DUSE_METIS
+COMPILE_DEF += -DUSE_METIS
+COMPILE_DEF += -DUSE_SCOTCH
 
 CFLAGS       = ${COMPILE_FLAG} ${INCLUDES}
 FFLAGS       = ${COMPILE_FLAG} ${INCLUDES}

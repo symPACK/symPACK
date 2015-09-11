@@ -11,6 +11,7 @@
 #include "ngchol/timer.hpp"
 
 #define FUNDAMENTAL
+//#define RELAX_SNODE
 
 struct Stats{
   int64_t totalSnodeBlocks = 0;
@@ -56,7 +57,8 @@ void countBlock(vector<int> & Xsuper, vector<int64_t> & Xlindx, vector<int32_t> 
                   int32_t width = lc - fc + 1; 
  
                   for(int col = fc; col<=lc;col++){ 
-                    int32_t nzBlockCnt = 1;
+                    //1 to count the diagonal block, 0 to skip it
+                    int32_t nzBlockCnt = 0;//1;
                     int32_t height = li - fi + 1;
                     for(int64_t idx = fi; idx<=li;idx++){
                       int32_t iRow = Lindx[idx-1];
@@ -364,8 +366,11 @@ double tstart = MPI_Wtime();
       if(ordering == "AMD"){
         Order.AMD();
       }
-      else if (ordering == "ND"){
+      else if (ordering == "METIS"){
         Order.METIS();
+      }
+      else if (ordering == "SCOTCH"){
+        Order.SCOTCH();
       }
       else{
         Order.MMD();
