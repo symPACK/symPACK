@@ -1174,6 +1174,7 @@ isLindxAllocated_=true;
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
           this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
           logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+          logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
 
           
     TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
@@ -1190,6 +1191,7 @@ isLindxAllocated_=true;
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
           this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
           logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+          logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
       
     TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
     if(test==NULL){
@@ -1206,14 +1208,34 @@ isLindxAllocated_=true;
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
           this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
           logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+          logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+
+    TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+    if(test==NULL){
           this->Mapping_->Update(this->Balancer_->GetMap());
+    }
+    else{
+         test->Update((TreeLoadBalancer*)this->Balancer_);
+    }
+
+
     }
     else if(options.load_balance_str=="SUBCUBE-VOLUME-FO"){
           if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
           this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
           logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+          logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+
+    TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+    if(test==NULL){
           this->Mapping_->Update(this->Balancer_->GetMap());
+    }
+    else{
+         test->Update((TreeLoadBalancer*)this->Balancer_);
+    }
+
+
     }
     else if(options.load_balance_str=="NNZ"){
           if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
