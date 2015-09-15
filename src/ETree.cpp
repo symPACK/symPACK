@@ -363,6 +363,7 @@ TIMER_STOP(Construct_Etree_Classic);
 assert(bIsPostOrdered_);
 
     for(Int snode=1; snode<=newTree.n_; ++snode){
+        Int fc = aXsuper[snode-1];
         Int lc = aXsuper[snode]-1;
         Int parent_col = this->PostParent(lc-1);
         Int parentSnode = ( parent_col == 0) ? 0:aSupMembership[parent_col-1];
@@ -372,6 +373,9 @@ assert(bIsPostOrdered_);
           logfileptr->OFS()<<"parent of curSnode "<<snode<<" is "<<parentSnode<<std::endl;
 #endif
     } 
+
+    newTree.poparent_ = newTree.parent_;
+    newTree.bIsPostOrdered_ = true;
 
 
     return newTree;

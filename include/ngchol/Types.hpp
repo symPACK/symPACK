@@ -19,6 +19,7 @@ namespace LIBCHOLESKY{
   class NGCholOptions{
     public:
       MappingType mappingType;
+      std::string mappingTypeStr;
       FactorizationType factorization;
       LoadBalanceType load_balance;
       std::string load_balance_str;

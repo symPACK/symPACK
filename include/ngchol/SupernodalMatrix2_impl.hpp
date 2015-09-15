@@ -1024,26 +1024,28 @@ void SupernodalMatrix2<T>::Dump(){
     //create the mapping
     Int pmapping = options.used_procs(np);
     Int pr = (Int)sqrt((double)pmapping);
-    switch(options.mappingType){
-      case WRAP2D:
+      if(options.mappingTypeStr ==  "MODWRAP2DTREE"){
+        this->Mapping_ = new ModWrap2DTreeMapping(pmapping, pr, pr, 1);
+        }
+      else if(options.mappingTypeStr ==  "WRAP2D"){
         this->Mapping_ = new Wrap2D(pmapping, pr, pr, 1);
-        break;
-      case WRAP2DFORCED:
+        }
+      else if(options.mappingTypeStr ==  "WRAP2DFORCED"){
         this->Mapping_ = new Wrap2DForced(pmapping, pr, pr, 1);
-        break;
-      case MODWRAP2DNS:
+        }
+      else if(options.mappingTypeStr ==  "MODWRAP2DNS"){
         this->Mapping_ = new Modwrap2DNS(pmapping, pr, pr, 1);
-        break;
-      case ROW2D:
+        }
+      else if(options.mappingTypeStr ==  "ROW2D"){
         this->Mapping_ = new Row2D(pmapping, pmapping, pmapping, 1);
-        break;
-      case COL2D:
+        }
+      else if(options.mappingTypeStr ==  "COL2D"){
         this->Mapping_ = new Col2D(pmapping, pmapping, pmapping, 1);
-        break;
-      case MODWRAP2D: default:
+        }
+      else{
         this->Mapping_ = new Modwrap2D(pmapping, pr, pr, 1);
-        break;
-    }
+        }
+
 
     //Options
     maxIsend_ = options.maxIsend;
@@ -1168,48 +1170,56 @@ isXlindxAllocated_=true;
 isLindxAllocated_=true;
 
     if(options.load_balance_str=="SUBCUBE-FI"){
-          LoadBalancer * balancer;
           if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-          balancer = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
-          logfileptr->OFS()<<"Proc Mapping: "<<balancer->GetMap()<<endl;
-          this->Mapping_->Update(balancer->GetMap());
-          delete balancer;
+          this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
+          logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+
+          
+    TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+    if(test==NULL){
+          this->Mapping_->Update(this->Balancer_->GetMap());
+    }
+    else{
+          test->Update((TreeLoadBalancer*)this->Balancer_);
+    }
+
     }
     else if(options.load_balance_str=="SUBCUBE-FO"){
-          LoadBalancer * balancer;
           if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-          balancer = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
-          logfileptr->OFS()<<"Proc Mapping: "<<balancer->GetMap()<<endl;
-          this->Mapping_->Update(balancer->GetMap());
-          delete balancer;
+          this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
+          logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+      
+    TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+    if(test==NULL){
+          this->Mapping_->Update(this->Balancer_->GetMap());
+    }
+    else{
+         test->Update((TreeLoadBalancer*)this->Balancer_);
+    }
+
+
     }
     else if(options.load_balance_str=="SUBCUBE-VOLUME-FI"){
-          LoadBalancer * balancer;
           if(iam==0){ cout<<"Subtree to subcube volume FI mapping used"<<endl;}
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-          balancer = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
-          logfileptr->OFS()<<"Proc Mapping: "<<balancer->GetMap()<<endl;
-          this->Mapping_->Update(balancer->GetMap());
-          delete balancer;
+          this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
+          logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+          this->Mapping_->Update(this->Balancer_->GetMap());
     }
     else if(options.load_balance_str=="SUBCUBE-VOLUME-FO"){
-          LoadBalancer * balancer;
           if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-          balancer = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
-          logfileptr->OFS()<<"Proc Mapping: "<<balancer->GetMap()<<endl;
-          this->Mapping_->Update(balancer->GetMap());
-          delete balancer;
+          this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
+          logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+          this->Mapping_->Update(this->Balancer_->GetMap());
     }
     else if(options.load_balance_str=="NNZ"){
-          LoadBalancer * balancer;
           if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
-          balancer = new NNZBalancer(np,Xsuper_,cc);
-          logfileptr->OFS()<<"Proc Mapping: "<<balancer->GetMap()<<endl;
-          this->Mapping_->Update(balancer->GetMap());
-          delete balancer;
+          this->Balancer_ = new NNZBalancer(np,Xsuper_,cc);
+          logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+          this->Mapping_->Update(this->Balancer_->GetMap());
     }
 
 
@@ -1890,6 +1900,8 @@ isLindxAllocated_=true;
                 Int I = SupMembership_[col-1];
 
                 Int iDest = this->Mapping_->Map(I-1,I-1);
+                if(iam != iDest){gdb_lock();}
+
                 assert(iam==iDest);
 
                 Int fc = Xsuper_(I-1);
@@ -2169,6 +2181,7 @@ isLindxAllocated_=true;
   template <typename T> SupernodalMatrix2<T>::SupernodalMatrix2(){
     CommEnv_=NULL;
     Mapping_ = NULL;
+    Balancer_ = NULL;
     scheduler_ = NULL;
     Local_=NULL;
     Global_=NULL;
@@ -2180,6 +2193,7 @@ isLindxAllocated_=true;
   template <typename T> SupernodalMatrix2<T>::SupernodalMatrix2(const DistSparseMatrix<T> & pMat, NGCholOptions & options ){
     CommEnv_ = NULL;
     Mapping_ = NULL;
+    Balancer_ = NULL;
     scheduler_ = NULL;
     Local_=NULL;
     Global_=NULL;
@@ -2210,6 +2224,10 @@ isLindxAllocated_=true;
 
     if(this->Mapping_!=NULL){
       delete this->Mapping_;
+    }
+
+    if(this->Balancer_!=NULL){
+      delete this->Balancer_;
     }
 
     if(CommEnv_!=NULL){

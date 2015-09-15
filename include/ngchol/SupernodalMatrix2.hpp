@@ -92,6 +92,7 @@ namespace LIBCHOLESKY{
       Ordering Order_;
       //MAPCLASS describing the Mapping of the computations
       Mapping * Mapping_;
+      LoadBalancer * Balancer_;
 
       //Local and Global structure of the matrix (CSC format)
       SparseMatrixStructure * Local_;

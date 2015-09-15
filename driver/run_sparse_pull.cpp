@@ -156,6 +156,8 @@ int main(int argc, char **argv)
 
 
   if( options.find("-map") != options.end() ){
+
+    optionsFact.mappingTypeStr = options["-map"];
     if(options["-map"] == "Modwrap2D"){
       optionsFact.mappingType = MODWRAP2D;
     }
@@ -419,12 +421,12 @@ int main(int argc, char **argv)
 
   delete logfileptr;
 
+  upcxx::finalize();
   int finalized = 0;
   MPI_Finalized(&finalized);
   if(!finalized){ 
     MPI_Finalize();
   }
-  upcxx::finalize();
 
   //LOCK FOR PROFILING
   //gdb_lock();

@@ -2,6 +2,7 @@
 #define _MAPPING_HPP_
 
 #include "ngchol/Environment.hpp"
+#include "ngchol/LoadBalancer.hpp"
 
 
 #ifndef MAPCLASS
@@ -32,7 +33,7 @@ class Mapping{
 //      inline Int modwrap2Dns(Int i, Int j) {return(i/iBlockSize_)%iPRows_ + iPRows_*floor((double)((j/iBlockSize_)%iNumProc_)/(double)iPRows_);}
 
   public:
-      void Update(std::vector<Int> & aProcMap){
+      virtual void Update(std::vector<Int> & aProcMap){
         if(pProcMap_==NULL){
           pProcMap_ = new std::vector<Int>(aProcMap);
         }
@@ -100,6 +101,7 @@ class Modwrap2D: public Mapping{
         Int proc = 0;
         if(pProcMap_!=NULL){
           proc = modwrap2D_((*pProcMap_)[i],(*pProcMap_)[j]);
+
         }
         else{
           proc = modwrap2D_(i,j);
@@ -260,51 +262,147 @@ class Col2D: public Mapping{
 
 
 
-//
-//
-//
-//class TreeMapping{
-//  protected:
-//    TreeLoadBalancer * pBalancer_;
-//    ETree * pSupETree_;
-//
-//
-//
-//
-//    Int iNumProc_;
-//    Int iPRows_;
-//    Int iPCols_;
-//    Int iBlockSize_;
-//  public:
-//      void Update(TreeLoadBalancer * apBalancer, ETree * apSupETree_){
-//        pBalancer_ = apBalancer;
-//        pSupETree_ = apSupETree_;
-//      }
-//
-// 
-//      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pBalancer_(NULL),pSupETree_(NULL){};
-////      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):
-////          iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize){
-////          pProcMap_ = new std::vector<Int>(aProcMap);
-////      };
-////
-////      TreeMapping(TreeMapping & C){
-////        iNumProc_   = C.iNumProc_;
-////        iPRows_     = C.iPRows_;
-////        iPCols_     = C.iPCols_;
-////        iBlockSize_ = C.iBlockSize_;
-////        if(C.pProcMap_!=NULL){
-////          pProcMap_ = new std::vector<Int>(*C.pProcMap_);
-////        }
-////      }
-//      TreeMapping(){
-//        pBalancer_=NULL;
-//        pSupETree_=NULL;
+
+
+
+class TreeMapping: public Mapping{
+  protected:
+    TreeLoadBalancer * pBalancer_;
+
+    TreeLoadBalancer::ProcGroup * active_group_;
+
+
+
+    Int iNumProc_;
+    Int iPRows_;
+    Int iPCols_;
+    Int iBlockSize_;
+  public:
+      virtual void Update(TreeLoadBalancer * apBalancer){
+        pBalancer_ = apBalancer;
+      }
+
+ 
+      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pBalancer_(NULL){};
+//      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):
+//          iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize){
+//          pProcMap_ = new std::vector<Int>(aProcMap);
 //      };
-//      virtual inline Int Map(Int i, Int j)=0;
-//};
+//
+//      TreeMapping(TreeMapping & C){
+//        iNumProc_   = C.iNumProc_;
+//        iPRows_     = C.iPRows_;
+//        iPCols_     = C.iPCols_;
+//        iBlockSize_ = C.iBlockSize_;
+//        if(C.pProcMap_!=NULL){
+//          pProcMap_ = new std::vector<Int>(*C.pProcMap_);
+//        }
+//      }
+      TreeMapping(){
+        pBalancer_=NULL;
+      };
+
+      
+
+      virtual inline Int Map(Int i, Int j){
+i = i+1;
+j = j+1;
+        assert(pBalancer_!=NULL);
+        //call GroupMap on the correct group, which is the one corresponding to j
+        vector<Int> & groupIdx = pBalancer_->GroupIdx();
+        vector<Int> & groupWorker = pBalancer_->GroupWorker();
+        vector<TreeLoadBalancer::ProcGroup> & levelGroups = pBalancer_->LevelGroups();
+
+#ifdef VERBOSE
+      logfileptr->OFS()<<"MAP("<<i<<","<<j<<")"<<endl;
+      logfileptr->OFS()<<"ETREE:"<<endl<<pBalancer_->SupETree()<<endl;
+#endif
+
+        //We should build a procmap local to the subtree rooted in j
+        Int parentJ = pBalancer_->SupETree().PostParent(j-1);
+
+        Int node = 0;
+        for(Int I = 1; I<j;I++){
+          Int parent = pBalancer_->SupETree().PostParent(I-1);
+          if(parent==parentJ){
+            node=I;
+          }
+        }
+        //node is now the first node of subtree rooted in j
+        node = node+1;
+assert(i>=node);
+        Int treesize = j - node + 1;
+
+        vector<Int> locProcMap(treesize);
+        for(Int I = node;I<=j;++I){
+          Int idx = groupIdx[I];
+          Int worker = groupWorker[I];
+          locProcMap[I-node] = worker;
+        }
 
 
+      Int iPRows = ceil(sqrt(treesize));
+#ifdef VERBOSE
+        logfileptr->OFS()<<"local procMap"<<locProcMap<<endl;
+
+      for(Int myI=0; myI<treesize;myI++){
+      for(Int myJ=0; myJ<=myI;myJ++){
+      Int p =GroupMap(myI,myJ,iPRows,treesize);
+        logfileptr->OFS()<<p<<" ";
+      }
+        logfileptr->OFS()<<endl;
+      }
+        logfileptr->OFS()<<endl;
+#endif
+
+      //Int myI =locProcMap[ i-node ];
+      //Int myJ =locProcMap[ j-node ];
+      Int myI = i-node ;
+      Int myJ = j-node ;
+      Int p =GroupMap(myI-1,myJ-1,iPRows,treesize);
+ //std::min(myI,myJ)%iPRows + iPRows*floor((double)(std::max(myI,myJ)%treesize)/(double)iPRows);
+
+#ifdef VERBOSE
+        logfileptr->OFS()<<"local i "<<myI<<endl;
+        logfileptr->OFS()<<"local j "<<myJ<<endl;
+        logfileptr->OFS()<<"local p "<<p<<endl;
+assert(p<treesize);
+        logfileptr->OFS()<<"global p "<<locProcMap[p]<<endl;
+#endif
+        //convert i and j to "local indices" within the group.
+        //Subtrees are postordered to we just need to remove the smallest
+        //value, which is j - active_group_->Ranks().size() 
+
+//        Int local
+//        Int proc = GroupMap();
+//        if(pProcMap_!=NULL){
+//          proc = antidiag2D_((*pProcMap_)[i],(*pProcMap_)[j]);
+//        }
+//        else{
+//          proc = antidiag2D_(i,j);
+//        }
+
+        return locProcMap[p];
+      }
+
+  protected:
+      virtual inline Int GroupMap(Int i, Int j,Int iPRows, Int iNp) =0;
+};
+
+
+
+
+class ModWrap2DTreeMapping: public TreeMapping{
+  public:
+     ModWrap2DTreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):TreeMapping(aiNumProc, aiPRows, aiPCols, aiBlockSize ){};
+      ModWrap2DTreeMapping():TreeMapping(){
+      };
+
+  protected:
+      virtual inline Int GroupMap(Int i, Int j,Int iPRows, Int iNp){
+      return std::min(iNp-1,(int)(std::min(i,j)%iPRows + iPRows*floor((double)(std::max(i,j)%iNp)/(double)iPRows)));
+}
+};
 
 
 
