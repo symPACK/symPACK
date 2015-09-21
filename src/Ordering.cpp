@@ -2,6 +2,15 @@
 #include "ngchol/mmd.hpp"
 #include "ngchol/utility.hpp"
 
+#ifdef USE_METIS
+#include <metis.h>
+#endif
+
+#ifdef USE_SCOTCH
+#include <scotch.h>
+#endif
+
+
 namespace LIBCHOLESKY{
 
 
@@ -129,91 +138,211 @@ void Ordering::AMD(){
 
 
 
-void Ordering::METIS(){
-/////  assert(pStructure!=NULL);
-/////
-/////  if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
-/////    throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call AMD\n" );
-/////  }
-/////
-/////
-/////  invp.resize(pStructure->size);
-/////  perm.resize(pStructure->size);
-/////  int options[METIS_NOPTIONS];
-/////  METIS_SetDefaultOptions(&options[0]);
-/////options[METIS_OPTION_NUMBERING] = 1;
-///////options[METIS_OPTION_RTYPE] = METIS_RTYPE_FM;
-/////////options[METIS_OPTION_OFLAGS] = 0;
-///////options[METIS_OPTION_PFACTOR] = 0;
-///////options[METIS_OPTION_NSEPS] = 0;
-/////options[METIS_OPTION_DBGLVL] = 8;
-/////
-/////
-/////
-///////    Opt [0] = 0 ; /* use defaults */
-/////////    Opt [1] = 3 ; /* matching type */
-///////options[METIS_OPTION_CTYPE] = METIS_CTYPE_SHEM;
-///////    Opt [2] = 1 ; /* init. partitioning algo*/
-///////    Opt [3] = 2 ; /* refinement algorithm */
-///////    Opt [4] = 0 ; /* no debug */
-///////    Opt [5] = 1 ; /* initial compression */
-///////    Opt [6] = 0 ; /* no dense node removal */
-///////    Opt [7] = 1 ; /* number of separators @ each step */
-/////
-/////
-/////
-/////
-/////
-/////
-/////
-/////
-///////METIS_OPTION_CTYPE, METIS_OPTION_RTYPE, METIS_OPTION_NO2HOP,
-///////METIS_OPTION_NSEPS, METIS_OPTION_NITER, METIS_OPTION_UFACTOR,
-///////METIS_OPTION_COMPRESS, METIS_OPTION_CCORDER, METIS_OPTION_SEED,
-///////METIS_OPTION_PFACTOR, METIS_OPTION_NUMBERING, METIS_OPTION_DBGLVL
-/////
-/////
-/////
-///////options[METIS_OPTION_CCORDER] = 1;
-///////options[METIS_OPTION_COMPRESS] = 1;
-///////  OPTION[0] = 0;
-///////    OPTION[1] = 3;
-///////    OPTION[2] = 1;
-///////    OPTION[3] = 2;
-///////    OPTION[4] = 0;
-///////    OPTION[5] = 1;
-///////    OPTION[6] = 0;
-///////    OPTION[7] = 1;
-/////    int N = pStructure->size; 
-/////
-/////    vector<int> tmpXadj = pStructure->expColptr;
-/////    vector<int> tmpAdj;
-/////    tmpAdj.reserve(pStructure->expRowind.size());
-/////
-/////    for(int col=0; col<tmpXadj.size()-1;++col){
-/////      for(int j=tmpXadj[col]; j<tmpXadj[col+1];++j){
-/////        if( pStructure->expRowind[j-1]-1 != col){
-/////          tmpAdj.push_back(pStructure->expRowind[j-1]);
-/////        }
-/////      }
-/////    }
-/////
-/////    int rm = 0;
-/////    for(int col=0; col<tmpXadj.size();++col){
-/////      tmpXadj[col]-=rm;
-/////      rm++;
-/////    }
-/////
-/////
-///////    vector<int> tmpXadj = pStructure->expColptr;
-///////    vector<int> tmpAdj = pStructure->expRowind;
-/////
-/////  //convert to 0 based
-///////  for(int i =0; i<tmpXadj.size();++i){tmpXadj[i]--;}
-///////  for(int i =0; i<tmpAdj.size();++i){tmpAdj[i]--;}
-/////  METIS_NodeND( &N, &tmpXadj[0] , &tmpAdj[0]  , NULL, &options[0], &perm[0] , &invp[0] );
-///////  METIS_NodeND( &N, &tmpXadj[0] , &tmpAdj[0]  , NULL, &options[0], &invp[0] , &perm[0] );
-}
+
+#ifdef USE_METIS
+  void Ordering::METIS(){
+    assert(pStructure!=NULL);
+
+    if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
+      throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call AMD\n" );
+    }
+
+
+    invp.resize(pStructure->size);
+    perm.resize(pStructure->size);
+
+#if 0
+    int options[METIS_NOPTIONS];
+    METIS_SetDefaultOptions(&options[0]);
+    options[METIS_OPTION_NUMBERING] = 1;
+    options[METIS_OPTION_DBGLVL] = 8;
+#endif
+
+    //options[METIS_OPTION_CCORDER] = 1;
+    //options[METIS_OPTION_COMPRESS] = 1;
+    // int OPTION[8];
+    // OPTION[0] = 0;
+    // OPTION[1] = 3;
+    // OPTION[2] = 1;
+    // OPTION[3] = 2;
+    // OPTION[4] = 0;
+    // OPTION[5] = 1;
+    // OPTION[6] = 0;
+    // OPTION[7] = 1;
+
+    int N = pStructure->size; 
+
+    vector<int> tmpXadj = pStructure->expColptr;
+    vector<int> tmpAdj;
+    tmpAdj.reserve(pStructure->expRowind.size());
+
+    for(int col=0; col<tmpXadj.size()-1;++col){
+      for(int j=tmpXadj[col]; j<tmpXadj[col+1];++j){
+        if( pStructure->expRowind[j-1]-1 != col){
+          tmpAdj.push_back(pStructure->expRowind[j-1]);
+        }
+      }
+    }
+
+    int rm = 0;
+    for(int col=0; col<tmpXadj.size();++col){
+      tmpXadj[col]-=rm;
+      rm++;
+    }
+
+    //    cout<<tmpXadj<<endl;
+    //    cout<<tmpAdj<<endl;
+
+    //switch everything to 0 based
+    for(int col=0; col<tmpXadj.size();++col){ tmpXadj[col]--;}
+    for(int col=0; col<tmpAdj.size();++col){ tmpAdj[col]--;}
+
+    //    cout<<tmpXadj<<endl;
+    //    cout<<tmpAdj<<endl;
+
+#ifdef USE_METIS
+    metis_nodend( &N, &tmpXadj[0] , &tmpAdj[0]  , NULL , NULL, &perm[0] , &invp[0] );
+#else
+    int numflag = 0;
+    metis_nodend( &N, &tmpXadj[0] , &tmpAdj[0]  , &numflag , NULL, &perm[0] , &invp[0] );
+#endif
+
+    //switch everything to 1 based
+    for(int col=0; col<invp.size();++col){ invp[col]++;}
+    for(int col=0; col<perm.size();++col){ perm[col]++;}
+    //    for(int col=0; col<tmpXadj.size();++col){ tmpXadj[col]++;}
+    //    for(int col=0; col<tmpAdj.size();++col){ tmpAdj[col]++;}
+  }
+#endif
+
+#ifdef USE_SCOTCH
+  void Ordering::SCOTCH(){
+    assert(pStructure!=NULL);
+
+    if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
+      throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call AMD\n" );
+    }
+
+
+    invp.resize(pStructure->size);
+    perm.resize(pStructure->size);
+
+    int N = pStructure->size; 
+
+    vector<int> tmpXadj = pStructure->expColptr;
+    vector<int> tmpAdj;
+    tmpAdj.reserve(pStructure->expRowind.size());
+
+    for(int col=0; col<tmpXadj.size()-1;++col){
+      for(int j=tmpXadj[col]; j<tmpXadj[col+1];++j){
+        if( pStructure->expRowind[j-1]-1 != col){
+          tmpAdj.push_back(pStructure->expRowind[j-1]);
+        }
+      }
+    }
+
+    int rm = 0;
+    for(int col=0; col<tmpXadj.size();++col){
+      tmpXadj[col]-=rm;
+      rm++;
+    }
+
+    //switch everything to 0 based
+    for(int col=0; col<tmpXadj.size();++col){ tmpXadj[col]--;}
+    for(int col=0; col<tmpAdj.size();++col){ tmpAdj[col]--;}
+
+    int numflag = 0;
+    {
+      SCOTCH_Graph        grafdat;                    /* Scotch graph object to interface with libScotch    */
+      SCOTCH_Ordering     ordedat;                    /* Scotch ordering object to interface with libScotch */
+      SCOTCH_Strat        stradat;
+
+      SCOTCH_graphInit (&grafdat);
+
+      if (SCOTCH_graphBuild (&grafdat,
+            numflag, N, &tmpXadj[0], &tmpXadj[0] + 1, NULL, NULL,
+            tmpXadj[N] - numflag, &tmpAdj[0], NULL) == 0) {
+
+        //STRSTRING='n{sep=m{asc=b{width=3,strat=q{strat=f}},'//
+        // 'low=q{strat=h},vert=1000,dvert=100,dlevl=0,'//
+        // 'proc=1,seq=q{strat=m{type=h,vert=100,'//
+        // 'low=h{pass=10},asc=b{width=3,bnd=f{bal=0.2},'//
+
+
+        //switch (stratnum) {
+        //case 1: // nested dissection with STRATPAR levels
+        //strategy_string << "n{ole=s,ose=s,sep=(/levl>" << int(stratpar-1) << "?z:"
+        //"(m{asc=b{bnd=f{move=200,pass=1000,bal=0.9},org=(|h{pass=10})f{move=200,pass=1000,bal=0.9},width=3},"
+        //"low=h{pass=10},type=h,vert=100,rat=0.7});)}"; break;
+        //case 2: // nested dissection with separators <= STRATPAR
+        //strategy_string << "n{ole=s,ose=s,sep=(/vert<" << int(stratpar) << "?z:"
+        //"(m{asc=b{bnd=f{move=200,pass=1000,bal=0.9},org=(|h{pass=10})"
+        //"f{move=200,pass=1000,bal=0.9},width=3},"
+        //"low=h{pass=10},type=h,vert=100,rat=0.7});)}"; break;
+        //default: // Pure nested dissection
+        //strategy_string << "n{ole=s,ose=s,sep=m{asc=b{bnd=f{move=200,pass=1000,bal=0.9},"
+        //"org=(|h{pass=10})f{move=200,pass=1000,bal=0.9},width=3},low=h{pass=10},type=h,vert=100,rat=0.7}}";
+        //}
+
+        SCOTCH_stratInit (&stradat);
+
+        stringstream strategy_string;
+        //strategy_string << "n{ole=s,ose=s,sep=m{asc=b{bnd=f{move=200,pass=1000,bal=0.9},"
+        //"org=(|h{pass=10})f{move=200,pass=1000,bal=0.9},width=3},low=h{pass=10},vert=100,rat=0.7}}";
+
+
+
+//int vert = 120;
+//int cmin = 1;//20;
+//int cmax = 100000;
+//int frat = 0.08;
+//
+//        strategy_string << "c{rat=0.7,"         
+//        "cpr=n{sep=/(vert>"<<vert<<")?m{vert=100,"         
+//                          "low=h{pass=10},"   
+//                          "asc=f{bal=0.2}}|"  
+//                        "m{vert=100,"         
+//                          "low=h{pass=10},"   
+//                          "asc=f{bal=0.2}};," 
+//        "ole=f{cmin="<<cmin<<",cmax="<<cmax<<",frat="<<cmax<<"},"   
+//        "ose=g},"                             
+//        "unc=n{sep=/(vert>"<<vert<<")?(m{vert=100,"        
+//                           "low=h{pass=10},"  
+//                           "asc=f{bal=0.2}})|"
+//                         "m{vert=100,"        
+//                           "low=h{pass=10},"  
+//                           "asc=f{bal=0.2}};,"
+//        "ole=f{cmin="<<cmin<<",cmax="<<cmax<<",frat="<<cmax<<"},"   
+//        "ose=g}}";
+//
+//
+//        int err = SCOTCH_stratGraphOrder(&stradat,strategy_string.str().c_str());
+////"d{cmin=20,frat=0.08}");
+//        assert(err==0);
+
+#ifdef SCOTCH_DEBUG_ALL
+        if (SCOTCH_graphCheck (&grafdat) == 0)        /* TRICK: next instruction called only if graph is consistent */
+#endif /* SCOTCH_DEBUG_ALL */
+        {
+          if (SCOTCH_graphOrderInit (&grafdat, &ordedat, &invp[0], &perm[0], /* MeTiS and Scotch have opposite definitions for (inverse) permutations */
+                /*nb de supernoeud*/NULL, /*ptr vers rank tab : xsuper*/ NULL, /*tree tab: parent structure*/ NULL) == 0) {
+            SCOTCH_graphOrderCompute (&grafdat, &ordedat, &stradat);
+            SCOTCH_graphOrderExit    (&grafdat, &ordedat);
+          }
+        }
+        SCOTCH_stratExit (&stradat);
+      }
+      SCOTCH_graphExit (&grafdat);
+      }
+
+
+      //switch everything to 1 based
+      for(int col=0; col<invp.size();++col){ invp[col]++;}
+      for(int col=0; col<perm.size();++col){ perm[col]++;}
+
+      }
+#endif
+
 
 
 
