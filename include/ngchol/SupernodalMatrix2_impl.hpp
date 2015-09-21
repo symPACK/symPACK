@@ -1124,14 +1124,14 @@ logfileptr->OFS()<<"ETREE done"<<endl;
 
 logfileptr->OFS()<<"Supernodes found"<<endl;
 
-#ifdef RELAXED_SNODE
-    Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options.maxSnode );
-logfileptr->OFS()<<"Relaxation done"<<endl;
+if(options_.relax.nrelax0>=0){
+    Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
+    logfileptr->OFS()<<"Relaxation done"<<endl;
     Global_->SymbolicFactorizationRelaxed(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
-
-#else
+}
+else{
     Global_->SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
-#endif
+}
 
 logfileptr->OFS()<<"Symbfact done"<<endl;
 

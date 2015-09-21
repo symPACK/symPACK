@@ -637,7 +637,8 @@ void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, Int
 #endif
 
 #ifdef RELAXED_SNODE
-void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, Int maxSize ){
+
+void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, RelaxationParameters & params ){
 
     Int nsuper = xsuper.m()-1;
 
@@ -660,23 +661,6 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
     }
 
 
-  //minsize
-#if 0
-  Int nrelax0 = min(4,maxSize);
-  Int nrelax1 = min(16,maxSize);
-  Int nrelax2 = min(48,maxSize);
-#else
-  Int nrelax0 = min(8,maxSize);
-  Int nrelax1 = min(32,maxSize);
-  Int nrelax2 = min(64,maxSize);
-#endif
-
-
-
-
-  double zrelax0 = 0.8;
-  double zrelax1 = 0.1;
-  double zrelax2 = 0.05;
 
   for(Int ksup=nsuper;ksup>=1;--ksup){
       Int fstcol = xsuper(ksup-1);
@@ -702,10 +686,10 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
           Int fused_cols = width + parent_width;
           
           merge = false;
-          if(fused_cols <= nrelax0){
+          if(fused_cols <= params.nrelax0){
             merge = true;
           }
-          else if(fused_cols <=maxSize){
+          else if(fused_cols <=params.maxSize){
             double child_lnz = cc(fstcol-1);
             double parent_lnz = cc(parent_fstcol-1);
             double xnewzeros = width * (parent_lnz + width  - child_lnz);
@@ -725,9 +709,9 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVe
               Int totsize = (fused_cols * (fused_cols+1)/2) + fused_cols * ((Int)parent_lnz - parent_width);
               totzeros += (Int)xnewzeros;
 
-              merge = ((fused_cols <= nrelax1 && z < zrelax0) 
-                          || (fused_cols <= nrelax2 && z < zrelax1)
-                              || (z<zrelax2)) &&
+              merge = ((fused_cols <= params.nrelax1 && z < params.zrelax0) 
+                          || (fused_cols <= params.nrelax2 && z < params.zrelax1)
+                              || (z<params.zrelax2)) &&
                             (xtotsize < std::numeric_limits<Int>::max() / sizeof(double));
             }
 

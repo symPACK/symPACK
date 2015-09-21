@@ -14,13 +14,31 @@ inline Int
 		else b = (Int(a)-a<0.5)?Int(a):(Int(a)-1);
 		return b; 
 	}
-
-inline void OptionsCreate(Int argc, char** argv, std::map<std::string,std::string>& options)
+inline void OptionsCreate(Int argc, char** argv, std::map<std::string,std::string >& options)
 {
 	options.clear();
 	for(Int k=1; k<argc; k=k+2) {
 		options[ std::string(argv[k]) ] = std::string(argv[k+1]);
 	}
+}
+inline void OptionsCreate(Int argc, char** argv, std::map<std::string,std::vector<std::string> >& options)
+{
+	options.clear();
+  Int k =1;
+  Int key = 1;
+  while(k<argc){
+    if(*argv[k]=='-'){
+      options[std::string(argv[k])].clear();
+      key = k;
+    }
+    else{
+      options[std::string(argv[key])].push_back(std::string(argv[k]));
+    }
+    k++;
+  }
+//	for(Int k=1; k<argc; k=k+2) {
+//		options[ std::string(argv[k]) ] = std::string(argv[k+1]);
+//	}
 }
 
 // *********************************************************************

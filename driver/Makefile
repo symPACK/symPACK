@@ -59,13 +59,13 @@ run_dense_fanboth_mpi.o: run_dense_fanboth_mpi.cpp
 
 
 run_sparse_fanboth_upcxx: run_sparse_fanboth_upcxx.o ${NGCHOL_LIB}
-	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@ run_sparse_fanboth_upcxx.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
+	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@${SUFFIX} run_sparse_fanboth_upcxx.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
 
 run_sparse_fanboth_upcxx.o: run_sparse_fanboth_upcxx.cpp 
 	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
 
 run_sparse_pull: run_sparse_pull.o ${NGCHOL_LIB}
-	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@ run_sparse_pull.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
+	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@${SUFFIX} run_sparse_pull.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
 
 run_sparse_pull.o: run_sparse_pull.cpp 
 	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
@@ -117,6 +117,6 @@ ${NGCHOL_LIB}:
 	(cd ${PEXSI_DIR}/src; make all)
 
 cleanall:
-	rm -f ${EXES} ${OBJS} ${DEPS} *.d.* *.o
+	rm -f ${OBJS} ${DEPS} *.d.* *.o
 
 

@@ -10,6 +10,64 @@
 #include <string>
 
 namespace LIBCHOLESKY{
+  struct RelaxationParameters{
+    Int nrelax0;
+    Int nrelax1;
+    Int nrelax2;
+    Int maxSize;
+
+    double zrelax0 = 0.8;
+    double zrelax1 = 0.1;
+    double zrelax2 = 0.05;
+
+    RelaxationParameters(){
+      nrelax0 = 8 ;
+      nrelax1 = 32;
+      nrelax2 = 64;
+    }
+    RelaxationParameters(Int pmaxSize):RelaxationParameters(){
+      maxSize = pmaxSize;
+      if(maxSize>0){
+        nrelax0 = min(nrelax0,maxSize);
+        nrelax1 = min(nrelax1,maxSize);
+        nrelax2 = min(nrelax2,maxSize);
+      }
+
+    }
+
+    RelaxationParameters(Int pnrelax0, Int pnrelax1, Int pnrelax2, Int pmaxSize){
+      maxSize = pmaxSize;
+      if(maxSize>0){
+        nrelax0 = min(pnrelax0,maxSize);
+        nrelax1 = min(pnrelax1,maxSize);
+        nrelax2 = min(pnrelax2,maxSize);
+      }
+      else{
+        nrelax0 = pnrelax0;
+        nrelax1 = pnrelax1;
+        nrelax2 = pnrelax2;
+      }
+
+    }
+
+    void SetMaxSize(Int pmaxSize){
+        maxSize = pmaxSize;
+        nrelax0 = min(nrelax0,pmaxSize);
+        nrelax1 = min(nrelax1,pmaxSize);
+        nrelax2 = min(nrelax2,pmaxSize);
+    }
+    void SetNrelax0(Int pnrelax0){
+        nrelax0 = min(pnrelax0,maxSize);
+    }
+    void SetNrelax1(Int pnrelax1){
+        nrelax1 = min(pnrelax1,maxSize);
+    }
+    void SetNrelax2(Int pnrelax2){
+        nrelax2 = min(pnrelax2,maxSize);
+    }
+
+  };
+
 
   enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNS,WRAP2D,WRAP2DFORCED};
   enum FactorizationType {FANOUT,FANBOTH};
@@ -29,18 +87,22 @@ namespace LIBCHOLESKY{
       Int maxIrecv;
       Int maxSnode;
       CommEnvironment * commEnv;
-
+      RelaxationParameters relax;
     protected:
       bool isSqrtP(){
         bool val = false;
-        switch(mappingType){
-          case MODWRAP2D: case MODWRAP2DNS: case WRAP2D: case WRAP2DFORCED:
-            val = true;
-            break;
-          default:
-            val = false;
-            break;
+        if(mappingTypeStr == "MODWRAP2D" || mappingTypeStr == "MODWRAP2DNS" || mappingTypeStr == "WRAP2D" || mappingTypeStr == "WRAP2DFORCED"){
+          val = true;
         }
+
+        //        switch(mappingType){
+        //          case MODWRAP2D: case MODWRAP2DNS: case WRAP2D: case WRAP2DFORCED:
+        //            val = true;
+        //            break;
+        //          default:
+        //            val = false;
+        //            break;
+        //        }
         return val;
       }
 
@@ -53,6 +115,7 @@ namespace LIBCHOLESKY{
         maxIsend = 0;
         maxIrecv=0;
         maxSnode=-1;
+        relax = RelaxationParameters(maxSnode);
         commEnv = NULL;
         ordering = MMD;
       }
@@ -103,31 +166,31 @@ namespace LIBCHOLESKY{
   };
 
   template<typename T>
-  class TempUpdateBuffers{
-    public:
-    NumMat<T> tmpBuf;
-    IntNumVec src_colindx;
-    IntNumVec src_to_tgt_offset;
+    class TempUpdateBuffers{
+      public:
+        NumMat<T> tmpBuf;
+        IntNumVec src_colindx;
+        IntNumVec src_to_tgt_offset;
 
-    void Resize(Int size, Int mw){
-      tmpBuf.Resize(size,mw);
-      src_colindx.Resize(mw);
-      src_to_tgt_offset.Resize(size);
-    }
+        void Resize(Int size, Int mw){
+          tmpBuf.Resize(size,mw);
+          src_colindx.Resize(mw);
+          src_to_tgt_offset.Resize(size);
+        }
 
-    void Clear(){
-      tmpBuf.Clear();
-      src_colindx.Clear();
-      src_to_tgt_offset.Clear();
-     }
+        void Clear(){
+          tmpBuf.Clear();
+          src_colindx.Clear();
+          src_to_tgt_offset.Clear();
+        }
 
 
-    TempUpdateBuffers(){
-    }
-    TempUpdateBuffers(Int size, Int mw){
-      Resize(size,mw);
-    }
-  };
+        TempUpdateBuffers(){
+        }
+        TempUpdateBuffers(Int size, Int mw){
+          Resize(size,mw);
+        }
+    };
 
 
 
