@@ -28,7 +28,7 @@ SCOTCH_LIB       = -L${SCOTCH_DIR}/lib -lscotch -lscotcherr
 METIS_LIB        = -L${METIS_DIR}/libmetis -lmetis
 PARMETIS_LIB     = -L${PARMETIS_DIR}/libparmetis -lparmetis 
 
-COMPILE_FLAG   = -O3 -w -g
+COMPILE_FLAG   = -O3 -w -g -O0
 LIBS  += ${SCOTCH_LIB} ${GFORTRAN_LIB}
 LIBS  += ${METIS_LIB} ${GFORTRAN_LIB}
 
@@ -62,7 +62,7 @@ LOADOPTS     = ${PROFILE_FLAG} ${LIBS} -fopenmp
 	rm -f $@.$$$$
 
 SRCS_C   = iohb.c 
-SRCS_CPP = ETree.cpp SparseMatrixStructure.cpp Ordering.cpp main.cpp timer.cpp LogFile.cpp 
+SRCS_CPP = ETree.cpp SparseMatrixStructure.cpp Ordering.cpp main.cpp timer.cpp LogFile.cpp symbol_reordering.cpp  
 SRCS_F   = genmmd.f  mmdelm.f  mmdint.f  mmdnum.f  mmdupd.f  ordmmd.f amdbar.f
 
 OBJS     = ${UPCXX_CPP:.cpp=.o} ${SRCS_CPP:.cpp=.o} ${SRCS_C:.c=.o} ${SRCS_F:.f=.o}

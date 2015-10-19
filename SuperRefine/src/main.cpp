@@ -2,12 +2,14 @@
 #include <cmath>
 #include <complex>
 #include <cassert>
+#include <limits>
 
 #include "iohb.h"
 
 #include "ngchol/Utility.hpp"
 #include "ngchol/DistSparseMatrix.hpp"
 #include "ngchol/SparseMatrixStructure.hpp"
+#include "ngchol/PastixReorder.hpp"
 #include "ngchol/timer.hpp"
 
 #define FUNDAMENTAL
@@ -353,8 +355,8 @@ int main(int argc, char **argv)
     Global.ExpandSymmetric();
     if(iam==0){ cout<<"Matrix expanded"<<endl; }
     //Create an Ordering object to hold the permutation
-    Ordering Order;
-    Order.SetStructure(Global);
+    Ordering order;
+    order.SetStructure(Global);
     if(iam==0){ cout<<"Structure set"<<endl; }
 {
 
@@ -364,39 +366,39 @@ double tstart = MPI_Wtime();
     if(argc>2){
       string ordering(argv[2]);
       if(ordering == "AMD"){
-        Order.AMD();
+        order.AMD();
       }
       else if (ordering == "METIS"){
-        Order.METIS();
+        order.METIS();
       }
       else if (ordering == "SCOTCH"){
-        Order.SCOTCH();
+        order.SCOTCH();
       }
       else{
-        Order.MMD();
+        order.MMD();
       }
     }
     else{
-      Order.MMD();
+      order.MMD();
     }
 
 double tstop = MPI_Wtime();
 TIMER_STOP(ORDERING);
-    if(iam==0){ cout<<"Ordering done in "<<tstop-tstart<<endl; }
+    if(iam==0){ cout<<"ordering done in "<<tstop-tstart<<endl; }
 }
 #ifdef VERBOSE
-    cout<<"MMD perm: "<<Order.perm<<endl;
+    cout<<"MMD perm: "<<order.perm<<endl;
 #endif
 
     ETree Etree;
-    Etree.ConstructETree(Global,Order);
-    Etree.PostOrderTree(Order);
+    Etree.ConstructETree(Global,order);
+    Etree.PostOrderTree(order);
     if(iam==0){ cout<<"ETree done"<<endl; }
     //cout<<"etree "<<Etree<<std::endl;
     vector<int> cc,rc;
-    Global.GetLColRowCount(Etree,Order,cc,rc);
+    Global.GetLColRowCount(Etree,order,cc,rc);
     //cout<<"colcnt "<<cc<<std::endl;
-    Etree.SortChildren(cc,Order);
+    Etree.SortChildren(cc,order);
 #ifdef VERBOSE
     cout<<"colcnt sorted "<<cc<<std::endl;
 #endif
@@ -411,22 +413,22 @@ TIMER_STOP(ORDERING);
     }
 
 #ifdef FUNDAMENTAL
-    Global.FindFundamentalSupernodes(Etree,Order,cc,SupMembership,Xsuper,maxSnode);
+    Global.FindFundamentalSupernodes(Etree,order,cc,SupMembership,Xsuper,maxSnode);
 #else
-    Global.FindSupernodes(Etree,Order,cc,SupMembership,Xsuper,maxSnode);
+    Global.FindSupernodes(Etree,order,cc,SupMembership,Xsuper,maxSnode);
 #endif
     if(iam==0){ cout<<"Supernodes found"<<endl; }
 
 #ifdef RELAX_SNODE
     Global.RelaxSupernodes(Etree, cc,SupMembership, Xsuper, maxSnode );
     if(iam==0){ cout<<"Relaxation done"<<endl; }
-    Global.SymbolicFactorizationRelaxed(Etree,Order,cc,Xsuper,SupMembership,Xlindx,Lindx);
+    Global.SymbolicFactorizationRelaxed(Etree,order,cc,Xsuper,SupMembership,Xlindx,Lindx);
 #else
-    Global.SymbolicFactorization(Etree,Order,cc,Xsuper,SupMembership,Xlindx,Lindx);
+    Global.SymbolicFactorization(Etree,order,cc,Xsuper,SupMembership,Xlindx,Lindx);
     if(iam==0){ cout<<"Symbfact done"<<endl; }
 #endif
 
-      cout<<"Non refined perm is:"<<Order.perm<<endl;
+      cout<<"Non refined perm is:"<<order.perm<<endl;
 #ifdef VERBOSE
       cout<<"Xsuper is "<<Xsuper<<endl;
       //cout<<"Xlindx is "<<Xlindx<<endl;
@@ -436,19 +438,26 @@ TIMER_STOP(ORDERING);
 
 
 
-    Ordering OrderSave = Order;
+    Ordering orderSave = order;
 
     vector<int> permRefined,origPerm,newXsuper;
 {
 double tstart = MPI_Wtime();
-    Global.RefineSupernodes(Etree,Order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
+#if 0
+    Global.RefineSupernodes(Etree,order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
+#else
+    ETree SupETree = Etree.ToSupernodalETree(Xsuper,SupMembership,order);
+    SymbolMatrix * symbmtx = GetPastixSymbolMatrix(Xsuper,SupMembership, Xlindx, Lindx);
+    Order * psorder = GetPastixOrder(symbmtx,Xsuper, SupETree, &order.perm[0], &order.invp[0]);
+    symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
+#endif
 double tstop = MPI_Wtime();
     if(iam==0){ cout<<"Refinement done in "<<tstop-tstart<<endl; }
 }
 
 
     if(iam==0){ 
-      cout<<"Refined perm is:"<<Order.perm<<endl;
+      cout<<"Refined perm is:"<<order.perm<<endl;
 #ifdef VERBOSE
       cout<<"Original Supernodes: "<<Xsuper<<endl; 
 #endif
@@ -471,11 +480,11 @@ Lindx.swap(dummy2);
       //safety check
       {
         ETree Etree2;
-        Etree2.ConstructETree(Global,OrderSave);
-        Etree2.PostOrderTree(OrderSave);
+        Etree2.ConstructETree(Global,orderSave);
+        Etree2.PostorderTree(orderSave);
         vector<int> cc2,rc2;
-        Global.GetLColRowCount(Etree2,OrderSave,cc2,rc2);
-      Etree2.SortChildren(cc2,Order);
+        Global.GetLColRowCount(Etree2,orderSave,cc2,rc2);
+      Etree2.SortChildren(cc2,order);
 
         for(int i =0; i<cc.size();++i){
           assert(cc[i]==cc2[i]);
@@ -490,11 +499,11 @@ Lindx.swap(dummy2);
       vector<int32_t> Lindx2;
 
       ETree Etree2;
-      Etree2.ConstructETree(Global,Order);
-      Etree2.PostOrderTree(Order);
+      Etree2.ConstructETree(Global,order);
+      Etree2.PostOrderTree(order);
       vector<int> cc2,rc2;
-      Global.GetLColRowCount(Etree2,Order,cc2,rc2);
-      Etree2.SortChildren(cc2,Order);
+      Global.GetLColRowCount(Etree2,order,cc2,rc2);
+      Etree2.SortChildren(cc2,order);
 
       double flops2 = 0.0;
       for(int i = 0; i<cc2.size();++i){
@@ -506,9 +515,9 @@ Lindx.swap(dummy2);
       }
 
 #ifdef FUNDAMENTAL
-      Global.FindFundamentalSupernodes(Etree2,Order,cc2,SupMembership2,Xsuper2,maxSnode);
+      Global.FindFundamentalSupernodes(Etree2,order,cc2,SupMembership2,Xsuper2,maxSnode);
 #else
-      Global.FindSupernodes(Etree2,Order,cc2,SupMembership2,Xsuper2,maxSnode);
+      Global.FindSupernodes(Etree2,order,cc2,SupMembership2,Xsuper2,maxSnode);
 #endif
 
       if(iam==0){ cout<<"Supernodes found"<<endl; }
@@ -519,13 +528,13 @@ Lindx.swap(dummy2);
 #ifdef VERBOSE
       if(iam==0){ cout<<"New Supernodes: "<<Xsuper2<<endl; }
 #endif
-      Global.SymbolicFactorizationRelaxed(Etree2,Order,cc2,Xsuper2,SupMembership2,Xlindx2,Lindx2);
+      Global.SymbolicFactorizationRelaxed(Etree2,order,cc2,Xsuper2,SupMembership2,Xlindx2,Lindx2);
 #else
 
 #ifdef VERBOSE
       if(iam==0){ cout<<"New Supernodes: "<<Xsuper2<<endl; }
 #endif
-      Global.SymbolicFactorization(Etree2,Order,cc2,Xsuper2,SupMembership2,Xlindx2,Lindx2);
+      Global.SymbolicFactorization(Etree2,order,cc2,Xsuper2,SupMembership2,Xlindx2,Lindx2);
       if(iam==0){ cout<<"Symbfact done"<<endl; }
 #endif
 
