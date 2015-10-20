@@ -1,17 +1,18 @@
-#CC           = mpiicc 
-#CXX          = mpiicpc
-#FC           = mpiifort
-#LOADER       = mpiicpc
-CC           = mpicc 
-CXX          = mpic++
-FC           = mpif90
-LOADER       = mpic++
+CC           = mpiicc 
+CXX          = mpiicpc
+FC           = mpiifort
+LOADER       = mpiicpc
+#CC           = mpicc 
+#CXX          = mpic++
+#FC           = mpif90
+#LOADER       = mpic++
 
 
 PREFIX = ${HOME}/software
 
 #NGCHOL directory
-NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/ngchol
+#NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/ngchol
+NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/cholesky
 METIS_DIR     = $(PREFIX)/release/metis-5.1.0/build/Linux-x86_64
 PARMETIS_DIR  = $(PREFIX)/release/parmetis-4.0.3/build/Linux-x86_64
 SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.0
@@ -32,7 +33,7 @@ SCOTCH_LIB       = -L${SCOTCH_DIR}/lib -lscotch -lscotcherr
 METIS_LIB        = -L${METIS_DIR}/libmetis -lmetis
 PARMETIS_LIB     = -L${PARMETIS_DIR}/libparmetis -lparmetis 
 
-COMPILE_FLAG   = -O3 -w -g -O0
+COMPILE_FLAG   = -O3 -w -g
 LIBS  += ${SCOTCH_LIB} ${GFORTRAN_LIB}
 #LIBS  += ${METIS_LIB} ${GFORTRAN_LIB}
 

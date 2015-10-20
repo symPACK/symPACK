@@ -391,7 +391,7 @@ TIMER_STOP(ORDERING);
     if(iam==0){ cout<<"ordering done in "<<tstop-tstart<<endl; }
 }
 #ifdef VERBOSE
-    cout<<"MMD perm: "<<order.perm<<endl;
+    cout<<"Ordering perm: "<<order.perm<<endl;
 #endif
 
     ETree Etree;
@@ -447,14 +447,49 @@ TIMER_STOP(ORDERING);
     vector<int> permRefined,origPerm,newXsuper;
 {
 double tstart = MPI_Wtime();
-#if 0
-    Global.RefineSupernodes(Etree,order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
-#else
+
+    if(argc>3){
+      string algo(argv[3]);
+      if(algo == "TSP"){
     ETree SupETree = Etree.ToSupernodalETree(Xsuper,SupMembership,order);
     SymbolMatrix * symbmtx = GetPastixSymbolMatrix(Xsuper,SupMembership, Xlindx, Lindx);
     Order * psorder = GetPastixOrder(symbmtx,Xsuper, SupETree, &order.perm[0], &order.invp[0]);
     symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
-#endif
+
+    //overwrite order
+    for(int i = 0; i < order.perm.size(); ++i){
+      order.perm[i] = psorder->peritab[i]+1;
+      order.invp[i] = psorder->permtab[i]+1;
+    } 
+
+
+      }
+      else{
+        Global.RefineSupernodes(Etree,order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
+      }
+    }
+    else{
+    Global.RefineSupernodes(Etree,order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
+    }
+
+
+
+
+//#if 0
+//    Global.RefineSupernodes(Etree,order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
+//#else
+//    ETree SupETree = Etree.ToSupernodalETree(Xsuper,SupMembership,order);
+//    SymbolMatrix * symbmtx = GetPastixSymbolMatrix(Xsuper,SupMembership, Xlindx, Lindx);
+//    Order * psorder = GetPastixOrder(symbmtx,Xsuper, SupETree, &order.perm[0], &order.invp[0]);
+//    symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
+//
+//    //overwrite order
+//    for(int i = 0; i < order.perm.size(); ++i){
+//      order.perm[i] = psorder->peritab[i]+1;
+//      order.invp[i] = psorder->permtab[i]+1;
+//    } 
+//
+//#endif
 double tstop = MPI_Wtime();
     if(iam==0){ cout<<"Refinement done in "<<tstop-tstart<<endl; }
 }

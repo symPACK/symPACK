@@ -7,7 +7,7 @@
 #include <cassert>
 #include <iostream>
 
-#define VERBOSE1
+//#define VERBOSE1
 
 
 
@@ -90,7 +90,7 @@ void symbolBuildRowtab(SymbolMatrix *symbptr) {
   cblknbr = symbptr->cblknbr;
 
   innbr = new int[cblknbr];
-  memset( innbr, 0, cblknbr * sizeof(int) );
+  std::fill(innbr,innbr+cblknbr,0);
 
   /* Count the number of input edge per cblk */
   cblk = symbptr->cblktab;
@@ -137,6 +137,14 @@ for(int i =0;i<cblknbr;++i){
     cblk[1].brownum = cblk[0].brownum + innbr[ itercblk ];
     innbr[itercblk] = cblk[0].brownum;
   }
+
+
+#ifdef VERBOSE1
+for(int i =0;i<=cblknbr;++i){
+    cout<<i+1<<": "<<symbptr->cblktab[i].brownum<<std::endl;
+}
+#endif
+
   assert( cblk[0].brownum == edgenbr );
 
   /* Initialize the browtab */
@@ -174,21 +182,22 @@ for(int i =0;i<cblknbr;++i){
 Order * GetPastixOrder(SymbolMatrix * symbptr,const vector<int> & xsuper, const LIBCHOLESKY::ETree & etree, const int * perm, const int * iperm){
 
   Order * order = new Order();
-  order->baseval = 1;
+  order->baseval = 0;
   order->vertnbr = symbptr->nodenbr;
   order->cblknbr = symbptr->cblknbr;
 
   order->permtab = new int[order->vertnbr];
-  for(int i =0; i<order->vertnbr;++i){order->permtab[i] = iperm[i];}
+  for(int i =0; i<order->vertnbr;++i){order->permtab[i] = iperm[i]-1;}
 
   order->peritab = new int[order->vertnbr];
-  for(int i =0; i<order->vertnbr;++i){order->peritab[i] = perm[i];}
+  for(int i =0; i<order->vertnbr;++i){order->peritab[i] = perm[i]-1;}
 
   order->rangtab = new int[xsuper.size()];
-  for(int i = 0;i<xsuper.size();++i){order->rangtab[i] = xsuper[i];} 
+  for(int i = 0;i<xsuper.size();++i){order->rangtab[i] = xsuper[i]-1;} 
 
-  order->treetab = new int[etree.n()];
-  for(int i = 0;i<xsuper.size();++i){order->rangtab[i] = etree.PostParent(i);} 
+  assert(xsuper.size()-1 == etree.Size());
+  order->treetab = new int[etree.Size()];
+  for(int i = 0;i<etree.Size();++i){order->treetab[i] = etree.Parent(i)-1;} 
 
 
 
@@ -205,7 +214,7 @@ SymbolMatrix *  GetPastixSymbolMatrix(const vector<int> & xsuper,const vector<in
 
   SymbolMatrix * symbmtx = new SymbolMatrix;
 
-  symbmtx->baseval = 1;
+  symbmtx->baseval = 0;
   //ignore dof
   symbmtx->cblknbr = xsuper.size()-1;
   symbmtx->bloknbr = blkCount.back();
@@ -221,6 +230,10 @@ SymbolMatrix *  GetPastixSymbolMatrix(const vector<int> & xsuper,const vector<in
   int blockIdx = 1;
   for(int I = 1; I<xlindx.size();++I){
     //count number of contiguous blocks (at least one diagonal block)
+
+#ifdef VERBOSE1
+          cout<<I<<"("<<xsuper[I-1]<<".."<<xsuper[I]-1<<"): ";
+#endif
     int32_t fc = xsuper[I-1];
     int32_t lc = xsuper[I]-1;
     int32_t fi = xlindx[I-1];
@@ -241,66 +254,113 @@ SymbolMatrix *  GetPastixSymbolMatrix(const vector<int> & xsuper,const vector<in
         int facing = supMembership[iRow-1];
         if(nzBlockCnt==1 && iRow>col){
 
-          symbmtx->bloktab[blockIdx-1].frownum = fc;  /*< First row index            */
-          symbmtx->bloktab[blockIdx-1].lrownum = lc;  /*< Last row index (inclusive) */
-          symbmtx->bloktab[blockIdx-1].lcblknm = I;  /*< Local column block         */
-          symbmtx->bloktab[blockIdx-1].fcblknm = I;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
+          symbmtx->bloktab[blockIdx-1].frownum = fc-1;  /*< First row index            */
+          symbmtx->bloktab[blockIdx-1].lrownum = lc-1;  /*< Last row index (inclusive) */
+          symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
+          symbmtx->bloktab[blockIdx-1].fcblknm = I-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
 
 
-          symbmtx->cblktab[I-1].fcolnum = fc;
-          symbmtx->cblktab[I-1].lcolnum = lc;
-          symbmtx->cblktab[I-1].bloknum = blockIdx;  /*< First block in column (diagonal) */
+          symbmtx->cblktab[I-1].fcolnum = fc-1;
+          symbmtx->cblktab[I-1].lcolnum = lc-1;
+          symbmtx->cblktab[I-1].bloknum = blockIdx-1;  /*< First block in column (diagonal) */
+
 
 
           blockIdx++;
-                        nzBlockCnt++;
-
+          nzBlockCnt++;
           iFirstRow=iRow;
+
+#ifdef VERBOSE1
+                        cout<<" ("<<prevFacing<<") | ";
+#endif
         }
         else if(iRow!=iPrevRow+1 || prevFacing != facing){
 
-if(prevFacing != facing){
-  std::cout<<"BLOCK SPLITTED "<<prevFacing<<" "<<facing<<std::endl;
-}
+#ifdef VERBOSE1
+          if(prevFacing != facing){
+            std::cout<<"BLOCK SPLITTED "<<prevFacing<<" "<<facing<<std::endl;
+          }
+#endif
 
           int facingSnode = supMembership[iFirstRow-1];
-  std::cout<<"facing "<<facingSnode<<" "<<facing<<std::endl;
-          symbmtx->bloktab[blockIdx-1].frownum = iFirstRow;  /*< First row index            */
-          symbmtx->bloktab[blockIdx-1].lrownum = iPrevRow;  /*< Last row index (inclusive) */
-          symbmtx->bloktab[blockIdx-1].lcblknm = I;  /*< Local column block         */
-          symbmtx->bloktab[blockIdx-1].fcblknm = facingSnode;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
+#ifdef VERBOSE1
+          std::cout<<"facing "<<facingSnode<<" "<<facing<<std::endl;
+#endif
+          symbmtx->bloktab[blockIdx-1].frownum = iFirstRow-1;  /*< First row index            */
+          symbmtx->bloktab[blockIdx-1].lrownum = iPrevRow-1;  /*< Last row index (inclusive) */
+          symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
+          symbmtx->bloktab[blockIdx-1].fcblknm = facingSnode-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
 
 
           blockIdx++;
-                        nzBlockCnt++;
-
+          nzBlockCnt++;
           iFirstRow=iRow;
+
+#ifdef VERBOSE1
+                        cout<<" ("<<prevFacing<<") | ";
+#endif
         }
 
+#ifdef VERBOSE1
+                      cout<<iRow<<" ";
+#endif
         iPrevRow=iRow;
         prevFacing = facing;
       }
 
+#ifdef VERBOSE1
+                        cout<<" ("<<prevFacing<<") || "<<nzBlockCnt<<endl;
+#endif
       if(col==lc){
+
+        if(nzBlockCnt==1){
+
+          symbmtx->bloktab[blockIdx-1].frownum = fc-1;  /*< First row index            */
+          symbmtx->bloktab[blockIdx-1].lrownum = lc-1;  /*< Last row index (inclusive) */
+          symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
+          symbmtx->bloktab[blockIdx-1].fcblknm = I-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
+
+
+          symbmtx->cblktab[I-1].fcolnum = fc-1;
+          symbmtx->cblktab[I-1].lcolnum = lc-1;
+          symbmtx->cblktab[I-1].bloknum = blockIdx-1;  /*< First block in column (diagonal) */
+
+
+
+        }
+        else{
+
           int facingSnode = supMembership[iFirstRow-1];
-          symbmtx->bloktab[blockIdx-1].frownum = iFirstRow;  /*< First row index            */
-          symbmtx->bloktab[blockIdx-1].lrownum = iPrevRow;  /*< Last row index (inclusive) */
-          symbmtx->bloktab[blockIdx-1].lcblknm = I;  /*< Local column block         */
-          symbmtx->bloktab[blockIdx-1].fcblknm = facingSnode;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
+          symbmtx->bloktab[blockIdx-1].frownum = iFirstRow-1;  /*< First row index            */
+          symbmtx->bloktab[blockIdx-1].lrownum = iPrevRow-1;  /*< Last row index (inclusive) */
+          symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
+          symbmtx->bloktab[blockIdx-1].fcblknm = facingSnode-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
 
+        }
 
-          blockIdx++;
+        blockIdx++;
       }
 
     }
   }
 
 
-          symbmtx->cblktab[xlindx.size()].fcolnum = xsuper.back();
-          symbmtx->cblktab[xlindx.size()].lcolnum = xsuper.back();
-          symbmtx->cblktab[xlindx.size()].bloknum = blockIdx;  /*< First block in column (diagonal) */
+#ifdef VERBOSE1
+cout<<"LAST IDX "<<xlindx.size()<<" "<<xsuper.back()<<std::endl;
+#endif
 
-cout<<"LAST CBLK "<<xlindx.size()+1<<" "<< symbmtx->cblktab[xlindx.size()].fcolnum<<" "<< symbmtx->cblktab[xlindx.size()].lcolnum<<" "<< symbmtx->cblktab[xlindx.size()].bloknum<<std::endl;
+          symbmtx->cblktab[xlindx.size()-1].fcolnum = xsuper.back()-1;
+          symbmtx->cblktab[xlindx.size()-1].lcolnum = xsuper.back()-1;
+          symbmtx->cblktab[xlindx.size()-1].bloknum = blockIdx-1;  /*< First block in column (diagonal) */
+
+#ifdef VERBOSE1
+for(int i = 0; i<=symbmtx->cblknbr;++i){
+  cout<<"Cblk "<<i+1<<" {"<< symbmtx->cblktab[i].fcolnum<<".."<<symbmtx->cblktab[i].lcolnum<<"} "<< symbmtx->cblktab[i].bloknum<<std::endl;
+}
+for(int i = 0; i<symbmtx->bloknbr;++i){
+  cout<<"Blok "<<i+1<<" ["<< symbmtx->bloktab[i].frownum<<".."<<symbmtx->bloktab[i].lrownum<<"] "<< symbmtx->bloktab[i].lcblknm<<" facing "<<symbmtx->bloktab[i].fcblknm<<std::endl;
+}
+#endif
 
   symbolBuildRowtab(symbmtx);
 
