@@ -1,18 +1,22 @@
-CC           = mpiicc 
-CXX          = mpiicpc
-FC           = mpiifort
-LOADER       = mpiicpc
+#CC           = mpiicc 
+#CXX          = mpiicpc
+#FC           = mpiifort
+#LOADER       = mpiicpc
+CC           = mpicc 
+CXX          = mpic++
+FC           = mpif90
+LOADER       = mpic++
 
 
 PREFIX = ${HOME}/software
 
 #NGCHOL directory
-NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/cholesky
+NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/ngchol
 METIS_DIR     = $(PREFIX)/release/metis-5.1.0/build/Linux-x86_64
 PARMETIS_DIR  = $(PREFIX)/release/parmetis-4.0.3/build/Linux-x86_64
-#SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.0
+SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.0
 #SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.4
-SCOTCH_DIR    = $(PREFIX)/release/scotch_5.1.12_esmumps
+#SCOTCH_DIR    = $(PREFIX)/release/scotch_5.1.12_esmumps
 
 #SPARSELIB_DIR = ${NGCHOL_DIR}/MatrixConverter
 #SPARSELIB_INCLUDE = -I${SPARSELIB_DIR}/bebop_util/include -I${SPARSELIB_DIR}/sparse_matrix_converter/include
@@ -30,14 +34,14 @@ PARMETIS_LIB     = -L${PARMETIS_DIR}/libparmetis -lparmetis
 
 COMPILE_FLAG   = -O3 -w -g -O0
 LIBS  += ${SCOTCH_LIB} ${GFORTRAN_LIB}
-LIBS  += ${METIS_LIB} ${GFORTRAN_LIB}
+#LIBS  += ${METIS_LIB} ${GFORTRAN_LIB}
 
 
 
 
 
 COMPILE_DEF += -fopenmp -std=c++11 -DAdd_ -DPROFILE 
-COMPILE_DEF += -DUSE_METIS
+#COMPILE_DEF += -DUSE_METIS
 COMPILE_DEF += -DUSE_SCOTCH
 
 CFLAGS       = ${COMPILE_FLAG} ${INCLUDES}

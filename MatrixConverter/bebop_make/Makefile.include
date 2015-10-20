@@ -58,7 +58,7 @@ STATIC_LIB_EXTENSION=.a
 ## there is a dot.  Linux uses ".so", Darwin uses ".dylib", and 
 ## Windows uses ".dll".
 ##
-DYNAMIC_LIB_EXTENSION=.so
+DYNAMIC_LIB_EXTENSION=.dylib
 
 ##
 ## Compiler / linker flag for creating a shared library.  Eventually I
@@ -66,13 +66,13 @@ DYNAMIC_LIB_EXTENSION=.so
 ## have users set this flag.  This flag is "-shared" for Linux and 
 ## "-dynamiclib" for Darwin.
 ##
-DYLIB_CREATE_FLAG=-shared
+DYLIB_CREATE_FLAG=-dynamiclib
 
 ##
 ## Compiler, linker, and shell settings.
 ##
-CC = gcc
-LINKER = gcc
+CC = /usr/bin/gcc
+LINKER = /usr/bin/gcc
 AR = ar
 ARFLAGS = rvu
 RM = rm -f
@@ -85,7 +85,7 @@ RM = rm -f
 ##
 FPIC_FLAG = -fPIC
 CFLAGS_DEBUG= -g -Wall
-CFLAGS_OPT= -g -O3
+CFLAGS_OPT= -g -O2
 CPPFLAGS= 
 LIBS= 
 LDFLAGS=

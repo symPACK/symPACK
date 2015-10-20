@@ -368,12 +368,16 @@ double tstart = MPI_Wtime();
       if(ordering == "AMD"){
         order.AMD();
       }
+#ifdef USE_METIS      
       else if (ordering == "METIS"){
         order.METIS();
       }
+#endif
+#ifdef USE_SCOTCH
       else if (ordering == "SCOTCH"){
         order.SCOTCH();
       }
+#endif
       else{
         order.MMD();
       }

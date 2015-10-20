@@ -43,7 +43,7 @@ void countBlock(const vector<int> & Xsuper, const vector<int64_t> & Xlindx, cons
           nzBlockCnt++;
           iFirstRow=iRow;
 #ifdef VERBOSE1
-                        cout<<"| ";
+                        cout<<" ("<<prevFacing<<") | ";
 #endif
         }
         else if(iRow!=iPrevRow+1 || prevFacing != facing){
@@ -53,7 +53,7 @@ void countBlock(const vector<int> & Xsuper, const vector<int64_t> & Xlindx, cons
           nzBlockCnt++;
           iFirstRow=iRow;
 #ifdef VERBOSE1
-                        cout<<"| ";
+                        cout<<" ("<<prevFacing<<") | ";
 #endif
         }
 
@@ -65,7 +65,7 @@ void countBlock(const vector<int> & Xsuper, const vector<int64_t> & Xlindx, cons
       }
 
 #ifdef VERBOSE1
-                    cout<<" || "<<nzBlockCnt<<endl;
+                        cout<<" ("<<prevFacing<<") || "<<nzBlockCnt<<endl;
 #endif
 
       //totalBlocks+=nzBlockCnt;
@@ -97,8 +97,18 @@ void symbolBuildRowtab(SymbolMatrix *symbptr) {
   blok = symbptr->bloktab;
   for(itercblk=0; itercblk<cblknbr; itercblk++, cblk++)
   {
+#ifdef VERBOSE1
+    cout<<itercblk<<"/"<<cblknbr<<std::endl;
+    cout<<"["<<cblk[0].fcolnum<<".."<<cblk[0].lcolnum<<"] "<<cblk[0].bloknum<<std::endl;
+    cout<<"["<<cblk[1].fcolnum<<".."<<cblk[1].lcolnum<<"] "<<cblk[1].bloknum<<std::endl;
+#endif
+
     int iterblok = cblk[0].bloknum + 1;
     int lbloknum = cblk[1].bloknum;
+
+#ifdef VERBOSE1
+    cout<<"Looping from "<<iterblok<<" to "<<lbloknum<<std::endl;
+#endif
 
     /* Skip diagonal block */
     blok++;
@@ -106,9 +116,18 @@ void symbolBuildRowtab(SymbolMatrix *symbptr) {
     /* Off-diagonal blocks */
     for( ; iterblok < lbloknum; iterblok++, blok++)
     {
+#ifdef VERBOSE1
+      cout<<iterblok<<" ["<< blok->frownum <<".."<<blok->lrownum<< "] facing "<<blok->fcblknm<<std::endl;
+#endif
       innbr[ blok->fcblknm ]++;
     }
   }
+
+#ifdef VERBOSE1
+for(int i =0;i<cblknbr;++i){
+    cout<<i+1<<": "<<innbr[i]<<std::endl;
+}
+#endif
 
   /* Initialize the brownum fields */
   cblk = symbptr->cblktab;
@@ -276,6 +295,12 @@ if(prevFacing != facing){
     }
   }
 
+
+          symbmtx->cblktab[xlindx.size()].fcolnum = xsuper.back();
+          symbmtx->cblktab[xlindx.size()].lcolnum = xsuper.back();
+          symbmtx->cblktab[xlindx.size()].bloknum = blockIdx;  /*< First block in column (diagonal) */
+
+cout<<"LAST CBLK "<<xlindx.size()+1<<" "<< symbmtx->cblktab[xlindx.size()].fcolnum<<" "<< symbmtx->cblktab[xlindx.size()].lcolnum<<" "<< symbmtx->cblktab[xlindx.size()].bloknum<<std::endl;
 
   symbolBuildRowtab(symbmtx);
 
