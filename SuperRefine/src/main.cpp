@@ -12,7 +12,7 @@
 #include "ngchol/PastixReorder.hpp"
 #include "ngchol/timer.hpp"
 
-#define FUNDAMENTAL
+//#define FUNDAMENTAL
 //#define RELAX_SNODE
 
 struct Stats{

@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <cassert>
 
+//#define NO_EXTRA_SPLIT
 #define REFINEMENT_LIMIT -1
 #define DISTANCE_LIMIT -1
 #define DEPTH_LIMIT -1
@@ -690,6 +691,7 @@ void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vec
 
   nodeset inter,diff;
   int prevK = nsuper+1;  
+  //start form the last K
   for(Kit = L.rbegin();Kit != L.rend(); ++Kit){
 
     if(DEPTH_LIMIT!=-1){
@@ -727,9 +729,9 @@ void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vec
       //might have been replaced by its subsets
       Jit=supPtr[J-1];
       int curJ = (*Jit)->id;
-      //#ifdef NO_EXTRA_SPLIT
-      //      if(curJ>0)
-      //#endif
+      #ifdef NO_EXTRA_SPLIT
+      if(curJ>0)
+      #endif
       {
         int numRefine = 0;
         do{
@@ -755,6 +757,7 @@ void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vec
             //compute I' = J \ M(Ki)
             TIMER_START(DIFF);
             diff.clear();
+            
             std::set_difference((*Jit)->members.begin(),(*Jit)->members.end(),
                 adj[K-1]->begin(),adj[K-1]->end(),
                 std::inserter(diff, diff.begin()));
@@ -762,7 +765,7 @@ void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vec
             TIMER_STOP(DIFF);
             //std::inserter(*diff, diff->begin()));
             if(diff.size()>0){
-              //increase Kit only if we are splitting an original set of L...
+              //increase KKit only if we are splitting an original set of L...
               int curJ =(*Jit)->id;
               int newJ = -abs(curJ);
 
