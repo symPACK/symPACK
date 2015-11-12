@@ -186,6 +186,7 @@ namespace LIBCHOLESKY{
       
       //MAPCLASS describing the Mapping of the computations
       Mapping * Mapping_;
+      LoadBalancer * Balancer_;
 
 
 

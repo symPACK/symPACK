@@ -103,6 +103,10 @@ run_dense_scalapck.o: run_dense_scalapack.cpp
 	${CXX} -g  -c ${CXXFLAGS} ${CPPDEFS} $< 
 
 
+
+
+
+
 run_mumps: run_mumps.o ${NGCHOL_LIB}
 	($(LOADER) -o $@ run_mumps.o  $(DMUMPS_LIB) $(ZMUMPS_LIB) $(MUMPS_ORDERINGS) ${LOADOPTS} )
 

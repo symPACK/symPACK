@@ -1020,6 +1020,7 @@ void SupernodalMatrix2<T>::Dump(){
 
     CommEnv_ = new CommEnvironment(*options.commEnv);
 
+    TIMER_START(MAPPING);
 
     //create the mapping
     Int pmapping = options.used_procs(np);
@@ -1046,13 +1047,15 @@ void SupernodalMatrix2<T>::Dump(){
         this->Mapping_ = new Modwrap2D(pmapping, pr, pr, 1);
         }
 
+    TIMER_STOP(MAPPING);
 
     //Options
     maxIsend_ = options.maxIsend;
     maxIrecv_ = options.maxIrecv;
 
-    gMaxIrecv = maxIrecv_;
+    gMaxIrecv = maxIrecv_+maxIsend_;
 
+    TIMER_START(SCHEDULER);
 
     switch(options_.scheduler){
       case DL:
@@ -1064,12 +1067,16 @@ void SupernodalMatrix2<T>::Dump(){
       case PR:
         scheduler_ = new PRScheduler<std::list<FBTask>::iterator>();
         break;
+      case FIFO:
+        scheduler_ = new FIFOScheduler<std::list<FBTask>::iterator>();
+        break;
       default:
         scheduler_ = new DLScheduler<std::list<FBTask>::iterator>();
         break;
     }
 
 
+    TIMER_STOP(SCHEDULER);
 
     iSize_ = pMat.size;
     Local_ = new SparseMatrixStructure();
@@ -1086,6 +1093,7 @@ logfileptr->OFS()<<"Matrix expanded"<<endl;
     Order_.SetStructure(*Global_);
 logfileptr->OFS()<<"Structure set"<<endl;
 
+    TIMER_START(ORDERING);
     switch(options_.ordering){
       case MMD:
         //Reoder the matrix with MMD
@@ -1094,10 +1102,26 @@ logfileptr->OFS()<<"Structure set"<<endl;
       case AMD:
         Order_.AMD();
         break;
+#ifdef USE_SCOTCH
+      case SCOTCH:
+        Order_.SCOTCH();
+        break;
+#endif
+#ifdef USE_METIS
+      case METIS:
+        Order_.METIS();
+        break;
+#endif
+#ifdef USE_PARMETIS
+      case PARMETIS:
+        Order_.PARMETIS();
+        break;
+#endif
       default:
         Order_.MMD();
         break;
     }
+    TIMER_STOP(ORDERING);
 logfileptr->OFS()<<"Ordering done"<<endl;
 
     ETree_.ConstructETree(*Global_,Order_);
@@ -1169,81 +1193,205 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 isXlindxAllocated_=true;
 isLindxAllocated_=true;
 
-    if(options.load_balance_str=="SUBCUBE-FI"){
-          if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
+
+    TIMER_START(LOAD_BALANCE);
+if(options.load_balance_str=="SUBCUBE-FI"){
+  if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
+  ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+  this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
+#ifdef _DEBUG_MAPPING_
+  logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+  logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+#endif
+
+
+  TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+  if(test==NULL){
+    this->Mapping_->Update(this->Balancer_->GetMap());
+  }
+  else{
+    test->Update((TreeLoadBalancer*)this->Balancer_);
+  }
+
+}
+else if(options.load_balance_str=="SUBCUBE-FO"){
+  if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
+  ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+  this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
+
+#ifdef _DEBUG_MAPPING_
+  logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+  logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+#endif
+
+  TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+  if(test==NULL){
+    this->Mapping_->Update(this->Balancer_->GetMap());
+  }
+  else{
+    test->Update((TreeLoadBalancer*)this->Balancer_);
+  }
+
+
+}
+else if(options.load_balance_str=="SUBCUBE-VOLUME-FI"){
+  if(iam==0){ cout<<"Subtree to subcube volume FI mapping used"<<endl;}
+  ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+  this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
+#ifdef _DEBUG_MAPPING_
+  logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+  logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+#endif
+
+  TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+  if(test==NULL){
+    this->Mapping_->Update(this->Balancer_->GetMap());
+  }
+  else{
+    test->Update((TreeLoadBalancer*)this->Balancer_);
+  }
+
+
+}
+else if(options.load_balance_str=="SUBCUBE-VOLUME-FO"){
+  if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
+  ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+  this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
+#ifdef _DEBUG_MAPPING_
+  logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+  logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+#endif
+
+  TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+  if(test==NULL){
+    this->Mapping_->Update(this->Balancer_->GetMap());
+  }
+  else{
+    test->Update((TreeLoadBalancer*)this->Balancer_);
+  }
+
+
+}
+else if(options.load_balance_str=="NNZ"){
+  if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
+  this->Balancer_ = new NNZBalancer(np,Xsuper_,cc);
+#ifdef _DEBUG_MAPPING_
+  logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+#endif
+  this->Mapping_->Update(this->Balancer_->GetMap());
+}
+      else if(options.load_balance_str=="OLDSUBCUBE"){
+          if(iam==0){ cout<<"OLD Subtree to subcube mapping used"<<endl;}
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-          this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
-          logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
-          logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+          //compute number of children and load
+          vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
+          vector<Int> children(SupETree.Size()+1,0);
+          for(Int I=1;I<=SupETree.Size();I++){
+            Int parent = SupETree.Parent(I-1);
+            ++children[parent];
+            Int fc = Xsuper_[I-1];
+            Int width = Xsuper_[I] - Xsuper_[I-1];
+            Int height = cc[fc-1];
+            double local_load = width*height*height;
+            SubTreeLoad[I]+=local_load;
+            SubTreeLoad[parent]+=SubTreeLoad[I];
+          }
 
-          
-    TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
-    if(test==NULL){
-          this->Mapping_->Update(this->Balancer_->GetMap());
-    }
-    else{
-          test->Update((TreeLoadBalancer*)this->Balancer_);
-    }
-
-    }
-    else if(options.load_balance_str=="SUBCUBE-FO"){
-          if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
-          ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-          this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
-          logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
-          logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
-      
-    TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
-    if(test==NULL){
-          this->Mapping_->Update(this->Balancer_->GetMap());
-    }
-    else{
-         test->Update((TreeLoadBalancer*)this->Balancer_);
-    }
+          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
 
 
-    }
-    else if(options.load_balance_str=="SUBCUBE-VOLUME-FI"){
-          if(iam==0){ cout<<"Subtree to subcube volume FI mapping used"<<endl;}
-          ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-          this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
-          logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
-          logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
-
-    TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
-    if(test==NULL){
-          this->Mapping_->Update(this->Balancer_->GetMap());
-    }
-    else{
-         test->Update((TreeLoadBalancer*)this->Balancer_);
-    }
+          //procmaps[0]/pstart[0] represents the complete list
+          vector<vector<Int> * > procmaps(SupETree.Size()+1);
+          for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new vector<Int>();}
+          vector<Int> pstart(SupETree.Size()+1,0);
+          procmaps[0]->reserve(np);
+          for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
 
 
-    }
-    else if(options.load_balance_str=="SUBCUBE-VOLUME-FO"){
-          if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
-          ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-          this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
-          logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
-          logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+          for(Int I=SupETree.Size(); I>= 1;I--){
 
-    TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
-    if(test==NULL){
-          this->Mapping_->Update(this->Balancer_->GetMap());
-    }
-    else{
-         test->Update((TreeLoadBalancer*)this->Balancer_);
-    }
+            Int parent = SupETree.Parent(I-1);
+
+            //split parent's proc list
+            double parent_load = 0.0;
+
+            if(parent!=0){
+              Int fc = Xsuper_[parent-1];
+              Int width = Xsuper_[parent] - Xsuper_[parent-1];
+              Int height = cc[fc-1];
+              parent_load = width*height*height;
+            }
 
 
-    }
-    else if(options.load_balance_str=="NNZ"){
-          if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
-          this->Balancer_ = new NNZBalancer(np,Xsuper_,cc);
-          logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
-          this->Mapping_->Update(this->Balancer_->GetMap());
-    }
+            double proportion = SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load);
+            Int npParent = procmaps[parent]->size();
+            Int pFirstIdx = min(pstart[parent],npParent-1);
+            //          Int numProcs = max(1,children[parent]==1?npParent-pFirstIdx:min((Int)std::floor(npParent*proportion),npParent-pFirstIdx));
+            Int npIdeal =(Int)std::round(npParent*proportion);
+            Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
+            Int pFirst = procmaps[parent]->at(pFirstIdx);
 
+            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
+            pstart[parent]+= numProcs;//= min(pstart[parent] + numProcs,npParent-1);
+            //          children[parent]--;
+
+            //          Int pFirstIdx = pstart[parent]*npParent/children[parent];
+            //          Int pFirst = procmaps[parent]->at(pFirstIdx);
+            //          Int numProcs = max(pstart[parent]==children[parent]-1?npParent-pFirstIdx:npParent/children[parent],1);
+
+
+
+            procmaps[I]->reserve(numProcs);
+            for(Int p = pFirst; p<pFirst+numProcs;++p){ procmaps[I]->push_back(p);}
+
+            logfileptr->OFS()<<I<<": "; 
+            for(Int i = 0; i<procmaps[I]->size();++i){logfileptr->OFS()<<procmaps[I]->at(i)<<" ";}
+            logfileptr->OFS()<<endl;
+            //
+            //          if(iam==0){
+            //            cout<<I<<": "; 
+            //            for(Int i = 0; i<procmaps[I]->size();++i){cout<<procmaps[I]->at(i)<<" ";}
+            //            cout<<endl;
+            //          }
+            pstart[parent]++;
+          }
+
+
+          //now choose which processor to get
+          std::vector<Int> procMap(SupETree.Size());
+          std::vector<double> load(np,0.0);
+          for(Int I=1;I<=SupETree.Size();I++){
+            Int minLoadP= -1;
+            double minLoad = -1;
+            for(Int i = 0; i<procmaps[I]->size();++i){
+              Int proc = procmaps[I]->at(i);
+              if(load[proc]<minLoad || minLoad==-1){
+                minLoad = load[proc];
+                minLoadP = proc;
+              }
+            }
+
+            procMap[I-1] = minLoadP;
+
+
+            Int fc = Xsuper_[I-1];
+            Int width = Xsuper_[I] - Xsuper_[I-1];
+            Int height = cc[fc-1];
+            double local_load = width*height*height;
+
+            load[minLoadP]+=local_load;
+          }
+
+
+          //for(Int i = 0; i<procMap.size();++i){ logfileptr->OFS()<<i+1<<" is on "<<procMap[i]<<endl;}
+          logfileptr->OFS()<<"Proc load: "<<load<<endl;
+      //Update the mapping
+      logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
+      this->Mapping_->Update(procMap);
+
+          for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
+        } 
+    TIMER_STOP(LOAD_BALANCE);
 
 ////    switch(options.load_balance){
 ////      case SUBCUBE:
@@ -1566,10 +1714,12 @@ isLindxAllocated_=true;
 
 
 #ifdef _DEBUG_MAPPING_
-    this->Mapping_->Dump(2*np);
+//    this->Mapping_->Dump(2*np);
 #endif
 
+    TIMER_START(Get_UpdateCount);
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_,UpdateHeight_);
+    TIMER_STOP(Get_UpdateCount);
 
 
 
@@ -1577,6 +1727,7 @@ isLindxAllocated_=true;
     Int iam = CommEnv_->MPI_Rank();
     Int np  = CommEnv_->MPI_Size();
 
+    TIMER_START(EXPANDING_MATRIX);
     DistSparseMatrix<T> ExpA(CommEnv_->MPI_GetComm());
     {
       double timeSta = get_time();
@@ -1586,7 +1737,7 @@ isLindxAllocated_=true;
       std::vector<Int> numColLocalVec(np,numColFirst);
       numColLocalVec[np-1] = ExpA.size - numColFirst * (np-1);  // Modify the last entry	
       Int numColLocal = numColLocalVec[iam];
-      //Expand A to symmetric storage
+      //Expand A to asymmetric storage
       Int localFirstCol = iam*numColFirst+1;
       Int localLastCol = localFirstCol+numColLocal-1;
 
@@ -1713,6 +1864,7 @@ isLindxAllocated_=true;
       }
     }
 
+    TIMER_STOP(EXPANDING_MATRIX);
     //copy
 
     TIMER_START(DISTRIBUTING_MATRIX);
@@ -1727,6 +1879,7 @@ isLindxAllocated_=true;
 
       logfileptr->OFS()<<"Starting Send"<<endl;
       try{
+    TIMER_START(DISTRIBUTE_COUNTING);
         //first, count 
         map<Int,pair<size_t,Icomm *> > recv_map;
         map<Int,pair<size_t,Icomm *> > send_map;
@@ -1771,11 +1924,13 @@ isLindxAllocated_=true;
           }
         }
 
+    TIMER_STOP(DISTRIBUTE_COUNTING);
 
         //Resize the local supernodes array
         LocalSupernodes_.reserve(snodeCount);
 
 
+    TIMER_START(DISTRIBUTE_CREATE_SNODES);
         
         for(Int I=1;I<Xsuper_.m();I++){
 
@@ -1818,6 +1973,9 @@ isLindxAllocated_=true;
           }
         }
 
+    TIMER_STOP(DISTRIBUTE_CREATE_SNODES);
+
+    //TODO: implement this using Alltoallv
 
 
         //Create the remote ones when we receive something
@@ -2150,7 +2308,7 @@ isLindxAllocated_=true;
       }
     }
 #endif
-    Dump();
+    //Dump();
 
 
 #ifdef PREALLOC_IRECV

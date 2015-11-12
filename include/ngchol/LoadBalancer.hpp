@@ -227,13 +227,13 @@ class SubtreeToSubcube: public TreeLoadBalancer{
             else{ levels[I] = levels[parent]+1; numLevels = max(numLevels,levels[I]);}
           }
           numLevels++;
+
+#ifdef _DEBUG_LOAD_BALANCER_
             logfileptr->OFS()<<"levels : "; 
             for(Int i = 0; i<levels.size();++i){logfileptr->OFS()<<levels.at(i)<<" ";}
             logfileptr->OFS()<<endl;
-
-
           logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
-
+#endif
 
           //procmaps[0]/pstart[0] represents the complete list
           procGroups_.resize(n_+1);
@@ -272,8 +272,10 @@ class SubtreeToSubcube: public TreeLoadBalancer{
 
             //Int npParent = procGroups_[parent].Ranks().size();
             //Int pFirst = procGroups_[parent].Ranks().at(pFirstIdx);
+#ifdef _DEBUG_LOAD_BALANCER_
             logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
             logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<endl; 
+#endif
             pstart[parent]+= numProcs;
 
             if(npParent!=numProcs){
@@ -287,13 +289,18 @@ class SubtreeToSubcube: public TreeLoadBalancer{
                 levelGroups_.back().Ranks().insert(levelGroups_.back().Ranks().begin(),parentRanks.begin()+pFirstIdx,parentRanks.begin()+pFirstIdx+numProcs);
 
                 groupIdx_[I] = levelGroups_.size()-1;
+#ifdef _DEBUG_LOAD_BALANCER_
                 logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+#endif
               }
             }
             else{
               groupIdx_[I] = groupIdx_[parent];
               //logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | ";for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+
+#ifdef _DEBUG_LOAD_BALANCER_
               logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+#endif
             }
 
 
@@ -323,6 +330,7 @@ class SubtreeToSubcube: public TreeLoadBalancer{
               }
             }
 
+#ifdef _DEBUG_LOAD_BALANCER_
             logfileptr->OFS()<<"MinLoadP "<<minLoadP<<endl;
             logfileptr->OFS()<<"group of "<<I<<endl;
             for(Int i = 0; i<group.Ranks().size();++i){
@@ -330,6 +338,7 @@ class SubtreeToSubcube: public TreeLoadBalancer{
               logfileptr->OFS()<<proc<<" ["<<load[proc]<<"] ";
             }
             logfileptr->OFS()<<endl;
+#endif
             groupWorker_[I] = minLoadP;
 
             //procGroups_[I].Worker() = minLoadP;
@@ -348,8 +357,9 @@ class SubtreeToSubcube: public TreeLoadBalancer{
           }
 
 
+#ifdef _DEBUG_LOAD_BALANCER_
           logfileptr->OFS()<<"Proc load: "<<load<<endl;
-
+#endif
 
           for(Int I=1;I<=supETree_.Size();I++){
           //for(Int I = 1; I<procGroups_.size();++I){ 
@@ -357,10 +367,11 @@ class SubtreeToSubcube: public TreeLoadBalancer{
             procMap_[I-1] = groupWorker_[I];
           }
 
+#ifdef _DEBUG_LOAD_BALANCER_
           for(Int I = 0; I<levelGroups_.size();++I){ 
             logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<endl;
           }
-
+#endif
 
         }
 
@@ -477,13 +488,12 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
             else{ levels[I] = levels[parent]+1; numLevels = max(numLevels,levels[I]);}
           }
           numLevels++;
+#ifdef _DEBUG_LOAD_BALANCER_
             logfileptr->OFS()<<"levels : "; 
             for(Int i = 0; i<levels.size();++i){logfileptr->OFS()<<levels.at(i)<<" ";}
             logfileptr->OFS()<<endl;
-
-
           logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
-
+#endif
 
           //procmaps[0]/pstart[0] represents the complete list
           procGroups_.resize(n_+1);
@@ -522,8 +532,10 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
 
             //Int npParent = procGroups_[parent].Ranks().size();
             //Int pFirst = procGroups_[parent].Ranks().at(pFirstIdx);
+#ifdef _DEBUG_LOAD_BALANCER_
             logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
             logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<endl; 
+#endif
             pstart[parent]+= numProcs;
 
             if(npParent!=numProcs){
@@ -537,13 +549,17 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
                 levelGroups_.back().Ranks().insert(levelGroups_.back().Ranks().begin(),parentRanks.begin()+pFirstIdx,parentRanks.begin()+pFirstIdx+numProcs);
 
                 groupIdx_[I] = levelGroups_.size()-1;
+#ifdef _DEBUG_LOAD_BALANCER_
                 logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+#endif
               }
             }
             else{
               groupIdx_[I] = groupIdx_[parent];
               //logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | ";for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+#ifdef _DEBUG_LOAD_BALANCER_
               logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+#endif
             }
 
 
@@ -573,6 +589,7 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
               }
             }
 
+#ifdef _DEBUG_LOAD_BALANCER_
             logfileptr->OFS()<<"MinLoadP "<<minLoadP<<endl;
             logfileptr->OFS()<<"group of "<<I<<endl;
             for(Int i = 0; i<group.Ranks().size();++i){
@@ -580,6 +597,7 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
               logfileptr->OFS()<<proc<<" ["<<load[proc]<<"] ";
             }
             logfileptr->OFS()<<endl;
+#endif
             groupWorker_[I] = minLoadP;
 
             //procGroups_[I].Worker() = minLoadP;
@@ -598,7 +616,9 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
           }
 
 
+#ifdef _DEBUG_LOAD_BALANCER_
           logfileptr->OFS()<<"Proc load: "<<load<<endl;
+#endif
 
 
           for(Int I=1;I<=supETree_.Size();I++){
@@ -607,10 +627,11 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
             procMap_[I-1] = groupWorker_[I];
           }
 
+#ifdef _DEBUG_LOAD_BALANCER_
           for(Int I = 0; I<levelGroups_.size();++I){ 
             logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<endl;
           }
-
+#endif
 
         }
 

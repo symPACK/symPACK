@@ -132,26 +132,71 @@ namespace LIBCHOLESKY{
     //create the mapping
     Int pmapping = options.used_procs(np);
     Int pr = (Int)sqrt((double)pmapping);
-    switch(options.mappingType){
-      case WRAP2D:
+//    switch(options.mappingType){
+//      case WRAP2D:
+//        this->Mapping_ = new Wrap2D(pmapping, pr, pr, 1);
+//        break;
+//      case WRAP2DFORCED:
+//        this->Mapping_ = new Wrap2DForced(pmapping, pr, pr, 1);
+//        break;
+//      case MODWRAP2DNS:
+//        this->Mapping_ = new Modwrap2DNS(pmapping, pr, pr, 1);
+//        break;
+//      case ROW2D:
+//        this->Mapping_ = new Row2D(pmapping, pmapping, pmapping, 1);
+//        break;
+//      case COL2D:
+//        this->Mapping_ = new Col2D(pmapping, pmapping, pmapping, 1);
+//        break;
+//      case MODWRAP2D: default:
+//        this->Mapping_ = new Modwrap2D(pmapping, pr, pr, 1);
+//        break;
+//    }
+
+
+
+      if(options.mappingTypeStr ==  "MODWRAP2DTREE"){
+        this->Mapping_ = new ModWrap2DTreeMapping(pmapping, pr, pr, 1);
+        }
+      else if(options.mappingTypeStr ==  "WRAP2D"){
         this->Mapping_ = new Wrap2D(pmapping, pr, pr, 1);
-        break;
-      case WRAP2DFORCED:
+        }
+      else if(options.mappingTypeStr ==  "WRAP2DFORCED"){
         this->Mapping_ = new Wrap2DForced(pmapping, pr, pr, 1);
-        break;
-      case MODWRAP2DNS:
+        }
+      else if(options.mappingTypeStr ==  "MODWRAP2DNS"){
         this->Mapping_ = new Modwrap2DNS(pmapping, pr, pr, 1);
-        break;
-      case ROW2D:
+        }
+      else if(options.mappingTypeStr ==  "ROW2D"){
         this->Mapping_ = new Row2D(pmapping, pmapping, pmapping, 1);
-        break;
-      case COL2D:
+        }
+      else if(options.mappingTypeStr ==  "COL2D"){
         this->Mapping_ = new Col2D(pmapping, pmapping, pmapping, 1);
-        break;
-      case MODWRAP2D: default:
+        }
+      else{
         this->Mapping_ = new Modwrap2D(pmapping, pr, pr, 1);
-        break;
-    }
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     //Options
     maxIsend_ = options.maxIsend;
@@ -169,6 +214,7 @@ logfileptr->OFS()<<"Matrix expanded"<<endl;
     Order_.SetStructure(Global_);
 logfileptr->OFS()<<"Structure set"<<endl;
 
+
     switch(options_.ordering){
       case MMD:
         //Reoder the matrix with MMD
@@ -177,6 +223,21 @@ logfileptr->OFS()<<"Structure set"<<endl;
       case AMD:
         Order_.AMD();
         break;
+#ifdef USE_SCOTCH
+      case SCOTCH:
+        Order_.SCOTCH();
+        break;
+#endif
+#ifdef USE_METIS
+      case METIS:
+        Order_.METIS();
+        break;
+#endif
+#ifdef USE_PARMETIS
+      case PARMETIS:
+        Order_.PARMETIS();
+        break;
+#endif
       default:
         Order_.MMD();
         break;
@@ -207,14 +268,16 @@ logfileptr->OFS()<<"ETREE done"<<endl;
 
 logfileptr->OFS()<<"Supernodes found"<<endl;
 
-#ifdef RELAXED_SNODE
-    Global_.RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options.maxSnode );
-logfileptr->OFS()<<"Relaxation done"<<endl;
+if(options_.relax.nrelax0>=0){
+    Global_.RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
+    logfileptr->OFS()<<"Relaxation done"<<endl;
     Global_.SymbolicFactorizationRelaxed(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
-
-#else
+}
+else{
     Global_.SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
-#endif
+}
+
+
 
 logfileptr->OFS()<<"Symbfact done"<<endl;
 
@@ -251,309 +314,346 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
 
 
-    switch(options.load_balance){
-      case SUBCUBE:
-        {
-          if(iam==0){ cout<<"Subtree to subcube mapping used"<<endl;}
-
-          //Int np = 4;
-
-          //compute children array and subtree costs
+    if(options.load_balance_str=="SUBCUBE-FI"){
+          if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+          Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
+          logfileptr->OFS()<<"Proc Mapping: "<<Balancer_->GetMap()<<endl;
+          logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
 
-          //        if(iam == 0){
-          //          cout<<"Supernodal ETree is "<<SupETree<<std::endl;
-          //        }
-
-          //compute number of children and load
-          vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
-          vector<Int> children(SupETree.Size()+1,0);
-          for(Int I=1;I<=SupETree.Size();I++){
-            Int parent = SupETree.Parent(I-1);
-            ++children[parent];
-            Int fc = Xsuper_[I-1];
-            Int width = Xsuper_[I] - Xsuper_[I-1];
-            Int height = cc[fc-1];
-            double local_load = width*height*height;
-            SubTreeLoad[I]+=local_load;
-            SubTreeLoad[parent]+=SubTreeLoad[I];
-          }
-
-          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
-
-
-          //procmaps[0]/pstart[0] represents the complete list
-          vector<vector<Int> * > procmaps(SupETree.Size()+1);
-          for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new vector<Int>();}
-          vector<Int> pstart(SupETree.Size()+1,0);
-          procmaps[0]->reserve(np);
-          for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
-
-
-          for(Int I=SupETree.Size(); I>= 1;I--){
-
-            Int parent = SupETree.Parent(I-1);
-
-            //split parent's proc list
-            double parent_load = 0.0;
-
-            if(parent!=0){
-              Int fc = Xsuper_[parent-1];
-              Int width = Xsuper_[parent] - Xsuper_[parent-1];
-              Int height = cc[fc-1];
-              parent_load = width*height*height;
-            }
-
-
-            double proportion = SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load);
-            Int npParent = procmaps[parent]->size();
-            Int pFirstIdx = min(pstart[parent],npParent-1);
-            //          Int numProcs = max(1,children[parent]==1?npParent-pFirstIdx:min((Int)std::floor(npParent*proportion),npParent-pFirstIdx));
-            Int npIdeal =(Int)std::round(npParent*proportion);
-            Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
-            Int pFirst = procmaps[parent]->at(pFirstIdx);
-
-            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
-            pstart[parent]+= numProcs;//= min(pstart[parent] + numProcs,npParent-1);
-            //          children[parent]--;
-
-            //          Int pFirstIdx = pstart[parent]*npParent/children[parent];
-            //          Int pFirst = procmaps[parent]->at(pFirstIdx);
-            //          Int numProcs = max(pstart[parent]==children[parent]-1?npParent-pFirstIdx:npParent/children[parent],1);
-
-
-
-            procmaps[I]->reserve(numProcs);
-            for(Int p = pFirst; p<pFirst+numProcs;++p){ procmaps[I]->push_back(p);}
-
-            logfileptr->OFS()<<I<<": "; 
-            for(Int i = 0; i<procmaps[I]->size();++i){logfileptr->OFS()<<procmaps[I]->at(i)<<" ";}
-            logfileptr->OFS()<<endl;
-            //
-            //          if(iam==0){
-            //            cout<<I<<": "; 
-            //            for(Int i = 0; i<procmaps[I]->size();++i){cout<<procmaps[I]->at(i)<<" ";}
-            //            cout<<endl;
-            //          }
-            pstart[parent]++;
-          }
-
-
-          //now choose which processor to get
-          std::vector<Int> procMap(SupETree.Size());
-          std::vector<double> load(np,0.0);
-          for(Int I=1;I<=SupETree.Size();I++){
-            Int minLoadP= -1;
-            double minLoad = -1;
-            for(Int i = 0; i<procmaps[I]->size();++i){
-              Int proc = procmaps[I]->at(i);
-              if(load[proc]<minLoad || minLoad==-1){
-                minLoad = load[proc];
-                minLoadP = proc;
-              }
-            }
-
-            procMap[I-1] = minLoadP;
-
-
-            Int fc = Xsuper_[I-1];
-            Int width = Xsuper_[I] - Xsuper_[I-1];
-            Int height = cc[fc-1];
-            double local_load = width*height*height;
-
-            load[minLoadP]+=local_load;
-          }
-
-
-          //for(Int i = 0; i<procMap.size();++i){ logfileptr->OFS()<<i+1<<" is on "<<procMap[i]<<endl;}
-          logfileptr->OFS()<<"Proc load: "<<load<<endl;
-          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
-
-          //Update the mapping
-          this->Mapping_->Update(procMap);
-
-          for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
-        }       
-        break;
-      case SUBCUBE_NNZ:
-        {
-          if(iam==0){ cout<<"Subtree to subcube mapping used"<<endl;}
-
-          //Int np = 4;
-
-          //compute children array and subtree costs
+          
+    TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+    if(test==NULL){
+          this->Mapping_->Update(Balancer_->GetMap());
+    }
+    else{
+          test->Update((TreeLoadBalancer*)Balancer_);
+    }
+    }
+    else if(options.load_balance_str=="SUBCUBE-FO"){
+          if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
           ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-
-          //        if(iam == 0){
-          //          cout<<"Supernodal ETree is "<<SupETree<<std::endl;
-          //        }
-
-          //compute number of children and load
-          vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
-          vector<Int> children(SupETree.Size()+1,0);
-          for(Int I=1;I<=SupETree.Size();I++){
-            Int parent = SupETree.Parent(I-1);
-            ++children[parent];
-            Int fc = Xsuper_[I-1];
-            Int width = Xsuper_[I] - Xsuper_[I-1];
-            Int height = cc[fc-1];
-            double local_load = width*height;
-            SubTreeLoad[I]+=local_load;
-            SubTreeLoad[parent]+=SubTreeLoad[I];
-          }
-
-          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
-
-
-          //procmaps[0]/pstart[0] represents the complete list
-          vector<vector<Int> * > procmaps(SupETree.Size()+1);
-          for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new vector<Int>();}
-          vector<Int> pstart(SupETree.Size()+1,0);
-          procmaps[0]->reserve(np);
-          for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
-
-
-          for(Int I=SupETree.Size(); I>= 1;I--){
-
-            Int parent = SupETree.Parent(I-1);
-
-            //split parent's proc list
-            double parent_load = 0.0;
-
-            if(parent!=0){
-              Int fc = Xsuper_[parent-1];
-              Int width = Xsuper_[parent] - Xsuper_[parent-1];
-              Int height = cc[fc-1];
-              parent_load = width*height;
-            }
-
-
-            double proportion = SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load);
-            Int npParent = procmaps[parent]->size();
-            Int pFirstIdx = min(pstart[parent],npParent-1);
-            //          Int numProcs = max(1,children[parent]==1?npParent-pFirstIdx:min((Int)std::floor(npParent*proportion),npParent-pFirstIdx));
-            Int npIdeal =(Int)std::round(npParent*proportion);
-            Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
-            Int pFirst = procmaps[parent]->at(pFirstIdx);
-
-            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
-            pstart[parent]+= numProcs;//= min(pstart[parent] + numProcs,npParent-1);
-            //          children[parent]--;
-
-            //          Int pFirstIdx = pstart[parent]*npParent/children[parent];
-            //          Int pFirst = procmaps[parent]->at(pFirstIdx);
-            //          Int numProcs = max(pstart[parent]==children[parent]-1?npParent-pFirstIdx:npParent/children[parent],1);
-
-
-
-            procmaps[I]->reserve(numProcs);
-            for(Int p = pFirst; p<pFirst+numProcs;++p){ procmaps[I]->push_back(p);}
-
-            logfileptr->OFS()<<I<<": "; 
-            for(Int i = 0; i<procmaps[I]->size();++i){logfileptr->OFS()<<procmaps[I]->at(i)<<" ";}
-            logfileptr->OFS()<<endl;
-            //
-            //          if(iam==0){
-            //            cout<<I<<": "; 
-            //            for(Int i = 0; i<procmaps[I]->size();++i){cout<<procmaps[I]->at(i)<<" ";}
-            //            cout<<endl;
-            //          }
-            pstart[parent]++;
-          }
-
-
-          //now choose which processor to get
-          std::vector<Int> procMap(SupETree.Size());
-          std::vector<double> load(np,0.0);
-          for(Int I=1;I<=SupETree.Size();I++){
-            Int minLoadP= -1;
-            double minLoad = -1;
-            for(Int i = 0; i<procmaps[I]->size();++i){
-              Int proc = procmaps[I]->at(i);
-              if(load[proc]<minLoad || minLoad==-1){
-                minLoad = load[proc];
-                minLoadP = proc;
-              }
-            }
-
-            procMap[I-1] = minLoadP;
-
-
-            Int fc = Xsuper_[I-1];
-            Int width = Xsuper_[I] - Xsuper_[I-1];
-            Int height = cc[fc-1];
-            double local_load = width*height;
-
-            load[minLoadP]+=local_load;
-          }
-
-
-          //for(Int i = 0; i<procMap.size();++i){ logfileptr->OFS()<<i+1<<" is on "<<procMap[i]<<endl;}
-          logfileptr->OFS()<<"Proc load: "<<load<<endl;
-          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
-
-          //Update the mapping
-          this->Mapping_->Update(procMap);
-
-          for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
-        }       
-        break;
-
-      case NNZ:
-        {
-          if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
-          //Do a greedy load balancing heuristic
-          std::vector<Int> procMap(Xsuper_.m()-1);
-          //Do a greedy heuristic to balance the number of nnz ?
-          std::vector<double> load(np,0.0);
-
-          for(Int i = 1; i< Xsuper_.m();  ++i){
-            //find least loaded processor
-            vector<double>::iterator it = std::min_element(load.begin(),load.end());
-            Int proc = (Int)(it - load.begin());
-            Int width = Xsuper_[i] - Xsuper_[i-1];
-            Int height = cc[i-1];
-            *it += (double)(width*height);
-            procMap[i-1] = proc;
-          } 
-
-          logfileptr->OFS()<<"Proc load: "<<load<<endl;
-          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
-
-          //Update the mapping
-          this->Mapping_->Update(procMap);
-        }
-        break;
-      case FLOPS:
-        {
-          if(iam==0){ cout<<"Load Balancing on FLOPS used"<<endl;}
-          //Do a greedy load balancing heuristic
-          std::vector<Int> procMap(Xsuper_.m()-1);
-          //Do a greedy heuristic to balance the number of nnz ?
-          std::vector<double> load(np,0.0);
-
-          for(Int i = 1; i< Xsuper_.m();  ++i){
-            //find least loaded processor
-            vector<double>::iterator it = std::min_element(load.begin(),load.end());
-            Int proc = (Int)(it - load.begin());
-            Int width = Xsuper_[i] - Xsuper_[i-1];
-            Int height = cc[i-1];
-            *it += (double)(height*height);
-            procMap[i-1] = proc;
-          } 
-
-          logfileptr->OFS()<<"Proc load: "<<load<<endl;
-          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
-
-          //Update the mapping
-          this->Mapping_->Update(procMap);
-        }
-        break;
-
-      default:
-        break;
+          Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
+          logfileptr->OFS()<<"Proc Mapping: "<<Balancer_->GetMap()<<endl;
+          logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+      
+    TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+    if(test==NULL){
+          this->Mapping_->Update(Balancer_->GetMap());
+    }
+    else{
+         test->Update((TreeLoadBalancer*)Balancer_);
     }
 
+
+    }
+
+
+
+////
+////    switch(options.load_balance){
+////      case SUBCUBE:
+////        {
+////          if(iam==0){ cout<<"Subtree to subcube mapping used"<<endl;}
+////
+////          //Int np = 4;
+////
+////          //compute children array and subtree costs
+////          ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+////
+////          //        if(iam == 0){
+////          //          cout<<"Supernodal ETree is "<<SupETree<<std::endl;
+////          //        }
+////
+////          //compute number of children and load
+////          vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
+////          vector<Int> children(SupETree.Size()+1,0);
+////          for(Int I=1;I<=SupETree.Size();I++){
+////            Int parent = SupETree.Parent(I-1);
+////            ++children[parent];
+////            Int fc = Xsuper_[I-1];
+////            Int width = Xsuper_[I] - Xsuper_[I-1];
+////            Int height = cc[fc-1];
+////            double local_load = width*height*height;
+////            SubTreeLoad[I]+=local_load;
+////            SubTreeLoad[parent]+=SubTreeLoad[I];
+////          }
+////
+////          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
+////
+////
+////          //procmaps[0]/pstart[0] represents the complete list
+////          vector<vector<Int> * > procmaps(SupETree.Size()+1);
+////          for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new vector<Int>();}
+////          vector<Int> pstart(SupETree.Size()+1,0);
+////          procmaps[0]->reserve(np);
+////          for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
+////
+////
+////          for(Int I=SupETree.Size(); I>= 1;I--){
+////
+////            Int parent = SupETree.Parent(I-1);
+////
+////            //split parent's proc list
+////            double parent_load = 0.0;
+////
+////            if(parent!=0){
+////              Int fc = Xsuper_[parent-1];
+////              Int width = Xsuper_[parent] - Xsuper_[parent-1];
+////              Int height = cc[fc-1];
+////              parent_load = width*height*height;
+////            }
+////
+////
+////            double proportion = SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load);
+////            Int npParent = procmaps[parent]->size();
+////            Int pFirstIdx = min(pstart[parent],npParent-1);
+////            //          Int numProcs = max(1,children[parent]==1?npParent-pFirstIdx:min((Int)std::floor(npParent*proportion),npParent-pFirstIdx));
+////            Int npIdeal =(Int)std::round(npParent*proportion);
+////            Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
+////            Int pFirst = procmaps[parent]->at(pFirstIdx);
+////
+////            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
+////            pstart[parent]+= numProcs;//= min(pstart[parent] + numProcs,npParent-1);
+////            //          children[parent]--;
+////
+////            //          Int pFirstIdx = pstart[parent]*npParent/children[parent];
+////            //          Int pFirst = procmaps[parent]->at(pFirstIdx);
+////            //          Int numProcs = max(pstart[parent]==children[parent]-1?npParent-pFirstIdx:npParent/children[parent],1);
+////
+////
+////
+////            procmaps[I]->reserve(numProcs);
+////            for(Int p = pFirst; p<pFirst+numProcs;++p){ procmaps[I]->push_back(p);}
+////
+////            logfileptr->OFS()<<I<<": "; 
+////            for(Int i = 0; i<procmaps[I]->size();++i){logfileptr->OFS()<<procmaps[I]->at(i)<<" ";}
+////            logfileptr->OFS()<<endl;
+////            //
+////            //          if(iam==0){
+////            //            cout<<I<<": "; 
+////            //            for(Int i = 0; i<procmaps[I]->size();++i){cout<<procmaps[I]->at(i)<<" ";}
+////            //            cout<<endl;
+////            //          }
+//////            pstart[parent]++;
+////          }
+////
+////
+////          //now choose which processor to get
+////          std::vector<Int> procMap(SupETree.Size());
+////          std::vector<double> load(np,0.0);
+////          for(Int I=1;I<=SupETree.Size();I++){
+////            Int minLoadP= -1;
+////            double minLoad = -1;
+////            for(Int i = 0; i<procmaps[I]->size();++i){
+////              Int proc = procmaps[I]->at(i);
+////              if(load[proc]<minLoad || minLoad==-1){
+////                minLoad = load[proc];
+////                minLoadP = proc;
+////              }
+////            }
+////
+////            procMap[I-1] = minLoadP;
+////
+////
+////            Int fc = Xsuper_[I-1];
+////            Int width = Xsuper_[I] - Xsuper_[I-1];
+////            Int height = cc[fc-1];
+////            double local_load = width*height*height;
+////
+////            load[minLoadP]+=local_load;
+////          }
+////
+////
+////          //for(Int i = 0; i<procMap.size();++i){ logfileptr->OFS()<<i+1<<" is on "<<procMap[i]<<endl;}
+////          logfileptr->OFS()<<"Proc load: "<<load<<endl;
+////          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
+////
+////          //Update the mapping
+////          this->Mapping_->Update(procMap);
+////
+////          for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
+////        }       
+////        break;
+////      case SUBCUBE_NNZ:
+////        {
+////          if(iam==0){ cout<<"Subtree to subcube mapping used"<<endl;}
+////
+////          //Int np = 4;
+////
+////          //compute children array and subtree costs
+////          ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+////
+////          //        if(iam == 0){
+////          //          cout<<"Supernodal ETree is "<<SupETree<<std::endl;
+////          //        }
+////
+////          //compute number of children and load
+////          vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
+////          vector<Int> children(SupETree.Size()+1,0);
+////          for(Int I=1;I<=SupETree.Size();I++){
+////            Int parent = SupETree.Parent(I-1);
+////            ++children[parent];
+////            Int fc = Xsuper_[I-1];
+////            Int width = Xsuper_[I] - Xsuper_[I-1];
+////            Int height = cc[fc-1];
+////            double local_load = width*height;
+////            SubTreeLoad[I]+=local_load;
+////            SubTreeLoad[parent]+=SubTreeLoad[I];
+////          }
+////
+////          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
+////
+////
+////          //procmaps[0]/pstart[0] represents the complete list
+////          vector<vector<Int> * > procmaps(SupETree.Size()+1);
+////          for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new vector<Int>();}
+////          vector<Int> pstart(SupETree.Size()+1,0);
+////          procmaps[0]->reserve(np);
+////          for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
+////
+////
+////          for(Int I=SupETree.Size(); I>= 1;I--){
+////
+////            Int parent = SupETree.Parent(I-1);
+////
+////            //split parent's proc list
+////            double parent_load = 0.0;
+////
+////            if(parent!=0){
+////              Int fc = Xsuper_[parent-1];
+////              Int width = Xsuper_[parent] - Xsuper_[parent-1];
+////              Int height = cc[fc-1];
+////              parent_load = width*height;
+////            }
+////
+////
+////            double proportion = SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load);
+////            Int npParent = procmaps[parent]->size();
+////            Int pFirstIdx = min(pstart[parent],npParent-1);
+////            //          Int numProcs = max(1,children[parent]==1?npParent-pFirstIdx:min((Int)std::floor(npParent*proportion),npParent-pFirstIdx));
+////            Int npIdeal =(Int)std::round(npParent*proportion);
+////            Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
+////            Int pFirst = procmaps[parent]->at(pFirstIdx);
+////
+////            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
+////            pstart[parent]+= numProcs;//= min(pstart[parent] + numProcs,npParent-1);
+////            //          children[parent]--;
+////
+////            //          Int pFirstIdx = pstart[parent]*npParent/children[parent];
+////            //          Int pFirst = procmaps[parent]->at(pFirstIdx);
+////            //          Int numProcs = max(pstart[parent]==children[parent]-1?npParent-pFirstIdx:npParent/children[parent],1);
+////
+////
+////
+////            procmaps[I]->reserve(numProcs);
+////            for(Int p = pFirst; p<pFirst+numProcs;++p){ procmaps[I]->push_back(p);}
+////
+////            logfileptr->OFS()<<I<<": "; 
+////            for(Int i = 0; i<procmaps[I]->size();++i){logfileptr->OFS()<<procmaps[I]->at(i)<<" ";}
+////            logfileptr->OFS()<<endl;
+////            //
+////            //          if(iam==0){
+////            //            cout<<I<<": "; 
+////            //            for(Int i = 0; i<procmaps[I]->size();++i){cout<<procmaps[I]->at(i)<<" ";}
+////            //            cout<<endl;
+////            //          }
+//////            pstart[parent]++;
+////          }
+////
+////
+////          //now choose which processor to get
+////          std::vector<Int> procMap(SupETree.Size());
+////          std::vector<double> load(np,0.0);
+////          for(Int I=1;I<=SupETree.Size();I++){
+////            Int minLoadP= -1;
+////            double minLoad = -1;
+////            for(Int i = 0; i<procmaps[I]->size();++i){
+////              Int proc = procmaps[I]->at(i);
+////              if(load[proc]<minLoad || minLoad==-1){
+////                minLoad = load[proc];
+////                minLoadP = proc;
+////              }
+////            }
+////
+////            procMap[I-1] = minLoadP;
+////
+////
+////            Int fc = Xsuper_[I-1];
+////            Int width = Xsuper_[I] - Xsuper_[I-1];
+////            Int height = cc[fc-1];
+////            double local_load = width*height;
+////
+////            load[minLoadP]+=local_load;
+////          }
+////
+////
+////          //for(Int i = 0; i<procMap.size();++i){ logfileptr->OFS()<<i+1<<" is on "<<procMap[i]<<endl;}
+////          logfileptr->OFS()<<"Proc load: "<<load<<endl;
+////          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
+////
+////          //Update the mapping
+////          this->Mapping_->Update(procMap);
+////
+////          for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
+////        }       
+////        break;
+////
+////      case NNZ:
+////        {
+////          if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
+////          //Do a greedy load balancing heuristic
+////          std::vector<Int> procMap(Xsuper_.m()-1);
+////          //Do a greedy heuristic to balance the number of nnz ?
+////          std::vector<double> load(np,0.0);
+////
+////          for(Int i = 1; i< Xsuper_.m();  ++i){
+////            //find least loaded processor
+////            vector<double>::iterator it = std::min_element(load.begin(),load.end());
+////            Int proc = (Int)(it - load.begin());
+////            Int width = Xsuper_[i] - Xsuper_[i-1];
+////            Int height = cc[i-1];
+////            *it += (double)(width*height);
+////            procMap[i-1] = proc;
+////          } 
+////
+////          logfileptr->OFS()<<"Proc load: "<<load<<endl;
+////          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
+////
+////          //Update the mapping
+////          this->Mapping_->Update(procMap);
+////        }
+////        break;
+////      case FLOPS:
+////        {
+////          if(iam==0){ cout<<"Load Balancing on FLOPS used"<<endl;}
+////          //Do a greedy load balancing heuristic
+////          std::vector<Int> procMap(Xsuper_.m()-1);
+////          //Do a greedy heuristic to balance the number of nnz ?
+////          std::vector<double> load(np,0.0);
+////
+////          for(Int i = 1; i< Xsuper_.m();  ++i){
+////            //find least loaded processor
+////            vector<double>::iterator it = std::min_element(load.begin(),load.end());
+////            Int proc = (Int)(it - load.begin());
+////            Int width = Xsuper_[i] - Xsuper_[i-1];
+////            Int height = cc[i-1];
+////            *it += (double)(height*height);
+////            procMap[i-1] = proc;
+////          } 
+////
+////          logfileptr->OFS()<<"Proc load: "<<load<<endl;
+////          logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
+////
+////          //Update the mapping
+////          this->Mapping_->Update(procMap);
+////        }
+////        break;
+////
+////      default:
+////        break;
+////    }
+////
 #ifdef _DEBUG_MAPPING_
     this->Mapping_->Dump(2*np);
 #endif
@@ -2109,11 +2209,15 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
   }
 
   template <typename T> SupernodalMatrix<T>::SupernodalMatrix(){
+    Mapping_=NULL;
+    Balancer_=NULL;
     CommEnv_=NULL;
   }
 
   template <typename T> SupernodalMatrix<T>::SupernodalMatrix(const DistSparseMatrix<T> & pMat, NGCholOptions & options ){
     CommEnv_ = NULL;
+    Mapping_=NULL;
+    Balancer_=NULL;
     Init(pMat, options);
   }
 
@@ -2136,6 +2240,9 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
       delete this->Mapping_;
     }
 
+    if(this->Balancer_!=NULL){
+      delete this->Balancer_;
+    }
 
 #ifdef _STAT_COMM_
     if(CommEnv_!=NULL){

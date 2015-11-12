@@ -53,6 +53,9 @@ extern "C" {
 double LAPACK(dlange)
 (const char * norm, const int *m, const int *n, const double* A, const int *lda, double *work); 
 
+double LAPACK(zlange)
+(const char * norm, const int *m, const int *n, const dcomplex* A, const int *lda, double *work); 
+
 void LAPACK(xerbla)
 (const char * srname, const Int * info);
 
@@ -1555,11 +1558,30 @@ Lange(char norm, Int m, Int n, const double* A, Int lda)
     work = new double[m];
   }
 
-  return LAPACK(dlange) (&norm, &m, &n, A, &lda, work); 
+  double retval = LAPACK(dlange) (&norm, &m, &n, A, &lda, work); 
 
   if (norm=='I'){
     delete [] work;
   }
+
+  return retval;
+}
+
+double
+Lange(char norm, Int m, Int n, const dcomplex* A, Int lda)
+{
+  double * work = NULL;
+  if (norm=='I'){
+    work = new double[m];
+  }
+
+  double retval = LAPACK(zlange) (&norm, &m, &n, A, &lda, work); 
+
+  if (norm=='I'){
+    delete [] work;
+  }
+
+  return retval;
 }
 
 

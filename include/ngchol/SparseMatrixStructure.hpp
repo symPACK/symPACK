@@ -41,10 +41,8 @@ class SparseMatrixStructure{
   void RefineSupernodes(ETree& tree, Ordering & aOrder, IntNumVec & supMembership, IntNumVec & xsuper, PtrVec & xlindx, IdxVec & lindx, IntNumVec & perm);
 #endif
 
-#ifdef RELAXED_SNODE
   void RelaxSupernodes(ETree& tree, IntNumVec & cc,IntNumVec & supMembership, IntNumVec & xsuper, RelaxationParameters & params  );
   void SymbolicFactorizationRelaxed(ETree& tree, Ordering & aOrder,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, PtrVec & xlindx, IdxVec & lindx);
-#endif
 
   void SymbolicFactorization(ETree& tree, Ordering & aOrder,const IntNumVec & cc,const IntNumVec & xsuper,const IntNumVec & SupMembership, PtrVec & xlindx, IdxVec & lindx);
 

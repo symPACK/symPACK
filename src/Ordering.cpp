@@ -148,8 +148,8 @@ void Ordering::AMD(){
     }
 
 
-    invp.resize(pStructure->size);
-    perm.resize(pStructure->size);
+    invp.Resize(pStructure->size);
+    perm.Resize(pStructure->size);
 
 #if 0
     int options[METIS_NOPTIONS];
@@ -224,14 +224,16 @@ void Ordering::AMD(){
     }
 
 
-    invp.resize(pStructure->size);
-    perm.resize(pStructure->size);
+    invp.Resize(pStructure->size);
+    perm.Resize(pStructure->size);
 
     int N = pStructure->size; 
 
-    vector<int> tmpXadj = pStructure->expColptr;
+    vector<int> tmpXadj(pStructure->expColptr.m());
+    for(int i = 0; i<tmpXadj.size();++i){tmpXadj[i] = pStructure->expColptr[i];}
+
     vector<int> tmpAdj;
-    tmpAdj.reserve(pStructure->expRowind.size());
+    tmpAdj.reserve(pStructure->expRowind.m());
 
     for(int col=0; col<tmpXadj.size()-1;++col){
       for(int j=tmpXadj[col]; j<tmpXadj[col+1];++j){
@@ -337,8 +339,8 @@ void Ordering::AMD(){
 
 
       //switch everything to 1 based
-      for(int col=0; col<invp.size();++col){ invp[col]++;}
-      for(int col=0; col<perm.size();++col){ perm[col]++;}
+      for(int col=0; col<invp.m();++col){ invp[col]++;}
+      for(int col=0; col<perm.m();++col){ perm[col]++;}
 
       }
 #endif

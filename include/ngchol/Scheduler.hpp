@@ -84,6 +84,24 @@ class PRScheduler: public Scheduler<T>{
 };
 
 
+template <class T >
+class FIFOScheduler: public Scheduler<T>{
+  public:
+    FIFOScheduler(){
+    }
+
+    virtual const T& top(){ return readyTasks_.front();}
+    virtual void pop() { readyTasks_.pop();}
+
+    virtual void push( const T& val) { readyTasks_.push(val);}
+    virtual unsigned int size() { return readyTasks_.size();}
+
+    virtual bool done(){ return readyTasks_.empty();}
+    const std::queue<T> & GetQueue(){return  readyTasks_;}
+  protected:
+      std::queue<T> readyTasks_;
+};
+
 
 
 

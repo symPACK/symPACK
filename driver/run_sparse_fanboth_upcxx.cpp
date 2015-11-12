@@ -74,56 +74,76 @@ int main(int argc, char **argv)
   // *********************************************************************
   // Input parameter
   // *********************************************************************
-  std::map<std::string,std::string> options;
+  std::map<std::string,std::vector<std::string> > options;
 
   OptionsCreate(argc, argv, options);
 
   std::string filename;
   if( options.find("-in") != options.end() ){
-    filename= options["-in"];
+    filename= options["-in"].front();
   }
   std::string informatstr;
   if( options.find("-inf") != options.end() ){
-    informatstr= options["-inf"];
+    informatstr= options["-inf"].front();
   }
   Int maxSnode = -1;
   if( options.find("-b") != options.end() ){
-    maxSnode= atoi(options["-b"].c_str());
+    maxSnode= atoi(options["-b"].front().c_str());
   }
+
+  optionsFact.relax.SetMaxSize(maxSnode);//  maxSnode= atoi(options["-b"].c_str());
+  if( options.find("-relax") != options.end() ){
+    if(options["-relax"].size()==3){
+      optionsFact.relax.SetNrelax0(atoi(options["-relax"][0].c_str()));//  maxSnode= atoi(options["-b"].c_str());
+      optionsFact.relax.SetNrelax1(atoi(options["-relax"][1].c_str()));//  maxSnode= atoi(options["-b"].c_str());
+      optionsFact.relax.SetNrelax2(atoi(options["-relax"][2].c_str()));//  maxSnode= atoi(options["-b"].c_str());
+    }
+    else{
+      //disable relaxed supernodes
+      optionsFact.relax.SetNrelax0(-1);
+    }
+  }
+
 
   Int maxIsend = 0;
   if( options.find("-is") != options.end() ){
-    maxIsend= atoi(options["-is"].c_str());
+    maxIsend= atoi(options["-is"].front().c_str());
   }
 
   Int doFB = 0;
   if( options.find("-fb") != options.end() ){
-    doFB= atoi(options["-fb"].c_str());
+    doFB= atoi(options["-fb"].front().c_str());
   }
 
 
   if( options.find("-lb") != options.end() ){
-    if(options["-lb"]=="NNZ"){
-      optionsFact.load_balance = NNZ;
-    }
-    else if(options["-lb"]=="FLOPS"){
-      optionsFact.load_balance = FLOPS;
-    }
-    else if(options["-lb"]=="SUBCUBE"){
-      optionsFact.load_balance = SUBCUBE;
-    }
-    else if(options["-lb"]=="SUBCUBE_NNZ"){
-      optionsFact.load_balance = SUBCUBE_NNZ;
-    }
-    else{
-      optionsFact.load_balance = NOLB;
-    }
+    optionsFact.load_balance_str = options["-lb"].front();
+//    if(options["-lb"].front()=="NNZ"){
+//      optionsFact.load_balance = NNZ;
+//    }
+//    else if(options["-lb"].front()=="FLOPS"){
+//      optionsFact.load_balance = FLOPS;
+//    }
+//    else if(options["-lb"].front()=="SUBCUBE"){
+//      optionsFact.load_balance = SUBCUBE;
+//    }
+//    else if(options["-lb"].front()=="SUBCUBE_NNZ"){
+//      optionsFact.load_balance = SUBCUBE_NNZ;
+//    }
+//    else{
+//      optionsFact.load_balance = NOLB;
+//    }
   }
 
   if( options.find("-ordering") != options.end() ){
-    if(options["-ordering"]=="AMD"){
+    if(options["-ordering"].front()=="AMD"){
       optionsFact.ordering = AMD;
     }
+#ifdef USE_SCOTCH
+    else if(options["-ordering"].front()=="SCOTCH"){
+      optionsFact.ordering = SCOTCH;
+    }
+#endif
     else{
       optionsFact.ordering = MMD;
     }
@@ -131,7 +151,7 @@ int main(int argc, char **argv)
 
   Int maxIrecv = 0;
   if( options.find("-ir") != options.end() ){
-    maxIrecv= atoi(options["-ir"].c_str());
+    maxIrecv= atoi(options["-ir"].front().c_str());
   }
 
 
@@ -139,30 +159,32 @@ int main(int argc, char **argv)
 
 
   if( options.find("-map") != options.end() ){
-    if(options["-map"] == "Modwrap2D"){
-      optionsFact.mappingType = MODWRAP2D;
-    }
-    else if(options["-map"] == "Modwrap2DNS"){
-      optionsFact.mappingType = MODWRAP2DNS;
-    }
-    else if(options["-map"] == "Wrap2D"){
-      optionsFact.mappingType = WRAP2D;
-    }
-    else if(options["-map"] == "Wrap2DForced"){
-      optionsFact.mappingType = WRAP2DFORCED;
-    }
-    else if(options["-map"] == "Row2D"){
-      optionsFact.mappingType = ROW2D;
-    }
-    else if(options["-map"] == "Col2D"){
-      optionsFact.mappingType = COL2D;
-    }
-    else{
-      optionsFact.mappingType = MODWRAP2D;
-    }
+    optionsFact.mappingTypeStr = options["-map"].front();
+//    if(options["-map"].front() == "Modwrap2D"){
+//      optionsFact.mappingType = MODWRAP2D;
+//    }
+//    else if(options["-map"].front() == "Modwrap2DNS"){
+//      optionsFact.mappingType = MODWRAP2DNS;
+//    }
+//    else if(options["-map"].front() == "Wrap2D"){
+//      optionsFact.mappingType = WRAP2D;
+//    }
+//    else if(options["-map"].front() == "Wrap2DForced"){
+//      optionsFact.mappingType = WRAP2DFORCED;
+//    }
+//    else if(options["-map"].front() == "Row2D"){
+//      optionsFact.mappingType = ROW2D;
+//    }
+//    else if(options["-map"].front() == "Col2D"){
+//      optionsFact.mappingType = COL2D;
+//    }
+//    else{
+//      optionsFact.mappingType = MODWRAP2D;
+//    }
   }
   else{
-    optionsFact.mappingType = MODWRAP2D;
+//    optionsFact.mappingType = MODWRAP2D;
+    optionsFact.mappingTypeStr = "MODWRAP2D";
   }
 
   np = optionsFact.used_procs(np);

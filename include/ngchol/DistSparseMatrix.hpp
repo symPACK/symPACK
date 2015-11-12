@@ -76,6 +76,7 @@ template <typename F> class DistSparseMatrix{
 	Int          size;
 
 	/// @brief Total number of nonzeros elements.
+	//Idx64          nnz;                             
 	Int          nnz;                             
 
 	/// @brief Dimension nnzLocal, storing the nonzero values.
@@ -88,6 +89,8 @@ template <typename F> class DistSparseMatrix{
   DistSparseMatrix(MPI_Comm aComm){globalAllocated=false; comm = aComm;};
   void CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval,bool onebased=false);
   DistSparseMatrix(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval , MPI_Comm oComm);
+  
+  template <typename T> void ConvertData(const int n, const int nnz, const int * colptr, const int * rowidx, const T * nzval,bool onebased=false);
 
   SparseMatrixStructure  GetGlobalStructure();
   SparseMatrixStructure  GetLocalStructure() const;

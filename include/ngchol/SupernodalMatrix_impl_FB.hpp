@@ -841,7 +841,9 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
   } 
 
   bool babort=false;
+#ifdef _DEBUG_
   logfileptr->OFS()<<"CHECK: ";
+#endif
   for(Int idx = 0; idx <incomingRecvFactArr.size();++idx){
     if(incomingRecvFactArr[idx]!=NULL){
       if(incomingRecvFactArr[idx]->size()!=0){logfileptr->OFS()<<idx<<" "; babort=true;}
@@ -849,9 +851,11 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
 //      assert(incomingRecvFactArr[idx]->size()==0);
     }
   }
+#ifdef _DEBUG_
   logfileptr->OFS()<<endl;
+ #endif
   if(babort){abort();}
- 
+
   TIMER_STOP(SAFETY_ASSERT);
 
   TIMER_START(FINAL_BARRIER);

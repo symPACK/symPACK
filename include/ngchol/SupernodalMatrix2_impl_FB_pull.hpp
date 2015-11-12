@@ -165,7 +165,8 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   assert(localTaskCount_ == cnt);
 
   logfileptr->OFS()<<"Ready Tasks: "<<endl;
-  std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
+  auto tmp = scheduler_->GetQueue();
+  //std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
   while(!tmp.empty()){
     auto taskit = tmp.top();
     logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";

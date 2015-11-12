@@ -33,7 +33,9 @@ extern "C" {
 
 #include <upcxx.h>
 
-#define MYSCALAR double
+#define SCALAR double
+//#define SCALAR std::complex<double>
+#define INSCALAR double
 
 
 using namespace LIBCHOLESKY;
@@ -141,6 +143,11 @@ int main(int argc, char **argv)
     if(options["-ordering"].front()=="AMD"){
       optionsFact.ordering = AMD;
     }
+#ifdef USE_SCOTCH
+    else if(options["-ordering"].front()=="SCOTCH"){
+      optionsFact.ordering = SCOTCH;
+    }
+#endif
     else{
       optionsFact.ordering = MMD;
     }
@@ -149,6 +156,9 @@ int main(int argc, char **argv)
   if( options.find("-scheduler") != options.end() ){
     if(options["-scheduler"].front()=="MCT"){
       optionsFact.scheduler = MCT;
+    }
+    if(options["-scheduler"].front()=="FIFO"){
+      optionsFact.scheduler = FIFO;
     }
     else if(options["-scheduler"].front()=="PR"){
       optionsFact.scheduler = PR;
@@ -219,7 +229,7 @@ int main(int argc, char **argv)
 
     sparse_matrix_file_format_t informat;
     TIMER_START(READING_MATRIX);
-    DistSparseMatrix<Real> HMat(workcomm);
+    DistSparseMatrix<SCALAR> HMat(workcomm);
     //Read the input matrix
     if(informatstr == "CSC"){
       ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
@@ -229,7 +239,7 @@ int main(int argc, char **argv)
       sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
       sparse_matrix_convert (Atmp, CSC);
       const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
-      HMat.CopyData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,(MYSCALAR *)cscptr->values);
+      HMat.ConvertData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,(INSCALAR *)cscptr->values);
       destroy_sparse_matrix (Atmp);
     }
 
@@ -240,8 +250,8 @@ int main(int argc, char **argv)
 #ifdef _CHECK_RESULT_
 
     Int nrhs = 1;
-    DblNumMat RHS;
-    DblNumMat XTrue;
+    NumMat<SCALAR> RHS;
+    NumMat<SCALAR> XTrue;
 
     Int n = HMat.size;
 
@@ -273,13 +283,13 @@ int main(int argc, char **argv)
 
       Int numColFirst = std::max(1,n / np);
 
-      SetValue(RHS,0.0);
+      SetValue(RHS,(SCALAR)0.0);
       for(Int j = 1; j<=n; ++j){
         Int iOwner = std::min((j-1)/numColFirst,np-1);
         if(iam == iOwner){
           Int iLocal = (j-(numColFirst)*iOwner);
           //do I own the column ?
-          double t = XTrue(j-1,0);
+          SCALAR t = XTrue(j-1,0);
           //do a dense mat mat mul ?
           for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
             Int row = Local.rowind[ii-1];
@@ -307,7 +317,7 @@ int main(int argc, char **argv)
     }
 
 
-    DblNumMat XFinal;
+    NumMat<SCALAR> XFinal;
     {
       //do the symbolic factorization and build supernodal matrix
       optionsFact.maxSnode = maxSnode;
@@ -317,11 +327,11 @@ int main(int argc, char **argv)
         optionsFact.factorization = FANBOTH;
 
       optionsFact.commEnv = new CommEnvironment(workcomm);
-      SupernodalMatrix2<double>*  SMat;
+      SupernodalMatrix2<SCALAR>*  SMat;
 
       try{
         timeSta = get_time();
-        SMat = new SupernodalMatrix2<double>(HMat,optionsFact);
+        SMat = new SupernodalMatrix2<SCALAR>(HMat,optionsFact);
         timeEnd = get_time();
         SMat->team_ = workteam;
       }
@@ -383,15 +393,15 @@ int main(int argc, char **argv)
 
       Int numColFirst = std::max(1,n / np);
 
-      DblNumMat AX(n,nrhs);
-      SetValue(AX,0.0);
+      NumMat<SCALAR> AX(n,nrhs);
+      SetValue(AX,(SCALAR)0.0);
 
       for(Int j = 1; j<=n; ++j){
         Int iOwner = std::min((j-1)/numColFirst,np-1);
         if(iam == iOwner){
           Int iLocal = (j-(numColFirst)*iOwner);
           //do I own the column ?
-          double t = XFinal(j-1,0);
+          SCALAR t = XFinal(j-1,0);
           //do a dense mat mat mul ?
           for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
             Int row = Local.rowind[ii-1];
@@ -437,16 +447,20 @@ int main(int argc, char **argv)
 
   delete logfileptr;
 
+#ifdef MAP_PROFILING
+  //LOCK FOR PROFILING
+  string end;
+  cin>>end;
+  //gdb_lock();
+#endif
+
+
   upcxx::finalize();
   int finalized = 0;
   MPI_Finalized(&finalized);
   if(!finalized){ 
     MPI_Finalize();
   }
-
-  //LOCK FOR PROFILING
-  //gdb_lock();
-
   return 0;
 }
 
