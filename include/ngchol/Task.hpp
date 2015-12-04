@@ -40,52 +40,6 @@ namespace LIBCHOLESKY{
 
   };
 
-  struct FBTaskCompare{
-    bool operator()(const FBTask & a,const FBTask & b) const
-    {
-      bool retval = false;
-
-      bool b_factor = b.tgt_snode_id == b.src_snode_id;
-
-
-      //use the ranks first
-//      if(a.rank>=0 && b.rank>=0){
-//        return a.rank<b.rank;
-//      }
-    
-
-
-      //check whether it is an update or a factorization
-      bool a_factor = a.tgt_snode_id == a.src_snode_id;
-
-      //if same type apply the usual priorities
-//      if(a_factor == b_factor){
-
-      //use the classic priorities otherwise
-      if(a.tgt_snode_id>b.tgt_snode_id){
-//        return true;
-        retval = true;
-      }
-      else if(a.tgt_snode_id==b.tgt_snode_id){
-//        return a.src_snode_id>b.src_snode_id;
-        retval = a.src_snode_id>b.src_snode_id;
-      }
-      else{
-//        return false;
-        retval = false;
-      }
-
-      return retval;
-    }
-    bool operator()(const std::list<FBTask>::iterator & a,const std::list<FBTask>::iterator & b) const
-    {
-      return (*this)(*a,*b);
-//      return (*this)(*b,*a);
-    }
-
-  };
-
-
   
 
   struct SnodeUpdateFB{
@@ -188,9 +142,63 @@ namespace LIBCHOLESKY{
  
 */
 
+  class TaskCompare{
+    public:
+     virtual bool operator()(const FBTask & a,const FBTask & b) const { return false;}
+     virtual bool operator()(const std::list<FBTask>::iterator & a,const std::list<FBTask>::iterator & b) const { return false;}
+  };
+
+  class FBTaskCompare: public TaskCompare{
+    public:
+    virtual bool operator()(const FBTask & a,const FBTask & b) const
+    {
+      bool retval = false;
+
+      bool b_factor = b.tgt_snode_id == b.src_snode_id;
 
 
-  struct MCTTaskCompare{
+      //use the ranks first
+//      if(a.rank>=0 && b.rank>=0){
+//        return a.rank<b.rank;
+//      }
+    
+
+
+      //check whether it is an update or a factorization
+      bool a_factor = a.tgt_snode_id == a.src_snode_id;
+
+      //if same type apply the usual priorities
+//      if(a_factor == b_factor){
+
+      //use the classic priorities otherwise
+      if(a.tgt_snode_id>b.tgt_snode_id){
+//        return true;
+        retval = true;
+      }
+      else if(a.tgt_snode_id==b.tgt_snode_id){
+//        return a.src_snode_id>b.src_snode_id;
+        retval = a.src_snode_id>b.src_snode_id;
+      }
+      else{
+//        return false;
+        retval = false;
+      }
+
+      return retval;
+    }
+    virtual bool operator()(const std::list<FBTask>::iterator & a,const std::list<FBTask>::iterator & b) const
+    {
+      return (*this)(*a,*b);
+//      return (*this)(*b,*a);
+    }
+
+  };
+
+
+
+
+  class MCTTaskCompare: public TaskCompare{
+    public:
     double cost(const FBTask & t) const{
       double retVal = 0.0;
       switch(t.type){
@@ -215,19 +223,20 @@ namespace LIBCHOLESKY{
       return retVal;
     }
 
-    bool operator()(const FBTask & a,const FBTask & b) const
+    virtual bool operator()(const FBTask & a,const FBTask & b) const
     {
       return cost(a)<cost(b);
     }
-    bool operator()(const std::list<FBTask>::iterator & a,const std::list<FBTask>::iterator & b) const
+    virtual bool operator()(const std::list<FBTask>::iterator & a,const std::list<FBTask>::iterator & b) const
     {
       return (*this)(*a,*b);
     }
 
   };
 
-  struct PRTaskCompare{
-    bool operator()(const FBTask & a,const FBTask & b) const
+  class PRTaskCompare: public TaskCompare{
+    public:
+    virtual bool operator()(const FBTask & a,const FBTask & b) const
     {
       bool retval = false;
 
@@ -250,7 +259,7 @@ namespace LIBCHOLESKY{
 
       return retval;
     }
-    bool operator()(const std::list<FBTask>::iterator & a,const std::list<FBTask>::iterator & b) const
+    virtual bool operator()(const std::list<FBTask>::iterator & a,const std::list<FBTask>::iterator & b) const
     {
       return (*this)(*a,*b);
     }
