@@ -59,6 +59,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
       {
         SuperNode2<T> & src_snode = *snodeLocal(curUpdate.src_snode_id);
         curUpdate.rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
+
       }
 
       //create the list if needed

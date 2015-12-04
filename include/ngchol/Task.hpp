@@ -25,19 +25,47 @@ namespace LIBCHOLESKY{
 
     void update_rank(){
       if(rank==-1.0 || 1){
-            if(type==FACTOR){
-              //taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
-              rank = 4.0;
-            }
-            else if(type == AGGREGATE){
-              rank = 2.0;
-            }
-            else if(type == UPDATE){
-              rank = 1.0;
-            }
+        if(type==FACTOR){
+          //taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
+          rank = 4.0;
+        }
+        else if(type == AGGREGATE){
+          rank = 2.0;
+        }
+        else if(type == UPDATE){
+          rank = 1.0;
+
+
+//          SuperNode2<T> * cur_src_snode; 
+//          IncomingMessage * msgPtr = NULL;
+//          //Local or remote factor
+//          //we have only one local or one remote incoming aggregate
+//          if(curTask.data.size()==0){
+//            cur_src_snode = snodeLocal(curTask.src_snode_id);
+//          }
+//          else{
+//            auto msgit = curTask.data.begin();
+//            msgPtr = *msgit;
+//            assert(msgPtr->IsDone());
+//            char* dataPtr = msgPtr->GetLocalPtr();
+//
+//            cur_src_snode = new SuperNode2<T>(dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
+//            cur_src_snode->InitIdxToBlk();
+//          }
+//
+//
+//          //parse cur_src_snode to compute cost
+//          while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+//            //skip if this update is "lower"
+//            if(curUpdate.tgt_snode_id<curTask.tgt_snode_id){continue;}
+//
+//            Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
+//            if(iUpdater == iam){
+//            }
+//          }
+        }
       }
     }
-
   };
 
   struct FBTaskCompare{

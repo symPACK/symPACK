@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <cassert>
 
+//#define NO_EXTRA_SPLIT
 #define REFINEMENT_LIMIT -1
 #define DISTANCE_LIMIT -1
 #define DEPTH_LIMIT -1
@@ -578,7 +579,7 @@ void my_set_difference(const vector<int> & a, const vector<int>& b, vector<int> 
 void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx, vector<int> & perm,vector<int> & origPerm){
 
 #if 0
-vector<int> newXsuper;
+  vector<int> newXsuper;
 #endif
   int n = size;
   int nsuper = xsuper.size()-1;
@@ -594,7 +595,7 @@ vector<int> newXsuper;
   vector<snode*> snodes(nsuper);
 
   partitions L;
-TIMER_START(INIT);
+  TIMER_START(INIT);
   //initialize L with curent supernodal partition
   vector<vector<int> > supadj(nsuper);
   vector<bool> marker(nsuper,false);
@@ -607,20 +608,20 @@ TIMER_START(INIT);
 #endif
     marker.assign(nsuper,false);
     for(int64_t idx = fi; idx<=li;idx++){
-       int32_t row = lindx[idx-1];
-       if(row>xsuper[i]-1){
-          //adj[i-1]->insert(row);
-          adj[i-1]->push(row);
-          if(!marker[supMembership[row-1]-1]){
-            supadj[i-1].push_back(supMembership[row-1]);
-            marker[supMembership[row-1]-1]=true;
-          }
-       }
+      int32_t row = lindx[idx-1];
+      if(row>xsuper[i]-1){
+        //adj[i-1]->insert(row);
+        adj[i-1]->push(row);
+        if(!marker[supMembership[row-1]-1]){
+          supadj[i-1].push_back(supMembership[row-1]);
+          marker[supMembership[row-1]-1]=true;
+        }
+      }
     }
 
-//    if(!marker[nsuper-1]){
-//            supadj[i-1].push_back(nsuper);
-//    }
+    //    if(!marker[nsuper-1]){
+    //            supadj[i-1].push_back(nsuper);
+    //    }
 
 
 
@@ -636,24 +637,24 @@ TIMER_START(INIT);
     curL->members.reserve(lc-fc+1);
 #endif
     for(int node = fc; node<=lc;++node){
-//      curL->members.insert(node);
+      //      curL->members.insert(node);
       curL->members.push(node);
     }
 
-//    L.push_back(new nodeset());
-//    nodeset * curL = L.back();
-//
-//    snodes[i-1] = curL;
-//
-//    int fc = xsuper[i-1];
-//    int lc = xsuper[i]-1;
-//    for(int node = fc; node<=lc;++node){
-//      curL->insert(node);
-//    }
+    //    L.push_back(new nodeset());
+    //    nodeset * curL = L.back();
+    //
+    //    snodes[i-1] = curL;
+    //
+    //    int fc = xsuper[i-1];
+    //    int lc = xsuper[i]-1;
+    //    for(int node = fc; node<=lc;++node){
+    //      curL->insert(node);
+    //    }
 
   }
- 
-//  vector<list<partitions::iterator> > supadj(nsuper);
+
+  //  vector<list<partitions::iterator> > supadj(nsuper);
 
   vector<partitions::reverse_iterator > supPtr(nsuper);
   for(auto Kit = L.rbegin();Kit != L.rend(); ++Kit){
@@ -663,315 +664,169 @@ TIMER_START(INIT);
   }
 
 
-TIMER_STOP(INIT);
+  TIMER_STOP(INIT);
 
 
-    partitions::iterator it;
+  partitions::iterator it;
 
 #ifdef VERBOSE
-    for(it = L.begin();it != L.end(); ++it){
-      cout<<"[ ";
-      for(nodeset::iterator nit = (*it)->members.begin();nit != (*it)->members.end(); ++nit){
-        cout<<*nit<<" ";
-      }
-      cout<<"] ";
+  for(it = L.begin();it != L.end(); ++it){
+    cout<<"[ ";
+    for(nodeset::iterator nit = (*it)->members.begin();nit != (*it)->members.end(); ++nit){
+      cout<<*nit<<" ";
     }
-    cout<<std::endl;
+    cout<<"] ";
+  }
+  cout<<std::endl;
 #endif
 
 
 
 
 
-TIMER_START(REFINE);
+  TIMER_START(REFINE);
 
 
   partitions::reverse_iterator Kit;
 
   nodeset inter,diff;
   int prevK = nsuper+1;  
+  //start form the last K
   for(Kit = L.rbegin();Kit != L.rend(); ++Kit){
 
     if(DEPTH_LIMIT!=-1){
-    if(distance(Kit,L.rend()) > DEPTH_LIMIT*distance(L.rbegin(),L.rend())){break;}
+      if(distance(Kit,L.rend()) > DEPTH_LIMIT*distance(L.rbegin(),L.rend())){break;}
     }
 
     //assert( snodes[K-1] == *Kit);
     int K = (*Kit)->id;
+    if(K<0 || K>=prevK){
 #ifdef VERBOSE
-    if(K<0 || K>=prevK){cout<<"K="<<K<<endl; }
+      cout<<"K="<<K<<endl; 
 #endif
-    if(K<0 || K>=prevK){continue;}
+      continue;
+    }
 
 #ifdef VERBOSE
     cout<<"K_"<<K<<" is "<<(*Kit)->members<<std::endl;
     cout<<"Adj of K_"<<K<<" is "<<*adj[K-1]<<std::endl;
 #endif
     partitions::reverse_iterator Jit;
-//    partitions tmp;
     int newSets=0;
     auto KKit = Kit;
-#if 1
     auto it = supadj[K-1].rbegin();
     if(DISTANCE_LIMIT!=-1){
       while(distance(it,supadj[K-1].rend())>DISTANCE_LIMIT){it++;}
     }
 
     //for each adjacent supernode
-    for(it;it!=supadj[K-1].rend();++it){
-//    for(auto it = supadj[K-1].begin();it!=supadj[K-1].end();++it){
+    for(it;it!=supadj[K-1].rend();++it)
+    //for(auto it = supadj[K-1].begin();it!=supadj[K-1].end();++it)
+    {
       //J is the index of the original supernode
       int J = *it;
       //Jit is an iterator (pointer) over the "original" supernode, which
       //might have been replaced by its subsets
       Jit=supPtr[J-1];
       int curJ = (*Jit)->id;
-//#ifdef NO_EXTRA_SPLIT
-//      if(curJ>0)
-//#endif
+      #ifdef NO_EXTRA_SPLIT
+      if(curJ>0)
+      #endif
       {
         int numRefine = 0;
-      do{
+        do{
 
 #ifdef VERBOSE
-        cout<<"    L_"<<std::distance(L.begin(),Jit.base())<<" is "<<(*Jit)->members<<std::endl;
+          cout<<"    L_"<<std::distance(L.begin(),Jit.base())<<" is "<<(*Jit)->members<<std::endl;
 #endif
-        //compute I = J inter M(Ki)
-        //nodeset * inter = new nodeset();
-TIMER_START(INTERSECT);
-        inter.clear();
-        std::set_intersection(
-            adj[K-1]->begin(),adj[K-1]->end(),
-            (*Jit)->members.begin(),(*Jit)->members.end(),
-            std::inserter(inter, inter.begin()));
-//        std::set_intersection((*Jit)->members.begin(),(*Jit)->members.end(),
-//            adj[K-1]->begin(),adj[K-1]->end(),
-//            std::inserter(inter, inter.begin()));
-//        my_set_intersection((*Jit)->members, *adj[K-1], inter);
-//        my_set_intersection(*adj[K-1],(*Jit)->members, inter);
-//        my_bitset_intersection(n,(*Jit)->members, *adj[K-1], inter);
-TIMER_STOP(INTERSECT);
-            //std::inserter(*inter, inter->begin()));
-#if 0
-TIMER_START(DIFF2);
-          diff.clear();
-//          std::set_difference((*Jit)->members.begin(),(*Jit)->members.end(),
-//              adj[K-1]->begin(),adj[K-1]->end(),
-//              std::inserter(diff, diff.begin()));
-          my_set_difference((*Jit)->members, *adj[K-1], diff);
-TIMER_STOP(DIFF2);
-#endif
-        if(inter.size()>0){
-          //compute I' = J \ M(Ki)
-          //nodeset * diff = new nodeset();
-TIMER_START(DIFF);
-          diff.clear();
-          std::set_difference((*Jit)->members.begin(),(*Jit)->members.end(),
+          //compute I = J inter M(Ki)
+          TIMER_START(INTERSECT);
+          inter.clear();
+          std::set_intersection(
               adj[K-1]->begin(),adj[K-1]->end(),
-              std::inserter(diff, diff.begin()));
-//          my_set_difference((*Jit)->members, *adj[K-1], diff);
-TIMER_STOP(DIFF);
-              //std::inserter(*diff, diff->begin()));
-          if(diff.size()>0){
-            //increase Kit only if we are splitting an original set of L...
-            int curJ =(*Jit)->id;
-            int newJ = -abs(curJ);
+              (*Jit)->members.begin(),(*Jit)->members.end(),
+              std::inserter(inter, inter.begin()));
+          //        std::set_intersection((*Jit)->members.begin(),(*Jit)->members.end(),
+          //            adj[K-1]->begin(),adj[K-1]->end(),
+          //            std::inserter(inter, inter.begin()));
+          //        my_set_intersection((*Jit)->members, *adj[K-1], inter);
+          //        my_set_intersection(*adj[K-1],(*Jit)->members, inter);
+          //        my_bitset_intersection(n,(*Jit)->members, *adj[K-1], inter);
+          TIMER_STOP(INTERSECT);
+          if(inter.size()>0){
+            //compute I' = J \ M(Ki)
+            TIMER_START(DIFF);
+            diff.clear();
+            
+            std::set_difference((*Jit)->members.begin(),(*Jit)->members.end(),
+                adj[K-1]->begin(),adj[K-1]->end(),
+                std::inserter(diff, diff.begin()));
+            //          my_set_difference((*Jit)->members, *adj[K-1], diff);
+            TIMER_STOP(DIFF);
+            //std::inserter(*diff, diff->begin()));
+            if(diff.size()>0){
+              //increase KKit only if we are splitting an original set of L...
+              int curJ =(*Jit)->id;
+              int newJ = -abs(curJ);
 
-TIMER_START(INSERT);
-#if 0
-//            if(1){
-//            if(rand()>=0.5){
-            if(distance(Jit,L.rend())%2!=0){
-            //replace J by I
-            (*Jit)->members.swap(inter);
-            (*Jit)->id=newJ;
-            //Insert I' before I
-            ++Jit; 
-            L.insert(Jit.base(),new snode());
-            (*Jit)->members.swap(diff);
-            (*Jit)->id=newJ;
-
-
-            }
-            else
-#endif
-            {
-            //replace J by I'
-            (*Jit)->members.swap(diff);
-            (*Jit)->id=newJ;
-            //Insert I before I'
-            ++Jit; 
-            L.insert(Jit.base(),new snode());
-            (*Jit)->members.swap(inter);
-            (*Jit)->id=newJ;
-
-
-            }
-TIMER_STOP(INSERT);
+              TIMER_START(INSERT);
+              {
+                //replace J by I'
+                (*Jit)->members.swap(diff);
+                (*Jit)->id=newJ;
+                //Insert I before I'
+                ++Jit; 
+                L.insert(Jit.base(),new snode());
+                (*Jit)->members.swap(inter);
+                (*Jit)->id=newJ;
+              }
+              TIMER_STOP(INSERT);
 
 #ifdef VERBOSE
-            --Jit; 
-            cout<<"B    L_"<<std::distance(L.begin(),Jit.base())<<" is now "<<(*Jit)->members<<std::endl;
-            ++Jit; 
-            cout<<"C    L_"<<std::distance(L.begin(),Jit.base())<<" is now "<<(*Jit)->members<<std::endl;
+              --Jit; 
+              cout<<"B    L_"<<std::distance(L.begin(),Jit.base())<<" is now "<<(*Jit)->members<<std::endl;
+              ++Jit; 
+              cout<<"C    L_"<<std::distance(L.begin(),Jit.base())<<" is now "<<(*Jit)->members<<std::endl;
 #endif
 
-            KKit++;
+              KKit++;
+            }
           }
-          //delete diff;
-          //delete inter;
-        }
-        //else{
-        //  delete inter;
-        //}
 
-        Jit++;
-        curJ = (*Jit)->id;
-        numRefine++;
-      }
-while((curJ==J || curJ==-J) && (REFINEMENT_LIMIT==-1 || numRefine < REFINEMENT_LIMIT));
+          Jit++;
+          curJ = (*Jit)->id;
+          numRefine++;
+        }
+        while((curJ==J || curJ==-J) && (REFINEMENT_LIMIT==-1 || numRefine < REFINEMENT_LIMIT));
       }
     }
-#else
-    for(Jit = L.rbegin(); Jit != KKit; ++Jit){
-#ifdef VERBOSE
-      cout<<"    L_"<<std::distance(L.begin(),Jit.base())<<" is "<<(*Jit)->members<<std::endl;
-#endif
-      //compute I = J inter M(Ki)
-      nodeset * inter = new nodeset();
-      std::set_intersection((*Jit)->members.begin(),(*Jit)->members.end(),
-                              adj[K-1]->begin(),adj[K-1]->end(),
-                                std::inserter(*inter, inter->begin()));
-
-      if(inter->size()>0){
-        //compute I' = J \ M(Ki)
-        nodeset * diff = new nodeset();
-        std::set_difference((*Jit)->members.begin(),(*Jit)->members.end(),
-                              adj[K-1]->begin(),adj[K-1]->end(),
-                                std::inserter(*diff, diff->begin()));
-
-          //cout<<"        intersect is "<<*inter<<std::endl;
-          //cout<<"        diff is "<<*diff<<std::endl;
-
-        if(diff->size()>0){
-          //increase Kit only if we are splitting an original set of L...
-          int curJ =(*Jit)->id;
-          int newJ = -abs(curJ);
-
-          //replace J by I'
-          (*Jit)->members.swap(*diff);
-          (*Jit)->id=newJ;
-          //Insert I before I'
-          ++Jit; 
-          L.insert(Jit.base(),new snode());
-          (*Jit)->members.swap(*inter);
-          (*Jit)->id=newJ;
-
-          --Jit; 
-#ifdef VERBOSE
-          cout<<"B    L_"<<std::distance(L.begin(),Jit.base())<<" is now "<<(*Jit)->members<<std::endl;
-#endif
-          ++Jit; 
-#ifdef VERBOSE
-          cout<<"C    L_"<<std::distance(L.begin(),Jit.base())<<" is now "<<(*Jit)->members<<std::endl;
-#endif
-
-          KKit++;
-        }
-        delete diff;
-        delete inter;
-      }
-      else{
-        delete inter;
-      }
-    }
-#endif
 
     prevK=K;
   }
-TIMER_STOP(REFINE);
-/////
-/////assert(K==0);
-/////
-///////    partitions::iterator it;
-///////    for(it = L.begin();it != L.end(); ++it){
-///////      //logfileptr->OFS()<<"[ ";
-///////      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
-///////      //  logfileptr->OFS()<<*nit<<" ";
-///////      }
-///////      //logfileptr->OFS()<<"] ";
-///////    }
-///////    //logfileptr->OFS()<<std::endl;
-/////
-
-
-
-
+  TIMER_STOP(REFINE);
 
 #ifdef VERBOSE
-    for(it = L.begin();it != L.end(); ++it){
-      cout<<"["<< (*it)->id <<": ";
-      for(nodeset::iterator nit = (*it)->members.begin();nit != (*it)->members.end(); ++nit){
-        cout<<*nit<<" ";
-      }
-      cout<<"] ";
+  for(it = L.begin();it != L.end(); ++it){
+    cout<<"["<< (*it)->id <<": ";
+    for(nodeset::iterator nit = (*it)->members.begin();nit != (*it)->members.end(); ++nit){
+      cout<<*nit<<" ";
     }
-    cout<<std::endl;
+    cout<<"] ";
+  }
+  cout<<std::endl;
 #endif
-
-
-
-
-
-
-
-
 
   //construct perm
-    int pos = 1;
-    for(it = L.begin();it != L.end(); ++it){
-      for(nodeset::iterator nit = (*it)->members.begin();nit != (*it)->members.end(); ++nit){
-        perm[*nit-1] = pos++;
-      }
+  int pos = 1;
+  for(it = L.begin();it != L.end(); ++it){
+    for(nodeset::iterator nit = (*it)->members.begin();nit != (*it)->members.end(); ++nit){
+      perm[*nit-1] = pos++;
     }
+  }
 
 #ifdef VERBOSE
-    cout<<perm<<endl;
+  cout<<perm<<endl;
 #endif
-
-#if 0
-    newXsuper.resize(L.size()+1);
-    pos = 1;
-    int I = 1;
-    newXsuper[I-1] = 1;
-    for(it = L.begin();it != L.end(); ++it){
-      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
-        pos++;
-      }
-      newXsuper[I]=pos;
-      I++;
-    }
-
-    for(it = L.begin();it != L.end(); ++it){
-      cerr<<"[ ";
-      for(nodeset::iterator nit = (*it)->begin();nit != (*it)->end(); ++nit){
-        cerr<<*nit<<" ";
-      }
-      cerr<<"] ";
-    }
-    cerr<<std::endl;
-
-
-
-    for(int i =0;i<newXsuper.size();++i){
-      cerr<<newXsuper[i]<<" ";
-    }
-    cerr<<endl;
-#endif
-
-
-
-
 
 
   for(it = L.begin();it != L.end(); ++it){

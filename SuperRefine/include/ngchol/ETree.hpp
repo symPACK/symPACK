@@ -46,6 +46,7 @@ public:
 
   void PostOrderTree(Ordering & aOrder);
   void DeepestFirst(Ordering & aOrder);
+  inline vector<int> GetParents() const {return parent_;}
 
   ETree ToSupernodalETree(vector<int> & aXsuper,vector<int> & aSupMembership,Ordering & aOrder) const;
 

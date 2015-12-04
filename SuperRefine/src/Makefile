@@ -2,17 +2,22 @@ CC           = mpiicc
 CXX          = mpiicpc
 FC           = mpiifort
 LOADER       = mpiicpc
+#CC           = mpicc 
+#CXX          = mpic++
+#FC           = mpif90
+#LOADER       = mpic++
 
 
 PREFIX = ${HOME}/software
 
 #NGCHOL directory
+#NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/ngchol
 NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/cholesky
 METIS_DIR     = $(PREFIX)/release/metis-5.1.0/build/Linux-x86_64
 PARMETIS_DIR  = $(PREFIX)/release/parmetis-4.0.3/build/Linux-x86_64
-#SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.0
+SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.0
 #SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.4
-SCOTCH_DIR    = $(PREFIX)/release/scotch_5.1.12_esmumps
+#SCOTCH_DIR    = $(PREFIX)/release/scotch_5.1.12_esmumps
 
 #SPARSELIB_DIR = ${NGCHOL_DIR}/MatrixConverter
 #SPARSELIB_INCLUDE = -I${SPARSELIB_DIR}/bebop_util/include -I${SPARSELIB_DIR}/sparse_matrix_converter/include
@@ -39,6 +44,8 @@ LIBS  += ${METIS_LIB} ${GFORTRAN_LIB}
 COMPILE_DEF += -fopenmp -std=c++11 -DAdd_ -DPROFILE 
 COMPILE_DEF += -DUSE_METIS
 COMPILE_DEF += -DUSE_SCOTCH
+COMPILE_DEF += -DFUNDAMENTAL
+#COMPILE_DEF += -DRELAXED_SNODE
 
 CFLAGS       = ${COMPILE_FLAG} ${INCLUDES}
 FFLAGS       = ${COMPILE_FLAG} ${INCLUDES}
@@ -62,7 +69,7 @@ LOADOPTS     = ${PROFILE_FLAG} ${LIBS} -fopenmp
 	rm -f $@.$$$$
 
 SRCS_C   = iohb.c 
-SRCS_CPP = ETree.cpp SparseMatrixStructure.cpp Ordering.cpp main.cpp timer.cpp LogFile.cpp 
+SRCS_CPP = ETree.cpp SparseMatrixStructure.cpp Ordering.cpp main.cpp timer.cpp LogFile.cpp symbol_reordering.cpp  
 SRCS_F   = genmmd.f  mmdelm.f  mmdint.f  mmdnum.f  mmdupd.f  ordmmd.f amdbar.f
 
 OBJS     = ${UPCXX_CPP:.cpp=.o} ${SRCS_CPP:.cpp=.o} ${SRCS_C:.c=.o} ${SRCS_F:.f=.o}
