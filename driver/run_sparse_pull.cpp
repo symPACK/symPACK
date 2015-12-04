@@ -456,11 +456,13 @@ int main(int argc, char **argv)
 
 
   upcxx::finalize();
+#if 0
   int finalized = 0;
   MPI_Finalized(&finalized);
   if(!finalized){ 
     MPI_Finalize();
   }
+#endif
   return 0;
 }
 
