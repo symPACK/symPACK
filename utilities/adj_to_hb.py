@@ -51,6 +51,7 @@ if n!=-1 and m!=-1 and nnz!=-1:
     old_rowind = rowind
     colptr = []
     rowind = []
+    nzval = []
     colptr.append(1)
     for col in range(1, n+1):
       colbeg = old_colptr[col-1]
@@ -59,6 +60,12 @@ if n!=-1 and m!=-1 and nnz!=-1:
         row = old_rowind[i-1]
         if(row>=col):
           rowind.append(row)
+
+        if(row>col):
+          nzval.append(1E-4)
+        elif(row==col):
+          nzval.append(100)
+
       colptr.append(len(rowind))
     nnz = colptr[-1]-1
 
@@ -89,7 +96,7 @@ if n!=-1 and m!=-1 and nnz!=-1:
        sys.stdout.write(( "%%%dd" % lenm ) % val)
     sys.stdout.write('\n')
 
-    for idx,val in enumerate(rowind):
+    for idx,val in enumerate(nzval):
        if(idx!=0 and idx % numElemNzval == 0):
           sys.stdout.write('\n')
        sys.stdout.write(( "%%%d.12E" % lenmnz ) % float(val))
