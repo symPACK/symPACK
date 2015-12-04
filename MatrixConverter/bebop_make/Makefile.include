@@ -71,8 +71,8 @@ DYLIB_CREATE_FLAG=-shared
 ##
 ## Compiler, linker, and shell settings.
 ##
-CC = gcc
-LINKER = gcc
+CC = cc
+LINKER = cc
 AR = ar
 ARFLAGS = rvu
 RM = rm -f
@@ -85,7 +85,7 @@ RM = rm -f
 ##
 FPIC_FLAG = -fPIC
 CFLAGS_DEBUG= -g -Wall
-CFLAGS_OPT= -g -O3
+CFLAGS_OPT= -g -O2
 CPPFLAGS= 
 LIBS= 
 LDFLAGS=

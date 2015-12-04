@@ -118,17 +118,17 @@ Int SharedWrite(std::string name, std::ostringstream& os)
 Int SeparateWriteAscii(std::string name, std::ostringstream& os)
 {
   MPI_Barrier(MPI_COMM_WORLD);
-  int mpirank;  MPI_Comm_rank(MPI_COMM_WORLD, &mpirank);
-  int mpisize;  MPI_Comm_size(MPI_COMM_WORLD, &mpisize);
-  //
-  char filename[100];
-  sprintf(filename, "%s_%d_%d", name.c_str(), mpirank, mpisize);
-  ofstream fout(filename, ios::trunc);
-	if( !fout.good() ){
-		throw std::logic_error( "File cannot be opened!" );
-	}
-  fout<<os;
-  fout.close();
+/////  int mpirank;  MPI_Comm_rank(MPI_COMM_WORLD, &mpirank);
+/////  int mpisize;  MPI_Comm_size(MPI_COMM_WORLD, &mpisize);
+/////  //
+/////  char filename[100];
+/////  sprintf(filename, "%s_%d_%d", name.c_str(), mpirank, mpisize);
+/////  ofstream fout(filename, ios::trunc);
+/////	if( !fout.good() ){
+/////		throw std::logic_error( "File cannot be opened!" );
+/////	}
+/////  fout<<os;
+/////  fout.close();
   //
   MPI_Barrier(MPI_COMM_WORLD);
   return 0;
