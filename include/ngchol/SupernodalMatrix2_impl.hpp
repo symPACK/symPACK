@@ -36,9 +36,9 @@ template <typename T> void SupernodalMatrix2<T>::Factorize(){
   logfileptr->OFS()<<"Local number of messages: "<<gNumMsg<<endl;
 
   size_t totalVolComm = 0;
-  team_->reduce(&gVolComm,&totalVolComm,1,0,UPCXX_SUM,UPCXX_LONG);
+  team_->reduce(&gVolComm,&totalVolComm,1,0,UPCXX_SUM);
   size_t totalNumMsg = 0;
-  team_->reduce(&gNumMsg,&totalNumMsg,1,0,UPCXX_SUM,UPCXX_LONG);
+  team_->reduce(&gNumMsg,&totalNumMsg,1,0,UPCXX_SUM);
 
   if(iam==0){
     cout<<"Total volume of communication: "<<totalVolComm<<endl;

@@ -29,6 +29,25 @@ for line in fileinput.input():
 
 
 if n!=-1 and m!=-1 and nnz!=-1:
+    #add diagonal entries to colptr and rowind
+    nnz = nnz + n
+    old_colptr = colptr
+    colptr = [ x+i for i,x in enumerate(colptr) ]
+    old_rowind = rowind
+    rowind = []
+    for col in range(1, n+1):
+      colbeg = old_colptr[col-1]
+      colend = old_colptr[col]-1
+      rowind.append(col)
+      for i in range(colbeg,colend+1):
+        row = old_rowind[i-1]
+        rowind.append(row)
+
+      colbeg = colptr[col-1]
+      colend = colptr[col]-1
+      rowind[colbeg-1:colend] = sorted(rowind[colbeg-1:colend])
+
+
     #print prev HB file
     lennnz = len("%d" % nnz)+1
     lenm = len("%d" % m)+1
