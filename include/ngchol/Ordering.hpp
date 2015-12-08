@@ -20,6 +20,7 @@ class Ordering{
     void SetStructure(SparseMatrixStructure & aGlobal);
     void MMD();
     void AMD();
+    void NDBOX();
 
 #ifdef USE_METIS
     void METIS();

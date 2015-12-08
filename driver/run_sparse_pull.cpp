@@ -143,6 +143,9 @@ int main(int argc, char **argv)
     if(options["-ordering"].front()=="AMD"){
       optionsFact.ordering = AMD;
     }
+    else if(options["-ordering"].front()=="NDBOX"){
+      optionsFact.ordering = NDBOX;
+    }
 #ifdef USE_SCOTCH
     else if(options["-ordering"].front()=="SCOTCH"){
       optionsFact.ordering = SCOTCH;
@@ -351,6 +354,7 @@ int main(int argc, char **argv)
 
       //SMat->Dump();
 
+#ifndef _NO_COMPUTATION_
       timeSta = get_time();
       TIMER_START(FACTORIZATION);
       SMat->Factorize();
@@ -382,11 +386,14 @@ int main(int argc, char **argv)
       //  SMat->Dump();
 #endif
 
+#endif
+
       delete SMat;
 
     }
 
 
+#ifndef _NO_COMPUTATION_
 #ifdef _CHECK_RESULT_
     {
       SparseMatrixStructure Local = HMat.GetLocalStructure();
@@ -422,6 +429,7 @@ int main(int argc, char **argv)
         cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
       }
     }
+#endif
 #endif
 
     delete optionsFact.commEnv;

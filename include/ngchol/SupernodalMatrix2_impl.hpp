@@ -1102,6 +1102,9 @@ logfileptr->OFS()<<"Structure set"<<endl;
       case AMD:
         Order_.AMD();
         break;
+      case NDBOX:
+        Order_.NDBOX();
+        break;
 #ifdef USE_SCOTCH
       case SCOTCH:
         Order_.SCOTCH();
@@ -1392,6 +1395,23 @@ else if(options.load_balance_str=="NNZ"){
           for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
         } 
     TIMER_STOP(LOAD_BALANCE);
+
+
+   int64_t NNZ = 0;
+    for(Int I = 1; I<Xsuper_.m(); ++I){
+            Int width = Xsuper_[I] - Xsuper_[I-1];
+          Ptr fi = xlindx_(I-1)+width;
+          Ptr li = xlindx_(I)-1;
+          Int height = li-fi+1;
+        for(int i=0;i<width;++i){
+          NNZ+=width-i;
+        }
+
+        NNZ+=width*height;
+    }
+if(iam==0){
+  cout<<"NNZ in L factor: "<<NNZ<<endl;
+}
 
 ////    switch(options.load_balance){
 ////      case SUBCUBE:
@@ -1717,6 +1737,7 @@ else if(options.load_balance_str=="NNZ"){
 //    this->Mapping_->Dump(2*np);
 #endif
 
+#ifndef _NO_COMPUTATION_
     TIMER_START(Get_UpdateCount);
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_,UpdateHeight_);
     TIMER_STOP(Get_UpdateCount);
@@ -2347,6 +2368,7 @@ else if(options.load_balance_str=="NNZ"){
     //lindx_.Clear();
     //delete Local_;
     //delete Global_;
+#endif
 
     MPI_Barrier(CommEnv_->MPI_GetComm());
 
