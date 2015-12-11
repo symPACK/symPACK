@@ -33,6 +33,8 @@ if n!=-1 and m!=-1 and nnz!=-1:
     nnz = nnz + n
     old_colptr = colptr
     colptr = [ x+i for i,x in enumerate(colptr) ]
+
+
     old_rowind = rowind
     rowind = []
     for col in range(1, n+1):
@@ -51,7 +53,6 @@ if n!=-1 and m!=-1 and nnz!=-1:
     old_rowind = rowind
     colptr = []
     rowind = []
-    nzval = []
     colptr.append(1)
     for col in range(1, n+1):
       colbeg = old_colptr[col-1]
@@ -60,14 +61,24 @@ if n!=-1 and m!=-1 and nnz!=-1:
         row = old_rowind[i-1]
         if(row>=col):
           rowind.append(row)
+      colptr.append(len(rowind)+1)
+
+
+    nnz = colptr[-1]-1
+
+    nzval = []
+    for col in range(1, n+1):
+      colbeg = colptr[col-1]
+      colend = colptr[col]-1
+      for i in range(colbeg,colend+1):
+        row = rowind[i-1]
 
         if(row>col):
           nzval.append(1E-4)
         elif(row==col):
           nzval.append(100)
 
-      colptr.append(len(rowind))
-    nnz = colptr[-1]-1
+
 
     #print prev HB file
     lennnz = len("%d" % nnz)+1

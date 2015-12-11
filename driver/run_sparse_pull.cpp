@@ -151,6 +151,12 @@ int main(int argc, char **argv)
       optionsFact.ordering = SCOTCH;
     }
 #endif
+#ifdef USE_METIS
+    else if(options["-ordering"].front()=="METIS"){
+      optionsFact.ordering = METIS;
+    }
+#endif
+
     else{
       optionsFact.ordering = MMD;
     }
