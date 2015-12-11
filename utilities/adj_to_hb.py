@@ -95,7 +95,7 @@ if n!=-1 and m!=-1 and nnz!=-1:
     print "%14d%14d%14d%14d" % (numRowColptr+numRowRowind+numRowNzval,numRowColptr,numRowRowind,numRowNzval)
     print "rsa           %14d%14d%14d%14d" % (m,n,nnz,0)
     #print "%s%s%s" % ( '{:<16}'.format("(%dI%d)" %(numElemColptr,lennnz)), '{:<16}'.format("(%dI%d)" %(numElemRowind,lenm)) , '{:<20}'.format("(%dE%d.12)" %(numElemNzval,lenmnz)))
-    print "%s%s%s" % ( '{{0}:<16}'.format("(%dI%d)" %(numElemColptr,lennnz)), '{{0}:<16}'.format("(%dI%d)" %(numElemRowind,lenm)) , '{{0}:<20}'.format("(%dE%d.12)" %(numElemNzval,lenmnz)))
+    print "%s%s%s" % ( '{0:<16}'.format("(%dI%d)" %(numElemColptr,lennnz)), '{0:<16}'.format("(%dI%d)" %(numElemRowind,lenm)) , '{0:<20}'.format("(%dE%d.12)" %(numElemNzval,lenmnz)))
     for idx,val in enumerate(colptr):
        if(idx!=0 and idx % numElemColptr == 0):
           sys.stdout.write('\n')
