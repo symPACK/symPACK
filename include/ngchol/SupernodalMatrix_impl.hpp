@@ -268,10 +268,6 @@ logfileptr->OFS()<<"ETREE done"<<endl;
 
 logfileptr->OFS()<<"Supernodes found"<<endl;
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 1a872570a77db18b529e4cf8848b080f3f96dd77
 if(options_.relax.nrelax0>=0){
     Global_.RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
     logfileptr->OFS()<<"Relaxation done"<<endl;
@@ -280,11 +276,6 @@ if(options_.relax.nrelax0>=0){
 else{
     Global_.SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
 }
-<<<<<<< HEAD
-
-
-=======
->>>>>>> 1a872570a77db18b529e4cf8848b080f3f96dd77
 
 logfileptr->OFS()<<"Symbfact done"<<endl;
 
