@@ -7,7 +7,7 @@
 #include <scotch.h>
 #endif
 
-#define USE_METIS_INC
+//#define USE_METIS_INC
 #ifdef USE_METIS_INC
 #include <metis.h>
 #endif
@@ -99,7 +99,7 @@ void Ordering::NDBOX(){
     assert(pStructure!=NULL);
 
     if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
-			throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call 3DBOX\n" );
+			throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call NDBOX\n" );
     }
 
     Int k = std::ceil(std::pow(pStructure->size,1.0/3.0));
@@ -115,6 +115,28 @@ void Ordering::NDBOX(){
       }
 
 }
+
+void Ordering::NDGRID(){
+    assert(pStructure!=NULL);
+
+    if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
+			throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call NDGRID\n" );
+    }
+
+    Int k = std::ceil(std::pow(pStructure->size,1.0/2.0));
+    invp.Resize(pStructure->size);
+    perm.Resize(pStructure->size);
+    Int iflag =0;
+
+    FORTRAN(gridnd)( &k , &k, &invp[0], &perm[0], &iflag);
+
+      for(Int i = 1; i <= invp.m(); ++i){
+        Int node = invp[i-1];
+        perm[node-1] = i;
+      }
+
+}
+
 
 void Ordering::AMD(){
     assert(pStructure!=NULL);

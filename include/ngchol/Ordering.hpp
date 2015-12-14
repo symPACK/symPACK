@@ -21,6 +21,7 @@ class Ordering{
     void MMD();
     void AMD();
     void NDBOX();
+    void NDGRID();
 
 #ifdef USE_METIS
     void METIS();

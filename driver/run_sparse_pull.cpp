@@ -146,6 +146,9 @@ int main(int argc, char **argv)
     else if(options["-ordering"].front()=="NDBOX"){
       optionsFact.ordering = NDBOX;
     }
+    else if(options["-ordering"].front()=="NDGRID"){
+      optionsFact.ordering = NDGRID;
+    }
 #ifdef USE_SCOTCH
     else if(options["-ordering"].front()=="SCOTCH"){
       optionsFact.ordering = SCOTCH;

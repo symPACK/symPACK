@@ -1105,6 +1105,9 @@ logfileptr->OFS()<<"Structure set"<<endl;
       case NDBOX:
         Order_.NDBOX();
         break;
+      case NDGRID:
+        Order_.NDGRID();
+        break;
 #ifdef USE_SCOTCH
       case SCOTCH:
         Order_.SCOTCH();

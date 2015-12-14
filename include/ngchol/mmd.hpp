@@ -16,6 +16,7 @@ void FORTRAN(amdbar) (Int * N, Int * PE, Int * IW, Int * LEN, Int * IWLEN, Int *
          LAST, Int * HEAD, Int * ELEN, Int * DEGREE, Int * NCMPA, Int * W, Int * IOVFLO);
 
 void FORTRAN(boxnd) (Int * P, Int * Q, Int * R, Int * IPERM, Int * WORK, Int * IERROR);
+void FORTRAN(gridnd) (Int * P, Int * Q, Int * IPERM, Int * WORK, Int * IERROR);
 
  }
 

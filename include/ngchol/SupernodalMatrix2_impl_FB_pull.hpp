@@ -144,39 +144,39 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   TIMER_STOP(BUILD_TASK_LIST);
 
 #ifdef _DEBUG_UPDATES_
-<<<<<<< HEAD
-  logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
-  logfileptr->OFS()<<"AggregatesToRecv: "<<AggregatesToRecv<<endl;
-  logfileptr->OFS()<<"LocalAggregates: "<<LocalAggregates<<endl;
-
-
-  Int cnt = 0;
-  logfileptr->OFS()<<"All Tasks: "<<endl;
-  for(Int I = 1; I<Xsuper_.m(); ++I){
-    logfileptr->OFS()<<I<<": "<<endl;
-    if(taskLists_[I-1]!=NULL){
-      for(auto taskit = taskLists_[I-1]->begin();
-          taskit!=taskLists_[I-1]->end();
-          taskit++){
-        logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
-        cnt++;
-      }
-    }
-    logfileptr->OFS()<<endl;
-  }
-  assert(localTaskCount_ == cnt);
-
-  logfileptr->OFS()<<"Ready Tasks: "<<endl;
-  auto tmp = scheduler_->GetQueue();
-  //std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
-  while(!tmp.empty()){
-    auto taskit = tmp.top();
-    logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
-    tmp.pop();
-  }
-  logfileptr->OFS()<<endl;
-
-=======
+//<<<<<<< HEAD
+//  logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
+//  logfileptr->OFS()<<"AggregatesToRecv: "<<AggregatesToRecv<<endl;
+//  logfileptr->OFS()<<"LocalAggregates: "<<LocalAggregates<<endl;
+//
+//
+//  Int cnt = 0;
+//  logfileptr->OFS()<<"All Tasks: "<<endl;
+//  for(Int I = 1; I<Xsuper_.m(); ++I){
+//    logfileptr->OFS()<<I<<": "<<endl;
+//    if(taskLists_[I-1]!=NULL){
+//      for(auto taskit = taskLists_[I-1]->begin();
+//          taskit!=taskLists_[I-1]->end();
+//          taskit++){
+//        logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
+//        cnt++;
+//      }
+//    }
+//    logfileptr->OFS()<<endl;
+//  }
+//  assert(localTaskCount_ == cnt);
+//
+//  logfileptr->OFS()<<"Ready Tasks: "<<endl;
+//  auto tmp = scheduler_->GetQueue();
+//  //std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
+//  while(!tmp.empty()){
+//    auto taskit = tmp.top();
+//    logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
+//    tmp.pop();
+//  }
+//  logfileptr->OFS()<<endl;
+//
+//=======
 ////  logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
 ////  logfileptr->OFS()<<"AggregatesToRecv: "<<AggregatesToRecv<<endl;
 ////  logfileptr->OFS()<<"LocalAggregates: "<<LocalAggregates<<endl;
@@ -207,7 +207,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
 ////  }
 ////  logfileptr->OFS()<<endl;
 ////
->>>>>>> 1a872570a77db18b529e4cf8848b080f3f96dd77
+//>>>>>>> 1a872570a77db18b529e4cf8848b080f3f96dd77
 #endif
   TIMER_STOP(FB_INIT);
 
