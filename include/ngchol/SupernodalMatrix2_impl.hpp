@@ -1123,6 +1123,11 @@ logfileptr->OFS()<<"Structure set"<<endl;
         Order_.PARMETIS(CommEnv_->MPI_GetComm());
         break;
 #endif
+#ifdef USE_PTSCOTCH
+      case PTSCOTCH:
+        Order_.PTSCOTCH(CommEnv_->MPI_GetComm());
+        break;
+#endif
       default:
         Order_.MMD();
         break;

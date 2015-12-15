@@ -164,7 +164,11 @@ int main(int argc, char **argv)
       optionsFact.ordering = PARMETIS;
     }
 #endif
-
+#ifdef USE_PTSCOTCH
+    else if(options["-ordering"].front()=="PTSCOTCH"){
+      optionsFact.ordering = PTSCOTCH;
+    }
+#endif
     else{
       optionsFact.ordering = MMD;
     }

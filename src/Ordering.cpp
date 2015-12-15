@@ -6,17 +6,22 @@
 #ifdef USE_SCOTCH
 #include <scotch.h>
 #endif
+#ifdef USE_PTSCOTCH
+#include <ptscotch.h>
+#endif
 
 //#define USE_METIS_INC
 //#ifdef USE_METIS_INC
 //#include <metis.h>
+//#define METIS_NOPTIONS 40
+//#define METIS_NOPTIONS 40
 //#endif
 
 
 namespace LIBCHOLESKY {
 
   extern "C" {
-    int metis_nodend (int * N     , int* XADJ2 , int* ADJ2  , int * VWGT, int* OPTION, int* dback , int* dforw);
+    int METIS_NodeND (int * N     , int* XADJ2 , int* ADJ2  , int * VWGT, int* OPTION, int* dback , int* dforw);
     int ParMETIS_V3_NodeND(int * vtxdist  , int* XADJ , int* ADJ  , int * numflag, int* OPTION, int* order , int* sizes, MPI_Comm * comm);
   }
 
@@ -269,7 +274,13 @@ void Ordering::AMD(){
     //    cout<<tmpXadj<<endl;
     //    cout<<tmpAdj<<endl;
 
-    metis_nodend( &N, &tmpXadj[0] , &tmpAdj[0]  , NULL , NULL, &perm[0] , &invp[0] );
+#ifdef SCOTCH_METIS
+    Int numflag = 0;
+    METIS_NodeND( &N, &tmpXadj[0] , &tmpAdj[0]  , &numflag , NULL, &perm[0] , &invp[0] );
+#else
+    METIS_NodeND( &N, &tmpXadj[0] , &tmpAdj[0]  , NULL , NULL, &perm[0] , &invp[0] );
+#endif
+
 //#ifdef USE_METIS_INC
 //    metis_nodend( &N, &tmpXadj[0] , &tmpAdj[0]  , NULL , NULL, &perm[0] , &invp[0] );
 //#else
@@ -299,10 +310,15 @@ void Ordering::PARMETIS(MPI_Comm & comm){
   }
 
 
+  int baseval = 1;
   int N = pStructure->size; 
   invp.Resize(N);
   perm.Resize(N);
   int ndomains = (int)pow(2.0,std::floor(std::log2(np)));
+
+  MPI_Comm ndcomm;
+  Int mpirank;
+  MPI_Comm_split(comm,iam<ndomains,mpirank,&ndcomm);
   if(iam<ndomains){
     vector<int> sizes(2*ndomains);
     vector<int> vtxdist(ndomains+1);
@@ -310,12 +326,12 @@ void Ordering::PARMETIS(MPI_Comm & comm){
     int localN = N/ndomains;
     int fc = (iam)*localN+1;
     //build vtxdist vector
-    for(int i = 0; i<ndomains;++i){ vtxdist[i] = i*localN+1; } vtxdist[ndomains] = N+1;
+    for(int i = 0; i<ndomains;++i){ vtxdist[i] = i*localN+baseval; } vtxdist[ndomains] = N+baseval;
     if(iam==ndomains-1){
       localN = N - (ndomains-1)*localN;
     }
-logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
-logfileptr->OFS()<<"ndomains = "<<ndomains<<endl;
+    logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
+    logfileptr->OFS()<<"ndomains = "<<ndomains<<endl;
 
     //build local colptr and count nnz in local rowind
     vector<int> tmpXadj(localN+1);
@@ -347,55 +363,67 @@ logfileptr->OFS()<<"ndomains = "<<ndomains<<endl;
       }
     }
 
+    
     //switch everything to 0 based
-    //for(int col=0; col<tmpXadj.size();++col){ tmpXadj[col]--;}
-    //for(int col=0; col<tmpAdj.size();++col){ tmpAdj[col]--;}
+    logfileptr->OFS()<<tmpXadj<<endl;
+    for(int col=0; col<localN+1;++col){ tmpXadj[col]+=(baseval-1);}
+    logfileptr->OFS()<<tmpXadj<<endl;
+    logfileptr->OFS()<<tmpAdj<<endl;
+    for(int col=0; col<localNNZ;++col){ tmpAdj[col]+=(baseval-1);}
+    logfileptr->OFS()<<tmpAdj<<endl;
 
     int options[3];
     options[0] = 0;
-    int numflag = 1;
+    int numflag = baseval;
 
-logfileptr->OFS()<<tmpXadj<<endl;
-logfileptr->OFS()<<tmpAdj<<endl;
 
-    ParMETIS_V3_NodeND( &vtxdist[0], &tmpXadj[0] , &tmpAdj[0], &numflag, &options[0], &perm[0], &sizes[0], &comm );
-//    ParMETIS_V3_NodeND( &vtxdist[0], &tmpXadj[0] , &tmpAdj[0], &numflag, &options[0], &invp[0], &sizes[0], &comm );
+    int npnd;
+    MPI_Comm_size (ndcomm, &npnd);
+    logfileptr->OFS()<<"PROC ND: "<<npnd<<endl;
+    ParMETIS_V3_NodeND( &vtxdist[0], &tmpXadj[0] , &tmpAdj[0], &numflag, &options[0], &perm[0], &sizes[0], &ndcomm );
+    //    ParMETIS_V3_NodeND( &vtxdist[0], &tmpXadj[0] , &tmpAdj[0], &numflag, &options[0], &invp[0], &sizes[0], &comm );
 
-logfileptr->OFS()<<"Sizes: "<<sizes<<endl;
-logfileptr->OFS()<<"Order: "<<endl;
-for(int i =0;i<localN;++i){
-  //logfileptr->OFS()<<invp[i]<<" ";
-  logfileptr->OFS()<<perm[i]<<" ";
-}
-logfileptr->OFS()<<endl;
+    logfileptr->OFS()<<"Sizes: "<<sizes<<endl;
+    logfileptr->OFS()<<"Order: "<<endl;
+    for(int i =0;i<localN;++i){
+      //logfileptr->OFS()<<invp[i]<<" ";
+      logfileptr->OFS()<<perm[i]<<" ";
+    }
+    logfileptr->OFS()<<endl;
 
-    
+
     //compute displs
     vector<int> mpidispls(ndomains,0);
     vector<int> mpisizes(ndomains,0);
     for(int p = 1;p<=ndomains;++p){
       mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(int);
-      mpidispls[p-1] = (vtxdist[p-1]-1)*sizeof(int);
+      mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(int);
     }
 
     //gather on the root
-    MPI_Gatherv(&perm[0],mpisizes[iam],MPI_BYTE,&invp[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,comm);
-//    MPI_Gatherv(&invp[0],mpisizes[iam],MPI_BYTE,&perm[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,comm);
+    MPI_Gatherv(&perm[0],mpisizes[iam],MPI_BYTE,&invp[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,ndcomm);
+    //    MPI_Gatherv(&invp[0],mpisizes[iam],MPI_BYTE,&perm[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,comm);
 
-logfileptr->OFS()<<"Full Order: "<<endl;
-for(int i =0;i<N;++i){
-  logfileptr->OFS()<<invp[i]<<" ";
-  //logfileptr->OFS()<<perm[i]<<" ";
-}
-logfileptr->OFS()<<endl;
+    if(iam==0){
+      //switch everything to 1 based
+      for(int col=0; col<N;++col){ invp[col]+=(1-baseval);}
+
+      logfileptr->OFS()<<"Full Order: "<<endl;
+      for(int i =0;i<N;++i){
+        logfileptr->OFS()<<invp[i]<<" ";
+        //logfileptr->OFS()<<perm[i]<<" ";
+      }
+      logfileptr->OFS()<<endl;
+    }
 
 
   }
 
+  MPI_Comm_free(&ndcomm);
+
   // broadcast invp
   MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,comm);
-
-  for(Int i = 1; i <= invp.m(); ++i){
+  for(Int i = 1; i <=N; ++i){
     Int node = invp[i-1];
     perm[node-1] = i;
   }
@@ -546,8 +574,171 @@ void Ordering::SCOTCH(){
 
 
 
+#ifdef USE_PTSCOTCH
+    void Ordering::PTSCOTCH(MPI_Comm & comm){
+
+      logfileptr->OFS()<<"PTSCOTCH used"<<endl;
+      if(iam==0){cout<<"PTSCOTCH used"<<endl;}
+
+      assert(pStructure!=NULL);
+
+      if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
+        throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call PTSCOTCH\n" );
+      }
 
 
+      int baseval = 0;
+      int N = pStructure->size; 
+      invp.Resize(N);
+      perm.Resize(N);
+      int ndomains = (int)pow(2.0,std::floor(std::log2(np)));
+
+      MPI_Comm ndcomm;
+      Int mpirank;
+      MPI_Comm_split(comm,iam<ndomains,mpirank,&ndcomm);
+      if(iam<ndomains){
+        vector<int> vtxdist(ndomains+1);
+
+        int localN = N/ndomains;
+        int fc = (iam)*localN+1;
+        //build vtxdist vector
+        for(int i = 0; i<ndomains;++i){ vtxdist[i] = i*localN+baseval; } vtxdist[ndomains] = N+baseval;
+        if(iam==ndomains-1){
+          localN = N - (ndomains-1)*localN;
+        }
+        logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
+        logfileptr->OFS()<<"ndomains = "<<ndomains<<endl;
+
+        //build local colptr and count nnz in local rowind
+        vector<int> tmpXadj(localN+1);
+        Ptr localNNZ = 0;
+        int offset = pStructure->expColptr[fc-1]-1;
+        tmpXadj[1-1] = 1;
+        for(int col=1; col<=localN;++col){
+          int column = col + fc -1;
+          Ptr colbeg = pStructure->expColptr[column-1];
+          Ptr colend = pStructure->expColptr[column]-1;
+          //remove self from adjacency list
+          tmpXadj[col] = tmpXadj[col-1] + colend - colbeg + 1 - 1;
+          //logfileptr->OFS()<<col<<" <-> "<<column<<" | "<<colbeg<<"--"<<colend<<" <-> "<<tmpXadj[col-1]<<"--"<<tmpXadj[col]-1<<endl;
+          localNNZ+=colend-colbeg+1;
+        }
+
+        //build local rowind, discarding self
+        vector<int> tmpAdj;
+        tmpAdj.reserve(localNNZ);
+        for(int col=1; col<=localN;++col){
+          int column = col + fc -1;
+          Ptr colbeg = pStructure->expColptr[column-1];
+          Ptr colend = pStructure->expColptr[column]-1;
+          for(Ptr j=colbeg; j<=colend;++j){
+            int row = pStructure->expRowind[j-1];
+            if(row!=column){
+              tmpAdj.push_back(row);
+            }
+          }
+        }
+
+
+        //switch everything to 0 based
+        logfileptr->OFS()<<tmpXadj<<endl;
+        for(int col=0; col<localN+1;++col){ tmpXadj[col]+=(baseval-1);}
+        logfileptr->OFS()<<tmpXadj<<endl;
+        logfileptr->OFS()<<tmpAdj<<endl;
+        for(int col=0; col<localNNZ;++col){ tmpAdj[col]+=(baseval-1);}
+        logfileptr->OFS()<<tmpAdj<<endl;
+
+        int options[3];
+        options[0] = 0;
+        int numflag = baseval;
+
+
+        int npnd;
+        MPI_Comm_size (ndcomm, &npnd);
+        logfileptr->OFS()<<"PROC ND: "<<npnd<<endl;
+
+
+
+        SCOTCH_Dgraph       grafdat;                    /* Scotch distributed graph object to interface with libScotch    */
+        SCOTCH_Dordering    ordedat;                    /* Scotch distributed ordering object to interface with libScotch */
+        SCOTCH_Strat        stradat;
+        SCOTCH_Num          vertlocnbr;
+        SCOTCH_Num          edgelocnbr;
+
+        assert(SCOTCH_dgraphInit (&grafdat, ndcomm) == 0);
+
+        vertlocnbr = vtxdist[iam + 1] - vtxdist[iam];
+        edgelocnbr = tmpXadj[vertlocnbr] - baseval;
+
+        if (SCOTCH_dgraphBuild (&grafdat, baseval,
+              vertlocnbr, vertlocnbr, &tmpXadj[0], NULL, NULL, NULL,
+              edgelocnbr, edgelocnbr, &tmpAdj[0], NULL, NULL) == 0) {
+          SCOTCH_stratInit (&stradat);
+          {
+            if (SCOTCH_dgraphOrderInit (&grafdat, &ordedat) == 0) {
+              SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat);
+              SCOTCH_dgraphOrderPerm    (&grafdat, &ordedat, &perm[0]);
+              SCOTCH_dgraphOrderExit (&grafdat, &ordedat);
+            }
+          }
+          SCOTCH_stratExit (&stradat);
+        }
+        SCOTCH_dgraphExit (&grafdat);
+
+
+        logfileptr->OFS()<<"Order: "<<endl;
+        for(int i =0;i<localN;++i){
+          //logfileptr->OFS()<<invp[i]<<" ";
+          logfileptr->OFS()<<perm[i]<<" ";
+        }
+        logfileptr->OFS()<<endl;
+
+
+        //compute displs
+        vector<int> mpidispls(ndomains,0);
+        vector<int> mpisizes(ndomains,0);
+        for(int p = 1;p<=ndomains;++p){
+          mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(int);
+          mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(int);
+        }
+
+        //gather on the root
+        MPI_Gatherv(&perm[0],mpisizes[iam],MPI_BYTE,&invp[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,ndcomm);
+        //    MPI_Gatherv(&invp[0],mpisizes[iam],MPI_BYTE,&perm[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,comm);
+
+        if(iam==0){
+          //switch everything to 1 based
+          for(int col=0; col<N;++col){ invp[col]+=(1-baseval);}
+
+          logfileptr->OFS()<<"Full Order: "<<endl;
+          for(int i =0;i<N;++i){
+            logfileptr->OFS()<<invp[i]<<" ";
+            //logfileptr->OFS()<<perm[i]<<" ";
+          }
+          logfileptr->OFS()<<endl;
+        }
+
+
+      }
+
+      MPI_Comm_free(&ndcomm);
+
+      // broadcast invp
+      MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,comm);
+      for(Int i = 1; i <=N; ++i){
+        Int node = invp[i-1];
+        perm[node-1] = i;
+      }
+
+      //  // broadcast perm
+      //  MPI_Bcast(&perm[0],N*sizeof(int),MPI_BYTE,0,comm);
+      //
+      //  for(Int i = 1; i <= perm.m(); ++i){
+      //    Int node = perm[i-1];
+      //    invp[node-1] = i;
+      //  }
+    }
+#endif
 
 
 
