@@ -8,15 +8,16 @@
 #endif
 
 //#define USE_METIS_INC
-#ifdef USE_METIS_INC
-#include <metis.h>
-#endif
+//#ifdef USE_METIS_INC
+//#include <metis.h>
+//#endif
 
 
 namespace LIBCHOLESKY {
 
   extern "C" {
     int metis_nodend (int * N     , int* XADJ2 , int* ADJ2  , int * VWGT, int* OPTION, int* dback , int* dforw);
+    int ParMETIS_V3_NodeND(int * vtxdist  , int* XADJ , int* ADJ  , int * numflag, int* OPTION, int* order , int* sizes, MPI_Comm * comm);
   }
 
 
@@ -103,12 +104,17 @@ void Ordering::NDBOX(){
     }
 
     Int k = std::ceil(std::pow(pStructure->size,1.0/3.0));
+logfileptr->OFS()<<"BOX K = "<<k<<endl;
     invp.Resize(pStructure->size);
+    Int iflag =1;
+
+    {
+      vector<Int> stack(k*k>25?invp.m():2*invp.m());
+      Int tmp = stack.size();
+    FORTRAN(boxnd)( &k , &k, &k, &invp[0], &stack[0],&tmp, &iflag);
+    }
+
     perm.Resize(pStructure->size);
-    Int iflag =0;
-
-    FORTRAN(boxnd)( &k , &k, &k, &invp[0], &perm[0], &iflag);
-
       for(Int i = 1; i <= invp.m(); ++i){
         Int node = invp[i-1];
         perm[node-1] = i;
@@ -125,16 +131,25 @@ void Ordering::NDGRID(){
 
     Int k = std::ceil(std::pow(pStructure->size,1.0/2.0));
     invp.Resize(pStructure->size);
+    Int iflag =1;
+
+logfileptr->OFS()<<"GRID K = "<<k<<endl;
+
+    {
+      vector<Int> stack(k*k>25?invp.m():2*invp.m());
+      Int tmp = stack.size();
+    FORTRAN(gridnd)( &k , &k, &invp[0], &stack[0],&tmp, &iflag);
+assert(iflag==0);
+    }
+
     perm.Resize(pStructure->size);
-    Int iflag =0;
-
-    FORTRAN(gridnd)( &k , &k, &invp[0], &perm[0], &iflag);
-
       for(Int i = 1; i <= invp.m(); ++i){
         Int node = invp[i-1];
         perm[node-1] = i;
       }
 
+  logfileptr->OFS()<<"perm "<<perm<<endl;
+  logfileptr->OFS()<<"invperm "<<invp<<endl;
 }
 
 
@@ -186,8 +201,6 @@ void Ordering::AMD(){
 //    Permute(perm);
 
 }
-
-
 
 
 #ifdef USE_METIS
@@ -256,12 +269,13 @@ void Ordering::AMD(){
     //    cout<<tmpXadj<<endl;
     //    cout<<tmpAdj<<endl;
 
-#ifdef USE_METIS_INC
     metis_nodend( &N, &tmpXadj[0] , &tmpAdj[0]  , NULL , NULL, &perm[0] , &invp[0] );
-#else
-    int numflag = 0;
-    metis_nodend( &N, &tmpXadj[0] , &tmpAdj[0]  , &numflag , NULL, &perm[0] , &invp[0] );
-#endif
+//#ifdef USE_METIS_INC
+//    metis_nodend( &N, &tmpXadj[0] , &tmpAdj[0]  , NULL , NULL, &perm[0] , &invp[0] );
+//#else
+//    int numflag = 0;
+//    metis_nodend( &N, &tmpXadj[0] , &tmpAdj[0]  , &numflag , NULL, &perm[0] , &invp[0] );
+//#endif
 
     //switch everything to 1 based
     for(int col=0; col<invp.m();++col){ invp[col]++;}
@@ -269,6 +283,131 @@ void Ordering::AMD(){
     //    for(int col=0; col<tmpXadj.size();++col){ tmpXadj[col]++;}
     //    for(int col=0; col<tmpAdj.size();++col){ tmpAdj[col]++;}
   }
+#endif
+
+
+#ifdef USE_PARMETIS
+void Ordering::PARMETIS(MPI_Comm & comm){
+
+  logfileptr->OFS()<<"PARMETIS used"<<endl;
+  if(iam==0){cout<<"PARMETIS used"<<endl;}
+
+  assert(pStructure!=NULL);
+
+  if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
+    throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call AMD\n" );
+  }
+
+
+  int N = pStructure->size; 
+  invp.Resize(N);
+  perm.Resize(N);
+  int ndomains = (int)pow(2.0,std::floor(std::log2(np)));
+  if(iam<ndomains){
+    vector<int> sizes(2*ndomains);
+    vector<int> vtxdist(ndomains+1);
+
+    int localN = N/ndomains;
+    int fc = (iam)*localN+1;
+    //build vtxdist vector
+    for(int i = 0; i<ndomains;++i){ vtxdist[i] = i*localN+1; } vtxdist[ndomains] = N+1;
+    if(iam==ndomains-1){
+      localN = N - (ndomains-1)*localN;
+    }
+logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
+logfileptr->OFS()<<"ndomains = "<<ndomains<<endl;
+
+    //build local colptr and count nnz in local rowind
+    vector<int> tmpXadj(localN+1);
+    Ptr localNNZ = 0;
+    int offset = pStructure->expColptr[fc-1]-1;
+    tmpXadj[1-1] = 1;
+    for(int col=1; col<=localN;++col){
+      int column = col + fc -1;
+      Ptr colbeg = pStructure->expColptr[column-1];
+      Ptr colend = pStructure->expColptr[column]-1;
+      //remove self from adjacency list
+      tmpXadj[col] = tmpXadj[col-1] + colend - colbeg + 1 - 1;
+      //logfileptr->OFS()<<col<<" <-> "<<column<<" | "<<colbeg<<"--"<<colend<<" <-> "<<tmpXadj[col-1]<<"--"<<tmpXadj[col]-1<<endl;
+      localNNZ+=colend-colbeg+1;
+    }
+
+    //build local rowind, discarding self
+    vector<int> tmpAdj;
+    tmpAdj.reserve(localNNZ);
+    for(int col=1; col<=localN;++col){
+      int column = col + fc -1;
+      Ptr colbeg = pStructure->expColptr[column-1];
+      Ptr colend = pStructure->expColptr[column]-1;
+      for(Ptr j=colbeg; j<=colend;++j){
+        int row = pStructure->expRowind[j-1];
+        if(row!=column){
+          tmpAdj.push_back(row);
+        }
+      }
+    }
+
+    //switch everything to 0 based
+    //for(int col=0; col<tmpXadj.size();++col){ tmpXadj[col]--;}
+    //for(int col=0; col<tmpAdj.size();++col){ tmpAdj[col]--;}
+
+    int options[3];
+    options[0] = 0;
+    int numflag = 1;
+
+logfileptr->OFS()<<tmpXadj<<endl;
+logfileptr->OFS()<<tmpAdj<<endl;
+
+    ParMETIS_V3_NodeND( &vtxdist[0], &tmpXadj[0] , &tmpAdj[0], &numflag, &options[0], &perm[0], &sizes[0], &comm );
+//    ParMETIS_V3_NodeND( &vtxdist[0], &tmpXadj[0] , &tmpAdj[0], &numflag, &options[0], &invp[0], &sizes[0], &comm );
+
+logfileptr->OFS()<<"Sizes: "<<sizes<<endl;
+logfileptr->OFS()<<"Order: "<<endl;
+for(int i =0;i<localN;++i){
+  //logfileptr->OFS()<<invp[i]<<" ";
+  logfileptr->OFS()<<perm[i]<<" ";
+}
+logfileptr->OFS()<<endl;
+
+    
+    //compute displs
+    vector<int> mpidispls(ndomains,0);
+    vector<int> mpisizes(ndomains,0);
+    for(int p = 1;p<=ndomains;++p){
+      mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(int);
+      mpidispls[p-1] = (vtxdist[p-1]-1)*sizeof(int);
+    }
+
+    //gather on the root
+    MPI_Gatherv(&perm[0],mpisizes[iam],MPI_BYTE,&invp[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,comm);
+//    MPI_Gatherv(&invp[0],mpisizes[iam],MPI_BYTE,&perm[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,comm);
+
+logfileptr->OFS()<<"Full Order: "<<endl;
+for(int i =0;i<N;++i){
+  logfileptr->OFS()<<invp[i]<<" ";
+  //logfileptr->OFS()<<perm[i]<<" ";
+}
+logfileptr->OFS()<<endl;
+
+
+  }
+
+  // broadcast invp
+  MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,comm);
+
+  for(Int i = 1; i <= invp.m(); ++i){
+    Int node = invp[i-1];
+    perm[node-1] = i;
+  }
+
+//  // broadcast perm
+//  MPI_Bcast(&perm[0],N*sizeof(int),MPI_BYTE,0,comm);
+//
+//  for(Int i = 1; i <= perm.m(); ++i){
+//    Int node = perm[i-1];
+//    invp[node-1] = i;
+//  }
+}
 #endif
 
 #ifdef USE_SCOTCH

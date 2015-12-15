@@ -23,6 +23,11 @@ class Ordering{
     void NDBOX();
     void NDGRID();
 
+#ifdef USE_PARMETIS
+  //FIXME: currently, colptr and rowind are not distributed
+  void PARMETIS(MPI_Comm & comm);
+#endif
+
 #ifdef USE_METIS
     void METIS();
 #endif

@@ -37,7 +37,7 @@
 *
 ************************************************************************
 *
-       SUBROUTINE  GRIDND ( P, Q, GRID, STACK, IERROR )
+       SUBROUTINE  GRIDND ( P, Q, GRID, STACK, STACKSZ, IERROR )
 *
 ************************************************************************
 *
@@ -46,7 +46,7 @@
 *
         INTEGER*4       HALF  , I     , II    , ILAST , J     ,
      +                  JJ    , JLAST , LAST  , M     , MID   ,
-     +                  N     , NNODES, TOP
+     +                  N     , NNODES, TOP, STACKSZ
 *
 ************************************************************************
 *
@@ -66,7 +66,7 @@
         NNODES = LAST
 *
         TOP = 4
-        IF  ( TOP .GT. NNODES )  THEN
+        IF  ( TOP .GT. STACKSZ )  THEN
             IERROR = 1
             RETURN
         END IF
@@ -120,7 +120,7 @@
 *                       Push the two new subgrids
 *                       onto the stack.
 *                       -------------------------
-                        IF  ( TOP+8 .GT. NNODES )  THEN
+                        IF  ( TOP+8 .GT. STACKSZ )  THEN
                             IERROR = 1
                             RETURN
                         END IF
@@ -175,7 +175,7 @@
 *                       Push the two new subgrids
 *                       onto the stack.
 *                       -------------------------
-                        IF  ( TOP+8 .GT. NNODES )  THEN
+                        IF  ( TOP+8 .GT. STACKSZ )  THEN
                             IERROR = 1
                             RETURN
                         END IF

@@ -159,6 +159,11 @@ int main(int argc, char **argv)
       optionsFact.ordering = METIS;
     }
 #endif
+#ifdef USE_PARMETIS
+    else if(options["-ordering"].front()=="PARMETIS"){
+      optionsFact.ordering = PARMETIS;
+    }
+#endif
 
     else{
       optionsFact.ordering = MMD;

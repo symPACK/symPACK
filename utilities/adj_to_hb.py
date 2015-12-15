@@ -10,7 +10,17 @@ nnz = -1
 lennnz = -1
 colptr = []
 rowind = []
-for line in fileinput.input():
+
+add_self = 1
+
+start_index = 1
+if(len(sys.argv) > 3):
+  if(sys.argv[1] == "-self"):
+    start_index = 3
+    if(sys.argv[2] == "0"):
+      add_self = 0
+
+for line in fileinput.input(sys.argv[start_index:]):
     if fileinput.filelineno() == 1:
         if n!=-1 and m!=-1 and nnz!=-1:
             #print prev HB file
@@ -30,9 +40,12 @@ for line in fileinput.input():
 
 if n!=-1 and m!=-1 and nnz!=-1:
     #add diagonal entries to colptr and rowind
-    nnz = nnz + n
+    if(add_self==1):
+      nnz = nnz + n
+
     old_colptr = colptr
-    colptr = [ x+i for i,x in enumerate(colptr) ]
+    if(add_self==1):
+      colptr = [ x+i for i,x in enumerate(colptr) ]
 
 
     old_rowind = rowind
@@ -40,7 +53,9 @@ if n!=-1 and m!=-1 and nnz!=-1:
     for col in range(1, n+1):
       colbeg = old_colptr[col-1]
       colend = old_colptr[col]-1
-      rowind.append(col)
+      if(add_self==1):
+        rowind.append(col)
+
       for i in range(colbeg,colend+1):
         row = old_rowind[i-1]
         rowind.append(row)
@@ -78,6 +93,12 @@ if n!=-1 and m!=-1 and nnz!=-1:
         elif(row==col):
           nzval.append(100)
 
+    for col in range(1, n+1):
+      colbeg = colptr[col-1]
+      colend = colptr[col]-1
+      tmpset = set(rowind[colbeg-1:colend])
+      assert (len(tmpset)== len(rowind[colbeg-1:colend]))
+        
 
 
     #print prev HB file

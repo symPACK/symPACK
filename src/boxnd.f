@@ -38,7 +38,7 @@
 *
 ************************************************************************
 *
-       SUBROUTINE  BOXND ( P, Q, R, BOX, STACK, IERROR )
+       SUBROUTINE  BOXND ( P, Q, R, BOX, STACK, STACKSZ, IERROR )
 *
 ************************************************************************
 *
@@ -48,7 +48,7 @@
         INTEGER*4       HALF  , I     , II    , ILAST , J     ,
      +                  JJ    , JLAST , LAST  , M     , MID   ,
      +                  N     , NNODES, TOP   , K     , KK    ,
-     +                  KLAST , L 
+     +                  KLAST , L     , STACKSZ
 *
 ************************************************************************
 *
@@ -68,7 +68,7 @@
         NNODES = LAST
 *
         TOP = 6
-        IF  ( TOP .GT. NNODES )  THEN
+        IF  ( TOP .GT. STACKSZ )  THEN
             IERROR = 1
             RETURN
         END IF
@@ -129,7 +129,7 @@
 *                       Push the two new sub-boxess
 *                       onto the stack.
 *                       -------------------------
-                        IF  ( TOP+12 .GT. NNODES )  THEN
+                        IF  ( TOP+12 .GT. STACKSZ )  THEN
                             IERROR = 1
                             RETURN
                         END IF
@@ -195,7 +195,7 @@
 *                       Push the two new sub-boxess
 *                       onto the stack.
 *                       -------------------------
-                        IF  ( TOP+12 .GT. NNODES )  THEN
+                        IF  ( TOP+12 .GT. STACKSZ )  THEN
                             IERROR = 1
                             RETURN
                         END IF
@@ -261,7 +261,7 @@
 *                       Push the two new sub-boxess
 *                       onto the stack.
 *                       -------------------------
-                        IF  ( TOP+12 .GT. NNODES )  THEN
+                        IF  ( TOP+12 .GT. STACKSZ )  THEN
                             IERROR = 1
                             RETURN
                         END IF

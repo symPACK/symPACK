@@ -1120,7 +1120,7 @@ logfileptr->OFS()<<"Structure set"<<endl;
 #endif
 #ifdef USE_PARMETIS
       case PARMETIS:
-        Order_.PARMETIS();
+        Order_.PARMETIS(CommEnv_->MPI_GetComm());
         break;
 #endif
       default:
@@ -1149,6 +1149,22 @@ logfileptr->OFS()<<"ETREE done"<<endl;
     if(iam==0){
       cout<<"Flops: "<<flops<<endl;
     }
+
+#if 1
+   int64_t NNZ = 0;
+    for(Int i = 0; i<cc.m();++i){
+          NNZ+=cc[i];
+    }
+if(iam==0){
+  cout<<"NNZ in L factor: "<<NNZ<<endl;
+}
+#endif
+
+
+
+
+
+#ifndef _NO_COMPUTATION_
 
     Global_->FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
 
@@ -1399,7 +1415,7 @@ else if(options.load_balance_str=="NNZ"){
         } 
     TIMER_STOP(LOAD_BALANCE);
 
-
+#if 0
    int64_t NNZ = 0;
     for(Int I = 1; I<Xsuper_.m(); ++I){
             Int width = Xsuper_[I] - Xsuper_[I-1];
@@ -1415,6 +1431,7 @@ else if(options.load_balance_str=="NNZ"){
 if(iam==0){
   cout<<"NNZ in L factor: "<<NNZ<<endl;
 }
+#endif
 
 ////    switch(options.load_balance){
 ////      case SUBCUBE:
@@ -1740,7 +1757,6 @@ if(iam==0){
 //    this->Mapping_->Dump(2*np);
 #endif
 
-#ifndef _NO_COMPUTATION_
     TIMER_START(Get_UpdateCount);
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_,UpdateHeight_);
     TIMER_STOP(Get_UpdateCount);
