@@ -10,12 +10,12 @@
 #include <time.h>
 #include <omp.h>
 
-#include  "ngchol.hpp"
-#include  "ngchol/SupernodalMatrix2.hpp"
+#include  "sympack.hpp"
+#include  "sympack/SupernodalMatrix2.hpp"
 
-#include  "ngchol/sp_blas.hpp"
-#include  "ngchol/CommTypes.hpp"
-#include  "ngchol/Ordering.hpp"
+#include  "sympack/sp_blas.hpp"
+#include  "sympack/CommTypes.hpp"
+#include  "sympack/Ordering.hpp"
 
 extern "C" {
 #include "bebop/util/config.h"
@@ -38,7 +38,7 @@ extern "C" {
 #define INSCALAR double
 
 
-using namespace LIBCHOLESKY;
+using namespace SYMPACK;
 
 
 int main(int argc, char **argv) 
@@ -238,7 +238,10 @@ int main(int argc, char **argv)
   MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
 
   upcxx::team * workteam;
-  upcxx::team_all.split(iam<np,iam, workteam);
+  Int new_rank = (iam<np)?iam:iam-np;
+  upcxx::team_all.split(iam<np,new_rank, workteam);
+  
+      logfileptr->OFS()<<"ALL SPLITS ARE DONE"<<endl;
 
 
   if(iam<np){

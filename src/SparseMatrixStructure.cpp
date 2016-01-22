@@ -1,6 +1,6 @@
-#include "ngchol/SparseMatrixStructure.hpp"
-#include "ngchol/ETree.hpp"
-#include "ngchol/utility.hpp"
+#include "sympack/SparseMatrixStructure.hpp"
+#include "sympack/ETree.hpp"
+#include "sympack/utility.hpp"
 #include <limits>       // std::numeric_limits
 
 #include <iterator>
@@ -9,7 +9,7 @@
 #include <vector>
 #include <algorithm>
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
 
   SparseMatrixStructure::SparseMatrixStructure(){
     bIsGlobal = false;

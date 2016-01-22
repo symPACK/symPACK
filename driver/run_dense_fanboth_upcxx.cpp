@@ -14,22 +14,22 @@
 #include <time.h>
 //#include <random>
 
-#include  "ngchol/Environment.hpp"
-#include  "ngchol/NumVec.hpp"
-#include  "ngchol/NumMat.hpp"
-#include  "ngchol/NumMat_upcxx.hpp"
-#include  "ngchol/utility.hpp"
-#include  "ngchol/ETree.hpp"
-#include  "ngchol/blas.hpp"
-#include  "ngchol/lapack.hpp"
-#include  "ngchol/FBMatrix.hpp"
-#include  "ngchol/FBMatrix_upcxx.hpp"
-#include  "ngchol/LogFile.hpp"
+#include  "sympack/Environment.hpp"
+#include  "sympack/NumVec.hpp"
+#include  "sympack/NumMat.hpp"
+#include  "sympack/NumMat_upcxx.hpp"
+#include  "sympack/utility.hpp"
+#include  "sympack/ETree.hpp"
+#include  "sympack/blas.hpp"
+#include  "sympack/lapack.hpp"
+#include  "sympack/FBMatrix.hpp"
+#include  "sympack/FBMatrix_upcxx.hpp"
+#include  "sympack/LogFile.hpp"
 
 #include <upcxx.h>
 #include <upcxx_runtime.h>
 #include <async.h>
-#include  "ngchol/upcxx_additions.hpp"
+#include  "sympack/upcxx_additions.hpp"
 
 extern "C" {
 #include <bebop/util/config.h>
@@ -45,9 +45,9 @@ extern "C" {
 }
 
 
-#include "ngchol/timer.hpp"
+#include "sympack/timer.hpp"
 
-using namespace LIBCHOLESKY;
+using namespace SYMPACK;
 using namespace std;
 
 

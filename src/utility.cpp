@@ -2,9 +2,9 @@
 /// @brief Implementation of the non-templated utility subroutines.
 /// @author Lin Lin
 /// @date 2012-09-20
-#include "ngchol/Environment.hpp"
-#include "ngchol/utility.hpp"
-#include "ngchol/NumVec.hpp"
+#include "sympack/Environment.hpp"
+#include "sympack/utility.hpp"
+#include "sympack/NumVec.hpp"
 
 using namespace std;
 using std::ifstream;
@@ -12,7 +12,7 @@ using std::ofstream;
 using std::vector;
 using std::cerr;
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
 
 
 Int iam,np;
@@ -1388,4 +1388,4 @@ LinearInterpolation (
 
 
 
-}  // namespace LIBCHOLESKY
+}  // namespace SYMPACK

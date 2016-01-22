@@ -56,7 +56,7 @@ extern "C" {
 #define r(i) 0
 #define MAP(i,j,bs) r(i/bs)*pcol + c(j/bs)
 
-using namespace LIBCHOLESKY;
+using namespace SYMPACK;
 using namespace std;
 
 

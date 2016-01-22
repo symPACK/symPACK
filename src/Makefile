@@ -29,11 +29,11 @@ DEPS     = ${UPCXX_CPP:.cpp=.d} ${SRCS_CPP:.cpp=.d} ${SRCS_C:.c=.d} ${SRCS_F:.f=
 	${FC} -c ${FFLAGS} $<
 
 
-all: libngchol
+all: libsympack
 
 -include ${DEPS}
 
-libngchol: ${OBJS}
+libsympack: ${OBJS}
 	$(AR) $(ARFLAGS) $(NGCHOL_LIB) ${OBJS}
 	$(RANLIB) $(NGCHOL_LIB)
 

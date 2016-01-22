@@ -1,7 +1,7 @@
-#include "ngchol/SuperNode.hpp"
+#include "sympack/SuperNode.hpp"
 
 #define SCALAR double
-//namespace LIBCHOLESKY{
+//namespace SYMPACK{
 //
 //    Int trc_Merge(SuperNode<SCALAR> & src_snode, SnodeUpdate &update,SuperNode<SCALAR> & tgt_snode){
 //      TIMER_START(MERGE_SNODE_OBJ);

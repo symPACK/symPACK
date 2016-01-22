@@ -1,12 +1,12 @@
-#include "ngchol/CommPull.hpp"
-#include "ngchol/CommTypes.hpp"
-#include "ngchol/SupernodalMatrixBase.hpp"
-#include "ngchol/timer.hpp"
+#include "sympack/CommPull.hpp"
+#include "sympack/CommTypes.hpp"
+#include "sympack/SupernodalMatrixBase.hpp"
+#include "sympack/timer.hpp"
 
 #define USE_LOCAL_ALLOCATE
 
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
   //std::list< IncomingMessage * > gIncomingRecv;
   std::priority_queue< IncomingMessage *, vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
   std::list< IncomingMessage * > gIncomingRecvAsync;

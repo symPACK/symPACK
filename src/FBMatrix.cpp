@@ -3,19 +3,19 @@
 /// @author Mathias Jacquelin
 /// @date 2014-01-21
 
-#include "ngchol/FBMatrix.hpp"
+#include "sympack/FBMatrix.hpp"
 
-#include  "ngchol/utility.hpp"
-#include  "ngchol/blas.hpp"
-#include  "ngchol/lapack.hpp"
+#include  "sympack/utility.hpp"
+#include  "sympack/blas.hpp"
+#include  "sympack/lapack.hpp"
 
-#include  "ngchol/LogFile.hpp"
-#include  "ngchol/upcxx_additions.hpp"
-
-
+#include  "sympack/LogFile.hpp"
+#include  "sympack/upcxx_additions.hpp"
 
 
-namespace LIBCHOLESKY{
+
+
+namespace SYMPACK{
 
 
 

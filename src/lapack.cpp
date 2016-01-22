@@ -43,9 +43,9 @@
 /// @file lapack.cpp
 /// @brief Thin interface to LAPACK
 /// @date 2012-09-12
-#include "ngchol/lapack.hpp"
+#include "sympack/lapack.hpp"
 
-namespace LIBCHOLESKY {
+namespace SYMPACK {
 namespace lapack {
 
 extern "C" {

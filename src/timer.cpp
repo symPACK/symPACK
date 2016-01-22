@@ -12,9 +12,9 @@
 #include <sstream>
 
 #include <omp.h>
-#include "ngchol/LogFile.hpp"
-#include "ngchol/Environment.hpp"
-#include "ngchol/timer.hpp"
+#include "sympack/LogFile.hpp"
+#include "sympack/Environment.hpp"
+#include "sympack/timer.hpp"
 
 #define MAX_NAME_LENGTH 38
 
@@ -23,7 +23,7 @@
 #include <gasnet.h>
 #include <gasnet_tools.h>
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
 
   int main_argc = 0;
   char * const * main_argv;

@@ -2,10 +2,10 @@
 /// @brief Implementation of the elimination-tree related algorithms.
 /// @author Mathias Jacquelin
 /// @date 2012-08-31
-#include "ngchol/ETree.hpp"
-#include "ngchol/utility.hpp"
+#include "sympack/ETree.hpp"
+#include "sympack/utility.hpp"
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
 
 
   void DisjointSet::Initialize(Int n){

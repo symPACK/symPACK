@@ -71,6 +71,11 @@ run_sparse_pull.o: run_sparse_pull.cpp
 	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
 
 
+test_split: test_split.o ${NGCHOL_LIB}
+	($(LOADER) $(UPCXX_LDFLAGS)  $(LDFLAGS) -o $@ test_split.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
+
+test_split.o: test_split.cpp 
+	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
 
 run_pull_test: run_pull_test.o ${NGCHOL_LIB}
 	($(LOADER) $(UPCXX_LDFLAGS)  $(LDFLAGS) -o $@ run_pull_test.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
@@ -99,7 +104,7 @@ unit_test.o: unit_test.cpp
 run_dense_scalapack: run_dense_scalapack.o ${NGCHOL_LIB}
 	($(LOADER) -o $@ run_dense_scalapack.o  $(LOADOPTS)  )
 
-run_dense_scalapck.o: run_dense_scalapack.cpp 
+run_dense_scalapack.o: run_dense_scalapack.cpp 
 	${CXX} -g  -c ${CXXFLAGS} ${CPPDEFS} $< 
 
 
@@ -108,7 +113,7 @@ run_dense_scalapck.o: run_dense_scalapack.cpp
 
 
 run_mumps: run_mumps.o ${NGCHOL_LIB}
-	($(LOADER) -o $@ run_mumps.o  $(DMUMPS_LIB) $(ZMUMPS_LIB) $(MUMPS_ORDERINGS) ${LOADOPTS} )
+	($(LOADER) -o $@ run_mumps.o  $(DMUMPS_LIB) $(ZMUMPS_LIB) $(MUMPS_ORDERINGS) ${MUMPSLOADOPTS} )
 
 run_mumps.o: run_mumps.cpp
 	${CXX} -c $(MUMPS_INCLUDE)  ${CXXFLAGS} ${CPPDEFS} $<

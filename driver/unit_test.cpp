@@ -64,7 +64,7 @@ extern "C" {
 #define TIMER_STOP(a)
 #endif
 
-using namespace LIBCHOLESKY;
+using namespace SYMPACK;
 using namespace std;
 
 
