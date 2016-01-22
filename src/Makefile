@@ -34,10 +34,10 @@ all: libsympack
 -include ${DEPS}
 
 libsympack: ${OBJS}
-	$(AR) $(ARFLAGS) $(NGCHOL_LIB) ${OBJS}
-	$(RANLIB) $(NGCHOL_LIB)
+	$(AR) $(ARFLAGS) $(SYMPACK_LIB) ${OBJS}
+	$(RANLIB) $(SYMPACK_LIB)
 
 cleanall:
-	${RM} -f ${OBJS} ${DEPS} $(NGCHOL_LIB) *.d.*
+	${RM} -f ${OBJS} ${DEPS} $(SYMPACK_LIB) *.d.*
 
 

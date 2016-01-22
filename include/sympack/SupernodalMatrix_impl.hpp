@@ -235,7 +235,7 @@ logfileptr->OFS()<<"Structure set"<<endl;
 #endif
 #ifdef USE_PARMETIS
       case PARMETIS:
-        Order_.PARMETIS();
+        Order_.PARMETIS(CommEnv_->MPI_GetComm());
         break;
 #endif
       default:
