@@ -114,9 +114,11 @@ int main(int argc, char **argv)
     maxIsend= atoi(options["-is"].front().c_str());
   }
 
-  Int doFB = 0;
+  optionsFact.factorization = FANBOTH;
   if( options.find("-fb") != options.end() ){
-    doFB= atoi(options["-fb"].front().c_str());
+    if(options["-fb"].front()=="static"){
+        optionsFact.factorization = FANBOTH_STATIC;
+    }
   }
 
 
@@ -348,7 +350,6 @@ int main(int argc, char **argv)
       optionsFact.maxIsend = maxIsend;
       optionsFact.maxIrecv = maxIrecv;
 
-        optionsFact.factorization = FANBOTH;
 
       optionsFact.commEnv = new CommEnvironment(workcomm);
       SupernodalMatrix2<SCALAR>*  SMat;

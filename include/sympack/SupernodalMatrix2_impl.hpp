@@ -25,6 +25,9 @@ template <typename T> void SupernodalMatrix2<T>::Factorize(){
     case FANBOTH:
       FanBoth();
       break;
+    case FANBOTH_STATIC:
+      FanBoth_Static();
+      break;
     default:
       FanBoth();
       break;

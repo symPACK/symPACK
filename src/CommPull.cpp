@@ -7,8 +7,8 @@
 
 
 namespace SYMPACK{
-  //std::list< IncomingMessage * > gIncomingRecv;
-  std::priority_queue< IncomingMessage *, vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
+  std::list< IncomingMessage * > gIncomingRecv;
+  //std::priority_queue< IncomingMessage *, vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
   std::list< IncomingMessage * > gIncomingRecvAsync;
   std::list< IncomingMessage * > gIncomingRecvLocal;
   SupernodalMatrixBase * gSuperMatrixPtr = NULL;

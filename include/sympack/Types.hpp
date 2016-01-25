@@ -71,7 +71,7 @@ namespace SYMPACK{
 
 
   enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNS,WRAP2D,WRAP2DFORCED};
-  enum FactorizationType {FANOUT,FANBOTH};
+  enum FactorizationType {FANOUT,FANBOTH,FANBOTH_STATIC};
   enum LoadBalanceType {NOLB,NNZ,NCOLS,FLOPS,SUBCUBE,SUBCUBE_NNZ};
   enum OrderingType {MMD,AMD,NDBOX,NDGRID,SCOTCH,PTSCOTCH,METIS,PARMETIS};
   enum SchedulerType {DL,MCT,PR,FIFO};

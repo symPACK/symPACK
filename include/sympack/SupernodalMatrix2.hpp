@@ -75,6 +75,7 @@ namespace SYMPACK{
       void GetSolution(NumMat<T> & B);
 
       void FanBoth( );
+      void FanBoth_Static( );
 
 
       void Dump();
@@ -175,9 +176,9 @@ namespace SYMPACK{
       Int FBUpdate(Int I,Int prevJ=-1);
       void FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv, std::vector<Int> & LocalAggregates);
 
-      void FBFactorizationTask(FBTask & curTask, Int iLocalI);
-      void FBAggregationTask(FBTask & curTask, Int iLocalI);
-      void FBUpdateTask(FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesDone,std::vector< SuperNode2<T> * > & aggVectors,  std::vector<Int> & FactorsToRecv, std::vector<Int> & AggregatesToRecv,Int & localTaskCount);
+      void FBFactorizationTask(FBTask & curTask, Int iLocalI, bool is_static = false);
+      void FBAggregationTask(FBTask & curTask, Int iLocalI, bool is_static = false);
+      void FBUpdateTask(FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesDone,std::vector< SuperNode2<T> * > & aggVectors,  std::vector<Int> & FactorsToRecv, std::vector<Int> & AggregatesToRecv,Int & localTaskCount, bool is_static = false);
 
       //Solve related routines
       void forward_update(SuperNode2<T> * src_contrib,SuperNode2<T> * tgt_contrib);
@@ -191,7 +192,7 @@ namespace SYMPACK{
       void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode2<T> *> & snodeColl);
       void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, std::vector<SuperNode2<T> *> & snodeColl);
 
-      void CheckIncomingMessages();
+      void CheckIncomingMessages(bool is_static = false);
 
 
   };

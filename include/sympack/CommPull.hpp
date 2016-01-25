@@ -113,9 +113,9 @@ struct MSGCompare{
   extern size_t gNumMsg;
 
 
-  extern std::priority_queue< IncomingMessage * ,  vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
+  //extern std::priority_queue< IncomingMessage * ,  vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
+  extern std::list< IncomingMessage * > gIncomingRecv;
 
-  //extern std::list< IncomingMessage * > gIncomingRecv;
   extern std::list< IncomingMessage * > gIncomingRecvAsync;
   extern std::list< IncomingMessage * > gIncomingRecvLocal;
   extern int gMaxIrecv;
@@ -188,7 +188,8 @@ struct MSGCompare{
           msg_ptr->remote_ptr = pRemote_ptr;
           msg_ptr->msg_size = pMsg_size;
           msg_ptr->meta = meta;
-          gIncomingRecv.push(msg_ptr);
+          //gIncomingRecv.push(msg_ptr);
+          gIncomingRecv.push_back(msg_ptr);
 
           //      //allocate receive buffer
           //      msg_ptr->AllocLocal();
