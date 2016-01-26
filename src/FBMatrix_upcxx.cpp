@@ -5,17 +5,17 @@
 
 #include <upcxx.h>
 
-#include "ngchol/FBMatrix_upcxx.hpp"
-#include  "ngchol/Environment.hpp"
-#include  "ngchol/NumMat_upcxx.hpp"
+#include "sympack/FBMatrix_upcxx.hpp"
+#include  "sympack/Environment.hpp"
+#include  "sympack/NumMat_upcxx.hpp"
 
-#include  "ngchol/utility.hpp"
-#include  "ngchol/blas.hpp"
-#include  "ngchol/lapack.hpp"
+#include  "sympack/utility.hpp"
+#include  "sympack/blas.hpp"
+#include  "sympack/lapack.hpp"
 
 
-#include  "ngchol/LogFile.hpp"
-#include  "ngchol/upcxx_additions.hpp"
+#include  "sympack/LogFile.hpp"
+#include  "sympack/upcxx_additions.hpp"
 
 #ifndef ADVANCE_COMM
 #define ADVANCE_COMM 1
@@ -27,7 +27,7 @@
 
 
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
 
 
 

@@ -13,16 +13,16 @@
 
 #include <omp.h>
 
-#include  "ngchol/FBMatrix.hpp"
-#include  "ngchol/FBMatrix_mpi.hpp"
-#include  "ngchol/Environment.hpp"
-#include  "ngchol/NumVec.hpp"
-#include  "ngchol/NumMat.hpp"
-#include  "ngchol/utility.hpp"
-#include  "ngchol/ETree.hpp"
-#include  "ngchol/blas.hpp"
-#include  "ngchol/lapack.hpp"
-#include  "ngchol/LogFile.hpp"
+#include  "sympack/FBMatrix.hpp"
+#include  "sympack/FBMatrix_mpi.hpp"
+#include  "sympack/Environment.hpp"
+#include  "sympack/NumVec.hpp"
+#include  "sympack/NumMat.hpp"
+#include  "sympack/utility.hpp"
+#include  "sympack/ETree.hpp"
+#include  "sympack/blas.hpp"
+#include  "sympack/lapack.hpp"
+#include  "sympack/LogFile.hpp"
 
 extern "C" {
 #include <bebop/util/config.h>
@@ -38,7 +38,7 @@ extern "C" {
 }
 
 
-using namespace LIBCHOLESKY;
+using namespace SYMPACK;
 using namespace std;
 
 

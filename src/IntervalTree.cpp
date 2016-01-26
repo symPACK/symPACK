@@ -1,4 +1,4 @@
-#include "ngchol/IntervalTree.hpp"
+#include "sympack/IntervalTree.hpp"
 
 
 
@@ -18,7 +18,7 @@
 
 
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
 
 
 

@@ -10,12 +10,12 @@
 #include <time.h>
 #include <omp.h>
 
-#include  "ngchol.hpp"
+#include  "sympack.hpp"
 
-#include  "ngchol/sp_blas.hpp"
-#include  "ngchol/CommTypes.hpp"
-#include  "ngchol/CommPull.hpp"
-#include  "ngchol/Ordering.hpp"
+#include  "sympack/sp_blas.hpp"
+#include  "sympack/CommTypes.hpp"
+#include  "sympack/CommPull.hpp"
+#include  "sympack/Ordering.hpp"
 
 extern "C" {
 #include "bebop/util/config.h"
@@ -36,7 +36,7 @@ extern "C" {
 #define MYSCALAR double
 
 
-using namespace LIBCHOLESKY;
+using namespace SYMPACK;
 
 
 int main(int argc, char **argv) 

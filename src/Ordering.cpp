@@ -1,6 +1,6 @@
-#include "ngchol/Ordering.hpp"
-#include "ngchol/mmd.hpp"
-#include "ngchol/utility.hpp"
+#include "sympack/Ordering.hpp"
+#include "sympack/mmd.hpp"
+#include "sympack/utility.hpp"
 
 
 #ifdef USE_SCOTCH
@@ -18,7 +18,7 @@
 //#endif
 
 
-namespace LIBCHOLESKY {
+namespace SYMPACK {
 
   extern "C" {
     int METIS_NodeND (int * N     , int* XADJ2 , int* ADJ2  , int * VWGT, int* OPTION, int* dback , int* dforw);
@@ -28,7 +28,7 @@ namespace LIBCHOLESKY {
 
 }
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
 
 
 void Ordering::SetStructure(SparseMatrixStructure & aGlobal){

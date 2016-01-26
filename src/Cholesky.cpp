@@ -1,9 +1,9 @@
-#include "ngchol/Cholesky.hpp"
+#include "sympack/Cholesky.hpp"
 
-#include "ngchol/NumMat.hpp"
+#include "sympack/NumMat.hpp"
 #include <vector>
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
 
 
 void cmod(DistSparseMatrix<Scalar> & Amat, IntNumVec & xsuper,Int J, Int K, NumMat<Scalar> & W){

@@ -3,13 +3,13 @@
 /// @author Mathias Jacquelin
 /// @date 2014-01-21
 
-#include "ngchol/FBMatrix_mpi.hpp"
+#include "sympack/FBMatrix_mpi.hpp"
 
-#include  "ngchol/utility.hpp"
-#include  "ngchol/blas.hpp"
-#include  "ngchol/lapack.hpp"
+#include  "sympack/utility.hpp"
+#include  "sympack/blas.hpp"
+#include  "sympack/lapack.hpp"
 
-#include  "ngchol/LogFile.hpp"
+#include  "sympack/LogFile.hpp"
 
 
 #define TAG_FACTOR 0
@@ -18,7 +18,7 @@
 #define TAG_AGGREGATE_RECV j
 
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
 
 
 

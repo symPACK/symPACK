@@ -21,7 +21,7 @@
 
 
 
-using namespace LIBCHOLESKY;
+using namespace SYMPACK;
 using namespace std;
 
 void Usage(){

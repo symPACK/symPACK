@@ -1,8 +1,8 @@
-#include  "ngchol/Environment.hpp"
-#include  "ngchol/utility.hpp"
+#include  "sympack/Environment.hpp"
+#include  "sympack/utility.hpp"
 
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
 
 // *********************************************************************
 // IO
@@ -37,4 +37,4 @@ namespace LIBCHOLESKY{
 	}
 
 #endif // ifndef _RELEASE_
-} // namespace LIBCHOLESKY
+} // namespace SYMPACK

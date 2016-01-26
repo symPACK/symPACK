@@ -43,9 +43,9 @@
 /// @file blas.cpp
 /// @brief Thin interface to BLAS
 /// @date 2012-09-12
-#include "ngchol/blas.hpp"
+#include "sympack/blas.hpp"
 
-namespace LIBCHOLESKY {
+namespace SYMPACK {
 namespace blas {
 
 extern "C" {

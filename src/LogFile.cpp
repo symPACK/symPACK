@@ -1,7 +1,7 @@
 
-#include "ngchol/LogFile.hpp"
+#include "sympack/LogFile.hpp"
 
-namespace LIBCHOLESKY{
+namespace SYMPACK{
 
 LogFile * logfileptr;
 
