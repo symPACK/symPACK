@@ -3,6 +3,7 @@
 import sys
 import re
 import numpy
+import fileinput
 
 tregex = re.compile("^Factorization time: ([0-9.]+)")
 tregex2 = re.compile("^Factorization done in: ([0-9.]+)s")
@@ -13,8 +14,9 @@ pregex2 = re.compile("[ ]*NUMBER OF WORKING PROCESSES[ ]*=[ ]*([0-9]+)")
 #print 'Argument List:', str(sys.argv)
 
 values={}
-with open(sys.argv[1], "rtU") as f:
-  for line in f:
+#with open(sys.argv[1], "rtU") as f:
+#  for line in f:
+for line in fileinput.input():
     m = pregex.match(line)
     m2 = pregex2.match(line)
     if(m):
@@ -42,13 +44,16 @@ with open(sys.argv[1], "rtU") as f:
 #compute the averages and stddev
 for proc in sorted(values.keys()):
     val =  values[proc] 
-    avg = numpy.mean(val)
-    med = numpy.median(val)
-    stdev = numpy.std(val)
-#    print "%d\t%10.5f\t%10.5f" % ( int(proc), avg, stdev )
-    str_proc = "%d" % int(proc)
-    str_avg = "%.5f" % avg
-    str_med = "%.5f" % med
-    str_stdev = "%.5f" % stdev
-    print "%s %s %s %s" % ( str_proc.ljust(10,' ') , str_avg.ljust(10,' '), str_med.ljust(10,' '), str_stdev.ljust(10,' ') )
+
+    print key,val
+
+#    avg = numpy.mean(val)
+#    med = numpy.median(val)
+#    stdev = numpy.std(val)
+##    print "%d\t%10.5f\t%10.5f" % ( int(proc), avg, stdev )
+#    str_proc = "%d" % int(proc)
+#    str_avg = "%.5f" % avg
+#    str_med = "%.5f" % med
+#    str_stdev = "%.5f" % stdev
+#    print "%s %s %s %s" % ( str_proc.ljust(10,' ') , str_avg.ljust(10,' '), str_med.ljust(10,' '), str_stdev.ljust(10,' ') )
 
