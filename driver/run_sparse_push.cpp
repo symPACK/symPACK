@@ -86,6 +86,7 @@ int main(int argc, char **argv)
   if( options.find("-inf") != options.end() ){
     informatstr= options["-inf"].front();
   }
+
   Int maxSnode = -1;
   if( options.find("-b") != options.end() ){
     maxSnode= atoi(options["-b"].front().c_str());
@@ -104,30 +105,32 @@ int main(int argc, char **argv)
     }
   }
 
-
   Int maxIsend = 0;
   if( options.find("-is") != options.end() ){
     maxIsend= atoi(options["-is"].front().c_str());
   }
 
-  Int doFB = 0;
+  optionsFact.factorization = FANBOTH;
   if( options.find("-fb") != options.end() ){
-    doFB= atoi(options["-fb"].front().c_str());
+    if(options["-fb"].front()=="0"){
+        optionsFact.factorization = FANOUT;
+    }
   }
 
 
+
   if( options.find("-lb") != options.end() ){
-    optionsFact.load_balance_str = options["-lb"].front();
-//    if(options["-lb"].front()=="NNZ"){
+      optionsFact.load_balance_str = options["-lb"].front();
+//    if(options["-lb"]=="NNZ"){
 //      optionsFact.load_balance = NNZ;
 //    }
-//    else if(options["-lb"].front()=="FLOPS"){
+//    else if(options["-lb"]=="FLOPS"){
 //      optionsFact.load_balance = FLOPS;
 //    }
-//    else if(options["-lb"].front()=="SUBCUBE"){
+//    else if(options["-lb"]=="SUBCUBE"){
 //      optionsFact.load_balance = SUBCUBE;
 //    }
-//    else if(options["-lb"].front()=="SUBCUBE_NNZ"){
+//    else if(options["-lb"]=="SUBCUBE_NNZ"){
 //      optionsFact.load_balance = SUBCUBE_NNZ;
 //    }
 //    else{
@@ -139,15 +142,53 @@ int main(int argc, char **argv)
     if(options["-ordering"].front()=="AMD"){
       optionsFact.ordering = AMD;
     }
+    else if(options["-ordering"].front()=="NDBOX"){
+      optionsFact.ordering = NDBOX;
+    }
+    else if(options["-ordering"].front()=="NDGRID"){
+      optionsFact.ordering = NDGRID;
+    }
 #ifdef USE_SCOTCH
     else if(options["-ordering"].front()=="SCOTCH"){
       optionsFact.ordering = SCOTCH;
+    }
+#endif
+#ifdef USE_METIS
+    else if(options["-ordering"].front()=="METIS"){
+      optionsFact.ordering = METIS;
+    }
+#endif
+#ifdef USE_PARMETIS
+    else if(options["-ordering"].front()=="PARMETIS"){
+      optionsFact.ordering = PARMETIS;
+    }
+#endif
+#ifdef USE_PTSCOTCH
+    else if(options["-ordering"].front()=="PTSCOTCH"){
+      optionsFact.ordering = PTSCOTCH;
     }
 #endif
     else{
       optionsFact.ordering = MMD;
     }
   }
+
+  if( options.find("-scheduler") != options.end() ){
+    if(options["-scheduler"].front()=="MCT"){
+      optionsFact.scheduler = MCT;
+    }
+    if(options["-scheduler"].front()=="FIFO"){
+      optionsFact.scheduler = FIFO;
+    }
+    else if(options["-scheduler"].front()=="PR"){
+      optionsFact.scheduler = PR;
+    }
+    else{
+      optionsFact.scheduler = DL;
+    }
+  }
+
+
 
   Int maxIrecv = 0;
   if( options.find("-ir") != options.end() ){
@@ -159,23 +200,25 @@ int main(int argc, char **argv)
 
 
   if( options.find("-map") != options.end() ){
+
     optionsFact.mappingTypeStr = options["-map"].front();
-//    if(options["-map"].front() == "Modwrap2D"){
+
+//    if(options["-map"] == "Modwrap2D"){
 //      optionsFact.mappingType = MODWRAP2D;
 //    }
-//    else if(options["-map"].front() == "Modwrap2DNS"){
+//    else if(options["-map"] == "Modwrap2DNS"){
 //      optionsFact.mappingType = MODWRAP2DNS;
 //    }
-//    else if(options["-map"].front() == "Wrap2D"){
+//    else if(options["-map"] == "Wrap2D"){
 //      optionsFact.mappingType = WRAP2D;
 //    }
-//    else if(options["-map"].front() == "Wrap2DForced"){
+//    else if(options["-map"] == "Wrap2DForced"){
 //      optionsFact.mappingType = WRAP2DFORCED;
 //    }
-//    else if(options["-map"].front() == "Row2D"){
+//    else if(options["-map"] == "Row2D"){
 //      optionsFact.mappingType = ROW2D;
 //    }
-//    else if(options["-map"].front() == "Col2D"){
+//    else if(options["-map"] == "Col2D"){
 //      optionsFact.mappingType = COL2D;
 //    }
 //    else{
@@ -183,11 +226,13 @@ int main(int argc, char **argv)
 //    }
   }
   else{
-//    optionsFact.mappingType = MODWRAP2D;
     optionsFact.mappingTypeStr = "MODWRAP2D";
+//    optionsFact.mappingType = MODWRAP2D;
   }
 
+  Int all_np = np;
   np = optionsFact.used_procs(np);
+
   MPI_Comm workcomm;
   MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
 
@@ -294,12 +339,6 @@ int main(int argc, char **argv)
       optionsFact.maxIsend = maxIsend;
       optionsFact.maxIrecv = maxIrecv;
 
-      if(doFB){
-        optionsFact.factorization = FANBOTH;
-      }
-      else{
-        optionsFact.factorization = FANOUT;
-      }
 
 
       optionsFact.commEnv = new CommEnvironment(workcomm);
@@ -325,6 +364,7 @@ int main(int argc, char **argv)
       }
 
 
+#ifndef _NO_COMPUTATION_
       timeSta = get_time();
       TIMER_START(FACTORIZATION);
       SMat->Factorize();
@@ -356,6 +396,7 @@ int main(int argc, char **argv)
       //  SMat->Dump();
 #endif
 
+#endif
       delete SMat;
 
     }

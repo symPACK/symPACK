@@ -40,6 +40,22 @@ class SupernodalMatrixBase;
 //    TaskType type;
   };
 
+class BackupBuffer{
+    protected:
+    bool inUse;
+    char * local_ptr;
+    size_t size;
+    
+    public:
+    BackupBuffer();
+    ~BackupBuffer();
+    bool InUse(){return inUse;}
+    bool Allocated(){return local_ptr!=NULL;}
+    bool AllocLocal(size_t size);
+    void DeallocLocal();
+    char * GetPtr();
+    void ReleasePtr();
+};
 
 class IncomingMessage{
   public:
@@ -49,22 +65,27 @@ class IncomingMessage{
     upcxx::event * event_ptr;
     char * local_ptr;
     SnodeUpdateFB * task_ptr;
+    bool allocated;
+    bool ownLocalStorage;
     bool isDone; 
     bool remoteDealloc; 
     bool isLocal;
-    bool IsLocal();
+
     IncomingMessage();
     ~IncomingMessage();
     int Sender();
-    void Wait();
+    bool Wait();
     bool IsDone();
+    bool IsLocal();
     bool IsAsync();
-    void AllocLocal();
+    bool AllocLocal();
+    upcxx::global_ptr<char> GetRemotePtr();
     char * GetLocalPtr();
+    void SetLocalPtr(char * ptr,bool ownStorage = true);
     size_t Size(){return msg_size;}
     void AsyncGet();
     void DeallocRemote();
-    upcxx::global_ptr<char> GetRemotePtr();
+    void DeallocLocal();
 };
 
 
@@ -164,24 +185,35 @@ struct MSGCompare{
       {
 
         //if we still have async buffers
+
+
+        bool asyncComm = false;
         if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
-          gIncomingRecvAsync.push_back(new IncomingMessage() );
-          IncomingMessage * msg_ptr = gIncomingRecvAsync.back();
-          msg_ptr->meta = meta;
-          msg_ptr->remote_ptr = pRemote_ptr;
-          msg_ptr->msg_size = pMsg_size;
+
+            IncomingMessage * msg_ptr = new IncomingMessage();
+//            IncomingMessage * msg_ptr = gIncomingRecvAsync.back();
+            msg_ptr->meta = meta;
+            msg_ptr->remote_ptr = pRemote_ptr;
+            msg_ptr->msg_size = pMsg_size;
 
 
-          //allocate receive buffer
-          msg_ptr->AllocLocal();
-          msg_ptr->AsyncGet();
+            //allocate receive buffer
+            bool success = msg_ptr->AllocLocal();
+            if(success){
+              gIncomingRecvAsync.push_back( msg_ptr );
 
-          //      logfileptr->OFS()<<gIncomingRecvAsync.size()<<" vs "<<gMaxIrecv<<endl;
-          //add the function to the async queue
-          //      upcxx::async(A.iam)(Aggregate_Compute_Async,Aptr,j,RemoteAggregate, async_copy_event,tstart);
+              msg_ptr->AsyncGet();
+              //      logfileptr->OFS()<<gIncomingRecvAsync.size()<<" vs "<<gMaxIrecv<<endl;
+              //add the function to the async queue
+              //      upcxx::async(A.iam)(Aggregate_Compute_Async,Aptr,j,RemoteAggregate, async_copy_event,tstart);
+              asyncComm = true;
+            }
+            else{
+              delete msg_ptr;
+            }
         }
-        else{
 
+        if(!asyncComm){
           IncomingMessage * msg_ptr = new IncomingMessage() ;
           //gIncomingRecv.push_back(new IncomingMessage() );
           //IncomingMessage * msg_ptr = gIncomingRecv.back();
@@ -190,13 +222,6 @@ struct MSGCompare{
           msg_ptr->meta = meta;
           //gIncomingRecv.push(msg_ptr);
           gIncomingRecv.push_back(msg_ptr);
-
-          //      //allocate receive buffer
-          //      msg_ptr->AllocLocal();
-          //
-          //      upcxx::copy(pRemote_ptr,upcxx::global_ptr<T>(msg_ptr->GetLocalPtr()),pMsgSize);
-          //call the function inline
-          //      Aggregate_Compute_Async(Aptr, j, RemoteAggregate, NULL,tstart);
         }
 
       }

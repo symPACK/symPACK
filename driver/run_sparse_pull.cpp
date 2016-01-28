@@ -238,6 +238,7 @@ int main(int argc, char **argv)
 
   MPI_Comm workcomm;
   MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
+      logfileptr->OFS()<<"ALL SPLITS ARE DONE"<<endl;
 
   upcxx::team * workteam;
   Int new_rank = (iam<np)?iam:iam-np;

@@ -107,6 +107,7 @@ namespace SYMPACK{
       bool isXlindxAllocated_;
       bool isLindxAllocated_;
 
+      BackupBuffer backupBuffer_;
 
       //Supernodal partition array: supernode I ranges from column Xsuper_[I-1] to Xsuper_[I]-1
       IntNumVec Xsuper_;
