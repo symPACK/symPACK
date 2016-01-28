@@ -141,10 +141,10 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
         for(auto taskit = taskLists_[i]->begin(); taskit!=taskLists_[i]->end();taskit++){
 
 
-            //compute cost 
-            taskit->rank = levels[taskit->src_snode_id-1];
-            //            taskit->update_rank();
-            scheduler_->push(taskit);
+          //compute cost 
+          taskit->rank = levels[taskit->src_snode_id-1];
+          //            taskit->update_rank();
+          scheduler_->push(taskit);
 
         }
       }
@@ -153,7 +153,38 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
 
   TIMER_STOP(BUILD_TASK_LIST);
 
-#ifdef _DEBUG_UPDATES_
+#ifdef _DEBUG_SCHEDULE_
+
+  {
+    Int cnt = 0;
+    logfileptr->OFS()<<"All Tasks: "<<endl;
+    for(Int I = 1; I<Xsuper_.m(); ++I){
+      logfileptr->OFS()<<I<<": "<<endl;
+      if(taskLists_[I-1]!=NULL){
+        for(auto taskit = taskLists_[I-1]->begin();
+            taskit!=taskLists_[I-1]->end();
+            taskit++){
+          logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
+          cnt++;
+        }
+      }
+      logfileptr->OFS()<<endl;
+    }
+    assert(localTaskCount_ == cnt);
+
+    logfileptr->OFS()<<"Ready Tasks: "<<endl;
+    auto tmp = ((DLScheduler<std::list<FBTask>::iterator>*)scheduler_)->GetQueue();
+    //std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
+    while(!tmp.empty()){
+      auto taskit = tmp.top();
+      logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
+      tmp.pop();
+    }
+    logfileptr->OFS()<<endl;
+
+  }
+
+
   //<<<<<<< HEAD
   //  logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<endl;
   //  logfileptr->OFS()<<"AggregatesToRecv: "<<AggregatesToRecv<<endl;
@@ -240,13 +271,17 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
       auto taskit = scheduler_->top();
       //auto taskit = *rtaskit;
       //process task
-      FBTask & curTask = *taskit;
 
 
       while(taskit->remote_deps>0){
         CheckIncomingMessages(true);
+        //#ifdef SEPARATE_AGGREG
+        //        //we have to do this again to make sure that no task have been inserted
+        //        taskit = scheduler_->top();
+        //#endif
       }
 
+      FBTask & curTask = *taskit;
       scheduler_->pop();
       assert(taskit->local_deps==0);
 
@@ -472,10 +507,10 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
         //now see if there are some ready tasks
         for(auto taskit = taskLists_[i]->begin(); taskit!=taskLists_[i]->end();taskit++){
           if(taskit->remote_deps==0 && taskit->local_deps==0){
-          //compute cost 
-          taskit->rank = levels[taskit->src_snode_id-1];
-          //            taskit->update_rank();
-          scheduler_->push(taskit);
+            //compute cost 
+            taskit->rank = levels[taskit->src_snode_id-1];
+            //            taskit->update_rank();
+            scheduler_->push(taskit);
           }
         }
       }
@@ -1156,6 +1191,10 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(bool is_s
     FBTask * curTask = NULL;
     if(is_static){
       curTask = &*scheduler_->top();
+
+#ifdef _DEBUG_PROGRESS_
+      logfileptr->OFS()<<"Next Task T("<<curTask->src_snode_id<<","<<curTask->tgt_snode_id<<") "<<endl;
+#endif
     }
 
 
@@ -1167,56 +1206,44 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(bool is_s
       //if we have some room, turn blocking comms into async comms
       if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
         while((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()){
+          bool success = false;
           if(!is_static){
-          //auto it = gIncomingRecv.top();
-          auto it = gIncomingRecv.front();
-          (it)->AllocLocal();
-          (it)->AsyncGet();
-          gIncomingRecvAsync.push_back(it);
-          //gIncomingRecv.pop();
-          gIncomingRecv.pop_front();
+            //auto it = gIncomingRecv.top();
+            auto it = gIncomingRecv.front();
+            success = (it)->AllocLocal();
+            if(success){
+            (it)->AsyncGet();
+            gIncomingRecvAsync.push_back(it);
+            //gIncomingRecv.pop();
+            gIncomingRecv.pop_front();
 
-          //auto it = gIncomingRecv.begin();
-          //(*it)->AllocLocal();
-          //(*it)->AsyncGet();
-          //gIncomingRecvAsync.splice(gIncomingRecvAsync.end(),gIncomingRecv,it);
+            //auto it = gIncomingRecv.begin();
+            //(*it)->AllocLocal();
+            //(*it)->AsyncGet();
+            //gIncomingRecvAsync.splice(gIncomingRecvAsync.end(),gIncomingRecv,it);
 #ifdef _DEBUG_PROGRESS_
-          logfileptr->OFS()<<"TRANSFERRED TO ASYNC COMM"<<endl;
+            logfileptr->OFS()<<"TRANSFERRED TO ASYNC COMM"<<endl;
 #endif
+            }
           }
           else{
-
-
-//              Int iOwner = Mapping_->Map(msg->meta.tgt-1,msg->meta.tgt-1);
-//              Int iUpdater = Mapping_->Map(msg->meta.tgt-1,msg->meta.src-1);
-//              if(curTask->type == FACTOR){
-//                if(iOwner==iam && iUpdater!=iam){
-//                  //this is an aggregate
-//                  taskit = find_task(msg->meta.tgt,msg->meta.tgt,FACTOR);
-//                }
-//              }
-//              else if(curTask->type == UPDATE){
-//                if(iOwner!=iam || iUpdater==iam){
-//                  //this is a factor
-//                  taskit = find_task(msg->meta.src,msg->meta.tgt,UPDATE);
-//                }
-//              }
-
-
-
-
             for(auto it = gIncomingRecv.begin();it!=gIncomingRecv.end();it++){
               //find a message corresponding to current task
               IncomingMessage * curMsg = *it;
               if(curMsg->meta.tgt==curTask->tgt_snode_id){
-                (curMsg)->AllocLocal();
+                success = (curMsg)->AllocLocal();
+                if(success){
                 (curMsg)->AsyncGet();
                 gIncomingRecvAsync.push_back(curMsg);
                 //gIncomingRecv.pop();
                 gIncomingRecv.erase(it);
+                }
                 break;
               }
             }
+          }
+          if(!success){
+            break;
           }
         }
       }
@@ -1241,6 +1268,7 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(bool is_s
         //find if there is some finished async comm
         auto it = TestAsyncIncomingMessage();
         if(it!=gIncomingRecvAsync.end()){
+
           TIMER_START(RM_MSG_ASYNC);
           msg = *it;
           gIncomingRecvAsync.erase(it);
@@ -1265,17 +1293,18 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(bool is_s
 #endif
 
           TIMER_START(RM_MSG_SYNC);
-if(!is_static){
-          //auto it = gIncomingRecv.top();
-          auto it = gIncomingRecv.front();
-          msg = it;
-          //gIncomingRecv.pop();
-          gIncomingRecv.pop_front();
-          //auto it = gIncomingRecv.begin();
-          //msg = *it;
-          //gIncomingRecv.erase(it);
-}
-else{
+          if(!is_static){
+            //auto it = gIncomingRecv.top();
+            auto it = gIncomingRecv.front();
+            msg = it;
+            //gIncomingRecv.pop();
+            gIncomingRecv.pop_front();
+            //auto it = gIncomingRecv.begin();
+            //msg = *it;
+            //gIncomingRecv.erase(it);
+          }
+          else{
+            msg=NULL;
             for(auto it = gIncomingRecv.begin();it!=gIncomingRecv.end();it++){
               //find a message corresponding to current task
               IncomingMessage * curMsg = *it;
@@ -1285,7 +1314,7 @@ else{
                 break;
               }
             }
-}
+          }
           TIMER_STOP(RM_MSG_SYNC);
         }
 
@@ -1293,7 +1322,17 @@ else{
 
       if(msg!=NULL){
         scope_timer(a,WAIT_AND_UPDATE_DEPS);
-        msg->Wait(); 
+        bool success = msg->Wait(); 
+        if(!success){
+          //there has been a problem: only one case: sync get and memory allocation has failed
+          //try to use the backup buffer
+          assert(!backupBuffer_.InUse());
+         
+          //TODO handle backup mode : messages have to be consumed one by one: can't delay the processing 
+          msg->SetLocalPtr(backupBuffer_.GetPtr(),false);
+          success = msg->Wait(); 
+          assert(success);
+        }
 
         //int * ptr = (int*)msg->GetLocalPtr();
         //update task dependency
@@ -1309,36 +1348,42 @@ else{
           logfileptr->OFS()<<"COMM: FETCHED AGGREG MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<iUpdater<<endl;
 #endif
 
+          if(!is_static){
 #ifdef SEPARATE_AGGREG
-          //insert an aggregation task
-          Int I = msg->meta.src;
-          Int J = msg->meta.tgt;
-          FBTask curUpdate;
-          curUpdate.type=AGGREGATE;
-          curUpdate.src_snode_id = I;
-          curUpdate.tgt_snode_id = J;
+            //insert an aggregation task
+            Int I = msg->meta.src;
+            Int J = msg->meta.tgt;
+            FBTask curUpdate;
+            curUpdate.type=AGGREGATE;
+            curUpdate.src_snode_id = I;
+            curUpdate.tgt_snode_id = J;
 
-          curUpdate.remote_deps = 1;
-          curUpdate.local_deps = 0;
+            curUpdate.remote_deps = 1;
+            curUpdate.local_deps = 0;
 
-          if(taskLists_[J-1] == NULL){
-            taskLists_[J-1]=new std::list<FBTask>();
-          }
-          taskLists_[J-1]->push_back(curUpdate);
-          localTaskCount_++;
-          taskit = --taskLists_[J-1]->end();
+            if(taskLists_[J-1] == NULL){
+              taskLists_[J-1]=new std::list<FBTask>();
+            }
+            taskLists_[J-1]->push_back(curUpdate);
 
-          {
-            SuperNode2<T> & tgt_snode = *snodeLocal(taskit->tgt_snode_id);
-            char* dataPtr = msg->GetLocalPtr();
-            SuperNode2<T> dist_src_snode(dataPtr,msg->Size());
-            taskit->rank = dist_src_snode.NRowsBelowBlock(0)*tgt_snode.Size();
-          }
+            localTaskCount_++;
+            taskit = --taskLists_[J-1]->end();
+
+            //{
+            //  SuperNode2<T> & tgt_snode = *snodeLocal(taskit->tgt_snode_id);
+            //  char* dataPtr = msg->GetLocalPtr();
+            //  SuperNode2<T> dist_src_snode(dataPtr,msg->Size());
+            //  taskit->rank = dist_src_snode.NRowsBelowBlock(0)*tgt_snode.Size();
+            //}
 #else
-          //need to update dependencies of the factorization task
-          taskit = find_task(msg->meta.tgt,msg->meta.tgt,FACTOR);
+            //need to update dependencies of the factorization task
+            taskit = find_task(msg->meta.tgt,msg->meta.tgt,FACTOR);
 
 #endif
+          }
+          else{
+            taskit = find_task(msg->meta.tgt,msg->meta.tgt,FACTOR);
+          }
         }
         else{
           Int iOwner = Mapping_->Map(msg->meta.src-1,msg->meta.src-1);

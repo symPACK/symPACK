@@ -25,7 +25,7 @@ EXES = ${SRCS:.cpp=}
 	${FC} -c ${FFLAGS} $<
 
 #all: run_cholesky run_dense_fanboth
-all: run_dense_fanboth_upcxx run_dense_fanboth_mpi run_dense_scalapack run_sparse_fanboth_upcxx unit_test 
+all: run_dense_fanboth_upcxx run_dense_fanboth_mpi run_dense_scalapack run_sparse_push unit_test 
 
 #run_sparse_fanboth_upcxx 
 
@@ -58,10 +58,10 @@ run_dense_fanboth_mpi.o: run_dense_fanboth_mpi.cpp
 	${CXX} -g  -o $@ -c ${CXXFLAGS} ${CPPDEFS} $< 
 
 
-run_sparse_fanboth_upcxx: run_sparse_fanboth_upcxx.o ${SYMPACK_LIB}
-	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@${SUFFIX} run_sparse_fanboth_upcxx.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
+run_sparse_push: run_sparse_push.o ${SYMPACK_LIB}
+	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@${SUFFIX} run_sparse_push.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
 
-run_sparse_fanboth_upcxx.o: run_sparse_fanboth_upcxx.cpp 
+run_sparse_push.o: run_sparse_push.cpp 
 	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
 
 run_sparse_pull: run_sparse_pull.o ${SYMPACK_LIB}

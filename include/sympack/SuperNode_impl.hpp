@@ -13,7 +13,7 @@
     SuperNode<T>::SuperNode() :iId_(-1),iFirstCol_(-1),iLastCol_(-1),iN_(-1) { }
 
   template<typename T>
-    SuperNode<T>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
+    SuperNode<T>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) :iId_(aiId),iFirstCol_(aiFc),iLastCol_(aiLc) {
       iN_=aiN;
       //this is an upper bound
       assert(ai_num_rows>=0);
@@ -25,7 +25,11 @@
       nzval_container_.reserve(iSize_*ai_num_rows);
       nzval_ = NULL;
 
-      blocks_container_.reserve(ai_num_rows);
+      Int num_blocks = ai_num_rows-iSize_ + 1;
+      if(aiNZBlkCnt!=-1){
+        num_blocks=aiNZBlkCnt;
+      }
+      blocks_container_.reserve(num_blocks);
       blocks_ = NULL;
       blocks_cnt_ = 0;
 

@@ -169,7 +169,7 @@ namespace SYMPACK{
 
       //Local and Global structure of the matrix (CSC format)
       SparseMatrixStructure Local_;
-      SparseMatrixStructure Global_;
+      SparseMatrixStructure * Global_;
       //CSC structure of L factor
       PtrVec xlindx_;
       IdxVec lindx_;

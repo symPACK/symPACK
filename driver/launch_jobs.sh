@@ -5,7 +5,7 @@ NGCHOLDIR=$HOME/sympack_devel
 #EXECS=($NGCHOLDIR/driver/run_sparse_pull $NGCHOLDIR/driver/run_sparse_fanboth_upcxx $NGCHOLDIR/driver/run_mumps)
 #EXECS=($NGCHOLDIR/driver/run_sparse_pull $NGCHOLDIR/driver/run_sparse_fanboth_upcxx)
 #EXECS=($NGCHOLDIR/driver/run_sparse_pull $NGCHOLDIR/driver/run_mumps)
-EXECS=($NGCHOLDIR/driver/run_sparse_pull_time $NGCHOLDIR/driver/run_mumps)
+EXECS=($NGCHOLDIR/driver/run_sparse_pull_debug $NGCHOLDIR/driver/run_sparse_push_debug $NGCHOLDIR/driver/run_mumps )
 
 #EXEC=$NGCHOLDIR/driver/run_sparse_fanboth_upcxx_nolb
 
@@ -27,7 +27,7 @@ MATRIX=$NGCHOLDIR/matrices/audikw_1/audikw_1.rb
 #MATRIX=$NGCHOLDIR/matrices/offshore/offshore.rb
 #MATRIX=$NGCHOLDIR/matrices/thermal2/thermal2.rb
 
-
+#MATRIX=/global/homes/m/mjac/pexsi_project/DNA_715_64cell/DNA_715_64cell.rb
 
 
 
@@ -44,12 +44,12 @@ FORMAT="HARWELL_BOEING"
 
 #MAPPING=ROW2D
 #MAPPING=COL2D
-MAPPINGS=(MODWRAP2D COL2D ROW2D)
+MAPPINGS=(ROW2D MODWRAP2D COL2D)
 #TREE
 ORDER=SCOTCH
 LB=SUBCUBE-FO
 NUMTRIES=2
-FB=1
+FB=static
 ISEND=10
 IRECV=0
 #BLOCKS=(58)
@@ -68,14 +68,16 @@ SCHEDULER=DL
 #PROCS=(1 4 16 24 32 48 64)
 #PROCS=(96 128 192 256 384)
 #PROCS=(1 4 16 24 32 48 64 96 128 192 256 384)
-#PROCS=(24)
+#PROCS=(4 16 24 64 96)
+#PROCS=(4 16 24 64 96)
 #ALLOCPROCS=(24 24 24 24 72 96 144 192 264 384 576)
 #PROCS=(1 4 16 24 64 96 128 192) 
 PROCS=(1 4 16 24 64 96 192 256 384 576)
+#PROCS=(192 256 384 576)
+#PROCS=(64 96 192 256 384 576 1024)
 
-#ALLOCPROCS=(768 1032 2136 4104)
 #PROCS=(768 1024 2116 4096)
-#PROCS=(24)
+#PROCS=(64)
 
 #PROCS=(1 4 16 24 25 48 64 81 121 169 192 256 361)
 #PROCS=(192 256)
@@ -142,6 +144,8 @@ echo "echo \"-------------\$EXEC-----------\"" >> tmp.slurm
 echo "for MAPPING_IDX in \${!MAPPINGS[@]};" >> tmp.slurm
 echo "do " >> tmp.slurm
 
+
+
 echo "if [ \"\$MAPPING_IDX\" != \"1\" ] && [ \"\$EXEC\" == \"/global/homes/m/mjac/sympack_devel/driver/run_mumps\" ]" >> tmp.slurm
 echo "then" >> tmp.slurm
 echo "continue" >> tmp.slurm
@@ -165,6 +169,8 @@ echo "rm -f profile*;" >> tmp.slurm
 #echo "aprun -n $p \$EXEC -in $MATRIX -inf CSC -map $MAPPING -b $BLOCK -ir $IRECV -is $ISEND -fb $FB -ordering $ORDER -lb $LB -scheduler $SCHEDULER $RELAX" >> tmp.slurm
 
 echo "echo \"srun -n $p \$EXEC -in $MATRIX  -inf $FORMAT -map \$MAPPING -b $BLOCK -ir $IRECV -is $ISEND -fb $FB -ordering $ORDER -lb $LB -scheduler $SCHEDULER $RELAX\"" >> tmp.slurm
+
+
 echo "srun -n $p \$EXEC -in $MATRIX -inf $FORMAT -map \$MAPPING -b $BLOCK -ir $IRECV -is $ISEND -fb $FB -ordering $ORDER -lb $LB -scheduler $SCHEDULER $RELAX -R 50 -Fact 1 -Ord $ORDER" >> tmp.slurm
 echo "done" >> tmp.slurm
 
