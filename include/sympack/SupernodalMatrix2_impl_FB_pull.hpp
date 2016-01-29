@@ -1324,13 +1324,13 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(bool is_s
         scope_timer(a,WAIT_AND_UPDATE_DEPS);
         bool success = msg->Wait(); 
         if(!success){
-          //there has been a problem: only one case: sync get and memory allocation has failed
-          //try to use the backup buffer
-          assert(!backupBuffer_.InUse());
-         
-          //TODO handle backup mode : messages have to be consumed one by one: can't delay the processing 
-          msg->SetLocalPtr(backupBuffer_.GetPtr(),false);
-          success = msg->Wait(); 
+//          //there has been a problem: only one case: sync get and memory allocation has failed
+//          //try to use the backup buffer
+//          assert(!backupBuffer_.InUse());
+//         
+//          //TODO handle backup mode : messages have to be consumed one by one: can't delay the processing 
+//          msg->SetLocalPtr(backupBuffer_.GetPtr(),false);
+//          success = msg->Wait(); 
           assert(success);
         }
 
