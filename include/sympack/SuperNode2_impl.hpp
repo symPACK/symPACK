@@ -1,6 +1,10 @@
 #ifndef _SUPERNODE2_IMPL_HPP_
 #define _SUPERNODE2_IMPL_HPP_
 
+#ifdef _USE_COREDUMPER_
+#include <gasnet.h>
+#include <google/coredumper.h>
+#endif
 
 //SuperNode2 implementation
   template<typename T>
@@ -23,6 +27,13 @@
       storage_size_ = sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc);
       storage_container_ = upcxx::allocate<char>(iam,storage_size_); 
       loc_storage_container_ = (char *)storage_container_;
+#ifdef _USE_COREDUMPER_
+      if(loc_storage_container_==NULL){
+        std::stringstream corename;
+        corename << "core.sympack." << iam;
+        WriteCoreDump(corename.str().c_str());
+      }
+#endif
       assert(loc_storage_container_!=NULL);
 
       nzval_ = (T*)&loc_storage_container_[0];

@@ -3145,7 +3145,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
   template <typename T> SparseMatrixStructure SupernodalMatrix<T>::GetGlobalStructure(){
     if(!globalAllocated){
-      Local_.ToGlobal(Global_,CommEnv_->MPI_GetComm());
+      Local_.ToGlobal(*Global_,CommEnv_->MPI_GetComm());
       globalAllocated= true;
     }
     return Global_;

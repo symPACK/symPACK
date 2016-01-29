@@ -1931,6 +1931,15 @@ namespace SYMPACK{
       //first, count 
       map<Int,pair<size_t,Icomm *> > recv_map;
       map<Int,pair<size_t,Icomm *> > send_map;
+
+      for(Int p=0;p<np;++p){
+        recv_map[p].first = 0;
+        send_map[p].first = 0;
+      }
+
+
+
+
       Int snodeCount = 0;
       for(Int I=1;I<Xsuper_.m();I++){
         Int fc = Xsuper_(I-1);
@@ -2025,7 +2034,227 @@ namespace SYMPACK{
 
       //TODO: implement this using Alltoallv
 
+#if 1
 
+    {
+
+
+      //allocate one buffer for every remote processor
+      //compute the send structures
+      size_t total_send_size = 0;
+      vector<int> sdispls(np,0);
+      vector<int> scounts(np,0);
+      for(auto it = send_map.begin(); it!=send_map.end();it++){
+        Int iCurDest = it->first;
+        size_t & send_bytes = it->second.first;
+        scounts[iCurDest] = send_bytes;
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"P"<<iam<<" ---- "<<send_bytes<<" ---> P"<<iCurDest<<endl;
+#endif
+      }
+
+
+      for(Int p=0;p<np;++p){
+        if(p>0){
+          sdispls[p] = sdispls[p-1] + scounts[p-1];
+        }
+        total_send_size += scounts[p];
+      }
+
+      Icomm * IsendPtr = new Icomm(total_send_size,MPI_REQUEST_NULL);
+
+      //Fill up the send buffer
+          for(auto it = send_map.begin(); it!=send_map.end();it++){
+            Int iCurDest = it->first;
+            size_t & send_bytes = it->second.first;
+
+            Icomm & Isend = *IsendPtr;
+
+            for(Int I=1;I<Xsuper_.m();I++){
+              Int fc = Xsuper_(I-1);
+              Int lc = Xsuper_(I)-1;
+              Int iWidth = lc-fc+1;
+              Ptr fi = xlindx_(I-1);
+              Ptr li = xlindx_(I)-1;
+              Int iHeight = li-fi+1;
+
+              Int iDest = this->Mapping_->Map(I-1,I-1);
+
+              if(iDest == iCurDest){
+#ifdef _DEBUG_
+                logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
+#endif
+
+                //look at the owner of the first column of the supernode
+                Int numColFirst = std::max(1,iSize_ / np);
+
+                //post all the recv and sends
+                //      logfileptr->OFS()<<"Sending columns of SuperNode2 "<<I<<endl;
+                bool isSend = false;
+                for(Int col = fc;col<=lc;col++){
+                  //corresponding column in the unsorted matrix A
+                  Int orig_col = Order_.perm[col-1];
+                  Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+
+                  if(iam == iOwnerCol){
+                    isSend = true;
+                  }
+                }
+
+                if(isSend){
+
+                  //Serialize
+                  for(Int col = fc;col<=lc;col++){
+                    Int orig_col = Order_.perm[col-1];
+                    Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+                    if(iam==iOwnerCol && iDest!=iam){
+
+                      Int local_col = (orig_col-(numColFirst)*iOwnerCol);
+                      Int nrows = ExpA.Local_.colptr[local_col]-ExpA.Local_.colptr[local_col-1];
+                      Isend<<col;
+                      Isend<<nrows;
+                      Serialize(Isend,(char*)&ExpA.Local_.rowind[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(Int));
+                      Serialize(Isend,(char*)&ExpA.nzvalLocal[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(T));
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+
+
+
+
+      //compute the receive structures
+      size_t total_recv_size = 0;
+      vector<int> rdispls(np,0);
+      vector<int> rcounts(np,0);
+      for(auto it = recv_map.begin(); it!=recv_map.end();it++){
+        Int iCurSrc = it->first;
+        size_t & recv_bytes = it->second.first;
+        rcounts[iCurSrc] = recv_bytes;
+#ifdef _DEBUG_
+        logfileptr->OFS()<<"P"<<iam<<" <--- "<<recv_bytes<<" ---- P"<<iCurSrc<<endl;
+#endif
+      }
+
+
+      for(Int p=0;p<np;++p){
+        if(p>0){
+          rdispls[p] = rdispls[p-1] + rcounts[p-1];
+        }
+        total_recv_size += rcounts[p];
+      }
+
+      Icomm * IrecvPtr = new Icomm(total_recv_size,MPI_REQUEST_NULL);
+
+
+#ifdef _DEBUG_
+      logfileptr->OFS()<<"scounts: "<<scounts<<endl;
+      logfileptr->OFS()<<"sdispls: "<<sdispls<<endl;
+      logfileptr->OFS()<<"rcounts: "<<rcounts<<endl;
+      logfileptr->OFS()<<"rdispls: "<<rdispls<<endl;
+#endif
+
+      MPI_Alltoallv(IsendPtr->front(), &scounts[0], &sdispls[0], MPI_BYTE,
+                    IrecvPtr->front(), &rcounts[0], &rdispls[0], MPI_BYTE,
+                    CommEnv_->MPI_GetComm());
+
+
+      for(Int p=0;p<np;++p){
+        int curProc = 0;
+        IrecvPtr->setHead(rdispls[p]);
+        //logfileptr->OFS()<<"Receiving SuperNode2 "<<I<<" from P"<<recv_status.MPI_SOURCE<<" ("<<recv_bytes<<") cols {";
+        while(IrecvPtr->head < rdispls[p]+rcounts[p]){ 
+          char * buffer = IrecvPtr->back();
+
+          //Deserialize
+          Int col = *(Int*)&buffer[0];
+          Int I = SupMembership_[col-1];
+
+          Int iDest = this->Mapping_->Map(I-1,I-1);
+          if(iam != iDest){gdb_lock();}
+
+          assert(iam==iDest);
+
+          Int fc = Xsuper_(I-1);
+          Int lc = Xsuper_(I)-1;
+          Int iWidth = lc-fc+1;
+          Ptr fi = xlindx_(I-1);
+          Ptr li = xlindx_(I)-1;
+          Int iHeight = li-fi+1;
+
+          SuperNode2<T> & snode = *snodeLocal(I);
+
+          if(snode.NZBlockCnt()==0){
+            for(Ptr idx = fi; idx<=li;idx++){
+              Idx iStartRow = lindx_(idx-1);
+              Idx iPrevRow = iStartRow;
+              Int iContiguousRows = 1;
+              for(Int idx2 = idx+1; idx2<=li;idx2++){
+                Idx iCurRow = lindx_(idx2-1);
+                if(iStartRow == lindx_(fi-1)){
+                  if(iCurRow>iStartRow+iWidth-1){
+                    //enforce the first block to be a square diagonal block
+                    break;
+                  }
+                }
+
+                if(iCurRow==iPrevRow+1){
+                  idx++;
+                  ++iContiguousRows;
+                  iPrevRow=iCurRow;
+                }
+                else{
+                  break;
+                }
+              }
+
+              Int iCurNZcnt = iContiguousRows * iWidth;
+              snode.AddNZBlock(iContiguousRows , iWidth,iStartRow);
+            }
+
+            snode.Shrink();
+          }
+
+          Int nrows = *((Int*)&buffer[sizeof(Int)]);
+          Int * rowind = (Int*)(&buffer[2*sizeof(Int)]);
+          T * nzvalA = (T*)(&buffer[(2+nrows)*sizeof(Int)]);
+          //advance in the buffer
+          IrecvPtr->setHead(IrecvPtr->head + 2*sizeof(Int) + nrows*(sizeof(Int)+sizeof(T)));
+
+          //logfileptr->OFS()<<col<<" ";
+
+          Int orig_col = Order_.perm[col-1];
+          Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+
+          Int colbeg = 1;
+          Int colend = nrows;
+
+          for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
+            Int orig_row = rowind[rowidx-1];
+            Int row = Order_.invp[orig_row-1];
+
+            if(row>=col){
+              Int blkidx = snode.FindBlockIdx(row);
+              NZBlockDesc2 & blk_desc = snode.GetNZBlockDesc(blkidx);
+              Int local_row = row - blk_desc.GIndex + 1;
+              Int local_col = col - fc + 1;
+              T * nzval = snode.GetNZval(blk_desc.Offset);
+              nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
+            }
+          }
+
+        }
+      }
+
+
+      //after the alltoallv, cleanup
+      delete IrecvPtr;
+      delete IsendPtr;
+    }
+#else
       //Create the remote ones when we receive something
       for(Int p=0;p<np;++p){
         if(iam==p){
@@ -2211,7 +2440,7 @@ namespace SYMPACK{
 
         }
       }
-
+#endif
 
       //do the local and resize my SuperNode2 structure
       for(Int I=1;I<Xsuper_.m();I++){
@@ -2358,6 +2587,8 @@ namespace SYMPACK{
 #endif
     //Dump();
 
+#if 0
+
     //allocate backup buffer
     {
       auto maxwit = max_element(&UpdateWidth_[0],&UpdateWidth_[0]+UpdateWidth_.size());
@@ -2384,6 +2615,7 @@ namespace SYMPACK{
 
     }
 
+#endif
 
 
 #ifdef PREALLOC_IRECV
