@@ -87,6 +87,16 @@ load_sparse_matrix (enum sparse_matrix_file_format_t file_format,
 int
 sparse_matrix_expand_symmetric_storage (struct sparse_matrix_t* A);
 
+
+
+int
+sparse_matrix_to_symmetric_storage (struct sparse_matrix_t* A);
+int
+sparse_matrix_to_SPD (struct sparse_matrix_t* A);
+
+
+
+
 /**
  * Converts the sparse matrix A from its current format into the new format
  * output_format.

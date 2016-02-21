@@ -96,12 +96,12 @@ int main(int argc, char **argv)
     maxSnode= atoi(options["-b"].front().c_str());
   }
 
-  optionsFact.relax.SetMaxSize(maxSnode);//  maxSnode= atoi(options["-b"].c_str());
+  optionsFact.relax.SetMaxSize(maxSnode);
   if( options.find("-relax") != options.end() ){
     if(options["-relax"].size()==3){
-      optionsFact.relax.SetNrelax0(atoi(options["-relax"][0].c_str()));//  maxSnode= atoi(options["-b"].c_str());
-      optionsFact.relax.SetNrelax1(atoi(options["-relax"][1].c_str()));//  maxSnode= atoi(options["-b"].c_str());
-      optionsFact.relax.SetNrelax2(atoi(options["-relax"][2].c_str()));//  maxSnode= atoi(options["-b"].c_str());
+      optionsFact.relax.SetNrelax0(atoi(options["-relax"][0].c_str()));
+      optionsFact.relax.SetNrelax1(atoi(options["-relax"][1].c_str()));
+      optionsFact.relax.SetNrelax2(atoi(options["-relax"][2].c_str()));
     }
     else{
       //disable relaxed supernodes

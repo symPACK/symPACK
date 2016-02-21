@@ -98,6 +98,7 @@ usage (FILE* out, const struct arginfo* arglist, const struct arginfo* ext_args)
   fprintf (out, "           -k  -- convert to skew symmetric storage (for CSC output)\n");
   fprintf (out, "           -s  -- specify that the matrix is symmetric (for CSC output)\n");
   fprintf (out, "           -c  -- specify that the matrix is complex (for CSC output)\n");
+  fprintf (out, "           -d  -- turn the matrix into spd\n");
   fprintf (out, "           -v  -- verbose mode\n");
   fprintf (out, "           -h  -- print this usage message and exit\n\n");
 }
@@ -633,6 +634,10 @@ main (int argc, char *argv[])
   arglist = register_arginfo (arglist, 'c', NULLARG, NULL, "If specified, "
       "specify that the CSC matrix is a complex matrix. ONLY TO CSC matrices"
       );
+
+  arglist = register_arginfo (arglist, 'd', NULLARG, NULL, "If specified, "
+      "specify that the CSC matrix has to be made SPD. ONLY TO CSC matrices"
+      );
   get_options (argc, argv, arglist, NULL);
 
   if (got_arg_p (arglist, 'a'))
@@ -775,6 +780,68 @@ main (int argc, char *argv[])
     if (got_arg_p (arglist, 'v'))
       printf ("done, in %g seconds\n", seconds);
   }
+
+
+    if (got_arg_p (arglist, 'l'))
+    {
+
+      if (got_arg_p (arglist, 'v'))
+      {
+        printf ("Converting sparse matrix into symmetric storage...");
+        fflush (stdout);
+      }
+
+      seconds = get_seconds();
+      errcode = sparse_matrix_to_symmetric_storage (A);
+      seconds = get_seconds() - seconds;
+      if (errcode != 0)
+      {
+        fprintf (stderr, "*** Failed to convert matrix into symmetric storage ***\n");
+        destroy_sparse_matrix (A);
+        destroy_arginfo_list (arglist);
+        bebop_exit (2);
+      }
+      if (got_arg_p (arglist, 'v'))
+        printf ("done, in %g seconds\n", seconds);
+
+    }
+
+
+
+
+    if (got_arg_p (arglist, 'd'))
+    {
+
+      if (got_arg_p (arglist, 'v'))
+      {
+        printf ("Converting sparse matrix into SPD");
+        fflush (stdout);
+      }
+
+      seconds = get_seconds();
+      errcode = sparse_matrix_to_SPD (A);
+      seconds = get_seconds() - seconds;
+      if (errcode != 0)
+      {
+        fprintf (stderr, "*** Failed to convert matrix into SPD ***\n");
+        destroy_sparse_matrix (A);
+        destroy_arginfo_list (arglist);
+        bebop_exit (2);
+      }
+      if (got_arg_p (arglist, 'v'))
+        printf ("done, in %g seconds\n", seconds);
+
+    }
+
+
+
+
+
+
+
+
+
+
 
   if (got_arg_p (arglist, 'v'))
   {

@@ -129,6 +129,7 @@ class SuperNode2{
   void Init(char * storage_ptr,size_t storage_size, Int GIndex = -1);
 
   inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex);
+  inline void Reserve(size_t storage_size);
 
   inline Int FindBlockIdx(Int aiGIndex);
   inline Int FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap);

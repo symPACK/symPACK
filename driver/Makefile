@@ -113,11 +113,23 @@ run_dense_scalapack.o: run_dense_scalapack.cpp
 
 
 run_mumps: run_mumps.o ${SYMPACK_LIB}
-	($(LOADER) -o $@ run_mumps.o  $(DMUMPS_LIB) $(ZMUMPS_LIB) $(MUMPS_ORDERINGS) ${MUMPSLOADOPTS} )
+	($(LOADER) -o $@${SUFFIX} run_mumps.o  $(DMUMPS_LIB) $(ZMUMPS_LIB) $(MUMPS_ORDERINGS) ${MUMPSLOADOPTS} )
 
 run_mumps.o: run_mumps.cpp
 	${CXX} -c $(MUMPS_INCLUDE)  ${CXXFLAGS} ${CPPDEFS} $<
 
+
+run_superlu: run_superlu3.o ${SYMPACK_LIB}
+	($(LOADER) $(LDFLAGS) -o $@ run_superlu3.o  $(SUPERLU_LIB) $(PEXSI_LIB) $(PARMETIS_LIB) ${LOADOPTS} )
+
+run_superlu3.o: run_superlu3.cpp
+	${CXX} -c $(SUPERLU_INCLUDE)  ${CXXFLAGS} ${CPPDEFS} $<
+
+run_pastix: run_pastix.o ${SYMPACK_LIB}
+	($(LOADER) $(LDFLAGS) -o $@${SUFFIX} run_pastix.o  $(PASTIX_LIB) $(PEXSI_LIB) $(PARMETIS_LIB) ${LOADOPTS} )
+
+run_pastix.o: run_pastix.cpp
+	${CXX} -c $(PASTIX_INCLUDE)  ${CXXFLAGS} ${CPPDEFS} $< 
 
 
 -include ${DEPS}

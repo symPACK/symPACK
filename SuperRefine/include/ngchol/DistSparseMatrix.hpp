@@ -56,7 +56,6 @@ template <typename F> class DistSparseMatrix{
   DistSparseMatrix(MPI_Comm aComm){globalAllocated=false; comm = aComm;};
   void CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval,bool onebased=false );
   DistSparseMatrix(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval , MPI_Comm oComm);
-
   SparseMatrixStructure  GetGlobalStructure();
   SparseMatrixStructure  GetLocalStructure() const;
   //const SparseMatrixStructure & GetLocalStructure() const;

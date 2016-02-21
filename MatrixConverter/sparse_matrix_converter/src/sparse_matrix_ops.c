@@ -49,6 +49,7 @@
 #include <bebop/smc/read_mm.h>
 #include <bebop/smc/sparse_matrix.h>
 
+#include <bebop/util/complex.h>
 #include <bebop/util/malloc.h>
 #include <bebop/util/util.h>
 #include <bebop/util/log.h>
@@ -373,6 +374,180 @@ sparse_matrix_expand_symmetric_storage (struct sparse_matrix_t* A)
 
   return errcode;
 }
+
+int
+sparse_matrix_to_symmetric_storage (struct sparse_matrix_t* A)
+{
+  enum sparse_matrix_storage_format_t informat;
+  int i,jptr,row,col;
+  int newnnz;  
+  int errcode = 0;
+  int * newcolptr,*newrowidx;
+  void * newval;
+  informat = A->format;
+
+
+  sparse_matrix_convert (A, CSC);
+
+  struct csc_matrix_t * Acsc = (struct csc_matrix_t*)A->repr;
+
+  if (Acsc->symmetry_type == SYMMETRIC){
+    sparse_matrix_convert (A, informat);
+    return 0;
+  }
+
+  newnnz=0;
+  for(col=0;col<Acsc->n;col++){
+    for(jptr= Acsc->colptr[col]; jptr<Acsc->colptr[col+1];jptr++){
+      row = Acsc->rowidx[jptr];
+      if(row>=col){
+        newnnz++;
+      }
+    }
+  }
+
+  newcolptr= (int*) bebop_calloc(Acsc->n+1,sizeof(int));
+  newrowidx= (int*) bebop_calloc(newnnz,sizeof(int));
+
+  if (Acsc->value_type == REAL){
+    newval = (double*) bebop_calloc(newnnz,sizeof(double));
+  }
+  else if (Acsc->value_type == COMPLEX){
+    newval = (double_Complex*) bebop_calloc(newnnz,sizeof(double_Complex));
+  }
+  else if (Acsc->value_type == PATTERN){
+    newval = (int*) bebop_calloc(newnnz,sizeof(int));
+  }
+
+  newcolptr[0]=0;
+  for(col=0;col<Acsc->n;col++){
+    int pos = newcolptr[col];
+    for(jptr= Acsc->colptr[col]; jptr<Acsc->colptr[col+1];jptr++){
+      row = Acsc->rowidx[jptr];
+      if(row>=col){
+        newrowidx[pos] = row;
+        if (Acsc->value_type == REAL){
+          ((double*)newval)[pos] = ((double*)Acsc->values)[jptr];
+        }
+        else if (Acsc->value_type == COMPLEX){
+          ((double_Complex*)newval)[pos] = ((double_Complex*)Acsc->values)[jptr];
+        }
+        else if (Acsc->value_type == PATTERN){
+          ((int*)newval)[pos] = ((int*)Acsc->values)[jptr];
+        }
+
+        pos++;
+      }
+    }
+    newcolptr[col+1]=pos;
+  }
+  newcolptr[Acsc->n]=newnnz; 
+
+
+
+
+
+
+  bebop_free (Acsc->colptr);
+  bebop_free (Acsc->rowidx);
+  bebop_free (Acsc->values);
+
+  Acsc->rowidx = newrowidx;
+  Acsc->values = newval;
+  Acsc->colptr = newcolptr;
+  Acsc->symmetry_type = SYMMETRIC;
+  Acsc->nnz = newnnz;
+
+  sparse_matrix_convert (A, informat);
+
+  return errcode;
+}
+
+int
+sparse_matrix_to_SPD (struct sparse_matrix_t* A)
+{
+  enum sparse_matrix_storage_format_t informat;
+  int i,jptr,row,col;
+  int newnnz;  
+  int errcode = 0;
+  informat = A->format;
+
+  sparse_matrix_convert (A, CSC);
+
+  struct csc_matrix_t * Acsc = (struct csc_matrix_t*)A->repr;
+
+  if (Acsc->value_type == REAL){
+    for(col=0;col<Acsc->n;col++){
+      double sum = 0.0;
+      for(jptr= Acsc->colptr[col]; jptr<Acsc->colptr[col+1];jptr++){
+        row = Acsc->rowidx[jptr];
+        if(row>col){
+          sum += 2;
+        }
+      }
+
+      for(jptr= Acsc->colptr[col]; jptr<Acsc->colptr[col+1];jptr++){
+        row = Acsc->rowidx[jptr];
+        if(row!=col){
+          ((double*)Acsc->values)[jptr] = -1;
+        }
+        else{
+          ((double*)Acsc->values)[jptr] = 4*sum;
+        }
+      }
+    }
+
+  }
+  else if (Acsc->value_type == COMPLEX){
+    for(col=0;col<Acsc->n;col++){
+      double_Complex sum = 0.0;
+      for(jptr= Acsc->colptr[col]; jptr<Acsc->colptr[col+1];jptr++){
+        row = Acsc->rowidx[jptr];
+        if(row>=col){
+          sum += ((double_Complex*)Acsc->values)[jptr];
+          sum += 2;
+        }
+      }
+
+      for(jptr= Acsc->colptr[col]; jptr<Acsc->colptr[col+1];jptr++){
+        row = Acsc->rowidx[jptr];
+        if(row!=col){
+          ((double_Complex*)Acsc->values)[jptr] = -1;
+        }
+        else{
+          ((double_Complex*)Acsc->values)[jptr] = 4*sum;
+        }
+      }
+    }
+  }
+  else if (Acsc->value_type == PATTERN){
+    for(col=0;col<Acsc->n;col++){
+      int sum = 0;
+      for(jptr= Acsc->colptr[col]; jptr<Acsc->colptr[col+1];jptr++){
+        row = Acsc->rowidx[jptr];
+        if(row>=col){
+          sum += ((int*)Acsc->values)[jptr];
+          sum += 2;
+        }
+      }
+
+      for(jptr= Acsc->colptr[col]; jptr<Acsc->colptr[col+1];jptr++){
+        row = Acsc->rowidx[jptr];
+        if(row!=col){
+          ((int*)Acsc->values)[jptr] = -1;
+        }
+        else{
+          ((int*)Acsc->values)[jptr] = 4*sum;
+        }
+      }
+    }
+  }
+
+  sparse_matrix_convert (A, informat);
+
+  return errcode;
+}
+
 
 
 int

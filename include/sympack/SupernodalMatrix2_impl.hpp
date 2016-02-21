@@ -1932,11 +1932,12 @@ namespace SYMPACK{
       map<Int,pair<size_t,Icomm *> > recv_map;
       map<Int,pair<size_t,Icomm *> > send_map;
 
+#ifdef _USE_ALLTOALLV_
       for(Int p=0;p<np;++p){
         recv_map[p].first = 0;
         send_map[p].first = 0;
       }
-
+#endif
 
 
 
@@ -2034,7 +2035,12 @@ namespace SYMPACK{
 
       //TODO: implement this using Alltoallv
 
-#if 1
+      if(iam==0){
+        cout<<"Starting data exchange"<<endl;
+      }
+      double timeSta = get_time();
+
+#ifdef _USE_ALLTOALLV_
 
     {
 
@@ -2114,6 +2120,7 @@ namespace SYMPACK{
                       Isend<<col;
                       Isend<<nrows;
                       Serialize(Isend,(char*)&ExpA.Local_.rowind[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(Int));
+//TODO Try to remove ExpA.nzvalLocal
                       Serialize(Isend,(char*)&ExpA.nzvalLocal[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(T));
                     }
                   }
@@ -2150,22 +2157,109 @@ namespace SYMPACK{
       Icomm * IrecvPtr = new Icomm(total_recv_size,MPI_REQUEST_NULL);
 
 
-#ifdef _DEBUG_
+#if 1 //def _DEBUG_
       logfileptr->OFS()<<"scounts: "<<scounts<<endl;
       logfileptr->OFS()<<"sdispls: "<<sdispls<<endl;
       logfileptr->OFS()<<"rcounts: "<<rcounts<<endl;
       logfileptr->OFS()<<"rdispls: "<<rdispls<<endl;
 #endif
 
+
+#if 1
+//check the all to all parameters
+      vector<int> checkRcounts;
+      for(Int p=0;p<np;++p){
+          //gather the sendcounts from everyone and check it matchs the receive count
+          //vector<Int> checkRcounts(np,0);
+          //MPI_Gather(&scounts[p],sizeof(int) , MPI_BYTE, &checkRcounts[0],np*sizeof(int),MPI_BYTE,p,CommEnv_->MPI_GetComm());
+
+          if(iam==p){
+
+             fill(checkRcounts.assign(np,0);
+             MPI_Gather(&scounts[p],sizeof(int) , MPI_BYTE, &checkRcounts[0],np*sizeof(int),MPI_BYTE,p,CommEnv_->MPI_GetComm());
+             logfileptr->OFS()<<checkRcounts<<endl;
+             for(Int rp=0;rp<np;++rp){
+                logfileptr->OFS()<<checkRcounts[rp]<<" vs "<<rcounts[rp]<<" | ";
+             }
+             logfileptr->OFS()<<endl;
+          } 
+          else{
+             logfileptr->OFS()<<scounts[p]<<endl;
+int one =1;
+            MPI_Gather(&one /*&scounts[p]*/,sizeof(int) , MPI_BYTE, NULL,0,MPI_BYTE,p,CommEnv_->MPI_GetComm());
+          }
+
+
+    int gsize;
+    vector<int> sendarray(100); 
+    fill(sendarray.begin(),sendarray.end(),iam);
+    int root, myrank;
+    vector<int>rbuf; 
+    root = p;
+    MPI_Comm_rank( CommEnv_->MPI_GetComm(), &myrank); 
+    if ( myrank == root) { 
+       MPI_Comm_size( CommEnv_->MPI_GetComm(), &gsize); 
+          rbuf.resize(gsize*100);
+          fill(rbuf.begin(),rbuf.end(),-1);
+       } 
+    MPI_Gather( &sendarray[0], 100, MPI_INT, &rbuf[0], 100, MPI_INT, root, CommEnv_->MPI_GetComm());
+
+             logfileptr->OFS()<<"sbuf="<<sendarray<<endl;
+             logfileptr->OFS()<<"rbuf="<<rbuf<<endl;
+
+      }
+
+    MPI_Barrier(CommEnv_->MPI_GetComm());
+
+#endif
+
+
+
+
       MPI_Alltoallv(IsendPtr->front(), &scounts[0], &sdispls[0], MPI_BYTE,
                     IrecvPtr->front(), &rcounts[0], &rdispls[0], MPI_BYTE,
                     CommEnv_->MPI_GetComm());
+
+      //First, we need to do some counting to allocate the supernodes in one pass
+//      std::vector<size_t> superSizes(LocalSupernodes_.size(),0);
+//      for(int i =0; i<superSizes.size();i++){
+//          SuperNode2<T> & snode = *LocalSupernodes_[i];
+//
+//            for(Ptr idx = fi; idx<=li;idx++){
+//              Idx iStartRow = lindx_(idx-1);
+//              Idx iPrevRow = iStartRow;
+//              Int iContiguousRows = 1;
+//              for(Int idx2 = idx+1; idx2<=li;idx2++){
+//                Idx iCurRow = lindx_(idx2-1);
+//                if(iStartRow == lindx_(fi-1)){
+//                  if(iCurRow>iStartRow+iWidth-1){
+//                    //enforce the first block to be a square diagonal block
+//                    break;
+//                  }
+//                }
+//
+//                if(iCurRow==iPrevRow+1){
+//                  idx++;
+//                  ++iContiguousRows;
+//                  iPrevRow=iCurRow;
+//                }
+//                else{
+//                  break;
+//                }
+//              }
+//
+//              Int iCurNZcnt = iContiguousRows * iWidth;
+//              superSizes[i] +=
+//
+//            }
+//
+//      }
+
 
 
       for(Int p=0;p<np;++p){
         int curProc = 0;
         IrecvPtr->setHead(rdispls[p]);
-        //logfileptr->OFS()<<"Receiving SuperNode2 "<<I<<" from P"<<recv_status.MPI_SOURCE<<" ("<<recv_bytes<<") cols {";
         while(IrecvPtr->head < rdispls[p]+rcounts[p]){ 
           char * buffer = IrecvPtr->back();
 
@@ -2439,8 +2533,16 @@ namespace SYMPACK{
           }
 
         }
+
+
+
       }
 #endif
+
+      double timeEnd = get_time();
+      if(iam==0){
+        cout<<"Data from has been exchanged in "<<timeEnd-timeSta<<endl;
+      }
 
       //do the local and resize my SuperNode2 structure
       for(Int I=1;I<Xsuper_.m();I++){
@@ -2515,6 +2617,9 @@ namespace SYMPACK{
             if(iam == iOwnerCol){
               int * colptr = ExpA.Local_.colptr.Data();
               int * rowind = ExpA.Local_.rowind.Data();
+
+
+//TODO try to remove ExpA.nzvalLocal use... We already have it because this data is local
               T * nzvalA = ExpA.nzvalLocal.Data();
 
               Int local_col = (orig_col-(numColFirst)*iOwnerCol);

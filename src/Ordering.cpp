@@ -454,12 +454,15 @@ void Ordering::SCOTCH(){
   invp.Resize(pStructure->size);
   perm.Resize(pStructure->size);
 
+  vector<int64_t> tmpInvp(pStructure->size);
+  vector<int64_t> tmpPerm(pStructure->size);
+
   int N = pStructure->size; 
 
-  vector<int> tmpXadj(pStructure->expColptr.m());
+  vector<int64_t> tmpXadj(pStructure->expColptr.m());
   for(int i = 0; i<tmpXadj.size();++i){tmpXadj[i] = pStructure->expColptr[i];}
 
-  vector<int> tmpAdj;
+  vector<int64_t> tmpAdj;
   tmpAdj.reserve(pStructure->expRowind.m());
 
   for(int col=0; col<tmpXadj.size()-1;++col){
@@ -553,7 +556,7 @@ void Ordering::SCOTCH(){
       if (SCOTCH_graphCheck (&grafdat) == 0)        /* TRICK: next instruction called only if graph is consistent */
 #endif /* SCOTCH_DEBUG_ALL */
       {
-        if (SCOTCH_graphOrderInit (&grafdat, &ordedat, &invp[0], &perm[0], /* MeTiS and Scotch have opposite definitions for (inverse) permutations */
+        if (SCOTCH_graphOrderInit (&grafdat, &ordedat, &tmpInvp[0], &tmpPerm[0], /* MeTiS and Scotch have opposite definitions for (inverse) permutations */
               /*nb de supernoeud*/NULL, /*ptr vers rank tab : xsuper*/ NULL, /*tree tab: parent structure*/ NULL) == 0) {
           SCOTCH_graphOrderCompute (&grafdat, &ordedat, &stradat);
           SCOTCH_graphOrderExit    (&grafdat, &ordedat);
@@ -566,8 +569,8 @@ void Ordering::SCOTCH(){
 
 
     //switch everything to 1 based
-    for(int col=0; col<invp.m();++col){ invp[col]++;}
-    for(int col=0; col<perm.m();++col){ perm[col]++;}
+    for(int col=0; col<invp.m();++col){ invp[col] = tmpInvp[col]+1;}
+    for(int col=0; col<perm.m();++col){ perm[col] = tmpPerm[col]+1;}
 
     }
 #endif

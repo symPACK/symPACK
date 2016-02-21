@@ -49,6 +49,8 @@ include ../../bebop_make/setup
 CPPFLAGS += -I../../bebop_util/include 
 LIBS += -L../../bebop_util -lbebop_util 
 
+#CPPFLAGS += -O0 -g
+
 #
 # Object files for the sparse matrix converter library.
 #
