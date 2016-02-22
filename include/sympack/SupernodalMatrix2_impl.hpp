@@ -2166,50 +2166,47 @@ namespace SYMPACK{
 
 
 #if 1
+//gdb_lock();
 //check the all to all parameters
-      vector<int> checkRcounts;
+             vector<int> checkRcounts;
       for(Int p=0;p<np;++p){
           //gather the sendcounts from everyone and check it matchs the receive count
           //vector<Int> checkRcounts(np,0);
           //MPI_Gather(&scounts[p],sizeof(int) , MPI_BYTE, &checkRcounts[0],np*sizeof(int),MPI_BYTE,p,CommEnv_->MPI_GetComm());
-
+int * rcountsptr = NULL;
           if(iam==p){
-
-             fill(checkRcounts.assign(np,0);
-             MPI_Gather(&scounts[p],sizeof(int) , MPI_BYTE, &checkRcounts[0],np*sizeof(int),MPI_BYTE,p,CommEnv_->MPI_GetComm());
-             logfileptr->OFS()<<checkRcounts<<endl;
-             for(Int rp=0;rp<np;++rp){
-                logfileptr->OFS()<<checkRcounts[rp]<<" vs "<<rcounts[rp]<<" | ";
-             }
-             logfileptr->OFS()<<endl;
-          } 
-          else{
-             logfileptr->OFS()<<scounts[p]<<endl;
-int one =1;
-            MPI_Gather(&one /*&scounts[p]*/,sizeof(int) , MPI_BYTE, NULL,0,MPI_BYTE,p,CommEnv_->MPI_GetComm());
+             checkRcounts.resize(np);
+             fill(checkRcounts.begin(),checkRcounts.end(),-1);
+             rcountsptr = &checkRcounts[0];
+          }
+             int err = MPI_Gather(&scounts[p],sizeof(int) , MPI_BYTE, rcountsptr,sizeof(int),MPI_BYTE,p,CommEnv_->MPI_GetComm());
+          if(iam==p){
+            logfileptr->OFS()<<checkRcounts<<endl;
+            size_t total = 0;
+            for(int i =0; i<np;i++){total+=rcounts[i]; assert(rcounts[i]==rcountsptr[i]);}
+            assert(IrecvPtr->capacity()==total);
           }
 
 
-    int gsize;
-    vector<int> sendarray(100); 
-    fill(sendarray.begin(),sendarray.end(),iam);
-    int root, myrank;
-    vector<int>rbuf; 
-    root = p;
-    MPI_Comm_rank( CommEnv_->MPI_GetComm(), &myrank); 
-    if ( myrank == root) { 
-       MPI_Comm_size( CommEnv_->MPI_GetComm(), &gsize); 
-          rbuf.resize(gsize*100);
-          fill(rbuf.begin(),rbuf.end(),-1);
-       } 
-    MPI_Gather( &sendarray[0], 100, MPI_INT, &rbuf[0], 100, MPI_INT, root, CommEnv_->MPI_GetComm());
-
-             logfileptr->OFS()<<"sbuf="<<sendarray<<endl;
-             logfileptr->OFS()<<"rbuf="<<rbuf<<endl;
-
-      }
+//    int gsize;
+//    vector<int> sendarray(100); 
+//    fill(sendarray.begin(),sendarray.end(),iam);
+//    int root, myrank;
+//    vector<int>rbuf; 
+//    root = p;
+//    MPI_Comm_rank( CommEnv_->MPI_GetComm(), &myrank); 
+//    if ( myrank == root) { 
+//       MPI_Comm_size( CommEnv_->MPI_GetComm(), &gsize); 
+//          rbuf.resize(gsize*100);
+//          fill(rbuf.begin(),rbuf.end(),-1);
+//       } 
+//    MPI_Gather( &sendarray[0], 100, MPI_INT, &rbuf[0], 100, MPI_INT, root, CommEnv_->MPI_GetComm());
+//
+//             logfileptr->OFS()<<"sbuf="<<sendarray<<endl;
+//             logfileptr->OFS()<<"rbuf="<<rbuf<<endl;
 
     MPI_Barrier(CommEnv_->MPI_GetComm());
+      }
 
 #endif
 

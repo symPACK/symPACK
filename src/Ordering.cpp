@@ -613,7 +613,7 @@ void Ordering::SCOTCH(){
         logfileptr->OFS()<<"ndomains = "<<ndomains<<endl;
 
         //build local colptr and count nnz in local rowind
-        vector<int> tmpXadj(localN+1);
+        vector<SCOTCH_Num> tmpXadj(localN+1);
         Ptr localNNZ = 0;
         int offset = pStructure->expColptr[fc-1]-1;
         tmpXadj[1-1] = 1;
@@ -628,7 +628,7 @@ void Ordering::SCOTCH(){
         }
 
         //build local rowind, discarding self
-        vector<int> tmpAdj;
+        vector<SCOTCH_Num> tmpAdj;
         tmpAdj.reserve(localNNZ);
         for(int col=1; col<=localN;++col){
           int column = col + fc -1;
@@ -680,7 +680,10 @@ void Ordering::SCOTCH(){
           {
             if (SCOTCH_dgraphOrderInit (&grafdat, &ordedat) == 0) {
               SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat);
-              SCOTCH_dgraphOrderPerm    (&grafdat, &ordedat, &perm[0]);
+              vector<SCOTCH_Num> sc_perm(perm.m());
+              for(int i=0;i<sc_perm.size();i++){ sc_perm[i] = (SCOTCH_Num)perm[i]; }
+              SCOTCH_dgraphOrderPerm(&grafdat, &ordedat, &sc_perm[0]);
+              for(int i=0;i<sc_perm.size();i++){ perm[i] = sc_perm[i]; }
               SCOTCH_dgraphOrderExit (&grafdat, &ordedat);
             }
           }
