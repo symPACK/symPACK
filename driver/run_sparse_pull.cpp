@@ -236,9 +236,11 @@ int main(int argc, char **argv)
   Int all_np = np;
   np = optionsFact.used_procs(np);
 
+    if(iam==0){ cout<<"STARTING SPLITS"<<endl; }
   MPI_Comm workcomm;
   MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
-      logfileptr->OFS()<<"ALL SPLITS ARE DONE"<<endl;
+      logfileptr->OFS()<<"MPI SPLITS ARE DONE"<<endl;
+    if(iam==0){ cout<<"MPI SPLITS ARE DONE"<<endl; }
 
   upcxx::team * workteam;
   Int new_rank = (iam<np)?iam:iam-np;
@@ -246,6 +248,7 @@ int main(int argc, char **argv)
   
       logfileptr->OFS()<<"ALL SPLITS ARE DONE"<<endl;
 
+    if(iam==0){ cout<<"ALL SPLITS ARE DONE"<<endl; }
 
   if(iam<np){
     //  int np, iam;
@@ -255,6 +258,7 @@ int main(int argc, char **argv)
 
 
     sparse_matrix_file_format_t informat;
+    if(iam==0){ cout<<"Start reading the matrix"<<endl; }
     TIMER_START(READING_MATRIX);
     DistSparseMatrix<SCALAR> HMat(workcomm);
     //Read the input matrix
@@ -262,12 +266,66 @@ int main(int argc, char **argv)
       ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
     }
     else{
+      int n,nnz;
+      int * colptr, * rowind;
+      INSCALAR * values;
+#if 1
+      
+      if(iam==0){
+
       informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
       sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
       sparse_matrix_convert (Atmp, CSC);
       const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
-      HMat.ConvertData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,(INSCALAR *)cscptr->values);
+
+      n = cscptr->n;
+      nnz = cscptr->nnz;
+      colptr = cscptr->colptr;
+      rowind = cscptr->rowidx;
+      values = (INSCALAR *)cscptr->values;
+
+        MPI_Bcast(&n,sizeof(n),MPI_BYTE,0,workcomm);
+        MPI_Bcast(&nnz,sizeof(n),MPI_BYTE,0,workcomm);
+        MPI_Bcast(colptr,sizeof(int)*(n+1),MPI_BYTE,0,workcomm);
+        MPI_Bcast(rowind,sizeof(int)*(nnz),MPI_BYTE,0,workcomm);
+        MPI_Bcast(values,sizeof(INSCALAR)*(nnz),MPI_BYTE,0,workcomm);
+
+        HMat.ConvertData(n,nnz,colptr,rowind,values);
+        destroy_sparse_matrix (Atmp);
+      }
+      else{
+        MPI_Bcast(&n,sizeof(n),MPI_BYTE,0,workcomm);
+        MPI_Bcast(&nnz,sizeof(nnz),MPI_BYTE,0,workcomm);
+
+        //allocate 
+        colptr = new int[n+1];
+        rowind = new int[nnz];
+        values = new INSCALAR[nnz];
+
+        MPI_Bcast(colptr,sizeof(int)*(n+1),MPI_BYTE,0,workcomm);
+        MPI_Bcast(rowind,sizeof(int)*(nnz),MPI_BYTE,0,workcomm);
+        MPI_Bcast(values,sizeof(INSCALAR)*(nnz),MPI_BYTE,0,workcomm);
+
+        HMat.ConvertData(n,nnz,colptr,rowind,values);
+
+        delete [] values;
+        delete [] rowind;
+        delete [] colptr;
+      }
+#else
+      informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
+      sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
+      sparse_matrix_convert (Atmp, CSC);
+      const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
+
+      n = cscptr->n;
+      nnz = cscptr->nnz;
+      colptr = cscptr->colptr;
+      rowind = cscptr->rowidx;
+      values = (INSCALAR *)cscptr->values;
+      HMat.ConvertData(n,nnz,colptr,rowind,values);
       destroy_sparse_matrix (Atmp);
+#endif
     }
 
     TIMER_STOP(READING_MATRIX);

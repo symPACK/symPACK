@@ -177,6 +177,7 @@ namespace SYMPACK{
 logfileptr->OFS()<<"Matrix expanded"<<endl;
 
     //Create an Ordering object to hold the permutation
+    Order_.SetCommEnvironment(CommEnv_);
     Order_.SetStructure(*Global_);
 logfileptr->OFS()<<"Structure set"<<endl;
 

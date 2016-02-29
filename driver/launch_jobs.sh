@@ -19,12 +19,12 @@ NGCHOLDIR=$HOME/sympack_devel
 #EXECS=( $NGCHOLDIR/driver/run_sparse_pull_cori_mkl )
 #EXECS=( $NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm )
 declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_superlu_cori "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb static\"" "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\"" $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
-
 declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_superlu_cori "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\"" $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
-#declare -a EXECS=( $NGCHOLDIR/driver/run_superlu_cori "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\"" $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
-#EXEC=$NGCHOLDIR/driver/run_sparse_fanboth_upcxx_nolb
+declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
 
-declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\""  )
+#declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_superlu_cori "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\"" $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
+#declare -a EXECS=( $NGCHOLDIR/driver/run_superlu_cori "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\"" $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
+#declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\""  )
 
 
 #MATRIX=$NGCHOLDIR/matrices/BenElechi1/BenElechi1.rb
@@ -63,6 +63,7 @@ FORMAT="HARWELL_BOEING"
 #MAPPING=ROW2D
 #MAPPING=COL2D
 MAPPINGS=(ROW2D MODWRAP2D COL2D)
+MAPPINGS=(ROW2D COL2D)
 #MAPPINGS=( MODWRAP2D )
 #TREE
 ORDER=SCOTCH
@@ -102,8 +103,9 @@ SCHEDULER=DL
 #PROCS=(4 16 24 64 96)
 #ALLOCPROCS=(24 24 24 24 72 96 144 192 264 384 576)
 #PROCS=(1 4 16 24 64 96 128 192) 
-PROCS=(1 4 16 24 32) # 64 96 192 256 384 576) # 784 1024)
-PROCS=(16 )
+PROCS=(1024) #1 4 16 24 32) # 64 96 192 256 384 576) # 784 1024)
+#PROCS=(64 96 192 256 384 576 784 1024)
+#PROCS=(64 )
 #PROCS=(192 256 384 576)
 #PROCS=(384 576 784 1024)
 
@@ -119,7 +121,7 @@ PROCS=(16 )
 #PROCS=(1225 1444 1600 1764 1936 2025)
 
 QUEUE=regular
-#WALLTIME=01:20:00
+WALLTIME=01:40:00
 QUEUE=debug
 WALLTIME=00:30:00
 

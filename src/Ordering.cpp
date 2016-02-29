@@ -51,54 +51,68 @@ void Ordering::SetStructure(SparseMatrixStructure & aGlobal){
 void Ordering::MMD(){
     assert(pStructure!=NULL);
 
+  logfileptr->OFS()<<"MMD used"<<endl;
+  if(iam==0){cout<<"MMD used"<<endl;}
+
     if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
 			throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call MMD\n" );
     }
 
-    Int iwsiz = 4*pStructure->size;
-    std::vector<Int> iwork (iwsiz);
     invp.Resize(pStructure->size);
-    perm.Resize(pStructure->size);
+    if(iam==0){
+      Int iwsiz = 4*pStructure->size;
+      std::vector<Int> iwork (iwsiz);
 
-    Int nadj = pStructure->expRowind.m();
-    Int nofsub =0;
-    Int iflag =0;
+      Int nadj = pStructure->expRowind.m();
+      Int nofsub =0;
+      Int iflag =0;
 
-    IntNumVec tmpXadj = pStructure->expColptr;
-    IntNumVec tmpAdj(pStructure->expRowind.m()-pStructure->size);
+      IntNumVec tmpXadj = pStructure->expColptr;
+      IntNumVec tmpAdj(pStructure->expRowind.m()-pStructure->size);
 
-    int pos = 0;
-    for(int col=0; col<tmpXadj.m()-1;++col){
-      for(int j=tmpXadj[col]; j<tmpXadj[col+1];++j){
-        if( pStructure->expRowind[j-1]-1 != col){
-          tmpAdj[pos++] = pStructure->expRowind[j-1];
+      int pos = 0;
+      for(int col=0; col<tmpXadj.m()-1;++col){
+        for(int j=tmpXadj[col]; j<tmpXadj[col+1];++j){
+          if( pStructure->expRowind[j-1]-1 != col){
+            tmpAdj[pos++] = pStructure->expRowind[j-1];
+          }
         }
       }
+
+      int rm = 0;
+      for(int col=0; col<tmpXadj.m();++col){
+        tmpXadj[col]-=rm;
+        rm++;
+      }
+
+
+
+      perm.Resize(pStructure->size);
+
+
+
+
+
+      FORTRAN(ordmmd)( &pStructure->size , &nadj , tmpXadj.Data() , tmpAdj.Data(), 
+          &invp[0] , &perm[0] , &iwsiz , &iwork[0] , &nofsub, &iflag ) ;
+
+
+      assert(iflag == 0);
+
+      //logfileptr->OFS()<<perm<<endl;
     }
+      // broadcast invp
+      Int N = invp.m();
+      MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      perm.Resize(pStructure->size);
+      for(Int i = 1; i <=N; ++i){
+        Int node = invp[i-1];
+        perm[node-1] = i;
+      }
 
-    int rm = 0;
-    for(int col=0; col<tmpXadj.m();++col){
-      tmpXadj[col]-=rm;
-      rm++;
-    }
+      //logfileptr->OFS()<<perm<<endl;
 
-
-
-
-
-
-
-
-    FORTRAN(ordmmd)( &pStructure->size , &nadj , tmpXadj.Data() , tmpAdj.Data(), 
-            &invp[0] , &perm[0] , &iwsiz , &iwork[0] , &nofsub, &iflag ) ;
-
-
-  logfileptr->OFS()<<"perm "<<perm<<endl;
-//  logfileptr->OFS()<<"invperm "<<invp<<endl;
-
-//    Permute(perm);
-
-    assert(iflag == 0);
+    
 }
 
 void Ordering::NDBOX(){
@@ -108,9 +122,10 @@ void Ordering::NDBOX(){
 			throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call NDBOX\n" );
     }
 
-    Int k = std::ceil(std::pow(pStructure->size,1.0/3.0));
-logfileptr->OFS()<<"BOX K = "<<k<<endl;
     invp.Resize(pStructure->size);
+    if(iam==0){
+    Int k = std::ceil(std::pow(pStructure->size,1.0/3.0));
+    logfileptr->OFS()<<"BOX K = "<<k<<endl;
     Int iflag =1;
 
     {
@@ -119,11 +134,17 @@ logfileptr->OFS()<<"BOX K = "<<k<<endl;
     FORTRAN(boxnd)( &k , &k, &k, &invp[0], &stack[0],&tmp, &iflag);
     }
 
-    perm.Resize(pStructure->size);
-      for(Int i = 1; i <= invp.m(); ++i){
+    }
+
+      // broadcast invp
+      Int N = invp.m();
+      MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      perm.Resize(pStructure->size);
+      for(Int i = 1; i <=N; ++i){
         Int node = invp[i-1];
         perm[node-1] = i;
       }
+
 
 }
 
@@ -134,11 +155,12 @@ void Ordering::NDGRID(){
 			throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call NDGRID\n" );
     }
 
-    Int k = std::ceil(std::pow(pStructure->size,1.0/2.0));
     invp.Resize(pStructure->size);
+    if(iam==0){
+    Int k = std::ceil(std::pow(pStructure->size,1.0/2.0));
     Int iflag =1;
 
-logfileptr->OFS()<<"GRID K = "<<k<<endl;
+    logfileptr->OFS()<<"GRID K = "<<k<<endl;
 
     {
       vector<Int> stack(k*k>25?invp.m():2*invp.m());
@@ -146,30 +168,39 @@ logfileptr->OFS()<<"GRID K = "<<k<<endl;
     FORTRAN(gridnd)( &k , &k, &invp[0], &stack[0],&tmp, &iflag);
 assert(iflag==0);
     }
+    }
 
-    perm.Resize(pStructure->size);
-      for(Int i = 1; i <= invp.m(); ++i){
+      // broadcast invp
+      Int N = invp.m();
+      MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      perm.Resize(pStructure->size);
+      for(Int i = 1; i <=N; ++i){
         Int node = invp[i-1];
         perm[node-1] = i;
       }
 
-  logfileptr->OFS()<<"perm "<<perm<<endl;
-  logfileptr->OFS()<<"invperm "<<invp<<endl;
+
+  
+  //logfileptr->OFS()<<"perm "<<perm<<endl;
+  //logfileptr->OFS()<<"invperm "<<invp<<endl;
 }
 
 
 void Ordering::AMD(){
     assert(pStructure!=NULL);
 
+  logfileptr->OFS()<<"AMD used"<<endl;
+  if(iam==0){cout<<"AMD used"<<endl;}
+
     if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
 			throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call AMD\n" );
     }
 
+    invp.Resize(pStructure->size);
+    if(iam==0){
     Int iwsiz = 4*pStructure->size;
     std::vector<Int> iwork (iwsiz);
-    invp.Resize(pStructure->size);
     perm.Resize(pStructure->size);
-
 
     Int nadj = pStructure->expRowind.m();
     Int nofsub =0;
@@ -199,6 +230,17 @@ void Ordering::AMD(){
 
 
     FORTRAN(amdbar)( &N , &tmpXadj[0] , &tmpAdj[0] , &NVTXS[0] ,&IWLEN ,&PFREE ,  &QSIZE[0],&ECFORW[0] , &perm[0], &iwork[0], &invp[0],&VTXDEG[0], &NCMPA , &MARKER[0] , &IOVFLO );
+    }
+
+      // broadcast invp
+      Int N = invp.m();
+      MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      perm.Resize(pStructure->size);
+      for(Int i = 1; i <=N; ++i){
+        Int node = invp[i-1];
+        perm[node-1] = i;
+      }
+
 
 //  logfileptr->OFS()<<"perm "<<perm<<endl;
 //  logfileptr->OFS()<<"invperm "<<invp<<endl;
@@ -222,7 +264,8 @@ void Ordering::AMD(){
 
 
     invp.Resize(pStructure->size);
-    perm.Resize(pStructure->size);
+    if(iam==0){
+      perm.Resize(pStructure->size);
 
 #if 0
     int options[METIS_NOPTIONS];
@@ -291,14 +334,27 @@ void Ordering::AMD(){
     //switch everything to 1 based
     for(int col=0; col<invp.m();++col){ invp[col]++;}
     for(int col=0; col<perm.m();++col){ perm[col]++;}
-    //    for(int col=0; col<tmpXadj.size();++col){ tmpXadj[col]++;}
-    //    for(int col=0; col<tmpAdj.size();++col){ tmpAdj[col]++;}
+    }
+
+
+      // broadcast invp
+      Int N = invp.m();
+      MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      perm.Resize(pStructure->size);
+      for(Int i = 1; i <=N; ++i){
+        Int node = invp[i-1];
+        perm[node-1] = i;
+      }
+
+
+
+
   }
 #endif
 
 
 #ifdef USE_PARMETIS
-void Ordering::PARMETIS(MPI_Comm & comm){
+void Ordering::PARMETIS(){
 
   logfileptr->OFS()<<"PARMETIS used"<<endl;
   if(iam==0){cout<<"PARMETIS used"<<endl;}
@@ -318,7 +374,7 @@ void Ordering::PARMETIS(MPI_Comm & comm){
 
   MPI_Comm ndcomm;
   Int mpirank;
-  MPI_Comm_split(comm,iam<ndomains,mpirank,&ndcomm);
+  MPI_Comm_split(CommEnv_->MPI_GetComm(),iam<ndomains,mpirank,&ndcomm);
   if(iam<ndomains){
     vector<int> sizes(2*ndomains);
     vector<int> vtxdist(ndomains+1);
@@ -330,8 +386,8 @@ void Ordering::PARMETIS(MPI_Comm & comm){
     if(iam==ndomains-1){
       localN = N - (ndomains-1)*localN;
     }
-    logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
-    logfileptr->OFS()<<"ndomains = "<<ndomains<<endl;
+    //logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
+    //logfileptr->OFS()<<"ndomains = "<<ndomains<<endl;
 
     //build local colptr and count nnz in local rowind
     vector<int> tmpXadj(localN+1);
@@ -365,12 +421,12 @@ void Ordering::PARMETIS(MPI_Comm & comm){
 
     
     //switch everything to 0 based
-    logfileptr->OFS()<<tmpXadj<<endl;
+    //logfileptr->OFS()<<tmpXadj<<endl;
     for(int col=0; col<localN+1;++col){ tmpXadj[col]+=(baseval-1);}
-    logfileptr->OFS()<<tmpXadj<<endl;
-    logfileptr->OFS()<<tmpAdj<<endl;
+    //logfileptr->OFS()<<tmpXadj<<endl;
+    //logfileptr->OFS()<<tmpAdj<<endl;
     for(int col=0; col<localNNZ;++col){ tmpAdj[col]+=(baseval-1);}
-    logfileptr->OFS()<<tmpAdj<<endl;
+    //logfileptr->OFS()<<tmpAdj<<endl;
 
     int options[3];
     options[0] = 0;
@@ -379,17 +435,17 @@ void Ordering::PARMETIS(MPI_Comm & comm){
 
     int npnd;
     MPI_Comm_size (ndcomm, &npnd);
-    logfileptr->OFS()<<"PROC ND: "<<npnd<<endl;
+    //logfileptr->OFS()<<"PROC ND: "<<npnd<<endl;
     ParMETIS_V3_NodeND( &vtxdist[0], &tmpXadj[0] , &tmpAdj[0], &numflag, &options[0], &perm[0], &sizes[0], &ndcomm );
     //    ParMETIS_V3_NodeND( &vtxdist[0], &tmpXadj[0] , &tmpAdj[0], &numflag, &options[0], &invp[0], &sizes[0], &comm );
 
-    logfileptr->OFS()<<"Sizes: "<<sizes<<endl;
-    logfileptr->OFS()<<"Order: "<<endl;
-    for(int i =0;i<localN;++i){
-      //logfileptr->OFS()<<invp[i]<<" ";
-      logfileptr->OFS()<<perm[i]<<" ";
-    }
-    logfileptr->OFS()<<endl;
+    //logfileptr->OFS()<<"Sizes: "<<sizes<<endl;
+    //logfileptr->OFS()<<"Order: "<<endl;
+    //for(int i =0;i<localN;++i){
+    //  //logfileptr->OFS()<<invp[i]<<" ";
+    //  logfileptr->OFS()<<perm[i]<<" ";
+    //}
+    //logfileptr->OFS()<<endl;
 
 
     //compute displs
@@ -408,12 +464,12 @@ void Ordering::PARMETIS(MPI_Comm & comm){
       //switch everything to 1 based
       for(int col=0; col<N;++col){ invp[col]+=(1-baseval);}
 
-      logfileptr->OFS()<<"Full Order: "<<endl;
-      for(int i =0;i<N;++i){
-        logfileptr->OFS()<<invp[i]<<" ";
-        //logfileptr->OFS()<<perm[i]<<" ";
-      }
-      logfileptr->OFS()<<endl;
+      //logfileptr->OFS()<<"Full Order: "<<endl;
+      //for(int i =0;i<N;++i){
+      //  logfileptr->OFS()<<invp[i]<<" ";
+      //  //logfileptr->OFS()<<perm[i]<<" ";
+      //}
+      //logfileptr->OFS()<<endl;
     }
 
 
@@ -422,7 +478,7 @@ void Ordering::PARMETIS(MPI_Comm & comm){
   MPI_Comm_free(&ndcomm);
 
   // broadcast invp
-  MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,comm);
+  MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
   for(Int i = 1; i <=N; ++i){
     Int node = invp[i-1];
     perm[node-1] = i;
@@ -452,6 +508,7 @@ void Ordering::SCOTCH(){
 
 
   invp.Resize(pStructure->size);
+  if(iam==0){
   perm.Resize(pStructure->size);
 
   vector<int64_t> tmpInvp(pStructure->size);
@@ -571,6 +628,17 @@ void Ordering::SCOTCH(){
     //switch everything to 1 based
     for(int col=0; col<invp.m();++col){ invp[col] = tmpInvp[col]+1;}
     for(int col=0; col<perm.m();++col){ perm[col] = tmpPerm[col]+1;}
+    }
+
+      // broadcast invp
+      Int N = invp.m();
+      MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      perm.Resize(pStructure->size);
+      for(Int i = 1; i <=N; ++i){
+        Int node = invp[i-1];
+        perm[node-1] = i;
+      }
+
 
     }
 #endif
@@ -578,10 +646,10 @@ void Ordering::SCOTCH(){
 
 
 #ifdef USE_PTSCOTCH
-    void Ordering::PTSCOTCH(MPI_Comm & comm){
+    void Ordering::PTSCOTCH(){
 
       logfileptr->OFS()<<"PTSCOTCH used"<<endl;
-      if(iam==0){cout<<"PTSCOTCH used"<<endl;}
+      if(iam==0){cout<<"PTSCOTCH used NOT WORKING"<<endl;}
 
       assert(pStructure!=NULL);
 
@@ -590,35 +658,35 @@ void Ordering::SCOTCH(){
       }
 
 
-      int baseval = 0;
-      int N = pStructure->size; 
+      SCOTCH_Num baseval = 0;
+      SCOTCH_Num N = pStructure->size; 
       invp.Resize(N);
       perm.Resize(N);
-      int ndomains = (int)pow(2.0,std::floor(std::log2(np)));
+      SCOTCH_Num ndomains = (SCOTCH_Num)pow(2.0,std::floor(std::log2(np)));
 
       MPI_Comm ndcomm;
       Int mpirank;
-      MPI_Comm_split(comm,iam<ndomains,mpirank,&ndcomm);
+      MPI_Comm_split(CommEnv_->MPI_GetComm(),iam<ndomains,mpirank,&ndcomm);
       if(iam<ndomains){
-        vector<int> vtxdist(ndomains+1);
+        vector<SCOTCH_Num> vtxdist(ndomains+1);
 
-        int localN = N/ndomains;
-        int fc = (iam)*localN+1;
+        SCOTCH_Num localN = N/ndomains;
+        SCOTCH_Num fc = (iam)*localN+1;
         //build vtxdist vector
-        for(int i = 0; i<ndomains;++i){ vtxdist[i] = i*localN+baseval; } vtxdist[ndomains] = N+baseval;
+        for(SCOTCH_Num i = 0; i<ndomains;++i){ vtxdist[i] = i*localN+baseval; } vtxdist[ndomains] = N+baseval;
         if(iam==ndomains-1){
           localN = N - (ndomains-1)*localN;
         }
-        logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
-        logfileptr->OFS()<<"ndomains = "<<ndomains<<endl;
+        //logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
+        //logfileptr->OFS()<<"ndomains = "<<ndomains<<endl;
 
         //build local colptr and count nnz in local rowind
         vector<SCOTCH_Num> tmpXadj(localN+1);
         Ptr localNNZ = 0;
-        int offset = pStructure->expColptr[fc-1]-1;
+        SCOTCH_Num offset = pStructure->expColptr[fc-1]-1;
         tmpXadj[1-1] = 1;
-        for(int col=1; col<=localN;++col){
-          int column = col + fc -1;
+        for(SCOTCH_Num col=1; col<=localN;++col){
+          SCOTCH_Num column = col + fc -1;
           Ptr colbeg = pStructure->expColptr[column-1];
           Ptr colend = pStructure->expColptr[column]-1;
           //remove self from adjacency list
@@ -630,12 +698,12 @@ void Ordering::SCOTCH(){
         //build local rowind, discarding self
         vector<SCOTCH_Num> tmpAdj;
         tmpAdj.reserve(localNNZ);
-        for(int col=1; col<=localN;++col){
-          int column = col + fc -1;
+        for(SCOTCH_Num col=1; col<=localN;++col){
+          SCOTCH_Num column = col + fc -1;
           Ptr colbeg = pStructure->expColptr[column-1];
           Ptr colend = pStructure->expColptr[column]-1;
           for(Ptr j=colbeg; j<=colend;++j){
-            int row = pStructure->expRowind[j-1];
+            SCOTCH_Num row = pStructure->expRowind[j-1];
             if(row!=column){
               tmpAdj.push_back(row);
             }
@@ -644,26 +712,26 @@ void Ordering::SCOTCH(){
 
 
         //switch everything to 0 based
-        logfileptr->OFS()<<tmpXadj<<endl;
-        for(int col=0; col<localN+1;++col){ tmpXadj[col]+=(baseval-1);}
-        logfileptr->OFS()<<tmpXadj<<endl;
-        logfileptr->OFS()<<tmpAdj<<endl;
-        for(int col=0; col<localNNZ;++col){ tmpAdj[col]+=(baseval-1);}
-        logfileptr->OFS()<<tmpAdj<<endl;
+        //logfileptr->OFS()<<tmpXadj<<endl;
+        for(SCOTCH_Num col=0; col<localN+1;++col){ tmpXadj[col]+=(baseval-1);}
+        //logfileptr->OFS()<<tmpXadj<<endl;
+        //logfileptr->OFS()<<tmpAdj<<endl;
+        for(SCOTCH_Num col=0; col<localNNZ;++col){ tmpAdj[col]+=(baseval-1);}
+        //logfileptr->OFS()<<tmpAdj<<endl;
 
-        int options[3];
+        SCOTCH_Num options[3];
         options[0] = 0;
-        int numflag = baseval;
+        SCOTCH_Num numflag = baseval;
 
 
         int npnd;
         MPI_Comm_size (ndcomm, &npnd);
-        logfileptr->OFS()<<"PROC ND: "<<npnd<<endl;
+        //logfileptr->OFS()<<"PROC ND: "<<npnd<<endl;
 
 
 
-        SCOTCH_Dgraph       grafdat;                    /* Scotch distributed graph object to interface with libScotch    */
-        SCOTCH_Dordering    ordedat;                    /* Scotch distributed ordering object to interface with libScotch */
+        SCOTCH_Dgraph       grafdat;                    /* Scotch distributed graph object to SCOTCH_Numerface with libScotch    */
+        SCOTCH_Dordering    ordedat;                    /* Scotch distributed ordering object to SCOTCH_Numerface with libScotch */
         SCOTCH_Strat        stradat;
         SCOTCH_Num          vertlocnbr;
         SCOTCH_Num          edgelocnbr;
@@ -681,9 +749,9 @@ void Ordering::SCOTCH(){
             if (SCOTCH_dgraphOrderInit (&grafdat, &ordedat) == 0) {
               SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat);
               vector<SCOTCH_Num> sc_perm(perm.m());
-              for(int i=0;i<sc_perm.size();i++){ sc_perm[i] = (SCOTCH_Num)perm[i]; }
+              for(SCOTCH_Num i=0;i<sc_perm.size();i++){ sc_perm[i] = (SCOTCH_Num)perm[i]; }
               SCOTCH_dgraphOrderPerm(&grafdat, &ordedat, &sc_perm[0]);
-              for(int i=0;i<sc_perm.size();i++){ perm[i] = sc_perm[i]; }
+              for(SCOTCH_Num i=0;i<sc_perm.size();i++){ perm[i] = sc_perm[i]; }
               SCOTCH_dgraphOrderExit (&grafdat, &ordedat);
             }
           }
@@ -692,20 +760,20 @@ void Ordering::SCOTCH(){
         SCOTCH_dgraphExit (&grafdat);
 
 
-        logfileptr->OFS()<<"Order: "<<endl;
-        for(int i =0;i<localN;++i){
-          //logfileptr->OFS()<<invp[i]<<" ";
-          logfileptr->OFS()<<perm[i]<<" ";
-        }
-        logfileptr->OFS()<<endl;
+        //logfileptr->OFS()<<"Order: "<<endl;
+        //for(SCOTCH_Num i =0;i<localN;++i){
+        //  //logfileptr->OFS()<<invp[i]<<" ";
+        //  logfileptr->OFS()<<perm[i]<<" ";
+        //}
+        //logfileptr->OFS()<<endl;
 
 
         //compute displs
         vector<int> mpidispls(ndomains,0);
         vector<int> mpisizes(ndomains,0);
         for(int p = 1;p<=ndomains;++p){
-          mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(int);
-          mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(int);
+          mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(Int);
+          mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(Int);
         }
 
         //gather on the root
@@ -716,12 +784,12 @@ void Ordering::SCOTCH(){
           //switch everything to 1 based
           for(int col=0; col<N;++col){ invp[col]+=(1-baseval);}
 
-          logfileptr->OFS()<<"Full Order: "<<endl;
-          for(int i =0;i<N;++i){
-            logfileptr->OFS()<<invp[i]<<" ";
-            //logfileptr->OFS()<<perm[i]<<" ";
-          }
-          logfileptr->OFS()<<endl;
+          //logfileptr->OFS()<<"Full Order: "<<endl;
+          //for(SCOTCH_Num i =0;i<N;++i){
+          //  logfileptr->OFS()<<invp[i]<<" ";
+          //  //logfileptr->OFS()<<perm[i]<<" ";
+          //}
+          //logfileptr->OFS()<<endl;
         }
 
 
@@ -730,14 +798,14 @@ void Ordering::SCOTCH(){
       MPI_Comm_free(&ndcomm);
 
       // broadcast invp
-      MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,comm);
+      MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
       for(Int i = 1; i <=N; ++i){
         Int node = invp[i-1];
         perm[node-1] = i;
       }
 
       //  // broadcast perm
-      //  MPI_Bcast(&perm[0],N*sizeof(int),MPI_BYTE,0,comm);
+      //  MPI_Bcast(&perm[0],N*sizeof(SCOTCH_Num),MPI_BYTE,0,comm);
       //
       //  for(Int i = 1; i <= perm.m(); ++i){
       //    Int node = perm[i-1];
@@ -747,6 +815,9 @@ void Ordering::SCOTCH(){
 #endif
 
 
+    void Ordering::SetCommEnvironment(CommEnvironment * CommEnv){
+      CommEnv_=CommEnv;
+    }
 
 void Ordering::Compose(IntNumVec & invp2){
     assert(pStructure!=NULL);

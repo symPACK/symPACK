@@ -410,15 +410,22 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
 
 
   //build level structure
-  std::vector<Int> levels(Xsuper_.m());
-  levels[Xsuper_.m()-1]=-1;
-  Int numLevel = 0; 
-  for(Int i=Xsuper_.m()-1-1; i>=0; i-- ){ 
-    levels[i] = levels[ETree_.PostParent(i)-1]+1;
+  //logfileptr->OFS()<<"ETREE: "<<ETree_<<endl;
+  std::vector<Int> levels;
+  try{
+    levels.resize(Xsuper_.m());
+  }
+  catch (const std::bad_alloc& e) {
+    std::cout << "Allocation failed for levels array: " << e.what() << '\n';
   }
 
-
-
+  levels[Xsuper_.m()-1]=-1;
+  Int numLevel = 0; 
+  for(Int i=Xsuper_.m()-1-1; i>=0; i-- ){     
+    //logfileptr->OFS()<<"levels["<<i<<"] = levels["<<ETree_.PostParent(i)-1<<"] +1"<<endl;
+    //assert(ETree_.PostParent(i)-1 >= 0);    
+    levels[i] = levels[ETree_.PostParent(i)-1]+1;
+  }
 
   localTaskCount_ =0;
   for(Int I = 1; I<Xsuper_.m(); ++I){
@@ -515,6 +522,10 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
         }
       }
     }
+  }
+
+  {
+    levels.swap(std::vector<Int>());
   }
 
   TIMER_STOP(BUILD_TASK_LIST);

@@ -11,12 +11,14 @@ namespace SYMPACK{
 class SparseMatrixStructure;
 class Ordering{
   public:
+    CommEnvironment * CommEnv_;
     IntNumVec perm;
     IntNumVec invp;
     SparseMatrixStructure * pStructure;
 
     Ordering():pStructure(NULL){};
     
+    void SetCommEnvironment(CommEnvironment * CommEnv);
     void SetStructure(SparseMatrixStructure & aGlobal);
     void MMD();
     void AMD();
@@ -25,12 +27,12 @@ class Ordering{
 
 #ifdef USE_PARMETIS
   //FIXME: currently, colptr and rowind are not distributed
-  void PARMETIS(MPI_Comm & comm);
+  void PARMETIS();
 #endif
 
 #ifdef USE_PTSCOTCH
   //FIXME: currently, colptr and rowind are not distributed
-  void PTSCOTCH(MPI_Comm & comm);
+  void PTSCOTCH();
 #endif
 
 #ifdef USE_METIS

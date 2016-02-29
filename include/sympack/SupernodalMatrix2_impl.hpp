@@ -1090,6 +1090,7 @@ namespace SYMPACK{
     logfileptr->OFS()<<"Matrix expanded"<<endl;
 
     //Create an Ordering object to hold the permutation
+    Order_.SetCommEnvironment(CommEnv_);
     Order_.SetStructure(*Global_);
     logfileptr->OFS()<<"Structure set"<<endl;
 
@@ -1120,12 +1121,12 @@ namespace SYMPACK{
 #endif
 #ifdef USE_PARMETIS
       case PARMETIS:
-        Order_.PARMETIS(CommEnv_->MPI_GetComm());
+        Order_.PARMETIS();
         break;
 #endif
 #ifdef USE_PTSCOTCH
       case PTSCOTCH:
-        Order_.PTSCOTCH(CommEnv_->MPI_GetComm());
+        Order_.PTSCOTCH();
         break;
 #endif
       default:
@@ -1939,8 +1940,6 @@ namespace SYMPACK{
       }
 #endif
 
-
-
       Int snodeCount = 0;
       for(Int I=1;I<Xsuper_.m();I++){
         Int fc = Xsuper_(I-1);
@@ -1966,16 +1965,41 @@ namespace SYMPACK{
           Int orig_col = Order_.perm[col-1];
           Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
 
+
+
+
           if(iam == iDest){
             if(iam != iOwnerCol){
               Int nrows = Global_->expColptr[orig_col] - Global_->expColptr[orig_col-1];
               size_t & recv_bytes = recv_map[iOwnerCol].first;
               recv_bytes += sizeof(Int)+sizeof(Int)+nrows*(sizeof(Int) + sizeof(T));
+
+#if 0
+        logfileptr->OFS()<<"P"<<iam<<" <--- "<<nrows<<" ---- P"<<iOwnerCol<<endl;
+      logfileptr->OFS()<<orig_col<<" ROW STRUCTURE"<<endl;
+      for(Ptr jptr =  Global_->expColptr[orig_col-1]; jptr < Global_->expColptr[orig_col]; jptr++){
+        Int col = Global_->expRowind[jptr-1];
+        logfileptr->OFS()<<col<<" ";
+      }
+      logfileptr->OFS()<<endl;
+#endif
             }
           }
           else if(iam == iOwnerCol){
             Int local_col = (orig_col-(numColFirst)*iOwnerCol);
             Int nrows = ExpA.Local_.colptr[local_col]-ExpA.Local_.colptr[local_col-1];
+#if 0
+            Int nrows2 = Global_->expColptr[orig_col] - Global_->expColptr[orig_col-1];
+        logfileptr->OFS()<<"P"<<iam<<" ---- "<<nrows<<" ---> P"<<iDest<<endl;
+    logfileptr->OFS()<<orig_col<<" NROWS = "<<nrows<<" vs. NROWS2 = "<<nrows2<<endl;
+      logfileptr->OFS()<<orig_col<<" ROW STRUCTURE"<<endl;
+      logfileptr->OFS()<<orig_col<<" ROW STRUCTURE"<<endl;
+      for(Ptr jptr =  ExpA.Local_.colptr[local_col-1]; jptr < ExpA.Local_.colptr[local_col]; jptr++){
+        Int col = ExpA.Local_.rowind[jptr-1];
+        logfileptr->OFS()<<col<<" ";
+      }
+      logfileptr->OFS()<<endl;
+#endif
             size_t & send_bytes = send_map[iDest].first;
             send_bytes += sizeof(Int)+sizeof(Int)+nrows*(sizeof(Int)+sizeof(T));
           }
@@ -2157,7 +2181,7 @@ namespace SYMPACK{
       Icomm * IrecvPtr = new Icomm(total_recv_size,MPI_REQUEST_NULL);
 
 
-#if 1 //def _DEBUG_
+#ifdef _DEBUG_
       logfileptr->OFS()<<"scounts: "<<scounts<<endl;
       logfileptr->OFS()<<"sdispls: "<<sdispls<<endl;
       logfileptr->OFS()<<"rcounts: "<<rcounts<<endl;
@@ -2165,7 +2189,7 @@ namespace SYMPACK{
 #endif
 
 
-#if 1
+#if 0
 //gdb_lock();
 //check the all to all parameters
              vector<int> checkRcounts;
@@ -2183,27 +2207,15 @@ int * rcountsptr = NULL;
           if(iam==p){
             logfileptr->OFS()<<checkRcounts<<endl;
             size_t total = 0;
-            for(int i =0; i<np;i++){total+=rcounts[i]; assert(rcounts[i]==rcountsptr[i]);}
+            for(int i =0; i<np;i++){
+              total+=rcounts[i]; 
+              if(rcounts[i]!=rcountsptr[i]){
+                logfileptr->OFS()<<"P"<<i<<" is wrong"<<endl;
+              }
+              assert(rcounts[i]==rcountsptr[i]);
+            }
             assert(IrecvPtr->capacity()==total);
           }
-
-
-//    int gsize;
-//    vector<int> sendarray(100); 
-//    fill(sendarray.begin(),sendarray.end(),iam);
-//    int root, myrank;
-//    vector<int>rbuf; 
-//    root = p;
-//    MPI_Comm_rank( CommEnv_->MPI_GetComm(), &myrank); 
-//    if ( myrank == root) { 
-//       MPI_Comm_size( CommEnv_->MPI_GetComm(), &gsize); 
-//          rbuf.resize(gsize*100);
-//          fill(rbuf.begin(),rbuf.end(),-1);
-//       } 
-//    MPI_Gather( &sendarray[0], 100, MPI_INT, &rbuf[0], 100, MPI_INT, root, CommEnv_->MPI_GetComm());
-//
-//             logfileptr->OFS()<<"sbuf="<<sendarray<<endl;
-//             logfileptr->OFS()<<"rbuf="<<rbuf<<endl;
 
     MPI_Barrier(CommEnv_->MPI_GetComm());
       }
@@ -2216,43 +2228,6 @@ int * rcountsptr = NULL;
       MPI_Alltoallv(IsendPtr->front(), &scounts[0], &sdispls[0], MPI_BYTE,
                     IrecvPtr->front(), &rcounts[0], &rdispls[0], MPI_BYTE,
                     CommEnv_->MPI_GetComm());
-
-      //First, we need to do some counting to allocate the supernodes in one pass
-//      std::vector<size_t> superSizes(LocalSupernodes_.size(),0);
-//      for(int i =0; i<superSizes.size();i++){
-//          SuperNode2<T> & snode = *LocalSupernodes_[i];
-//
-//            for(Ptr idx = fi; idx<=li;idx++){
-//              Idx iStartRow = lindx_(idx-1);
-//              Idx iPrevRow = iStartRow;
-//              Int iContiguousRows = 1;
-//              for(Int idx2 = idx+1; idx2<=li;idx2++){
-//                Idx iCurRow = lindx_(idx2-1);
-//                if(iStartRow == lindx_(fi-1)){
-//                  if(iCurRow>iStartRow+iWidth-1){
-//                    //enforce the first block to be a square diagonal block
-//                    break;
-//                  }
-//                }
-//
-//                if(iCurRow==iPrevRow+1){
-//                  idx++;
-//                  ++iContiguousRows;
-//                  iPrevRow=iCurRow;
-//                }
-//                else{
-//                  break;
-//                }
-//              }
-//
-//              Int iCurNZcnt = iContiguousRows * iWidth;
-//              superSizes[i] +=
-//
-//            }
-//
-//      }
-
-
 
       for(Int p=0;p<np;++p){
         int curProc = 0;
