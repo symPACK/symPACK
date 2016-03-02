@@ -209,12 +209,12 @@ logfileptr->OFS()<<"Structure set"<<endl;
 #endif
 #ifdef USE_PARMETIS
       case PARMETIS:
-        Order_.PARMETIS(CommEnv_->MPI_GetComm());
+        Order_.PARMETIS();
         break;
 #endif
 #ifdef USE_PTSCOTCH
       case PTSCOTCH:
-        Order_.PTSCOTCH(CommEnv_->MPI_GetComm());
+        Order_.PTSCOTCH();
         break;
 #endif
       default:

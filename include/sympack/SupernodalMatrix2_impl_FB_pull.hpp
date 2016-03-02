@@ -525,7 +525,8 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   }
 
   {
-    levels.swap(std::vector<Int>());
+    std::vector<Int> dummy;
+    levels.swap(dummy);
   }
 
   TIMER_STOP(BUILD_TASK_LIST);
