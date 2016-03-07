@@ -19,8 +19,8 @@ NGCHOLDIR=$HOME/sympack_devel
 #EXECS=( $NGCHOLDIR/driver/run_sparse_pull_cori_mkl )
 #EXECS=( $NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm )
 declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_superlu_cori "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb static\"" "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\"" $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
-declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_superlu_cori "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\"" $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
-declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
+declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_elemental_cori $NGCHOLDIR/driver/run_pastix_cori$NGCHOLDIR/driver/run_mumps_cori  "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\""  $NGCHOLDIR/driver/run_superlu_cori )
+#declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori $NGCHOLDIR/driver/run_superlu_cori)
 
 #declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_superlu_cori "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\"" $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
 #declare -a EXECS=( $NGCHOLDIR/driver/run_superlu_cori "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\"" $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
@@ -28,13 +28,16 @@ declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"
 
 
 #MATRIX=$NGCHOLDIR/matrices/BenElechi1/BenElechi1.rb
-MATRIX=$NGCHOLDIR/matrices/Flan_1565/Flan_1565.rb
+#MATRIX=$NGCHOLDIR/matrices/Flan_1565/Flan_1565.rb
 #MATRIX=$NGCHOLDIR/matrices/G3_circuit/G3_circuit.rb
 #MATRIX=$NGCHOLDIR/matrices/StocF-1465/StocF-1465.rb
 #MATRIX=$NGCHOLDIR/matrices/af_shell7/af_shell7.rb
 #MATRIX=$NGCHOLDIR/matrices/audikw_1/audikw_1.rb
 #MATRIX=$NGCHOLDIR/matrices/bone010/bone010.rb
 #MATRIX=$NGCHOLDIR/matrices/boneS10/boneS10.rb
+#MATRIX=$NGCHOLDIR/matrices/Serena/Serena.rb
+MATRIX=$NGCHOLDIR/matrices/nd24k/nd24k.rb
+
 #MATRIX=$NGCHOLDIR/matrices/dielFilterV3real/dielFilterV3real.rb
 #MATRIX=$NGCHOLDIR/matrices/ex5/ex5.rb
 #MATRIX=$NGCHOLDIR/matrices/fv2/fv2.rb
@@ -63,7 +66,7 @@ FORMAT="HARWELL_BOEING"
 #MAPPING=ROW2D
 #MAPPING=COL2D
 MAPPINGS=(ROW2D MODWRAP2D COL2D)
-MAPPINGS=(ROW2D COL2D)
+#MAPPINGS=(ROW2D COL2D)
 #MAPPINGS=( MODWRAP2D )
 #TREE
 ORDER=SCOTCH
@@ -84,7 +87,7 @@ FB=1
 ISEND=50
 IRECV=0
 #BLOCKS=(58)
-BLOCKS=(100)
+BLOCKS=(150)
 #BLOCKS=(100)
 #RELAX="-relax -1"
 SCHEDULER=DL
@@ -103,9 +106,9 @@ SCHEDULER=DL
 #PROCS=(4 16 24 64 96)
 #ALLOCPROCS=(24 24 24 24 72 96 144 192 264 384 576)
 #PROCS=(1 4 16 24 64 96 128 192) 
-PROCS=(1024) #1 4 16 24 32) # 64 96 192 256 384 576) # 784 1024)
+PROCS=(1 4 16 24 32 64 96 192 256 384 576 784 1024 2048)
 #PROCS=(64 96 192 256 384 576 784 1024)
-#PROCS=(64 )
+#PROCS=(1024 1600)
 #PROCS=(192 256 384 576)
 #PROCS=(384 576 784 1024)
 
@@ -121,9 +124,9 @@ PROCS=(1024) #1 4 16 24 32) # 64 96 192 256 384 576) # 784 1024)
 #PROCS=(1225 1444 1600 1764 1936 2025)
 
 QUEUE=regular
-WALLTIME=01:40:00
-QUEUE=debug
-WALLTIME=00:30:00
+WALLTIME=01:00:00
+#QUEUE=debug
+#WALLTIME=00:30:00
 
 NODE_MEMORY=40
 NODE_CORES=24
@@ -232,7 +235,7 @@ do
         #echo "                echo \"srun -n $p \$EXEC -in $MATRIXCSC -inf CSC -colperm PARMETIS -r $SQRTPROC -c $SQRTPROC\"" >> tmp.slurm
         #echo "                srun -n $p \$EXEC -in $MATRIXCSC -inf CSC -colperm PARMETIS -r $SQRTPROC -c $SQRTPROC " >> tmp.slurm
         echo "                  echo \"srun -n \$p \$EXEC -in $MATRIXCSC -inf CSC -colperm METIS_AT_PLUS_A -r \$SQRTPROC -c \$SQRTPROC\"" >> tmp.slurm
-        echo "                  srun -n \$p \$EXEC -in $MATRIXCSC -inf CSC -colperm METIS_AT_PLUS_A -r \$SQRTPROC -c \$SQRTPROC " >> tmp.slurm
+        echo "                  srun -n \$p \$EXEC -in $MATRIXCSC -inf CSC -colperm METIS_AT_PLUS_A -r \$SQRTPROC -c \$SQRTPROC  | grep -v \"dQuery_Space\"" >> tmp.slurm
         echo "              else" >> tmp.slurm
         echo "                  echo \"srun -n \$p \$EXEC -in $MATRIX  -inf $FORMAT -map \$MAPPING -b $BLOCK -ir $IRECV -is $ISEND -ordering $ORDER -lb $LB -scheduler $SCHEDULER $RELAX\"" >> tmp.slurm
         echo "                  srun -n \$p \$EXEC -in $MATRIX -inf $FORMAT -map \$MAPPING -b $BLOCK -ir $IRECV -is $ISEND -ordering $ORDER -lb $LB -scheduler $SCHEDULER $RELAX -R 50 -Fact 1 -Ord $ORDER" >> tmp.slurm
@@ -251,111 +254,3 @@ done
 exit
 
 
-
-
-
-
-
-for BLOCK in "${BLOCKS[@]}"
-do
-for p in "${PROCS[@]}"
-do
-SQRTPROC=$(echo "scale=0; sqrt($p)" | bc)
-#JOBNAME="NGCHOL_`basename $MATRIX '.csc'`_${p}_FB_${FB}_${MAPPING}_${BLOCK}_$SCHEDULER_${LB}"
-JOBNAME="NGCHOL_`basename $MATRIX '.rb'`_${p}_FB_${FB}_${BLOCK}_$SCHEDULER_${LB}"
-ALLOCNODES=$(echo "$(printf "%.0f\n" $(echo "scale=2;$p/$NODE_CORES +0.5" | bc))" | bc)
-rm tmp.slurm
-
-echo "#!/bin/bash -l" >> tmp.slurm
-echo "#SBATCH -p $QUEUE " >> tmp.slurm
-echo "#SBATCH -N $ALLOCNODES " >> tmp.slurm
-echo "#SBATCH -t $WALLTIME" >> tmp.slurm
-echo "#SBATCH -J $JOBNAME" >> tmp.slurm
-echo "#SBATCH --output=$JOBNAME-%J" >> tmp.slurm
-#echo "#SBATCH --output=$JOBNAME-%J" >> tmp.slurm
-
-#echo "#PBS -N $JOBNAME" >> tmp.slurm
-
-if [ $p -gt $NODE_CORES ]
-then
-MAXSEGSIZE=$(echo "scale=2;($NODE_MEMORY/$NODE_CORES)*0.8" | bc)
-elif [ $p -eq 1 ]
-then
-MAXSEGSIZE=$NODE_MEMORY
-else
-MAXSEGSIZE=$(echo "scale=2;($NODE_MEMORY/$p)*0.8" | bc)
-fi
-
-echo $MAXSEGSIZE
-echo "export GASNET_MAX_SEGSIZE=${MAXSEGSIZE}G" >> tmp.slurm
-#if [ $p -gt 24 ]
-#then
-#echo "export GASNET_MAX_SEGSIZE=1.2G" >> tmp.slurm
-##echo "export GASNET_MAX_SEGSIZE=1.8G" >> tmp.slurm
-#else
-#echo "export GASNET_MAX_SEGSIZE=3.5G" >> tmp.slurm
-#fi
-echo "echo \"-------------$p-----------\"" >> tmp.slurm
-
-echo "EXECS=(${EXECS[@]})" >> tmp.slurm
-echo "MAPPINGS=(${MAPPINGS[@]})" >> tmp.slurm
-
-echo "for EXEC in \${EXECS[@]};" >> tmp.slurm
-echo "do " >> tmp.slurm
-
-echo "    echo \"-------------\$EXEC-----------\"" >> tmp.slurm
-
-
-echo "    for MAPPING_IDX in \${!MAPPINGS[@]};" >> tmp.slurm
-echo "    do " >> tmp.slurm
-
-
-
-echo "        if [ \"\$MAPPING_IDX\" != \"0\" ] && ( [[ \$(basename \$EXEC) == \"run_mumps\"* ]] || [[ \$(basename \$EXEC) == \"run_pastix\"* ]]  || [[ \$(basename \$EXEC) == \"run_superlu\"* ]]  || [[ \$(basename \$EXEC) == \"run_elemental\"* ]])" >> tmp.slurm
-echo "        then" >> tmp.slurm
-echo "            continue" >> tmp.slurm
-echo "        fi" >> tmp.slurm
-
-echo "        MAPPING=\${MAPPINGS[\$MAPPING_IDX]}" >> tmp.slurm
-
-echo "        echo \"-------------\$MAPPING-----------\"" >> tmp.slurm
-
-echo "        for i in \`seq 1 $NUMTRIES\`;" >> tmp.slurm
-echo "        do " >> tmp.slurm
-echo "            workdir=$NGCHOLDIR/experiments/logs/$JOBNAME/\`basename \$EXEC\`/\$i" >> tmp.slurm
-echo "            echo \$workdir" >> tmp.slurm
-echo "            mkdir --parents \$workdir" >> tmp.slurm
-echo "            cd \$workdir" >> tmp.slurm
-echo "            rm -f core;" >> tmp.slurm
-echo "            rm -f logTest*;" >> tmp.slurm
-echo "            rm -f progress*;" >> tmp.slurm
-echo "            rm -f profile*;" >> tmp.slurm
-
-echo "            if [[ \$(basename \$EXEC) == \"run_pastix\"* ]]" >> tmp.slurm
-echo "            then" >> tmp.slurm
-echo "                echo \"srun -n $p \$EXEC -t 1 -hb $MATRIX -ord scotch\"" >> tmp.slurm
-echo "                srun -n $p \$EXEC -t 1 -hb $MATRIX -ord scotch |grep -v \"vs\" | grep -v \"Factorization time\"" >> tmp.slurm
-echo "            elif [[ \$(basename \$EXEC) == \"run_elemental\"* ]]" >> tmp.slurm
-echo "            then" >> tmp.slurm
-echo "                echo \"srun -n $p \$EXEC -in $MATRIX\" " >> tmp.slurm
-echo "                srun -n $p \$EXEC -in $MATRIX " >> tmp.slurm
-echo "            elif [[ \$(basename \$EXEC) == \"run_superlu\"* ]]" >> tmp.slurm
-echo "            then" >> tmp.slurm
-#echo "                echo \"srun -n $p \$EXEC -in $MATRIXCSC -inf CSC -colperm PARMETIS -r $SQRTPROC -c $SQRTPROC\"" >> tmp.slurm
-#echo "                srun -n $p \$EXEC -in $MATRIXCSC -inf CSC -colperm PARMETIS -r $SQRTPROC -c $SQRTPROC " >> tmp.slurm
-echo "                echo \"srun -n $p \$EXEC -in $MATRIXCSC -inf CSC -colperm METIS_AT_PLUS_A -r $SQRTPROC -c $SQRTPROC\"" >> tmp.slurm
-echo "                srun -n $p \$EXEC -in $MATRIXCSC -inf CSC -colperm METIS_AT_PLUS_A -r $SQRTPROC -c $SQRTPROC " >> tmp.slurm
-echo "            else" >> tmp.slurm
-echo "                echo \"srun -n $p \$EXEC -in $MATRIX  -inf $FORMAT -map \$MAPPING -b $BLOCK -ir $IRECV -is $ISEND -fb $FB -ordering $ORDER -lb $LB -scheduler $SCHEDULER $RELAX\"" >> tmp.slurm
-echo "                srun -n $p \$EXEC -in $MATRIX -inf $FORMAT -map \$MAPPING -b $BLOCK -ir $IRECV -is $ISEND -fb $FB -ordering $ORDER -lb $LB -scheduler $SCHEDULER $RELAX -R 50 -Fact 1 -Ord $ORDER" >> tmp.slurm
-echo "            fi" >> tmp.slurm
-echo "        done" >> tmp.slurm
-
-echo "        echo \"------------------------------\"" >> tmp.slurm
-echo "    done" >> tmp.slurm
-echo "    echo \"------------------------------\"" >> tmp.slurm
-echo "done" >> tmp.slurm
-
-sbatch tmp.slurm
-done
-done

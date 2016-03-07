@@ -70,6 +70,13 @@ run_sparse_pull: run_sparse_pull.o ${SYMPACK_LIB}
 run_sparse_pull.o: run_sparse_pull.cpp 
 	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
 
+run_sparse_pull_static: run_sparse_pull_static.o ${SYMPACK_LIB}
+	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@${SUFFIX} run_sparse_pull_static.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
+
+run_sparse_pull_static.o: run_sparse_pull_static.cpp 
+	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
+
+
 test_dist_ws: test_dist_ws.o ${SYMPACK_LIB}
 	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@${SUFFIX} test_dist_ws.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
 

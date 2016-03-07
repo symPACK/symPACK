@@ -511,34 +511,34 @@ void Ordering::SCOTCH(){
   if(iam==0){
   perm.Resize(pStructure->size);
 
-  vector<int64_t> tmpInvp(pStructure->size);
-  vector<int64_t> tmpPerm(pStructure->size);
+  vector<SCOTCH_Num> tmpInvp(pStructure->size);
+  vector<SCOTCH_Num> tmpPerm(pStructure->size);
 
-  int N = pStructure->size; 
+  SCOTCH_Num N = pStructure->size; 
 
-  vector<int64_t> tmpXadj(pStructure->expColptr.m());
-  for(int i = 0; i<tmpXadj.size();++i){tmpXadj[i] = pStructure->expColptr[i];}
+  vector<SCOTCH_Num> tmpXadj(pStructure->expColptr.m());
+  for(SCOTCH_Num i = 0; i<tmpXadj.size();++i){tmpXadj[i] = pStructure->expColptr[i];}
 
-  vector<int64_t> tmpAdj;
+  vector<SCOTCH_Num> tmpAdj;
   tmpAdj.reserve(pStructure->expRowind.m());
 
-  for(int col=0; col<tmpXadj.size()-1;++col){
-    for(int j=tmpXadj[col]; j<tmpXadj[col+1];++j){
+  for(SCOTCH_Num col=0; col<tmpXadj.size()-1;++col){
+    for(SCOTCH_Num j=tmpXadj[col]; j<tmpXadj[col+1];++j){
       if( pStructure->expRowind[j-1]-1 != col){
         tmpAdj.push_back(pStructure->expRowind[j-1]);
       }
     }
   }
 
-  int rm = 0;
-  for(int col=0; col<tmpXadj.size();++col){
+  SCOTCH_Num rm = 0;
+  for(SCOTCH_Num col=0; col<tmpXadj.size();++col){
     tmpXadj[col]-=rm;
     rm++;
   }
 
   //switch everything to 0 based
-  for(int col=0; col<tmpXadj.size();++col){ tmpXadj[col]--;}
-  for(int col=0; col<tmpAdj.size();++col){ tmpAdj[col]--;}
+  for(SCOTCH_Num col=0; col<tmpXadj.size();++col){ tmpXadj[col]--;}
+  for(SCOTCH_Num col=0; col<tmpAdj.size();++col){ tmpAdj[col]--;}
 
   int numflag = 0;
   {

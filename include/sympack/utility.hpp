@@ -421,7 +421,6 @@ inline std::ostream& operator<<( std::ostream& os, const ETree& tree)
   os<<std::endl;
 
   if(tree.IsPostOrdered()){
-    //for(Int i = 1; i<=tree.parent_.m(); i++){
     for(Int i = 1; i<=tree.Size(); i++){
 //      os<<i<<" ["<<tree.PostParent(i-1)<<"] ";
       os<<tree.PostParent(i-1)<<" ";
@@ -1221,25 +1220,108 @@ LinearInterpolation (
 		const std::vector<Real>& xx,
 		std::vector<Real>& yy );
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 } // namespace SYMPACK
+
+
+#if 1
+
+
+extern "C" {
+#include "bebop/util/config.h"
+#include "bebop/smc/sparse_matrix.h"
+#include "bebop/smc/csr_matrix.h"
+#include "bebop/smc/csc_matrix.h"
+#include "bebop/smc/sparse_matrix_ops.h"
+
+#include "bebop/util/get_options.h"
+#include "bebop/util/init.h"
+#include "bebop/util/malloc.h"
+#include "bebop/util/timer.h"
+#include "bebop/util/util.h"
+}
+
+
+
+namespace SYMPACK{
+
+template <typename SCALAR, typename INSCALAR >
+void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMatrix<SCALAR> & HMat){
+  MPI_Comm & workcomm = HMat.comm;
+  sparse_matrix_file_format_t informat;
+  if(iam==0){ cout<<"Start reading the matrix"<<endl; }
+  TIMER_START(READING_MATRIX);
+  //Read the input matrix
+  if(informatstr == "CSC"){
+    ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
+  }
+  else{
+    int n,nnz;
+    int * colptr, * rowind;
+    INSCALAR * values;
+    if(iam==0){
+
+      informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
+      sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
+      sparse_matrix_convert (Atmp, CSC);
+      const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
+
+      n = cscptr->n;
+      nnz = cscptr->nnz;
+      colptr = cscptr->colptr;
+      rowind = cscptr->rowidx;
+      values = (INSCALAR *)cscptr->values;
+
+      MPI_Bcast(&n,sizeof(n),MPI_BYTE,0,workcomm);
+      MPI_Bcast(&nnz,sizeof(n),MPI_BYTE,0,workcomm);
+      MPI_Bcast(colptr,sizeof(int)*(n+1),MPI_BYTE,0,workcomm);
+      MPI_Bcast(rowind,sizeof(int)*(nnz),MPI_BYTE,0,workcomm);
+      MPI_Bcast(values,sizeof(INSCALAR)*(nnz),MPI_BYTE,0,workcomm);
+
+      HMat.ConvertData(n,nnz,colptr,rowind,values);
+      destroy_sparse_matrix (Atmp);
+    }
+    else{
+      MPI_Bcast(&n,sizeof(n),MPI_BYTE,0,workcomm);
+      MPI_Bcast(&nnz,sizeof(nnz),MPI_BYTE,0,workcomm);
+
+      //allocate 
+      colptr = new int[n+1];
+      rowind = new int[nnz];
+      values = new INSCALAR[nnz];
+
+      MPI_Bcast(colptr,sizeof(int)*(n+1),MPI_BYTE,0,workcomm);
+      MPI_Bcast(rowind,sizeof(int)*(nnz),MPI_BYTE,0,workcomm);
+      MPI_Bcast(values,sizeof(INSCALAR)*(nnz),MPI_BYTE,0,workcomm);
+
+      HMat.ConvertData(n,nnz,colptr,rowind,values);
+
+      delete [] values;
+      delete [] rowind;
+      delete [] colptr;
+    }
+  }
+
+  TIMER_STOP(READING_MATRIX);
+  if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
+}
+} // namespace SYMPACK
+
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #endif // _UTILITY_HPP_

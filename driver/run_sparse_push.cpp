@@ -16,24 +16,25 @@
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
 
-extern "C" {
-#include "bebop/util/config.h"
-#include "bebop/smc/sparse_matrix.h"
-#include "bebop/smc/csr_matrix.h"
-#include "bebop/smc/csc_matrix.h"
-#include "bebop/smc/sparse_matrix_ops.h"
-
-#include "bebop/util/get_options.h"
-#include "bebop/util/init.h"
-#include "bebop/util/malloc.h"
-#include "bebop/util/timer.h"
-#include "bebop/util/util.h"
-}
+//extern "C" {
+//#include "bebop/util/config.h"
+//#include "bebop/smc/sparse_matrix.h"
+//#include "bebop/smc/csr_matrix.h"
+//#include "bebop/smc/csc_matrix.h"
+//#include "bebop/smc/sparse_matrix_ops.h"
+//
+//#include "bebop/util/get_options.h"
+//#include "bebop/util/init.h"
+//#include "bebop/util/malloc.h"
+//#include "bebop/util/timer.h"
+//#include "bebop/util/util.h"
+//}
 
 //#include <upcxx.h>
 
-#define MYSCALAR double
-
+#define SCALAR double
+//#define SCALAR std::complex<double>
+#define INSCALAR double
 
 using namespace SYMPACK;
 
@@ -241,7 +242,10 @@ int main(int argc, char **argv)
     MPI_Comm_size(workcomm,&np);
     MPI_Comm_rank(workcomm,&iam);
 
+    DistSparseMatrix<SCALAR> HMat(workcomm);
+    ReadMatrix<SCALAR,INSCALAR>(filename , informatstr,  HMat);
 
+#if 0
     sparse_matrix_file_format_t informat;
     TIMER_START(READING_MATRIX);
     DistSparseMatrix<Real> HMat(workcomm);
@@ -254,13 +258,13 @@ int main(int argc, char **argv)
       sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
       sparse_matrix_convert (Atmp, CSC);
       const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
-      HMat.CopyData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,(MYSCALAR *)cscptr->values);
+      HMat.CopyData(cscptr->n,cscptr->nnz,cscptr->colptr,cscptr->rowidx,(SCALAR *)cscptr->values);
       destroy_sparse_matrix (Atmp);
     }
 
     TIMER_STOP(READING_MATRIX);
     if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
-
+#endif
 
 #ifdef _CHECK_RESULT_
 

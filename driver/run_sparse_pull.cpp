@@ -17,19 +17,19 @@
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
 
-extern "C" {
-#include "bebop/util/config.h"
-#include "bebop/smc/sparse_matrix.h"
-#include "bebop/smc/csr_matrix.h"
-#include "bebop/smc/csc_matrix.h"
-#include "bebop/smc/sparse_matrix_ops.h"
-
-#include "bebop/util/get_options.h"
-#include "bebop/util/init.h"
-#include "bebop/util/malloc.h"
-#include "bebop/util/timer.h"
-#include "bebop/util/util.h"
-}
+//extern "C" {
+//#include "bebop/util/config.h"
+//#include "bebop/smc/sparse_matrix.h"
+//#include "bebop/smc/csr_matrix.h"
+//#include "bebop/smc/csc_matrix.h"
+//#include "bebop/smc/sparse_matrix_ops.h"
+//
+//#include "bebop/util/get_options.h"
+//#include "bebop/util/init.h"
+//#include "bebop/util/malloc.h"
+//#include "bebop/util/timer.h"
+//#include "bebop/util/util.h"
+//}
 
 #include <upcxx.h>
 
@@ -256,7 +256,9 @@ int main(int argc, char **argv)
     MPI_Comm_rank(workcomm,&iam);
 
 
-
+    DistSparseMatrix<SCALAR> HMat(workcomm);
+    ReadMatrix<SCALAR,INSCALAR>(filename , informatstr,  HMat);
+#if 0
     sparse_matrix_file_format_t informat;
     if(iam==0){ cout<<"Start reading the matrix"<<endl; }
     TIMER_START(READING_MATRIX);
@@ -330,7 +332,7 @@ int main(int argc, char **argv)
 
     TIMER_STOP(READING_MATRIX);
     if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
-
+#endif
 
 #ifdef _CHECK_RESULT_
 

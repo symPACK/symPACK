@@ -71,9 +71,9 @@ void reply_steal_task(bool success, upcxx::global_ptr<task> ptr){
     upcxx::copy(bak,newTask->data,newTask->dataSize);
 
     stolenTasks.push_back(newTask);
-#ifdef VERBOSE
+//#ifdef VERBOSE
     ofs<<"P"<<iam<<" stole a task from P"<<ptr.where()<<endl;
-#endif
+//#endif
   }
   busy = false;
 }
@@ -153,10 +153,10 @@ int main(int argc, char **argv)
     //allocate local task lists
     int total_task_count = atoi(argv[1]);
     int dataSize = atoi(argv[2]);
-    //int imbalance = 0;
-    //if(argc>2){
-    //  imbalance = atoi(argv[2]);
-    //}   
+    double imbalance = 1;
+    if(argc>3){
+      imbalance = atof(argv[3]);
+    }   
 
     unsigned seed = std::chrono::system_clock::now().time_since_epoch().count();
     //    std::mt19937 generator(seed);
@@ -175,9 +175,15 @@ int main(int argc, char **argv)
     //int first_task = iam*total_task_count/np;
 
     //total_task_count += imbalance;
-    //if(iam==np-1){
-    //  local_task_count += imbalance;
-    //}
+    if(iam==np-1){
+      local_task_count = total_task_count * imbalance;
+    }
+
+    upcxx::upcxx_reduce(&local_task_count,&total_task_count,1,0,UPCXX_SUM,UPCXX_INT);
+    if(iam==0){
+      cout<<"Total task count is "<<total_task_count<<endl;
+    }
+
 
     if(local_task_count>0){
       taskArray = upcxx::allocate<task>(iam,local_task_count);

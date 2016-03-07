@@ -470,12 +470,91 @@ sparse_matrix_to_SPD (struct sparse_matrix_t* A)
   int i,jptr,row,col;
   int newnnz;  
   int errcode = 0;
+  int * newrowidx,*newcolptr;
+  void * newval;
+  int head;
   informat = A->format;
 
   sparse_matrix_convert (A, CSC);
 
   struct csc_matrix_t * Acsc = (struct csc_matrix_t*)A->repr;
 
+  //add missing column entries
+newnnz = 0;
+    for(col=0;col<Acsc->n;col++){
+      if(Acsc->colptr[col+1]-Acsc->colptr[col]==0){
+        newnnz++;
+      }
+      else{
+        newnnz+=Acsc->colptr[col+1]-Acsc->colptr[col];
+      }
+    }
+//we need to add the empty columns
+    if(newnnz!=Acsc->nnz){
+printf("WARNING ADDING MISSING ENTRIES");
+
+      newcolptr= (int*) bebop_calloc(Acsc->n+1,sizeof(int));
+      newrowidx= (int*) bebop_calloc(newnnz,sizeof(int));
+      if (Acsc->value_type == REAL){
+        newval = (double*) bebop_calloc(newnnz,sizeof(double));
+      }
+      else if (Acsc->value_type == COMPLEX){
+        newval = (double_Complex*) bebop_calloc(newnnz,sizeof(double_Complex));
+      }
+      else if (Acsc->value_type == PATTERN){
+        newval = (int*) bebop_calloc(newnnz,sizeof(int));
+      }
+
+
+      newcolptr[0]=0;
+      for(col=0;col<Acsc->n;col++){
+        int pos = newcolptr[col];
+        int nrows = Acsc->colptr[col+1]-Acsc->colptr[col];
+        if(nrows==0){
+          newrowidx[pos] = col;
+          if (Acsc->value_type == REAL){
+            ((double*)newval)[pos] = (double)1.0;
+          }
+          else if (Acsc->value_type == COMPLEX){
+            ((double_Complex*)newval)[pos] = (double_Complex)1.0;
+          }
+          else if (Acsc->value_type == PATTERN){
+            ((int*)newval)[pos] = (int)1;
+          }
+          pos++;
+        }
+        else{
+          //copy the original rowind at pos
+          memcpy(&newrowidx[pos],&Acsc->rowidx[Acsc->colptr[col]],nrows*sizeof(int));
+          //copy the nzvals
+          if (Acsc->value_type == REAL){
+            memcpy(&((double*)newval)[pos],&((double*)Acsc->values)[Acsc->colptr[col]],nrows*sizeof(double));
+          }
+          else if (Acsc->value_type == COMPLEX){
+            memcpy(&((double_Complex*)newval)[pos],&((double_Complex*)Acsc->values)[Acsc->colptr[col]],nrows*sizeof(double_Complex));
+          }
+          else if (Acsc->value_type == PATTERN){
+            memcpy(&((int*)newval)[pos],&((int*)Acsc->values)[Acsc->colptr[col]],nrows*sizeof(int));
+          }
+          pos+=nrows;
+        }
+
+        newcolptr[col+1]=pos;
+      }
+      newcolptr[Acsc->n]=newnnz; 
+
+
+      bebop_free (Acsc->colptr);
+      bebop_free (Acsc->rowidx);
+      bebop_free (Acsc->values);
+
+      Acsc->rowidx = newrowidx;
+      Acsc->values = newval;
+      Acsc->colptr = newcolptr;
+      Acsc->nnz = newnnz;
+    }
+
+  
   if (Acsc->value_type == REAL){
     for(col=0;col<Acsc->n;col++){
       double sum = 0.0;
@@ -486,15 +565,27 @@ sparse_matrix_to_SPD (struct sparse_matrix_t* A)
         }
       }
 
-      for(jptr= Acsc->colptr[col]; jptr<Acsc->colptr[col+1];jptr++){
-        row = Acsc->rowidx[jptr];
-        if(row!=col){
-          ((double*)Acsc->values)[jptr] = -1;
+        int nrows = Acsc->colptr[col+1]-Acsc->colptr[col];
+        if(nrows==0){
+          printf("WARNING MISSING ENTRIES");
         }
-        else{
-          ((double*)Acsc->values)[jptr] = 4*sum;
+
+
+        for(jptr= Acsc->colptr[col]; jptr<Acsc->colptr[col+1];jptr++){
+          row = Acsc->rowidx[jptr];
+          if(row!=col){
+            ((double*)Acsc->values)[jptr] = -1;
+          }
+          else{
+            if(sum==0){
+              ((double*)Acsc->values)[jptr] = 4;
+            }
+            else{
+              ((double*)Acsc->values)[jptr] = 4*sum;
+            }
+          }
         }
-      }
+      
     }
 
   }
