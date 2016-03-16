@@ -4,16 +4,16 @@
 #include  <stdlib.h>
 
 #include "sympack/Environment.hpp"
-#include "sympack/NumVec.hpp"
 #include "sympack/SparseMatrixStructure.hpp"
+#include "sympack/DistSparseMatrixGraph.hpp"
 
 namespace SYMPACK{
 class SparseMatrixStructure;
 class Ordering{
   public:
     CommEnvironment * CommEnv_;
-    IntNumVec perm;
-    IntNumVec invp;
+    vector<Int> perm;
+    vector<Int> invp;
     SparseMatrixStructure * pStructure;
 
     Ordering():pStructure(NULL){};
@@ -33,6 +33,7 @@ class Ordering{
 #ifdef USE_PTSCOTCH
   //FIXME: currently, colptr and rowind are not distributed
   void PTSCOTCH();
+  void PTSCOTCH(const DistSparseMatrixGraph & g);
 #endif
 
 #ifdef USE_METIS
@@ -42,7 +43,7 @@ class Ordering{
 #ifdef USE_SCOTCH
     void SCOTCH();
 #endif
-    void Compose(IntNumVec & invp2);
+    void Compose(vector<Int> & invp2);
 };
 
 }

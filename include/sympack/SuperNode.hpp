@@ -8,7 +8,6 @@
 #include "sympack/Environment.hpp"
 #include "sympack/blas.hpp"
 #include "sympack/lapack.hpp"
-#include "sympack/NumVec.hpp"
 //#include "sympack/NumMat.hpp"
 #include "sympack/IntervalTree.hpp"
 #include "sympack/CommTypes.hpp"
@@ -175,13 +174,13 @@ class SuperNode{
 
 //  //Update from a factor
 //  inline Int Update(SuperNode<T> & src_snode, Int &pivot_idx, 
-//              NumMat<T> & tmpBuf,IntNumVec & src_colindx,
-//                IntNumVec & src_rowindx,
-//                  IntNumVec & src_to_tgt_offset, Int  pivot_fr);
+//              NumMat<T> & tmpBuf,vector<Int> & src_colindx,
+//                vector<Int> & src_rowindx,
+//                  vector<Int> & src_to_tgt_offset, Int  pivot_fr);
 
   //Factorize the supernode
   inline Int Factorize();
-  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const IntNumVec & Xsuper,  const IntNumVec & SupMembership,bool isLocal=true); 
+  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const vector<Int> & Xsuper,  const vector<Int> & SupMembership,bool isLocal=true); 
 
 
 

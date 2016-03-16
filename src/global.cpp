@@ -1,9 +1,11 @@
 #include  "sympack/Environment.hpp"
 #include  "sympack/utility.hpp"
 
+#include <upcxx.h>
 
 namespace SYMPACK{
 
+  upcxx::team * workteam;
 // *********************************************************************
 // IO
 // *********************************************************************

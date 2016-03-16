@@ -8,7 +8,6 @@
 #include "sympack/Environment.hpp"
 #include "sympack/blas.hpp"
 #include "sympack/lapack.hpp"
-#include "sympack/NumVec.hpp"
 //#include "sympack/NumMat.hpp"
 #include "sympack/IntervalTree.hpp"
 #include "sympack/CommTypes.hpp"
@@ -132,6 +131,7 @@ class SuperNode2{
   inline void Reserve(size_t storage_size);
 
   inline Int FindBlockIdx(Int aiGIndex);
+  inline Int FindBlockIdx(Int aiGIndex,Int & closestR, Int & closestL);
   inline Int FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap);
 
   inline void DumpITree();
@@ -159,7 +159,7 @@ class SuperNode2{
 
   //Factorize the supernode
   inline Int Factorize();
-  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const IntNumVec & Xsuper,  const IntNumVec & SupMembership,bool isLocal=true); 
+  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const vector<Int> & Xsuper,  const vector<Int> & SupMembership,bool isLocal=true); 
 
 
 

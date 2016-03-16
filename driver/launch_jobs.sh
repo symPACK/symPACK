@@ -19,7 +19,7 @@ NGCHOLDIR=$HOME/sympack_devel
 #EXECS=( $NGCHOLDIR/driver/run_sparse_pull_cori_mkl )
 #EXECS=( $NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm )
 declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_superlu_cori "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb static\"" "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\"" $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
-declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_elemental_cori $NGCHOLDIR/driver/run_pastix_cori$NGCHOLDIR/driver/run_mumps_cori  "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\""  $NGCHOLDIR/driver/run_superlu_cori )
+declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori -fb dyn\"" $NGCHOLDIR/driver/run_elemental_cori $NGCHOLDIR/driver/run_pastix_cori $NGCHOLDIR/driver/run_mumps_cori  "\"$NGCHOLDIR/driver/run_sparse_push_cori -fb 1\""  $NGCHOLDIR/driver/run_superlu_cori )
 #declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori $NGCHOLDIR/driver/run_superlu_cori)
 
 #declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"" $NGCHOLDIR/driver/run_mumps_cori $NGCHOLDIR/driver/run_superlu_cori "\"$NGCHOLDIR/driver/run_sparse_push_cori_mkl_icomm -fb 1\"" $NGCHOLDIR/driver/run_pastix_cori  $NGCHOLDIR/driver/run_elemental_cori )
@@ -29,14 +29,14 @@ declare -a EXECS=( "\"$NGCHOLDIR/driver/run_sparse_pull_cori_mkl_icomm -fb dyn\"
 
 #MATRIX=$NGCHOLDIR/matrices/BenElechi1/BenElechi1.rb
 #MATRIX=$NGCHOLDIR/matrices/Flan_1565/Flan_1565.rb
-#MATRIX=$NGCHOLDIR/matrices/G3_circuit/G3_circuit.rb
+MATRIX=$NGCHOLDIR/matrices/G3_circuit/G3_circuit.rb
 #MATRIX=$NGCHOLDIR/matrices/StocF-1465/StocF-1465.rb
 #MATRIX=$NGCHOLDIR/matrices/af_shell7/af_shell7.rb
 #MATRIX=$NGCHOLDIR/matrices/audikw_1/audikw_1.rb
 #MATRIX=$NGCHOLDIR/matrices/bone010/bone010.rb
 #MATRIX=$NGCHOLDIR/matrices/boneS10/boneS10.rb
 #MATRIX=$NGCHOLDIR/matrices/Serena/Serena.rb
-MATRIX=$NGCHOLDIR/matrices/nd24k/nd24k.rb
+#MATRIX=$NGCHOLDIR/matrices/nd24k/nd24k.rb
 
 #MATRIX=$NGCHOLDIR/matrices/dielFilterV3real/dielFilterV3real.rb
 #MATRIX=$NGCHOLDIR/matrices/ex5/ex5.rb
@@ -106,7 +106,11 @@ SCHEDULER=DL
 #PROCS=(4 16 24 64 96)
 #ALLOCPROCS=(24 24 24 24 72 96 144 192 264 384 576)
 #PROCS=(1 4 16 24 64 96 128 192) 
+
 PROCS=(1 4 16 24 32 64 96 192 256 384 576 784 1024 2048)
+PROCS=(24 32 64 96 192 256 384 576 784 1024 2048)
+#PROCS=(1 4 16)
+
 #PROCS=(64 96 192 256 384 576 784 1024)
 #PROCS=(1024 1600)
 #PROCS=(192 256 384 576)

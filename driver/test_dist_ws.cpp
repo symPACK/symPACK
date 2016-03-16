@@ -58,7 +58,7 @@ list<task*> stolenTasks;
 int local_task_count = 0;
 int64_t * pLocalLoad = NULL;
 
-void reply_steal_task(bool success, upcxx::global_ptr<task> ptr){
+void reply_steal_task(bool success, upcxx::global_ptr<task> ptr,upcxx::event * e){
   if( success){
     //get the task description
     upcxx::global_ptr<task> lPtr = upcxx::allocate<task>(iam,1);
@@ -75,10 +75,11 @@ void reply_steal_task(bool success, upcxx::global_ptr<task> ptr){
     ofs<<"P"<<iam<<" stole a task from P"<<ptr.where()<<endl;
 //#endif
   }
+  e->decref();
   busy = false;
 }
 
-void try_steal_task(int caller_rank){
+void try_steal_task(unsigned int caller_rank,upcxx::event * e){
 #ifdef VERBOSE
   ofs<<"P"<<caller_rank<<" is trying to steal some work"<<endl;
 #endif
@@ -103,7 +104,7 @@ void try_steal_task(int caller_rank){
 #endif
     success = true;
   }
-  upcxx::async(caller_rank)(reply_steal_task,success,ptr);
+  upcxx::async(caller_rank)(reply_steal_task,success,ptr,e);
 }
 
 
@@ -290,15 +291,19 @@ localTasks.clear();
         }
       }
 
+      upcxx::event * e = new upcxx::event();
       if(minLoad>0){
+        e->incref();
 #ifdef VERBOSE
         ofs<<"Trying to steal from P"<<victim<<endl;
 #endif
         busy = true;
-        upcxx::async(victim)(try_steal_task,iam);
+        upcxx::async(victim)(try_steal_task,iam,e);
       }
 
-      while(busy){upcxx::progress();}
+      e->wait();
+      delete e;
+      //while(busy){upcxx::progress();}
 
       //now work with the stolen tasks I already have
       while(stolenTasks.size()>0){

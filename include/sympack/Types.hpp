@@ -3,13 +3,14 @@
 
 #include "sympack/Environment.hpp"
 #include "sympack/timer.hpp"
-#include "sympack/NumVec.hpp"
 #include "sympack/NumMat.hpp"
 #include "sympack/CommTypes.hpp"
 
 #include <string>
 
 namespace SYMPACK{
+
+
 
   struct RelaxationParameters{
     Int nrelax0;
@@ -52,19 +53,19 @@ namespace SYMPACK{
     }
 
     void SetMaxSize(Int pmaxSize){
-        maxSize = pmaxSize;
-        nrelax0 = min(nrelax0,pmaxSize);
-        nrelax1 = min(nrelax1,pmaxSize);
-        nrelax2 = min(nrelax2,pmaxSize);
+      maxSize = pmaxSize;
+      nrelax0 = min(nrelax0,pmaxSize);
+      nrelax1 = min(nrelax1,pmaxSize);
+      nrelax2 = min(nrelax2,pmaxSize);
     }
     void SetNrelax0(Int pnrelax0){
-        nrelax0 = min(pnrelax0,maxSize);
+      nrelax0 = min(pnrelax0,maxSize);
     }
     void SetNrelax1(Int pnrelax1){
-        nrelax1 = min(pnrelax1,maxSize);
+      nrelax1 = min(pnrelax1,maxSize);
     }
     void SetNrelax2(Int pnrelax2){
-        nrelax2 = min(pnrelax2,maxSize);
+      nrelax2 = min(pnrelax2,maxSize);
     }
 
   };
@@ -173,19 +174,19 @@ namespace SYMPACK{
     class TempUpdateBuffers{
       public:
         NumMat<T> tmpBuf;
-        IntNumVec src_colindx;
-        IntNumVec src_to_tgt_offset;
+        vector<Int> src_colindx;
+        vector<Int> src_to_tgt_offset;
 
         void Resize(Int size, Int mw){
           tmpBuf.Resize(size,mw);
-          src_colindx.Resize(mw);
-          src_to_tgt_offset.Resize(size);
+          src_colindx.resize(mw);
+          src_to_tgt_offset.resize(size);
         }
 
         void Clear(){
           tmpBuf.Clear();
-          src_colindx.Clear();
-          src_to_tgt_offset.Clear();
+          src_colindx.clear();
+          src_to_tgt_offset.clear();
         }
 
 

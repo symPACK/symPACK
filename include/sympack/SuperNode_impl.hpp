@@ -660,8 +660,8 @@
             }
           }
           else{
-            tmpBuffers.src_colindx.Resize(tgt_width);
-            tmpBuffers.src_to_tgt_offset.Resize(src_nrows);
+            tmpBuffers.src_colindx.resize(tgt_width);
+            tmpBuffers.src_to_tgt_offset.resize(src_nrows);
             Int colidx = 0;
             Int rowidx = 0;
             Int offset = 0;
@@ -708,7 +708,7 @@
             else{
               // full sparse case (done right now)
               for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
-                for(Int colidx = 0; colidx< tmpBuffers.src_colindx.m();++colidx){
+                for(Int colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx){
                   Int col = tmpBuffers.src_colindx[colidx];
                   Int tgt_colidx = col - FirstCol();
                   tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
@@ -840,8 +840,8 @@
           }
         }
         else{
-          tmpBuffers.src_colindx.Resize(tgt_width);
-          tmpBuffers.src_to_tgt_offset.Resize(src_nrows);
+          tmpBuffers.src_colindx.resize(tgt_width);
+          tmpBuffers.src_to_tgt_offset.resize(src_nrows);
           Int colidx = 0;
           Int rowidx = 0;
           Int offset = 0;
@@ -888,7 +888,7 @@
           else{
             // full sparse case
             for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
-              for(Int colidx = 0; colidx< tmpBuffers.src_colindx.m();++colidx){
+              for(Int colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx){
                 Int col = tmpBuffers.src_colindx[colidx];
                 Int tgt_colidx = col - FirstCol();
                 tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
@@ -951,7 +951,7 @@
 
 
   template<typename T>
-    bool SuperNode<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const IntNumVec & Xsuper,  const IntNumVec & SupMembership, bool isLocal){
+    bool SuperNode<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const vector<Int> & Xsuper,  const vector<Int> & SupMembership, bool isLocal){
       TIMER_START(FIND_NEXT_UPDATE);
       Int & tgt_snode_id = nextUpdate.tgt_snode_id;
       Int & f_ur = nextUpdate.src_first_row;

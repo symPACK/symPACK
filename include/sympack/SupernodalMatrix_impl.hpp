@@ -228,7 +228,7 @@ logfileptr->OFS()<<"Structure set"<<endl;
     ETree_.ConstructETree(*Global_,Order_);
     ETree_.PostOrderTree(Order_);
 logfileptr->OFS()<<"ETREE done"<<endl;
-    IntNumVec cc,rc;
+    vector<Int> cc,rc;
     Global_->GetLColRowCount(ETree_,Order_,cc,rc);
     ETree_.SortChildren(cc,Order_);
 
@@ -238,7 +238,7 @@ logfileptr->OFS()<<"ETREE done"<<endl;
     logfileptr->OFS()<<"rowcnt "<<rc<<std::endl;
 #endif
     double flops = 0.0;
-    for(Int i = 0; i<cc.m();++i){
+    for(Int i = 0; i<cc.size();++i){
       flops+= (double)pow((double)cc[i],2.0);
     }
 
@@ -248,7 +248,7 @@ logfileptr->OFS()<<"ETREE done"<<endl;
 
 #if 1
     int64_t NNZ = 0;
-    for(Int i = 0; i<cc.m();++i){
+    for(Int i = 0; i<cc.size();++i){
       NNZ+=cc[i];
     }
     if(iam==0){
@@ -274,20 +274,20 @@ else{
 logfileptr->OFS()<<"Symbfact done"<<endl;
 
 #ifdef REFINED_SNODE
-    IntNumVec permRefined;
-    //    IntNumVec newPerm(Size());
+    vector<Int> permRefined;
+    //    vector<Int> newPerm(Size());
     Global_->RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
 
-    //      Perm_.Resize(Size());
-    //      for(Int i =0; i<Perm_.m();++i){
+    //      Perm_.resize(Size());
+    //      for(Int i =0; i<Perm_.size();++i){
     //        Perm_[permRefined[i]-1] = permChild[i];
     //      }
 
     //    Perm_ = permRefined;
 #else
     //Combine permMMD with Postorder
-    //    Perm_.Resize(Size());
-    //    for(Int i =0; i<Perm_.m();++i){
+    //    Perm_.resize(Size());
+    //    for(Int i =0; i<Perm_.size();++i){
     //      Perm_[i] = ETree_.FromPostOrder(i+1);
     //    }
 #endif
@@ -795,11 +795,11 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ////        {
 ////          if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
 ////          //Do a greedy load balancing heuristic
-////          std::vector<Int> procMap(Xsuper_.m()-1);
+////          std::vector<Int> procMap(Xsuper_.size()-1);
 ////          //Do a greedy heuristic to balance the number of nnz ?
 ////          std::vector<double> load(np,0.0);
 ////
-////          for(Int i = 1; i< Xsuper_.m();  ++i){
+////          for(Int i = 1; i< Xsuper_.size();  ++i){
 ////            //find least loaded processor
 ////            vector<double>::iterator it = std::min_element(load.begin(),load.end());
 ////            Int proc = (Int)(it - load.begin());
@@ -820,11 +820,11 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ////        {
 ////          if(iam==0){ cout<<"Load Balancing on FLOPS used"<<endl;}
 ////          //Do a greedy load balancing heuristic
-////          std::vector<Int> procMap(Xsuper_.m()-1);
+////          std::vector<Int> procMap(Xsuper_.size()-1);
 ////          //Do a greedy heuristic to balance the number of nnz ?
 ////          std::vector<double> load(np,0.0);
 ////
-////          for(Int i = 1; i< Xsuper_.m();  ++i){
+////          for(Int i = 1; i< Xsuper_.size();  ++i){
 ////            //find least loaded processor
 ////            vector<double>::iterator it = std::min_element(load.begin(),load.end());
 ////            Int proc = (Int)(it - load.begin());
@@ -876,7 +876,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
       //Initialize the Local structure
       ExpA.Local_.size = ExpA.size;
-      ExpA.Local_.colptr.Resize(numColLocal+1);
+      ExpA.Local_.colptr.resize(numColLocal+1);
 
       for( Int i = 0; i < numColLocal + 1; i++ ){
         ExpA.Local_.colptr[i] = Global_->expColptr[iam * numColFirst+i] - Global_->expColptr[iam * numColFirst] + 1;
@@ -884,11 +884,11 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
       ExpA.Local_.nnz = ExpA.Local_.colptr[numColLocal] - ExpA.Local_.colptr[0];
 
-      ExpA.Local_.rowind.Resize(ExpA.Local_.nnz);
+      ExpA.Local_.rowind.resize(ExpA.Local_.nnz);
 
       Int globalColBeg = Global_->expColptr[iam*numColFirst];
-      std::copy(&Global_->expRowind[globalColBeg-1],&Global_->expRowind[globalColBeg-1]+ExpA.Local_.nnz,ExpA.Local_.rowind.Data());
-      ExpA.nzvalLocal.Resize(ExpA.Local_.nnz);
+      std::copy(&Global_->expRowind[globalColBeg-1],&Global_->expRowind[globalColBeg-1]+ExpA.Local_.nnz,&ExpA.Local_.rowind[0]);
+      ExpA.nzvalLocal.resize(ExpA.Local_.nnz);
 
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Global_->colptr: "<<Global_->colptr<<endl;
@@ -901,70 +901,69 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
       logfileptr->OFS()<<"pMat.rowind: "<<pMat.Local_.rowind<<endl;
 #endif
 
-      IntNumVec localColHead = pMat.Local_.colptr;
-      IntNumVec localDestColHead = ExpA.Local_.colptr;
+      vector<Ptr> localDestColHead = ExpA.Local_.colptr;
 
-      NumVec<T> recvNzval;
-      IntNumVec recvColptr;
-      IntNumVec recvRowind;
+      vector<T> recvNzval;
+      vector<Ptr> recvColptr;
+      vector<Idx> recvRowind;
       for(Int proc = 0; proc<np; ++proc){
         //communicate colptr
         //Broadcast size
-        Int size = iam==proc?pMat.Local_.colptr.m():0;
-        MPI_Bcast(&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
+        Int size = iam==proc?pMat.Local_.colptr.size():0;
+        MPI_Bcast((void*)&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
         //Broadcast colptr
         if(iam==proc){
-          MPI_Bcast(pMat.Local_.colptr.Data(),size*sizeof(Int),MPI_BYTE,proc,ExpA.comm);
+          MPI_Bcast((void*)&pMat.Local_.colptr[0],size*sizeof(Ptr),MPI_BYTE,proc,ExpA.comm);
         }
         else{
-          recvColptr.Resize(size);
-          MPI_Bcast(recvColptr.Data(),size*sizeof(Int),MPI_BYTE,proc,ExpA.comm);
+          recvColptr.resize(size);
+          MPI_Bcast((void*)&recvColptr[0],size*sizeof(Ptr),MPI_BYTE,proc,ExpA.comm);
         }
 
         //communicate rowind
-        size = iam==proc?pMat.Local_.rowind.m():0;
-        MPI_Bcast(&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
+        size = iam==proc?pMat.Local_.rowind.size():0;
+        MPI_Bcast((void*)&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
         //Broadcast rowind
         if(iam==proc){
-          MPI_Bcast(pMat.Local_.rowind.Data(),size*sizeof(Int),MPI_BYTE,proc,ExpA.comm);
+          MPI_Bcast((void*)&pMat.Local_.rowind[0],size*sizeof(Idx),MPI_BYTE,proc,ExpA.comm);
         }
         else{
-          recvRowind.Resize(size);
-          MPI_Bcast(recvRowind.Data(),size*sizeof(Int),MPI_BYTE,proc,ExpA.comm);
+          recvRowind.resize(size);
+          MPI_Bcast((void*)&recvRowind[0],size*sizeof(Idx),MPI_BYTE,proc,ExpA.comm);
         }
 
 
         //communicate nzvalLocal
         //Broadcast size
-        size = iam==proc?pMat.nzvalLocal.m():0;
-        MPI_Bcast(&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
+        size = iam==proc?pMat.nzvalLocal.size():0;
+        MPI_Bcast((void*)&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
         //Broadcast nzvalLocal
         if(iam==proc){
-          MPI_Bcast(pMat.nzvalLocal.Data(),size*sizeof(T),MPI_BYTE,proc,ExpA.comm);
+          MPI_Bcast((void*)&pMat.nzvalLocal[0],size*sizeof(T),MPI_BYTE,proc,ExpA.comm);
         }
         else{
-          recvNzval.Resize(size);
-          MPI_Bcast(recvNzval.Data(),size*sizeof(T),MPI_BYTE,proc,ExpA.comm);
+          recvNzval.resize(size);
+          MPI_Bcast((void*)&recvNzval[0],size*sizeof(T),MPI_BYTE,proc,ExpA.comm);
         }
 
-        int colptrSize = iam==proc?pMat.Local_.colptr.m()-1:recvColptr.m()-1;
-        int * colptr = iam==proc?pMat.Local_.colptr.Data():recvColptr.Data();
-        int * rowind = iam==proc?pMat.Local_.rowind.Data():recvRowind.Data();
-        T * nzval = iam==proc?pMat.nzvalLocal.Data():recvNzval.Data();
+        int colptrSize = iam==proc?pMat.Local_.colptr.size()-1:recvColptr.size()-1;
+        const Ptr * colptr = iam==proc?&pMat.Local_.colptr[0]:&recvColptr[0];
+        const Idx * rowind = iam==proc?&pMat.Local_.rowind[0]:&recvRowind[0];
+        const T * nzval = iam==proc?&pMat.nzvalLocal[0]:&recvNzval[0];
         //Parse the received data and copy it in the ExpA.nzvalLocal
-        Int recvFirstCol = proc*numColFirst+1;
-        Int recvLastCol = recvFirstCol+numColLocalVec[proc]-1;
-        for(Int colIdx = 1; colIdx<=colptrSize;++colIdx){
-          Int col = recvFirstCol + colIdx-1;
-          Int colBeg = colptr[colIdx-1];
-          Int colEnd = colptr[colIdx]-1;
-          for(Int rowIdx = colBeg; rowIdx<=colEnd;++rowIdx){
-            Int row = rowind[rowIdx-1];
+        Idx recvFirstCol = proc*numColFirst+1;
+        Idx recvLastCol = recvFirstCol+numColLocalVec[proc]-1;
+        for(Idx colIdx = 1; colIdx<=colptrSize;++colIdx){
+          Idx col = recvFirstCol + colIdx-1;
+          Ptr colBeg = colptr[colIdx-1];
+          Ptr colEnd = colptr[colIdx]-1;
+          for(Ptr rowIdx = colBeg; rowIdx<=colEnd;++rowIdx){
+            Idx row = rowind[rowIdx-1];
             if(row>=localFirstCol && row<=localLastCol){
               //copy only upper triangular part
               if(col<row){
-                Int localCol = row - localFirstCol +1;
-                Int & localDestColIdx = localDestColHead[localCol-1];
+                Idx localCol = row - localFirstCol +1;
+                Ptr & localDestColIdx = localDestColHead[localCol-1];
                 ExpA.nzvalLocal[localDestColIdx-1] = nzval[rowIdx-1];
                 localDestColIdx++;
               }
@@ -973,12 +972,12 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
         }
       }
       //copy upper triangular part
-      for(Int colIdx = 1; colIdx<pMat.Local_.colptr.m();++colIdx){
-        Int & localDestColIdx = localDestColHead[colIdx-1];
-        Int colBeg = pMat.Local_.colptr[colIdx-1];
-        Int colEnd = pMat.Local_.colptr[colIdx]-1;
-        for(Int rowIdx = colBeg; rowIdx<=colEnd;++rowIdx){
-          Int row = pMat.Local_.rowind[rowIdx-1];
+      for(Idx colIdx = 1; colIdx<pMat.Local_.colptr.size();++colIdx){
+        Ptr & localDestColIdx = localDestColHead[colIdx-1];
+        Ptr colBeg = pMat.Local_.colptr[colIdx-1];
+        Ptr colEnd = pMat.Local_.colptr[colIdx]-1;
+        for(Idx rowIdx = colBeg; rowIdx<=colEnd;++rowIdx){
+          Idx row = pMat.Local_.rowind[rowIdx-1];
           ExpA.nzvalLocal[localDestColIdx-1] = pMat.nzvalLocal[rowIdx-1];
           localDestColIdx++;
         }
@@ -1017,12 +1016,12 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
       map<Int,pair<size_t,Icomm *> > recv_map;
       map<Int,pair<size_t,Icomm *> > send_map;
       Int snodeCount = 0;
-      for(Int I=1;I<Xsuper_.m();I++){
-        Int fc = Xsuper_(I-1);
-        Int lc = Xsuper_(I)-1;
+      for(Int I=1;I<Xsuper_.size();I++){
+        Int fc = Xsuper_[I-1];
+        Int lc = Xsuper_[I]-1;
         Int iWidth = lc-fc+1;
-        Ptr fi = xlindx_(I-1);
-        Ptr li = xlindx_(I)-1;
+        Ptr fi = xlindx_[I-1];
+        Ptr li = xlindx_[I]-1;
         Int iHeight = li-fi+1;
 
         Int iDest = this->Mapping_->Map(I-1,I-1);
@@ -1059,23 +1058,23 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
       TIMER_STOP(DISTRIBUTE_COUNTING);
 
-      //Resize the local supernodes array
+      //resize the local supernodes array
       LocalSupernodes_.reserve(snodeCount);
 
 
       TIMER_START(DISTRIBUTE_CREATE_SNODES);
 
-      for(Int I=1;I<Xsuper_.m();I++){
+      for(Int I=1;I<Xsuper_.size();I++){
 
         Int iDest = this->Mapping_->Map(I-1,I-1);
 
         //parse the first column to create the supernode structure
         if(iam==iDest){
-          Int fc = Xsuper_(I-1);
-          Int lc = Xsuper_(I)-1;
+          Int fc = Xsuper_[I-1];
+          Int lc = Xsuper_[I]-1;
           Int iWidth = lc-fc+1;
-          Ptr fi = xlindx_(I-1);
-          Ptr li = xlindx_(I)-1;
+          Ptr fi = xlindx_[I-1];
+          Ptr li = xlindx_[I]-1;
           Int iHeight = li-fi+1;
 
 #ifndef ITREE2
@@ -1087,12 +1086,12 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
           //count number of contiguous blocks (at least one diagonal block)
           Int nzBlockCnt = 1;
-          Idx iPrevRow = lindx_(fi-1)-1;
+          Idx iPrevRow = lindx_[fi-1]-1;
           for(Ptr idx = fi; idx<=li;idx++){
-            Idx iRow = lindx_(idx-1);
+            Idx iRow = lindx_[idx-1];
 
             //enforce the first block to be a square diagonal block
-            if(nzBlockCnt==1 && iRow>fc/*lindx_(fi-1)*/+iWidth-1){
+            if(nzBlockCnt==1 && iRow>fc/*lindx_[fi-1]*/+iWidth-1){
               nzBlockCnt++;
             }
             else if(iRow!=iPrevRow+1){
@@ -1125,12 +1124,12 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
             //get the Isend
             Icomm & Isend = *IsendPtr;
 
-            for(Int I=1;I<Xsuper_.m();I++){
-              Int fc = Xsuper_(I-1);
-              Int lc = Xsuper_(I)-1;
+            for(Int I=1;I<Xsuper_.size();I++){
+              Int fc = Xsuper_[I-1];
+              Int lc = Xsuper_[I]-1;
               Int iWidth = lc-fc+1;
-              Ptr fi = xlindx_(I-1);
-              Ptr li = xlindx_(I)-1;
+              Ptr fi = xlindx_[I-1];
+              Ptr li = xlindx_[I]-1;
               Int iHeight = li-fi+1;
 
               Int iDest = this->Mapping_->Map(I-1,I-1);
@@ -1217,23 +1216,23 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
               assert(iam==iDest);
 
-              Int fc = Xsuper_(I-1);
-              Int lc = Xsuper_(I)-1;
+              Int fc = Xsuper_[I-1];
+              Int lc = Xsuper_[I]-1;
               Int iWidth = lc-fc+1;
-              Ptr fi = xlindx_(I-1);
-              Ptr li = xlindx_(I)-1;
+              Ptr fi = xlindx_[I-1];
+              Ptr li = xlindx_[I]-1;
               Int iHeight = li-fi+1;
 
               SuperNode<T> & snode = *snodeLocal(I);
 
               if(snode.NZBlockCnt()==0){
                 for(Ptr idx = fi; idx<=li;idx++){
-                  Idx iStartRow = lindx_(idx-1);
+                  Idx iStartRow = lindx_[idx-1];
                   Idx iPrevRow = iStartRow;
                   Int iContiguousRows = 1;
                   for(Int idx2 = idx+1; idx2<=li;idx2++){
-                    Idx iCurRow = lindx_(idx2-1);
-                    if(iStartRow == lindx_(fi-1)){
+                    Idx iCurRow = lindx_[idx2-1];
+                    if(iStartRow == lindx_[fi-1]){
                       if(iCurRow>iStartRow+iWidth-1){
                         //enforce the first block to be a square diagonal block
                         break;
@@ -1299,7 +1298,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
 
       //do the local and resize my SuperNode structure
-      for(Int I=1;I<Xsuper_.m();I++){
+      for(Int I=1;I<Xsuper_.size();I++){
 
         Int iDest = this->Mapping_->Map(I-1,I-1);
 
@@ -1309,11 +1308,11 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
         //parse the first column to create the supernode structure
         if(iam==iDest){
-          Int fc = Xsuper_(I-1);
-          Int lc = Xsuper_(I)-1;
+          Int fc = Xsuper_[I-1];
+          Int lc = Xsuper_[I]-1;
           Int iWidth = lc-fc+1;
-          Ptr fi = xlindx_(I-1);
-          Ptr li = xlindx_(I)-1;
+          Ptr fi = xlindx_[I-1];
+          Ptr li = xlindx_[I]-1;
           Int iHeight = li-fi+1;
 
           //#ifndef ITREE2
@@ -1328,12 +1327,12 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
           if(snode.NZBlockCnt()==0){
             for(Ptr idx = fi; idx<=li;idx++){
-              Idx iStartRow = lindx_(idx-1);
+              Idx iStartRow = lindx_[idx-1];
               Idx iPrevRow = iStartRow;
               Int iContiguousRows = 1;
               for(Int idx2 = idx+1; idx2<=li;idx2++){
-                Idx iCurRow = lindx_(idx2-1);
-                if(iStartRow == lindx_(fi-1)){
+                Idx iCurRow = lindx_[idx2-1];
+                if(iStartRow == lindx_[fi-1]){
                   if(iCurRow>iStartRow+iWidth-1){
                     //enforce the first block to be a square diagonal block
                     break;
@@ -1369,9 +1368,9 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
             Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
 
             if(iam == iOwnerCol){
-              int * colptr = ExpA.Local_.colptr.Data();
-              int * rowind = ExpA.Local_.rowind.Data();
-              T * nzvalA = ExpA.nzvalLocal.Data();
+              Ptr * colptr = &ExpA.Local_.colptr[0];
+              Idx * rowind = &ExpA.Local_.rowind[0];
+              T * nzvalA = &ExpA.nzvalLocal[0];
 
               Int local_col = (orig_col-(numColFirst)*iOwnerCol);
 
@@ -1422,7 +1421,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////
 ///////////      //Initialize the Local structure
 ///////////      ExpA.Local_.size = ExpA.size;
-///////////      ExpA.Local_.colptr.Resize(numColLocal+1);
+///////////      ExpA.Local_.colptr.resize(numColLocal+1);
 ///////////
 ///////////      for( Int i = 0; i < numColLocal + 1; i++ ){
 ///////////        ExpA.Local_.colptr[i] = Global_->expColptr[iam * numColFirst+i] - Global_->expColptr[iam * numColFirst] + 1;
@@ -1430,11 +1429,11 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////
 ///////////      ExpA.Local_.nnz = ExpA.Local_.colptr[numColLocal] - ExpA.Local_.colptr[0];
 ///////////
-///////////      ExpA.Local_.rowind.Resize(ExpA.Local_.nnz);
+///////////      ExpA.Local_.rowind.resize(ExpA.Local_.nnz);
 ///////////
 ///////////      Int globalColBeg = Global_->expColptr[iam*numColFirst];
 ///////////      std::copy(&Global_->expRowind[globalColBeg-1],&Global_->expRowind[globalColBeg-1]+ExpA.Local_.nnz,ExpA.Local_.rowind.Data());
-///////////      ExpA.nzvalLocal.Resize(ExpA.Local_.nnz);
+///////////      ExpA.nzvalLocal.resize(ExpA.Local_.nnz);
 ///////////
 ///////////#ifdef _DEBUG_
 ///////////      logfileptr->OFS()<<"Global_->colptr: "<<Global_->colptr<<endl;
@@ -1447,53 +1446,53 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////      logfileptr->OFS()<<"pMat.rowind: "<<pMat.Local_.rowind<<endl;
 ///////////#endif
 ///////////
-///////////      IntNumVec localColHead = pMat.Local_.colptr;
-///////////      IntNumVec localDestColHead = ExpA.Local_.colptr;
+///////////      vector<Int> localColHead = pMat.Local_.colptr;
+///////////      vector<Int> localDestColHead = ExpA.Local_.colptr;
 ///////////
 ///////////      NumVec<T> recvNzval;
-///////////      IntNumVec recvColptr;
-///////////      IntNumVec recvRowind;
+///////////      vector<Int> recvColptr;
+///////////      vector<Int> recvRowind;
 ///////////      for(Int proc = 0; proc<np; ++proc){
 ///////////        //communicate colptr
 ///////////        //Broadcast size
-///////////        Int size = iam==proc?pMat.Local_.colptr.m():0;
+///////////        Int size = iam==proc?pMat.Local_.colptr.size():0;
 ///////////        MPI_Bcast(&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
 ///////////        //Broadcast colptr
 ///////////        if(iam==proc){
 ///////////          MPI_Bcast(pMat.Local_.colptr.Data(),size*sizeof(Int),MPI_BYTE,proc,ExpA.comm);
 ///////////        }
 ///////////        else{
-///////////          recvColptr.Resize(size);
+///////////          recvColptr.resize(size);
 ///////////          MPI_Bcast(recvColptr.Data(),size*sizeof(Int),MPI_BYTE,proc,ExpA.comm);
 ///////////        }
 ///////////
 ///////////        //communicate rowind
-///////////        size = iam==proc?pMat.Local_.rowind.m():0;
+///////////        size = iam==proc?pMat.Local_.rowind.size():0;
 ///////////        MPI_Bcast(&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
 ///////////        //Broadcast rowind
 ///////////        if(iam==proc){
 ///////////          MPI_Bcast(pMat.Local_.rowind.Data(),size*sizeof(Int),MPI_BYTE,proc,ExpA.comm);
 ///////////        }
 ///////////        else{
-///////////          recvRowind.Resize(size);
+///////////          recvRowind.resize(size);
 ///////////          MPI_Bcast(recvRowind.Data(),size*sizeof(Int),MPI_BYTE,proc,ExpA.comm);
 ///////////        }
 ///////////
 ///////////
 ///////////        //communicate nzvalLocal
 ///////////        //Broadcast size
-///////////        size = iam==proc?pMat.nzvalLocal.m():0;
+///////////        size = iam==proc?pMat.nzvalLocal.size():0;
 ///////////        MPI_Bcast(&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
 ///////////        //Broadcast nzvalLocal
 ///////////        if(iam==proc){
 ///////////          MPI_Bcast(pMat.nzvalLocal.Data(),size*sizeof(T),MPI_BYTE,proc,ExpA.comm);
 ///////////        }
 ///////////        else{
-///////////          recvNzval.Resize(size);
+///////////          recvNzval.resize(size);
 ///////////          MPI_Bcast(recvNzval.Data(),size*sizeof(T),MPI_BYTE,proc,ExpA.comm);
 ///////////        }
 ///////////
-///////////        int colptrSize = iam==proc?pMat.Local_.colptr.m()-1:recvColptr.m()-1;
+///////////        int colptrSize = iam==proc?pMat.Local_.colptr.size()-1:recvColptr.size()-1;
 ///////////        int * colptr = iam==proc?pMat.Local_.colptr.Data():recvColptr.Data();
 ///////////        int * rowind = iam==proc?pMat.Local_.rowind.Data():recvRowind.Data();
 ///////////        T * nzval = iam==proc?pMat.nzvalLocal.Data():recvNzval.Data();
@@ -1519,7 +1518,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////        }
 ///////////      }
 ///////////      //copy upper triangular part
-///////////      for(Int colIdx = 1; colIdx<pMat.Local_.colptr.m();++colIdx){
+///////////      for(Int colIdx = 1; colIdx<pMat.Local_.colptr.size();++colIdx){
 ///////////        Int & localDestColIdx = localDestColHead[colIdx-1];
 ///////////        Int colBeg = pMat.Local_.colptr[colIdx-1];
 ///////////        Int colEnd = pMat.Local_.colptr[colIdx]-1;
@@ -1567,7 +1566,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////        map<Int,pair<size_t,Icomm *> > recv_map;
 ///////////        map<Int,pair<size_t,Icomm *> > send_map;
 ///////////        Int snodeCount = 0;
-///////////        for(Int I=1;I<Xsuper_.m();I++){
+///////////        for(Int I=1;I<Xsuper_.size();I++){
 ///////////          Int fc = Xsuper_(I-1);
 ///////////          Int lc = Xsuper_(I)-1;
 ///////////          Int iWidth = lc-fc+1;
@@ -1608,11 +1607,11 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////        }
 ///////////
 ///////////
-///////////        //Resize the local supernodes array
+///////////        //resize the local supernodes array
 ///////////        LocalSupernodes_.reserve(snodeCount);
 ///////////
 ///////////
-///////////        for(Int I=1;I<Xsuper_.m();I++){
+///////////        for(Int I=1;I<Xsuper_.size();I++){
 ///////////
 ///////////          Int iDest = this->Mapping_->Map(I-1,I-1);
 ///////////
@@ -1652,7 +1651,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////              //get the Isend
 ///////////              Icomm & Isend = *IsendPtr;
 ///////////
-///////////              for(Int I=1;I<Xsuper_.m();I++){
+///////////              for(Int I=1;I<Xsuper_.size();I++){
 ///////////                Int fc = Xsuper_(I-1);
 ///////////                Int lc = Xsuper_(I)-1;
 ///////////                Int iWidth = lc-fc+1;
@@ -1824,7 +1823,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////
 ///////////
 ///////////        //do the local and resize my SuperNode structure
-///////////        for(Int I=1;I<Xsuper_.m();I++){
+///////////        for(Int I=1;I<Xsuper_.size();I++){
 ///////////
 ///////////          Int iDest = this->Mapping_->Map(I-1,I-1);
 ///////////
@@ -1930,7 +1929,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////        }
 ///////////
 ///////////
-///////////        for(Int I=1;I<Xsuper_.m();I++){
+///////////        for(Int I=1;I<Xsuper_.size();I++){
 ///////////          Int fc = Xsuper_(I-1);
 ///////////          Int lc = Xsuper_(I)-1;
 ///////////          Int iWidth = lc-fc+1;
@@ -2085,7 +2084,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////
 ///////////
 ///////////
-///////////        for(Int I=1;I<Xsuper_.m();I++){
+///////////        for(Int I=1;I<Xsuper_.size();I++){
 ///////////          Int fc = Xsuper_(I-1);
 ///////////          Int lc = Xsuper_(I)-1;
 ///////////          Int iWidth = lc-fc+1;
@@ -2169,7 +2168,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////          }
 ///////////        }
 ///////////
-///////////        for(Int I=1;I<Xsuper_.m();I++){
+///////////        for(Int I=1;I<Xsuper_.size();I++){
 ///////////          Int fc = Xsuper_(I-1);
 ///////////          Int lc = Xsuper_(I)-1;
 ///////////          Int iWidth = lc-fc+1;
@@ -2363,7 +2362,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////
 ///////////      logfileptr->OFS()<<"Starting Send"<<endl;
 ///////////      try{
-///////////        for(Int I=1;I<Xsuper_.m();I++){
+///////////        for(Int I=1;I<Xsuper_.size();I++){
 ///////////          Int fc = Xsuper_(I-1);
 ///////////          Int lc = Xsuper_(I)-1;
 ///////////          Int iWidth = lc-fc+1;
@@ -2452,7 +2451,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////        abort();
 ///////////      }
 ///////////
-///////////    for(Int I=1;I<Xsuper_.m();I++){
+///////////    for(Int I=1;I<Xsuper_.size();I++){
 ///////////      Int fc = Xsuper_(I-1);
 ///////////      Int lc = Xsuper_(I)-1;
 ///////////      Int iWidth = lc-fc+1;
@@ -2619,7 +2618,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////
 ///////////
 ///////////      #else
-///////////    for(Int I=1;I<Xsuper_.m();I++){
+///////////    for(Int I=1;I<Xsuper_.size();I++){
 ///////////      Int fc = Xsuper_(I-1);
 ///////////      Int lc = Xsuper_(I)-1;
 ///////////      Int iWidth = lc-fc+1;
@@ -2734,7 +2733,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////            MPI_Recv(&recvNzval[0],size*sizeof(T),MPI_BYTE,iOwnerCol,col,CommEnv_->MPI_GetComm(),MPI_STATUS_IGNORE);
 ///////////          }
 ///////////
-///////////          //int colptrSize = iOwnerCol==iDest?pMat.Local_.colptr.m()-1:1;
+///////////          //int colptrSize = iOwnerCol==iDest?pMat.Local_.colptr.size()-1:1;
 ///////////          int * colptr = iOwnerCol==iDest?ExpA.Local_.colptr.Data():&recvColptr[0];
 ///////////          int * rowind = iOwnerCol==iDest?ExpA.Local_.rowind.Data():&recvRowind[0];
 ///////////          T * nzvalA = iOwnerCol==iDest?ExpA.nzvalLocal.Data():&recvNzval[0];
@@ -2859,7 +2858,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 }
 
 #ifdef _DEBUG_
-    for(Int I=1;I<Xsuper_.m();I++){
+    for(Int I=1;I<Xsuper_.size();I++){
       Int src_first_col = Xsuper_(I-1);
       Int src_last_col = Xsuper_(I)-1;
       Int iOwner = this->Mapping_->Map(I-1,I-1);
@@ -2902,13 +2901,13 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 #ifdef PREALLOC_IRECV
     TIMER_START(ALLOC_IRECV_BUFFER);
     //Init asyncRecv buffers
-    auto maxwit = max_element(&UpdateWidth_[0],&UpdateWidth_[0]+UpdateWidth_.m());
-    auto maxhit = max_element(&UpdateHeight_[0],&UpdateHeight_[0]+UpdateHeight_.m());
+    auto maxwit = max_element(&UpdateWidth_[0],&UpdateWidth_[0]+UpdateWidth_.size());
+    auto maxhit = max_element(&UpdateHeight_[0],&UpdateHeight_[0]+UpdateHeight_.size());
 
     int maxh = *maxhit;
     int maxw = *maxwit;
-    for(Int I=1;I<Xsuper_.m();++I){
-      int width = Xsuper_(I) - Xsuper_(I-1);
+    for(Int I=1;I<Xsuper_.size();++I){
+      int width = Xsuper_[I] - Xsuper_[I-1];
       maxw = max(maxw,width);
     }
     
@@ -3077,17 +3076,17 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
 
 
-  template <typename T> void SupernodalMatrix<T>::GetUpdatingSupernodeCount(IntNumVec & sc,IntNumVec & mw, IntNumVec & mh){
-    sc.Resize(Xsuper_.m());
+  template <typename T> void SupernodalMatrix<T>::GetUpdatingSupernodeCount(vector<Int> & sc,vector<Int> & mw, vector<Int> & mh){
+    sc.resize(Xsuper_.size());
     SetValue(sc,I_ZERO);
-    IntNumVec marker(Xsuper_.m());
+    vector<Int> marker(Xsuper_.size());
     SetValue(marker,I_ZERO);
-    mw.Resize(Xsuper_.m());
+    mw.resize(Xsuper_.size());
     SetValue(mw,I_ZERO);
-    mh.Resize(Xsuper_.m());
+    mh.resize(Xsuper_.size());
     SetValue(mh,I_ZERO);
 
-    for(Int s = 1; s<Xsuper_.m(); ++s){
+    for(Int s = 1; s<Xsuper_.size(); ++s){
       Int first_col = Xsuper_[s-1];
       Int last_col = Xsuper_[s]-1;
 
@@ -3114,7 +3113,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
       for(Ptr row_idx = fi; row_idx<=li;++row_idx){
         Idx row = lindx_[row_idx-1];
-        Int supno = SupMembership_(row-1);
+        Int supno = SupMembership_[row-1];
 
         if(marker[supno-1]!=s && supno!=s){
 
@@ -3349,16 +3348,16 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
     Int iam = CommEnv_->MPI_Rank();
     Int np  = CommEnv_->MPI_Size();
 
-    IntNumVec children(Xsuper_.m());
+    vector<Int> children(Xsuper_.size());
     SetValue(children,0);
 
-    for(Int I=1;I<Xsuper_.m()-1;I++){
+    for(Int I=1;I<Xsuper_.size()-1;I++){
       Int fc = Xsuper_(I-1);
       Int lc = Xsuper_(I)-1;
 
       Int parent = ETree_.PostParent(lc-1);
       if(parent!=0){
-        ++children(SupMembership_(parent-1)-1);
+        ++children[SupMembership_[parent-1]-1];
       }
     }
 
@@ -3367,7 +3366,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 #endif
 
 
-    IntNumVec UpdatesToDo = children;
+    vector<Int> UpdatesToDo = children;
 
     Contributions_.resize(LocalSupernodes_.size());
     std::vector<std::stack<Int> > LocalUpdates(LocalSupernodes_.size());
@@ -3375,7 +3374,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
     AsyncComms outgoingSend;
 
     //This corresponds to the k loop in dtrsm
-    for(Int I=1;I<Xsuper_.m();I++){
+    for(Int I=1;I<Xsuper_.size();I++){
       Int iOwner = this->Mapping_->Map(I-1,I-1);
       //If I own the column, factor it
       if( iOwner == iam ){
@@ -3548,7 +3547,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
               bool isSkipped= false;
 
-              Int next_local_contrib = (iLocalI < Contributions_.size())?Contributions_[iLocalI]->Id():Xsuper_.m();
+              Int next_local_contrib = (iLocalI < Contributions_.size())?Contributions_[iLocalI]->Id():Xsuper_.size();
                   if(next_local_contrib< parent_snode_id){
                   //need to push the prev src_last_row
                   ContribsToSend.push(DelayedComm(contrib->Id(),parent_snode_id,1,src_first_row));
@@ -3613,9 +3612,9 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
       Int nrows = 0;
       for(Int ii=1; ii<=I;++ii){ nrows+= Xsuper_[ii] - Xsuper_[ii-1];}
 
-      NumMat<T> tmp3(tmp.m(),tmp.n());
-      NumMat<T> tmpFwd(tmp.m(),tmp.n());
-      for(Int i = 0; i<tmp.m();++i){
+      NumMat<T> tmp3(tmp.size(),tmp.n());
+      NumMat<T> tmpFwd(tmp.size(),tmp.n());
+      for(Int i = 0; i<tmp.size();++i){
         for(Int j = 0; j<tmp.n();++j){
 //          tmp3(Order_.perm[i]-1,j) = tmp(i,j);
 //          tmpFwd(Order_.perm[i]-1,j) = forwardSol(i,j);
@@ -3627,12 +3626,12 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
       NumMat<T> tmp2 = tmp3;
       
-      blas::Axpy(tmp.m()*tmp.n(),-1.0,&tmpFwd(0,0),1,&tmp2(0,0),1);
-      double norm = lapack::Lange('F',nrows,tmp.n(),&tmp2(0,0),tmp.m());
+      blas::Axpy(tmp.size()*tmp.n(),-1.0,&tmpFwd(0,0),1,&tmp2(0,0),1);
+      double norm = lapack::Lange('F',nrows,tmp.n(),&tmp2(0,0),tmp.size());
       logfileptr->OFS()<<"Norm after SuperNode "<<I<<" is "<<norm<<std::endl; 
 
         if(abs(norm)>=1e-1){
-          for(Int i = 0;i<nrows/*tmp.m()*/;++i){
+          for(Int i = 0;i<nrows/*tmp.size()*/;++i){
             logfileptr->OFS()<<tmpFwd(i,0)<<"       "<<tmp3(i,0)<<std::endl;
           }
         }
@@ -3851,14 +3850,14 @@ template <typename T> void SupernodalMatrix<T>::GetFullFactors( NumMat<T> & full
     Int iam = CommEnv_->MPI_Rank();
     Int np  = CommEnv_->MPI_Size();
     if(iam==0){
-      fullMatrix.Resize(this->Size(),this->Size());
+      fullMatrix.resize(this->Size(),this->Size());
       SetValue(fullMatrix,ZERO<T>());
     }
 
 
 
     //output L
-    for(Int I=1;I<Xsuper_.m();I++){
+    for(Int I=1;I<Xsuper_.size();I++){
       Int src_first_col = Xsuper_(I-1);
       Int src_last_col = Xsuper_(I)-1;
       Int iOwner = this->Mapping_->Map(I-1,I-1);
@@ -3918,11 +3917,11 @@ if( iOwner == iam){
             Int nRows = src_snode.NRows(blkidx);
             T * nzblk_nzval = src_snode.GetNZval(nzblk_desc.Offset);
 
-            T * dest = fullMatrix.Data();
+            T * dest = &fullMatrix[0];
             for(Int i = 0; i<nRows;++i){
               for(Int j = 0; j<src_snode.Size();++j){
                 if(nzblk_desc.GIndex -1 + i >= src_snode.FirstCol()-1+j){
-                  dest[nzblk_desc.GIndex -1 + i + (src_snode.FirstCol()-1+j)*fullMatrix.m()] = nzblk_nzval[i * src_snode.Size() + j];
+                  dest[nzblk_desc.GIndex -1 + i + (src_snode.FirstCol()-1+j)*fullMatrix.size()] = nzblk_nzval[i * src_snode.Size() + j];
                 }
               }
             }
@@ -3937,11 +3936,11 @@ if( iOwner == iam){
             Int nRows = src_snode.NRows(blkidx);
             T * nzblk_nzval = src_snode.GetNZval(nzblk_desc.Offset);
 
-            T * dest = fullMatrix.Data();
+            T * dest = &fullMatrix[0];
             for(Int i = 0; i<nRows;++i){
               for(Int j = 0; j<src_snode.Size();++j){
                 if(nzblk_desc.GIndex -1 + i >= src_snode.FirstCol()-1+j){
-                  dest[nzblk_desc.GIndex -1 + i + (src_snode.FirstCol()-1+j)*fullMatrix.m()] = nzblk_nzval[i * src_snode.Size() + j];
+                  dest[nzblk_desc.GIndex -1 + i + (src_snode.FirstCol()-1+j)*fullMatrix.size()] = nzblk_nzval[i * src_snode.Size() + j];
                 }
               }
             }
@@ -3960,7 +3959,7 @@ template<typename T> void SupernodalMatrix<T>::GetSolution(NumMat<T> & B){
     Int nrhs = B.n();
     //Gather B from everybody and put it in the original matrix order
     std::vector<T> tmp_nzval;
-    for(Int I=1; I<Xsuper_.m();++I){
+    for(Int I=1; I<Xsuper_.size();++I){
       Int iOwner = this->Mapping_->Map(I-1,I-1);
       T * data;
       Int snode_size = Xsuper_[I] - Xsuper_[I-1];
@@ -4077,7 +4076,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
   if(snodeColl.empty() || MsgToSend.empty()) { return;}
 
   //Index of the last global snode to do
-  Int last_snode_id = Xsuper_.m()-1;
+  Int last_snode_id = Xsuper_.size()-1;
   //Index of the last local supernode
   Int last_local_id = snodeColl.back()->Id();
   //Index of the last PROCESSED supernode
@@ -4367,7 +4366,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(FBCommList
 
 template<typename T>
 void SupernodalMatrix<T>::Dump(){
-    for(Int I=1;I<Xsuper_.m();I++){
+    for(Int I=1;I<Xsuper_.size();I++){
       Int src_first_col = Xsuper_(I-1);
       Int src_last_col = Xsuper_(I)-1;
       Int iOwner = this->Mapping_->Map(I-1,I-1);

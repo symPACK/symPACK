@@ -242,7 +242,6 @@ int main(int argc, char **argv)
       logfileptr->OFS()<<"MPI SPLITS ARE DONE"<<endl;
     if(iam==0){ cout<<"MPI SPLITS ARE DONE"<<endl; }
 
-  upcxx::team * workteam;
   Int new_rank = (iam<np)?iam:iam-np;
   upcxx::team_all.split(iam<np,new_rank, workteam);
   
@@ -417,7 +416,8 @@ int main(int argc, char **argv)
 
       try{
         timeSta = get_time();
-        SMat = new SupernodalMatrix2<SCALAR>(HMat,optionsFact);
+        SMat = new SupernodalMatrix2<SCALAR>();
+        SMat->Init(HMat,optionsFact);
         timeEnd = get_time();
         SMat->team_ = workteam;
       }

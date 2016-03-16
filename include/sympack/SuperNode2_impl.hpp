@@ -284,6 +284,29 @@ inline Int SuperNode2<T>::FindBlockIdx(Int aiGIndex){
 }
 
 
+template<typename T>
+inline Int SuperNode2<T>::FindBlockIdx(Int aiGIndex,Int & closestR, Int & closestL){
+  scope_timer(a,FindBlockIdx);
+  Int rval = -1;
+  ITree::Interval * L = NULL;
+  ITree::Interval * R = NULL;
+  ITree::Interval * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex,R,L);
+  if(R!=NULL){
+    closestR = R->low;
+  }
+
+  if(L!=NULL){
+    closestL = L->hight;
+  }
+
+  if (res != NULL){
+    rval = res->block_idx;
+  }
+  return rval;
+}
+
+
+
 
 template<typename T>
 inline Int SuperNode2<T>::FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap){
@@ -291,28 +314,11 @@ inline Int SuperNode2<T>::FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap
 
   Int rval = -1;
 
-#ifndef ITREE
-  //search interval
-  //do something stupid
-  while( (rval = FindBlockIdx(fr))<0){++fr;};
-  overlap.low = fr;
-  NZBlockDesc2 desc = GetNZBlockDesc(rval);
-  overlap.high = min(lr,desc.GIndex + NRows(rval)-1);
-#else
-
-#ifdef _LAZY_INIT_
-  if(!ITreeInitialized()){
-    InitIdxToBlk();
-  }
-#endif
-
-
   ITree::Interval * res = idxToBlk_->IntervalSearch(fr,lr);
   if (res != NULL){
     overlap = *res;
     rval = res->block_idx;
   }
-#endif
   return rval;
 }
 
@@ -392,6 +398,10 @@ inline Int SuperNode2<T>::Shrink(){
   return StorageSize();
 }
 
+
+
+
+
 template<typename T>
 inline void SuperNode2<T>::FindUpdatedFirstCol(SuperNode2<T> & src_snode, Int pivot_fr, Int & tgt_fc, Int & first_pivot_idx){
   //find the first row updated by src_snode
@@ -406,9 +416,47 @@ inline void SuperNode2<T>::FindUpdatedFirstCol(SuperNode2<T> & src_snode, Int pi
     if(tgt_fc == I_ZERO ){
       tgt_fc = FirstCol();
       //find the pivot idx
-      do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
-      while(first_pivot_idx<0 && tgt_fc<=LastCol());
-      tgt_fc--;
+
+      Int tgt_lc = LastCol();
+#ifndef _BINARY_BLOCK_SEARCH_
+    for(tgt_fc;tgt_fc<tgt_lc;tgt_fc++){
+      first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
+      if(first_pivot_idx>=0){
+        break;
+      }
+    }
+//      do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
+//      while(first_pivot_idx<0 && tgt_fc<=tgt_lc);
+//      tgt_fc--;
+#else
+      Int closestR = -1;
+      Int closestL = -1;
+      do{
+        first_pivot_idx = src_snode.FindBlockIdx(tgt_fc,closestR,closestL);
+        if(closestR!=-1){
+          logfileptr->OFS()<<"ClosestR of "<<tgt_fc<<" is "<<closestR<<endl;
+          tgt_fc = closestR;
+        }
+      }
+      while(first_pivot_idx<0);
+
+//    Int tgt_cur;
+//    Int count = tgt_lc - tgt_fc+1;
+//    Int step;
+//    while (count > 0) {
+//        step = count / 2;
+//        tgt_cur = tgt_fc + step;
+//        first_pivot_idx = src_snode.FindBlockIdx(tgt_cur); 
+//        if (first_pivot_idx>=0) {
+//            tgt_fc = ++tgt_cur;
+//            count -= step + 1;
+//        }
+//        else{
+//            count = step;
+//        }
+//    }
+#endif
+
     }
     else{
       first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
@@ -470,9 +518,61 @@ inline void SuperNode2<T>::FindUpdatedLastCol(SuperNode2<T> & src_snode, Int tgt
     tgt_lc = LastCol();
     last_pivot_idx = -1;
     //find the pivot idx
-    do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
-    while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
-    tgt_lc++;
+#ifndef _BINARY_BLOCK_SEARCH_
+    for(tgt_lc;tgt_lc>=tgt_fc;tgt_lc--){
+      last_pivot_idx = src_snode.FindBlockIdx(tgt_lc);
+      if(last_pivot_idx>=0){
+        break;
+      }
+    }
+//    do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
+//    while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
+//    tgt_lc++;
+#else
+    for(tgt_lc;tgt_lc>=tgt_fc;tgt_lc--){
+      last_pivot_idx = src_snode.FindBlockIdx(tgt_lc);
+      if(last_pivot_idx>=0){
+        break;
+      }
+    }
+
+//    do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;  logfileptr->OFS()<<"lpi: "<<last_pivot_idx<<" | "<<tgt_lc+1<<endl; }
+//    while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
+//    tgt_lc++;
+//    Int bak_tgt_lc = tgt_lc;
+//    tgt_lc = LastCol();
+//    Int tgt_cur;
+//    Int count = tgt_lc - tgt_fc+1;
+//    Int step;
+//    //last_pivot_idx = src_snode.FindBlockIdx(tgt_lc);
+//    //if(last_pivot_idx<0)
+//    {
+//      while (count > 0) {
+//        step = count / 2;
+//        tgt_cur = tgt_lc - step;
+//        last_pivot_idx = src_snode.FindBlockIdx(tgt_cur); 
+//        logfileptr->OFS()<<"lpi2: "<<last_pivot_idx<<" | "<<tgt_cur<<endl;
+//        if (last_pivot_idx<0) {
+//          tgt_lc = --tgt_cur;
+//          count -= step - 1;
+//        }
+//        else{
+//          count = step;
+//        }
+//      }
+//    }
+//    logfileptr->OFS()<<bak_tgt_lc<<" vs "<<tgt_lc<<endl;
+//    logfileptr->OFS()<<src_snode.FindBlockIdx(tgt_lc+1)<<endl;
+//    logfileptr->OFS()<<src_snode.FindBlockIdx(tgt_lc)<<endl;
+//    assert(src_snode.FindBlockIdx(tgt_lc+1)<0 && src_snode.FindBlockIdx(tgt_lc)>=0);
+//    assert(bak_tgt_lc == tgt_lc);
+#endif
+
+
+
+
+
+
 #ifdef _LINEAR_SEARCH_FCLC_
   }
   else{
@@ -732,8 +832,8 @@ inline Int SuperNode2<T>::UpdateAggregate(SuperNode2<T> & src_snode, SnodeUpdate
       }
     }
     else{
-      tmpBuffers.src_colindx.Resize(tgt_width);
-      tmpBuffers.src_to_tgt_offset.Resize(src_nrows);
+      tmpBuffers.src_colindx.resize(tgt_width);
+      tmpBuffers.src_to_tgt_offset.resize(src_nrows);
       Int colidx = 0;
       Int rowidx = 0;
       Int offset = 0;
@@ -786,7 +886,7 @@ inline Int SuperNode2<T>::UpdateAggregate(SuperNode2<T> & src_snode, SnodeUpdate
       else{
         // full sparse case (done right now)
         for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
-          for(Int colidx = 0; colidx< tmpBuffers.src_colindx.m();++colidx){
+          for(Int colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx){
             Int col = tmpBuffers.src_colindx[colidx];
             Int tgt_colidx = col - FirstCol();
             tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
@@ -916,8 +1016,8 @@ inline Int SuperNode2<T>::Update(SuperNode2<T> & src_snode, SnodeUpdate &update,
       }
     }
     else{
-      tmpBuffers.src_colindx.Resize(tgt_width);
-      tmpBuffers.src_to_tgt_offset.Resize(src_nrows);
+      tmpBuffers.src_colindx.resize(tgt_width);
+      tmpBuffers.src_to_tgt_offset.resize(src_nrows);
       Int colidx = 0;
       Int rowidx = 0;
       Int offset = 0;
@@ -973,7 +1073,7 @@ inline Int SuperNode2<T>::Update(SuperNode2<T> & src_snode, SnodeUpdate &update,
       else{
         // full sparse case
         for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
-          for(Int colidx = 0; colidx< tmpBuffers.src_colindx.m();++colidx){
+          for(Int colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx){
             Int col = tmpBuffers.src_colindx[colidx];
             Int tgt_colidx = col - FirstCol();
             tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
@@ -1016,7 +1116,7 @@ template<typename T>
 
 
 template<typename T>
-bool SuperNode2<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const IntNumVec & Xsuper,  const IntNumVec & SupMembership, bool isLocal){
+bool SuperNode2<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const vector<Int> & Xsuper,  const vector<Int> & SupMembership, bool isLocal){
   scope_timer(a,FIND_NEXT_UPDATE);
   Int & tgt_snode_id = nextUpdate.tgt_snode_id;
   Int & f_ur = nextUpdate.src_first_row;

@@ -5,22 +5,23 @@
 #include "sympack/ETree.hpp"
 #include "sympack/utility.hpp"
 
+#include <upcxx.h>
+
 namespace SYMPACK{
 
 
   void DisjointSet::Initialize(Int n){
-    pp_.Resize(n);
+    pp_.resize(n);
     SetValue(pp_,I_ZERO);
-    root_.Resize(n);
+    root_.resize(n);
   }
 
   void DisjointSet::Finalize(){
-    pp_.Resize(0);
+    pp_.resize(0);
   }
+}
 
-
-
-
+namespace SYMPACK{
   ETree::ETree(){
 
     bIsPostOrdered_=false;
@@ -33,19 +34,19 @@ namespace SYMPACK{
 
 
 
-  void ETree::BTreeToPO(IntNumVec & fson, IntNumVec & brother, IntNumVec & invpos){
+  void ETree::BTreeToPO(vector<Int> & fson, vector<Int> & brother, vector<Int> & invpos){
       //Do a depth first search to construct the postordered tree
-      IntNumVec stack(n_);
+      vector<Int> stack(n_);
       //postNumber_.Resize(n_);
-      invpos.Resize(n_);
+      invpos.resize(n_);
 
       Int stacktop=0, vertex=n_,m=0;
       bool exit = false;
       while( m<n_){
         do{
           stacktop++;
-          stack(stacktop-1) = vertex;
-          vertex = fson(vertex-1);
+          stack[stacktop-1] = vertex;
+          vertex = fson[vertex-1];
         }while(vertex>0);
 
         while(vertex==0){
@@ -54,14 +55,14 @@ namespace SYMPACK{
             exit = true;
             break;
           }
-          vertex = stack(stacktop-1);
+          vertex = stack[stacktop-1];
           stacktop--;
           m++;
 
           invpos[vertex-1] = m;
 //          perm[m-1] = vertex;
 
-          vertex = brother(vertex-1);
+          vertex = brother[vertex-1];
         }
 
         if(exit){
@@ -76,22 +77,22 @@ namespace SYMPACK{
 
      TIMER_START(PostOrder);
 
-      IntNumVec fson(n_);
+      vector<Int> fson(n_);
       SetValue(fson, I_ZERO);
-      IntNumVec & brother = poparent_;
-      brother.Resize(n_);
+      vector<Int> & brother = poparent_;
+      brother.resize(n_);
       SetValue(brother, I_ZERO);
 
       Int lroot = n_;
       for(Int vertex=n_-1; vertex>0; vertex--){
-        Int curParent = parent_(vertex-1);
+        Int curParent = parent_[vertex-1];
         if(curParent==0 || curParent == vertex){
-          brother(lroot-1) = vertex;
+          brother[lroot-1] = vertex;
           lroot = vertex;
         }
         else{
-          brother(vertex-1) = fson(curParent-1);
-          fson(curParent-1) = vertex;
+          brother[vertex-1] = fson[curParent-1];
+          fson[curParent-1] = vertex;
         }
       }
 
@@ -102,7 +103,7 @@ namespace SYMPACK{
       logfileptr->OFS()<<"brother "<<brother<<std::endl;
 #endif
 
-      IntNumVec invpos;
+      vector<Int> invpos;
       BTreeToPO(fson,brother,invpos);
 
       //modify the parent list ?
@@ -134,16 +135,16 @@ namespace SYMPACK{
   }
 
 
-  void ETree::SortChildren(IntNumVec & cc, Ordering & aOrder){
+  void ETree::SortChildren(vector<Int> & cc, Ordering & aOrder){
     if(!bIsPostOrdered_){
       this->PostOrderTree(aOrder);
     }
 
-      IntNumVec fson(n_);
+      vector<Int> fson(n_);
       SetValue(fson, I_ZERO);
-      IntNumVec brother(n_);
+      vector<Int> brother(n_);
       SetValue(brother, I_ZERO);
-      IntNumVec lson(n_);
+      vector<Int> lson(n_);
       SetValue(lson, I_ZERO);
 
       //Get Binary tree representation
@@ -152,38 +153,38 @@ namespace SYMPACK{
         Int curParent = PostParent(vertex-1);
         //Int curParent = parent_(vertex-1);
         if(curParent==0 || curParent == vertex){
-          brother(lroot-1) = vertex;
+          brother[lroot-1] = vertex;
           lroot = vertex;
         }
         else{
-          Int ndlson = lson(curParent-1);
+          Int ndlson = lson[curParent-1];
           if(ndlson > 0){
-             if  ( cc(vertex-1) >= cc(ndlson-1) ) {
+             if  ( cc[vertex-1] >= cc[ndlson-1] ) {
              //if  ( cc(ToPostOrder(vertex)-1) >= cc(ToPostOrder(ndlson)-1) ) {
-                brother(vertex-1) = fson(curParent-1);
-                fson(curParent-1) = vertex;
+                brother[vertex-1] = fson[curParent-1];
+                fson[curParent-1] = vertex;
              }
              else{                                                                                                                                            
-                brother(ndlson-1) = vertex;
-                lson(curParent-1) = vertex;
+                brother[ndlson-1] = vertex;
+                lson[curParent-1] = vertex;
              }                                                                                                                                                               
           }
           else{
-             fson(curParent-1) = vertex;
-             lson(curParent-1) = vertex;
+             fson[curParent-1] = vertex;
+             lson[curParent-1] = vertex;
           }
         }
       }
-      brother(lroot-1)=0;
+      brother[lroot-1]=0;
 
 
-      IntNumVec invpos;
-//      IntNumVec invperm;
+      vector<Int> invpos;
+//      vector<Int> invperm;
 
       //Compute the parent permutation and update postNumber_
       //Do a depth first search to construct the postordered tree
-      IntNumVec stack(n_);
-      invpos.Resize(n_);
+      vector<Int> stack(n_);
+      invpos.resize(n_);
 //      invperm.Resize(n_);
 
       Int stacktop=0, vertex=n_,m=0;
@@ -191,8 +192,8 @@ namespace SYMPACK{
       while( m<n_){
         do{
           stacktop++;
-          stack(stacktop-1) = vertex;
-          vertex = fson(vertex-1);
+          stack[stacktop-1] = vertex;
+          vertex = fson[vertex-1];
         }while(vertex>0);
 
         while(vertex==0){
@@ -201,13 +202,13 @@ namespace SYMPACK{
             exit = true;
             break;
           }
-          vertex = stack(stacktop-1);
+          vertex = stack[stacktop-1];
           stacktop--;
           m++;
 
           invpos[vertex-1] = m;
 
-          vertex = brother(vertex-1);
+          vertex = brother[vertex-1];
         }
 
         if(exit){
@@ -246,7 +247,7 @@ namespace SYMPACK{
 
       //Sort the parent
 
-////      IntNumVec poParent(n_+1);
+////      vector<Int> poParent(n_+1);
 ////            for(Int i=1; i<=n_;i++){
 ////              Int nunode = perm_(i-1);
 ////              Int ndpar = parent_(i-1);
@@ -259,7 +260,7 @@ namespace SYMPACK{
 ////      logfileptr->OFS()<<"ORDERED fson "<<fson<<std::endl;
 ////      logfileptr->OFS()<<"ORDERED brother "<<brother<<std::endl;
 ////
-////      IntNumVec poParent(n_+1);
+////      vector<Int> poParent(n_+1);
 ////            for(Int i=1; i<=n_;i++){
 ////              Int nunode = postNumber_(i-1);
 ////              Int ndpar = parent_(i-1);
@@ -284,6 +285,278 @@ namespace SYMPACK{
 
   }
 
+  void ETree::ConstructETree(DistSparseMatrixGraph & aDistExp, Ordering & aOrder){
+    bIsPostOrdered_=false;
+    n_ = aDistExp.size;
+
+    //Expand to unsymmetric storage
+    aDistExp.ExpandSymmetric();
+
+    TIMER_START(Construct_Etree);
+    //std::fill(parent_.begin(),parent_.end(),0);
+
+
+    int mpisize;
+    MPI_Comm_size(aDistExp.comm,&mpisize);
+
+
+#if 1 
+    int mpirank;
+    MPI_Comm_rank(aDistExp.comm,&mpirank);
+    //first permute locally then redistribute with alltoallv then do the etree
+    aDistExp.Permute(&aOrder.invp[0]);
+
+    //TODO This is not ok for memory scaling....
+    parent_.resize(n_);
+
+//    vector<Int> myParent(aDistExp.LocalVertexCount(),-1);
+//    vector<Int> myAncstr(aDistExp.LocalVertexCount(),-1);
+    //TODO This is not ok for memory scaling....
+    vector<Int> ancstr(n_,-1);
+
+    Idx fc = (iam)*(n_/mpisize); //0 - based
+
+      if(mpirank>0){
+        MPI_Recv(&parent_[0],fc*sizeof(Int),MPI_BYTE,mpirank-1,mpirank-1,aDistExp.comm,MPI_STATUS_IGNORE);
+        MPI_Recv(&ancstr[0],fc*sizeof(Int),MPI_BYTE,mpirank-1,mpirank-1,aDistExp.comm,MPI_STATUS_IGNORE);
+      }
+      for(Idx locCol = 0; locCol< aDistExp.LocalVertexCount(); locCol++){
+
+        Idx i = fc + locCol; // 0 - based;
+        parent_[i] = 0;
+        ancstr[i] = 0;
+//        myParent[locCol] = 0;
+//        myAncstr[locCol] = 0;
+
+        Ptr jstrt = aDistExp.colptr[locCol] - aDistExp.baseval; //0-based
+        Ptr jstop = aDistExp.colptr[locCol+1] - aDistExp.baseval;//0-based
+        if(jstrt<jstop-1){
+          for(Ptr j = jstrt; j<jstop; ++j){
+            Idx nbr = aDistExp.rowind[j] - aDistExp.baseval; //0-based
+            if  ( nbr < i ){
+              // -------------------------------------------
+              // for each nbr, find the root of its current
+              // elimination tree.  perform path compression
+              // as the subtree is traversed.
+              // -------------------------------------------
+              //column i (unpermuted) is not the parent of column nbr
+              if  ( ancstr[nbr] != i+1 ){
+                Int break_loop = 0;
+                while(ancstr[nbr] >0){
+                  if  ( ancstr[nbr] == i+1 ){
+                    break_loop = 1;
+                    break;
+                  }
+                  Int next = ancstr[nbr];
+                  ancstr[nbr] = i+1;
+                  nbr = next - 1;
+                }
+
+                // --------------------------------------------
+                // now, nbr is the root of the subtree.  make i
+                // the parent node of this root.
+                // --------------------------------------------
+                if(!break_loop){
+                  parent_[nbr] = i + 1; // 1-based
+                  ancstr[nbr] = i + 1; // 1-based
+                }
+              }
+
+              
+//              if  ( myAncstr[nbr-fc] != i+1 ){
+//                Int break_loop = 0;
+//                while(myAncstr[nbr-fc] >0){
+//                  if  ( myAncstr[nbr-fc] == i+1 ){
+//                    break_loop = 1;
+//                    break;
+//                  }
+//                  Int next = myAncstr[nbr-fc];
+//                  myAncstr[nbr-fc] = i+1;
+//                  nbr = next - 1;
+//                }
+//
+//                // --------------------------------------------
+//                // now, nbr is the root of the subtree.  make i
+//                // the parent node of this root.
+//                // --------------------------------------------
+//                if(!break_loop){
+//                  myParent[nbr-fc] = i + 1; // 1-based
+//                  myAncstr[nbr-fc] = i + 1; // 1-based
+//                }
+//              }
+
+            }
+          }
+        }
+
+      }
+
+      if(mpirank<mpisize-1){
+//        logfileptr->OFS()<<"my parent now is: "<<myParent<<endl;
+//        logfileptr->OFS()<<"my ancstr now is: "<<myAncstr<<endl;
+        logfileptr->OFS()<<"parent now is: "<<parent_<<endl;
+        logfileptr->OFS()<<"ancstr now is: "<<ancstr<<endl;
+        MPI_Send(&parent_[0],(fc+aDistExp.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,aDistExp.comm);
+        MPI_Send(&ancstr[0],(fc+aDistExp.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,aDistExp.comm);
+      }
+
+    //Now proc mpisize-1 bcast the parent_ array
+    MPI_Bcast(&parent_[0],n_*sizeof(Int),MPI_BYTE,mpisize-1,aDistExp.comm);
+
+
+#else
+
+    //allocate a upcxx shared array ?
+    upcxx::shared_array<Int> sh_parent;
+    upcxx::shared_array<Int> sh_ancstr;
+    sh_ancstr.init(n_,n_/mpisize); 
+    sh_parent.init(n_,n_/mpisize); 
+
+    //for(int b = 0; b < n_; b+=n_/mpisize){
+    //  upcxx::global_ptr<Int> ptr = &sh_parent[b];
+    //  if(ptr.where()==iam){
+    //    Int * lptr = (Int*)ptr;
+    //    Int cnt = min(n_/mpisize,n_ - b);
+    //    std::fill(lptr,lptr+cnt,0);
+    //  }
+    //}
+
+    //MPI_Barrier(aDistExp.comm);
+    workteam->barrier();
+
+
+    //Int * pLocalAncstr = (int64_t*)workloads[iam].raw_ptr();
+
+
+    Idx fc = (iam)*(n_/mpisize); //0 - based
+
+    //for(Idx locCol = 0; locCol< aDistExp.LocalVertexCount(); locCol++){
+    for(Idx locCol = 0; locCol< n_; locCol++){
+      //Idx i = fc + locCol; // 0 - based;
+      Idx i = locCol;
+      Idx node = aOrder.perm[i] - 1; // 0-based (perm is 1 based)
+   
+//      logfileptr->OFS()<<"node = "<<node+1<<endl; 
+      if(node >= fc && node<fc+aDistExp.LocalVertexCount()){     
+        sh_parent[i] = 0;
+        sh_ancstr[i] = 0;
+        //parent_[i] = 0;
+        //ancstr[i] = 0;
+        //Idx node = fc + locCol; // 0 - based;
+        //Idx i = aOrder.invp[node] - 1; // 0-based (perm is 1 based)
+        //parent_[i] = 0;
+        //ancstr[i] = 0;
+
+        Idx locNode = node - fc;
+        Ptr jstrt = aDistExp.colptr[locNode] - aDistExp.baseval; //0-based
+        Ptr jstop = aDistExp.colptr[locNode+1] - aDistExp.baseval;//0-based
+        for(Ptr j = jstrt; j<jstop; ++j){
+          Idx nbr = aDistExp.rowind[j] - aDistExp.baseval; //0-based
+          //logfileptr->OFS()<<"   nbr = "<<nbr+1<<"  ";
+          nbr = aOrder.invp[nbr] - 1; // 0-based (invp is 1 based);
+          //assert(nbr<aOrder.invp.size());
+          //logfileptr->OFS()<<"|  nbr = "<<nbr+1<<endl;
+          //upper triangular part ?
+          if  ( nbr < i ){
+            // -------------------------------------------
+            // for each nbr, find the root of its current
+            // elimination tree.  perform path compression
+            // as the subtree is traversed.
+            // -------------------------------------------
+            //column i (unpermuted) is not the parent of column nbr
+            Int anc = sh_ancstr[nbr];
+            //Int anc = ancstr[nbr];
+            if  ( anc != i+1 ){
+              Int break_loop = 0;
+              //logfileptr->OFS()<<"path: "<<nbr+1<<" ";
+              while(anc >0){
+                if  ( anc == i+1 ){
+                  break_loop = 1;
+                  break;
+                }
+                Int next = sh_ancstr[nbr];
+                sh_ancstr[nbr] = i+1;
+                //Int next = ancstr[nbr];
+                //ancstr[nbr] = i+1;
+                nbr = next - 1;
+                anc = sh_ancstr[nbr];
+                //anc = ancstr[nbr];
+                //logfileptr->OFS()<<nbr+1<<" ";
+              }
+              //logfileptr->OFS()<<endl;
+
+              // --------------------------------------------
+              // now, nbr is the root of the subtree.  make i
+              // the parent node of this root.
+              // --------------------------------------------
+              if(!break_loop){
+                sh_parent[nbr] = i + 1; // 1-based
+                sh_ancstr[nbr] = i + 1; // 1-based
+                //parent[nbr] = i + 1; // 1-based
+                //ancstr[nbr] = i + 1; // 1-based
+              }
+            }
+          }
+        }
+      }
+      workteam->barrier();
+      //workteam->reduce();
+    }
+
+  //if(np>1){
+  //  //Do an allgatherv 
+  //  //vector<int> sizes(np,(n_/np)*sizeof(Int));
+  //  //sizes.back() = (n_ - (np-1)*(n_/np))*sizeof(Int);
+  //  //vector<int>displs(np,0);
+  //  //std::copy(&sizes.front(),&sizes.back(),&displs[1]);
+  //  //std::partial_sum(displs.begin(),displs.end(),displs.begin());
+  //  //MPI_Allgatherv(&parent_[
+
+
+  //  //do an allreduce
+  //  //logfileptr->OFS()<<"parent before: "<<parent_<<endl;
+  //  MPI_Allreduce(MPI_IN_PLACE,&parent_[0],n_,MPI_INT,MPI_MAX,aDistExp.comm);
+  //}
+
+
+
+//    int b = 0;
+//    while(1){
+//      Int p = (b)%mpisize;
+//      //for(int p = 0; p< mpisize; p++){
+//      Idx fc = (b)*(n_/mpisize); //0 - based
+//      Idx cnt = n_/mpisize;
+//      if(fc+cnt>n_){ cnt = n_ - fc; }
+//      upcxx::copy(sh_parent[fc].raw_ptr(),&parent_[fc],cnt);
+//      if(fc+cnt==n_){break;}
+//      b++;
+//    }
+
+    //MPI_Barrier(aDistExp.comm);
+    workteam->barrier();
+    parent_.resize(n_);
+    for(Idx i = 0; i<n_; i++){ parent_[i] = sh_parent[i]; }
+
+    //for(int b = 0; b < n_; b+=n_/mpisize){
+    //  upcxx::global_ptr<Int> ptr = &sh_parent[b];
+    ////  if(ptr.where()==iam){
+    ////    Int * lptr = (Int*)ptr;
+    //  Int cnt = min(n_/mpisize,n_ - b);
+    //  upcxx::copy(ptr,upcxx::global_ptr<Int>(&parent_[b]),cnt);
+    ////    std::copy(lptr,lptr+cnt,&parent_[b]);
+    ////  }
+    //}
+
+    //MPI_Barrier(aDistExp.comm);
+    workteam->barrier();
+#endif
+
+TIMER_STOP(Construct_Etree);
+
+  }
+
+
+
 
   void ETree::ConstructETree(SparseMatrixStructure & aGlobal, Ordering & aOrder){
     bIsPostOrdered_=false;
@@ -293,25 +566,26 @@ namespace SYMPACK{
     aGlobal.ExpandSymmetric();
 
 TIMER_START(Construct_Etree_Classic);
-    parent_.Resize(n_);
+    parent_.resize(n_);
     SetValue(parent_,I_ZERO );
 
 
-    IntNumVec ancstr(n_);
+    vector<Int> ancstr(n_);
 
 
 
     for(Int i = 1; i<=n_; ++i){
-            parent_(i-1) = 0;
-            ancstr(i-1) = 0;
+            parent_[i-1] = 0;
+            ancstr[i-1] = 0;
             Int node = aOrder.perm[i-1];
-
-            Int jstrt = aGlobal.expColptr(node-1);
-            Int jstop = aGlobal.expColptr(node) - 1;
+            Ptr jstrt = aGlobal.expColptr[node-1];
+            Ptr jstop = aGlobal.expColptr[node] - 1;
             if  ( jstrt < jstop ){
-              for(Int j = jstrt; j<=jstop; ++j){
-                    Int nbr = aGlobal.expRowind(j-1);
+              for(Ptr j = jstrt; j<=jstop; ++j){
+                    Idx nbr = aGlobal.expRowind[j-1];
+          //logfileptr->OFS()<<"   nbr = "<<nbr<<"  ";
                     nbr = aOrder.invp[nbr-1];
+          //logfileptr->OFS()<<"|  nbr = "<<nbr<<endl;
                     if  ( nbr < i ){
 //                       -------------------------------------------
 //                       for each nbr, find the root of its current
@@ -319,32 +593,96 @@ TIMER_START(Construct_Etree_Classic);
 //                       as the subtree is traversed.
 //                       -------------------------------------------
                       Int break_loop = 0;
-                      if  ( ancstr(nbr-1) == i ){
+                      if  ( ancstr[nbr-1] == i ){
                         break_loop = 1;
                       }
                       else{
-                        while(ancstr(nbr-1) >0){
-                          if  ( ancstr(nbr-1) == i ){
+
+              //logfileptr->OFS()<<"path: "<<nbr<<" ";
+                        while(ancstr[nbr-1] >0){
+                          if  ( ancstr[nbr-1] == i ){
                             break_loop = 1;
                             break;
                           }
-                          Int next = ancstr(nbr-1);
-                          ancstr(nbr-1) = i;
+                          Int next = ancstr[nbr-1];
+                          ancstr[nbr-1] = i;
                           nbr = next;
+                //logfileptr->OFS()<<nbr<<" ";
                         }
+              //logfileptr->OFS()<<endl;
                         //                       --------------------------------------------
                         //                       now, nbr is the root of the subtree.  make i
                         //                       the parent node of this root.
                         //                       --------------------------------------------
                         if(!break_loop){
-                          parent_(nbr-1) = i;
-                          ancstr(nbr-1) = i;
+                          parent_[nbr-1] = i;
+                          ancstr[nbr-1] = i;
                         }
                       }
                     }
               }
             }
   }
+
+
+#if 0
+    for(Int node = 1; node<=n_; ++node){
+            Int i = aOrder.invp[node-1];
+            parent_[i-1] = 0;
+            ancstr[i-1] = 0;
+            logfileptr->OFS()<<"node = "<<node<<endl; 
+            Ptr jstrt = aGlobal.expColptr[node-1];
+            Ptr jstop = aGlobal.expColptr[node] - 1;
+            if  ( jstrt < jstop ){
+              for(Ptr j = jstrt; j<=jstop; ++j){
+                    Idx nbr = aGlobal.expRowind[j-1];
+          logfileptr->OFS()<<"   nbr = "<<nbr<<"  ";
+                    nbr = aOrder.invp[nbr-1];
+          logfileptr->OFS()<<"|  nbr = "<<nbr<<endl;
+                    if  ( nbr < i ){
+//                       -------------------------------------------
+//                       for each nbr, find the root of its current
+//                       elimination tree.  perform path compression
+//                       as the subtree is traversed.
+//                       -------------------------------------------
+                      Int break_loop = 0;
+                      if  ( ancstr[nbr-1] == i ){
+                        break_loop = 1;
+                      }
+                      else{
+
+              logfileptr->OFS()<<"path: "<<nbr<<" ";
+                        while(ancstr[nbr-1] >0){
+                          if  ( ancstr[nbr-1] == i ){
+                            break_loop = 1;
+                            break;
+                          }
+                          Int next = ancstr[nbr-1];
+                          ancstr[nbr-1] = i;
+                          nbr = next;
+                logfileptr->OFS()<<nbr<<" ";
+                        }
+              logfileptr->OFS()<<endl;
+                        //                       --------------------------------------------
+                        //                       now, nbr is the root of the subtree.  make i
+                        //                       the parent node of this root.
+                        //                       --------------------------------------------
+                        if(!break_loop){
+                          parent_[nbr-1] = i;
+                          ancstr[nbr-1] = i;
+                        }
+                      }
+                    }
+              }
+            }
+  }
+  logfileptr->OFS()<<parent_<<endl;
+#endif
+
+
+
+
+
 
 TIMER_STOP(Construct_Etree_Classic);
 
@@ -354,10 +692,10 @@ TIMER_STOP(Construct_Etree_Classic);
 
 
 
-  ETree ETree::ToSupernodalETree(IntNumVec & aXsuper,IntNumVec & aSupMembership,Ordering & aOrder) const{
+  ETree ETree::ToSupernodalETree(vector<Int> & aXsuper,vector<Int> & aSupMembership,Ordering & aOrder) const{
     ETree newTree;
-    newTree.n_ = aXsuper.m()-1;
-    newTree.parent_.Resize(aXsuper.m()-1);
+    newTree.n_ = aXsuper.size()-1;
+    newTree.parent_.resize(aXsuper.size()-1);
     
 
 assert(bIsPostOrdered_);
@@ -368,7 +706,7 @@ assert(bIsPostOrdered_);
         Int parent_col = this->PostParent(lc-1);
         Int parentSnode = ( parent_col == 0) ? 0:aSupMembership[parent_col-1];
 
-          newTree.parent_(snode-1) = parentSnode;
+          newTree.parent_[snode-1] = parentSnode;
 #ifdef _DEBUG_
           logfileptr->OFS()<<"parent of curSnode "<<snode<<" is "<<parentSnode<<std::endl;
 #endif

@@ -5,7 +5,6 @@
 #include "sympack/SupernodalMatrixBase.hpp"
 #include "sympack/SuperNode.hpp"
 
-#include "sympack/NumVec.hpp"
 #include "sympack/DistSparseMatrix.hpp"
 #include "sympack/ETree.hpp"
 #include "sympack/Mapping.hpp"
@@ -43,7 +42,7 @@ namespace SYMPACK{
 
 
   template<typename T> 
-    Int getAggBufSize(const SnodeUpdateFB & curTask, const IntNumVec & Xsuper, const IntNumVec & UpdateHeight){
+    Int getAggBufSize(const SnodeUpdateFB & curTask, const vector<Int> & Xsuper, const vector<Int> & UpdateHeight){
       Int max_bytes = 6*sizeof(Int); 
       //The upper bound must be of the width of the "largest" child
       Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
@@ -59,7 +58,7 @@ namespace SYMPACK{
     }
 
   template<typename T> 
-    Int getFactBufSize(const SnodeUpdateFB & curTask, const IntNumVec & UpdateWidth, const IntNumVec & UpdateHeight){
+    Int getFactBufSize(const SnodeUpdateFB & curTask, const vector<Int> & UpdateWidth, const vector<Int> & UpdateHeight){
       Int max_bytes = 6*sizeof(Int); 
       //The upper bound must be of the width of the "largest" child
       Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
@@ -73,13 +72,13 @@ namespace SYMPACK{
     } 
 
   template<typename T> 
-    Int getMaxBufSize(const IntNumVec & UpdateWidth, const IntNumVec & UpdateHeight){
+    Int getMaxBufSize(const vector<Int> & UpdateWidth, const vector<Int> & UpdateHeight){
       Int max_bytes = 6*sizeof(Int); 
       //The upper bound must be of the width of the "largest" child
       Int nrows = 0;
-      for(Int i = 0; i<UpdateHeight.m(); ++i ){ nrows = max(nrows, UpdateHeight[i]); }
+      for(Int i = 0; i<UpdateHeight.size(); ++i ){ nrows = max(nrows, UpdateHeight[i]); }
       Int ncols = 0;
-      for(Int i = 0; i<UpdateWidth.m(); ++i ){ ncols = max(ncols, UpdateWidth[i]); }
+      for(Int i = 0; i<UpdateWidth.size(); ++i ){ ncols = max(ncols, UpdateWidth[i]); }
 
       Int nz_cnt = nrows * ncols;
       Int nblocks = nrows;
@@ -102,11 +101,11 @@ namespace SYMPACK{
 
       //Accessors
       Int Size(){return iSize_;}
-      IntNumVec & GetSupernodalPartition(){ return Xsuper_;}
+      vector<Int> & GetSupernodalPartition(){ return Xsuper_;}
 
       ETree & GetETree(){return ETree_;}
       const Ordering & GetOrdering(){return Order_;}
-      const IntNumVec & GetSupMembership(){return SupMembership_;}
+      const vector<Int> & GetSupMembership(){return SupMembership_;}
 
       Int SupernodeCnt(){ return LocalSupernodes_.size(); } 
       std::vector<SuperNode<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 
@@ -126,14 +125,14 @@ namespace SYMPACK{
 
 
       void FanBothPull( );
-      void FBPullAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & AggregatesToRecv, IntNumVec & FactorsToRecv);
-      void FBPullFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, IntNumVec & AggregatesDone, IntNumVec & AggregatesToRecv, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr);
-      void FBPullUpdateTask(SnodeUpdateFB & curTask, IntNumVec & UpdatesToDo, IntNumVec & AggregatesDone, std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks,std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & FactorsToRecv);
+      void FBPullAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, vector<Int> & AggregatesToRecv, vector<Int> & FactorsToRecv);
+      void FBPullFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, vector<Int> & AggregatesDone, vector<Int> & AggregatesToRecv, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr);
+      void FBPullUpdateTask(SnodeUpdateFB & curTask, vector<Int> & UpdatesToDo, vector<Int> & AggregatesDone, std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks,std::vector<AsyncComms * > & incomingRecvFactArr, vector<Int> & FactorsToRecv);
 
 #ifdef _SEPARATE_COMM_
-      SuperNode<T> * FBPullRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv, Int & recv_tgt_id);
+      SuperNode<T> * FBPullRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, vector<Int> & FactorsToRecv, Int & recv_tgt_id);
 #else
-      SuperNode<T> * FBPullRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv);
+      SuperNode<T> * FBPullRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, vector<Int> & FactorsToRecv);
 #endif
 
 
@@ -176,9 +175,9 @@ namespace SYMPACK{
 
 
       //Supernodal partition array: supernode I ranges from column Xsuper_[I-1] to Xsuper_[I]-1
-      IntNumVec Xsuper_;
+      vector<Int> Xsuper_;
       //Supernode membership array: column i belongs to supernode SupMembership_[i-1]
-      IntNumVec SupMembership_;
+      vector<Int> SupMembership_;
 
       //TODO Task lists
       std::vector<std::list<SnodeUpdateFB> * > taskLists_;
@@ -191,10 +190,10 @@ namespace SYMPACK{
 
 
       //Array storing the supernodal update count to a target supernode
-      IntNumVec UpdateCount_;
+      vector<Int> UpdateCount_;
       //Array storing the width of the widest supernode updating a target supernode
-      IntNumVec UpdateWidth_;
-      IntNumVec UpdateHeight_;
+      vector<Int> UpdateWidth_;
+      vector<Int> UpdateHeight_;
 
       //Column-based elimination tree
       ETree ETree_;
@@ -267,10 +266,10 @@ namespace SYMPACK{
       Int countFactorsRecv_;
 #endif
 
-      Int FBTaskAsyncRecv(Int iLocalI, SnodeUpdateFB & curTask, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & AggregatesToRecv, IntNumVec & FactorsToRecv);
-      void FBAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & AggregatesToRecv, IntNumVec & FactorsToRecv);
-      void FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, IntNumVec & AggregatesDone, IntNumVec & FactorsToRecv, IntNumVec & AggregatesToRecv, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr);
-      void FBUpdateTask(SnodeUpdateFB & curTask, IntNumVec & UpdatesToDo, IntNumVec & AggregatesDone, std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & FactorsToRecv, IntNumVec & AggregatesToRecv);
+      Int FBTaskAsyncRecv(Int iLocalI, SnodeUpdateFB & curTask, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, vector<Int> & AggregatesToRecv, vector<Int> & FactorsToRecv);
+      void FBAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, vector<Int> & AggregatesToRecv, vector<Int> & FactorsToRecv);
+      void FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, vector<Int> & AggregatesDone, vector<Int> & FactorsToRecv, vector<Int> & AggregatesToRecv, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr);
+      void FBUpdateTask(SnodeUpdateFB & curTask, vector<Int> & UpdatesToDo, vector<Int> & AggregatesDone, std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, vector<Int> & FactorsToRecv, vector<Int> & AggregatesToRecv);
 
 
 
@@ -290,7 +289,7 @@ namespace SYMPACK{
 
       //FanOut communication routines
       //AsyncRecvFactors tries to post some MPI_Irecv on the next updates (targetting current to next supernodes)
-      void AsyncRecvFactors(Int iLocalI, std::vector<AsyncComms> & incomingRecvArr,IntNumVec & FactorsToRecv,IntNumVec & UpdatesToDo);
+      void AsyncRecvFactors(Int iLocalI, std::vector<AsyncComms> & incomingRecvArr,vector<Int> & FactorsToRecv,vector<Int> & UpdatesToDo);
       void AsyncRecv(Int iLocalI, std::vector<AsyncComms> * incomingRecvFactArr, Int * FactorsToRecv, Int * UpdatesToDo);
 
 
@@ -304,7 +303,7 @@ namespace SYMPACK{
 
 
 
-      void GetUpdatingSupernodeCount( IntNumVec & sc,IntNumVec & mw, IntNumVec & mh);
+      void GetUpdatingSupernodeCount( vector<Int> & sc,vector<Int> & mw, vector<Int> & mh);
 
 
 
@@ -324,7 +323,7 @@ namespace SYMPACK{
       void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl);
       void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl);
 #ifdef SINGLE_BLAS
-      inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, NumMat<T> & tmpBuf,IntNumVec & src_colindx, IntNumVec & src_rowindx, IntNumVec & src_to_tgt_offset
+      inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, NumMat<T> & tmpBuf,vector<Int> & src_colindx, vector<Int> & src_rowindx, vector<Int> & src_to_tgt_offset
           , Int  pivot_fr = I_ZERO);
 #else
       inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
@@ -338,11 +337,11 @@ namespace SYMPACK{
 
       //FanBoth related routines
       Int FBUpdate(Int I,Int prevJ=-1);
-      void FBGetUpdateCount(IntNumVec & UpdatesToDo, IntNumVec & AggregatesToRecv);
+      void FBGetUpdateCount(vector<Int> & UpdatesToDo, vector<Int> & AggregatesToRecv);
 #ifdef _SEPARATE_COMM_
-      SuperNode<T> * FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv, Int & recv_tgt_id);
+      SuperNode<T> * FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, vector<Int> & FactorsToRecv, Int & recv_tgt_id);
 #else
-      SuperNode<T> * FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv);
+      SuperNode<T> * FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, vector<Int> & FactorsToRecv);
 #endif
 
       //Solve related routines

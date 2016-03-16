@@ -38,6 +38,7 @@ protected:
         public:
         Interval *i;  // 'i' could also be a normal variable
         Int max;
+        Int min;
         Int height;
         ITNode *left, *right;
         ~ITNode(){
@@ -66,6 +67,7 @@ protected:
 
       inline Int height_(ITNode *N);
       inline Int max_(ITNode *N);
+      inline Int min_(ITNode *N);
 
 
       // A utility function to insert a new Interval Search Tree Node
@@ -73,12 +75,14 @@ protected:
       // is used tomaintain BST property
       virtual inline ITNode *insert_(ITNode *root, Interval & i);
       inline Int recomputeMax_(ITNode * root);
+      inline Int recomputeMinMax_(ITNode * root);
 
       // A utility function to check if given two intervals overlap
       inline bool doOVerlap_(const Interval &i1,const Interval &i2);
       inline bool doOVerlap_(const ITree::Interval &i1, const Int & low, const Int & high);
       //Interval *intervalSearch_(ITNode *root, Interval &i);
       inline Interval *intervalSearch_(ITNode *root, const Int & begin, const Int & end);
+      inline Interval *intervalSearch_(ITNode *root, const Int & begin, const Int &end, Interval * & closestR, Interval * & closestL);
 
       inline void inorder_(ITNode *root);
 
@@ -135,6 +139,39 @@ public:
       inline Interval * IntervalSearch(const Int & low,const Int & high){
         return intervalSearch_(root_,low,high);
       }
+
+      inline Interval * IntervalSearch(const Int & low,const Int & high, Interval * & closestR, Interval * & closestL){
+        return intervalSearch_(root_,low,high,closestR,closestL);
+      }
+//inline   Interval * IntervalSearch(const Int & begin,const Int &end,ITree::ITNode *root = this->root_)
+//  {
+//    // Base Case, tree is empty
+//    if (root == NULL){
+//      return NULL;
+//    }
+//
+//    //without the function call
+//    if (root->i->low <= end && begin <= root->i->high){
+//      return root->i;
+//    }
+//
+//    // If left child of root is present and max of left child is
+//    // greater than or equal to given interval, then i may
+//    // overlap with an interval is left subtree
+//    if (root->left != NULL && root->left->max >= begin){
+//      return IntervalSearch(begin,end,root->left);
+//    }
+//
+//    // Else interval can only overlap with right subtree
+//    return IntervalSearch(begin,end,root->right);
+//  }
+
+
+
+
+
+
+
 
       inline Int StorageSize(){
         Int size = 0;

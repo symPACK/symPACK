@@ -37,17 +37,17 @@ class LoadBalancer{
 
 class NNZBalancer: public LoadBalancer{
   protected:
-    IntNumVec & Xsuper_;
-    IntNumVec & cc_;
+    vector<Int> & Xsuper_;
+    vector<Int> & cc_;
   public:
-      NNZBalancer(Int np, IntNumVec & Xsuper, IntNumVec & pCc):Xsuper_(Xsuper),cc_(pCc),LoadBalancer(np,Xsuper.m()-1){
+      NNZBalancer(Int np, vector<Int> & Xsuper, vector<Int> & pCc):Xsuper_(Xsuper),cc_(pCc),LoadBalancer(np,Xsuper.size()-1){
       };
 
  
       virtual inline std::vector<Int> & GetMap(){
           std::vector<double> load(np_,0.0);
 
-          for(Int i = 1; i< Xsuper_.m();  ++i){
+          for(Int i = 1; i< Xsuper_.size();  ++i){
             //find least loaded processor
             vector<double>::iterator it = std::min_element(load.begin(),load.end());
             Int proc = (Int)(it - load.begin());
@@ -122,11 +122,11 @@ class SubtreeToSubcube: public TreeLoadBalancer{
 
   protected:
     bool fan_in_;
-    IntNumVec & Xsuper_;
-    IntNumVec & SupMembership_;
+    vector<Int> & Xsuper_;
+    vector<Int> & SupMembership_;
     PtrVec & Xlindx_;
     IdxVec & Lindx_;
-    IntNumVec & cc_;
+    vector<Int> & cc_;
 
 
     double factor_cost(Int m, Int n){
@@ -140,7 +140,7 @@ class SubtreeToSubcube: public TreeLoadBalancer{
 
 
   public:
-      SubtreeToSubcube(Int np, ETree & supETree,IntNumVec & Xsuper, IntNumVec & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, IntNumVec & pCc, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),TreeLoadBalancer(np,supETree){
+      SubtreeToSubcube(Int np, ETree & supETree,vector<Int> & Xsuper, vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, vector<Int> & pCc, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),TreeLoadBalancer(np,supETree){
           fan_in_=fan_in;
       };
 
@@ -384,11 +384,11 @@ class SubtreeToSubcube: public TreeLoadBalancer{
 class SubtreeToSubcubeVolume: public TreeLoadBalancer{
   protected:
     bool fan_in_;
-    IntNumVec & Xsuper_;
-    IntNumVec & SupMembership_;
+    vector<Int> & Xsuper_;
+    vector<Int> & SupMembership_;
     PtrVec & Xlindx_;
     IdxVec & Lindx_;
-    IntNumVec & cc_;
+    vector<Int> & cc_;
 
 
     double factor_cost(Int m, Int n){
@@ -401,7 +401,7 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
 
 
   public:
-      SubtreeToSubcubeVolume(Int np, ETree & supETree,IntNumVec & Xsuper, IntNumVec & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, IntNumVec & pCc, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),TreeLoadBalancer(np,supETree){
+      SubtreeToSubcubeVolume(Int np, ETree & supETree,vector<Int> & Xsuper, vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, vector<Int> & pCc, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),TreeLoadBalancer(np,supETree){
           fan_in_=fan_in;
       };
 

@@ -68,7 +68,18 @@ run_sparse_pull: run_sparse_pull.o ${SYMPACK_LIB}
 	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@${SUFFIX} run_sparse_pull.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
 
 run_sparse_pull.o: run_sparse_pull.cpp 
-	${CXX} -g  -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
+	${CXX} -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} $< 
+
+
+test_ordering: test_ordering.o ${SYMPACK_LIB}
+	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@${SUFFIX} test_ordering.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
+
+test_ordering.o: test_ordering.cpp 
+	${CXX} -c ${UPCXX_CXXFLAGS} ${CXXFLAGS} -g  ${CPPDEFS} $< 
+
+
+
+
 
 run_sparse_pull_static: run_sparse_pull_static.o ${SYMPACK_LIB}
 	($(LOADER) $(LDFLAGS)  $(UPCXX_LDFLAGS) -o $@${SUFFIX} run_sparse_pull_static.o  $(LOADOPTS)  $(UPCXX_LDLIBS) )
@@ -130,7 +141,7 @@ run_mumps: run_mumps.o ${SYMPACK_LIB}
 	($(LOADER) -o $@${SUFFIX} run_mumps.o  $(DMUMPS_LIB) $(ZMUMPS_LIB) $(MUMPS_ORDERINGS) ${MUMPSLOADOPTS} )
 
 run_mumps.o: run_mumps.cpp
-	${CXX} -c $(MUMPS_INCLUDE)  ${CXXFLAGS} ${CPPDEFS} $<
+	${CXX} -c $(MUMPS_INCLUDE)  ${CXXFLAGS} ${CPPDEFS} -O3 $<
 
 
 run_superlu: run_superlu3.o ${SYMPACK_LIB}

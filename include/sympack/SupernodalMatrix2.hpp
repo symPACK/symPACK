@@ -5,7 +5,6 @@
 #include "sympack/SupernodalMatrixBase.hpp"
 #include "sympack/SuperNode2.hpp"
 
-#include "sympack/NumVec.hpp"
 #include "sympack/DistSparseMatrix.hpp"
 #include "sympack/ETree.hpp"
 #include "sympack/Mapping.hpp"
@@ -54,14 +53,15 @@ namespace SYMPACK{
       SupernodalMatrix2 & operator=( SupernodalMatrix2 & M){return M;};
 
 
+      void Init(const DistSparseMatrix<T> & pMat, NGCholOptions & options );
 
       //Accessors
       Int Size(){return iSize_;}
       Int SupernodeCnt(){ return LocalSupernodes_.size(); } 
-      IntNumVec & GetSupernodalPartition(){ return Xsuper_;}
+      vector<Int> & GetSupernodalPartition(){ return Xsuper_;}
       const ETree & GetETree(){return ETree_;}
       const Ordering & GetOrdering(){return Order_;}
-      const IntNumVec & GetSupMembership(){return SupMembership_;}
+      const vector<Int> & GetSupMembership(){return SupMembership_;}
       std::vector<SuperNode2<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 
       //TODO Check if that's useful
       SuperNode2<T> & GetLocalSupernode(Int i){ return *LocalSupernodes_[i]; } 
@@ -110,9 +110,9 @@ namespace SYMPACK{
       BackupBuffer backupBuffer_;
 
       //Supernodal partition array: supernode I ranges from column Xsuper_[I-1] to Xsuper_[I]-1
-      IntNumVec Xsuper_;
+      vector<Int> Xsuper_;
       //Supernode membership array: column i belongs to supernode SupMembership_[i-1]
-      IntNumVec SupMembership_;
+      vector<Int> SupMembership_;
 
       //TODO Task lists
       Scheduler<std::list<FBTask>::iterator> * scheduler_;
@@ -158,7 +158,6 @@ namespace SYMPACK{
 
       protected:
 
-      void Init(const DistSparseMatrix<T> & pMat, NGCholOptions & options );
 
       /******************* Global to Local Indexes utility routines ******************/
       //returns the 1-based index of supernode id global in the local supernode array

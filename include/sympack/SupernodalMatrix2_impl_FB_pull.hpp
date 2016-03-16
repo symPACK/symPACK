@@ -17,7 +17,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
   std::vector<Int> AggregatesToRecv;
   std::vector<Int> LocalAggregates;
   FBGetUpdateCount(UpdatesToDo,AggregatesToRecv,LocalAggregates);
-  std::vector<Int> AggregatesDone(Xsuper_.m(),I_ZERO);
+  std::vector<Int> AggregatesDone(Xsuper_.size(),I_ZERO);
 
   //tmp buffer space
   std::vector<T> src_nzval;
@@ -25,28 +25,28 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
 
 
   Int maxwidth = 0;
-  for(Int i = 1; i<Xsuper_.m(); ++i){
-    Int width =Xsuper_(i) - Xsuper_(i-1);
+  for(Int i = 1; i<Xsuper_.size(); ++i){
+    Int width =Xsuper_[i] - Xsuper_[i-1];
     if(width>=maxwidth){
       maxwidth = width;
     }
   }
   tmpBufs.Resize(Size(),maxwidth);
-  std::vector< SuperNode2<T> * > aggVectors(Xsuper_.m()-1,NULL);
+  std::vector< SuperNode2<T> * > aggVectors(Xsuper_.size()-1,NULL);
 
 
 
   timeSta =  get_time( );
   TIMER_START(BUILD_TASK_LIST);
   //resize taskLists_
-  taskLists_.resize(Xsuper_.m(),NULL);
+  taskLists_.resize(Xsuper_.size(),NULL);
 
 
   //build level structure
-  std::vector<Int> levels(Xsuper_.m());
-  levels[Xsuper_.m()-1]=-1;
+  std::vector<Int> levels(Xsuper_.size());
+  levels[Xsuper_.size()-1]=-1;
   Int numLevel = 0; 
-  for(Int i=Xsuper_.m()-1-1; i>=0; i-- ){ 
+  for(Int i=Xsuper_.size()-1-1; i>=0; i-- ){ 
     levels[i] = levels[ETree_.PostParent(i)-1]+1;
   }
 
@@ -54,7 +54,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
 
 
   localTaskCount_ =0;
-  for(Int I = 1; I<Xsuper_.m(); ++I){
+  for(Int I = 1; I<Xsuper_.size(); ++I){
     Int iOwner = Mapping_->Map(I-1,I-1);
 
 
@@ -129,8 +129,8 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
 #endif
   }
 
-  xlindx_.Clear();
-  lindx_.Clear();
+  xlindx_.clear();
+  lindx_.clear();
 
   //sort the task queues
   {
@@ -158,7 +158,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
   {
     Int cnt = 0;
     logfileptr->OFS()<<"All Tasks: "<<endl;
-    for(Int I = 1; I<Xsuper_.m(); ++I){
+    for(Int I = 1; I<Xsuper_.size(); ++I){
       logfileptr->OFS()<<I<<": "<<endl;
       if(taskLists_[I-1]!=NULL){
         for(auto taskit = taskLists_[I-1]->begin();
@@ -193,7 +193,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
   //
   //  Int cnt = 0;
   //  logfileptr->OFS()<<"All Tasks: "<<endl;
-  //  for(Int I = 1; I<Xsuper_.m(); ++I){
+  //  for(Int I = 1; I<Xsuper_.size(); ++I){
   //    logfileptr->OFS()<<I<<": "<<endl;
   //    if(taskLists_[I-1]!=NULL){
   //      for(auto taskit = taskLists_[I-1]->begin();
@@ -225,7 +225,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
   ////
   ////  Int cnt = 0;
   ////  logfileptr->OFS()<<"All Tasks: "<<endl;
-  ////  for(Int I = 1; I<Xsuper_.m(); ++I){
+  ////  for(Int I = 1; I<Xsuper_.size(); ++I){
   ////    logfileptr->OFS()<<I<<": "<<endl;
   ////    if(taskLists_[I-1]!=NULL){
   ////      for(auto taskit = taskLists_[I-1]->begin();
@@ -328,7 +328,7 @@ defaut:
         logfileptr->OFS()<<"=================================="<<endl;
         logfileptr->OFS()<<"Still to do: "<<endl;
         Int cnt = 0;
-        for(Int I = 1; I<Xsuper_.m(); ++I){
+        for(Int I = 1; I<Xsuper_.size(); ++I){
           logfileptr->OFS()<<I<<": "<<endl;
           if(taskLists_[I-1]!=NULL){
             for(auto taskit = taskLists_[I-1]->begin();
@@ -384,7 +384,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   std::vector<Int> AggregatesToRecv;
   std::vector<Int> LocalAggregates;
   FBGetUpdateCount(UpdatesToDo,AggregatesToRecv,LocalAggregates);
-  std::vector<Int> AggregatesDone(Xsuper_.m(),I_ZERO);
+  std::vector<Int> AggregatesDone(Xsuper_.size(),I_ZERO);
 
   //tmp buffer space
   std::vector<T> src_nzval;
@@ -392,43 +392,43 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
 
 
   Int maxwidth = 0;
-  for(Int i = 1; i<Xsuper_.m(); ++i){
-    Int width =Xsuper_(i) - Xsuper_(i-1);
+  for(Int i = 1; i<Xsuper_.size(); ++i){
+    Int width =Xsuper_[i] - Xsuper_[i-1];
     if(width>=maxwidth){
       maxwidth = width;
     }
   }
   tmpBufs.Resize(Size(),maxwidth);
-  std::vector< SuperNode2<T> * > aggVectors(Xsuper_.m()-1,NULL);
+  std::vector< SuperNode2<T> * > aggVectors(Xsuper_.size()-1,NULL);
 
 
 
   timeSta =  get_time( );
   TIMER_START(BUILD_TASK_LIST);
   //resize taskLists_
-  taskLists_.resize(Xsuper_.m(),NULL);
+  taskLists_.resize(Xsuper_.size(),NULL);
 
 
   //build level structure
   //logfileptr->OFS()<<"ETREE: "<<ETree_<<endl;
   std::vector<Int> levels;
   try{
-    levels.resize(Xsuper_.m());
+    levels.resize(Xsuper_.size());
   }
   catch (const std::bad_alloc& e) {
     std::cout << "Allocation failed for levels array: " << e.what() << '\n';
   }
 
-  levels[Xsuper_.m()-1]=-1;
+  levels[Xsuper_.size()-1]=-1;
   Int numLevel = 0; 
-  for(Int i=Xsuper_.m()-1-1; i>=0; i-- ){     
+  for(Int i=Xsuper_.size()-1-1; i>=0; i-- ){     
     //logfileptr->OFS()<<"levels["<<i<<"] = levels["<<ETree_.PostParent(i)-1<<"] +1"<<endl;
     //assert(ETree_.PostParent(i)-1 >= 0);    
     levels[i] = levels[ETree_.PostParent(i)-1]+1;
   }
 
   localTaskCount_ =0;
-  for(Int I = 1; I<Xsuper_.m(); ++I){
+  for(Int I = 1; I<Xsuper_.size(); ++I){
     Int iOwner = Mapping_->Map(I-1,I-1);
 
 
@@ -503,8 +503,8 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
 #endif
   }
 
-  xlindx_.Clear();
-  lindx_.Clear();
+  xlindx_.clear();
+  lindx_.clear();
 
   //sort the task queues
   {
@@ -540,7 +540,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   //
   //  Int cnt = 0;
   //  logfileptr->OFS()<<"All Tasks: "<<endl;
-  //  for(Int I = 1; I<Xsuper_.m(); ++I){
+  //  for(Int I = 1; I<Xsuper_.size(); ++I){
   //    logfileptr->OFS()<<I<<": "<<endl;
   //    if(taskLists_[I-1]!=NULL){
   //      for(auto taskit = taskLists_[I-1]->begin();
@@ -572,7 +572,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   ////
   ////  Int cnt = 0;
   ////  logfileptr->OFS()<<"All Tasks: "<<endl;
-  ////  for(Int I = 1; I<Xsuper_.m(); ++I){
+  ////  for(Int I = 1; I<Xsuper_.size(); ++I){
   ////    logfileptr->OFS()<<I<<": "<<endl;
   ////    if(taskLists_[I-1]!=NULL){
   ////      for(auto taskit = taskLists_[I-1]->begin();
@@ -665,7 +665,7 @@ defaut:
         logfileptr->OFS()<<"=================================="<<endl;
         logfileptr->OFS()<<"Still to do: "<<endl;
         Int cnt = 0;
-        for(Int I = 1; I<Xsuper_.m(); ++I){
+        for(Int I = 1; I<Xsuper_.size(); ++I){
           logfileptr->OFS()<<I<<": "<<endl;
           if(taskLists_[I-1]!=NULL){
             for(auto taskit = taskLists_[I-1]->begin();
@@ -706,15 +706,15 @@ defaut:
 
 template <typename T> void SupernodalMatrix2<T>::FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv,std::vector<Int> & LocalAggregates){
   TIMER_START(FB_GET_UPDATE_COUNT);
-  UpdatesToDo.resize(Xsuper_.m(),I_ZERO);
-  AggregatesToRecv.resize(Xsuper_.m(),I_ZERO);
-  LocalAggregates.resize(Xsuper_.m(),I_ZERO);
+  UpdatesToDo.resize(Xsuper_.size(),I_ZERO);
+  AggregatesToRecv.resize(Xsuper_.size(),I_ZERO);
+  LocalAggregates.resize(Xsuper_.size(),I_ZERO);
 
 
-  std::vector<Int> marker(Xsuper_.m(),I_ZERO);
-  std::vector<bool>isSent(Xsuper_.m()*np,false);
+  std::vector<Int> marker(Xsuper_.size(),I_ZERO);
+  std::vector<bool>isSent(Xsuper_.size()*np,false);
 
-  for(Int s = 1; s<Xsuper_.m(); ++s){
+  for(Int s = 1; s<Xsuper_.size(); ++s){
     Int first_col = Xsuper_[s-1];
     Int last_col = Xsuper_[s]-1;
 
@@ -759,8 +759,8 @@ template<typename T> Int SupernodalMatrix2<T>::FBUpdate(Int I,Int prevJ){
   Int np  = CommEnv_->MPI_Size();
   //Check if I have anything to update with that supernode
   //look at lindx_
-  Ptr fi = xlindx_(I-1);
-  Ptr li = xlindx_(I)-1;
+  Ptr fi = xlindx_[I-1];
+  Ptr li = xlindx_[I]-1;
 
   Int iOwner = Mapping_->Map(I-1,I-1);
 
@@ -906,7 +906,7 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
 
   //Sending factors and update local tasks
   //Send my factor to my ancestors. 
-  BolNumVec is_factor_sent(np);
+  vector<char> is_factor_sent(np);
   SetValue(is_factor_sent,false);
 
   SnodeUpdate curUpdate;

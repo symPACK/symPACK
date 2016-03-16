@@ -1,7 +1,7 @@
 #ifndef _SUPERNODAL_MATRIX_IMPL_FB_HPP_
 #define _SUPERNODAL_MATRIX_IMPL_FB_HPP_
 
-template<typename T> Int SupernodalMatrix<T>::FBTaskAsyncRecv(Int iLocalI, SnodeUpdateFB & curTask, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & AggregatesToRecv, IntNumVec & FactorsToRecv){
+template<typename T> Int SupernodalMatrix<T>::FBTaskAsyncRecv(Int iLocalI, SnodeUpdateFB & curTask, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, vector<Int> & AggregatesToRecv, vector<Int> & FactorsToRecv){
     Int IrecvCnt = 0; 
     if(curTask.type == FACTOR){
 
@@ -93,7 +93,7 @@ template<typename T> Int SupernodalMatrix<T>::FBTaskAsyncRecv(Int iLocalI, Snode
     return IrecvCnt;
 }
 
-template<typename T> void SupernodalMatrix<T>::FBAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, IntNumVec & AggregatesToRecv, IntNumVec & FactorsToRecv){
+template<typename T> void SupernodalMatrix<T>::FBAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, vector<Int> & AggregatesToRecv, vector<Int> & FactorsToRecv){
 
       TIMER_START(ASYNC_RECV);
   Int iam = CommEnv_->MPI_Rank();
@@ -264,7 +264,7 @@ logfileptr->OFS()<<"maxIrecv_: "<<maxIrecv_<<endl;
 
 
 
-template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, IntNumVec & AggregatesDone,  IntNumVec & FactorsToRecv, IntNumVec & AggregatesToRecv, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr)
+template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, vector<Int> & AggregatesDone,  vector<Int> & FactorsToRecv, vector<Int> & AggregatesToRecv, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr)
 {
   scope_timer(a,FB_FACTORIZATION_TASK);
 
@@ -359,9 +359,9 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
 
 
   //Wait for all the aggregates BUT receive from any
-  while(AggregatesToRecv(tgt_snode_id-1)>0){
+  while(AggregatesToRecv[tgt_snode_id-1]>0){
 #ifdef _DEBUG_
-    logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
+    logfileptr->OFS()<<UpdatesToDo[I-1]<<" updates left"<<endl;
 #endif
 
     TIMER_START(RECV_MPI);
@@ -424,10 +424,8 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
 
   if(np>1){
     //Send my factor to my ancestors. 
-    BolNumVec is_factor_sent(np);
-    SetValue(is_factor_sent,false);
-    BolNumVec is_skipped(np);
-    SetValue(is_skipped,false);
+    vector<char> is_factor_sent(np,false);
+    vector<char> is_skipped(np,false);
 
     SnodeUpdate curUpdate;
     TIMER_START(FIND_UPDATED_ANCESTORS);
@@ -472,7 +470,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
 }
 
 
-template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & curTask, IntNumVec & UpdatesToDo, IntNumVec & AggregatesDone,std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr,  IntNumVec & FactorsToRecv, IntNumVec & AggregatesToRecv)
+template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & curTask, vector<Int> & UpdatesToDo, vector<Int> & AggregatesDone,std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr,  vector<Int> & FactorsToRecv, vector<Int> & AggregatesToRecv)
 {
   scope_timer(a,FB_UPDATE_TASK);
   Int src_snode_id = curTask.src_snode_id;
@@ -671,21 +669,21 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
 
-  IntNumVec UpdatesToDo;
-  IntNumVec AggregatesToRecv;
+  vector<Int> UpdatesToDo;
+  vector<Int> AggregatesToRecv;
 
   std::vector<AsyncComms> incomingRecvAggArr(LocalSupernodes_.size());
-  std::vector<AsyncComms * > incomingRecvFactArr(Xsuper_.m(),NULL);
+  std::vector<AsyncComms * > incomingRecvFactArr(Xsuper_.size(),NULL);
   incomingRecvCnt_ = 0;
  
    
   FBGetUpdateCount(UpdatesToDo,AggregatesToRecv);
-  xlindx_.Clear();
-  lindx_.Clear();
+  xlindx_.clear();
+  lindx_.clear();
 
 
 
-  IntNumVec AggregatesDone(Xsuper_.m());
+  vector<Int> AggregatesDone(Xsuper_.size());
   SetValue(AggregatesDone,0);
 
 
@@ -698,23 +696,23 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
 
 
   Int maxwidth = 0;
-  for(Int i = 1; i<Xsuper_.m(); ++i){
-    Int width =Xsuper_(i) - Xsuper_(i-1);
+  for(Int i = 1; i<Xsuper_.size(); ++i){
+    Int width =Xsuper_[i] - Xsuper_[i-1];
     if(width>=maxwidth){
       maxwidth = width;
     }
   }
   tmpBufs.Resize(Size(),maxwidth);
-  std::vector< SuperNode<T> * > aggVectors(Xsuper_.m()-1,NULL);
+  std::vector< SuperNode<T> * > aggVectors(Xsuper_.size()-1,NULL);
 
 
   timeSta =  get_time( );
 
   TIMER_START(BUILD_TASK_LIST);
-  //IntNumVec FactorsToRecv = UpdatesToDo;
-  IntNumVec FactorsToRecv(Xsuper_.m());
+  //vector<Int> FactorsToRecv = UpdatesToDo;
+  vector<Int> FactorsToRecv(Xsuper_.size());
   SetValue(FactorsToRecv,I_ZERO);
-  for(Int I = 1; I<Xsuper_.m(); ++I){
+  for(Int I = 1; I<Xsuper_.size(); ++I){
 
 
     Int iOwner = this->Mapping_->Map(I-1,I-1);
@@ -867,23 +865,23 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
 }
 
 
-template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc, IntNumVec & atr){
+template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(vector<Int> & sc, vector<Int> & atr){
   scope_timer(a,FB_GET_UPDATE_COUNT);
-  sc.Resize(Xsuper_.m());
+  sc.resize(Xsuper_.size());
   SetValue(sc,I_ZERO);
 
-  atr.Resize(Xsuper_.m());
+  atr.resize(Xsuper_.size());
   SetValue(atr,I_ZERO);
 
 
-  IntNumVec marker(Xsuper_.m());
+  vector<Int> marker(Xsuper_.size());
   SetValue(marker,I_ZERO);
 
-  std::vector<bool>isSent(Xsuper_.m()*np,false);
+  std::vector<bool>isSent(Xsuper_.size()*np,false);
 
-  for(Int s = 1; s<Xsuper_.m(); ++s){
-    Int first_col = Xsuper_(s-1);
-    Int last_col = Xsuper_(s)-1;
+  for(Int s = 1; s<Xsuper_.size(); ++s){
+    Int first_col = Xsuper_[s-1];
+    Int last_col = Xsuper_[s]-1;
 
     Ptr fi = xlindx_[s-1];
     Ptr li = xlindx_[s]-1;
@@ -896,9 +894,9 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
 
     for(Ptr row_idx = fi; row_idx<=li;++row_idx){
       Idx row = lindx_[row_idx-1];
-      Int supno = SupMembership_(row-1);
+      Int supno = SupMembership_[row-1];
 
-      if(marker(supno-1)!=s && supno!=s){
+      if(marker[supno-1]!=s && supno!=s){
 
 
         Int iFactorizer = this->Mapping_->Map(supno-1,supno-1);
@@ -929,7 +927,7 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
 //#endif
         }
 
-        marker(supno-1) = s;
+        marker[supno-1] = s;
       }
     }
 
@@ -941,7 +939,7 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(IntNumVec & sc,
 }
 
 
-template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, IntNumVec & FactorsToRecv)
+template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, vector<Int> & FactorsToRecv)
 {
   scope_timer(a,RECV_FACTORS);
   //TIMER_START(RECV_FACTORS);
@@ -1051,8 +1049,8 @@ template<typename T> Int SupernodalMatrix<T>::FBUpdate(Int I,Int prevJ){
   Int np  = CommEnv_->MPI_Size();
   //Check if I have anything to update with that supernode
   //look at lindx_
-  Ptr fi = xlindx_(I-1);
-  Ptr li = xlindx_(I)-1;
+  Ptr fi = xlindx_[I-1];
+  Ptr li = xlindx_[I]-1;
 
   Int iOwner = this->Mapping_->Map(I-1,I-1);
 

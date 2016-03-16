@@ -34,6 +34,7 @@
 // MPI
 #include <mpi.h>
 
+#include <upcxx.h>
 
 
 // Always use complex data.
@@ -116,6 +117,7 @@ const char LOWER = 'L';
 
 namespace SYMPACK{
 
+  extern upcxx::team * workteam;
   extern Int iam;
   extern Int np;
 

@@ -60,10 +60,6 @@ typedef NumVec<Int>        IntNumVec;
 typedef NumVec<Real>       DblNumVec;
 typedef NumVec<Complex>    CpxNumVec;
 
-  typedef Idx64 Ptr;
-  typedef Idx32 Idx;
-  typedef NumVec<Idx,Ptr> PtrVec;
-  typedef NumVec<Ptr,Idx> IdxVec;
 //  typedef NumVec<Idx64,Idx64> PtrVec;
 //  typedef NumVec<Idx64,Idx64> IdxVec;
 

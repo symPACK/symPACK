@@ -7,7 +7,6 @@
 #define _DIST_SPARSE_MATRIX_DECL_HPP_
 
 #include "sympack/Environment.hpp"
-#include "sympack/NumVec.hpp"
 #include "sympack/ETree.hpp"
 #include "sympack/SparseMatrixStructure.hpp"
 
@@ -63,13 +62,14 @@ template <typename F> class DistSparseMatrix{
 	Int          nnz;                             
 
 	/// @brief Dimension nnzLocal, storing the nonzero values.
-	NumVec<F,Int>    nzvalLocal;                      
+	vector<F>    nzvalLocal;                      
 
 	/// @brief MPI communicator
 	MPI_Comm     comm;        
 
 
-  DistSparseMatrix(MPI_Comm aComm){globalAllocated=false; comm = aComm;};
+  DistSparseMatrix(){ comm = MPI_COMM_NULL; size = 0; nnz=0; globalAllocated=false;};
+  DistSparseMatrix(MPI_Comm aComm):DistSparseMatrix(){comm = aComm;};
   void CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval,bool onebased=false);
   DistSparseMatrix(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval , MPI_Comm oComm);
   

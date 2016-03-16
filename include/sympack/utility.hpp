@@ -10,7 +10,6 @@
 #include  "sympack/Environment.hpp"
 #include  "sympack/NumVec.hpp"
 #include  "sympack/NumMat.hpp"
-#include  "sympack/SparseMatrix.hpp"
 #include  "sympack/DistSparseMatrix.hpp"
 #include  "sympack/ETree.hpp"
 
@@ -19,6 +18,12 @@ namespace SYMPACK{
 //exact cost of a mxn panel
 #define CHOLESKY_COST(m,n)  ((n)*pow((m),2.0) + 2*(n)*(m)-pow((n),3.0)/3.0 - 3.0*pow((n),2.0)/2.0 - (n)/6.0 -1.0)
 
+
+template <typename F> void SetValue( vector<F>& vec, F val ){
+  fill(vec.begin(),vec.end(),val);
+}
+
+void SetValue( vector<char>& vec, bool val );
 
 
 // *********************************************************************
@@ -1162,7 +1167,6 @@ public:
 // *********************************************************************
 
 // TODO Complex format
-void ReadSparseMatrix ( const char* filename, SparseMatrix<Real>& spmat );
 
 void ReadDistSparseMatrix( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
 
@@ -1173,19 +1177,6 @@ void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Complex>&
 void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
 
 void ReadDistSparseMatrixFormatted( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
-
-template <class F1, class F2> 
-void
-CopyPattern	( const SparseMatrix<F1>& A, SparseMatrix<F2>& B )
-{
-	B.size        = A.size;
-	B.nnz         = A.nnz;
-	B.colptr      = A.colptr;
-	B.rowind      = A.rowind;
-	B.nzval.Resize( A.nnz );
-	return ;
-}		// -----  end of template function CopyPattern  ----- 
-
 
 // TODO Real format
 void
@@ -1312,9 +1303,63 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
 
 
 
-
-
-
+////namespace SYMPACK{
+////  template <typename T> void CSCToCSR(SparseMatrixStructure& sparseA, SparseMatrixStructure & sparseB, MPI_Comm & comm ){
+////
+////
+////    Int mpirank;
+////    MPI_Comm_rank(comm,&mpirank);
+////  
+////    Int mpisize;
+////    MPI_Comm_size(comm,&mpisize);
+////
+////    Int numRowLocalFirst = sparseA.size / mpisize;
+////    Int firstRow = mpirank * numRowLocalFirst;
+////    Int numRowLocal = -1;
+////    Int nnzLocal = -1;
+////
+////    sparseB.size = sparseA.size;
+////    sparseB.nnz = sparseA.nnz;
+////
+////    LongInt nnz = 0;
+////    vector<Int> rowindGlobal;
+////    vector<Int> colptrGlobal;
+////    //TIMER_START(ToGlobalStructure);
+////    {
+////      colptrGlobal.resize(sparseA.size+1);
+////
+////      /* Allgatherv for row indices. */ 
+////      vector<Int> prevnz(mpisize);
+////      vector<Int> rcounts(mpisize);
+////      MPI_Allgather(&sparseA.nnz, sizeof(sparseA.nnz), MPI_BYTE, &rcounts[0], sizeof(sparseA.nnz), MPI_BYTE, comm);
+////
+////      prevnz[0] = 0;
+////      for (Int i = 0; i < mpisize-1; ++i) { prevnz[i+1] = prevnz[i] + rcounts[i]; } 
+////
+////      nnz = 0;
+////      for (Int i = 0; i < mpisize; ++i) { nnz += rcounts[i]; } 
+////      rowindGlobal.resize(nnz);
+////      for (Int i = 0; i < mpisize; ++i) { prevnz[i] *= sizeof(Idx); } 
+////      for (Int i = 0; i < mpisize; ++i) { rcounts[i] *= sizeof(Idx); } 
+////
+////      MPI_Allgatherv(&sparseA.rowindLocal[0], sparseA.nnz*sizeof(Idx), MPI_BYTE, &rowindGlobal[0],&rcounts[0], &prevnz[0], MPI_BYTE, comm); 
+////
+////      /* Allgatherv for colptr */
+////      // Compute the number of columns on each processor
+////      Int numColFirst = std::max(1,sparseA.size / mpisize);
+////      fill(rcounts.begin(),rcounts.end(),numColFirst);
+////      rcounts[mpisize-1] = sparseA.size - numColFirst * (mpisize-1);  // Modify the last entry     
+////
+////      vector<Int> rdispls(mpisize);
+////      rdispls[0] = 0;
+////      for (Int i = 0; i < mpisize-1; ++i) { rdispls[i+1] = rdispls[i] + rcounts[i]; } 
+////
+////      for (Int i = 0; i < mpisize; ++i) { rdispls[i] *= sizeof(Ptr); } 
+////      for (Int i = 0; i < mpisize; ++i) { rcounts[i] *= sizeof(Ptr); } 
+////}
+////
+////}
+////}
 
 
 

@@ -14,6 +14,9 @@ inline ITree::ITNode * ITree::newNode_(ITree::Interval & i)
     temp->max = i.high;
     temp->left = temp->right = NULL;
     temp->height = 1;
+
+    temp->min = i.low;
+
     return temp;
   };
 
@@ -31,6 +34,14 @@ inline   Int ITree::max_(ITree::ITNode *N)
       return 0;
     return N->max;
   }
+
+inline   Int ITree::min_(ITree::ITNode *N)
+  {
+    if (N == NULL)
+      return 0;
+    return N->min;
+  }
+
 
 
 
@@ -70,6 +81,10 @@ assert(i.low<=i.high);
     if (root->max < i.high)
       root->max = i.high;
 
+    // Update the min value of this ancestor if needed
+    if (root->min > i.low)
+      root->min = i.low;
+
 
 
 
@@ -100,6 +115,44 @@ inline   Int ITree::recomputeMax_(ITree::ITNode * root)
   }
 
 
+inline   Int ITree::recomputeMinMax_(ITree::ITNode * root)
+  {
+    root->max = root->i->high;
+    root->min = root->i->low;
+
+    if(root->left != NULL){
+      recomputeMinMax_(root->left);
+      Int maxL = max_(root->left);
+      if(root->max < maxL){
+        root->max = maxL;
+      } 
+
+      Int minL = min_(root->left);
+      if(root->min > minL){
+        root->min = minL;
+      } 
+    }
+
+    if(root->right != NULL){
+      recomputeMinMax_(root->right);
+      Int maxL = max_(root->right);
+      if(root->max < maxL){
+        root->max = maxL;
+      } 
+
+      Int minL = min_(root->right);
+      if(root->min > minL){
+        root->min = minL;
+      } 
+
+    }
+    return root->max;
+  }
+
+
+
+
+
   // A utility function to check if given two intervals overlap
 inline   bool ITree::doOVerlap_(const ITree::Interval &i1, const ITree::Interval &i2)
   {
@@ -123,25 +176,114 @@ inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int 
 //  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, ITree::Interval &i)
   {
     // Base Case, tree is empty
-    if (root == NULL) return NULL;
+    if (root == NULL){
+      return NULL;
+    }
 
     // If given interval overlaps with root
-    //if (doOVerlap_(*(root->i), i))
-    if (doOVerlap_(*(root->i), begin,end))
+    //if (doOVerlap_(*(root->i), begin,end)){
+    //  return root->i;
+    //}
+    //without the function call
+    if (root->i->low <= end && begin <= root->i->high){
       return root->i;
+    }
 
     // If left child of root is present and max of left child is
     // greater than or equal to given interval, then i may
     // overlap with an interval is left subtree
     //if (root->left != NULL && root->left->max >= i.low)
-    if (root->left != NULL && root->left->max >= begin)
+    if (root->left != NULL && root->left->max >= begin){
       return intervalSearch_(root->left, begin,end);
+    }
       //return intervalSearch_(root->left, i);
 
     // Else interval can only overlap with right subtree
     return intervalSearch_(root->right, begin,end);
     //return intervalSearch_(root->right, i);
   }
+
+
+inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int & begin,const Int &end, Interval * & closestR, Interval * & closestL)
+//  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, ITree::Interval &i)
+  {
+    // Base Case, tree is empty
+    if (root == NULL){
+      return NULL;
+    }
+
+    // If given interval overlaps with root
+    //if (doOVerlap_(*(root->i), begin,end)){
+    //  return root->i;
+    //}
+    //without the function call
+    if (root->i->low <= end && begin <= root->i->high){
+      closestL = root->i;
+      closestR = root->i;
+      return root->i;
+    }
+
+    if(root->left!=NULL){
+      if(closestL!=NULL){
+        if( min(0,end - root->left->i->high) < min(0,end - closestL->high)){
+          closestL = root->left->i;
+        }
+      }
+      else{
+        closestL = root->left->i;
+      }
+
+      if(closestR!=NULL){
+        if( min(0,root->left->i->low - begin) < min(0,closestL->low - begin)){
+          closestR = root->left->i;
+        }
+      }
+      else{
+        closestR = root->left->i;
+      }
+    }
+
+    if(root->right!=NULL){
+      if(closestL!=NULL){
+        if( min(0,end - root->right->i->high) < min(0,end - closestL->high)){
+          closestL = root->right->i;
+        }
+      }
+      else{
+        closestL = root->right->i;
+      }
+
+      if(closestR!=NULL){
+        if( min(0,root->right->i->low - begin) < min(0,closestL->low - begin)){
+          closestR = root->right->i;
+        }
+      }
+      else{
+        closestR = root->right->i;
+      }
+    }
+
+    // If left child of root is present and max of left child is
+    // greater than or equal to given interval, then i may
+    // overlap with an interval in left subtree
+    //if (root->left != NULL && root->left->max >= i.low)
+    if (root->left != NULL && root->left->max >= begin && root->left->min <= end){
+      return intervalSearch_(root->left, begin,end,closestR,closestL);
+    }
+      //return intervalSearch_(root->left, i);
+
+    // Else interval can only overlap with right subtree
+    if(root->right != NULL && root->right->max >= begin && root->right->min <= end){
+      return intervalSearch_(root->right, begin,end,closestR,closestL);
+    }
+
+    //interval is outside the range
+    return NULL;
+    //return intervalSearch_(root->right, i);
+  }
+
+
+
 
 
 inline   void ITree::inorder_(ITree::ITNode *root)
@@ -220,7 +362,8 @@ inline   ITree::ITNode * AVLITree::insert_(ITree::ITNode *root, ITree::Interval 
       root = leftRotate_(root);
     }
     //recompute max
-    recomputeMax_(root);
+    //recomputeMax_(root);
+    recomputeMinMax_(root);
     TIMER_STOP(ITREE_BALANCE_AVL);
 
     return root;
@@ -361,7 +504,8 @@ inline void DSWITree::Rebalance()
    vine_to_tree_ (root_, size);
 
    correctTree_ (root_->right);
-   recomputeMax_(root_);
+   //recomputeMax_(root_);
+   recomputeMinMax_(root_);
     TIMER_STOP(ITREE_BALANCE_DSW);
 }
 

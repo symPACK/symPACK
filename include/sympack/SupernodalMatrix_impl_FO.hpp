@@ -28,7 +28,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
   if(snodeColl.empty() || MsgToSend.empty()) { return;}
 
   //Index of the last global snode to do
-  Int last_snode_id = Xsuper_.m()-1;
+  Int last_snode_id = Xsuper_.size()-1;
   //Index of the last local supernode
   Int last_local_id = snodeColl.back()->Id();
   //Index of the last PROCESSED supernode
@@ -183,7 +183,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
   }
   }
 
-  template<typename T> void SupernodalMatrix<T>::AsyncRecvFactors(Int iLocalI, std::vector<AsyncComms> & incomingRecvArr,IntNumVec & FactorsToRecv,IntNumVec & UpdatesToDo){
+  template<typename T> void SupernodalMatrix<T>::AsyncRecvFactors(Int iLocalI, std::vector<AsyncComms> & incomingRecvArr,vector<Int> & FactorsToRecv,vector<Int> & UpdatesToDo){
 
     for(Int nextLocalI = iLocalI;nextLocalI<=LocalSupernodes_.size();++nextLocalI){
       SuperNode<T> * next_src_snode = LocalSupernodes_[nextLocalI-1];
@@ -198,7 +198,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
         Int max_bytes = 6*sizeof(Int); 
         //The upper bound must be of the width of the "largest" child
         Int nrows = next_src_snode->NRowsBelowBlock(0);
-        Int ncols = UpdateWidth_(next_src_snode->Id()-1);
+        Int ncols = UpdateWidth_[next_src_snode->Id()-1];
         Int nz_cnt = nrows * ncols;
 
         Int nblocks = nrows;//std::max((Int)ceil(nrows/2)+1,next_src_snode.NZBlockCnt());
@@ -289,8 +289,8 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
 
   TIMER_START(FACTORIZATION_FO);
 
-  xlindx_.Clear();
-  lindx_.Clear();
+  xlindx_.clear();
+  lindx_.clear();
 
   Real timeSta, timeEnd;
   timeSta =  get_time( );
@@ -299,7 +299,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
 
-  IntNumVec UpdatesToDo = UpdateCount_;
+  vector<Int> UpdatesToDo = UpdateCount_;
 
 
 
@@ -310,15 +310,15 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
 
   std::vector<AsyncComms> incomingRecvArr(LocalSupernodes_.size());
   incomingRecvCnt_ = 0;
-  IntNumVec FactorsToRecv(LocalSupernodes_.size());
+  vector<Int> FactorsToRecv(LocalSupernodes_.size());
 
   std::vector<char> src_blocks;
 
   std::vector<std::queue<SnodeUpdate> > LocalUpdates(LocalSupernodes_.size());
 
   Int maxwidth = 0;
-  for(Int i = 1; i<Xsuper_.m(); ++i){
-    Int width =Xsuper_(i) - Xsuper_(i-1);
+  for(Int i = 1; i<Xsuper_.size(); ++i){
+    Int width =Xsuper_[i] - Xsuper_[i-1];
     if(width>=maxwidth){
       maxwidth = width;
     }
@@ -344,7 +344,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
 #endif
       }
     }
-    FactorsToRecv[i] = UpdatesToDo(cur_snode.Id()-1) % np;//UpdatesToDo(cur_snode.Id()-1) - LocalUpdates[i].size();
+    FactorsToRecv[i] = UpdatesToDo[cur_snode.Id()-1] % np;//UpdatesToDo(cur_snode.Id()-1) - LocalUpdates[i].size();
   }
 
 
@@ -403,10 +403,10 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
 
         LocalUpdates[iLocalI-1].pop();
-        --UpdatesToDo(I-1);
+        --UpdatesToDo[I-1];
 #ifdef _DEBUG_
         logfileptr->OFS()<<"LOCAL Supernode "<<src_snode.Id()<<" is updated by Supernode "<<curUpdate.src_snode_id<<" from row "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-        logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
+        logfileptr->OFS()<<UpdatesToDo[I-1]<<" updates left"<<endl;
 #endif
       }
 
@@ -464,11 +464,11 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
 
 
-            --UpdatesToDo(curUpdate.tgt_snode_id-1);
+            --UpdatesToDo[curUpdate.tgt_snode_id-1];
 
 #ifdef _DEBUG_
             logfileptr->OFS()<<"IRECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-            logfileptr->OFS()<<UpdatesToDo(curUpdate.tgt_snode_id-1)<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
+            logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
 
           }
@@ -481,9 +481,9 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
 #ifdef _DEBUG_
         logfileptr->OFS()<<cur_incomingRecv.size()<<" async recv to do for Supernode "<<I<<endl;
-        logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left for Supernode "<<I<<endl;
+        logfileptr->OFS()<<UpdatesToDo[I-1]<<" updates left for Supernode "<<I<<endl;
 #endif
-        if(UpdatesToDo(src_snode.Id()-1)==0){
+        if(UpdatesToDo[src_snode.Id()-1]==0){
           //cancel all requests
           incomingRecvCnt_-=cur_incomingRecv.size(); 
           cur_incomingRecv.clear();
@@ -498,9 +498,9 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
       Int nz_cnt;
       Int max_bytes;
-      while(UpdatesToDo(I-1)>0){
+      while(UpdatesToDo[I-1]>0){
 #ifdef _DEBUG_
-        logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
+        logfileptr->OFS()<<UpdatesToDo[I-1]<<" updates left"<<endl;
 #endif
 
 
@@ -509,11 +509,11 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
           max_bytes = 6*sizeof(Int); 
           //The upper bound must be of the width of the "largest" child
 #ifdef _DEBUG_
-          logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;
+          logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_[I-1]<<std::endl;
 #endif
 
           Int nrows = src_snode.NRowsBelowBlock(0);
-          Int ncols = UpdateWidth_(I-1);
+          Int ncols = UpdateWidth_[I-1];
           nz_cnt = nrows * ncols;
 
           Int nblocks = nrows;//std::max((Int)ceil(nrows/2)+1,src_snode.NZBlockCnt());
@@ -598,11 +598,11 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 #endif
 
 
-            --UpdatesToDo(curUpdate.tgt_snode_id-1);
+            --UpdatesToDo[curUpdate.tgt_snode_id-1];
 
 #if defined(_DEBUG_) || defined(_DEBUG_DELAY_)
             logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-            logfileptr->OFS()<<UpdatesToDo(curUpdate.tgt_snode_id-1)<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
+            logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
           }
         }
@@ -614,8 +614,8 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
       timeEnd =  get_time( );
 #ifdef _DEBUG_
-      if(UpdatesToDo(src_snode.Id()-1)!=0){gdb_lock();}
-      assert(UpdatesToDo(src_snode.Id()-1)==0);
+      if(UpdatesToDo[src_snode.Id()-1]!=0){gdb_lock();}
+      assert(UpdatesToDo[src_snode.Id()-1]==0);
       logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
 #endif
 #ifdef _DEBUG_PROGRESS_
@@ -639,11 +639,8 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
 
       //Send my factor to my ancestors. 
-      BolNumVec is_factor_sent(np);
-      SetValue(is_factor_sent,false);
-
-      BolNumVec is_skipped(np);
-      SetValue(is_skipped,false);
+      vector<char> is_factor_sent(np,false);
+      vector<char> is_skipped(np,false);
 
       SnodeUpdate curUpdate;
       TIMER_START(FIND_UPDATED_ANCESTORS);
@@ -663,7 +660,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
           if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
             //need a std::unordered_set to check whether 
-            Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
+            Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.size();
 
 #if 1
               DelayedComm comm(src_snode.Id(),curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row);
@@ -765,20 +762,20 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
 
-  IntNumVec UpdatesToDo = UpdateCount_;
+  vector<Int> UpdatesToDo = UpdateCount_;
 
 
 
   std::vector<AsyncComms> incomingRecvArr(LocalSupernodes_.size());
   incomingRecvCnt_ = 0;
-  IntNumVec FactorsToRecv(LocalSupernodes_.size());
+  vector<Int> FactorsToRecv(LocalSupernodes_.size());
 
   std::vector<char> src_blocks;
 
   std::vector<std::queue<SnodeUpdate> > LocalUpdates(LocalSupernodes_.size());
 
   Int maxwidth = 0;
-  for(Int i = 1; i<Xsuper_.m(); ++i){
+  for(Int i = 1; i<Xsuper_.size(); ++i){
     Int width =Xsuper_(i) - Xsuper_(i-1);
     if(width>=maxwidth){
       maxwidth = width;
@@ -791,7 +788,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
 
   TIMER_START(BUILD_TASK_LIST);
-  for(Int I = 1; I<Xsuper_.m(); ++I){
+  for(Int I = 1; I<Xsuper_.size(); ++I){
     Int iOwner = this->Mapping_->Map(I-1,I-1);
     if(iam==iOwner){
       SnodeUpdateFB curUpdate;
@@ -821,7 +818,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 #endif
       }
     }
-    FactorsToRecv[i] = UpdatesToDo(cur_snode.Id()-1) % np;//UpdatesToDo(cur_snode.Id()-1) - LocalUpdates[i].size();
+    FactorsToRecv[i] = UpdatesToDo[cur_snode.Id()-1] % np;//UpdatesToDo(cur_snode.Id()-1) - LocalUpdates[i].size();
   }
 
 
@@ -902,10 +899,10 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
 
           LocalUpdates[iLocalI-1].pop();
-          --UpdatesToDo(I-1);
+          --UpdatesToDo[I-1];
 #ifdef _DEBUG_
           logfileptr->OFS()<<"LOCAL Supernode "<<src_snode.Id()<<" is updated by Supernode "<<curUpdate.src_snode_id<<" from row "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
+          logfileptr->OFS()<<UpdatesToDo[I-1]<<" updates left"<<endl;
 #endif
         }
 
@@ -962,11 +959,11 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
 
 
-              --UpdatesToDo(curUpdate.tgt_snode_id-1);
+              --UpdatesToDo[curUpdate.tgt_snode_id-1];
 
 #ifdef _DEBUG_
               logfileptr->OFS()<<"IRECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-              logfileptr->OFS()<<UpdatesToDo(curUpdate.tgt_snode_id-1)<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
+              logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
 
             }
@@ -979,9 +976,9 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
 #ifdef _DEBUG_
           logfileptr->OFS()<<cur_incomingRecv.size()<<" async recv to do for Supernode "<<I<<endl;
-          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left for Supernode "<<I<<endl;
+          logfileptr->OFS()<<UpdatesToDo[I-1]<<" updates left for Supernode "<<I<<endl;
 #endif
-          if(UpdatesToDo(src_snode.Id()-1)==0){
+          if(UpdatesToDo[src_snode.Id()-1]==0){
             //cancel all requests
             incomingRecvCnt_-=cur_incomingRecv.size(); 
             cur_incomingRecv.clear();
@@ -996,9 +993,9 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
         Int nz_cnt;
         Int max_bytes;
-        while(UpdatesToDo(I-1)>0){
+        while(UpdatesToDo[I-1]>0){
 #ifdef _DEBUG_
-          logfileptr->OFS()<<UpdatesToDo(I-1)<<" updates left"<<endl;
+          logfileptr->OFS()<<UpdatesToDo[I-1]<<" updates left"<<endl;
 #endif
 
 
@@ -1007,11 +1004,11 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
             max_bytes = 6*sizeof(Int); 
             //The upper bound must be of the width of the "largest" child
 #ifdef _DEBUG_
-            logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_(I-1)<<std::endl;
+            logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_[I-1]<<std::endl;
 #endif
 
             Int nrows = src_snode.NRowsBelowBlock(0);
-            Int ncols = UpdateWidth_(I-1);
+            Int ncols = UpdateWidth_[I-1];
             nz_cnt = nrows * ncols;
 
             Int nblocks = nrows;//std::max((Int)ceil(nrows/2)+1,src_snode.NZBlockCnt());
@@ -1096,11 +1093,11 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 #endif
 
 
-              --UpdatesToDo(curUpdate.tgt_snode_id-1);
+              --UpdatesToDo[curUpdate.tgt_snode_id-1];
 
 #if defined(_DEBUG_) || defined(_DEBUG_DELAY_)
               logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<dist_src_snode.Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-              logfileptr->OFS()<<UpdatesToDo(curUpdate.tgt_snode_id-1)<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
+              logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
             }
           }
@@ -1112,8 +1109,8 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
         timeEnd =  get_time( );
 #ifdef _DEBUG_
-        if(UpdatesToDo(src_snode.Id()-1)!=0){gdb_lock();}
-        assert(UpdatesToDo(src_snode.Id()-1)==0);
+        if(UpdatesToDo[src_snode.Id()-1]!=0){gdb_lock();}
+        assert(UpdatesToDo[src_snode.Id()-1]==0);
         logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
 #endif
 #ifdef _DEBUG_PROGRESS_
@@ -1137,11 +1134,8 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
 
         //Send my factor to my ancestors. 
-        BolNumVec is_factor_sent(np);
-        SetValue(is_factor_sent,false);
-
-        BolNumVec is_skipped(np);
-        SetValue(is_skipped,false);
+        vector<char> is_factor_sent(np,false);
+        vector<char> is_skipped(np,false);
 
         SnodeUpdate curUpdate;
         TIMER_START(FIND_UPDATED_ANCESTORS);
@@ -1161,7 +1155,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
             if(!is_factor_sent[iTarget] && !is_skipped[iTarget] ){
 
               //need a std::unordered_set to check whether 
-              Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.m();
+              Int next_local_snode = (iLocalI < LocalSupernodes_.size())?LocalSupernodes_[iLocalI]->Id():Xsuper_.size();
 
               Int tag = FACT_TAG(curUpdate.src_snode_id,curUpdate.tgt_snode_id);
               FBDelayedComm comm(FACTOR,(void*)&src_snode,curUpdate.src_snode_id,curUpdate.tgt_snode_id,curUpdate.blkidx,curUpdate.src_first_row,iTarget,tag);
