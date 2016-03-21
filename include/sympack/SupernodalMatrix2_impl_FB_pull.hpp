@@ -1076,7 +1076,7 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
         --UpdatesToDo[curUpdate.tgt_snode_id-1];
         //++AggregatesDone[curUpdate.tgt_snode_id-1];
 #ifdef _DEBUG_
-        logfileptr->OFS()<<UpdatesToDo(curUpdate.tgt_snode_id-1)<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
+        logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
 
         //Send the aggregate if it's the last
