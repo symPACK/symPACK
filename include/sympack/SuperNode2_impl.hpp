@@ -50,7 +50,7 @@ SuperNode2<T>::SuperNode2(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN
   meta_->b_own_storage_ = true;
 
 #ifndef ITREE
-  globalToLocal_ = new std::vector<Int>(aiN+1,-1);
+  globalToLocal_ = new SYMPACK::vector<Int>(aiN+1,-1);
 #else
   idxToBlk_ = CreateITree();
 #endif
@@ -74,8 +74,8 @@ SuperNode2<T>::SuperNode2(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN
 ///
 ///#ifndef ITREE
 ///      //iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
-///      //globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
-///      globalToLocal_ = new std::vector<Int>(iN_+1,-1);
+///      //globalToLocal_ = new SYMPACK::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+///      globalToLocal_ = new SYMPACK::vector<Int>(iN_+1,-1);
 ///#else
 ///      idxToBlk_ = CreateITree();
 ///#endif
@@ -149,7 +149,7 @@ void SuperNode2<T>::Init(char * storage_ptr,size_t storage_size, Int GIndex ) {
 
 
 #ifndef ITREE
-  globalToLocal_ = new std::vector<Int>(meta_->iN_+1,-1);
+  globalToLocal_ = new SYMPACK::vector<Int>(meta_->iN_+1,-1);
 #else
   idxToBlk_ = CreateITree();
 #endif
@@ -1116,7 +1116,7 @@ template<typename T>
 
 
 template<typename T>
-bool SuperNode2<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const vector<Int> & Xsuper,  const vector<Int> & SupMembership, bool isLocal){
+bool SuperNode2<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const SYMPACK::vector<Int> & Xsuper,  const SYMPACK::vector<Int> & SupMembership, bool isLocal){
   scope_timer(a,FIND_NEXT_UPDATE);
   Int & tgt_snode_id = nextUpdate.tgt_snode_id;
   Int & f_ur = nextUpdate.src_first_row;

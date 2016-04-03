@@ -11,7 +11,7 @@ namespace SYMPACK{
 
 class LoadBalancer{
   protected:
-    std::vector<Int> procMap_;
+    SYMPACK::vector<Int> procMap_;
     Int np_;
     Int n_;
 
@@ -30,26 +30,26 @@ class LoadBalancer{
         procMap_.resize(n);
       };
 
-      virtual inline std::vector<Int> & GetMap() =0;
+      virtual inline SYMPACK::vector<Int> & GetMap() =0;
 };
 
 
 
 class NNZBalancer: public LoadBalancer{
   protected:
-    vector<Int> & Xsuper_;
-    vector<Int> & cc_;
+    SYMPACK::vector<Int> & Xsuper_;
+    SYMPACK::vector<Int> & cc_;
   public:
-      NNZBalancer(Int np, vector<Int> & Xsuper, vector<Int> & pCc):Xsuper_(Xsuper),cc_(pCc),LoadBalancer(np,Xsuper.size()-1){
+      NNZBalancer(Int np, SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & pCc):Xsuper_(Xsuper),cc_(pCc),LoadBalancer(np,Xsuper.size()-1){
       };
 
  
-      virtual inline std::vector<Int> & GetMap(){
-          std::vector<double> load(np_,0.0);
+      virtual inline SYMPACK::vector<Int> & GetMap(){
+          SYMPACK::vector<double> load(np_,0.0);
 
           for(Int i = 1; i< Xsuper_.size();  ++i){
             //find least loaded processor
-            vector<double>::iterator it = std::min_element(load.begin(),load.end());
+            SYMPACK::vector<double>::iterator it = std::min_element(load.begin(),load.end());
             Int proc = (Int)(it - load.begin());
             Int width = Xsuper_[i] - Xsuper_[i-1];
             Int height = cc_[i-1];
@@ -67,17 +67,15 @@ class TreeLoadBalancer: public LoadBalancer{
   public:
       class ProcGroup{
         protected:
-        vector<Int> ranks_;
+        SYMPACK::vector<Int> ranks_;
         double total_load_;
-//        Int worker_;
         public:
-        vector<Int> & Ranks(){return ranks_;}
-//        Int & Worker(){return worker_;}
+        SYMPACK::vector<Int> & Ranks(){return ranks_;}
         double & Load(){return total_load_;}
 
+        ProcGroup():ranks_(),total_load_(0){}
 
   friend std::ostream& operator<<( std::ostream& os,  ProcGroup& group){
-//    os<<"Worker is P"<<group.Worker()<<std::endl;
     os<<"Members are: "<<std::endl;
     for(Int ranks =0; ranks<group.Ranks().size();++ranks){
       os<<"P"<<group.Ranks()[ranks]<<" ";
@@ -86,17 +84,15 @@ class TreeLoadBalancer: public LoadBalancer{
     return os;
   }
 
-
-
       };
 
   protected:
-    vector< ProcGroup > procGroups_;
+    SYMPACK::vector< ProcGroup > procGroups_;
     ETree supETree_;
 
-    vector< Int > groupIdx_;
-    vector< Int > groupWorker_;
-    vector< ProcGroup > levelGroups_;
+    SYMPACK::vector< Int > groupIdx_;
+    SYMPACK::vector< Int > groupWorker_;
+    SYMPACK::vector< ProcGroup > levelGroups_;
 
     virtual double factor_cost(Int m, Int n) = 0;
     virtual double update_cost(Int m, Int n, Int k)=0;
@@ -108,11 +104,11 @@ class TreeLoadBalancer: public LoadBalancer{
           groupWorker_.resize(n_+1,0);
       };
 
-      vector< ProcGroup > & ProcGroups(){return procGroups_;}
+      SYMPACK::vector< ProcGroup > & ProcGroups(){return procGroups_;}
 
-      vector< ProcGroup > & LevelGroups(){return levelGroups_;}
-      vector< Int > & GroupIdx(){return groupIdx_;}
-      vector< Int > & GroupWorker(){return groupWorker_;}
+      SYMPACK::vector< ProcGroup > & LevelGroups(){return levelGroups_;}
+      SYMPACK::vector< Int > & GroupIdx(){return groupIdx_;}
+      SYMPACK::vector< Int > & GroupWorker(){return groupWorker_;}
       ETree & SupETree(){return supETree_;}
 
 
@@ -122,11 +118,11 @@ class SubtreeToSubcube: public TreeLoadBalancer{
 
   protected:
     bool fan_in_;
-    vector<Int> & Xsuper_;
-    vector<Int> & SupMembership_;
+    SYMPACK::vector<Int> & Xsuper_;
+    SYMPACK::vector<Int> & SupMembership_;
     PtrVec & Xlindx_;
     IdxVec & Lindx_;
-    vector<Int> & cc_;
+    SYMPACK::vector<Int> & cc_;
 
 
     double factor_cost(Int m, Int n){
@@ -140,18 +136,18 @@ class SubtreeToSubcube: public TreeLoadBalancer{
 
 
   public:
-      SubtreeToSubcube(Int np, ETree & supETree,vector<Int> & Xsuper, vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, vector<Int> & pCc, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),TreeLoadBalancer(np,supETree){
+      SubtreeToSubcube(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),TreeLoadBalancer(np,supETree){
           fan_in_=fan_in;
       };
 
 
-  virtual inline std::vector<Int> & GetMap(){
+  virtual inline SYMPACK::vector<Int> & GetMap(){
       if(levelGroups_.size()==0){
           //compute number of children and load
           Int numLevels = 1;
-          vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
-          vector<double> NodeLoad(supETree_.Size()+1,0.0);
-          vector<Int> children(supETree_.Size()+1,0);
+          SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
+          SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
+          SYMPACK::vector<Int> children(supETree_.Size()+1,0);
           for(Int I=1;I<=supETree_.Size();I++){
             Int parent = supETree_.Parent(I-1);
             ++children[parent];
@@ -220,7 +216,7 @@ class SubtreeToSubcube: public TreeLoadBalancer{
             SubTreeLoad[parent]+=SubTreeLoad[I];
           }
 
-          vector<Int> levels(supETree_.Size()+1,0);
+          SYMPACK::vector<Int> levels(supETree_.Size()+1,0);
           for(Int I=n_; I>= 1;I--){ 
             Int parent = supETree_.Parent(I-1);
             if(parent==0){levels[I]=0;}
@@ -241,13 +237,14 @@ class SubtreeToSubcube: public TreeLoadBalancer{
           for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
 
 
-          vector<Int> pstart(n_+1,0);
+          SYMPACK::vector<Int> pstart(n_+1,0);
+          levelGroups_.reserve(numLevels);
           levelGroups_.push_back(ProcGroup());//reserve(numLevels);
           levelGroups_[0].Ranks().reserve(np);
           for(Int p = 0;p<np;++p){levelGroups_[0].Ranks().push_back(p);}
 
 
-          std::vector<double> load(n_+1,0.0);
+          SYMPACK::vector<double> load(n_+1,0.0);
           for(Int I=n_; I>= 1;I--){ 
             Int parent = supETree_.Parent(I-1);
 
@@ -285,7 +282,7 @@ class SubtreeToSubcube: public TreeLoadBalancer{
                 levelGroups_.back().Ranks().reserve(numProcs);
                 //              for(Int p = pFirst; p<pFirst+numProcs;++p){ levelGroups_.back().Ranks().push_back(p);}
 
-                vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
+                SYMPACK::vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
                 levelGroups_.back().Ranks().insert(levelGroups_.back().Ranks().begin(),parentRanks.begin()+pFirstIdx,parentRanks.begin()+pFirstIdx+numProcs);
 
                 groupIdx_[I] = levelGroups_.size()-1;
@@ -316,7 +313,7 @@ class SubtreeToSubcube: public TreeLoadBalancer{
 
 
           //now choose which processor to get
-          //std::vector<double> load(np,0.0);
+          //SYMPACK::vector<double> load(np,0.0);
           load.assign(np,0.0);
           for(Int I=1;I<=supETree_.Size();I++){
             Int minLoadP= -1;
@@ -384,11 +381,11 @@ class SubtreeToSubcube: public TreeLoadBalancer{
 class SubtreeToSubcubeVolume: public TreeLoadBalancer{
   protected:
     bool fan_in_;
-    vector<Int> & Xsuper_;
-    vector<Int> & SupMembership_;
+    SYMPACK::vector<Int> & Xsuper_;
+    SYMPACK::vector<Int> & SupMembership_;
     PtrVec & Xlindx_;
     IdxVec & Lindx_;
-    vector<Int> & cc_;
+    SYMPACK::vector<Int> & cc_;
 
 
     double factor_cost(Int m, Int n){
@@ -401,18 +398,18 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
 
 
   public:
-      SubtreeToSubcubeVolume(Int np, ETree & supETree,vector<Int> & Xsuper, vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, vector<Int> & pCc, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),TreeLoadBalancer(np,supETree){
+      SubtreeToSubcubeVolume(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),TreeLoadBalancer(np,supETree){
           fan_in_=fan_in;
       };
 
 
-  virtual inline std::vector<Int> & GetMap(){
+  virtual inline SYMPACK::vector<Int> & GetMap(){
       if(levelGroups_.size()==0){
           //compute number of children and load
           Int numLevels = 1;
-          vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
-          vector<double> NodeLoad(supETree_.Size()+1,0.0);
-          vector<Int> children(supETree_.Size()+1,0);
+          SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
+          SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
+          SYMPACK::vector<Int> children(supETree_.Size()+1,0);
           for(Int I=1;I<=supETree_.Size();I++){
             Int parent = supETree_.Parent(I-1);
             ++children[parent];
@@ -481,7 +478,7 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
             SubTreeLoad[parent]+=SubTreeLoad[I];
           }
 
-          vector<Int> levels(supETree_.Size()+1,0);
+          SYMPACK::vector<Int> levels(supETree_.Size()+1,0);
           for(Int I=n_; I>= 1;I--){ 
             Int parent = supETree_.Parent(I-1);
             if(parent==0){levels[I]=0;}
@@ -501,13 +498,13 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
           for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
 
 
-          vector<Int> pstart(n_+1,0);
+          SYMPACK::vector<Int> pstart(n_+1,0);
           levelGroups_.push_back(ProcGroup());//reserve(numLevels);
           levelGroups_[0].Ranks().reserve(np);
           for(Int p = 0;p<np;++p){levelGroups_[0].Ranks().push_back(p);}
 
 
-          std::vector<double> load(n_+1,0.0);
+          SYMPACK::vector<double> load(n_+1,0.0);
           for(Int I=n_; I>= 1;I--){ 
             Int parent = supETree_.Parent(I-1);
 
@@ -545,7 +542,7 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
                 levelGroups_.back().Ranks().reserve(numProcs);
                 //              for(Int p = pFirst; p<pFirst+numProcs;++p){ levelGroups_.back().Ranks().push_back(p);}
 
-                vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
+                SYMPACK::vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
                 levelGroups_.back().Ranks().insert(levelGroups_.back().Ranks().begin(),parentRanks.begin()+pFirstIdx,parentRanks.begin()+pFirstIdx+numProcs);
 
                 groupIdx_[I] = levelGroups_.size()-1;
@@ -575,7 +572,7 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
 
 
           //now choose which processor to get
-          //std::vector<double> load(np,0.0);
+          //SYMPACK::vector<double> load(np,0.0);
           load.assign(np,0.0);
           for(Int I=1;I<=supETree_.Size();I++){
             Int minLoadP= -1;
@@ -639,16 +636,16 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
   }
 
 
-//  virtual inline std::vector<Int> & GetMap(){
+//  virtual inline SYMPACK::vector<Int> & GetMap(){
 //      if(procGroups_.size()==0){
 //
 ////////gdb_lock();
 //////
 //////          //compute number of children and load
 //////          Int numLevels = 1;
-//////          vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
-//////          vector<double> NodeLoad(supETree_.Size()+1,0.0);
-//////          vector<Int> children(supETree_.Size()+1,0);
+//////          SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
+//////          SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
+//////          SYMPACK::vector<Int> children(supETree_.Size()+1,0);
 //////          for(Int I=1;I<=supETree_.Size();I++){
 //////            Int parent = supETree_.Parent(I-1);
 //////            ++children[parent];
@@ -711,7 +708,7 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
 //////#endif
 //////          }
 //////
-//////          vector<Int> levels(supETree_.Size()+1,0);
+//////          SYMPACK::vector<Int> levels(supETree_.Size()+1,0);
 //////          for(Int I=n_; I>= 1;I--){ 
 //////            Int parent = supETree_.Parent(I-1);
 //////            if(parent==0){levels[I]=0;}
@@ -728,7 +725,7 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
 //////
 //////          //procmaps[0]/pstart[0] represents the complete list
 //////          procGroups_.resize(n_+1);
-//////          vector<Int> pstart(n_+1,0);
+//////          SYMPACK::vector<Int> pstart(n_+1,0);
 //////          procGroups_[0].Ranks().reserve(np);
 //////          for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
 //////
@@ -792,7 +789,7 @@ class SubtreeToSubcubeVolume: public TreeLoadBalancer{
 //////
 //////
 //////          //now choose which processor to get
-//////          std::vector<double> load(np,0.0);
+//////          SYMPACK::vector<double> load(np,0.0);
 //////          for(Int I=1;I<=supETree_.Size();I++){
 //////            Int minLoadP= -1;
 //////            double minLoad = -1;

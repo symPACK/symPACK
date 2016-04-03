@@ -10,6 +10,8 @@
 
 namespace SYMPACK{
 
+  typedef vector<Idx> PtrVec;
+  typedef vector<Ptr> IdxVec;
 
 
   struct RelaxationParameters{
@@ -157,7 +159,7 @@ namespace SYMPACK{
     Int src_next_row;
     Int blkidx;
     Int next_blkidx;
-    //std::vector<bool> is_factor_sent;
+    //SYMPACK::vector<bool> is_factor_sent;
 
     SnodeUpdate(){
       src_snode_id = 0;
@@ -174,8 +176,8 @@ namespace SYMPACK{
     class TempUpdateBuffers{
       public:
         NumMat<T> tmpBuf;
-        vector<Int> src_colindx;
-        vector<Int> src_to_tgt_offset;
+        SYMPACK::vector<Int> src_colindx;
+        SYMPACK::vector<Int> src_to_tgt_offset;
 
         void Resize(Int size, Int mw){
           tmpBuf.Resize(size,mw);

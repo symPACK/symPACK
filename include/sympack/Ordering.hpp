@@ -12,8 +12,8 @@ class SparseMatrixStructure;
 class Ordering{
   public:
     CommEnvironment * CommEnv_;
-    vector<Int> perm;
-    vector<Int> invp;
+    SYMPACK::vector<Int> perm;
+    SYMPACK::vector<Int> invp;
     SparseMatrixStructure * pStructure;
 
     Ordering():pStructure(NULL){};
@@ -43,7 +43,7 @@ class Ordering{
 #ifdef USE_SCOTCH
     void SCOTCH();
 #endif
-    void Compose(vector<Int> & invp2);
+    void Compose(SYMPACK::vector<Int> & invp2);
 };
 
 }

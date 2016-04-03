@@ -91,7 +91,7 @@ typedef NumMat<Complex>  CpxNumMat;
 /// @brief SetValue sets a numerical matrix to a constant val.
 template <typename F> inline void SetValue(NumMat<F>& M, F val);
 
-/// @brief Energy computes the L2 norm of a matrix (treated as a vector).
+/// @brief Energy computes the L2 norm of a matrix (treated as a SYMPACK::vector).
 template <typename F> Real Energy(const NumMat<F>& M);
  
 template <typename F> inline void Transpose ( const NumMat<F>& A, NumMat<F>& B );

@@ -59,13 +59,13 @@ class SuperNode2{
 
 #ifndef ITREE
   Int iLastRow_;
-  std::vector<Int> * globalToLocal_;
+  SYMPACK::vector<Int> * globalToLocal_;
 #else
   ITree * idxToBlk_;
 #endif
 
   //actual storage
-  //std::vector<char> storage_container_;
+  //SYMPACK::vector<char> storage_container_;
   upcxx::global_ptr<char> storage_container_;
   char * loc_storage_container_;
   size_t storage_size_;
@@ -159,7 +159,7 @@ class SuperNode2{
 
   //Factorize the supernode
   inline Int Factorize();
-  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const vector<Int> & Xsuper,  const vector<Int> & SupMembership,bool isLocal=true); 
+  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const SYMPACK::vector<Int> & Xsuper,  const SYMPACK::vector<Int> & SupMembership,bool isLocal=true); 
 
 
 

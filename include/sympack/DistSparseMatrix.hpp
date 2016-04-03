@@ -62,7 +62,7 @@ template <typename F> class DistSparseMatrix{
 	Int          nnz;                             
 
 	/// @brief Dimension nnzLocal, storing the nonzero values.
-	vector<F>    nzvalLocal;                      
+	SYMPACK::vector<F>    nzvalLocal;                      
 
 	/// @brief MPI communicator
 	MPI_Comm     comm;        

@@ -7,7 +7,7 @@
     Int src_last_row;
     Int src_nzblk_idx;
     Int src_next_nzblk_idx;
-    std::vector<bool> is_factor_sent;
+    SYMPACK::vector<bool> is_factor_sent;
 
     FOUpdate(Int np){
       tgt_snode_id = 0;
@@ -22,7 +22,7 @@
 
 
 
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl, bool reverse){
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T> *> & snodeColl, bool reverse){
 //  typedef volatile SYMPACK::Int Int;
  
   if(snodeColl.empty() || MsgToSend.empty()) { return;}
@@ -183,7 +183,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
   }
   }
 
-  template<typename T> void SupernodalMatrix<T>::AsyncRecvFactors(Int iLocalI, std::vector<AsyncComms> & incomingRecvArr,vector<Int> & FactorsToRecv,vector<Int> & UpdatesToDo){
+  template<typename T> void SupernodalMatrix<T>::AsyncRecvFactors(Int iLocalI, SYMPACK::vector<AsyncComms> & incomingRecvArr,SYMPACK::vector<Int> & FactorsToRecv,SYMPACK::vector<Int> & UpdatesToDo){
 
     for(Int nextLocalI = iLocalI;nextLocalI<=LocalSupernodes_.size();++nextLocalI){
       SuperNode<T> * next_src_snode = LocalSupernodes_[nextLocalI-1];
@@ -228,11 +228,11 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
   }
 
 
-template<typename T> void SupernodalMatrix<T>::AsyncRecv(Int iLocalI, std::vector<AsyncComms> * incomingRecvFactArr, Int * FactorsToRecv, Int * UpdatesToDo){
+template<typename T> void SupernodalMatrix<T>::AsyncRecv(Int iLocalI, SYMPACK::vector<AsyncComms> * incomingRecvFactArr, Int * FactorsToRecv, Int * UpdatesToDo){
 
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
-  std::vector<SnodeUpdateFB> tmpTasks;
+  SYMPACK::vector<SnodeUpdateFB> tmpTasks;
   Int nextLocalI = iLocalI;
   while(!LocalTasks.empty()){ 
     SnodeUpdateFB curTask = LocalTasks.top();
@@ -299,7 +299,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
 
-  vector<Int> UpdatesToDo = UpdateCount_;
+  SYMPACK::vector<Int> UpdatesToDo = UpdateCount_;
 
 
 
@@ -308,13 +308,13 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
   CommList FactorsToSend; 
   //FBCommList FactorsToSend; 
 
-  std::vector<AsyncComms> incomingRecvArr(LocalSupernodes_.size());
+  SYMPACK::vector<AsyncComms> incomingRecvArr(LocalSupernodes_.size());
   incomingRecvCnt_ = 0;
-  vector<Int> FactorsToRecv(LocalSupernodes_.size());
+  SYMPACK::vector<Int> FactorsToRecv(LocalSupernodes_.size());
 
-  std::vector<char> src_blocks;
+  SYMPACK::vector<char> src_blocks;
 
-  std::vector<std::queue<SnodeUpdate> > LocalUpdates(LocalSupernodes_.size());
+  SYMPACK::vector<std::queue<SnodeUpdate> > LocalUpdates(LocalSupernodes_.size());
 
   Int maxwidth = 0;
   for(Int i = 1; i<Xsuper_.size(); ++i){
@@ -609,7 +609,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
         TIMER_STOP(UPDATE_ANCESTORS);
       }
       //clear the buffer
-      //        { vector<char>().swap(src_blocks);  }
+      //        { SYMPACK::vector<char>().swap(src_blocks);  }
 
 
       timeEnd =  get_time( );
@@ -639,8 +639,8 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
 
       //Send my factor to my ancestors. 
-      vector<char> is_factor_sent(np,false);
-      vector<char> is_skipped(np,false);
+      SYMPACK::vector<char> is_factor_sent(np,false);
+      SYMPACK::vector<char> is_skipped(np,false);
 
       SnodeUpdate curUpdate;
       TIMER_START(FIND_UPDATED_ANCESTORS);
@@ -762,17 +762,17 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
 
-  vector<Int> UpdatesToDo = UpdateCount_;
+  SYMPACK::vector<Int> UpdatesToDo = UpdateCount_;
 
 
 
-  std::vector<AsyncComms> incomingRecvArr(LocalSupernodes_.size());
+  SYMPACK::vector<AsyncComms> incomingRecvArr(LocalSupernodes_.size());
   incomingRecvCnt_ = 0;
-  vector<Int> FactorsToRecv(LocalSupernodes_.size());
+  SYMPACK::vector<Int> FactorsToRecv(LocalSupernodes_.size());
 
-  std::vector<char> src_blocks;
+  SYMPACK::vector<char> src_blocks;
 
-  std::vector<std::queue<SnodeUpdate> > LocalUpdates(LocalSupernodes_.size());
+  SYMPACK::vector<std::queue<SnodeUpdate> > LocalUpdates(LocalSupernodes_.size());
 
   Int maxwidth = 0;
   for(Int i = 1; i<Xsuper_.size(); ++i){
@@ -1104,7 +1104,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
           TIMER_STOP(UPDATE_ANCESTORS);
         }
         //clear the buffer
-        //        { vector<char>().swap(src_blocks);  }
+        //        { SYMPACK::vector<char>().swap(src_blocks);  }
 
 
         timeEnd =  get_time( );
@@ -1134,8 +1134,8 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
 
         //Send my factor to my ancestors. 
-        vector<char> is_factor_sent(np,false);
-        vector<char> is_skipped(np,false);
+        SYMPACK::vector<char> is_factor_sent(np,false);
+        SYMPACK::vector<char> is_skipped(np,false);
 
         SnodeUpdate curUpdate;
         TIMER_START(FIND_UPDATED_ANCESTORS);

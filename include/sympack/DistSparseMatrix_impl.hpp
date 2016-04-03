@@ -65,7 +65,7 @@ if(!onebased){
     // Compute the number of columns on each processor
     Idx numColLocal, numColFirst;
     numColFirst = this->size / np;
-    vector<Idx> numColLocalVec(np,numColFirst );
+    SYMPACK::vector<Idx> numColLocalVec(np,numColFirst );
     numColLocalVec[np-1] = this->size - numColFirst * (np-1) ;  // Modify the last entry	
     numColLocal = numColLocalVec[iam];
 
@@ -136,7 +136,7 @@ if(!onebased){
 
     //Compute local structure info
     // Compute the number of columns on each processor
-    vector<Int> numColLocalVec(np);
+    SYMPACK::vector<Int> numColLocalVec(np);
     Int numColLocal, numColFirst;
     numColFirst = this->size / np;
     SetValue( numColLocalVec, numColFirst );

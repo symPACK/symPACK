@@ -34,9 +34,9 @@ namespace SYMPACK{
 
 
 
-  void ETree::BTreeToPO(vector<Int> & fson, vector<Int> & brother, vector<Int> & invpos){
+  void ETree::BTreeToPO(SYMPACK::vector<Int> & fson, SYMPACK::vector<Int> & brother, SYMPACK::vector<Int> & invpos){
       //Do a depth first search to construct the postordered tree
-      vector<Int> stack(n_);
+      SYMPACK::vector<Int> stack(n_);
       //postNumber_.Resize(n_);
       invpos.resize(n_);
 
@@ -77,9 +77,9 @@ namespace SYMPACK{
 
      TIMER_START(PostOrder);
 
-      vector<Int> fson(n_);
+      SYMPACK::vector<Int> fson(n_);
       SetValue(fson, I_ZERO);
-      vector<Int> & brother = poparent_;
+      SYMPACK::vector<Int> & brother = poparent_;
       brother.resize(n_);
       SetValue(brother, I_ZERO);
 
@@ -103,7 +103,7 @@ namespace SYMPACK{
       logfileptr->OFS()<<"brother "<<brother<<std::endl;
 #endif
 
-      vector<Int> invpos;
+      SYMPACK::vector<Int> invpos;
       BTreeToPO(fson,brother,invpos);
 
       //modify the parent list ?
@@ -135,16 +135,16 @@ namespace SYMPACK{
   }
 
 
-  void ETree::SortChildren(vector<Int> & cc, Ordering & aOrder){
+  void ETree::SortChildren(SYMPACK::vector<Int> & cc, Ordering & aOrder){
     if(!bIsPostOrdered_){
       this->PostOrderTree(aOrder);
     }
 
-      vector<Int> fson(n_);
+      SYMPACK::vector<Int> fson(n_);
       SetValue(fson, I_ZERO);
-      vector<Int> brother(n_);
+      SYMPACK::vector<Int> brother(n_);
       SetValue(brother, I_ZERO);
-      vector<Int> lson(n_);
+      SYMPACK::vector<Int> lson(n_);
       SetValue(lson, I_ZERO);
 
       //Get Binary tree representation
@@ -178,12 +178,12 @@ namespace SYMPACK{
       brother[lroot-1]=0;
 
 
-      vector<Int> invpos;
-//      vector<Int> invperm;
+      SYMPACK::vector<Int> invpos;
+//      SYMPACK::vector<Int> invperm;
 
       //Compute the parent permutation and update postNumber_
       //Do a depth first search to construct the postordered tree
-      vector<Int> stack(n_);
+      SYMPACK::vector<Int> stack(n_);
       invpos.resize(n_);
 //      invperm.Resize(n_);
 
@@ -247,7 +247,7 @@ namespace SYMPACK{
 
       //Sort the parent
 
-////      vector<Int> poParent(n_+1);
+////      SYMPACK::vector<Int> poParent(n_+1);
 ////            for(Int i=1; i<=n_;i++){
 ////              Int nunode = perm_(i-1);
 ////              Int ndpar = parent_(i-1);
@@ -260,7 +260,7 @@ namespace SYMPACK{
 ////      logfileptr->OFS()<<"ORDERED fson "<<fson<<std::endl;
 ////      logfileptr->OFS()<<"ORDERED brother "<<brother<<std::endl;
 ////
-////      vector<Int> poParent(n_+1);
+////      SYMPACK::vector<Int> poParent(n_+1);
 ////            for(Int i=1; i<=n_;i++){
 ////              Int nunode = postNumber_(i-1);
 ////              Int ndpar = parent_(i-1);
@@ -309,10 +309,10 @@ namespace SYMPACK{
     //TODO This is not ok for memory scaling....
     parent_.resize(n_);
 
-//    vector<Int> myParent(aDistExp.LocalVertexCount(),-1);
-//    vector<Int> myAncstr(aDistExp.LocalVertexCount(),-1);
+//    SYMPACK::vector<Int> myParent(aDistExp.LocalVertexCount(),-1);
+//    SYMPACK::vector<Int> myAncstr(aDistExp.LocalVertexCount(),-1);
     //TODO This is not ok for memory scaling....
-    vector<Int> ancstr(n_,-1);
+    SYMPACK::vector<Int> ancstr(n_,-1);
 
     Idx fc = (iam)*(n_/mpisize); //0 - based
 
@@ -505,9 +505,9 @@ namespace SYMPACK{
 
   //if(np>1){
   //  //Do an allgatherv 
-  //  //vector<int> sizes(np,(n_/np)*sizeof(Int));
+  //  //SYMPACK::vector<int> sizes(np,(n_/np)*sizeof(Int));
   //  //sizes.back() = (n_ - (np-1)*(n_/np))*sizeof(Int);
-  //  //vector<int>displs(np,0);
+  //  //SYMPACK::vector<int>displs(np,0);
   //  //std::copy(&sizes.front(),&sizes.back(),&displs[1]);
   //  //std::partial_sum(displs.begin(),displs.end(),displs.begin());
   //  //MPI_Allgatherv(&parent_[
@@ -570,7 +570,7 @@ TIMER_START(Construct_Etree_Classic);
     SetValue(parent_,I_ZERO );
 
 
-    vector<Int> ancstr(n_);
+    SYMPACK::vector<Int> ancstr(n_);
 
 
 
@@ -692,7 +692,7 @@ TIMER_STOP(Construct_Etree_Classic);
 
 
 
-  ETree ETree::ToSupernodalETree(vector<Int> & aXsuper,vector<Int> & aSupMembership,Ordering & aOrder) const{
+  ETree ETree::ToSupernodalETree(SYMPACK::vector<Int> & aXsuper,SYMPACK::vector<Int> & aSupMembership,Ordering & aOrder) const{
     ETree newTree;
     newTree.n_ = aXsuper.size()-1;
     newTree.parent_.resize(aXsuper.size()-1);
@@ -736,8 +736,8 @@ void ETree::DeepestFirst(Ordering & aOrder)
 
 
 
-    std::vector<Int> treesize(n_,0);
-    std::vector<Int> depths(n_);
+    SYMPACK::vector<Int> treesize(n_,0);
+    SYMPACK::vector<Int> depths(n_);
     //first, compute the depth of each node
     for(Int col=n_; col>=1; --col){
       Int parent = PostParent(col-1);

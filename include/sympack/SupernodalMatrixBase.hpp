@@ -10,7 +10,7 @@ namespace SYMPACK{
 
   class SupernodalMatrixBase{
     protected:
-//      std::vector<std::list<SnodeUpdateFB> > taskLists_;
+//      SYMPACK::vector<std::list<SnodeUpdateFB> > taskLists_;
 //      std::list<SnodeUpdateFB*> readyTasks_;
       
       //MAPCLASS describing the Mapping of the computations

@@ -35,8 +35,8 @@ namespace SYMPACK{
 
   std::stringstream outstream;
 
-  std::vector<gasnett_tick_t> arr_excl_tick;
-  std::vector<gasnett_tick_t> arr_complete_tick;
+  SYMPACK::vector<gasnett_tick_t> arr_excl_tick;
+  SYMPACK::vector<gasnett_tick_t> arr_complete_tick;
 
   class function_timer{
     public:
@@ -48,11 +48,11 @@ namespace SYMPACK{
       int calls;
       int numcore;
 
-      std::vector<gasnett_tick_t> arr_start_tick;
-      std::vector<gasnett_tick_t> arr_start_excl_tick;
-      std::vector<gasnett_tick_t> arr_acc_tick;
-      std::vector<gasnett_tick_t> arr_acc_excl_tick;
-      std::vector<int> arr_calls;
+      SYMPACK::vector<gasnett_tick_t> arr_start_tick;
+      SYMPACK::vector<gasnett_tick_t> arr_start_excl_tick;
+      SYMPACK::vector<gasnett_tick_t> arr_acc_tick;
+      SYMPACK::vector<gasnett_tick_t> arr_acc_excl_tick;
+      SYMPACK::vector<int> arr_calls;
 
 
       gasnett_tick_t total_tick;

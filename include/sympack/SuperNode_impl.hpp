@@ -35,8 +35,8 @@
 
 #ifndef ITREE
       //iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
-      //globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
-      globalToLocal_ = new std::vector<Int>(iN_+1,-1);
+      //globalToLocal_ = new SYMPACK::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      globalToLocal_ = new SYMPACK::vector<Int>(iN_+1,-1);
 #else
       idxToBlk_ = CreateITree();
 #endif
@@ -65,8 +65,8 @@
 
 #ifndef ITREE
       //iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
-      //globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
-      globalToLocal_ = new std::vector<Int>(iN_+1,-1);
+      //globalToLocal_ = new SYMPACK::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      globalToLocal_ = new SYMPACK::vector<Int>(iN_+1,-1);
 #else
       idxToBlk_ = CreateITree();
 #endif
@@ -132,8 +132,8 @@
 
 #ifndef ITREE
       //iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
-      //globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
-      globalToLocal_ = new std::vector<Int>(iN_+1,-1);
+      //globalToLocal_ = new SYMPACK::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      globalToLocal_ = new SYMPACK::vector<Int>(iN_+1,-1);
 #else
       idxToBlk_ = CreateITree();
 #endif
@@ -179,8 +179,8 @@
       //initIdxToBlk_(true);
 #ifndef ITREE
       //iLastRow_ = max(iLastCol_,iFirstCol_ + nzval_cnt_/iSize_ - 1);
-      //globalToLocal_ = new std::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
-      globalToLocal_ = new std::vector<Int>(iN_+1,-1);
+      //globalToLocal_ = new SYMPACK::vector<Int>(iLastRow_ - iFirstCol_ + 1 );
+      globalToLocal_ = new SYMPACK::vector<Int>(iN_+1,-1);
 #else
       idxToBlk_ = CreateITree();
 #endif
@@ -951,7 +951,7 @@
 
 
   template<typename T>
-    bool SuperNode<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const vector<Int> & Xsuper,  const vector<Int> & SupMembership, bool isLocal){
+    bool SuperNode<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const SYMPACK::vector<Int> & Xsuper,  const SYMPACK::vector<Int> & SupMembership, bool isLocal){
       TIMER_START(FIND_NEXT_UPDATE);
       Int & tgt_snode_id = nextUpdate.tgt_snode_id;
       Int & f_ur = nextUpdate.src_first_row;

@@ -42,7 +42,7 @@ sp_dgemv_dist(char *trans, MYSCALAR alpha, DistSparseMatrix<MYSCALAR> & A, MYSCA
   if (A.size == 0 || alpha == 0. && beta == 1.)
     return 0;
 
-  /* Set  LENX  and  LENY, the lengths of the vectors x and y, and set 
+  /* Set  LENX  and  LENY, the lengths of the SYMPACK::vectors x and y, and set 
      up the start points in  X  and  Y. */
 
   if (notran) {
@@ -144,7 +144,7 @@ sp_dgemv_dist(char *trans, MYSCALAR alpha, DistSparseMatrix<MYSCALAR> & A, MYSCA
 
       //Use a Allgather and do the sum after
 
-//      std::vector<MYSCALAR> recv_buffer(np*leny);
+//      SYMPACK::vector<MYSCALAR> recv_buffer(np*leny);
 //      MPI_Allgather( y, leny*sizeof(MYSCALAR), MPI_BYTE, &recv_buffer[0], np*leny*sizeof(MYSCALAR), MPI_BYTE, MPI_COMM_WORLD );
 //
 //        for(i=0; i<np;++i){

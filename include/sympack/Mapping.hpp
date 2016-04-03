@@ -14,7 +14,7 @@ namespace SYMPACK{
 
 class Mapping{
   protected:
-    std::vector<Int> * pProcMap_;
+    SYMPACK::vector<Int> * pProcMap_;
     Int iNumProc_;
     Int iPRows_;
     Int iPCols_;
@@ -33,9 +33,9 @@ class Mapping{
 //      inline Int modwrap2Dns(Int i, Int j) {return(i/iBlockSize_)%iPRows_ + iPRows_*floor((double)((j/iBlockSize_)%iNumProc_)/(double)iPRows_);}
 
   public:
-      virtual void Update(std::vector<Int> & aProcMap){
+      virtual void Update(SYMPACK::vector<Int> & aProcMap){
         if(pProcMap_==NULL){
-          pProcMap_ = new std::vector<Int>(aProcMap);
+          pProcMap_ = new SYMPACK::vector<Int>(aProcMap);
         }
         else{
           pProcMap_->clear();
@@ -57,9 +57,9 @@ class Mapping{
       }
   
       Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pProcMap_(NULL){};
-      Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):
+      Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, SYMPACK::vector<Int> & aProcMap, Int aiBlockSize = 1):
           iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize){
-          pProcMap_ = new std::vector<Int>(aProcMap);
+          pProcMap_ = new SYMPACK::vector<Int>(aProcMap);
       };
 
       Mapping(Mapping & C){
@@ -68,7 +68,7 @@ class Mapping{
         iPCols_     = C.iPCols_;
         iBlockSize_ = C.iBlockSize_;
         if(C.pProcMap_!=NULL){
-          pProcMap_ = new std::vector<Int>(*C.pProcMap_);
+          pProcMap_ = new SYMPACK::vector<Int>(*C.pProcMap_);
         }
       }
       Mapping(){
@@ -93,7 +93,7 @@ class Modwrap2D: public Mapping{
     }
   public:
       Modwrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
-      Modwrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      Modwrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, SYMPACK::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
 //      Modwrap2D(Modwrap2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Modwrap2D(Modwrap2D & C):Mapping(C){};
       Modwrap2D():Mapping(0,0,0,0){};
@@ -117,7 +117,7 @@ class Modwrap2DNS: public Mapping{
     inline Int modwrap2DNS_(Int i, Int j) { Int p = i/iBlockSize_%iPRows_ + iPRows_*floor((double)((j/iBlockSize_)%iNumProc_)/(double)iPRows_); return p;}
   public:
       Modwrap2DNS(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
-      Modwrap2DNS(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      Modwrap2DNS(Int aiNumProc, Int aiPRows, Int aiPCols, SYMPACK::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
 //      Modwrap2DNS(Modwrap2DNS & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Modwrap2DNS(Modwrap2DNS & C):Mapping(C){};
       Modwrap2DNS():Mapping(0,0,0,0){};
@@ -140,7 +140,7 @@ class Row2D: public Mapping{
     inline Int row2D_(Int i, Int j) { Int p = (i/iBlockSize_)%iNumProc_; return p;}
   public:
       Row2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
-      Row2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      Row2D(Int aiNumProc, Int aiPRows, Int aiPCols, SYMPACK::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
       //Row2D(Row2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Row2D(Row2D & C):Mapping(C){};
       Row2D():Mapping(0,0,0,0){};
@@ -163,7 +163,7 @@ class Wrap2D: public Mapping{
     inline Int wrap2D_(Int i, Int j) { Int p = (i/iBlockSize_)%iPRows_ + iPRows_*((j/iBlockSize_)%iPCols_); return p;}
   public:
       Wrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
-      Wrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      Wrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, SYMPACK::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
       //Wrap2D(Row2D & C):Mapping(C){}
       Wrap2D(Wrap2D & C):Mapping(C){};
       Wrap2D():Mapping(0,0,0,0){};
@@ -185,7 +185,7 @@ class Wrap2DForced: public Mapping{
     inline Int wrap2D_(Int i, Int j) { Int p = (i!=j)?(i/iBlockSize_)%iPRows_ + iPRows_*((j/iBlockSize_)%iPCols_):j%iNumProc_; return p;}
   public:
       Wrap2DForced(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
-      Wrap2DForced(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      Wrap2DForced(Int aiNumProc, Int aiPRows, Int aiPCols, SYMPACK::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
       //Wrap2D(Row2D & C):Mapping(C){}
       Wrap2DForced(Wrap2DForced & C):Mapping(C){};
       Wrap2DForced():Mapping(0,0,0,0){};
@@ -211,7 +211,7 @@ class AntiDiag2D: public Mapping{
     inline Int antidiag2D_(Int i, Int j) { Int p = (i/iBlockSize_+j/iBlockSize_)%iNumProc_; return p;}
   public:
       AntiDiag2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
-      AntiDiag2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      AntiDiag2D(Int aiNumProc, Int aiPRows, Int aiPCols, SYMPACK::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
       //AntiDiag2D(Row2D & C):Mapping(C){}
       AntiDiag2D(AntiDiag2D & C):Mapping(C){};
       AntiDiag2D():Mapping(0,0,0,0){};
@@ -235,7 +235,7 @@ class Col2D: public Mapping{
     inline Int col2D_(Int i, Int j) { Int p = (j/iBlockSize_)%iNumProc_; return p;}
   public:
       Col2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
-      Col2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      Col2D(Int aiNumProc, Int aiPRows, Int aiPCols, SYMPACK::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
       //Col2D(Col2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Col2D(Col2D & C):Mapping(C){};
       Col2D():Mapping(0,0,0,0){};
@@ -284,9 +284,9 @@ class TreeMapping: public Mapping{
 
  
       TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pBalancer_(NULL){};
-//      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):
+//      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, SYMPACK::vector<Int> & aProcMap, Int aiBlockSize = 1):
 //          iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize){
-//          pProcMap_ = new std::vector<Int>(aProcMap);
+//          pProcMap_ = new SYMPACK::vector<Int>(aProcMap);
 //      };
 //
 //      TreeMapping(TreeMapping & C){
@@ -295,7 +295,7 @@ class TreeMapping: public Mapping{
 //        iPCols_     = C.iPCols_;
 //        iBlockSize_ = C.iBlockSize_;
 //        if(C.pProcMap_!=NULL){
-//          pProcMap_ = new std::vector<Int>(*C.pProcMap_);
+//          pProcMap_ = new SYMPACK::vector<Int>(*C.pProcMap_);
 //        }
 //      }
       TreeMapping(){
@@ -309,9 +309,9 @@ i = i+1;
 j = j+1;
         assert(pBalancer_!=NULL);
         //call GroupMap on the correct group, which is the one corresponding to j
-        vector<Int> & groupIdx = pBalancer_->GroupIdx();
-        vector<Int> & groupWorker = pBalancer_->GroupWorker();
-        vector<TreeLoadBalancer::ProcGroup> & levelGroups = pBalancer_->LevelGroups();
+        SYMPACK::vector<Int> & groupIdx = pBalancer_->GroupIdx();
+        SYMPACK::vector<Int> & groupWorker = pBalancer_->GroupWorker();
+        SYMPACK::vector<TreeLoadBalancer::ProcGroup> & levelGroups = pBalancer_->LevelGroups();
 
 #ifdef VERBOSE
       logfileptr->OFS()<<"MAP("<<i<<","<<j<<")"<<endl;
@@ -333,7 +333,7 @@ j = j+1;
 assert(i>=node);
         Int treesize = j - node + 1;
 
-        vector<Int> locProcMap(treesize);
+        SYMPACK::vector<Int> locProcMap(treesize);
         for(Int I = node;I<=j;++I){
           Int idx = groupIdx[I];
           Int worker = groupWorker[I];

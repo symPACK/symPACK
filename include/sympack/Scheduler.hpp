@@ -22,7 +22,7 @@ class Scheduler{
     virtual void push( const T& val) =0;
     virtual unsigned int size() =0;
 
-//    virtual const std::priority_queue<T, vector<T>, TaskCompare >  GetQueue() =0;
+//    virtual const std::priority_queue<T, SYMPACK::vector<T>, TaskCompare >  GetQueue() =0;
 
     virtual bool done() =0;
 };
@@ -44,9 +44,9 @@ class DLScheduler: public Scheduler<T>{
 
     virtual bool done(){ return readyTasks_.empty();}
 
-    const std::priority_queue<T, vector<T>, FBTaskCompare > & GetQueue() {return  readyTasks_;}
+    const std::priority_queue<T, SYMPACK::vector<T>, FBTaskCompare > & GetQueue() {return  readyTasks_;}
   protected:
-      std::priority_queue<T, vector<T>, FBTaskCompare > readyTasks_;
+      std::priority_queue<T, SYMPACK::vector<T>, FBTaskCompare > readyTasks_;
 };
 
 
@@ -63,7 +63,7 @@ class MCTScheduler: public Scheduler<T>{
     virtual unsigned int size() { return readyTasks_.size();}
 
     virtual bool done(){ return readyTasks_.empty();}
-    const std::priority_queue<T, vector<T>, MCTTaskCompare > & GetQueue(){return  readyTasks_;}
+    const std::priority_queue<T, SYMPACK::vector<T>, MCTTaskCompare > & GetQueue(){return  readyTasks_;}
 
 
 
@@ -142,7 +142,7 @@ class MCTScheduler: public Scheduler<T>{
 
 
   protected:
-      std::priority_queue<T, vector<T>, MCTTaskCompare > readyTasks_;
+      std::priority_queue<T, SYMPACK::vector<T>, MCTTaskCompare > readyTasks_;
 };
 
 
@@ -159,9 +159,9 @@ class PRScheduler: public Scheduler<T>{
     virtual unsigned int size() { return readyTasks_.size();}
 
     virtual bool done(){ return readyTasks_.empty();}
-    const std::priority_queue<T, vector<T>, PRTaskCompare > & GetQueue(){return  readyTasks_;}
+    const std::priority_queue<T, SYMPACK::vector<T>, PRTaskCompare > & GetQueue(){return  readyTasks_;}
   protected:
-      std::priority_queue<T, vector<T>, PRTaskCompare > readyTasks_;
+      std::priority_queue<T, SYMPACK::vector<T>, PRTaskCompare > readyTasks_;
 };
 
 

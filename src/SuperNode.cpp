@@ -599,8 +599,8 @@
 //
 //#ifndef ITREE
 //      //tgt_snode.iLastRow_ = max(tgt_snode.iLastCol_,tgt_snode.iFirstCol_ + tgt_snode.nzval_cnt_/tgt_snode.iSize_ - 1);
-//      //tgt_snode.globalToLocal_ = new std::vector<Int>(tgt_snode.iLastRow_ - tgt_snode.iFirstCol_ + 1 );
-//      tgt_snode.globalToLocal_ = new std::vector<Int>(tgt_snode.iN_+1,-1);
+//      //tgt_snode.globalToLocal_ = new SYMPACK::vector<Int>(tgt_snode.iLastRow_ - tgt_snode.iFirstCol_ + 1 );
+//      tgt_snode.globalToLocal_ = new SYMPACK::vector<Int>(tgt_snode.iN_+1,-1);
 //#else
 //      tgt_snode.idxToBlk_ = tgt_snode.CreateITree();
 //#endif

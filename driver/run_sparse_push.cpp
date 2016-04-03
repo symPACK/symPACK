@@ -75,7 +75,7 @@ int main(int argc, char **argv)
   // *********************************************************************
   // Input parameter
   // *********************************************************************
-  std::map<std::string,std::vector<std::string> > options;
+  std::map<std::string,SYMPACK::vector<std::string> > options;
 
   OptionsCreate(argc, argv, options);
 

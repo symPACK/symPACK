@@ -134,7 +134,7 @@ struct MSGCompare{
   extern size_t gNumMsg;
 
 
-  //extern std::priority_queue< IncomingMessage * ,  vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
+  //extern std::priority_queue< IncomingMessage * ,  SYMPACK::vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
   extern std::list< IncomingMessage * > gIncomingRecv;
 
   extern std::list< IncomingMessage * > gIncomingRecvAsync;

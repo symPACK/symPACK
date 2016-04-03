@@ -16,8 +16,8 @@
 namespace SYMPACK{
   class DisjointSet{
     protected:
-      vector<Int> pp_;
-      vector<Int> root_;
+      SYMPACK::vector<Int> pp_;
+      SYMPACK::vector<Int> root_;
     public:
       void Initialize(Int n);
       void Finalize();
@@ -35,7 +35,7 @@ class ETree{
 
 protected:
 
-  void BTreeToPO(vector<Int> & fson, vector<Int> & brother, vector<Int> & perm);
+  void BTreeToPO(SYMPACK::vector<Int> & fson, SYMPACK::vector<Int> & brother, SYMPACK::vector<Int> & perm);
 
 public:
   ETree();
@@ -46,21 +46,21 @@ public:
   void PostOrderTree(Ordering & aOrder);
   void DeepestFirst(Ordering & aOrder);
 
-  ETree ToSupernodalETree(vector<Int> & aXsuper,vector<Int> & aSupMembership,Ordering & aOrder) const;
+  ETree ToSupernodalETree(SYMPACK::vector<Int> & aXsuper,SYMPACK::vector<Int> & aSupMembership,Ordering & aOrder) const;
 
   inline bool IsPostOrdered() const { return bIsPostOrdered_;};
   inline Int n() const { return n_; };
   inline Int PostParent(Int i) const { return poparent_[i]; }
   inline Int Parent(Int i) const { return parent_[i]; };
   inline Int Size() const { return parent_.size(); };
-  void SortChildren(vector<Int> & cc, Ordering & aOrder);
+  void SortChildren(SYMPACK::vector<Int> & cc, Ordering & aOrder);
 
 protected:
   Int n_;
   bool bIsPostOrdered_;
 
-  vector<Int> parent_;
-  vector<Int> poparent_;
+  SYMPACK::vector<Int> parent_;
+  SYMPACK::vector<Int> poparent_;
 };
 
 

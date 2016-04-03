@@ -26,9 +26,9 @@ class CTF_timer{
     int exited;
     int original;
 
-    std::vector<int> arr_index;
-    std::vector<int> arr_exited;
-    std::vector<int> arr_original;
+    SYMPACK::vector<int> arr_index;
+    SYMPACK::vector<int> arr_exited;
+    SYMPACK::vector<int> arr_original;
   
   public:
     CTF_timer(char const * name);

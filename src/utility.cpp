@@ -8,7 +8,7 @@
 using namespace std;
 using std::ifstream;
 using std::ofstream;
-using std::vector;
+using SYMPACK::vector;
 using std::cerr;
 
 namespace SYMPACK{
@@ -61,37 +61,6 @@ Int SeparateWrite(std::string name, std::ostringstream& os)
   return 0;
 }
 
-//---------------------------------------------------------
-Int SharedRead(std::string name, std::istringstream& is)
-{
-  MPI_Barrier(MPI_COMM_WORLD);
-  int mpirank;  MPI_Comm_rank(MPI_COMM_WORLD, &mpirank);
-  int mpisize;  MPI_Comm_size(MPI_COMM_WORLD, &mpisize);
-  //
-  vector<char> tmpstr;
-  if(mpirank==0) {
-    ifstream fin(name.c_str());
-		if( !fin.good() ){
-			throw std::logic_error( "File cannot be openeded!" );
-		}
-    //std::string str(std::istreambuf_iterator<char>(fin), std::istreambuf_iterator<char>());
-    //tmpstr.insert(tmpstr.end(), str.begin(), str.end());
-    tmpstr.insert(tmpstr.end(), std::istreambuf_iterator<char>(fin), std::istreambuf_iterator<char>());
-    fin.close();
-    int size = tmpstr.size();	//cerr<<size<<endl;
-    MPI_Bcast((void*)&size, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Bcast((void*)&(tmpstr[0]), size, MPI_BYTE, 0, MPI_COMM_WORLD);
-  } else {
-    int size;
-    MPI_Bcast((void*)&size, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    tmpstr.resize(size);
-    MPI_Bcast((void*)&(tmpstr[0]), size, MPI_BYTE, 0, MPI_COMM_WORLD);
-  }
-  is.str( std::string(tmpstr.begin(), tmpstr.end()) );
-  //
-  MPI_Barrier(MPI_COMM_WORLD);
-  return 0;
-}
 
 //---------------------------------------------------------
 Int SharedWrite(std::string name, std::ostringstream& os)
@@ -158,7 +127,7 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 	MPI_Bcast(&pspmat.nnz,  1, MPI_INT, 0, comm);
 
 	// Read colptr
-	vector<Int>  colptr(pspmat.size+1);
+	SYMPACK::vector<Int>  colptr(pspmat.size+1);
 	if( mpirank == 0 ){
 		Int tmp;
 		fin.read((char*)&tmp, sizeof(Int));  
@@ -174,7 +143,7 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 	MPI_Bcast(&colptr[0], pspmat.size+1, MPI_INT, 0, comm);
 
 	// Compute the number of columns on each processor
-	vector<Int> numColLocalVec(mpisize);
+	SYMPACK::vector<Int> numColLocalVec(mpisize);
 	Int numColLocal, numColFirst;
 	numColFirst = std::max(1,pspmat.size / mpisize);
   SetValue( numColLocalVec, numColFirst );
@@ -205,7 +174,7 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 				<< "size of row indices = " << tmp << std::endl;
 			throw std::logic_error( msg.str().c_str() );
 		}
-		vector<Idx> buf;
+		SYMPACK::vector<Idx> buf;
 		Ptr numRead;
 		for( Int ip = 0; ip < mpisize; ip++ ){
 			numRead = colptr[ip*numColFirst + numColLocalVec[ip]] - 
@@ -250,7 +219,7 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 				<< "size of values = " << tmp << std::endl;
 			throw std::logic_error( msg.str().c_str() );
 		}
-		vector<Real> buf;
+		SYMPACK::vector<Real> buf;
 		Int numRead;
 		for( Int ip = 0; ip < mpisize; ip++ ){
 			numRead = colptr[ip*numColFirst + numColLocalVec[ip]] - 
@@ -330,7 +299,7 @@ void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& p
   // Compute the number of columns on each processor
   Int numColLocal = pspmat.Local_.colptr.size()-1;
   Int numColFirst = pspmat.size / mpisize;
-  vector<Int>  colptrChunk(numColLocal+1);
+  SYMPACK::vector<Int>  colptrChunk(numColLocal+1);
 
   Int prev_nz = 0;
   MPI_Exscan(&pspmat.Local_.nnz, &prev_nz, 1, MPI_INT, MPI_SUM, comm);
@@ -500,7 +469,7 @@ throw std::logic_error( "File cannot be opened!" );
 
 
   // Compute the number of columns on each processor
-  vector<Int> numColLocalVec(mpisize);
+  SYMPACK::vector<Int> numColLocalVec(mpisize);
   Int numColLocal, numColFirst;
   numColFirst = pspmat.size / mpisize;
   SetValue( numColLocalVec, numColFirst );
@@ -657,7 +626,7 @@ throw std::logic_error( "error reading nzval" );
 //  MPI_Type_free(&type);
 //
 //  // Compute the number of columns on each processor
-//  vector<Int> numColLocalVec(mpisize);
+//  SYMPACK::vector<Int> numColLocalVec(mpisize);
 //  Int numColLocal, numColFirst;
 //  numColFirst = pspmat.size / mpisize;
 //  SetValue( numColLocalVec, numColFirst );
@@ -825,7 +794,7 @@ throw std::logic_error( "File cannot be opened!" );
   pspmat.Global_.nnz = pspmat.nnz;
  
   // Compute the number of columns on each processor
-  vector<Int> numColLocalVec(mpisize);
+  SYMPACK::vector<Int> numColLocalVec(mpisize);
   Int numColLocal, numColFirst;
   numColFirst = pspmat.size / mpisize;
   SetValue( numColLocalVec, numColFirst );
@@ -982,7 +951,7 @@ throw std::logic_error( "error reading nzval" );
 //  MPI_Type_free(&type);
 //
 //  // Compute the number of columns on each processor
-//  vector<Int> numColLocalVec(mpisize);
+//  SYMPACK::vector<Int> numColLocalVec(mpisize);
 //  Int numColLocal, numColFirst;
 //  numColFirst = pspmat.size / mpisize;
 //  SetValue( numColLocalVec, numColFirst );
@@ -1107,7 +1076,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 
 	// Read colptr
 
-	vector<Int>  colptr(pspmat.size+1);
+	SYMPACK::vector<Int>  colptr(pspmat.size+1);
 	if( mpirank == 0 ){
 		Int* ptr = &colptr[0];
 		for( Int i = 0; i < pspmat.size+1; i++ )
@@ -1117,7 +1086,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 	MPI_Bcast(&colptr[0], pspmat.size+1, MPI_INT, 0, comm);
 
 	// Compute the number of columns on each processor
-	vector<Int> numColLocalVec(mpisize);
+	SYMPACK::vector<Int> numColLocalVec(mpisize);
 	Int numColLocal, numColFirst;
 	numColFirst = pspmat.size / mpisize;
   SetValue( numColLocalVec, numColFirst );
@@ -1138,7 +1107,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 	// Read and distribute the row indices
 	if( mpirank == 0 ){
 		Int tmp;
-		vector<Idx> buf;
+		SYMPACK::vector<Idx> buf;
 		Ptr numRead;
 		for( Int ip = 0; ip < mpisize; ip++ ){
 			numRead = colptr[ip*numColFirst + numColLocalVec[ip]] - 
@@ -1179,7 +1148,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 	// Read and distribute the nonzero values
 	if( mpirank == 0 ){
 		Int tmp;
-		vector<Real> buf;
+		SYMPACK::vector<Real> buf;
 		Int numRead;
 		for( Int ip = 0; ip < mpisize; ip++ ){
 			numRead = colptr[ip*numColFirst + numColLocalVec[ip]] - 
@@ -1264,7 +1233,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 //			std::ostringstream msg;
 //			msg << "Serious problem. Did not find the row corresponding to the column." << std::endl
 //				<< "This happens when j = " << j << ", jcol = " << jcol << ", and the row indices are " << std::endl
-//				<< vector<Int>( numRow, false, const_cast<Int*>(rowPtr) ) << std::endl;
+//				<< SYMPACK::vector<Int>( numRow, false, const_cast<Int*>(rowPtr) ) << std::endl;
 //			throw std::logic_error( msg.str().c_str() );
 //		}
 //		Int diagIdx = ptr - A.Local_.rowind.Data();
@@ -1280,64 +1249,8 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 //	return ;
 //}		// -----  end of function GetDiagonal  ----- 
 
-// *********************************************************************
-// Other numerical routines
-// *********************************************************************
 
-// Interpolation
-/// @brief Linear interpolates from (x,y) to (xx,yy)
-///
-/// Note: 
-///
-/// x and xx must be sorted in ascending order.
-///
-/// if xx[i] < x[0],     yy[i] = y[0]
-///    xx[i] > x[end-1], yy[i] = y[end-1]
-void
-LinearInterpolation ( 
-		const std::vector<Real>& x, 
-		const std::vector<Real>& y,
-		const std::vector<Real>& xx,
-		std::vector<Real>& yy )
-{
-	Int numX  = x.size();
-	Int numXX = xx.size();
-
-  for( Int i = 1; i < numX; i++ ){
-		if( x[i] <= x[i-1] ) 
-			throw std::runtime_error("x must be sorted strictly ascendingly.");
-	}
-
-	for( Int i = 1; i < numXX; i++){
-		if( xx[i] < xx[i-1] )
-			throw std::runtime_error("xx must be sorted ascendingly.");
-	}
-
-
-	yy.resize( numXX );
-	std::vector<Real>::const_iterator vi;
-	Int ix;
-	for( Int i = 0; i < numXX; i++ ){
-		if( xx[i] <= x[0] ){
-			yy[i] = y[0];
-		}
-		else if( xx[i] >= x[numX-1] ){
-			yy[i] = y[numX-1];
-		}
-		else{
-			vi = std::lower_bound( x.begin(), x.end(), xx[i] );
-			ix = vi - x.begin();
-
-			yy[i] = y[ix-1] + (y[ix] - y[ix-1]) / (x[ix] - x[ix-1]) 
-				* (xx[i] - x[ix-1]);
-		}
-	} // for (i)
-
-	return ;
-}		// -----  end of function LinearInterpolation  ----- 
-
-
-void SetValue( vector<char>& vec, bool val ){
+void SetValue( SYMPACK::vector<char>& vec, bool val ){
   fill(vec.begin(),vec.end(),val);
 }
 

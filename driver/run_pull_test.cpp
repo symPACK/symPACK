@@ -52,7 +52,7 @@ int main(int argc, char **argv)
   logfileptr->OFS()<<"**********************************"<<endl;
 
 //  //Do a test for the upcxx pull thing
-//  std::vector<Icomm *> myComms(np,NULL);
+//  SYMPACK::vector<Icomm *> myComms(np,NULL);
 //  for(int p = 0; p<np; ++p){
 //    int dest = (p+iam)%np;
 //    if(dest!=iam){
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
     nummsg = atoi(argv[2]);
   }
 
-  std::vector<upcxx::global_ptr<int>> myComms(nummsg*np,upcxx::global_ptr<int>(NULL));
+  SYMPACK::vector<upcxx::global_ptr<int>> myComms(nummsg*np,upcxx::global_ptr<int>(NULL));
   for(int p = 0; p<np; ++p){
     int dest = (p+iam)%np;
     for(int msg = 0; msg<nummsg; ++msg){

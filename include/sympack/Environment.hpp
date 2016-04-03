@@ -36,10 +36,23 @@
 
 #include <upcxx.h>
 
+#include "sympack/datatypes.hpp"
+
+#ifndef _USE_NUMVEC_
+namespace SYMPACK{
+template <typename T> using vector = std::vector<T>;
+}
+#else
+#include "NumVec.hpp"
+namespace SYMPACK{
+  template <typename T> using vector = SYMPACK::NumVec<T,size_t>;
+}
+#endif
+
+
 
 // Always use complex data.
 #define _USE_COMPLEX_
-#include "sympack/datatypes.hpp"
 #include "sympack/Types.hpp"
 
 

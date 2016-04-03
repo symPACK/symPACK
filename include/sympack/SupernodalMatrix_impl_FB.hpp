@@ -1,7 +1,7 @@
 #ifndef _SUPERNODAL_MATRIX_IMPL_FB_HPP_
 #define _SUPERNODAL_MATRIX_IMPL_FB_HPP_
 
-template<typename T> Int SupernodalMatrix<T>::FBTaskAsyncRecv(Int iLocalI, SnodeUpdateFB & curTask, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, vector<Int> & AggregatesToRecv, vector<Int> & FactorsToRecv){
+template<typename T> Int SupernodalMatrix<T>::FBTaskAsyncRecv(Int iLocalI, SnodeUpdateFB & curTask, SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr, SYMPACK::vector<Int> & AggregatesToRecv, SYMPACK::vector<Int> & FactorsToRecv){
     Int IrecvCnt = 0; 
     if(curTask.type == FACTOR){
 
@@ -93,12 +93,12 @@ template<typename T> Int SupernodalMatrix<T>::FBTaskAsyncRecv(Int iLocalI, Snode
     return IrecvCnt;
 }
 
-template<typename T> void SupernodalMatrix<T>::FBAsyncRecv(Int iLocalI, std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr, vector<Int> & AggregatesToRecv, vector<Int> & FactorsToRecv){
+template<typename T> void SupernodalMatrix<T>::FBAsyncRecv(Int iLocalI, SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr, SYMPACK::vector<Int> & AggregatesToRecv, SYMPACK::vector<Int> & FactorsToRecv){
 
       TIMER_START(ASYNC_RECV);
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
-  std::vector<SnodeUpdateFB> tmpTasks;
+  SYMPACK::vector<SnodeUpdateFB> tmpTasks;
   Int nextLocalI = iLocalI;
 
   Int iterCount = 0;
@@ -264,7 +264,7 @@ logfileptr->OFS()<<"maxIrecv_: "<<maxIrecv_<<endl;
 
 
 
-template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, vector<Int> & AggregatesDone,  vector<Int> & FactorsToRecv, vector<Int> & AggregatesToRecv, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr)
+template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, SYMPACK::vector<Int> & AggregatesDone,  SYMPACK::vector<Int> & FactorsToRecv, SYMPACK::vector<Int> & AggregatesToRecv, SYMPACK::vector<char> & src_blocks,SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr)
 {
   scope_timer(a,FB_FACTORIZATION_TASK);
 
@@ -397,7 +397,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
 
   }
   //clear the buffer
-  //{ vector<char>().swap(src_blocks);  }
+  //{ SYMPACK::vector<char>().swap(src_blocks);  }
 
   TIMER_STOP(RECV_AGGREGATES);
 
@@ -424,8 +424,8 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
 
   if(np>1){
     //Send my factor to my ancestors. 
-    vector<char> is_factor_sent(np,false);
-    vector<char> is_skipped(np,false);
+    SYMPACK::vector<char> is_factor_sent(np,false);
+    SYMPACK::vector<char> is_skipped(np,false);
 
     SnodeUpdate curUpdate;
     TIMER_START(FIND_UPDATED_ANCESTORS);
@@ -470,7 +470,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
 }
 
 
-template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & curTask, vector<Int> & UpdatesToDo, vector<Int> & AggregatesDone,std::vector< SuperNode<T> * > & aggVectors, std::vector<char> & src_blocks,std::vector<AsyncComms> & incomingRecvAggArr, std::vector<AsyncComms * > & incomingRecvFactArr,  vector<Int> & FactorsToRecv, vector<Int> & AggregatesToRecv)
+template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesDone,SYMPACK::vector< SuperNode<T> * > & aggVectors, SYMPACK::vector<char> & src_blocks,SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr,  SYMPACK::vector<Int> & FactorsToRecv, SYMPACK::vector<Int> & AggregatesToRecv)
 {
   scope_timer(a,FB_UPDATE_TASK);
   Int src_snode_id = curTask.src_snode_id;
@@ -542,12 +542,12 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
 
             Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
             if(iTarget == iam){
-              //the aggregate vector is directly the target snode
+              //the aggregate SYMPACK::vector is directly the target snode
               tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
               assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
             }
             else{
-              //Check if src_snode_id already have an aggregate vector
+              //Check if src_snode_id already have an aggregate SYMPACK::vector
               if(AggregatesDone[curUpdate.tgt_snode_id-1]==0){
                 aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,iSize_);
               }
@@ -652,7 +652,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
       }
       delete cur_src_snode;
       //clear the buffer
-      //{ vector<char>().swap(src_blocks);  }
+      //{ SYMPACK::vector<char>().swap(src_blocks);  }
     }
 
   }
@@ -669,11 +669,11 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
 
-  vector<Int> UpdatesToDo;
-  vector<Int> AggregatesToRecv;
+  SYMPACK::vector<Int> UpdatesToDo;
+  SYMPACK::vector<Int> AggregatesToRecv;
 
-  std::vector<AsyncComms> incomingRecvAggArr(LocalSupernodes_.size());
-  std::vector<AsyncComms * > incomingRecvFactArr(Xsuper_.size(),NULL);
+  SYMPACK::vector<AsyncComms> incomingRecvAggArr(LocalSupernodes_.size());
+  SYMPACK::vector<AsyncComms * > incomingRecvFactArr(Xsuper_.size(),NULL);
   incomingRecvCnt_ = 0;
  
    
@@ -683,16 +683,16 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
 
 
 
-  vector<Int> AggregatesDone(Xsuper_.size());
+  SYMPACK::vector<Int> AggregatesDone(Xsuper_.size());
   SetValue(AggregatesDone,0);
 
 
   //Array for Irecv of factors
-  std::vector<AsyncComms> incomingRecvArr(LocalSupernodes_.size());
+  SYMPACK::vector<AsyncComms> incomingRecvArr(LocalSupernodes_.size());
   incomingRecvCnt_ = 0;
 
-  std::vector<T> src_nzval;
-  std::vector<char> src_blocks;
+  SYMPACK::vector<T> src_nzval;
+  SYMPACK::vector<char> src_blocks;
 
 
   Int maxwidth = 0;
@@ -703,14 +703,14 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
     }
   }
   tmpBufs.Resize(Size(),maxwidth);
-  std::vector< SuperNode<T> * > aggVectors(Xsuper_.size()-1,NULL);
+  SYMPACK::vector< SuperNode<T> * > aggVectors(Xsuper_.size()-1,NULL);
 
 
   timeSta =  get_time( );
 
   TIMER_START(BUILD_TASK_LIST);
-  //vector<Int> FactorsToRecv = UpdatesToDo;
-  vector<Int> FactorsToRecv(Xsuper_.size());
+  //SYMPACK::vector<Int> FactorsToRecv = UpdatesToDo;
+  SYMPACK::vector<Int> FactorsToRecv(Xsuper_.size());
   SetValue(FactorsToRecv,I_ZERO);
   for(Int I = 1; I<Xsuper_.size(); ++I){
 
@@ -865,7 +865,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
 }
 
 
-template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(vector<Int> & sc, vector<Int> & atr){
+template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(SYMPACK::vector<Int> & sc, SYMPACK::vector<Int> & atr){
   scope_timer(a,FB_GET_UPDATE_COUNT);
   sc.resize(Xsuper_.size());
   SetValue(sc,I_ZERO);
@@ -874,10 +874,10 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(vector<Int> & s
   SetValue(atr,I_ZERO);
 
 
-  vector<Int> marker(Xsuper_.size());
+  SYMPACK::vector<Int> marker(Xsuper_.size());
   SetValue(marker,I_ZERO);
 
-  std::vector<bool>isSent(Xsuper_.size()*np,false);
+  SYMPACK::vector<bool>isSent(Xsuper_.size()*np,false);
 
   for(Int s = 1; s<Xsuper_.size(); ++s){
     Int first_col = Xsuper_[s-1];
@@ -939,7 +939,7 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(vector<Int> & s
 }
 
 
-template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const SnodeUpdateFB & curTask, std::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, vector<Int> & FactorsToRecv)
+template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const SnodeUpdateFB & curTask, SYMPACK::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, SYMPACK::vector<Int> & FactorsToRecv)
 {
   scope_timer(a,RECV_FACTORS);
   //TIMER_START(RECV_FACTORS);

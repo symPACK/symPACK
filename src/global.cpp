@@ -11,7 +11,7 @@ namespace SYMPACK{
 // *********************************************************************
   std::ofstream  statusOFS;
 
-  std::vector<std::ofstream>  statusOFSs;
+  SYMPACK::vector<std::ofstream>  statusOFSs;
 
 // *********************************************************************
 // Error handling

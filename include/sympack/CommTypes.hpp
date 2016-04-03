@@ -278,20 +278,20 @@ namespace SYMPACK{
     }
 #endif
 
-    std::vector<char> * pSrcBlocks;
+    SYMPACK::vector<char> * pSrcBlocks;
     size_t head;
     MPI_Request Request;
     Icomm(){
       Request = MPI_REQUEST_NULL;
       TIMER_START(ICOMM_MALLOC);
-      pSrcBlocks = new std::vector<char>();
+      pSrcBlocks = new SYMPACK::vector<char>();
       TIMER_STOP(ICOMM_MALLOC);
       head = 0;
     };
 
     Icomm(size_t aSize, MPI_Request aRequest):Request(aRequest){
       TIMER_START(ICOMM_MALLOC);
-      pSrcBlocks = new std::vector<char>(aSize);
+      pSrcBlocks = new SYMPACK::vector<char>(aSize);
       TIMER_STOP(ICOMM_MALLOC);
       head = 0;
     };
@@ -299,7 +299,7 @@ namespace SYMPACK{
     Icomm(size_t aSize){
       Request = MPI_REQUEST_NULL;
       TIMER_START(ICOMM_MALLOC);
-      pSrcBlocks = new std::vector<char>(aSize);
+      pSrcBlocks = new SYMPACK::vector<char>(aSize);
       TIMER_STOP(ICOMM_MALLOC);
       head = 0;
     };

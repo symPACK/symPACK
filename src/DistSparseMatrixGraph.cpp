@@ -130,7 +130,7 @@ namespace SYMPACK{
     Int firstCol = (mpirank)*colPerProc;
 
 
-    vector<int> sizes(mpisize,0);
+    SYMPACK::vector<int> sizes(mpisize,0);
 
     for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
       Idx col = firstCol + locCol; 
@@ -151,9 +151,9 @@ namespace SYMPACK{
 
 
     //First allgatherv to get the receive sizes
-    vector<int> displs(mpisize,sizeof(int));
-    vector<int> rsizes(mpisize,0);
-    vector<int> rdispls(mpisize,0);
+    SYMPACK::vector<int> displs(mpisize,sizeof(int));
+    SYMPACK::vector<int> rsizes(mpisize,0);
+    SYMPACK::vector<int> rdispls(mpisize,0);
     rdispls[0] = 0;
     std::partial_sum(&displs.front(),&displs.back(),&rdispls[1]);
     MPI_Alltoallv(&sizes[0],&displs[0],&rdispls[0],MPI_BYTE,&rsizes[0],&displs[0],&rdispls[0],MPI_BYTE,comm);
@@ -161,7 +161,7 @@ namespace SYMPACK{
 
 
     Int totSend = std::accumulate(sizes.begin(),sizes.end(),0);
-    vector<char> sbuf(totSend);
+    SYMPACK::vector<char> sbuf(totSend);
     displs[0] = 0;
     std::partial_sum(&sizes.front(),&sizes.back(),&displs[1]);
 
@@ -205,7 +205,7 @@ namespace SYMPACK{
     Ptr totRecv = std::accumulate(rsizes.begin(),rsizes.end(),0);
     rdispls[0] = 0;
     std::partial_sum(&rsizes.front(),&rsizes.back(),&rdispls[1]);
-    vector<char> rbuf(totRecv);
+    SYMPACK::vector<char> rbuf(totRecv);
 
     MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],MPI_BYTE,&rbuf[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
 
@@ -233,7 +233,7 @@ namespace SYMPACK{
     //now fill rowind
     nnz = colptr.back()-baseval;
     rowind.resize(nnz);
-    vector<Ptr> colpos = colptr;
+    SYMPACK::vector<Ptr> colpos = colptr;
     rpos = 0;
     while(rpos<totRecv){
       Idx * permCol = (Idx*)&rbuf[rpos];
@@ -294,8 +294,8 @@ namespace SYMPACK{
         Idx N = size; 
 
         //make copies first
-        vector<Ptr> prevColptr;
-        vector<Idx> prevRowind;
+        SYMPACK::vector<Ptr> prevColptr;
+        SYMPACK::vector<Idx> prevRowind;
         prevColptr.swap(colptr);
         prevRowind.swap(rowind);
 
@@ -315,11 +315,11 @@ namespace SYMPACK{
           {
             Int firstLocCol = (mpirank)*colPerProc; //0 based
             Int maxLocN = max(locColCnt,N-(mpisize-1)*colPerProc); // can be 0
-            vector<Ptr> remote_colptr(maxLocN+1);
-            vector<Idx> remote_rowind;
-            vector<Ptr> remote_rowindPos(maxLocN+1);
-            vector<Ptr> curPos(locColCnt);
-            vector<Ptr> prevPos(locColCnt);
+            SYMPACK::vector<Ptr> remote_colptr(maxLocN+1);
+            SYMPACK::vector<Idx> remote_rowind;
+            SYMPACK::vector<Ptr> remote_rowindPos(maxLocN+1);
+            SYMPACK::vector<Ptr> curPos(locColCnt);
+            SYMPACK::vector<Ptr> prevPos(locColCnt);
 
             std::copy(pcolptr,pcolptr+locColCnt,curPos.begin());
             for(Int prow = 0; prow<mpisize; prow++){
@@ -373,7 +373,7 @@ namespace SYMPACK{
                   MPI_Reduce(&remote_colptr[0],&colptr[0],remColCnt+1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,splitcomm);
 #else
                   {
-                    vector<Ptr> recv(remColCnt+1);
+                    SYMPACK::vector<Ptr> recv(remColCnt+1);
                     //first copy remote_colptr in expColptr
                     int len = remColCnt+1;
                     PtrSum(&remote_colptr[0],&colptr[0],&len,NULL);
@@ -561,7 +561,7 @@ namespace SYMPACK{
   }
 
 
-//  void DistSparseMatrixGraph::GetLColRowCount(ETree & tree, Ordering & aOrder, vector<Int> & cc, vector<Int> & rc){
+//  void DistSparseMatrixGraph::GetLColRowCount(ETree & tree, Ordering & aOrder, SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & rc){
 //    //The tree need to be postordered
 //    if(!tree.IsPostOrdered()){
 //      tree.PostOrderTree(aOrder);
@@ -573,13 +573,13 @@ namespace SYMPACK{
 //    cc.resize(size);
 //    rc.resize(size);
 //
-//    vector<Idx> level(size+1);
-//    vector<Int> weight(size+1);
-//    vector<Idx> fdesc(size+1);
-//    vector<Idx> nchild(size+1);
-//    vector<Idx> set(size);
-//    vector<Idx> prvlf(size);
-//    vector<Idx> prvnbr(size);
+//    SYMPACK::vector<Idx> level(size+1);
+//    SYMPACK::vector<Int> weight(size+1);
+//    SYMPACK::vector<Idx> fdesc(size+1);
+//    SYMPACK::vector<Idx> nchild(size+1);
+//    SYMPACK::vector<Idx> set(size);
+//    SYMPACK::vector<Idx> prvlf(size);
+//    SYMPACK::vector<Idx> prvnbr(size);
 //
 //
 //    Idx xsup = 1;
@@ -713,7 +713,7 @@ namespace SYMPACK{
 //
 //
 //
-//  void SparseMatrixStructure::FindSupernodes(ETree& tree, Ordering & aOrder, vector<Int> & cc,vector<Int> & supMembership, vector<Int> & xsuper, Int maxSize ){
+//  void SparseMatrixStructure::FindSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize ){
 //    TIMER_START(FindSupernodes);
 //
 //    if(!bIsGlobal){
@@ -760,8 +760,8 @@ namespace SYMPACK{
 //  //EXPERIMENTAL STUFF
 //  typedef std::set<Int> nodeset;
 //  typedef std::list<nodeset*> partitions;
-//  typedef std::vector<nodeset*> vecset;
-//  void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, vector<Int> & supMembership, vector<Int> & xsuper, PtrVec & xlindx, IdxVec & lindx, vector<Int> & perm){
+//  typedef SYMPACK::vector<nodeset*> vecset;
+//  void SparseMatrixStructure::RefineSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, PtrVec & xlindx, IdxVec & lindx, SYMPACK::vector<Int> & perm){
 //
 //    perm.resize(size);
 //
@@ -773,7 +773,7 @@ namespace SYMPACK{
 //
 //    partitions L;
 //
-//    vector<Int> origPerm(size);
+//    SYMPACK::vector<Int> origPerm(size);
 //
 //    //init L with curent supernodal partition
 //    Int pos = 1;
@@ -889,7 +889,7 @@ namespace SYMPACK{
 //    logfileptr->OFS()<<"Orig col order "<<origPerm<<std::endl;
 //    logfileptr->OFS()<<"Refined col order "<<perm<<std::endl;
 //
-//    //  vector<Int> lindxTemp = lindx;
+//    //  SYMPACK::vector<Int> lindxTemp = lindx;
 //    //  //change lindx to reflect the new ordering
 //    //  for(Int i = 1; i<=nsuper; ++i){
 //    //    Int fi = xlindx(i-1);
@@ -917,15 +917,15 @@ namespace SYMPACK{
 //#endif
 //
 //
-//  void SparseMatrixStructure::RelaxSupernodes(ETree& tree, vector<Int> & cc,vector<Int> & supMembership, vector<Int> & xsuper, RelaxationParameters & params ){
+//  void SparseMatrixStructure::RelaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, RelaxationParameters & params ){
 //
 //    Int nsuper = xsuper.size()-1;
 //
 //    DisjointSet sets;
 //    sets.Initialize(nsuper);
-//    vector<Int> ncols(nsuper);
-//    vector<Int> zeros(nsuper);
-//    vector<Int> newCC(nsuper);
+//    SYMPACK::vector<Int> ncols(nsuper);
+//    SYMPACK::vector<Int> zeros(nsuper);
+//    SYMPACK::vector<Int> newCC(nsuper);
 //    for(Int ksup=nsuper;ksup>=1;--ksup){
 //      Int cset = sets.makeSet(ksup);
 //      sets.Root(cset-1)=ksup;
@@ -1008,7 +1008,7 @@ namespace SYMPACK{
 //      }
 //    }
 //
-//    vector<Int> relXSuper(nsuper+1);
+//    SYMPACK::vector<Int> relXSuper(nsuper+1);
 //    Int nrSuper = 0;
 //    for(Int ksup=1;ksup<=nsuper;++ksup){
 //      Int kset = sets.find(ksup);
@@ -1040,7 +1040,7 @@ namespace SYMPACK{
 //
 //  }
 //
-//  void SparseMatrixStructure::SymbolicFactorizationRelaxed(ETree& tree,Ordering & aOrder, const vector<Int> & cc,const vector<Int> & xsuper,const vector<Int> & SupMembership, PtrVec & xlindx, IdxVec & lindx){
+//  void SparseMatrixStructure::SymbolicFactorizationRelaxed(ETree& tree,Ordering & aOrder, const SYMPACK::vector<Int> & cc,const SYMPACK::vector<Int> & xsuper,const SYMPACK::vector<Int> & SupMembership, PtrVec & xlindx, IdxVec & lindx){
 //    TIMER_START(SymbolicFactorization);
 //
 //
@@ -1064,15 +1064,15 @@ namespace SYMPACK{
 //
 //    //Array of length nsuper containing the children of 
 //    //each supernode as a linked list
-//    vector<Idx> mrglnk(nsuper,0);
+//    SYMPACK::vector<Idx> mrglnk(nsuper,0);
 //
 //    //Array of length n+1 containing the current linked list 
 //    //of merged indices (the "reach" set)
-//    vector<Idx> rchlnk(size+1);
+//    SYMPACK::vector<Idx> rchlnk(size+1);
 //
 //    //Array of length n used to mark indices as they are introduced
 //    // into each supernode's index set
-//    vector<Int> marker(size,0);
+//    SYMPACK::vector<Int> marker(size,0);
 //
 //
 //
@@ -1242,7 +1242,7 @@ namespace SYMPACK{
 //    TIMER_STOP(SymbolicFactorization);
 //  }
 //
-//  void SparseMatrixStructure::SymbolicFactorization(ETree& tree, Ordering & aOrder, const vector<Int> & cc,const vector<Int> & xsuper,const vector<Int> & SupMembership, PtrVec & xlindx, IdxVec & lindx){
+//  void SparseMatrixStructure::SymbolicFactorization(ETree& tree, Ordering & aOrder, const SYMPACK::vector<Int> & cc,const SYMPACK::vector<Int> & xsuper,const SYMPACK::vector<Int> & SupMembership, PtrVec & xlindx, IdxVec & lindx){
 //    TIMER_START(SymbolicFactorization);
 //
 //
@@ -1263,15 +1263,15 @@ namespace SYMPACK{
 //
 //    //Array of length nsuper containing the children of 
 //    //each supernode as a linked list
-//    vector<Idx> mrglnk(nsuper,0);
+//    SYMPACK::vector<Idx> mrglnk(nsuper,0);
 //
 //    //Array of length n+1 containing the current linked list 
 //    //of merged indices (the "reach" set)
-//    vector<Idx> rchlnk(size+1);
+//    SYMPACK::vector<Idx> rchlnk(size+1);
 //
 //    //Array of length n used to mark indices as they are introduced
 //    // into each supernode's index set
-//    vector<Int> marker(size,0);
+//    SYMPACK::vector<Int> marker(size,0);
 //
 //
 //

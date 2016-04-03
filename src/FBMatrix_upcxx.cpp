@@ -60,7 +60,7 @@ namespace SYMPACK{
 
   
   FBMatrix_upcxx::FBMatrix_upcxx():prefetch(0),outstdAggreg(0),outstdUpdate(0),FBMatrix(){
-    pRemoteObjPtrs = new std::vector< upcxx::global_ptr<FBMatrix_upcxx> >();
+    pRemoteObjPtrs = new SYMPACK::vector< upcxx::global_ptr<FBMatrix_upcxx> >();
   }
 
 
@@ -119,7 +119,7 @@ namespace SYMPACK{
 
     // TODO this has to be revised
 
-    //Allocate the lock vector
+    //Allocate the lock SYMPACK::vector
     AggLock.Resize(numStep);
     for(int js=0; js<numStep;js++){
       int j = min(js*blksize,n-1);
@@ -389,7 +389,7 @@ void FBMatrix_upcxx::NumericalFactorizationLoop(){
             logfileptr->OFS()<<"Updating from "<<j<<", sending aggregate to P"<<target<<" for column "<<i<<endl;
 #endif
 
-            //push the pointer to the aggregate vector on P(i,i)
+            //push the pointer to the aggregate SYMPACK::vector on P(i,i)
             dgptr src = (((DblNumMat_upcxx *)WLower[i/blksize])->GData());
 
 #ifdef _DEBUG_

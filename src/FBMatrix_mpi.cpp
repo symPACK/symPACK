@@ -97,7 +97,7 @@ namespace SYMPACK{
 
     // TODO this has to be revised
 
-    //Allocate the lock vector
+    //Allocate the lock SYMPACK::vector
     AggLock.Resize(numStep);
     for(int js=0; js<numStep;js++){
       int j = min(js*blksize,n-1);
@@ -271,8 +271,8 @@ logfileptr->OFS()<<"Sending column"<<j<<" to P0"<<endl;
   void FBMatrix_mpi::NumericalFactorization(){
       Int numStep = ceil((double)n/(double)blksize);
 
-      std::vector<MPI_Request> Factor_Send_Requests(np,MPI_REQUEST_NULL);
-      std::vector<MPI_Request> Aggregate_Send_Requests(np,MPI_REQUEST_NULL);
+      SYMPACK::vector<MPI_Request> Factor_Send_Requests(np,MPI_REQUEST_NULL);
+      SYMPACK::vector<MPI_Request> Aggregate_Send_Requests(np,MPI_REQUEST_NULL);
 
       DblNumMat RemoteAggregate(n,blksize);
       DblNumMat RemoteFactorBuf(n,blksize);

@@ -13,15 +13,15 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
   incomingRecvCnt_ = 0;
 
 
-  std::vector<Int> UpdatesToDo;
-  std::vector<Int> AggregatesToRecv;
-  std::vector<Int> LocalAggregates;
+  SYMPACK::vector<Int> UpdatesToDo;
+  SYMPACK::vector<Int> AggregatesToRecv;
+  SYMPACK::vector<Int> LocalAggregates;
   FBGetUpdateCount(UpdatesToDo,AggregatesToRecv,LocalAggregates);
-  std::vector<Int> AggregatesDone(Xsuper_.size(),I_ZERO);
+  SYMPACK::vector<Int> AggregatesDone(Xsuper_.size(),I_ZERO);
 
   //tmp buffer space
-  std::vector<T> src_nzval;
-  std::vector<char> src_blocks;
+  SYMPACK::vector<T> src_nzval;
+  SYMPACK::vector<char> src_blocks;
 
 
   Int maxwidth = 0;
@@ -32,7 +32,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
     }
   }
   tmpBufs.Resize(Size(),maxwidth);
-  std::vector< SuperNode2<T> * > aggVectors(Xsuper_.size()-1,NULL);
+  SYMPACK::vector< SuperNode2<T> * > aggVectors(Xsuper_.size()-1,NULL);
 
 
 
@@ -43,11 +43,12 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
 
 
   //build level structure
-  std::vector<Int> levels(Xsuper_.size());
+  SYMPACK::vector<Int> levels(Xsuper_.size());
   levels[Xsuper_.size()-1]=-1;
   Int numLevel = 0; 
   for(Int i=Xsuper_.size()-1-1; i>=0; i-- ){ 
-    levels[i] = levels[ETree_.PostParent(i)-1]+1;
+    Int supno = SupMembership_[ETree_.PostParent(Xsuper_[i])-1];
+    levels[i] = levels[supno-1]+1;
   }
 
 
@@ -174,7 +175,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
 
     logfileptr->OFS()<<"Ready Tasks: "<<endl;
     auto tmp = ((DLScheduler<std::list<FBTask>::iterator>*)scheduler_)->GetQueue();
-    //std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
+    //std::priority_queue<std::list<FBTask>::iterator, SYMPACK::vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
     while(!tmp.empty()){
       auto taskit = tmp.top();
       logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
@@ -209,7 +210,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
   //
   //  logfileptr->OFS()<<"Ready Tasks: "<<endl;
   //  auto tmp = scheduler_->GetQueue();
-  //  //std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
+  //  //std::priority_queue<std::list<FBTask>::iterator, SYMPACK::vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
   //  while(!tmp.empty()){
   //    auto taskit = tmp.top();
   //    logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
@@ -240,7 +241,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static() {
   ////  assert(localTaskCount_ == cnt);
   ////
   ////  logfileptr->OFS()<<"Ready Tasks: "<<endl;
-  ////  std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
+  ////  std::priority_queue<std::list<FBTask>::iterator, SYMPACK::vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
   ////  while(!tmp.empty()){
   ////    auto taskit = tmp.top();
   ////    logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
@@ -380,15 +381,15 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   incomingRecvCnt_ = 0;
 
 
-  std::vector<Int> UpdatesToDo;
-  std::vector<Int> AggregatesToRecv;
-  std::vector<Int> LocalAggregates;
+  SYMPACK::vector<Int> UpdatesToDo;
+  SYMPACK::vector<Int> AggregatesToRecv;
+  SYMPACK::vector<Int> LocalAggregates;
   FBGetUpdateCount(UpdatesToDo,AggregatesToRecv,LocalAggregates);
-  std::vector<Int> AggregatesDone(Xsuper_.size(),I_ZERO);
+  SYMPACK::vector<Int> AggregatesDone(Xsuper_.size(),I_ZERO);
 
   //tmp buffer space
-  std::vector<T> src_nzval;
-  std::vector<char> src_blocks;
+  SYMPACK::vector<T> src_nzval;
+  SYMPACK::vector<char> src_blocks;
 
 
   Int maxwidth = 0;
@@ -399,7 +400,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
     }
   }
   tmpBufs.Resize(Size(),maxwidth);
-  std::vector< SuperNode2<T> * > aggVectors(Xsuper_.size()-1,NULL);
+  SYMPACK::vector< SuperNode2<T> * > aggVectors(Xsuper_.size()-1,NULL);
 
 
 
@@ -411,7 +412,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
 
   //build level structure
   //logfileptr->OFS()<<"ETREE: "<<ETree_<<endl;
-  std::vector<Int> levels;
+  SYMPACK::vector<Int> levels;
   try{
     levels.resize(Xsuper_.size());
   }
@@ -424,7 +425,8 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   for(Int i=Xsuper_.size()-1-1; i>=0; i-- ){     
     //logfileptr->OFS()<<"levels["<<i<<"] = levels["<<ETree_.PostParent(i)-1<<"] +1"<<endl;
     //assert(ETree_.PostParent(i)-1 >= 0);    
-    levels[i] = levels[ETree_.PostParent(i)-1]+1;
+    Int supno = SupMembership_[ETree_.PostParent(Xsuper_[i])-1];
+    levels[i] = levels[supno-1]+1;
   }
 
   localTaskCount_ =0;
@@ -525,7 +527,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   }
 
   {
-    std::vector<Int> dummy;
+    SYMPACK::vector<Int> dummy;
     levels.swap(dummy);
   }
 
@@ -556,7 +558,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   //
   //  logfileptr->OFS()<<"Ready Tasks: "<<endl;
   //  auto tmp = scheduler_->GetQueue();
-  //  //std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
+  //  //std::priority_queue<std::list<FBTask>::iterator, SYMPACK::vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
   //  while(!tmp.empty()){
   //    auto taskit = tmp.top();
   //    logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
@@ -587,7 +589,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth() {
   ////  assert(localTaskCount_ == cnt);
   ////
   ////  logfileptr->OFS()<<"Ready Tasks: "<<endl;
-  ////  std::priority_queue<std::list<FBTask>::iterator, vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
+  ////  std::priority_queue<std::list<FBTask>::iterator, SYMPACK::vector<std::list<FBTask>::iterator>, FBTaskCompare > tmp = scheduler_->GetQueue();
   ////  while(!tmp.empty()){
   ////    auto taskit = tmp.top();
   ////    logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
@@ -704,15 +706,15 @@ defaut:
 }
 
 
-template <typename T> void SupernodalMatrix2<T>::FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv,std::vector<Int> & LocalAggregates){
+template <typename T> void SupernodalMatrix2<T>::FBGetUpdateCount(SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesToRecv,SYMPACK::vector<Int> & LocalAggregates){
   TIMER_START(FB_GET_UPDATE_COUNT);
   UpdatesToDo.resize(Xsuper_.size(),I_ZERO);
   AggregatesToRecv.resize(Xsuper_.size(),I_ZERO);
   LocalAggregates.resize(Xsuper_.size(),I_ZERO);
 
 
-  std::vector<Int> marker(Xsuper_.size(),I_ZERO);
-  std::vector<bool>isSent(Xsuper_.size()*np,false);
+  SYMPACK::vector<Int> marker(Xsuper_.size(),I_ZERO);
+  SYMPACK::vector<bool>isSent(Xsuper_.size()*np,false);
 
   for(Int s = 1; s<Xsuper_.size(); ++s){
     Int first_col = Xsuper_[s-1];
@@ -906,7 +908,7 @@ template <typename T> void SupernodalMatrix2<T>::FBFactorizationTask(FBTask & cu
 
   //Sending factors and update local tasks
   //Send my factor to my ancestors. 
-  vector<char> is_factor_sent(np);
+  SYMPACK::vector<char> is_factor_sent(np);
   SetValue(is_factor_sent,false);
 
   SnodeUpdate curUpdate;
@@ -990,7 +992,7 @@ template <typename T> std::list<FBTask>::iterator SupernodalMatrix2<T>::find_tas
   return taskit;
 }
 
-template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesDone,std::vector< SuperNode2<T> * > & aggVectors,  std::vector<Int> & FactorsToRecv, std::vector<Int> & AggregatesToRecv,Int & localTaskCount, bool is_static)
+template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesDone,SYMPACK::vector< SuperNode2<T> * > & aggVectors,  SYMPACK::vector<Int> & FactorsToRecv, SYMPACK::vector<Int> & AggregatesToRecv,Int & localTaskCount, bool is_static)
 {
   TIMER_START(FB_UPDATE_TASK);
   Int src_snode_id = curTask.src_snode_id;
@@ -1049,12 +1051,12 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(FBTask & curTask, 
 
         Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
         if(iTarget == iam){
-          //the aggregate vector is directly the target snode
+          //the aggregate SYMPACK::vector is directly the target snode
           tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
           assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
         }
         else{
-          //Check if src_snode_id already have an aggregate vector
+          //Check if src_snode_id already have an aggregate SYMPACK::vector
           if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==NULL){
             //use number of rows below factor as initializer
             Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 

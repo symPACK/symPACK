@@ -33,7 +33,7 @@ namespace SYMPACK{
       Int outstdAggreg;
       Int outstdUpdate;
       Int prefetch;
-      std::vector< upcxx::global_ptr<FBMatrix_upcxx> > * pRemoteObjPtrs;
+      SYMPACK::vector< upcxx::global_ptr<FBMatrix_upcxx> > * pRemoteObjPtrs;
 
       FBMatrix_upcxx();
       virtual ~FBMatrix_upcxx();

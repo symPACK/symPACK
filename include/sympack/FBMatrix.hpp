@@ -28,8 +28,8 @@ namespace SYMPACK{
       //Parameters
       Int blksize;
 
-      std::vector<DblNumMat *> AchunkLower;
-      std::vector<DblNumMat *> WLower;
+      SYMPACK::vector<DblNumMat *> AchunkLower;
+      SYMPACK::vector<DblNumMat *> WLower;
   
       //lock should be initialized with the number of contribution a block column is receiving
       IntNumVec AggLock;

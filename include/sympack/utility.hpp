@@ -19,11 +19,11 @@ namespace SYMPACK{
 #define CHOLESKY_COST(m,n)  ((n)*pow((m),2.0) + 2*(n)*(m)-pow((n),3.0)/3.0 - 3.0*pow((n),2.0)/2.0 - (n)/6.0 -1.0)
 
 
-template <typename F> void SetValue( vector<F>& vec, F val ){
+template <typename F> void SetValue( SYMPACK::vector<F>& vec, F val ){
   fill(vec.begin(),vec.end(),val);
 }
 
-void SetValue( vector<char>& vec, bool val );
+void SetValue( SYMPACK::vector<char>& vec, bool val );
 
 
 // *********************************************************************
@@ -366,8 +366,8 @@ template <class F> inline std::ostream& operator<<( std::ostream& os, const std:
 
 
 
-// std::vector
-template <class F> inline std::ostream& operator<<( std::ostream& os, const std::vector<F>& vec)
+// SYMPACK::vector
+template <class F> inline std::ostream& operator<<( std::ostream& os, const SYMPACK::vector<F>& vec)
 {
 	os<<vec.size()<<std::endl;
 	os.setf(std::ios_base::scientific, std::ios_base::floatfield);
@@ -443,29 +443,29 @@ inline std::ostream& operator<<( std::ostream& os, const ETree& tree)
 // *********************************************************************
 
 // standard case for most serialization/deserialization process.
-const std::vector<Int> NO_MASK(1);
+const SYMPACK::vector<Int> NO_MASK(1);
 
 //bool
-inline Int serialize(const bool& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const bool& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   os.write((char*)&val, sizeof(bool));
   return 0;
 }
 
-inline Int deserialize(bool& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(bool& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   is.read((char*)&val, sizeof(bool));
   return 0;
 }
 
 //char
-inline Int serialize(const char& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const char& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   os.write((char*)&val, sizeof(char));
   return 0;
 }
 
-inline Int deserialize(char& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(char& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   is.read((char*)&val, sizeof(char));
   return 0;
@@ -478,13 +478,13 @@ inline Int combine(char& val, char& ext)
 
 //-------------------
 //Int
-inline Int serialize(const Int& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const Int& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   os.write((char*)&val, sizeof(Int));
   return 0;
 }
 
-inline Int deserialize(Int& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(Int& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   is.read((char*)&val, sizeof(Int));
   return 0;
@@ -498,13 +498,13 @@ inline Int combine(Int& val, Int& ext)
 
 //-------------------
 //Real
-inline Int serialize(const Real& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const Real& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   os.write((char*)&val, sizeof(Real));
   return 0;
 }
 
-inline Int deserialize(Real& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(Real& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   is.read((char*)&val, sizeof(Real));
   return 0;
@@ -518,13 +518,13 @@ inline Int combine(Real& val, Real& ext)
 
 //-------------------
 //Complex
-inline Int serialize(const Complex& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const Complex& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   os.write((char*)&val, sizeof(Complex));
   return 0;
 }
 
-inline Int deserialize(Complex& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(Complex& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   is.read((char*)&val, sizeof(Complex));
   return 0;
@@ -537,9 +537,9 @@ inline Int combine(Complex& val, Complex& ext)
 }
 
 //-------------------
-//std::vector
+//SYMPACK::vector
 template<class T>
-Int serialize(const std::vector<T>& val, std::ostream& os, const std::vector<Int>& mask)
+Int serialize(const SYMPACK::vector<T>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int sz = val.size();
   os.write((char*)&sz, sizeof(Int));
@@ -549,7 +549,7 @@ Int serialize(const std::vector<T>& val, std::ostream& os, const std::vector<Int
 }
 
 template<class T>
-Int deserialize(std::vector<T>& val, std::istream& is, const std::vector<Int>& mask)
+Int deserialize(SYMPACK::vector<T>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   Int sz;
   is.read((char*)&sz, sizeof(Int));
@@ -560,7 +560,7 @@ Int deserialize(std::vector<T>& val, std::istream& is, const std::vector<Int>& m
 }
 
 template<class T>
-Int combine(std::vector<T>& val, std::vector<T>& ext)
+Int combine(SYMPACK::vector<T>& val, SYMPACK::vector<T>& ext)
 {
 	throw  std::logic_error( "Combine operation not implemented." );
   return 0;
@@ -569,7 +569,7 @@ Int combine(std::vector<T>& val, std::vector<T>& ext)
 //-------------------
 //std::set
 template<class T>
-Int serialize(const std::set<T>& val, std::ostream& os, const std::vector<Int>& mask)
+Int serialize(const std::set<T>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int sz = val.size();
   os.write((char*)&sz, sizeof(Int));
@@ -579,7 +579,7 @@ Int serialize(const std::set<T>& val, std::ostream& os, const std::vector<Int>& 
 }
 
 template<class T>
-Int deserialize(std::set<T>& val, std::istream& is, const std::vector<Int>& mask)
+Int deserialize(std::set<T>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   val.clear();
   Int sz;
@@ -601,7 +601,7 @@ Int combine(std::set<T>& val, std::set<T>& ext)
 //-------------------
 //std::map
 template<class T, class S>
-Int serialize(const std::map<T,S>& val, std::ostream& os, const std::vector<Int>& mask)
+Int serialize(const std::map<T,S>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int sz = val.size();
   os.write((char*)&sz, sizeof(Int));
@@ -613,7 +613,7 @@ Int serialize(const std::map<T,S>& val, std::ostream& os, const std::vector<Int>
 }
 
 template<class T, class S>
-Int deserialize(std::map<T,S>& val, std::istream& is, const std::vector<Int>& mask)
+Int deserialize(std::map<T,S>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   val.clear();
   Int sz;
@@ -636,7 +636,7 @@ Int combine(std::map<T,S>& val, std::map<T,S>& ext)
 //-------------------
 //std::pair
 template<class T, class S>
-Int serialize(const std::pair<T,S>& val, std::ostream& os, const std::vector<Int>& mask)
+Int serialize(const std::pair<T,S>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   serialize(val.first, os, mask);
   serialize(val.second, os, mask);
@@ -644,7 +644,7 @@ Int serialize(const std::pair<T,S>& val, std::ostream& os, const std::vector<Int
 }
 
 template<class T, class S>
-Int deserialize(std::pair<T,S>& val, std::istream& is, const std::vector<Int>& mask)
+Int deserialize(std::pair<T,S>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   deserialize(val.first, is, mask);
   deserialize(val.second, is, mask);
@@ -661,7 +661,7 @@ Int combine(std::pair<T,S>& val, std::pair<T,S>& ext)
 /*
 //-------------------
 //BolNumVec
-inline Int serialize(const BolNumVec& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const BolNumVec& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int m = val.m();
   os.write((char*)&m, sizeof(Int));
@@ -669,7 +669,7 @@ inline Int serialize(const BolNumVec& val, std::ostream& os, const std::vector<I
   return 0;
 }
 
-inline Int deserialize(BolNumVec& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(BolNumVec& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   Int m;
   is.read((char*)&m, sizeof(Int));
@@ -680,7 +680,7 @@ inline Int deserialize(BolNumVec& val, std::istream& is, const std::vector<Int>&
 
 //-------------------
 //BolNumMat
-inline Int serialize(const BolNumMat& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const BolNumMat& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int m = val.m();
   Int n = val.n();
@@ -690,7 +690,7 @@ inline Int serialize(const BolNumMat& val, std::ostream& os, const std::vector<I
   return 0;
 }
 
-inline Int deserialize(BolNumMat& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(BolNumMat& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   Int m;
   Int n;
@@ -705,7 +705,7 @@ inline Int deserialize(BolNumMat& val, std::istream& is, const std::vector<Int>&
 
 //-------------------
 //IntNumVec
-inline Int serialize(const IntNumVec& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const IntNumVec& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int m = val.m();
   os.write((char*)&m, sizeof(Int));
@@ -713,7 +713,7 @@ inline Int serialize(const IntNumVec& val, std::ostream& os, const std::vector<I
   return 0;
 }
 
-inline Int deserialize(IntNumVec& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(IntNumVec& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   Int m;
   is.read((char*)&m, sizeof(Int));
@@ -733,7 +733,7 @@ inline Int combine(IntNumVec& val, IntNumVec& ext)
 
 //-------------------
 //IntNumMat
-inline Int serialize(const IntNumMat& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const IntNumMat& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int m = val.m();
   Int n = val.n();
@@ -743,7 +743,7 @@ inline Int serialize(const IntNumMat& val, std::ostream& os, const std::vector<I
   return 0;
 }
 
-inline Int deserialize(IntNumMat& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(IntNumMat& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   Int m;
   Int n;
@@ -766,7 +766,7 @@ inline Int combine(IntNumMat& val, IntNumMat& ext)
 
 //-------------------
 //DblNumVec
-inline Int serialize(const DblNumVec& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const DblNumVec& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int m = val.m();
   os.write((char*)&m, sizeof(Int));
@@ -774,7 +774,7 @@ inline Int serialize(const DblNumVec& val, std::ostream& os, const std::vector<I
   return 0;
 }
 
-inline Int deserialize(DblNumVec& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(DblNumVec& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   Int m;
   is.read((char*)&m, sizeof(Int));
@@ -793,7 +793,7 @@ inline Int combine(DblNumVec& val, DblNumVec& ext)
 
 //-------------------
 //DblNumMat
-inline Int serialize(const DblNumMat& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const DblNumMat& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int m = val.m();
   Int n = val.n();
@@ -803,7 +803,7 @@ inline Int serialize(const DblNumMat& val, std::ostream& os, const std::vector<I
   return 0;
 }
 
-inline Int deserialize(DblNumMat& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(DblNumMat& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   Int m;
   Int n;
@@ -829,7 +829,7 @@ inline Int combine(DblNumMat& val, DblNumMat& ext)
 
 //-------------------
 //CpxNumVec
-inline Int serialize(const CpxNumVec& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const CpxNumVec& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int m = val.m();
   os.write((char*)&m, sizeof(Int));
@@ -837,7 +837,7 @@ inline Int serialize(const CpxNumVec& val, std::ostream& os, const std::vector<I
   return 0;
 }
 
-inline Int deserialize(CpxNumVec& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(CpxNumVec& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   Int m;
   is.read((char*)&m, sizeof(Int));
@@ -856,7 +856,7 @@ inline Int combine(CpxNumVec& val, CpxNumVec& ext)
 
 //-------------------
 //CpxNumMat
-inline Int serialize(const CpxNumMat& val, std::ostream& os, const std::vector<Int>& mask)
+inline Int serialize(const CpxNumMat& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int m = val.m();
   Int n = val.n();
@@ -866,7 +866,7 @@ inline Int serialize(const CpxNumMat& val, std::ostream& os, const std::vector<I
   return 0;
 }
 
-inline Int deserialize(CpxNumMat& val, std::istream& is, const std::vector<Int>& mask)
+inline Int deserialize(CpxNumMat& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   Int m;
   Int n;
@@ -892,7 +892,7 @@ inline Int combine(CpxNumMat& val, CpxNumMat& ext)
 //-------------------
 //NumVec
 template<typename T, typename TIdx>
-Int inline serialize(const NumVec<T,TIdx>& val, std::ostream& os, const std::vector<Int>& mask)
+Int inline serialize(const NumVec<T,TIdx>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   TIdx m = val.m();
   os.write((char*)&m, sizeof(TIdx));
@@ -902,7 +902,7 @@ Int inline serialize(const NumVec<T,TIdx>& val, std::ostream& os, const std::vec
 }
 
 template<typename T, typename TIdx>
-Int inline deserialize(NumVec<T,TIdx>& val, std::istream& is, const std::vector<Int>& mask)
+Int inline deserialize(NumVec<T,TIdx>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   TIdx m;
   is.read((char*)&m, sizeof(TIdx));
@@ -922,7 +922,7 @@ Int inline combine(NumVec<T,TIdx>& val, NumVec<T,TIdx>& ext)
 //-------------------
 //NumMat
 template<class T>
-Int inline serialize(const NumMat<T>& val, std::ostream& os, const std::vector<Int>& mask)
+Int inline serialize(const NumMat<T>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
   Int m = val.m();
   Int n = val.n();
@@ -934,7 +934,7 @@ Int inline serialize(const NumMat<T>& val, std::ostream& os, const std::vector<I
   return 0;
 }
 template<class T>
-Int inline deserialize(NumMat<T>& val, std::istream& is, const std::vector<Int>& mask)
+Int inline deserialize(NumMat<T>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
   Int m;
   Int n;
@@ -960,7 +960,7 @@ Int inline combine(NumMat<T>& val, NumMat<T>& ext)
 //-------------------
 //DistSparseMatrix
 template<class T>
-Int inline serialize(const DistSparseMatrix<T>& val, std::ostream& os, const std::vector<Int>& mask)
+Int inline serialize(const DistSparseMatrix<T>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
 {
 	serialize( val.size,        os, mask );
 	serialize( val.nnz,         os, mask );
@@ -973,7 +973,7 @@ Int inline serialize(const DistSparseMatrix<T>& val, std::ostream& os, const std
 }
 
 template<class T>
-Int inline deserialize(DistSparseMatrix<T>& val, std::istream& is, const std::vector<Int>& mask)
+Int inline deserialize(DistSparseMatrix<T>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
 {
 	deserialize( val.size,        is, mask );
 	deserialize( val.nnz,         is, mask );
@@ -1148,7 +1148,7 @@ inline bool PairGtComparator( const std::pair<Real, Int>& l,
 
 // For sorting with indices
 // Example usage:
-//   std::sort(val.begin(), val.end(), IndexComp<std::vector<int>&>(indices));
+//   std::sort(val.begin(), val.end(), IndexComp<SYMPACK::vector<int>&>(indices));
 template<class T> 
 struct IndexComp {
 private: 
@@ -1206,10 +1206,10 @@ CopyPattern	( const DistSparseMatrix<F1>& A, DistSparseMatrix<F2>& B )
 
 void
 LinearInterpolation ( 
-		const std::vector<Real>& x, 
-		const std::vector<Real>& y,
-		const std::vector<Real>& xx,
-		std::vector<Real>& yy );
+		const SYMPACK::vector<Real>& x, 
+		const SYMPACK::vector<Real>& y,
+		const SYMPACK::vector<Real>& xx,
+		SYMPACK::vector<Real>& yy );
 
 } // namespace SYMPACK
 
@@ -1322,15 +1322,15 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
 ////    sparseB.nnz = sparseA.nnz;
 ////
 ////    LongInt nnz = 0;
-////    vector<Int> rowindGlobal;
-////    vector<Int> colptrGlobal;
+////    SYMPACK::vector<Int> rowindGlobal;
+////    SYMPACK::vector<Int> colptrGlobal;
 ////    //TIMER_START(ToGlobalStructure);
 ////    {
 ////      colptrGlobal.resize(sparseA.size+1);
 ////
 ////      /* Allgatherv for row indices. */ 
-////      vector<Int> prevnz(mpisize);
-////      vector<Int> rcounts(mpisize);
+////      SYMPACK::vector<Int> prevnz(mpisize);
+////      SYMPACK::vector<Int> rcounts(mpisize);
 ////      MPI_Allgather(&sparseA.nnz, sizeof(sparseA.nnz), MPI_BYTE, &rcounts[0], sizeof(sparseA.nnz), MPI_BYTE, comm);
 ////
 ////      prevnz[0] = 0;
@@ -1350,7 +1350,7 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
 ////      fill(rcounts.begin(),rcounts.end(),numColFirst);
 ////      rcounts[mpisize-1] = sparseA.size - numColFirst * (mpisize-1);  // Modify the last entry     
 ////
-////      vector<Int> rdispls(mpisize);
+////      SYMPACK::vector<Int> rdispls(mpisize);
 ////      rdispls[0] = 0;
 ////      for (Int i = 0; i < mpisize-1; ++i) { rdispls[i+1] = rdispls[i] + rcounts[i]; } 
 ////

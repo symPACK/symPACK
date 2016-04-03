@@ -228,7 +228,7 @@ logfileptr->OFS()<<"Structure set"<<endl;
     ETree_.ConstructETree(*Global_,Order_);
     ETree_.PostOrderTree(Order_);
 logfileptr->OFS()<<"ETREE done"<<endl;
-    vector<Int> cc,rc;
+    SYMPACK::vector<Int> cc,rc;
     Global_->GetLColRowCount(ETree_,Order_,cc,rc);
     ETree_.SortChildren(cc,Order_);
 
@@ -274,8 +274,8 @@ else{
 logfileptr->OFS()<<"Symbfact done"<<endl;
 
 #ifdef REFINED_SNODE
-    vector<Int> permRefined;
-    //    vector<Int> newPerm(Size());
+    SYMPACK::vector<Int> permRefined;
+    //    SYMPACK::vector<Int> newPerm(Size());
     Global_->RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
 
     //      Perm_.resize(Size());
@@ -394,8 +394,8 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
       if(iam==0){ cout<<"OLD Subtree to subcube mapping used"<<endl;}
       ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
       //compute number of children and load
-      vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
-      vector<Int> children(SupETree.Size()+1,0);
+      SYMPACK::vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
+      SYMPACK::vector<Int> children(SupETree.Size()+1,0);
       for(Int I=1;I<=SupETree.Size();I++){
         Int parent = SupETree.Parent(I-1);
         ++children[parent];
@@ -411,9 +411,9 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
 
       //procmaps[0]/pstart[0] represents the complete list
-      vector<vector<Int> * > procmaps(SupETree.Size()+1);
-      for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new vector<Int>();}
-      vector<Int> pstart(SupETree.Size()+1,0);
+      SYMPACK::vector<SYMPACK::vector<Int> * > procmaps(SupETree.Size()+1);
+      for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new SYMPACK::vector<Int>();}
+      SYMPACK::vector<Int> pstart(SupETree.Size()+1,0);
       procmaps[0]->reserve(np);
       for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
 
@@ -468,8 +468,8 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
 
       //now choose which processor to get
-      std::vector<Int> procMap(SupETree.Size());
-      std::vector<double> load(np,0.0);
+      SYMPACK::vector<Int> procMap(SupETree.Size());
+      SYMPACK::vector<double> load(np,0.0);
       for(Int I=1;I<=SupETree.Size();I++){
         Int minLoadP= -1;
         double minLoad = -1;
@@ -558,8 +558,8 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ////          //        }
 ////
 ////          //compute number of children and load
-////          vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
-////          vector<Int> children(SupETree.Size()+1,0);
+////          SYMPACK::vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
+////          SYMPACK::vector<Int> children(SupETree.Size()+1,0);
 ////          for(Int I=1;I<=SupETree.Size();I++){
 ////            Int parent = SupETree.Parent(I-1);
 ////            ++children[parent];
@@ -575,9 +575,9 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ////
 ////
 ////          //procmaps[0]/pstart[0] represents the complete list
-////          vector<vector<Int> * > procmaps(SupETree.Size()+1);
-////          for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new vector<Int>();}
-////          vector<Int> pstart(SupETree.Size()+1,0);
+////          SYMPACK::vector<SYMPACK::vector<Int> * > procmaps(SupETree.Size()+1);
+////          for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new SYMPACK::vector<Int>();}
+////          SYMPACK::vector<Int> pstart(SupETree.Size()+1,0);
 ////          procmaps[0]->reserve(np);
 ////          for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
 ////
@@ -632,8 +632,8 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ////
 ////
 ////          //now choose which processor to get
-////          std::vector<Int> procMap(SupETree.Size());
-////          std::vector<double> load(np,0.0);
+////          SYMPACK::vector<Int> procMap(SupETree.Size());
+////          SYMPACK::vector<double> load(np,0.0);
 ////          for(Int I=1;I<=SupETree.Size();I++){
 ////            Int minLoadP= -1;
 ////            double minLoad = -1;
@@ -681,8 +681,8 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ////          //        }
 ////
 ////          //compute number of children and load
-////          vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
-////          vector<Int> children(SupETree.Size()+1,0);
+////          SYMPACK::vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
+////          SYMPACK::vector<Int> children(SupETree.Size()+1,0);
 ////          for(Int I=1;I<=SupETree.Size();I++){
 ////            Int parent = SupETree.Parent(I-1);
 ////            ++children[parent];
@@ -698,9 +698,9 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ////
 ////
 ////          //procmaps[0]/pstart[0] represents the complete list
-////          vector<vector<Int> * > procmaps(SupETree.Size()+1);
-////          for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new vector<Int>();}
-////          vector<Int> pstart(SupETree.Size()+1,0);
+////          SYMPACK::vector<SYMPACK::vector<Int> * > procmaps(SupETree.Size()+1);
+////          for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new SYMPACK::vector<Int>();}
+////          SYMPACK::vector<Int> pstart(SupETree.Size()+1,0);
 ////          procmaps[0]->reserve(np);
 ////          for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
 ////
@@ -755,8 +755,8 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ////
 ////
 ////          //now choose which processor to get
-////          std::vector<Int> procMap(SupETree.Size());
-////          std::vector<double> load(np,0.0);
+////          SYMPACK::vector<Int> procMap(SupETree.Size());
+////          SYMPACK::vector<double> load(np,0.0);
 ////          for(Int I=1;I<=SupETree.Size();I++){
 ////            Int minLoadP= -1;
 ////            double minLoad = -1;
@@ -795,13 +795,13 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ////        {
 ////          if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
 ////          //Do a greedy load balancing heuristic
-////          std::vector<Int> procMap(Xsuper_.size()-1);
+////          SYMPACK::vector<Int> procMap(Xsuper_.size()-1);
 ////          //Do a greedy heuristic to balance the number of nnz ?
-////          std::vector<double> load(np,0.0);
+////          SYMPACK::vector<double> load(np,0.0);
 ////
 ////          for(Int i = 1; i< Xsuper_.size();  ++i){
 ////            //find least loaded processor
-////            vector<double>::iterator it = std::min_element(load.begin(),load.end());
+////            SYMPACK::vector<double>::iterator it = std::min_element(load.begin(),load.end());
 ////            Int proc = (Int)(it - load.begin());
 ////            Int width = Xsuper_[i] - Xsuper_[i-1];
 ////            Int height = cc[i-1];
@@ -820,13 +820,13 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ////        {
 ////          if(iam==0){ cout<<"Load Balancing on FLOPS used"<<endl;}
 ////          //Do a greedy load balancing heuristic
-////          std::vector<Int> procMap(Xsuper_.size()-1);
+////          SYMPACK::vector<Int> procMap(Xsuper_.size()-1);
 ////          //Do a greedy heuristic to balance the number of nnz ?
-////          std::vector<double> load(np,0.0);
+////          SYMPACK::vector<double> load(np,0.0);
 ////
 ////          for(Int i = 1; i< Xsuper_.size();  ++i){
 ////            //find least loaded processor
-////            vector<double>::iterator it = std::min_element(load.begin(),load.end());
+////            SYMPACK::vector<double>::iterator it = std::min_element(load.begin(),load.end());
 ////            Int proc = (Int)(it - load.begin());
 ////            Int width = Xsuper_[i] - Xsuper_[i-1];
 ////            Int height = cc[i-1];
@@ -867,7 +867,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
       ExpA.size = pMat.size;
       ExpA.nnz = 2*pMat.nnz-pMat.size;
       Int numColFirst = std::max(1,ExpA.size / np);
-      std::vector<Int> numColLocalVec(np,numColFirst);
+      SYMPACK::vector<Int> numColLocalVec(np,numColFirst);
       numColLocalVec[np-1] = ExpA.size - numColFirst * (np-1);  // Modify the last entry	
       Int numColLocal = numColLocalVec[iam];
       //Expand A to asymmetric storage
@@ -901,11 +901,11 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
       logfileptr->OFS()<<"pMat.rowind: "<<pMat.Local_.rowind<<endl;
 #endif
 
-      vector<Ptr> localDestColHead = ExpA.Local_.colptr;
+      SYMPACK::vector<Ptr> localDestColHead = ExpA.Local_.colptr;
 
-      vector<T> recvNzval;
-      vector<Ptr> recvColptr;
-      vector<Idx> recvRowind;
+      SYMPACK::vector<T> recvNzval;
+      SYMPACK::vector<Ptr> recvColptr;
+      SYMPACK::vector<Idx> recvRowind;
       for(Int proc = 0; proc<np; ++proc){
         //communicate colptr
         //Broadcast size
@@ -1001,7 +1001,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
     TIMER_START(DISTRIBUTING_MATRIX);
     Icomm buffer;
-    std::vector<T> denseA;
+    SYMPACK::vector<T> denseA;
     Icomm recv_buffer;
 
 
@@ -1412,7 +1412,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////      ExpA.size = pMat.size;
 ///////////      ExpA.nnz = 2*pMat.nnz-pMat.size;
 ///////////      Int numColFirst = std::max(1,ExpA.size / np);
-///////////      std::vector<Int> numColLocalVec(np,numColFirst);
+///////////      SYMPACK::vector<Int> numColLocalVec(np,numColFirst);
 ///////////      numColLocalVec[np-1] = ExpA.size - numColFirst * (np-1);  // Modify the last entry	
 ///////////      Int numColLocal = numColLocalVec[iam];
 ///////////      //Expand A to symmetric storage
@@ -1446,12 +1446,12 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////      logfileptr->OFS()<<"pMat.rowind: "<<pMat.Local_.rowind<<endl;
 ///////////#endif
 ///////////
-///////////      vector<Int> localColHead = pMat.Local_.colptr;
-///////////      vector<Int> localDestColHead = ExpA.Local_.colptr;
+///////////      SYMPACK::vector<Int> localColHead = pMat.Local_.colptr;
+///////////      SYMPACK::vector<Int> localDestColHead = ExpA.Local_.colptr;
 ///////////
 ///////////      NumVec<T> recvNzval;
-///////////      vector<Int> recvColptr;
-///////////      vector<Int> recvRowind;
+///////////      SYMPACK::vector<Int> recvColptr;
+///////////      SYMPACK::vector<Int> recvRowind;
 ///////////      for(Int proc = 0; proc<np; ++proc){
 ///////////        //communicate colptr
 ///////////        //Broadcast size
@@ -1546,7 +1546,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////
 ///////////    TIMER_START(DISTRIBUTING_MATRIX);
 ///////////    Icomm buffer;
-///////////    std::vector<T> denseA;
+///////////    SYMPACK::vector<T> denseA;
 ///////////    Icomm recv_buffer;
 ///////////
 ///////////
@@ -2691,9 +2691,9 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 ///////////
 ///////////
 ///////////      //copy the data from A into this Block structure
-///////////      std::vector<T> recvNzval;
-///////////      std::vector<Int> recvColptr;
-///////////      std::vector<Int> recvRowind;
+///////////      SYMPACK::vector<T> recvNzval;
+///////////      SYMPACK::vector<Int> recvColptr;
+///////////      SYMPACK::vector<Int> recvRowind;
 ///////////      for(Int col = fc;col<=lc;col++){
 ///////////        //corresponding column in the unsorted matrix A
 ///////////        Int orig_col = Order_.perm[col-1];
@@ -3076,10 +3076,10 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
 
 
 
-  template <typename T> void SupernodalMatrix<T>::GetUpdatingSupernodeCount(vector<Int> & sc,vector<Int> & mw, vector<Int> & mh){
+  template <typename T> void SupernodalMatrix<T>::GetUpdatingSupernodeCount(SYMPACK::vector<Int> & sc,SYMPACK::vector<Int> & mw, SYMPACK::vector<Int> & mh){
     sc.resize(Xsuper_.size());
     SetValue(sc,I_ZERO);
-    vector<Int> marker(Xsuper_.size());
+    SYMPACK::vector<Int> marker(Xsuper_.size());
     SetValue(marker,I_ZERO);
     mw.resize(Xsuper_.size());
     SetValue(mw,I_ZERO);
@@ -3348,7 +3348,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
     Int iam = CommEnv_->MPI_Rank();
     Int np  = CommEnv_->MPI_Size();
 
-    vector<Int> children(Xsuper_.size());
+    SYMPACK::vector<Int> children(Xsuper_.size());
     SetValue(children,0);
 
     for(Int I=1;I<Xsuper_.size()-1;I++){
@@ -3362,14 +3362,14 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
     }
 
 #ifdef _DEBUG_
-    logfileptr->OFS()<<"Children vector is"<<children<<std::endl;
+    logfileptr->OFS()<<"Children SYMPACK::vector is"<<children<<std::endl;
 #endif
 
 
-    vector<Int> UpdatesToDo = children;
+    SYMPACK::vector<Int> UpdatesToDo = children;
 
     Contributions_.resize(LocalSupernodes_.size());
-    std::vector<std::stack<Int> > LocalUpdates(LocalSupernodes_.size());
+    SYMPACK::vector<std::stack<Int> > LocalUpdates(LocalSupernodes_.size());
 
     AsyncComms outgoingSend;
 
@@ -3406,7 +3406,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
     DownCommList ContribsToSendDown; 
 
 
-    std::vector<char> src_blocks;
+    SYMPACK::vector<char> src_blocks;
 
 
     //forward-substitution phase
@@ -3667,7 +3667,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
         Int parent = ETree_.PostParent(cur_snode->LastCol()-1);
 
-        std::vector<Int> isBlockUpdated(contrib->NZBlockCnt(),0);
+        SYMPACK::vector<Int> isBlockUpdated(contrib->NZBlockCnt(),0);
 
         if(parent!=0){
           Int parent_snode_id = SupMembership_[parent-1];
@@ -3897,8 +3897,8 @@ if( iOwner == iam){
           Int snode_size = Xsuper_[I] - Xsuper_[I-1];
 
           Int size_blocks, size_nzval;
-          std::vector<NZBlockDesc> blocks;
-          std::vector<T> nzval;
+          SYMPACK::vector<NZBlockDesc> blocks;
+          SYMPACK::vector<T> nzval;
 
 
           MPI_Recv(&size_blocks,sizeof(Int),MPI_BYTE,iOwner,I,CommEnv_->MPI_GetComm(),MPI_STATUS_IGNORE);
@@ -3958,7 +3958,7 @@ template<typename T> void SupernodalMatrix<T>::GetSolution(NumMat<T> & B){
     Int np  = CommEnv_->MPI_Size();
     Int nrhs = B.n();
     //Gather B from everybody and put it in the original matrix order
-    std::vector<T> tmp_nzval;
+    SYMPACK::vector<T> tmp_nzval;
     for(Int I=1; I<Xsuper_.size();++I){
       Int iOwner = this->Mapping_->Map(I-1,I-1);
       T * data;
@@ -4012,12 +4012,12 @@ template <typename T> SuperNode<T> * SupernodalMatrix<T>::snodeLocal(Int global)
       return LocalSupernodes_[iLocal -1];
 }
 
-template <typename T> SuperNode<T> * SupernodalMatrix<T>::snodeLocal(Int global, std::vector<SuperNode<T> *> & snodeColl){
+template <typename T> SuperNode<T> * SupernodalMatrix<T>::snodeLocal(Int global, SYMPACK::vector<SuperNode<T> *> & snodeColl){
       Int iLocal = snodeLocalIndex(global);
       return snodeColl[iLocal -1];
 }
 
-template <typename T> void SupernodalMatrix<T>::SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
+template <typename T> void SupernodalMatrix<T>::SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T> *> & snodeColl){
     Int src_snode_id = comm.src_snode_id;
     Int tgt_snode_id = comm.tgt_snode_id;
     Int src_nzblk_idx = comm.src_nzblk_idx;
@@ -4072,7 +4072,7 @@ template <typename T> void SupernodalMatrix<T>::SendMessage(const DelayedComm & 
 
 
 
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T> *> & snodeColl){
   if(snodeColl.empty() || MsgToSend.empty()) { return;}
 
   //Index of the last global snode to do
@@ -4117,7 +4117,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesUp(Int iLocal
 }
 
 
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T> *> & snodeColl){
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T> *> & snodeColl){
   if(snodeColl.empty() || MsgToSend.empty()) { return;}
 
   //Index of the first local supernode

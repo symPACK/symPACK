@@ -55,8 +55,6 @@ namespace SYMPACK {
 
   typedef Idx64 Ptr;
   typedef Idx32 Idx;
-  typedef std::vector<Idx> PtrVec;
-  typedef std::vector<Ptr> IdxVec;
 
 
 

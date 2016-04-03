@@ -65,17 +65,17 @@ class SuperNode{
 
 #ifndef ITREE
   Int iLastRow_;
-  std::vector<Int> * globalToLocal_;
+  SYMPACK::vector<Int> * globalToLocal_;
 #else
   ITree * idxToBlk_;
 #endif
 
   inline ITree * CreateITree();
 
-  std::vector<T> nzval_container_;
+  SYMPACK::vector<T> nzval_container_;
   Int nzval_cnt_;
   T * nzval_;
-  std::vector<NZBlockDesc> blocks_container_;
+  SYMPACK::vector<NZBlockDesc> blocks_container_;
   NZBlockDesc * blocks_;
   Int blocks_cnt_;
 
@@ -174,13 +174,13 @@ class SuperNode{
 
 //  //Update from a factor
 //  inline Int Update(SuperNode<T> & src_snode, Int &pivot_idx, 
-//              NumMat<T> & tmpBuf,vector<Int> & src_colindx,
-//                vector<Int> & src_rowindx,
-//                  vector<Int> & src_to_tgt_offset, Int  pivot_fr);
+//              NumMat<T> & tmpBuf,SYMPACK::vector<Int> & src_colindx,
+//                SYMPACK::vector<Int> & src_rowindx,
+//                  SYMPACK::vector<Int> & src_to_tgt_offset, Int  pivot_fr);
 
   //Factorize the supernode
   inline Int Factorize();
-  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const vector<Int> & Xsuper,  const vector<Int> & SupMembership,bool isLocal=true); 
+  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const SYMPACK::vector<Int> & Xsuper,  const SYMPACK::vector<Int> & SupMembership,bool isLocal=true); 
 
 
 

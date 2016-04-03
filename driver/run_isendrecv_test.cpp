@@ -59,7 +59,7 @@ int main(int argc, char **argv)
     nummsg = atoi(argv[2]);
   }
 
-  std::vector<int *> myComms(nummsg*np,NULL);
+  SYMPACK::vector<int *> myComms(nummsg*np,NULL);
   for(int p = 0; p<np; ++p){
     int dest = (p+iam)%np;
     for(int msg = 0; msg<nummsg; ++msg){
@@ -71,10 +71,10 @@ int main(int argc, char **argv)
   }
 
   int gMaxIrecv = atoi(argv[1]);
-  std::vector<MPI_Request> sendReqs;
+  SYMPACK::vector<MPI_Request> sendReqs;
   sendReqs.reserve(nummsg*np); 
-  std::vector<int *> recvComms(gMaxIrecv,NULL);
-  std::vector<MPI_Request> recvReqs;
+  SYMPACK::vector<int *> recvComms(gMaxIrecv,NULL);
+  SYMPACK::vector<MPI_Request> recvReqs;
   recvReqs.reserve(gMaxIrecv);
 
 

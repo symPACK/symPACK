@@ -27,8 +27,8 @@ namespace SYMPACK{
         MPI_Comm_size( comm, &mpisize );
 
         Int localSize = localIcomm.size();
-        std::vector<Int>  localSizeVec( mpisize );
-        std::vector<Int>  localSizeDispls( mpisize );
+        SYMPACK::vector<Int>  localSizeVec( mpisize );
+        SYMPACK::vector<Int>  localSizeDispls( mpisize );
         MPI_Gather( &localSize, sizeof(Int), MPI_BYTE, &localSizeVec[0], sizeof(Int), MPI_BYTE,root, comm );
         localSizeDispls[0] = 0;
         for( Int ip = 1; ip < mpisize; ip++ ){
