@@ -1283,6 +1283,212 @@ namespace SYMPACK{
 
   }
 
+
+//  void SparseMatrixStructure::SymbolicFactorizationRelaxed_upcxx(ETree& tree,Ordering & aOrder, const SYMPACK::vector<Int> & cc,const SYMPACK::vector<Int> & xsuper,const SYMPACK::vector<Int> & SupMembership, upcxx::shared_array<Ptr> & xlindx, upcxx::shared_array<Idx> & lindx){
+//    TIMER_START(SymbolicFactorization);
+//
+//
+//    if(!bIsGlobal){
+//      throw std::logic_error( "SparseMatrixStructure must be global in order to call SymbolicFactorization\n" );
+//    }
+//
+//    Int nsuper = xsuper.size()-1;
+//
+//
+//
+//
+//    Ptr nzbeg = 0;
+//    //nzend points to the last used slot in lindx
+//    Ptr nzend = 0;
+//
+//    //tail is the end of list indicator (in rchlnk, not mrglnk)
+//    Idx tail = size +1;
+//
+//    Idx head = 0;
+//
+//    //Array of length nsuper containing the children of 
+//    //each supernode as a linked list
+//    SYMPACK::vector<Idx> mrglnk(nsuper,0);
+//
+//    //Array of length n+1 containing the current linked list 
+//    //of merged indices (the "reach" set)
+//    SYMPACK::vector<Idx> rchlnk(size+1);
+//
+//    //Array of length n used to mark indices as they are introduced
+//    // into each supernode's index set
+//    SYMPACK::vector<Int> marker(size,0);
+//
+//
+//    xlindx.init(nsuper+1);
+//
+//    //Compute the sum of the column count and resize lindx accordingly
+//    Ptr nofsub = 1;
+//    for(Int i =0; i<cc.size();++i){
+//      nofsub+=cc[i];
+//    }
+//
+//    lindx.init(nofsub);
+//
+//
+//    Ptr point = 1;
+//    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+//      Int fstcol = xsuper[ksup-1];
+//      xlindx[ksup-1] = point;
+//      point += cc[fstcol-1]; 
+//    } 
+//    xlindx[nsuper] = point;
+//
+//
+//
+//    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+//      Int fstcol = xsuper[ksup-1];
+//      Int lstcol = xsuper[ksup]-1;
+//      Int width = lstcol - fstcol +1;
+//      Int length = cc[fstcol-1];
+//      Ptr knz = 0;
+//      rchlnk[head] = tail;
+//      Int jsup = mrglnk[ksup-1];
+//
+//      //If ksup has children in the supernodal e-tree
+//      if(jsup>0){
+//        //copy the indices of the first child jsup into 
+//        //the linked list, and mark each with the value 
+//        //ksup.
+//        Int jwidth = xsuper[jsup]-xsuper[jsup-1];
+//        Ptr jnzbeg = xlindx[jsup-1] + jwidth;
+//        Ptr jnzend = xlindx[jsup] -1;
+//        for(Ptr jptr = jnzend; jptr>=jnzbeg; --jptr){
+//          Idx newi = lindx[jptr-1];
+//          ++knz;
+//          marker[newi-1] = ksup;
+//          rchlnk[newi] = rchlnk[head];
+//          rchlnk[head] = newi;
+//        }
+//
+//        //for each subsequent child jsup of ksup ...
+//        jsup = mrglnk[jsup-1];
+//        while(jsup!=0 && knz < length){
+//          //merge the indices of jsup into the list,
+//          //and mark new indices with value ksup.
+//
+//          jwidth = xsuper[jsup]-xsuper[jsup-1];
+//          jnzbeg = xlindx[jsup-1] + jwidth;
+//          jnzend = xlindx[jsup] -1;
+//          Int nexti = head;
+//          for(Ptr jptr = jnzbeg; jptr<=jnzend; ++jptr){
+//            Idx newi = lindx[jptr-1];
+//            Idx i;
+//            do{
+//              i = nexti;
+//              nexti = rchlnk[i];
+//            }while(newi > nexti);
+//
+//            if(newi < nexti){
+//#ifdef _DEBUG_
+//              logfileptr->OFS()<<jsup<<" is a child of "<<ksup<<" and "<<newi<<" is inserted in the structure of "<<ksup<<std::endl;
+//#endif
+//              ++knz;
+//              rchlnk[i] = newi;
+//              rchlnk[newi] = nexti;
+//              marker[newi-1] = ksup;
+//              nexti = newi;
+//            }
+//          }
+//          jsup = mrglnk[jsup-1];
+//        }
+//      }
+//
+//      //structure of a(*,fstcol) has not been examined yet.  
+//      //"sort" its structure into the linked list,
+//      //inserting only those indices not already in the
+//      //list.
+//      if(knz < length){
+//        for(Int row = fstcol; row<=lstcol; ++row){
+//          Idx newi = row;
+//          if(newi > fstcol && marker[newi-1] != ksup){
+//            //position and insert newi in list and
+//            // mark it with kcol
+//            Idx nexti = head;
+//            Idx i;
+//            do{
+//              i = nexti;
+//              nexti = rchlnk[i];
+//            }while(newi > nexti);
+//            ++knz;
+//            rchlnk[i] = newi;
+//            rchlnk[newi] = nexti;
+//            marker[newi-1] = ksup;
+//          }
+//        }
+//
+//
+//        for(Int col = fstcol; col<=lstcol; ++col){
+//          Int node = aOrder.perm[col-1];
+//
+//          Ptr knzbeg = expColptr[node-1];
+//          Ptr knzend = expColptr[node]-1;
+//          for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
+//            Idx newi = expRowind[kptr-1];
+//            newi = aOrder.invp[newi-1];
+//
+//            if(newi > fstcol && marker[newi-1] != ksup){
+//              //position and insert newi in list and
+//              // mark it with kcol
+//              Idx nexti = head;
+//              Idx i;
+//              do{
+//                i = nexti;
+//                nexti = rchlnk[i];
+//              }while(newi > nexti);
+//              ++knz;
+//              rchlnk[i] = newi;
+//              rchlnk[newi] = nexti;
+//              marker[newi-1] = ksup;
+//            }
+//          }
+//        }
+//
+//      } 
+//
+//      //if ksup has no children, insert fstcol into the linked list.
+//      if(rchlnk[head] != fstcol){
+//        rchlnk[fstcol] = rchlnk[head];
+//        rchlnk[head] = fstcol;
+//        ++knz;
+//      }
+//
+//      assert(knz == cc[fstcol-1]);
+//
+//
+//      //copy indices from linked list into lindx(*).
+//      nzbeg = nzend+1;
+//      nzend += knz;
+//      assert(nzend+1 == xlindx[ksup]);
+//      Idx i = head;
+//      for(Ptr kptr = nzbeg; kptr<=nzend;++kptr){
+//        i = rchlnk[i];
+//        lindx[kptr-1] = i;
+//      } 
+//
+//      //if ksup has a parent, insert ksup into its parent's 
+//      //"merge" list.
+//      if(length > width){
+//        Idx pcol = lindx[xlindx[ksup-1] + width -1];
+//        Int psup = SupMembership[pcol-1];
+//        mrglnk[ksup-1] = mrglnk[psup-1];
+//        mrglnk[psup-1] = ksup;
+//      }
+//    }
+//
+//    lindx.resize(nzend+1);
+//
+//    TIMER_STOP(SymbolicFactorization);
+//  }
+
+
+
+
+
   void SparseMatrixStructure::SymbolicFactorizationRelaxed(ETree& tree,Ordering & aOrder, const SYMPACK::vector<Int> & cc,const SYMPACK::vector<Int> & xsuper,const SYMPACK::vector<Int> & SupMembership, PtrVec & xlindx, IdxVec & lindx){
     TIMER_START(SymbolicFactorization);
 

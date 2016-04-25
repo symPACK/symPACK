@@ -104,7 +104,7 @@ sp_dgemv_dist(char *trans, MYSCALAR alpha, DistSparseMatrix<MYSCALAR> & A, MYSCA
 
           // only the lower triangular part of A is stored
           //this recreates the upper triangular part
-          for (int jloc = 1; jloc < Astruct.colptr.m(); ++jloc) {
+          for (int jloc = 1; jloc < Astruct.colptr.size(); ++jloc) {
             int jcol = jloc + iam*(A.size/np);
             if(jcol<j){
               for (i = Astruct.colptr[jloc-1]; i < Astruct.colptr[jloc]; ++i) {

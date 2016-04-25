@@ -6,11 +6,11 @@
 #endif
 
 //SuperNode2 implementation
-template<typename T>
-SuperNode2<T>::SuperNode2() : meta_(NULL), blocks_(NULL), nzval_(NULL) { }
+template<typename T, class Allocator>
+SuperNode2<T,Allocator>::SuperNode2() : meta_(NULL), blocks_(NULL), nzval_(NULL) { }
 
-template<typename T>
-SuperNode2<T>::SuperNode2(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {
+template<typename T, class Allocator>
+SuperNode2<T,Allocator>::SuperNode2(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {
 
   //this is an upper bound
   assert(ai_num_rows>=0);
@@ -24,8 +24,9 @@ SuperNode2<T>::SuperNode2(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN
   }
 
   storage_size_ = sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc2) + sizeof(SuperNodeDesc);
-  storage_container_ = upcxx::allocate<char>(iam,storage_size_); 
-  loc_storage_container_ = (char *)storage_container_;
+  loc_storage_container_ = Allocator::allocate(storage_size_);
+  //storage_container_ = upcxx::allocate<char>(iam,storage_size_); 
+  //loc_storage_container_ = (char *)storage_container_;
 #ifdef _USE_COREDUMPER_
   if(loc_storage_container_==NULL){
     std::stringstream corename;
@@ -87,16 +88,17 @@ SuperNode2<T>::SuperNode2(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN
 ///
 ///    }; 
 
-template<typename T>
-SuperNode2<T>::SuperNode2(char * storage_ptr,size_t storage_size, Int GIndex ) {
+template<typename T, class Allocator>
+SuperNode2<T,Allocator>::SuperNode2(char * storage_ptr,size_t storage_size, Int GIndex ) {
   //Init(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt,aiN);
   Init(storage_ptr,storage_size,GIndex);
 }
 
-template<typename T>
-SuperNode2<T>::~SuperNode2(){
+template<typename T, class Allocator>
+SuperNode2<T,Allocator>::~SuperNode2(){
   if(meta_->b_own_storage_){
-    upcxx::deallocate(storage_container_);
+//    upcxx::deallocate(storage_container_);
+    Allocator::deallocate(loc_storage_container_);
   }
 #ifndef ITREE
   delete globalToLocal_;
@@ -106,8 +108,8 @@ SuperNode2<T>::~SuperNode2(){
 }
 
 //CHECKED ON 11-18-2014
-template<typename T>
-void SuperNode2<T>::Init(char * storage_ptr,size_t storage_size, Int GIndex ) {
+template<typename T, class Allocator>
+void SuperNode2<T,Allocator>::Init(char * storage_ptr,size_t storage_size, Int GIndex ) {
 
 
   //loop through the block descriptors
@@ -156,8 +158,8 @@ void SuperNode2<T>::Init(char * storage_ptr,size_t storage_size, Int GIndex ) {
 
 }
 
-template<typename T>
-inline void SuperNode2<T>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex){
+template<typename T, class Allocator>
+inline void SuperNode2<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex){
 
   //Resize the container if I own the storage
   if(meta_->b_own_storage_){
@@ -187,18 +189,19 @@ inline void SuperNode2<T>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex){
       size_t offset_meta = (char*)meta_ - (char*)nzval_;
       size_t offset_block = (char*)blocks_ - (char*)nzval_;
 
-      upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,new_size);
-      char * locTmpPtr = (char*)tmpPtr;
+      //upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,new_size);
+      //char * locTmpPtr = (char*)tmpPtr;
+      char * locTmpPtr = Allocator::allocate(new_size);
 
-#ifdef _NO_MEMORY_PROGRESS_
-      while(locTmpPtr==NULL){
-        logfileptr->OFS()<<"No more memory, calling advance"<<endl;
-        upcxx::advance();
-        tmpPtr = upcxx::allocate<char>(iam,new_size);
-        locTmpPtr = (char*)tmpPtr;
-        break;
-      }
-#endif
+//#ifdef _NO_MEMORY_PROGRESS_
+//      while(locTmpPtr==NULL){
+//        logfileptr->OFS()<<"No more memory, calling advance"<<endl;
+//        upcxx::advance();
+//        tmpPtr = upcxx::allocate<char>(iam,new_size);
+//        locTmpPtr = (char*)tmpPtr;
+//        break;
+//      }
+//#endif
 
 #ifdef _USE_COREDUMPER_
       if(locTmpPtr==NULL){
@@ -211,18 +214,19 @@ inline void SuperNode2<T>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex){
       assert(locTmpPtr!=NULL);
 
       std::copy(loc_storage_container_,loc_storage_container_+storage_size_,locTmpPtr);
-      upcxx::deallocate(storage_container_);
-      storage_container_=tmpPtr;
+      //upcxx::deallocate(storage_container_);
+      //storage_container_=tmpPtr;
+      Allocator::deallocate(loc_storage_container_);
       loc_storage_container_=locTmpPtr;
       storage_size_=new_size;
       //storage_container_.resize(new_size);
 
       nzval_=(T*)&loc_storage_container_[0];
       //move the block descriptors if required
-      char * cur_blocks_ptr = (char*)&storage_container_[0] + offset_block;
+      char * cur_blocks_ptr = (char*)&loc_storage_container_[0] + offset_block;
 
       //move the meta data if required
-      char * cur_meta_ptr = (char*)&storage_container_[0] + offset_meta;
+      char * cur_meta_ptr = (char*)&loc_storage_container_[0] + offset_meta;
       meta_ = (SuperNodeDesc*) cur_meta_ptr;
       //we need to move everything, starting from the blocks, then meta
       //blocks need to be moved by extra_nzvals + extra_blocks
@@ -259,8 +263,8 @@ inline void SuperNode2<T>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex){
 }
 
 
-template<typename T>
-inline Int SuperNode2<T>::FindBlockIdx(Int aiGIndex){
+template<typename T, class Allocator>
+inline Int SuperNode2<T,Allocator>::FindBlockIdx(Int aiGIndex){
   scope_timer(a,FindBlockIdx);
   Int rval = -1;
 
@@ -284,8 +288,8 @@ inline Int SuperNode2<T>::FindBlockIdx(Int aiGIndex){
 }
 
 
-template<typename T>
-inline Int SuperNode2<T>::FindBlockIdx(Int aiGIndex,Int & closestR, Int & closestL){
+template<typename T, class Allocator>
+inline Int SuperNode2<T,Allocator>::FindBlockIdx(Int aiGIndex,Int & closestR, Int & closestL){
   scope_timer(a,FindBlockIdx);
   Int rval = -1;
   ITree::Interval * L = NULL;
@@ -296,7 +300,7 @@ inline Int SuperNode2<T>::FindBlockIdx(Int aiGIndex,Int & closestR, Int & closes
   }
 
   if(L!=NULL){
-    closestL = L->hight;
+    closestL = L->high;
   }
 
   if (res != NULL){
@@ -308,8 +312,8 @@ inline Int SuperNode2<T>::FindBlockIdx(Int aiGIndex,Int & closestR, Int & closes
 
 
 
-template<typename T>
-inline Int SuperNode2<T>::FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap){
+template<typename T, class Allocator>
+inline Int SuperNode2<T,Allocator>::FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap){
   scope_timer(a,FindBlockIdx);
 
   Int rval = -1;
@@ -326,8 +330,8 @@ inline Int SuperNode2<T>::FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap
 
 
 
-template<typename T>
-inline void SuperNode2<T>::DumpITree(){
+template<typename T, class Allocator>
+inline void SuperNode2<T,Allocator>::DumpITree(){
 #ifdef ITREE
   logfileptr->OFS()<<"Number of blocks: "<<meta_->blocks_cnt_<<endl;
   logfileptr->OFS()<<"log2(Number of blocks): "<<log2(meta_->blocks_cnt_)<<endl;
@@ -335,8 +339,8 @@ inline void SuperNode2<T>::DumpITree(){
 #endif
 }
 
-template<typename T>
-inline Int SuperNode2<T>::Shrink(){
+template<typename T, class Allocator>
+inline Int SuperNode2<T,Allocator>::Shrink(){
   if(meta_->b_own_storage_){
     //TODO make sure that we do not have any extra space anywhere.
 
@@ -350,8 +354,11 @@ inline Int SuperNode2<T>::Shrink(){
       size_t offset_meta = meta_->nzval_cnt_*sizeof(T);
       size_t offset_block = meta_->nzval_cnt_*sizeof(T)+sizeof(SuperNodeDesc);//+meta_->blocks_cnt_*sizeof(NZBlockDesc2);
 
-      upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,new_size);
-      char * locTmpPtr = (char*)tmpPtr;
+      //upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,new_size);
+      //char * locTmpPtr = (char*)tmpPtr;
+      char * locTmpPtr = Allocator::allocate(new_size);
+
+
 #ifdef _USE_COREDUMPER_
       if(locTmpPtr==NULL){
         std::stringstream corename;
@@ -370,8 +377,9 @@ inline Int SuperNode2<T>::Shrink(){
       //copy blocks
       std::copy(blocks_-meta_->blocks_cnt_+1,blocks_+1,(NZBlockDesc2*)(locTmpPtr+offset_block));
 
-      upcxx::deallocate(storage_container_);
-      storage_container_=tmpPtr;
+      //upcxx::deallocate(storage_container_);
+      //storage_container_=tmpPtr;
+      Allocator::deallocate(loc_storage_container_);
       loc_storage_container_=locTmpPtr;
       storage_size_=new_size;
 
@@ -402,8 +410,8 @@ inline Int SuperNode2<T>::Shrink(){
 
 
 
-template<typename T>
-inline void SuperNode2<T>::FindUpdatedFirstCol(SuperNode2<T> & src_snode, Int pivot_fr, Int & tgt_fc, Int & first_pivot_idx){
+template<typename T, class Allocator>
+inline void SuperNode2<T,Allocator>::FindUpdatedFirstCol(SuperNode2<T> & src_snode, Int pivot_fr, Int & tgt_fc, Int & first_pivot_idx){
   //find the first row updated by src_snode
   scope_timer(a,UPDATE_SNODE_FIND_INDEX);
 
@@ -419,15 +427,15 @@ inline void SuperNode2<T>::FindUpdatedFirstCol(SuperNode2<T> & src_snode, Int pi
 
       Int tgt_lc = LastCol();
 #ifndef _BINARY_BLOCK_SEARCH_
-    for(tgt_fc;tgt_fc<tgt_lc;tgt_fc++){
-      first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
-      if(first_pivot_idx>=0){
-        break;
-      }
-    }
-//      do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
-//      while(first_pivot_idx<0 && tgt_fc<=tgt_lc);
-//      tgt_fc--;
+//    for(tgt_fc;tgt_fc<tgt_lc;tgt_fc++){
+//      first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
+//      if(first_pivot_idx>=0){
+//        break;
+//      }
+//    }
+      do {first_pivot_idx = src_snode.FindBlockIdx(tgt_fc); tgt_fc++;}
+      while(first_pivot_idx<0 && tgt_fc<=tgt_lc);
+      tgt_fc--;
 #else
       Int closestR = -1;
       Int closestL = -1;
@@ -507,8 +515,8 @@ inline void SuperNode2<T>::FindUpdatedFirstCol(SuperNode2<T> & src_snode, Int pi
   assert(first_pivot_idx>=0);
 }
 
-template<typename T>
-inline void SuperNode2<T>::FindUpdatedLastCol(SuperNode2<T> & src_snode, Int tgt_fc, Int first_pivot_idx , Int & tgt_lc,  Int & last_pivot_idx){
+template<typename T, class Allocator>
+inline void SuperNode2<T,Allocator>::FindUpdatedLastCol(SuperNode2<T> & src_snode, Int tgt_fc, Int first_pivot_idx , Int & tgt_lc,  Int & last_pivot_idx){
   //gdb_lock();
   scope_timer(a,UPDATE_SNODE_FIND_INDEX);
 #ifdef _LINEAR_SEARCH_FCLC_
@@ -519,15 +527,15 @@ inline void SuperNode2<T>::FindUpdatedLastCol(SuperNode2<T> & src_snode, Int tgt
     last_pivot_idx = -1;
     //find the pivot idx
 #ifndef _BINARY_BLOCK_SEARCH_
-    for(tgt_lc;tgt_lc>=tgt_fc;tgt_lc--){
-      last_pivot_idx = src_snode.FindBlockIdx(tgt_lc);
-      if(last_pivot_idx>=0){
-        break;
-      }
-    }
-//    do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
-//    while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
-//    tgt_lc++;
+//    for(tgt_lc;tgt_lc>=tgt_fc;tgt_lc--){
+//      last_pivot_idx = src_snode.FindBlockIdx(tgt_lc);
+//      if(last_pivot_idx>=0){
+//        break;
+//      }
+//    }
+    do {last_pivot_idx = src_snode.FindBlockIdx(tgt_lc); tgt_lc--;}
+    while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
+    tgt_lc++;
 #else
     for(tgt_lc;tgt_lc>=tgt_fc;tgt_lc--){
       last_pivot_idx = src_snode.FindBlockIdx(tgt_lc);
@@ -614,8 +622,8 @@ inline void SuperNode2<T>::FindUpdatedLastCol(SuperNode2<T> & src_snode, Int tgt
 
 
 //#ifdef COMPACT_AGGREGATES
-template<typename T>
-inline Int SuperNode2<T>::Merge(SuperNode2<T> & src_snode, SnodeUpdate &update){
+template<typename T, class Allocator>
+inline Int SuperNode2<T,Allocator>::Merge(SuperNode2<T> & src_snode, SnodeUpdate &update){
   //#ifndef _TAU_TRACE_
   scope_timer(a,MERGE_SNODE);
 
@@ -684,8 +692,8 @@ inline Int SuperNode2<T>::Merge(SuperNode2<T> & src_snode, SnodeUpdate &update){
 
 //#ifndef _TAU_TRACE_
 //#ifdef COMPACT_AGGREGATES
-template<typename T>
-inline Int SuperNode2<T>::Aggregate(SuperNode2<T> & src_snode){
+template<typename T, class Allocator>
+inline Int SuperNode2<T,Allocator>::Aggregate(SuperNode2<T> & src_snode){
 
   scope_timer(a,AGGREGATE_SNODE);
 
@@ -739,8 +747,8 @@ inline Int SuperNode2<T>::Aggregate(SuperNode2<T> & src_snode){
 
 //#ifdef COMPACT_AGGREGATES
 //CHECKED ON 11-18-2014
-template<typename T>
-inline Int SuperNode2<T>::UpdateAggregate(SuperNode2<T> & src_snode, SnodeUpdate &update, 
+template<typename T, class Allocator>
+inline Int SuperNode2<T,Allocator>::UpdateAggregate(SuperNode2<T> & src_snode, SnodeUpdate &update, 
     TempUpdateBuffers<T> & tmpBuffers, Int iTarget){
 
   scope_timer(a,UPDATE_AGGREGATE_SNODE);
@@ -910,8 +918,8 @@ inline Int SuperNode2<T>::UpdateAggregate(SuperNode2<T> & src_snode, SnodeUpdate
 
 
 //CHECKED ON 11-18-2014
-template<typename T>
-inline Int SuperNode2<T>::Update(SuperNode2<T> & src_snode, SnodeUpdate &update, 
+template<typename T, class Allocator>
+inline Int SuperNode2<T,Allocator>::Update(SuperNode2<T> & src_snode, SnodeUpdate &update, 
     TempUpdateBuffers<T> & tmpBuffers){
 
   scope_timer(a,UPDATE_SNODE);
@@ -1088,8 +1096,8 @@ inline Int SuperNode2<T>::Update(SuperNode2<T> & src_snode, SnodeUpdate &update,
 
 
 //CHECKED ON 11-18-2014
-template<typename T>
-  inline Int SuperNode2<T>::Factorize(){
+template<typename T, class Allocator>
+  inline Int SuperNode2<T,Allocator>::Factorize(){
 #if defined(_NO_COMPUTATION_)
     return 0;
 #endif
@@ -1115,8 +1123,8 @@ template<typename T>
 
 
 
-template<typename T>
-bool SuperNode2<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const SYMPACK::vector<Int> & Xsuper,  const SYMPACK::vector<Int> & SupMembership, bool isLocal){
+template<typename T, class Allocator>
+bool SuperNode2<T,Allocator>::FindNextUpdate(SnodeUpdate & nextUpdate, const SYMPACK::vector<Int> & Xsuper,  const SYMPACK::vector<Int> & SupMembership, bool isLocal){
   scope_timer(a,FIND_NEXT_UPDATE);
   Int & tgt_snode_id = nextUpdate.tgt_snode_id;
   Int & f_ur = nextUpdate.src_first_row;
@@ -1202,8 +1210,8 @@ bool SuperNode2<T>::FindNextUpdate(SnodeUpdate & nextUpdate, const SYMPACK::vect
 }
 
 
-template<typename T>
-  inline ITree * SuperNode2<T>::CreateITree(){
+template<typename T, class Allocator>
+  inline ITree * SuperNode2<T,Allocator>::CreateITree(){
 #if defined(_AVL_ITREE_)
     return new AVLITree();
 #elif defined(_DSW_ITREE_)
@@ -1213,8 +1221,8 @@ template<typename T>
 #endif
   } 
 
-template<typename T>
-inline void SuperNode2<T>::InitIdxToBlk(){
+template<typename T, class Allocator>
+inline void SuperNode2<T,Allocator>::InitIdxToBlk(){
 #ifndef ITREE
   TIMER_START(ARRAY_INSERT);
   for(Int blkidx=0; blkidx<meta_->blocks_cnt_;++blkidx){
@@ -1239,8 +1247,8 @@ inline void SuperNode2<T>::InitIdxToBlk(){
 }
 
 
-template<typename T>
-inline void Reserve(size_t storage_size){
+template<typename T, class Allocator>
+inline void SuperNode2<T,Allocator>::Reserve(size_t storage_size){
 }
 
 //  template <typename T> inline size_t Deserialize(char * buffer, SuperNode2<T> & snode){
@@ -1262,7 +1270,7 @@ inline void Reserve(size_t storage_size){
 //  }
 
 
-template <typename T> inline void Serialize(Icomm & buffer,SuperNode2<T> & snode, Int first_blkidx, Int first_row){
+template <typename T, class Allocator> inline void Serialize(Icomm & buffer,SuperNode2<T, Allocator> & snode, Int first_blkidx, Int first_row){
   NZBlockDesc2* nzblk_ptr = &snode.GetNZBlockDesc(first_blkidx);
   Int local_first_row = first_row - nzblk_ptr->GIndex;
 
@@ -1301,7 +1309,7 @@ template <typename T> inline void Serialize(Icomm & buffer,SuperNode2<T> & snode
 
 
 
-template <typename T> inline std::ostream& operator<<( std::ostream& os,  SuperNode2<T>& snode){
+template <typename T, class Allocator> inline std::ostream& operator<<( std::ostream& os,  SuperNode2<T, Allocator>& snode){
   os<<"ooooooooooo   Supernode "<<snode.Id()<<" oooooooooooo"<<std::endl;
   os<<"     size = "<<snode.Size()<<std::endl;
   os<<"     fc   = "<<snode.FirstCol()<<std::endl;

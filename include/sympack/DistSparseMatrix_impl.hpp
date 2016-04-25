@@ -139,7 +139,8 @@ if(!onebased){
     SYMPACK::vector<Int> numColLocalVec(np);
     Int numColLocal, numColFirst;
     numColFirst = this->size / np;
-    SetValue( numColLocalVec, numColFirst );
+    std::fill(numColLocalVec.begin(),numColLocalVec.end(),numColFirst);
+
     numColLocalVec[np-1] = this->size - numColFirst * (np-1) ;  // Modify the last entry	
     numColLocal = numColLocalVec[iam];
 

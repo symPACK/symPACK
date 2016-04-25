@@ -308,7 +308,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
     if(options.load_balance_str=="SUBCUBE-FI"){
       if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
       ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
+      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,xlindx_,lindx_,cc,CommEnv_,true);
 #ifdef _DEBUG_MAPPING_
       logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
       logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
@@ -327,7 +327,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
     else if(options.load_balance_str=="SUBCUBE-FO"){
       if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
       ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
+      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,xlindx_,lindx_,cc,CommEnv_,false);
 
 #ifdef _DEBUG_MAPPING_
       logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
@@ -3445,16 +3445,16 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
           forward_update(dist_contrib,contrib);
           //delete contributions[(contrib_snode_id-1) / np];
-          --UpdatesToDo(I-1);
+          --UpdatesToDo[I-1];
         }
 
         //do remote updates
         size_t max_bytes;
         Int nz_cnt;
-        while(UpdatesToDo(I-1)>0){
+        while(UpdatesToDo[I-1]>0){
           //receive children contrib
 #ifdef _DEBUG_
-          logfileptr->OFS()<<UpdatesToDo(I-1)<<" contribs left"<<endl;
+          logfileptr->OFS()<<UpdatesToDo[I-1]<<" contribs left"<<endl;
 #endif
 
 
@@ -3476,13 +3476,13 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
 
           forward_update(&dist_contrib,contrib);
 
-          --UpdatesToDo(I-1);
+          --UpdatesToDo[I-1];
 
         }
 
-        assert(UpdatesToDo(I-1)==0);
+        assert(UpdatesToDo[I-1]==0);
 
-        if(UpdatesToDo(I-1)==0){
+        if(UpdatesToDo[I-1]==0){
 
           //This corresponds to the i loop in dtrsm
           for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
@@ -3753,7 +3753,7 @@ template <typename T> void SupernodalMatrix<T>::Factorize(){
         Int colIdx = cur_snode->FirstCol()-1;
         if(colIdx>0){
           Int children_found = 0;
-          while(children_found<children(I-1)){
+          while(children_found<children[I-1]){
             Int child_snode_id = SupMembership_[colIdx-1];
 
             Int parent = ETree_.PostParent(colIdx-1);

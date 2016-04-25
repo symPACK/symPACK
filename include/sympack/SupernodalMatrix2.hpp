@@ -104,6 +104,18 @@ namespace SYMPACK{
       //CSC structure of L factor
       PtrVec xlindx_;
       IdxVec lindx_;
+
+      PtrVec locXlindx_;
+      IdxVec locLindx_;
+
+
+      //not used anymore
+      PtrVec locSupXlindx_;
+      IdxVec locSupLindx_;
+
+//      upcxx::shared_array<Ptr> dxlindx_;
+//      upcxx::shared_array<Idx> dlindx_;
+
       bool isXlindxAllocated_;
       bool isLindxAllocated_;
 
@@ -116,9 +128,18 @@ namespace SYMPACK{
 
       //TODO Task lists
       Scheduler<std::list<FBTask>::iterator> * scheduler_;
-      SYMPACK::vector<std::list<FBTask> * > taskLists_;
+      //SYMPACK::vector<std::list<FBTask> * > taskLists_;
+
+      //backup for factorization
+      SYMPACK::vector<Int> UpdatesToDo_;
+      SYMPACK::vector<std::list<FBTask> * > origTaskLists_;
+      Int localTaskCount_;
+
+      void generateTaskGraph(Int & localTaskCount, SYMPACK::vector<std::list<FBTask> * > & taskLists);
+
+
       std::list<std::list<FBTask>::iterator > readyTasks_;
-      std::list<FBTask>::iterator find_task(Int src, Int tgt, TaskType type );
+      std::list<FBTask>::iterator find_task(SYMPACK::vector<std::list<FBTask> * > & taskLists, Int src, Int tgt, TaskType type );
 
       //Array storing the supernodal update count to a target supernode
       SYMPACK::vector<Int> UpdateCount_;
@@ -153,7 +174,6 @@ namespace SYMPACK{
       TempUpdateBuffers<T> tmpBufs;
 
 
-      Int localTaskCount_;
 
 
       protected:
@@ -168,17 +188,14 @@ namespace SYMPACK{
 
 
 
-
-      void GetUpdatingSupernodeCount( SYMPACK::vector<Int> & sc,SYMPACK::vector<Int> & mw, SYMPACK::vector<Int> & mh);
-      inline bool FindNextUpdate(SuperNode2<T> & src_snode, Int & tgt_snode_id, Int & f_ur, Int & f_ub, Int & n_ur, Int & n_ub);
-
       //FanBoth related routines
       Int FBUpdate(Int I,Int prevJ=-1);
       void FBGetUpdateCount(SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesToRecv, SYMPACK::vector<Int> & LocalAggregates);
+      void GetUpdatingSupernodeCount( SYMPACK::vector<Int> & sc,SYMPACK::vector<Int> & mw, SYMPACK::vector<Int> & mh, SYMPACK::vector<Int> & numBlk);
 
-      void FBFactorizationTask(FBTask & curTask, Int iLocalI, bool is_static = false);
-      void FBAggregationTask(FBTask & curTask, Int iLocalI, bool is_static = false);
-      void FBUpdateTask(FBTask & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesDone,SYMPACK::vector< SuperNode2<T> * > & aggVectors,  SYMPACK::vector<Int> & FactorsToRecv, SYMPACK::vector<Int> & AggregatesToRecv,Int & localTaskCount, bool is_static = false);
+      void FBFactorizationTask(SYMPACK::vector<std::list<FBTask> * > & taskLists, FBTask & curTask, Int iLocalI, bool is_static = false);
+      void FBAggregationTask(SYMPACK::vector<std::list<FBTask> * > & taskLists, FBTask & curTask, Int iLocalI, bool is_static = false);
+      void FBUpdateTask(SYMPACK::vector<std::list<FBTask> * > & taskLists, FBTask & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector< SuperNode2<T> * > & aggVectors, Int & localTaskCount, bool is_static = false);
 
       //Solve related routines
       void forward_update(SuperNode2<T> * src_contrib,SuperNode2<T> * tgt_contrib);
@@ -192,7 +209,7 @@ namespace SYMPACK{
       void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode2<T> *> & snodeColl);
       void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode2<T> *> & snodeColl);
 
-      void CheckIncomingMessages(bool is_static = false);
+      void CheckIncomingMessages(SYMPACK::vector<std::list<FBTask> * > & taskLists, bool is_static = false);
 
 
   };

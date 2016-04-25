@@ -68,7 +68,14 @@ namespace SYMPACK{
     }
   };
 
-  
+ 
+inline std::ostream& operator<<( std::ostream& os, const FBTask& t)
+{
+	os<<"T("<<t.src_snode_id<<","<<t.tgt_snode_id<<") ";
+	return os;
+}
+
+ 
 
   struct SnodeUpdateFB{
     TaskType type;

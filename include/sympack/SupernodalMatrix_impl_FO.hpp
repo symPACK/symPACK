@@ -752,8 +752,8 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
   TIMER_START(FACTORIZATION_FO);
 
-  xlindx_.Clear();
-  lindx_.Clear();
+  xlindx_.clear();
+  lindx_.clear();
 
   Real timeSta, timeEnd;
   timeSta =  get_time( );

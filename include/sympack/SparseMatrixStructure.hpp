@@ -57,6 +57,7 @@ class SparseMatrixStructure{
 
   void RelaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, RelaxationParameters & params  );
   void SymbolicFactorizationRelaxed(ETree& tree, Ordering & aOrder,const SYMPACK::vector<Int> & cc,const SYMPACK::vector<Int> & xsuper,const SYMPACK::vector<Int> & SupMembership, PtrVec & xlindx, IdxVec & lindx);
+  //void SymbolicFactorizationRelaxed_upcxx(ETree& tree,Ordering & aOrder, const SYMPACK::vector<Int> & cc,const SYMPACK::vector<Int> & xsuper,const SYMPACK::vector<Int> & SupMembership, upcxx::shared_array<Ptr> & xlindx, upcxx::shared_array<Idx> & lindx);
 
   void SymbolicFactorization(ETree& tree, Ordering & aOrder,const SYMPACK::vector<Int> & cc,const SYMPACK::vector<Int> & xsuper,const SYMPACK::vector<Int> & SupMembership, PtrVec & xlindx, IdxVec & lindx);
 

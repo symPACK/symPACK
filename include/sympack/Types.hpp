@@ -10,8 +10,8 @@
 
 namespace SYMPACK{
 
-  typedef vector<Idx> PtrVec;
-  typedef vector<Ptr> IdxVec;
+  typedef vector<Ptr> PtrVec;
+  typedef vector<Idx> IdxVec;
 
 
   struct RelaxationParameters{

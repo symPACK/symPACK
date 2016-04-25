@@ -18,6 +18,7 @@
 #if defined (PROFILE)
 #define TIMER_START(a) 
 #define TIMER_STOP(a) 
+#define scope_timer(b,a)
 #endif
 #endif
 

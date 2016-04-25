@@ -35,12 +35,33 @@ struct NZBlockDesc2{
 
 
 
+class MemoryAllocator{
+  public:
+    static char * allocate(size_t count){};
+
+    static void deallocate(char* ptr) {};
+};
+
+class UpcxxAllocator: public MemoryAllocator{
+  public:
+    static char * allocate(size_t count){
+      upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,count);
+      char * locTmpPtr = (char*)tmpPtr;
+      return locTmpPtr;
+    }
+
+    static void deallocate(char* ptr){
+      upcxx::global_ptr<char> tmpPtr((char*)ptr);
+      upcxx::deallocate(tmpPtr);
+    }
+};
+
 ////////////////////////////////////////
 /// Class representing a supernode.
 /// Class representing a supernode stored as a collection of 
 /// blocks of contiguous rows in row-major format.
 /////////////////////////////////////////
-template<typename T>
+template<typename T, class Allocator = UpcxxAllocator>
 class SuperNode2{
   public:
     struct SuperNodeDesc{
@@ -66,7 +87,8 @@ class SuperNode2{
 
   //actual storage
   //SYMPACK::vector<char> storage_container_;
-  upcxx::global_ptr<char> storage_container_;
+  //upcxx::global_ptr<char> storage_container_;
+  char * storage_container_;
   char * loc_storage_container_;
   size_t storage_size_;
   
@@ -107,11 +129,17 @@ class SuperNode2{
 
 
   inline Int StorageSize(){ return storage_size_;}
-  upcxx::global_ptr<char> GetGlobalPtr(Int row){
-    //TODO fix this
-    return storage_container_;
-  }
+
+//  upcxx::global_ptr<char> GetGlobalPtr(Int row){
+//    //TODO fix this
+//    return storage_container_;
+//  }
   
+  char * GetStoragePtr(Int row){
+    //TODO fix this
+    return loc_storage_container_;
+  }
+
   SuperNode2();
 
   SuperNode2(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
@@ -169,7 +197,7 @@ class SuperNode2{
 
 
 
-  template <typename T> inline void Serialize(Icomm & buffer,SuperNode2<T> & snode, Int first_blkidx, Int first_row);
+  template <typename T, class Allocator = UpcxxAllocator> inline void Serialize(Icomm & buffer,SuperNode2<T,Allocator> & snode, Int first_blkidx, Int first_row);
 
 //template <typename T> inline void Serialize(char ** local_ptr,SuperNode2<T> & snode, Int first_blkidx = -1, Int first_row = -1);
 template <typename T> inline std::ostream& operator<<( std::ostream& os,  SuperNode2<T>& snode);
