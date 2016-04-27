@@ -1552,8 +1552,8 @@ namespace SYMPACK{
 
     if(iam>0){
       //recv from iam-1
-head=-1;
-tail=-1;
+      head=-1;
+      tail=-1;
       MPI_Recv(&head,sizeof(Int),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
       MPI_Recv(&tail,sizeof(Int),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
       MPI_Recv(&marker[0],marker.size()*sizeof(Int),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
@@ -1561,6 +1561,7 @@ tail=-1;
       MPI_Recv(&mrglnk[0],mrglnk.size()*sizeof(Idx),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
     }
 
+//logfileptr->OFS()<<"P"<<iam<<" is active"<<endl;
 //logfileptr->OFS()<<mrglnk<<endl;
 //logfileptr->OFS()<<rchlnk<<endl;
 
@@ -1572,65 +1573,24 @@ tail=-1;
       Int length = cc[fstcol-1];
       Ptr knz = 0;
       rchlnk[head] = tail;
-      Int jsup = mrglnk[ksup-1];
 
       //If ksup has children in the supernodal e-tree
+      Int jsup = mrglnk[ksup-1];
       if(jsup>0){
         //copy the indices of the first child jsup into 
         //the linked list, and mark each with the value 
         //ksup.
-        Int jwidth = xsuper[jsup]-xsuper[jsup-1];
+        Int parentJ = ksup;
 
-        Ptr * jxlindx = NULL;
-        Idx * jlindx = NULL;
-        Int locjsup = -1;
-        if(jsup>=firstSnode && jsup<=lastSnode){
-          locjsup = jsup - firstSnode +1;
-          jxlindx = &xlindx[0];
-          jlindx = &lindx[0];
-        }
-        else{
-          MPI_Status status;
-          recvLindx.resize(size);
-          //receive jsup lindx
-//          logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<size*sizeof(Idx)<<" bytes"<<endl;
-          MPI_Recv(&recvLindx[0],recvLindx.size()*sizeof(Idx),MPI_BYTE,MPI_ANY_SOURCE,jsup+np,comm,&status);
-          //get actual number of received elements
-          int count = 0;
-          MPI_Get_count(&status,MPI_BYTE,&count);
-          count/=sizeof(Idx);
 
-          //compute jsup xlindx
-          recvXlindx.resize(2);
-          recvXlindx[0] = 1;
-          recvXlindx[1] = count +1; 
+        do{
 
-          locjsup = 1;
-          jxlindx = &recvXlindx[0];
-          jlindx = &recvLindx[0];
-        }
+//logfileptr->OFS()<<jsup<<endl;
+          Int jwidth = xsuper[jsup]-xsuper[jsup-1];
 
-        Ptr jnzbeg = jxlindx[locjsup-1] + jwidth;
-        Ptr jnzend = jxlindx[locjsup] -1;
-        for(Ptr jptr = jnzend; jptr>=jnzbeg; --jptr){
-          Idx newi = jlindx[jptr-1];
-          ++knz;
-          marker[newi-1] = ksup;
-          rchlnk[newi] = rchlnk[head];
-          rchlnk[head] = newi;
-        }
-
-        //for each subsequent child jsup of ksup ...
-        jsup = mrglnk[jsup-1];
-        while(jsup!=0 && knz < length){
-          //merge the indices of jsup into the list,
-          //and mark new indices with value ksup.
-
-          jwidth = xsuper[jsup]-xsuper[jsup-1];
-
-          jxlindx = NULL;
-          jlindx = NULL;
-          locjsup = -1;
+          Ptr * jxlindx = NULL;
+          Idx * jlindx = NULL;
+          Int locjsup = -1;
           if(jsup>=firstSnode && jsup<=lastSnode){
             locjsup = jsup - firstSnode +1;
             jxlindx = &xlindx[0];
@@ -1640,8 +1600,85 @@ tail=-1;
             MPI_Status status;
             recvLindx.resize(size);
             //receive jsup lindx
-//            logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<size*sizeof(Idx)<<" bytes"<<endl;
-            MPI_Recv(&recvLindx[0],size*sizeof(Idx),MPI_BYTE,MPI_ANY_SOURCE,jsup+np,comm,&status);
+            Int psrc = min( (Int)np-1, (jsup-1) / (nsuper/np) );
+            //logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<size*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<endl;
+            MPI_Recv(&recvLindx[0],recvLindx.size()*sizeof(Idx),MPI_BYTE,psrc,jsup+np,comm,&status);
+            //get actual number of received elements
+            int count = 0;
+            MPI_Get_count(&status,MPI_BYTE,&count);
+            count/=sizeof(Idx);
+
+            //compute jsup xlindx
+            recvXlindx.resize(2);
+            recvXlindx[0] = 1;
+            recvXlindx[1] = count +1; 
+
+            locjsup = 1;
+            jxlindx = &recvXlindx[0];
+            jlindx = &recvLindx[0];
+          }
+
+          Ptr jnzbeg = jxlindx[locjsup-1] + jwidth;
+          Ptr jnzend = jxlindx[locjsup] -1;
+          if(parentJ == ksup){
+            for(Ptr jptr = jnzend; jptr>=jnzbeg; --jptr){
+              Idx newi = jlindx[jptr-1];
+              ++knz;
+              marker[newi-1] = ksup;
+              rchlnk[newi] = rchlnk[head];
+              rchlnk[head] = newi;
+            }
+          }
+          else{
+            Int nexti = head;
+            for(Ptr jptr = jnzbeg; jptr<=jnzend; ++jptr){
+              Idx newi = jlindx[jptr-1];
+              Idx i;
+              do{
+                i = nexti;
+                nexti = rchlnk[i];
+              }while(newi > nexti);
+
+              if(newi < nexti){
+                ++knz;
+                rchlnk[i] = newi;
+                rchlnk[newi] = nexti;
+                marker[newi-1] = ksup;
+                nexti = newi;
+              }
+            }
+          }
+
+          parentJ = jsup;
+          jsup = mrglnk[jsup-1];
+//break;
+        } while(jsup!=0 && knz < length);
+
+#if 0
+//        //for each subsequent child jsup of ksup ...
+//        jsup = mrglnk[jsup-1];
+        while(jsup!=0 && knz < length){
+//logfileptr->OFS()<<jsup<<endl;
+          //merge the indices of jsup into the list,
+          //and mark new indices with value ksup.
+
+          Int jwidth = xsuper[jsup]-xsuper[jsup-1];
+
+          Ptr * jxlindx = NULL;
+          Idx * jlindx = NULL;
+          Int locjsup = -1;
+          if(jsup>=firstSnode && jsup<=lastSnode){
+            locjsup = jsup - firstSnode +1;
+            jxlindx = &xlindx[0];
+            jlindx = &lindx[0];
+          }
+          else{
+            MPI_Status status;
+            recvLindx.resize(size);
+            //receive jsup lindx
+            Int psrc = min( (Int)np-1, (jsup-1) / (nsuper/np) );
+            //logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<size*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<endl;
+            MPI_Recv(&recvLindx[0],size*sizeof(Idx),MPI_BYTE,psrc,jsup+np,comm,&status);
             //get actual number of received elements
             int count = 0;
             MPI_Get_count(&status,MPI_BYTE,&count);
@@ -1659,8 +1696,8 @@ tail=-1;
 
 
 
-          jnzbeg = jxlindx[locjsup-1] + jwidth;
-          jnzend = jxlindx[locjsup] -1;
+          Ptr jnzbeg = jxlindx[locjsup-1] + jwidth;
+          Ptr jnzend = jxlindx[locjsup] -1;
 
           Int nexti = head;
           for(Ptr jptr = jnzbeg; jptr<=jnzend; ++jptr){
@@ -1672,9 +1709,6 @@ tail=-1;
             }while(newi > nexti);
 
             if(newi < nexti){
-//#ifdef _DEBUG_
-//              logfileptr->OFS()<<jsup<<" is a child of "<<ksup<<" and "<<newi<<" is inserted in the structure of "<<ksup<<std::endl;
-//#endif
               ++knz;
               rchlnk[i] = newi;
               rchlnk[newi] = nexti;
@@ -1684,6 +1718,8 @@ tail=-1;
           }
           jsup = mrglnk[jsup-1];
         }
+#endif
+
       }
 
       //structure of a(*,fstcol) has not been examined yet.  
@@ -1815,13 +1851,13 @@ tail=-1;
           do{
             if(jsup>=firstSnode && jsup<=lastSnode){
               Int locjsup = jsup - firstSnode + 1;
-              Int pdest = min( (Int)np-1, ksup / (nsuper/np) );
+              Int pdest = min( (Int)np-1, (ksup-1) / (nsuper/np) );
               //if remote
               if(pdest!=iam){
                 Int lengthj = xlindx[locjsup] - xlindx[locjsup-1];
                 mpirequests.push_back(MPI_REQUEST_NULL);
                 MPI_Request & request = mpirequests.back();
-        //        logfileptr->OFS()<<"sending "<<lengthj*sizeof(Idx)<<" bytes of "<<jsup<<" to P"<<pdest<<" for "<<ksup<<endl;
+                //logfileptr->OFS()<<"sending "<<lengthj*sizeof(Idx)<<" bytes of "<<jsup<<" to P"<<pdest<<" for "<<ksup<<endl;
                 MPI_Isend(&lindx[xlindx[locjsup-1]-1],lengthj*sizeof(Idx),MPI_BYTE,pdest,jsup+np,comm,&request);
              }
             }
