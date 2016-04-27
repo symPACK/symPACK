@@ -1013,7 +1013,7 @@ namespace SYMPACK{
     }
 
 
-  template <typename T> void SupernodalMatrix2<T>::Init(const DistSparseMatrix<T> & pMat, NGCholOptions & options ){
+  template <typename T> void SupernodalMatrix2<T>::Init(DistSparseMatrix<T> & pMat, NGCholOptions & options ){
 
 
 #ifdef _STAT_COMM_
@@ -1109,12 +1109,14 @@ namespace SYMPACK{
     Local_->ToGlobal(*Global_,CommEnv_->MPI_GetComm());
     Global_->ExpandSymmetric();
 
-
+    {
     //Create an Ordering object to hold the permutation
     Order_.SetCommEnvironment(CommEnv_);
     Order_.SetStructure(*Global_);
     logfileptr->OFS()<<"Structure set"<<endl;
 
+
+      double timeSta = get_time();
     TIMER_START(ORDERING);
     switch(options_.ordering){
       case MMD:
@@ -1155,20 +1157,34 @@ namespace SYMPACK{
         break;
     }
     TIMER_STOP(ORDERING);
+
+      double timeStop = get_time();
+    if(iam==0){
+      cout<<"Ordering time: "<<timeStop - timeSta<<endl;
+    }
     logfileptr->OFS()<<"Ordering done"<<endl;
+    }
 
     //logfileptr->OFS()<<"Matrix reexpanding"<<endl;
     //Global_->ExpandSymmetric();
     isGlobStructAllocated_ = true;
-    logfileptr->OFS()<<"Matrix expanded"<<endl;
+    logfileptr->OFS()<<"Matrix structure expanded"<<endl;
+
+    SYMPACK::vector<Int> cc,rc;
+{
+
+      double timeSta = get_time();
 
     ETree_.ConstructETree(*Global_,Order_);
     ETree_.PostOrderTree(Order_);
     logfileptr->OFS()<<"ETREE done"<<endl;
-    SYMPACK::vector<Int> cc,rc;
     Global_->GetLColRowCount(ETree_,Order_,cc,rc);
     ETree_.SortChildren(cc,Order_);
-
+      double timeStop = get_time();
+      if(iam==0){
+        cout<<"Elimination tree construction time: "<<timeStop - timeSta<<endl;
+      }
+}
 
 
 
@@ -1201,45 +1217,64 @@ namespace SYMPACK{
 
 #ifndef _NO_COMPUTATION_
 
-    Global_->FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
+{
+  double timeSta = get_time();
+  Global_->FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
 
-    logfileptr->OFS()<<"Supernodes found"<<endl;
+  logfileptr->OFS()<<"Supernodes found"<<endl;
 
-    if(options_.relax.nrelax0>=0){
-      Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
-      logfileptr->OFS()<<"Relaxation done"<<endl;
-      Global_->SymbolicFactorizationRelaxed(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+  if(options_.relax.nrelax0>=0){
+    Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
+    logfileptr->OFS()<<"Relaxation done"<<endl;
+
+    {
+      double timeSta = get_time();
+
+      //Global_->SymbolicFactorizationRelaxed(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+      Global_->SymbolicFactorizationRelaxedDist(ETree_,Order_,cc,Xsuper_,SupMembership_,locXlindx_,locLindx_,CommEnv_->MPI_GetComm());
+
+      double timeStop = get_time();
+      if(iam==0){
+        cout<<"Symbolic factorization time: "<<timeStop - timeSta<<endl;
+      }
     }
-    else{
-      Global_->SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
-    }
 
-    logfileptr->OFS()<<"Symbfact done"<<endl;
+  }
+  else{
+    Global_->SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+  }
+
+  logfileptr->OFS()<<"Symbfact done"<<endl;
 
 #ifdef REFINED_SNODE
-    SYMPACK::vector<Int> permRefined;
-    //    SYMPACK::vector<Int> newPerm(Size());
-    Global_->RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
+  SYMPACK::vector<Int> permRefined;
+  //    SYMPACK::vector<Int> newPerm(Size());
+  Global_->RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
 
-    //      Perm_.Resize(Size());
-    //      for(Int i =0; i<Perm_.size();++i){
-    //        Perm_[permRefined[i]-1] = permChild[i];
-    //      }
+  //      Perm_.Resize(Size());
+  //      for(Int i =0; i<Perm_.size();++i){
+  //        Perm_[permRefined[i]-1] = permChild[i];
+  //      }
 
-    //    Perm_ = permRefined;
+  //    Perm_ = permRefined;
 #else
-    //Combine permMMD with Postorder
-    //    Perm_.Resize(Size());
-    //    for(Int i =0; i<Perm_.size();++i){
-    //      Perm_[i] = ETree_.FromPostOrder(i+1);
-    //    }
+  //Combine permMMD with Postorder
+  //    Perm_.Resize(Size());
+  //    for(Int i =0; i<Perm_.size();++i){
+  //      Perm_[i] = ETree_.FromPostOrder(i+1);
+  //    }
 #endif
 
+  double timeStop = get_time();
+  if(iam==0){
+    cout<<"Total symbolic factorization time: "<<timeStop - timeSta<<endl;
+  }
+}
 
 
-
-    //Get Supernodal local xlindx and supernodal lindx
-    {
+    //TODO this should be produced by the symbolic factorization
+    //Get local xlindx and lindx
+    if(0){
       //first compute local xlindx
       Int numLocSnode = ( (Xsuper_.size()-1) / np);
       Int firstSnode = iam*numLocSnode + 1;
@@ -1255,7 +1290,9 @@ namespace SYMPACK{
       {
         locXlindx_.resize(numLocSnode+1);
         std::copy(&xlindx_[firstSnode-1],&xlindx_[firstSnode-1]+numLocSnode+1,locXlindx_.begin());
-
+        for(Idx i = locXlindx_.size(); i>=1; i--){
+          locXlindx_[i-1]-=locXlindx_[0]-1;
+        }
 
         //now compute local supernodal lindx
         locLindx_.resize(locXlindx_.back());
@@ -1323,6 +1360,13 @@ namespace SYMPACK{
 
     } 
 
+//    logfileptr->OFS()<<"local xlindx: "<<locXlindx_<<endl;
+//    logfileptr->OFS()<<"local lindx: "<<locLindx_<<endl;
+//    Global_->SymbolicFactorizationRelaxedDist(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_,CommEnv_->MPI_GetComm());
+//    logfileptr->OFS()<<"local xlindx: "<<xlindx_<<endl;
+//    logfileptr->OFS()<<"local lindx: "<<lindx_<<endl;
+//locXlindx_=xlindx_;
+//locLindx_=lindx_;
 
 
 
@@ -1338,15 +1382,17 @@ namespace SYMPACK{
 #endif
 
 
-    isXlindxAllocated_=true;
-    isLindxAllocated_=true;
+//    isXlindxAllocated_=true;
+//    isLindxAllocated_=true;
 
+{
+      double timeSta = get_time();
 
     TIMER_START(LOAD_BALANCE);
     if(options.load_balance_str=="SUBCUBE-FI"){
       if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
       ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,locXlindx_,locLindx_,cc,CommEnv_,true);
+      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,true);
       //this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,CommEnv_,true);
 #ifdef _DEBUG_MAPPING_
       logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
@@ -1366,7 +1412,7 @@ namespace SYMPACK{
     else if(options.load_balance_str=="SUBCUBE-FO"){
       if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
       ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,locXlindx_,locLindx_,cc,CommEnv_,false);
+      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,false);
       //this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,CommEnv_,false);
 
 #ifdef _DEBUG_MAPPING_
@@ -1387,7 +1433,7 @@ namespace SYMPACK{
     else if(options.load_balance_str=="SUBCUBE-VOLUME-FI"){
       if(iam==0){ cout<<"Subtree to subcube volume FI mapping used"<<endl;}
       ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
+      this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,true);
 #ifdef _DEBUG_MAPPING_
       logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
       logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
@@ -1406,7 +1452,7 @@ namespace SYMPACK{
     else if(options.load_balance_str=="SUBCUBE-VOLUME-FO"){
       if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
       ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
+      this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,false);
 #ifdef _DEBUG_MAPPING_
       logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
       logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
@@ -1542,6 +1588,13 @@ namespace SYMPACK{
       for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
     } 
     TIMER_STOP(LOAD_BALANCE);
+
+      double timeStop = get_time();
+      if(iam==0){
+        cout<<"Load balancing time: "<<timeStop - timeSta<<endl;
+      }
+}
+
 
 #if 0
     int64_t NNZ = 0;
@@ -1896,968 +1949,155 @@ namespace SYMPACK{
     Int iam = CommEnv_->MPI_Rank();
     Int np  = CommEnv_->MPI_Size();
 
-#define EXPAND_MATRIX
 
-#ifdef EXPAND_MATRIX
-    TIMER_START(EXPANDING_MATRIX);
-    DistSparseMatrix<T> ExpA(CommEnv_->MPI_GetComm());
-    {
-      double timeSta = get_time();
-      ExpA.size = pMat.size;
-      ExpA.nnz = 2*pMat.nnz-pMat.size;
-      Idx numColFirst = std::max(1,ExpA.size / np);
-      SYMPACK::vector<Idx> numColLocalVec(np,numColFirst);
-      numColLocalVec[np-1] = ExpA.size - numColFirst * (np-1);  // Modify the last entry	
-      Idx numColLocal = numColLocalVec[iam];
-      //Expand A to asymmetric storage
-      Idx localFirstCol = iam*numColFirst+1;
-      Idx localLastCol = localFirstCol+numColLocal-1;
-
-      //Initialize the Local structure
-      ExpA.Local_.size = ExpA.size;
-      ExpA.Local_.colptr.resize(numColLocal+1);
-
-      for( Idx i = 0; i < numColLocal + 1; i++ ){
-        ExpA.Local_.colptr[i] = Global_->expColptr[iam * numColFirst+i] - Global_->expColptr[iam * numColFirst] + 1;
-      }
-
-      ExpA.Local_.nnz = ExpA.Local_.colptr[numColLocal] - ExpA.Local_.colptr[0];
-
-      ExpA.Local_.rowind.resize(ExpA.Local_.nnz);
-
-      Ptr globalColBeg = Global_->expColptr[iam*numColFirst];
-      std::copy(&Global_->expRowind[globalColBeg-1],&Global_->expRowind[globalColBeg-1]+ExpA.Local_.nnz,&ExpA.Local_.rowind[0]);
-      ExpA.nzvalLocal.resize(ExpA.Local_.nnz);
-
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Global_.colptr: "<<Global_->colptr<<endl;
-      logfileptr->OFS()<<"Global_.rowind: "<<Global_->rowind<<endl;
-      logfileptr->OFS()<<"Global_.expColptr: "<<Global_->expColptr<<endl;
-      logfileptr->OFS()<<"Global_.expRowind: "<<Global_->expRowind<<endl;
-      logfileptr->OFS()<<"ExpA.colptr: "<<ExpA.Local_.colptr<<endl;
-      logfileptr->OFS()<<"ExpA.rowind: "<<ExpA.Local_.rowind<<endl;
-      logfileptr->OFS()<<"pMat.colptr: "<<pMat.Local_.colptr<<endl;
-      logfileptr->OFS()<<"pMat.rowind: "<<pMat.Local_.rowind<<endl;
-#endif
-
-      SYMPACK::vector<Ptr> localDestColHead = ExpA.Local_.colptr;
-
-      SYMPACK::vector<T> recvNzval;
-      SYMPACK::vector<Ptr> recvColptr;
-      SYMPACK::vector<Idx> recvRowind;
-      for(Int proc = 0; proc<np; ++proc){
-        //communicate colptr
-        //Broadcast size
-        Int size = iam==proc?pMat.Local_.colptr.size():0;
-        MPI_Bcast((void*)&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
-        //Broadcast colptr
-        if(iam==proc){
-          MPI_Bcast((void*)&pMat.Local_.colptr[0],size*sizeof(Ptr),MPI_BYTE,proc,ExpA.comm);
-        }
-        else{
-          recvColptr.resize(size);
-          MPI_Bcast((void*)&recvColptr[0],size*sizeof(Ptr),MPI_BYTE,proc,ExpA.comm);
-        }
-
-        //communicate rowind
-        size = iam==proc?pMat.Local_.rowind.size():0;
-        MPI_Bcast(&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
-        //Broadcast rowind
-        if(iam==proc){
-          MPI_Bcast((void*)&pMat.Local_.rowind[0],size*sizeof(Idx),MPI_BYTE,proc,ExpA.comm);
-        }
-        else{
-          recvRowind.resize(size);
-          MPI_Bcast((void*)&recvRowind[0],size*sizeof(Idx),MPI_BYTE,proc,ExpA.comm);
-        }
-
-
-        //communicate nzvalLocal
-        //Broadcast size
-        size = iam==proc?pMat.nzvalLocal.size():0;
-        MPI_Bcast((void*)&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
-        //Broadcast nzvalLocal
-        if(iam==proc){
-          MPI_Bcast((void*)&pMat.nzvalLocal[0],size*sizeof(T),MPI_BYTE,proc,ExpA.comm);
-        }
-        else{
-          recvNzval.resize(size);
-          MPI_Bcast((void*)&recvNzval[0],size*sizeof(T),MPI_BYTE,proc,ExpA.comm);
-        }
-
-        int colptrSize = iam==proc?pMat.Local_.colptr.size()-1:recvColptr.size()-1;
-        const Ptr * colptr = iam==proc?&pMat.Local_.colptr[0]:&recvColptr[0];
-        const Idx * rowind = iam==proc?&pMat.Local_.rowind[0]:&recvRowind[0];
-        const T * nzval = iam==proc?&pMat.nzvalLocal[0]:&recvNzval[0];
-        //Parse the received data and copy it in the ExpA.nzvalLocal
-        Int recvFirstCol = proc*numColFirst+1;
-        Int recvLastCol = recvFirstCol+numColLocalVec[proc]-1;
-        for(Idx colIdx = 1; colIdx<=colptrSize;++colIdx){
-          Idx col = recvFirstCol + colIdx-1;
-          Ptr colBeg = colptr[colIdx-1];
-          Ptr colEnd = colptr[colIdx]-1;
-          for(Ptr rowIdx = colBeg; rowIdx<=colEnd;++rowIdx){
-            Idx row = rowind[rowIdx-1];
-            if(row>=localFirstCol && row<=localLastCol){
-              //copy only upper triangular part
-              if(col<row){
-                Idx localCol = row - localFirstCol +1;
-                Ptr & localDestColIdx = localDestColHead[localCol-1];
-                ExpA.nzvalLocal[localDestColIdx-1] = nzval[rowIdx-1];
-                localDestColIdx++;
-              }
-            }
-          }
-        }
-      }
-      //copy upper triangular part
-      for(Idx colIdx = 1; colIdx<pMat.Local_.colptr.size();++colIdx){
-        Ptr & localDestColIdx = localDestColHead[colIdx-1];
-        Ptr colBeg = pMat.Local_.colptr[colIdx-1];
-        Ptr colEnd = pMat.Local_.colptr[colIdx]-1;
-        for(Ptr rowIdx = colBeg; rowIdx<=colEnd;++rowIdx){
-          Idx row = pMat.Local_.rowind[rowIdx-1];
-          ExpA.nzvalLocal[localDestColIdx-1] = pMat.nzvalLocal[rowIdx-1];
-          localDestColIdx++;
-        }
-      }
-      double timeEnd = get_time();
-
-
-//#ifdef _DEBUG_
-//      logfileptr->OFS()<<"ExpA.nzvalLocal: "<<ExpA.nzvalLocal<<endl;
-//      logfileptr->OFS()<<"pMat.nzvalLocal: "<<pMat.nzvalLocal<<endl;
-//#endif
-
-      //now we can do the copy by doing sends of whole columns to the dest processor
-      if(iam==0){
-        cout<<"Time for expanding matrix to asymmetric: "<<timeEnd-timeSta<<endl;
-      }
-    }
-
-    TIMER_STOP(EXPANDING_MATRIX);
-#endif
     //copy
 
-    TIMER_START(DISTRIBUTING_MATRIX);
-    Icomm buffer;
-    SYMPACK::vector<T> denseA;
-    Icomm recv_buffer;
+    {
+      double timeSta = get_time();
+      TIMER_START(DISTRIBUTING_MATRIX);
+      //Icomm buffer;
+      Icomm recv_buffer;
 
 
-    AsyncComms incomingRecv;
-    AsyncComms outgoingSend;
-    Int numColFirst = std::max(1,iSize_ / np);
+      AsyncComms incomingRecv;
+      AsyncComms outgoingSend;
+      Int numColFirst = std::max(1,iSize_ / np);
 
-    logfileptr->OFS()<<"Starting Send"<<endl;
-    try{
-      TIMER_START(DISTRIBUTE_COUNTING);
-      //first, count 
-      //map<Int,pair<size_t,Icomm *> > recv_map;
-      map<Int,pair<size_t,Icomm *> > send_map;
+      logfileptr->OFS()<<"Starting Send"<<endl;
+      try{
+        TIMER_START(DISTRIBUTE_COUNTING);
+        //first, count 
+        map<Int,pair<size_t,Icomm *> > send_map;
 
-      //make a copy of colptr to store the current position in each column
-     
-      std::map<Idx, std::list< std::pair<Idx, Ptr> > > descendants;      
-      PtrVec colpos = pMat.Local_.colptr;
-      Idx firstCol = iam*(iSize_/np);
+        //make a copy of colptr to store the current position in each column
 
-#ifdef _USE_ALLTOALLV_
-      for(Int p=0;p<np;++p){
-        //recv_map[p].first = 0;
-        send_map[p].first = 0;
-      }
-#endif
+        Idx firstCol = iam*(iSize_/np);
 
-      Int snodeCount = 0;
-      for(Int I=1;I<Xsuper_.size();I++){
-        Int fc = Xsuper_[I-1];
-        Int lc = Xsuper_[I]-1;
-        Int iWidth = lc-fc+1;
-        Int iHeight = UpdateHeight_[I-1];
-
-        Int iDest = this->Mapping_->Map(I-1,I-1);
-
-        if(iDest==iam){
-          ++snodeCount;
+        for(Int p=0;p<np;++p){
+          send_map[p].first = 0;
         }
 
-        //look at the owner of the first column of the supernode
-        Int numColFirst = std::max(1,iSize_ / np);
-
-        //post all the recv and sends
-        //      logfileptr->OFS()<<"Sending columns of SuperNode2 "<<I<<endl;
-        for(Int col = fc;col<=lc;col++){
-          //corresponding column in the unsorted matrix A
-          Int orig_col = Order_.perm[col-1];
-          Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
-
-
-
-
-//          if(iam == iDest){
-//            if(iam != iOwnerCol){
-//              Int nrows = Global_->expColptr[orig_col] - Global_->expColptr[orig_col-1];
-//              size_t & recv_bytes = recv_map[iOwnerCol].first;
-//              recv_bytes += sizeof(Int)+sizeof(Int)+nrows*(sizeof(Int) + sizeof(T));
-//
-//#if 0
-//              logfileptr->OFS()<<"P"<<iam<<" <--- "<<nrows<<" ---- P"<<iOwnerCol<<endl;
-//              logfileptr->OFS()<<orig_col<<" ROW STRUCTURE"<<endl;
-//              for(Ptr jptr =  Global_->expColptr[orig_col-1]; jptr < Global_->expColptr[orig_col]; jptr++){
-//                Int col = Global_->expRowind[jptr-1];
-//                logfileptr->OFS()<<col<<" ";
-//              }
-//              logfileptr->OFS()<<endl;
-//#endif
-//            }
-//          }
-
-#ifdef EXPAND_MATRIX
-//          if(iam != iDest){
-            if(iam == iOwnerCol){
-              Int local_col = (orig_col-(numColFirst)*iOwnerCol);
-              //Int nrows = ExpA.Local_.colptr[local_col]-ExpA.Local_.colptr[local_col-1];
-              Int nrows = 0;
-              for(Int rowidx = ExpA.Local_.colptr[local_col-1]; rowidx<ExpA.Local_.colptr[local_col]; ++rowidx){
-                Int orig_row = ExpA.Local_.rowind[rowidx-1];
-                Int row = Order_.invp[orig_row-1];
-                if(row>=col){
-                  nrows++;
-                }
-              }
-#if 0
-              Int nrows2 = Global_->expColptr[orig_col] - Global_->expColptr[orig_col-1];
-              logfileptr->OFS()<<"P"<<iam<<" ---- "<<nrows<<" ---> P"<<iDest<<endl;
-              logfileptr->OFS()<<orig_col<<" NROWS = "<<nrows<<" vs. NROWS2 = "<<nrows2<<endl;
-              logfileptr->OFS()<<orig_col<<" ROW STRUCTURE"<<endl;
-              logfileptr->OFS()<<orig_col<<" ROW STRUCTURE"<<endl;
-              for(Ptr jptr =  ExpA.Local_.colptr[local_col-1]; jptr < ExpA.Local_.colptr[local_col]; jptr++){
-                Int col = ExpA.Local_.rowind[jptr-1];
-                logfileptr->OFS()<<col<<" ";
-              }
-              logfileptr->OFS()<<endl;
-#endif
-              size_t & send_bytes = send_map[iDest].first;
-              send_bytes += sizeof(Int)+sizeof(Int)+nrows*(sizeof(Int)+sizeof(T));
-            }
-//          }
-#else
-
-          size_t & send_bytes = send_map[iDest].first;
-          if(iam == iOwnerCol){
-            Int local_col = (orig_col-(numColFirst)*iOwnerCol);
-            Int nrows = 0;
-            for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-              Int orig_row = pMat.Local_.rowind[rowidx-1];
-              Int row = Order_.invp[orig_row-1];
-              if(row>=col){
-                nrows++;
-              }
-            }
-            send_bytes += sizeof(Int)+sizeof(Int)+nrows*(sizeof(Int)+sizeof(T));
-          }
-          else{
-            //look in all prev local columns if there is a nz element at row "col"
-            //TODO this can be optimized by using the etree to parse only descendants
-            Int nrows = 0;
-            for(Idx prevCol = 1; prevCol<orig_col; prevCol++){
-              if(prevCol >= firstCol && prevCol<firstCol+colpos.size()){
-                Idx locPrevCol = prevCol - firstCol+1; 
-                Ptr & pos = colpos[locPrevCol-1];
-                Ptr end = pMat.Local_.colptr[locPrevCol]-1;
-                for(pos;pos<=end;pos++){
-                  Idx orig_row = pMat.Local_.rowind[pos-1];
-                  if(orig_row == orig_col){
-                    Int trow = Order_.invp[prevCol-1];
-                    if(trow>=col){
-                      descendants[orig_col].push_back(std::make_pair(prevCol,pos));
-                      nrows++;
-                    }
-                  }
-                  else if(orig_row>orig_col){
-                    break;
-                  }
-                }
-              }
-            }
-            send_bytes += sizeof(Int)+sizeof(Int)+nrows*(sizeof(Int)+sizeof(T));
-          }
-#endif
-        }
-      }
-
-      TIMER_STOP(DISTRIBUTE_COUNTING);
-
-      //Resize the local supernodes array
-      LocalSupernodes_.reserve(snodeCount);
-
-
-      TIMER_START(DISTRIBUTE_CREATE_SNODES);
-
-      for(Int I=1;I<Xsuper_.size();I++){
-
-        Int iDest = this->Mapping_->Map(I-1,I-1);
-
-        //parse the first column to create the supernode structure
-        if(iam==iDest){
+        Int snodeCount = 0;
+        for(Int I=1;I<Xsuper_.size();I++){
           Int fc = Xsuper_[I-1];
           Int lc = Xsuper_[I]-1;
           Int iWidth = lc-fc+1;
           Int iHeight = UpdateHeight_[I-1];
-          Int nzBlockCnt = numBlk[I-1];
-#ifndef ITREE2
-          globToLocSnodes_.push_back(I-1);
-#else 
-          ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
-          globToLocSnodes_.Insert(snode_inter);
-#endif
-          LocalSupernodes_.push_back( new SuperNode2<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
-        }
-      }
 
-      TIMER_STOP(DISTRIBUTE_CREATE_SNODES);
-
-      //TODO: implement this using Alltoallv
-
-      if(iam==0){
-        cout<<"Starting data exchange"<<endl;
-      }
-      double timeSta = get_time();
-
-#ifdef _USE_ALLTOALLV_
-      //first create the structure of every supernode
-      {
-        std::vector< int > superStructure(np);
-        std::vector< int > rdisplsStructure;
-        std::vector< int > sSuperStructure(np);
-        std::vector< int > ssizes(np,0);
-        std::vector< int > sdispls(np+1,0);
-        std::vector< int > rsizes(np,0);
-
-        Int numLocSnode = ( (Xsuper_.size()-1) / np);
-        Int firstSnode = iam*numLocSnode + 1;
-        for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
-          Idx I = locsupno + firstSnode-1;
-          Int iDest = this->Mapping_->Map(I-1,I-1);
-          ssizes[iDest] += 1 + 2*numBlk[I-1]; //1 for supno index + numBlk startrows + numBlk number of rows
-        }
-
-        sdispls[0] = 0;
-        std::partial_sum(ssizes.begin(),ssizes.end(),&sdispls[1]);
-
-        rdisplsStructure = sdispls;
-        sSuperStructure.resize(sdispls.back());
-        for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
-          Idx I = locsupno + firstSnode-1;
           Int iDest = this->Mapping_->Map(I-1,I-1);
 
-          int & tail = rdisplsStructure[iDest];
+          if(iDest==iam){
+            ++snodeCount;
+          }
 
+          //look at the owner of the first column of the supernode
+          Int numColFirst = std::max(1,iSize_ / np);
 
-          Int fc = Xsuper_[I-1];
-          Int lc = Xsuper_[I]-1;
-          Int iWidth = lc - fc + 1;
-          Ptr lfi = locXlindx_[locsupno-1];
-          Ptr lli = locXlindx_[locsupno]-1;
+          //post all the recv and sends
+          for(Int col = fc;col<=lc;col++){
+            //corresponding column in the unsorted matrix A
+            Int orig_col = Order_.perm[col-1];
+            Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+            size_t & send_bytes = send_map[iDest].first;
+            if(iam == iOwnerCol){
+              Int nrows = 0;
+              Int local_col = (orig_col-(numColFirst)*iOwnerCol);
+              for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
+                Int orig_row = pMat.Local_.rowind[rowidx-1];
+                Int row = Order_.invp[orig_row-1];
 
-          sSuperStructure[tail++] = I;
-          //count number of contiguous rows
-          for(Ptr sidx = lfi; sidx<=lli;sidx++){
-            Idx iStartRow = locLindx_[sidx-1];
-            Idx iPrevRow = iStartRow;
-            Int iContiguousRows = 1;
-            for(Int idx2 = sidx+1; idx2<=lli;idx2++){
-              Idx iCurRow = locLindx_[idx2-1];
-              if(iStartRow == locLindx_[lfi-1]){
-                if(iCurRow>iStartRow+iWidth-1){
-                  //enforce the first block to be a square diagonal block
-                  break;
+                if(row<col){
+                  //add the pair (col,row) to processor owning column row
+                  Int J = SupMembership_[row-1];
+                  Int iDestJ = this->Mapping_->Map(J-1,J-1);
+                  send_map[iDestJ].first += sizeof(Int)+sizeof(Int)+1*(sizeof(Int)+sizeof(T));
+                }
+
+                if(row>=col){
+                  //add the pair (row,col) to iDest
+                  nrows++;
                 }
               }
-
-              if(iCurRow==iPrevRow+1){
-                sidx++;
-                ++iContiguousRows;
-                iPrevRow=iCurRow;
-              }
-              else{
-                break;
-              }
+              send_bytes += sizeof(Int)+sizeof(Int)+nrows*(sizeof(Int)+sizeof(T));
             }
-
-            sSuperStructure[tail++] = iStartRow;
-            sSuperStructure[tail++] = iContiguousRows;
           }
         }
 
-        MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,CommEnv_->MPI_GetComm());
-        rdisplsStructure[0] = 0;
-        std::partial_sum(rsizes.begin(),rsizes.end(),&rdisplsStructure[1]);
-        superStructure.resize(rdisplsStructure.back());
+        TIMER_STOP(DISTRIBUTE_COUNTING);
 
-        //turn everything into byte sizes
-        for(int p = 0; p<ssizes.size();p++){ ssizes[p]*=sizeof(int); }
-        for(int p = 0; p<rsizes.size();p++){ rsizes[p]*=sizeof(int); }
-        for(int p = 0; p<sdispls.size();p++){ sdispls[p]*=sizeof(int); }
-        for(int p = 0; p<rdisplsStructure.size();p++){ rdisplsStructure[p]*=sizeof(int); }
+        //Resize the local supernodes array
+        LocalSupernodes_.reserve(snodeCount);
 
-        //Do the alltoallv to get the structures        
-        MPI_Alltoallv(&sSuperStructure[0], &ssizes[0], &sdispls[0], MPI_BYTE,
-            &superStructure[0], &rsizes[0], &rdisplsStructure[0], MPI_BYTE,
-            CommEnv_->MPI_GetComm());
 
-        //loop through received structure and create supernodes
-        for(Int p = 0; p<np; p++){
-          int pos = rdisplsStructure[p]/sizeof(int);
-          int end = rdisplsStructure[p+1]/sizeof(int);
-          while(pos<end){
-            Int I = superStructure[pos++];
+        TIMER_START(DISTRIBUTE_CREATE_SNODES);
+
+        for(Int I=1;I<Xsuper_.size();I++){
+
+          Int iDest = this->Mapping_->Map(I-1,I-1);
+
+          //parse the first column to create the supernode structure
+          if(iam==iDest){
+            Int fc = Xsuper_[I-1];
+            Int lc = Xsuper_[I]-1;
+            Int iWidth = lc-fc+1;
+            Int iHeight = UpdateHeight_[I-1];
             Int nzBlockCnt = numBlk[I-1];
-
-            Int fc = Xsuper_[I-1];
-            Int lc = Xsuper_[I]-1;
-            Int iWidth = lc-fc+1;
-            SuperNode2<T> & snode = *snodeLocal(I);
-            if(snode.NZBlockCnt()==0){
-              for(Int i = 0; i<nzBlockCnt;i++){
-                Int iStartRow = superStructure[pos++];
-                Int iContiguousRows = superStructure[pos++];
-                snode.AddNZBlock(iContiguousRows , iWidth,iStartRow);
-              }
-              snode.Shrink();
-            }
-          }
-        } 
-
-      }
-
-
-
-      {
-
-
-        //allocate one buffer for every remote processor
-        //compute the send structures
-        size_t total_send_size = 0;
-        SYMPACK::vector<int> sdispls(np+1,0);
-        SYMPACK::vector<int> scounts(np,0);
-        for(auto it = send_map.begin(); it!=send_map.end();it++){
-          Int iCurDest = it->first;
-          size_t & send_bytes = it->second.first;
-          scounts[iCurDest] = send_bytes;
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"P"<<iam<<" ---- "<<send_bytes<<" ---> P"<<iCurDest<<endl;
+#ifndef ITREE2
+            globToLocSnodes_.push_back(I-1);
+#else 
+            ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
+            globToLocSnodes_.Insert(snode_inter);
 #endif
+            LocalSupernodes_.push_back( new SuperNode2<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
+          }
         }
 
+        TIMER_STOP(DISTRIBUTE_CREATE_SNODES);
 
-  //compute send displacements
-  sdispls[0] = 0;
-  std::partial_sum(scounts.begin(),scounts.end(),&sdispls[1]);
-  total_send_size = sdispls.back();
+        //first create the structure of every supernode
+        {
+          std::vector< int > superStructure(np);
+          std::vector< int > rdisplsStructure;
+          std::vector< int > sSuperStructure(np);
+          std::vector< int > ssizes(np,0);
+          std::vector< int > sdispls(np+1,0);
+          std::vector< int > rsizes(np,0);
 
+          Int numLocSnode = ( (Xsuper_.size()-1) / np);
+          Int firstSnode = iam*numLocSnode + 1;
+          for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
+            Idx I = locsupno + firstSnode-1;
+            Int iDest = this->Mapping_->Map(I-1,I-1);
+            ssizes[iDest] += 1 + 2*numBlk[I-1]; //1 for supno index + numBlk startrows + numBlk number of rows
+          }
 
-        Icomm * IsendPtr = new Icomm(total_send_size,MPI_REQUEST_NULL);
+          sdispls[0] = 0;
+          std::partial_sum(ssizes.begin(),ssizes.end(),&sdispls[1]);
 
-        //Fill up the send buffer
-        for(auto it = send_map.begin(); it!=send_map.end();it++){
-          Int iCurDest = it->first;
-          size_t & send_bytes = it->second.first;
-
-          Icomm & Isend = *IsendPtr;
-
-          for(Int I=1;I<Xsuper_.size();I++){
-            Int fc = Xsuper_[I-1];
-            Int lc = Xsuper_[I]-1;
-            Int iWidth = lc-fc+1;
-            Ptr fi = xlindx_[I-1];
-            Ptr li = xlindx_[I]-1;
-            Int iHeight = li-fi+1;
-
+          rdisplsStructure = sdispls;
+          sSuperStructure.resize(sdispls.back());
+          for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
+            Idx I = locsupno + firstSnode-1;
             Int iDest = this->Mapping_->Map(I-1,I-1);
 
-            if(iDest == iCurDest){
-#ifdef _DEBUG_
-              logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
-#endif
+            int & tail = rdisplsStructure[iDest];
 
-              //look at the owner of the first column of the supernode
-              Int numColFirst = std::max(1,iSize_ / np);
-
-              //post all the recv and sends
-              //      logfileptr->OFS()<<"Sending columns of SuperNode2 "<<I<<endl;
-//              bool isSend = false;
-//              for(Int col = fc;col<=lc;col++){
-//                //corresponding column in the unsorted matrix A
-//                Int orig_col = Order_.perm[col-1];
-//                Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
-//
-//                if(iam == iOwnerCol){
-//                  isSend = true;
-//                }
-//              }
-//
-//              if(isSend)
-              {
-
-                //Serialize
-                for(Int col = fc;col<=lc;col++){
-                  Int orig_col = Order_.perm[col-1];
-                  Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
-#ifdef EXPAND_MATRIX
-//                  if(iDest!=iam){
-                    if(iam==iOwnerCol){
-
-
-                      Int local_col = (orig_col-(numColFirst)*iOwnerCol);
-                      //Int nrows = ExpA.Local_.colptr[local_col]-ExpA.Local_.colptr[local_col-1];
-                      //Serialize(Isend,(char*)&ExpA.Local_.rowind[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(Int));
-                      ////TODO Try to remove ExpA.nzvalLocal
-                      //Serialize(Isend,(char*)&ExpA.nzvalLocal[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(T));
-
-                      //Push the permuted matrix instead
-                      //count number of rows in the permuted matrix
-                      Int nrows = 0;
-                      for(Int rowidx = ExpA.Local_.colptr[local_col-1]; rowidx<ExpA.Local_.colptr[local_col]; ++rowidx){
-                        Int orig_row = ExpA.Local_.rowind[rowidx-1];
-                        Int row = Order_.invp[orig_row-1];
-                        if(row>=col){
-                          nrows++;
-                        }
-                      }
-
-                      Isend<<col;
-                      Isend<<nrows;
-
-                      for(Int rowidx = ExpA.Local_.colptr[local_col-1]; rowidx<ExpA.Local_.colptr[local_col]; ++rowidx){
-                        Int orig_row = ExpA.Local_.rowind[rowidx-1];
-                        Int row = Order_.invp[orig_row-1];
-                        if(row>=col){
-                          Isend<<row;
-                        }
-                      }
-
-                      for(Int rowidx = ExpA.Local_.colptr[local_col-1]; rowidx<ExpA.Local_.colptr[local_col]; ++rowidx){
-                        Int orig_row = ExpA.Local_.rowind[rowidx-1];
-                        Int row = Order_.invp[orig_row-1];
-                        if(row>=col){
-                          Isend<<ExpA.nzvalLocal[rowidx];
-                        }
-                      }
-
-                    }
-//                  }
-#else
-                  if(iam == iOwnerCol){
-                    Int local_col = (orig_col-(numColFirst)*iOwnerCol);
-                    Int nrows = 0;
-                    for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-                      Int orig_row = pMat.Local_.rowind[rowidx-1];
-                      Int row = Order_.invp[orig_row-1];
-                      if(row>=col){
-                        nrows++;
-                      }
-                    }
-                    Isend<<col;
-                    Isend<<nrows;
-
-                    for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-                      Int orig_row = pMat.Local_.rowind[rowidx-1];
-                      Int row = Order_.invp[orig_row-1];
-                      if(row>=col){
-                        Isend<<row;
-                      }
-                    }
-
-                    for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-                      Int orig_row = pMat.Local_.rowind[rowidx-1];
-                      Int row = Order_.invp[orig_row-1];
-                      if(row>=col){
-                        Isend<<pMat.nzvalLocal[rowidx];
-                      }
-                    }
-                  }
-                  else{
-                    //look in all prev local columns if there is a nz element at row "col"
-                    //TODO this can be optimized by using the etree to parse only descendants
-                    Int nrows = descendants[orig_col].size();
-                    Isend<<col;
-                    Isend<<nrows;
-
-                    for(auto it = descendants[orig_col].begin(); it != descendants[orig_col].end(); it++){
-                      Idx prevCol = it->first;
-                      Ptr pos = it->second;
-                      Int trow = Order_.invp[prevCol-1];
-                      Isend<<trow;
-                    }
-
-                    for(auto it = descendants[orig_col].begin(); it != descendants[orig_col].end(); it++){
-                      Idx prevCol = it->first;
-                      Ptr pos = it->second;
-                      Isend<<pMat.nzvalLocal[pos];
-                    }
-                  }
-#endif
-                }
-              }
-            }
-          }
-        }
-
-
-
-
-
-        //compute the receive structures
-        size_t total_recv_size = 0;
-        SYMPACK::vector<int> rdispls(np+1,0);
-        SYMPACK::vector<int> rcounts(np,0);
-
-        MPI_Alltoall(&scounts[0],sizeof(int),MPI_BYTE,&rcounts[0],sizeof(int),MPI_BYTE,CommEnv_->MPI_GetComm());
-
-        //compute receive displacements
-        rdispls[0] = 0;
-        std::partial_sum(rcounts.begin(),rcounts.end(),&rdispls[1]);
-        total_recv_size = rdispls.back();
-
-        Icomm * IrecvPtr = new Icomm(total_recv_size,MPI_REQUEST_NULL);
-
-
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"scounts: "<<scounts<<endl;
-        logfileptr->OFS()<<"sdispls: "<<sdispls<<endl;
-        logfileptr->OFS()<<"rcounts: "<<rcounts<<endl;
-        logfileptr->OFS()<<"rdispls: "<<rdispls<<endl;
-#endif
-
-        MPI_Alltoallv(IsendPtr->front(), &scounts[0], &sdispls[0], MPI_BYTE,
-            IrecvPtr->front(), &rcounts[0], &rdispls[0], MPI_BYTE,
-            CommEnv_->MPI_GetComm());
-
-        //Need to parse the structure sent from the processor owning the first column of the supernode
- 
-        for(Int p=0;p<np;++p){
-          IrecvPtr->setHead(rdispls[p]);
-          while(IrecvPtr->head < rdispls[p]+rcounts[p]){ 
-            char * buffer = IrecvPtr->back();
-
-            //Deserialize
-            Int col = *(Int*)&buffer[0];
-            Int I = SupMembership_[col-1];
-
-            Int iDest = this->Mapping_->Map(I-1,I-1);
-            if(iam != iDest){gdb_lock();}
-
-            assert(iam==iDest);
 
             Int fc = Xsuper_[I-1];
             Int lc = Xsuper_[I]-1;
-            Int iWidth = lc-fc+1;
+            Int iWidth = lc - fc + 1;
+            Ptr lfi = locXlindx_[locsupno-1];
+            Ptr lli = locXlindx_[locsupno]-1;
 
-            SuperNode2<T> & snode = *snodeLocal(I);
-
-            assert(snode.NZBlockCnt()!=0);
-/*
-            if(snode.NZBlockCnt()==0){
-              Ptr fi = xlindx_[I-1];
-              Ptr li = xlindx_[I]-1;
-              Int iHeight = li-fi+1;
-              for(Ptr idx = fi; idx<=li;idx++){
-                Idx iStartRow = lindx_[idx-1];
-                Idx iPrevRow = iStartRow;
-                Int iContiguousRows = 1;
-                for(Int idx2 = idx+1; idx2<=li;idx2++){
-                  Idx iCurRow = lindx_[idx2-1];
-                  if(iStartRow == lindx_[fi-1]){
-                    if(iCurRow>iStartRow+iWidth-1){
-                      //enforce the first block to be a square diagonal block
-                      break;
-                    }
-                  }
-
-                  if(iCurRow==iPrevRow+1){
-                    idx++;
-                    ++iContiguousRows;
-                    iPrevRow=iCurRow;
-                  }
-                  else{
-                    break;
-                  }
-                }
-
-                snode.AddNZBlock(iContiguousRows , iWidth,iStartRow);
-              }
-
-              snode.Shrink();
-            }
-*/
-
-            //nrows of column col sent by processor p
-            Int nrows = *((Int*)&buffer[sizeof(Int)]);
-            Int * rowind = (Int*)(&buffer[2*sizeof(Int)]);
-            T * nzvalA = (T*)(&buffer[(2+nrows)*sizeof(Int)]);
-            //advance in the buffer
-            IrecvPtr->setHead(IrecvPtr->head + 2*sizeof(Int) + nrows*(sizeof(Int)+sizeof(T)));
-
-            //logfileptr->OFS()<<col<<" ";
-
-            Int colbeg = 1;
-            Int colend = nrows;
-            for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-              Int row = rowind[rowidx-1];
-              //Int orig_row = rowind[rowidx-1];
-              //Int row = Order_.invp[orig_row-1];
-              //if(row>=col){
-              Int blkidx = snode.FindBlockIdx(row);
-              NZBlockDesc2 & blk_desc = snode.GetNZBlockDesc(blkidx);
-              Int local_row = row - blk_desc.GIndex + 1;
-              Int local_col = col - fc + 1;
-              T * nzval = snode.GetNZval(blk_desc.Offset);
-              nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
-              //}
-            }
-
-          }
-        }
-
-
-        //after the alltoallv, cleanup
-        delete IrecvPtr;
-        delete IsendPtr;
-      }
-#else
-//      //Create the remote ones when we receive something
-//      for(Int p=0;p<np;++p){
-//        if(iam==p){
-//          //ONE BY ONE            
-//          //second, pack and alloc send/recv buffer
-//          for(auto it = send_map.begin(); it!=send_map.end();it++){
-//            Int iCurDest = it->first;
-//            size_t & send_bytes = it->second.first;
-//
-//
-//            Icomm * IsendPtr = new Icomm(send_bytes,MPI_REQUEST_NULL);
-//            //get the Isend
-//            Icomm & Isend = *IsendPtr;
-//
-//            for(Int I=1;I<Xsuper_.size();I++){
-//              Int fc = Xsuper_[I-1];
-//              Int lc = Xsuper_[I]-1;
-//              Int iWidth = lc-fc+1;
-//              Ptr fi = xlindx_[I-1];
-//              Ptr li = xlindx_[I]-1;
-//              Int iHeight = li-fi+1;
-//
-//              Int iDest = this->Mapping_->Map(I-1,I-1);
-//
-//              if(iDest == iCurDest){
-//#ifdef _DEBUG_
-//                logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
-//#endif
-//
-//                //look at the owner of the first column of the supernode
-//                Int numColFirst = std::max(1,iSize_ / np);
-//
-//                //post all the recv and sends
-//                //      logfileptr->OFS()<<"Sending columns of SuperNode2 "<<I<<endl;
-//                bool isSend = false;
-//                for(Int col = fc;col<=lc;col++){
-//                  //corresponding column in the unsorted matrix A
-//                  Int orig_col = Order_.perm[col-1];
-//                  Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
-//
-//                  if(iam == iOwnerCol){
-//                    isSend = true;
-//                  }
-//                }
-//
-//                if(isSend){
-//
-//                  //Serialize
-//                  //logfileptr->OFS()<<"Sending SuperNode2 "<<I<<" cols {";
-//                  for(Int col = fc;col<=lc;col++){
-//                    Int orig_col = Order_.perm[col-1];
-//                    Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
-//                    if(iam==iOwnerCol && iDest!=iam){
-//
-//                      Int local_col = (orig_col-(numColFirst)*iOwnerCol);
-//                      Int nrows = ExpA.Local_.colptr[local_col]-ExpA.Local_.colptr[local_col-1];
-//                      Isend<<col;
-//                      Isend<<nrows;
-//                      Serialize(Isend,(char*)&ExpA.Local_.rowind[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(Int));
-//                      Serialize(Isend,(char*)&ExpA.nzvalLocal[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(T));
-//                    }
-//                  }
-//                }
-//              }
-//            }
-//
-//
-//            Int tag = p;
-//            MPI_Send(Isend.front(),Isend.size(),MPI_BYTE,iCurDest,tag,CommEnv_->MPI_GetComm()/*,&Isend.Request*/);
-//
-//
-//
-//            delete IsendPtr;
-//          }
-//        }
-//        else{
-//          auto it = recv_map.find(p);
-//          if(it!=recv_map.end()){
-//
-//            Int iOwnerCol = it->first;
-//            size_t & exp_recv_bytes = it->second.first;
-//
-//            Icomm * Irecv = new Icomm(exp_recv_bytes,MPI_REQUEST_NULL);
-//            Int tag = p;
-//            assert(p==iOwnerCol);
-//            MPI_Status recv_status;
-//            MPI_Recv(Irecv->front(),Irecv->capacity(),MPI_BYTE,iOwnerCol,tag,CommEnv_->MPI_GetComm(),&recv_status/*,&Irecv.Request*/);
-//
-//            int recv_bytes;
-//            MPI_Get_count(&recv_status,MPI_BYTE,&recv_bytes);
-//            Irecv->setHead(0);
-//
-//            //logfileptr->OFS()<<"Receiving SuperNode2 "<<I<<" from P"<<recv_status.MPI_SOURCE<<" ("<<recv_bytes<<") cols {";
-//            while(Irecv->head <Irecv->capacity()){ 
-//              char * buffer = Irecv->back();
-//
-//              //Deserialize
-//              Int col = *(Int*)&buffer[0];
-//
-//              Int I = SupMembership_[col-1];
-//
-//              Int iDest = this->Mapping_->Map(I-1,I-1);
-//              if(iam != iDest){gdb_lock();}
-//
-//              assert(iam==iDest);
-//
-//              Int fc = Xsuper_[I-1];
-//              Int lc = Xsuper_[I]-1;
-//              Int iWidth = lc-fc+1;
-//              Ptr fi = xlindx_[I-1];
-//              Ptr li = xlindx_[I]-1;
-//              Int iHeight = li-fi+1;
-//
-//              SuperNode2<T> & snode = *snodeLocal(I);
-//
-//              if(snode.NZBlockCnt()==0){
-//                for(Ptr idx = fi; idx<=li;idx++){
-//                  Idx iStartRow = lindx_[idx-1];
-//                  Idx iPrevRow = iStartRow;
-//                  Int iContiguousRows = 1;
-//                  for(Int idx2 = idx+1; idx2<=li;idx2++){
-//                    Idx iCurRow = lindx_[idx2-1];
-//                    if(iStartRow == lindx_[fi-1]){
-//                      if(iCurRow>iStartRow+iWidth-1){
-//                        //enforce the first block to be a square diagonal block
-//                        break;
-//                      }
-//                    }
-//
-//                    if(iCurRow==iPrevRow+1){
-//                      idx++;
-//                      ++iContiguousRows;
-//                      iPrevRow=iCurRow;
-//                    }
-//                    else{
-//                      break;
-//                    }
-//                  }
-//
-//                  snode.AddNZBlock(iContiguousRows , iWidth,iStartRow);
-//                }
-//
-//                snode.Shrink();
-//              }
-//
-//              Int nrows = *((Int*)&buffer[sizeof(Int)]);
-//              Int * rowind = (Int*)(&buffer[2*sizeof(Int)]);
-//              T * nzvalA = (T*)(&buffer[(2+nrows)*sizeof(Int)]);
-//              //advance in the buffer
-//              Irecv->setHead(Irecv->head + 2*sizeof(Int) + nrows*(sizeof(Int)+sizeof(T)));
-//
-//              //logfileptr->OFS()<<col<<" ";
-//
-//              Int orig_col = Order_.perm[col-1];
-//              Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
-//
-//              Int colbeg = 1;
-//              Int colend = nrows;
-//
-//              for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-//                Int orig_row = rowind[rowidx-1];
-//                Int row = Order_.invp[orig_row-1];
-//
-//                if(row>=col){
-//                  Int blkidx = snode.FindBlockIdx(row);
-//                  NZBlockDesc2 & blk_desc = snode.GetNZBlockDesc(blkidx);
-//                  Int local_row = row - blk_desc.GIndex + 1;
-//                  Int local_col = col - fc + 1;
-//                  T * nzval = snode.GetNZval(blk_desc.Offset);
-//                  nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
-//                }
-//              }
-//            }
-//            //logfileptr->OFS()<<"}"<<endl;
-//
-//
-//
-//            delete Irecv;
-//
-//
-//          }
-//
-//        }
-//
-//
-//
-//      }
-#endif
-
-      double timeEnd = get_time();
-      if(iam==0){
-        cout<<"Data from has been exchanged in "<<timeEnd-timeSta<<endl;
-      }
-
-#if 0
-      //do the local and resize my SuperNode2 structure
-      for(Int I=1;I<Xsuper_.size();I++){
-
-        Int iDest = this->Mapping_->Map(I-1,I-1);
-
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
-#endif
-
-        //parse the first column to create the supernode structure
-        if(iam==iDest){
-          Int fc = Xsuper_[I-1];
-          Int lc = Xsuper_[I]-1;
-          Int iWidth = lc-fc+1;
-          Ptr fi = xlindx_[I-1];
-          Ptr li = xlindx_[I]-1;
-          Int iHeight = li-fi+1;
-
-          //#ifndef ITREE2
-          //            globToLocSnodes_.push_back(I-1);
-          //#else 
-          //            ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
-          //            globToLocSnodes_.Insert(snode_inter);
-          //#endif
-          //
-          //            LocalSupernodes_.push_back( new SuperNode2<T>(I,fc,lc,iHeight,iSize_));
-          SuperNode2<T> & snode = *snodeLocal(I);
-
-          if(snode.NZBlockCnt()==0){
-            for(Ptr idx = fi; idx<=li;idx++){
-              Idx iStartRow = lindx_[idx-1];
+            sSuperStructure[tail++] = I;
+            //count number of contiguous rows
+            for(Ptr sidx = lfi; sidx<=lli;sidx++){
+              Idx iStartRow = locLindx_[sidx-1];
               Idx iPrevRow = iStartRow;
               Int iContiguousRows = 1;
-              for(Int idx2 = idx+1; idx2<=li;idx2++){
-                Idx iCurRow = lindx_[idx2-1];
-                if(iStartRow == lindx_[fi-1]){
+              for(Int idx2 = sidx+1; idx2<=lli;idx2++){
+                Idx iCurRow = locLindx_[idx2-1];
+                if(iStartRow == locLindx_[lfi-1]){
                   if(iCurRow>iStartRow+iWidth-1){
                     //enforce the first block to be a square diagonal block
                     break;
@@ -2865,7 +2105,7 @@ namespace SYMPACK{
                 }
 
                 if(iCurRow==iPrevRow+1){
-                  idx++;
+                  sidx++;
                   ++iContiguousRows;
                   iPrevRow=iCurRow;
                 }
@@ -2874,61 +2114,339 @@ namespace SYMPACK{
                 }
               }
 
-              snode.AddNZBlock(iContiguousRows , iWidth,iStartRow);
+              sSuperStructure[tail++] = iStartRow;
+              sSuperStructure[tail++] = iContiguousRows;
             }
+          }
 
-            snode.Shrink();
+          MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,CommEnv_->MPI_GetComm());
+          rdisplsStructure[0] = 0;
+          std::partial_sum(rsizes.begin(),rsizes.end(),&rdisplsStructure[1]);
+          superStructure.resize(rdisplsStructure.back());
+
+          //turn everything into byte sizes
+          for(int p = 0; p<ssizes.size();p++){ ssizes[p]*=sizeof(int); }
+          for(int p = 0; p<rsizes.size();p++){ rsizes[p]*=sizeof(int); }
+          for(int p = 0; p<sdispls.size();p++){ sdispls[p]*=sizeof(int); }
+          for(int p = 0; p<rdisplsStructure.size();p++){ rdisplsStructure[p]*=sizeof(int); }
+
+          //Do the alltoallv to get the structures        
+          MPI_Alltoallv(&sSuperStructure[0], &ssizes[0], &sdispls[0], MPI_BYTE,
+              &superStructure[0], &rsizes[0], &rdisplsStructure[0], MPI_BYTE,
+              CommEnv_->MPI_GetComm());
+
+          //loop through received structure and create supernodes
+          for(Int p = 0; p<np; p++){
+            int pos = rdisplsStructure[p]/sizeof(int);
+            int end = rdisplsStructure[p+1]/sizeof(int);
+            while(pos<end){
+              Int I = superStructure[pos++];
+              Int nzBlockCnt = numBlk[I-1];
+
+              Int fc = Xsuper_[I-1];
+              Int lc = Xsuper_[I]-1;
+              Int iWidth = lc-fc+1;
+              SuperNode2<T> & snode = *snodeLocal(I);
+              if(snode.NZBlockCnt()==0){
+                for(Int i = 0; i<nzBlockCnt;i++){
+                  Int iStartRow = superStructure[pos++];
+                  Int iContiguousRows = superStructure[pos++];
+                  snode.AddNZBlock(iContiguousRows , iWidth,iStartRow);
+                }
+                snode.Shrink();
+              }
+            }
+          } 
+
+        }
+
+
+
+        {
+          //allocate one buffer for every remote processor
+          //compute the send structures
+          size_t total_send_size = 0;
+          SYMPACK::vector<int> sdispls(np+1,0);
+          SYMPACK::vector<int> scounts(np,0);
+          for(auto it = send_map.begin(); it!=send_map.end();it++){
+            Int iCurDest = it->first;
+            size_t & send_bytes = it->second.first;
+            scounts[iCurDest] = send_bytes;
+#ifdef _DEBUG_
+            logfileptr->OFS()<<"P"<<iam<<" ---- "<<send_bytes<<" ---> P"<<iCurDest<<endl;
+#endif
           }
 
 
+          //compute send displacements
+          sdispls[0] = 0;
+          std::partial_sum(scounts.begin(),scounts.end(),&sdispls[1]);
+          total_send_size = sdispls.back();
+
+          auto sposition = sdispls;
+          Icomm * IsendPtr = new Icomm(total_send_size,MPI_REQUEST_NULL);
+
+#ifdef EXPAND_MATRIX
+          //Fill up the send buffer
+          for(auto it = send_map.begin(); it!=send_map.end();it++){
+            Int iCurDest = it->first;
+            size_t & send_bytes = it->second.first;
+
+            Icomm & Isend = *IsendPtr;
+
+            for(Int I=1;I<Xsuper_.size();I++){
+              Int fc = Xsuper_[I-1];
+              Int lc = Xsuper_[I]-1;
+              Int iWidth = lc-fc+1;
+              Ptr fi = xlindx_[I-1];
+              Ptr li = xlindx_[I]-1;
+              Int iHeight = li-fi+1;
+
+              Int iDest = this->Mapping_->Map(I-1,I-1);
+
+              if(iDest == iCurDest){
+#ifdef _DEBUG_
+                logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
+#endif
+
+                //look at the owner of the first column of the supernode
+                Int numColFirst = std::max(1,iSize_ / np);
+
+                //Serialize
+                for(Int col = fc;col<=lc;col++){
+                  Int orig_col = Order_.perm[col-1];
+                  Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+
+                  //                  if(iDest!=iam){
+                  if(iam==iOwnerCol){
 
 
+                    Int local_col = (orig_col-(numColFirst)*iOwnerCol);
+                    //Int nrows = ExpA.Local_.colptr[local_col]-ExpA.Local_.colptr[local_col-1];
+                    //Serialize(Isend,(char*)&ExpA.Local_.rowind[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(Int));
+                    ////TODO Try to remove ExpA.nzvalLocal
+                    //Serialize(Isend,(char*)&ExpA.nzvalLocal[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(T));
 
+                    //Push the permuted matrix instead
+                    //count number of rows in the permuted matrix
+                    Int nrows = 0;
+                    for(Int rowidx = ExpA.Local_.colptr[local_col-1]; rowidx<ExpA.Local_.colptr[local_col]; ++rowidx){
+                      Int orig_row = ExpA.Local_.rowind[rowidx-1];
+                      Int row = Order_.invp[orig_row-1];
+                      if(row>=col){
+                        nrows++;
+                      }
+                    }
 
-          //do the local
-          for(Idx col = fc;col<=lc;col++){
-            //corresponding column in the unsorted matrix A
-            Idx orig_col = Order_.perm[col-1];
-            Int iOwnerCol = std::min((orig_col-1)/numColFirst,(Idx)(np-1));
+                    Isend<<col;
+                    Isend<<nrows;
 
-            if(iam == iOwnerCol){
-              Ptr * colptr = &ExpA.Local_.colptr[0];
-              Idx * rowind = &ExpA.Local_.rowind[0];
+                    for(Int rowidx = ExpA.Local_.colptr[local_col-1]; rowidx<ExpA.Local_.colptr[local_col]; ++rowidx){
+                      Int orig_row = ExpA.Local_.rowind[rowidx-1];
+                      Int row = Order_.invp[orig_row-1];
+                      if(row>=col){
+                        Isend<<row;
+                      }
+                    }
 
+                    for(Int rowidx = ExpA.Local_.colptr[local_col-1]; rowidx<ExpA.Local_.colptr[local_col]; ++rowidx){
+                      Int orig_row = ExpA.Local_.rowind[rowidx-1];
+                      Int row = Order_.invp[orig_row-1];
+                      if(row>=col){
+                        Isend<<ExpA.nzvalLocal[rowidx-1];
+                      }
+                    }
 
-              //TODO try to remove ExpA.nzvalLocal use... We already have it because this data is local
-              T * nzvalA = &ExpA.nzvalLocal[0];
-
-              Idx local_col = (orig_col-(numColFirst)*iOwnerCol);
-
-              Ptr colbeg = colptr[local_col-1];
-              Ptr colend = colptr[local_col]-1;
-              for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
-                Idx orig_row = rowind[rowidx-1];
-                Idx row = Order_.invp[orig_row-1];
-
-                if(row>=col){
-                  Int blkidx = snode.FindBlockIdx(row);
-                  NZBlockDesc2 & blk_desc = snode.GetNZBlockDesc(blkidx);
-                  Int local_row = row - blk_desc.GIndex + 1;
-                  Int local_col = col - fc + 1;
-                  T * nzval = snode.GetNZval(blk_desc.Offset);
-                  nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
+                  }
+                }
                 }
               }
             }
           }
-        }
-      }
-#endif
-    }
-    catch(const std::bad_alloc& e){
-      std::cout << "Allocation failed: " << e.what() << '\n';
-      abort();
-    }
-    logfileptr->OFS()<<"Send Done"<<endl;
+#else
+          //Fill up the send buffer
+          for(Int I=1;I<Xsuper_.size();I++){
+            Int fc = Xsuper_[I-1];
+            Int lc = Xsuper_[I]-1;
+            Int iWidth = lc-fc+1;
+            //  Ptr fi = xlindx_[I-1];
+            //  Ptr li = xlindx_[I]-1;
+            Int iHeight = cc[fc-1];//li-fi+1;
 
-    TIMER_STOP(DISTRIBUTING_MATRIX);
+            Icomm & Isend = *IsendPtr;
+            Int iDest = this->Mapping_->Map(I-1,I-1);
+
+#ifdef _DEBUG_
+            logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
+#endif
+
+            //look at the owner of the first column of the supernode
+            Int numColFirst = std::max(1,iSize_ / np);
+
+            //Serialize
+            for(Int col = fc;col<=lc;col++){
+              Int orig_col = Order_.perm[col-1];
+              Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
+              if(iam == iOwnerCol){
+                Int nrows = 0;
+                Int local_col = (orig_col-(numColFirst)*iOwnerCol);
+                for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
+                  Int orig_row = pMat.Local_.rowind[rowidx-1];
+                  Int row = Order_.invp[orig_row-1];
+
+
+                  if(row<col){
+                    //add the pair (col,row) to processor owning column row
+                    Int J = SupMembership_[row-1];
+                    Int iDestJ = this->Mapping_->Map(J-1,J-1);
+
+                    T val = pMat.nzvalLocal[rowidx-1];
+
+                    //we need to set head to the proper sdispls
+                    Isend.setHead(sposition[iDestJ]);
+                    Isend<<row;
+                    Isend<<1;
+                    Isend<<col;
+                    Isend<<val;
+                    //backup new position for processor iDestJ
+                    sposition[iDestJ] = Isend.head;
+                  }
+
+
+                  if(row>=col){
+                    nrows++;
+                  }
+                }
+
+
+                //restore head
+                Isend.setHead(sposition[iDest]);
+                Isend<<col;
+                Isend<<nrows;
+
+                for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
+                  Int orig_row = pMat.Local_.rowind[rowidx-1];
+                  Int row = Order_.invp[orig_row-1];
+                  if(row>=col){
+                    Isend<<row;
+                  }
+                }
+
+                for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
+                  Int orig_row = pMat.Local_.rowind[rowidx-1];
+                  Int row = Order_.invp[orig_row-1];
+                  if(row>=col){
+                    Isend<<pMat.nzvalLocal[rowidx-1];
+                  }
+                }
+
+                //backup new position for processor iDest
+                sposition[iDest] = Isend.head;
+
+
+              }
+            }
+          }
+
+
+#endif
+
+          //compute the receive structures
+          size_t total_recv_size = 0;
+          SYMPACK::vector<int> rdispls(np+1,0);
+          SYMPACK::vector<int> rcounts(np,0);
+
+          MPI_Alltoall(&scounts[0],sizeof(int),MPI_BYTE,&rcounts[0],sizeof(int),MPI_BYTE,CommEnv_->MPI_GetComm());
+
+          //compute receive displacements
+          rdispls[0] = 0;
+          std::partial_sum(rcounts.begin(),rcounts.end(),&rdispls[1]);
+          total_recv_size = rdispls.back();
+
+          Icomm * IrecvPtr = new Icomm(total_recv_size,MPI_REQUEST_NULL);
+
+
+#ifdef _DEBUG_
+          logfileptr->OFS()<<"scounts: "<<scounts<<endl;
+          logfileptr->OFS()<<"sdispls: "<<sdispls<<endl;
+          logfileptr->OFS()<<"rcounts: "<<rcounts<<endl;
+          logfileptr->OFS()<<"rdispls: "<<rdispls<<endl;
+#endif
+
+          MPI_Alltoallv(IsendPtr->front(), &scounts[0], &sdispls[0], MPI_BYTE,
+              IrecvPtr->front(), &rcounts[0], &rdispls[0], MPI_BYTE,
+              CommEnv_->MPI_GetComm());
+
+          //Need to parse the structure sent from the processor owning the first column of the supernode
+
+          for(Int p=0;p<np;++p){
+            IrecvPtr->setHead(rdispls[p]);
+            while(IrecvPtr->head < rdispls[p]+rcounts[p]){ 
+              char * buffer = IrecvPtr->back();
+
+              //Deserialize
+              Int col = *(Int*)&buffer[0];
+              Int I = SupMembership_[col-1];
+
+              Int iDest = this->Mapping_->Map(I-1,I-1);
+              if(iam != iDest){gdb_lock();}
+
+              assert(iam==iDest);
+
+              Int fc = Xsuper_[I-1];
+              Int lc = Xsuper_[I]-1;
+              Int iWidth = lc-fc+1;
+
+              SuperNode2<T> & snode = *snodeLocal(I);
+
+              assert(snode.NZBlockCnt()!=0);
+
+              //nrows of column col sent by processor p
+              Int nrows = *((Int*)&buffer[sizeof(Int)]);
+              Int * rowind = (Int*)(&buffer[2*sizeof(Int)]);
+              T * nzvalA = (T*)(&buffer[(2+nrows)*sizeof(Int)]);
+              //advance in the buffer
+              IrecvPtr->setHead(IrecvPtr->head + 2*sizeof(Int) + nrows*(sizeof(Int)+sizeof(T)));
+
+              Int colbeg = 1;
+              Int colend = nrows;
+              for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
+                Int row = rowind[rowidx-1];
+                //logfileptr->OFS()<<nzvalA[rowidx-1]<<" ";
+                //Int orig_row = rowind[rowidx-1];
+                //Int row = Order_.invp[orig_row-1];
+                //if(row>=col){
+                Int blkidx = snode.FindBlockIdx(row);
+                assert(blkidx!=-1);
+                NZBlockDesc2 & blk_desc = snode.GetNZBlockDesc(blkidx);
+                Int local_row = row - blk_desc.GIndex + 1;
+                Int local_col = col - fc + 1;
+                T * nzval = snode.GetNZval(blk_desc.Offset);
+                nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
+                //}
+              }
+            }
+          }
+
+
+          //after the alltoallv, cleanup
+          delete IrecvPtr;
+          delete IsendPtr;
+        }
+
+      }
+      catch(const std::bad_alloc& e){
+        std::cout << "Allocation failed: " << e.what() << '\n';
+        abort();
+      }
+      logfileptr->OFS()<<"Send Done"<<endl;
+
+      TIMER_STOP(DISTRIBUTING_MATRIX);
+      double timeStop = get_time();
+      if(iam==0){
+        cout<<"Distribution time: "<<timeStop - timeSta<<endl;
+      }
+    }
 
 #ifdef _DEBUG_
     for(Int I=1;I<Xsuper_.size();I++){
@@ -3093,11 +2611,11 @@ namespace SYMPACK{
     Local_=NULL;
     Global_=NULL;
     isGlobStructAllocated_ = false;
-    isXlindxAllocated_=false;
-    isLindxAllocated_=false;
+    //isXlindxAllocated_=false;
+    //isLindxAllocated_=false;
   }
 
-  template <typename T> SupernodalMatrix2<T>::SupernodalMatrix2(const DistSparseMatrix<T> & pMat, NGCholOptions & options ){
+  template <typename T> SupernodalMatrix2<T>::SupernodalMatrix2(DistSparseMatrix<T> & pMat, NGCholOptions & options ){
     CommEnv_ = NULL;
     Mapping_ = NULL;
     Balancer_ = NULL;
@@ -3105,8 +2623,8 @@ namespace SYMPACK{
     Local_=NULL;
     Global_=NULL;
     isGlobStructAllocated_ = false;
-    isXlindxAllocated_=false;
-    isLindxAllocated_=false;
+    //isXlindxAllocated_=false;
+    //isLindxAllocated_=false;
     Init(pMat, options);
   }
 

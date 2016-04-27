@@ -42,7 +42,7 @@ namespace SYMPACK{
 
       //Constructors
       SupernodalMatrix2();
-      SupernodalMatrix2(const DistSparseMatrix<T> & pMat, NGCholOptions & options );
+      SupernodalMatrix2(DistSparseMatrix<T> & pMat, NGCholOptions & options );
       //TODO
       SupernodalMatrix2( SupernodalMatrix2 & M){};
       //Destructor
@@ -53,7 +53,7 @@ namespace SYMPACK{
       SupernodalMatrix2 & operator=( SupernodalMatrix2 & M){return M;};
 
 
-      void Init(const DistSparseMatrix<T> & pMat, NGCholOptions & options );
+      void Init(DistSparseMatrix<T> & pMat, NGCholOptions & options );
 
       //Accessors
       Int Size(){return iSize_;}

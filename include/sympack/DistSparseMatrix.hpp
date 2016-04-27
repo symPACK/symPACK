@@ -79,6 +79,8 @@ template <typename F> class DistSparseMatrix{
   SparseMatrixStructure  GetLocalStructure() const;
   //const SparseMatrixStructure & GetLocalStructure() const;
 
+  void Dump() const;
+
 };
 
 // Commonly used

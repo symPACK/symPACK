@@ -428,7 +428,7 @@ int main(int argc, char **argv)
       }
 
       if(iam==0){
-        cout<<"Allocation time: "<<timeEnd-timeSta<<endl;
+        cout<<"Initialization time: "<<timeEnd-timeSta<<endl;
       }
 
       if(iam==0){

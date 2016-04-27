@@ -1486,6 +1486,369 @@ namespace SYMPACK{
 //  }
 
 
+  void SparseMatrixStructure::SymbolicFactorizationRelaxedDist(ETree& tree,Ordering & aOrder, const SYMPACK::vector<Int> & cc,const SYMPACK::vector<Int> & xsuper,const SYMPACK::vector<Int> & SupMembership, PtrVec & xlindx, IdxVec & lindx,MPI_Comm & comm){
+    TIMER_START(SymbolicFactorization);
+
+
+    if(!bIsGlobal){
+      throw std::logic_error( "SparseMatrixStructure must be global in order to call SymbolicFactorization\n" );
+    }
+
+    Int nsuper = xsuper.size()-1;
+
+    std::list<MPI_Request> mpirequests;
+
+
+    Ptr nzbeg = 0;
+    //nzend points to the last used slot in lindx
+    Ptr nzend = 0;
+
+    //tail is the end of list indicator (in rchlnk, not mrglnk)
+    Idx tail = size +1;
+    Idx head = 0;
+
+    //Array of length nsuper containing the children of 
+    //each supernode as a linked list
+    SYMPACK::vector<Idx> mrglnk(nsuper,0);
+
+    //Array of length n+1 containing the current linked list 
+    //of merged indices (the "reach" set)
+    SYMPACK::vector<Idx> rchlnk(size+1);
+
+    //Array of length n used to mark indices as they are introduced
+    // into each supernode's index set
+    SYMPACK::vector<Int> marker(size,0);
+
+    Int nsuperLocal = (iam!=np-1)?nsuper/np:nsuper-iam*(nsuper/np);
+    Int firstSnode = iam*(nsuper/np)+1;
+    Int lastSnode = firstSnode + nsuperLocal-1;
+    xlindx.resize(nsuperLocal+1);
+
+    //Compute the sum of the column count and resize lindx accordingly
+    //nofsub will be the local nnz now
+    Ptr nofsub = 1;
+    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+      if(ksup>=firstSnode && ksup<=lastSnode){
+        Int fstcol = xsuper[ksup-1];
+        nofsub+=cc[fstcol-1];
+      }
+    }
+    lindx.resize(nofsub);
+
+    Ptr point = 1;
+    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+      if(ksup>=firstSnode && ksup<=lastSnode){
+        Int locSnode = ksup - firstSnode +1;
+        Int fstcol = xsuper[ksup-1];
+        xlindx[locSnode-1] = point;
+        point += cc[fstcol-1]; 
+      }
+    } 
+    xlindx[nsuperLocal] = point;
+    //logfileptr->OFS()<<xlindx<<endl;
+
+    SYMPACK::vector<Ptr> recvXlindx;
+    SYMPACK::vector<Idx> recvLindx;
+
+    if(iam>0){
+      //recv from iam-1
+head=-1;
+tail=-1;
+      MPI_Recv(&head,sizeof(Int),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
+      MPI_Recv(&tail,sizeof(Int),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
+      MPI_Recv(&marker[0],marker.size()*sizeof(Int),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
+      MPI_Recv(&rchlnk[0],rchlnk.size()*sizeof(Idx),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
+      MPI_Recv(&mrglnk[0],mrglnk.size()*sizeof(Idx),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
+    }
+
+//logfileptr->OFS()<<mrglnk<<endl;
+//logfileptr->OFS()<<rchlnk<<endl;
+
+    for(Int locksup = 1; locksup<=nsuperLocal; ++locksup){
+      Int ksup = locksup + firstSnode - 1;
+      Int fstcol = xsuper[ksup-1];
+      Int lstcol = xsuper[ksup]-1;
+      Int width = lstcol - fstcol +1;
+      Int length = cc[fstcol-1];
+      Ptr knz = 0;
+      rchlnk[head] = tail;
+      Int jsup = mrglnk[ksup-1];
+
+      //If ksup has children in the supernodal e-tree
+      if(jsup>0){
+        //copy the indices of the first child jsup into 
+        //the linked list, and mark each with the value 
+        //ksup.
+        Int jwidth = xsuper[jsup]-xsuper[jsup-1];
+
+        Ptr * jxlindx = NULL;
+        Idx * jlindx = NULL;
+        Int locjsup = -1;
+        if(jsup>=firstSnode && jsup<=lastSnode){
+          locjsup = jsup - firstSnode +1;
+          jxlindx = &xlindx[0];
+          jlindx = &lindx[0];
+        }
+        else{
+          MPI_Status status;
+          recvLindx.resize(size);
+          //receive jsup lindx
+//          logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<size*sizeof(Idx)<<" bytes"<<endl;
+          MPI_Recv(&recvLindx[0],recvLindx.size()*sizeof(Idx),MPI_BYTE,MPI_ANY_SOURCE,jsup+np,comm,&status);
+          //get actual number of received elements
+          int count = 0;
+          MPI_Get_count(&status,MPI_BYTE,&count);
+          count/=sizeof(Idx);
+
+          //compute jsup xlindx
+          recvXlindx.resize(2);
+          recvXlindx[0] = 1;
+          recvXlindx[1] = count +1; 
+
+          locjsup = 1;
+          jxlindx = &recvXlindx[0];
+          jlindx = &recvLindx[0];
+        }
+
+        Ptr jnzbeg = jxlindx[locjsup-1] + jwidth;
+        Ptr jnzend = jxlindx[locjsup] -1;
+        for(Ptr jptr = jnzend; jptr>=jnzbeg; --jptr){
+          Idx newi = jlindx[jptr-1];
+          ++knz;
+          marker[newi-1] = ksup;
+          rchlnk[newi] = rchlnk[head];
+          rchlnk[head] = newi;
+        }
+
+        //for each subsequent child jsup of ksup ...
+        jsup = mrglnk[jsup-1];
+        while(jsup!=0 && knz < length){
+          //merge the indices of jsup into the list,
+          //and mark new indices with value ksup.
+
+          jwidth = xsuper[jsup]-xsuper[jsup-1];
+
+          jxlindx = NULL;
+          jlindx = NULL;
+          locjsup = -1;
+          if(jsup>=firstSnode && jsup<=lastSnode){
+            locjsup = jsup - firstSnode +1;
+            jxlindx = &xlindx[0];
+            jlindx = &lindx[0];
+          }
+          else{
+            MPI_Status status;
+            recvLindx.resize(size);
+            //receive jsup lindx
+//            logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<size*sizeof(Idx)<<" bytes"<<endl;
+            MPI_Recv(&recvLindx[0],size*sizeof(Idx),MPI_BYTE,MPI_ANY_SOURCE,jsup+np,comm,&status);
+            //get actual number of received elements
+            int count = 0;
+            MPI_Get_count(&status,MPI_BYTE,&count);
+            count/=sizeof(Idx);
+
+            //compute jsup xlindx
+            recvXlindx.resize(2);
+            recvXlindx[0] = 1;
+            recvXlindx[1] = count +1; 
+
+            locjsup = 1;
+            jxlindx = &recvXlindx[0];
+            jlindx = &recvLindx[0];
+          }
+
+
+
+          jnzbeg = jxlindx[locjsup-1] + jwidth;
+          jnzend = jxlindx[locjsup] -1;
+
+          Int nexti = head;
+          for(Ptr jptr = jnzbeg; jptr<=jnzend; ++jptr){
+            Idx newi = jlindx[jptr-1];
+            Idx i;
+            do{
+              i = nexti;
+              nexti = rchlnk[i];
+            }while(newi > nexti);
+
+            if(newi < nexti){
+//#ifdef _DEBUG_
+//              logfileptr->OFS()<<jsup<<" is a child of "<<ksup<<" and "<<newi<<" is inserted in the structure of "<<ksup<<std::endl;
+//#endif
+              ++knz;
+              rchlnk[i] = newi;
+              rchlnk[newi] = nexti;
+              marker[newi-1] = ksup;
+              nexti = newi;
+            }
+          }
+          jsup = mrglnk[jsup-1];
+        }
+      }
+
+      //structure of a(*,fstcol) has not been examined yet.  
+      //"sort" its structure into the linked list,
+      //inserting only those indices not already in the
+      //list.
+      if(knz < length){
+        for(Int row = fstcol; row<=lstcol; ++row){
+          Idx newi = row;
+          if(newi > fstcol && marker[newi-1] != ksup){
+            //position and insert newi in list and
+            // mark it with kcol
+            Idx nexti = head;
+            Idx i;
+            do{
+              i = nexti;
+              nexti = rchlnk[i];
+            }while(newi > nexti);
+            ++knz;
+            rchlnk[i] = newi;
+            rchlnk[newi] = nexti;
+            marker[newi-1] = ksup;
+          }
+        }
+
+
+        for(Int col = fstcol; col<=lstcol; ++col){
+          Int node = aOrder.perm[col-1];
+
+          Ptr knzbeg = expColptr[node-1];
+          Ptr knzend = expColptr[node]-1;
+          for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
+            Idx newi = expRowind[kptr-1];
+            newi = aOrder.invp[newi-1];
+
+            if(newi > fstcol && marker[newi-1] != ksup){
+              //position and insert newi in list and
+              // mark it with kcol
+              Idx nexti = head;
+              Idx i;
+              do{
+                i = nexti;
+                nexti = rchlnk[i];
+              }while(newi > nexti);
+              ++knz;
+              rchlnk[i] = newi;
+              rchlnk[newi] = nexti;
+              marker[newi-1] = ksup;
+            }
+          }
+        }
+
+      } 
+
+      //if ksup has no children, insert fstcol into the linked list.
+      if(rchlnk[head] != fstcol){
+        rchlnk[fstcol] = rchlnk[head];
+        rchlnk[head] = fstcol;
+        ++knz;
+      }
+
+      assert(knz == cc[fstcol-1]);
+
+
+      //copy indices from linked list into lindx(*).
+      nzbeg = nzend+1;
+      nzend += knz;
+      assert(nzend+1 == xlindx[locksup]);
+      Idx i = head;
+      for(Ptr kptr = nzbeg; kptr<=nzend;++kptr){
+        i = rchlnk[i];
+        lindx[kptr-1] = i;
+      } 
+
+      //if ksup has a parent, insert ksup into its parent's 
+      //"merge" list.
+      if(length > width){
+        Idx pcol = lindx[xlindx[locksup-1] + width -1];
+        Int psup = SupMembership[pcol-1];
+        mrglnk[ksup-1] = mrglnk[psup-1];
+        mrglnk[psup-1] = ksup;
+
+//        //send lindx to every ancestor
+//        Int prevSnode = -1;
+//        for(Ptr kptr = xlindx[locksup-1]+width; kptr<xlindx[locksup]; kptr++){
+//          Idx pcol = lindx[kptr-1];
+//          Int psup = SupMembership[pcol-1];
+//          if(psup!=prevSnode){
+//            Int pdest = min( (Int)np-1, psup / (nsuper/np) );
+//            //if remote
+//            if(pdest!=iam){
+//              mpirequests.push_back(MPI_REQUEST_NULL);
+//              MPI_Request & request = mpirequests.back();
+//
+//              logfileptr->OFS()<<"sending "<<length*sizeof(Idx)<<" bytes of "<<ksup<<" to P"<<pdest<<" for "<<psup<<endl;
+//              MPI_Isend(&lindx[xlindx[locksup-1]-1],length*sizeof(Idx),MPI_BYTE,pdest,ksup,comm,&request);
+//            }
+//          }
+//          prevSnode = psup;
+//        }
+
+      }
+
+    }
+    if(np>1 && iam<np-1){
+
+      //send to iam+1
+      //marker, rchlnk, mrglnk
+      MPI_Send(&head,sizeof(Int),MPI_BYTE,iam+1,iam,comm);
+      MPI_Send(&tail,sizeof(Int),MPI_BYTE,iam+1,iam,comm);
+      MPI_Send(&marker[0],marker.size()*sizeof(Int),MPI_BYTE,iam+1,iam,comm);
+      MPI_Send(&rchlnk[0],rchlnk.size()*sizeof(Idx),MPI_BYTE,iam+1,iam,comm);
+      MPI_Send(&mrglnk[0],mrglnk.size()*sizeof(Idx),MPI_BYTE,iam+1,iam,comm);
+
+
+
+      Int nextFirstSnode = (iam+1)*(nsuper/np)+1;
+      for(Int ksup = nextFirstSnode; ksup<=nsuper; ++ksup){
+        Int fstcol = xsuper[ksup-1];
+        Int lstcol = xsuper[ksup]-1;
+        Int width = lstcol - fstcol +1;
+        Int length = cc[fstcol-1];
+        Ptr knz = 0;
+        rchlnk[head] = tail;
+        Int jsup = mrglnk[ksup-1];
+
+        //If ksup has children in the supernodal e-tree
+        if(jsup>0){
+          do{
+            if(jsup>=firstSnode && jsup<=lastSnode){
+              Int locjsup = jsup - firstSnode + 1;
+              Int pdest = min( (Int)np-1, ksup / (nsuper/np) );
+              //if remote
+              if(pdest!=iam){
+                Int lengthj = xlindx[locjsup] - xlindx[locjsup-1];
+                mpirequests.push_back(MPI_REQUEST_NULL);
+                MPI_Request & request = mpirequests.back();
+        //        logfileptr->OFS()<<"sending "<<lengthj*sizeof(Idx)<<" bytes of "<<jsup<<" to P"<<pdest<<" for "<<ksup<<endl;
+                MPI_Isend(&lindx[xlindx[locjsup-1]-1],lengthj*sizeof(Idx),MPI_BYTE,pdest,jsup+np,comm,&request);
+             }
+            }
+            //for each subsequent child jsup of ksup ...
+            jsup = mrglnk[jsup-1];
+          }while(jsup>0);
+        }
+      }
+
+
+
+
+
+      //wait all on every requests
+      //for(auto it = mpirequests.begin();it!=mpirequests.end();it++){
+      //  MPI_Request & request = *it;
+      //  MPI_Wait(&request,MPI_STATUS_IGNORE);
+      //}
+    }
+
+
+    lindx.resize(nzend+1);
+    MPI_Barrier(comm);
+
+    TIMER_STOP(SymbolicFactorization);
+  }
+
 
 
 
@@ -1529,9 +1892,14 @@ namespace SYMPACK{
 
     //Compute the sum of the column count and resize lindx accordingly
     Ptr nofsub = 1;
-    for(Int i =0; i<cc.size();++i){
-      nofsub+=cc[i];
+    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+      Int fstcol = xsuper[ksup-1];
+      nofsub+=cc[fstcol-1];
     }
+
+//    for(Int i =0; i<cc.size();++i){
+//      nofsub+=cc[i];
+//    }
 
     lindx.resize(nofsub);
 
@@ -1543,6 +1911,7 @@ namespace SYMPACK{
       point += cc[fstcol-1]; 
     } 
     xlindx[nsuper] = point;
+    //logfileptr->OFS()<<xlindx<<endl;
 
 
 
@@ -1554,6 +1923,7 @@ namespace SYMPACK{
       Ptr knz = 0;
       rchlnk[head] = tail;
       Int jsup = mrglnk[ksup-1];
+
 
       //If ksup has children in the supernodal e-tree
       if(jsup>0){
@@ -1727,11 +2097,16 @@ namespace SYMPACK{
     xlindx.resize(nsuper+1);
 
     //Compute the sum of the column count and resize lindx accordingly
-    Ptr nofsub = 1;
-    for(Int i =0; i<cc.size();++i){
-      nofsub+=cc[i];
-    }
+    //Ptr nofsub = 1;
+    //for(Int i =0; i<cc.size();++i){
+    //  nofsub+=cc[i];
+    //}
 
+    Ptr nofsub = 1;
+    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+      Int fstcol = xsuper[ksup-1];
+      nofsub+=cc[fstcol-1];
+    }
     lindx.resize(nofsub);
 
 

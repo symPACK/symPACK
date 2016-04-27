@@ -308,7 +308,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
     if(options.load_balance_str=="SUBCUBE-FI"){
       if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
       ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,xlindx_,lindx_,cc,CommEnv_,true);
+      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,CommEnv_,true);
 #ifdef _DEBUG_MAPPING_
       logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
       logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
@@ -327,7 +327,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
     else if(options.load_balance_str=="SUBCUBE-FO"){
       if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
       ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,xlindx_,lindx_,cc,CommEnv_,false);
+      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,CommEnv_,false);
 
 #ifdef _DEBUG_MAPPING_
       logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
@@ -347,7 +347,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
     else if(options.load_balance_str=="SUBCUBE-VOLUME-FI"){
       if(iam==0){ cout<<"Subtree to subcube volume FI mapping used"<<endl;}
       ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,true);
+      this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,CommEnv_,true);
 #ifdef _DEBUG_MAPPING_
       logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
       logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
@@ -366,7 +366,7 @@ logfileptr->OFS()<<"Symbfact done"<<endl;
     else if(options.load_balance_str=="SUBCUBE-VOLUME-FO"){
       if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
       ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,false);
+      this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,CommEnv_,false);
 #ifdef _DEBUG_MAPPING_
       logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
       logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;

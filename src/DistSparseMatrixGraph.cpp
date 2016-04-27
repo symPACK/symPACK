@@ -134,8 +134,8 @@ namespace SYMPACK{
 
     for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
       Idx col = firstCol + locCol; 
-      Ptr colbeg = colptr[locCol];
-      Ptr colend = colptr[locCol+1];
+      Ptr colbeg = colptr[locCol] - baseval;
+      Ptr colend = colptr[locCol+1] - baseval;
       Idx permCol = invp[col]-1; // perm is 1 based;
       //find destination processors
       Idx pdest = min( (Idx)mpisize-1, permCol / colPerProc);

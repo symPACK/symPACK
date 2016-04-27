@@ -83,7 +83,7 @@ for line in fileinput.input():
       type="\"PASTIX 5.2.2\""
       haserror=0
     elif(superlu):
-      type="\"SuperLU_DIST 3.3\""
+      type="\"SuperLU_DIST 4.3\""
       haserror=0
     elif(elemental):
       type="\"ELEMENTAL\""
