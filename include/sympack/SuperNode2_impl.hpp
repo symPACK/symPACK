@@ -649,7 +649,8 @@ inline Int SuperNode2<T,Allocator>::Merge(SuperNode2<T> & src_snode, SnodeUpdate
     NZBlockDesc2 & blk_desc = src_snode.GetNZBlockDesc(blkidx);
     Int fr = max(FirstCol(),blk_desc.GIndex);
     Int lr = blk_desc.GIndex + src_snode.NRows(blkidx) -1;
-
+if(lr<fr){gdb_lock();}
+assert(lr>=fr);
     curInter.low = fr;
     curInter.high = lr;
     toInsert.push(curInter);
