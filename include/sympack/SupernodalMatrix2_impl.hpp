@@ -8,6 +8,8 @@
 #include "sympack/LoadBalancer.hpp"
 #include "sympack/mpi_interf.hpp"
 
+#include  "sympack/DistSparseMatrixGraph.hpp"
+
 #include <queue>
 #include <stdlib.h>
 
@@ -1149,7 +1151,21 @@ namespace SYMPACK{
 #endif
 #ifdef USE_PTSCOTCH
       case PTSCOTCH:
-        Order_.PTSCOTCH();
+{
+      DistSparseMatrixGraph graph;
+      graph.comm = CommEnv_->MPI_GetComm();
+      graph.baseval = 0;
+      graph.keepDiag = 0;
+      graph.sorted = 1;
+      graph.FromStructure(*Local_);
+    graph.ExpandSymmetric();
+        Order_.PTSCOTCH(graph);
+
+    logfileptr->OFS()<<"perm: "<<Order_.perm<<endl;
+    logfileptr->OFS()<<"invp: "<<Order_.invp<<endl;
+
+//        Order_.PTSCOTCH();
+}
         break;
 #endif
       default:

@@ -1551,14 +1551,32 @@ namespace SYMPACK{
     SYMPACK::vector<Idx> recvLindx;
 
     if(iam>0){
+      //build the mrglnk array
+
+
+      for(Int ksup = 0; ksup<firstSnode; ++ksup){
+        Int fstcol = xsuper[ksup-1];
+        Int lstcol = xsuper[ksup]-1;
+        Int width = lstcol - fstcol +1;
+        Int length = cc[fstcol-1];
+
+        //if ksup has a parent, insert ksup into its parent's 
+        //"merge" list.
+        if(length > width){
+        Idx pcol = tree.PostParent(fstcol+width-1-1);  
+          Int psup = SupMembership[pcol-1];
+          mrglnk[ksup-1] = mrglnk[psup-1];
+          mrglnk[psup-1] = ksup;
+        }
+      }
+
+
+
+
+
       //recv from iam-1
-      head=-1;
-      tail=-1;
-      MPI_Recv(&head,sizeof(Int),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
-      MPI_Recv(&tail,sizeof(Int),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
-      MPI_Recv(&marker[0],marker.size()*sizeof(Int),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
-      MPI_Recv(&rchlnk[0],rchlnk.size()*sizeof(Idx),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
-      MPI_Recv(&mrglnk[0],mrglnk.size()*sizeof(Idx),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
+//      MPI_Recv(&rchlnk[0],rchlnk.size()*sizeof(Idx),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
+//      MPI_Recv(&mrglnk[0],mrglnk.size()*sizeof(Idx),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
     }
 
 //logfileptr->OFS()<<"P"<<iam<<" is active"<<endl;
@@ -1651,75 +1669,7 @@ namespace SYMPACK{
 
           parentJ = jsup;
           jsup = mrglnk[jsup-1];
-//break;
         } while(jsup!=0 && knz < length);
-
-#if 0
-//        //for each subsequent child jsup of ksup ...
-//        jsup = mrglnk[jsup-1];
-        while(jsup!=0 && knz < length){
-//logfileptr->OFS()<<jsup<<endl;
-          //merge the indices of jsup into the list,
-          //and mark new indices with value ksup.
-
-          Int jwidth = xsuper[jsup]-xsuper[jsup-1];
-
-          Ptr * jxlindx = NULL;
-          Idx * jlindx = NULL;
-          Int locjsup = -1;
-          if(jsup>=firstSnode && jsup<=lastSnode){
-            locjsup = jsup - firstSnode +1;
-            jxlindx = &xlindx[0];
-            jlindx = &lindx[0];
-          }
-          else{
-            MPI_Status status;
-            recvLindx.resize(size);
-            //receive jsup lindx
-            Int psrc = min( (Int)np-1, (jsup-1) / (nsuper/np) );
-            //logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<size*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<endl;
-            MPI_Recv(&recvLindx[0],size*sizeof(Idx),MPI_BYTE,psrc,jsup+np,comm,&status);
-            //get actual number of received elements
-            int count = 0;
-            MPI_Get_count(&status,MPI_BYTE,&count);
-            count/=sizeof(Idx);
-
-            //compute jsup xlindx
-            recvXlindx.resize(2);
-            recvXlindx[0] = 1;
-            recvXlindx[1] = count +1; 
-
-            locjsup = 1;
-            jxlindx = &recvXlindx[0];
-            jlindx = &recvLindx[0];
-          }
-
-
-
-          Ptr jnzbeg = jxlindx[locjsup-1] + jwidth;
-          Ptr jnzend = jxlindx[locjsup] -1;
-
-          Int nexti = head;
-          for(Ptr jptr = jnzbeg; jptr<=jnzend; ++jptr){
-            Idx newi = jlindx[jptr-1];
-            Idx i;
-            do{
-              i = nexti;
-              nexti = rchlnk[i];
-            }while(newi > nexti);
-
-            if(newi < nexti){
-              ++knz;
-              rchlnk[i] = newi;
-              rchlnk[newi] = nexti;
-              marker[newi-1] = ksup;
-              nexti = newi;
-            }
-          }
-          jsup = mrglnk[jsup-1];
-        }
-#endif
-
       }
 
       //structure of a(*,fstcol) has not been examined yet.  
@@ -1797,30 +1747,24 @@ namespace SYMPACK{
       //if ksup has a parent, insert ksup into its parent's 
       //"merge" list.
       if(length > width){
-        Idx pcol = lindx[xlindx[locksup-1] + width -1];
+        Idx pcol = tree.PostParent(fstcol+width-1-1);  
+//        Idx pcol = lindx[xlindx[locksup-1] + width -1];
+//logfileptr->OFS()<<pcol2<<" vs "<<pcol<<endl;
+//assert(pcol==pcol2);
         Int psup = SupMembership[pcol-1];
         mrglnk[ksup-1] = mrglnk[psup-1];
         mrglnk[psup-1] = ksup;
 
-//        //send lindx to every ancestor
-//        Int prevSnode = -1;
-//        for(Ptr kptr = xlindx[locksup-1]+width; kptr<xlindx[locksup]; kptr++){
-//          Idx pcol = lindx[kptr-1];
-//          Int psup = SupMembership[pcol-1];
-//          if(psup!=prevSnode){
-//            Int pdest = min( (Int)np-1, psup / (nsuper/np) );
-//            //if remote
-//            if(pdest!=iam){
-//              mpirequests.push_back(MPI_REQUEST_NULL);
-//              MPI_Request & request = mpirequests.back();
-//
-//              logfileptr->OFS()<<"sending "<<length*sizeof(Idx)<<" bytes of "<<ksup<<" to P"<<pdest<<" for "<<psup<<endl;
-//              MPI_Isend(&lindx[xlindx[locksup-1]-1],length*sizeof(Idx),MPI_BYTE,pdest,ksup,comm,&request);
-//            }
-//          }
-//          prevSnode = psup;
-//        }
 
+        //send L asap
+        Int pdest = min( (Int)np-1, (psup-1) / (nsuper/np) );
+        //if remote
+        if(pdest!=iam){
+                mpirequests.push_back(MPI_REQUEST_NULL);
+                MPI_Request & request = mpirequests.back();
+                //logfileptr->OFS()<<"sending "<<lengthj*sizeof(Idx)<<" bytes of "<<jsup<<" to P"<<pdest<<" for "<<ksup<<endl;
+                MPI_Isend(&lindx[xlindx[locksup-1]-1],length*sizeof(Idx),MPI_BYTE,pdest,ksup+np,comm,&request);
+        }
       }
 
     }
@@ -1828,25 +1772,22 @@ namespace SYMPACK{
 
       //send to iam+1
       //marker, rchlnk, mrglnk
-      MPI_Send(&head,sizeof(Int),MPI_BYTE,iam+1,iam,comm);
-      MPI_Send(&tail,sizeof(Int),MPI_BYTE,iam+1,iam,comm);
-      MPI_Send(&marker[0],marker.size()*sizeof(Int),MPI_BYTE,iam+1,iam,comm);
-      MPI_Send(&rchlnk[0],rchlnk.size()*sizeof(Idx),MPI_BYTE,iam+1,iam,comm);
-      MPI_Send(&mrglnk[0],mrglnk.size()*sizeof(Idx),MPI_BYTE,iam+1,iam,comm);
+      //MPI_Send(&rchlnk[0],rchlnk.size()*sizeof(Idx),MPI_BYTE,iam+1,iam,comm);
+      //MPI_Send(&mrglnk[0],mrglnk.size()*sizeof(Idx),MPI_BYTE,iam+1,iam,comm);
 
 
-
+#if 0
       Int nextFirstSnode = (iam+1)*(nsuper/np)+1;
       for(Int ksup = nextFirstSnode; ksup<=nsuper; ++ksup){
         Int fstcol = xsuper[ksup-1];
         Int lstcol = xsuper[ksup]-1;
         Int width = lstcol - fstcol +1;
         Int length = cc[fstcol-1];
-        Ptr knz = 0;
-        rchlnk[head] = tail;
-        Int jsup = mrglnk[ksup-1];
+
+        //for all children
 
         //If ksup has children in the supernodal e-tree
+        Int jsup = mrglnk[ksup-1];
         if(jsup>0){
           do{
             if(jsup>=firstSnode && jsup<=lastSnode){
@@ -1866,7 +1807,7 @@ namespace SYMPACK{
           }while(jsup>0);
         }
       }
-
+#endif
 
 
 
