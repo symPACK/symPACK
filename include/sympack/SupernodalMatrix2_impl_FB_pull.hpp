@@ -198,7 +198,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static()
   TIMER_START(FACTORIZATION_FB);
 
   TIMER_START(FB_INIT);
-  Real timeSta, timeEnd;
+  double timeSta, timeEnd;
 
   SYMPACK::vector<Int> UpdatesToDo = UpdatesToDo_;
 
@@ -206,15 +206,20 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static()
   SYMPACK::vector<T> src_nzval;
   SYMPACK::vector<char> src_blocks;
 
-
+  Int maxheight = 0;
   Int maxwidth = 0;
   for(Int i = 1; i<Xsuper_.size(); ++i){
     Int width =Xsuper_[i] - Xsuper_[i-1];
     if(width>=maxwidth){
       maxwidth = width;
     }
+    if(UpdateHeight_[i-1]>=maxheight){
+      maxheight = UpdateHeight_[i-1];
+    }
   }
-  tmpBufs.Resize(Size(),maxwidth);
+  tmpBufs.Resize(maxheight/*Size()*/,maxwidth);
+
+
   SYMPACK::vector< SuperNode2<T> * > aggVectors(Xsuper_.size()-1,NULL);
 
   timeSta =  get_time( );
@@ -353,10 +358,10 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth()
   TIMER_START(FACTORIZATION_FB);
 
   TIMER_START(FB_INIT);
-  Real timeSta, timeEnd;
+  double timeSta, timeEnd;
 
-  Int iam = CommEnv_->MPI_Rank();
-  Int np  = CommEnv_->MPI_Size();
+//  Int iam = CommEnv_->MPI_Rank();
+//  Int np  = CommEnv_->MPI_Size();
 
   SYMPACK::vector<Int> UpdatesToDo = UpdatesToDo_;
 
@@ -365,16 +370,20 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth()
   SYMPACK::vector<char> src_blocks;
 
 
+  Int maxheight = 0;
   Int maxwidth = 0;
   for(Int i = 1; i<Xsuper_.size(); ++i){
     Int width =Xsuper_[i] - Xsuper_[i-1];
     if(width>=maxwidth){
       maxwidth = width;
     }
+    if(UpdateHeight_[i-1]>=maxheight){
+      maxheight = UpdateHeight_[i-1];
+    }
   }
-  tmpBufs.Resize(Size(),maxwidth);
-  SYMPACK::vector< SuperNode2<T> * > aggVectors(Xsuper_.size()-1,NULL);
+  tmpBufs.Resize(maxheight/*Size()*/,maxwidth);
 
+  SYMPACK::vector< SuperNode2<T> * > aggVectors(Xsuper_.size()-1,NULL);
 
 
   timeSta =  get_time( );
@@ -1290,6 +1299,9 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(SYMPACK::
               logfileptr->OFS()<<"TRANSFERRED TO ASYNC COMM"<<endl;
 #endif
             }
+            else{
+abort();
+            }
           }
           else{
             for(auto it = gIncomingRecv.begin();it!=gIncomingRecv.end();it++){
@@ -1303,6 +1315,9 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(SYMPACK::
                   //gIncomingRecv.pop();
                   gIncomingRecv.erase(it);
                 }
+            else{
+abort();
+            }
                 break;
               }
             }
