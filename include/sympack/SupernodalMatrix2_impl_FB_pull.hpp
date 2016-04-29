@@ -254,7 +254,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth_Static()
 
 
       while(taskit->remote_deps>0){
-        CheckIncomingMessages(taskLists,true);
+        CheckIncomingMessages(taskLists,localTaskCount,true);
         //#ifdef SEPARATE_AGGREG
         //        //we have to do this again to make sure that no task have been inserted
         //        taskit = scheduler_->top();
@@ -419,7 +419,7 @@ template <typename T> void SupernodalMatrix2<T>::FanBoth()
   Int prevCnt = -1;
   while(localTaskCount>0){
     //  if(scheduler_->done()){
-    CheckIncomingMessages(taskLists);
+    CheckIncomingMessages(taskLists,localTaskCount);
     //  }
 
     if(!scheduler_->done()){
@@ -1238,7 +1238,7 @@ template <typename T> void SupernodalMatrix2<T>::FBUpdateTask(SYMPACK::vector<st
 }
 
 
-template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(SYMPACK::vector<std::list<FBTask> * > & taskLists,bool is_static)
+template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(SYMPACK::vector<std::list<FBTask> * > & taskLists,Int & localTaskCount,bool is_static)
 {
   TIMER_START(CHECK_MESSAGE);
   //return;
@@ -1431,7 +1431,7 @@ template <typename T> void SupernodalMatrix2<T>::CheckIncomingMessages(SYMPACK::
             }
             taskLists[J-1]->push_back(curUpdate);
 
-            localTaskCount_++;
+            localTaskCount++;
             taskit = --taskLists[J-1]->end();
 
             //{

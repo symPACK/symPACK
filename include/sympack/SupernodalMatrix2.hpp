@@ -209,7 +209,7 @@ namespace SYMPACK{
       void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode2<T> *> & snodeColl);
       void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode2<T> *> & snodeColl);
 
-      void CheckIncomingMessages(SYMPACK::vector<std::list<FBTask> * > & taskLists, bool is_static = false);
+      void CheckIncomingMessages(SYMPACK::vector<std::list<FBTask> * > & taskLists,Int & localTaskCount, bool is_static = false);
 
 
   };
