@@ -47,6 +47,10 @@ template <typename F> class DistSparseMatrix{
   friend void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Complex>& pspmat, MPI_Comm comm );
   friend void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Complex>& pspmat, MPI_Comm comm );
   friend void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Complex>& pspmat, MPI_Comm comm );
+
+  template <typename SCALAR, typename INSCALAR >
+  friend int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat);
+
   protected:
   bool globalAllocated;
   SparseMatrixStructure Local_;
@@ -59,7 +63,7 @@ template <typename F> class DistSparseMatrix{
 
 	/// @brief Total number of nonzeros elements.
 	//Idx64          nnz;                             
-	Int          nnz;                             
+	Ptr          nnz;                             
 
 	/// @brief Dimension nnzLocal, storing the nonzero values.
 	SYMPACK::vector<F>    nzvalLocal;                      

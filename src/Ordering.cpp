@@ -89,7 +89,8 @@ void Ordering::MMD(){
 
       perm.resize(pStructure->size);
 
-
+logfileptr->OFS()<<tmpXadj<<endl;
+logfileptr->OFS()<<tmpAdj<<endl;
 
 
 

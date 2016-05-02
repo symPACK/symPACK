@@ -1236,6 +1236,191 @@ extern "C" {
 namespace SYMPACK{
 
 template <typename SCALAR, typename INSCALAR >
+int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
+
+//logfileptr->OFS()<<HMat.Local_.colptr<<endl;
+//logfileptr->OFS()<<HMat.Local_.rowind<<endl;
+//logfileptr->OFS()<<HMat.nzvalLocal<<endl;
+
+  MPI_Comm & workcomm = HMat.comm;
+
+    int mpirank;
+    MPI_Comm_rank(workcomm,&mpirank);
+  
+    int mpisize;
+    MPI_Comm_size(workcomm,&mpisize);
+
+  ifstream infile;
+  infile.open(filename.c_str());
+
+  string line;
+  //read xadj on the first line of the input file
+  stringstream iss;
+  //skip 1st line
+  if(getline(infile, line)){}
+  int colptrCnt;
+  int rowindCnt;
+  int nzvalCnt;
+  if(getline(infile, line)){
+    iss.str("");
+    iss.clear();
+    iss<<line;
+    int dummy;
+    iss>>dummy;
+    iss>>colptrCnt>>rowindCnt>>nzvalCnt;
+  }
+  //read from third line
+
+  auto & n = HMat.size;
+  auto & nnz = HMat.nnz;
+
+
+  int m;
+  if(getline(infile, line))
+  {
+    iss.str("");
+    iss.clear();
+    iss<<line;
+    string type;
+    iss>>type;
+    iss>>m>>n>>nnz;
+  }
+
+  //compute local number of columns
+  int nlocal = (mpirank<mpisize-1)?n/mpisize:n-mpirank*(int)(n/mpisize);
+  int firstNode = mpirank*(int)(n/mpisize) + 1;
+  //initialize local arrays
+  HMat.Local_.colptr.resize(nlocal+1);
+
+ 
+  //read from 4th line
+  int colptrWidth = 0;
+  int rowindWidth = 0;
+  int nzvalWidth = 0;
+  int colptrCntPerRow = 0;
+  int rowindCntPerRow = 0;
+  int nzvalCntPerRow = 0;
+  if(getline(infile, line))
+  {
+    iss.str("");
+    iss.clear();
+    iss<<line;
+    string format;
+    iss>>format;
+    int dummy;
+    sscanf(format.c_str(),"(%dI%d)",&colptrCntPerRow,&colptrWidth);
+    iss>>format;
+    sscanf(format.c_str(),"(%dI%d)",&rowindCntPerRow,&rowindWidth);
+    iss>>format;
+    sscanf(format.c_str(),"(%dE%d.%d)",&nzvalCntPerRow,&nzvalWidth,&dummy);
+  }
+
+  //now compute the actual number of rows
+//  colptrCnt = std::ceil((n+1)/(double)colptrCnt); 
+//  ixadj.reserve(n+1);
+
+//TODO skip the appropriate number of int since we know the field width
+#if 0
+  int skipLines = ( (firstNode-1) / colptrCntPerRow);
+  int skip = skipLines * (colptrWidth + 1) + (firstNode - skipLines*colptrCntPerRow - 1)*colptrWidth;
+  infile.seekg(0,skip);
+  for(int i=0;i<nlocal+1;++i){
+    Ptr j;
+    infile>>j;
+    HMat.Local_.colptr[i] = j;
+  }
+#else
+  int node_idx= 1;
+  for(int i=0;i<colptrCnt;++i){
+    if(getline(infile, line))
+    {
+      iss.str("");
+      iss.clear();
+      iss<<line;
+      Ptr j;
+      while(iss >> j){
+        if(node_idx>= firstNode && node_idx<=firstNode+nlocal){
+          int local_index = node_idx - firstNode + 1;
+          HMat.Local_.colptr[local_index-1] = j;
+        }
+        node_idx++;
+      }
+    }
+  }
+#endif
+
+//logfileptr->OFS()<<HMat.Local_.colptr<<endl;
+  //convert to local colptr and compute local nnz
+  Ptr first_idx = HMat.Local_.colptr.front();
+  Ptr last_idx = HMat.Local_.colptr.back();
+  for(int i=nlocal;i>=0;i--){
+    HMat.Local_.colptr[i] = HMat.Local_.colptr[i] - HMat.Local_.colptr[0] + 1;
+  }
+  Ptr nnzLocal = HMat.Local_.colptr.back()-1;
+  
+  HMat.Local_.rowind.resize(nnzLocal);
+
+#if 0
+#else
+  Ptr elem_idx = 1;
+  for(int i=0;i<rowindCnt;++i){
+    if(getline(infile, line))
+    {
+      iss.str("");
+      iss.clear();
+      iss<<line;
+      Idx j;
+      while(iss >> j){
+        if(elem_idx>= first_idx && elem_idx<last_idx){
+          int local_index = elem_idx - first_idx + 1;
+          HMat.Local_.rowind[local_index-1] = j;
+        }
+        elem_idx++;
+      }
+    }
+  }
+#endif
+
+  HMat.nzvalLocal.resize(nnzLocal);
+#if 0
+#else
+  elem_idx = 1;
+  for(int i=0;i<nzvalCnt;++i){
+    if(getline(infile, line))
+    {
+      iss.str("");
+      iss.clear();
+      iss<<line;
+      INSCALAR j;
+      while(iss >> j){
+        if(elem_idx>= first_idx && elem_idx<last_idx){
+          int local_index = elem_idx - first_idx + 1;
+          HMat.nzvalLocal[local_index-1] = SCALAR(j);
+        }
+        elem_idx++;
+      }
+    }
+  }
+#endif
+
+  infile.close();
+
+
+  HMat.globalAllocated = false;
+  HMat.Local_.size = HMat.size;
+  HMat.Local_.nnz = nnzLocal;
+
+//logfileptr->OFS()<<HMat.Local_.colptr<<endl;
+//logfileptr->OFS()<<HMat.Local_.rowind<<endl;
+//logfileptr->OFS()<<HMat.nzvalLocal<<endl;
+
+
+  return 0;
+
+}
+
+
+template <typename SCALAR, typename INSCALAR >
 void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMatrix<SCALAR> & HMat){
   MPI_Comm & workcomm = HMat.comm;
   sparse_matrix_file_format_t informat;
@@ -1246,6 +1431,7 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
     ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
   }
   else{
+#if 1
     int n,nnz;
     int * colptr, * rowind;
     INSCALAR * values;
@@ -1290,11 +1476,21 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
       delete [] rowind;
       delete [] colptr;
     }
+//#else
+
+//    ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat);
+#endif
   }
 
   TIMER_STOP(READING_MATRIX);
   if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
 }
+
+
+ 
+
+
+
 } // namespace SYMPACK
 
 #endif
