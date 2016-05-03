@@ -38,10 +38,19 @@ C
 c
 c***********************************************************************
 c
-         integer    dbakw(neqns) , dforw(neqns) , dhead(neqns),
+#if MMDIDXSIZE == 64
+         integer*8  neqns
+         integer*8    dbakw(neqns) , dforw(neqns) , dhead(neqns),
      &              llist(neqns) , marker(neqns), qsize(neqns)
-         integer    xadj(neqns+1)
-         integer    fnode , ndeg  , neqns , node
+         integer*8    xadj(neqns+1)
+         integer*8    fnode , ndeg  , node
+#else
+         integer*4  neqns
+         integer*4    dbakw(neqns) , dforw(neqns) , dhead(neqns),
+     &              llist(neqns) , marker(neqns), qsize(neqns)
+         integer*4    xadj(neqns+1)
+         integer*4    fnode , ndeg  , node
+#endif
 c
 c***********************************************************************
 c

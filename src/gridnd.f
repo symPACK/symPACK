@@ -42,7 +42,8 @@
 ************************************************************************
 *
         INTEGER*4       IERROR, P     , Q
-        INTEGER*4       GRID(P,*)  , STACK(*)
+        INTEGER*4       GRID(P,*)
+        INTEGER*4       STACK(*)
 *
         INTEGER*4       HALF  , I     , II    , ILAST , J     ,
      +                  JJ    , JLAST , LAST  , M     , MID   ,

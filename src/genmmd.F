@@ -61,13 +61,26 @@ C
 c
 c***********************************************************************
 c
-         integer    adjncy(nadj), dhead(neqns), invp(neqns), 
+
+#if MMDIDXSIZE==64
+         integer*8  nadj,neqns
+         integer*8  adjncy(nadj), dhead(neqns), invp(neqns), 
      &              llist(neqns), marker(neqns), perm(neqns), 
      &              qsize(neqns)
-         integer    xadj(neqns+1)
-         integer    delta , ehead , i     , maxint, mdeg  ,
-     1              mdlmt , mdnode, nadj, neqns , nextmd,
-     1              nofsub, num, tag
+         integer*8  xadj(neqns+1)
+         integer*8  delta , ehead , i     , maxint, mdeg  ,
+     &              mdlmt , mdnode, nextmd,
+     &              nofsub, num, tag
+#else
+         integer*4  nadj,neqns
+         integer*4  adjncy(nadj), dhead(neqns), invp(neqns), 
+     &              llist(neqns), marker(neqns), perm(neqns), 
+     &              qsize(neqns)
+         integer*4  xadj(neqns+1)
+         integer*4  delta , ehead , i     , maxint, mdeg  ,
+     &              mdlmt , mdnode , nextmd,
+     &              nofsub, num, tag
+#endif
 c
 c***********************************************************************
 c

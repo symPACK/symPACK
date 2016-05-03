@@ -5,15 +5,29 @@
 
 namespace SYMPACK {
 
+
+
 extern "C" {
 
-void FORTRAN(ordmmd)( Int * neqns , Int * nadj  , Ptr * xadj  ,
-         Idx * adjncy, Int * invp  , Int * perm  , Int * iwsiz ,
-                         Int * iwork , Int * nofsub, Int * iflag);
+#if MMDIDXSIZE==64
+  typedef    int64_t   MMDInt;
+#else
+  typedef    int32_t   MMDInt;
+#endif
+
+#if AMDIDXSIZE==64
+  typedef    int64_t   AMDInt;
+#else
+  typedef    int32_t   AMDInt;
+#endif
+
+void FORTRAN(ordmmd)( MMDInt * neqns , MMDInt * nadj  , MMDInt * xadj  ,
+         MMDInt * adjncy, MMDInt * invp  , MMDInt * perm  , MMDInt * iwsiz ,
+                         MMDInt * iwork , MMDInt * nofsub, MMDInt * iflag);
 
 
-void FORTRAN(amdbar) (Int * N, Ptr * PE, Idx * IW, Int * LEN, Int * IWLEN, Int * PFREE, Int * NV, Int * NEXT, Int *
-         LAST, Int * HEAD, Int * ELEN, Int * DEGREE, Int * NCMPA, Int * W, Int * IOVFLO);
+void FORTRAN(amdbar) (AMDInt * N, AMDInt * PE, AMDInt * IW, AMDInt * LEN, AMDInt * IWLEN, AMDInt * PFREE, AMDInt * NV, AMDInt * NEXT, AMDInt *
+         LAST, AMDInt * HEAD, AMDInt * ELEN, AMDInt * DEGREE, AMDInt * NCMPA, AMDInt * W, AMDInt * IOVFLO);
 
 void FORTRAN(boxnd) (Int * P, Int * Q, Int * R, Int * IPERM, Int * WORK,Int * WORKSZ, Int * IERROR);
 void FORTRAN(gridnd) (Int * P, Int * Q, Int * IPERM, Int * WORK,Int * WORKSZ, Int * IERROR);

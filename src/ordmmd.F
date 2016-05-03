@@ -41,10 +41,19 @@ C
 c
 c***********************************************************************
 c
-         integer    adjncy(1), invp(1)  , iwork(iwsiz) , perm(1)
-         integer    xadj(1)
-         integer    delta , iflag , iwsiz , maxint, nadj  , 
+#if MMDIDXSIZE == 64
+         integer*8  iwsiz
+         integer*8  adjncy(1), invp(1)  , iwork(iwsiz) , perm(1)
+         integer*8  xadj(1)
+         integer*8  delta , iflag , maxint, nadj  , 
      &              neqns , nofsub
+#else
+         integer*4  iwsiz
+         integer*4  adjncy(1), invp(1)  , iwork(iwsiz) , perm(1)
+         integer*4  xadj(1)
+         integer*4  delta , iflag , maxint, nadj  , 
+     &              neqns , nofsub
+#endif
 c
 c*********************************************************************
 c

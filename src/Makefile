@@ -7,10 +7,11 @@ SRCS_CPP = ETree.cpp utility.cpp timer.cpp blas.cpp lapack.cpp global.cpp LogFil
 #MemTrack.cpp 
 #UPCXX_CPP = FBMatrix.cpp FBMatrix_mpi.cpp FBMatrix_upcxx.cpp
 UPCXX_CPP = 
-SRCS_F   = genmmd.f  mmdelm.f  mmdint.f  mmdnum.f  mmdupd.f  ordmmd.f amdbar.f boxnd.f gridnd.f
+SRCS_F   =  boxnd.f gridnd.f
+SRCS_FF   = genmmd.F mmdelm.F  mmdint.F  mmdnum.F  mmdupd.F  ordmmd.F amdbar.F 
 
-OBJS     = ${UPCXX_CPP:.cpp=.o} ${SRCS_CPP:.cpp=.o} ${SRCS_C:.c=.o} ${SRCS_F:.f=.o}
-DEPS     = ${UPCXX_CPP:.cpp=.d} ${SRCS_CPP:.cpp=.d} ${SRCS_C:.c=.d} ${SRCS_F:.f=.d}
+OBJS     = ${UPCXX_CPP:.cpp=.o} ${SRCS_CPP:.cpp=.o} ${SRCS_C:.c=.o} ${SRCS_F:.f=.o} ${SRCS_FF:.F=.o}
+DEPS     = ${UPCXX_CPP:.cpp=.d} ${SRCS_CPP:.cpp=.d} ${SRCS_C:.c=.d} ${SRCS_F:.f=.d} ${SRCS_FF:.F=.d}
 
 # Compilation replacement rules
 
@@ -27,9 +28,9 @@ DEPS     = ${UPCXX_CPP:.cpp=.d} ${SRCS_CPP:.cpp=.d} ${SRCS_C:.c=.d} ${SRCS_F:.f=
 %.o: %.cpp
 	${CXX} -c $<  ${UPCXX_CXXFLAGS} ${CXXFLAGS} ${CPPDEFS} 
 %.o: %.f
-	${FC} -c ${FFLAGS} $<
+	${FC} -c ${FFLAGS} ${FDEFS} $<
 %.o: %.F
-	${FC} -c ${FFLAGS} $<
+	${FC} -c ${FFLAGS} ${FDEFS} $<
 
 
 all: libsympack

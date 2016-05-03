@@ -446,12 +446,12 @@ throw std::logic_error( "File cannot be opened!" );
 
 
   /* define a struct that describes all our data */
-  lens[0] = 1;
-  lens[1] = 1;
+  lens[0] = sizeof(pspmat.size);
+  lens[1] = sizeof(pspmat.nnz);
   MPI_Address(&pspmat.size, &disps[0]);
   MPI_Address(&pspmat.nnz, &disps[1]);
-  types[0] = MPI_INT;
-  types[1] = MPI_INT;
+  types[0] = MPI_BYTE;
+  types[1] = MPI_BYTE;
   MPI_Type_struct(2, lens, disps, types, &type);
   MPI_Type_commit(&type);
 
@@ -465,8 +465,6 @@ throw std::logic_error( "File cannot be opened!" );
   pspmat.Global_.size = pspmat.size;
   pspmat.Global_.nnz = pspmat.nnz;
  
-
-
 
   // Compute the number of columns on each processor
   SYMPACK::vector<Int> numColLocalVec(mpisize);
@@ -482,13 +480,13 @@ throw std::logic_error( "File cannot be opened!" );
   MPI_Offset myColPtrOffset = (2 + ((mpirank==0)?0:1) )*sizeof(int) + (mpirank*numColFirst)*sizeof(Int);
 
   Int np1 = 0;
-  lens[0] = (mpirank==0)?1:0;
-  lens[1] = numColLocal + 1;
+  lens[0] = ((mpirank==0)?1:0)*sizeof(int);
+  lens[1] = (numColLocal + 1)*sizeof(int);
 
   MPI_Address(&np1, &disps[0]);
   MPI_Address(&pspmat.Local_.colptr[0], &disps[1]);
 
-  MPI_Type_hindexed(2, lens, disps, MPI_INT, &type);
+  MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
   MPI_Type_commit(&type);
 
   err= MPI_File_read_at_all(fin, myColPtrOffset, MPI_BOTTOM, 1, type, &status);
@@ -500,6 +498,15 @@ throw std::logic_error( "File cannot be opened!" );
     throw std::logic_error( "error reading colptr" );
   }
   MPI_Type_free(&type);
+
+  if(typeid(int)!=typeid(Ptr)){
+    np1 = (Int)*((int*)&np1);
+    int * cptr = (int*)&pspmat.Local_.colptr[0];
+    for(int64_t i = pspmat.Local_.colptr.size()-1 ; i>=0; i--){
+      pspmat.Local_.colptr[i] = (Ptr)cptr[i];
+    } 
+  }
+
 
   // Calculate nnz_loc on each processor
   pspmat.Local_.nnz = pspmat.Local_.colptr[numColLocal] - pspmat.Local_.colptr[0];
@@ -531,6 +538,18 @@ throw std::logic_error( "error reading rowind" );
   MPI_Type_free(&type);
 
 
+  if(typeid(int)!=typeid(Idx)){
+    np1 = (Int)*((int*)&np1);
+    int * rptr = (int*)&pspmat.Local_.rowind[0];
+    for(int64_t i = pspmat.Local_.rowind.size()-1 ; i>=0; i--){
+      pspmat.Local_.rowind[i] = (Idx)rptr[i];
+    } 
+  }
+
+
+
+
+
   //read nzval
   MPI_Offset myNzValOffset = (4 + ((mpirank==0)?0:1) )*sizeof(int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Local_.colptr[0]-1)*sizeof(double);
 
@@ -556,6 +575,16 @@ throw std::logic_error( "error reading nzval" );
   }
 
   MPI_Type_free(&type);
+
+  if(typeid(double)!=typeid(Real)){
+    np1 = (Int)*((int*)&np1);
+    double * rptr = (double*)&pspmat.nzvalLocal[0];
+    for(int64_t i = pspmat.nzvalLocal.size()-1 ; i>=0; i--){
+      pspmat.nzvalLocal[i] = (Idx)rptr[i];
+    } 
+  }
+
+
 
 
   //convert to local references
@@ -723,8 +752,7 @@ throw std::logic_error( "error reading nzval" );
 }		// -----  end of function ParaReadDistSparseMatrix  ----- 
 
 
-
-
+//TODO we should do the same than for Real 
 void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Complex>& pspmat, MPI_Comm comm )
 {
 

@@ -2,6 +2,7 @@
 #include "sympack/mmd.hpp"
 #include "sympack/utility.hpp"
 
+#include <limits>
 
 #ifdef USE_SCOTCH
 #include <scotch.h>
@@ -60,46 +61,48 @@ void Ordering::MMD(){
 
     invp.resize(pStructure->size);
     if(iam==0){
-      Int iwsiz = 4*pStructure->size;
-      SYMPACK::vector<Int> iwork (iwsiz);
 
-      Int nadj = pStructure->expRowind.size();
-      Int nofsub =0;
-      Int iflag =0;
+    SYMPACK::vector<MMDInt> perm(pStructure->size);
+    SYMPACK::vector<MMDInt> perminv(pStructure->size);
+      MMDInt iwsiz = 4*pStructure->size;
+      SYMPACK::vector<MMDInt> iwork (iwsiz);
 
-      SYMPACK::vector<Ptr> tmpXadj = pStructure->expColptr;
-      SYMPACK::vector<Idx> tmpAdj(pStructure->expRowind.size()-pStructure->size);
+      MMDInt nadj = pStructure->expRowind.size();
+      MMDInt nofsub =0;
+      MMDInt iflag =0;
 
-      int pos = 0;
-      for(int col=0; col<tmpXadj.size()-1;++col){
-        for(int j=tmpXadj[col]; j<tmpXadj[col+1];++j){
+      SYMPACK::vector<MMDInt> tmpXadj(pStructure->expColptr.size());
+      for(MMDInt col=0; col<tmpXadj.size();++col){
+        tmpXadj[col] = pStructure->expColptr[col];
+      }
+      
+
+      SYMPACK::vector<MMDInt> tmpAdj(pStructure->expRowind.size()-pStructure->size);
+      MMDInt pos = 0;
+      for(MMDInt col=0; col<tmpXadj.size()-1;++col){
+        for(MMDInt j=tmpXadj[col]; j<tmpXadj[col+1];++j){
           if( pStructure->expRowind[j-1]-1 != col){
             tmpAdj[pos++] = pStructure->expRowind[j-1];
           }
         }
       }
 
-      int rm = 0;
-      for(int col=0; col<tmpXadj.size();++col){
+      MMDInt rm = 0;
+      for(MMDInt col=0; col<tmpXadj.size();++col){
         tmpXadj[col]-=rm;
         rm++;
       }
 
-
-
-      perm.resize(pStructure->size);
-
-logfileptr->OFS()<<tmpXadj<<endl;
-logfileptr->OFS()<<tmpAdj<<endl;
-
-
-
-      FORTRAN(ordmmd)( &pStructure->size , &nadj , &tmpXadj[0] , &tmpAdj[0], 
-          &invp[0] , &perm[0] , &iwsiz , &iwork[0] , &nofsub, &iflag ) ;
+      MMDInt N = pStructure->size;
+      FORTRAN(ordmmd)( &N , &nadj , &tmpXadj[0] , &tmpAdj[0], 
+          &perminv[0] , &perm[0] , &iwsiz , &iwork[0] , &nofsub, &iflag ) ;
 
 
       assert(iflag == 0);
 
+      for(Int i = 1; i <=N; ++i){
+        invp[i-1] = perminv[i-1];
+      }
       //logfileptr->OFS()<<perm<<endl;
     }
       // broadcast invp
@@ -188,65 +191,76 @@ assert(iflag==0);
 
 
 void Ordering::AMD(){
-    assert(pStructure!=NULL);
+  assert(pStructure!=NULL);
 
   logfileptr->OFS()<<"AMD used"<<endl;
   if(iam==0){cout<<"AMD used"<<endl;}
 
-    if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
-			throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call AMD\n" );
+  if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
+    throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call AMD\n" );
+  }
+
+  invp.resize(pStructure->size);
+  if(iam==0){
+    SYMPACK::vector<AMDInt> perm(pStructure->size);
+    SYMPACK::vector<AMDInt> perminv(pStructure->size);
+    AMDInt iwsiz = 4*pStructure->size;
+    SYMPACK::vector<AMDInt> iwork (iwsiz);
+
+    AMDInt nadj = pStructure->expRowind.size();
+    AMDInt nofsub =0;
+    AMDInt iflag =0;
+
+    AMDInt N = pStructure->size; 
+
+    SYMPACK::vector<AMDInt> tmpXadj(pStructure->expColptr.size());
+    for(AMDInt col=0; col<tmpXadj.size();++col){
+      tmpXadj[col] = pStructure->expColptr[col];
+    }
+    //allocate extra N elements for AMD (elbow)
+    SYMPACK::vector<AMDInt> tmpAdj(pStructure->expRowind.size()+N);
+    for(AMDInt i=0; i<pStructure->expRowind.size();++i){
+      tmpAdj[i] = pStructure->expRowind[i];
     }
 
-    invp.resize(pStructure->size);
-    if(iam==0){
-    Int iwsiz = 4*pStructure->size;
-    SYMPACK::vector<Int> iwork (iwsiz);
-    perm.resize(pStructure->size);
+    AMDInt IOVFLO = std::numeric_limits<AMDInt>::max();//2147483647;
+    AMDInt NCMPA;
 
-    Int nadj = pStructure->expRowind.size();
-    Int nofsub =0;
-    Int iflag =0;
-
-    Int N = pStructure->size; 
-    SYMPACK::vector<Ptr> tmpXadj = pStructure->expColptr;
-    //allocate extra N elements for AMD (elbow)
-    SYMPACK::vector<Idx> tmpAdj(pStructure->expRowind.size()+N);
-    std::copy(&pStructure->expRowind[0],&pStructure->expRowind[pStructure->expRowind.size()-1]+1,&tmpAdj[0]);
-
-    Int IOVFLO = 2147483647;
-    Int NCMPA;
-
-    SYMPACK::vector<Int> VTXDEG(N);
-    SYMPACK::vector<Int> QSIZE(N);
-    SYMPACK::vector<Int> ECFORW(N);
-    SYMPACK::vector<Int> MARKER(N);
-    SYMPACK::vector<Int> NVTXS(N+1);
-    for(Int i=0;i<N;++i){
+    SYMPACK::vector<AMDInt> VTXDEG(N);
+    SYMPACK::vector<AMDInt> QSIZE(N);
+    SYMPACK::vector<AMDInt> ECFORW(N);
+    SYMPACK::vector<AMDInt> MARKER(N);
+    SYMPACK::vector<AMDInt> NVTXS(N+1);
+    for(AMDInt i=0;i<N;++i){
       NVTXS[i] = tmpXadj[i+1]-tmpXadj[i];
     }
 
 
-    Int IWLEN = tmpXadj[N-1] + NVTXS[N-1] + N - 1 ;
-    Int PFREE = tmpXadj[N-1] + NVTXS[N-1];
+    AMDInt IWLEN = tmpXadj[N-1] + NVTXS[N-1] + N - 1 ;
+    AMDInt PFREE = tmpXadj[N-1] + NVTXS[N-1];
 
 
-    FORTRAN(amdbar)( &N , &tmpXadj[0] , &tmpAdj[0] , &NVTXS[0] ,&IWLEN ,&PFREE ,  &QSIZE[0],&ECFORW[0] , &perm[0], &iwork[0], &invp[0],&VTXDEG[0], &NCMPA , &MARKER[0] , &IOVFLO );
+    FORTRAN(amdbar)( &N , &tmpXadj[0] , &tmpAdj[0] , &NVTXS[0] ,&IWLEN ,&PFREE ,  &QSIZE[0],&ECFORW[0] , &perm[0], &iwork[0], &perminv[0],&VTXDEG[0], &NCMPA , &MARKER[0] , &IOVFLO );
+
+    for(AMDInt i = 0; i < perminv.size(); ++i){
+      invp[i] = perminv[i];
     }
+  }
 
-      // broadcast invp
-      Int N = invp.size();
-      MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
-      perm.resize(pStructure->size);
-      for(Int i = 1; i <=N; ++i){
-        Int node = invp[i-1];
-        perm[node-1] = i;
-      }
+  // broadcast invp
+  Int N = invp.size();
+  MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+  perm.resize(pStructure->size);
+  for(Int i = 1; i <=N; ++i){
+    Int node = invp[i-1];
+    perm[node-1] = i;
+  }
 
 
-//  logfileptr->OFS()<<"perm "<<perm<<endl;
-//  logfileptr->OFS()<<"invperm "<<invp<<endl;
+    logfileptr->OFS()<<"perm "<<perm<<endl;
+    logfileptr->OFS()<<"invperm "<<invp<<endl;
 
-//    Permute(perm);
+  //    Permute(perm);
 
 }
 

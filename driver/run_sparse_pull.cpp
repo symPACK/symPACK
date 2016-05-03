@@ -33,8 +33,8 @@
 
 #include <upcxx.h>
 
-//#define SCALAR double
-#define SCALAR std::complex<double>
+#define SCALAR double
+//#define SCALAR std::complex<double>
 #define INSCALAR double
 
 

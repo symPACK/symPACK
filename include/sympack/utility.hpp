@@ -1426,12 +1426,13 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
   sparse_matrix_file_format_t informat;
   if(iam==0){ cout<<"Start reading the matrix"<<endl; }
   TIMER_START(READING_MATRIX);
+  double tstart = get_time();
   //Read the input matrix
   if(informatstr == "CSC"){
     ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
   }
   else{
-#if 1
+#if 0
     int n,nnz;
     int * colptr, * rowind;
     INSCALAR * values;
@@ -1476,13 +1477,13 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
       delete [] rowind;
       delete [] colptr;
     }
-//#else
-
-//    ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat);
+#else
+    ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat);
 #endif
   }
-
+  double tstop = get_time();
   TIMER_STOP(READING_MATRIX);
+  if(iam==0){ cout<<"Matrix read time: "<<tstop - tstart<<endl; }
   if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
 }
 

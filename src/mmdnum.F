@@ -41,9 +41,17 @@ C
 c
 c***********************************************************************
 c
-         integer    invp(neqns), perm(neqns), qsize(neqns)
-         integer    father, neqns , nextf , node  , nqsize,
+#if MMDIDXSIZE == 64
+         integer*8  neqns
+         integer*8    invp(neqns), perm(neqns), qsize(neqns)
+         integer*8    father, nextf , node  , nqsize,
      1              num   , root
+#else
+         integer*4  neqns
+         integer*4    invp(neqns), perm(neqns), qsize(neqns)
+         integer*4    father, nextf , node  , nqsize,
+     1              num   , root
+#endif
 c
 c***********************************************************************
 c

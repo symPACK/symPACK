@@ -2,10 +2,15 @@
         SUBROUTINE AMDBAR
      $          (N, PE, IW, LEN, IWLEN, PFREE, NV, NEXT,
      $          LAST, HEAD, ELEN, DEGREE, NCMPA, W, IOVFLO)
-
-        INTEGER N, IWLEN, PFREE, NCMPA, IOVFLO, IW (IWLEN), PE (N),
+#if AMDIDXSIZE==64
+        INTEGER*8 N, IWLEN, PFREE, NCMPA, IOVFLO, IW (IWLEN), PE (N),
      $          DEGREE (N), NV (N), NEXT (N), LAST (N), HEAD (N),
      $          ELEN (N), W (N), LEN (N)
+#else
+        INTEGER*4 N, IWLEN, PFREE, NCMPA, IOVFLO, IW (IWLEN), PE (N),
+     $          DEGREE (N), NV (N), NEXT (N), LAST (N), HEAD (N),
+     $          ELEN (N), W (N), LEN (N)
+#endif
 
 C-----------------------------------------------------------------------
 C  The MC47 / AMD suite of minimum degree ordering algorithms.
@@ -402,10 +407,17 @@ C-----------------------------------------------------------------------
 C LOCAL INTEGERS:
 C-----------------------------------------------------------------------
 
-        INTEGER DEG, DEGME, DEXT, DMAX, E, ELENME, ELN, HASH, HMOD, I,
+#if AMDIDXSIZE==64
+        INTEGER*8 DEG, DEGME, DEXT, DMAX, E, ELENME, ELN, HASH, HMOD, I,
      $          ILAST, INEXT, J, JLAST, JNEXT, K, KNT1, KNT2, KNT3,
      $          LENJ, LN, MAXMEM, ME, MEM, MINDEG, NEL, NEWMEM,
      $          NLEFT, NVI, NVJ, NVPIV, SLENME, WBIG, WE, WFLG, WNVI, X
+#else
+        INTEGER*4 DEG, DEGME, DEXT, DMAX, E, ELENME, ELN, HASH, HMOD, I,
+     $          ILAST, INEXT, J, JLAST, JNEXT, K, KNT1, KNT2, KNT3,
+     $          LENJ, LN, MAXMEM, ME, MEM, MINDEG, NEL, NEWMEM,
+     $          NLEFT, NVI, NVJ, NVPIV, SLENME, WBIG, WE, WFLG, WNVI, X
+#endif
 
 C deg:          the degree of a variable or element
 C degme:        size, |Lme|, of the current element, me (= degree (me))
@@ -451,7 +463,13 @@ C-----------------------------------------------------------------------
 C LOCAL POINTERS:
 C-----------------------------------------------------------------------
 
-        INTEGER P, P1, P2, P3, PDST, PEND, PJ, PME, PME1, PME2, PN, PSRC
+#if AMDIDXSIZE==64
+        INTEGER*8 P, P1, P2, P3, PDST, PEND, PJ, PME, PME1, PME2, PN,
+     &            PSRC
+#else
+        INTEGER*4 P, P1, P2, P3, PDST, PEND, PJ, PME, PME1, PME2, PN, 
+     &            PSRC
+#endif
 
 C               Any parameter (pe (...) or pfree) or local variable
 C               starting with "p" (for Pointer) is an index into iw,

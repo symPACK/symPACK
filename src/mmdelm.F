@@ -44,16 +44,29 @@ C
 c
 c***********************************************************************
 c
-         integer    adjncy(nadj), dbakw(neqns), dforw(neqns), 
+#if MMDIDXSIZE == 64
+         integer*8  nadj,neqns
+         integer*8    adjncy(nadj), dbakw(neqns), dforw(neqns), 
      &              dhead(neqns), llist(neqns), marker(neqns), 
      &              qsize(neqns)
-         integer    xadj(neqns+1)
-		 integer    neqns , nadj
-         integer    elmnt , i     , istop , istrt , j     ,
+         integer*8    xadj(neqns+1)
+         integer*8    elmnt , i     , istop , istrt , j     ,
      1              jstop , jstrt , link  , maxint, mdnode,
      1              nabor , node  , npv   , nqnbrs, nxnode,
      1              pvnode, rlmt  , rloc  , rnode , tag   ,
      1              xqnbr
+#else
+         integer*4  nadj,neqns
+         integer*4    adjncy(nadj), dbakw(neqns), dforw(neqns), 
+     &              dhead(neqns), llist(neqns), marker(neqns), 
+     &              qsize(neqns)
+         integer*4    xadj(neqns+1)
+         integer*4    elmnt , i     , istop , istrt , j     ,
+     1              jstop , jstrt , link  , maxint, mdnode,
+     1              nabor , node  , npv   , nqnbrs, nxnode,
+     1              pvnode, rlmt  , rloc  , rnode , tag   ,
+     1              xqnbr
+#endif
 c
 c***********************************************************************
 c
