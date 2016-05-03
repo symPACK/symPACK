@@ -5,6 +5,8 @@
 #include "sympack/Environment.hpp"
 #include "sympack/utility.hpp"
 
+#include <typeinfo>
+
 using namespace std;
 using std::ifstream;
 using std::ofstream;

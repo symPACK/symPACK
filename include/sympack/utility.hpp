@@ -1432,7 +1432,7 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
     ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
   }
   else{
-#if 0
+#if 1
     int n,nnz;
     int * colptr, * rowind;
     INSCALAR * values;
