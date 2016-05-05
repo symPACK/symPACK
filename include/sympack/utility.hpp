@@ -1320,15 +1320,89 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
 //  ixadj.reserve(n+1);
 
 //TODO skip the appropriate number of int since we know the field width
-#if 0
-  int skipLines = ( (firstNode-1) / colptrCntPerRow);
-  int skip = skipLines * (colptrWidth + 1) + (firstNode - skipLines*colptrCntPerRow - 1)*colptrWidth;
-  infile.seekg(0,skip);
-  for(int i=0;i<nlocal+1;++i){
-    Ptr j;
-    infile>>j;
-    HMat.Local_.colptr[i] = j;
+#if 1
+  //colptr
+  {
+    int curPos = infile.tellg();
+
+    // read everything in a contiguous buffer
+    //int skipLines = ( (firstNode-1) / colptrCntPerRow);
+    //int skipNodesBefore = (firstNode - skipLines*colptrCntPerRow - 1);
+    //int skip = skipLines * (colptrWidth + 1) + skipNodesBefore*colptrWidth;
+
+
+    int lineLastNode = std::ceil(( double(firstNode+nlocal) / double(colptrCntPerRow)));
+    int lineFirstNode = std::ceil(( double(firstNode) / double(colptrCntPerRow)));
+    int skip = (firstNode - 1)*colptrWidth + (lineFirstNode - 1);
+    int readBytes = (nlocal+1)*colptrWidth + (lineLastNode - lineFirstNode);
+    int skipAfter = (n+1 - (firstNode+nlocal))*colptrWidth + (colptrCnt - lineLastNode +1) ;
+
+//    int nodesAfterFirstOnLine = lineFirstNode<colptrCnt?(colptrCntPerRow - (firstNode-1) % colptrCntPerRow -1 ):n+1-firstNode;
+//    int nodesBeforeLastOnLine = (firstNode+nlocal-1) % colptrCntPerRow;
+//    int readBytes = colptrWidth + nodesAfterFirstOnLine*colptrWidth + nodesBeforeLastOnLine*colptrWidth + (nlocal>1?colptrWidth:0) 
+//      + (lineLastNode-1 - lineFirstNode)*colptrCntPerRow*colptrWidth + (lineLastNode - lineFirstNode);
+
+    //number of nodes after lastNode = firstNode + nlocal -1
+    //int nodesAfterOnLine = lineLastNode<colptrCnt?(colptrCntPerRow - (firstNode+nlocal-1) % colptrCntPerRow -1):n+1-(firstNode+nlocal);
+    //int lastLineLength = lineLastNode<colptrCnt?(((n+1)%(colptrCntPerRow))*colptrWidth +1):0;
+    //int skipAfter = nodesAfterOnLine*(colptrWidth)+1 + lastLineLength;
+
+    infile.seekg(skip,ios_base::cur);
+
+    {
+      std::string rdStr;
+      rdStr.resize(readBytes);
+
+      infile.read(&rdStr[0], readBytes);
+//      logfileptr->OFS()<<"read string is"<<endl<<rdStr<<endl;
+
+      istringstream iss(rdStr);
+      Ptr j;
+      Int locPos = 0;
+      while(iss>> j){
+        HMat.Local_.colptr[locPos++]=j;
+      }
+    }
+
+    infile.seekg(skipAfter,ios_base::cur);
+    int curEnd = infile.tellg();
   }
+
+  //int skipAfter = (colptrCnt-1-lineLastNode)*(colptrWidth + 1)+lastLineLength + nodesAfterOnLine*colptrWidth + (nodesAfterOnLine>0?1:0);
+ // infile.seekg(0,skip);
+ // for(int i=0;i<nlocal+1;++i){
+ //   Ptr j;
+ //   infile>>j;
+ //   HMat.Local_.colptr[i] = j;
+ // }
+
+
+//  infile.seekg(curPos,ios_base::beg);
+//
+//  int posBegin = 0;
+//  int posEnd = 0;
+//  int node_idx= 1;
+//  Ptr j;
+//  while(infile>> j){
+//    if(node_idx==firstNode){posBegin=infile.tellg(); posBegin-=colptrWidth;}
+//    if(node_idx==firstNode+nlocal){posEnd=infile.tellg();}
+//
+//        if(node_idx>= firstNode && node_idx<=firstNode+nlocal){
+//          int local_index = node_idx - firstNode + 1;
+//          HMat.Local_.colptr[local_index-1] = j;
+//        }
+//        node_idx++;
+//
+//    if(node_idx>nlocal+1){
+//      //eat the line return ?
+//      getline(infile, line);
+//      break;
+//    }
+//  }
+//
+//  logfileptr->OFS()<<"posBegin "<<posBegin<<endl;
+//  logfileptr->OFS()<<"posEnd "<<posEnd<<endl;
+
 #else
   int node_idx= 1;
   for(int i=0;i<colptrCnt;++i){
@@ -1360,9 +1434,59 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
   
   HMat.Local_.rowind.resize(nnzLocal);
 
-#if 0
+  Ptr elem_idx;
+#if 1
+  //rowind
+  {
+    int curPos = infile.tellg();
+
+    // read everything in a contiguous buffer
+    //int skipLines = ( (first_idx-1) / rowindCntPerRow);
+    //int skipEdgesBefore = (first_idx - skipLines*rowindCntPerRow - 1);
+    //int skip = skipLines * (rowindWidth + 1) + skipEdgesBefore*rowindWidth;
+
+
+    //int lineLastEdge = std::ceil(( double(last_idx) / double(rowindCntPerRow)));
+    //int lineFirstEdge = std::ceil(( double(first_idx) / double(rowindCntPerRow)));
+    //int edgesAfterFirstOnLine = lineFirstEdge<rowindCnt?(rowindCntPerRow - (first_idx-1) % rowindCntPerRow -1 ):nnz+1-first_idx;
+    //int edgesBeforeLastOnLine = (last_idx-1) % rowindCntPerRow-1;
+    //int readBytes = rowindWidth + edgesAfterFirstOnLine*rowindWidth + edgesBeforeLastOnLine*rowindWidth + (first_idx!=last_idx?rowindWidth:0) 
+    //  + (lineLastEdge-1 - lineFirstEdge)*rowindCntPerRow*rowindWidth + (lineLastEdge - lineFirstEdge);
+
+    ////number of edges after lastEdge = firstEdge + nlocal -1
+    //int edgesAfterOnLine = lineLastEdge<rowindCnt?(rowindCntPerRow - (last_idx-1) % rowindCntPerRow -1):nnz+1-last_idx;
+    //int lastLineLength = lineLastEdge<rowindCnt?(((nnz+1)%(rowindCntPerRow))*rowindWidth +1):0;
+    //int skipAfter = edgesAfterOnLine*(rowindWidth)+1 + lastLineLength;
+
+    int lineLastEdge = std::ceil(( double(last_idx-1) / double(rowindCntPerRow)));
+    int lineFirstEdge = std::ceil(( double(first_idx) / double(rowindCntPerRow)));
+    int skip = (first_idx - 1)*rowindWidth + (lineFirstEdge - 1);
+    int readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
+    int skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
+
+    infile.seekg(skip,ios_base::cur);
+
+    {
+      std::string rdStr;
+      rdStr.resize(readBytes);
+
+      infile.read(&rdStr[0], readBytes);
+//      logfileptr->OFS()<<"rowind read string is"<<endl<<rdStr<<endl;
+      istringstream iss(rdStr);
+      Idx j;
+      Int locPos = 0;
+      while(iss>> j){
+        HMat.Local_.rowind[locPos++]=j;
+      }
+    }
+
+    infile.seekg(skipAfter,ios_base::cur);
+    int curEnd = infile.tellg();
+  }
+
+
 #else
-  Ptr elem_idx = 1;
+  elem_idx = 1;
   for(int i=0;i<rowindCnt;++i){
     if(getline(infile, line))
     {
@@ -1382,7 +1506,60 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
 #endif
 
   HMat.nzvalLocal.resize(nnzLocal);
-#if 0
+#if 1
+
+  //nzval
+  {
+    int curPos = infile.tellg();
+
+    // read everything in a contiguous buffer
+//    int skipLines = ( (first_idx-1) / nzvalCntPerRow);
+//    int skipEdgesBefore = (first_idx - skipLines*nzvalCntPerRow - 1);
+//    int skip = skipLines * (nzvalWidth + 1) + skipEdgesBefore*nzvalWidth;
+//
+//
+//    int lineLastEdge = std::ceil(( double(last_idx) / double(nzvalCntPerRow)));
+//    int lineFirstEdge = std::ceil(( double(first_idx) / double(nzvalCntPerRow)));
+//    int edgesAfterFirstOnLine = lineFirstEdge<nzvalCnt?(nzvalCntPerRow - (first_idx-1) % nzvalCntPerRow -1 ):nnz+1-first_idx;
+//    int edgesBeforeLastOnLine = (last_idx-1) % nzvalCntPerRow-1;
+//    int readBytes = nzvalWidth + edgesAfterFirstOnLine*nzvalWidth + edgesBeforeLastOnLine*nzvalWidth + (first_idx!=last_idx?nzvalWidth:0) 
+//      + (lineLastEdge-1 - lineFirstEdge)*nzvalCntPerRow*nzvalWidth + (lineLastEdge - lineFirstEdge);
+//
+//    //number of edges after lastEdge = firstEdge + nlocal -1
+//    int edgesAfterOnLine = lineLastEdge<nzvalCnt?(nzvalCntPerRow - (last_idx-1) % nzvalCntPerRow -1):nnz+1-last_idx;
+//    int lastLineLength = lineLastEdge<nzvalCnt?(((nnz+1)%(nzvalCntPerRow))*nzvalWidth +1):0;
+//    int skipAfter = edgesAfterOnLine*(nzvalWidth)+1 + lastLineLength;
+
+    int lineLastEdge = std::ceil(( double(last_idx-1) / double(nzvalCntPerRow)));
+    int lineFirstEdge = std::ceil(( double(first_idx) / double(nzvalCntPerRow)));
+    int skip = (first_idx - 1)*nzvalWidth + (lineFirstEdge - 1);
+    int readBytes = (last_idx - first_idx)*nzvalWidth + (lineLastEdge - lineFirstEdge);
+    int skipAfter = (nnz+1 - last_idx)*nzvalWidth + (nzvalCnt - lineLastEdge +1) ;
+
+    infile.seekg(skip,ios_base::cur);
+
+    {
+      std::string rdStr;
+      rdStr.resize(readBytes);
+
+      infile.read(&rdStr[0], readBytes);
+//      logfileptr->OFS()<<"nzval read string is"<<endl<<rdStr<<endl;
+
+      istringstream iss(rdStr);
+      INSCALAR j;
+      Int locPos = 0;
+      while(iss>> j){
+        HMat.nzvalLocal[locPos++]=(SCALAR)j;
+      }
+    }
+
+    infile.seekg(skipAfter,ios_base::cur);
+    int curEnd = infile.tellg();
+  }
+
+
+
+
 #else
   elem_idx = 1;
   for(int i=0;i<nzvalCnt;++i){
@@ -1432,6 +1609,7 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
     ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
   }
   else{
+#if 0
 #if 1
     int n,nnz;
     int * colptr, * rowind;
@@ -1477,8 +1655,14 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
       delete [] rowind;
       delete [] colptr;
     }
+#endif
 #else
-    ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat);
+    DistSparseMatrix<SCALAR> HMat2;
+HMat2.comm = HMat.comm;
+    ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat2);
+HMat = HMat2;
+
+
 #endif
   }
   double tstop = get_time();

@@ -25,6 +25,7 @@ namespace LIBCHOLESKY{
 
   template <class F> SparseMatrixStructure DistSparseMatrix<F>::GetGlobalStructure(){
     if(!globalAllocated){
+gdb_lock();
       Local_.ToGlobal(Global_,comm);
       globalAllocated = true;
     }
@@ -39,7 +40,7 @@ namespace LIBCHOLESKY{
 
     MPI_Comm_size(comm,&np);
     MPI_Comm_rank(comm, &iam);
-
+gdb_lock();
     //fill global structure info as we have it directly
     this->size = n; 
     this->nnz = nnz; 

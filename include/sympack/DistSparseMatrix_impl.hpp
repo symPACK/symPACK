@@ -43,9 +43,10 @@ namespace SYMPACK{
     MPI_Comm_size(comm,&np);
     MPI_Comm_rank(comm, &iam);
 
-    //fill global structure info as we have it directly
     this->size = n; 
     this->nnz = nnz; 
+
+    //fill global structure info as we have it directly
     this->Global_.size = this->size;
     this->Global_.nnz = this->nnz;
     this->Global_.colptr.resize(n+1);
@@ -105,6 +106,26 @@ namespace SYMPACK{
     //    else if(cscptr->value_type == COMPLEX){
     //      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
     //    }
+
+#if 1
+{
+vector<Ptr> dummy;
+this->Global_.colptr.swap(dummy);
+}
+{
+vector<Idx> dummy;
+this->Global_.rowind.swap(dummy);
+}
+this->Global_.nnz=-1;
+this->Global_.size=1;
+    this->globalAllocated = false;
+
+//Local_.ToGlobal(Global_,comm);
+
+#endif
+
+
+
   }
 
 

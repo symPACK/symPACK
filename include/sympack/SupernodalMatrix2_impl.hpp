@@ -2585,7 +2585,9 @@ namespace SYMPACK{
   levels[Xsuper_.size()-1]=-1;
   Int numLevel = 0; 
   for(Int i=Xsuper_.size()-1-1; i>=0; i-- ){     
-    Int supno = SupMembership_[ETree_.PostParent(Xsuper_[i])-1];
+    Int fcol = Xsuper_[i];
+    Int pcol =ETree_.PostParent(fcol-1);
+    Int supno = SupMembership_[pcol-1];
     levels[i] = levels[supno-1]+1;
   }
 
