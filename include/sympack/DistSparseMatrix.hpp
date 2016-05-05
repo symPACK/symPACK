@@ -51,6 +51,9 @@ template <typename F> class DistSparseMatrix{
   template <typename SCALAR, typename INSCALAR >
   friend int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat);
 
+  template <typename SCALAR, typename INSCALAR >
+  friend int ReadHB_PARA_MPIIO(std::string & filename, DistSparseMatrix<SCALAR> & HMat);
+
   protected:
   bool globalAllocated;
   SparseMatrixStructure Local_;

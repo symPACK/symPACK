@@ -96,6 +96,7 @@ namespace SYMPACK{
       LoadBalancer * Balancer_;
 
       //Local and Global structure of the matrix (CSC format)
+      DistSparseMatrixGraph graph_;
       SparseMatrixStructure * Local_;
       SparseMatrixStructure * Global_;
       //Is the global structure of the matrix allocated
@@ -109,15 +110,6 @@ namespace SYMPACK{
       IdxVec locLindx_;
 
 
-      //not used anymore
-      PtrVec locSupXlindx_;
-      IdxVec locSupLindx_;
-
-//      upcxx::shared_array<Ptr> dxlindx_;
-//      upcxx::shared_array<Idx> dlindx_;
-
-      bool isXlindxAllocated_;
-      bool isLindxAllocated_;
 
       BackupBuffer backupBuffer_;
 
@@ -173,6 +165,10 @@ namespace SYMPACK{
 
       TempUpdateBuffers<T> tmpBufs;
 
+  void findSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize = -1);
+  void relaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, RelaxationParameters & params  );
+
+  void symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> & cc);
 
 
 

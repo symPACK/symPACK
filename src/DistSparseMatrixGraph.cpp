@@ -262,6 +262,178 @@ namespace SYMPACK{
     TIMER_STOP(PERMUTE);
   }
 
+
+
+
+  void DistSparseMatrixGraph::RedistributeSupernodal(Int nsuper, Int * xsuper, Int * supMembership){
+    int gmpirank,gmpisize;
+    int ismpi=0;
+    MPI_Initialized( &ismpi);
+
+    int isnull= (comm == MPI_COMM_NULL);
+
+    if(ismpi && isnull==0){
+      MPI_Comm_size(comm,&gmpisize);
+      MPI_Comm_rank(comm,&gmpirank);
+    }
+    else{
+      //throw an exception
+      throw std::logic_error("MPI communicator needs to be set.");
+    }
+
+
+
+    Int supPerProc = nsuper/gmpisize;
+    Int firstSnode = gmpirank*supPerProc;//0 based
+    Int nsuperLocal = (gmpirank==gmpisize-1)?
+      (nsuper - firstSnode):supPerProc;
+
+
+    Idx colPerProc = size/gmpisize;
+    Int firstCol = gmpirank*supPerProc;//0 based
+    Idx nLocal = LocalVertexCount();
+
+    //first generate the expanded distributed structure
+    {
+      Int firstLocCol = (gmpirank)*colPerProc; //0 based
+      //Int maxLocN = max(locColCnt,size-(mpisize-1)*colPerProc); // can be 0
+
+
+      MPI_Comm splitcomm;
+      MPI_Comm_split(comm,nsuperLocal>0,gmpirank,&splitcomm);
+      if(nsuperLocal>0){
+        int mpirank,mpisize;
+        MPI_Comm_size(splitcomm,&mpisize);
+        MPI_Comm_rank(splitcomm,&mpirank);
+
+        //These two numbers are inclusive
+        //What is the last column I should own
+        //What is the last column I currently own
+        Idx supLastColumn = xsuper[firstSnode+nsuperLocal]-1-1;//0-based
+        Idx curLastColumn = firstCol + nLocal -1; //0-based
+        //same thing for first columns
+
+        Idx supFirstColumn = xsuper[firstSnode]-1;//0-based
+        Idx curFirstColumn = firstCol; //0-based
+
+        Int numColSentBefore = max(supFirstColumn - curFirstColumn,(Idx)0);
+        Int numColSentAfter = max(curLastColumn-supLastColumn,(Idx)0);
+
+        //first transfer column pointers
+        vector<int> ssizes(mpisize,0);
+        vector<int> sdispls(mpisize+1,0);
+
+        if(numColSentBefore>0){
+          for(Idx col = curFirstColumn; col<supFirstColumn; col++){
+            Int snode = supMembership[col];
+            Idx pdest = min(mpisize-1, snode / supPerProc);
+            assert(pdest!=gmpirank);
+            ssizes[pdest]+=sizeof(Ptr); //add an extra colptr entry to send
+          }
+        }
+
+        if(numColSentAfter){
+          //If I have some columns to send
+          for(Idx col = supLastColumn+1; col<=curLastColumn; col++){
+            Int snode = supMembership[col];
+            Idx pdest = min(mpisize-1, snode / supPerProc);
+            assert(pdest!=gmpirank);
+            ssizes[pdest]+=sizeof(Ptr); //add an extra colptr entry to send
+          }
+        }
+
+        for(int p =0; p<mpisize;p++){
+          if(ssizes[p]>0){
+            //add an extra colptr entry to send
+            ssizes[p]+=sizeof(Ptr); 
+          }
+        }
+
+
+        sdispls[0] = 0;
+        std::partial_sum(ssizes.begin(),ssizes.end(),&sdispls[1]);
+        //compute shift wrt to the start of the buffer
+        for(int p=mpirank+1;p<mpisize;p++){
+          sdispls[p]+=(nLocal-1)*sizeof(Ptr);
+        }
+
+        vector<int> rsizes(mpisize,0);
+        vector<int> rdispls(mpisize+1,0);
+        MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,splitcomm);
+        rdispls[0] = 0;
+        std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+
+
+        //expand local colptr
+        colptr.resize(colptr.size()+rdispls.back()/sizeof(Ptr)-1);
+        //now shift the content if needed and recompute the displacements
+        int shift = 0;
+        for(int p=mpirank-1;p>=0;p--){
+          if(rsizes[p]>0){
+            shift = rdispls[p+1];
+            break;
+          }
+        }
+        if(shift>0){
+          //shift by rdispls[mpirank]/sizeof(Ptr)
+          std::copy_backward(colptr.begin(),colptr.begin()+nLocal,colptr.begin()+shift);
+        }
+
+        //put the shift in the displacement as well
+        for(int p=mpirank+1;p<mpisize;p++){
+          rdispls[p]+=(nLocal-1)*sizeof(Ptr);
+        }
+
+        MPI_Alltoallv(&colptr[0], &ssizes[0], &sdispls[0], MPI_BYTE,
+            &colptr[0], &rsizes[0], &rdispls[0], MPI_BYTE,
+            splitcomm);
+
+
+
+
+
+        //          //now transfer the rowind
+        //          ssizes.assign(mpisize,0);
+        //          sdispls.assign(mpisize+1,0);
+        //          if(supLastColumn<curLastColumn){
+        //            //If I have some columns to send
+        //            for(Idx col = supLastColumn+1; col<=curLastColumn; col++){
+        //              Int snode = supMembership[col];
+        //              Idx pdest = min((Idx)mpisize-1, snode / supPerProc);
+        //              assert(pdest!=gmpirank);
+        //              ssizes[pdest]+=(colptr[col-firstCol +1] - colptr[col-firstCol])*sizeof(Idx);
+        //            }
+        //          }
+        //
+        //          MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,splitcomm);
+        //          rdispls[0] = 0;
+        //          std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+        //
+        //          //expand local rowind
+        //          rowind.resize(rowind.size()+rdispls.back()/sizeof(Idx));
+        //
+        //          Int supLastEdge = colptr[supLastColumn+1]-1 -1;//0 based
+        //          Int curLastEdge = colptr[curLastColumn+1]-1 -1;//0 based
+        //
+        //          MPI_Alltoallv(&rowind[supLastEdge+1], &ssizes[0], &sdispls[0], MPI_BYTE,
+        //              &rowind[curLastEdge+1], &rsizes[0], &rdispls[0], MPI_BYTE,
+        //              splitcomm);
+
+
+        //          colptr.resize(colptr[supLastColumn+1]-col);
+        //         rowind.resize(colptr[supLastEdge+1]);
+
+
+      }
+    }
+  }
+
+
+
+
+
+
+
   void DistSparseMatrixGraph::ExpandSymmetric(){
     TIMER_START(EXPAND);
     if(!bIsExpanded){
@@ -713,48 +885,7 @@ namespace SYMPACK{
 //
 //
 //
-//  void SparseMatrixStructure::FindSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize ){
-//    TIMER_START(FindSupernodes);
-//
-//    if(!bIsGlobal){
-//      throw std::logic_error( "SparseMatrixStructure must be global in order to call FindSupernodes\n" );
-//    }
-//
-//    supMembership.resize(size);
-//
-//    Int nsuper = 1;
-//    Int supsize = 1;
-//    supMembership[0] = 1;
-//
-//    for(Int i =2; i<=size;i++){
-//      Int prev_parent = tree.PostParent(i-2);
-//      if(prev_parent == i){
-//        if(cc[i-2] == cc[i-1]+1 ) {
-//          if(supsize<maxSize || maxSize==-1){
-//            ++supsize;
-//            supMembership[i-1] = nsuper;
-//            continue;
-//          }
-//        }
-//      }
-//
-//      nsuper++;
-//      supsize = 1;
-//      supMembership[i-1] = nsuper;
-//    }
-//
-//    xsuper.resize(nsuper+1);
-//    Int lstsup = nsuper+1;
-//    for(Int i = size; i>=1;--i){
-//      Int ksup = supMembership[i-1];
-//      if(ksup!=lstsup){
-//        xsuper[lstsup-1] = i + 1; 
-//      }
-//      lstsup = ksup;
-//    }
-//    xsuper[0]=1;
-//    TIMER_STOP(FindSupernodes);
-//  }
+
 //
 //#ifdef REFINE_SNODE
 //  //EXPERIMENTAL STUFF

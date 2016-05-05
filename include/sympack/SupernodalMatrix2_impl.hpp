@@ -13,12 +13,6 @@
 #include <queue>
 #include <stdlib.h>
 
-#ifdef _DEADLOCK_
-#define TOP() front()
-#else
-#define TOP() top()
-#endif
-
 namespace SYMPACK{
 
   template <typename T> void SupernodalMatrix2<T>::Factorize(){
@@ -716,11 +710,7 @@ namespace SYMPACK{
 
     while( MsgToSend.size()>0){
       //Pull the highest priority message
-#ifdef _DEADLOCK_
-      const DelayedComm & comm = MsgToSend.front();
-#else
       const DelayedComm & comm = MsgToSend.top();
-#endif
       Int src_snode_id = comm.src_snode_id;
       Int tgt_snode_id = comm.tgt_snode_id;
       Int src_nzblk_idx = comm.src_nzblk_idx;
@@ -917,9 +907,9 @@ namespace SYMPACK{
       //count number of contiguous blocks (at least one diagonal block)
       Idx iPrevRow = locLindx_[lfi-1]-1;
       Idx iFirstRow = locLindx_[lfi-1];
-              
+
       Idx width = mh[s-1]; 
- 
+
 
       Idx nzBlockCnt = 1;
       Idx prevSnode = -1;
@@ -1105,102 +1095,148 @@ namespace SYMPACK{
 
     iSize_ = pMat.size;
     Local_ = new SparseMatrixStructure();
-    Global_ = new SparseMatrixStructure();
     *Local_ = pMat.GetLocalStructure();
 
-    Local_->ToGlobal(*Global_,CommEnv_->MPI_GetComm());
-    Global_->ExpandSymmetric();
-
-    {
-    //Create an Ordering object to hold the permutation
-    Order_.SetCommEnvironment(CommEnv_);
-    Order_.SetStructure(*Global_);
-    logfileptr->OFS()<<"Structure set"<<endl;
-
-
-      double timeSta = get_time();
-    TIMER_START(ORDERING);
-    switch(options_.ordering){
-      case MMD:
-        //Reoder the matrix with MMD
-        Order_.MMD();
-        break;
-      case AMD:
-        Order_.AMD();
-        break;
-      case NDBOX:
-        Order_.NDBOX();
-        break;
-      case NDGRID:
-        Order_.NDGRID();
-        break;
-#ifdef USE_SCOTCH
-      case SCOTCH:
-        Order_.SCOTCH();
-        break;
-#endif
-#ifdef USE_METIS
-      case METIS:
-        Order_.METIS();
-        break;
-#endif
-#ifdef USE_PARMETIS
-      case PARMETIS:
-        Order_.PARMETIS();
-        break;
-#endif
-#ifdef USE_PTSCOTCH
-      case PTSCOTCH:
-{
+#if defined(USE_PARMETIS) || defined(PTSCOTCH)
+    if(options_.ordering==PTSCOTCH /*|| options_.ordering==PARMETIS*/ ){
       DistSparseMatrixGraph graph;
       graph.comm = CommEnv_->MPI_GetComm();
       graph.baseval = 0;
       graph.keepDiag = 0;
       graph.sorted = 1;
       graph.FromStructure(*Local_);
-    graph.ExpandSymmetric();
-        Order_.PTSCOTCH(graph);
+      graph.ExpandSymmetric();
 
-    logfileptr->OFS()<<"perm: "<<Order_.perm<<endl;
-    logfileptr->OFS()<<"invp: "<<Order_.invp<<endl;
 
-//        Order_.PTSCOTCH();
-}
-        break;
+      //Create an Ordering object to hold the permutation
+      Order_.SetCommEnvironment(CommEnv_);
+
+      double timeSta = get_time();
+      TIMER_START(ORDERING);
+      switch(options_.ordering){
+#ifdef USE_PARMETIS
+        case PARMETIS:
+          Order_.PARMETIS();
+          break;
 #endif
-      default:
-        //do nothing: either natural or user provided ordering
-        break;
-    }
-    TIMER_STOP(ORDERING);
-
+#ifdef USE_PTSCOTCH
+        case PTSCOTCH:
+          {
+            Order_.PTSCOTCH(graph);
+            //logfileptr->OFS()<<"perm: "<<Order_.perm<<endl;
+            //logfileptr->OFS()<<"invp: "<<Order_.invp<<endl;
+          }
+          break;
+#endif
+        default:
+          //do nothing: either natural or user provided ordering
+          break;
+      }
+      TIMER_STOP(ORDERING);
       double timeStop = get_time();
-    if(iam==0){
-      cout<<"Ordering time: "<<timeStop - timeSta<<endl;
-    }
-    logfileptr->OFS()<<"Ordering done"<<endl;
-    }
+      if(iam==0){
+        cout<<"Ordering time: "<<timeStop - timeSta<<endl;
+      }
+      logfileptr->OFS()<<"Ordering done"<<endl;
 
-    //logfileptr->OFS()<<"Matrix reexpanding"<<endl;
-    //Global_->ExpandSymmetric();
-    isGlobStructAllocated_ = true;
-    logfileptr->OFS()<<"Matrix structure expanded"<<endl;
+    }
+    else
+#endif
+    {
+      Global_ = new SparseMatrixStructure();
+      Local_->ToGlobal(*Global_,CommEnv_->MPI_GetComm());
+      Global_->ExpandSymmetric();
+      isGlobStructAllocated_ = true;
+      logfileptr->OFS()<<"Matrix structure expanded"<<endl;
+
+      {
+        //Create an Ordering object to hold the permutation
+        Order_.SetCommEnvironment(CommEnv_);
+        Order_.SetStructure(*Global_);
+        logfileptr->OFS()<<"Structure set"<<endl;
+
+
+        double timeSta = get_time();
+        TIMER_START(ORDERING);
+        switch(options_.ordering){
+          case MMD:
+            //Reoder the matrix with MMD
+            Order_.MMD();
+            break;
+          case AMD:
+            Order_.AMD();
+            break;
+          case NDBOX:
+            Order_.NDBOX();
+            break;
+          case NDGRID:
+            Order_.NDGRID();
+            break;
+#ifdef USE_SCOTCH
+          case SCOTCH:
+            Order_.SCOTCH();
+            break;
+#endif
+#ifdef USE_METIS
+          case METIS:
+            Order_.METIS();
+            break;
+#endif
+#ifdef USE_PARMETIS
+          case PARMETIS:
+            Order_.PARMETIS();
+            break;
+#endif
+#ifdef USE_PTSCOTCH
+          case PTSCOTCH:
+            {
+              DistSparseMatrixGraph graph;
+              graph.comm = CommEnv_->MPI_GetComm();
+              graph.baseval = 0;
+              graph.keepDiag = 0;
+              graph.sorted = 1;
+              graph.FromStructure(*Local_);
+              graph.ExpandSymmetric();
+              Order_.PTSCOTCH(graph);
+
+              logfileptr->OFS()<<"perm: "<<Order_.perm<<endl;
+              logfileptr->OFS()<<"invp: "<<Order_.invp<<endl;
+
+              //        Order_.PTSCOTCH();
+            }
+            break;
+#endif
+          default:
+            //do nothing: either natural or user provided ordering
+            break;
+        }
+        TIMER_STOP(ORDERING);
+
+        double timeStop = get_time();
+        if(iam==0){
+          cout<<"Ordering time: "<<timeStop - timeSta<<endl;
+        }
+        logfileptr->OFS()<<"Ordering done"<<endl;
+      }
+
+    }
 
     SYMPACK::vector<Int> cc,rc;
-{
+    {
 
       double timeSta = get_time();
 
-    ETree_.ConstructETree(*Global_,Order_);
-    ETree_.PostOrderTree(Order_);
-    logfileptr->OFS()<<"ETREE done"<<endl;
-    Global_->GetLColRowCount(ETree_,Order_,cc,rc);
-    ETree_.SortChildren(cc,Order_);
+      ETree_.ConstructETree(*Global_,Order_);
+      ETree_.PostOrderTree(Order_);
+      logfileptr->OFS()<<"ETREE done"<<endl;
+      Global_->GetLColRowCount(ETree_,Order_,cc,rc);
+
+      ETree_.SortChildren(cc,Order_);
       double timeStop = get_time();
       if(iam==0){
         cout<<"Elimination tree construction time: "<<timeStop - timeSta<<endl;
       }
-}
+    }
 
 
 
@@ -1233,158 +1269,46 @@ namespace SYMPACK{
 
 #ifndef _NO_COMPUTATION_
 
-{
-  double timeSta = get_time();
-  Global_->FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
-
-  logfileptr->OFS()<<"Supernodes found"<<endl;
-
-  if(options_.relax.nrelax0>=0){
-    Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
-    logfileptr->OFS()<<"Relaxation done"<<endl;
-
     {
       double timeSta = get_time();
+      this->findSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
+      //Global_->FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
 
-      //Global_->SymbolicFactorizationRelaxed(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
-      Global_->SymbolicFactorizationRelaxedDist(ETree_,Order_,cc,Xsuper_,SupMembership_,locXlindx_,locLindx_,CommEnv_->MPI_GetComm());
+      logfileptr->OFS()<<"Supernodes found"<<endl;
+
+      if(options_.relax.nrelax0>=0){
+        this->relaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
+        //Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
+        logfileptr->OFS()<<"Relaxation done"<<endl;
+
+        {
+          double timeSta = get_time();
+          this->symbolicFactorizationRelaxedDist(cc);
+          //Global_->SymbolicFactorizationRelaxedDist(ETree_,Order_,cc,Xsuper_,SupMembership_,locXlindx_,locLindx_,CommEnv_->MPI_GetComm());
+          double timeStop = get_time();
+          if(iam==0){
+            cout<<"Symbolic factorization time: "<<timeStop - timeSta<<endl;
+          }
+        }
+
+      }
+      else{
+        abort();
+        //Global_->SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+      }
+
+      logfileptr->OFS()<<"Symbfact done"<<endl;
+
+#ifdef REFINED_SNODE
+      SYMPACK::vector<Int> permRefined;
+      //Global_->RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
+#endif
 
       double timeStop = get_time();
       if(iam==0){
-        cout<<"Symbolic factorization time: "<<timeStop - timeSta<<endl;
+        cout<<"Total symbolic factorization time: "<<timeStop - timeSta<<endl;
       }
     }
-
-  }
-  else{
-    Global_->SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
-  }
-
-  logfileptr->OFS()<<"Symbfact done"<<endl;
-
-#ifdef REFINED_SNODE
-  SYMPACK::vector<Int> permRefined;
-  //    SYMPACK::vector<Int> newPerm(Size());
-  Global_->RefineSupernodes(ETree_,Order_, SupMembership_, Xsuper_, xlindx_, lindx_, permRefined);
-
-  //      Perm_.Resize(Size());
-  //      for(Int i =0; i<Perm_.size();++i){
-  //        Perm_[permRefined[i]-1] = permChild[i];
-  //      }
-
-  //    Perm_ = permRefined;
-#else
-  //Combine permMMD with Postorder
-  //    Perm_.Resize(Size());
-  //    for(Int i =0; i<Perm_.size();++i){
-  //      Perm_[i] = ETree_.FromPostOrder(i+1);
-  //    }
-#endif
-
-  double timeStop = get_time();
-  if(iam==0){
-    cout<<"Total symbolic factorization time: "<<timeStop - timeSta<<endl;
-  }
-}
-
-
-    //TODO this should be produced by the symbolic factorization
-    //Get local xlindx and lindx
-    if(0){
-      //first compute local xlindx
-      Int numLocSnode = ( (Xsuper_.size()-1) / np);
-      Int firstSnode = iam*numLocSnode + 1;
-
-      //logfileptr->OFS()<<"Xlindx size: "<<Xsuper_.size()<<endl;
-      //logfileptr->OFS()<<"numLocSnode: "<<numLocSnode<<endl;
-      //logfileptr->OFS()<<"firstSnode: "<<firstSnode<<endl;
-
-      if(iam==np-1){numLocSnode = Xsuper_.size() - firstSnode;}
-
-      logfileptr->OFS()<<"numLocSnode: "<<numLocSnode<<endl;
-
-      {
-        locXlindx_.resize(numLocSnode+1);
-        std::copy(&xlindx_[firstSnode-1],&xlindx_[firstSnode-1]+numLocSnode+1,locXlindx_.begin());
-        for(Idx i = locXlindx_.size(); i>=1; i--){
-          locXlindx_[i-1]-=locXlindx_[0]-1;
-        }
-
-        //now compute local supernodal lindx
-        locLindx_.resize(locXlindx_.back());
-        for(Idx locsupno = 1; locsupno < locXlindx_.size(); locsupno++){
-          Idx supno = locsupno + firstSnode - 1;
-          Ptr fi = locXlindx_[locsupno-1];
-
-          Idx * tail = &locLindx_[fi-1];
-          for(Ptr i = xlindx_[supno-1]; i<xlindx_[supno]; i++){
-            Idx row = lindx_[i-1];
-            *tail = row;
-            tail++;
-          }
-        }
-      }
-
-      {
-        locSupXlindx_.resize(numLocSnode+1);
-        if(locSupXlindx_.size()>0){
-          locSupXlindx_[0]=1;
-          for(Idx locsupno = 1; locsupno < locSupXlindx_.size(); locsupno++){
-            Idx supno = locsupno + firstSnode - 1;
-            Idx prevSnode = -1;
-            locSupXlindx_[locsupno] = locSupXlindx_[locsupno-1];
-            for(Ptr i = xlindx_[supno-1]; i<xlindx_[supno]; i++){
-              Idx row = lindx_[i-1];
-              Idx snode = SupMembership_[row-1];
-              if(snode!=prevSnode){
-                locSupXlindx_[locsupno]++;
-              }
-              prevSnode=snode;
-            }
-          }  
-          //logfileptr->OFS()<<"Xlindx: "<<xlindx_<<endl;
-          //      logfileptr->OFS()<<"local SupXlindx: "<<locSupXlindx_<<endl;
-
-
-
-
-          //now compute local supernodal lindx
-          locSupLindx_.resize(locSupXlindx_.back());
-          for(Idx locsupno = 1; locsupno < locSupXlindx_.size(); locsupno++){
-            Idx supno = locsupno + firstSnode - 1;
-            Ptr fi = locSupXlindx_[locsupno-1];
-
-            Idx * tail = &locSupLindx_[fi-1];
-            Idx prevSnode = -1;
-            for(Ptr i = xlindx_[supno-1]; i<xlindx_[supno]; i++){
-              Idx row = lindx_[i-1];
-              Idx snode = SupMembership_[row-1];
-              if(snode!=prevSnode){
-                *tail = snode;
-                tail++;
-              }
-              prevSnode=snode;
-            }
-          }
-        }
-
-
-      }
-
-      //logfileptr->OFS()<<"lindx: "<<lindx_<<endl;
-      //logfileptr->OFS()<<"local SupLindx: "<<locSupLindx_<<endl;
-
-    } 
-
-//    logfileptr->OFS()<<"local xlindx: "<<locXlindx_<<endl;
-//    logfileptr->OFS()<<"local lindx: "<<locLindx_<<endl;
-//    Global_->SymbolicFactorizationRelaxedDist(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_,CommEnv_->MPI_GetComm());
-//    logfileptr->OFS()<<"local xlindx: "<<xlindx_<<endl;
-//    logfileptr->OFS()<<"local lindx: "<<lindx_<<endl;
-//locXlindx_=xlindx_;
-//locLindx_=lindx_;
-
-
 
 #ifdef _DEBUG_
     logfileptr->OFS()<<"Membership list is "<<SupMembership_<<std::endl;
@@ -1398,237 +1322,214 @@ namespace SYMPACK{
 #endif
 
 
-//    isXlindxAllocated_=true;
-//    isLindxAllocated_=true;
-
-{
+    {
       double timeSta = get_time();
 
-    TIMER_START(LOAD_BALANCE);
-    if(options.load_balance_str=="SUBCUBE-FI"){
-      if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
-      ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,true);
-      //this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,CommEnv_,true);
+      TIMER_START(LOAD_BALANCE);
+      if(options.load_balance_str=="SUBCUBE-FI"){
+        if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
+        ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+        this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,true);
 #ifdef _DEBUG_MAPPING_
-      logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
-      logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+        logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+        logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
 #endif
 
 
-      TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
-      if(test==NULL){
+        TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+        if(test==NULL){
+          this->Mapping_->Update(this->Balancer_->GetMap());
+        }
+        else{
+          test->Update((TreeLoadBalancer*)this->Balancer_);
+        }
+
+      }
+      else if(options.load_balance_str=="SUBCUBE-FO"){
+        if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
+        ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+        this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,false);
+#ifdef _DEBUG_MAPPING_
+        logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+        logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+#endif
+
+        TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+        if(test==NULL){
+          this->Mapping_->Update(this->Balancer_->GetMap());
+        }
+        else{
+          test->Update((TreeLoadBalancer*)this->Balancer_);
+        }
+
+
+      }
+      else if(options.load_balance_str=="SUBCUBE-VOLUME-FI"){
+        if(iam==0){ cout<<"Subtree to subcube volume FI mapping used"<<endl;}
+        ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+        this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,true);
+#ifdef _DEBUG_MAPPING_
+        logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+        logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+#endif
+
+        TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+        if(test==NULL){
+          this->Mapping_->Update(this->Balancer_->GetMap());
+        }
+        else{
+          test->Update((TreeLoadBalancer*)this->Balancer_);
+        }
+
+
+      }
+      else if(options.load_balance_str=="SUBCUBE-VOLUME-FO"){
+        if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
+        ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+        this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,false);
+#ifdef _DEBUG_MAPPING_
+        logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+        logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
+#endif
+
+        TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
+        if(test==NULL){
+          this->Mapping_->Update(this->Balancer_->GetMap());
+        }
+        else{
+          test->Update((TreeLoadBalancer*)this->Balancer_);
+        }
+
+
+      }
+      else if(options.load_balance_str=="NNZ"){
+        if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
+        this->Balancer_ = new NNZBalancer(np,Xsuper_,cc);
+#ifdef _DEBUG_MAPPING_
+        logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
+#endif
         this->Mapping_->Update(this->Balancer_->GetMap());
       }
-      else{
-        test->Update((TreeLoadBalancer*)this->Balancer_);
-      }
-
-    }
-    else if(options.load_balance_str=="SUBCUBE-FO"){
-      if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
-      ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,false);
-      //this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,xlindx_,lindx_,cc,CommEnv_,false);
-
-#ifdef _DEBUG_MAPPING_
-      logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
-      logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
-#endif
-
-      TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
-      if(test==NULL){
-        this->Mapping_->Update(this->Balancer_->GetMap());
-      }
-      else{
-        test->Update((TreeLoadBalancer*)this->Balancer_);
-      }
-
-
-    }
-    else if(options.load_balance_str=="SUBCUBE-VOLUME-FI"){
-      if(iam==0){ cout<<"Subtree to subcube volume FI mapping used"<<endl;}
-      ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,true);
-#ifdef _DEBUG_MAPPING_
-      logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
-      logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
-#endif
-
-      TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
-      if(test==NULL){
-        this->Mapping_->Update(this->Balancer_->GetMap());
-      }
-      else{
-        test->Update((TreeLoadBalancer*)this->Balancer_);
-      }
-
-
-    }
-    else if(options.load_balance_str=="SUBCUBE-VOLUME-FO"){
-      if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
-      ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,false);
-#ifdef _DEBUG_MAPPING_
-      logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
-      logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
-#endif
-
-      TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
-      if(test==NULL){
-        this->Mapping_->Update(this->Balancer_->GetMap());
-      }
-      else{
-        test->Update((TreeLoadBalancer*)this->Balancer_);
-      }
-
-
-    }
-    else if(options.load_balance_str=="NNZ"){
-      if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
-      this->Balancer_ = new NNZBalancer(np,Xsuper_,cc);
-#ifdef _DEBUG_MAPPING_
-      logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
-#endif
-      this->Mapping_->Update(this->Balancer_->GetMap());
-    }
-    else if(options.load_balance_str=="OLDSUBCUBE"){
-      if(iam==0){ cout<<"OLD Subtree to subcube mapping used"<<endl;}
-      ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-      //compute number of children and load
-      SYMPACK::vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
-      SYMPACK::vector<Int> children(SupETree.Size()+1,0);
-      for(Int I=1;I<=SupETree.Size();I++){
-        Int parent = SupETree.Parent(I-1);
-        ++children[parent];
-        Int fc = Xsuper_[I-1];
-        Int width = Xsuper_[I] - Xsuper_[I-1];
-        Int height = cc[fc-1];
-        double local_load = width*height*height;
-        SubTreeLoad[I]+=local_load;
-        SubTreeLoad[parent]+=SubTreeLoad[I];
-      }
-
-      logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
-
-
-      //procmaps[0]/pstart[0] represents the complete list
-      SYMPACK::vector<SYMPACK::vector<Int> * > procmaps(SupETree.Size()+1);
-      for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new SYMPACK::vector<Int>();}
-      SYMPACK::vector<Int> pstart(SupETree.Size()+1,0);
-      procmaps[0]->reserve(np);
-      for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
-
-
-      for(Int I=SupETree.Size(); I>= 1;I--){
-
-        Int parent = SupETree.Parent(I-1);
-
-        //split parent's proc list
-        double parent_load = 0.0;
-
-        if(parent!=0){
-          Int fc = Xsuper_[parent-1];
-          Int width = Xsuper_[parent] - Xsuper_[parent-1];
+      else if(options.load_balance_str=="OLDSUBCUBE"){
+        if(iam==0){ cout<<"OLD Subtree to subcube mapping used"<<endl;}
+        ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+        //compute number of children and load
+        SYMPACK::vector<double> SubTreeLoad(SupETree.Size()+1,0.0);
+        SYMPACK::vector<Int> children(SupETree.Size()+1,0);
+        for(Int I=1;I<=SupETree.Size();I++){
+          Int parent = SupETree.Parent(I-1);
+          ++children[parent];
+          Int fc = Xsuper_[I-1];
+          Int width = Xsuper_[I] - Xsuper_[I-1];
           Int height = cc[fc-1];
-          parent_load = width*height*height;
+          double local_load = width*height*height;
+          SubTreeLoad[I]+=local_load;
+          SubTreeLoad[parent]+=SubTreeLoad[I];
         }
 
-
-        double proportion = SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load);
-        Int npParent = procmaps[parent]->size();
-        Int pFirstIdx = min(pstart[parent],npParent-1);
-        //          Int numProcs = max(1,children[parent]==1?npParent-pFirstIdx:min((Int)std::floor(npParent*proportion),npParent-pFirstIdx));
-        Int npIdeal =(Int)std::round(npParent*proportion);
-        Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
-        Int pFirst = procmaps[parent]->at(pFirstIdx);
-
-        logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
-        pstart[parent]+= numProcs;//= min(pstart[parent] + numProcs,npParent-1);
-        //          children[parent]--;
-
-        //          Int pFirstIdx = pstart[parent]*npParent/children[parent];
-        //          Int pFirst = procmaps[parent]->at(pFirstIdx);
-        //          Int numProcs = max(pstart[parent]==children[parent]-1?npParent-pFirstIdx:npParent/children[parent],1);
+        logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
 
 
-
-        procmaps[I]->reserve(numProcs);
-        for(Int p = pFirst; p<pFirst+numProcs;++p){ procmaps[I]->push_back(p);}
-
-        logfileptr->OFS()<<I<<": "; 
-        for(Int i = 0; i<procmaps[I]->size();++i){logfileptr->OFS()<<procmaps[I]->at(i)<<" ";}
-        logfileptr->OFS()<<endl;
-        //
-        //          if(iam==0){
-        //            cout<<I<<": "; 
-        //            for(Int i = 0; i<procmaps[I]->size();++i){cout<<procmaps[I]->at(i)<<" ";}
-        //            cout<<endl;
-        //          }
-        pstart[parent]++;
-      }
+        //procmaps[0]/pstart[0] represents the complete list
+        SYMPACK::vector<SYMPACK::vector<Int> * > procmaps(SupETree.Size()+1);
+        for(Int i = 0; i<procmaps.size();++i){ procmaps[i] = new SYMPACK::vector<Int>();}
+        SYMPACK::vector<Int> pstart(SupETree.Size()+1,0);
+        procmaps[0]->reserve(np);
+        for(Int p = 0;p<np;++p){ procmaps[0]->push_back(p);}
 
 
-      //now choose which processor to get
-      SYMPACK::vector<Int> procMap(SupETree.Size());
-      SYMPACK::vector<double> load(np,0.0);
-      for(Int I=1;I<=SupETree.Size();I++){
-        Int minLoadP= -1;
-        double minLoad = -1;
-        for(Int i = 0; i<procmaps[I]->size();++i){
-          Int proc = procmaps[I]->at(i);
-          if(load[proc]<minLoad || minLoad==-1){
-            minLoad = load[proc];
-            minLoadP = proc;
+        for(Int I=SupETree.Size(); I>= 1;I--){
+
+          Int parent = SupETree.Parent(I-1);
+
+          //split parent's proc list
+          double parent_load = 0.0;
+
+          if(parent!=0){
+            Int fc = Xsuper_[parent-1];
+            Int width = Xsuper_[parent] - Xsuper_[parent-1];
+            Int height = cc[fc-1];
+            parent_load = width*height*height;
           }
+
+
+          double proportion = SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load);
+          Int npParent = procmaps[parent]->size();
+          Int pFirstIdx = min(pstart[parent],npParent-1);
+          //          Int numProcs = max(1,children[parent]==1?npParent-pFirstIdx:min((Int)std::floor(npParent*proportion),npParent-pFirstIdx));
+          Int npIdeal =(Int)std::round(npParent*proportion);
+          Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
+          Int pFirst = procmaps[parent]->at(pFirstIdx);
+
+          logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
+          pstart[parent]+= numProcs;//= min(pstart[parent] + numProcs,npParent-1);
+          //          children[parent]--;
+
+          //          Int pFirstIdx = pstart[parent]*npParent/children[parent];
+          //          Int pFirst = procmaps[parent]->at(pFirstIdx);
+          //          Int numProcs = max(pstart[parent]==children[parent]-1?npParent-pFirstIdx:npParent/children[parent],1);
+
+
+
+          procmaps[I]->reserve(numProcs);
+          for(Int p = pFirst; p<pFirst+numProcs;++p){ procmaps[I]->push_back(p);}
+
+          logfileptr->OFS()<<I<<": "; 
+          for(Int i = 0; i<procmaps[I]->size();++i){logfileptr->OFS()<<procmaps[I]->at(i)<<" ";}
+          logfileptr->OFS()<<endl;
+          //
+          //          if(iam==0){
+          //            cout<<I<<": "; 
+          //            for(Int i = 0; i<procmaps[I]->size();++i){cout<<procmaps[I]->at(i)<<" ";}
+          //            cout<<endl;
+          //          }
+          pstart[parent]++;
         }
 
-        procMap[I-1] = minLoadP;
+
+        //now choose which processor to get
+        SYMPACK::vector<Int> procMap(SupETree.Size());
+        SYMPACK::vector<double> load(np,0.0);
+        for(Int I=1;I<=SupETree.Size();I++){
+          Int minLoadP= -1;
+          double minLoad = -1;
+          for(Int i = 0; i<procmaps[I]->size();++i){
+            Int proc = procmaps[I]->at(i);
+            if(load[proc]<minLoad || minLoad==-1){
+              minLoad = load[proc];
+              minLoadP = proc;
+            }
+          }
+
+          procMap[I-1] = minLoadP;
 
 
-        Int fc = Xsuper_[I-1];
-        Int width = Xsuper_[I] - Xsuper_[I-1];
-        Int height = cc[fc-1];
-        double local_load = width*height*height;
+          Int fc = Xsuper_[I-1];
+          Int width = Xsuper_[I] - Xsuper_[I-1];
+          Int height = cc[fc-1];
+          double local_load = width*height*height;
 
-        load[minLoadP]+=local_load;
-      }
+          load[minLoadP]+=local_load;
+        }
 
 
-      //for(Int i = 0; i<procMap.size();++i){ logfileptr->OFS()<<i+1<<" is on "<<procMap[i]<<endl;}
-      logfileptr->OFS()<<"Proc load: "<<load<<endl;
-      //Update the mapping
-      logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
-      this->Mapping_->Update(procMap);
+        //for(Int i = 0; i<procMap.size();++i){ logfileptr->OFS()<<i+1<<" is on "<<procMap[i]<<endl;}
+        logfileptr->OFS()<<"Proc load: "<<load<<endl;
+        //Update the mapping
+        logfileptr->OFS()<<"Proc Mapping: "<<procMap<<endl;
+        this->Mapping_->Update(procMap);
 
-      for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
-    } 
-    TIMER_STOP(LOAD_BALANCE);
+        for(Int i = 0; i<procmaps.size();++i){ delete procmaps[i];}
+      } 
+      TIMER_STOP(LOAD_BALANCE);
 
       double timeStop = get_time();
       if(iam==0){
         cout<<"Load balancing time: "<<timeStop - timeSta<<endl;
       }
-}
-
-
-#if 0
-    int64_t NNZ = 0;
-    for(Int I = 1; I<Xsuper_.size(); ++I){
-      Int width = Xsuper_[I] - Xsuper_[I-1];
-      Ptr fi = xlindx_(I-1)+width;
-      Ptr li = xlindx_(I)-1;
-      Int height = li-fi+1;
-      for(int i=0;i<width;++i){
-        NNZ+=width-i;
-      }
-
-      NNZ+=width*height;
     }
-    if(iam==0){
-      cout<<"NNZ in L factor: "<<NNZ<<endl;
-    }
-#endif
+
+
 
     ////    switch(options.load_balance){
     ////      case SUBCUBE:
@@ -2202,84 +2103,6 @@ namespace SYMPACK{
           auto sposition = sdispls;
           Icomm * IsendPtr = new Icomm(total_send_size,MPI_REQUEST_NULL);
 
-#ifdef EXPAND_MATRIX
-          //Fill up the send buffer
-          for(auto it = send_map.begin(); it!=send_map.end();it++){
-            Int iCurDest = it->first;
-            size_t & send_bytes = it->second.first;
-
-            Icomm & Isend = *IsendPtr;
-
-            for(Int I=1;I<Xsuper_.size();I++){
-              Int fc = Xsuper_[I-1];
-              Int lc = Xsuper_[I]-1;
-              Int iWidth = lc-fc+1;
-              Ptr fi = xlindx_[I-1];
-              Ptr li = xlindx_[I]-1;
-              Int iHeight = li-fi+1;
-
-              Int iDest = this->Mapping_->Map(I-1,I-1);
-
-              if(iDest == iCurDest){
-#ifdef _DEBUG_
-                logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
-#endif
-
-                //look at the owner of the first column of the supernode
-                Int numColFirst = std::max(1,iSize_ / np);
-
-                //Serialize
-                for(Int col = fc;col<=lc;col++){
-                  Int orig_col = Order_.perm[col-1];
-                  Int iOwnerCol = std::min((orig_col-1)/numColFirst,np-1);
-
-                  //                  if(iDest!=iam){
-                  if(iam==iOwnerCol){
-
-
-                    Int local_col = (orig_col-(numColFirst)*iOwnerCol);
-                    //Int nrows = ExpA.Local_.colptr[local_col]-ExpA.Local_.colptr[local_col-1];
-                    //Serialize(Isend,(char*)&ExpA.Local_.rowind[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(Int));
-                    ////TODO Try to remove ExpA.nzvalLocal
-                    //Serialize(Isend,(char*)&ExpA.nzvalLocal[ExpA.Local_.colptr[local_col-1]-1],nrows*sizeof(T));
-
-                    //Push the permuted matrix instead
-                    //count number of rows in the permuted matrix
-                    Int nrows = 0;
-                    for(Int rowidx = ExpA.Local_.colptr[local_col-1]; rowidx<ExpA.Local_.colptr[local_col]; ++rowidx){
-                      Int orig_row = ExpA.Local_.rowind[rowidx-1];
-                      Int row = Order_.invp[orig_row-1];
-                      if(row>=col){
-                        nrows++;
-                      }
-                    }
-
-                    Isend<<col;
-                    Isend<<nrows;
-
-                    for(Int rowidx = ExpA.Local_.colptr[local_col-1]; rowidx<ExpA.Local_.colptr[local_col]; ++rowidx){
-                      Int orig_row = ExpA.Local_.rowind[rowidx-1];
-                      Int row = Order_.invp[orig_row-1];
-                      if(row>=col){
-                        Isend<<row;
-                      }
-                    }
-
-                    for(Int rowidx = ExpA.Local_.colptr[local_col-1]; rowidx<ExpA.Local_.colptr[local_col]; ++rowidx){
-                      Int orig_row = ExpA.Local_.rowind[rowidx-1];
-                      Int row = Order_.invp[orig_row-1];
-                      if(row>=col){
-                        Isend<<ExpA.nzvalLocal[rowidx-1];
-                      }
-                    }
-
-                  }
-                }
-                }
-              }
-            }
-          }
-#else
           //Fill up the send buffer
           for(Int I=1;I<Xsuper_.size();I++){
             Int fc = Xsuper_[I-1];
@@ -2363,9 +2186,6 @@ namespace SYMPACK{
               }
             }
           }
-
-
-#endif
 
           //compute the receive structures
           size_t total_recv_size = 0;
@@ -2540,70 +2360,68 @@ namespace SYMPACK{
 
 
 
-    //xlindx_.Clear();
-    //lindx_.Clear();
     //delete Local_;
     //delete Global_;
 #endif
 
 
 
-  SYMPACK::vector<Int> AggregatesToRecv;
-  SYMPACK::vector<Int> LocalAggregates;
+    SYMPACK::vector<Int> AggregatesToRecv;
+    SYMPACK::vector<Int> LocalAggregates;
 
-  origTaskLists_.resize(Xsuper_.size(),NULL);
-  FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
-  generateTaskGraph(localTaskCount_, origTaskLists_);
-  for(int i = 0; i<origTaskLists_.size(); ++i){
-    if(origTaskLists_[i] != NULL){
-      for(auto taskit = origTaskLists_[i]->begin(); taskit!=origTaskLists_[i]->end();taskit++){
-        FBTask & curUpdate = *taskit;
-        if(curUpdate.type==FACTOR){
-          //      curUpdate.rank = levels[curUpdate.src_snode_id-1];
-          curUpdate.remote_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
-          curUpdate.local_deps = LocalAggregates[curUpdate.tgt_snode_id-1];
-        }
-        else if(curUpdate.type==UPDATE){
-          Int iOwner = Mapping_->Map(curUpdate.src_snode_id-1,curUpdate.src_snode_id-1);
-          //        curUpdate.rank = levels[curUpdate.src_snode_id-1];
-          //If I own the factor, it is a local dependency
-          if(iam==iOwner){
-            curUpdate.remote_deps = 0;
-            curUpdate.local_deps = 1;
-          }
-          else{
-            curUpdate.remote_deps = 1;
-            curUpdate.local_deps = 0;
-          }
-        }
-      }
-    }
-  }
-
-  SYMPACK::vector<Int> levels;
-  levels.resize(Xsuper_.size());
-  levels[Xsuper_.size()-1]=-1;
-  Int numLevel = 0; 
-  for(Int i=Xsuper_.size()-1-1; i>=0; i-- ){     
-    Int fcol = Xsuper_[i];
-    Int pcol =ETree_.PostParent(fcol-1);
-    Int supno = SupMembership_[pcol-1];
-    levels[i] = levels[supno-1]+1;
-  }
-
-  //sort the task queues
-  {
+    origTaskLists_.resize(Xsuper_.size(),NULL);
+    FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
+    generateTaskGraph(localTaskCount_, origTaskLists_);
     for(int i = 0; i<origTaskLists_.size(); ++i){
       if(origTaskLists_[i] != NULL){
         for(auto taskit = origTaskLists_[i]->begin(); taskit!=origTaskLists_[i]->end();taskit++){
-          if(taskit->remote_deps==0 && taskit->local_deps==0){
-            taskit->rank = levels[taskit->src_snode_id-1];
-            scheduler_->push(taskit);
+          FBTask & curUpdate = *taskit;
+          if(curUpdate.type==FACTOR){
+            //      curUpdate.rank = levels[curUpdate.src_snode_id-1];
+            curUpdate.remote_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
+            curUpdate.local_deps = LocalAggregates[curUpdate.tgt_snode_id-1];
+          }
+          else if(curUpdate.type==UPDATE){
+            Int iOwner = Mapping_->Map(curUpdate.src_snode_id-1,curUpdate.src_snode_id-1);
+            //        curUpdate.rank = levels[curUpdate.src_snode_id-1];
+            //If I own the factor, it is a local dependency
+            if(iam==iOwner){
+              curUpdate.remote_deps = 0;
+              curUpdate.local_deps = 1;
+            }
+            else{
+              curUpdate.remote_deps = 1;
+              curUpdate.local_deps = 0;
+            }
           }
         }
       }
     }
-  }
+
+    SYMPACK::vector<Int> levels;
+    levels.resize(Xsuper_.size());
+    levels[Xsuper_.size()-1]=-1;
+    Int numLevel = 0; 
+    for(Int i=Xsuper_.size()-1-1; i>=0; i-- ){     
+      Int fcol = Xsuper_[i];
+      Int pcol =ETree_.PostParent(fcol-1);
+      Int supno = SupMembership_[pcol-1];
+      levels[i] = levels[supno-1]+1;
+    }
+
+    //sort the task queues
+    {
+      for(int i = 0; i<origTaskLists_.size(); ++i){
+        if(origTaskLists_[i] != NULL){
+          for(auto taskit = origTaskLists_[i]->begin(); taskit!=origTaskLists_[i]->end();taskit++){
+            if(taskit->remote_deps==0 && taskit->local_deps==0){
+              taskit->rank = levels[taskit->src_snode_id-1];
+              scheduler_->push(taskit);
+            }
+          }
+        }
+      }
+    }
 
 
 
@@ -2629,8 +2447,6 @@ namespace SYMPACK{
     Local_=NULL;
     Global_=NULL;
     isGlobStructAllocated_ = false;
-    //isXlindxAllocated_=false;
-    //isLindxAllocated_=false;
   }
 
   template <typename T> SupernodalMatrix2<T>::SupernodalMatrix2(DistSparseMatrix<T> & pMat, NGCholOptions & options ){
@@ -2641,8 +2457,6 @@ namespace SYMPACK{
     Local_=NULL;
     Global_=NULL;
     isGlobStructAllocated_ = false;
-    //isXlindxAllocated_=false;
-    //isLindxAllocated_=false;
     Init(pMat, options);
   }
 
@@ -2709,6 +2523,540 @@ namespace SYMPACK{
     Int iLocal = snodeLocalIndex(global);
     return snodeColl[iLocal -1];
   }
+
+
+template <typename T> 
+  void SupernodalMatrix2<T>::findSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize ){
+    TIMER_START(FindSupernodes);
+    Int size = iSize_;
+//TODO: tree order cc supmembership xsuper are all members of the class. no need for argument
+    supMembership.resize(size);
+
+    Int nsuper = 1;
+    Int supsize = 1;
+    supMembership[0] = 1;
+
+    for(Int i =2; i<=size;i++){
+      Int prev_parent = tree.PostParent(i-2);
+      if(prev_parent == i){
+        if(cc[i-2] == cc[i-1]+1 ) {
+          if(supsize<maxSize || maxSize==-1){
+            ++supsize;
+            supMembership[i-1] = nsuper;
+            continue;
+          }
+        }
+      }
+
+      nsuper++;
+      supsize = 1;
+      supMembership[i-1] = nsuper;
+    }
+
+    xsuper.resize(nsuper+1);
+    Int lstsup = nsuper+1;
+    for(Int i = size; i>=1;--i){
+      Int ksup = supMembership[i-1];
+      if(ksup!=lstsup){
+        xsuper[lstsup-1] = i + 1; 
+      }
+      lstsup = ksup;
+    }
+    xsuper[0]=1;
+    TIMER_STOP(FindSupernodes);
+  }
+
+template <typename T> 
+  void SupernodalMatrix2<T>::relaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, RelaxationParameters & params ){
+//todo tree cc supmembership xsuper and relax params are members, no need for arguments
+    Int nsuper = xsuper.size()-1;
+
+    DisjointSet sets;
+    sets.Initialize(nsuper);
+    SYMPACK::vector<Int> ncols(nsuper);
+    SYMPACK::vector<Int> zeros(nsuper);
+    SYMPACK::vector<Int> newCC(nsuper);
+    for(Int ksup=nsuper;ksup>=1;--ksup){
+      Int cset = sets.makeSet(ksup);
+      sets.Root(cset-1)=ksup;
+
+      Int fstcol = xsuper[ksup-1];
+      Int lstcol = xsuper[ksup]-1;
+      Int width = lstcol - fstcol +1;
+      Int length = cc[fstcol-1];
+      ncols[ksup-1] = width;
+      zeros[ksup-1] = 0;
+      newCC[ksup-1] = length;
+    }
+
+
+
+    for(Int ksup=nsuper;ksup>=1;--ksup){
+      Int fstcol = xsuper[ksup-1];
+      Int lstcol = xsuper[ksup]-1;
+      Int width = ncols[ksup-1];
+      Int length = cc[fstcol-1];
+
+      Int parent_fstcol = tree.PostParent(lstcol-1);
+      if(parent_fstcol!=0){
+        Int parent_snode = supMembership[parent_fstcol-1];
+        Int pset = sets.find(parent_snode);
+        parent_snode = sets.Root(pset-1);
+
+        bool merge = (parent_snode == ksup+1);
+
+
+        if(merge){
+          Int parent_width = ncols[parent_snode-1];
+
+          Int parent_fstcol = xsuper[parent_snode-1];
+          Int parent_lstcol = xsuper[parent_snode]-1;
+          Int totzeros = zeros[parent_snode-1];
+          Int fused_cols = width + parent_width;
+
+          merge = false;
+          if(fused_cols <= params.nrelax0){
+            merge = true;
+          }
+          else if(fused_cols <=params.maxSize){
+            double child_lnz = cc[fstcol-1];
+            double parent_lnz = cc[parent_fstcol-1];
+            double xnewzeros = width * (parent_lnz + width  - child_lnz);
+
+            if(xnewzeros == 0){
+              merge = true;
+            }
+            else{
+              //all these values are the values corresponding to the merged snode
+              double xtotzeros = (double)totzeros + xnewzeros;
+              double xfused_cols = (double) fused_cols;
+              //new number of nz
+              double xtotsize = (xfused_cols * (xfused_cols+1)/2) + xfused_cols * (parent_lnz - parent_width);
+              //percentage of explicit zeros
+              double z = xtotzeros / xtotsize;
+
+              Int totsize = (fused_cols * (fused_cols+1)/2) + fused_cols * ((Int)parent_lnz - parent_width);
+              totzeros += (Int)xnewzeros;
+
+              merge = ((fused_cols <= params.nrelax1 && z < params.zrelax0) 
+                  || (fused_cols <= params.nrelax2 && z < params.zrelax1)
+                  || (z<params.zrelax2)) &&
+                (xtotsize < std::numeric_limits<Int>::max() / sizeof(double));
+            }
+
+          }
+
+          if(merge){
+            //              std::cout<<"merge "<<ksup<<" and "<<parent_snode<<std::endl;
+            ncols[ksup-1] += ncols[parent_snode-1]; 
+            zeros[ksup-1] = totzeros;
+            newCC[ksup-1] = width + newCC[parent_snode-1];
+            sets.Union(ksup,parent_snode,ksup);
+          }
+        } 
+
+      }
+    }
+
+    SYMPACK::vector<Int> relXSuper(nsuper+1);
+    Int nrSuper = 0;
+    for(Int ksup=1;ksup<=nsuper;++ksup){
+      Int kset = sets.find(ksup);
+      if(ksup == sets.Root(kset-1)){
+        Int fstcol = xsuper[ksup-1];
+        relXSuper[nrSuper] = fstcol;
+        newCC[nrSuper] = newCC[ksup-1];
+        ++nrSuper;
+      }
+    }
+    relXSuper[nrSuper] = xsuper[nsuper];
+    relXSuper.resize(nrSuper+1);
+
+    for(Int ksup=1;ksup<=nrSuper;++ksup){
+      Int fstcol = relXSuper[ksup-1];
+      Int lstcol = relXSuper[ksup]-1;
+      for(Int col = fstcol; col<=lstcol;++col){
+        supMembership[col-1] = ksup;
+        cc[col-1] = newCC[ksup-1] + col-fstcol;
+      }
+    }
+
+    xsuper = relXSuper;
+    ///      //adjust the column counts
+    ///      for(Int col=i-2;col>=i-supsize;--col){
+    ///        cc[col-1] = cc[col]+1;
+    ///      }
+
+
+  }
+
+
+template <typename T> 
+  void SupernodalMatrix2<T>::symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> & cc){
+    TIMER_START(SymbolicFactorization);
+Int size = iSize_;
+ETree& tree = ETree_;
+Ordering & aOrder = Order_;
+DistSparseMatrixGraph & graph = graph_;
+SYMPACK::vector<Int> & xsuper = Xsuper_;
+SYMPACK::vector<Int> & SupMembership = SupMembership_;
+PtrVec & xlindx = locXlindx_;
+IdxVec & lindx = locLindx_;
+MPI_Comm & comm = CommEnv_->MPI_GetComm();
+
+//permute the graph
+DistSparseMatrixGraph pGraph = graph;
+pGraph.Permute(&Order_.invp[0]);
+//redistribute the graph according to the supernodal partition
+pGraph.RedistributeSupernodal(xsuper.size()-1,&xsuper[0],&SupMembership[0]);
+
+
+    Int nsuper = xsuper.size()-1;
+
+    std::list<MPI_Request> mpirequests;
+
+
+    Ptr nzbeg = 0;
+    //nzend points to the last used slot in lindx
+    Ptr nzend = 0;
+
+    //tail is the end of list indicator (in rchlnk, not mrglnk)
+    Idx tail = size +1;
+    Idx head = 0;
+
+    //Array of length nsuper containing the children of 
+    //each supernode as a linked list
+    SYMPACK::vector<Idx> mrglnk(nsuper,0);
+
+    //Array of length n+1 containing the current linked list 
+    //of merged indices (the "reach" set)
+    SYMPACK::vector<Idx> rchlnk(size+1);
+
+    //Array of length n used to mark indices as they are introduced
+    // into each supernode's index set
+    SYMPACK::vector<Int> marker(size,0);
+
+    Int nsuperLocal = (iam!=np-1)?nsuper/np:nsuper-iam*(nsuper/np);
+    Int firstSnode = iam*(nsuper/np)+1;
+    Int lastSnode = firstSnode + nsuperLocal-1;
+    xlindx.resize(nsuperLocal+1);
+
+
+    Int firstColumn = Xsuper_[firstSnode-1];
+    Int numColumnsLocal = Xsuper_[lastSnode] - firstColumn;
+
+
+    //Compute the sum of the column count and resize lindx accordingly
+    //nofsub will be the local nnz now
+    Ptr nofsub = 1;
+    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+      if(ksup>=firstSnode && ksup<=lastSnode){
+        Int fstcol = xsuper[ksup-1];
+        nofsub+=cc[fstcol-1];
+      }
+    }
+    lindx.resize(nofsub);
+
+    Ptr point = 1;
+    for(Int ksup = 1; ksup<=nsuper; ++ksup){
+      if(ksup>=firstSnode && ksup<=lastSnode){
+        Int locSnode = ksup - firstSnode +1;
+        Int fstcol = xsuper[ksup-1];
+        xlindx[locSnode-1] = point;
+        point += cc[fstcol-1]; 
+      }
+    } 
+    xlindx[nsuperLocal] = point;
+    //logfileptr->OFS()<<xlindx<<endl;
+
+    SYMPACK::vector<Ptr> recvXlindx;
+    SYMPACK::vector<Idx> recvLindx;
+
+    if(iam>0){
+      //build the mrglnk array
+
+
+      for(Int ksup = 0; ksup<firstSnode; ++ksup){
+        Int fstcol = xsuper[ksup-1];
+        Int lstcol = xsuper[ksup]-1;
+        Int width = lstcol - fstcol +1;
+        Int length = cc[fstcol-1];
+
+        //if ksup has a parent, insert ksup into its parent's 
+        //"merge" list.
+        if(length > width){
+        Idx pcol = tree.PostParent(fstcol+width-1-1);  
+          Int psup = SupMembership[pcol-1];
+          mrglnk[ksup-1] = mrglnk[psup-1];
+          mrglnk[psup-1] = ksup;
+        }
+      }
+
+
+
+
+
+      //recv from iam-1
+//      MPI_Recv(&rchlnk[0],rchlnk.size()*sizeof(Idx),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
+//      MPI_Recv(&mrglnk[0],mrglnk.size()*sizeof(Idx),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
+    }
+
+
+
+
+//logfileptr->OFS()<<"P"<<iam<<" is active"<<endl;
+//logfileptr->OFS()<<mrglnk<<endl;
+//logfileptr->OFS()<<rchlnk<<endl;
+
+    for(Int locksup = 1; locksup<=nsuperLocal; ++locksup){
+      Int ksup = locksup + firstSnode - 1;
+      Int fstcol = xsuper[ksup-1];
+      Int lstcol = xsuper[ksup]-1;
+      Int width = lstcol - fstcol +1;
+      Int length = cc[fstcol-1];
+      Ptr knz = 0;
+      rchlnk[head] = tail;
+
+      //If ksup has children in the supernodal e-tree
+      Int jsup = mrglnk[ksup-1];
+      if(jsup>0){
+        //copy the indices of the first child jsup into 
+        //the linked list, and mark each with the value 
+        //ksup.
+        Int parentJ = ksup;
+
+
+        do{
+
+//logfileptr->OFS()<<jsup<<endl;
+          Int jwidth = xsuper[jsup]-xsuper[jsup-1];
+
+          Ptr * jxlindx = NULL;
+          Idx * jlindx = NULL;
+          Int locjsup = -1;
+          if(jsup>=firstSnode && jsup<=lastSnode){
+            locjsup = jsup - firstSnode +1;
+            jxlindx = &xlindx[0];
+            jlindx = &lindx[0];
+          }
+          else{
+            MPI_Status status;
+            recvLindx.resize(size);
+            //receive jsup lindx
+            Int psrc = min( (Int)np-1, (jsup-1) / (nsuper/np) );
+            //logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<size*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<endl;
+            MPI_Recv(&recvLindx[0],recvLindx.size()*sizeof(Idx),MPI_BYTE,psrc,jsup+np,comm,&status);
+            //get actual number of received elements
+            int count = 0;
+            MPI_Get_count(&status,MPI_BYTE,&count);
+            count/=sizeof(Idx);
+
+            //compute jsup xlindx
+            recvXlindx.resize(2);
+            recvXlindx[0] = 1;
+            recvXlindx[1] = count +1; 
+
+            locjsup = 1;
+            jxlindx = &recvXlindx[0];
+            jlindx = &recvLindx[0];
+          }
+
+          Ptr jnzbeg = jxlindx[locjsup-1] + jwidth;
+          Ptr jnzend = jxlindx[locjsup] -1;
+          if(parentJ == ksup){
+            for(Ptr jptr = jnzend; jptr>=jnzbeg; --jptr){
+              Idx newi = jlindx[jptr-1];
+              ++knz;
+              marker[newi-1] = ksup;
+              rchlnk[newi] = rchlnk[head];
+              rchlnk[head] = newi;
+            }
+          }
+          else{
+            Int nexti = head;
+            for(Ptr jptr = jnzbeg; jptr<=jnzend; ++jptr){
+              Idx newi = jlindx[jptr-1];
+              Idx i;
+              do{
+                i = nexti;
+                nexti = rchlnk[i];
+              }while(newi > nexti);
+
+              if(newi < nexti){
+                ++knz;
+                rchlnk[i] = newi;
+                rchlnk[newi] = nexti;
+                marker[newi-1] = ksup;
+                nexti = newi;
+              }
+            }
+          }
+
+          parentJ = jsup;
+          jsup = mrglnk[jsup-1];
+        } while(jsup!=0 && knz < length);
+      }
+
+      //structure of a(*,fstcol) has not been examined yet.  
+      //"sort" its structure into the linked list,
+      //inserting only those indices not already in the
+      //list.
+      if(knz < length){
+
+        //loop on local columns instead for LOCAL EXPANDED structure
+
+
+        
+
+        for(Int row = fstcol; row<=lstcol; ++row){
+          Idx newi = row;
+          if(newi > fstcol && marker[newi-1] != ksup){
+            //position and insert newi in list and
+            // mark it with kcol
+            Idx nexti = head;
+            Idx i;
+            do{
+              i = nexti;
+              nexti = rchlnk[i];
+            }while(newi > nexti);
+            ++knz;
+            rchlnk[i] = newi;
+            rchlnk[newi] = nexti;
+            marker[newi-1] = ksup;
+          }
+        }
+
+
+        for(Int col = fstcol; col<=lstcol; ++col){
+          Int local_col = col - firstColumn + 1;
+          Ptr knzbeg = pGraph.colptr[local_col-1];
+          Ptr knzend = pGraph.colptr[local_col]-1;
+          for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
+            Idx newi = pGraph.rowind[kptr-1];
+
+            if(newi > fstcol && marker[newi-1] != ksup){
+              //position and insert newi in list and
+              // mark it with kcol
+              Idx nexti = head;
+              Idx i;
+              do{
+                i = nexti;
+                nexti = rchlnk[i];
+              }while(newi > nexti);
+              ++knz;
+              rchlnk[i] = newi;
+              rchlnk[newi] = nexti;
+              marker[newi-1] = ksup;
+            }
+          }
+        }
+
+      } 
+
+      //if ksup has no children, insert fstcol into the linked list.
+      if(rchlnk[head] != fstcol){
+        rchlnk[fstcol] = rchlnk[head];
+        rchlnk[head] = fstcol;
+        ++knz;
+      }
+
+      assert(knz == cc[fstcol-1]);
+
+
+      //copy indices from linked list into lindx(*).
+      nzbeg = nzend+1;
+      nzend += knz;
+      assert(nzend+1 == xlindx[locksup]);
+      Idx i = head;
+      for(Ptr kptr = nzbeg; kptr<=nzend;++kptr){
+        i = rchlnk[i];
+        lindx[kptr-1] = i;
+      } 
+
+      //if ksup has a parent, insert ksup into its parent's 
+      //"merge" list.
+      if(length > width){
+        Idx pcol = tree.PostParent(fstcol+width-1-1);  
+//        Idx pcol = lindx[xlindx[locksup-1] + width -1];
+//logfileptr->OFS()<<pcol2<<" vs "<<pcol<<endl;
+//assert(pcol==pcol2);
+        Int psup = SupMembership[pcol-1];
+        mrglnk[ksup-1] = mrglnk[psup-1];
+        mrglnk[psup-1] = ksup;
+
+
+        //send L asap
+        Int pdest = min( (Int)np-1, (psup-1) / (nsuper/np) );
+        //if remote
+        if(pdest!=iam){
+                mpirequests.push_back(MPI_REQUEST_NULL);
+                MPI_Request & request = mpirequests.back();
+                //logfileptr->OFS()<<"sending "<<lengthj*sizeof(Idx)<<" bytes of "<<jsup<<" to P"<<pdest<<" for "<<ksup<<endl;
+                MPI_Isend(&lindx[xlindx[locksup-1]-1],length*sizeof(Idx),MPI_BYTE,pdest,ksup+np,comm,&request);
+        }
+      }
+
+    }
+    if(np>1 && iam<np-1){
+
+      //send to iam+1
+      //marker, rchlnk, mrglnk
+      //MPI_Send(&rchlnk[0],rchlnk.size()*sizeof(Idx),MPI_BYTE,iam+1,iam,comm);
+      //MPI_Send(&mrglnk[0],mrglnk.size()*sizeof(Idx),MPI_BYTE,iam+1,iam,comm);
+
+
+#if 0
+      Int nextFirstSnode = (iam+1)*(nsuper/np)+1;
+      for(Int ksup = nextFirstSnode; ksup<=nsuper; ++ksup){
+        Int fstcol = xsuper[ksup-1];
+        Int lstcol = xsuper[ksup]-1;
+        Int width = lstcol - fstcol +1;
+        Int length = cc[fstcol-1];
+
+        //for all children
+
+        //If ksup has children in the supernodal e-tree
+        Int jsup = mrglnk[ksup-1];
+        if(jsup>0){
+          do{
+            if(jsup>=firstSnode && jsup<=lastSnode){
+              Int locjsup = jsup - firstSnode + 1;
+              Int pdest = min( (Int)np-1, (ksup-1) / (nsuper/np) );
+              //if remote
+              if(pdest!=iam){
+                Int lengthj = xlindx[locjsup] - xlindx[locjsup-1];
+                mpirequests.push_back(MPI_REQUEST_NULL);
+                MPI_Request & request = mpirequests.back();
+                //logfileptr->OFS()<<"sending "<<lengthj*sizeof(Idx)<<" bytes of "<<jsup<<" to P"<<pdest<<" for "<<ksup<<endl;
+                MPI_Isend(&lindx[xlindx[locjsup-1]-1],lengthj*sizeof(Idx),MPI_BYTE,pdest,jsup+np,comm,&request);
+             }
+            }
+            //for each subsequent child jsup of ksup ...
+            jsup = mrglnk[jsup-1];
+          }while(jsup>0);
+        }
+      }
+#endif
+
+
+
+
+      //wait all on every requests
+      //for(auto it = mpirequests.begin();it!=mpirequests.end();it++){
+      //  MPI_Request & request = *it;
+      //  MPI_Wait(&request,MPI_STATUS_IGNORE);
+      //}
+    }
+
+
+    lindx.resize(nzend+1);
+    MPI_Barrier(comm);
+
+    TIMER_STOP(SymbolicFactorization);
+  }
+
+
+
 
 
 #include "SupernodalMatrix2_impl_FB_pull.hpp"

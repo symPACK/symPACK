@@ -42,10 +42,15 @@ class DistSparseMatrixGraph{
   void SortEdges();
   void ExpandSymmetric();
   void Permute(Int * invp);
+  //redistribute the graph according to the supernodal partition
+  void RedistributeSupernodal(Int nsuper, Int * xsuper, Int * supMembership );
 
+//  void FindSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize = -1);
+//
+//  void RelaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, RelaxationParameters & params  );
+//
   //Analysis related functions
 //  void GetLColRowCount(ETree & tree, Ordering & aOrder, SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & rc);
-//  void FindSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize = -1);
 //#ifdef REFINED_SNODE
 //  void RefineSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, PtrVec & xlindx, IdxVec & lindx, SYMPACK::vector<Int> & perm);
 //#endif

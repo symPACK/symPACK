@@ -1235,6 +1235,289 @@ extern "C" {
 
 namespace SYMPACK{
 
+
+
+template <typename SCALAR, typename INSCALAR >
+  int ReadHB_PARA_MPIIO(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
+
+    MPI_Comm & workcomm = HMat.comm;
+
+    int mpirank;
+    MPI_Comm_rank(workcomm,&mpirank);
+
+    int mpisize;
+    MPI_Comm_size(workcomm,&mpisize);
+
+    auto n = HMat.size;
+    auto nnz = HMat.nnz;
+    size_t headerOffset = 0;
+    int colptrWidth = 0;
+    int rowindWidth = 0;
+    int nzvalWidth = 0;
+    int colptrCntPerRow = 0;
+    int rowindCntPerRow = 0;
+    int nzvalCntPerRow = 0;
+      int colptrCnt = 0;
+      int rowindCnt = 0;
+      int nzvalCnt = 0;
+
+    if(mpirank==0){
+      ifstream infile;
+      infile.open(filename.c_str());
+
+      string line;
+      stringstream iss;
+      //skip 1st line
+      if(getline(infile, line)){}
+      if(getline(infile, line)){
+        iss.str("");
+        iss.clear();
+        iss<<line;
+        int dummy;
+        iss>>dummy;
+        iss>>colptrCnt>>rowindCnt>>nzvalCnt;
+      }
+      //read from third line
+
+      int m;
+      if(getline(infile, line))
+      {
+        iss.str("");
+        iss.clear();
+        iss<<line;
+        string type;
+        iss>>type;
+        iss>>m>>n>>nnz;
+      }
+
+
+      //read from 4th line
+      if(getline(infile, line))
+      {
+        iss.str("");
+        iss.clear();
+        iss<<line;
+        string format;
+        iss>>format;
+        int dummy;
+        sscanf(format.c_str(),"(%dI%d)",&colptrCntPerRow,&colptrWidth);
+        iss>>format;
+        sscanf(format.c_str(),"(%dI%d)",&rowindCntPerRow,&rowindWidth);
+        iss>>format;
+        sscanf(format.c_str(),"(%dE%d.%d)",&nzvalCntPerRow,&nzvalWidth,&dummy);
+      }
+
+      headerOffset = infile.tellg();
+      infile.close();
+    }
+
+
+    MPI_Status mpistat;
+    MPI_Datatype type;
+    int lens[12];
+    MPI_Aint disps[12];
+    MPI_Datatype types[12];
+
+    /* define a struct that describes all our data */
+    lens[0] = sizeof(n);
+    lens[1] = sizeof(nnz);
+    lens[2] = sizeof(headerOffset   );
+    lens[3] = sizeof(colptrWidth    );
+    lens[4] = sizeof(rowindWidth    );
+    lens[5] = sizeof(nzvalWidth     );
+    lens[6] = sizeof(colptrCntPerRow);
+    lens[7] = sizeof(rowindCntPerRow);
+    lens[8] = sizeof(nzvalCntPerRow );
+    lens[9] =  sizeof(colptrCnt);
+    lens[10] = sizeof(rowindCnt);
+    lens[11] = sizeof(nzvalCnt );
+    MPI_Address(&n, &disps[0]);
+    MPI_Address(&nnz, &disps[1]);
+    MPI_Address(&headerOffset   , &disps[2]);
+    MPI_Address(&colptrWidth    , &disps[3]);
+    MPI_Address(&rowindWidth    , &disps[4]);
+    MPI_Address(&nzvalWidth     , &disps[5]);
+    MPI_Address(&colptrCntPerRow, &disps[6]);
+    MPI_Address(&rowindCntPerRow, &disps[7]);
+    MPI_Address(&nzvalCntPerRow , &disps[8]);
+    MPI_Address(&colptrCnt , &disps[9]);
+    MPI_Address(&rowindCnt , &disps[10]);
+    MPI_Address(&nzvalCnt  , &disps[11]);
+    types[0] = MPI_BYTE;
+    types[1] = MPI_BYTE;
+    types[2] = MPI_BYTE;
+    types[3] = MPI_BYTE;
+    types[4] = MPI_BYTE;
+    types[5] = MPI_BYTE;
+    types[6] = MPI_BYTE;
+    types[7] = MPI_BYTE;
+    types[8] = MPI_BYTE;
+    types[9] = MPI_BYTE;
+    types[10] = MPI_BYTE;
+    types[11] = MPI_BYTE;
+    MPI_Type_struct(12, lens, disps, types, &type);
+    MPI_Type_commit(&type);
+
+
+    /* broadcast the header data to everyone */
+    MPI_Bcast(MPI_BOTTOM, 1, type, 0, workcomm);
+    MPI_Type_free(&type);
+
+    HMat.size = n;
+    HMat.nnz = nnz;
+
+
+    Int err = 0;
+    int filemode = MPI_MODE_RDONLY | MPI_MODE_UNIQUE_OPEN;
+
+    MPI_File fin;
+    MPI_Status status;
+
+    err = MPI_File_open(workcomm,(char*) filename.c_str(), filemode, MPI_INFO_NULL,  &fin);
+
+    if (err != MPI_SUCCESS) {
+      throw std::logic_error( "File cannot be opened!" );
+    }
+
+
+    //compute local number of columns
+    int nlocal = (mpirank<mpisize-1)?n/mpisize:n-mpirank*(int)(n/mpisize);
+    int firstNode = mpirank*(int)(n/mpisize) + 1;
+    //initialize local arrays
+    HMat.Local_.colptr.resize(nlocal+1);
+
+
+    //colptr
+    MPI_Offset myColptrOffset = 0;
+    {
+
+      int lineLastNode = std::ceil(( double(firstNode+nlocal) / double(colptrCntPerRow)));
+      int lineFirstNode = std::ceil(( double(firstNode) / double(colptrCntPerRow)));
+      int skip = (firstNode - 1)*colptrWidth + (lineFirstNode - 1);
+      int readBytes = (nlocal+1)*colptrWidth + (lineLastNode - lineFirstNode);
+      int skipAfter = (n+1 - (firstNode+nlocal))*colptrWidth + (colptrCnt - lineLastNode +1) ;
+
+      myColptrOffset = headerOffset + skip;
+
+
+      {
+        std::string rdStr;
+        rdStr.resize(readBytes);
+
+        err= MPI_File_read_at_all(fin, myColptrOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
+        if (err != MPI_SUCCESS) {
+          throw std::logic_error( "error reading colptr" );
+        }
+
+        istringstream iss(rdStr);
+        Ptr j;
+        Int locPos = 0;
+        while(iss>> j){
+          HMat.Local_.colptr[locPos++]=j;
+        }
+      }
+      myColptrOffset += skipAfter;
+    }
+
+    //convert to local colptr and compute local nnz
+    Ptr first_idx = HMat.Local_.colptr.front();
+    Ptr last_idx = HMat.Local_.colptr.back();
+    for(int i=nlocal;i>=0;i--){
+      HMat.Local_.colptr[i] = HMat.Local_.colptr[i] - HMat.Local_.colptr[0] + 1;
+    }
+    Ptr nnzLocal = HMat.Local_.colptr.back()-1;
+
+    HMat.Local_.rowind.resize(nnzLocal);
+
+    //rowind
+    MPI_Offset myRowindOffset = 0;
+    {
+
+      int lineLastEdge = std::ceil(( double(last_idx-1) / double(rowindCntPerRow)));
+      int lineFirstEdge = std::ceil(( double(first_idx) / double(rowindCntPerRow)));
+      int skip = (first_idx - 1)*rowindWidth + (lineFirstEdge - 1);
+      int readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
+      int skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
+
+
+
+      myRowindOffset = myColptrOffset + skip;
+
+
+      {
+        std::string rdStr;
+        rdStr.resize(readBytes);
+
+        err= MPI_File_read_at_all(fin, myRowindOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
+        if (err != MPI_SUCCESS) {
+          throw std::logic_error( "error reading colptr" );
+        }
+
+        istringstream iss(rdStr);
+        Idx j;
+        Int locPos = 0;
+        while(iss>> j){
+          HMat.Local_.rowind[locPos++]=j;
+        }
+      }
+
+      myRowindOffset+=skipAfter;
+    }
+
+
+    HMat.nzvalLocal.resize(nnzLocal);
+
+    //nzval
+    MPI_Offset myNzvalOffset = 0;
+    {
+      int lineLastEdge = std::ceil(( double(last_idx-1) / double(nzvalCntPerRow)));
+      int lineFirstEdge = std::ceil(( double(first_idx) / double(nzvalCntPerRow)));
+      int skip = (first_idx - 1)*nzvalWidth + (lineFirstEdge - 1);
+      int readBytes = (last_idx - first_idx)*nzvalWidth + (lineLastEdge - lineFirstEdge);
+      int skipAfter = (nnz+1 - last_idx)*nzvalWidth + (nzvalCnt - lineLastEdge +1) ;
+
+      myNzvalOffset = myRowindOffset + skip;
+      {
+        std::string rdStr;
+        rdStr.resize(readBytes);
+
+
+        err= MPI_File_read_at_all(fin, myNzvalOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
+        if (err != MPI_SUCCESS) {
+          throw std::logic_error( "error reading colptr" );
+        }      istringstream iss(rdStr);
+
+        INSCALAR j;
+        Int locPos = 0;
+        while(iss>> j){
+          HMat.nzvalLocal[locPos++]=(SCALAR)j;
+        }
+      }
+
+      myNzvalOffset+=skipAfter;
+    }
+
+
+    MPI_Barrier( workcomm );
+    MPI_File_close(&fin);
+
+    HMat.globalAllocated = false;
+    HMat.Local_.size = HMat.size;
+    HMat.Local_.nnz = nnzLocal;
+
+    return 0;
+
+  }
+
+
+
+
+
+
+
+
+
+
 template <typename SCALAR, typename INSCALAR >
 int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
 
@@ -1657,12 +1940,8 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
     }
 #endif
 #else
-    DistSparseMatrix<SCALAR> HMat2;
-HMat2.comm = HMat.comm;
-    ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat2);
-HMat = HMat2;
-
-
+    ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat);
+    //ReadHB_PARA_MPIIO<SCALAR,INSCALAR>(filename, HMat);
 #endif
   }
   double tstop = get_time();

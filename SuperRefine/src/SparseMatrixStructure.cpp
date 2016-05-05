@@ -383,9 +383,9 @@ namespace LIBCHOLESKY{
 
   void SparseMatrixStructure::FindSupernodes(ETree& tree, Ordering & aOrder, vector<int> & cc,vector<int> & supMembership, vector<int> & xsuper, int maxSize ){
 
-    if(!bIsGlobal){
-			throw std::logic_error( "SparseMatrixStructure must be global in order to call FindSupernodes\n" );
-    }
+//    if(!bIsGlobal){
+//			throw std::logic_error( "SparseMatrixStructure must be global in order to call FindSupernodes\n" );
+//    }
 
     supMembership.resize(size);
 
@@ -405,7 +405,7 @@ namespace LIBCHOLESKY{
         }
       }
 
-        nsuper++;
+      nsuper++;
       supsize = 1;
       supMembership[i-1] = nsuper;
     }

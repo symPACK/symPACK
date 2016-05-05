@@ -1677,6 +1677,9 @@ namespace SYMPACK{
       //inserting only those indices not already in the
       //list.
       if(knz < length){
+
+        //loop on local columns instead for LOCAL EXPANDED structure
+
         for(Int row = fstcol; row<=lstcol; ++row){
           Idx newi = row;
           if(newi > fstcol && marker[newi-1] != ksup){
