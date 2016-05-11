@@ -19,31 +19,53 @@ class DistSparseMatrixGraph{
   
 
   public:
+	Idx          size;                            // Matrix dimension (global)
+	Ptr          nnz;                             // Number of nonzeros (global)
+	SYMPACK::vector<Ptr>  colptr;                 // Column index pointer
+	SYMPACK::vector<Idx>  rowind;                 // Starting row index pointer
+	SYMPACK::vector<Idx>  vertexDist;             // vertex istribution array (size np+1)
+
+  protected:
+  MPI_Comm comm;
+  int mpirank;
+  int mpisize;
   int baseval;
   int keepDiag;
   int sorted;
-	Idx          size;                            // Matrix dimension (global)
-	Ptr          nnz;                             // Number of nonzeros (local)
-	SYMPACK::vector<Ptr>  colptr;                          // Column index pointer
-	SYMPACK::vector<Idx>  rowind;                          // Starting row index pointer
-  MPI_Comm comm;
 
+
+  public:
+    void SetComm(const MPI_Comm & aComm);
+    void SetBaseval(int aBaseval);
+    void SetKeepDiag(int aKeepDiag);
+    void SetSorted(int aSorted);
+
+    MPI_Comm const & GetComm() const {return comm;}
+    int GetBaseval() const {return baseval;}
+    int GetKeepDiag()const {return keepDiag;}
+    int GetSorted() const {return sorted;}
+
+  public:
   DistSparseMatrixGraph();
+  ~DistSparseMatrixGraph();
+  DistSparseMatrixGraph( const DistSparseMatrixGraph& g );
   //constructor from global to local
   DistSparseMatrixGraph(const SparseMatrixStructure & A);
 
+  DistSparseMatrixGraph& operator=( const DistSparseMatrixGraph& g );
   //accessors
   bool IsExpanded() const {return bIsExpanded;}
-  Idx LocalVertexCount() const { return colptr.size()-1;}
+  Idx LocalFirstVertex() const {return vertexDist[mpirank];}
+  Idx LocalVertexCount() const { return vertexDist[mpirank+1] - vertexDist[mpirank];}
   Ptr LocalEdgeCount() const{ return rowind.size();}
 
   //utility
   void FromStructure(const SparseMatrixStructure & A);
   void SortEdges();
   void ExpandSymmetric();
-  void Permute(Int * invp);
+  void Permute(Int * invp, Int invpbaseval = 1);
   //redistribute the graph according to the supernodal partition
-  void RedistributeSupernodal(Int nsuper, Int * xsuper, Int * supMembership );
+  void RedistributeSupernodal(Int nsuper, Int * xsuper, Int * xsuperdist, Int * supMembership );
 
 //  void FindSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize = -1);
 //

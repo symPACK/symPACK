@@ -154,6 +154,7 @@ namespace SYMPACK{
   }
 
 
+  inline void bassert(bool cond){if(!(cond)){gdb_lock();}}
 
 
 
@@ -210,6 +211,9 @@ void OptionsCreate(Int argc, char** argv,
 // Profiling functions 
 // *********************************************************************
 #include <sys/time.h>
+
+
+
 
 inline double get_time()
   {

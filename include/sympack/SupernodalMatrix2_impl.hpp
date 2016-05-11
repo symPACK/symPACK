@@ -746,7 +746,7 @@ namespace SYMPACK{
 
     while( MsgToSend.size()>0){
       //Pull the highest priority message
-      const DelayedComm & comm = MsgToSend.TOP();
+      const DelayedComm & comm = MsgToSend.top();
 
       Int src_snode_id = comm.src_snode_id;
       Int tgt_snode_id = comm.tgt_snode_id;
@@ -890,8 +890,12 @@ namespace SYMPACK{
     mh.resize(Xsuper_.size(),I_ZERO);
     numBlk.resize(Xsuper_.size(),I_ZERO);
 
-    Int numLocSnode = ( (Xsuper_.size()-1) / np);
-    Int firstSnode = iam*numLocSnode + 1;
+    //Int numLocSnode = ( (Xsuper_.size()-1) / np);
+    //Int firstSnode = iam*numLocSnode + 1;
+
+    Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
+    Int firstSnode = XsuperDist_[iam];
+
     for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
       Idx s = locsupno + firstSnode-1;
 
@@ -1100,10 +1104,10 @@ namespace SYMPACK{
 #if defined(USE_PARMETIS) || defined(PTSCOTCH)
     if(options_.ordering==PTSCOTCH /*|| options_.ordering==PARMETIS*/ ){
       DistSparseMatrixGraph graph;
-      graph.comm = CommEnv_->MPI_GetComm();
-      graph.baseval = 0;
-      graph.keepDiag = 0;
-      graph.sorted = 1;
+      graph.SetComm(CommEnv_->MPI_GetComm());
+      graph.SetBaseval(0);
+      graph.SetKeepDiag(0);
+      graph.SetSorted(1);
       graph.FromStructure(*Local_);
       graph.ExpandSymmetric();
 
@@ -1191,10 +1195,10 @@ namespace SYMPACK{
           case PTSCOTCH:
             {
               DistSparseMatrixGraph graph;
-              graph.comm = CommEnv_->MPI_GetComm();
-              graph.baseval = 0;
-              graph.keepDiag = 0;
-              graph.sorted = 1;
+              graph.SetComm(CommEnv_->MPI_GetComm());
+              graph.SetBaseval(0);
+              graph.SetKeepDiag(0);
+              graph.SetSorted(1);
               graph.FromStructure(*Local_);
               graph.ExpandSymmetric();
               Order_.PTSCOTCH(graph);
@@ -1277,13 +1281,23 @@ namespace SYMPACK{
       logfileptr->OFS()<<"Supernodes found"<<endl;
 
       if(options_.relax.nrelax0>=0){
+        auto oldcc = cc;
         this->relaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
         //Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
         logfileptr->OFS()<<"Relaxation done"<<endl;
 
         {
+              graph_.SetComm(CommEnv_->MPI_GetComm());
+              graph_.SetBaseval(1);
+              graph_.SetKeepDiag(1);
+              graph_.SetSorted(1);
+              graph_.FromStructure(*Local_);
+              graph_.ExpandSymmetric();
+
           double timeSta = get_time();
-          this->symbolicFactorizationRelaxedDist(cc);
+          Global_->SymbolicFactorizationRelaxedDist(ETree_,Order_,cc,Xsuper_,SupMembership_,locXlindx_,locLindx_,CommEnv_->MPI_GetComm());
+          
+          this->symbolicFactorizationRelaxedDist(cc,oldcc);
           //Global_->SymbolicFactorizationRelaxedDist(ETree_,Order_,cc,Xsuper_,SupMembership_,locXlindx_,locLindx_,CommEnv_->MPI_GetComm());
           double timeStop = get_time();
           if(iam==0){
@@ -1329,7 +1343,7 @@ namespace SYMPACK{
       if(options.load_balance_str=="SUBCUBE-FI"){
         if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-        this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,true);
+        this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,true);
 #ifdef _DEBUG_MAPPING_
         logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
         logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
@@ -1348,7 +1362,7 @@ namespace SYMPACK{
       else if(options.load_balance_str=="SUBCUBE-FO"){
         if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-        this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,false);
+        this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,false);
 #ifdef _DEBUG_MAPPING_
         logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
         logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
@@ -1367,7 +1381,7 @@ namespace SYMPACK{
       else if(options.load_balance_str=="SUBCUBE-VOLUME-FI"){
         if(iam==0){ cout<<"Subtree to subcube volume FI mapping used"<<endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-        this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,true);
+        this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,true);
 #ifdef _DEBUG_MAPPING_
         logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
         logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
@@ -1386,7 +1400,7 @@ namespace SYMPACK{
       else if(options.load_balance_str=="SUBCUBE-VOLUME-FO"){
         if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-        this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,false);
+        this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,CommEnv_,false);
 #ifdef _DEBUG_MAPPING_
         logfileptr->OFS()<<"Proc Mapping: "<<this->Balancer_->GetMap()<<endl;
         logfileptr->OFS()<<"SupETree: "<<SupETree<<endl;
@@ -1980,8 +1994,13 @@ namespace SYMPACK{
           std::vector< int > sdispls(np+1,0);
           std::vector< int > rsizes(np,0);
 
-          Int numLocSnode = ( (Xsuper_.size()-1) / np);
-          Int firstSnode = iam*numLocSnode + 1;
+    //      Int numLocSnode = ( (Xsuper_.size()-1) / np);
+    //      Int firstSnode = iam*numLocSnode + 1;
+
+    Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
+    Int firstSnode = XsuperDist_[iam];
+
+
           for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
             Idx I = locsupno + firstSnode-1;
             Int iDest = this->Mapping_->Map(I-1,I-1);
@@ -2677,9 +2696,10 @@ template <typename T>
       Int lstcol = relXSuper[ksup]-1;
       for(Int col = fstcol; col<=lstcol;++col){
         supMembership[col-1] = ksup;
-        cc[col-1] = newCC[ksup-1] + col-fstcol;
+        cc[col-1] = newCC[ksup-1] - (col-fstcol);
       }
     }
+
 
     xsuper = relXSuper;
     ///      //adjust the column counts
@@ -2692,7 +2712,7 @@ template <typename T>
 
 
 template <typename T> 
-  void SupernodalMatrix2<T>::symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> & cc){
+  void SupernodalMatrix2<T>::symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & oldcc){
     TIMER_START(SymbolicFactorization);
 Int size = iSize_;
 ETree& tree = ETree_;
@@ -2707,9 +2727,93 @@ MPI_Comm & comm = CommEnv_->MPI_GetComm();
 //permute the graph
 DistSparseMatrixGraph pGraph = graph;
 pGraph.Permute(&Order_.invp[0]);
-//redistribute the graph according to the supernodal partition
-pGraph.RedistributeSupernodal(xsuper.size()-1,&xsuper[0],&SupMembership[0]);
 
+
+  //Compute XsuperDist_
+{
+  Idx supPerProc = (Xsuper_.size()-1) / np;
+  XsuperDist_.resize(np+1,0);
+  for(int p =0; p<np; p++){
+    XsuperDist_[p]= p*supPerProc+1;
+  }
+  XsuperDist_[np] = Xsuper_.size();
+}
+
+
+#if 0
+//recompute xsuper by splitting some supernodes
+{
+
+//  gdb_lock();
+
+  Idx colPerProc = size / np;
+  Int numSplits = 0;
+  for(Int snode = 1; snode<=xsuper.size()-1;snode++){
+    Idx fstcol = xsuper[snode-1];
+    Idx lstcol = xsuper[snode]-1;
+    //check if these two columns are on the same processor
+    Idx pOwnerFirst = min((Idx)np-1, (fstcol-1) / colPerProc);
+    Idx pOwnerLast = min((Idx)np-1, (lstcol-1) / colPerProc);
+
+    if(pOwnerFirst!=pOwnerLast){
+      numSplits += pOwnerLast-pOwnerFirst;
+    }
+  }
+
+  SYMPACK::vector<Int> newSnodes(np,0);
+  SYMPACK::vector<Int> newXsuper(xsuper.size()+numSplits);
+  Int pos = 0;
+  for(Int snode = 1; snode<=xsuper.size()-1;snode++){
+    Idx fstcol = xsuper[snode-1];
+    Idx lstcol = xsuper[snode]-1;
+    //check if these two columns are on the same processor
+    Idx pOwnerFirst = min((Idx)np-1, (fstcol-1) / colPerProc);
+    Idx pOwnerLast = min((Idx)np-1, (lstcol-1) / colPerProc);
+
+    newXsuper[pos++] = xsuper[snode-1];
+    if(pOwnerFirst!=pOwnerLast){
+      for(Idx p = pOwnerFirst; p<pOwnerLast;p++){
+        Idx curLstcol = (p+1)*colPerProc+1;//1-based
+
+
+
+//        assert(ETree_.PostParent(curLstcol-2)==curLstcol);
+        newXsuper[pos++] = curLstcol;
+        newSnodes[p+1]++;
+      }
+    }
+  }
+  newXsuper[pos++]=size+1;
+
+  xsuper = newXsuper;
+  for(Int snode = 1; snode<=xsuper.size()-1;snode++){
+    Int fstcol = xsuper[snode-1];
+    Int lstcol = xsuper[snode]-1;
+    for(Int col = fstcol; col<=lstcol;++col){
+      SupMembership[col-1] = snode;
+    }
+  }
+
+
+
+  //recompute XsuperDist_
+  for(int p =1; p<np; p++){
+    XsuperDist_[p]= XsuperDist_[p-1] + supPerProc + newSnodes[p-1];
+  }
+  XsuperDist_[np] = Xsuper_.size();
+
+
+//update cc by recomputing the merged structure
+
+
+
+}
+#else
+//redistribute the graph according to the supernodal partition
+pGraph.RedistributeSupernodal(xsuper.size()-1,&xsuper[0],&XsuperDist_[0],&SupMembership[0]);
+#endif
+
+logfileptr->OFS()<<Xsuper_<<endl;
 
     Int nsuper = xsuper.size()-1;
 
@@ -2736,8 +2840,8 @@ pGraph.RedistributeSupernodal(xsuper.size()-1,&xsuper[0],&SupMembership[0]);
     // into each supernode's index set
     SYMPACK::vector<Int> marker(size,0);
 
-    Int nsuperLocal = (iam!=np-1)?nsuper/np:nsuper-iam*(nsuper/np);
-    Int firstSnode = iam*(nsuper/np)+1;
+    Int nsuperLocal = XsuperDist_[iam+1]-XsuperDist_[iam];//(iam!=np-1)?nsuper/np:nsuper-iam*(nsuper/np);
+    Int firstSnode = XsuperDist_[iam];//iam*(nsuper/np)+1;
     Int lastSnode = firstSnode + nsuperLocal-1;
     xlindx.resize(nsuperLocal+1);
 
@@ -2792,22 +2896,26 @@ pGraph.RedistributeSupernodal(xsuper.size()-1,&xsuper[0],&SupMembership[0]);
         }
       }
 
-
-
-
-
-      //recv from iam-1
-//      MPI_Recv(&rchlnk[0],rchlnk.size()*sizeof(Idx),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
-//      MPI_Recv(&mrglnk[0],mrglnk.size()*sizeof(Idx),MPI_BYTE,iam-1,(iam-1),comm,MPI_STATUS_IGNORE);
     }
 
+#if 0
+  Idx colPerProc = size / np;
+    for(Int locksup = 1; locksup<=nsuperLocal; ++locksup){
+      Int ksup = locksup + firstSnode - 1;
+      Int fstcol = xsuper[ksup-1];
+      Int lstcol = xsuper[ksup]-1;
 
-
+    Idx pOwnerFirst = min((Idx)np-1, (fstcol-1) / colPerProc);
+    Idx pOwnerLast = min((Idx)np-1, (lstcol-1) / colPerProc);
+bassert(pOwnerFirst==pOwnerLast && iam==pOwnerFirst);
+    }
+#endif
 
 //logfileptr->OFS()<<"P"<<iam<<" is active"<<endl;
 //logfileptr->OFS()<<mrglnk<<endl;
 //logfileptr->OFS()<<rchlnk<<endl;
 
+    point = 1;
     for(Int locksup = 1; locksup<=nsuperLocal; ++locksup){
       Int ksup = locksup + firstSnode - 1;
       Int fstcol = xsuper[ksup-1];
@@ -2843,8 +2951,15 @@ pGraph.RedistributeSupernodal(xsuper.size()-1,&xsuper[0],&SupMembership[0]);
             MPI_Status status;
             recvLindx.resize(size);
             //receive jsup lindx
-            Int psrc = min( (Int)np-1, (jsup-1) / (nsuper/np) );
-            //logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<size*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<endl;
+            //Int psrc = min( (Int)np-1, (jsup-1) / (nsuper/np) );
+            Int psrc = 0;
+            for(psrc = 0; psrc<iam;psrc++){
+              if(XsuperDist_[psrc]<=jsup && jsup<XsuperDist_[psrc+1]){
+                break;
+              }
+            }
+
+            logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<recvLindx.size()*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<endl;
             MPI_Recv(&recvLindx[0],recvLindx.size()*sizeof(Idx),MPI_BYTE,psrc,jsup+np,comm,&status);
             //get actual number of received elements
             int count = 0;
@@ -2929,6 +3044,7 @@ pGraph.RedistributeSupernodal(xsuper.size()-1,&xsuper[0],&SupMembership[0]);
 
         for(Int col = fstcol; col<=lstcol; ++col){
           Int local_col = col - firstColumn + 1;
+
           Ptr knzbeg = pGraph.colptr[local_col-1];
           Ptr knzend = pGraph.colptr[local_col]-1;
           for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
@@ -2960,13 +3076,47 @@ pGraph.RedistributeSupernodal(xsuper.size()-1,&xsuper[0],&SupMembership[0]);
         ++knz;
       }
 
-      assert(knz == cc[fstcol-1]);
+{
+      Idx i = head;
+      logfileptr->OFS()<<"col "<<fstcol<<" : ";
+      for(Ptr kptr = nzend+1; kptr<=nzend+knz;++kptr){
+        i = rchlnk[i];
+        logfileptr->OFS()<<i<<" ";
+      } 
+      logfileptr->OFS()<<endl;
+
+
+      for(Int col = fstcol; col<=lstcol; ++col){
+        Int local_col = col - firstColumn + 1;
+
+        logfileptr->OFS()<<"     col "<<col<<" : ";
+        Ptr knzbeg = pGraph.colptr[local_col-1];
+        Ptr knzend = pGraph.colptr[local_col]-1;
+        for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
+          Idx newi = pGraph.rowind[kptr-1];
+          if(newi > fstcol){
+            logfileptr->OFS()<<newi<<" ";
+          }
+        }
+        logfileptr->OFS()<<endl;
+      }
+
+
+
+}
+
+      if(knz!=cc[fstcol-1]){
+
+        cout<<knz<<" vs "<<cc[fstcol-1]<<" vs "<<oldcc[fstcol-1]<<endl;
+      }
+//      bassert(knz == cc[fstcol-1]);
 
 
       //copy indices from linked list into lindx(*).
       nzbeg = nzend+1;
       nzend += knz;
-      assert(nzend+1 == xlindx[locksup]);
+xlindx[locksup] = nzend+1;
+ //     assert(nzend+1 == xlindx[locksup]);
       Idx i = head;
       for(Ptr kptr = nzbeg; kptr<=nzend;++kptr){
         i = rchlnk[i];
@@ -2986,68 +3136,24 @@ pGraph.RedistributeSupernodal(xsuper.size()-1,&xsuper[0],&SupMembership[0]);
 
 
         //send L asap
-        Int pdest = min( (Int)np-1, (psup-1) / (nsuper/np) );
+        //Int pdest = min( (Int)np-1, (psup-1) / (nsuper/np) );
+
+            Int pdest = 0;
+            for(pdest = 0; pdest<np;pdest++){
+              if(XsuperDist_[pdest]<=psup && psup<XsuperDist_[pdest+1]){
+                break;
+              }
+            }
         //if remote
         if(pdest!=iam){
                 mpirequests.push_back(MPI_REQUEST_NULL);
                 MPI_Request & request = mpirequests.back();
-                //logfileptr->OFS()<<"sending "<<lengthj*sizeof(Idx)<<" bytes of "<<jsup<<" to P"<<pdest<<" for "<<ksup<<endl;
+                logfileptr->OFS()<<"sending "<<length*sizeof(Idx)<<" bytes of "<<ksup<<" to P"<<pdest<<" for "<<ksup<<endl;
                 MPI_Isend(&lindx[xlindx[locksup-1]-1],length*sizeof(Idx),MPI_BYTE,pdest,ksup+np,comm,&request);
         }
       }
 
     }
-    if(np>1 && iam<np-1){
-
-      //send to iam+1
-      //marker, rchlnk, mrglnk
-      //MPI_Send(&rchlnk[0],rchlnk.size()*sizeof(Idx),MPI_BYTE,iam+1,iam,comm);
-      //MPI_Send(&mrglnk[0],mrglnk.size()*sizeof(Idx),MPI_BYTE,iam+1,iam,comm);
-
-
-#if 0
-      Int nextFirstSnode = (iam+1)*(nsuper/np)+1;
-      for(Int ksup = nextFirstSnode; ksup<=nsuper; ++ksup){
-        Int fstcol = xsuper[ksup-1];
-        Int lstcol = xsuper[ksup]-1;
-        Int width = lstcol - fstcol +1;
-        Int length = cc[fstcol-1];
-
-        //for all children
-
-        //If ksup has children in the supernodal e-tree
-        Int jsup = mrglnk[ksup-1];
-        if(jsup>0){
-          do{
-            if(jsup>=firstSnode && jsup<=lastSnode){
-              Int locjsup = jsup - firstSnode + 1;
-              Int pdest = min( (Int)np-1, (ksup-1) / (nsuper/np) );
-              //if remote
-              if(pdest!=iam){
-                Int lengthj = xlindx[locjsup] - xlindx[locjsup-1];
-                mpirequests.push_back(MPI_REQUEST_NULL);
-                MPI_Request & request = mpirequests.back();
-                //logfileptr->OFS()<<"sending "<<lengthj*sizeof(Idx)<<" bytes of "<<jsup<<" to P"<<pdest<<" for "<<ksup<<endl;
-                MPI_Isend(&lindx[xlindx[locjsup-1]-1],lengthj*sizeof(Idx),MPI_BYTE,pdest,jsup+np,comm,&request);
-             }
-            }
-            //for each subsequent child jsup of ksup ...
-            jsup = mrglnk[jsup-1];
-          }while(jsup>0);
-        }
-      }
-#endif
-
-
-
-
-      //wait all on every requests
-      //for(auto it = mpirequests.begin();it!=mpirequests.end();it++){
-      //  MPI_Request & request = *it;
-      //  MPI_Wait(&request,MPI_STATUS_IGNORE);
-      //}
-    }
-
 
     lindx.resize(nzend+1);
     MPI_Barrier(comm);

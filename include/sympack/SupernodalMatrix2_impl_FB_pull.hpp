@@ -8,8 +8,11 @@ template<typename T> void SupernodalMatrix2<T>::generateTaskGraph(Int & localTas
 #if 1
   std::map<Idx, std::list<std::pair<Idx,Idx> >  > Updates;
   std::vector<int> marker(np,0);
-  Int numLocSnode = ( (Xsuper_.size()-1) / np);
-  Int firstSnode = iam*numLocSnode + 1;
+  //Int numLocSnode = ( (Xsuper_.size()-1) / np);
+  //Int firstSnode = iam*numLocSnode + 1;
+
+    Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
+    Int firstSnode = XsuperDist_[iam];
   for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
     Idx I = locsupno + firstSnode-1;
     Int iOwner = Mapping_->Map(I-1,I-1);
@@ -540,8 +543,13 @@ template <typename T> void SupernodalMatrix2<T>::FBGetUpdateCount(SYMPACK::vecto
   std::map<Idx, std::map<Idx, Idx>  > sendAfter;
 
   //  SYMPACK::vector<bool>isSent(Xsuper_.size()*np,false);
-  Int numLocSnode = ( (Xsuper_.size()-1) / np);
-  Int firstSnode = iam*numLocSnode + 1;
+  //Int numLocSnode = ( (Xsuper_.size()-1) / np);
+  //Int firstSnode = iam*numLocSnode + 1;
+
+    Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
+    Int firstSnode = XsuperDist_[iam];
+    Int lastSnode = firstSnode + numLocSnode-1;
+
   for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
     Idx s = locsupno + firstSnode-1;
 

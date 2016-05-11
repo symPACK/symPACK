@@ -115,6 +115,7 @@ namespace SYMPACK{
 
       //Supernodal partition array: supernode I ranges from column Xsuper_[I-1] to Xsuper_[I]-1
       SYMPACK::vector<Int> Xsuper_;
+      SYMPACK::vector<Int> XsuperDist_;
       //Supernode membership array: column i belongs to supernode SupMembership_[i-1]
       SYMPACK::vector<Int> SupMembership_;
 
@@ -168,7 +169,7 @@ namespace SYMPACK{
   void findSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize = -1);
   void relaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, RelaxationParameters & params  );
 
-  void symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> & cc);
+  void symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & oldcc);
 
 
 

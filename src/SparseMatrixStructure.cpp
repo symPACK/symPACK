@@ -34,7 +34,7 @@ namespace SYMPACK{
 
   SparseMatrixStructure::SparseMatrixStructure(const DistSparseMatrixGraph & G){
     bIsExpanded = G.IsExpanded();
-    baseval = G.baseval;
+    baseval = G.GetBaseval();
     keepDiag = 1;
     sorted = 0;
     //sorted = G.sorted;
@@ -49,7 +49,7 @@ namespace SYMPACK{
     //FIXME needs to be passed as an argument ?
     //MPI_Comm comm = MPI_COMM_WORLD;
 
-    MPI_Comm comm = G.comm;
+    MPI_Comm comm = G.GetComm();
     int isnull= (comm == MPI_COMM_NULL);
     //    logfileptr->OFS()<<ismpi<<std::endl;
     //    logfileptr->OFS()<<comm<<std::endl;
@@ -94,7 +94,7 @@ namespace SYMPACK{
     prevnz[0] = 0; 
     for (Int i = 0; i < np-1; ++i) { prevnz[i+1] = prevnz[i] + rcounts[i]; } 
 
-    if(G.keepDiag){
+    if(G.GetKeepDiag()){
       this->nnz = 0;
     }
     else{
@@ -134,7 +134,7 @@ namespace SYMPACK{
     pcolptr[this->size]= this->nnz+baseval;
 
     //add diagonal entries if necessary
-    if(!G.keepDiag){
+    if(!G.GetKeepDiag()){
       for(Idx col = this->size-1; col>= 0; col--){
         Ptr colbeg = pcolptr[col]-baseval;//0 based
         Ptr colend = pcolptr[col+1]-baseval;//0 based
@@ -1701,13 +1701,11 @@ namespace SYMPACK{
 
         for(Int col = fstcol; col<=lstcol; ++col){
           Int node = aOrder.perm[col-1];
-
           Ptr knzbeg = expColptr[node-1];
           Ptr knzend = expColptr[node]-1;
           for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
             Idx newi = expRowind[kptr-1];
             newi = aOrder.invp[newi-1];
-
             if(newi > fstcol && marker[newi-1] != ksup){
               //position and insert newi in list and
               // mark it with kcol

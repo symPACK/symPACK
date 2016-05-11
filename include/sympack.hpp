@@ -5,8 +5,8 @@
 #include  "sympack/utility.hpp"
 #include  "sympack/DistSparseMatrix.hpp"
 #include  "sympack/Mapping.hpp"
-#include  "sympack/SuperNode.hpp"
-#include  "sympack/SupernodalMatrix.hpp"
+//#include  "sympack/SuperNode.hpp"
+//#include  "sympack/SupernodalMatrix.hpp"
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
 

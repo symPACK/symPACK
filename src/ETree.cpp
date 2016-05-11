@@ -297,12 +297,12 @@ namespace SYMPACK{
 
 
     int mpisize;
-    MPI_Comm_size(aDistExp.comm,&mpisize);
+    MPI_Comm_size(aDistExp.GetComm(),&mpisize);
 
 
 #if 1 
     int mpirank;
-    MPI_Comm_rank(aDistExp.comm,&mpirank);
+    MPI_Comm_rank(aDistExp.GetComm(),&mpirank);
     //first permute locally then redistribute with alltoallv then do the etree
     aDistExp.Permute(&aOrder.invp[0]);
 
@@ -317,8 +317,8 @@ namespace SYMPACK{
     Idx fc = (iam)*(n_/mpisize); //0 - based
 
       if(mpirank>0){
-        MPI_Recv(&parent_[0],fc*sizeof(Int),MPI_BYTE,mpirank-1,mpirank-1,aDistExp.comm,MPI_STATUS_IGNORE);
-        MPI_Recv(&ancstr[0],fc*sizeof(Int),MPI_BYTE,mpirank-1,mpirank-1,aDistExp.comm,MPI_STATUS_IGNORE);
+        MPI_Recv(&parent_[0],fc*sizeof(Int),MPI_BYTE,mpirank-1,mpirank-1,aDistExp.GetComm(),MPI_STATUS_IGNORE);
+        MPI_Recv(&ancstr[0],fc*sizeof(Int),MPI_BYTE,mpirank-1,mpirank-1,aDistExp.GetComm(),MPI_STATUS_IGNORE);
       }
       for(Idx locCol = 0; locCol< aDistExp.LocalVertexCount(); locCol++){
 
@@ -328,11 +328,11 @@ namespace SYMPACK{
 //        myParent[locCol] = 0;
 //        myAncstr[locCol] = 0;
 
-        Ptr jstrt = aDistExp.colptr[locCol] - aDistExp.baseval; //0-based
-        Ptr jstop = aDistExp.colptr[locCol+1] - aDistExp.baseval;//0-based
+        Ptr jstrt = aDistExp.colptr[locCol] - aDistExp.GetBaseval(); //0-based
+        Ptr jstop = aDistExp.colptr[locCol+1] - aDistExp.GetBaseval();//0-based
         if(jstrt<jstop-1){
           for(Ptr j = jstrt; j<jstop; ++j){
-            Idx nbr = aDistExp.rowind[j] - aDistExp.baseval; //0-based
+            Idx nbr = aDistExp.rowind[j] - aDistExp.GetBaseval(); //0-based
             if  ( nbr < i ){
               // -------------------------------------------
               // for each nbr, find the root of its current
@@ -396,12 +396,12 @@ namespace SYMPACK{
 //        logfileptr->OFS()<<"my ancstr now is: "<<myAncstr<<endl;
         logfileptr->OFS()<<"parent now is: "<<parent_<<endl;
         logfileptr->OFS()<<"ancstr now is: "<<ancstr<<endl;
-        MPI_Send(&parent_[0],(fc+aDistExp.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,aDistExp.comm);
-        MPI_Send(&ancstr[0],(fc+aDistExp.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,aDistExp.comm);
+        MPI_Send(&parent_[0],(fc+aDistExp.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,aDistExp.GetComm());
+        MPI_Send(&ancstr[0],(fc+aDistExp.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,aDistExp.GetComm());
       }
 
     //Now proc mpisize-1 bcast the parent_ array
-    MPI_Bcast(&parent_[0],n_*sizeof(Int),MPI_BYTE,mpisize-1,aDistExp.comm);
+    MPI_Bcast(&parent_[0],n_*sizeof(Int),MPI_BYTE,mpisize-1,aDistExp.GetComm());
 
 
 #else

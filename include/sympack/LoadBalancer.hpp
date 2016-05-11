@@ -119,6 +119,7 @@ namespace SYMPACK{
     protected:
       bool fan_in_;
       SYMPACK::vector<Int> & Xsuper_;
+      SYMPACK::vector<Int> & XsuperDist_;
       SYMPACK::vector<Int> & SupMembership_;
       PtrVec & Xlindx_;
       IdxVec & Lindx_;
@@ -137,7 +138,7 @@ namespace SYMPACK{
 
 
     public:
-      SubtreeToSubcube(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, CommEnvironment* CommEnv, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),CommEnv_(CommEnv),TreeLoadBalancer(np,supETree){
+      SubtreeToSubcube(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & XsuperDist, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, CommEnvironment* CommEnv, bool fan_in = true):Xsuper_(Xsuper),XsuperDist_(XsuperDist),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),CommEnv_(CommEnv),TreeLoadBalancer(np,supETree){
         fan_in_=fan_in;
       };
 
@@ -155,8 +156,14 @@ namespace SYMPACK{
 //          SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
 //          SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
 
-          Int numLocSnode = ( (Xsuper_.size()-1) / np);
-          Int firstSnode = iam*numLocSnode + 1;
+    //      Int numLocSnode = ( (Xsuper_.size()-1) / np);
+    //      Int firstSnode = iam*numLocSnode + 1;
+
+    Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
+    Int firstSnode = XsuperDist_[iam];
+
+
+
           for(Int locsupno = 1; locsupno<Xlindx_.size(); ++locsupno){
             Idx I = locsupno + firstSnode-1;
 
@@ -487,6 +494,7 @@ logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
         protected:
           bool fan_in_;
           SYMPACK::vector<Int> & Xsuper_;
+          SYMPACK::vector<Int> & XsuperDist_;
           SYMPACK::vector<Int> & SupMembership_;
           PtrVec & Xlindx_;
           IdxVec & Lindx_;
@@ -504,7 +512,7 @@ logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
 
 
         public:
-          SubtreeToSubcubeVolume(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, CommEnvironment* CommEnv, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),CommEnv_(CommEnv),TreeLoadBalancer(np,supETree){
+          SubtreeToSubcubeVolume(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper,SYMPACK::vector<Int> & XsuperDist, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, CommEnvironment* CommEnv, bool fan_in = true):Xsuper_(Xsuper),XsuperDist_(XsuperDist),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),CommEnv_(CommEnv),TreeLoadBalancer(np,supETree){
             fan_in_=fan_in;
           };
 
@@ -520,8 +528,11 @@ logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
 
 #if 1
 {
-          Int numLocSnode = ( (Xsuper_.size()-1) / np);
-          Int firstSnode = iam*numLocSnode + 1;
+    //      Int numLocSnode = ( (Xsuper_.size()-1) / np);
+    //      Int firstSnode = iam*numLocSnode + 1;
+
+    Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
+    Int firstSnode = XsuperDist_[iam];
           for(Int locsupno = 1; locsupno<Xlindx_.size(); ++locsupno){
             Idx I = locsupno + firstSnode-1;
 
