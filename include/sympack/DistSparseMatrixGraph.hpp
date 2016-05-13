@@ -9,6 +9,35 @@ namespace SYMPACK{
 class ETree;
 class Ordering;
 class SparseMatrixStructure;
+class DistSparseMatrixGraph;
+
+class SparseMatrixGraph{
+  friend class Ordering;
+  public:
+  Idx          size;                            // Matrix dimension (global)
+  Ptr          nnz;                             // Number of nonzeros (global)
+  SYMPACK::vector<Ptr>  colptr;                 // Column index pointer
+  SYMPACK::vector<Idx>  rowind;                 // Starting row index pointer
+  protected:
+  int baseval;
+  int keepDiag;
+  int sorted;
+  public:
+  void SetBaseval(int aBaseval);
+  void SetKeepDiag(int aKeepDiag);
+  void SetSorted(int aSorted);
+
+  int GetBaseval() const {return baseval;}
+  int GetKeepDiag()const {return keepDiag;}
+  int GetSorted() const {return sorted;}
+
+  SparseMatrixGraph();
+  void SortEdges();
+  void DistributeGraph(DistSparseMatrixGraph & dg);
+
+  Idx VertexCount() const { return colptr.size()-1;}
+  Ptr EdgeCount() const{ return rowind.size();}
+};
 
 class DistSparseMatrixGraph{
   friend class Ordering;
@@ -66,6 +95,7 @@ class DistSparseMatrixGraph{
   void Permute(Int * invp, Int invpbaseval = 1);
   //redistribute the graph according to the supernodal partition
   void RedistributeSupernodal(Int nsuper, Int * xsuper, Int * xsuperdist, Int * supMembership );
+  void AllGatherStructure(SparseMatrixGraph & g);
 
 //  void FindSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize = -1);
 //

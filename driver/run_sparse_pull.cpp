@@ -145,6 +145,9 @@ int main(int argc, char **argv)
     if(options["-ordering"].front()=="AMD"){
       optionsFact.ordering = AMD;
     }
+    else if(options["-ordering"].front()=="MMD"){
+      optionsFact.ordering = MMD;
+    }
     else if(options["-ordering"].front()=="NDBOX"){
       optionsFact.ordering = NDBOX;
     }
@@ -172,7 +175,7 @@ int main(int argc, char **argv)
     }
 #endif
     else{
-      optionsFact.ordering = MMD;
+      optionsFact.ordering = NATURAL;
     }
   }
 

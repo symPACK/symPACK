@@ -2419,13 +2419,14 @@ namespace SYMPACK{
 
     SYMPACK::vector<Int> levels;
     levels.resize(Xsuper_.size());
-    levels[Xsuper_.size()-1]=-1;
+    levels[0]=0;
     Int numLevel = 0; 
     for(Int i=Xsuper_.size()-1-1; i>=0; i-- ){     
       Int fcol = Xsuper_[i];
+bassert(fcol-1>=0);
       Int pcol =ETree_.PostParent(fcol-1);
-      Int supno = SupMembership_[pcol-1];
-      levels[i] = levels[supno-1]+1;
+      Int supno = pcol>0?SupMembership_[pcol-1]:0;
+      levels[i] = levels[supno]+1;
     }
 
     //sort the task queues
@@ -2434,7 +2435,7 @@ namespace SYMPACK{
         if(origTaskLists_[i] != NULL){
           for(auto taskit = origTaskLists_[i]->begin(); taskit!=origTaskLists_[i]->end();taskit++){
             if(taskit->remote_deps==0 && taskit->local_deps==0){
-              taskit->rank = levels[taskit->src_snode_id-1];
+              taskit->rank = levels[taskit->src_snode_id];
               scheduler_->push(taskit);
             }
           }
@@ -2880,7 +2881,7 @@ logfileptr->OFS()<<Xsuper_<<endl;
       //build the mrglnk array
 
 
-      for(Int ksup = 0; ksup<firstSnode; ++ksup){
+      for(Int ksup = 1; ksup<firstSnode; ++ksup){
         Int fstcol = xsuper[ksup-1];
         Int lstcol = xsuper[ksup]-1;
         Int width = lstcol - fstcol +1;

@@ -1554,7 +1554,7 @@ namespace SYMPACK{
       //build the mrglnk array
 
 
-      for(Int ksup = 0; ksup<firstSnode; ++ksup){
+      for(Int ksup = 1; ksup<firstSnode; ++ksup){
         Int fstcol = xsuper[ksup-1];
         Int lstcol = xsuper[ksup]-1;
         Int width = lstcol - fstcol +1;
