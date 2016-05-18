@@ -2727,8 +2727,13 @@ MPI_Comm & comm = CommEnv_->MPI_GetComm();
 
 //permute the graph
 DistSparseMatrixGraph pGraph = graph;
-pGraph.Permute(&Order_.invp[0]);
 
+{
+  double tstart = get_time();
+  pGraph.Permute(&Order_.invp[0]);
+  double tstop = get_time();
+  logfileptr->OFS()<<"Permute time: "<<tstop-tstart<<endl;
+}
 
   //Compute XsuperDist_
 {
@@ -2810,11 +2815,16 @@ pGraph.Permute(&Order_.invp[0]);
 
 }
 #else
+{
+  double tstart = get_time();
 //redistribute the graph according to the supernodal partition
 pGraph.RedistributeSupernodal(xsuper.size()-1,&xsuper[0],&XsuperDist_[0],&SupMembership[0]);
+  double tstop = get_time();
+  logfileptr->OFS()<<"Redistribute time: "<<tstop-tstart<<endl;
+}
 #endif
 
-logfileptr->OFS()<<Xsuper_<<endl;
+//logfileptr->OFS()<<Xsuper_<<endl;
 
     Int nsuper = xsuper.size()-1;
 
@@ -2960,7 +2970,7 @@ bassert(pOwnerFirst==pOwnerLast && iam==pOwnerFirst);
               }
             }
 
-            logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<recvLindx.size()*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<endl;
+            //logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<recvLindx.size()*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<endl;
             MPI_Recv(&recvLindx[0],recvLindx.size()*sizeof(Idx),MPI_BYTE,psrc,jsup+np,comm,&status);
             //get actual number of received elements
             int count = 0;
@@ -3079,27 +3089,27 @@ bassert(pOwnerFirst==pOwnerLast && iam==pOwnerFirst);
 
 {
       Idx i = head;
-      logfileptr->OFS()<<"col "<<fstcol<<" : ";
-      for(Ptr kptr = nzend+1; kptr<=nzend+knz;++kptr){
-        i = rchlnk[i];
-        logfileptr->OFS()<<i<<" ";
-      } 
-      logfileptr->OFS()<<endl;
+//      logfileptr->OFS()<<"col "<<fstcol<<" : ";
+//      for(Ptr kptr = nzend+1; kptr<=nzend+knz;++kptr){
+//        i = rchlnk[i];
+//        logfileptr->OFS()<<i<<" ";
+//      } 
+//      logfileptr->OFS()<<endl;
 
 
       for(Int col = fstcol; col<=lstcol; ++col){
         Int local_col = col - firstColumn + 1;
 
-        logfileptr->OFS()<<"     col "<<col<<" : ";
+//        logfileptr->OFS()<<"     col "<<col<<" : ";
         Ptr knzbeg = pGraph.colptr[local_col-1];
         Ptr knzend = pGraph.colptr[local_col]-1;
         for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
           Idx newi = pGraph.rowind[kptr-1];
-          if(newi > fstcol){
-            logfileptr->OFS()<<newi<<" ";
-          }
+//          if(newi > fstcol){
+//            logfileptr->OFS()<<newi<<" ";
+//          }
         }
-        logfileptr->OFS()<<endl;
+//        logfileptr->OFS()<<endl;
       }
 
 
@@ -3149,7 +3159,7 @@ xlindx[locksup] = nzend+1;
         if(pdest!=iam){
                 mpirequests.push_back(MPI_REQUEST_NULL);
                 MPI_Request & request = mpirequests.back();
-                logfileptr->OFS()<<"sending "<<length*sizeof(Idx)<<" bytes of "<<ksup<<" to P"<<pdest<<" for "<<ksup<<endl;
+                //logfileptr->OFS()<<"sending "<<length*sizeof(Idx)<<" bytes of "<<ksup<<" to P"<<pdest<<" for "<<ksup<<endl;
                 MPI_Isend(&lindx[xlindx[locksup-1]-1],length*sizeof(Idx),MPI_BYTE,pdest,ksup+np,comm,&request);
         }
       }
