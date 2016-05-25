@@ -420,9 +420,9 @@ int main(int argc, char **argv)
       try{
         timeSta = get_time();
         SMat = new SupernodalMatrix2<SCALAR>();
+        SMat->team_ = workteam;
         SMat->Init(HMat,optionsFact);
         timeEnd = get_time();
-        SMat->team_ = workteam;
       }
       catch(const std::bad_alloc& e){
         std::cout << "Allocation failed: " << e.what() << '\n';

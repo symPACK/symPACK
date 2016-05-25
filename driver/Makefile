@@ -138,7 +138,7 @@ run_dense_scalapack.o: run_dense_scalapack.cpp
 
 
 run_mumps: run_mumps.o ${SYMPACK_LIB}
-	($(LOADER) -o $@${SUFFIX} run_mumps.o  $(DMUMPS_LIB) $(ZMUMPS_LIB) $(MUMPS_ORDERINGS) ${MUMPSLOADOPTS} )
+	($(LOADER) -o $@${SUFFIX} run_mumps.o  $(DMUMPS_LIB) $(ZMUMPS_LIB) $(MUMPS_ORDERINGS) ${MUMPSLOADOPTS}   $(UPCXX_LDLIBS) )
 
 run_mumps.o: run_mumps.cpp
 	${CXX} -c $(MUMPS_INCLUDE)  ${CXXFLAGS} ${CPPDEFS} -O3 $<

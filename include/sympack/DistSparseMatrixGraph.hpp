@@ -52,7 +52,7 @@ class DistSparseMatrixGraph{
 	Ptr          nnz;                             // Number of nonzeros (global)
 	SYMPACK::vector<Ptr>  colptr;                 // Column index pointer
 	SYMPACK::vector<Idx>  rowind;                 // Starting row index pointer
-	SYMPACK::vector<Idx>  vertexDist;             // vertex istribution array (size np+1)
+	SYMPACK::vector<Idx>  vertexDist;             // vertex distribution array (size np+1)
 
   protected:
   MPI_Comm comm;
@@ -92,11 +92,16 @@ class DistSparseMatrixGraph{
   void FromStructure(const SparseMatrixStructure & A);
   void SortEdges();
   void ExpandSymmetric();
-  void Permute(Int * invp, Int invpbaseval = 1);
+  void Permute(Int * invp);
+  void Permute(Int * invp, Idx * newVertexDist);
+  void Permute(Int * invp, Int invpbaseval);
+  void Permute(Int * invp, Idx * newVertexDist, Int invpbaseval);
+ 
   //redistribute the graph according to the supernodal partition
   void RedistributeSupernodal(Int nsuper, Int * xsuper, Int * xsuperdist, Int * supMembership );
   void AllGatherStructure(SparseMatrixGraph & g);
-
+protected:
+  void permute_(Int * invp, Idx * newVertexDist=NULL, Int invpbaseval=1);
 //  void FindSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize = -1);
 //
 //  void RelaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, RelaxationParameters & params  );

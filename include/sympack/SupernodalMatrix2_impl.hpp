@@ -1101,6 +1101,16 @@ namespace SYMPACK{
     Local_ = new SparseMatrixStructure();
     *Local_ = pMat.GetLocalStructure();
 
+    graph_.SetComm(CommEnv_->MPI_GetComm());
+    graph_.SetBaseval(1);
+    graph_.SetKeepDiag(1);
+    graph_.SetSorted(1);
+    graph_.FromStructure(*Local_);
+    graph_.ExpandSymmetric();
+
+
+
+
 #if defined(USE_PARMETIS) || defined(PTSCOTCH)
     if(options_.ordering==PTSCOTCH /*|| options_.ordering==PARMETIS*/ ){
       DistSparseMatrixGraph graph;
@@ -1225,20 +1235,46 @@ namespace SYMPACK{
 
     }
 
+
+
+
     SYMPACK::vector<Int> cc,rc;
     {
 
       double timeSta = get_time();
-
+#if 0 
+      ETree_.ConstructETree(graph_,Order_);
+#else
       ETree_.ConstructETree(*Global_,Order_);
+#endif
       ETree_.PostOrderTree(Order_);
       logfileptr->OFS()<<"ETREE done"<<endl;
+#if 0
+      this->getLColRowCount(cc,rc);
+#else
       Global_->GetLColRowCount(ETree_,Order_,cc,rc);
+#endif 
 
       ETree_.SortChildren(cc,Order_);
       double timeStop = get_time();
       if(iam==0){
         cout<<"Elimination tree construction time: "<<timeStop - timeSta<<endl;
+      }
+
+      { 
+//        SYMPACK::vector<Int> cc2,rc2;
+//        ETree tree;
+//        tree.ConstructETree(*Global_,Order_);
+//        tree.PostOrderTree(Order_);
+//
+//logfileptr->OFS()<<ETree_<<endl;
+//logfileptr->OFS()<<tree<<endl;
+//
+//        for(int i = 0; i<ETree_.Size(); i++){ bassert(ETree_.PostParent(i)==tree.PostParent(i));}
+
+        //Global_->GetLColRowCount(tree,Order_,cc2,rc2);
+        //for(int i = 0; i<cc.size(); i++){ bassert(cc[i]==cc2[i]);}
+        //for(int i = 0; i<rc.size(); i++){ bassert(rc[i]==rc2[i]);}
       }
     }
 
@@ -1275,30 +1311,43 @@ namespace SYMPACK{
 
     {
       double timeSta = get_time();
+
+#if 1
       this->findSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
-      //Global_->FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
+#else
+      Global_->FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
+#endif
+
+//Compute XsuperDist_
+{
+  Idx supPerProc = (Xsuper_.size()-1) / np;
+  XsuperDist_.resize(np+1,0);
+  for(int p =0; p<np; p++){
+    XsuperDist_[p]= p*supPerProc+1;
+  }
+  XsuperDist_[np] = Xsuper_.size();
+}
+
+
 
       logfileptr->OFS()<<"Supernodes found"<<endl;
 
       if(options_.relax.nrelax0>=0){
-        auto oldcc = cc;
+#if 1
         this->relaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
-        //Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
+#else
+        Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
+#endif
         logfileptr->OFS()<<"Relaxation done"<<endl;
 
         {
-              graph_.SetComm(CommEnv_->MPI_GetComm());
-              graph_.SetBaseval(1);
-              graph_.SetKeepDiag(1);
-              graph_.SetSorted(1);
-              graph_.FromStructure(*Local_);
-              graph_.ExpandSymmetric();
-
-          double timeSta = get_time();
-          Global_->SymbolicFactorizationRelaxedDist(ETree_,Order_,cc,Xsuper_,SupMembership_,locXlindx_,locLindx_,CommEnv_->MPI_GetComm());
           
-          this->symbolicFactorizationRelaxedDist(cc,oldcc);
-          //Global_->SymbolicFactorizationRelaxedDist(ETree_,Order_,cc,Xsuper_,SupMembership_,locXlindx_,locLindx_,CommEnv_->MPI_GetComm());
+          double timeSta = get_time();
+#if 1
+          this->symbolicFactorizationRelaxedDist(cc);
+#else
+          Global_->SymbolicFactorizationRelaxedDist(ETree_,Order_,cc,Xsuper_,SupMembership_,locXlindx_,locLindx_,CommEnv_->MPI_GetComm());
+#endif
           double timeStop = get_time();
           if(iam==0){
             cout<<"Symbolic factorization time: "<<timeStop - timeSta<<endl;
@@ -2586,6 +2635,182 @@ template <typename T>
     TIMER_STOP(FindSupernodes);
   }
 
+
+
+template <typename T> 
+  void SupernodalMatrix2<T>::getLColRowCount(SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & rc){
+    //The tree need to be postordered
+    if(!ETree_.IsPostOrdered()){
+      ETree_.PostOrderTree(Order_);
+    }
+
+    graph_.ExpandSymmetric();
+
+    TIMER_START(GetColRowCount_Classic);
+
+    Int size = graph_.size;
+    cc.resize(size);
+    rc.resize(size);
+
+
+    upcxx::shared_array<Idx> rcDist(size);
+    upcxx::shared_array<Idx> level(size+1);
+    upcxx::shared_array<Int> weight(size+1);
+    upcxx::shared_array<Idx> fdesc(size+1);
+    upcxx::shared_array<Idx> nchild(size+1);
+    upcxx::shared_array<Idx> set(size);
+    upcxx::shared_array<Idx> prvlf(size);
+    upcxx::shared_array<Idx> prvnbr(size);
+
+    Idx xsup = 1;
+    level[0] = 0;
+    for(Idx k = size; k>=1; --k){
+        cc[k-1] = 0;
+      if( (k-1) % np == iam){
+        rcDist[k-1] = 1;
+        set[k-1] = k;
+        prvlf[k-1] = 0;
+        prvnbr[k-1] = 0;
+      }
+      if( (k) % np == iam){
+        level[k] = level[ETree_.PostParent(k-1)] + 1;
+        weight[k] = 1;
+        fdesc[k] = k;
+        nchild[k] = 0;
+      }
+    }
+
+    nchild[0] = 0;
+    fdesc[0] = 0;
+    for(Idx k =1; k<size; ++k){
+      Idx parent = ETree_.PostParent(k-1);
+      if( (parent) % np == iam){
+        weight[parent] = 0;
+        nchild[parent] = nchild[parent] + 1;
+      }
+      if( (k) % np == iam){
+        Idx ifdesc = fdesc[k];
+        if  ( ifdesc < fdesc[parent] ) {
+          fdesc[parent] = ifdesc;
+        }
+      }
+    }
+
+    team_->barrier();
+
+    for(Idx lownbr = 1; lownbr<=size; ++lownbr){
+      Int lflag = 0;
+      Idx ifdesc = fdesc[lownbr];
+      Idx orig_lownbr = Order_.perm[lownbr-1];
+
+      if(graph_.vertexDist[iam] <= orig_lownbr && orig_lownbr<graph_.vertexDist[iam+1]){
+        Idx local_lownbr = orig_lownbr - graph_.LocalFirstVertex() -1;
+        Ptr jstrt = graph_.colptr[orig_lownbr-1];
+        Ptr jstop = graph_.colptr[orig_lownbr] - 1;
+
+        //           -----------------------------------------------
+        //           for each ``high neighbor'', hinbr of lownbr ...
+        //           -----------------------------------------------
+        for(Ptr j = jstrt; j<=jstop;++j){
+          Idx orig_hinbr = graph_.rowind[j-1];
+          Idx hinbr = Order_.invp[orig_hinbr-1];
+          if  ( hinbr > lownbr )  {
+            if  ( ifdesc > prvnbr[hinbr-1] ) {
+              //                       -------------------------
+              //                       increment weight[lownbr].
+              //                       -------------------------
+              weight[lownbr] = weight[lownbr]+1;
+              Idx pleaf = prvlf[hinbr-1];
+              //                       -----------------------------------------
+              //                       if hinbr has no previous ``low neighbor'' 
+              //                       then ...
+              //                       -----------------------------------------
+              if  ( pleaf == 0 ) {
+                //                           -----------------------------------------
+                //                           ... accumulate lownbr-->hinbr path length 
+                //                               in rowcnt[hinbr].
+                //                           -----------------------------------------
+                rcDist[hinbr-1] += level[lownbr] - level[hinbr];
+              }
+              else{
+                //                           -----------------------------------------
+                //                           ... otherwise, lca <-- find[pleaf], which 
+                //                               is the least common ancestor of pleaf 
+                //                               and lownbr.
+                //                               (path halving.)
+                //                           -----------------------------------------
+                Idx last1 = pleaf;
+                Idx last2 = set[last1-1];
+                Idx lca = set[last2-1];
+                while(lca != last2){
+                  set[last1-1] = lca;
+                  last1 = lca;
+                  last2 = set[last1-1];
+                  lca = set[last2-1];
+                }
+                //                           -------------------------------------
+                //                           accumulate pleaf-->lca path length in 
+                //                           rowcnt[hinbr].
+                //                           decrement weight(lca).
+                //                           -------------------------------------
+                rcDist[hinbr-1] += level[lownbr] - level[lca];
+                weight[lca] = weight[lca] -1;
+              }
+              //                       ----------------------------------------------
+              //                       lownbr now becomes ``previous leaf'' of hinbr.
+              //                       ----------------------------------------------
+              prvlf[hinbr-1] = lownbr;
+              lflag = 1;
+            }
+            //                   --------------------------------------------------
+            //                   lownbr now becomes ``previous neighbor'' of hinbr.
+            //                   --------------------------------------------------
+            prvnbr[hinbr-1] = lownbr;
+          }
+        }
+        //           ----------------------------------------------------
+        //           decrement weight ( parent[lownbr] ).
+        //           set ( p[lownbr] ) <-- set ( p[lownbr] ) + set[xsup].
+        //           ----------------------------------------------------
+        Idx parent = ETree_.PostParent(lownbr-1);
+        weight[parent] = weight[parent]-1;
+
+
+        //merge the sets
+        if  ( lflag == 1  || nchild[lownbr] >= 2 ) {
+          xsup = lownbr;
+        }
+        set[xsup-1] = parent;
+      }
+      team_->barrier();
+    }
+
+
+
+
+    for(Int k = 1; k<=size; ++k){
+      Int temp = cc[k-1] + weight[k];
+      cc[k-1] = temp;
+      Int parent = ETree_.PostParent(k-1);
+      if  ( parent != 0 ) {
+        cc[parent-1] += temp;
+      }
+    }
+
+    for(Int k = 1; k<=size; ++k){
+      rc[k-1] = rcDist[k-1];
+    }
+
+    //      logfileptr->OFS()<<"column counts "<<cc<<std::endl;
+
+    TIMER_STOP(GetColRowCount_Classic);
+  }
+
+
+
+
+
+
 template <typename T> 
   void SupernodalMatrix2<T>::relaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, RelaxationParameters & params ){
 //todo tree cc supmembership xsuper and relax params are members, no need for arguments
@@ -2713,7 +2938,7 @@ template <typename T>
 
 
 template <typename T> 
-  void SupernodalMatrix2<T>::symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & oldcc){
+  void SupernodalMatrix2<T>::symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> & cc){
     TIMER_START(SymbolicFactorization);
 Int size = iSize_;
 ETree& tree = ETree_;
@@ -2725,9 +2950,12 @@ PtrVec & xlindx = locXlindx_;
 IdxVec & lindx = locLindx_;
 MPI_Comm & comm = CommEnv_->MPI_GetComm();
 
+
+
 //permute the graph
 DistSparseMatrixGraph pGraph = graph;
 
+#if 0
 {
   double tstart = get_time();
   pGraph.Permute(&Order_.invp[0]);
@@ -2735,18 +2963,8 @@ DistSparseMatrixGraph pGraph = graph;
   logfileptr->OFS()<<"Permute time: "<<tstop-tstart<<endl;
 }
 
-  //Compute XsuperDist_
-{
-  Idx supPerProc = (Xsuper_.size()-1) / np;
-  XsuperDist_.resize(np+1,0);
-  for(int p =0; p<np; p++){
-    XsuperDist_[p]= p*supPerProc+1;
-  }
-  XsuperDist_[np] = Xsuper_.size();
-}
 
 
-#if 0
 //recompute xsuper by splitting some supernodes
 {
 
@@ -2816,11 +3034,35 @@ DistSparseMatrixGraph pGraph = graph;
 }
 #else
 {
+#if 1
+{
+  double tstart = get_time();
+
+//recompute vertexDist based on XsuperDist
+  std::vector<Idx> newVertexDist(np+1);
+  for(int p = 0; p < np; p++){
+    newVertexDist[p] = Xsuper_[XsuperDist_[p]-1] + (pGraph.GetBaseval()-1);
+  }
+  newVertexDist[np] = pGraph.size+1;
+
+
+  pGraph.Permute(&Order_.invp[0],&newVertexDist[0]);
+  double tstop = get_time();
+  logfileptr->OFS()<<"Permute time: "<<tstop-tstart<<endl;
+}
+#else
+{
+  double tstart = get_time();
+  pGraph.Permute(&Order_.invp[0]);
+  double tstop = get_time();
+  logfileptr->OFS()<<"Permute time: "<<tstop-tstart<<endl;
+}
   double tstart = get_time();
 //redistribute the graph according to the supernodal partition
 pGraph.RedistributeSupernodal(xsuper.size()-1,&xsuper[0],&XsuperDist_[0],&SupMembership[0]);
   double tstop = get_time();
   logfileptr->OFS()<<"Redistribute time: "<<tstop-tstart<<endl;
+#endif
 }
 #endif
 
@@ -2963,12 +3205,7 @@ bassert(pOwnerFirst==pOwnerLast && iam==pOwnerFirst);
             recvLindx.resize(size);
             //receive jsup lindx
             //Int psrc = min( (Int)np-1, (jsup-1) / (nsuper/np) );
-            Int psrc = 0;
-            for(psrc = 0; psrc<iam;psrc++){
-              if(XsuperDist_[psrc]<=jsup && jsup<XsuperDist_[psrc+1]){
-                break;
-              }
-            }
+            Int psrc = 0; for(psrc = 0; psrc<iam;psrc++){ if(XsuperDist_[psrc]<=jsup && jsup<XsuperDist_[psrc+1]){ break; } }
 
             //logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<recvLindx.size()*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<endl;
             MPI_Recv(&recvLindx[0],recvLindx.size()*sizeof(Idx),MPI_BYTE,psrc,jsup+np,comm,&status);
@@ -3116,18 +3353,14 @@ bassert(pOwnerFirst==pOwnerLast && iam==pOwnerFirst);
 
 }
 
-      if(knz!=cc[fstcol-1]){
-
-        cout<<knz<<" vs "<<cc[fstcol-1]<<" vs "<<oldcc[fstcol-1]<<endl;
-      }
-//      bassert(knz == cc[fstcol-1]);
+      bassert(knz == cc[fstcol-1]);
 
 
       //copy indices from linked list into lindx(*).
       nzbeg = nzend+1;
       nzend += knz;
 xlindx[locksup] = nzend+1;
- //     assert(nzend+1 == xlindx[locksup]);
+      bassert(nzend+1 == xlindx[locksup]);
       Idx i = head;
       for(Ptr kptr = nzbeg; kptr<=nzend;++kptr){
         i = rchlnk[i];

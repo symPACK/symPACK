@@ -343,9 +343,26 @@ namespace SYMPACK{
     }
   }
 
-
+  void DistSparseMatrixGraph::Permute(Int * invp){
+    permute_(invp, NULL, 1);
+  }
+  void DistSparseMatrixGraph::Permute(Int * invp, Idx * newVertexDist){
+    permute_(invp, newVertexDist, 1);
+  }
   void DistSparseMatrixGraph::Permute(Int * invp, Int invpbaseval){
+    permute_(invp, &vertexDist[0], invpbaseval);
+  }
+  void DistSparseMatrixGraph::Permute(Int * invp, Idx * newVertexDist, Int invpbaseval){
+    permute_(invp, newVertexDist, invpbaseval);
+  }
+
+  void DistSparseMatrixGraph::permute_(Int * invp, Idx * newVertexDist, Int invpbaseval){
     TIMER_START(PERMUTE);
+
+    //handle default parameter values
+    if(newVertexDist==NULL){
+      newVertexDist = &vertexDist[0];
+    }
 
     //Idx colPerProc = size / mpisize;
     Int firstCol = LocalFirstVertex()-baseval; //0 based
@@ -359,7 +376,7 @@ namespace SYMPACK{
       Ptr colend = colptr[locCol+1] - baseval;
       Idx permCol = invp[col]-invpbaseval; // 0 based;
       //find destination processors
-      Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=vertexDist[pdest]-baseval && permCol < vertexDist[pdest+1]-baseval){ break;} }
+      Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
       //Idx pdest = min( (Idx)mpisize-1, permCol / colPerProc);
       sizes[pdest] += (colend - colbeg)*sizeof(Idx) + sizeof(Ptr) + sizeof(Idx); //extra 2 are for the count of elements and the permuted columns
 
@@ -396,7 +413,7 @@ namespace SYMPACK{
       Ptr colend = colptr[locCol+1]-baseval;
       Idx permCol = invp[col]-invpbaseval; // perm is 1 based;
       //find destination processors
-      Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=vertexDist[pdest]-baseval && permCol < vertexDist[pdest+1]-baseval){ break;} }
+      Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
       //Idx pdest = min((Idx)mpisize-1, permCol / colPerProc);
 
       int & pos = displs[pdest];
@@ -479,6 +496,9 @@ namespace SYMPACK{
       std::copy(permRows,permRows + *rowsCnt, &rowind[colpos[locCol]-baseval]);
       colpos[locCol] += *rowsCnt;
     }
+
+    //copy newVertexDist into vertexDist
+    std::copy(newVertexDist,newVertexDist+mpisize+1,&vertexDist[0]);
 
     if(sorted){
       SortEdges();

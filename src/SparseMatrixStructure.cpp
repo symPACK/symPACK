@@ -1519,6 +1519,8 @@ namespace SYMPACK{
     // into each supernode's index set
     SYMPACK::vector<Int> marker(size,0);
 
+    //Int nsuperLocal = xsuperDist[iam+1]-xsuperDist[iam];//(iam!=np-1)?nsuper/np:nsuper-iam*(nsuper/np);
+    //Int firstSnode = xsuperDist[iam];//iam*(nsuper/np)+1;
     Int nsuperLocal = (iam!=np-1)?nsuper/np:nsuper-iam*(nsuper/np);
     Int firstSnode = iam*(nsuper/np)+1;
     Int lastSnode = firstSnode + nsuperLocal-1;
@@ -1619,6 +1621,8 @@ namespace SYMPACK{
             recvLindx.resize(size);
             //receive jsup lindx
             Int psrc = min( (Int)np-1, (jsup-1) / (nsuper/np) );
+            //Int psrc = 0; for(psrc = 0; psrc<iam;psrc++){ if(xsuperDist[psrc]<=jsup && jsup<xsuperDist[psrc+1]){ break; } }
+
             //logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<size*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<endl;
             MPI_Recv(&recvLindx[0],recvLindx.size()*sizeof(Idx),MPI_BYTE,psrc,jsup+np,comm,&status);
             //get actual number of received elements

@@ -169,8 +169,9 @@ namespace SYMPACK{
   void findSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize = -1);
   void relaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, RelaxationParameters & params  );
 
-  void symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & oldcc);
+  void symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> & cc);
 
+  void getLColRowCount(SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & rc);
 
 
       protected:
