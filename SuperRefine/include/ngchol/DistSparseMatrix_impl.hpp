@@ -40,7 +40,6 @@ gdb_lock();
 
     MPI_Comm_size(comm,&np);
     MPI_Comm_rank(comm, &iam);
-gdb_lock();
     //fill global structure info as we have it directly
     this->size = n; 
     this->nnz = nnz; 

@@ -1,21 +1,21 @@
 CC           = mpiicc 
-CXX          = mpiicpc
+CXX          = mpiicpc -gxx-name=g++-4.9
 FC           = mpiifort
-LOADER       = mpiicpc
+LOADER       = mpiicpc -gxx-name=g++-4.9
 #CC           = mpicc 
 #CXX          = mpic++
 #FC           = mpif90
 #LOADER       = mpic++
 
 
-PREFIX = ${HOME}/software
+SWPREFIX = ${HOME}/software
 
 #NGCHOL directory
 #NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/ngchol
 NGCHOL_DIR     = ${HOME}/Work/postdoc-lbl/cholesky
-METIS_DIR     = $(PREFIX)/release/metis-5.1.0/build/Linux-x86_64
-PARMETIS_DIR  = $(PREFIX)/release/parmetis-4.0.3/build/Linux-x86_64
-SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.0
+METIS_DIR     = $(SWPREFIX)/intel/release/metis-5.1.0/build/Linux-x86_64
+PARMETIS_DIR  = $(SWPREFIX)/intel/release/parmetis-4.0.3/build/Linux-x86_64
+SCOTCH_DIR    = $(SWPREFIX)/intel/release/scotch_6.0.0_esmumps
 #SCOTCH_DIR    = $(PREFIX)/release/scotch_6.0.4
 #SCOTCH_DIR    = $(PREFIX)/release/scotch_5.1.12_esmumps
 
