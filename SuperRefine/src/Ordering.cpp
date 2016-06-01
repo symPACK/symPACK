@@ -33,6 +33,7 @@ namespace LIBCHOLESKY {
         LAST, int * HEAD, int * ELEN, int * DEGREE, int * NCMPA, int * W, int * IOVFLO);
 
     int metis_nodend (int * N     , int* XADJ2 , int* ADJ2  , int * VWGT, int* OPTION, int* dback , int* dforw);
+
   }
 
 

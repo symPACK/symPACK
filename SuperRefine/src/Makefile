@@ -71,6 +71,7 @@ LOADOPTS     = ${PROFILE_FLAG} ${LIBS} -fopenmp
 SRCS_C   = iohb.c 
 SRCS_CPP = ETree.cpp SparseMatrixStructure.cpp Ordering.cpp main.cpp timer.cpp LogFile.cpp symbol_reordering.cpp  
 SRCS_F   = genmmd.f  mmdelm.f  mmdint.f  mmdnum.f  mmdupd.f  ordmmd.f amdbar.f
+SRCS_F   += ordsup.f mcssup.f invinv.f betree.f ins_heap.f del_heap.f move_up.f mod_heap.f move_down.f
 
 OBJS     = ${UPCXX_CPP:.cpp=.o} ${SRCS_CPP:.cpp=.o} ${SRCS_C:.c=.o} ${SRCS_F:.f=.o}
 DEPS     = ${UPCXX_CPP:.cpp=.d} ${SRCS_CPP:.cpp=.d} ${SRCS_C:.c=.d} ${SRCS_F:.f=.d}

@@ -23,98 +23,98 @@ struct Stats{
   double avgSnodeBlockSize = 0;
   double avgBlockSize = 0;
   void reset(){
-   totalSnodeBlocks = 0;
-   totalBlocks = 0;
-   blocksPerSnode = 0;
-   blocksPerCol = 0;
-   avgSnodeBlockSize = 0;
-   avgBlockSize = 0;
+    totalSnodeBlocks = 0;
+    totalBlocks = 0;
+    blocksPerSnode = 0;
+    blocksPerCol = 0;
+    avgSnodeBlockSize = 0;
+    avgBlockSize = 0;
   }
   void print(){
-   cout<<"totalSnodeBlocks: "<<totalSnodeBlocks<<endl;
-   cout<<"totalBlocks: "<<totalBlocks<<endl;
-   cout<<"blocksPerSnode: "<<blocksPerSnode<<endl;
-   cout<<"blocksPerCol: "<<blocksPerCol<<endl;
-   cout<<"avgSnodeBlockSize: "<<avgSnodeBlockSize<<endl;
-   cout<<"avgBlockSize: "<<avgBlockSize<<endl;
+    cout<<"totalSnodeBlocks: "<<totalSnodeBlocks<<endl;
+    cout<<"totalBlocks: "<<totalBlocks<<endl;
+    cout<<"blocksPerSnode: "<<blocksPerSnode<<endl;
+    cout<<"blocksPerCol: "<<blocksPerCol<<endl;
+    cout<<"avgSnodeBlockSize: "<<avgSnodeBlockSize<<endl;
+    cout<<"avgBlockSize: "<<avgBlockSize<<endl;
   }
 };
 
 void countBlock(vector<int> & Xsuper, vector<int64_t> & Xlindx, vector<int32_t> & Lindx, Stats & stats){
-        stats.reset();
+  stats.reset();
 
-        int64_t supNrows = 0;
-        for(int I = 1; I<Xlindx.size();++I){
+  int64_t supNrows = 0;
+  for(int I = 1; I<Xlindx.size();++I){
 #ifdef VERBOSE1
-          cout<<I<<"("<<Xsuper[I-1]<<".."<<Xsuper[I]-1<<"): ";
+    cout<<I<<"("<<Xsuper[I-1]<<".."<<Xsuper[I]-1<<"): ";
 #endif
-                  //count number of contiguous blocks (at least one diagonal block)
-                  int32_t fc = Xsuper[I-1];
-                  int32_t lc = Xsuper[I]-1;
-                  int32_t fi = Xlindx[I-1];
-                  int32_t li = Xlindx[I]-1;
-                  int32_t iPrevRow = Lindx[fi-1]-1;
-                  int32_t iFirstRow = Lindx[fi-1];
-              
-                  int32_t width = lc - fc + 1; 
- 
-                  for(int col = fc; col<=lc;col++){ 
-                    //1 to count the diagonal block, 0 to skip it
-                    int32_t nzBlockCnt = 0;//1;
-                    int32_t height = li - fi + 1;
-                    for(int64_t idx = fi; idx<=li;idx++){
-                      int32_t iRow = Lindx[idx-1];
-                      if(iRow<col){
-                        --height; 
-                      }
-                      //enforce the first block to be a square diagonal block
-                      if(nzBlockCnt==1 && iRow>col){
-                        nzBlockCnt++;
-                        stats.avgBlockSize+=col-iFirstRow+1;
-                        if(col==fc){
-                          stats.avgSnodeBlockSize+=width;
-                        }
-                        iFirstRow=iRow;
-#ifdef VERBOSE1
-                        cout<<"| ";
-#endif
-                      }
-                      else if(iRow!=iPrevRow+1){
-                        nzBlockCnt++;
-                        stats.avgBlockSize+=iPrevRow-iFirstRow+1;
-                        if(col==fc){
-                          stats.avgSnodeBlockSize+=iPrevRow-iFirstRow+1;
-                        }
-                        iFirstRow=iRow;
-#ifdef VERBOSE1
-                        cout<<"| ";
-#endif
-                      }
-#ifdef VERBOSE1
-                      cout<<iRow<<" ";
-#endif
+    //count number of contiguous blocks (at least one diagonal block)
+    int32_t fc = Xsuper[I-1];
+    int32_t lc = Xsuper[I]-1;
+    int32_t fi = Xlindx[I-1];
+    int32_t li = Xlindx[I]-1;
+    int32_t iPrevRow = Lindx[fi-1]-1;
+    int32_t iFirstRow = Lindx[fi-1];
 
-                      iPrevRow=iRow;
-                    }
-#ifdef VERBOSE1
-                    cout<<" || "<<nzBlockCnt<<endl;
-#endif
+    int32_t width = lc - fc + 1; 
 
-
-                    stats.totalBlocks+=nzBlockCnt;
-                    if(col==lc){
-                      stats.totalSnodeBlocks+=nzBlockCnt;
-                      supNrows+=height;
-                    }
-                  }
+    for(int col = fc; col<=lc;col++){ 
+      //1 to count the diagonal block, 0 to skip it
+      int32_t nzBlockCnt = 0;//1;
+      int32_t height = li - fi + 1;
+      for(int64_t idx = fi; idx<=li;idx++){
+        int32_t iRow = Lindx[idx-1];
+        if(iRow<col){
+          --height; 
+        }
+        //enforce the first block to be a square diagonal block
+        if(nzBlockCnt==1 && iRow>col){
+          nzBlockCnt++;
+          stats.avgBlockSize+=col-iFirstRow+1;
+          if(col==fc){
+            stats.avgSnodeBlockSize+=width;
           }
+          iFirstRow=iRow;
+#ifdef VERBOSE1
+          cout<<"| ";
+#endif
+        }
+        else if(iRow!=iPrevRow+1){
+          nzBlockCnt++;
+          stats.avgBlockSize+=iPrevRow-iFirstRow+1;
+          if(col==fc){
+            stats.avgSnodeBlockSize+=iPrevRow-iFirstRow+1;
+          }
+          iFirstRow=iRow;
+#ifdef VERBOSE1
+          cout<<"| ";
+#endif
+        }
+#ifdef VERBOSE1
+        cout<<iRow<<" ";
+#endif
 
-        stats.avgBlockSize/=stats.totalBlocks;
-        stats.avgSnodeBlockSize/=stats.totalSnodeBlocks;
+        iPrevRow=iRow;
+      }
+#ifdef VERBOSE1
+      cout<<" || "<<nzBlockCnt<<endl;
+#endif
 
-        stats.blocksPerCol=stats.totalBlocks/(Xsuper.back()-1);
-        stats.blocksPerSnode=stats.totalSnodeBlocks/(Xsuper.size()-1);
-        cout<<"N is "<<Xsuper.back()-1<<endl;
+
+      stats.totalBlocks+=nzBlockCnt;
+      if(col==lc){
+        stats.totalSnodeBlocks+=nzBlockCnt;
+        supNrows+=height;
+      }
+    }
+  }
+
+  stats.avgBlockSize/=stats.totalBlocks;
+  stats.avgSnodeBlockSize/=stats.totalSnodeBlocks;
+
+  stats.blocksPerCol=stats.totalBlocks/(Xsuper.back()-1);
+  stats.blocksPerSnode=stats.totalSnodeBlocks/(Xsuper.size()-1);
+  cout<<"N is "<<Xsuper.back()-1<<endl;
 }
 
 using namespace LIBCHOLESKY;
@@ -358,38 +358,38 @@ int main(int argc, char **argv)
     Ordering order;
     order.SetStructure(Global);
     if(iam==0){ cout<<"Structure set"<<endl; }
-{
+    {
 
-TIMER_START(ORDERING);
-double tstart = MPI_Wtime();
-    //Reoder the matrix with MMD
-    if(argc>2){
-      string ordering(argv[2]);
-      if(ordering == "AMD"){
-        order.AMD();
-      }
+      TIMER_START(ORDERING);
+      double tstart = MPI_Wtime();
+      //Reoder the matrix with MMD
+      if(argc>2){
+        string ordering(argv[2]);
+        if(ordering == "AMD"){
+          order.AMD();
+        }
 #ifdef USE_METIS      
-      else if (ordering == "METIS"){
-        order.METIS();
-      }
+        else if (ordering == "METIS"){
+          order.METIS();
+        }
 #endif
 #ifdef USE_SCOTCH
-      else if (ordering == "SCOTCH"){
-        order.SCOTCH();
-      }
+        else if (ordering == "SCOTCH"){
+          order.SCOTCH();
+        }
 #endif
+        else if(ordering == "MMD"){
+          order.MMD();
+        }
+      }
       else{
         order.MMD();
       }
-    }
-    else{
-      order.MMD();
-    }
 
-double tstop = MPI_Wtime();
-TIMER_STOP(ORDERING);
-    if(iam==0){ cout<<"ordering done in "<<tstop-tstart<<endl; }
-}
+      double tstop = MPI_Wtime();
+      TIMER_STOP(ORDERING);
+      if(iam==0){ cout<<"ordering done in "<<tstop-tstart<<endl; }
+    }
 #ifdef VERBOSE
     cout<<"Ordering perm: "<<order.perm<<endl;
 #endif
@@ -432,11 +432,11 @@ TIMER_STOP(ORDERING);
     if(iam==0){ cout<<"Symbfact done"<<endl; }
 #endif
 
-      cout<<"Non refined perm is:"<<order.perm<<endl;
+    cout<<"Non refined perm is:"<<order.perm<<endl;
 #ifdef VERBOSE
-      cout<<"Xsuper is "<<Xsuper<<endl;
-      //cout<<"Xlindx is "<<Xlindx<<endl;
-      //cout<<"Lindx is "<<Lindx<<endl;
+    cout<<"Xsuper is "<<Xsuper<<endl;
+    //cout<<"Xlindx is "<<Xlindx<<endl;
+    //cout<<"Lindx is "<<Lindx<<endl;
 #endif
 
 
@@ -445,54 +445,57 @@ TIMER_STOP(ORDERING);
     Ordering orderSave = order;
 
     vector<int> permRefined,origPerm,newXsuper;
-{
-double tstart = MPI_Wtime();
+    {
+      double tstart = MPI_Wtime();
 
-    if(argc>3){
-      string algo(argv[3]);
-      if(algo == "TSP"){
-    ETree SupETree = Etree.ToSupernodalETree(Xsuper,SupMembership,order);
-    SymbolMatrix * symbmtx = GetPastixSymbolMatrix(Xsuper,SupMembership, Xlindx, Lindx);
-    Order * psorder = GetPastixOrder(symbmtx,Xsuper, SupETree, &order.perm[0], &order.invp[0]);
-    symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
+      if(argc>3){
+        string algo(argv[3]);
+        if(algo == "TSP"){
+          ETree SupETree = Etree.ToSupernodalETree(Xsuper,SupMembership,order);
+          SymbolMatrix * symbmtx = GetPastixSymbolMatrix(Xsuper,SupMembership, Xlindx, Lindx);
+          Order * psorder = GetPastixOrder(symbmtx,Xsuper, SupETree, &order.perm[0], &order.invp[0]);
+          symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
 
-    //overwrite order
-    for(int i = 0; i < order.perm.size(); ++i){
-      order.perm[i] = psorder->peritab[i]+1;
-      order.invp[i] = psorder->permtab[i]+1;
-    } 
+          //overwrite order
+          for(int i = 0; i < order.perm.size(); ++i){
+            order.perm[i] = psorder->peritab[i]+1;
+            order.invp[i] = psorder->permtab[i]+1;
+          } 
 
 
+        }
+        else if(algo == "Barry"){
+          Global.RefineSupernodesBarry(Etree,order, SupMembership, Xsuper, Xlindx, Lindx);
+        }
+        else{
+          Global.RefineSupernodes(Etree,order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
+        }
       }
       else{
         Global.RefineSupernodes(Etree,order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
       }
+
+
+
+
+      //#if 0
+      //    Global.RefineSupernodes(Etree,order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
+      //#else
+      //    ETree SupETree = Etree.ToSupernodalETree(Xsuper,SupMembership,order);
+      //    SymbolMatrix * symbmtx = GetPastixSymbolMatrix(Xsuper,SupMembership, Xlindx, Lindx);
+      //    Order * psorder = GetPastixOrder(symbmtx,Xsuper, SupETree, &order.perm[0], &order.invp[0]);
+      //    symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
+      //
+      //    //overwrite order
+      //    for(int i = 0; i < order.perm.size(); ++i){
+      //      order.perm[i] = psorder->peritab[i]+1;
+      //      order.invp[i] = psorder->permtab[i]+1;
+      //    } 
+      //
+      //#endif
+      double tstop = MPI_Wtime();
+      if(iam==0){ cout<<"Refinement done in "<<tstop-tstart<<endl; }
     }
-    else{
-    Global.RefineSupernodes(Etree,order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
-    }
-
-
-
-
-//#if 0
-//    Global.RefineSupernodes(Etree,order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
-//#else
-//    ETree SupETree = Etree.ToSupernodalETree(Xsuper,SupMembership,order);
-//    SymbolMatrix * symbmtx = GetPastixSymbolMatrix(Xsuper,SupMembership, Xlindx, Lindx);
-//    Order * psorder = GetPastixOrder(symbmtx,Xsuper, SupETree, &order.perm[0], &order.invp[0]);
-//    symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
-//
-//    //overwrite order
-//    for(int i = 0; i < order.perm.size(); ++i){
-//      order.perm[i] = psorder->peritab[i]+1;
-//      order.invp[i] = psorder->permtab[i]+1;
-//    } 
-//
-//#endif
-double tstop = MPI_Wtime();
-    if(iam==0){ cout<<"Refinement done in "<<tstop-tstart<<endl; }
-}
 
 
     if(iam==0){ 
@@ -502,17 +505,17 @@ double tstop = MPI_Wtime();
 #endif
     }
 
-int nsuper = Xsuper.size()-1;
-cout<<"=========================================="<<endl;
-        Stats stats;
-        countBlock(Xsuper, Xlindx, Lindx,stats);
+    int nsuper = Xsuper.size()-1;
+    cout<<"=========================================="<<endl;
+    Stats stats;
+    countBlock(Xsuper, Xlindx, Lindx,stats);
 
-{
-vector<int64_t> dummy;
-Xlindx.swap(dummy);
-vector<int32_t> dummy2;
-Lindx.swap(dummy2);
-}
+    {
+      vector<int64_t> dummy;
+      Xlindx.swap(dummy);
+      vector<int32_t> dummy2;
+      Lindx.swap(dummy2);
+    }
 
     {
 #if 0
@@ -523,7 +526,7 @@ Lindx.swap(dummy2);
         Etree2.PostorderTree(orderSave);
         vector<int> cc2,rc2;
         Global.GetLColRowCount(Etree2,orderSave,cc2,rc2);
-      Etree2.SortChildren(cc2,order);
+        Etree2.SortChildren(cc2,order);
 
         for(int i =0; i<cc.size();++i){
           assert(cc[i]==cc2[i]);
@@ -582,22 +585,22 @@ Lindx.swap(dummy2);
 
       if(iam==0){
 
-cout<<"=========================================="<<endl;
+        cout<<"=========================================="<<endl;
         Stats statsRefined;
         countBlock(Xsuper2, Xlindx2, Lindx2,statsRefined);
 
-{
-vector<int64_t> dummy;
-Xlindx2.swap(dummy);
-vector<int32_t> dummy2;
-Lindx2.swap(dummy2);
-}
+        {
+          vector<int64_t> dummy;
+          Xlindx2.swap(dummy);
+          vector<int32_t> dummy2;
+          Lindx2.swap(dummy2);
+        }
 
-cout<<"=========================================="<<endl;
+        cout<<"=========================================="<<endl;
         stats.print();
-cout<<"=========================================="<<endl;
+        cout<<"=========================================="<<endl;
         statsRefined.print();
-cout<<"=========================================="<<endl;
+        cout<<"=========================================="<<endl;
 
         int64_t nnz = 0;
         for(int i =0; i<cc.size();++i){

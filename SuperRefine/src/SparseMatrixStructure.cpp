@@ -20,6 +20,28 @@
 #define DISTANCE_LIMIT -1
 #define DEPTH_LIMIT -1
 
+#ifndef Add_
+#define FORTRAN(name) name
+#else
+#define FORTRAN(name) name##_
+#endif
+
+
+namespace LIBCHOLESKY{
+  extern "C" {
+    void FORTRAN(ordsup) (int * ordflag, int *  altflag, int *  NEQNS, int *  nofsub, int *  nsuper, 
+     int * xsuper, int *  xlindx, int *  lindx , int *  snode , int *  perm  , 
+     int * invp  , int *  freeforw, int *  freeback, int *  sforw, int *  sback, 
+     int * setseg_forw, int *  setseg_back, int *  nodehead, 
+     int * nodeforw, int *  nodeback, 
+     int *  setsnode, int *  supperm, int *  mark, int *  set  , int *  compset,
+     int *  invp2 , int *  heap                             );
+  }
+
+
+}
+
+
 namespace LIBCHOLESKY{
 
   SparseMatrixStructure::SparseMatrixStructure(){
@@ -1357,5 +1379,54 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, vector<int> & cc,vector
   }
 
 
+
+
+
+void SparseMatrixStructure::RefineSupernodesBarry(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx){
+
+
+    int neqns = size;
+    int ordflag =2;
+    int altflag =1;
+
+    int nofsub =lindx.size();
+    int nsuper = xsuper.size()-1;
+
+std::vector<int> xlindx2(nofsub,0);
+for(int64_t i = 0; i<xlindx.size(); i++){
+  xlindx2[i] = (int)xlindx[i];
+}
+  
+      std::vector<int>  freeforw(neqns,0);
+      std::vector<int>  freeback(neqns,0);
+      std::vector<int>  sforw(neqns,0);
+      std::vector<int>  sback(neqns,0);
+      std::vector<int> setseg_forw(neqns,0);
+      std::vector<int>  setseg_back(neqns,0);
+      std::vector<int>  nodehead(neqns,0);
+      std::vector<int> nodeforw(neqns,0);
+      std::vector<int>  nodeback(neqns,0);
+      std::vector<int>  setsnode(neqns,0);
+      std::vector<int>  supperm(nsuper,0);
+      std::vector<int>  mark(neqns+1,0);
+      std::vector<int>  set (neqns,0);
+      std::vector<int>  compset(neqns,0);
+      std::vector<int>  invp2(neqns,0);
+      std::vector<int>  heap (2*nsuper,0);
+
+
+  FORTRAN(ordsup) (
+     &ordflag, &altflag, &neqns , &nofsub, &nsuper, 
+     &xsuper[0], &xlindx2[0], &lindx[0], &supMembership[0], &aOrder.perm[0],
+     &aOrder.invp[0], 
+     &freeforw[0], &freeback[0], &sforw[0], &sback[0], 
+     &setseg_forw[0], &setseg_back[0], &nodehead[0], 
+     &nodeforw[0], &nodeback[0], 
+     &setsnode[0], &supperm[0], &mark[0], &set[0], &compset[0],
+     &invp2[0], &heap[0]);
+
+
+
+}
 
 }
