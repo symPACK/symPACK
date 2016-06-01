@@ -52,7 +52,9 @@ namespace SYMPACK{
 
   //Solve related routines
 
-  template <typename T> void SupernodalMatrix2<T>::forward_update(SuperNode2<T> * src_contrib,SuperNode2<T> * tgt_contrib){
+  template <typename T>
+      template< class Alloc>
+ void SupernodalMatrix2<T>::forward_update(SuperNode<T,Alloc> * src_contrib,SuperNode<T,Alloc> * tgt_contrib){
 
     Int iam = CommEnv_->MPI_Rank();
     Int np  = CommEnv_->MPI_Size();
@@ -66,14 +68,14 @@ namespace SYMPACK{
 
     Int src_blkidx = startBlock;
     while(src_blkidx<src_contrib->NZBlockCnt()){
-      NZBlockDesc2 & src_desc = src_contrib->GetNZBlockDesc(src_blkidx);
+      NZBlockDesc & src_desc = src_contrib->GetNZBlockDesc(src_blkidx);
       Int src_nrows = src_contrib->NRows(src_blkidx);
 
       if(tgt_blkidx<1){
         tgt_blkidx = tgt_contrib->FindBlockIdx(src_desc.GIndex);
       }
 
-      NZBlockDesc2 & tgt_desc = tgt_contrib->GetNZBlockDesc(tgt_blkidx);
+      NZBlockDesc & tgt_desc = tgt_contrib->GetNZBlockDesc(tgt_blkidx);
       Int tgt_nrows = tgt_contrib->NRows(tgt_blkidx);
 
       Int src_local_fr = max(tgt_desc.GIndex - src_desc.GIndex,0);
@@ -109,17 +111,19 @@ namespace SYMPACK{
         //skip to the next src nz block
         ++src_blkidx;
         if(src_blkidx<src_contrib->NZBlockCnt()){
-          NZBlockDesc2 & next_src_desc = src_contrib->GetNZBlockDesc(src_blkidx);
+          NZBlockDesc & next_src_desc = src_contrib->GetNZBlockDesc(src_blkidx);
           tgt_blkidx = tgt_contrib->FindBlockIdx(next_src_desc.GIndex);
         }
       }
     }
   }
 
-  template <typename T> void SupernodalMatrix2<T>::back_update(SuperNode2<T> * src_contrib,SuperNode2<T> * tgt_contrib){
+  template <typename T>
+      template< class Alloc>
+ void SupernodalMatrix2<T>::back_update(SuperNode<T,Alloc> * src_contrib,SuperNode<T,Alloc> * tgt_contrib){
     Int nrhs = tgt_contrib->Size();
     for(Int blkidx = 1; blkidx<tgt_contrib->NZBlockCnt();++blkidx){
-      NZBlockDesc2 & tgt_desc = tgt_contrib->GetNZBlockDesc(blkidx);
+      NZBlockDesc & tgt_desc = tgt_contrib->GetNZBlockDesc(blkidx);
       Int tgt_nrows = tgt_contrib->NRows(blkidx);
 
       Int src_nzblk_idx = src_contrib->FindBlockIdx(tgt_desc.GIndex);
@@ -127,7 +131,7 @@ namespace SYMPACK{
       Int src_lr; 
       do
       {
-        NZBlockDesc2 & src_desc = src_contrib->GetNZBlockDesc(src_nzblk_idx);
+        NZBlockDesc & src_desc = src_contrib->GetNZBlockDesc(src_nzblk_idx);
         Int src_nrows = src_contrib->NRows(src_nzblk_idx);
         src_lr = src_desc.GIndex+src_nrows-1;
 
@@ -197,13 +201,13 @@ namespace SYMPACK{
         //and the same width as the final solution
         //Int iLocalI = (I-1) / np +1 ;
         Int iLocalI = snodeLocalIndex(I);
-        SuperNode2<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-        SuperNode2<T> * contrib = new SuperNode2<T>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
+        SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
+        SuperNode<T,MallocAllocator> * contrib = new SuperNode<T,MallocAllocator>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
         Contributions_[iLocalI-1] = contrib;
 
 
         for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
-          NZBlockDesc2 & cur_desc = cur_snode->GetNZBlockDesc(blkidx);
+          NZBlockDesc & cur_desc = cur_snode->GetNZBlockDesc(blkidx);
           contrib->AddNZBlock(cur_snode->NRows(blkidx),nrhs,cur_desc.GIndex);
         }
         Int nRows = contrib->NRowsBelowBlock(0);
@@ -236,10 +240,10 @@ namespace SYMPACK{
       if(iLocalI>0 && iLocalI<=LocalSupernodes_.size()){
 
         //If I own the column, factor it
-        SuperNode2<T> * cur_snode = LocalSupernodes_[iLocalI-1];
+        SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
         I = cur_snode->Id();
         Int parent = ETree_.PostParent(cur_snode->LastCol()-1);
-        SuperNode2<T> * contrib = Contributions_[iLocalI-1];
+        SuperNode<T,MallocAllocator> * contrib = Contributions_[iLocalI-1];
 
 
         //Do all my updates (Local and remote)
@@ -248,7 +252,7 @@ namespace SYMPACK{
           Int contrib_snode_id = LocalUpdates[iLocalI-1].top();
           LocalUpdates[iLocalI-1].pop();
 
-          SuperNode2<T> * dist_contrib = snodeLocal(contrib_snode_id,Contributions_);
+          SuperNode<T,MallocAllocator> * dist_contrib = snodeLocal(contrib_snode_id,Contributions_);
 
 #ifdef _DEBUG_
           logfileptr->OFS()<<"LOCAL Supernode "<<I<<" is updated by contrib of Supernode "<<contrib_snode_id<<std::endl;
@@ -278,7 +282,7 @@ namespace SYMPACK{
           src_blocks.resize(bytes_received);
           MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
           TIMER_STOP(RECV_MPI);
-          SuperNode2<T> dist_contrib(&src_blocks[0],bytes_received);
+          SuperNode<T,MallocAllocator> dist_contrib(&src_blocks[0],bytes_received);
           //TODO Put this back
           //Deserialize(&src_blocks[0],dist_contrib);
 #ifdef _DEBUG_
@@ -298,9 +302,9 @@ namespace SYMPACK{
           //This corresponds to the i loop in dtrsm
           for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
 
-            NZBlockDesc2 & cur_desc = contrib->GetNZBlockDesc(blkidx);
-            NZBlockDesc2 & chol_desc = cur_snode->GetNZBlockDesc(blkidx);
-            NZBlockDesc2 & diag_desc = contrib->GetNZBlockDesc(0);
+            NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
+            NZBlockDesc & chol_desc = cur_snode->GetNZBlockDesc(blkidx);
+            NZBlockDesc & diag_desc = contrib->GetNZBlockDesc(0);
 
             Int cur_nrows = contrib->NRows(blkidx);
             Int chol_nrows = cur_snode->NRows(blkidx);
@@ -353,7 +357,7 @@ namespace SYMPACK{
               Int tgt_first_col = Xsuper_[parent_snode_id-1];
               Int tgt_last_col = Xsuper_[parent_snode_id]-1;
               Int src_nzblk_idx = 1;
-              NZBlockDesc2 & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
+              NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
 
               Int src_first_row = pivot_desc.GIndex;
 
@@ -372,6 +376,7 @@ namespace SYMPACK{
               if(!isSkipped){
                 //Create a new Icomm buffer, serialize the contribution
                 // in it and add it to the outgoing comm list
+
                 Icomm * send_buffer = new Icomm();
                 Serialize(*send_buffer,*contrib,src_nzblk_idx,src_first_row);
                 AddOutgoingComm(outgoingSend,send_buffer);
@@ -472,10 +477,10 @@ namespace SYMPACK{
       AdvanceOutgoing(outgoingSend);
 
       if(iLocalI>0 && iLocalI<=LocalSupernodes_.size()){
-        SuperNode2<T> * cur_snode = LocalSupernodes_[iLocalI-1];
+        SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
         I = cur_snode->Id();
 
-        SuperNode2<T> * contrib = Contributions_[iLocalI-1];
+        SuperNode<T,MallocAllocator> * contrib = Contributions_[iLocalI-1];
 
         Int parent = ETree_.PostParent(cur_snode->LastCol()-1);
 
@@ -486,7 +491,7 @@ namespace SYMPACK{
           Int iTarget = this->Mapping_->Map(parent_snode_id-1,parent_snode_id-1);
           //Do all my updates (Local and remote)
           //Local updates
-          SuperNode2<T> * dist_contrib;
+          SuperNode<T,MallocAllocator> * dist_contrib;
           if(!LocalUpdates[iLocalI-1].empty()){
             Int contrib_snode_id = LocalUpdates[iLocalI-1].top();
             LocalUpdates[iLocalI-1].pop();
@@ -503,7 +508,7 @@ namespace SYMPACK{
 
             MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
 
-            dist_contrib = new SuperNode2<T>(&src_blocks[0],bytes_received);
+            dist_contrib = new SuperNode<T,MallocAllocator>(&src_blocks[0],bytes_received);
             //TODO Replace this
             //Deserialize(&src_blocks[0],*dist_contrib); 
             dist_contrib->InitIdxToBlk();
@@ -523,8 +528,8 @@ namespace SYMPACK{
         logfileptr->OFS()<<"BACK Processing contrib "<<I<<std::endl;
 #endif
 
-        NZBlockDesc2 & diag_desc = cur_snode->GetNZBlockDesc(0);
-        NZBlockDesc2 & tgt_desc = contrib->GetNZBlockDesc(0);
+        NZBlockDesc & diag_desc = cur_snode->GetNZBlockDesc(0);
+        NZBlockDesc & tgt_desc = contrib->GetNZBlockDesc(0);
 
         T* diag_nzval = cur_snode->GetNZval(diag_desc.Offset);
         T* tgt_nzval = contrib->GetNZval(tgt_desc.Offset);
@@ -535,11 +540,11 @@ namespace SYMPACK{
 
             //This corresponds to the k loop in dtrsm
             for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
-              NZBlockDesc2 & chol_desc = cur_snode->GetNZBlockDesc(blkidx);
+              NZBlockDesc & chol_desc = cur_snode->GetNZBlockDesc(blkidx);
               Int chol_nrows = cur_snode->NRows(blkidx);
 
               Int src_blkidx = contrib->FindBlockIdx(chol_desc.GIndex);
-              NZBlockDesc2 & cur_desc = contrib->GetNZBlockDesc(src_blkidx);
+              NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(src_blkidx);
               Int cur_nrows = contrib->NRows(src_blkidx);
 
               T* chol_nzval = cur_snode->GetNZval(chol_desc.Offset);
@@ -582,7 +587,7 @@ namespace SYMPACK{
                     //need to push the prev src_last_row
                     //Send
                     Int src_nzblk_idx = 0;
-                    NZBlockDesc2 & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
+                    NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
                     Int src_first_row = pivot_desc.GIndex;
                     ContribsToSendDown.push(DelayedComm(contrib->Id(),child_snode_id,0,src_first_row));
 #ifdef _DEBUG_DELAY_
@@ -598,7 +603,7 @@ namespace SYMPACK{
 #endif
 
                     Int src_nzblk_idx = 0;
-                    NZBlockDesc2 & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
+                    NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
                     Int src_first_row = pivot_desc.GIndex;
                     //Create a new Icomm buffer, serialize the contribution
                     // in it and add it to the outgoing comm list
@@ -673,7 +678,7 @@ namespace SYMPACK{
       tmp_nzval.resize(nzcnt);
 
       if( iOwner == iam ){
-        SuperNode2<T> * contrib = snodeLocal(I,Contributions_);
+        SuperNode<T,MallocAllocator> * contrib = snodeLocal(I,Contributions_);
         data = contrib->GetNZval(0);
       }
       else{
@@ -694,7 +699,9 @@ namespace SYMPACK{
   }
 
 
-  template <typename T> void SupernodalMatrix2<T>::SendDelayedMessagesUp(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode2<T> *> & snodeColl){
+  template <typename T>
+      template< class Alloc>
+ void SupernodalMatrix2<T>::SendDelayedMessagesUp(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T,Alloc> *> & snodeColl){
     if(snodeColl.empty() || MsgToSend.empty()) { return;}
 
     //Index of the last global snode to do
@@ -732,7 +739,9 @@ namespace SYMPACK{
   }
 
 
-  template <typename T> void SupernodalMatrix2<T>::SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode2<T> *> & snodeColl){
+  template <typename T>
+      template< class Alloc>
+ void SupernodalMatrix2<T>::SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T,Alloc> *> & snodeColl){
     if(snodeColl.empty() || MsgToSend.empty()) { return;}
 
     //Index of the first local supernode
@@ -759,7 +768,7 @@ namespace SYMPACK{
 
       if(tgt_snode_id>next_snode_id || is_last /*|| OutgoingSend.size() <= maxIsend_*/){
 
-        SuperNode2<T> & prev_src_snode = *snodeLocal(src_snode_id,snodeColl);
+        SuperNode<T,Alloc> & prev_src_snode = *snodeLocal(src_snode_id,snodeColl);
         //this can be sent now
 
         Int iTarget = this->Mapping_->Map(tgt_snode_id-1,tgt_snode_id-1);
@@ -773,7 +782,7 @@ namespace SYMPACK{
           logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<prev_src_snode.Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
 #endif
 
-          NZBlockDesc2 & pivot_desc = prev_src_snode.GetNZBlockDesc(src_nzblk_idx);
+          NZBlockDesc & pivot_desc = prev_src_snode.GetNZBlockDesc(src_nzblk_idx);
           //Create a new Icomm buffer, serialize the contribution
           // in it and add it to the outgoing comm list
           Icomm * send_buffer = new Icomm();
@@ -804,14 +813,16 @@ namespace SYMPACK{
     }
   }
 
-  template <typename T> void SupernodalMatrix2<T>::SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode2<T> *> & snodeColl){
+  template <typename T>
+      template< class Alloc>
+ void SupernodalMatrix2<T>::SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T,Alloc> *> & snodeColl){
     Int src_snode_id = comm.src_snode_id;
     Int tgt_snode_id = comm.tgt_snode_id;
     Int src_nzblk_idx = comm.src_nzblk_idx;
     Int src_first_row = comm.src_first_row;
 
 
-    SuperNode2<T> & prev_src_snode = *snodeLocal(src_snode_id,snodeColl);
+    SuperNode<T,Alloc> & prev_src_snode = *snodeLocal(src_snode_id,snodeColl);
 
     //this can be sent now
     Int iTarget = this->Mapping_->Map(tgt_snode_id-1,tgt_snode_id-1);
@@ -824,7 +835,7 @@ namespace SYMPACK{
 #ifdef _DEBUG_
       logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<prev_src_snode.Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
 #endif
-      NZBlockDesc2 & pivot_desc = prev_src_snode.GetNZBlockDesc(src_nzblk_idx);
+      NZBlockDesc & pivot_desc = prev_src_snode.GetNZBlockDesc(src_nzblk_idx);
       //Create a new Icomm buffer, serialize the contribution
       // in it and add it to the outgoing comm list
       Icomm * send_buffer = new Icomm();
@@ -975,7 +986,7 @@ namespace SYMPACK{
         Int src_last_col = Xsuper_[I]-1;
         Int iOwner = this->Mapping_->Map(I-1,I-1);
         if( iOwner == iam ){
-          SuperNode2<T> & src_snode = *snodeLocal(I);
+          SuperNode<T> & src_snode = *snodeLocal(I);
 
 
           logfileptr->OFS()<<"+++++++++++++"<<I<<"++++++++"<<std::endl;
@@ -988,7 +999,7 @@ namespace SYMPACK{
           logfileptr->OFS()<<std::endl;
           for(int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
 
-            NZBlockDesc2 & desc = src_snode.GetNZBlockDesc(blkidx);
+            NZBlockDesc & desc = src_snode.GetNZBlockDesc(blkidx);
             T * val = src_snode.GetNZval(desc.Offset);
             Int nRows = src_snode.NRows(blkidx);
 
@@ -2028,7 +2039,7 @@ namespace SYMPACK{
             ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
             globToLocSnodes_.Insert(snode_inter);
 #endif
-            LocalSupernodes_.push_back( new SuperNode2<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
+            LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
           }
         }
 
@@ -2131,7 +2142,7 @@ namespace SYMPACK{
               Int fc = Xsuper_[I-1];
               Int lc = Xsuper_[I]-1;
               Int iWidth = lc-fc+1;
-              SuperNode2<T> & snode = *snodeLocal(I);
+              SuperNode<T> & snode = *snodeLocal(I);
               if(snode.NZBlockCnt()==0){
                 for(Int i = 0; i<nzBlockCnt;i++){
                   Int iStartRow = superStructure[pos++];
@@ -2301,7 +2312,7 @@ namespace SYMPACK{
               Int lc = Xsuper_[I]-1;
               Int iWidth = lc-fc+1;
 
-              SuperNode2<T> & snode = *snodeLocal(I);
+              SuperNode<T> & snode = *snodeLocal(I);
 
               assert(snode.NZBlockCnt()!=0);
 
@@ -2322,7 +2333,7 @@ namespace SYMPACK{
                 //if(row>=col){
                 Int blkidx = snode.FindBlockIdx(row);
                 assert(blkidx!=-1);
-                NZBlockDesc2 & blk_desc = snode.GetNZBlockDesc(blkidx);
+                NZBlockDesc & blk_desc = snode.GetNZBlockDesc(blkidx);
                 Int local_row = row - blk_desc.GIndex + 1;
                 Int local_col = col - fc + 1;
                 T * nzval = snode.GetNZval(blk_desc.Offset);
@@ -2359,7 +2370,7 @@ namespace SYMPACK{
       Int iOwner = this->Mapping_->Map(I-1,I-1);
       //If I own the column, factor it
       if( iOwner == iam ){
-        SuperNode2<T> & src_snode = *snodeLocal(I);
+        SuperNode<T> & src_snode = *snodeLocal(I);
 
 
         logfileptr->OFS()<<"+++++++++++++"<<I<<"++++++++"<<std::endl;
@@ -2372,7 +2383,7 @@ namespace SYMPACK{
         logfileptr->OFS()<<std::endl;
         for(int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
 
-          NZBlockDesc2 & desc = src_snode.GetNZBlockDesc(blkidx);
+          NZBlockDesc & desc = src_snode.GetNZBlockDesc(blkidx);
           T * val = src_snode.GetNZval(desc.Offset);
           Int nRows = src_snode.NRows(blkidx);
 
@@ -2412,7 +2423,7 @@ namespace SYMPACK{
       Int ncols = maxw;
       Int nz_cnt = nrows * ncols;
       Int nblocks = nrows;
-      max_bytes += (nblocks)*sizeof(NZBlockDesc2);
+      max_bytes += (nblocks)*sizeof(NZBlockDesc);
       max_bytes += nz_cnt*sizeof(T);
 
       bool success = backupBuffer_.AllocLocal(max_bytes);
@@ -2583,12 +2594,14 @@ bassert(fcol-1>=0);
   }
 
   //returns a reference to  a local supernode with id global
-  template <typename T> SuperNode2<T> * SupernodalMatrix2<T>::snodeLocal(Int global){
+  template <typename T> SuperNode<T> * SupernodalMatrix2<T>::snodeLocal(Int global){
     Int iLocal = snodeLocalIndex(global);
     return LocalSupernodes_[iLocal -1];
   }
 
-  template <typename T> SuperNode2<T> * SupernodalMatrix2<T>::snodeLocal(Int global, SYMPACK::vector<SuperNode2<T> *> & snodeColl){
+  template <typename T> 
+      template< class Alloc>
+SuperNode<T,Alloc> * SupernodalMatrix2<T>::snodeLocal(Int global, SYMPACK::vector<SuperNode<T,Alloc> *> & snodeColl){
     Int iLocal = snodeLocalIndex(global);
     return snodeColl[iLocal -1];
   }
@@ -3168,6 +3181,7 @@ bassert(pOwnerFirst==pOwnerLast && iam==pOwnerFirst);
 //logfileptr->OFS()<<mrglnk<<endl;
 //logfileptr->OFS()<<rchlnk<<endl;
 
+
     point = 1;
     for(Int locksup = 1; locksup<=nsuperLocal; ++locksup){
       Int ksup = locksup + firstSnode - 1;
@@ -3206,7 +3220,6 @@ bassert(pOwnerFirst==pOwnerLast && iam==pOwnerFirst);
             //receive jsup lindx
             //Int psrc = min( (Int)np-1, (jsup-1) / (nsuper/np) );
             Int psrc = 0; for(psrc = 0; psrc<iam;psrc++){ if(XsuperDist_[psrc]<=jsup && jsup<XsuperDist_[psrc+1]){ break; } }
-
             //logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<recvLindx.size()*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<endl;
             MPI_Recv(&recvLindx[0],recvLindx.size()*sizeof(Idx),MPI_BYTE,psrc,jsup+np,comm,&status);
             //get actual number of received elements
@@ -3258,6 +3271,29 @@ bassert(pOwnerFirst==pOwnerLast && iam==pOwnerFirst);
           parentJ = jsup;
           jsup = mrglnk[jsup-1];
         } while(jsup!=0 && knz < length);
+
+
+        //TODO do better than this:need to avoid sending unnecessary data
+        //receive the speculative sends
+        jsup = mrglnk[ksup-1];
+        //get the next element of the list
+        jsup = mrglnk[jsup-1];
+        while(jsup>0){
+          Int psrc = 0; for(psrc = 0; psrc<iam;psrc++){ if(XsuperDist_[psrc]<=jsup && jsup<XsuperDist_[psrc+1]){ break; } }
+          if(psrc!=iam){
+            MPI_Status status;
+            MPI_Request request;
+            MPI_Irecv(&recvLindx[0],recvLindx.size()*sizeof(Idx),MPI_BYTE,psrc,jsup+np,comm,&request);
+            MPI_Cancel(&request);
+          }
+          jsup = mrglnk[jsup-1];
+        }
+
+
+
+
+
+
       }
 
       //structure of a(*,fstcol) has not been examined yet.  
@@ -3382,12 +3418,7 @@ xlindx[locksup] = nzend+1;
         //send L asap
         //Int pdest = min( (Int)np-1, (psup-1) / (nsuper/np) );
 
-            Int pdest = 0;
-            for(pdest = 0; pdest<np;pdest++){
-              if(XsuperDist_[pdest]<=psup && psup<XsuperDist_[pdest+1]){
-                break;
-              }
-            }
+        Int pdest = 0; for(pdest = 0; pdest<np;pdest++){ if(XsuperDist_[pdest]<=psup && psup<XsuperDist_[pdest+1]){ break; } }
         //if remote
         if(pdest!=iam){
                 mpirequests.push_back(MPI_REQUEST_NULL);
@@ -3399,9 +3430,11 @@ xlindx[locksup] = nzend+1;
 
     }
 
+
+
+
     lindx.resize(nzend+1);
     MPI_Barrier(comm);
-
     TIMER_STOP(SymbolicFactorization);
   }
 

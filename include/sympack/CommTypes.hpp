@@ -26,7 +26,7 @@ using namespace std;
 namespace SYMPACK{
 
   template<typename T> class NumMat;
-  template<typename T> class SuperNode;
+  template<typename T, class Allocator> class SuperNode;
 
 
   class FBDelayedComm;

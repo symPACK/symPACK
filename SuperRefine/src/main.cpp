@@ -432,8 +432,8 @@ int main(int argc, char **argv)
     if(iam==0){ cout<<"Symbfact done"<<endl; }
 #endif
 
-    cout<<"Non refined perm is:"<<order.perm<<endl;
 #ifdef VERBOSE
+    cout<<"Non refined perm is:"<<order.perm<<endl;
     cout<<"Xsuper is "<<Xsuper<<endl;
     //cout<<"Xlindx is "<<Xlindx<<endl;
     //cout<<"Lindx is "<<Lindx<<endl;
@@ -444,6 +444,10 @@ int main(int argc, char **argv)
 
     Ordering orderSave = order;
 
+    if(argc>4){
+      maxSnode = atoi(argv[4]);
+    }
+
     vector<int> permRefined,origPerm,newXsuper;
     {
       double tstart = MPI_Wtime();
@@ -452,6 +456,8 @@ int main(int argc, char **argv)
         string algo(argv[3]);
         if(algo == "TSP"){
           ETree SupETree = Etree.ToSupernodalETree(Xsuper,SupMembership,order);
+          
+          tstart = MPI_Wtime();
           SymbolMatrix * symbmtx = GetPastixSymbolMatrix(Xsuper,SupMembership, Xlindx, Lindx);
           Order * psorder = GetPastixOrder(symbmtx,Xsuper, SupETree, &order.perm[0], &order.invp[0]);
           symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
@@ -499,8 +505,8 @@ int main(int argc, char **argv)
 
 
     if(iam==0){ 
-      cout<<"Refined perm is:"<<order.perm<<endl;
 #ifdef VERBOSE
+      cout<<"Refined perm is:"<<order.perm<<endl;
       cout<<"Original Supernodes: "<<Xsuper<<endl; 
 #endif
     }

@@ -3,8 +3,6 @@
 
 #include "sympack/Environment.hpp"
 #include "sympack/SupernodalMatrixBase.hpp"
-#include "sympack/SuperNode2.hpp"
-
 #include "sympack/DistSparseMatrix.hpp"
 #include "sympack/ETree.hpp"
 #include "sympack/Mapping.hpp"
@@ -22,6 +20,7 @@
 #include <deque>
 #include <queue>
 #include <vector>
+#include "SuperNode.hpp"
 
 #ifdef NO_INTRA_PROFILE
 #if defined (PROFILE)
@@ -62,9 +61,9 @@ namespace SYMPACK{
       const ETree & GetETree(){return ETree_;}
       const Ordering & GetOrdering(){return Order_;}
       const SYMPACK::vector<Int> & GetSupMembership(){return SupMembership_;}
-      SYMPACK::vector<SuperNode2<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 
+      SYMPACK::vector<SuperNode<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 
       //TODO Check if that's useful
-      SuperNode2<T> & GetLocalSupernode(Int i){ return *LocalSupernodes_[i]; } 
+      SuperNode<T> & GetLocalSupernode(Int i){ return *LocalSupernodes_[i]; } 
 
       SparseMatrixStructure GetGlobalStructure();
       SparseMatrixStructure GetLocalStructure() const;
@@ -148,13 +147,13 @@ namespace SYMPACK{
 
 
       //Vector holding pointers to local SuperNode2 objects (L factor)
-      SYMPACK::vector<SuperNode2<T> * > LocalSupernodes_;
+      SYMPACK::vector<SuperNode<T> * > LocalSupernodes_;
 
 
 
       //Vector holding pointers to local contributions
       //This has to be renamed because it contains the distributed solution
-      SYMPACK::vector<SuperNode2<T> *> Contributions_;
+      SYMPACK::vector<SuperNode<T,MallocAllocator> *> Contributions_;
 
 
 #ifndef ITREE2
@@ -181,8 +180,9 @@ namespace SYMPACK{
       //returns the 1-based index of supernode id global in the local supernode array
       Int snodeLocalIndex(Int global);
       //returns a reference to  a local supernode with id global
-      SuperNode2<T> * snodeLocal(Int global);
-      SuperNode2<T> * snodeLocal(Int global, SYMPACK::vector<SuperNode2<T> *> & snodeColl);
+      SuperNode<T> * snodeLocal(Int global);
+      template< class Alloc>
+      SuperNode<T,Alloc> * snodeLocal(Int global, SYMPACK::vector<SuperNode<T,Alloc> *> & snodeColl);
 
 
 
@@ -193,19 +193,24 @@ namespace SYMPACK{
 
       void FBFactorizationTask(SYMPACK::vector<std::list<FBTask> * > & taskLists, FBTask & curTask, Int iLocalI, bool is_static = false);
       void FBAggregationTask(SYMPACK::vector<std::list<FBTask> * > & taskLists, FBTask & curTask, Int iLocalI, bool is_static = false);
-      void FBUpdateTask(SYMPACK::vector<std::list<FBTask> * > & taskLists, FBTask & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector< SuperNode2<T> * > & aggVectors, Int & localTaskCount, bool is_static = false);
+      void FBUpdateTask(SYMPACK::vector<std::list<FBTask> * > & taskLists, FBTask & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector< SuperNode<T> * > & aggVectors, Int & localTaskCount, bool is_static = false);
 
       //Solve related routines
-      void forward_update(SuperNode2<T> * src_contrib,SuperNode2<T> * tgt_contrib);
-      void back_update(SuperNode2<T> * src_contrib,SuperNode2<T> * tgt_contrib);
+      template< class Alloc>
+      void forward_update(SuperNode<T,Alloc> * src_contrib,SuperNode<T,Alloc> * tgt_contrib);
+      template< class Alloc>
+      void back_update(SuperNode<T,Alloc> * src_contrib,SuperNode<T,Alloc> * tgt_contrib);
 
 
       //Communication related routines
       void AddOutgoingComm(AsyncComms & outgoingSend, Icomm * send_buffer);
       void AdvanceOutgoing(AsyncComms & outgoingSend);
-      void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode2<T> *> & snodeColl);
-      void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode2<T> *> & snodeColl);
-      void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode2<T> *> & snodeColl);
+      template< class Alloc>
+      void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T,Alloc> *> & snodeColl);
+      template< class Alloc>
+      void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T,Alloc> *> & snodeColl);
+      template< class Alloc>
+      void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T,Alloc> *> & snodeColl);
 
       void CheckIncomingMessages(SYMPACK::vector<std::list<FBTask> * > & taskLists,Int & localTaskCount, bool is_static = false);
 

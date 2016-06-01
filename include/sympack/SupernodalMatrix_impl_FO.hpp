@@ -22,7 +22,7 @@
 
 
 
-template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T> *> & snodeColl, bool reverse){
+template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T,MallocAllocator> *> & snodeColl, bool reverse){
 //  typedef volatile SYMPACK::Int Int;
  
   if(snodeColl.empty() || MsgToSend.empty()) { return;}
@@ -89,7 +89,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
 #endif
 
       Int iLocalSrc = snodeLocalIndex(src_snode_id);
-      SuperNode<T> & prev_src_snode = *snodeColl[iLocalSrc -1];
+      SuperNode<T,MallocAllocator> & prev_src_snode = *snodeColl[iLocalSrc -1];
 
       //        assert(prev_src_snode.Id()==src_snode_id);
 
@@ -186,7 +186,7 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
   template<typename T> void SupernodalMatrix<T>::AsyncRecvFactors(Int iLocalI, SYMPACK::vector<AsyncComms> & incomingRecvArr,SYMPACK::vector<Int> & FactorsToRecv,SYMPACK::vector<Int> & UpdatesToDo){
 
     for(Int nextLocalI = iLocalI;nextLocalI<=LocalSupernodes_.size();++nextLocalI){
-      SuperNode<T> * next_src_snode = LocalSupernodes_[nextLocalI-1];
+      SuperNode<T,MallocAllocator> * next_src_snode = LocalSupernodes_[nextLocalI-1];
       AsyncComms & incomingRecv = incomingRecvArr[nextLocalI-1]; 
 
 
@@ -195,7 +195,8 @@ template <typename T> void SupernodalMatrix<T>::SendDelayedMessages(Int iLocalI,
 
       for(Int idx =0; idx<maxRecvCnt && incomingRecvCnt_ + IrecvCnt < maxIrecv_;
           ++idx){
-        Int max_bytes = 6*sizeof(Int); 
+        //Int max_bytes = 6*sizeof(Int); 
+        Int max_bytes = sizeof(SuperNodeDesc);//6*sizeof(Int); 
         //The upper bound must be of the width of the "largest" child
         Int nrows = next_src_snode->NRowsBelowBlock(0);
         Int ncols = UpdateWidth_[next_src_snode->Id()-1];
@@ -329,7 +330,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
 
 
   for(Int i = LocalSupernodes_.size()-1; i>=0; --i){
-    SuperNode<T> & cur_snode = *LocalSupernodes_[i];
+    SuperNode<T,MallocAllocator> & cur_snode = *LocalSupernodes_[i];
 
     SnodeUpdate curUpdate;
     while(cur_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
@@ -363,7 +364,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
     AdvanceOutgoing(outgoingSend);
 
     if(iLocalI>0 && iLocalI<=LocalSupernodes_.size()){
-      SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
+      SuperNode<T,MallocAllocator> & src_snode = *LocalSupernodes_[iLocalI -1];
       I = src_snode.Id();
       Int src_first_col = src_snode.FirstCol();
       Int src_last_col = src_snode.LastCol();
@@ -385,7 +386,7 @@ template <typename T> void SupernodalMatrix<T>::FanOut( ){
         SnodeUpdate & curUpdate = LocalUpdates[iLocalI-1].front();
         //Int iLocalJ = (curUpdate.src_snode_id-1) / np +1; 
           Int iLocalJ = snodeLocalIndex(curUpdate.src_snode_id);
-        SuperNode<T> & local_src_snode = *LocalSupernodes_[iLocalJ-1];
+        SuperNode<T,MallocAllocator> & local_src_snode = *LocalSupernodes_[iLocalJ-1];
 
 
 #ifdef _DEBUG_PROGRESS_
@@ -416,12 +417,13 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
       AsyncComms & cur_incomingRecv = incomingRecvArr[iLocalI-1];
       MPI_Status recv_status;
 
+
       AsyncComms::iterator it = WaitIncomingFactors(cur_incomingRecv, recv_status,outgoingSend);
       while( it != cur_incomingRecv.end() ){
         Icomm * curComm = *it;
 
-        SuperNode<T> dist_src_snode;
-        size_t read_bytes = Deserialize(curComm->front(),dist_src_snode);
+        SuperNode<T,MallocAllocator> dist_src_snode;
+        size_t read_bytes = Deserialize(curComm->front(),curComm->size(),dist_src_snode);
 
 #ifdef _STAT_COMM_
           maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
@@ -447,7 +449,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
           if(iTarget == iam){
             //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
           Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
-            SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+            SuperNode<T,MallocAllocator> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 
 #ifdef _DEBUG_PROGRESS_
 logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
@@ -506,7 +508,8 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
         TIMER_START(RECV_MALLOC);
         if(src_blocks.size()==0){
-          max_bytes = 6*sizeof(Int); 
+          //max_bytes = 6*sizeof(Int); 
+          max_bytes = sizeof(SuperNodeDesc);//6*sizeof(Int); 
           //The upper bound must be of the width of the "largest" child
 #ifdef _DEBUG_
           logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_[I-1]<<std::endl;
@@ -548,11 +551,12 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 #else
         //receive the index array
         MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
+          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
 #endif
         TIMER_STOP(RECV_MPI);
 
-        SuperNode<T> dist_src_snode;
-        size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
+        SuperNode<T,MallocAllocator> dist_src_snode;
+        size_t read_bytes = Deserialize(&src_blocks[0],bytes_received,dist_src_snode);
 
 #ifdef _STAT_COMM_
           maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
@@ -584,7 +588,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
           if(iTarget == iam){
             //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
           Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
-            SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+            SuperNode<T,MallocAllocator> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 #ifdef _DEBUG_PROGRESS_
 logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
@@ -614,8 +618,7 @@ logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<
 
       timeEnd =  get_time( );
 #ifdef _DEBUG_
-      if(UpdatesToDo[src_snode.Id()-1]!=0){gdb_lock();}
-      assert(UpdatesToDo[src_snode.Id()-1]==0);
+      bassert(UpdatesToDo[src_snode.Id()-1]==0);
       logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
 #endif
 #ifdef _DEBUG_PROGRESS_
@@ -803,7 +806,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
 
   for(Int i = LocalSupernodes_.size()-1; i>=0; --i){
-    SuperNode<T> & cur_snode = *LocalSupernodes_[i];
+    SuperNode<T,MallocAllocator> & cur_snode = *LocalSupernodes_[i];
 
     SnodeUpdate curUpdate;
     while(cur_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
@@ -860,7 +863,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
         //       ++iLocalI; 
 
 
-        SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
+        SuperNode<T,MallocAllocator> & src_snode = *LocalSupernodes_[iLocalI -1];
         I = src_snode.Id();
         Int src_first_col = src_snode.FirstCol();
         Int src_last_col = src_snode.LastCol();
@@ -881,7 +884,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
         while(!LocalUpdates[iLocalI-1].empty()){
           SnodeUpdate & curUpdate = LocalUpdates[iLocalI-1].front();
           Int iLocalJ = snodeLocalIndex(curUpdate.src_snode_id);
-          SuperNode<T> & local_src_snode = *LocalSupernodes_[iLocalJ-1];
+          SuperNode<T,MallocAllocator> & local_src_snode = *LocalSupernodes_[iLocalJ-1];
 
 
 #ifdef _DEBUG_PROGRESS_
@@ -916,8 +919,8 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
         while( it != cur_incomingRecv.end() ){
           Icomm * curComm = *it;
 
-          SuperNode<T> dist_src_snode;
-          size_t read_bytes = Deserialize(curComm->front(),dist_src_snode);
+          SuperNode<T,MallocAllocator> dist_src_snode;
+          size_t read_bytes = Deserialize(curComm->front(),curComm->size(),dist_src_snode);
 
 #ifdef _STAT_COMM_
           maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
@@ -942,7 +945,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
             if(iTarget == iam){
               //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
               Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
-              SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+              SuperNode<T,MallocAllocator> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 
 #ifdef _DEBUG_PROGRESS_
               logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
@@ -1001,7 +1004,8 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
           TIMER_START(RECV_MALLOC);
           if(src_blocks.size()==0){
-            max_bytes = 6*sizeof(Int); 
+            //max_bytes = 6*sizeof(Int); 
+            max_bytes = sizeof(SuperNodeDesc);//6*sizeof(Int); 
             //The upper bound must be of the width of the "largest" child
 #ifdef _DEBUG_
             logfileptr->OFS()<<"Maximum width is "<<UpdateWidth_[I-1]<<std::endl;
@@ -1043,11 +1047,12 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 #else
           //receive the index array
           MPI_Recv(&src_blocks[0],max_bytes,MPI_BYTE,MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
+          MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
 #endif
           TIMER_STOP(RECV_MPI);
 
-          SuperNode<T> dist_src_snode;
-          size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
+          SuperNode<T,MallocAllocator> dist_src_snode;
+          size_t read_bytes = Deserialize(&src_blocks[0],bytes_received,dist_src_snode);
 
 #ifdef _STAT_COMM_
           maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
@@ -1079,7 +1084,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
             if(iTarget == iam){
               //Int iLocalJ = (curUpdate.tgt_snode_id-1) / np +1 ;
               Int iLocalJ = snodeLocalIndex(curUpdate.tgt_snode_id);
-              SuperNode<T> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
+              SuperNode<T,MallocAllocator> & tgt_snode = *LocalSupernodes_[iLocalJ -1];
 #ifdef _DEBUG_PROGRESS_
               logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
@@ -1109,8 +1114,7 @@ template <typename T> void SupernodalMatrix<T>::FanOutTask( ){
 
         timeEnd =  get_time( );
 #ifdef _DEBUG_
-        if(UpdatesToDo[src_snode.Id()-1]!=0){gdb_lock();}
-        assert(UpdatesToDo[src_snode.Id()-1]==0);
+        bassert(UpdatesToDo[src_snode.Id()-1]==0);
         logfileptr->OFS()<<"  Factoring Supernode "<<I<<" at "<<timeEnd-timeSta<<" s"<<std::endl;
 #endif
 #ifdef _DEBUG_PROGRESS_

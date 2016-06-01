@@ -271,7 +271,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
   Int src_snode_id = curTask.src_snode_id;
   Int tgt_snode_id = curTask.tgt_snode_id;
   Int I = src_snode_id;
-  SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
+  SuperNode<T,MallocAllocator> & src_snode = *LocalSupernodes_[iLocalI -1];
   Int src_first_col = src_snode.FirstCol();
   Int src_last_col = src_snode.LastCol();
 
@@ -315,8 +315,8 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
   AsyncComms::iterator it = WaitIncomingFactors(cur_incomingRecv, recv_status,outgoingSend);
   while( it != cur_incomingRecv.end() ){
     Icomm * curComm = *it;
-    SuperNode<T> dist_src_snode;
-    size_t read_bytes = Deserialize(curComm->front(),dist_src_snode);
+    SuperNode<T,MallocAllocator> dist_src_snode;
+    size_t read_bytes = Deserialize(curComm->front(),curComm->size(),dist_src_snode);
 
 #ifdef _STAT_COMM_
     maxAggregRecv_ = max(maxAggregRecv_,read_bytes);
@@ -377,8 +377,9 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
     MPI_Recv(&src_blocks[0],src_blocks.size(),MPI_BYTE,MPI_ANY_SOURCE,tag,CommEnv_->MPI_GetComm(),&recv_status);
     TIMER_STOP(RECV_MPI);
 
-    SuperNode<T> dist_src_snode;
-    size_t read_bytes = Deserialize(&src_blocks[0],dist_src_snode);
+    SuperNode<T,MallocAllocator> dist_src_snode;
+    MPI_Get_count(&recv_status, MPI_BYTE, &max_bytes);
+    size_t read_bytes = Deserialize(&src_blocks[0],max_bytes,dist_src_snode);
     //Deserialize the number of aggregates
     //Int * aggregatesCnt = (Int *)(&src_blocks[0]+read_bytes);
 
@@ -470,7 +471,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(SnodeUpdateF
 }
 
 
-template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesDone,SYMPACK::vector< SuperNode<T> * > & aggVectors, SYMPACK::vector<char> & src_blocks,SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr,  SYMPACK::vector<Int> & FactorsToRecv, SYMPACK::vector<Int> & AggregatesToRecv)
+template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesDone,SYMPACK::vector< SuperNode<T,MallocAllocator> * > & aggVectors, SYMPACK::vector<char> & src_blocks,SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr,  SYMPACK::vector<Int> & FactorsToRecv, SYMPACK::vector<Int> & AggregatesToRecv)
 {
   scope_timer(a,FB_UPDATE_TASK);
   Int src_snode_id = curTask.src_snode_id;
@@ -480,7 +481,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
   bool is_first_local = curTask.src_snode_id <0;
   curTask.src_snode_id = src_snode_id;
 
-  SuperNode<T> * cur_src_snode; 
+  SuperNode<T,MallocAllocator> * cur_src_snode; 
 
   src_blocks.resize(0);
 
@@ -538,7 +539,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
             logfileptr->OFS()<<"implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
             logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<endl;
 #endif
-            SuperNode<T> * tgt_aggreg;
+            SuperNode<T,MallocAllocator> * tgt_aggreg;
 
             Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
             if(iTarget == iam){
@@ -548,10 +549,18 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
             }
             else{
               //Check if src_snode_id already have an aggregate SYMPACK::vector
-              if(AggregatesDone[curUpdate.tgt_snode_id-1]==0){
-                aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,iSize_);
-              }
-              tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
+          if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==NULL){
+            //use number of rows below factor as initializer
+            Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
+
+            aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T,MallocAllocator>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
+          }
+          tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
+
+         //     if(AggregatesDone[curUpdate.tgt_snode_id-1]==0){
+         //       aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T,MallocAllocator>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1,iSize_);
+         //     }
+         //     tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
             }
 
 #ifdef _DEBUG_
@@ -661,6 +670,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(SnodeUpdateFB & cur
 
 template <typename T> void SupernodalMatrix<T>::FanBoth()
 {
+//gdb_lock();
   scope_timer(a,FACTORIZATION_FB);
 
   TIMER_START(FB_INIT);
@@ -703,7 +713,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
     }
   }
   tmpBufs.Resize(Size(),maxwidth);
-  SYMPACK::vector< SuperNode<T> * > aggVectors(Xsuper_.size()-1,NULL);
+  SYMPACK::vector< SuperNode<T,MallocAllocator> * > aggVectors(Xsuper_.size()-1,NULL);
 
 
   timeSta =  get_time( );
@@ -939,13 +949,13 @@ template <typename T> void SupernodalMatrix<T>::FBGetUpdateCount(SYMPACK::vector
 }
 
 
-template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const SnodeUpdateFB & curTask, SYMPACK::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, SYMPACK::vector<Int> & FactorsToRecv)
+template<typename T> SuperNode<T,MallocAllocator> * SupernodalMatrix<T>::FBRecvFactor(const SnodeUpdateFB & curTask, SYMPACK::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, SYMPACK::vector<Int> & FactorsToRecv)
 {
   scope_timer(a,RECV_FACTORS);
   //TIMER_START(RECV_FACTORS);
   Int iam = CommEnv_->MPI_Rank();
   Int np  = CommEnv_->MPI_Size();
-  SuperNode<T> * cur_src_snode = NULL;
+  SuperNode<T,MallocAllocator> * cur_src_snode = NULL;
   Int iSrcOwner = this->Mapping_->Map(curTask.src_snode_id-1,curTask.src_snode_id-1);
   
 
@@ -959,7 +969,7 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const Snod
     Int tag = FACT_TAG(curTask.src_snode_id,curTask.tgt_snode_id);
 
     TIMER_START(RECV_MPI);
-      SuperNode<T> * dist_src_snode = new SuperNode<T>();
+      SuperNode<T,MallocAllocator> * dist_src_snode = new SuperNode<T,MallocAllocator>();
       //Receive the factor
       //first wait for the Irecv
       bool do_blocking_recv = true;
@@ -971,7 +981,7 @@ template<typename T> SuperNode<T> * SupernodalMatrix<T>::FBRecvFactor(const Snod
         it = WaitIncomingFactors(*cur_incomingRecv, recv_status,outgoingSend);
         if( it != cur_incomingRecv->end() ){
           Icomm * curComm = *it;
-          size_t read_bytes = Deserialize(curComm->front(),*dist_src_snode);
+          size_t read_bytes = Deserialize(curComm->front(),curComm->size(),*dist_src_snode);
 
 #ifdef _STAT_COMM_
           maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);
@@ -1011,7 +1021,8 @@ assert(FactorsToRecv[curTask.tgt_snode_id-1]>0);
         //    logfileptr->OFS()<<"RECV After"<<endl;
         FactorsToRecv[curTask.tgt_snode_id-1]--;
 
-        size_t read_bytes = Deserialize(&src_blocks[0],*dist_src_snode);
+        MPI_Get_count(&recv_status, MPI_BYTE, &max_bytes);
+        size_t read_bytes = Deserialize(&src_blocks[0],max_bytes,*dist_src_snode);
 
 #ifdef _STAT_COMM_
           maxFactorsRecv_ = max(maxFactorsRecv_,read_bytes);

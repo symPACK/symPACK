@@ -43,7 +43,8 @@ namespace SYMPACK{
 
   template<typename T> 
     Int getAggBufSize(const SnodeUpdateFB & curTask, const SYMPACK::vector<Int> & Xsuper, const SYMPACK::vector<Int> & UpdateHeight){
-      Int max_bytes = 6*sizeof(Int); 
+      //Int max_bytes = 6*sizeof(Int); 
+      Int max_bytes = sizeof(SuperNodeDesc);//6*sizeof(Int); 
       //The upper bound must be of the width of the "largest" child
       Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
       Int ncols = Xsuper[curTask.tgt_snode_id] - Xsuper[curTask.tgt_snode_id-1];
@@ -59,7 +60,7 @@ namespace SYMPACK{
 
   template<typename T> 
     Int getFactBufSize(const SnodeUpdateFB & curTask, const SYMPACK::vector<Int> & UpdateWidth, const SYMPACK::vector<Int> & UpdateHeight){
-      Int max_bytes = 6*sizeof(Int); 
+      Int max_bytes = sizeof(SuperNodeDesc);//6*sizeof(Int); 
       //The upper bound must be of the width of the "largest" child
       Int nrows = UpdateHeight[curTask.tgt_snode_id-1];
       Int ncols = UpdateWidth[curTask.tgt_snode_id-1];
@@ -73,7 +74,8 @@ namespace SYMPACK{
 
   template<typename T> 
     Int getMaxBufSize(const SYMPACK::vector<Int> & UpdateWidth, const SYMPACK::vector<Int> & UpdateHeight){
-      Int max_bytes = 6*sizeof(Int); 
+      Int max_bytes = sizeof(SuperNodeDesc);//6*sizeof(Int); 
+      //Int max_bytes = 6*sizeof(Int); 
       //The upper bound must be of the width of the "largest" child
       Int nrows = 0;
       for(Int i = 0; i<UpdateHeight.size(); ++i ){ nrows = max(nrows, UpdateHeight[i]); }
@@ -108,8 +110,8 @@ namespace SYMPACK{
       const SYMPACK::vector<Int> & GetSupMembership(){return SupMembership_;}
 
       Int SupernodeCnt(){ return LocalSupernodes_.size(); } 
-      SYMPACK::vector<SuperNode<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 
-      SuperNode<T> & GetLocalSupernode(Int i){ return *LocalSupernodes_[i]; } 
+      SYMPACK::vector<SuperNode<T, MallocAllocator> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 
+      SuperNode<T, MallocAllocator> & GetLocalSupernode(Int i){ return *LocalSupernodes_[i]; } 
 
       SparseMatrixStructure GetGlobalStructure();
       SparseMatrixStructure GetLocalStructure() const;
@@ -127,12 +129,12 @@ namespace SYMPACK{
       void FanBothPull( );
       void FBPullAsyncRecv(Int iLocalI, SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr, SYMPACK::vector<Int> & AggregatesToRecv, SYMPACK::vector<Int> & FactorsToRecv);
       void FBPullFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, SYMPACK::vector<Int> & AggregatesDone, SYMPACK::vector<Int> & AggregatesToRecv, SYMPACK::vector<char> & src_blocks,SYMPACK::vector<AsyncComms> & incomingRecvAggArr);
-      void FBPullUpdateTask(SnodeUpdateFB & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesDone, SYMPACK::vector< SuperNode<T> * > & aggVectors, SYMPACK::vector<char> & src_blocks,SYMPACK::vector<AsyncComms * > & incomingRecvFactArr, SYMPACK::vector<Int> & FactorsToRecv);
+      void FBPullUpdateTask(SnodeUpdateFB & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesDone, SYMPACK::vector< SuperNode<T, MallocAllocator> * > & aggVectors, SYMPACK::vector<char> & src_blocks,SYMPACK::vector<AsyncComms * > & incomingRecvFactArr, SYMPACK::vector<Int> & FactorsToRecv);
 
 #ifdef _SEPARATE_COMM_
-      SuperNode<T> * FBPullRecvFactor(const SnodeUpdateFB & curTask, SYMPACK::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, SYMPACK::vector<Int> & FactorsToRecv, Int & recv_tgt_id);
+      SuperNode<T, MallocAllocator> * FBPullRecvFactor(const SnodeUpdateFB & curTask, SYMPACK::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, SYMPACK::vector<Int> & FactorsToRecv, Int & recv_tgt_id);
 #else
-      SuperNode<T> * FBPullRecvFactor(const SnodeUpdateFB & curTask, SYMPACK::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, SYMPACK::vector<Int> & FactorsToRecv);
+      SuperNode<T, MallocAllocator> * FBPullRecvFactor(const SnodeUpdateFB & curTask, SYMPACK::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, SYMPACK::vector<Int> & FactorsToRecv);
 #endif
 
 
@@ -211,7 +213,7 @@ namespace SYMPACK{
 
 
       //Vector holding pointers to local SuperNode objects (L factor)
-      SYMPACK::vector<SuperNode<T> * > LocalSupernodes_;
+      SYMPACK::vector<SuperNode<T, MallocAllocator> * > LocalSupernodes_;
 
 
 
@@ -222,7 +224,7 @@ namespace SYMPACK{
 
       //Vector holding pointers to local contributions
       //This has to be renamed because it contains the distributed solution
-      SYMPACK::vector<SuperNode<T> *> Contributions_;
+      SYMPACK::vector<SuperNode<T, MallocAllocator> *> Contributions_;
 
 
 
@@ -236,8 +238,8 @@ namespace SYMPACK{
       //returns the 1-based index of supernode id global in the local supernode array
       Int snodeLocalIndex(Int global);
       //returns a reference to  a local supernode with id global
-      SuperNode<T> * snodeLocal(Int global);
-      SuperNode<T> * snodeLocal(Int global, SYMPACK::vector<SuperNode<T> *> & snodeColl);
+      SuperNode<T, MallocAllocator> * snodeLocal(Int global);
+      SuperNode<T, MallocAllocator> * snodeLocal(Int global, SYMPACK::vector<SuperNode<T, MallocAllocator> *> & snodeColl);
 
 
 
@@ -269,7 +271,7 @@ namespace SYMPACK{
       Int FBTaskAsyncRecv(Int iLocalI, SnodeUpdateFB & curTask, SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr, SYMPACK::vector<Int> & AggregatesToRecv, SYMPACK::vector<Int> & FactorsToRecv);
       void FBAsyncRecv(Int iLocalI, SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr, SYMPACK::vector<Int> & AggregatesToRecv, SYMPACK::vector<Int> & FactorsToRecv);
       void FBFactorizationTask(SnodeUpdateFB & curTask, Int iLocalI, SYMPACK::vector<Int> & AggregatesDone, SYMPACK::vector<Int> & FactorsToRecv, SYMPACK::vector<Int> & AggregatesToRecv, SYMPACK::vector<char> & src_blocks,SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr);
-      void FBUpdateTask(SnodeUpdateFB & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesDone, SYMPACK::vector< SuperNode<T> * > & aggVectors, SYMPACK::vector<char> & src_blocks,SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr, SYMPACK::vector<Int> & FactorsToRecv, SYMPACK::vector<Int> & AggregatesToRecv);
+      void FBUpdateTask(SnodeUpdateFB & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesDone, SYMPACK::vector< SuperNode<T, MallocAllocator> * > & aggVectors, SYMPACK::vector<char> & src_blocks,SYMPACK::vector<AsyncComms> & incomingRecvAggArr, SYMPACK::vector<AsyncComms * > & incomingRecvFactArr, SYMPACK::vector<Int> & FactorsToRecv, SYMPACK::vector<Int> & AggregatesToRecv);
 
 
 
@@ -307,7 +309,7 @@ namespace SYMPACK{
 
 
 
-      inline bool FindNextUpdate(SuperNode<T> & src_snode, Int & tgt_snode_id, Int & f_ur, Int & f_ub, Int & n_ur, Int & n_ub);
+      inline bool FindNextUpdate(SuperNode<T, MallocAllocator> & src_snode, Int & tgt_snode_id, Int & f_ur, Int & f_ub, Int & n_ur, Int & n_ub);
 
       //FanOut related routines
 
@@ -315,18 +317,18 @@ namespace SYMPACK{
 
       void SendMessage(const FBDelayedComm & comm, AsyncComms & OutgoingSend);
 
-      void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T> *> & snodeColl);
+      void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T, MallocAllocator> *> & snodeColl);
 
 
-      void SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T> *> & snodeColl, bool reverse=false);
+      void SendDelayedMessages(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T, MallocAllocator> *> & snodeColl, bool reverse=false);
 
-      void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T> *> & snodeColl);
-      void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T> *> & snodeColl);
+      void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T, MallocAllocator> *> & snodeColl);
+      void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T, MallocAllocator> *> & snodeColl);
 #ifdef SINGLE_BLAS
-      inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, NumMat<T> & tmpBuf,SYMPACK::vector<Int> & src_colindx, SYMPACK::vector<Int> & src_rowindx, SYMPACK::vector<Int> & src_to_tgt_offset
+      inline void UpdateSuperNode(SuperNode<T, MallocAllocator> & src_snode, SuperNode<T, MallocAllocator> & tgt_snode,Int & pivot_idx, NumMat<T> & tmpBuf,SYMPACK::vector<Int> & src_colindx, SYMPACK::vector<Int> & src_rowindx, SYMPACK::vector<Int> & src_to_tgt_offset
           , Int  pivot_fr = I_ZERO);
 #else
-      inline void UpdateSuperNode(SuperNode<T> & src_snode, SuperNode<T> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
+      inline void UpdateSuperNode(SuperNode<T, MallocAllocator> & src_snode, SuperNode<T, MallocAllocator> & tgt_snode,Int & pivot_idx, Int  pivot_fr = I_ZERO);
 #endif
 
       void SendDelayedMessagesUp(FBCommList & MsgToSend, AsyncComms & OutgoingSend, const SnodeUpdateFB * nextTask);
@@ -339,14 +341,14 @@ namespace SYMPACK{
       Int FBUpdate(Int I,Int prevJ=-1);
       void FBGetUpdateCount(SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesToRecv);
 #ifdef _SEPARATE_COMM_
-      SuperNode<T> * FBRecvFactor(const SnodeUpdateFB & curTask, SYMPACK::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, SYMPACK::vector<Int> & FactorsToRecv, Int & recv_tgt_id);
+      SuperNode<T, MallocAllocator> * FBRecvFactor(const SnodeUpdateFB & curTask, SYMPACK::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, SYMPACK::vector<Int> & FactorsToRecv, Int & recv_tgt_id);
 #else
-      SuperNode<T> * FBRecvFactor(const SnodeUpdateFB & curTask, SYMPACK::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, SYMPACK::vector<Int> & FactorsToRecv);
+      SuperNode<T, MallocAllocator> * FBRecvFactor(const SnodeUpdateFB & curTask, SYMPACK::vector<char> & src_blocks,AsyncComms * cur_incomingRecv,AsyncComms::iterator & it, SYMPACK::vector<Int> & FactorsToRecv);
 #endif
 
       //Solve related routines
-      void forward_update(SuperNode<T> * src_contrib,SuperNode<T> * tgt_contrib);
-      void back_update(SuperNode<T> * src_contrib,SuperNode<T> * tgt_contrib);
+      void forward_update(SuperNode<T, MallocAllocator> * src_contrib,SuperNode<T, MallocAllocator> * tgt_contrib);
+      void back_update(SuperNode<T, MallocAllocator> * src_contrib,SuperNode<T, MallocAllocator> * tgt_contrib);
 
 
     protected:
