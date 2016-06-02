@@ -1382,12 +1382,12 @@ void SparseMatrixStructure::RelaxSupernodes(ETree& tree, vector<int> & cc,vector
 
 
 
-void SparseMatrixStructure::RefineSupernodesBarry(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx){
+void SparseMatrixStructure::RefineSupernodesBarry(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx,int ordflag,int altflag){
 
 
     int neqns = size;
-    int ordflag =2;
-    int altflag =1;
+//    int ordflag =2;
+//    int altflag =1;
 
     int nofsub =lindx.size();
     int nsuper = xsuper.size()-1;

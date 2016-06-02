@@ -471,7 +471,15 @@ int main(int argc, char **argv)
 
         }
         else if(algo == "Barry"){
-          Global.RefineSupernodesBarry(Etree,order, SupMembership, Xsuper, Xlindx, Lindx);
+    int ordflag = 2;
+    int altflag = 1;
+    if(argc>5){
+      ordflag = atoi(argv[5]);
+    }
+    if(argc>6){
+      altflag = atoi(argv[6]);
+    }
+          Global.RefineSupernodesBarry(Etree,order, SupMembership, Xsuper, Xlindx, Lindx,ordflag,altflag);
         }
         else{
           Global.RefineSupernodes(Etree,order, SupMembership, Xsuper, Xlindx, Lindx, permRefined,origPerm);
