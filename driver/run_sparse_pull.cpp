@@ -121,6 +121,9 @@ int main(int argc, char **argv)
     }
   }
 
+  if( options.find("-refine") != options.end() ){
+      optionsFact.order_refinement_str = options["-refine"].front();
+  }
 
   if( options.find("-lb") != options.end() ){
       optionsFact.load_balance_str = options["-lb"].front();

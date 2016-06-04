@@ -42,7 +42,7 @@ class SparseMatrixStructure{
   void FindSupernodes(ETree& tree, Ordering & aOrder, vector<int> & cc,vector<int> & supMembership, vector<int> & xsuper, int maxSize = -1);
   void FindFundamentalSupernodes(ETree& tree, Ordering & aOrder, vector<int> & cc,vector<int> & supMembership, vector<int> & xsuper, int maxSize = -1);
   void RefineSupernodes(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx, vector<int> & perm, vector<int> & origPerm);
-  void RefineSupernodesBarry(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx);
+  void RefineSupernodesBarry(ETree& tree, Ordering & aOrder, vector<int> & supMembership, vector<int> & xsuper, vector<int64_t> & xlindx, vector<int32_t> & lindx,int ordflag,int altflag);
 
   void RelaxSupernodes(ETree& tree, vector<int> & cc,vector<int> & supMembership, vector<int> & xsuper, int maxSize );
   void SymbolicFactorizationRelaxed(ETree& tree, Ordering & aOrder,const vector<int> & cc,const vector<int> & xsuper,const vector<int> & SupMembership, vector<int64_t> & xlindx, vector<int32_t> & lindx);

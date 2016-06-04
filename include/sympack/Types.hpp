@@ -78,6 +78,7 @@ namespace SYMPACK{
   enum LoadBalanceType {NOLB,NNZ,NCOLS,FLOPS,SUBCUBE,SUBCUBE_NNZ};
   enum OrderingType {NATURAL,MMD,AMD,NDBOX,NDGRID,SCOTCH,PTSCOTCH,METIS,PARMETIS,USER};
   enum SchedulerType {DL,MCT,PR,FIFO};
+  //enum OrderRefinementType {BarryDL,MCT,PR,FIFO};
   class NGCholOptions{
     public:
       MappingType mappingType;
@@ -85,6 +86,7 @@ namespace SYMPACK{
       FactorizationType factorization;
       LoadBalanceType load_balance;
       std::string load_balance_str;
+      std::string order_refinement_str;
       OrderingType ordering;
       SchedulerType scheduler;
       Int maxIsend;
@@ -124,6 +126,7 @@ namespace SYMPACK{
         relax = RelaxationParameters(maxSnode);
         commEnv = NULL;
         ordering = MMD;
+        order_refinement_str = "NONE";
       }
 
       Int used_procs(Int np){

@@ -170,6 +170,8 @@ namespace SYMPACK{
 
   void symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> & cc);
 
+  void refineSupernodes(int ordflag,int altflag);
+
   void getLColRowCount(SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & rc);
 
 

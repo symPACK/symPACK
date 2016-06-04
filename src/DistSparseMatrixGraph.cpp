@@ -366,14 +366,18 @@ namespace SYMPACK{
 
     //Idx colPerProc = size / mpisize;
     Int firstCol = LocalFirstVertex()-baseval; //0 based
+    Int newFirstCol = newVertexDist[mpirank]-baseval; //0 based
+    Ptr newVtxCount = newVertexDist[mpirank+1] - newVertexDist[mpirank];
 
 
     SYMPACK::vector<int> sizes(mpisize,0);
 
     for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
       Idx col = firstCol + locCol; //0-based
-      Ptr colbeg = colptr[locCol] - baseval;
-      Ptr colend = colptr[locCol+1] - baseval;
+      //Ptr colbeg = colptr[locCol] - baseval;
+      //Ptr colend = colptr[locCol+1] - baseval;
+      Ptr colbeg = colptr.at(locCol) - baseval;
+      Ptr colend = colptr.at(locCol+1) - baseval;
       Idx permCol = invp[col]-invpbaseval; // 0 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
@@ -382,9 +386,11 @@ namespace SYMPACK{
 
       //now permute rows
       for(Ptr jptr = colbeg; jptr<colend; jptr++){
-        Idx row = rowind[jptr] - baseval; //0 based
+        //Idx row = rowind[jptr] - baseval; //0 based
+        Idx row = rowind.at(jptr) - baseval; //0 based
         Idx permRow = invp[row] - invpbaseval; // 0 based
-        rowind[jptr] = permRow + baseval;
+        //rowind[jptr] = permRow + baseval;
+        rowind.at(jptr) = permRow + baseval;
       }
     }
 
@@ -409,8 +415,10 @@ namespace SYMPACK{
     //pack
     for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
       Idx col = firstCol + locCol; 
-      Ptr colbeg = colptr[locCol]-baseval;
-      Ptr colend = colptr[locCol+1]-baseval;
+      //Ptr colbeg = colptr[locCol]-baseval;
+      //Ptr colend = colptr[locCol+1]-baseval;
+      Ptr colbeg = colptr.at(locCol) - baseval;
+      Ptr colend = colptr.at(locCol+1) - baseval;
       Idx permCol = invp[col]-invpbaseval; // perm is 1 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
@@ -427,7 +435,8 @@ namespace SYMPACK{
 
       *pPermCol = permCol;
       *pRowsCnt = (colend - colbeg);
-      std::copy(&rowind[0]+colbeg ,&rowind[0]+colend, pPermRows );
+      //std::copy(&rowind[0]+colbeg ,&rowind[0]+colend, pPermRows );
+      std::copy(&rowind.at(colbeg) ,&rowind.at(colend-1)+1, pPermRows );
 
 
       //      logfileptr->OFS()<<*pPermCol<<" ("<<locCol<<"): ";
@@ -438,6 +447,7 @@ namespace SYMPACK{
 
 
     }
+
 
     //re compute send displs
     displs[0] = 0;
@@ -456,6 +466,8 @@ namespace SYMPACK{
     displs.clear();
     rdispls.clear();
 
+
+colptr.resize(newVtxCount+1);
     //unpack first by overwriting colptr and then rowind
     Ptr rpos = 0; 
     colptr[0]=baseval;
@@ -467,8 +479,9 @@ namespace SYMPACK{
       Idx * permRows = (Idx*)&rbuf[rpos];
       rpos += (*rowsCnt)*sizeof(Idx);
 
-      Idx locCol = *permCol - firstCol;
-      colptr[locCol+1] = *rowsCnt; 
+      Idx locCol = *permCol - newFirstCol;
+      //colptr[locCol+1] = *rowsCnt; 
+      colptr.at(locCol+1) = *rowsCnt; 
     }
     std::partial_sum(colptr.begin(),colptr.end(),colptr.begin());
 
@@ -485,7 +498,7 @@ namespace SYMPACK{
       Idx * permRows = (Idx*)&rbuf[rpos];
       rpos += (*rowsCnt)*sizeof(Idx);
 
-      Idx locCol = *permCol - firstCol;
+      Idx locCol = *permCol - newFirstCol;
 
       //logfileptr->OFS()<<*permCol<<" ("<<locCol<<"): ";
       //for(Ptr jptr = 0; jptr<*rowsCnt; jptr++){
@@ -494,7 +507,8 @@ namespace SYMPACK{
       //logfileptr->OFS()<<endl;
 
       std::copy(permRows,permRows + *rowsCnt, &rowind[colpos[locCol]-baseval]);
-      colpos[locCol] += *rowsCnt;
+      //colpos[locCol] += *rowsCnt;
+      colpos.at(locCol) += *rowsCnt;
     }
 
     //copy newVertexDist into vertexDist
@@ -1203,9 +1217,11 @@ bassert(col>=curFirstColumn && col<=curLastColumn);
 
     //fix colptr
     Idx pos = remoteVertexCnt[0];
+    Ptr offset = 0;
     for(int p=1;p<mpisize;p++){
+      offset+=remoteEdgeCnt[p-1]; 
       for(Idx lv = 0; lv < remoteVertexCnt[p]; lv++){
-        g.colptr[pos++] += remoteEdgeCnt[p-1];//(vertexDist[p] - baseval);
+        g.colptr[pos++] += offset;//remoteEdgeCnt[p-1];//(vertexDist[p] - baseval);
       }
     }
     g.colptr.back()=totalEdgeCnt + baseval;

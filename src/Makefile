@@ -9,6 +9,7 @@ SRCS_CPP = ETree.cpp utility.cpp timer.cpp blas.cpp lapack.cpp global.cpp LogFil
 UPCXX_CPP = 
 SRCS_F   =  boxnd.f gridnd.f
 SRCS_FF   = genmmd.F mmdelm.F  mmdint.F  mmdnum.F  mmdupd.F  ordmmd.F amdbar.F 
+SRCS_F   += ordsup.f mcssup.f invinv.f betree.f ins_heap.f del_heap.f move_up.f mod_heap.f move_down.f
 
 OBJS     = ${UPCXX_CPP:.cpp=.o} ${SRCS_CPP:.cpp=.o} ${SRCS_C:.c=.o} ${SRCS_F:.f=.o} ${SRCS_FF:.F=.o}
 DEPS     = ${UPCXX_CPP:.cpp=.d} ${SRCS_CPP:.cpp=.d} ${SRCS_C:.c=.d} ${SRCS_F:.f=.d} ${SRCS_FF:.F=.d}
