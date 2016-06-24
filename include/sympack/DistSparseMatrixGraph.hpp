@@ -10,9 +10,11 @@ class ETree;
 class Ordering;
 class SparseMatrixStructure;
 class DistSparseMatrixGraph;
+class SparseMatrixGraph;
 
 class SparseMatrixGraph{
   friend class Ordering;
+  friend class DistSparseMatrixGraph;
   public:
   Idx          size;                            // Matrix dimension (global)
   Ptr          nnz;                             // Number of nonzeros (global)
@@ -22,11 +24,14 @@ class SparseMatrixGraph{
   int baseval;
   int keepDiag;
   int sorted;
+  bool bIsExpanded;
+
   public:
   void SetBaseval(int aBaseval);
   void SetKeepDiag(int aKeepDiag);
   void SetSorted(int aSorted);
 
+  bool IsExpanded() const {return bIsExpanded;}
   int GetBaseval() const {return baseval;}
   int GetKeepDiag()const {return keepDiag;}
   int GetSorted() const {return sorted;}

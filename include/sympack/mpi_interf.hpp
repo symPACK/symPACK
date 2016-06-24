@@ -48,28 +48,29 @@ namespace SYMPACK{
       };		// -----  end of function Gatherv  ----- 
 
 
-inline void 
-Allreduce( Real* sendbuf, Real* recvbuf, Int count, MPI_Op op, MPI_Comm comm)
-{
+
+template<typename T>
+void Allreduce( T* sendbuf, T* recvbuf, Int count, MPI_Op op, MPI_Comm comm){};
+
+template<>
+void Allreduce<double>( double* sendbuf, double* recvbuf, Int count, MPI_Op op, MPI_Comm comm){
       MPI_Allreduce( sendbuf, recvbuf, count, MPI_DOUBLE, op, comm );
 }
 
-
-inline void 
-Allreduce( Complex* sendbuf, Complex* recvbuf, Int count, MPI_Op op, MPI_Comm comm)
-{
-      MPI_Allreduce( sendbuf, recvbuf, 2*count, MPI_DOUBLE, op, comm );
+template<>
+void Allreduce<float>( float* sendbuf, float* recvbuf, Int count, MPI_Op op, MPI_Comm comm){
+      MPI_Allreduce( sendbuf, recvbuf, count, MPI_FLOAT, op, comm );
 }
 
+template<>
+void Allreduce<std::complex<float> >( std::complex<float>* sendbuf, std::complex<float>* recvbuf, Int count, MPI_Op op, MPI_Comm comm){
+      MPI_Allreduce( sendbuf, recvbuf, count, MPI_COMPLEX, op, comm );
+}
 
-//template<typename T>
-//void 
-//Allreduce( T* sendbuf, T* recvbuf, Int count, MPI_Op op, MPI_Comm comm)
-//{
-//      MPI_Allreduce( sendbuf, recvbuf, count*sizeof(T), MPI_BYTE, op, comm );
-//}
-
-
+template<>
+void Allreduce<std::complex<double> >( std::complex<double>* sendbuf, std::complex<double>* recvbuf, Int count, MPI_Op op, MPI_Comm comm){
+      MPI_Allreduce( sendbuf, recvbuf, count, MPI_DOUBLE_COMPLEX, op, comm );
+}
 
   }
 }

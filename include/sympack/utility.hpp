@@ -8,8 +8,8 @@
 #include  <mpi.h>
 #include  <stdlib.h>
 #include  "sympack/Environment.hpp"
-#include  "sympack/NumVec.hpp"
-#include  "sympack/NumMat.hpp"
+//#include  "sympack/NumVec.hpp"
+//#include  "sympack/NumMat.hpp"
 #include  "sympack/DistSparseMatrix.hpp"
 #include  "sympack/ETree.hpp"
 
@@ -377,44 +377,6 @@ template <class F> inline std::ostream& operator<<( std::ostream& os, const SYMP
 	return os;
 }
 
-// NumVec
-template <typename F, typename TIdx> inline std::ostream& operator<<( std::ostream& os, const NumVec<F,TIdx>& vec)
-{
-	os<<vec.m()<<std::endl;
-	os.setf(std::ios_base::scientific, std::ios_base::floatfield);
-	for(TIdx i=0; i<vec.m(); i++){ 
-		os<<" "<<vec(i);
-    if(((i+1)%10)==0){
-	    os<<std::endl;
-    }
-  }
-	os<<std::endl;
-	return os;
-}
-
-//template <class F> inline std::istream& operator>>( std::istream& is, NumVec<F>& vec)
-//{
-//	Int m;  is>>m;  vec.resize(m);
-//	for(Int i=0; i<vec.m(); i++)	 
-//		is >> vec(i);
-//	return is;
-//}
-
-// NumMat
-template <class F> inline std::ostream& operator<<( std::ostream& os, const NumMat<F>& mat)
-{
-  os<<mat.m()<<" "<<mat.n()<<std::endl;
-  os.setf(std::ios_base::scientific, std::ios_base::floatfield);
-  os << std::setprecision(16);
-  for(Int i=0; i<mat.m(); i++) {
-    for(Int j=0; j<mat.n(); j++)
-      os<<" "<<mat(i,j);
-    os<<std::endl;
-  }
-  return os;
-}
-
-
 // Etree
 inline std::ostream& operator<<( std::ostream& os, const ETree& tree) 
 {
@@ -658,303 +620,6 @@ Int combine(std::pair<T,S>& val, std::pair<T,S>& ext)
   return 0;
 }
 
-/*
-//-------------------
-//BolNumVec
-inline Int serialize(const BolNumVec& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
-{
-  Int m = val.m();
-  os.write((char*)&m, sizeof(Int));
-  os.write((char*)(val.Data()), m*sizeof(bool));
-  return 0;
-}
-
-inline Int deserialize(BolNumVec& val, std::istream& is, const SYMPACK::vector<Int>& mask)
-{
-  Int m;
-  is.read((char*)&m, sizeof(Int));
-  val.Resize(m);
-  is.read((char*)(val.Data()), m*sizeof(bool));
-  return 0;
-}
-
-//-------------------
-//BolNumMat
-inline Int serialize(const BolNumMat& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
-{
-  Int m = val.m();
-  Int n = val.n();
-  os.write((char*)&m, sizeof(Int));
-  os.write((char*)&n, sizeof(Int));
-  os.write((char*)(val.Data()), m*n*sizeof(bool));
-  return 0;
-}
-
-inline Int deserialize(BolNumMat& val, std::istream& is, const SYMPACK::vector<Int>& mask)
-{
-  Int m;
-  Int n;
-  is.read((char*)&m, sizeof(Int));
-  is.read((char*)&n, sizeof(Int));
-  val.Resize(m,n);
-  is.read((char*)(val.Data()), m*n*sizeof(bool));
-  return 0;
-}
-
-*/
-
-//-------------------
-//IntNumVec
-inline Int serialize(const IntNumVec& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
-{
-  Int m = val.m();
-  os.write((char*)&m, sizeof(Int));
-  os.write((char*)(val.Data()), m*sizeof(Int));
-  return 0;
-}
-
-inline Int deserialize(IntNumVec& val, std::istream& is, const SYMPACK::vector<Int>& mask)
-{
-  Int m;
-  is.read((char*)&m, sizeof(Int));
-  val.Resize(m);
-  is.read((char*)(val.Data()), m*sizeof(Int));
-  return 0;
-}
-
-inline Int combine(IntNumVec& val, IntNumVec& ext)
-{
-  //val.resize(ext.m());
-  assert(val.m()==ext.m());
-  for(Int i=0; i<val.m(); i++)    val(i) += ext(i);
-  return 0;
-}
-
-
-//-------------------
-//IntNumMat
-inline Int serialize(const IntNumMat& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
-{
-  Int m = val.m();
-  Int n = val.n();
-  os.write((char*)&m, sizeof(Int));
-  os.write((char*)&n, sizeof(Int));
-  os.write((char*)(val.Data()), m*n*sizeof(Int));
-  return 0;
-}
-
-inline Int deserialize(IntNumMat& val, std::istream& is, const SYMPACK::vector<Int>& mask)
-{
-  Int m;
-  Int n;
-  is.read((char*)&m, sizeof(Int));
-  is.read((char*)&n, sizeof(Int));
-  val.Resize(m,n);
-  is.read((char*)(val.Data()), m*n*sizeof(Int));
-  return 0;
-}
-
-inline Int combine(IntNumMat& val, IntNumMat& ext)
-{
-  //val.resize(ext.m(),ext.n());
-  assert(val.m()==ext.m() && val.n()==ext.n());
-  for(Int i=0; i<val.m(); i++)
-    for(Int j=0; j<val.n(); j++)
-      val(i,j) += ext(i,j);
-  return 0;
-}
-
-//-------------------
-//DblNumVec
-inline Int serialize(const DblNumVec& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
-{
-  Int m = val.m();
-  os.write((char*)&m, sizeof(Int));
-  os.write((char*)(val.Data()), m*sizeof(Real));
-  return 0;
-}
-
-inline Int deserialize(DblNumVec& val, std::istream& is, const SYMPACK::vector<Int>& mask)
-{
-  Int m;
-  is.read((char*)&m, sizeof(Int));
-  val.Resize(m);
-  is.read((char*)(val.Data()), m*sizeof(Real));
-  return 0;
-}
-
-inline Int combine(DblNumVec& val, DblNumVec& ext)
-{
-  //val.resize(ext.m());
-  assert(val.m()==ext.m());
-  for(Int i=0; i<val.m(); i++)    val(i) += ext(i);
-  return 0;
-}
-
-//-------------------
-//DblNumMat
-inline Int serialize(const DblNumMat& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
-{
-  Int m = val.m();
-  Int n = val.n();
-  os.write((char*)&m, sizeof(Int));
-  os.write((char*)&n, sizeof(Int));
-  os.write((char*)(val.Data()), m*n*sizeof(Real));
-  return 0;
-}
-
-inline Int deserialize(DblNumMat& val, std::istream& is, const SYMPACK::vector<Int>& mask)
-{
-  Int m;
-  Int n;
-  is.read((char*)&m, sizeof(Int));
-  is.read((char*)&n, sizeof(Int));
-  val.Resize(m,n);
-  is.read((char*)(val.Data()), m*n*sizeof(Real));
-  return 0;
-}
-
-inline Int combine(DblNumMat& val, DblNumMat& ext)
-{
-  //val.resize(ext.m(),ext.n());
-  assert(val.m()==ext.m() && val.n()==ext.n());
-  for(Int i=0; i<val.m(); i++)
-    for(Int j=0; j<val.n(); j++)
-      val(i,j) += ext(i,j);
-  return 0;
-}
-
-
-
-
-//-------------------
-//CpxNumVec
-inline Int serialize(const CpxNumVec& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
-{
-  Int m = val.m();
-  os.write((char*)&m, sizeof(Int));
-  os.write((char*)(val.Data()), m*sizeof(Complex));
-  return 0;
-}
-
-inline Int deserialize(CpxNumVec& val, std::istream& is, const SYMPACK::vector<Int>& mask)
-{
-  Int m;
-  is.read((char*)&m, sizeof(Int));
-  val.Resize(m);
-  is.read((char*)(val.Data()), m*sizeof(Complex));
-  return 0;
-}
-
-inline Int combine(CpxNumVec& val, CpxNumVec& ext)
-{
-  //val.resize(ext.m());
-  assert(val.m()==ext.m());
-  for(Int i=0; i<val.m(); i++)    val(i) += ext(i);
-  return 0;
-}
-
-//-------------------
-//CpxNumMat
-inline Int serialize(const CpxNumMat& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
-{
-  Int m = val.m();
-  Int n = val.n();
-  os.write((char*)&m, sizeof(Int));
-  os.write((char*)&n, sizeof(Int));
-  os.write((char*)(val.Data()), m*n*sizeof(Complex));
-  return 0;
-}
-
-inline Int deserialize(CpxNumMat& val, std::istream& is, const SYMPACK::vector<Int>& mask)
-{
-  Int m;
-  Int n;
-  is.read((char*)&m, sizeof(Int));
-  is.read((char*)&n, sizeof(Int));
-  val.Resize(m,n);
-  is.read((char*)(val.Data()), m*n*sizeof(Complex));
-  return 0;
-}
-
-inline Int combine(CpxNumMat& val, CpxNumMat& ext)
-{
-  //val.resize(ext.m(),ext.n());
-  assert(val.m()==ext.m() && val.n()==ext.n());
-  for(Int i=0; i<val.m(); i++)
-    for(Int j=0; j<val.n(); j++)
-      val(i,j) += ext(i,j);
-  return 0;
-}
-
-
-
-//-------------------
-//NumVec
-template<typename T, typename TIdx>
-Int inline serialize(const NumVec<T,TIdx>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
-{
-  TIdx m = val.m();
-  os.write((char*)&m, sizeof(TIdx));
-  for(TIdx i=0; i<m; i++)
-	serialize(val(i), os, mask);
-  return 0;
-}
-
-template<typename T, typename TIdx>
-Int inline deserialize(NumVec<T,TIdx>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
-{
-  TIdx m;
-  is.read((char*)&m, sizeof(TIdx));
-  val.Resize(m);
-  for(TIdx i=0; i<m; i++)
-    deserialize(val(i), is, mask);
-  return 0;
-}
-
-template<typename T, typename TIdx>
-Int inline combine(NumVec<T,TIdx>& val, NumVec<T,TIdx>& ext)
-{
-	throw  std::logic_error( "Combine operation not implemented." );
-  return 0;
-}
-
-//-------------------
-//NumMat
-template<class T>
-Int inline serialize(const NumMat<T>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
-{
-  Int m = val.m();
-  Int n = val.n();
-  os.write((char*)&m, sizeof(Int));
-  os.write((char*)&n, sizeof(Int));
-  for(Int j=0; j<n; j++)
-	for(Int i=0; i<m; i++)
-	  serialize(val(i,j), os, mask);
-  return 0;
-}
-template<class T>
-Int inline deserialize(NumMat<T>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
-{
-  Int m;
-  Int n;
-  is.read((char*)&m, sizeof(Int));
-  is.read((char*)&n, sizeof(Int));
-  val.Resize(m,n);
-  for(Int j=0; j<n; j++)
-	for(Int i=0; i<m; i++)
-	  deserialize(val(i,j), is, mask);
-  return 0;
-}
-
-template<class T>
-Int inline combine(NumMat<T>& val, NumMat<T>& ext)
-{
-	throw  std::logic_error( "Combine operation not implemented." );
-  return 0;
-}
-
-
 
 
 //-------------------
@@ -1007,129 +672,6 @@ Int SharedRead(std::string name, std::istringstream& is);
 
 Int SharedWrite(std::string name, std::ostringstream& os);
 
-// *********************************************************************
-// Ej
-// *********************************************************************
-inline void IdentityCol( Int col, NumVec<Real,Int>& vec )
-{
-	for(Int i=0; i<std::min(col,vec.m()); i++)
-		vec(i) = 0.0;
-  
-  if(col<vec.m())
-    vec(col) = 1.0;
-
-
-	for(Int i=col+1; i<vec.m(); i++)
-		vec(i) = 0.0;
-}
-
-inline void IdentityCol( Int col, NumVec<Complex,Int>& vec )
-{
-	for(Int i=0; i<std::min(col,vec.m()); i++)
-		vec(i) = Complex(0.0,0.0);
-  
-  if(col<vec.m())
-    vec(col) = Complex(1.0,0.0);
-
-
-	for(Int i=col+1; i<vec.m(); i++)
-		vec(i) = Complex(0.0,0.0);
-}
-
-
-
-inline void IdentityCol( IntNumVec & cols, NumMat<Real>& mat )
-{
-  for(Int j=0;j<cols.m();j++){
-    Int col= cols(j);
-    for(Int i=0; i<std::min(col,mat.m()); i++)
-      mat(i,j) = 0.0;
-
-    if(col<mat.m())
-      mat(col,j) = 1.0;
-
-
-    for(Int i=col+1; i<mat.m(); i++)
-      mat(i,j) = 0.0;
-  }
-}
-
-
-inline void IdentityCol( IntNumVec & cols, NumMat<Complex>& mat )
-{
-  for(Int j=0;j<cols.m();j++){
-    Int col= cols(j);
-	for(Int i=0; i<std::min(col,mat.m()); i++)
-		mat(i,j) = Complex(0.0,0.0);
-  
-  if(col<mat.m())
-    mat(col,j) = Complex(1.0,0.0);
-
-
-	for(Int i=col+1; i<mat.m(); i++)
-		mat(i,j) = Complex(0.0,0.0);
-}
-}
-
-
-
-
-// *********************************************************************
-// Random numbers
-// *********************************************************************
-inline void SetRandomSeed(long int seed){
-	srand48(seed);
-}
-
-inline Real UniformRandom(){
-	return (Real)drand48();
-}
-
-
-inline void UniformRandom( Real * vec, Int size )
-{
-	for(Int i=0; i<size; i++)
-		vec[i] = UniformRandom();
-}
-
-
-
-
-inline void UniformRandom( NumVec<Real,Int>& vec )
-{
-	for(Int i=0; i<vec.m(); i++)
-		vec(i) = UniformRandom();
-}
-
-inline void UniformRandom( NumVec<Complex,Int>& vec )
-{
-	for(Int i=0; i<vec.m(); i++)
-		vec(i) = Complex(UniformRandom(), UniformRandom());
-}
-
-inline void UniformRandom( NumMat<Real>& M )
-{
-	Real *ptr = M.Data();
-  for(Int i=0; i < M.m() * M.n(); i++) 
-		*(ptr++) = UniformRandom(); 
-}
-
-inline void UniformRandom( NumMat<Complex>& M )
-{
-	Complex *ptr = M.Data();
-  for(Int i=0; i < M.m() * M.n(); i++) 
-		*(ptr++) = Complex(UniformRandom(), UniformRandom()); 
-}
-
-
-
-
-// *********************************************************************
-// Timing
-// *********************************************************************
-inline void GetTime(Real&  t){
-	t = MPI_Wtime();
-}
 
 // *********************************************************************
 // Comparator
@@ -1178,12 +720,6 @@ void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& p
 
 void ReadDistSparseMatrixFormatted( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
 
-// TODO Real format
-void
-GetDiagonal ( const DistSparseMatrix<Complex>& A, 
-		NumVec<Complex,Int>& diag );
-
-
 // Functions for DistSparseMatrix
 
 template <class F1, class F2> 
@@ -1216,7 +752,7 @@ LinearInterpolation (
 
 #if 1
 
-
+#ifdef WITH_BEBOP_UTIL
 extern "C" {
 #include "bebop/util/config.h"
 #include "bebop/smc/sparse_matrix.h"
@@ -1230,7 +766,7 @@ extern "C" {
 #include "bebop/util/timer.h"
 #include "bebop/util/util.h"
 }
-
+#endif
 
 
 namespace SYMPACK{
@@ -1883,7 +1419,6 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
 template <typename SCALAR, typename INSCALAR >
 void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMatrix<SCALAR> & HMat){
   MPI_Comm & workcomm = HMat.comm;
-  sparse_matrix_file_format_t informat;
   if(iam==0){ cout<<"Start reading the matrix"<<endl; }
   TIMER_START(READING_MATRIX);
   double tstart = get_time();
@@ -1894,6 +1429,7 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
   else{
 #if 0
 #if 1
+    sparse_matrix_file_format_t informat;
     int n,nnz;
     int * colptr, * rowind;
     INSCALAR * values;

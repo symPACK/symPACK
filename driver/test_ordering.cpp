@@ -11,7 +11,7 @@
 #include <omp.h>
 
 #include  "sympack.hpp"
-#include  "sympack/SupernodalMatrix2.hpp"
+#include  "sympack/SupernodalMatrix.hpp"
 
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"

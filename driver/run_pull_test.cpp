@@ -12,7 +12,6 @@
 
 #include  "sympack.hpp"
 
-#include  "sympack/sp_blas.hpp"
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/CommPull.hpp"
 #include  "sympack/Ordering.hpp"

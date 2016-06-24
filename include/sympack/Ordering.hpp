@@ -8,6 +8,8 @@
 #include "sympack/DistSparseMatrixGraph.hpp"
 
 namespace SYMPACK{
+class SparseMatrixGraph;
+class DistSparseMatrixGraph;
 class SparseMatrixStructure;
 class Ordering{
   public:
@@ -42,6 +44,7 @@ class Ordering{
 
 #ifdef USE_SCOTCH
     void SCOTCH();
+    void SCOTCH(const SparseMatrixGraph & g);
 #endif
     void Compose(SYMPACK::vector<Int> & invp2);
 };

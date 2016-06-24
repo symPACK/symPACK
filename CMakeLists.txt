@@ -1,0 +1,167 @@
+cmake_minimum_required(VERSION 2.8)
+project(SYMPACK CXX C Fortran)
+include(ExternalProject)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED on)
+
+#set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS})
+#include_directories(/path/to/upcxx)
+#set(LIBS ${LIBS} )
+
+find_package(MPI REQUIRED)
+if(MPI_CXX_FOUND)
+  message(STATUS "Found CXX MPI compiler")
+  include_directories(${MPI_CXX_INCLUDE_PATH})
+  set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS})
+  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${MPI_CXX_LINK_FLAGS})
+  set(LIBS ${LIBS} ${MPI_CXX_LIBRARIES})
+endif()
+
+include(FortranCInterface)
+FortranCInterface_HEADER("${PROJECT_BINARY_DIR}/sympack_config.h" MACRO_NAMESPACE "FC_")
+FortranCInterface_VERIFY(CXX)
+
+find_package(BLAS)
+if(BLAS_FOUND)
+  message(STATUS "Found BLAS library: " ${BLAS_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS})
+  set(LIBS ${LIBS} ${BLAS_LIBRARIES})
+else()
+  message(WARNING "Warning: could not find a BLAS library")
+endif()
+
+find_package(LAPACK)
+if(LAPACK_FOUND)
+  message(STATUS "Found LAPACK library: " ${LAPACK_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS})
+  set(LIBS ${LIBS} ${LAPACK_LIBRARIES})
+else()
+  message(WARNING "Warning: could not find a LAPACK library")
+endif()
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
+
+#find_package(GASNET)
+#if(GASNET_FOUND)
+#  message(STATUS "Found GASNET library: " ${GASNET_LIBRARIES})
+#  include_directories(${GASNET_INCLUDE_DIR})
+#  set(LIBS ${LIBS} ${GASNET_LIBRARIES})
+#endif()
+
+
+#option(ENABLE_GASNET "Enable GASNET and dependencies" ON)
+#cmake_dependent_option(ENABLE_GASNET "Enable gasnet" ON
+#                       "ENABLE_GASNET" OFF)
+
+
+##MACRO( CONFIGURE_UPCXX )
+##  find_package(OpenMP REQUIRED)
+#find_package(UPCXX REQUIRED)
+#if(UPCXX_FOUND)
+#  message(STATUS "Found UPC++ library: " ${UPCXX_LIBRARIES})
+#  add_definitions(${UPCXX_DEFINES})
+#  include_directories(${UPCXX_INCLUDE_DIR})
+#  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+#  set(LIBS ${LIBS} ${UPCXX_LIBRARIES})
+##LINK_DIRECTORIES(${UPCXX_LIBRARY_PATH})
+#endif()
+##ENDMACRO( CONFIGURE_UPCXX )
+
+option(ENABLE_SCOTCH "Enable SCOTCH" ON)
+if(ENABLE_SCOTCH)
+  find_package(Scotch REQUIRED)
+  set(LIBS ${LIBS} ${SCOTCH_LIBRARIES})
+  include_directories(${SCOTCH_INCLUDES})
+  add_definitions("-DUSE_SCOTCH -DUSE_PTSCOTCH")
+endif()
+
+
+
+
+include(cmake/gasnet.cmake)
+#include_directories(${GASNET_INCLUDE_DIR} ${GASNET_CONDUIT_INCLUDE_DIR})
+#link_directories(${GASNET_LIBRARY_PATH})
+#set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${GASNET_DEFINES})
+#set(LIBS ${LIBS} ${GASNET_LIBRARIES})
+
+include(cmake/upcxx.cmake)
+
+include_directories(${UPCXX_INCLUDE_DIR})
+link_directories(${UPCXX_LIBRARY_PATH})
+
+
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${UPCXX_DEFINES})
+#set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${UPCXX_DEFINES})
+#set(LIBS ${LIBS} ${UPCXX_LIBRARIES})
+
+
+
+set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
+  src/lapack.cpp src/global.cpp src/LogFile.cpp src/SparseMatrixStructure.cpp
+  src/IntervalTree.cpp src/Ordering.cpp src/CommPull.cpp
+  src/DistSparseMatrixGraph.cpp src/amdbar.F src/genmmd.F src/mmdelm.F
+  src/mmdint.F src/mmdnum.F src/mmdupd.F src/ordmmd.F
+  src/betree.f src/del_heap.f src/ins_heap.f src/mcssup.f
+  src/move_down.f src/ordsup.f src/boxnd.f src/gridnd.f
+  src/invinv.f src/mod_heap.f src/move_up.f)
+
+include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_BINARY_DIR})
+
+add_definitions("-DITREE -D_DSW_ITREE_ -DSINGLE_BLAS")
+
+#--param max-inline-insns-single=35000 --param inline-unit-growth=10000 --param large-function-growth=200000 -Winline 
+#  -lgasnet-mpi-seq -lammpi    -lrt 
+
+
+add_library(sympack ${SYMPACKSRC})
+add_dependencies(sympack gasnet upcxx) 
+target_link_libraries(sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
+
+install(TARGETS sympack LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
+install(FILES ${PROJECT_BINARY_DIR}/sympack_config.h include/sympack.hpp
+  include/sympack/SuperNode.hpp
+  include/sympack/CommPull.hpp include/sympack/SuperNode_impl.hpp
+  include/sympack/CommTypes.hpp 
+  include/sympack/DistSparseMatrix.hpp include/sympack/SupernodalMatrix.hpp
+  include/sympack/DistSparseMatrixGraph.hpp include/sympack/SupernodalMatrix_impl.hpp
+  include/sympack/DistSparseMatrix_impl.hpp include/sympack/SupernodalMatrix_impl_FB_pull.hpp
+  include/sympack/ETree.hpp include/sympack/SupernodalMatrixBase.hpp
+  include/sympack/Environment.hpp 
+  include/sympack/Environment_impl.hpp 
+  include/sympack/IntervalTree.hpp
+  include/sympack/IntervalTree_impl.hpp 
+  include/sympack/SupernodalMatrix_impl_deprecated.hpp
+  include/sympack/LoadBalancer.hpp include/sympack/Task.hpp
+  include/sympack/LogFile.hpp include/sympack/Types.hpp
+  include/sympack/Mapping.hpp include/sympack/blas.hpp
+  include/sympack/datatypes.hpp
+  include/sympack/lapack.hpp
+  include/sympack/mmd.hpp
+  include/sympack/mpi_interf.hpp
+  include/sympack/timer.hpp
+  include/sympack/Ordering.hpp
+  include/sympack/Scheduler.hpp
+  include/sympack/SparseMatrixStructure.hpp include/sympack/utility.hpp DESTINATION include)
+
+
+
+#set(SYMPACK_VERSION_MAJOR 0)
+#set(SYMPACK_VERSION_MINOR 0)
+#set(SYMPACK_VERSION_PATCH 1)
+#set(SYMPACK_VERSION_FULL "${SYMPACK_VERSION_MAJOR}.${SYMPACK_VERSION_MINOR}")
+#set(CPACK_GENERATOR "TGZ")
+#set(CPACK_PACKAGE_VERSION_MAJOR ${SYMPACK_VERSION_MAJOR})
+#set(CPACK_PACKAGE_VERSION_MINOR ${SYMPACK_VERSION_MINOR})
+#set(CPACK_PACKAGE_VERSION_PATCH ${SYMPACK_VERSION_PATCH})
+#include(CPack)
+
+add_executable(run_sympack  EXCLUDE_FROM_ALL driver/run_sparse_pull.cpp)
+add_custom_target(examples DEPENDS run_sympack)
+
+add_dependencies(run_sympack sympack gasnet upcxx) 
+target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
+
+install(TARGETS run_sympack RUNTIME DESTINATION bin)
+

@@ -9,7 +9,7 @@
 #include <mpi.h>
 
 #include "sympack/Environment.hpp"
-#include "sympack/NumMat.hpp"
+//#include "sympack/NumMat.hpp"
 #include "sympack/Task.hpp"
 //#include "sympack/debug.hpp"
 
@@ -25,7 +25,6 @@ using namespace std;
 
 namespace SYMPACK{
 
-  template<typename T> class NumMat;
   template<typename T, class Allocator> class SuperNode;
 
 

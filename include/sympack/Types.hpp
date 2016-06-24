@@ -3,7 +3,7 @@
 
 #include "sympack/Environment.hpp"
 #include "sympack/timer.hpp"
-#include "sympack/NumMat.hpp"
+//#include "sympack/NumMat.hpp"
 #include "sympack/CommTypes.hpp"
 
 #include <string>
@@ -56,18 +56,35 @@ namespace SYMPACK{
 
     void SetMaxSize(Int pmaxSize){
       maxSize = pmaxSize;
+      if(maxSize>0){
       nrelax0 = min(nrelax0,pmaxSize);
       nrelax1 = min(nrelax1,pmaxSize);
       nrelax2 = min(nrelax2,pmaxSize);
+      }
     }
     void SetNrelax0(Int pnrelax0){
-      nrelax0 = min(pnrelax0,maxSize);
+      if(maxSize>0){
+        nrelax0 = min(pnrelax0,maxSize);
+      }
+      else{
+        nrelax0 = pnrelax0;
+      }
     }
     void SetNrelax1(Int pnrelax1){
+      if(maxSize>0){
       nrelax1 = min(pnrelax1,maxSize);
+      }
+      else{
+        nrelax1 = pnrelax1;
+      }
     }
     void SetNrelax2(Int pnrelax2){
+      if(maxSize>0){
       nrelax2 = min(pnrelax2,maxSize);
+      }
+      else{
+        nrelax2 = pnrelax2;
+      }
     }
 
   };
@@ -178,18 +195,18 @@ namespace SYMPACK{
   template<typename T>
     class TempUpdateBuffers{
       public:
-        NumMat<T> tmpBuf;
+        SYMPACK::vector<T> tmpBuf;
         SYMPACK::vector<Int> src_colindx;
         SYMPACK::vector<Int> src_to_tgt_offset;
 
         void Resize(Int size, Int mw){
-          tmpBuf.Resize(size,mw);
+          tmpBuf.resize(size*mw);
           src_colindx.resize(mw);
           src_to_tgt_offset.resize(size);
         }
 
         void Clear(){
-          tmpBuf.Clear();
+          tmpBuf.clear();
           src_colindx.clear();
           src_to_tgt_offset.clear();
         }

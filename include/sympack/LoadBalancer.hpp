@@ -30,7 +30,7 @@ namespace SYMPACK{
         procMap_.resize(n);
       };
 
-      virtual inline SYMPACK::vector<Int> & GetMap() =0;
+      virtual SYMPACK::vector<Int> & GetMap() =0;
   };
 
 
@@ -44,7 +44,7 @@ namespace SYMPACK{
       };
 
 
-      virtual inline SYMPACK::vector<Int> & GetMap(){
+      virtual SYMPACK::vector<Int> & GetMap(){
         SYMPACK::vector<double> load(np_,0.0);
 
         for(Int i = 1; i< Xsuper_.size();  ++i){
@@ -143,7 +143,7 @@ namespace SYMPACK{
       };
 
 
-      virtual inline SYMPACK::vector<Int> & GetMap(){
+      virtual SYMPACK::vector<Int> & GetMap(){
         if(levelGroups_.size()==0){
           //compute number of children and load
           Int numLevels = 1;
@@ -517,7 +517,7 @@ logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
           };
 
 
-          virtual inline SYMPACK::vector<Int> & GetMap(){
+          virtual SYMPACK::vector<Int> & GetMap(){
             if(levelGroups_.size()==0){
               //compute number of children and load
               Int numLevels = 1;
@@ -1080,7 +1080,7 @@ logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
       };
 
 
-      virtual inline SYMPACK::vector<Int> & GetMap(){
+      virtual SYMPACK::vector<Int> & GetMap(){
         if(levelGroups_.size()==0){
           //compute number of children and load
           Int numLevels = 1;

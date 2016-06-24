@@ -79,7 +79,7 @@ class Mapping{
           delete pProcMap_;
         }
       };
-      virtual inline Int Map(Int i, Int j)=0;
+      virtual Int Map(Int i, Int j)=0;
 };
 
 
@@ -304,7 +304,7 @@ class TreeMapping: public Mapping{
 
       
 
-      virtual inline Int Map(Int i, Int j){
+      virtual Int Map(Int i, Int j){
 i = i+1;
 j = j+1;
         assert(pBalancer_!=NULL);
@@ -386,7 +386,7 @@ assert(p<treesize);
       }
 
   protected:
-      virtual inline Int GroupMap(Int i, Int j,Int iPRows, Int iNp) =0;
+      virtual Int GroupMap(Int i, Int j,Int iPRows, Int iNp) =0;
 };
 
 
@@ -399,7 +399,7 @@ class ModWrap2DTreeMapping: public TreeMapping{
       };
 
   protected:
-      virtual inline Int GroupMap(Int i, Int j,Int iPRows, Int iNp){
+      virtual Int GroupMap(Int i, Int j,Int iPRows, Int iNp){
       return std::min(iNp-1,(int)(std::min(i,j)%iPRows + iPRows*floor((double)(std::max(i,j)%iNp)/(double)iPRows)));
 }
 };

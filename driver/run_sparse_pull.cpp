@@ -11,9 +11,8 @@
 #include <omp.h>
 
 #include  "sympack.hpp"
-#include  "sympack/SupernodalMatrix2.hpp"
+#include  "sympack/SupernodalMatrix.hpp"
 
-#include  "sympack/sp_blas.hpp"
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
 
@@ -37,6 +36,7 @@
 //#define SCALAR std::complex<double>
 #define INSCALAR double
 
+#define _CHECK_RESULT_
 
 using namespace SYMPACK;
 
@@ -109,10 +109,16 @@ int main(int argc, char **argv)
     }
   }
 
-  Int maxIsend = 0;
+  Int maxIsend = -1;
   if( options.find("-is") != options.end() ){
     maxIsend= atoi(options["-is"].front().c_str());
   }
+
+  Int maxIrecv = -1;
+  if( options.find("-ir") != options.end() ){
+    maxIrecv= atoi(options["-ir"].front().c_str());
+  }
+
 
   optionsFact.factorization = FANBOTH;
   if( options.find("-fb") != options.end() ){
@@ -197,12 +203,6 @@ int main(int argc, char **argv)
     }
   }
 
-
-
-  Int maxIrecv = 0;
-  if( options.find("-ir") != options.end() ){
-    maxIrecv= atoi(options["-ir"].front().c_str());
-  }
 
 
   Real timeSta, timeEnd;
@@ -342,23 +342,24 @@ int main(int argc, char **argv)
 #ifdef _CHECK_RESULT_
 
     Int nrhs = 1;
-    NumMat<SCALAR> RHS;
-    NumMat<SCALAR> XTrue;
+    std::vector<SCALAR> RHS,XTrue;
+    //NumMat<SCALAR> RHS;
+    //NumMat<SCALAR> XTrue;
 
     Int n = HMat.size;
 
 
-    RHS.Resize(n,nrhs);
-    XTrue.Resize(n,nrhs);
+    RHS.resize(n*nrhs);
+    XTrue.resize(n*nrhs);
 
-    //SetValue(XTrue,1.0);
     Int val = 1.0;
     for(Int i = 0; i<n;++i){ 
       for(Int j=0;j<nrhs;++j){
-        XTrue(i,j) = val;
+        XTrue[i+j*nrhs] = val;
         val = -val;
       }
     }
+
     //        UniformRandom(XTrue);
 
     if(iam==0){
@@ -368,6 +369,7 @@ int main(int argc, char **argv)
     timeSta = get_time();
 
     {
+      //TODO HANDLE MULTIPLE RHS
       SparseMatrixStructure Local = HMat.GetLocalStructure();
       SparseMatrixStructure Global;
       Local.ToGlobal(Global,workcomm);
@@ -375,25 +377,25 @@ int main(int argc, char **argv)
 
       Int numColFirst = std::max(1,n / np);
 
-      SetValue(RHS,(SCALAR)0.0);
+      RHS.assign(n*nrhs,0.0);
       for(Int j = 1; j<=n; ++j){
         Int iOwner = std::min((j-1)/numColFirst,np-1);
         if(iam == iOwner){
           Int iLocal = (j-(numColFirst)*iOwner);
           //do I own the column ?
-          SCALAR t = XTrue(j-1,0);
+          SCALAR t = XTrue[j-1+0*nrhs];
           //do a dense mat mat mul ?
           for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
             Int row = Local.rowind[ii-1];
-            RHS(row-1,0) += t*HMat.nzvalLocal[ii-1];
+            RHS[row-1+0*nrhs] += t*HMat.nzvalLocal[ii-1];
             if(row>j){
-              RHS(j-1,0) += XTrue(row-1,0)*HMat.nzvalLocal[ii-1];
+              RHS[j-1+0*nrhs] += XTrue[row-1+0*nrhs]*HMat.nzvalLocal[ii-1];
             }
           }
         }
       }
       //Do a reduce of RHS
-      MPI_Allreduce(MPI_IN_PLACE,&RHS(0,0),RHS.Size(),MPI_DOUBLE,MPI_SUM,workcomm);
+      mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&RHS[0],RHS.size(),MPI_SUM,workcomm);
     }
 
     timeEnd = get_time();
@@ -409,7 +411,9 @@ int main(int argc, char **argv)
     }
 
 
-    NumMat<SCALAR> XFinal;
+#ifdef _CHECK_RESULT_
+    std::vector<SCALAR> XFinal;
+#endif
     {
       //do the symbolic factorization and build supernodal matrix
       optionsFact.maxSnode = maxSnode;
@@ -418,11 +422,11 @@ int main(int argc, char **argv)
 
 
       optionsFact.commEnv = new CommEnvironment(workcomm);
-      SupernodalMatrix2<SCALAR>*  SMat;
+      SupernodalMatrix<SCALAR>*  SMat;
 
       try{
         timeSta = get_time();
-        SMat = new SupernodalMatrix2<SCALAR>();
+        SMat = new SupernodalMatrix<SCALAR>();
         SMat->team_ = workteam;
         SMat->Init(HMat,optionsFact);
         timeEnd = get_time();
@@ -436,7 +440,7 @@ int main(int argc, char **argv)
       if(iam==0){
         cout<<"Initialization time: "<<timeEnd-timeSta<<endl;
       }
-
+//exit(-2);
       if(iam==0){
         cout<<"Starting Factorization"<<endl;
       }
@@ -464,14 +468,14 @@ int main(int argc, char **argv)
       }
 
       timeSta = get_time();
-      SMat->Solve(&XFinal);
+      SMat->Solve(&XFinal[0],nrhs);
       timeEnd = get_time();
 
       if(iam==0){
         cout<<"Solve time: "<<timeEnd-timeSta<<endl;
       }
 
-      SMat->GetSolution(XFinal);
+      SMat->GetSolution(&XFinal[0],nrhs);
       //  SMat->Dump();
 #endif
 
@@ -489,32 +493,32 @@ int main(int argc, char **argv)
 
       Int numColFirst = std::max(1,n / np);
 
-      NumMat<SCALAR> AX(n,nrhs);
-      SetValue(AX,(SCALAR)0.0);
+      std::vector<SCALAR> AX(n*nrhs,0.0);
+      //SetValue(AX,(SCALAR)0.0);
 
       for(Int j = 1; j<=n; ++j){
         Int iOwner = std::min((j-1)/numColFirst,np-1);
         if(iam == iOwner){
           Int iLocal = (j-(numColFirst)*iOwner);
           //do I own the column ?
-          SCALAR t = XFinal(j-1,0);
+          SCALAR t = XFinal[j-1+0*nrhs];
           //do a dense mat mat mul ?
           for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
             Int row = Local.rowind[ii-1];
-            AX(row-1,0) += t*HMat.nzvalLocal[ii-1];
+            AX[row-1+0*nrhs] += t*HMat.nzvalLocal[ii-1];
             if(row>j){
-              AX(j-1,0) += XFinal(row-1,0)*HMat.nzvalLocal[ii-1];
+              AX[j-1+0*nrhs] += XFinal[row-1+0*nrhs]*HMat.nzvalLocal[ii-1];
             }
           }
         }
       }
       //Do a reduce of RHS
-      MPI_Allreduce(MPI_IN_PLACE,&AX(0,0),AX.Size(),MPI_DOUBLE,MPI_SUM,workcomm);
+      mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,workcomm);
 
       if(iam==0){
-        blas::Axpy(AX.m()*AX.n(),-1.0,&RHS(0,0),1,&AX(0,0),1);
-        double normAX = lapack::Lange('F',AX.m(),AX.n(),&AX(0,0),AX.m());
-        double normRHS = lapack::Lange('F',RHS.m(),RHS.n(),&RHS(0,0),RHS.m());
+        blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
+        double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
+        double normRHS = lapack::Lange('F',n,nrhs,&RHS[0],n);
         cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
       }
     }

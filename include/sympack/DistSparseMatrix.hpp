@@ -17,7 +17,7 @@ namespace SYMPACK{
 
 
 template <typename T> class SupernodalMatrix;
-template <typename T> class SupernodalMatrix2;
+template <typename T> class SupernodalMatrix;
 
 
 
@@ -36,7 +36,7 @@ template <typename T> class SupernodalMatrix2;
 /// TODO Add the parameter of numColLocal
 template <typename F> class DistSparseMatrix{
   friend class SupernodalMatrix<F>;
-  friend class SupernodalMatrix2<F>;
+  friend class SupernodalMatrix<F>;
   //friend functions
   friend void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
   friend void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );

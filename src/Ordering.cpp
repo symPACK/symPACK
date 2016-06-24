@@ -5,9 +5,11 @@
 #include <limits>
 
 #ifdef USE_SCOTCH
+#include <typeinfo>
 #include <scotch.h>
 #endif
 #ifdef USE_PTSCOTCH
+#include <typeinfo>
 #include <ptscotch.h>
 #endif
 
@@ -50,7 +52,7 @@ void Ordering::SetStructure(SparseMatrixStructure & aGlobal){
 
 
 void Ordering::MMD(){
-    assert(pStructure!=NULL);
+//    assert(pStructure!=NULL);
 
   logfileptr->OFS()<<"MMD used"<<endl;
   if(iam==0){cout<<"MMD used"<<endl;}
@@ -120,7 +122,7 @@ void Ordering::MMD(){
 }
 
 void Ordering::NDBOX(){
-    assert(pStructure!=NULL);
+//    assert(pStructure!=NULL);
 
     if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
 			throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call NDBOX\n" );
@@ -153,7 +155,7 @@ void Ordering::NDBOX(){
 }
 
 void Ordering::NDGRID(){
-    assert(pStructure!=NULL);
+//    assert(pStructure!=NULL);
 
     if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
 			throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call NDGRID\n" );
@@ -191,7 +193,7 @@ assert(iflag==0);
 
 
 void Ordering::AMD(){
-  assert(pStructure!=NULL);
+//  assert(pStructure!=NULL);
 
   logfileptr->OFS()<<"AMD used"<<endl;
   if(iam==0){cout<<"AMD used"<<endl;}
@@ -267,11 +269,11 @@ void Ordering::AMD(){
 
 #ifdef USE_METIS
   void Ordering::METIS(){
+//    assert(pStructure!=NULL);
 
   logfileptr->OFS()<<"METIS used"<<endl;
   if(iam==0){cout<<"METIS used"<<endl;}
 
-    assert(pStructure!=NULL);
 
     if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
       throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call AMD\n" );
@@ -370,11 +372,11 @@ void Ordering::AMD(){
 
 #ifdef USE_PARMETIS
 void Ordering::PARMETIS(){
+//  assert(pStructure!=NULL);
 
   logfileptr->OFS()<<"PARMETIS used"<<endl;
   if(iam==0){cout<<"PARMETIS used"<<endl;}
 
-  assert(pStructure!=NULL);
 
   if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
     throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call AMD\n" );
@@ -512,11 +514,11 @@ void Ordering::PARMETIS(){
 
 #ifdef USE_SCOTCH
 void Ordering::SCOTCH(){
+  //assert(pStructure!=NULL);
 
   logfileptr->OFS()<<"SCOTCH used"<<endl;
   if(iam==0){cout<<"SCOTCH used"<<endl;}
 
-  assert(pStructure!=NULL);
 
   if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
     throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call SCOTCH\n" );
@@ -657,6 +659,126 @@ void Ordering::SCOTCH(){
 
 
     }
+
+
+
+    void Ordering::SCOTCH(const SparseMatrixGraph & g){
+      logfileptr->OFS()<<"SCOTCH used"<<endl;
+      if(iam==0){cout<<"SCOTCH used"<<endl;}
+
+      if(!g.IsExpanded() || g.keepDiag==1){
+        throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call PTSCOTCH\n" );
+      }
+
+
+      SCOTCH_Num baseval = g.baseval;
+      SCOTCH_Num N = g.size; 
+
+      bool isSameInt = typeid(SCOTCH_Num) == typeid(Int);
+      bool isSameIdx = typeid(SCOTCH_Num) == typeid(Idx);
+      bool isSamePtr = typeid(SCOTCH_Num) == typeid(Ptr);
+
+
+      invp.resize(N);
+
+      if(iam==0){
+        SCOTCH_Num * permtab;      
+        if(!isSameInt){
+          permtab = new SCOTCH_Num[N];
+        }
+        else{
+          permtab = (SCOTCH_Num*)&invp[0];
+        }
+
+        SCOTCH_Num * prowind = NULL;
+        if(!isSameIdx){
+          prowind = new SCOTCH_Num[g.EdgeCount()];
+          for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (SCOTCH_Num)g.rowind[i];}
+        }
+        else{
+          prowind = (SCOTCH_Num*)&g.rowind[0];
+        }
+
+        SCOTCH_Num * pcolptr = NULL;
+        if(!isSamePtr){
+          pcolptr = new SCOTCH_Num[g.VertexCount()+1];
+          for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (SCOTCH_Num)g.colptr[i];}
+        }
+        else{
+          pcolptr = (SCOTCH_Num*)&g.colptr[0];
+        }
+
+        SCOTCH_Num nnz = g.EdgeCount();
+        SCOTCH_Num baseval = g.baseval;
+        {
+          SCOTCH_Graph        grafdat;                    /* Scotch graph object to interface with libScotch    */
+          SCOTCH_Ordering     ordedat;                    /* Scotch ordering object to interface with libScotch */
+          SCOTCH_Strat        stradat;
+
+          SCOTCH_graphInit (&grafdat);
+
+          if (SCOTCH_graphBuild (
+                &grafdat,
+                baseval, 
+                N, 
+                pcolptr, 
+                NULL, 
+                NULL,
+                NULL,
+                nnz, 
+                prowind, 
+                NULL) == 0) {
+
+            SCOTCH_stratInit (&stradat);
+
+            stringstream strategy_string;
+#ifdef SCOTCH_DEBUG_ALL
+            if (SCOTCH_graphCheck (&grafdat) == 0)        /* TRICK: next instruction called only if graph is consistent */
+#endif /* SCOTCH_DEBUG_ALL */
+            {
+              if (SCOTCH_graphOrderInit (&grafdat, &ordedat, permtab, NULL,
+                    /*nb de supernoeud*/NULL, /*ptr vers rank tab : xsuper*/ NULL, /*tree tab: parent structure*/ NULL) == 0) {
+                SCOTCH_graphOrderCompute (&grafdat, &ordedat, &stradat);
+                SCOTCH_graphOrderExit    (&grafdat, &ordedat);
+              }
+            }
+            SCOTCH_stratExit (&stradat);
+          }
+          SCOTCH_graphExit (&grafdat);
+
+          if(!isSameInt || g.baseval!=1){ 
+            perm.resize(N);
+            //switch everything to 1 based
+            for(int col=0; col<N;++col){ invp[col] = permtab[col]+(1-baseval);}
+            delete [] permtab;
+          }
+
+          if(!isSamePtr){
+            delete [] pcolptr;
+          }
+
+          if(!isSameIdx){
+            delete [] prowind;
+          }
+        }
+      }
+      // broadcast invp
+      MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      perm.resize(N);
+      for(Int i = 1; i <=N; ++i){
+        Int node = invp[i-1];
+        perm[node-1] = i;
+      }
+
+
+    }
+
+
+
+
+
+
+
 #endif
 
 
@@ -668,7 +790,7 @@ void Ordering::SCOTCH(){
       if(iam==0){cout<<"PTSCOTCH used NOT WORKING"<<endl;}
 
       if(!g.IsExpanded() || g.keepDiag==1){
-      //  throw std::logic_error( "DistSparseMatrixGraph must be expanded and not including the diagonal in order to call PTSCOTCH\n" );
+        throw std::logic_error( "DistSparseMatrixGraph must be expanded and not including the diagonal in order to call PTSCOTCH\n" );
       }
 
 
@@ -696,44 +818,29 @@ void Ordering::SCOTCH(){
         SCOTCH_Num localN;
       if(iam<ndomains){
         assert(mpirank==iam);
-        vtxdist.resize(ndomains+1);
+        //vtxdist.resize(ndomains+1);
 
-        localN = g.LocalVertexCount();
-        //build vtxdist SYMPACK::vector
-        for(SCOTCH_Num i = 0; i<ndomains;++i){
-         vtxdist[i] = i*(N/ndomains)+baseval; 
-        } 
-        vtxdist[ndomains] = N+baseval;
+        //localN = g.LocalVertexCount();
+        ////build vtxdist SYMPACK::vector
+        //for(SCOTCH_Num i = 0; i<ndomains;++i){
+        // vtxdist[i] = i*(N/ndomains)+baseval; 
+        //} 
+        //vtxdist[ndomains] = N+baseval;
 
+        vtxdist.resize(g.vertexDist.size());
+        for(int i = 0 ; i < g.vertexDist.size(); i++){
+          vtxdist[i] = (SCOTCH_Num)g.vertexDist[i];
+        }
+
+        logfileptr->OFS()<<vtxdist<<endl;
 
 //        if(iam==ndomains-1){
 //          localN = N - (ndomains-1)*localN;
 //        }
 
-        SCOTCH_Num options[3];
-        options[0] = 0;
-        SCOTCH_Num numflag = baseval;
-
-        int npnd;
-        MPI_Comm_size (ndcomm, &npnd);
-        logfileptr->OFS()<<"PROC ND: "<<npnd<<endl;
-
-        SCOTCH_Dgraph       grafdat;                    /* Scotch distributed graph object to SCOTCH_Numerface with libScotch    */
-        SCOTCH_Dordering    ordedat;                    /* Scotch distributed ordering object to SCOTCH_Numerface with libScotch */
-        SCOTCH_Strat        stradat;
-        SCOTCH_Num          vertlocnbr;
-        SCOTCH_Num          edgelocnbr;
-
-        if(SCOTCH_dgraphInit (&grafdat, ndcomm) != 0){
-          abort;
-        }
-
-        vertlocnbr = vtxdist[iam + 1] - vtxdist[iam];
-        edgelocnbr = g.colptr[vertlocnbr] - baseval;
-
 
         SCOTCH_Num * prowind = NULL;
-        if(sizeof(SCOTCH_Num) != sizeof(Idx)){
+        if(typeid(SCOTCH_Num) != typeid(Idx)){
           prowind = new SCOTCH_Num[g.LocalEdgeCount()];
           for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (SCOTCH_Num)g.rowind[i];}
         }
@@ -742,7 +849,7 @@ void Ordering::SCOTCH(){
         }
 
         SCOTCH_Num * pcolptr = NULL;
-        if(sizeof(SCOTCH_Num) != sizeof(Ptr)){
+        if(typeid(SCOTCH_Num) != typeid(Ptr)){
           pcolptr = new SCOTCH_Num[g.LocalVertexCount()+1];
           for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (SCOTCH_Num)g.colptr[i];}
         }
@@ -750,71 +857,216 @@ void Ordering::SCOTCH(){
           pcolptr = (SCOTCH_Num*)&g.colptr[0];
         }
 
-        logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
-        logfileptr->OFS()<<"vertlocnbr: "<<vertlocnbr<<endl;
-        logfileptr->OFS()<<"colptr: "<<g.colptr<<endl;
-        logfileptr->OFS()<<"edgelocnbr: "<<edgelocnbr<<endl;
-        logfileptr->OFS()<<"rowind: "<<g.rowind<<endl;
-        assert(vertlocnbr == g.colptr.size()-1);
 
-        SYMPACK::vector<SCOTCH_Num> sc_perm(vertlocnbr);
-              logfileptr->OFS()<<"Entering SCOTCH_dgraphBuild"<<endl;
-        if (SCOTCH_dgraphBuild (&grafdat, baseval,
-              vertlocnbr, vertlocnbr, pcolptr, pcolptr+1, NULL, NULL,
-              edgelocnbr, edgelocnbr, prowind, NULL, NULL) == 0) {
-          SCOTCH_stratInit (&stradat);
-              logfileptr->OFS()<<"Entering SCOTCH_dgraphCheck"<<endl;
-          assert(SCOTCH_dgraphCheck (&grafdat) == 0);
-          {
-              logfileptr->OFS()<<"Entering SCOTCH_dgraphOrderInit"<<endl;
-            if (SCOTCH_dgraphOrderInit (&grafdat, &ordedat) == 0) {
-              logfileptr->OFS()<<"Entering SCOTCH_dgraphOrderCompute"<<endl;
-              if(SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat)==0){
-                //for(SCOTCH_Num i=0;i<sc_perm.size();i++){ sc_perm[i] = (SCOTCH_Num)invp[i]; }
-                logfileptr->OFS()<<"Entering SCOTCH_dgraphOrderPerm"<<endl;
-                SCOTCH_dgraphOrderPerm(&grafdat, &ordedat, &sc_perm[0]);
-              }
-              SCOTCH_dgraphOrderExit (&grafdat, &ordedat);
-            }
-          }
-          SCOTCH_stratExit (&stradat);
+
+
+
+
+
+
+        SCOTCH_Num options[3];
+        options[0] = 0;
+        SCOTCH_Num numflag = baseval;
+
+        int npnd;
+        MPI_Comm_size (ndcomm, &npnd);
+
+        SCOTCH_Dgraph       grafdat;                    /* Scotch distributed graph object to SCOTCH_Numerface with libScotch    */
+        SCOTCH_Dordering    ordedat;                    /* Scotch distributed ordering object to SCOTCH_Numerface with libScotch */
+        SCOTCH_Strat        stradat;
+        SCOTCH_Num          vertlocnbr;
+        SCOTCH_Num          edgelocnbr;
+
+        vertlocnbr = g.LocalVertexCount();
+        edgelocnbr = g.LocalEdgeCount();
+
+        if(SCOTCH_dgraphInit (&grafdat, ndcomm) != 0){
+          throw std::logic_error( "Error in SCOTCH_dgraphInit\n" );
         }
+
+        //logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
+        //logfileptr->OFS()<<"vertlocnbr: "<<vertlocnbr<<endl;
+        //logfileptr->OFS()<<"colptr: "<<g.colptr<<endl;
+        //logfileptr->OFS()<<"edgelocnbr: "<<edgelocnbr<<endl;
+        //logfileptr->OFS()<<"rowind: "<<g.rowind<<endl;
+        //assert(vertlocnbr == g.colptr.size()-1);
+
+        //      logfileptr->OFS()<<"Entering SCOTCH_dgraphBuild"<<endl;
+        if (SCOTCH_dgraphBuild (&grafdat, 
+                                baseval,
+                                vertlocnbr, 
+                                vertlocnbr, 
+                                pcolptr, 
+                                NULL,
+                                NULL, 
+                                NULL,
+                                edgelocnbr,
+                                edgelocnbr,
+                                prowind, 
+                                NULL,
+                                NULL
+              ) != 0) {
+        throw std::logic_error( "Error in SCOTCH_dgraphBuild\n" );
+        }
+          
+        if(SCOTCH_dgraphCheck (&grafdat) != 0){
+        throw std::logic_error( "Error in SCOTCH_dgraphCheck\n" );
+        }
+
+        if(SCOTCH_stratInit (&stradat)!= 0){
+        throw std::logic_error( "Error in SCOTCH_stratInit\n" );
+        }
+
+        if (SCOTCH_dgraphOrderInit (&grafdat, &ordedat) != 0) {
+        throw std::logic_error( "Error in SCOTCH_dgraphOrderInit\n" );
+        }
+
+
+        if(SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat)!=0){
+        throw std::logic_error( "Error in SCOTCH_dgraphOrderCompute\n" );
+        }
+
+
+
+
+
+
+
+
+
+
+#if 1
+        SYMPACK::vector<SCOTCH_Num> sc_permtab(N);
+        SYMPACK::vector<SCOTCH_Num> sc_peritab(N);
+        SCOTCH_stratExit (&stradat);
+        SCOTCH_Ordering  ordering;
+
+        SCOTCH_dgraphCorderInit (&grafdat,
+            &ordering,
+            &sc_permtab[0],
+            &sc_peritab[0],
+            NULL,
+            NULL,
+            NULL
+            );
+
+
+        logfileptr->OFS()<<sc_permtab<<endl;
+        logfileptr->OFS()<<sc_peritab<<endl;
+
+
+
+        //SCOTCH_dgraphOrderGather (&grafdat, &ordedat, &ordering);
+        if (iam == 0) {
+          SCOTCH_dgraphOrderGather (&grafdat, &ordedat, &ordering);
+        }
+        else {     
+          SCOTCH_dgraphOrderGather (&grafdat, &ordedat, NULL);
+        }
+
+
+
+
+        SCOTCH_dgraphCorderExit( &grafdat, &ordering );
+        SCOTCH_dgraphOrderExit (&grafdat, &ordedat);
         SCOTCH_dgraphExit (&grafdat);
 
-        if(sizeof(SCOTCH_Num) != sizeof(Ptr)){
+
+        if(iam==0){
+          //switch everything to 1 based
+          for(int col=0; col<N;++col){ invp[col] = sc_permtab[col] + (1-baseval);}
+        }
+
+
+
+
+
+
+
+
+
+        if(typeid(SCOTCH_Num) != typeid(Ptr)){
           delete [] pcolptr;
         }
 
-        if(sizeof(SCOTCH_Num) != sizeof(Idx)){
+        if(typeid(SCOTCH_Num) != typeid(Idx)){
           delete [] prowind;
         }
 
-        logfileptr->OFS()<<"Order: "<<sc_perm<<endl;
+
+
+
+
+
+
+
+
+
+
+
+
+#else
+        SYMPACK::vector<SCOTCH_Num> sc_permtab(vertlocnbr);
+
+
+        if(SCOTCH_dgraphOrderPerm(&grafdat, &ordedat, &sc_permtab[0])!=0){
+        throw std::logic_error( "Error in SCOTCH_dgraphOrderPerm\n" );
+        }
+        SCOTCH_dgraphOrderExit (&grafdat, &ordedat);
+        SCOTCH_stratExit (&stradat);
+        SCOTCH_dgraphExit (&grafdat);
+
+
+        if(typeid(SCOTCH_Num) != typeid(Ptr)){
+          delete [] pcolptr;
+        }
+
+        if(typeid(SCOTCH_Num) != typeid(Idx)){
+          delete [] prowind;
+        }
+
+
+        //logfileptr->OFS()<<"Order: "<<sc_perm<<endl;
 
         //compute displs
         SYMPACK::vector<int> mpidispls(ndomains,0);
         SYMPACK::vector<int> mpisizes(ndomains,0);
         for(int p = 1;p<=ndomains;++p){
-          mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(Int);
-          mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(Int);
+          mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(SCOTCH_Num);
+          mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(SCOTCH_Num);
         }
 
-        MPI_Gatherv(&sc_perm[0],mpisizes[iam],MPI_BYTE,&invp[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,ndcomm);
+        
+        SCOTCH_Num * rbuffer;
+        if(iam==0){
+          if(typeid(SCOTCH_Num) != typeid(Int)){
+            rbuffer = new SCOTCH_Num[N];
+          }
+          else{
+            rbuffer = (SCOTCH_Num*)&invp[0];
+          }
+        }
+        MPI_Gatherv(&sc_perm[0],sc_perm.size()*sizeof(SCOTCH_Num),MPI_BYTE,&rbuffer[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,ndcomm);
 
         if(iam==0){
+
           //switch everything to 1 based
-          if(baseval!=1){
+          if((void*)rbuffer!=(void*)&invp[0]){
+            for(int col=0; col<N;++col){ invp[col] = (Int)rbuffer[col] + (1-baseval);}
+            delete [] rbuffer;
+          }
+          else if(baseval!=1){
             for(int col=0; col<N;++col){ invp[col]+=(1-baseval);}
           }
 
-          logfileptr->OFS()<<"Full Order: "<<endl;
-          for(SCOTCH_Num i =0;i<N;++i){
-            logfileptr->OFS()<<invp[i]<<" ";
-            //logfileptr->OFS()<<invp[i]<<" ";
-          }
-          logfileptr->OFS()<<endl;
+          //logfileptr->OFS()<<"Full Order: "<<endl;
+          //for(SCOTCH_Num i =0;i<N;++i){
+          //  logfileptr->OFS()<<invp[i]<<" ";
+          //  //logfileptr->OFS()<<invp[i]<<" ";
+          //}
+          //logfileptr->OFS()<<endl;
         }
-
+#endif
 
       }
 
@@ -823,11 +1075,17 @@ void Ordering::SCOTCH(){
 
       // broadcast invp
       MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      //recompute perm
       perm.resize(N);
       for(Int i = 1; i <=N; ++i){
         Int node = invp[i-1];
         perm[node-1] = i;
       }
+
+logfileptr->OFS()<<perm<<endl;
+logfileptr->OFS()<<invp<<endl;
+
+
     }
 
 
@@ -835,11 +1093,11 @@ void Ordering::SCOTCH(){
 
 
     void Ordering::PTSCOTCH(){
+      //assert(pStructure!=NULL);
 
       logfileptr->OFS()<<"PTSCOTCH used"<<endl;
       if(iam==0){cout<<"PTSCOTCH used NOT WORKING"<<endl;}
 
-      assert(pStructure!=NULL);
 
       if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
         throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call PTSCOTCH\n" );
@@ -1106,7 +1364,6 @@ void Ordering::SCOTCH(){
     }
 
 void Ordering::Compose(SYMPACK::vector<Int> & invp2){
-    assert(pStructure!=NULL);
       //Compose the two permutations
       for(Int i = 1; i <= invp.size(); ++i){
             Int interm = invp[i-1];

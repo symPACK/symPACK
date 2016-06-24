@@ -36,6 +36,11 @@
 
 #include <upcxx.h>
 
+
+#include "sympack_config.h"
+
+
+
 #include "sympack/datatypes.hpp"
 
 #ifndef _USE_NUMVEC_
@@ -101,15 +106,22 @@ namespace SYMPACK{
 
 // Basic data types
 
-#ifndef Add_
-#define FORTRAN(name) name
-#define BLAS(name) name
-#define LAPACK(name) name
-#else
-#define FORTRAN(name) name##_
-#define BLAS(name) name##_
-#define LAPACK(name) name##_
-#endif
+//#define SYMSOLVE_FC FC_GLOBAL(symsolve, SYMSOLVE)
+
+#define FORTRAN(name) FC_GLOBAL(name, DUMMY)
+#define BLAS(name) FC_GLOBAL(name, DUMMY)
+#define LAPACK(name) FC_GLOBAL(name, DUMMY)
+
+//#ifndef Add_
+//
+//#define FORTRAN(name) name
+//#define BLAS(name) name
+//#define LAPACK(name) name
+//#else
+//#define FORTRAN(name) name##_
+//#define BLAS(name) name##_
+//#define LAPACK(name) name##_
+//#endif
 
 // IO
 extern  std::ofstream  statusOFS;

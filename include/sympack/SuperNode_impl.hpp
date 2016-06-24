@@ -183,7 +183,10 @@ inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiG
 
       assert(locTmpPtr!=NULL);
 
-      std::copy(loc_storage_container_,loc_storage_container_+storage_size_,locTmpPtr);
+      //std::copy(loc_storage_container_,loc_storage_container_+storage_size_,locTmpPtr);
+      for(size_t i = 0;i<storage_size_;i++){locTmpPtr[i] = loc_storage_container_[i];}
+
+
       //upcxx::deallocate(storage_container_);
       //storage_container_=tmpPtr;
       Allocator::deallocate(loc_storage_container_);
@@ -749,7 +752,7 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> & src_
     tmpBuffers.tmpBuf.Resize(tgt_width,src_nrows);
 #endif
 
-    buf = tmpBuffers.tmpBuf.Data();
+    buf = &tmpBuffers.tmpBuf[0];
 
     //everything is in row-major
     TIMER_START(UPDATE_SNODE_GEMM);
@@ -927,7 +930,7 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> & src_snode, Sn
 #ifdef _DEBUG_
     tmpBuffers.tmpBuf.Resize(tgt_width,src_nrows);
 #endif
-    buf = tmpBuffers.tmpBuf.Data();
+    buf = &tmpBuffers.tmpBuf[0];
   }
 
   //everything is in row-major
