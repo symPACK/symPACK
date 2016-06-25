@@ -92,9 +92,7 @@ protected:
 public:
 
 
-      ITree():root_(NULL)
-      {
-      }
+      ITree():root_(NULL) { }
 
 
       virtual ~ITree()
@@ -228,9 +226,7 @@ protected:
 public:
 
 
-      DSWITree():ITree()
-      {
-      }
+      DSWITree():ITree() { }
 
 
       virtual ~DSWITree()

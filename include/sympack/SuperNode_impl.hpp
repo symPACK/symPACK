@@ -18,7 +18,7 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows,
   //compute supernode size / width
   Int size = aiLc - aiFc +1;
   //compute maximum number of blocks, number of off-diagonal rows + 1
-  Int num_blocks = ai_num_rows-size + 1;
+  Int num_blocks = max(1,ai_num_rows-size + 1);
   if(aiNZBlkCnt!=-1){
     num_blocks=aiNZBlkCnt;
   }

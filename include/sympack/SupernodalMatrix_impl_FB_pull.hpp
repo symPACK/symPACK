@@ -819,7 +819,8 @@ template <typename T> void SupernodalMatrix<T>::FBAggregationTask(supernodalTask
 
     src_snode.Aggregate(dist_src_snode);
 
-    if(msgPtr->IsLocal()){
+    
+    if(!msgPtr->IsLocal()){
       msgPtr->DeallocRemote();
     }
 

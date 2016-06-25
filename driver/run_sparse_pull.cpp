@@ -16,27 +16,15 @@
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
 
-//extern "C" {
-//#include "bebop/util/config.h"
-//#include "bebop/smc/sparse_matrix.h"
-//#include "bebop/smc/csr_matrix.h"
-//#include "bebop/smc/csc_matrix.h"
-//#include "bebop/smc/sparse_matrix_ops.h"
-//
-//#include "bebop/util/get_options.h"
-//#include "bebop/util/init.h"
-//#include "bebop/util/malloc.h"
-//#include "bebop/util/timer.h"
-//#include "bebop/util/util.h"
-//}
-
 #include <upcxx.h>
 
+/******* TYPE used in the computations ********/
 #define SCALAR double
 //#define SCALAR std::complex<double>
+
+/******* TYPE in the input matrix ********/
 #define INSCALAR double
 
-#define _CHECK_RESULT_
 
 using namespace SYMPACK;
 
@@ -50,30 +38,19 @@ int main(int argc, char **argv)
 
   MPI_Comm worldcomm;
   MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
-  //  int np, iam;
   MPI_Comm_size(worldcomm,&np);
   MPI_Comm_rank(worldcomm,&iam);
 
 
 #if defined(PROFILE) || defined(PMPI)
   TAU_PROFILE_INIT(argc, argv);
-  //TAU_PROFILE_SET_CONTEXT(worldcomm);
 #endif
 
 
-
-
+  //Initialize a logfile per rank
   logfileptr = new LogFile(iam);
   logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<endl;
   logfileptr->OFS()<<"**********************************"<<endl;
-
-#ifdef TRACK_PROGRESS
-  char suffix[50];
-  sprintf(suffix,"%d",iam);
-  progressptr = new LogFile("progress",suffix);
-  progstr = new stringstream();
-#endif
-
 
   // *********************************************************************
   // Input parameter
@@ -120,34 +97,24 @@ int main(int argc, char **argv)
   }
 
 
+  Int nrhs = 1;
+  if( options.find("-nrhs") != options.end() ){
+    nrhs= atoi(options["-nrhs"].front().c_str());
+  }
+
   optionsFact.factorization = FANBOTH;
   if( options.find("-fb") != options.end() ){
     if(options["-fb"].front()=="static"){
-        optionsFact.factorization = FANBOTH_STATIC;
+      optionsFact.factorization = FANBOTH_STATIC;
     }
   }
 
   if( options.find("-refine") != options.end() ){
-      optionsFact.order_refinement_str = options["-refine"].front();
+    optionsFact.order_refinement_str = options["-refine"].front();
   }
 
   if( options.find("-lb") != options.end() ){
-      optionsFact.load_balance_str = options["-lb"].front();
-//    if(options["-lb"]=="NNZ"){
-//      optionsFact.load_balance = NNZ;
-//    }
-//    else if(options["-lb"]=="FLOPS"){
-//      optionsFact.load_balance = FLOPS;
-//    }
-//    else if(options["-lb"]=="SUBCUBE"){
-//      optionsFact.load_balance = SUBCUBE;
-//    }
-//    else if(options["-lb"]=="SUBCUBE_NNZ"){
-//      optionsFact.load_balance = SUBCUBE_NNZ;
-//    }
-//    else{
-//      optionsFact.load_balance = NOLB;
-//    }
+    optionsFact.load_balance_str = options["-lb"].front();
   }
 
   if( options.find("-ordering") != options.end() ){
@@ -209,158 +176,43 @@ int main(int argc, char **argv)
 
 
   if( options.find("-map") != options.end() ){
-
     optionsFact.mappingTypeStr = options["-map"].front();
-
-//    if(options["-map"] == "Modwrap2D"){
-//      optionsFact.mappingType = MODWRAP2D;
-//    }
-//    else if(options["-map"] == "Modwrap2DNS"){
-//      optionsFact.mappingType = MODWRAP2DNS;
-//    }
-//    else if(options["-map"] == "Wrap2D"){
-//      optionsFact.mappingType = WRAP2D;
-//    }
-//    else if(options["-map"] == "Wrap2DForced"){
-//      optionsFact.mappingType = WRAP2DFORCED;
-//    }
-//    else if(options["-map"] == "Row2D"){
-//      optionsFact.mappingType = ROW2D;
-//    }
-//    else if(options["-map"] == "Col2D"){
-//      optionsFact.mappingType = COL2D;
-//    }
-//    else{
-//      optionsFact.mappingType = MODWRAP2D;
-//    }
   }
   else{
-    optionsFact.mappingTypeStr = "MODWRAP2D";
-//    optionsFact.mappingType = MODWRAP2D;
+    optionsFact.mappingTypeStr = "ROW2D";
   }
 
   Int all_np = np;
   np = optionsFact.used_procs(np);
 
-    if(iam==0){ cout<<"STARTING SPLITS"<<endl; }
   MPI_Comm workcomm;
   MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
-      logfileptr->OFS()<<"MPI SPLITS ARE DONE"<<endl;
-    if(iam==0){ cout<<"MPI SPLITS ARE DONE"<<endl; }
-
   Int new_rank = (iam<np)?iam:iam-np;
   upcxx::team_all.split(iam<np,new_rank, workteam);
-  
-      logfileptr->OFS()<<"ALL SPLITS ARE DONE"<<endl;
-
-    if(iam==0){ cout<<"ALL SPLITS ARE DONE"<<endl; }
 
   if(iam<np){
-    //  int np, iam;
     MPI_Comm_size(workcomm,&np);
     MPI_Comm_rank(workcomm,&iam);
 
 
     DistSparseMatrix<SCALAR> HMat(workcomm);
     ReadMatrix<SCALAR,INSCALAR>(filename , informatstr,  HMat);
-#if 0
-    sparse_matrix_file_format_t informat;
-    if(iam==0){ cout<<"Start reading the matrix"<<endl; }
-    TIMER_START(READING_MATRIX);
-    DistSparseMatrix<SCALAR> HMat(workcomm);
-    //Read the input matrix
-    if(informatstr == "CSC"){
-      ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
-    }
-    else{
-      int n,nnz;
-      int * colptr, * rowind;
-      INSCALAR * values;
-#if 1
-      
-      if(iam==0){
 
-      informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
-      sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
-      sparse_matrix_convert (Atmp, CSC);
-      const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
-
-      n = cscptr->n;
-      nnz = cscptr->nnz;
-      colptr = cscptr->colptr;
-      rowind = cscptr->rowidx;
-      values = (INSCALAR *)cscptr->values;
-
-        MPI_Bcast(&n,sizeof(n),MPI_BYTE,0,workcomm);
-        MPI_Bcast(&nnz,sizeof(n),MPI_BYTE,0,workcomm);
-        MPI_Bcast(colptr,sizeof(int)*(n+1),MPI_BYTE,0,workcomm);
-        MPI_Bcast(rowind,sizeof(int)*(nnz),MPI_BYTE,0,workcomm);
-        MPI_Bcast(values,sizeof(INSCALAR)*(nnz),MPI_BYTE,0,workcomm);
-
-        HMat.ConvertData(n,nnz,colptr,rowind,values);
-        destroy_sparse_matrix (Atmp);
-      }
-      else{
-        MPI_Bcast(&n,sizeof(n),MPI_BYTE,0,workcomm);
-        MPI_Bcast(&nnz,sizeof(nnz),MPI_BYTE,0,workcomm);
-
-        //allocate 
-        colptr = new int[n+1];
-        rowind = new int[nnz];
-        values = new INSCALAR[nnz];
-
-        MPI_Bcast(colptr,sizeof(int)*(n+1),MPI_BYTE,0,workcomm);
-        MPI_Bcast(rowind,sizeof(int)*(nnz),MPI_BYTE,0,workcomm);
-        MPI_Bcast(values,sizeof(INSCALAR)*(nnz),MPI_BYTE,0,workcomm);
-
-        HMat.ConvertData(n,nnz,colptr,rowind,values);
-
-        delete [] values;
-        delete [] rowind;
-        delete [] colptr;
-      }
-#else
-      informat = sparse_matrix_file_format_string_to_enum (informatstr.c_str());
-      sparse_matrix_t* Atmp = load_sparse_matrix (informat, filename.c_str());
-      sparse_matrix_convert (Atmp, CSC);
-      const csc_matrix_t * cscptr = (const csc_matrix_t *) Atmp->repr;
-
-      n = cscptr->n;
-      nnz = cscptr->nnz;
-      colptr = cscptr->colptr;
-      rowind = cscptr->rowidx;
-      values = (INSCALAR *)cscptr->values;
-      HMat.ConvertData(n,nnz,colptr,rowind,values);
-      destroy_sparse_matrix (Atmp);
-#endif
-    }
-
-    TIMER_STOP(READING_MATRIX);
-    if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
-#endif
-
-#ifdef _CHECK_RESULT_
-
-    Int nrhs = 1;
-    std::vector<SCALAR> RHS,XTrue;
-    //NumMat<SCALAR> RHS;
-    //NumMat<SCALAR> XTrue;
 
     Int n = HMat.size;
-
-
+    std::vector<SCALAR> RHS,XTrue;
     RHS.resize(n*nrhs);
     XTrue.resize(n*nrhs);
 
+    //Initialize XTrue;
     Int val = 1.0;
     for(Int i = 0; i<n;++i){ 
       for(Int j=0;j<nrhs;++j){
-        XTrue[i+j*nrhs] = val;
+        XTrue[i+j*n] = val;
         val = -val;
       }
     }
 
-    //        UniformRandom(XTrue);
 
     if(iam==0){
       cout<<"Starting spGEMM"<<endl;
@@ -378,18 +230,21 @@ int main(int argc, char **argv)
       Int numColFirst = std::max(1,n / np);
 
       RHS.assign(n*nrhs,0.0);
-      for(Int j = 1; j<=n; ++j){
-        Int iOwner = std::min((j-1)/numColFirst,np-1);
-        if(iam == iOwner){
-          Int iLocal = (j-(numColFirst)*iOwner);
-          //do I own the column ?
-          SCALAR t = XTrue[j-1+0*nrhs];
-          //do a dense mat mat mul ?
-          for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
-            Int row = Local.rowind[ii-1];
-            RHS[row-1+0*nrhs] += t*HMat.nzvalLocal[ii-1];
-            if(row>j){
-              RHS[j-1+0*nrhs] += XTrue[row-1+0*nrhs]*HMat.nzvalLocal[ii-1];
+      for(Int k = 0; k<nrhs; ++k){
+        for(Int j = 0; j<n; ++j){
+          Int iOwner = std::min(j/numColFirst,np-1);
+          if(iam == iOwner){
+            Int iLocal = (j-(numColFirst)*iOwner);
+
+            //do I own the column ?
+            SCALAR t = XTrue[j+k*n];
+            //do a dense mat mat mul ?
+            for(Int ii = Local.colptr[iLocal]-1; ii< Local.colptr[iLocal+1]-1;++ii){
+              Int row = Local.rowind[ii]-1;
+              RHS[row+k*n] += t*HMat.nzvalLocal[ii];
+              if(row>j){
+                RHS[j+k*n] += XTrue[row+k*n]*HMat.nzvalLocal[ii];
+              }
             }
           }
         }
@@ -403,17 +258,13 @@ int main(int argc, char **argv)
       cout<<"spGEMM time: "<<timeEnd-timeSta<<endl;
     }
 
-#endif
-
 
     if(iam==0){
       cout<<"Starting allocation"<<endl;
     }
 
 
-#ifdef _CHECK_RESULT_
     std::vector<SCALAR> XFinal;
-#endif
     {
       //do the symbolic factorization and build supernodal matrix
       optionsFact.maxSnode = maxSnode;
@@ -424,6 +275,7 @@ int main(int argc, char **argv)
       optionsFact.commEnv = new CommEnvironment(workcomm);
       SupernodalMatrix<SCALAR>*  SMat;
 
+      /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
       try{
         timeSta = get_time();
         SMat = new SupernodalMatrix<SCALAR>();
@@ -440,14 +292,14 @@ int main(int argc, char **argv)
       if(iam==0){
         cout<<"Initialization time: "<<timeEnd-timeSta<<endl;
       }
-//exit(-2);
+
+
+      /************* NUMERICAL FACTORIZATION PHASE ***********/
       if(iam==0){
         cout<<"Starting Factorization"<<endl;
       }
 
-      //SMat->Dump();
 
-#ifndef _NO_COMPUTATION_
       timeSta = get_time();
       TIMER_START(FACTORIZATION);
       SMat->Factorize();
@@ -459,13 +311,12 @@ int main(int argc, char **argv)
       }
       logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
-#ifdef _CHECK_RESULT_
-      //sort X the same way (permute rows)
-      XFinal = RHS;
 
+      /**************** SOLVE PHASE ***********/
       if(iam==0){
         cout<<"Starting solve"<<endl;
       }
+      XFinal = RHS;
 
       timeSta = get_time();
       SMat->Solve(&XFinal[0],nrhs);
@@ -476,42 +327,38 @@ int main(int argc, char **argv)
       }
 
       SMat->GetSolution(&XFinal[0],nrhs);
-      //  SMat->Dump();
-#endif
-
-#endif
 
       delete SMat;
 
     }
 
 
-#ifndef _NO_COMPUTATION_
-#ifdef _CHECK_RESULT_
     {
       SparseMatrixStructure Local = HMat.GetLocalStructure();
 
       Int numColFirst = std::max(1,n / np);
 
       std::vector<SCALAR> AX(n*nrhs,0.0);
-      //SetValue(AX,(SCALAR)0.0);
 
-      for(Int j = 1; j<=n; ++j){
-        Int iOwner = std::min((j-1)/numColFirst,np-1);
-        if(iam == iOwner){
-          Int iLocal = (j-(numColFirst)*iOwner);
-          //do I own the column ?
-          SCALAR t = XFinal[j-1+0*nrhs];
-          //do a dense mat mat mul ?
-          for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
-            Int row = Local.rowind[ii-1];
-            AX[row-1+0*nrhs] += t*HMat.nzvalLocal[ii-1];
-            if(row>j){
-              AX[j-1+0*nrhs] += XFinal[row-1+0*nrhs]*HMat.nzvalLocal[ii-1];
+      for(Int k = 0; k<nrhs; ++k){
+        for(Int j = 1; j<=n; ++j){
+          Int iOwner = std::min((j-1)/numColFirst,np-1);
+          if(iam == iOwner){
+            Int iLocal = (j-(numColFirst)*iOwner);
+            //do I own the column ?
+            SCALAR t = XFinal[j-1+k*n];
+            //do a dense mat mat mul ?
+            for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
+              Int row = Local.rowind[ii-1];
+              AX[row-1+k*n] += t*HMat.nzvalLocal[ii-1];
+              if(row>j){
+                AX[j-1+k*n] += XFinal[row-1+k*n]*HMat.nzvalLocal[ii-1];
+              }
             }
           }
         }
       }
+
       //Do a reduce of RHS
       mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,workcomm);
 
@@ -522,15 +369,8 @@ int main(int argc, char **argv)
         cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
       }
     }
-#endif
-#endif
 
     delete optionsFact.commEnv;
-  }
-  else{
-//    gdb_lock();
-//    //missing barrier at the end of FanBoth()
-//    upcxx::barrier();
   }
 
   MPI_Barrier(workcomm);
@@ -539,31 +379,11 @@ int main(int argc, char **argv)
   MPI_Barrier(worldcomm);
   MPI_Comm_free(&worldcomm);
 
-#ifdef TRACK_PROGRESS
-
-  progressptr->OFS() << progstr->str();
-  delete progressptr;
-  delete progstr;
-#endif
-
   delete logfileptr;
 
-#ifdef MAP_PROFILING
-  //LOCK FOR PROFILING
-  string end;
-  cin>>end;
-  //gdb_lock();
-#endif
 
-
+  //This will also finalize MPI
   upcxx::finalize();
-#if 0
-  int finalized = 0;
-  MPI_Finalized(&finalized);
-  if(!finalized){ 
-    MPI_Finalize();
-  }
-#endif
   return 0;
 }
 

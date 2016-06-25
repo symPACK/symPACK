@@ -379,15 +379,15 @@ template<typename T> void SupernodalMatrix<T>::generateTaskGraph(supernodalTaskG
         T * tgt = &tgt_contrib->GetNZval(tgt_desc.Offset)[tgt_local_fr*tgt_ncols];
 
 
-        //TODO understand why this axpy makes the code crash
-        //      for(Int i=0; i<(tgt_local_lr - tgt_local_fr +1)*src_ncols;++i,++tgt,++src){
-        //        *tgt+=*src;
-        //      }
-        for(Int i=0; i<(tgt_local_lr - tgt_local_fr +1)*src_ncols;++i){
-          tgt[i]+=src[i];
-        }
-        //      blas::Axpy((tgt_local_lr - tgt_local_fr +1)*src_ncols,
-        //          ONE<T>(),src,1,tgt,1);
+        ////TODO understand why this axpy makes the code crash
+        ////      for(Int i=0; i<(tgt_local_lr - tgt_local_fr +1)*src_ncols;++i,++tgt,++src){
+        ////        *tgt+=*src;
+        ////      }
+        //for(Int i=0; i<(tgt_local_lr - tgt_local_fr +1)*src_ncols;++i){
+        //  tgt[i]+=src[i];
+        //}
+        blas::Axpy((tgt_local_lr - tgt_local_fr +1)*src_ncols,
+                  ONE<T>(),src,1,tgt,1);
 
         if(src_lr>tgt_lr){
           //the src block hasn't been completely used and is
@@ -451,6 +451,7 @@ template<typename T> void SupernodalMatrix<T>::generateTaskGraph(supernodalTaskG
   template <typename T> void SupernodalMatrix<T>::Solve(T * RHS, int nrhs,  T * Xptr) {
     TIMER_START(SPARSE_SOLVE);
 
+    Int n = iSize_;
     Int iam = CommEnv_->MPI_Rank();
     Int np  = CommEnv_->MPI_Size();
 
@@ -610,7 +611,7 @@ template<typename T> void SupernodalMatrix<T>::generateTaskGraph(supernodalTaskG
                 for(Int j = 0; j<nrhs;++j){
                   Int srcRow = Order_.perm[diag_desc.GIndex+kk-1];
                   //diag_nzval[kk*nrhs+j] = (B(srcRow-1,j) + diag_nzval[kk*nrhs+j]) / chol_nzval[kk*cur_snode->Size()+kk];
-                  diag_nzval[kk*nrhs+j] = (RHS[srcRow-1 + j*nrhs] + diag_nzval[kk*nrhs+j]) / chol_nzval[kk*cur_snode->Size()+kk];
+                  diag_nzval[kk*nrhs+j] = (RHS[srcRow-1 + j*n] + diag_nzval[kk*nrhs+j]) / chol_nzval[kk*cur_snode->Size()+kk];
                   for(Int i = kk+1; i<cur_nrows;++i){
                     diag_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*chol_nzval[i*cur_snode->Size()+kk];
                   }
@@ -951,6 +952,7 @@ template<typename T> void SupernodalMatrix<T>::generateTaskGraph(supernodalTaskG
   }
 
   template<typename T> void SupernodalMatrix<T>::GetSolution(T * B, int nrhs){
+    Int n = iSize_;
     Int iam = CommEnv_->MPI_Rank();
     Int np  = CommEnv_->MPI_Size();
 //    Int nrhs = B.n();
@@ -978,7 +980,7 @@ template<typename T> void SupernodalMatrix<T>::generateTaskGraph(supernodalTaskG
           Int destRow = Xsuper_[I-1] + i;
           destRow = Order_.perm[destRow - 1];
           //B(destRow-1, j) = data[i*nrhs + j];
-          B[destRow-1 + j*nrhs] = data[i*nrhs + j];
+          B[destRow-1 + j*n] = data[i*nrhs + j];
         }
       }
     }

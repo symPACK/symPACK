@@ -1,9 +1,18 @@
 #include  "sympack/Environment.hpp"
 #include  "sympack/utility.hpp"
+#include  "sympack/SuperNode.hpp"
 
 #include <upcxx.h>
 
 namespace SYMPACK{
+
+
+
+#ifdef _TRACK_MEMORY_
+  std::map<char*,size_t> MemoryAllocator::cnt_;
+  size_t MemoryAllocator::total_=0;
+#endif
+
 
   upcxx::team * workteam;
 // *********************************************************************

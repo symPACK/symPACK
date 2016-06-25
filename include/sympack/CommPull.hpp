@@ -157,9 +157,16 @@ struct MSGCompare{
       if(upcxx::myrank()!=pRemote_ptr.where()){
         //logfileptr->OFS()<<"Performing remote delete on P"<<pRemote_ptr.where()<<endl;
         //upcxx::async(pRemote_ptr.where())(remote_delete,pRemote_ptr);
+        //char * ptr = (char*)pRemote_ptr;
+        //logfileptr->OFS()<<"Deallocating UPCXX "<<(uint64_t)ptr<<" "<<endl;
+
         upcxx::deallocate(pRemote_ptr);
       }
       else{
+
+        //char * ptr = (char*)pRemote_ptr;
+        //logfileptr->OFS()<<"Deallocating UPCXX "<<(uint64_t)ptr<<" "<<endl;
+
         upcxx::deallocate(pRemote_ptr);
       }
       TIMER_STOP(REMOTE_DELETE);

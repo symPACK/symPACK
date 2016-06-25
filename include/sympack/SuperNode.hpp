@@ -36,6 +36,12 @@ struct NZBlockDesc{
 
 
 class MemoryAllocator{
+  protected:
+#ifdef _TRACK_MEMORY_
+    static std::map<char*,size_t> cnt_;
+    static size_t total_;
+#endif
+
   public:
     static char * allocate(size_t count){};
 
@@ -46,12 +52,23 @@ class MemoryAllocator{
 class MallocAllocator: public MemoryAllocator{
   public:
     static char * allocate(size_t count){
-      char * locTmpPtr = (char *)malloc(count*sizeof(char));
+      char * locTmpPtr = new char[count];
+#ifdef _TRACK_MEMORY_
+      if(cnt_.size()==0){total_ = 0;}
+      cnt_[locTmpPtr] = count;
+      total_ += count;
+      logfileptr->OFS()<<"Allocating "<<" "<<count<<" bytes at "<<(uint64_t)locTmpPtr<<", total "<< total_<<endl;
+#endif
       return locTmpPtr;
     }
 
     static void deallocate(char* ptr){
-      free(ptr);
+#ifdef _TRACK_MEMORY_
+      total_-=cnt_[ptr];
+      logfileptr->OFS()<<"Deallocating "<<(uint64_t)ptr<<" "<<cnt_[ptr]<<" bytes, total "<< total_<< endl;
+      cnt_.erase(ptr);
+#endif
+      delete [] ptr;
     }
 };
 
@@ -64,10 +81,21 @@ class UpcxxAllocator: public MemoryAllocator{
     static char * allocate(size_t count){
       upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,count);
       char * locTmpPtr = (char*)tmpPtr;
+#ifdef _TRACK_MEMORY_
+      if(cnt_.size()==0){total_ = 0;}
+      cnt_[locTmpPtr] = count;
+      total_ += count;
+      logfileptr->OFS()<<"Allocating UPCXX "<<" "<<count<<" bytes at "<<(uint64_t)locTmpPtr<<", total "<< total_<<endl;
+#endif
       return locTmpPtr;
     }
 
     static void deallocate(char* ptr){
+#ifdef _TRACK_MEMORY_
+      total_-=cnt_[ptr];
+      logfileptr->OFS()<<"Deallocating UPCXX "<<(uint64_t)ptr<<" "<<cnt_[ptr]<<" bytes, total "<< total_<<endl;
+      cnt_.erase(ptr);
+#endif
       upcxx::global_ptr<char> tmpPtr((char*)ptr);
       upcxx::deallocate(tmpPtr);
     }

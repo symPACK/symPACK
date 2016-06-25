@@ -68,7 +68,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 #endif()
 ##ENDMACRO( CONFIGURE_UPCXX )
 
-option(ENABLE_SCOTCH "Enable SCOTCH" ON)
+option(ENABLE_SCOTCH "Enable SCOTCH" OFF)
 if(ENABLE_SCOTCH)
   find_package(Scotch REQUIRED)
   set(LIBS ${LIBS} ${SCOTCH_LIBRARIES})
@@ -78,6 +78,10 @@ endif()
 
 
 
+option(DEBUG_MEMORY "Enable Memory allocation debugging" OFF)
+if(DEBUG_MEMORY)
+  add_definitions("-D_TRACK_MEMORY_")
+endif()
 
 include(cmake/gasnet.cmake)
 #include_directories(${GASNET_INCLUDE_DIR} ${GASNET_CONDUIT_INCLUDE_DIR})
