@@ -124,22 +124,31 @@ add_dependencies(sympack gasnet upcxx)
 target_link_libraries(sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
 
 install(TARGETS sympack LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
-install(FILES ${PROJECT_BINARY_DIR}/sympack_config.h include/sympack.hpp
+install(FILES 
+  ${PROJECT_BINARY_DIR}/sympack_config.h 
+  include/sympack.hpp
   include/sympack/SuperNode.hpp
-  include/sympack/CommPull.hpp include/sympack/SuperNode_impl.hpp
-  include/sympack/CommTypes.hpp 
-  include/sympack/DistSparseMatrix.hpp include/sympack/SupernodalMatrix.hpp
-  include/sympack/DistSparseMatrixGraph.hpp include/sympack/SupernodalMatrix_impl.hpp
-  include/sympack/DistSparseMatrix_impl.hpp include/sympack/SupernodalMatrix_impl_FB_pull.hpp
-  include/sympack/ETree.hpp include/sympack/SupernodalMatrixBase.hpp
-  include/sympack/Environment.hpp 
+  include/sympack/CommPull.hpp
+  include/sympack/SuperNode_impl.hpp
+  include/sympack/CommTypes.hpp
+  include/sympack/DistSparseMatrix.hpp
+  include/sympack/SupernodalMatrix.hpp
+  include/sympack/DistSparseMatrixGraph.hpp
+  include/sympack/SupernodalMatrix_impl.hpp
+  include/sympack/DistSparseMatrix_impl.hpp
+  include/sympack/SupernodalMatrix_impl_FB_pull.hpp
+  include/sympack/ETree.hpp
+  include/sympack/SupernodalMatrixBase.hpp
+  include/sympack/Environment.hpp
   include/sympack/Environment_impl.hpp 
   include/sympack/IntervalTree.hpp
   include/sympack/IntervalTree_impl.hpp 
-  include/sympack/SupernodalMatrix_impl_deprecated.hpp
-  include/sympack/LoadBalancer.hpp include/sympack/Task.hpp
-  include/sympack/LogFile.hpp include/sympack/Types.hpp
-  include/sympack/Mapping.hpp include/sympack/blas.hpp
+  include/sympack/LoadBalancer.hpp 
+  include/sympack/Task.hpp
+  include/sympack/LogFile.hpp
+  include/sympack/Types.hpp
+  include/sympack/Mapping.hpp 
+  include/sympack/blas.hpp
   include/sympack/datatypes.hpp
   include/sympack/lapack.hpp
   include/sympack/mmd.hpp
@@ -147,9 +156,19 @@ install(FILES ${PROJECT_BINARY_DIR}/sympack_config.h include/sympack.hpp
   include/sympack/timer.hpp
   include/sympack/Ordering.hpp
   include/sympack/Scheduler.hpp
-  include/sympack/SparseMatrixStructure.hpp include/sympack/utility.hpp DESTINATION include)
+  include/sympack/SparseMatrixStructure.hpp 
+  include/sympack/utility.hpp 
+  DESTINATION include)
 
 
+
+add_executable(run_sympack EXCLUDE_FROM_ALL driver/run_sparse_pull.cpp)
+add_custom_target(examples DEPENDS run_sympack)
+
+add_dependencies(run_sympack sympack gasnet upcxx) 
+target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
+
+#install(TARGETS run_sympack RUNTIME DESTINATION bin)
 
 set(SYMPACK_VERSION_MAJOR 0)
 set(SYMPACK_VERSION_MINOR 1)
@@ -159,13 +178,7 @@ set(CPACK_GENERATOR "TGZ")
 set(CPACK_PACKAGE_VERSION_MAJOR ${SYMPACK_VERSION_MAJOR})
 set(CPACK_PACKAGE_VERSION_MINOR ${SYMPACK_VERSION_MINOR})
 set(CPACK_PACKAGE_VERSION_PATCH ${SYMPACK_VERSION_PATCH})
+#SET(CPACK_PACKAGE_FILE_NAME "sympack-"${SYMPACK_VERSION_FULL})
 include(CPack)
 
-add_executable(run_sympack  EXCLUDE_FROM_ALL driver/run_sparse_pull.cpp)
-add_custom_target(examples DEPENDS run_sympack)
-
-add_dependencies(run_sympack sympack gasnet upcxx) 
-target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
-
-install(TARGETS run_sympack RUNTIME DESTINATION bin)
 
