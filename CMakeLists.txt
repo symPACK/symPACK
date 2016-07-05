@@ -42,6 +42,28 @@ endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
+find_package(MKL)
+if(MKL_FOUND)
+  message(STATUS "Found MKL library: " ${MKL_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${MKL_LINKER_FLAGS})
+  set(LIBS ${LIBS} ${MKL_LIBRARIES})
+else()
+  message(WARNING "Warning: could not find a MKL library")
+endif()
+
+#find_package(LIBSCI)
+#if(LIBSCI_FOUND)
+#  message(STATUS "Found LIBSCI library: " ${LIBSCI_LIBRARIES})
+#  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${LIBSCI_LINKER_FLAGS})
+#  set(LIBS ${LIBS} ${LIBSCI_LIBRARIES})
+#else()
+#  message(WARNING "Warning: could not find a LIBSCI library")
+#endif()
+
+
+
+
+
 #find_package(GASNET)
 #if(GASNET_FOUND)
 #  message(STATUS "Found GASNET library: " ${GASNET_LIBRARIES})
