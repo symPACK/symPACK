@@ -4,10 +4,11 @@ set(GASNET_GZ  GASNet-1.26.3.tar.gz)
 set(GASNET_MD5 "93ab985881ca19de319bb73583c385d2")
 
 ExternalProject_Add(${GASNET_NAME}
- URL ${GASNET_URL}/${GASNET_GZ}
- URL_MD5 ${GASNET_MD5}
+  #URL ${GASNET_URL}/${GASNET_GZ}
+ # URL_MD5 ${GASNET_MD5}
+ URL ${PROJECT_SOURCE_DIR}/tarballs/${GASNET_GZ}
  INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install
- CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-DGASNETI_PSHM_BARRIER_HIER=0
+ CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-debug --prefix=<INSTALL_DIR> CFLAGS=-DGASNETI_PSHM_BARRIER_HIER=0 CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} 
 )
 
 
@@ -29,7 +30,13 @@ add_library(libgasnet-conduit STATIC IMPORTED)
 set(GASNET_CONDUIT_INCLUDE_DIR ${GASNET_INCLUDE_DIR}/mpi-conduit)
 set(GASNET_CONDUIT ${GASNET_CONDUIT_INCLUDE_DIR}/mpi-seq.mak)
 set_property(TARGET libgasnet-conduit PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libgasnet-mpi-seq.a)
+
+if(APPLE)
+SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lpthread )
+else()
 SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lpthread -lrt )
+endif()
+
 add_dependencies(libgasnet-conduit ${GASNET_NAME})
 set(GASNET_DEFINES "-DGASNET_SEQ -DGASNETT_USE_GCC_ATTRIBUTE_MAYALIAS=1")
 

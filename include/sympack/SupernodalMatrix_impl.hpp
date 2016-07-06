@@ -1652,12 +1652,13 @@ logfileptr->OFS()<<"xsuper: "<<Xsuper_<<endl;
 
       logfileptr->OFS()<<"Supernodes found"<<endl;
 
-      if(options_.relax.nrelax0>=0){
+      if(options_.relax.nrelax0>0){
 #if 1
         this->relaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
 #else
         Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
 #endif
+
         logfileptr->OFS()<<"Relaxation done"<<endl;
           //Refresh XsuperDist_
           {
@@ -1669,6 +1670,7 @@ logfileptr->OFS()<<"xsuper: "<<Xsuper_<<endl;
             XsuperDist_[np] = Xsuper_.size();
           }
 
+      }
 
         {
 
@@ -1685,11 +1687,11 @@ logfileptr->OFS()<<"xsuper: "<<Xsuper_<<endl;
           }
         }
 
-      }
-      else{
-        abort();
-        //Global_->SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
-      }
+   //   }
+   //   else{
+   //     abort();
+   //     //Global_->SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+   //   }
 
       logfileptr->OFS()<<"Symbfact done"<<endl;
 
@@ -1734,22 +1736,23 @@ logfileptr->OFS()<<"xsuper: "<<Xsuper_<<endl;
 //
 //        logfileptr->OFS()<<"Supernodes found"<<endl;
 
-        if(options_.relax.nrelax0>=0){
-//#if 1
-//          this->relaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
-//#else
-//          Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
-//#endif
-//          logfileptr->OFS()<<"Relaxation done"<<endl;
-//          //Refresh XsuperDist_
-//          {
-//            Idx supPerProc = (Xsuper_.size()-1) / np;
-//            XsuperDist_.resize(np+1,0);
-//            for(int p =0; p<np; p++){
-//              XsuperDist_[p]= p*supPerProc+1;
-//            }
-//            XsuperDist_[np] = Xsuper_.size();
-//          }
+        if(options_.relax.nrelax0>0){
+#if 1
+          this->relaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
+#else
+          Global_->RelaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
+#endif
+          logfileptr->OFS()<<"Relaxation done"<<endl;
+          //Refresh XsuperDist_
+          {
+            Idx supPerProc = (Xsuper_.size()-1) / np;
+            XsuperDist_.resize(np+1,0);
+            for(int p =0; p<np; p++){
+              XsuperDist_[p]= p*supPerProc+1;
+            }
+            XsuperDist_[np] = Xsuper_.size();
+          }
+        }
 
 
           {
@@ -1766,11 +1769,11 @@ logfileptr->OFS()<<"xsuper: "<<Xsuper_<<endl;
             }
           }
 
-        }
-        else{
-          abort();
-          //Global_->SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
-        }
+        //}
+        //else{
+        //  abort();
+        //  //Global_->SymbolicFactorization(ETree_,Order_,cc,Xsuper_,SupMembership_,xlindx_,lindx_);
+        //}
 
         logfileptr->OFS()<<"Symbfact done"<<endl;
       }
@@ -3300,7 +3303,7 @@ logfileptr->OFS()<<"xsuper: "<<Xsuper_<<endl;
             if(fused_cols <= params.nrelax0){
               merge = true;
             }
-            else if(fused_cols <=params.maxSize){
+            else if(fused_cols <=params.maxSize || params.maxSize==-1){
               double child_lnz = cc[fstcol-1];
               double parent_lnz = cc[parent_fstcol-1];
               double xnewzeros = width * (parent_lnz + width  - child_lnz);
@@ -3772,6 +3775,10 @@ logfileptr->OFS()<<"xsuper: "<<Xsuper_<<endl;
                 rchlnk[newi] = nexti;
                 marker[newi-1] = ksup;
               }
+            }
+
+            if(options_.relax.nrelax0==0){
+              break;
             }
           }
 

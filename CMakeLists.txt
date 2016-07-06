@@ -98,18 +98,35 @@ if(ENABLE_SCOTCH)
   add_definitions("-DUSE_SCOTCH -DUSE_PTSCOTCH")
 endif()
 
+option(ENABLE_METIS "Enable METIS" OFF)
+if(ENABLE_METIS)
+  find_package(Metis REQUIRED)
+  set(LIBS ${LIBS} ${METIS_LIBRARIES})
+  include_directories(${METIS_INCLUDES})
+  add_definitions("-DUSE_METIS")
+endif()
+
+option(ENABLE_PARMETIS "Enable PARMETIS" OFF)
+if(ENABLE_PARMETIS)
+  find_package(Parmetis REQUIRED)
+  set(LIBS ${LIBS} ${PARMETIS_LIBRARIES})
+  include_directories(${PARMETIS_INCLUDES})
+  add_definitions("-DUSE_PARMETIS")
+endif()
 
 
-option(DEBUG_MEMORY "Enable Memory allocation debugging" OFF)
-if(DEBUG_MEMORY)
+
+option(TRACK_MEMORY "Enable (partial) Memory allocation tracking" OFF)
+if(TRACK_MEMORY)
   add_definitions("-D_TRACK_MEMORY_")
 endif()
 
+
+option(ENABLE_PROFILE "Enable profiling" OFF)
+
+
+
 include(cmake/gasnet.cmake)
-#include_directories(${GASNET_INCLUDE_DIR} ${GASNET_CONDUIT_INCLUDE_DIR})
-#link_directories(${GASNET_LIBRARY_PATH})
-#set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${GASNET_DEFINES})
-#set(LIBS ${LIBS} ${GASNET_LIBRARIES})
 
 include(cmake/upcxx.cmake)
 
@@ -118,10 +135,6 @@ link_directories(${UPCXX_LIBRARY_PATH})
 
 
 set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${UPCXX_DEFINES})
-#set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${UPCXX_DEFINES})
-#set(LIBS ${LIBS} ${UPCXX_LIBRARIES})
-
-
 
 set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
   src/lapack.cpp src/global.cpp src/LogFile.cpp src/SparseMatrixStructure.cpp
@@ -136,10 +149,6 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_BINARY_DIR})
 
 add_definitions("-DITREE -D_DSW_ITREE_ -DSINGLE_BLAS")
-
-#--param max-inline-insns-single=35000 --param inline-unit-growth=10000 --param large-function-growth=200000 -Winline 
-#  -lgasnet-mpi-seq -lammpi    -lrt 
-
 
 add_library(sympack ${SYMPACKSRC})
 add_dependencies(sympack gasnet upcxx) 

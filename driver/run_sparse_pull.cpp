@@ -82,7 +82,7 @@ int main(int argc, char **argv)
     }
     else{
       //disable relaxed supernodes
-      optionsFact.relax.SetNrelax0(-1);
+      optionsFact.relax.SetNrelax0(0);
     }
   }
 
@@ -200,64 +200,66 @@ int main(int argc, char **argv)
 
 
     Int n = HMat.size;
-    std::vector<SCALAR> RHS,XTrue;
-    RHS.resize(n*nrhs);
-    XTrue.resize(n*nrhs);
 
-    //Initialize XTrue;
-    Int val = 1.0;
-    for(Int i = 0; i<n;++i){ 
-      for(Int j=0;j<nrhs;++j){
-        XTrue[i+j*n] = val;
-        val = -val;
+    if(nrhs>0){
+      std::vector<SCALAR> RHS,XTrue;
+      RHS.resize(n*nrhs);
+      XTrue.resize(n*nrhs);
+
+      //Initialize XTrue;
+      Int val = 1.0;
+      for(Int i = 0; i<n;++i){ 
+        for(Int j=0;j<nrhs;++j){
+          XTrue[i+j*n] = val;
+          val = -val;
+        }
       }
-    }
 
 
-    if(iam==0){
-      cout<<"Starting spGEMM"<<endl;
-    }
+      if(iam==0){
+        cout<<"Starting spGEMM"<<endl;
+      }
 
-    timeSta = get_time();
+      timeSta = get_time();
 
-    {
-      //TODO HANDLE MULTIPLE RHS
-      SparseMatrixStructure Local = HMat.GetLocalStructure();
-      SparseMatrixStructure Global;
-      Local.ToGlobal(Global,workcomm);
-      Global.ExpandSymmetric();
+      {
+        //TODO HANDLE MULTIPLE RHS
+        SparseMatrixStructure Local = HMat.GetLocalStructure();
+        SparseMatrixStructure Global;
+        Local.ToGlobal(Global,workcomm);
+        Global.ExpandSymmetric();
 
-      Int numColFirst = std::max(1,n / np);
+        Int numColFirst = std::max(1,n / np);
 
-      RHS.assign(n*nrhs,0.0);
-      for(Int k = 0; k<nrhs; ++k){
-        for(Int j = 0; j<n; ++j){
-          Int iOwner = std::min(j/numColFirst,np-1);
-          if(iam == iOwner){
-            Int iLocal = (j-(numColFirst)*iOwner);
+        RHS.assign(n*nrhs,0.0);
+        for(Int k = 0; k<nrhs; ++k){
+          for(Int j = 0; j<n; ++j){
+            Int iOwner = std::min(j/numColFirst,np-1);
+            if(iam == iOwner){
+              Int iLocal = (j-(numColFirst)*iOwner);
 
-            //do I own the column ?
-            SCALAR t = XTrue[j+k*n];
-            //do a dense mat mat mul ?
-            for(Int ii = Local.colptr[iLocal]-1; ii< Local.colptr[iLocal+1]-1;++ii){
-              Int row = Local.rowind[ii]-1;
-              RHS[row+k*n] += t*HMat.nzvalLocal[ii];
-              if(row>j){
-                RHS[j+k*n] += XTrue[row+k*n]*HMat.nzvalLocal[ii];
+              //do I own the column ?
+              SCALAR t = XTrue[j+k*n];
+              //do a dense mat mat mul ?
+              for(Int ii = Local.colptr[iLocal]-1; ii< Local.colptr[iLocal+1]-1;++ii){
+                Int row = Local.rowind[ii]-1;
+                RHS[row+k*n] += t*HMat.nzvalLocal[ii];
+                if(row>j){
+                  RHS[j+k*n] += XTrue[row+k*n]*HMat.nzvalLocal[ii];
+                }
               }
             }
           }
         }
+        //Do a reduce of RHS
+        mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&RHS[0],RHS.size(),MPI_SUM,workcomm);
       }
-      //Do a reduce of RHS
-      mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&RHS[0],RHS.size(),MPI_SUM,workcomm);
-    }
 
-    timeEnd = get_time();
-    if(iam==0){
-      cout<<"spGEMM time: "<<timeEnd-timeSta<<endl;
+      timeEnd = get_time();
+      if(iam==0){
+        cout<<"spGEMM time: "<<timeEnd-timeSta<<endl;
+      }
     }
-
 
     if(iam==0){
       cout<<"Starting allocation"<<endl;
@@ -312,21 +314,23 @@ int main(int argc, char **argv)
       logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
 
-      /**************** SOLVE PHASE ***********/
-      if(iam==0){
-        cout<<"Starting solve"<<endl;
+      if(nrhs>0){
+        /**************** SOLVE PHASE ***********/
+        if(iam==0){
+          cout<<"Starting solve"<<endl;
+        }
+        XFinal = RHS;
+
+        timeSta = get_time();
+        SMat->Solve(&XFinal[0],nrhs);
+        timeEnd = get_time();
+
+        if(iam==0){
+          cout<<"Solve time: "<<timeEnd-timeSta<<endl;
+        }
+
+        SMat->GetSolution(&XFinal[0],nrhs);
       }
-      XFinal = RHS;
-
-      timeSta = get_time();
-      SMat->Solve(&XFinal[0],nrhs);
-      timeEnd = get_time();
-
-      if(iam==0){
-        cout<<"Solve time: "<<timeEnd-timeSta<<endl;
-      }
-
-      SMat->GetSolution(&XFinal[0],nrhs);
 
       delete SMat;
 
