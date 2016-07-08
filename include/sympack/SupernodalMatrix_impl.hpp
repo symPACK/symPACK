@@ -1633,7 +1633,7 @@ template<typename T> void SupernodalMatrix<T>::generateTaskGraph(supernodalTaskG
 
 #if 1
       this->findSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
-logfileptr->OFS()<<"xsuper: "<<Xsuper_<<endl;
+//logfileptr->OFS()<<"xsuper: "<<Xsuper_<<endl;
 #else
       Global_->FindSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options.maxSnode);
 #endif
@@ -3814,6 +3814,9 @@ logfileptr->OFS()<<"xsuper: "<<Xsuper_<<endl;
               //          }
             }
             //        logfileptr->OFS()<<endl;
+            if(options_.relax.nrelax0==0){
+              break;
+            }
           }
 
 

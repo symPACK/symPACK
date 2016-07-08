@@ -200,9 +200,8 @@ int main(int argc, char **argv)
 
 
     Int n = HMat.size;
-
+    std::vector<SCALAR> RHS,XTrue;
     if(nrhs>0){
-      std::vector<SCALAR> RHS,XTrue;
       RHS.resize(n*nrhs);
       XTrue.resize(n*nrhs);
 
@@ -336,8 +335,7 @@ int main(int argc, char **argv)
 
     }
 
-
-    {
+  if(nrhs>0) {
       SparseMatrixStructure Local = HMat.GetLocalStructure();
 
       Int numColFirst = std::max(1,n / np);

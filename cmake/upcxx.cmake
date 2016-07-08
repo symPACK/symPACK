@@ -13,8 +13,8 @@ ExternalProject_Add(${UPCXX_NAME}
 ExternalProject_Add_Step(${UPCXX_NAME} bootstrap
 DEPENDEES patch update patch download
 DEPENDERS configure
-#COMMAND libtoolize COMMAND <SOURCE_DIR>/Bootstrap.sh 
-COMMAND autoreconf -fi COMMAND <SOURCE_DIR>/Bootstrap.sh 
+COMMAND libtoolize COMMAND <SOURCE_DIR>/Bootstrap.sh 
+#COMMAND autoreconf -fi COMMAND <SOURCE_DIR>/Bootstrap.sh 
 WORKING_DIRECTORY <SOURCE_DIR>
 #ALWAYS 1
 COMMENT "Bootstraping the source directory"

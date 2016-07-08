@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 project(SYMPACK CXX C Fortran)
 include(ExternalProject)
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED on)
 
 #set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS})
@@ -42,14 +42,14 @@ endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
-find_package(MKL)
-if(MKL_FOUND)
-  message(STATUS "Found MKL library: " ${MKL_LIBRARIES})
-  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${MKL_LINKER_FLAGS})
-  set(LIBS ${LIBS} ${MKL_LIBRARIES})
-else()
-  message(WARNING "Warning: could not find a MKL library")
-endif()
+#find_package(MKL)
+#if(MKL_FOUND)
+#  message(STATUS "Found MKL library: " ${MKL_LIBRARIES})
+#  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${MKL_LINKER_FLAGS})
+#  set(LIBS ${LIBS} ${MKL_LIBRARIES})
+#else()
+#  message(WARNING "Warning: could not find a MKL library")
+#endif()
 
 #find_package(LIBSCI)
 #if(LIBSCI_FOUND)
@@ -89,6 +89,7 @@ endif()
 ##LINK_DIRECTORIES(${UPCXX_LIBRARY_PATH})
 #endif()
 ##ENDMACRO( CONFIGURE_UPCXX )
+option(ENABLE_ARIES "Enable ARIES" OFF)
 
 option(ENABLE_SCOTCH "Enable SCOTCH" OFF)
 if(ENABLE_SCOTCH)
@@ -134,7 +135,9 @@ include_directories(${UPCXX_INCLUDE_DIR})
 link_directories(${UPCXX_LIBRARY_PATH})
 
 
-set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${UPCXX_DEFINES})
+#set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${UPCXX_DEFINES})
+add_definitions(${UPCXX_DEFINES})
+message(STATUS "UPCXX DEFINES: " ${UPCXX_DEFINES})
 
 set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
   src/lapack.cpp src/global.cpp src/LogFile.cpp src/SparseMatrixStructure.cpp

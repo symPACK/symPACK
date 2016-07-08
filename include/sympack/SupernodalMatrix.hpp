@@ -20,6 +20,8 @@
 #include <deque>
 #include <queue>
 #include <vector>
+#include <limits>
+#include <numeric>
 #include "SuperNode.hpp"
 
 #ifdef MULTITHREADING
