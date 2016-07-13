@@ -109,10 +109,10 @@ endif()
 
 option(ENABLE_PARMETIS "Enable PARMETIS" OFF)
 if(ENABLE_PARMETIS)
-  find_package(Parmetis REQUIRED)
+  find_package(ParMETIS REQUIRED)
   set(LIBS ${LIBS} ${PARMETIS_LIBRARIES})
   include_directories(${PARMETIS_INCLUDES})
-  add_definitions("-DUSE_PARMETIS")
+  add_definitions("-DUSE_METIS -DUSE_PARMETIS")
 endif()
 
 
