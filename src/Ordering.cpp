@@ -437,11 +437,11 @@ namespace SYMPACK{
           options, mperm, iperm);
 
 
-      if(!isSameInt || g.baseval!=1){ 
+      if(!isSameInt){ 
         delete [] mperm;
       }
 
-      if(g.baseval!=1){ 
+      if(!isSameInt ||g.baseval!=1){ 
         //switch everything to 1 based
         for(int col=0; col<N;++col){ invp[col] = iperm[col]+(1-g.baseval);}
       }
@@ -618,6 +618,169 @@ namespace SYMPACK{
     //    invp[node-1] = i;
     //  }
   }
+
+
+  void Ordering::PARMETIS(const DistSparseMatrixGraph & g){
+
+    logfileptr->OFS()<<"PARMETIS used"<<endl;
+    if(iam==0){cout<<"PARMETIS used"<<endl;}
+
+    if(!g.IsExpanded() || g.keepDiag==1){
+      throw std::logic_error( "DistSparseMatrixGraph must be expanded and not including the diagonal in order to call PARMETIS\n" );
+    }
+
+
+    idx_t baseval = g.baseval;
+    idx_t N = g.size; 
+    invp.resize(N);
+
+    int mpirank;
+
+    idx_t ndomains = (idx_t)pow(2.0,std::floor(std::log2(np)));
+    //make sure every one have an element
+    while(((double)N/(double)ndomains)<1.0){ndomains /= 2;}
+
+    MPI_Comm ndcomm;
+    MPI_Comm_split(g.comm,iam<ndomains,iam,&ndcomm);
+    //      while(((double)N/(double)ndomains)<1.0){ndomains--;}
+
+    MPI_Comm_rank(ndcomm,&mpirank);
+    SYMPACK::vector<idx_t> vtxdist;
+    idx_t localN;
+    if(iam<ndomains){
+      assert(mpirank==iam);
+      //vtxdist.resize(ndomains+1);
+
+      //localN = g.LocalVertexCount();
+      ////build vtxdist SYMPACK::vector
+      //for(idx_t i = 0; i<ndomains;++i){
+      // vtxdist[i] = i*(N/ndomains)+baseval; 
+      //} 
+      //vtxdist[ndomains] = N+baseval;
+
+      SYMPACK::vector<idx_t> sizes(2*ndomains);
+      vtxdist.resize(g.vertexDist.size());
+      for(int i = 0 ; i < g.vertexDist.size(); i++){
+        vtxdist[i] = (idx_t)g.vertexDist[i];
+      }
+
+      logfileptr->OFS()<<vtxdist<<endl;
+
+      //        if(iam==ndomains-1){
+      //          localN = N - (ndomains-1)*localN;
+      //        }
+
+      idx_t * iperm = NULL;
+      if(typeid(idx_t) != typeid(Int)){
+        iperm = new idx_t[N];
+      }
+      else{
+        iperm = (idx_t*)&invp[0];
+      }
+
+      idx_t * pperm = NULL;
+      if(typeid(idx_t) != typeid(Int)){
+        pperm = new idx_t[N];
+      }
+      else{
+        perm.resize(N);
+        pperm = (idx_t*)&perm[0];
+      }
+
+      idx_t * prowind = NULL;
+      if(typeid(idx_t) != typeid(Idx)){
+        prowind = new idx_t[g.LocalEdgeCount()];
+        for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (idx_t)g.rowind[i];}
+      }
+      else{
+        prowind = (idx_t*)&g.rowind[0];
+      }
+
+      idx_t * pcolptr = NULL;
+      if(typeid(idx_t) != typeid(Ptr)){
+        pcolptr = new idx_t[g.LocalVertexCount()+1];
+        for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (idx_t)g.colptr[i];}
+      }
+      else{
+        pcolptr = (idx_t*)&g.colptr[0];
+      }
+
+
+
+
+
+
+
+
+      idx_t options[3];
+      options[0] = 0;
+      idx_t numflag = g.baseval;
+
+      int npnd;
+      MPI_Comm_size (ndcomm, &npnd);
+      ParMETIS_V3_NodeND( &vtxdist[0], pcolptr , prowind, &numflag, &options[0], pperm, &sizes[0], &ndcomm );
+
+      //compute displs
+      SYMPACK::vector<int> mpidispls(ndomains,0);
+      SYMPACK::vector<int> mpisizes(ndomains,0);
+      for(int p = 1;p<=ndomains;++p){
+        mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(idx_t);
+        mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(idx_t);
+      }
+
+      //gather on the root
+      MPI_Gatherv(pperm,mpisizes[iam],MPI_BYTE,iperm,&mpisizes[0],&mpidispls[0],MPI_BYTE,0,ndcomm);
+      //    MPI_Gatherv(&invp[0],mpisizes[iam],MPI_BYTE,&perm[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,comm);
+
+      if(iam==0 && (g.baseval!=1 || typeid(idx_t) != typeid(Int))){
+        //switch everything to 1 based
+        for(int col=0; col<N;++col){ invp[col] = iperm[col] + (1-baseval);}
+      }
+
+      if(typeid(idx_t) != typeid(Int)){
+        delete [] pperm;
+      }
+
+      if(typeid(idx_t) != typeid(Int)){
+        delete [] iperm;
+      }
+
+      if(typeid(idx_t) != typeid(Ptr)){
+        delete [] pcolptr;
+      }
+
+      if(typeid(idx_t) != typeid(Idx)){
+        delete [] prowind;
+      }
+
+
+
+
+
+
+    }
+
+    MPI_Comm_free(&ndcomm);
+    vtxdist.clear();
+
+    // broadcast invp
+    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    //recompute perm
+    perm.resize(N);
+    for(Int i = 1; i <=N; ++i){
+      Int node = invp[i-1];
+      perm[node-1] = i;
+    }
+
+    logfileptr->OFS()<<perm<<endl;
+    logfileptr->OFS()<<invp<<endl;
+
+
+  }
+
+
+
+
 #endif
 
 #ifdef USE_SCOTCH
@@ -845,8 +1008,14 @@ namespace SYMPACK{
                 if (SCOTCH_graphCheck (&grafdat) == 0)        /* TRICK: next instruction called only if graph is consistent */
 #endif /* SCOTCH_DEBUG_ALL */
                 {
-                  if (SCOTCH_graphOrderInit (&grafdat, &ordedat, permtab, NULL,
-                        /*nb de supernoeud*/NULL, /*ptr vers rank tab : xsuper*/ NULL, /*tree tab: parent structure*/ NULL) == 0) {
+                  if (SCOTCH_graphOrderInit (
+                        &grafdat,
+                        &ordedat,
+                        permtab,
+                        NULL,
+                        /*nb de supernoeud*/NULL,
+                        /*ptr vers rank tab : xsuper*/ NULL,
+                        /*tree tab: parent structure*/ NULL) == 0) {
                     SCOTCH_graphOrderCompute (&grafdat, &ordedat, &stradat);
                     SCOTCH_graphOrderExit    (&grafdat, &ordedat);
                   }
@@ -855,7 +1024,7 @@ namespace SYMPACK{
               }
               SCOTCH_graphExit (&grafdat);
 
-              if(g.baseval!=1){ 
+              if(!isSameInt ||g.baseval!=1){ 
                 //switch everything to 1 based
                 for(int col=0; col<N;++col){ invp[col] = permtab[col]+(1-baseval);}
               }
@@ -898,7 +1067,7 @@ namespace SYMPACK{
         void Ordering::PTSCOTCH(const DistSparseMatrixGraph & g){
 
           logfileptr->OFS()<<"PTSCOTCH used"<<endl;
-          if(iam==0){cout<<"PTSCOTCH used NOT WORKING"<<endl;}
+          if(iam==0){cout<<"PTSCOTCH used"<<endl;}
 
           if(!g.IsExpanded() || g.keepDiag==1){
             throw std::logic_error( "DistSparseMatrixGraph must be expanded and not including the diagonal in order to call PTSCOTCH\n" );

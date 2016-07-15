@@ -30,6 +30,7 @@ class Ordering{
 #ifdef USE_PARMETIS
   //FIXME: currently, colptr and rowind are not distributed
   void PARMETIS();
+  void PARMETIS(const DistSparseMatrixGraph & g);
 #endif
 
 #ifdef USE_PTSCOTCH

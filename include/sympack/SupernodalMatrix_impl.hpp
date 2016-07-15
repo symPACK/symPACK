@@ -1413,8 +1413,8 @@ template<typename T> void SupernodalMatrix<T>::generateTaskGraph(supernodalTaskG
     graph_.FromStructure(*Local_);
     graph_.ExpandSymmetric();
 
-#if defined(USE_PARMETIS) || defined(PTSCOTCH)
-    if(options_.ordering==PTSCOTCH /*|| options_.ordering==PARMETIS*/ ){
+#if 0 //defined(USE_PARMETIS) || defined(USE_PTSCOTCH)
+    if(options_.ordering==PTSCOTCH i|| options_.ordering==PARMETIS*/ ){
       DistSparseMatrixGraph graph;
       graph.SetComm(CommEnv_->MPI_GetComm());
       graph.SetBaseval(0);
@@ -1440,7 +1440,7 @@ template<typename T> void SupernodalMatrix<T>::generateTaskGraph(supernodalTaskG
 #ifdef USE_PTSCOTCH
         case PTSCOTCH:
           {
-            Order_.PTSCOTCH(graph);
+            Order_.PTSCOTCH(graph_);
             //logfileptr->OFS()<<"perm: "<<Order_.perm<<endl;
             //logfileptr->OFS()<<"invp: "<<Order_.invp<<endl;
           }
@@ -1525,7 +1525,22 @@ for(Idx i =0; i<=sgraph.VertexCount(); i++){if(Global_->expColptr[i] != sgraph.c
 #endif
 #ifdef USE_PARMETIS
           case PARMETIS:
-            Order_.PARMETIS();
+          {
+//            Order_.PARMETIS();
+              DistSparseMatrixGraph graph;
+              graph.SetComm(CommEnv_->MPI_GetComm());
+              graph.SetBaseval(0);
+              graph.SetKeepDiag(0);
+              graph.SetSorted(1);
+              graph.FromStructure(*Local_);
+              graph.ExpandSymmetric();
+              Order_.PARMETIS(graph);
+
+              logfileptr->OFS()<<"perm: "<<Order_.perm<<endl;
+              logfileptr->OFS()<<"invp: "<<Order_.invp<<endl;
+
+
+          }
             break;
 #endif
 #ifdef USE_PTSCOTCH
