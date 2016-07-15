@@ -40,7 +40,7 @@ class SparseMatrixGraph{
   void SortEdges();
   void DistributeGraph(DistSparseMatrixGraph & dg);
 
-  Idx VertexCount() const { return colptr.size()-1;}
+  Idx VertexCount() const { return colptr.size()==0?0:colptr.size()-1;}
   Ptr EdgeCount() const{ return rowind.size();}
 };
 
@@ -105,6 +105,7 @@ class DistSparseMatrixGraph{
   //redistribute the graph according to the supernodal partition
   void RedistributeSupernodal(Int nsuper, Int * xsuper, Int * xsuperdist, Int * supMembership );
   void AllGatherStructure(SparseMatrixGraph & g);
+  void GatherStructure(SparseMatrixGraph & g, int proot);
 protected:
   void permute_(Int * invp, Idx * newVertexDist=NULL, Int invpbaseval=1);
 //  void FindSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize = -1);

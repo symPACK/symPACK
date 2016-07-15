@@ -84,45 +84,46 @@ if(NOT PARMETIS_VERSION_STRING AND PARMETIS_INCLUDE_DIR AND EXISTS "${PARMETIS_I
 endif()
 
 # Try compiling and running test program
-if (PARMETIS_INCLUDE_DIR AND PARMETIS_LIBRARY AND METIS_LIBRARY)
-
-  # Test requires MPI
-  find_package(MPI QUIET REQUIRED)
-
-  # Set flags for building test program
-  set(CMAKE_REQUIRED_INCLUDES ${PARMETIS_INCLUDE_DIR} ${MPI_INCLUDE_PATH})
-  set(CMAKE_REQUIRED_LIBRARIES ${METIS_LIBRARY} ${PARMETIS_LIBRARY} ${MPI_LIBRARIES})
-
-  # Build and run test program
-  include(CheckCXXSourceRuns)
-  check_cxx_source_runs("
-  #include <mpi.h>
-  #include <parmetis.h>
-
-  int main()
-  {
-  // FIXME: Find a simple but sensible test for ParMETIS
-
-  // Initialise MPI
-  MPI::Init();
-
-  // Finalize MPI
-  MPI::Finalize();
-
-  return 0;
-  }
-  " PARMETIS_TEST_RUNS)
-endif()
+#if (PARMETIS_INCLUDE_DIR AND PARMETIS_LIBRARY AND METIS_LIBRARY)
+#
+#  # Test requires MPI
+#  find_package(MPI QUIET REQUIRED)
+#
+#  # Set flags for building test program
+#  set(CMAKE_REQUIRED_INCLUDES ${PARMETIS_INCLUDE_DIR} ${MPI_INCLUDE_PATH})
+#  set(CMAKE_REQUIRED_LIBRARIES ${METIS_LIBRARY} ${PARMETIS_LIBRARY} ${MPI_LIBRARIES})
+#
+#  # Build and run test program
+#  include(CheckCXXSourceRuns)
+#  check_cxx_source_runs("
+#  #include <mpi.h>
+#  #include <parmetis.h>
+#
+#  int main()
+#  {
+#  // FIXME: Find a simple but sensible test for ParMETIS
+#
+#  // Initialise MPI
+#  MPI::Init();
+#
+#  // Finalize MPI
+#  MPI::Finalize();
+#
+#  return 0;
+#  }
+#  " PARMETIS_TEST_RUNS)
+#endif()
 
 # Standard package handling
 include(FindPackageHandleStandardArgs)
 if(CMAKE_VERSION VERSION_GREATER 2.8.2)
   find_package_handle_standard_args(ParMETIS
-    REQUIRED_VARS PARMETIS_LIBRARY PARMETIS_INCLUDE_DIR PARMETIS_TEST_RUNS
+    REQUIRED_VARS PARMETIS_LIBRARY PARMETIS_INCLUDE_DIR 
     VERSION_VAR PARMETIS_VERSION_STRING)
 else()
   find_package_handle_standard_args(ParMETIS
-    REQUIRED_VARS PARMETIS_LIBRARY PARMETIS_INCLUDE_DIR PARMETIS_TEST_RUNS)
+    REQUIRED_VARS PARMETIS_LIBRARY PARMETIS_INCLUDE_DIR 
+)
 endif()
 
 if(PARMETIS_FOUND)

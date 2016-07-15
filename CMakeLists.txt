@@ -111,7 +111,7 @@ option(ENABLE_PARMETIS "Enable PARMETIS" OFF)
 if(ENABLE_PARMETIS)
   find_package(ParMETIS REQUIRED)
   set(LIBS ${LIBS} ${PARMETIS_LIBRARIES})
-  include_directories(${PARMETIS_INCLUDES})
+  include_directories(${PARMETIS_INCLUDE_DIRS})
   add_definitions("-DUSE_METIS -DUSE_PARMETIS")
 endif()
 

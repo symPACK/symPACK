@@ -234,6 +234,7 @@ namespace SYMPACK{
         }
       }
 
+
       /*
        *  Initialize row pointers in expanded matrix.
        *

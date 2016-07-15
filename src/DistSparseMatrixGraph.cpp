@@ -125,21 +125,35 @@ namespace SYMPACK{
 
 
 
-  //special reduction: first element contains the max local sum
   void PtrSum( void *in, void *inout, int *len, MPI_Datatype *dptr ) 
   { 
     int i; 
 
     Ptr * pinout = (Ptr*)inout;
     Ptr * pin = (Ptr*)in;
-    pinout[0] = max(pinout[0],pin[0]);
-    //logfileptr->OFS()<<"REDUCE max is "<<pinout[0]<<" vs (max) "<<pin[0]<<endl;
 #pragma unroll
-    for (i=1; i< *len; ++i) { 
-      //logfileptr->OFS()<<"REDUCE elem is "<<pin[i]<<endl;
+    for (i=0; i< *len; ++i) { 
       pinout[i] += pin[i];
     } 
   } 
+
+
+  void PtrMax( void *in, void *inout, int *len, MPI_Datatype *dptr ) 
+  { 
+    int i; 
+
+    Ptr * pinout = (Ptr*)inout;
+    Ptr * pin = (Ptr*)in;
+#pragma unroll
+    for (i=0; i< *len; ++i) { 
+      pinout[i] = max(pinout[i], pin[i]);
+    } 
+  } 
+
+
+
+
+
 
   DistSparseMatrixGraph::DistSparseMatrixGraph(){
     bIsExpanded = false;
@@ -916,13 +930,17 @@ namespace SYMPACK{
       }
 
 
-
+      if(!sorted){
+        SetSorted(1);
+      }
 
       MPI_Op MPI_SYMPACK_PTR_SUM; 
+      MPI_Op MPI_SYMPACK_PTR_MAX; 
       MPI_Datatype MPI_SYMPACK_PTR; 
       MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &MPI_SYMPACK_PTR ); 
       MPI_Type_commit( &MPI_SYMPACK_PTR ); 
       MPI_Op_create( PtrSum, true, &MPI_SYMPACK_PTR_SUM ); 
+      MPI_Op_create( PtrMax, true, &MPI_SYMPACK_PTR_MAX ); 
 
       Idx N = size; 
 
@@ -937,253 +955,228 @@ namespace SYMPACK{
       Idx * prowind = &prevRowind[0];
       Ptr locNNZ = prevRowind.size();
 
-      {
-        //          Idx colPerProc = N / mpisize;
-        //first generate the expanded distributed structure
-        {
-          //            Int firstLocCol = (mpirank)*colPerProc; //0 based
-          Idx firstLocCol = LocalFirstVertex()-baseval; //0 based
-          Idx maxLocN = 0;
-          for(int p = 0; p<mpisize;p++){maxLocN = max(maxLocN, vertexDist[p+1]-vertexDist[p]);}
-          //               max(locColCnt,N-(mpisize-1)*colPerProc); // can be 0
-          SYMPACK::vector<Ptr> remote_colptr(maxLocN+1);
-          SYMPACK::vector<Idx> remote_rowind;
-          SYMPACK::vector<Ptr> remote_rowindPos(maxLocN+1);
-          SYMPACK::vector<Ptr> curPos(locColCnt);
-          SYMPACK::vector<Ptr> prevPos(locColCnt);
+      //first generate the expanded distributed structure
+      //            Int firstLocCol = (mpirank)*colPerProc; //0 based
+      Idx firstLocCol = LocalFirstVertex()-baseval; //0 based
+      Idx maxLocN = 0;
+      for(int p = 0; p<mpisize;p++){maxLocN = max(maxLocN, vertexDist[p+1]-vertexDist[p]);}
+      //               max(locColCnt,N-(mpisize-1)*colPerProc); // can be 0
+      SYMPACK::vector<Ptr> remote_colptr(maxLocN+1);
+      SYMPACK::vector<Idx> remote_rowind;
+      SYMPACK::vector<Ptr> remote_rowindPos(maxLocN+1);
+      SYMPACK::vector<Ptr> curPos(locColCnt);
+      SYMPACK::vector<Ptr> prevPos(locColCnt);
 
-          std::copy(pcolptr,pcolptr+locColCnt,curPos.begin());
-          for(Int prow = 0; prow<mpisize; prow++){
-            Int firstRemoteCol = vertexDist[prow]-baseval;//(prow)*colPerProc; // 0 based
-            Int pastLastRemoteCol = vertexDist[prow+1]-baseval;//prow==mpisize-1?N:(prow+1)*colPerProc; // 0 based
-            Ptr remColCnt = pastLastRemoteCol - firstRemoteCol;
-            Ptr maxExtraNNZ = 0; 
-            Ptr extraNNZ = 0;
-            //receive from all the previous processor
-            //receive extra nnzcnt...
+      std::copy(pcolptr,pcolptr+locColCnt,curPos.begin());
+      for(Int prow = 0; prow<mpisize; prow++){
+        Int firstRemoteCol = vertexDist[prow]-baseval;//(prow)*colPerProc; // 0 based
+        Int pastLastRemoteCol = vertexDist[prow+1]-baseval;//prow==mpisize-1?N:(prow+1)*colPerProc; // 0 based
+        Ptr remColCnt = pastLastRemoteCol - firstRemoteCol;
+        Ptr maxExtraNNZ = 0; 
+        Ptr extraNNZ = 0;
+        //receive from all the previous processor
+        //receive extra nnzcnt...
 
-            std::fill(remote_colptr.begin(),remote_colptr.end(),0);
-            if(mpirank<=prow){
-              //backup the position in each column
-              std::copy(curPos.begin(),curPos.end(),prevPos.begin());
-              //use remote_colptr to store the number of nnz per col first
-              //loop through my local columns and figure out the extra nonzero per col on remote processors
+        std::fill(remote_colptr.begin(),remote_colptr.end(),0);
+        if(mpirank<=prow){
+          //backup the position in each column
+          std::copy(curPos.begin(),curPos.end(),prevPos.begin());
+          //use remote_colptr to store the number of nnz per col first
+          //loop through my local columns and figure out the extra nonzero per col on prow
+          for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
+            Idx col = firstLocCol + locCol;  // 0 based
+            Ptr colbeg = curPos[locCol]-baseval; //now 0 based
+            Ptr colend = pcolptr[locCol+1]-baseval; // now 0 based
+            for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+              Idx row = prowind[rptr]-baseval; //0 based
+              assert(row>=firstRemoteCol);
+              if(row>col){
+                //this goes onto prow
+                if(row<pastLastRemoteCol){
+                  //this is shifted by one to compute the prefix sum without copying afterwards
+                  remote_colptr[row-firstRemoteCol+1]++;
+                  extraNNZ++;
+                }
+                else{
+                  break;
+                }
+              }
+              curPos[locCol]++; // baseval based
+            }
+          }
+
+          //put the local sum into the first element of the array
+          remote_colptr[0] = 0;
+          for(Idx p = 1; p<remColCnt+1;p++){ remote_colptr[0] += remote_colptr[p];}
+
+
+          if(mpirank==prow){
+            //we can now receive the number of NZ per col into the expanded pcolptr
+            assert(locColCnt == remColCnt);
+            colptr.assign(remColCnt+1,0);
+            //this array will contain the max element in our custom reduce
+            colptr[0] = 0;
+            TIMER_START(REDUCE);
+            MPI_Reduce(&remote_colptr[1],&colptr[1],remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
+            MPI_Reduce(&remote_colptr[0],&colptr[0],1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
+            TIMER_STOP(REDUCE);
+
+            maxExtraNNZ = colptr[0];
+            remote_rowind.resize(maxExtraNNZ);
+
+            for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
+              Ptr colbeg = pcolptr[locCol]-baseval; //now 0 based
+              Ptr colend = pcolptr[locCol+1]-baseval; // now 0 based
+              colptr[locCol+1] += colend - colbeg; //- 1+ keepDiag;
+              //At this point expColptr[locCol+1] contains the total number of NNZ of locCol 
+              //we can now compute the expanded pcolptr
+            }
+
+            colptr[0] = baseval;
+            for(Idx col = 1;col<remColCnt+1;col++){ colptr[col]+=colptr[col-1]; }
+          }
+          else{
+            TIMER_START(REDUCE);
+            MPI_Reduce(&remote_colptr[1],NULL,remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
+            MPI_Reduce(&remote_colptr[0],NULL,1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
+            TIMER_STOP(REDUCE);
+            remote_rowind.resize(extraNNZ);
+          }
+
+
+
+
+///TODO
+
+
+          /**************     Compute remote_colptr from the local nnz per col ***********/
+          //compute a prefix sum of the nnz per column to get the new pcolptr
+          remote_colptr[0] = baseval;
+          for(Idx col = 1;col<=remColCnt;col++){ remote_colptr[col]+=remote_colptr[col-1]; }
+
+          /**************     Fill remote_rowind now ****************/
+          //make a copy of pcolptr in order to track the current position in each column
+          std::copy(&remote_colptr[0],&remote_colptr[0]+remColCnt+1,remote_rowindPos.begin());
+          //loop through my local columns and figure out the extra nonzero per col on remote processors
+          for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
+            Idx col = firstLocCol + locCol;  // 0 based
+            Ptr colbeg = prevPos[locCol]-baseval; //now 0 based
+            Ptr colend = curPos[locCol]-baseval; // now 0 based
+
+            for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+              Idx row = prowind[rptr]-baseval; //0 based
+              if(row>col){
+                //this goes onto prow
+                Idx locRow = row - firstRemoteCol;      
+                remote_rowind[ remote_rowindPos[locRow]++ - baseval ] = col + baseval;
+              }
+            }
+          }
+
+#ifdef DEBUG
+          logfileptr->OFS()<<"remote_colptr ";
+          for(Idx col = 0;col<=remColCnt;col++){
+            logfileptr->OFS()<<remote_colptr[col]<<" ";
+          }
+          logfileptr->OFS()<<endl;
+
+          logfileptr->OFS()<<"remote_rowind ";
+          for(Ptr col = 0;col<extraNNZ;col++){
+            logfileptr->OFS()<<remote_rowind[col]<<" ";
+          }
+          logfileptr->OFS()<<endl;
+#endif
+
+          if(prow==mpirank){
+#ifdef DEBUG
+            logfileptr->OFS()<<"expColptr "<<colptr<<endl;
+#endif
+            if(colptr.size()>0){
+              rowind.resize(colptr.back()-baseval);
+            }
+            std::copy(colptr.begin(),colptr.end(),remote_rowindPos.begin()); 
+            for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
+              Idx col = firstLocCol + locCol;  // 0 based
+              Ptr colbeg = pcolptr[locCol]-baseval; //now 0 based
+              Ptr colend = pcolptr[locCol+1]-baseval; // now 0 based
+              Ptr & pos = remote_rowindPos[locCol];
+
+              //copy the local lower triangular part into the expanded structure
+              for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+                Idx row = prowind[rptr]-baseval; //0 based
+                if(col!=row || keepDiag){
+                  rowind[pos++ - baseval] = row + baseval;  
+                }
+              }
+
+              //copy the local extra NNZ into the expanded structure
+              colbeg = remote_colptr[locCol]-baseval; //now 0 based
+              colend = remote_colptr[locCol+1]-baseval; // now 0 based 
+              for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+                Idx row = remote_rowind[rptr]-baseval; //0 based
+                rowind[pos++ - baseval] = row + baseval;  
+              }
+            }
+
+            TIMER_START(RECV);
+            for(Int pcol = 0; pcol<prow; pcol++){
+              //Use an MPI_Gatherv instead ? >> memory usage : p * n/p
+              //Do mpi_recv from any, anytag for pcolptr and then do the matching rowind ?
+
+              //logfileptr->OFS()<<"P"<<mpirank<<" receives pcolptr from P"<<pcol<<endl;
+              //receive colptrs...
+              MPI_Status status;
+              MPI_Recv(&remote_colptr[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,MPI_ANY_SOURCE,prow,comm,&status);
+
+              //logfileptr->OFS()<<"P"<<mpirank<<" receives rowind from P"<<pcol<<endl;
+              //receive rowinds...
+              MPI_Recv(&remote_rowind[0],maxExtraNNZ*sizeof(Idx),MPI_BYTE,status.MPI_SOURCE,prow,comm,MPI_STATUS_IGNORE);
+
+              TIMER_START(PROCESSING_RECV_DATA);
+              //logfileptr->OFS()<<"P"<<mpirank<<" done receiving from P"<<pcol<<endl;
               for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
                 Idx col = firstLocCol + locCol;  // 0 based
-                Ptr colbeg = curPos[locCol]-baseval; //now 0 based
-                Ptr colend = pcolptr[locCol+1]-baseval; // now 0 based
+                //copy the extra NNZ into the expanded structure
+                Ptr colbeg = remote_colptr[locCol]-baseval; //now 0 based
+                Ptr colend = remote_colptr[locCol+1]-baseval; // now 0 based 
+                Ptr & pos = remote_rowindPos[locCol];
                 for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-                  Idx row = prowind[rptr]-baseval; //0 based
-                  assert(row>=firstRemoteCol);
-                  if(row>col){
-                    //this goes onto prow
-                    if(row<pastLastRemoteCol){
-                      //this is shifted by one to compute the prefix sum without copying afterwards
-                      remote_colptr[row-firstRemoteCol+1]++;
-                      extraNNZ++;
-                    }
-                    else{
-                      break;
-                    }
-                  }
-                  curPos[locCol]++; // baseval based
+                  Idx row = remote_rowind[rptr]-baseval; //0 based
+                  rowind[pos++ - baseval] = row + baseval;  
                 }
               }
-
-              //put the local sum into the first element of the array
-              remote_colptr[0] = 0;
-              for(Idx p = 1; p<remColCnt+1;p++){ remote_colptr[0] += remote_colptr[p];}
-
-              if(mpirank==prow){
-                //we can now receive the number of NZ per col into the expanded pcolptr
-                colptr.resize(remColCnt+1,0);
-                //this array will contain the max element in our custom reduce
-                colptr[0] = 0;
-                TIMER_START(REDUCE);
-#ifdef USE_REDUCE
-                MPI_Reduce(&remote_colptr[0],&colptr[0],remColCnt+1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
-#else
-                {
-                  SYMPACK::vector<Ptr> recv(remColCnt+1);
-                  //first copy remote_colptr in expColptr
-                  int len = remColCnt+1;
-                  PtrSum(&remote_colptr[0],&colptr[0],&len,NULL);
-                  for(Int pcol = 0; pcol<prow; pcol++){
-                    MPI_Status status;
-                    MPI_Recv(&recv[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,MPI_ANY_SOURCE,mpisize+prow,comm,&status);
-                    PtrSum(&recv[0],&colptr[0],&len,NULL);
-                  }
-                }
-#endif
-                TIMER_STOP(REDUCE);
-
-                maxExtraNNZ = colptr[0];
-                remote_rowind.resize(maxExtraNNZ);
-
-                for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
-                  Ptr colbeg = pcolptr[locCol]-baseval; //now 0 based
-                  Ptr colend = pcolptr[locCol+1]-baseval; // now 0 based
-                  colptr[locCol+1] += colend - colbeg; //- 1+ keepDiag;
-                  //At this point expColptr[locCol+1] contains the total number of NNZ of locCol 
-                  //we can now compute the expanded pcolptr
-                }
-
-                colptr[0] = baseval;
-                for(Idx col = 1;col<remColCnt+1;col++){ colptr[col]+=colptr[col-1]; }
-              }
-              else{
-                TIMER_START(REDUCE);
-#ifdef USE_REDUCE
-                MPI_Reduce(&remote_colptr[0],NULL,remColCnt+1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
-#else
-                {
-                  MPI_Send(&remote_colptr[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,prow,mpisize+prow,comm);
-                }
-#endif
-                TIMER_STOP(REDUCE);
-                remote_rowind.resize(extraNNZ);
-              }
-
-
-
-              /**************     Compute remote_colptr from the local nnz per col ***********/
-              //compute a prefix sum of the nnz per column to get the new pcolptr
-              remote_colptr[0] = baseval;
-              for(Idx col = 1;col<=remColCnt;col++){ remote_colptr[col]+=remote_colptr[col-1]; }
-
-              /**************     Fill remote_rowind now ****************/
-              //make a copy of pcolptr in order to track the current position in each column
-              std::copy(&remote_colptr[0],&remote_colptr[0]+remColCnt+1,remote_rowindPos.begin());
-              //loop through my local columns and figure out the extra nonzero per col on remote processors
-              for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
-                Idx col = firstLocCol + locCol;  // 0 based
-                Ptr colbeg = prevPos[locCol]-baseval; //now 0 based
-                Ptr colend = curPos[locCol]-baseval; // now 0 based
-
-                for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-                  Idx row = prowind[rptr]-baseval; //0 based
-                  if(row>col){
-                    //this goes onto prow
-                    Idx locRow = row - firstRemoteCol;      
-                    remote_rowind[ remote_rowindPos[locRow]++ - baseval ] = col + baseval;
-                  }
-                }
-              }
-
-#ifdef DEBUG
-              logfileptr->OFS()<<"remote_colptr ";
-              for(Idx col = 0;col<=remColCnt;col++){
-                logfileptr->OFS()<<remote_colptr[col]<<" ";
-              }
-              logfileptr->OFS()<<endl;
-
-              logfileptr->OFS()<<"remote_rowind ";
-              for(Ptr col = 0;col<extraNNZ;col++){
-                logfileptr->OFS()<<remote_rowind[col]<<" ";
-              }
-              logfileptr->OFS()<<endl;
-#endif
-
-              if(prow==mpirank){
-#ifdef DEBUG
-                logfileptr->OFS()<<"expColptr "<<colptr<<endl;
-#endif
-                if(colptr.size()>0){
-                  rowind.resize(colptr.back()-baseval);
-                }
-                std::copy(colptr.begin(),colptr.end(),remote_rowindPos.begin()); 
-                for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
-                  Idx col = firstLocCol + locCol;  // 0 based
-                  Ptr colbeg = pcolptr[locCol]-baseval; //now 0 based
-                  Ptr colend = pcolptr[locCol+1]-baseval; // now 0 based
-                  Ptr & pos = remote_rowindPos[locCol];
-
-                  //copy the local lower triangular part into the expanded structure
-                  for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-                    Idx row = prowind[rptr]-baseval; //0 based
-                    if(col!=row || keepDiag){
-                      rowind[pos++ - baseval] = row + baseval;  
-                    }
-                  }
-
-                  //copy the local extra NNZ into the expanded structure
-                  colbeg = remote_colptr[locCol]-baseval; //now 0 based
-                  colend = remote_colptr[locCol+1]-baseval; // now 0 based 
-                  for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-                    Idx row = remote_rowind[rptr]-baseval; //0 based
-                    rowind[pos++ - baseval] = row + baseval;  
-                  }
-                }
-
-                TIMER_START(RECV);
-                for(Int pcol = 0; pcol<prow; pcol++){
-                  //Use an MPI_Gatherv instead ? >> memory usage : p * n/p
-                  //Do mpi_recv from any, anytag for pcolptr and then do the matching rowind ?
-
-                  //logfileptr->OFS()<<"P"<<mpirank<<" receives pcolptr from P"<<pcol<<endl;
-                  //receive colptrs...
-                  MPI_Status status;
-                  MPI_Recv(&remote_colptr[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,MPI_ANY_SOURCE,prow,comm,&status);
-
-                  //logfileptr->OFS()<<"P"<<mpirank<<" receives rowind from P"<<pcol<<endl;
-                  //receive rowinds...
-                  MPI_Recv(&remote_rowind[0],maxExtraNNZ*sizeof(Idx),MPI_BYTE,status.MPI_SOURCE,prow,comm,MPI_STATUS_IGNORE);
-
-                  TIMER_START(PROCESSING_RECV_DATA);
-                  //logfileptr->OFS()<<"P"<<mpirank<<" done receiving from P"<<pcol<<endl;
-                  for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
-                    Idx col = firstLocCol + locCol;  // 0 based
-                    //copy the extra NNZ into the expanded structure
-                    Ptr colbeg = remote_colptr[locCol]-baseval; //now 0 based
-                    Ptr colend = remote_colptr[locCol+1]-baseval; // now 0 based 
-                    Ptr & pos = remote_rowindPos[locCol];
-                    for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-                      Idx row = remote_rowind[rptr]-baseval; //0 based
-                      rowind[pos++ - baseval] = row + baseval;  
-                    }
-                  }
-                  TIMER_STOP(PROCESSING_RECV_DATA);
-                }
-                TIMER_STOP(RECV);
-
-                if(sorted){ 
-                  SortEdges();
-                }
-
-#ifdef DEBUG
-                logfileptr->OFS()<<"expRowind "<<rowind<<endl;
-                //logfileptr->OFS()<<"true expRowind "<<Global.expRowind<<endl;
-#endif
-
-              }
-              else{
-                TIMER_START(SEND);
-                //MPI_Send
-                //            logfileptr->OFS()<<"P"<<mpirank<<" sends pcolptr to P"<<prow<<endl;
-                MPI_Send(&remote_colptr[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,prow,prow,comm);
-                //            logfileptr->OFS()<<"P"<<mpirank<<" sends rowind to P"<<prow<<endl;
-                MPI_Send(&remote_rowind[0],extraNNZ*sizeof(Idx),MPI_BYTE,prow,prow,comm);
-                //            logfileptr->OFS()<<"P"<<mpirank<<" done sending to P"<<prow<<endl;
-                TIMER_STOP(SEND);
-              }
-
+              TIMER_STOP(PROCESSING_RECV_DATA);
             }
-            else{
-              TIMER_START(REDUCE);
-#ifdef USE_REDUCE
-              MPI_Reduce(&remote_colptr[0],NULL,remColCnt+1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
-#endif
-              TIMER_STOP(REDUCE);
+            TIMER_STOP(RECV);
+
+            if(sorted){ 
+              SortEdges();
             }
+
+#ifdef DEBUG
+            logfileptr->OFS()<<"expRowind "<<rowind<<endl;
+            //logfileptr->OFS()<<"true expRowind "<<Global.expRowind<<endl;
+#endif
 
           }
-        }
-      }
-      //else{
-      //  colptr.resize(0);
-      //  rowind.resize(0);
-      //}
+          else{
+            TIMER_START(SEND);
+            MPI_Send(&remote_colptr[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,prow,prow,comm);
+            MPI_Send(&remote_rowind[0],extraNNZ*sizeof(Idx),MPI_BYTE,prow,prow,comm);
+            TIMER_STOP(SEND);
+          }
 
+        }
+        else{
+          TIMER_START(REDUCE);
+            MPI_Reduce(&remote_colptr[1],NULL,remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
+            MPI_Reduce(&remote_colptr[0],NULL,1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
+          TIMER_STOP(REDUCE);
+        }
+
+      }
+
+      MPI_Op_free(&MPI_SYMPACK_PTR_MAX);
       MPI_Op_free(&MPI_SYMPACK_PTR_SUM);
       MPI_Type_free(&MPI_SYMPACK_PTR);
 
@@ -1202,6 +1195,7 @@ namespace SYMPACK{
       //throw an exception
       throw std::logic_error("MPI communicator needs to be set.");
     }
+
 
     g.size = size;
     g.SetBaseval(baseval);  
@@ -1229,23 +1223,6 @@ namespace SYMPACK{
     MPI_Allgather(&localEdgeCnt,sizeof(localEdgeCnt),MPI_BYTE,&remoteEdgeCnt[0],sizeof(localEdgeCnt),MPI_BYTE,comm);
     Ptr totalEdgeCnt = std::accumulate(remoteEdgeCnt.begin(),remoteEdgeCnt.end(),0,std::plus<Ptr>());
 
-    //fix colptr
-    Idx pos = remoteVertexCnt[0];
-    Ptr offset = 0;
-    for(int p=1;p<mpisize;p++){
-      offset+=remoteEdgeCnt[p-1]; 
-      for(Idx lv = 0; lv < remoteVertexCnt[p]; lv++){
-        g.colptr[pos++] += offset;//remoteEdgeCnt[p-1];//(vertexDist[p] - baseval);
-      }
-    }
-    if(g.colptr.size()>0){
-      g.colptr.back()=totalEdgeCnt + baseval;
-    }
-
-
-
-
-
     g.rowind.resize(totalEdgeCnt);
 
     //compute receive displacements
@@ -1258,7 +1235,118 @@ namespace SYMPACK{
 
 
 
+    //fix colptr
+    Idx pos = remoteVertexCnt[0];
+    Ptr offset = 0;
+    for(int p=1;p<mpisize;p++){
+      offset+=remoteEdgeCnt[p-1]; 
+      for(Idx lv = 0; lv < remoteVertexCnt[p]; lv++){
+        g.colptr[pos++] += offset;//remoteEdgeCnt[p-1];//(vertexDist[p] - baseval);
+      }
+    }
+    if(g.colptr.size()>0){
+      g.colptr.back()=totalEdgeCnt + baseval;
+    }
   }
+
+
+
+  void DistSparseMatrixGraph::GatherStructure(SparseMatrixGraph & g, int proot){
+    int ismpi=0;
+    MPI_Initialized( &ismpi);
+    int isnull= (comm == MPI_COMM_NULL);
+
+    if(!ismpi || isnull){
+      //throw an exception
+      throw std::logic_error("MPI communicator needs to be set.");
+    }
+
+    g.size = size;
+    g.SetBaseval(baseval);  
+    if(iam==proot){
+    g.SetSorted(sorted);
+    g.SetKeepDiag(keepDiag);
+    g.bIsExpanded = bIsExpanded;
+    }
+
+    //get other proc vertex counts
+    Idx localVertexCnt = LocalVertexCount();
+    SYMPACK::vector<Idx> remoteVertexCnt(mpisize,0);
+    MPI_Allgather(&localVertexCnt,sizeof(localVertexCnt),MPI_BYTE,&remoteVertexCnt[0],sizeof(localVertexCnt),MPI_BYTE,comm);
+    if(iam==proot){
+      Idx totalVertexCnt = std::accumulate(remoteVertexCnt.begin(),remoteVertexCnt.end(),0,std::plus<Idx>());
+      g.colptr.resize(totalVertexCnt+1);
+
+
+      //compute receive displacements
+      SYMPACK::vector<int> rsizes(mpisize,0);
+      for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
+      SYMPACK::vector<int> rdispls(mpisize+1,0);
+      rdispls[0]=0;
+      std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
+      MPI_Gatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&g.colptr[0],&rsizes[0],&rdispls[0],MPI_BYTE,proot,comm);
+    }
+    else{
+    MPI_Gatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,NULL,NULL,NULL,MPI_BYTE,proot,comm);
+    }
+
+
+    Ptr localEdgeCnt = LocalEdgeCount();
+    SYMPACK::vector<Ptr> remoteEdgeCnt(mpisize,0);
+    MPI_Gather(&localEdgeCnt,sizeof(localEdgeCnt),MPI_BYTE,&remoteEdgeCnt[0],sizeof(localEdgeCnt),MPI_BYTE,proot,comm);
+    Ptr totalEdgeCnt = std::accumulate(remoteEdgeCnt.begin(),remoteEdgeCnt.end(),0,std::plus<Ptr>());
+
+
+    if(iam==proot){
+    g.rowind.resize(totalEdgeCnt);
+    //compute receive displacements
+      SYMPACK::vector<int> rsizes(mpisize,0);
+      SYMPACK::vector<int> rdispls(mpisize+1,0);
+    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p]*sizeof(Idx);}
+    rdispls[0]=0;
+    std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
+    MPI_Gatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,&g.rowind[0],&rsizes[0],&rdispls[0],MPI_BYTE,proot,comm);
+    }
+    else{
+    MPI_Gatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,NULL,NULL,NULL,MPI_BYTE,proot,comm);
+    }
+
+    if(iam==proot){
+      //fix colptr
+      Idx pos = remoteVertexCnt[0];
+      Ptr offset = 0;
+      for(int p=1;p<mpisize;p++){
+        offset+=remoteEdgeCnt[p-1]; 
+        for(Idx lv = 0; lv < remoteVertexCnt[p]; lv++){
+          g.colptr[pos++] += offset;//remoteEdgeCnt[p-1];//(vertexDist[p] - baseval);
+        }
+      }
+      if(g.colptr.size()>0){
+        g.colptr.back()=totalEdgeCnt + baseval;
+      }
+    }
+  }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   //  void DistSparseMatrixGraph::GetLColRowCount(ETree & tree, Ordering & aOrder, SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & rc){
   //    //The tree need to be postordered

@@ -40,6 +40,7 @@ class Ordering{
 
 #ifdef USE_METIS
     void METIS();
+    void METIS(const SparseMatrixGraph & g);
 #endif
 
 #ifdef USE_SCOTCH

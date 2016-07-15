@@ -1494,17 +1494,33 @@ template<typename T> void SupernodalMatrix<T>::generateTaskGraph(supernodalTaskG
           case SCOTCH:
             {
               SparseMatrixGraph sgraph;
-              graph_.AllGatherStructure(sgraph);
-              sgraph.SetKeepDiag(0);
+              graph_.GatherStructure(sgraph,0);
+//    for(Idx locCol = 0 ; locCol< Global_->size; locCol++){
+//      Ptr colbeg = Global_->expColptr[locCol]-1; //now 0 based
+//      Ptr colend = Global_->expColptr[locCol+1]-1; // now 0 based 
+//      sort(&Global_->expRowind[0]+colbeg,&Global_->expRowind[0]+colend,std::less<Ptr>());
+//    }
+if(iam==0){
+for(Idx i =0; i<=sgraph.VertexCount(); i++){if(Global_->expColptr[i] != sgraph.colptr[i]){ logfileptr->OFS()<<Global_->expColptr[i]<< " vs "<< sgraph.colptr[i]<<" ["<<i<<"] "<<endl;abort();break;}}
+}
+//for(Idx i =0; i<sgraph.EdgeCount(); i++){if(Global_->expRowind[i] != sgraph.rowind[i]){ logfileptr->OFS()<<Global_->expRowind[i]<< " vs "<< sgraph.rowind[i]<<" ["<<i<<"] "<<endl;abort();break;}}
 
+              sgraph.SetKeepDiag(0);
               Order_.SCOTCH(sgraph);
-              //Order_.SCOTCH();
             }
             break;
 #endif
 #ifdef USE_METIS
           case METIS:
-            Order_.METIS();
+{
+              SparseMatrixGraph sgraph;
+              graph_.GatherStructure(sgraph,0);
+if(iam==0){
+for(Idx i =0; i<=sgraph.VertexCount(); i++){if(Global_->expColptr[i] != sgraph.colptr[i]){ logfileptr->OFS()<<Global_->expColptr[i]<< " vs "<< sgraph.colptr[i]<<" ["<<i<<"] "<<endl;abort();break;}}
+}
+              sgraph.SetKeepDiag(0);
+              Order_.METIS(sgraph);
+}
             break;
 #endif
 #ifdef USE_PARMETIS

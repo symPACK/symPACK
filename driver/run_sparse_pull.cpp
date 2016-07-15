@@ -372,6 +372,13 @@ int main(int argc, char **argv)
       }
     }
 
+
+
+#ifdef _TRACK_MEMORY_
+    MemoryAllocator::printStats();
+#endif
+
+
     delete optionsFact.commEnv;
   }
 
@@ -380,6 +387,9 @@ int main(int argc, char **argv)
 
   MPI_Barrier(worldcomm);
   MPI_Comm_free(&worldcomm);
+
+
+
 
   delete logfileptr;
 

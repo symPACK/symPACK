@@ -11,6 +11,7 @@ namespace SYMPACK{
 #ifdef _TRACK_MEMORY_
   std::map<char*,size_t> MemoryAllocator::cnt_;
   size_t MemoryAllocator::total_=0;
+  size_t MemoryAllocator::hwm_=0;
 #endif
 
 
