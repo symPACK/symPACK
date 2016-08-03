@@ -23,6 +23,9 @@
 #endif
 #endif
 
+
+#define _INDEFINITE_
+
 namespace SYMPACK{
 
 struct NZBlockDesc{
@@ -152,6 +155,9 @@ class SuperNode{
   //utility pointers
   SuperNodeDesc * meta_;
   T * nzval_;
+#ifdef _INDEFINITE_
+  T * diag_;
+#endif
   NZBlockDesc * blocks_;
   
 
@@ -170,6 +176,9 @@ class SuperNode{
   inline Int NZBlockCnt(){ return meta_->blocks_cnt_;}
   inline NZBlockDesc & GetNZBlockDesc(Int aiLocIndex){ return *(blocks_ -aiLocIndex);}
   inline T* GetNZval(size_t offset){ return &nzval_[offset];}
+#ifdef _INDEFINITE_
+  inline T* GetDiag(){ return diag_;}
+#endif
   inline Int NRows(Int blkidx){
       NZBlockDesc & desc = GetNZBlockDesc(blkidx);
       size_t end = (blkidx<NZBlockCnt()-1)?GetNZBlockDesc(blkidx+1).Offset:meta_->nzval_cnt_;
@@ -244,6 +253,7 @@ class SuperNode{
 
   //Factorize the supernode
   inline Int Factorize();
+  inline Int FactorizeLDL();
   inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const SYMPACK::vector<Int> & Xsuper,  const SYMPACK::vector<Int> & SupMembership,bool isLocal=true); 
 
 
@@ -267,6 +277,7 @@ template <typename T, class Allocator> inline size_t Deserialize(char * buffer, 
 
 
 
+inline std::ostream& operator<<( std::ostream& os,  NZBlockDesc& block);
 
 
 

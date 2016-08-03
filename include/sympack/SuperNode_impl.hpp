@@ -5,9 +5,32 @@
 #include <google/coredumper.h>
 #endif
 
+
+/****************************************/
+/*            _________________         */
+/*           |     nzval       |        */
+/*           |                 |        */
+/*           |_________________|        */
+/*           |      Diag       |        */
+/*           |_________________|        */
+/*           |      Meta       |        */
+/*           |_________________|        */
+/*           |                 |        */
+/*           |   block desc    |        */
+/*           |                 |        */
+/*           |_________________|        */
+/*                                      */
+/****************************************/
+
+
 //SuperNode2 implementation
+#ifdef _INDEFINITE_
+template<typename T, class Allocator>
+SuperNode<T,Allocator>::SuperNode() : meta_(NULL), blocks_(NULL), nzval_(NULL), diag_(NULL) { }
+#else
 template<typename T, class Allocator>
 SuperNode<T,Allocator>::SuperNode() : meta_(NULL), blocks_(NULL), nzval_(NULL) { }
+#endif
 
 template<typename T, class Allocator>
 SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {
@@ -24,6 +47,10 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows,
   }
 
   storage_size_ = sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+#ifdef _INDEFINITE_
+  storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
+#endif
+
   loc_storage_container_ = Allocator::allocate(storage_size_);
   //storage_container_ = upcxx::allocate<char>(iam,storage_size_); 
   //loc_storage_container_ = (char *)storage_container_;
@@ -38,7 +65,12 @@ gdb_lock();
   assert(loc_storage_container_!=NULL);
 
   nzval_ = (T*)&loc_storage_container_[0];
+#ifdef _INDEFINITE_
+  diag_ = (T*)(nzval_+size*ai_num_rows);
+  meta_ = (SuperNodeDesc*)(diag_ + size);
+#else
   meta_ = (SuperNodeDesc*)(nzval_+size*ai_num_rows);
+#endif
   char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
   blocks_ = (NZBlockDesc*) last;
 
@@ -95,12 +127,23 @@ void SuperNode<T,Allocator>::Init(char * storage_ptr,size_t storage_size, Int GI
   }
   while(!curBlockPtr->Last);
 
+
+#ifdef _INDEFINITE_
   meta_= (SuperNodeDesc*)(blocks_ - blkCnt +1) - 1;
+  diag_= (T*)(meta_) - Size();
+#else
+  meta_= (SuperNodeDesc*)(blocks_ - blkCnt +1) - 1;
+#endif
+
   nzval_ = (T*) storage_ptr;
   //we now need to update the meta data
   meta_->b_own_storage_ = false;
   meta_->blocks_cnt_ = blkCnt;
+#ifdef _INDEFINITE_
+  meta_->nzval_cnt_ = (T*)diag_ - nzval_;
+#else
   meta_->nzval_cnt_ = (T*)meta_ - nzval_;
+#endif
 
   if(GIndex==-1){
     GIndex = GetNZBlockDesc(0).GIndex;
@@ -148,14 +191,25 @@ inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiG
 #endif
 
     //if there is no more room for either nzval or blocks, extend
+#ifdef _INDEFINITE_
+    Int block_space = (Int)(blocks_+1 - (NZBlockDesc*)(meta_ +1)) - meta_->blocks_cnt_;
+    Int nzval_space = (Int)((T*)diag_ - nzval_) - meta_->nzval_cnt_;
+#else
     Int block_space = (Int)(blocks_+1 - (NZBlockDesc*)(meta_ +1)) - meta_->blocks_cnt_;
     Int nzval_space = (Int)((T*)meta_ - nzval_) - meta_->nzval_cnt_;
+#endif
+
+
 
     if(block_space==0 || nzval_space<cur_nzval_cnt){
       //need to resize storage space. this is expensive !
+      Int size = Size();
       Int extra_nzvals = max(0,cur_nzval_cnt - nzval_space);
       Int extra_blocks = max(0,1 - block_space);
       size_t new_size = storage_size_ + extra_nzvals*sizeof(T) + extra_blocks*sizeof(NZBlockDesc);
+#ifdef _INDEFINITE_
+      size_t offset_diag = (char*)diag_ - (char*)nzval_;
+#endif
       size_t offset_meta = (char*)meta_ - (char*)nzval_;
       size_t offset_block = (char*)blocks_ - (char*)nzval_;
 
@@ -200,6 +254,12 @@ inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiG
 
       //move the meta data if required
       char * cur_meta_ptr = (char*)&loc_storage_container_[0] + offset_meta;
+
+#ifdef _INDEFINITE_
+      //move the diag entries if required
+      char * cur_diag_ptr = (char*)&loc_storage_container_[0] + offset_diag;
+#endif
+
       meta_ = (SuperNodeDesc*) cur_meta_ptr;
       //we need to move everything, starting from the blocks, then meta
       //blocks need to be moved by extra_nzvals + extra_blocks
@@ -210,7 +270,17 @@ inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiG
       char * new_meta_ptr = cur_meta_ptr + extra_nzvals*sizeof(T);
       std::copy(cur_meta_ptr,cur_meta_ptr + sizeof(SuperNodeDesc),new_meta_ptr);
 
+#ifdef _INDEFINITE_
+//TODO
+      //now move the diag entries by extra_nzvals
+      char * new_diag_ptr = cur_diag_ptr + extra_nzvals*sizeof(T);
+      std::copy(cur_diag_ptr,cur_diag_ptr + sizeof(T)*size,new_diag_ptr);
+#endif
+
       //update pointers
+#ifdef _INDEFINITE_
+      diag_ = (T*) new_diag_ptr;
+#endif
       meta_ = (SuperNodeDesc*) new_meta_ptr;
       blocks_ = (NZBlockDesc*) new_blocks_ptr;
     }
@@ -309,14 +379,36 @@ inline Int SuperNode<T,Allocator>::Shrink(){
     //TODO make sure that we do not have any extra space anywhere.
 
     //if there is too much room for either nzval or blocks, contract
+#ifdef _INDEFINITE_
+    Int block_space = (Int)(blocks_+1 - (NZBlockDesc*)(meta_ +1)) - meta_->blocks_cnt_;
+    Int nzval_space = (Int)((T*)diag_ - nzval_) - meta_->nzval_cnt_;
+#else
     Int block_space = (Int)(blocks_+1 - (NZBlockDesc*)(meta_ +1)) - meta_->blocks_cnt_;
     Int nzval_space = (Int)((T*)meta_ - nzval_) - meta_->nzval_cnt_;
+#endif
 
     if(block_space >0 || nzval_space >0){
 
       size_t new_size = storage_size_ - nzval_space*sizeof(T) - block_space*sizeof(NZBlockDesc);
+
+#if 1
+#ifdef _INDEFINITE_
+      size_t offset_diag = meta_->nzval_cnt_*sizeof(T);
+      size_t offset_meta = (meta_->nzval_cnt_+meta_->iSize_)*sizeof(T);
+      size_t offset_block = (meta_->nzval_cnt_+meta_->iSize_)*sizeof(T)+sizeof(SuperNodeDesc);
+#else
       size_t offset_meta = meta_->nzval_cnt_*sizeof(T);
-      size_t offset_block = meta_->nzval_cnt_*sizeof(T)+sizeof(SuperNodeDesc);//+meta_->blocks_cnt_*sizeof(NZBlockDesc);
+      size_t offset_block = meta_->nzval_cnt_*sizeof(T)+sizeof(SuperNodeDesc);
+#endif
+
+#else
+#ifdef _INDEFINITE_
+      size_t offset_diag = (char*)diag_ - (char*)nzval_;
+#endif
+      size_t offset_meta = (char*)meta_ - (char*)nzval_;
+      size_t offset_block = (char*)blocks_ - (char*)nzval_;
+#endif
+
 
       //upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,new_size);
       //char * locTmpPtr = (char*)tmpPtr;
@@ -335,11 +427,16 @@ inline Int SuperNode<T,Allocator>::Shrink(){
       assert(locTmpPtr!=NULL);
 
       //copy nzvals
-      std::copy(loc_storage_container_,loc_storage_container_+meta_->nzval_cnt_*sizeof(T),locTmpPtr);
+      std::copy(nzval_,nzval_+meta_->nzval_cnt_,(T*)locTmpPtr);
+
+#ifdef _INDEFINITE_
+      //copy diag
+      std::copy(diag_,diag_+Size(),(T*)(locTmpPtr+offset_diag));
+#endif
       //copy meta
       std::copy(meta_,meta_+1,(SuperNodeDesc*)(locTmpPtr+offset_meta));
       //copy blocks
-      std::copy(blocks_-meta_->blocks_cnt_+1,blocks_+1,(NZBlockDesc*)(locTmpPtr+offset_block));
+      std::copy(blocks_+1-meta_->blocks_cnt_,blocks_+1,(NZBlockDesc*)(locTmpPtr+offset_block));
 
       //upcxx::deallocate(storage_container_);
       //storage_container_=tmpPtr;
@@ -354,7 +451,14 @@ inline Int SuperNode<T,Allocator>::Shrink(){
       //move the meta data if required
       char * new_meta_ptr = loc_storage_container_ + offset_meta;
 
+#ifdef _INDEFINITE_
+      //now move the diag entries by extra_nzvals
+      char * new_diag_ptr = loc_storage_container_ + offset_diag;
+#endif
       //update pointers
+#ifdef _INDEFINITE_
+      diag_ = (T*) new_diag_ptr;
+#endif
       meta_ = (SuperNodeDesc*) new_meta_ptr;
       blocks_ = (NZBlockDesc*) new_blocks_ptr;
     }
@@ -1076,6 +1180,32 @@ template<typename T, class Allocator>
   }
 
 
+//CHECKED ON 11-18-2014
+template<typename T, class Allocator>
+  inline Int SuperNode<T,Allocator>::FactorizeLDL(){
+#if defined(_NO_COMPUTATION_)
+    return 0;
+#endif
+
+
+    Int BLOCKSIZE = Size();
+    NZBlockDesc & diag_desc = GetNZBlockDesc(0);
+    for(Int col = 0; col<Size();col+=BLOCKSIZE){
+      Int bw = min(BLOCKSIZE,Size()-col);
+      T * diag_nzval = &GetNZval(diag_desc.Offset)[col+col*Size()];
+      lapack::Sytrf_np( 'U', bw, diag_nzval, Size());
+      T * nzblk_nzval = &GetNZval(diag_desc.Offset)[col+(col+bw)*Size()];
+      blas::Trsm('L','U','T','N',bw, NRowsBelowBlock(0)-(col+bw), ONE<T>(),  diag_nzval, Size(), nzblk_nzval, Size());
+
+      //update the rest !!! (next blocks columns)
+      T * tgt_nzval = &GetNZval(diag_desc.Offset)[col+bw+(col+bw)*Size()];
+      blas::Gemm('T','N',Size()-(col+bw), NRowsBelowBlock(0)-(col+bw),bw,MINUS_ONE<T>(),nzblk_nzval,Size(),nzblk_nzval,Size(),ONE<T>(),tgt_nzval,Size());
+    }
+    return 0;
+
+  }
+
+
 
 
 template<typename T, class Allocator>
@@ -1272,6 +1402,12 @@ template <typename T, class Allocator> inline std::ostream& operator<<( std::ost
 }
 
 
+inline std::ostream& operator<<( std::ostream& os,  NZBlockDesc& block){
+  os<<"GIndex = "<<block.GIndex<<std::endl;
+  os<<"Offset = "<<block.Offset<<std::endl;
+  os<<"Last   = "<<(block.Last?string("true"):string("false"))<<std::endl;
+  return os;
+}
 
 
 //  template <typename T> inline void Serialize(Icomm & buffer,SuperNode<T,Allocator> & snode){

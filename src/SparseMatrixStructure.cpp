@@ -858,8 +858,6 @@ namespace SYMPACK{
       Idx oldnbr = aOrder.perm[lownbr-1];
       Ptr jstrt = expColptr[oldnbr-1];
       Ptr jstop = expColptr[oldnbr] - 1;
-
-
       //           -----------------------------------------------
       //           for each ``high neighbor'', hinbr of lownbr ...
       //           -----------------------------------------------
@@ -927,8 +925,6 @@ namespace SYMPACK{
       Idx parent = tree.PostParent(lownbr-1);
       --weight[parent];
 
-
-      //merge the sets
       if  ( lflag == 1  || nchild[lownbr] >= 2 ) {
         xsup = lownbr;
       }

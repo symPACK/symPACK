@@ -229,5 +229,31 @@ void Getri ( Int n, dcomplex* A, Int lda, const Int* ipiv );
 double Lange(char norm, Int m, Int n, const double* A, Int lda);
 double Lange(char norm, Int m, Int n, const dcomplex* A, Int lda);
 
+
+template<typename T>
+void Sytrf_np(char uplo, Int n, T* A, Int lda ){
+  if(uplo == 'L'){
+    for(Int i = 0; i< n; i++){
+      T piv = A[i+i*lda];
+#pragma unroll
+      for(Int j = i+1; j< n; j++){
+        A[j+i*lda] /= piv;
+      }
+    }
+  }
+  else{
+    for(Int j = 0; j< n; j++){
+      T piv = A[j+j*lda];
+#pragma unroll
+      for(Int i = j+1; i< n; i++){
+        A[j+i*lda] /= piv;
+      }
+    }
+  }
+}
+
+
+
+
 } // namespace lapack
 } // namespace PEXSI

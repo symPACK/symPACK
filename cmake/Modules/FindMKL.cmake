@@ -100,10 +100,12 @@ else()
 
 
     #find_library(MKL_SCALAPACK_LIBRARY mkl_scalapack_core
-    find_library(MKL_SCALAPACK_LIBRARY mkl_scalapack_lp64
-        PATHS ${MKL_ROOT}/lib/${MKL_ARCH}/)
+    #find_library(MKL_SCALAPACK_LIBRARY mkl_scalapack_lp64
+    #    PATHS ${MKL_ROOT}/lib/${MKL_ARCH}/)
 
-    message(STATUS "SCALAPACK: " ${MKL_SCALAPACK_LIBRARY})
+    #message(STATUS "SCALAPACK: " ${MKL_SCALAPACK_LIBRARY})
+
+    #BLACS ?
 
     ############################ RTL layer ##########################
     if(WIN32)

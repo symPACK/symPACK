@@ -1,27 +1,53 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.1)
 project(SYMPACK CXX C Fortran)
 include(ExternalProject)
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED on)
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
 #set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS})
 #include_directories(/path/to/upcxx)
 #set(LIBS ${LIBS} )
 
+
 find_package(MPI REQUIRED)
 if(MPI_CXX_FOUND)
-  message(STATUS "Found CXX MPI compiler")
+  message(STATUS "Found CXX MPI compiler: ${MPI_CXX_COMPILER}")
   include_directories(${MPI_CXX_INCLUDE_PATH})
   set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS})
   set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${MPI_CXX_LINK_FLAGS})
   set(LIBS ${LIBS} ${MPI_CXX_LIBRARIES})
 endif()
+if(MPI_C_FOUND)
+  message(STATUS "Found C MPI compiler: ${MPI_C_COMPILER}")
+  include_directories(${MPI_C_INCLUDE_PATH})
+  set(CMAKE_CXX_FLAGS ${CMAKE_C_FLAGS} ${MPI_C_COMPILE_FLAGS})
+  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${MPI_C_LINK_FLAGS})
+  set(LIBS ${LIBS} ${MPI_C_LIBRARIES})
+endif()
+
+
 
 include(FortranCInterface)
 FortranCInterface_HEADER("${PROJECT_BINARY_DIR}/sympack_config.h" MACRO_NAMESPACE "FC_")
 FortranCInterface_VERIFY(CXX)
 
+option(ENABLE_MKL "Enable MKL" OFF)
+if(ENABLE_MKL)
+find_package(MKL)
+if(MKL_FOUND)
+  message(STATUS "Found MKL library: " ${MKL_LIBRARIES})
+  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${MKL_LINKER_FLAGS})
+  set(LIBS ${LIBS} ${MKL_LIBRARIES})
+else()
+  message(WARNING "Warning: could not find a MKL library")
+  add_definitions("-mkl")
+endif()
+
+
+else()
 find_package(BLAS)
 if(BLAS_FOUND)
   message(STATUS "Found BLAS library: " ${BLAS_LIBRARIES})
@@ -39,8 +65,8 @@ if(LAPACK_FOUND)
 else()
   message(WARNING "Warning: could not find a LAPACK library")
 endif()
+endif()
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
 #find_package(MKL)
 #if(MKL_FOUND)
@@ -89,15 +115,10 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 ##LINK_DIRECTORIES(${UPCXX_LIBRARY_PATH})
 #endif()
 ##ENDMACRO( CONFIGURE_UPCXX )
-option(ENABLE_ARIES "Enable ARIES" OFF)
 
-option(ENABLE_SCOTCH "Enable SCOTCH" OFF)
-if(ENABLE_SCOTCH)
-  find_package(Scotch REQUIRED)
-  set(LIBS ${LIBS} ${SCOTCH_LIBRARIES})
-  include_directories(${SCOTCH_INCLUDES})
-  add_definitions("-DUSE_SCOTCH -DUSE_PTSCOTCH")
-endif()
+
+
+#######   ORDERING LIBRARIES ######
 
 option(ENABLE_METIS "Enable METIS" OFF)
 if(ENABLE_METIS)
@@ -115,7 +136,16 @@ if(ENABLE_PARMETIS)
   add_definitions("-DUSE_METIS -DUSE_PARMETIS")
 endif()
 
+option(ENABLE_SCOTCH "Enable SCOTCH" OFF)
+if(ENABLE_SCOTCH)
+  find_package(Scotch REQUIRED)
+  set(LIBS ${LIBS} ${SCOTCH_LIBRARIES})
+  include_directories(${SCOTCH_INCLUDES})
+  add_definitions("-DUSE_SCOTCH -DUSE_PTSCOTCH")
+endif()
 
+
+#######   SYMPACK OPTIONS ######
 
 option(TRACK_MEMORY "Enable (partial) Memory allocation tracking" OFF)
 if(TRACK_MEMORY)
@@ -124,8 +154,22 @@ endif()
 
 
 option(ENABLE_PROFILE "Enable profiling" OFF)
+if(ENABLE_PROFILE)
+  find_package(OpenMP REQUIRED)
+  if(OPENMP_FOUND)
+    message(STATUS "OpenMP found")
+    set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS})
+    set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS})
+  endif()
 
 
+  add_definitions("-DPROFILE")
+endif()
+
+
+#######   GASNET AND UPCXX OPTIONS ######
+
+option(ENABLE_ARIES "Enable ARIES" OFF)
 
 include(cmake/gasnet.cmake)
 
@@ -134,9 +178,15 @@ include(cmake/upcxx.cmake)
 include_directories(${UPCXX_INCLUDE_DIR})
 link_directories(${UPCXX_LIBRARY_PATH})
 
+#list( APPEND CMAKE_CXX_FLAGS -std=c++11)
 
 #set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${UPCXX_DEFINES})
 add_definitions(${UPCXX_DEFINES})
+
+
+
+
+
 message(STATUS "UPCXX DEFINES: " ${UPCXX_DEFINES})
 
 set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
@@ -152,7 +202,8 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_BINARY_DIR})
 
 add_definitions("-DITREE -D_DSW_ITREE_ -DSINGLE_BLAS")
-
+#add_definitions("-DNO_INTRA_PROFILE")
+ 
 add_library(sympack ${SYMPACKSRC})
 add_dependencies(sympack gasnet upcxx) 
 target_link_libraries(sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})

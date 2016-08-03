@@ -299,8 +299,6 @@ int main(int argc, char **argv)
       if(iam==0){
         cout<<"Starting Factorization"<<endl;
       }
-
-
       timeSta = get_time();
       TIMER_START(FACTORIZATION);
       SMat->Factorize();
@@ -335,7 +333,7 @@ int main(int argc, char **argv)
 
     }
 
-  if(nrhs>0) {
+  if(nrhs>0 && XFinal.size()>0) {
       SparseMatrixStructure Local = HMat.GetLocalStructure();
 
       Int numColFirst = std::max(1,n / np);

@@ -16,13 +16,12 @@
 //#if defined(USE_METIS) && not defined(USE_SCOTCH)
 #ifdef USE_METIS
 #include <typeinfo>
-//#define USE_METIS_INC
-//#ifdef USE_METIS_INC
 #include <metis.h>
-//#define METIS_NOPTIONS 40
-//#define METIS_NOPTIONS 40
 #endif
 
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+#pragma message  "IDXTYPEWIDTH=" STR(IDXTYPEWIDTH)
 
 namespace SYMPACK {
 
