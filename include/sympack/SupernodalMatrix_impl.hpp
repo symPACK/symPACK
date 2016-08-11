@@ -15,6 +15,7 @@
 #include <numeric>
 #include <algorithm>
 
+#define _INDEFINITE_
 
 namespace SYMPACK{
   extern "C" {
@@ -341,107 +342,6 @@ namespace SYMPACK{
 
 
   //Solve related routines
-
-  template <typename T>
-    template< class Alloc>
-    void SupernodalMatrix<T>::forward_update(SuperNode<T,Alloc> * src_contrib,SuperNode<T,Alloc> * tgt_contrib){
-
-      Int iam = CommEnv_->MPI_Rank();
-      Int np  = CommEnv_->MPI_Size();
-
-      Int iOwner = this->Mapping_->Map(src_contrib->Id()-1,src_contrib->Id()-1);
-      Int src_ncols = src_contrib->Size();
-      Int tgt_ncols = tgt_contrib->Size();
-
-      Int startBlock = (iam==iOwner)?1:0;
-      Int tgt_blkidx = -1;
-
-      Int src_blkidx = startBlock;
-      while(src_blkidx<src_contrib->NZBlockCnt()){
-        NZBlockDesc & src_desc = src_contrib->GetNZBlockDesc(src_blkidx);
-        Int src_nrows = src_contrib->NRows(src_blkidx);
-
-        if(tgt_blkidx<1){
-          tgt_blkidx = tgt_contrib->FindBlockIdx(src_desc.GIndex);
-        }
-
-        NZBlockDesc & tgt_desc = tgt_contrib->GetNZBlockDesc(tgt_blkidx);
-        Int tgt_nrows = tgt_contrib->NRows(tgt_blkidx);
-
-        Int src_local_fr = max(tgt_desc.GIndex - src_desc.GIndex,0);
-        Int src_lr = src_desc.GIndex+src_nrows-1;
-
-        Int tgt_local_fr = max(src_desc.GIndex - tgt_desc.GIndex,0);
-        Int tgt_lr = tgt_desc.GIndex+tgt_nrows-1;
-        Int tgt_local_lr = min(src_lr,tgt_lr) - tgt_desc.GIndex;
-
-        T * src = &src_contrib->GetNZval(src_desc.Offset)[src_local_fr*src_ncols];
-        T * tgt = &tgt_contrib->GetNZval(tgt_desc.Offset)[tgt_local_fr*tgt_ncols];
-
-
-        blas::Axpy((tgt_local_lr - tgt_local_fr +1)*src_ncols,
-            ONE<T>(),src,1,tgt,1);
-
-
-        if(src_lr>tgt_lr){
-          //the src block hasn't been completely used and is
-          // updating some lines in the nz block just below the diagonal block
-          //this case happens only locally for the diagonal block
-          //        assert(tgt_blkidx==0);
-          //skip to the next tgt nz block
-          ++tgt_blkidx;
-        }
-        else{
-          //skip to the next src nz block
-          ++src_blkidx;
-          if(src_blkidx<src_contrib->NZBlockCnt()){
-            NZBlockDesc & next_src_desc = src_contrib->GetNZBlockDesc(src_blkidx);
-            tgt_blkidx = tgt_contrib->FindBlockIdx(next_src_desc.GIndex);
-          }
-        }
-      }
-    }
-
-  template <typename T>
-    template< class Alloc>
-    void SupernodalMatrix<T>::back_update(SuperNode<T,Alloc> * src_contrib,SuperNode<T,Alloc> * tgt_contrib){
-      Int nrhs = tgt_contrib->Size();
-      for(Int blkidx = 1; blkidx<tgt_contrib->NZBlockCnt();++blkidx){
-        NZBlockDesc & tgt_desc = tgt_contrib->GetNZBlockDesc(blkidx);
-        Int tgt_nrows = tgt_contrib->NRows(blkidx);
-
-        Int src_nzblk_idx = src_contrib->FindBlockIdx(tgt_desc.GIndex);
-        Int tgt_lr = tgt_desc.GIndex+tgt_nrows-1;
-        Int src_lr; 
-        do
-        {
-          NZBlockDesc & src_desc = src_contrib->GetNZBlockDesc(src_nzblk_idx);
-          Int src_nrows = src_contrib->NRows(src_nzblk_idx);
-          src_lr = src_desc.GIndex+src_nrows-1;
-
-          Int src_local_fr = max(tgt_desc.GIndex - src_desc.GIndex,0);
-
-          Int tgt_local_fr = max(src_desc.GIndex - tgt_desc.GIndex,0);
-          Int tgt_local_lr = min(src_lr,tgt_lr) - tgt_desc.GIndex;
-
-          T * src = &src_contrib->GetNZval(src_desc.Offset)[src_local_fr*nrhs];
-          T * tgt = &tgt_contrib->GetNZval(tgt_desc.Offset)[tgt_local_fr*nrhs];
-
-          std::copy(src,src+(tgt_local_lr - tgt_local_fr +1)*nrhs,tgt);
-          //              lapack::Lacpy('N',nrhs,(tgt_local_lr - tgt_local_fr +1),
-          //                  src,nrhs,  
-          //                  tgt,nrhs);
-
-          //do other block
-          if(tgt_lr>src_lr){
-            //          assert(src_nzblk_idx==0);
-            src_nzblk_idx++;
-          }
-
-        } while(tgt_lr>src_lr);
-      }
-    }
-
   template <typename T> void SupernodalMatrix<T>::Solve(T * RHS, int nrhs,  T * Xptr) {
     TIMER_START(SPARSE_SOLVE);
 
@@ -481,10 +381,15 @@ namespace SYMPACK{
       if( iOwner == iam ){
         //Create the blocks of my contrib with the same nz structure as L
         //and the same width as the final solution
+        //MEMORY CONSUMPTION TOO HIGH ?
         //Int iLocalI = (I-1) / np +1 ;
         Int iLocalI = snodeLocalIndex(I);
         SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
+#ifdef _INDEFINITE_
+        SuperNode<T,MallocAllocator> * contrib = new SuperNodeInd<T,MallocAllocator>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
+#else
         SuperNode<T,MallocAllocator> * contrib = new SuperNode<T,MallocAllocator>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
+#endif
         Contributions_[iLocalI-1] = contrib;
 
 
@@ -540,7 +445,9 @@ namespace SYMPACK{
           logfileptr->OFS()<<"LOCAL Supernode "<<I<<" is updated by contrib of Supernode "<<contrib_snode_id<<std::endl;
 #endif
 
-          this->forward_update(dist_contrib,contrib);
+          Int iOwner = iam;
+          contrib->forward_update(dist_contrib,iOwner);
+          //this->forward_update(dist_contrib,contrib);
           //delete contributions[(contrib_snode_id-1) / np];
           --UpdatesToDo[I-1];
         }
@@ -564,23 +471,33 @@ namespace SYMPACK{
           src_blocks.resize(bytes_received);
           MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
           TIMER_STOP(RECV_MPI);
-          SuperNode<T,MallocAllocator> dist_contrib(&src_blocks[0],bytes_received);
+#ifdef _INDEFINITE_
+          SuperNode<T,MallocAllocator> * dist_contrib = new SuperNodeInd<T,MallocAllocator>(&src_blocks[0],bytes_received);
+#else
+          SuperNode<T,MallocAllocator> * dist_contrib = new SuperNode<T,MallocAllocator>(&src_blocks[0],bytes_received);
+#endif
           //TODO Put this back
           //Deserialize(&src_blocks[0],dist_contrib);
 #ifdef _DEBUG_
           logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib.Id()<<std::endl;
 #endif
 
-          this->forward_update(&dist_contrib,contrib);
+          Int iOwner = recv_status.MPI_SOURCE;
+          contrib->forward_update(dist_contrib,iOwner);
+          //this->forward_update(dist_contrib,contrib);
 
           --UpdatesToDo[I-1];
-
+          delete dist_contrib;
         }
 
         assert(UpdatesToDo[I-1]==0);
 
         if(UpdatesToDo[I-1]==0){
 
+          //now compute MY contribution
+          contrib->forward_update_contrib(RHS,cur_snode,this->Order_.perm);
+
+#if 0
           //This corresponds to the i loop in dtrsm
           for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
 
@@ -622,7 +539,7 @@ namespace SYMPACK{
               }
             }
           }
-
+#endif
 
           //send to my parent
           if(parent!=0){
@@ -659,7 +576,7 @@ namespace SYMPACK{
                 // in it and add it to the outgoing comm list
 
                 Icomm * send_buffer = new Icomm();
-                Serialize(*send_buffer,*contrib,src_nzblk_idx,src_first_row);
+                contrib->Serialize(*send_buffer,src_nzblk_idx,src_first_row);
                 AddOutgoingComm(outgoingSend,send_buffer);
 
                 if( outgoingSend.size() > maxIsend_){
@@ -746,6 +663,7 @@ namespace SYMPACK{
 
     TIMER_STOP(SPARSE_FWD_SUBST);
 
+    //DumpContrib();
 
     //Back-substitution phase
     TIMER_START(SPARSE_BACK_SUBST);
@@ -777,7 +695,8 @@ namespace SYMPACK{
             Int contrib_snode_id = LocalUpdates[iLocalI-1].top();
             LocalUpdates[iLocalI-1].pop();
             dist_contrib = snodeLocal(contrib_snode_id,Contributions_);
-            this->back_update(dist_contrib,contrib);
+            contrib->back_update(dist_contrib);
+            //this->back_update(dist_contrib,contrib);
           }
           else{
             //Receive parent contrib
@@ -789,7 +708,11 @@ namespace SYMPACK{
 
             MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
 
+#ifdef _INDEFINITE_
+            dist_contrib = new SuperNodeInd<T,MallocAllocator>(&src_blocks[0],bytes_received);
+#else
             dist_contrib = new SuperNode<T,MallocAllocator>(&src_blocks[0],bytes_received);
+#endif
             //TODO Replace this
             //Deserialize(&src_blocks[0],*dist_contrib); 
             dist_contrib->InitIdxToBlk();
@@ -798,13 +721,15 @@ namespace SYMPACK{
 #ifdef _DEBUG_
             logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib->Id()<<std::endl;
 #endif
-
-            this->back_update(dist_contrib,contrib);
+            contrib->back_update(dist_contrib);
+            //this->back_update(dist_contrib,contrib);
             delete dist_contrib;
           }
         }
 
         //now compute MY contribution
+        contrib->back_update_contrib(cur_snode);
+#if 0
 #ifdef _DEBUG_
         logfileptr->OFS()<<"BACK Processing contrib "<<I<<std::endl;
 #endif
@@ -845,7 +770,7 @@ namespace SYMPACK{
             tgt_nzval[ii*nrhs+j] = temp;
           }
         }
-
+#endif
 
         //send to my children
         Int colIdx = cur_snode->FirstCol()-1;
@@ -890,7 +815,7 @@ namespace SYMPACK{
                     // in it and add it to the outgoing comm list
                     Icomm * send_buffer = new Icomm();
                     //TODO replace this
-                    Serialize(*send_buffer,*contrib,src_nzblk_idx,src_first_row);
+                    contrib->Serialize(*send_buffer,src_nzblk_idx,src_first_row);
                     AddOutgoingComm(outgoingSend,send_buffer);
 
 
@@ -941,6 +866,8 @@ namespace SYMPACK{
     TIMER_STOP(SPARSE_BACK_SUBST);
 
     MPI_Barrier(CommEnv_->MPI_GetComm());
+
+    //DumpContrib();
     TIMER_STOP(SPARSE_SOLVE);
 
   }
@@ -1051,26 +978,26 @@ namespace SYMPACK{
 
         if(tgt_snode_id>next_snode_id || is_last /*|| OutgoingSend.size() <= maxIsend_*/){
 
-          SuperNode<T,Alloc> & prev_src_snode = *snodeLocal(src_snode_id,snodeColl);
+          SuperNode<T,Alloc> * prev_src_snode = snodeLocal(src_snode_id,snodeColl);
           //this can be sent now
 
           Int iTarget = this->Mapping_->Map(tgt_snode_id-1,tgt_snode_id-1);
           if(iTarget != iam){
 #ifdef _DEBUG_DELAY_
-            logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
-            cout<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+            logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<endl;
+            cout<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<endl;
 #endif
 
 #ifdef _DEBUG_
-            logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<prev_src_snode.Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
+            logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<prev_src_snode->Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
 #endif
 
-            NZBlockDesc & pivot_desc = prev_src_snode.GetNZBlockDesc(src_nzblk_idx);
+            NZBlockDesc & pivot_desc = prev_src_snode->GetNZBlockDesc(src_nzblk_idx);
             //Create a new Icomm buffer, serialize the contribution
             // in it and add it to the outgoing comm list
             Icomm * send_buffer = new Icomm();
             //TODO replace this
-            Serialize(*send_buffer,prev_src_snode,src_nzblk_idx,src_first_row);
+            prev_src_snode->Serialize(*send_buffer,src_nzblk_idx,src_first_row);
             AddOutgoingComm(OutgoingSend,send_buffer);
 
 
@@ -1105,25 +1032,25 @@ namespace SYMPACK{
       Int src_first_row = comm.src_first_row;
 
 
-      SuperNode<T,Alloc> & prev_src_snode = *snodeLocal(src_snode_id,snodeColl);
+      SuperNode<T,Alloc> * prev_src_snode = snodeLocal(src_snode_id,snodeColl);
 
       //this can be sent now
       Int iTarget = this->Mapping_->Map(tgt_snode_id-1,tgt_snode_id-1);
       if(iTarget != iam){
 #ifdef _DEBUG_DELAY_
-        logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
-        cout<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode.Id()<<" to Supernode "<<tgt_snode_id<<endl;
+        logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<endl;
+        cout<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<endl;
 #endif
 
 #ifdef _DEBUG_
-        logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<prev_src_snode.Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
+        logfileptr->OFS()<<"Remote Supernode "<<tgt_snode_id<<" is updated by Supernode "<<prev_src_snode->Id()<<" rows "<<src_first_row/*<<" to "<<src_last_row*/<<" "<<src_nzblk_idx<<std::endl;
 #endif
-        NZBlockDesc & pivot_desc = prev_src_snode.GetNZBlockDesc(src_nzblk_idx);
+        NZBlockDesc & pivot_desc = prev_src_snode->GetNZBlockDesc(src_nzblk_idx);
         //Create a new Icomm buffer, serialize the contribution
         // in it and add it to the outgoing comm list
         Icomm * send_buffer = new Icomm();
         //TODO replace this
-        Serialize(*send_buffer,prev_src_snode,src_nzblk_idx,src_first_row);
+        prev_src_snode->Serialize(*send_buffer,src_nzblk_idx,src_first_row);
         AddOutgoingComm(OutgoingSend,send_buffer);
 
 
@@ -1269,28 +1196,28 @@ namespace SYMPACK{
         Int src_last_col = Xsuper_[I]-1;
         Int iOwner = this->Mapping_->Map(I-1,I-1);
         if( iOwner == iam ){
-          SuperNode<T> & src_snode = *snodeLocal(I);
+          SuperNode<T> * src_snode = snodeLocal(I);
 
 
           logfileptr->OFS()<<"+++++++++++++"<<I<<"++++++++"<<std::endl;
 
           logfileptr->OFS()<<"cols: ";
-          for(Int i = 0; i< src_snode.Size(); ++i){
+          for(Int i = 0; i< src_snode->Size(); ++i){
             logfileptr->OFS()<<" "<<Order_.perm[src_first_col+i-1];
           }
           logfileptr->OFS()<<std::endl;
           logfileptr->OFS()<<std::endl;
-          for(int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
+          for(int blkidx=0;blkidx<src_snode->NZBlockCnt();++blkidx){
 
-            NZBlockDesc & desc = src_snode.GetNZBlockDesc(blkidx);
-            T * val = src_snode.GetNZval(desc.Offset);
-            Int nRows = src_snode.NRows(blkidx);
+            NZBlockDesc & desc = src_snode->GetNZBlockDesc(blkidx);
+            T * val = src_snode->GetNZval(desc.Offset);
+            Int nRows = src_snode->NRows(blkidx);
 
             Int row = desc.GIndex;
             for(Int i = 0; i< nRows; ++i){
               logfileptr->OFS()<<row+i<<" | "<<Order_.perm[row+i-1]<<":   ";
-              for(Int j = 0; j< src_snode.Size(); ++j){
-                logfileptr->OFS()<<val[i*src_snode.Size()+j]<<" ";
+              for(Int j = 0; j< src_snode->Size(); ++j){
+                logfileptr->OFS()<<val[i*src_snode->Size()+j]<<" ";
               }
               logfileptr->OFS()<<std::endl;
             }
@@ -1301,6 +1228,47 @@ namespace SYMPACK{
       }
 
     }
+
+  template<typename T>
+    void SupernodalMatrix<T>::DumpContrib(){
+      for(Int I=1;I<Xsuper_.size();I++){
+        Int src_first_col = Xsuper_[I-1];
+        Int src_last_col = Xsuper_[I]-1;
+        Int iOwner = this->Mapping_->Map(I-1,I-1);
+        if( iOwner == iam ){
+          SuperNode<T,MallocAllocator> * src_snode = snodeLocal(I,Contributions_);
+
+
+          logfileptr->OFS()<<"+++++++++++++"<<I<<"++++++++"<<std::endl;
+
+          logfileptr->OFS()<<"cols: ";
+          for(Int i = 0; i< src_snode->Size(); ++i){
+            logfileptr->OFS()<<" "<<Order_.perm[src_first_col+i-1];
+          }
+          logfileptr->OFS()<<std::endl;
+          logfileptr->OFS()<<std::endl;
+          for(int blkidx=0;blkidx<src_snode->NZBlockCnt();++blkidx){
+
+            NZBlockDesc & desc = src_snode->GetNZBlockDesc(blkidx);
+            T * val = src_snode->GetNZval(desc.Offset);
+            Int nRows = src_snode->NRows(blkidx);
+
+            Int row = desc.GIndex;
+            for(Int i = 0; i< nRows; ++i){
+              logfileptr->OFS()<<row+i<<" | "<<Order_.perm[row+i-1]<<":   ";
+              for(Int j = 0; j< src_snode->Size(); ++j){
+                logfileptr->OFS()<<val[i*src_snode->Size()+j]<<" ";
+              }
+              logfileptr->OFS()<<std::endl;
+            }
+
+            logfileptr->OFS()<<"_______________________________"<<std::endl;
+          }
+        }
+      }
+
+    }
+
 
 
   template <typename T> void SupernodalMatrix<T>::Init(DistSparseMatrix<T> & pMat, NGCholOptions & options ){
@@ -1454,6 +1422,7 @@ namespace SYMPACK{
     }
     else
 #endif
+      SparseMatrixGraph * sgraph = NULL;
     {
       Global_ = new SparseMatrixStructure();
       Local_->ToGlobal(*Global_,CommEnv_->MPI_GetComm());
@@ -1487,33 +1456,31 @@ namespace SYMPACK{
 #ifdef USE_SCOTCH
           case SCOTCH:
             {
-              SparseMatrixGraph sgraph;
-              graph_.GatherStructure(sgraph,0);
-              //    for(Idx locCol = 0 ; locCol< Global_->size; locCol++){
-              //      Ptr colbeg = Global_->expColptr[locCol]-1; //now 0 based
-              //      Ptr colend = Global_->expColptr[locCol+1]-1; // now 0 based 
-              //      sort(&Global_->expRowind[0]+colbeg,&Global_->expRowind[0]+colend,std::less<Ptr>());
-              //    }
-              if(iam==0){
-                for(Idx i =0; i<=sgraph.VertexCount(); i++){if(Global_->expColptr[i] != sgraph.colptr[i]){ logfileptr->OFS()<<Global_->expColptr[i]<< " vs "<< sgraph.colptr[i]<<" ["<<i<<"] "<<endl;abort();break;}}
-              }
-              //for(Idx i =0; i<sgraph.EdgeCount(); i++){if(Global_->expRowind[i] != sgraph.rowind[i]){ logfileptr->OFS()<<Global_->expRowind[i]<< " vs "<< sgraph.rowind[i]<<" ["<<i<<"] "<<endl;abort();break;}}
 
-              sgraph.SetKeepDiag(0);
-              Order_.SCOTCH(sgraph);
+              if(sgraph==NULL){ sgraph = new SparseMatrixGraph();}
+              graph_.GatherStructure(*sgraph,0);
+              sgraph->SetKeepDiag(0);
+              //SparseMatrixGraph sgraph;
+              //graph_.GatherStructure(sgraph,0);
+              //if(iam==0){ for(Idx i =0; i<=sgraph.VertexCount(); i++){if(Global_->expColptr[i] != sgraph.colptr[i]){ logfileptr->OFS()<<Global_->expColptr[i]<< " vs "<< sgraph.colptr[i]<<" ["<<i<<"] "<<endl;abort();break;}} }
+              //sgraph.SetKeepDiag(0);
+              Order_.SCOTCH(*sgraph);
             }
             break;
 #endif
 #ifdef USE_METIS
           case METIS:
             {
-              SparseMatrixGraph sgraph;
-              graph_.GatherStructure(sgraph,0);
-              if(iam==0){
-                for(Idx i =0; i<=sgraph.VertexCount(); i++){if(Global_->expColptr[i] != sgraph.colptr[i]){ logfileptr->OFS()<<Global_->expColptr[i]<< " vs "<< sgraph.colptr[i]<<" ["<<i<<"] "<<endl;abort();break;}}
-              }
-              sgraph.SetKeepDiag(0);
-              Order_.METIS(sgraph);
+              if(sgraph==NULL){ sgraph = new SparseMatrixGraph();}
+              graph_.GatherStructure(*sgraph,0);
+              sgraph->SetKeepDiag(0);
+              //SparseMatrixGraph sgraph;
+              //graph_.GatherStructure(sgraph,0);
+              //if(iam==0){
+              //  for(Idx i =0; i<=sgraph.VertexCount(); i++){if(Global_->expColptr[i] != sgraph.colptr[i]){ logfileptr->OFS()<<Global_->expColptr[i]<< " vs "<< sgraph.colptr[i]<<" ["<<i<<"] "<<endl;abort();break;}}
+              //}
+              //sgraph.SetKeepDiag(0);
+              Order_.METIS(*sgraph);
             }
             break;
 #endif
@@ -1530,8 +1497,8 @@ namespace SYMPACK{
               graph.ExpandSymmetric();
               Order_.PARMETIS(graph);
 
-              logfileptr->OFS()<<"perm: "<<Order_.perm<<endl;
-              logfileptr->OFS()<<"invp: "<<Order_.invp<<endl;
+              //logfileptr->OFS()<<"perm: "<<Order_.perm<<endl;
+              //logfileptr->OFS()<<"invp: "<<Order_.invp<<endl;
 
 
             }
@@ -1549,8 +1516,8 @@ namespace SYMPACK{
               graph.ExpandSymmetric();
               Order_.PTSCOTCH(graph);
 
-              logfileptr->OFS()<<"perm: "<<Order_.perm<<endl;
-              logfileptr->OFS()<<"invp: "<<Order_.invp<<endl;
+              //logfileptr->OFS()<<"perm: "<<Order_.perm<<endl;
+              //logfileptr->OFS()<<"invp: "<<Order_.invp<<endl;
 
               //        Order_.PTSCOTCH();
             }
@@ -1612,6 +1579,21 @@ namespace SYMPACK{
           cout<<"Column count (upcxx) construction time: "<<timeStop - timeStart<<endl;
         }
       }
+      //{
+      //  double timeStart = get_time();
+      //  if(sgraph==NULL){ 
+      //    sgraph = new SparseMatrixGraph();
+      //    graph_.GatherStructure(*sgraph,0);
+      //  }
+      //  sgraph->SetKeepDiag(1);
+      //  sgraph->SetBaseval(1);
+      //  Global_->GetLColRowCount(tree,*sgraph,cc,rc);
+      //  //bcast rc, cc
+      //  double timeStop = get_time();
+      //  if(iam==0){
+      //    cout<<"Column count (gather + serial + bcast) construction time: "<<timeStop - timeStart<<endl;
+      //  }
+      //}
       { 
         SYMPACK::vector<Int> cc2,rc2;
         ETree tree;
@@ -1635,7 +1617,10 @@ namespace SYMPACK{
       if(iam==0){
         cout<<"Elimination tree construction time: "<<timeStop - timeSta<<endl;
       }
+      //logfileptr->OFS()<<"perm: "<<Order_.perm<<endl;
     }
+
+    if(sgraph!=NULL){delete sgraph;}
 
 
 #ifdef _DEBUG_
@@ -2489,7 +2474,12 @@ Int np  = CommEnv_->MPI_Size();
         ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
         globToLocSnodes_.Insert(snode_inter);
 #endif
+
+#ifdef _INDEFINITE_
+        LocalSupernodes_.push_back( new SuperNodeInd<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
+#else
         LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
+#endif
       }
     }
 
@@ -2592,14 +2582,14 @@ Int np  = CommEnv_->MPI_Size();
           Int fc = Xsuper_[I-1];
           Int lc = Xsuper_[I]-1;
           Int iWidth = lc-fc+1;
-          SuperNode<T> & snode = *snodeLocal(I);
-          if(snode.NZBlockCnt()==0){
+          SuperNode<T> * snode = snodeLocal(I);
+          if(snode->NZBlockCnt()==0){
             for(Int i = 0; i<nzBlockCnt;i++){
               Int iStartRow = superStructure[pos++];
               Int iContiguousRows = superStructure[pos++];
-              snode.AddNZBlock(iContiguousRows , iWidth,iStartRow);
+              snode->AddNZBlock(iContiguousRows , iWidth,iStartRow);
             }
-            snode.Shrink();
+            snode->Shrink();
           }
         }
       } 
@@ -2762,9 +2752,7 @@ Int np  = CommEnv_->MPI_Size();
           Int lc = Xsuper_[I]-1;
           Int iWidth = lc-fc+1;
 
-          SuperNode<T> & snode = *snodeLocal(I);
-
-          assert(snode.NZBlockCnt()!=0);
+          SuperNode<T> * snode = snodeLocal(I);
 
           //nrows of column col sent by processor p
           Int nrows = *((Int*)&buffer[sizeof(Int)]);
@@ -2781,12 +2769,12 @@ Int np  = CommEnv_->MPI_Size();
             //Int orig_row = rowind[rowidx-1];
             //Int row = Order_.invp[orig_row-1];
             //if(row>=col){
-            Int blkidx = snode.FindBlockIdx(row);
+            Int blkidx = snode->FindBlockIdx(row);
             assert(blkidx!=-1);
-            NZBlockDesc & blk_desc = snode.GetNZBlockDesc(blkidx);
+            NZBlockDesc & blk_desc = snode->GetNZBlockDesc(blkidx);
             Int local_row = row - blk_desc.GIndex + 1;
             Int local_col = col - fc + 1;
-            T * nzval = snode.GetNZval(blk_desc.Offset);
+            T * nzval = snode->GetNZval(blk_desc.Offset);
             nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
             //}
           }
@@ -2820,28 +2808,28 @@ for(Int I=1;I<Xsuper_.size();I++){
   Int iOwner = this->Mapping_->Map(I-1,I-1);
   //If I own the column, factor it
   if( iOwner == iam ){
-    SuperNode<T> & src_snode = *snodeLocal(I);
+    SuperNode<T> * src_snode = snodeLocal(I);
 
 
     logfileptr->OFS()<<"+++++++++++++"<<I<<"++++++++"<<std::endl;
 
     logfileptr->OFS()<<"cols: ";
-    for(Int i = 0; i< src_snode.Size(); ++i){
+    for(Int i = 0; i< src_snode->Size(); ++i){
       logfileptr->OFS()<<" "<<Order_.perm[src_first_col+i-1];
     }
     logfileptr->OFS()<<std::endl;
     logfileptr->OFS()<<std::endl;
-    for(int blkidx=0;blkidx<src_snode.NZBlockCnt();++blkidx){
+    for(int blkidx=0;blkidx<src_snode->NZBlockCnt();++blkidx){
 
-      NZBlockDesc & desc = src_snode.GetNZBlockDesc(blkidx);
-      T * val = src_snode.GetNZval(desc.Offset);
-      Int nRows = src_snode.NRows(blkidx);
+      NZBlockDesc & desc = src_snode->GetNZBlockDesc(blkidx);
+      T * val = src_snode->GetNZval(desc.Offset);
+      Int nRows = src_snode->NRows(blkidx);
 
       Int row = desc.GIndex;
       for(Int i = 0; i< nRows; ++i){
         logfileptr->OFS()<<row+i<<" | "<<Order_.perm[row+i-1]<<":   ";
-        for(Int j = 0; j< src_snode.Size(); ++j){
-          logfileptr->OFS()<<val[i*src_snode.Size()+j]<<" ";
+        for(Int j = 0; j< src_snode->Size(); ++j){
+          logfileptr->OFS()<<val[i*src_snode->Size()+j]<<" ";
         }
         logfileptr->OFS()<<std::endl;
       }
@@ -4130,6 +4118,10 @@ void SupernodalMatrix<T>::refineSupernodes(int ordflag,int altflag){
 
 #include "SupernodalMatrix_impl_FB_pull.hpp"
 
+
+#ifdef _INDEFINITE_
+#undef _INDEFINITE_
+#endif
 
 }
 

@@ -56,6 +56,29 @@ double LAPACK(dlange)
 double LAPACK(zlange)
 (const char * norm, const int *m, const int *n, const dcomplex* A, const int *lda, double *work); 
 
+
+
+
+void LAPACK(sscal)( const int * N, const float * DA, float * DX, const int * INCX);
+void LAPACK(dscal)( const int * N, const double * DA, double * DX, const int * INCX);
+void LAPACK(cscal)( const int * N, const scomplex * DA, scomplex * DX, const int * INCX);
+void LAPACK(zscal)( const int * N, const dcomplex * DA, dcomplex * DX, const int * INCX);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 void LAPACK(xerbla)
 (const char * srname, const Int * info);
 
@@ -1586,6 +1609,21 @@ Lange(char norm, Int m, Int n, const dcomplex* A, Int lda)
 
 
 
+void Scal( Int N, float DA,    float* DX,    Int INCX){
+  LAPACK(sscal)(&N,&DA,DX,&INCX);
+}
+
+void Scal( Int N, double DA,   double* DX,   Int INCX){
+  LAPACK(dscal)(&N,&DA,DX,&INCX);
+}
+
+void Scal( Int N, scomplex DA, scomplex* DX, Int INCX){
+  LAPACK(cscal)(&N,&DA,DX,&INCX);
+}
+
+void Scal( Int N, dcomplex DA, dcomplex* DX, Int INCX){
+  LAPACK(zscal)(&N,&DA,DX,&INCX);
+}
 
 
 

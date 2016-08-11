@@ -326,7 +326,9 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
       maxheight = UpdateHeight_[i-1];
     }
   }
-  tmpBufs.Resize(maxheight/*Size()*/,maxwidth);
+  
+  //maxwidth for indefinite matrices
+  tmpBufs.Resize(maxwidth + maxheight/*Size()*/,maxwidth);
 
   SYMPACK::vector< SuperNode<T> * > aggVectors(Xsuper_.size()-1,NULL);
 
@@ -401,7 +403,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
 
       //    assert(find(taskLists_[curTask.tgt_snode_id-1]->begin(),taskLists_[curTask.tgt_snode_id-1]->end(),curTask)!=taskLists_[curTask.tgt_snode_id-1]->end());
 #ifdef _DEBUG_PROGRESS_
-      logfileptr->OFS()<<"Processing T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") "<<endl;
+      logfileptr->OFS()<<"Processing T("<<curTask.src_snode_id<<","<<curTask.tgt_snode_id<<") "<<endl;
 #endif
       Int iLocalTGT = snodeLocalIndex(curTask.tgt_snode_id);
       switch(curTask.type){
@@ -796,9 +798,9 @@ template <typename T> void SupernodalMatrix<T>::FBAggregationTask(supernodalTask
   Int src_snode_id = curTask.src_snode_id;
   Int tgt_snode_id = curTask.tgt_snode_id;
   Int I = src_snode_id;
-  SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
-  Int src_first_col = src_snode.FirstCol();
-  Int src_last_col = src_snode.LastCol();
+  SuperNode<T> * src_snode = LocalSupernodes_[iLocalI -1];
+  Int src_first_col = src_snode->FirstCol();
+  Int src_last_col = src_snode->LastCol();
 
 #ifdef _DEBUG_PROGRESS_
   logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
@@ -814,12 +816,18 @@ template <typename T> void SupernodalMatrix<T>::FBAggregationTask(supernodalTask
     assert(msgPtr->IsDone());
     char* dataPtr = msgPtr->GetLocalPtr();
 
-    SuperNode<T> dist_src_snode(dataPtr,msgPtr->Size());
-    dist_src_snode.InitIdxToBlk();
+#ifdef _INDEFINITE_
+    SuperNode<T> * dist_src_snode = new SuperNodeInd<T>(dataPtr,msgPtr->Size());
+#else
+    SuperNode<T> * dist_src_snode = new SuperNode<T>(dataPtr,msgPtr->Size());
+#endif
 
-    src_snode.Aggregate(dist_src_snode);
+    dist_src_snode->InitIdxToBlk();
 
-    
+    src_snode->Aggregate(dist_src_snode);
+
+    delete dist_src_snode;
+ 
     if(!msgPtr->IsLocal()){
       msgPtr->DeallocRemote();
     }
@@ -837,16 +845,6 @@ template <typename T> void SupernodalMatrix<T>::FBAggregationTask(supernodalTask
   if(!is_static){
     if(taskit->remote_deps==0 && taskit->local_deps==0){
 
-      //    //compute cost 
-      //    if(taskit->type==FACTOR){
-      //      //TODO this is the factorization cost only. There is also the aggregation cost to take into account
-      //      SuperNode2<T> & src_snode = *snodeLocal(taskit->src_snode_id);
-      //      taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
-      //    }
-      //    else if(taskit->type == UPDATE){
-      //      //TODO loop through the source snode and compute cost for ONE target or ALL targets (if source is remote)
-      //      taskit->rank = 0.0;
-      //    }
       //compute cost 
       //taskit->update_rank();
       //scheduler_->push(taskit);    
@@ -866,9 +864,9 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTa
   Int src_snode_id = curTask.src_snode_id;
   Int tgt_snode_id = curTask.tgt_snode_id;
   Int I = src_snode_id;
-  SuperNode<T> & src_snode = *LocalSupernodes_[iLocalI -1];
-  Int src_first_col = src_snode.FirstCol();
-  Int src_last_col = src_snode.LastCol();
+  SuperNode<T> * src_snode = LocalSupernodes_[iLocalI -1];
+  Int src_first_col = src_snode->FirstCol();
+  Int src_last_col = src_snode->LastCol();
 
 #ifdef _DEBUG_PROGRESS_
   logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
@@ -885,11 +883,17 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTa
 
     //if( msgPtr->meta.src == 84  && msgPtr->meta.tgt == 86 ){gdb_lock();}
 
-    SuperNode<T> dist_src_snode(dataPtr,msgPtr->Size());
-    dist_src_snode.InitIdxToBlk();
+#ifdef _INDEFINITE_
+    SuperNode<T> * dist_src_snode = new SuperNodeInd<T>(dataPtr,msgPtr->Size());
+#else
+    SuperNode<T> * dist_src_snode = new SuperNode<T>(dataPtr,msgPtr->Size());
+#endif
 
-    src_snode.Aggregate(dist_src_snode);
+    dist_src_snode->InitIdxToBlk();
 
+    src_snode->Aggregate(dist_src_snode);
+
+    delete dist_src_snode;
 
     delete msgPtr;
   }
@@ -901,7 +905,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTa
 #endif
 
   TIMER_START(FACTOR_PANEL);
-  src_snode.Factorize();
+  src_snode->Factorize(tmpBufs);
   TIMER_STOP(FACTOR_PANEL);
 
   //Sending factors and update local tasks
@@ -915,31 +919,31 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTa
 #if 0
   #error "this code is not working"
   Int prevSnode = -1;
-  //Int src_snode_id = src_snode.Id();
-  for(Int blkidx=0; blkidx< src_snode.NZBlockCnt();blkidx++){
-    NZBlockDesc & nzblk_desc = src_snode.GetNZBlockDesc(blkidx);
+  //Int src_snode_id = src_snode->Id();
+  for(Int blkidx=0; blkidx< src_snode->NZBlockCnt();blkidx++){
+    NZBlockDesc & nzblk_desc = src_snode->GetNZBlockDesc(blkidx);
     Idx fr = nzblk_desc.GIndex;
-    Idx lr = src_snode.NRows(blkidx) + fr;
+    Idx lr = src_snode->NRows(blkidx) + fr;
     Idx src_first_row = fr;
     while(src_first_row<lr){
       Int tgt_snode_id = SupMembership_[src_first_row];
 
       if(prevSnode!=tgt_snode_id){
-        Int iTarget = this->Mapping_->Map(tgt_snode_id-1,src_snode.Id()-1);
+        Int iTarget = this->Mapping_->Map(tgt_snode_id-1,src_snode->Id()-1);
         if(iTarget != iam){
           if(!is_factor_sent[iTarget]){
             MsgMetadata meta;
 
             Int local_first_row = src_first_row - nzblk_desc.GIndex;
-            Int nzblk_cnt = src_snode.NZBlockCnt() - blkidx;
-            Int nzval_cnt_ = src_snode.Size()*(src_snode.NRowsBelowBlock(blkidx)-local_first_row);
-            T* nzval_ptr = src_snode.GetNZval(nzblk_desc.Offset) + local_first_row*src_snode.Size();
+            Int nzblk_cnt = src_snode->NZBlockCnt() - blkidx;
+            Int nzval_cnt_ = src_snode->Size()*(src_snode->NRowsBelowBlock(blkidx)-local_first_row);
+            T* nzval_ptr = src_snode->GetNZval(nzblk_desc.Offset) + local_first_row*src_snode->Size();
 
             upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
             //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
 
             //Send factor 
-            meta.src = src_snode.Id();
+            meta.src = src_snode->Id();
             meta.tgt = tgt_snode_id;
             meta.GIndex = src_first_row;
 
@@ -952,7 +956,7 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTa
         else{
           //Update local tasks
           //find task corresponding to curUpdate
-          auto taskit = taskGraph.find_task(src_snode.Id(),tgt_snode_id,UPDATE);
+          auto taskit = taskGraph.find_task(src_snode->Id(),tgt_snode_id,UPDATE);
 #pragma omp atomic
           taskit->local_deps--;
           if(!is_static){
@@ -970,8 +974,8 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTa
     }
   }
 #else
-  while(src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-    Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode.Id()-1);
+  while(src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
+    Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode->Id()-1);
 
     if(iTarget != iam){
       if(!is_factor_sent[iTarget]){
@@ -979,11 +983,11 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTa
 
         //if(curUpdate.tgt_snode_id==29 && curUpdate.src_snode_id==28){gdb_lock(0);}
         //TODO Replace all this by a Serialize function
-        NZBlockDesc & nzblk_desc = src_snode.GetNZBlockDesc(curUpdate.blkidx);
+        NZBlockDesc & nzblk_desc = src_snode->GetNZBlockDesc(curUpdate.blkidx);
         Int local_first_row = curUpdate.src_first_row - nzblk_desc.GIndex;
-        Int nzblk_cnt = src_snode.NZBlockCnt() - curUpdate.blkidx;
-        Int nzval_cnt_ = src_snode.Size()*(src_snode.NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
-        T* nzval_ptr = src_snode.GetNZval(nzblk_desc.Offset) + local_first_row*src_snode.Size();
+        Int nzblk_cnt = src_snode->NZBlockCnt() - curUpdate.blkidx;
+        Int nzval_cnt_ = src_snode->Size()*(src_snode->NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
+        T* nzval_ptr = src_snode->GetNZval(nzblk_desc.Offset) + local_first_row*src_snode->Size();
 
         upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
         //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
@@ -1076,8 +1080,11 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
       msgPtr = *msgit;
       assert(msgPtr->IsDone());
       char* dataPtr = msgPtr->GetLocalPtr();
-
+#ifdef _INDEFINITE_
+      cur_src_snode = new SuperNodeInd<T>(dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
+#else
       cur_src_snode = new SuperNode<T>(dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
+#endif
       cur_src_snode->InitIdxToBlk();
       //TODO this has to be written again for the new supernode type
       //size_t read_bytes = Deserialize(dataPtr,*cur_src_snode);
@@ -1113,7 +1120,11 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
             //use number of rows below factor as initializer
             Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
 
+#ifdef _INDEFINITE_
+            aggVectors[curUpdate.tgt_snode_id-1] = new SuperNodeInd<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
+#else
             aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
+#endif
           }
           tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
         }
@@ -1124,7 +1135,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
 
 
         //Update the aggregate
-        tgt_aggreg->UpdateAggregate(*cur_src_snode,curUpdate,tmpBufs,iTarget);
+        tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget);
 
 
         --UpdatesToDo[curUpdate.tgt_snode_id-1];
@@ -1195,16 +1206,6 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
           taskit->local_deps--;
           if(!is_static){
             if(taskit->remote_deps==0 && taskit->local_deps==0){
-              //            //compute cost 
-              //            if(taskit->type==FACTOR){
-              //              //TODO this is the factorization cost only. There is also the aggregation cost to take into account
-              //              SuperNode2<T> & src_snode = *snodeLocal(taskit->src_snode_id);
-              //              taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
-              //            }
-              //            else if(taskit->type == UPDATE){
-              //              //TODO loop through the source snode and compute cost for ONE target or ALL targets (if source is remote)
-              //              taskit->rank = 0.0;
-              //            }
               //compute cost 
               //taskit->update_rank();
               //scheduler_->push(taskit);    
@@ -1449,13 +1450,6 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
             curUpdate.local_deps = 0;
 
             taskit = taskGraph.addTask(curUpdate);
-
-            //{
-            //  SuperNode2<T> & tgt_snode = *snodeLocal(taskit->tgt_snode_id);
-            //  char* dataPtr = msg->GetLocalPtr();
-            //  SuperNode2<T> dist_src_snode(dataPtr,msg->Size());
-            //  taskit->rank = dist_src_snode.NRowsBelowBlock(0)*tgt_snode.Size();
-            //}
 #else
             //need to update dependencies of the factorization task
             taskit = taskGraph.find_task(msg->meta.tgt,msg->meta.tgt,FACTOR);
@@ -1495,23 +1489,30 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
             //            taskit = --taskLists[J-1]->end();
 
             //compute cost
+#if 0
             if(1){
               char* dataPtr = msg->GetLocalPtr();
-              SuperNode<T> dist_src_snode(dataPtr,msg->Size(),msg->meta.GIndex);
-              dist_src_snode.InitIdxToBlk();
+#ifdef _INDEFINITE_
+              SuperNode<T> * dist_src_snode = SuperNodeInd<T>(dataPtr,msg->Size(),msg->meta.GIndex);
+#else
+              SuperNode<T> * dist_src_snode = SuperNode<T>(dataPtr,msg->Size(),msg->meta.GIndex);
+#endif
+              dist_src_snode->InitIdxToBlk();
               SnodeUpdate curUpdate;
               taskit->rank = 0.0;
-              while(dist_src_snode.FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false)){
+              while(dist_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false)){
                 //skip if this update is "lower"
                 if(curUpdate.tgt_snode_id<curTask.tgt_snode_id){continue;}
                 Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curTask.src_snode_id-1);
                 if(iUpdater == iam){
                   Int tgt_snode_width = Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1];
-                  taskit->rank += dist_src_snode.NRowsBelowBlock(0)*pow(tgt_snode_width,2.0);
+                  taskit->rank += dist_src_snode->NRowsBelowBlock(0)*pow(tgt_snode_width,2.0);
                 }
               }
+              delete dist_src_snode;
               taskit->rank*=-1;
             }
+#endif
 
           }
 #else

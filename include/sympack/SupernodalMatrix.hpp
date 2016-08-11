@@ -23,6 +23,7 @@
 #include <limits>
 #include <numeric>
 #include "SuperNode.hpp"
+#include "SuperNodeInd.hpp"
 
 #ifdef MULTITHREADING
 #include <omp.h>
@@ -105,6 +106,9 @@ namespace SYMPACK{
 
       //core functionalities
       void Factorize();
+
+      //Solve routines
+      //note: RHS & B are stored in column major format
       void Solve(T * RHS, int nrhs,  T * Xptr=NULL);
       void GetSolution(T * B, int nrhs);
 
@@ -113,6 +117,7 @@ namespace SYMPACK{
 
 
       void Dump();
+      void DumpContrib();
 
       Idx TotalSupernodeCnt() { return Xsuper_.empty()?0:Xsuper_.size()-1;}
 
@@ -239,12 +244,6 @@ namespace SYMPACK{
       void FBFactorizationTask(supernodalTaskGraph & taskGraph, FBTask & curTask, Int iLocalI, bool is_static = false);
       void FBAggregationTask(supernodalTaskGraph & taskGraph, FBTask & curTask, Int iLocalI, bool is_static = false);
       void FBUpdateTask(supernodalTaskGraph & taskGraph, FBTask & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
-
-      //Solve related routines
-      template< class Alloc>
-      void forward_update(SuperNode<T,Alloc> * src_contrib,SuperNode<T,Alloc> * tgt_contrib);
-      template< class Alloc>
-      void back_update(SuperNode<T,Alloc> * src_contrib,SuperNode<T,Alloc> * tgt_contrib);
 
 
       //Communication related routines

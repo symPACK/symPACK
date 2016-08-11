@@ -213,8 +213,10 @@ install(FILES
   ${PROJECT_BINARY_DIR}/sympack_config.h 
   include/sympack.hpp
   include/sympack/SuperNode.hpp
+  include/sympack/SuperNodeInd.hpp
   include/sympack/CommPull.hpp
   include/sympack/SuperNode_impl.hpp
+  include/sympack/SuperNodeInd_impl.hpp
   include/sympack/CommTypes.hpp
   include/sympack/DistSparseMatrix.hpp
   include/sympack/SupernodalMatrix.hpp

@@ -1,3 +1,5 @@
+#ifndef _SYMPACK_LAPACK_HEADER_
+#define _SYMPACK_LAPACK_HEADER_
 /*
 	 Copyright (c) 2012 The Regents of the University of California,
 	 through Lawrence Berkeley National Laboratory.  
@@ -230,24 +232,45 @@ double Lange(char norm, Int m, Int n, const double* A, Int lda);
 double Lange(char norm, Int m, Int n, const dcomplex* A, Int lda);
 
 
+// SCAL
+void Scal( Int N, float DA,    float* DX,    Int INCX);
+void Scal( Int N, double DA,   double* DX,   Int INCX);
+void Scal( Int N, scomplex DA, scomplex* DX, Int INCX);
+void Scal( Int N, dcomplex DA, dcomplex* DX, Int INCX);
+
+
 template<typename T>
 void Sytrf_np(char uplo, Int n, T* A, Int lda ){
   if(uplo == 'L'){
-    for(Int i = 0; i< n; i++){
-      T piv = A[i+i*lda];
-#pragma unroll
-      for(Int j = i+1; j< n; j++){
-        A[j+i*lda] /= piv;
-      }
+    for(Int col = 0; col< n; col++){
+      T piv = static_cast<T>(1.0) / A[col+col*lda];
+      blas::Syr( uplo, n-1-col, -piv, &A[col+1+col*lda], 1,&A[col+1+(col+1)*lda],lda);
+      lapack::Scal( n-1, piv, &A[col+1+col*lda], 1 );
+//#pragma unroll
+//      for(Int row = col+1; row< n; row++){
+//        A[row+col*lda] /= piv;
+//      }
+
+//      //update next columns
+//      for(Int k = col+1; k< n; k++){
+//        #pragma unroll
+//        for(Int row = col+1; row< n; row++){
+//          A[row+k*lda] -= A[row+col*lda] * A[col+col*lda] * A[k + row*lda];
+//        }
+//      }
+
+
+
+
     }
   }
   else{
-    for(Int j = 0; j< n; j++){
-      T piv = A[j+j*lda];
-#pragma unroll
-      for(Int i = j+1; i< n; i++){
-        A[j+i*lda] /= piv;
-      }
+    for(Int K = n; K>=1; K--){
+      T piv = static_cast<T>(1.0) / A[K-1+(K-1)*lda];
+
+      blas::Syr( uplo, K-1, -piv, &A[(K-1)*lda], 1, A, lda );
+      lapack::Scal( K-1, piv, &A[(K-1)*lda], 1 );
+
     }
   }
 }
@@ -256,4 +279,5 @@ void Sytrf_np(char uplo, Int n, T* A, Int lda ){
 
 
 } // namespace lapack
-} // namespace PEXSI
+} // namespace SYMPACK
+#endif //_SYMPACK_LAPACK_HEADER_

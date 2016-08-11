@@ -2,8 +2,8 @@
 /// @brief TODO
 /// @author Mathias Jacquelin
 /// @date 2013-09-10
-#ifndef _SUPERNODE2_FACT_HPP_
-#define _SUPERNODE2_FACT_HPP_
+#ifndef _SUPERNODE_FACT_HPP_
+#define _SUPERNODE_FACT_HPP_
 
 #include "sympack/Environment.hpp"
 #include "sympack/blas.hpp"
@@ -24,7 +24,7 @@
 #endif
 
 
-#define _INDEFINITE_
+//#define _INDEFINITE_
 
 namespace SYMPACK{
 
@@ -210,18 +210,12 @@ class SuperNode{
 
   SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
   SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN);
-  //SuperNode2(Int aiId, Int aiFc, Int aiLc, NZBlockDesc2 * a_block_desc, Int a_desc_cnt,
-  //            T * a_nzval, Int a_nzval_cnt, Int aiN);
   SuperNode(char * storage_ptr,size_t storage_size, Int GIndex = -1);
   ~SuperNode();
 
-    
-  //void Init(Int aiId, Int aiFc, Int aiLc, NZBlockDesc2 * a_block_desc, Int a_desc_cnt,
-  //            T * a_nzval, Int a_nzval_cnt, Int aiN);
-  
-  void Init(char * storage_ptr,size_t storage_size, Int GIndex = -1);
+  virtual void Init(char * storage_ptr,size_t storage_size, Int GIndex = -1);
 
-  inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex);
+  virtual inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex);
   inline void Reserve(size_t storage_size);
 
   inline Int FindBlockIdx(Int aiGIndex);
@@ -229,32 +223,43 @@ class SuperNode{
   inline Int FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap);
 
   inline void DumpITree();
-  inline Int Shrink();
+  virtual inline Int Shrink();
   
 #ifdef ITREE
   inline bool ITreeInitialized(){return idxToBlk_->StorageSize()!=0;};
 #endif
 
-  inline void FindUpdatedFirstCol(SuperNode<T,Allocator> & src_snode, Int pivot_fr, Int & tgt_fc, Int & first_pivot_idx);
-  inline void FindUpdatedLastCol(SuperNode<T,Allocator> & src_snode, Int tgt_fc, Int first_pivot_idx, Int & tgt_lc, Int & last_pivot_idx);
+  inline void FindUpdatedFirstCol(SuperNode<T,Allocator> * src_snode, Int pivot_fr, Int & tgt_fc, Int & first_pivot_idx);
+  inline void FindUpdatedLastCol(SuperNode<T,Allocator> * src_snode, Int tgt_fc, Int first_pivot_idx, Int & tgt_lc, Int & last_pivot_idx);
 
-  inline Int Aggregate(SuperNode<T,Allocator> & src_snode);
+virtual inline Int Aggregate(SuperNode<T,Allocator> * src_snode);
   //this function merge structure of src_snode into the structure of the current supernode
   //right now the destination will have a pretty stupid one line per block structure
-  inline Int Merge(SuperNode<T,Allocator> & src_snode, SnodeUpdate &update);
+ virtual inline Int Merge(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update);
 
   //Update an Aggregate
-  inline Int UpdateAggregate(SuperNode<T,Allocator> & src_snode, SnodeUpdate &update, 
+ virtual inline Int UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
               TempUpdateBuffers<T> & tmpBuffers,Int iTarget);
 
   //Update from a factor
-  inline Int Update(SuperNode<T,Allocator> & src_snode, SnodeUpdate &update, 
+ virtual inline Int Update(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
               TempUpdateBuffers<T> & tmpBuffers);
 
   //Factorize the supernode
-  inline Int Factorize();
-  inline Int FactorizeLDL();
+  virtual inline Int Factorize(TempUpdateBuffers<T> & tmpBuffers);
   inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const SYMPACK::vector<Int> & Xsuper,  const SYMPACK::vector<Int> & SupMembership,bool isLocal=true); 
+
+
+  //forward and backward solve phases
+  virtual inline void forward_update(SuperNode<T,Allocator> * src_contrib,Int iOwner);
+  virtual inline void forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, SYMPACK::vector<Int> & perm);
+  virtual inline void back_update(SuperNode<T,Allocator> * src_contrib);
+  virtual inline void back_update_contrib(SuperNode<T> * cur_snode);
+
+
+ virtual inline void Serialize(Icomm & buffer, Int first_blkidx=0, Idx first_row=0);
+ virtual inline size_t Deserialize(char * buffer, size_t size);
+
 
 
 
@@ -265,10 +270,7 @@ class SuperNode{
 
 
 template <typename T, class Allocator> inline void Serialize(Icomm & buffer,SuperNode<T,Allocator> & snode, Int first_blkidx=0, Idx first_row=0);
-//template <typename T> inline void Serialize(char ** local_ptr,SuperNode2<T> & snode, Int first_blkidx = -1, Int first_row = -1);
 template <typename T, class Allocator> inline std::ostream& operator<<( std::ostream& os,  SuperNode<T,Allocator>& snode);
-//template <typename T> inline size_t Deserialize(char * buffer, SuperNode2<T> & snode);
-//template <typename T> inline void Serialize(Icomm & buffer,SuperNode<T> & snode, Int first_blkidx = 0, Idx first_row = 0);
 template <typename T, class Allocator> inline size_t Deserialize(char * buffer, size_t size, SuperNode<T,Allocator> & snode);
 
 
@@ -284,11 +286,9 @@ inline std::ostream& operator<<( std::ostream& os,  NZBlockDesc& block);
 
 } // namespace SYMPACK
 
-namespace SYMPACK{
 
 #include "sympack/SuperNode_impl.hpp"
 
-} // namespace SYMPACK
 
 
 
@@ -302,4 +302,4 @@ namespace SYMPACK{
 
 
 
-#endif // _SUPERNODE2_FACT_HPP_
+#endif // _SUPERNODE_FACT_HPP_

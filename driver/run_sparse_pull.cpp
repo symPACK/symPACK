@@ -311,6 +311,19 @@ int main(int argc, char **argv)
       logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
 
+
+//only for debug purpose
+#if 0
+      SMat->Dump();
+      for(Int k = 0; k<nrhs; ++k){
+        for(Int j = 0; j<n; ++j){
+          RHS[j*nrhs+k] = 1.0;
+        }
+      }
+      logfileptr->OFS()<<"RHS: "<<RHS<<endl;
+#endif
+
+
       if(nrhs>0){
         /**************** SOLVE PHASE ***********/
         if(iam==0){
