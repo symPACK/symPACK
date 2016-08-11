@@ -39,6 +39,8 @@ class SparseMatrixGraph{
   SparseMatrixGraph();
   void SortEdges();
   void DistributeGraph(DistSparseMatrixGraph & dg);
+  void ExpandSymmetric();
+  void BroadcastGraph(MPI_Comm comm, Int root = 0);
 
   Idx VertexCount() const { return colptr.size()==0?0:colptr.size()-1;}
   Ptr EdgeCount() const{ return rowind.size();}

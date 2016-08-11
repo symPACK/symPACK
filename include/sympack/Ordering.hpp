@@ -16,36 +16,34 @@ class Ordering{
     CommEnvironment * CommEnv_;
     SYMPACK::vector<Int> perm;
     SYMPACK::vector<Int> invp;
-    SparseMatrixStructure * pStructure;
 
     Ordering():pStructure(NULL){};
     
     void SetCommEnvironment(CommEnvironment * CommEnv);
+
+    SparseMatrixStructure * pStructure;
     void SetStructure(SparseMatrixStructure & aGlobal);
-    void MMD();
     void AMD();
-    void NDBOX();
-    void NDGRID();
+    void MMD();
+
+    void MMD(const SparseMatrixGraph & g);
+    void AMD(const SparseMatrixGraph & g);
+    void NDBOX(Int size);
+    void NDGRID(Int size);
 
 #ifdef USE_PARMETIS
-  //FIXME: currently, colptr and rowind are not distributed
-  void PARMETIS();
   void PARMETIS(const DistSparseMatrixGraph & g);
 #endif
 
 #ifdef USE_PTSCOTCH
-  //FIXME: currently, colptr and rowind are not distributed
-  void PTSCOTCH();
   void PTSCOTCH(const DistSparseMatrixGraph & g);
 #endif
 
 #ifdef USE_METIS
-    void METIS();
     void METIS(const SparseMatrixGraph & g);
 #endif
 
 #ifdef USE_SCOTCH
-    void SCOTCH();
     void SCOTCH(const SparseMatrixGraph & g);
 #endif
     void Compose(SYMPACK::vector<Int> & invp2);

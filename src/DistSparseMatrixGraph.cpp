@@ -117,10 +117,47 @@ namespace SYMPACK{
 
 
   void SparseMatrixGraph::DistributeGraph(DistSparseMatrixGraph & dg){
-
+    throw std::logic_error( "SparseMatrixGraph::DistributeGraph(DistSparseMatrixGraph & ) not implemented\n" );
   }
 
+  void SparseMatrixGraph::BroadcastGraph(MPI_Comm comm, Int root){
 
+    MPI_Datatype graphType;
+    int blocklen[8];
+    MPI_Aint disps[8];
+
+    MPI_Datatype types[8] = {MPI_BYTE,MPI_BYTE,MPI_BYTE,MPI_BYTE,MPI_BYTE,
+      MPI_BYTE,MPI_BYTE,MPI_BYTE};
+    blocklen[0] = sizeof(size);
+    blocklen[1] = sizeof(nnz);
+    blocklen[2] = sizeof(baseval);
+    blocklen[3] = sizeof(keepDiag);
+    blocklen[4] = sizeof(sorted);
+    blocklen[5] = sizeof(bIsExpanded);
+    blocklen[6] = colptr.size()*sizeof(Ptr);
+    blocklen[7] = rowind.size()*sizeof(Idx);
+
+    MPI_Address( (void *)&size,  &disps[0]);
+    MPI_Address( (void *)&nnz,  &disps[1]);
+    MPI_Address( (void *)&baseval,  &disps[2]);
+    MPI_Address( (void *)&keepDiag,  &disps[3]);
+    MPI_Address( (void *)&sorted,  &disps[4]);
+    MPI_Address( (void *)&bIsExpanded,  &disps[5]);
+    MPI_Address( (void *)&colptr[0],  &disps[6]);
+    MPI_Address( (void *)&rowind[0],  &disps[7]);
+
+    MPI_Type_create_struct(8, blocklen, disps, types, &graphType);
+    MPI_Type_commit(&graphType);
+
+
+    MPI_Bcast(MPI_BOTTOM,1,graphType,root,comm); 
+      
+    MPI_Type_free(&graphType);
+  }
+
+  void SparseMatrixGraph::ExpandSymmetric(){
+    throw std::logic_error( "SparseMatrixGraph::ExpandSymmetric() not implemented\n" );
+  }
 
 
 

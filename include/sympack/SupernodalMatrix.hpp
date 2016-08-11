@@ -221,6 +221,7 @@ namespace SYMPACK{
   void refineSupernodes(int ordflag,int altflag);
 
   void getLColRowCount(SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & rc);
+  void getLColRowCount(SparseMatrixGraph & sgraph, SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & rc);
 
 
       protected:

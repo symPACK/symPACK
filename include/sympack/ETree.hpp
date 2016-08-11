@@ -41,7 +41,10 @@ public:
   ETree();
   ETree(SparseMatrixStructure & aGlobal, Ordering & aOrder);
 
+  //not working
   void ConstructETree(DistSparseMatrixGraph & aDistExp, Ordering & aOrder);
+  
+  void ConstructETree(SparseMatrixGraph & sgraph, Ordering & aOrder, upcxx::team * team);
   void ConstructETree(SparseMatrixStructure & aGlobal, Ordering & aOrder);
   void PostOrderTree(Ordering & aOrder);
   void DeepestFirst(Ordering & aOrder);
