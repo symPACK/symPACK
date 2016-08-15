@@ -15,7 +15,7 @@
 #include <numeric>
 #include <algorithm>
 
-#define _INDEFINITE_
+//#define _INDEFINITE_
 
 namespace SYMPACK{
   extern "C" {
@@ -1647,6 +1647,9 @@ namespace SYMPACK{
       if(options.order_refinement_str == "SET")
       {
         this->refineSupernodes(2,1);
+        if(iam==0){
+          cout<<"Supernode reodering done"<<endl;
+        }
 
         if(options_.relax.nrelax0>0){
           this->relaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );

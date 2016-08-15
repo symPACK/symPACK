@@ -1,0 +1,23 @@
+#cmake -DCMAKE_BUILD_TYPE=Release -DENABLE_ARIES=ON -DENABLE_SCOTCH=ON -DTRACK_MEMORY=OFF -DENABLE_PARMETIS=ON -DENABLE_METIS=ON -DCMAKE_TOOLCHAIN_FILE=../edison.cmake ..
+
+#make -DCMAKE_BUILD_TYPE=Release -DENABLE_ARIES=ON -DENABLE_SCOTCH=ON -DTRACK_MEMORY=OFF -DCMAKE_C_COMPILER=cc -DCMAKE_CXX_COMPILER=CC -DCMAKE_Fortran_COMPILER=ftn -DCMAKE_C_FLAGS=-mkl -DCMAKE_CXX_FLAGS="-fast -std=c++11 -mkl=sequential -DPROFILE" ..
+set(ENABLE_ARIES "ON")
+#need to set SCOTCH_DIR accordingly
+set(ENABLE_SCOTCH "ON")
+#need to set PARMETIS_DIR accordingly
+set(ENABLE_PARMETIS "ON")
+#need to set METIS_DIR accordingly
+set(ENABLE_METIS "ON")
+set(CMAKE_CXX_COMPILER CC)
+set(CMAKE_CXX_COMPILER CC)
+set(CMAKE_CXX_COMPILER CC)
+set(MPI_CXX_COMPILE_FLAGS "-mkl=sequential")
+set(CMAKE_CXX_FLAGS "-mkl=sequential")
+set(CMAKE_C_COMPILER cc)
+set(CMAKE_Fortran_COMPILER ftn)
+set(MPI_C_COMPILER cc)
+set(MPI_CXX_COMPILER CC)
+#add_definitions("-gxx-name=g++-4.9")
+add_definitions("-std=c++11")
+SET(CMAKE_CXX_FLAGS "-std=c++11")
+

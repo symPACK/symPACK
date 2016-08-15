@@ -18,6 +18,10 @@
 #include <typeinfo>
 #include <metis.h>
 #endif
+#ifdef USE_PARMETIS
+#include <typeinfo>
+#include <metis.h>
+#endif
 
 #define STR_HELPER(x) #x
 #define STR(x) STR_HELPER(x)

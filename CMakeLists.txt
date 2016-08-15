@@ -122,9 +122,9 @@ endif()
 
 option(ENABLE_METIS "Enable METIS" OFF)
 if(ENABLE_METIS)
-  find_package(Metis REQUIRED)
+  find_package(METIS REQUIRED)
   set(LIBS ${LIBS} ${METIS_LIBRARIES})
-  include_directories(${METIS_INCLUDES})
+  include_directories(${METIS_INCLUDE_DIRS})
   add_definitions("-DUSE_METIS")
 endif()
 
@@ -181,6 +181,7 @@ link_directories(${UPCXX_LIBRARY_PATH})
 #list( APPEND CMAKE_CXX_FLAGS -std=c++11)
 
 #set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${UPCXX_DEFINES})
+#add_definitions("-std=c++11")
 add_definitions(${UPCXX_DEFINES})
 
 
@@ -253,7 +254,8 @@ add_executable(run_sympack EXCLUDE_FROM_ALL driver/run_sparse_pull.cpp)
 add_custom_target(examples DEPENDS run_sympack)
 
 add_dependencies(run_sympack sympack gasnet upcxx) 
-target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
+#target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
+target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit)# ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
 
 #install(TARGETS run_sympack RUNTIME DESTINATION bin)
 
