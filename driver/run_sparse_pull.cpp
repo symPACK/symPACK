@@ -113,6 +113,18 @@ int main(int argc, char **argv)
     optionsFact.order_refinement_str = options["-refine"].front();
   }
 
+  if( options.find("-fact") != options.end() ){
+    if(options["-fact"].front()=="LL"){
+      optionsFact.decomposition = LL;
+    }
+    else if(options["-fact"].front()=="LDL"){
+      optionsFact.decomposition = LDL;
+    }
+  }
+
+
+
+
   if( options.find("-lb") != options.end() ){
     optionsFact.load_balance_str = options["-lb"].front();
   }

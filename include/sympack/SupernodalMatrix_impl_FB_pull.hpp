@@ -816,11 +816,12 @@ template <typename T> void SupernodalMatrix<T>::FBAggregationTask(supernodalTask
     assert(msgPtr->IsDone());
     char* dataPtr = msgPtr->GetLocalPtr();
 
-#ifdef _INDEFINITE_
-    SuperNode<T> * dist_src_snode = new SuperNodeInd<T>(dataPtr,msgPtr->Size());
-#else
-    SuperNode<T> * dist_src_snode = new SuperNode<T>(dataPtr,msgPtr->Size());
-#endif
+//#ifdef _INDEFINITE_
+//    SuperNode<T> * dist_src_snode = new SuperNodeInd<T>(dataPtr,msgPtr->Size());
+//#else
+//    SuperNode<T> * dist_src_snode = new SuperNode<T>(dataPtr,msgPtr->Size());
+//#endif
+    SuperNode<T> * dist_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
 
     dist_src_snode->InitIdxToBlk();
 
@@ -883,11 +884,8 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTa
 
     //if( msgPtr->meta.src == 84  && msgPtr->meta.tgt == 86 ){gdb_lock();}
 
-#ifdef _INDEFINITE_
-    SuperNode<T> * dist_src_snode = new SuperNodeInd<T>(dataPtr,msgPtr->Size());
-#else
-    SuperNode<T> * dist_src_snode = new SuperNode<T>(dataPtr,msgPtr->Size());
-#endif
+    //SuperNode<T> * dist_src_snode = CreateSuperNode(dataPtr,msgPtr->Size(),options_.factorization);
+    SuperNode<T> * dist_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
 
     dist_src_snode->InitIdxToBlk();
 
@@ -1080,11 +1078,12 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
       msgPtr = *msgit;
       assert(msgPtr->IsDone());
       char* dataPtr = msgPtr->GetLocalPtr();
-#ifdef _INDEFINITE_
-      cur_src_snode = new SuperNodeInd<T>(dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
-#else
-      cur_src_snode = new SuperNode<T>(dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
-#endif
+//#ifdef _INDEFINITE_
+//      cur_src_snode = new SuperNodeInd<T>(dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
+//#else
+//      cur_src_snode = new SuperNode<T>(dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
+//#endif
+      cur_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
       cur_src_snode->InitIdxToBlk();
       //TODO this has to be written again for the new supernode type
       //size_t read_bytes = Deserialize(dataPtr,*cur_src_snode);
@@ -1120,11 +1119,12 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
             //use number of rows below factor as initializer
             Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
 
-#ifdef _INDEFINITE_
-            aggVectors[curUpdate.tgt_snode_id-1] = new SuperNodeInd<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
-#else
-            aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
-#endif
+//#ifdef _INDEFINITE_
+//            aggVectors[curUpdate.tgt_snode_id-1] = new SuperNodeInd<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
+//#else
+//            aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
+//#endif
+            aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
           }
           tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
         }

@@ -12,6 +12,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 #set(LIBS ${LIBS} )
 
 
+
 find_package(MPI REQUIRED)
 if(MPI_CXX_FOUND)
   message(STATUS "Found CXX MPI compiler: ${MPI_CXX_COMPILER}")
@@ -33,6 +34,20 @@ endif()
 include(FortranCInterface)
 FortranCInterface_HEADER("${PROJECT_BINARY_DIR}/sympack_config.h" MACRO_NAMESPACE "FC_")
 FortranCInterface_VERIFY(CXX)
+
+option(MMD_IDX_64 "Use 64 bit integers for MMD" OFF)
+if(MMD_IDX_64)
+add_definitions( "-DMMDIDXSIZE=64")
+else()
+add_definitions( "-DMMDIDXSIZE=32")
+endif()
+
+option(AMD_IDX_64 "Use 64 bit integers for AMD" OFF)
+if(AMD_IDX_64)
+add_definitions( "-DAMDIDXSIZE=64")
+else()
+add_definitions( "-DAMDIDXSIZE=32")
+endif()
 
 option(ENABLE_MKL "Enable MKL" OFF)
 if(ENABLE_MKL)

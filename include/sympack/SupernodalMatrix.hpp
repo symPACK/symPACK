@@ -177,6 +177,10 @@ namespace SYMPACK{
       void generateTaskGraph(supernodalTaskGraph & taskGraph,SYMPACK::vector<Int> & AggregatesToRecv,  SYMPACK::vector<Int>& LocalAggregates);
 
 
+template <class Allocator = UpcxxAllocator>
+      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
+template <class Allocator = UpcxxAllocator>
+      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Idx firstRow = -1);
 
 
       std::list<std::list<FBTask>::iterator > readyTasks_;
@@ -261,6 +265,7 @@ namespace SYMPACK{
 
 
   };
+
 } // namespace SYMPACK
 
 #include "sympack/SupernodalMatrix_impl.hpp"

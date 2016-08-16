@@ -385,11 +385,13 @@ namespace SYMPACK{
         //Int iLocalI = (I-1) / np +1 ;
         Int iLocalI = snodeLocalIndex(I);
         SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-#ifdef _INDEFINITE_
-        SuperNode<T,MallocAllocator> * contrib = new SuperNodeInd<T,MallocAllocator>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
-#else
-        SuperNode<T,MallocAllocator> * contrib = new SuperNode<T,MallocAllocator>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
-#endif
+//#ifdef _INDEFINITE_
+//        SuperNode<T,MallocAllocator> * contrib = new SuperNodeInd<T,MallocAllocator>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
+//#else
+//        SuperNode<T,MallocAllocator> * contrib = new SuperNode<T,MallocAllocator>(I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
+//#endif
+        SuperNode<T,MallocAllocator> * contrib = CreateSuperNode<MallocAllocator>(options_.decomposition,I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
+
         Contributions_[iLocalI-1] = contrib;
 
 
@@ -471,11 +473,12 @@ namespace SYMPACK{
           src_blocks.resize(bytes_received);
           MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
           TIMER_STOP(RECV_MPI);
-#ifdef _INDEFINITE_
-          SuperNode<T,MallocAllocator> * dist_contrib = new SuperNodeInd<T,MallocAllocator>(&src_blocks[0],bytes_received);
-#else
-          SuperNode<T,MallocAllocator> * dist_contrib = new SuperNode<T,MallocAllocator>(&src_blocks[0],bytes_received);
-#endif
+//#ifdef _INDEFINITE_
+//          SuperNode<T,MallocAllocator> * dist_contrib = new SuperNodeInd<T,MallocAllocator>(&src_blocks[0],bytes_received);
+//#else
+//          SuperNode<T,MallocAllocator> * dist_contrib = new SuperNode<T,MallocAllocator>(&src_blocks[0],bytes_received);
+//#endif
+          SuperNode<T,MallocAllocator> * dist_contrib = CreateSuperNode<MallocAllocator>(options_.decomposition,&src_blocks[0],bytes_received);
           //TODO Put this back
           //Deserialize(&src_blocks[0],dist_contrib);
 #ifdef _DEBUG_
@@ -708,11 +711,12 @@ namespace SYMPACK{
 
             MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
 
-#ifdef _INDEFINITE_
-            dist_contrib = new SuperNodeInd<T,MallocAllocator>(&src_blocks[0],bytes_received);
-#else
-            dist_contrib = new SuperNode<T,MallocAllocator>(&src_blocks[0],bytes_received);
-#endif
+//#ifdef _INDEFINITE_
+//            dist_contrib = new SuperNodeInd<T,MallocAllocator>(&src_blocks[0],bytes_received);
+//#else
+//            dist_contrib = new SuperNode<T,MallocAllocator>(&src_blocks[0],bytes_received);
+//#endif
+            dist_contrib = CreateSuperNode<MallocAllocator>(options_.decomposition,&src_blocks[0],bytes_received);
             //TODO Replace this
             //Deserialize(&src_blocks[0],*dist_contrib); 
             dist_contrib->InitIdxToBlk();
@@ -2340,11 +2344,12 @@ Int np  = CommEnv_->MPI_Size();
         globToLocSnodes_.Insert(snode_inter);
 #endif
 
-#ifdef _INDEFINITE_
-        LocalSupernodes_.push_back( new SuperNodeInd<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
-#else
-        LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
-#endif
+//#ifdef _INDEFINITE_
+//        LocalSupernodes_.push_back( new SuperNodeInd<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
+//#else
+//        LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
+//#endif
+        LocalSupernodes_.push_back( CreateSuperNode(options_.decomposition,I,fc,lc,iHeight,iSize_,nzBlockCnt));
       }
     }
 
@@ -4134,6 +4139,45 @@ void SupernodalMatrix<T>::refineSupernodes(int ordflag,int altflag){
   MPI_Bcast(&aOrder.invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
   MPI_Bcast(&aOrder.perm[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
 }
+
+
+template <typename T> 
+template <class Allocator>
+SuperNode<T,Allocator> * SupernodalMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt){
+  SuperNode<T,Allocator> * retval = NULL;
+  switch(type){
+    case LDL:
+      retval = new SuperNodeInd<T,Allocator>( aiId,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
+      break;
+    case LL:
+      retval = new SuperNode<T,Allocator>( aiId,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
+      break;
+    default:
+      retval = new SuperNode<T,Allocator>( aiId,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
+      break;
+  }
+  return retval;
+}
+
+
+template <typename T>
+template <class Allocator>
+ SuperNode<T,Allocator> * SupernodalMatrix<T>::CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Idx firstRow){
+  SuperNode<T,Allocator> * retval = NULL;
+  switch(type){
+    case LDL:
+      retval = new SuperNodeInd<T,Allocator>(dataPtr,size,firstRow);
+      break;
+    case LL:
+      retval = new SuperNode<T,Allocator>(dataPtr,size,firstRow);
+      break;
+    default:
+      retval = new SuperNode<T,Allocator>(dataPtr,size,firstRow);
+      break;
+  }
+  return retval;
+}
+
 
 
 

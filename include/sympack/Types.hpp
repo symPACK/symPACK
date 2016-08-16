@@ -89,6 +89,7 @@ namespace SYMPACK{
 
   };
 
+  enum DecompositionType {LL,LDL};
 
   enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNS,WRAP2D,WRAP2DFORCED};
   enum FactorizationType {FANOUT,FANBOTH,FANBOTH_STATIC};
@@ -98,6 +99,7 @@ namespace SYMPACK{
   //enum OrderRefinementType {BarryDL,MCT,PR,FIFO};
   class NGCholOptions{
     public:
+      DecompositionType decomposition;
       MappingType mappingType;
       std::string mappingTypeStr;
       FactorizationType factorization;
@@ -131,6 +133,7 @@ namespace SYMPACK{
 
     public:
       NGCholOptions(){
+        decomposition = LL; 
         mappingType = MODWRAP2D;
         mappingTypeStr = "MODWRAP2D";
         factorization = FANBOTH;

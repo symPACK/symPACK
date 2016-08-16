@@ -781,11 +781,6 @@ inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNod
     T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
     T * chol_nzval = cur_snodeInd->GetNZval(chol_desc.Offset);
 
-    for(Int i = 0; i<cur_nrows;++i){
-      for(Int j = 0; j<nrhs;++j){
-        assert(cur_nzval[i*nrhs+j] == cur_nzval[i*nrhs]);
-      }
-    }
     //compute my contribution
     //Handle the diagonal block
     if(blkidx==0){
@@ -814,13 +809,6 @@ inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNod
       }
     }
 
-    for(Int i = 0; i<cur_nrows;++i){
-      for(Int j = 0; j<nrhs;++j){
-        assert(cur_nzval[i*nrhs+j] == cur_nzval[i*nrhs]);
-      }
-    }
-
-
 
 //  For each column of A
 //  for(k=1;k<=n;k++){
@@ -840,11 +828,6 @@ inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNod
         lapack::Scal(nrhs, static_cast<T>(1.0)/chol_diag[kk], &diag_nzval[kk*nrhs], 1);
     }
 
-    for(Int i = 0; i<diag_nrows;++i){
-      for(Int j = 0; j<nrhs;++j){
-        assert(diag_nzval[i*nrhs+j] == diag_nzval[i*nrhs]);
-      }
-    }
 
 
   }
