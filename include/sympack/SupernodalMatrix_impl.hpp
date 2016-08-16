@@ -1407,26 +1407,28 @@ namespace SYMPACK{
               graph_.GatherStructure(*sgraph,0);
               sgraph->SetBaseval(1);
               sgraph->SetKeepDiag(0);
-              //Reoder the matrix with MMD
               Order_.MMD(*sgraph);
             }
               break;
+
           case AMD:
             {
               sgraph = new SparseMatrixGraph();
               graph_.GatherStructure(*sgraph,0);
               sgraph->SetBaseval(1);
               sgraph->SetKeepDiag(0);
-            Order_.AMD(*sgraph);
+              Order_.AMD(*sgraph);
             }
             break;
             
           case NDBOX:
             Order_.NDBOX(Size());
             break;
+
           case NDGRID:
             Order_.NDGRID(Size());
             break;
+
 #ifdef USE_SCOTCH
           case SCOTCH:
             {
@@ -1451,28 +1453,37 @@ namespace SYMPACK{
 #ifdef USE_PARMETIS
           case PARMETIS:
             {
-              DistSparseMatrixGraph graph;
-              graph.SetComm(CommEnv_->MPI_GetComm());
-              graph.SetBaseval(0);
-              graph.SetKeepDiag(0);
-              graph.SetSorted(1);
-              graph.FromStructure(*Local_);
-              graph.ExpandSymmetric();
-              Order_.PARMETIS(graph);
+              //DistSparseMatrixGraph graph;
+              //graph.SetComm(CommEnv_->MPI_GetComm());
+              //graph.SetBaseval(0);
+              //graph.SetKeepDiag(0);
+              //graph.SetSorted(1);
+              //graph.FromStructure(*Local_);
+              //graph.ExpandSymmetric();
+              Order_.PARMETIS(graph_);
             }
             break;
 #endif
 #ifdef USE_PTSCOTCH
           case PTSCOTCH:
             {
-              DistSparseMatrixGraph graph;
-              graph.SetComm(CommEnv_->MPI_GetComm());
-              graph.SetBaseval(0);
-              graph.SetKeepDiag(0);
-              graph.SetSorted(1);
-              graph.FromStructure(*Local_);
-              graph.ExpandSymmetric();
-              Order_.PTSCOTCH(graph);
+              //DistSparseMatrixGraph graph;
+              //graph.SetComm(CommEnv_->MPI_GetComm());
+              //graph.SetBaseval(0);
+              //graph.SetKeepDiag(0);
+              //graph.SetSorted(1);
+              //graph.FromStructure(*Local_);
+              //graph.ExpandSymmetric();
+              //Order_.PTSCOTCH(graph);
+
+              graph_.SetBaseval(0);
+              graph_.SetKeepDiag(0);
+              graph_.SetSorted(1);
+              Order_.PTSCOTCH(graph_);
+
+    graph_.SetBaseval(1);
+    graph_.SetKeepDiag(1);
+    graph_.SetSorted(1);
             }
             break;
 #endif
@@ -2753,7 +2764,8 @@ for(Int I=1;I<Xsuper_.size();I++){
 
 
 
-
+{
+  double timeSta = get_time();
 origTaskLists_.resize(Xsuper_.size(),NULL);
 SYMPACK::vector<Int> AggregatesToRecv;
 SYMPACK::vector<Int> LocalAggregates;
@@ -2761,65 +2773,11 @@ FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
 
 generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
 
-//    generateTaskGraph(localTaskCount_, origTaskLists_);
-//    for(int i = 0; i<origTaskLists_.size(); ++i){
-//      if(origTaskLists_[i] != NULL){
-//        for(auto taskit = origTaskLists_[i]->begin(); taskit!=origTaskLists_[i]->end();taskit++){
-//          FBTask & curUpdate = *taskit;
-//          if(curUpdate.type==FACTOR){
-//            //      curUpdate.rank = levels[curUpdate.src_snode_id-1];
-//            curUpdate.remote_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
-//            curUpdate.local_deps = LocalAggregates[curUpdate.tgt_snode_id-1];
-//          }
-//          else if(curUpdate.type==UPDATE){
-//            Int iOwner = Mapping_->Map(curUpdate.src_snode_id-1,curUpdate.src_snode_id-1);
-//            //        curUpdate.rank = levels[curUpdate.src_snode_id-1];
-//            //If I own the factor, it is a local dependency
-//            if(iam==iOwner){
-//              curUpdate.remote_deps = 0;
-//              curUpdate.local_deps = 1;
-//            }
-//            else{
-//              curUpdate.remote_deps = 1;
-//              curUpdate.local_deps = 0;
-//            }
-//          }
-//        }
-//      }
-//    }
-//
-//    SYMPACK::vector<Int> levels;
-//    levels.resize(Xsuper_.size());
-//    levels[0]=0;
-//    Int numLevel = 0; 
-//    for(Int i=Xsuper_.size()-1-1; i>=0; i-- ){     
-//      Int fcol = Xsuper_[i];
-//      bassert(fcol-1>=0);
-//      Int pcol =ETree_.PostParent(fcol-1);
-//      Int supno = pcol>0?SupMembership_[pcol-1]:0;
-//      levels[i] = levels[supno]+1;
-//    }
-//
-//    //sort the task queues
-//    {
-//      for(int i = 0; i<origTaskLists_.size(); ++i){
-//        if(origTaskLists_[i] != NULL){
-//          for(auto taskit = origTaskLists_[i]->begin(); taskit!=origTaskLists_[i]->end();taskit++){
-//            if(taskit->remote_deps==0 && taskit->local_deps==0){
-//              taskit->rank = levels[taskit->src_snode_id];
-//              scheduler_->push(taskit);
-//            }
-//          }
-//        }
-//      }
-//    }
-
-
-
-
-
-
-
+  double timeStop = get_time();
+  if(iam==0){
+    cout<<"Task graph generation time: "<<timeStop - timeSta<<endl;
+  }
+}
 MPI_Barrier(CommEnv_->MPI_GetComm());
 
 

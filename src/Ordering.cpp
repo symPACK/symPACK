@@ -3,29 +3,72 @@
 #include "sympack/utility.hpp"
 
 #include <limits>
+#include <typeinfo>
 
 #ifdef USE_SCOTCH
-#include <typeinfo>
 #include <scotch.h>
 #endif
 #ifdef USE_PTSCOTCH
-#include <typeinfo>
 #include <ptscotch.h>
 #endif
 
 //#if defined(USE_METIS) && not defined(USE_SCOTCH)
 #ifdef USE_METIS
-#include <typeinfo>
 #include <metis.h>
 #endif
 #ifdef USE_PARMETIS
-#include <typeinfo>
 #include <metis.h>
 #endif
 
-#define STR_HELPER(x) #x
-#define STR(x) STR_HELPER(x)
-#pragma message  "IDXTYPEWIDTH=" STR(IDXTYPEWIDTH)
+/* define pour l'affichage */
+#define SCOTCH_STRAT_DIRECT                                             \
+  "c{rat=0.7,"                                                          \
+  """cpr=n{sep=/(vert>120)?m{rat=0.8,"                                  \
+  ""                        "vert=100,"                                 \
+  ""                        "low=h{pass=10},"                           \
+  ""                        "asc=f{bal=0.2}}|"                          \
+  ""                      "m{rat=0.8,"                                  \
+  ""                        "vert=100,"                                 \
+  ""                        "low=h{pass=10},"                           \
+  ""                        "asc=f{bal=0.2}};,"                         \
+  ""      "ole=f{cmin=0,cmax=100000,frat=0.0},"                       \
+  ""      "ose=g},"                                                     \
+  """unc=n{sep=/(vert>120)?(m{rat=0.8,"                                 \
+  ""                         "vert=100,"                                \
+  ""                         "low=h{pass=10},"                          \
+  ""                         "asc=f{bal=0.2}})|"                        \
+  ""                        "m{rat=0.8,"                                \
+  ""                          "vert=100,"                               \
+  ""                          "low=h{pass=10},"                         \
+  ""                          "asc=f{bal=0.2}};,"                       \
+  ""      "ole=f{cmin=15,cmax=100000,frat=0.08},"                       \
+  ""      "ose=g}}"
+
+#define PTSCOTCH_STRAT_DIRECT                                           \
+  "c{rat=0.7,"                                                          \
+  """cpr=n{sep=/(vert>120)?m{rat=0.8,"                                 \
+  ""                        "vert=100,"                                \
+  ""                        "low=h{pass=10},"                          \
+  ""                        "asc=f{bal=0.2}}|"                         \
+  ""                      "m{rat=0.8,"                                 \
+  ""                        "vert=100,"                                \
+  ""                        "low=h{pass=10},"                          \
+  ""                        "asc=f{bal=0.2}};,"                        \
+  ""      "ole=f{cmin=0,cmax=100000,frat=0.0},"                         \
+  ""      "ose=g},"                                                     \
+  """unc=n{sep=/(vert>120)?(m{type=h,"                                  \
+  ""                         "rat=0.8,"                                 \
+  ""                         "vert=100000,"                             \
+  ""                         "low=h{pass=10},"                          \
+  ""                         "asc=f{bal=08.2}})|"                       \
+  ""                       "m{type=h,"                                  \
+  ""                         "rat=0.8,"                                 \
+  ""                         "vert=100,"                                \
+  ""                         "low=h{pass=10},"                          \
+  ""                         "asc=f{bal=0.2}};,"                        \
+  ""      "ole=f{cmin=15,cmax=100000,frat=0.08},"                       \
+  ""      "ose=g}}"
+
 
 namespace SYMPACK {
 
@@ -143,11 +186,10 @@ namespace SYMPACK{
 
 
     MMDInt N = g.VertexCount();
-    MPI_Bcast(&N,sizeof(MMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
 
-    invp.resize(N);
 
     if(iam==0){
+      invp.resize(N);
       MMDInt iwsiz = 4*N;
       SYMPACK::vector<MMDInt> iwork (iwsiz);
 
@@ -217,6 +259,11 @@ namespace SYMPACK{
       if(!isSameIdx || g.baseval!=1){
         delete [] prowind;
       }
+      MPI_Bcast(&N,sizeof(MMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    }
+    else{
+      MPI_Bcast(&N,sizeof(MMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      invp.resize(N);
     }
     // broadcast invp
     MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
@@ -378,10 +425,9 @@ namespace SYMPACK{
 
 
     AMDInt N = g.VertexCount();
-    MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
-    invp.resize(N);
 
     if(iam==0){
+      invp.resize(N);
       AMDInt * AMDInvp;      
       if(!isSameInt){
         AMDInvp = new AMDInt[N];
@@ -455,6 +501,11 @@ namespace SYMPACK{
       }
 
       delete [] prowind;
+    MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    }
+    else{
+    MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      invp.resize(N);
     }
     // broadcast invp
     MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
@@ -477,16 +528,15 @@ namespace SYMPACK{
 
     idx_t baseval = g.baseval;
     idx_t N = (idx_t)g.size; 
-    MPI_Bcast(&N,sizeof(idx_t),MPI_BYTE,0,CommEnv_->MPI_GetComm());
 
     bool isSameInt = typeid(idx_t) == typeid(Int);
     bool isSameIdx = typeid(idx_t) == typeid(Idx);
     bool isSamePtr = typeid(idx_t) == typeid(Ptr);
 
 
-    invp.resize(N);
 
     if(iam==0){
+      invp.resize(N);
       idx_t * iperm;      
       if(!isSameInt){
         iperm = new idx_t[N];
@@ -551,6 +601,11 @@ namespace SYMPACK{
       if(!isSameIdx){
         delete [] prowind;
       }
+      MPI_Bcast(&N,sizeof(idx_t),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    }
+    else{
+      MPI_Bcast(&N,sizeof(idx_t),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      invp.resize(N);
     }
     // broadcast invp
     MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
@@ -748,16 +803,15 @@ namespace SYMPACK{
 
           SCOTCH_Num baseval = g.baseval;
           SCOTCH_Num N = g.size; 
-          MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,CommEnv_->MPI_GetComm());
 
           bool isSameInt = typeid(SCOTCH_Num) == typeid(Int);
           bool isSameIdx = typeid(SCOTCH_Num) == typeid(Idx);
           bool isSamePtr = typeid(SCOTCH_Num) == typeid(Ptr);
 
 
-          invp.resize(N);
 
           if(iam==0){
+            invp.resize(N);
             SCOTCH_Num * permtab;      
             if(!isSameInt){
               permtab = new SCOTCH_Num[N];
@@ -808,7 +862,10 @@ namespace SYMPACK{
 
                 SCOTCH_stratInit (&stradat);
 
-                stringstream strategy_string;
+                char strat [550];
+                sprintf(strat, SCOTCH_STRAT_DIRECT);
+                SCOTCH_stratGraphOrder (&stradat, strat);
+
 #ifdef SCOTCH_DEBUG_ALL
                 if (SCOTCH_graphCheck (&grafdat) == 0)        /* TRICK: next instruction called only if graph is consistent */
 #endif /* SCOTCH_DEBUG_ALL */
@@ -846,6 +903,11 @@ namespace SYMPACK{
                 delete [] prowind;
               }
             }
+            MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+          }
+          else{
+            MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+            invp.resize(N);
           }
           // broadcast invp
           MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
@@ -1001,6 +1063,12 @@ namespace SYMPACK{
             if(SCOTCH_stratInit (&stradat)!= 0){
               throw std::logic_error( "Error in SCOTCH_stratInit\n" );
             }
+
+            //char strat [550];
+            //sprintf(strat, PTSCOTCH_STRAT_DIRECT);
+            //if (SCOTCH_stratDgraphOrder(&stradat, strat)){ 
+            //  throw std::logic_error( "Error in SCOTCH_stratDgraphOrder\n" );
+            //} 
 
             if (SCOTCH_dgraphOrderInit (&grafdat, &ordedat) != 0) {
               throw std::logic_error( "Error in SCOTCH_dgraphOrderInit\n" );
