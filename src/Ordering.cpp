@@ -143,6 +143,8 @@ namespace SYMPACK{
 
 
     MMDInt N = g.VertexCount();
+    MPI_Bcast(&N,sizeof(MMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+
     invp.resize(N);
 
     if(iam==0){
@@ -162,7 +164,8 @@ namespace SYMPACK{
         MMDperm = new MMDInt[N];
       }
       else{
-        MMDperm = (MMDInt*)&invp[0];
+        perm.resize(N);
+        MMDperm = (MMDInt*)&perm[0];
       }
 
 
@@ -375,6 +378,7 @@ namespace SYMPACK{
 
 
     AMDInt N = g.VertexCount();
+    MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
     invp.resize(N);
 
     if(iam==0){
@@ -391,7 +395,8 @@ namespace SYMPACK{
         AMDperm = new AMDInt[N];
       }
       else{
-        AMDperm = (AMDInt*)&invp[0];
+        perm.resize(N);
+        AMDperm = (AMDInt*)&perm[0];
       }
 
 
@@ -472,6 +477,7 @@ namespace SYMPACK{
 
     idx_t baseval = g.baseval;
     idx_t N = (idx_t)g.size; 
+    MPI_Bcast(&N,sizeof(idx_t),MPI_BYTE,0,CommEnv_->MPI_GetComm());
 
     bool isSameInt = typeid(idx_t) == typeid(Int);
     bool isSameIdx = typeid(idx_t) == typeid(Idx);
@@ -742,6 +748,7 @@ namespace SYMPACK{
 
           SCOTCH_Num baseval = g.baseval;
           SCOTCH_Num N = g.size; 
+          MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,CommEnv_->MPI_GetComm());
 
           bool isSameInt = typeid(SCOTCH_Num) == typeid(Int);
           bool isSameIdx = typeid(SCOTCH_Num) == typeid(Idx);
