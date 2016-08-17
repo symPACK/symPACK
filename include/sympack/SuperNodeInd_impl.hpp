@@ -25,7 +25,7 @@
 namespace SYMPACK{
 
 template<typename T, class Allocator>
-SuperNodeInd<T,Allocator>::SuperNodeInd() : this->diag_(NULL), SuperNode(){ }
+SuperNodeInd<T,Allocator>::SuperNodeInd() :SuperNode<T,Allocator>(), diag_(NULL){ }
 
 template<typename T, class Allocator>
 SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {

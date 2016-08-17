@@ -1374,7 +1374,7 @@ namespace SYMPACK{
 
     graph_.SetComm(CommEnv_->MPI_GetComm());
     graph_.SetBaseval(1);
-    graph_.SetKeepDiag(1);
+    graph_.SetKeepDiag(0);
     graph_.SetSorted(1);
     graph_.FromStructure(*Local_);
     graph_.ExpandSymmetric();
@@ -1476,14 +1476,14 @@ namespace SYMPACK{
               //graph.ExpandSymmetric();
               //Order_.PTSCOTCH(graph);
 
-              graph_.SetBaseval(0);
+              //graph_.SetBaseval(0);
               graph_.SetKeepDiag(0);
               graph_.SetSorted(1);
               Order_.PTSCOTCH(graph_);
 
-    graph_.SetBaseval(1);
-    graph_.SetKeepDiag(1);
-    graph_.SetSorted(1);
+//    graph_.SetBaseval(1);
+//    graph_.SetKeepDiag(1);
+//    graph_.SetSorted(1);
             }
             break;
 #endif
@@ -1522,7 +1522,7 @@ namespace SYMPACK{
           sgraph = new SparseMatrixGraph();
           graph_.GatherStructure(*sgraph,0);
         }
-        sgraph->SetKeepDiag(1);
+        //sgraph->SetKeepDiag(1);
         sgraph->SetBaseval(1);
         ETree_.ConstructETree(*sgraph,Order_,team_);
       }
@@ -1554,7 +1554,7 @@ namespace SYMPACK{
           sgraph = new SparseMatrixGraph();
           graph_.GatherStructure(*sgraph,0);
         }
-        sgraph->SetKeepDiag(1);
+        //sgraph->SetKeepDiag(1);
         sgraph->SetBaseval(1);
         //Global_->GetLColRowCount(tree,*sgraph,cc,rc);
         this->getLColRowCount(*sgraph,cc,rc);

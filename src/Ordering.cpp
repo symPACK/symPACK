@@ -536,12 +536,12 @@ namespace SYMPACK{
 
 
     if(iam==0){
-      invp.resize(N);
       idx_t * iperm;      
       if(!isSameInt){
         iperm = new idx_t[N];
       }
       else{
+        invp.resize(N);
         iperm = (idx_t*)&invp[0];
       }
 
@@ -550,6 +550,7 @@ namespace SYMPACK{
         mperm = new idx_t[N];
       }
       else{
+        perm.resize(N);
         mperm = (idx_t*)&perm[0];
       }
 
@@ -586,6 +587,7 @@ namespace SYMPACK{
       }
 
       if(!isSameInt ||g.baseval!=1){ 
+        if(invp.size()!=N){invp.resize(N);}
         //switch everything to 1 based
         for(int col=0; col<N;++col){ invp[col] = iperm[col]+(1-g.baseval);}
       }

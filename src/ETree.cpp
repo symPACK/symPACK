@@ -354,61 +354,61 @@ namespace SYMPACK{
     parent_.resize(n_,0);
 
     if(iam==0){
-    SYMPACK::vector<Int> ancstr(n_);
+      SYMPACK::vector<Int> ancstr(n_);
 
 
 
-    for(Int i = 1; i<=n_; ++i){
-      parent_[i-1] = 0;
-      ancstr[i-1] = 0;
-      Int node = aOrder.perm[i-1];
-      //          logfileptr->OFS()<<"i = "<<node<<endl;
-      Ptr jstrt = sgraph.colptr[node-1];
-      Ptr jstop = sgraph.colptr[node] - 1;
-      if  ( jstrt < jstop ){
-        for(Ptr j = jstrt; j<=jstop; ++j){
-          Idx nbr = sgraph.rowind[j-1];
-          //logfileptr->OFS()<<"   nbr = "<<nbr<<"  ";
-          nbr = aOrder.invp[nbr-1];
-          //          logfileptr->OFS()<<"   nbr = "<<nbr<<endl;
-          //logfileptr->OFS()<<"|  nbr = "<<nbr<<endl;
-          if  ( nbr < i ){
-            //                       -------------------------------------------
-            //                       for each nbr, find the root of its current
-            //                       elimination tree.  perform path compression
-            //                       as the subtree is traversed.
-            //                       -------------------------------------------
-            Int break_loop = 0;
-            if  ( ancstr[nbr-1] == i ){
-              break_loop = 1;
-            }
-            else{
-
-              //              logfileptr->OFS()<<"path: "<<nbr<<" ";
-              while(ancstr[nbr-1] >0){
-                if  ( ancstr[nbr-1] == i ){
-                  break_loop = 1;
-                  break;
-                }
-                Int next = ancstr[nbr-1];
-                ancstr[nbr-1] = i;
-                nbr = next;
-                //              logfileptr->OFS()<<nbr<<" ";
+      for(Int i = 1; i<=n_; ++i){
+        parent_[i-1] = 0;
+        ancstr[i-1] = 0;
+        Int node = aOrder.perm[i-1];
+        //          logfileptr->OFS()<<"i = "<<node<<endl;
+        Ptr jstrt = sgraph.colptr[node-1];
+        Ptr jstop = sgraph.colptr[node] - 1;
+        if  ( jstrt < jstop ){
+          for(Ptr j = jstrt; j<=jstop; ++j){
+            Idx nbr = sgraph.rowind[j-1];
+            //logfileptr->OFS()<<"   nbr = "<<nbr<<"  ";
+            nbr = aOrder.invp[nbr-1];
+            //          logfileptr->OFS()<<"   nbr = "<<nbr<<endl;
+            //logfileptr->OFS()<<"|  nbr = "<<nbr<<endl;
+            if  ( nbr < i ){
+              //                       -------------------------------------------
+              //                       for each nbr, find the root of its current
+              //                       elimination tree.  perform path compression
+              //                       as the subtree is traversed.
+              //                       -------------------------------------------
+              Int break_loop = 0;
+              if  ( ancstr[nbr-1] == i ){
+                break_loop = 1;
               }
-              //              logfileptr->OFS()<<endl;
-              //                       --------------------------------------------
-              //                       now, nbr is the root of the subtree.  make i
-              //                       the parent node of this root.
-              //                       --------------------------------------------
-              if(!break_loop){
-                parent_[nbr-1] = i;
-                ancstr[nbr-1] = i;
+              else{
+
+                //              logfileptr->OFS()<<"path: "<<nbr<<" ";
+                while(ancstr[nbr-1] >0){
+                  if  ( ancstr[nbr-1] == i ){
+                    break_loop = 1;
+                    break;
+                  }
+                  Int next = ancstr[nbr-1];
+                  ancstr[nbr-1] = i;
+                  nbr = next;
+                  //              logfileptr->OFS()<<nbr<<" ";
+                }
+                //              logfileptr->OFS()<<endl;
+                //                       --------------------------------------------
+                //                       now, nbr is the root of the subtree.  make i
+                //                       the parent node of this root.
+                //                       --------------------------------------------
+                if(!break_loop){
+                  parent_[nbr-1] = i;
+                  ancstr[nbr-1] = i;
+                }
               }
             }
           }
         }
       }
-    }
     }
     
     //Broadcast  

@@ -46,6 +46,7 @@
 /// @brief Thin interface to LAPACK
 /// @date 2012-09-12
 #include  "sympack/Environment.hpp"
+#include  "sympack/blas.hpp"
 
 namespace SYMPACK {
 
