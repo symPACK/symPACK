@@ -981,7 +981,7 @@ namespace SYMPACK{
               vtxdist[i] = (SCOTCH_Num)g.vertexDist[i];
             }
 
-            logfileptr->OFS()<<vtxdist<<endl;
+            logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
 
             //        if(iam==ndomains-1){
             //          localN = N - (ndomains-1)*localN;
@@ -1106,8 +1106,6 @@ namespace SYMPACK{
                 );
 
 
-            logfileptr->OFS()<<sc_permtab<<endl;
-            logfileptr->OFS()<<sc_peritab<<endl;
 
 
 
@@ -1120,6 +1118,8 @@ namespace SYMPACK{
             }
 
 
+            logfileptr->OFS()<<"permtab: "<<sc_permtab<<endl;
+            logfileptr->OFS()<<"peritab: "<<sc_peritab<<endl;
 
 
             SCOTCH_dgraphCorderExit( &grafdat, &ordering );
@@ -1127,7 +1127,7 @@ namespace SYMPACK{
             SCOTCH_dgraphExit (&grafdat);
 
 
-            if(iam==0 && baseval!=1){
+            if(iam==0){
               //switch everything to 1 based
               for(int col=0; col<N;++col){ invp[col] = sc_permtab[col] + (1-baseval);}
             }
