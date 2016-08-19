@@ -22,9 +22,7 @@ class Ordering{
     void SetCommEnvironment(CommEnvironment * CommEnv);
 
     SparseMatrixStructure * pStructure;
-    void SetStructure(SparseMatrixStructure & aGlobal);
-    void AMD();
-    void MMD();
+//    void SetStructure(SparseMatrixStructure & aGlobal);
 
     void MMD(const SparseMatrixGraph & g);
     void AMD(const SparseMatrixGraph & g);

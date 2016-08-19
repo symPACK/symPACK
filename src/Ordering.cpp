@@ -82,7 +82,7 @@ namespace SYMPACK {
 
 namespace SYMPACK{
 
-
+#if 0
   void Ordering::SetStructure(SparseMatrixStructure & aGlobal){
     assert(pStructure==NULL);
     pStructure = &aGlobal;
@@ -93,82 +93,12 @@ namespace SYMPACK{
       invp[i]=i+1;
     }
   }
+#endif
 
 
 
 
 
-
-
-  void Ordering::MMD(){
-    //    assert(pStructure!=NULL);
-
-    logfileptr->OFS()<<"MMD used"<<endl;
-    if(iam==0){cout<<"MMD used"<<endl;}
-
-    if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
-      throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call MMD\n" );
-    }
-
-    invp.resize(pStructure->size);
-    if(iam==0){
-
-      SYMPACK::vector<MMDInt> perm(pStructure->size);
-      SYMPACK::vector<MMDInt> perminv(pStructure->size);
-      MMDInt iwsiz = 4*pStructure->size;
-      SYMPACK::vector<MMDInt> iwork (iwsiz);
-
-      MMDInt nadj = pStructure->expRowind.size();
-      MMDInt nofsub =0;
-      MMDInt iflag =0;
-
-      SYMPACK::vector<MMDInt> tmpXadj(pStructure->expColptr.size());
-      for(MMDInt col=0; col<tmpXadj.size();++col){
-        tmpXadj[col] = pStructure->expColptr[col];
-      }
-
-
-      SYMPACK::vector<MMDInt> tmpAdj(pStructure->expRowind.size()-pStructure->size);
-      MMDInt pos = 0;
-      for(MMDInt col=0; col<tmpXadj.size()-1;++col){
-        for(MMDInt j=tmpXadj[col]; j<tmpXadj[col+1];++j){
-          if( pStructure->expRowind[j-1]-1 != col){
-            tmpAdj[pos++] = pStructure->expRowind[j-1];
-          }
-        }
-      }
-
-      MMDInt rm = 0;
-      for(MMDInt col=0; col<tmpXadj.size();++col){
-        tmpXadj[col]-=rm;
-        rm++;
-      }
-
-      MMDInt N = pStructure->size;
-      FORTRAN(ordmmd)( &N , &nadj , &tmpXadj[0] , &tmpAdj[0], 
-          &perminv[0] , &perm[0] , &iwsiz , &iwork[0] , &nofsub, &iflag ) ;
-
-
-      assert(iflag == 0);
-
-      for(Int i = 1; i <=N; ++i){
-        invp[i-1] = perminv[i-1];
-      }
-      //logfileptr->OFS()<<perm<<endl;
-    }
-    // broadcast invp
-    Int N = invp.size();
-    MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
-    perm.resize(pStructure->size);
-    for(Int i = 1; i <=N; ++i){
-      Int node = invp[i-1];
-      perm[node-1] = i;
-    }
-
-    //logfileptr->OFS()<<perm<<endl;
-
-
-  }
 
 
   void Ordering::MMD(const SparseMatrixGraph & g){
@@ -336,79 +266,6 @@ namespace SYMPACK{
 
   }
 
-
-  void Ordering::AMD(){
-    //  assert(pStructure!=NULL);
-
-    logfileptr->OFS()<<"AMD used"<<endl;
-    if(iam==0){cout<<"AMD used"<<endl;}
-
-    if(!pStructure->bIsGlobal || !pStructure->bIsExpanded){
-      throw std::logic_error( "SparseMatrixpStructure->must be global and expanded in order to call AMD\n" );
-    }
-
-    invp.resize(pStructure->size);
-    if(iam==0){
-      SYMPACK::vector<AMDInt> perm(pStructure->size);
-      SYMPACK::vector<AMDInt> perminv(pStructure->size);
-
-
-      AMDInt N = pStructure->size; 
-      SYMPACK::vector<AMDInt> tmpXadj(pStructure->expColptr.size());
-      for(AMDInt col=0; col<tmpXadj.size();++col){
-        tmpXadj[col] = pStructure->expColptr[col];
-      }
-      //allocate extra N elements for AMD (elbow)
-      SYMPACK::vector<AMDInt> tmpAdj(pStructure->expRowind.size()+N);
-      for(AMDInt i=0; i<pStructure->expRowind.size();++i){
-        tmpAdj[i] = pStructure->expRowind[i];
-      }
-
-      AMDInt IOVFLO = std::numeric_limits<AMDInt>::max();//2147483647;
-      AMDInt NCMPA;
-
-      AMDInt nadj = pStructure->expRowind.size();
-      AMDInt nofsub =0;
-      AMDInt iflag =0;
-      AMDInt iwsiz = 4*pStructure->size;
-      SYMPACK::vector<AMDInt> iwork (iwsiz);
-      SYMPACK::vector<AMDInt> VTXDEG(N);
-      SYMPACK::vector<AMDInt> QSIZE(N);
-      SYMPACK::vector<AMDInt> ECFORW(N);
-      SYMPACK::vector<AMDInt> MARKER(N);
-      SYMPACK::vector<AMDInt> NVTXS(N+1);
-      for(AMDInt i=0;i<N;++i){
-        NVTXS[i] = tmpXadj[i+1]-tmpXadj[i];
-      }
-
-
-      AMDInt IWLEN = tmpXadj[N-1] + NVTXS[N-1] + N - 1 ;
-      AMDInt PFREE = tmpXadj[N-1] + NVTXS[N-1];
-
-
-      FORTRAN(amdbar)( &N , &tmpXadj[0] , &tmpAdj[0] , &NVTXS[0] ,&IWLEN ,&PFREE ,  &QSIZE[0],&ECFORW[0] , &perm[0], &iwork[0], &perminv[0],&VTXDEG[0], &NCMPA , &MARKER[0] , &IOVFLO );
-
-      for(AMDInt i = 0; i < perminv.size(); ++i){
-        invp[i] = perminv[i];
-      }
-    }
-
-    // broadcast invp
-    Int N = invp.size();
-    MPI_Bcast(&invp[0],N*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
-    perm.resize(pStructure->size);
-    for(Int i = 1; i <=N; ++i){
-      Int node = invp[i-1];
-      perm[node-1] = i;
-    }
-
-
-    logfileptr->OFS()<<"perm "<<perm<<endl;
-    logfileptr->OFS()<<"invperm "<<invp<<endl;
-
-    //    Permute(perm);
-
-  }
 
   void Ordering::AMD(const SparseMatrixGraph & g){
     logfileptr->OFS()<<"AMD used"<<endl;
@@ -652,21 +509,12 @@ namespace SYMPACK{
 
     MPI_Comm ndcomm;
     MPI_Comm_split(g.comm,iam<ndomains,iam,&ndcomm);
-    //      while(((double)N/(double)ndomains)<1.0){ndomains--;}
 
     MPI_Comm_rank(ndcomm,&mpirank);
     SYMPACK::vector<idx_t> vtxdist;
     idx_t localN;
     if(iam<ndomains){
       assert(mpirank==iam);
-      //vtxdist.resize(ndomains+1);
-
-      //localN = g.LocalVertexCount();
-      ////build vtxdist SYMPACK::vector
-      //for(idx_t i = 0; i<ndomains;++i){
-      // vtxdist[i] = i*(N/ndomains)+baseval; 
-      //} 
-      //vtxdist[ndomains] = N+baseval;
 
       SYMPACK::vector<idx_t> sizes(2*ndomains);
       vtxdist.resize(g.vertexDist.size());
@@ -674,11 +522,7 @@ namespace SYMPACK{
         vtxdist[i] = (idx_t)g.vertexDist[i];
       }
 
-      logfileptr->OFS()<<vtxdist<<endl;
-
-      //        if(iam==ndomains-1){
-      //          localN = N - (ndomains-1)*localN;
-      //        }
+//      logfileptr->OFS()<<vtxdist<<endl;
 
       idx_t * iperm = NULL;
       if(typeid(idx_t) != typeid(Int)){
@@ -716,12 +560,6 @@ namespace SYMPACK{
       }
 
 
-
-
-
-
-
-
       idx_t options[3];
       options[0] = 0;
       idx_t numflag = g.baseval;
@@ -740,7 +578,6 @@ namespace SYMPACK{
 
       //gather on the root
       MPI_Gatherv(pperm,mpisizes[iam],MPI_BYTE,iperm,&mpisizes[0],&mpidispls[0],MPI_BYTE,0,ndcomm);
-      //    MPI_Gatherv(&invp[0],mpisizes[iam],MPI_BYTE,&perm[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,comm);
 
       if(iam==0 && (g.baseval!=1 || typeid(idx_t) != typeid(Int))){
         //switch everything to 1 based
@@ -763,11 +600,6 @@ namespace SYMPACK{
         delete [] prowind;
       }
 
-
-
-
-
-
     }
 
     MPI_Comm_free(&ndcomm);
@@ -782,8 +614,8 @@ namespace SYMPACK{
       perm[node-1] = i;
     }
 
-    logfileptr->OFS()<<perm<<endl;
-    logfileptr->OFS()<<invp<<endl;
+//    logfileptr->OFS()<<perm<<endl;
+//    logfileptr->OFS()<<invp<<endl;
 
 
   }
