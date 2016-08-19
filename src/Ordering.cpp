@@ -981,7 +981,8 @@ namespace SYMPACK{
               vtxdist[i] = (SCOTCH_Num)g.vertexDist[i];
             }
 
-            logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
+
+//            logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
 
             //        if(iam==ndomains-1){
             //          localN = N - (ndomains-1)*localN;
@@ -1007,12 +1008,6 @@ namespace SYMPACK{
             }
 
 
-
-
-
-
-
-
             SCOTCH_Num options[3];
             options[0] = 0;
             SCOTCH_Num numflag = baseval;
@@ -1033,14 +1028,6 @@ namespace SYMPACK{
               throw std::logic_error( "Error in SCOTCH_dgraphInit\n" );
             }
 
-            //logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
-            //logfileptr->OFS()<<"vertlocnbr: "<<vertlocnbr<<endl;
-            //logfileptr->OFS()<<"colptr: "<<g.colptr<<endl;
-            //logfileptr->OFS()<<"edgelocnbr: "<<edgelocnbr<<endl;
-            //logfileptr->OFS()<<"rowind: "<<g.rowind<<endl;
-            //assert(vertlocnbr == g.colptr.size()-1);
-
-            //      logfileptr->OFS()<<"Entering SCOTCH_dgraphBuild"<<endl;
             if (SCOTCH_dgraphBuild (&grafdat, 
                   baseval,
                   vertlocnbr, 
@@ -1058,9 +1045,11 @@ namespace SYMPACK{
               throw std::logic_error( "Error in SCOTCH_dgraphBuild\n" );
             }
 
+#ifdef _DEBUG_
             if(SCOTCH_dgraphCheck (&grafdat) != 0){
               throw std::logic_error( "Error in SCOTCH_dgraphCheck\n" );
             }
+#endif
 
             if(SCOTCH_stratInit (&stradat)!= 0){
               throw std::logic_error( "Error in SCOTCH_stratInit\n" );
@@ -1076,7 +1065,6 @@ namespace SYMPACK{
               throw std::logic_error( "Error in SCOTCH_dgraphOrderInit\n" );
             }
 
-
             if(SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat)!=0){
               throw std::logic_error( "Error in SCOTCH_dgraphOrderCompute\n" );
             }
@@ -1084,13 +1072,6 @@ namespace SYMPACK{
 
 
 
-
-
-
-
-
-
-#if 1
             SYMPACK::vector<SCOTCH_Num> sc_permtab(N);
             SYMPACK::vector<SCOTCH_Num> sc_peritab(N);
             SCOTCH_stratExit (&stradat);
@@ -1106,20 +1087,16 @@ namespace SYMPACK{
                 );
 
 
+            //if (iam == 0) {
+              SCOTCH_dgraphOrderGather (&grafdat, &ordedat, (iam==0?&ordering:NULL));
+            //}
+            //else {     
+            //  SCOTCH_dgraphOrderGather (&grafdat, &ordedat, NULL);
+            //}
 
 
-
-            //SCOTCH_dgraphOrderGather (&grafdat, &ordedat, &ordering);
-            if (iam == 0) {
-              SCOTCH_dgraphOrderGather (&grafdat, &ordedat, &ordering);
-            }
-            else {     
-              SCOTCH_dgraphOrderGather (&grafdat, &ordedat, NULL);
-            }
-
-
-            logfileptr->OFS()<<"permtab: "<<sc_permtab<<endl;
-            logfileptr->OFS()<<"peritab: "<<sc_peritab<<endl;
+//            logfileptr->OFS()<<"permtab: "<<sc_permtab<<endl;
+//            logfileptr->OFS()<<"peritab: "<<sc_peritab<<endl;
 
 
             SCOTCH_dgraphCorderExit( &grafdat, &ordering );
@@ -1141,81 +1118,6 @@ namespace SYMPACK{
               delete [] prowind;
             }
 
-
-
-
-
-
-
-
-
-
-
-
-
-#else
-            SYMPACK::vector<SCOTCH_Num> sc_permtab(vertlocnbr);
-
-
-            if(SCOTCH_dgraphOrderPerm(&grafdat, &ordedat, &sc_permtab[0])!=0){
-              throw std::logic_error( "Error in SCOTCH_dgraphOrderPerm\n" );
-            }
-            SCOTCH_dgraphOrderExit (&grafdat, &ordedat);
-            SCOTCH_stratExit (&stradat);
-            SCOTCH_dgraphExit (&grafdat);
-
-
-            if(typeid(SCOTCH_Num) != typeid(Ptr)){
-              delete [] pcolptr;
-            }
-
-            if(typeid(SCOTCH_Num) != typeid(Idx)){
-              delete [] prowind;
-            }
-
-
-            //logfileptr->OFS()<<"Order: "<<sc_perm<<endl;
-
-            //compute displs
-            SYMPACK::vector<int> mpidispls(ndomains,0);
-            SYMPACK::vector<int> mpisizes(ndomains,0);
-            for(int p = 1;p<=ndomains;++p){
-              mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(SCOTCH_Num);
-              mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(SCOTCH_Num);
-            }
-
-
-            SCOTCH_Num * rbuffer;
-            if(iam==0){
-              if(typeid(SCOTCH_Num) != typeid(Int)){
-                rbuffer = new SCOTCH_Num[N];
-              }
-              else{
-                rbuffer = (SCOTCH_Num*)&invp[0];
-              }
-            }
-            MPI_Gatherv(&sc_perm[0],sc_perm.size()*sizeof(SCOTCH_Num),MPI_BYTE,&rbuffer[0],&mpisizes[0],&mpidispls[0],MPI_BYTE,0,ndcomm);
-
-            if(iam==0){
-
-              //switch everything to 1 based
-              if((void*)rbuffer!=(void*)&invp[0]){
-                for(int col=0; col<N;++col){ invp[col] = (Int)rbuffer[col] + (1-baseval);}
-                delete [] rbuffer;
-              }
-              else if(baseval!=1){
-                for(int col=0; col<N;++col){ invp[col]+=(1-baseval);}
-              }
-
-              //logfileptr->OFS()<<"Full Order: "<<endl;
-              //for(SCOTCH_Num i =0;i<N;++i){
-              //  logfileptr->OFS()<<invp[i]<<" ";
-              //  //logfileptr->OFS()<<invp[i]<<" ";
-              //}
-              //logfileptr->OFS()<<endl;
-            }
-#endif
-
           }
 
           MPI_Comm_free(&ndcomm);
@@ -1230,8 +1132,8 @@ namespace SYMPACK{
             perm[node-1] = i;
           }
 
-          logfileptr->OFS()<<perm<<endl;
-          logfileptr->OFS()<<invp<<endl;
+//          logfileptr->OFS()<<perm<<endl;
+//          logfileptr->OFS()<<invp<<endl;
 
 
         }

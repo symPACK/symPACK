@@ -1467,19 +1467,19 @@ namespace SYMPACK{
 #ifdef USE_PTSCOTCH
           case PTSCOTCH:
             {
-              DistSparseMatrixGraph graph;
-              graph.SetComm(CommEnv_->MPI_GetComm());
-              graph.SetBaseval(0);
-              graph.SetKeepDiag(0);
-              graph.SetSorted(1);
-              graph.FromStructure(*Local_);
-              graph.ExpandSymmetric();
-              Order_.PTSCOTCH(graph);
+              //DistSparseMatrixGraph graph;
+              //graph.SetComm(CommEnv_->MPI_GetComm());
+              //graph.SetBaseval(0);
+              //graph.SetKeepDiag(0);
+              //graph.SetSorted(1);
+              //graph.FromStructure(*Local_);
+              //graph.ExpandSymmetric();
+              //Order_.PTSCOTCH(graph);
 
               //graph_.SetBaseval(0);
               //graph_.SetKeepDiag(0);
               //graph_.SetSorted(1);
-              //Order_.PTSCOTCH(graph_);
+              Order_.PTSCOTCH(graph_);
 
 //    graph_.SetBaseval(1);
 //    graph_.SetKeepDiag(1);
