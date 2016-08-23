@@ -7,7 +7,7 @@ namespace SYMPACK{
 
   class IncomingMessage;
 
-  enum TaskType {FACTOR, AGGREGATE, UPDATE};
+  enum TaskType {FACTOR, AGGREGATE, UPDATE/*, ALLOCATE*/};
 
 
   struct FBTask{
@@ -17,12 +17,12 @@ namespace SYMPACK{
     //dependencies
     Int remote_deps;
     Int local_deps;
-    //unused but preparing for task scheduling priorities
-    double rank;
     //list of incoming messages
     std::list<IncomingMessage*> data;
     FBTask():rank(-1.0),remote_deps(0),local_deps(0){}
 
+    //unused but preparing for task scheduling priorities
+    double rank;
     void update_rank(){
       if(rank==-1.0 || 0){
         if(type==FACTOR){
@@ -302,6 +302,30 @@ inline std::ostream& operator<<( std::ostream& os, const FBTask& t)
   };
 
 
-}
 
+
+
+
+
+/************************ UNUSED EXPERIMENTAL CLASS ***********************/
+
+//class Task{
+//  public:
+//    static const size_t idSize = 100;
+//    std::vector<char> id;
+//    //dependencies
+//    std::list< upcxx::global_ptr<Task> > inputs;
+//    std::list< upcxx::global_ptr<Task> > outputs;
+//    //data
+//    upcxx::global_ptr<char> data;
+//
+//    //computation
+//    std::function<int(std::vector<char>&)> process;
+//
+//    Task():data(NULL){
+//      id.resize(idSize);
+//    }
+//};
+
+}
 #endif

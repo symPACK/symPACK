@@ -203,6 +203,7 @@ template <class Allocator = UpcxxAllocator>
 
       //Vector holding pointers to local SuperNode2 objects (L factor)
       SYMPACK::vector<SuperNode<T> * > LocalSupernodes_;
+      upcxx::shared_array<upcxx::global_ptr<SuperNodeDesc > > remoteFactors_;
 
 
 

@@ -881,13 +881,12 @@ template <typename T> void SupernodalMatrix<T>::FBAggregationTask(supernodalTask
   for(auto msgit = curTask.data.begin();msgit!=curTask.data.end();msgit++){
     IncomingMessage * msgPtr = *msgit;
     assert(msgPtr->IsDone());
+
+    if(!msgPtr->IsLocal()){
+      msgPtr->DeallocRemote();
+    }
     char* dataPtr = msgPtr->GetLocalPtr();
 
-//#ifdef _INDEFINITE_
-//    SuperNode<T> * dist_src_snode = new SuperNodeInd<T>(dataPtr,msgPtr->Size());
-//#else
-//    SuperNode<T> * dist_src_snode = new SuperNode<T>(dataPtr,msgPtr->Size());
-//#endif
     SuperNode<T> * dist_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
 
     dist_src_snode->InitIdxToBlk();
@@ -895,11 +894,6 @@ template <typename T> void SupernodalMatrix<T>::FBAggregationTask(supernodalTask
     src_snode->Aggregate(dist_src_snode);
 
     delete dist_src_snode;
- 
-    if(!msgPtr->IsLocal()){
-      msgPtr->DeallocRemote();
-    }
-
     delete msgPtr;
   }
 
@@ -907,15 +901,10 @@ template <typename T> void SupernodalMatrix<T>::FBAggregationTask(supernodalTask
   //need to update dependencies of the factorization task
   //auto taskit = find_task(taskLists,tgt_snode_id,tgt_snode_id,FACTOR);
   auto taskit = taskGraph.find_task(tgt_snode_id,tgt_snode_id,FACTOR);
-#pragma omp atomic
   taskit->remote_deps--;
 
   if(!is_static){
     if(taskit->remote_deps==0 && taskit->local_deps==0){
-
-      //compute cost 
-      //taskit->update_rank();
-      //scheduler_->push(taskit);    
       scheduler2_->push(*taskit);    
       taskGraph.removeTask(taskit);
     }
@@ -947,11 +936,13 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTa
   for(auto msgit = curTask.data.begin();msgit!=curTask.data.end();msgit++){
     IncomingMessage * msgPtr = *msgit;
     assert(msgPtr->IsDone());
+
+    if(!msgPtr->IsLocal()){
+      msgPtr->DeallocRemote();
+    }
+
     char* dataPtr = msgPtr->GetLocalPtr();
 
-    //if( msgPtr->meta.src == 84  && msgPtr->meta.tgt == 86 ){gdb_lock();}
-
-    //SuperNode<T> * dist_src_snode = CreateSuperNode(dataPtr,msgPtr->Size(),options_.factorization);
     SuperNode<T> * dist_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
 
     dist_src_snode->InitIdxToBlk();
@@ -959,7 +950,6 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTa
     src_snode->Aggregate(dist_src_snode);
 
     delete dist_src_snode;
-
     delete msgPtr;
   }
   TIMER_STOP(APPLY_AGGREGATES);
@@ -1191,9 +1181,9 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
             if(options_.mappingTypeStr ==  "COL2D")
             {
               std::set<Idx> structure;
-              std::list<Int> frontier;
               {
                 scope_timer(a,MERGE_STRUCTURE_FANIN);
+                std::list<Int> frontier;
                 dfs_traversal(chSupTree_,curUpdate.tgt_snode_id,frontier);
                 //process frontier in decreasing order of nodes and merge their structure
                 for(auto it = frontier.rbegin(); it!=frontier.rend(); it++){
@@ -1232,8 +1222,39 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
             else
             #endif
             {
-              Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
-              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
+              std::set<Idx> structure;
+              {
+                scope_timer(a,FETCH_REMOTE_STRUCTURE);
+                upcxx::global_ptr<SuperNodeDesc> remoteDesc = remoteFactors_[curUpdate.tgt_snode_id-1];
+                SuperNodeDesc desc = (*remoteDesc).get();
+
+                //allocate space to receive block descriptors
+                NZBlockDesc * bufferBlocks = (NZBlockDesc*)UpcxxAllocator::allocate(sizeof(NZBlockDesc)*desc.blocks_cnt_);
+
+                upcxx::global_ptr<NZBlockDesc> remoteBlocks = upcxx::global_ptr<NZBlockDesc>(remoteDesc + 1);
+
+                upcxx::copy(remoteBlocks, &bufferBlocks[0], desc.blocks_cnt_);
+
+                //logfileptr->OFS()<<desc<<endl;
+                for(Int i =desc.blocks_cnt_-1;i>=0;i--){
+                  NZBlockDesc & curdesc = bufferBlocks[i];
+                  size_t end = (i>0)?bufferBlocks[i-1].Offset:desc.nzval_cnt_;
+                  Int numRows = (end-curdesc.Offset)/desc.iSize_;
+
+                  for(Idx row = 0; row<numRows;row++){
+                    structure.insert(curdesc.GIndex+row);
+                  }
+                  //logfileptr->OFS()<<curdesc<<endl;
+                }
+
+
+                UpcxxAllocator::deallocate((char*)bufferBlocks);
+              }
+              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+              
+  
+//              Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
+//              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
             }
           }
           tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
@@ -1356,34 +1377,22 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
 
 template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodalTaskGraph & taskGraph,bool is_static)
 {
-  TIMER_START(CHECK_MESSAGE);
+  scope_timer(a,CHECK_MESSAGE);
   //return;
 
-  //if(1 || upcxx::peek())
-  {
     //call advance
 
-    //#ifdef UPCXX_PROGRESS_THREAD
-    //    upcxx::progress_thread_pause();
-    //#endif
 #ifndef UPCXX_PROGRESS_THREAD
     TIMER_START(UPCXX_ADVANCE);
     upcxx::advance();
     TIMER_STOP(UPCXX_ADVANCE);
 #endif
-    //#ifdef UPCXX_PROGRESS_THREAD
-    //    upcxx::progress_thread_start();
-    //#endif
 
     bool comm_found = false;
-
     IncomingMessage * msg = NULL;
-
     FBTask * curTask = NULL;
     if(is_static){
-      //curTask = &*scheduler_->top();
       curTask = &scheduler2_->top();
-
 #ifdef _DEBUG_PROGRESS_
       logfileptr->OFS()<<"Next Task T("<<curTask->src_snode_id<<","<<curTask->tgt_snode_id<<") "<<endl;
 #endif
@@ -1392,36 +1401,13 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
 
     do{
       msg=NULL;
-      //    if(!gIncomingRecv.empty()){
-      TIMER_START(MV_MSG_SYNC);
 
+      TIMER_START(MV_MSG_SYNC);
       //if we have some room, turn blocking comms into async comms
       if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
-        while((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()){
-          bool success = false;
-          if(!is_static){
-            //auto it = gIncomingRecv.top();
-            auto it = gIncomingRecv.front();
-            success = (it)->AllocLocal();
-            if(success){
-              (it)->AsyncGet();
-              gIncomingRecvAsync.push_back(it);
-              //gIncomingRecv.pop();
-              gIncomingRecv.pop_front();
-
-              //auto it = gIncomingRecv.begin();
-              //(*it)->AllocLocal();
-              //(*it)->AsyncGet();
-              //gIncomingRecvAsync.splice(gIncomingRecvAsync.end(),gIncomingRecv,it);
-#ifdef _DEBUG_PROGRESS_
-              logfileptr->OFS()<<"TRANSFERRED TO ASYNC COMM"<<endl;
-#endif
-            }
-            else{
-              abort();
-            }
-          }
-          else{
+        if(is_static){
+          while((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()){
+            bool success = false;
             for(auto it = gIncomingRecv.begin();it!=gIncomingRecv.end();it++){
               //find a message corresponding to current task
               IncomingMessage * curMsg = *it;
@@ -1439,14 +1425,42 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
                 break;
               }
             }
+
+            if(!success){
+              break;
+            }
           }
-          if(!success){
-            break;
+        }
+        else{
+          while((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()){
+            bool success = false;
+            //auto it = gIncomingRecv.top();
+            auto it = gIncomingRecv.begin();
+            //find one which is not done
+            while((*it)->IsDone()){it++;}
+
+            success = (*it)->AllocLocal();
+            if(success){
+              (*it)->AsyncGet();
+              gIncomingRecvAsync.push_back(*it);
+              
+              gIncomingRecv.erase(it);
+              //gIncomingRecv.pop_front();
+#ifdef _DEBUG_PROGRESS_
+              logfileptr->OFS()<<"TRANSFERRED TO ASYNC COMM"<<endl;
+#endif
+            }
+            else{
+              //TODO handle out of memory
+              abort();
+            }
+            if(!success){
+              break;
+            }
           }
         }
       }
       TIMER_STOP(MV_MSG_SYNC);
-      //    }
 
 #ifdef HANDLE_LOCAL_POINTER
       //find if there is some local (SHMEM) comms
@@ -1462,7 +1476,6 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
       else
 #endif
       {
-
         //find if there is some finished async comm
         auto it = TestAsyncIncomingMessage();
         if(it!=gIncomingRecvAsync.end()){
@@ -1491,17 +1504,7 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
 #endif
 
           TIMER_START(RM_MSG_SYNC);
-          if(!is_static){
-            //auto it = gIncomingRecv.top();
-            auto it = gIncomingRecv.front();
-            msg = it;
-            //gIncomingRecv.pop();
-            gIncomingRecv.pop_front();
-            //auto it = gIncomingRecv.begin();
-            //msg = *it;
-            //gIncomingRecv.erase(it);
-          }
-          else{
+          if(is_static){
             msg=NULL;
             for(auto it = gIncomingRecv.begin();it!=gIncomingRecv.end();it++){
               //find a message corresponding to current task
@@ -1512,6 +1515,11 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
                 break;
               }
             }
+          }
+          else{
+            auto it = gIncomingRecv.front();
+            msg = it;
+            gIncomingRecv.pop_front();
           }
           TIMER_STOP(RM_MSG_SYNC);
         }
@@ -1577,6 +1585,7 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
 
 #ifdef DYN_TASK_CREATE
           {
+            abort();
             FBTask curTask;
             curTask.type=UPDATE;
             curTask.src_snode_id = msg->meta.src;
@@ -1630,21 +1639,14 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
 #endif
         } 
 
-#pragma omp atomic
         taskit->remote_deps--;
-#pragma omp critical
         taskit->data.push_back(msg);
 
-
         //if this is a factor task, then we should delete the aggregate
-        if(!msg->IsLocal() && taskit->type==AGGREGATE){
-          msg->DeallocRemote();
-          //ask for remote delete
-          //          remote_delete(msg->GetRemotePtr());
-        }
-
-        if(taskit->type==AGGREGATE){
-          assert(taskit->remote_deps==0 && taskit->local_deps==0);
+        if(!msg->IsLocal()){
+          if( taskit->type==FACTOR || taskit->type==AGGREGATE){
+            msg->DeallocRemote();
+          }
         }
 
         if(!is_static){
@@ -1657,13 +1659,6 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
       }
 #ifdef UPCXX_PROGRESS_THREAD
       else{
-        //        if( scheduler_->size()>0){
-        //          break;
-        //        }
-        //        else{
-        //        logfileptr->OFS()<<"Sleep"<<endl;
-        //        usleep(200);
-        //        }
         upcxx::progress_thread_stop();
         //    TIMER_START(UPCXX_ADVANCE);
         upcxx::advance();
@@ -1673,8 +1668,6 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
 #endif
 
     }while(msg!=NULL);
-  } 
-  TIMER_STOP(CHECK_MESSAGE);
 }
 
 

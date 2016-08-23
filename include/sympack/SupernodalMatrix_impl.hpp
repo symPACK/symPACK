@@ -2334,6 +2334,8 @@ Int np  = CommEnv_->MPI_Size();
     //Resize the local supernodes array
     LocalSupernodes_.reserve(snodeCount);
 
+    remoteFactors_.init(Xsuper_.size()-1);
+    logfileptr->OFS()<<"My usable global memory size is: "<<upcxx::my_usable_global_memory_size()<<endl;
 
     TIMER_START(DISTRIBUTE_CREATE_SNODES);
 
@@ -2360,7 +2362,9 @@ Int np  = CommEnv_->MPI_Size();
 //#else
 //        LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
 //#endif
-        LocalSupernodes_.push_back( CreateSuperNode(options_.decomposition,I,fc,lc,iHeight,iSize_,nzBlockCnt));
+        SuperNode<T> * newSnode = CreateSuperNode(options_.decomposition,I,fc,lc,iHeight,iSize_,nzBlockCnt);
+        LocalSupernodes_.push_back(newSnode);
+        remoteFactors_[I-1] = upcxx::global_ptr<SuperNodeDesc>(newSnode->GetMeta());
       }
     }
 

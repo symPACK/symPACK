@@ -155,9 +155,6 @@ class SuperNode{
   //utility pointers
   SuperNodeDesc * meta_;
   T * nzval_;
-#ifdef _INDEFINITE_
-  T * diag_;
-#endif
   NZBlockDesc * blocks_;
   
 
@@ -176,9 +173,7 @@ class SuperNode{
   inline Int NZBlockCnt(){ return meta_->blocks_cnt_;}
   inline NZBlockDesc & GetNZBlockDesc(Int aiLocIndex){ return *(blocks_ -aiLocIndex);}
   inline T* GetNZval(size_t offset){ return &nzval_[offset];}
-#ifdef _INDEFINITE_
-  inline T* GetDiag(){ return diag_;}
-#endif
+  inline SuperNodeDesc * GetMeta(){return meta_;}
   inline Int NRows(Int blkidx){
       NZBlockDesc & desc = GetNZBlockDesc(blkidx);
       size_t end = (blkidx<NZBlockCnt()-1)?GetNZBlockDesc(blkidx+1).Offset:meta_->nzval_cnt_;
@@ -279,6 +274,7 @@ template <typename T, class Allocator> inline size_t Deserialize(char * buffer, 
 
 
 
+inline std::ostream& operator<<( std::ostream& os,  SuperNodeDesc& desc);
 inline std::ostream& operator<<( std::ostream& os,  NZBlockDesc& block);
 
 
