@@ -40,7 +40,7 @@ class SuperNodeInd: public SuperNode<T,Allocator>{
   inline T* GetDiag(){ return diag_;}
 
   SuperNodeInd();
-
+  SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
   SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
   SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int aiN);
   SuperNodeInd(char * storage_ptr,size_t storage_size, Int GIndex = -1);

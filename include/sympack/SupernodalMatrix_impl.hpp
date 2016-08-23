@@ -3395,13 +3395,20 @@ void SupernodalMatrix<T>::relaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc
         Int parent_fstcol = xsuper[parent_snode-1];
         Int parent_lstcol = xsuper[parent_snode]-1;
         Int totzeros = zeros[parent_snode-1];
-        Int fused_cols = width + parent_width;
+        Int merged_snode_size = width + parent_width;
 
+        //TODO Shift the loops to make it less obvious that this is coming from cholmod
+        //TODO rename nrelax0 as maxSnodeSize
+        //TODO rename nrelax1 as ???
+        //TODO rename nrelax2 as ???
+        //TODO rename zrelax0 as ???
+        //TODO rename zrelax1 as ???
+        //TODO rename zrelax2 as ???
         merge = false;
-        if(fused_cols <= params.nrelax0){
+        if(merged_snode_size <= params.nrelax0){
           merge = true;
         }
-        else if(fused_cols <=params.maxSize || params.maxSize==-1){
+        else if(merged_snode_size <=params.maxSize || params.maxSize==-1){
           double child_lnz = cc[fstcol-1];
           double parent_lnz = cc[parent_fstcol-1];
           double xnewzeros = width * (parent_lnz + width  - child_lnz);
@@ -3412,25 +3419,25 @@ void SupernodalMatrix<T>::relaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc
           else{
             //all these values are the values corresponding to the merged snode
             double xtotzeros = (double)totzeros + xnewzeros;
-            double xfused_cols = (double) fused_cols;
+            double xmerged_snode_size = (double) merged_snode_size;
             //new number of nz
-            double xtotsize = (xfused_cols * (xfused_cols+1)/2) + xfused_cols * (parent_lnz - parent_width);
+            double xtotsize = (xmerged_snode_size * (xmerged_snode_size+1)/2) + xmerged_snode_size * (parent_lnz - parent_width);
             //percentage of explicit zeros
             double z = xtotzeros / xtotsize;
 
-            Int totsize = (fused_cols * (fused_cols+1)/2) + fused_cols * ((Int)parent_lnz - parent_width);
+            Int totsize = (merged_snode_size * (merged_snode_size+1)/2) + merged_snode_size * ((Int)parent_lnz - parent_width);
             totzeros += (Int)xnewzeros;
 
-            merge = ((fused_cols <= params.nrelax1 && z < params.zrelax0) 
-                || (fused_cols <= params.nrelax2 && z < params.zrelax1)
+            merge = ((merged_snode_size <= params.nrelax1 && z < params.zrelax0) 
+                || (merged_snode_size <= params.nrelax2 && z < params.zrelax1)
                 || (z<params.zrelax2)) &&
               (xtotsize < std::numeric_limits<Int>::max() / sizeof(double));
           }
 
         }
 
+        //Merge the two supernodes
         if(merge){
-          //              std::cout<<"merge "<<ksup<<" and "<<parent_snode<<std::endl;
           ncols[ksup-1] += ncols[parent_snode-1]; 
           zeros[ksup-1] = totzeros;
           newCC[ksup-1] = width + newCC[parent_snode-1];
@@ -4116,6 +4123,25 @@ SuperNode<T,Allocator> * SupernodalMatrix<T>::CreateSuperNode(DecompositionType 
   }
   return retval;
 }
+
+template <typename T> 
+template <class Allocator>
+SuperNode<T,Allocator> * SupernodalMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices){
+  SuperNode<T,Allocator> * retval = NULL;
+  switch(type){
+    case LDL:
+      retval = new SuperNodeInd<T,Allocator>( aiId,  aiFc,  aiLc,  aiN,  rowIndices);
+      break;
+    case LL:
+      retval = new SuperNode<T,Allocator>( aiId,  aiFc,  aiLc,  aiN,  rowIndices);
+      break;
+    default:
+      retval = new SuperNode<T,Allocator>( aiId,  aiFc,  aiLc,  aiN,  rowIndices);
+      break;
+  }
+  return retval;
+}
+
 
 
 template <typename T>

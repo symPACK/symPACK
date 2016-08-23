@@ -89,6 +89,111 @@ gdb_lock();
 #endif
 }; 
 
+
+
+
+
+
+template<typename T, class Allocator>
+SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
+
+
+  //compute supernode size / width
+  Int size = aiLc - aiFc +1;
+
+
+ 
+  Int num_blocks = 0;
+  if(rowIndices.size()>0){
+    //go through the set and count the number of nz blocks
+    Idx prevRow = *rowIndices.begin();
+    Idx firstRow = *rowIndices.begin();
+    for(auto it = rowIndices.begin();it!=rowIndices.end();it++){
+      Idx row = *it;
+
+      if(row>prevRow+1){
+        num_blocks++;
+        firstRow = row;
+      }
+      prevRow = row;
+    }
+    num_blocks++;
+  }
+
+  assert(num_blocks>0);
+
+  Int numRows = rowIndices.size();
+  storage_size_ = sizeof(T)*size*numRows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+
+  loc_storage_container_ = Allocator::allocate(storage_size_);
+  assert(loc_storage_container_!=NULL);
+
+  nzval_ = (T*)&loc_storage_container_[0];
+  meta_ = (SuperNodeDesc*)(nzval_+size*numRows);
+  char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
+  blocks_ = (NZBlockDesc*) last;
+
+  meta_->iId_ = aiId;
+  meta_->iFirstCol_ = aiFc;
+  meta_->iLastCol_ = aiLc;
+  meta_->iN_=aiN;
+  meta_->iSize_ = size;
+  meta_->nzval_cnt_ = 0;
+  meta_->blocks_cnt_ = 0;
+  meta_->b_own_storage_ = true;
+
+#ifndef ITREE
+  globalToLocal_ = new SYMPACK::vector<Int>(aiN+1,-1);
+#else
+  idxToBlk_ = CreateITree();
+#endif
+
+
+
+  //now add the blocks 
+  if(rowIndices.size()>0){
+    //go through the set and count the number of nz blocks
+    Idx prevRow = *rowIndices.begin();
+    Idx firstRow = *rowIndices.begin();
+    for(auto it = rowIndices.begin();it!=rowIndices.end();it++){
+      Idx row = *it;
+
+      if(row>prevRow+1){
+        this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
+        firstRow = row;
+      }
+      prevRow = row;
+    }
+    this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
+  }
+
+
+
+
+
+
+
+
+
+
+}; 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 template<typename T, class Allocator>
 SuperNode<T,Allocator>::SuperNode(char * storage_ptr,size_t storage_size, Int GIndex ) {
   //Init(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt,aiN);

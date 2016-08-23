@@ -1,6 +1,8 @@
 #ifndef _SUPERNODAL_MATRIX_IMPL_FB_PULL_HPP_
 #define _SUPERNODAL_MATRIX_IMPL_FB_PULL_HPP_
 
+#define FANIN_OPTIMIZATION
+
 template<typename T> void SupernodalMatrix<T>::generateTaskGraph(Int & localTaskCount, SYMPACK::vector<std::list<FBTask> * > & taskLists)
 {
   //we will need to communicate if only partial xlindx_, lindx_
@@ -143,6 +145,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth_Static()
 
   timeSta =  get_time( );
   TIMER_START(BUILD_TASK_LIST);
+  //Create a copy of the task graph
   supernodalTaskGraph taskGraph = taskGraph_;
 
   SYMPACK::vector<std::list<FBTask> * > taskLists;
@@ -157,15 +160,36 @@ template <typename T> void SupernodalMatrix<T>::FanBoth_Static()
 
   for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
     if(taskGraph.taskLists_[i] != NULL){
-      for(auto taskit = taskGraph.taskLists_[i]->begin(); taskit!=taskGraph.taskLists_[i]->end();taskit++){
+      auto taskit = taskGraph.taskLists_[i]->begin();
+      while (taskit != taskGraph.taskLists_[i]->end())
+      {
         if(taskit->remote_deps==0 && taskit->local_deps==0){
-          //scheduler_->push(taskit);
           scheduler2_->push(*taskit);
-          taskGraph.removeTask(taskit);
+          auto it = taskit++;
+          taskGraph.removeTask(it);
+        }
+        else
+        {
+          ++taskit;
         }
       }
     }
   }
+
+
+
+
+  xlindx_.clear();
+  lindx_.clear();
+  {
+    PtrVec dummy;
+    xlindx_.swap(dummy);
+  }
+  {
+    IdxVec dummy;
+    lindx_.swap(dummy);
+  }
+
 
 
 
@@ -291,6 +315,22 @@ defaut:
   TIMER_STOP(FACTORIZATION_FB);
 }
 
+ template <typename T> void SupernodalMatrix<T>::dfs_traversal(SYMPACK::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier){
+    for(std::list<Int>::iterator it = tree[node].begin(); it!=tree[node].end(); it++){
+      Int I = *it;
+
+      Int iOwner = Mapping_->Map(I-1,I-1);
+      if(iOwner == iam){
+        frontier.push_back(I);
+      }
+      else{
+        if(I<tree.size()){
+          dfs_traversal(tree,I,frontier);
+        }
+      }
+    }
+  };
+
 
 
 template <typename T> void SupernodalMatrix<T>::FanBoth() 
@@ -380,6 +420,33 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
     IdxVec dummy;
     lindx_.swap(dummy);
   }
+
+
+
+
+
+
+
+
+  #ifdef FANIN_OPTIMIZATION
+  if(options_.mappingTypeStr ==  "COL2D")
+  {
+    scope_timer(a,BUILD_SUPETREE);
+    ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+    //logfileptr->OFS()<<"SupETree:"<<SupETree<<endl;
+    chSupTree_.resize(SupETree.Size()+1);
+    for(Int I = 1; I<=SupETree.Size(); I++){
+      Int parent = SupETree.PostParent(I-1);
+      chSupTree_[parent].push_back(I);
+    }
+  }
+  #endif
+
+
+
+
+
+
 
   TIMER_STOP(BUILD_TASK_LIST);
 
@@ -1117,14 +1184,57 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
           //Check if src_snode_id already have an aggregate SYMPACK::vector
           if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==NULL){
             //use number of rows below factor as initializer
-            Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
 
-//#ifdef _INDEFINITE_
-//            aggVectors[curUpdate.tgt_snode_id-1] = new SuperNodeInd<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
-//#else
-//            aggVectors[curUpdate.tgt_snode_id-1] = new SuperNode<T>(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
-//#endif
-            aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
+            //TODO do a customized version for FANIN as we have all the factors locally
+            // the idea is the following: do a DFS and stop each exploration at the first local descendant of current node
+            #ifdef FANIN_OPTIMIZATION
+            if(options_.mappingTypeStr ==  "COL2D")
+            {
+              std::set<Idx> structure;
+              std::list<Int> frontier;
+              {
+                scope_timer(a,MERGE_STRUCTURE_FANIN);
+                dfs_traversal(chSupTree_,curUpdate.tgt_snode_id,frontier);
+                //process frontier in decreasing order of nodes and merge their structure
+                for(auto it = frontier.rbegin(); it!=frontier.rend(); it++){
+                  Int I = *it;
+                  SuperNode<T> * source = snodeLocal(I);
+                  for(Int blkidx=0; blkidx< source->NZBlockCnt();blkidx++){
+                    NZBlockDesc & nzblk_desc = source->GetNZBlockDesc(blkidx);
+                    Idx fr = nzblk_desc.GIndex;
+                    Idx lr = source->NRows(blkidx) + fr;
+                    for(Idx row = fr; row<lr;row++){
+                      structure.insert(row);
+                    }
+                  }
+                }
+              }
+              //logfileptr->OFS()<<" 2 Frontier of "<<curUpdate.src_snode_id<<"->"<<curUpdate.tgt_snode_id<<": ";
+              //for(std::list<Int>::iterator it = frontier.begin(); it!=frontier.end(); it++){
+              //  Int I = *it;
+              //  logfileptr->OFS()<<" "<<I;
+              //}
+              //logfileptr->OFS()<<std::endl;
+
+
+              //logfileptr->OFS()<<" Merged structure:";
+              //for(auto it = structure.begin(); it!=structure.end(); it++){
+              //  Int I = *it;
+              //  logfileptr->OFS()<<" "<<I;
+              //}
+              //logfileptr->OFS()<<std::endl;
+
+              //Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
+              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+              //logfileptr->OFS()<<*aggVectors[curUpdate.tgt_snode_id-1]<<endl;
+
+            } 
+            else
+            #endif
+            {
+              Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
+              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
+            }
           }
           tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
         }

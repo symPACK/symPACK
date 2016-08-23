@@ -207,7 +207,7 @@ class SuperNode{
   }
 
   SuperNode();
-
+  SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
   SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
   SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN);
   SuperNode(char * storage_ptr,size_t storage_size, Int GIndex = -1);

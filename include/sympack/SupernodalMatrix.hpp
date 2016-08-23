@@ -176,12 +176,15 @@ namespace SYMPACK{
       supernodalTaskGraph taskGraph_;
       void generateTaskGraph(supernodalTaskGraph & taskGraph,SYMPACK::vector<Int> & AggregatesToRecv,  SYMPACK::vector<Int>& LocalAggregates);
 
+      SYMPACK::vector<std::list<Int> > chSupTree_;
+      void dfs_traversal(SYMPACK::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier);
 
 template <class Allocator = UpcxxAllocator>
       SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
 template <class Allocator = UpcxxAllocator>
       SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Idx firstRow = -1);
-
+template <class Allocator = UpcxxAllocator>
+      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
 
       std::list<std::list<FBTask>::iterator > readyTasks_;
 

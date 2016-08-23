@@ -75,6 +75,107 @@ gdb_lock();
 #endif
 }; 
 
+
+
+
+
+
+
+
+template<typename T, class Allocator>
+SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
+
+  //compute supernode size / width
+  Int size = aiLc - aiFc +1;
+ 
+  Int num_blocks = 0;
+  if(rowIndices.size()>0){
+    //go through the set and count the number of nz blocks
+    Idx prevRow = *rowIndices.begin();
+    Idx firstRow = *rowIndices.begin();
+    for(auto it = rowIndices.begin();it!=rowIndices.end();it++){
+      Idx row = *it;
+
+      if(row>prevRow+1){
+        num_blocks++;
+        firstRow = row;
+      }
+      prevRow = row;
+    }
+    num_blocks++;
+  }
+
+  assert(num_blocks>0);
+
+  Int numRows = rowIndices.size();
+  this->storage_size_ = sizeof(T)*size*numRows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+  this->storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
+
+  this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
+  assert(this->loc_storage_container_!=NULL);
+
+  this->nzval_ = (T*)&this->loc_storage_container_[0];
+  this->diag_ = (T*)(this->nzval_+size*numRows);
+  this->meta_ = (SuperNodeDesc*)(this->diag_ + size);
+  char * last = this->loc_storage_container_+this->storage_size_-1 - (sizeof(NZBlockDesc) -1);
+  this->blocks_ = (NZBlockDesc*) last;
+
+  this->meta_->iId_ = aiId;
+  this->meta_->iFirstCol_ = aiFc;
+  this->meta_->iLastCol_ = aiLc;
+  this->meta_->iN_=aiN;
+  this->meta_->iSize_ = size;
+  this->meta_->nzval_cnt_ = 0;
+  this->meta_->blocks_cnt_ = 0;
+  this->meta_->b_own_storage_ = true;
+
+
+#ifndef ITREE
+  this->globalToLocal_ = new SYMPACK::vector<Int>(aiN+1,-1);
+#else
+  this->idxToBlk_ = this->CreateITree();
+#endif
+
+
+
+  //now add the blocks 
+  if(rowIndices.size()>0){
+    //go through the set and count the number of nz blocks
+    Idx prevRow = *rowIndices.begin();
+    Idx firstRow = *rowIndices.begin();
+    for(auto it = rowIndices.begin();it!=rowIndices.end();it++){
+      Idx row = *it;
+
+      if(row>prevRow+1){
+        this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
+        firstRow = row;
+      }
+      prevRow = row;
+    }
+    this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
+  }
+
+
+
+
+
+
+
+
+
+
+}; 
+
+
+
+
+
+
+
+
+
+
+
 template<typename T, class Allocator>
 SuperNodeInd<T,Allocator>::SuperNodeInd(char * storage_ptr,size_t storage_size, Int GIndex ) {
   this->Init(storage_ptr,storage_size,GIndex);
