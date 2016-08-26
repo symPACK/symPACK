@@ -17,6 +17,7 @@
 #include <upcxx.h>
 
 #include <list>
+#include <tuple>
 #include <deque>
 #include <queue>
 #include <vector>
@@ -38,6 +39,7 @@
 #endif
 
 
+//#define PREFETCH_STRUCTURE
 
 namespace SYMPACK{
       template<typename T> class SupernodalMatrix;
@@ -203,7 +205,8 @@ template <class Allocator = UpcxxAllocator>
 
       //Vector holding pointers to local SuperNode2 objects (L factor)
       SYMPACK::vector<SuperNode<T> * > LocalSupernodes_;
-      upcxx::shared_array<upcxx::global_ptr<SuperNodeDesc > > remoteFactors_;
+      //std::vector<upcxx::global_ptr<SuperNodeDesc > > remoteFactors_;
+      std::vector< std::tuple<upcxx::global_ptr<SuperNodeDesc >,Int> > remoteFactors_;
 
 
 
@@ -250,7 +253,7 @@ template <class Allocator = UpcxxAllocator>
       void FBGetUpdateCount(SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector<Int> & AggregatesToRecv, SYMPACK::vector<Int> & LocalAggregates);
       void GetUpdatingSupernodeCount( SYMPACK::vector<Int> & sc,SYMPACK::vector<Int> & mw, SYMPACK::vector<Int> & mh, SYMPACK::vector<Int> & numBlk);
 
-      void FBFactorizationTask(supernodalTaskGraph & taskGraph, FBTask & curTask, Int iLocalI, bool is_static = false);
+      void FBFactorizationTask(supernodalTaskGraph & taskGraph, FBTask & curTask, Int iLocalI, SYMPACK::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
       void FBAggregationTask(supernodalTaskGraph & taskGraph, FBTask & curTask, Int iLocalI, bool is_static = false);
       void FBUpdateTask(supernodalTaskGraph & taskGraph, FBTask & curTask, SYMPACK::vector<Int> & UpdatesToDo, SYMPACK::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
 
@@ -265,7 +268,7 @@ template <class Allocator = UpcxxAllocator>
       template< class Alloc>
       void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, SYMPACK::vector<SuperNode<T,Alloc> *> & snodeColl);
 
-      void CheckIncomingMessages(supernodalTaskGraph & taskGraph, bool is_static = false);
+      void CheckIncomingMessages(supernodalTaskGraph & taskGraph, SYMPACK::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
 
 
   };

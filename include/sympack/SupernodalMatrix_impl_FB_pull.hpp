@@ -163,6 +163,47 @@ template <typename T> void SupernodalMatrix<T>::FanBoth_Static()
       auto taskit = taskGraph.taskLists_[i]->begin();
       while (taskit != taskGraph.taskLists_[i]->end())
       {
+
+
+#ifdef PREFETCH_STRUCTURE
+        // if target of the update is remote, then get its structure
+        Int iFactorizer = this->Mapping_->Map(taskit->tgt_snode_id-1,taskit->tgt_snode_id-1);
+        if(iFactorizer!=iam && taskit->type == UPDATE){
+          bool needStructure =  taskit->data.size()>0?(taskit->data.front()->meta.GIndex!=-1):true;
+          //is the aggregate already allocated ?
+          needStructure = needStructure && aggVectors[taskit->tgt_snode_id-1]==NULL;
+
+          if(taskit->remote_deps==0 && taskit->local_deps==0 && needStructure){
+            IncomingMessage * msg_ptr = new IncomingMessage();
+            MsgMetadata meta;
+            meta.src = taskit->src_snode_id;
+            meta.tgt = taskit->tgt_snode_id;
+            meta.GIndex = -1;
+
+            msg_ptr->meta = meta;
+           
+            upcxx::global_ptr<SuperNodeDesc> pRemote_ptr = std::get<0>(remoteFactors_[meta.tgt-1]);
+            size_t pMsg_size = std::get<1>(remoteFactors_[meta.tgt-1])*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc);
+            msg_ptr->remote_ptr = upcxx::global_ptr<char>(pRemote_ptr);
+            msg_ptr->msg_size = pMsg_size;
+
+            //allocate receive buffer
+            bool success = msg_ptr->AllocLocal();
+            if(success){
+              gIncomingRecvAsync.push_back( msg_ptr );
+              msg_ptr->AsyncGet();
+              taskit->remote_deps++;
+            }
+            else{
+              abort();
+              delete msg_ptr;
+            }
+          }
+        }
+#endif
+
+
+
         if(taskit->remote_deps==0 && taskit->local_deps==0){
           scheduler2_->push(*taskit);
           auto it = taskit++;
@@ -220,7 +261,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth_Static()
 
 
       while(curTask.remote_deps>0){
-        CheckIncomingMessages(taskGraph,true);
+        CheckIncomingMessages(taskGraph,aggVectors,true);
         //#ifdef SEPARATE_AGGREG
         //        //we have to do this again to make sure that no task have been inserted
         //        taskit = scheduler_->top();
@@ -241,7 +282,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth_Static()
       switch(curTask.type){
         case FACTOR:
           {
-            FBFactorizationTask(taskGraph,curTask, iLocalTGT,true);
+            FBFactorizationTask(taskGraph,curTask, iLocalTGT,aggVectors,true);
           }
           break;
         case AGGREGATE:
@@ -394,6 +435,52 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
       auto taskit = taskGraph.taskLists_[i]->begin();
       while (taskit != taskGraph.taskLists_[i]->end())
       {
+
+
+#ifdef PREFETCH_STRUCTURE
+        // if target of the update is remote, then get its structure
+        Int iFactorizer = this->Mapping_->Map(taskit->tgt_snode_id-1,taskit->tgt_snode_id-1);
+        if(iFactorizer!=iam && taskit->type == UPDATE){
+          bool needStructure =  taskit->data.size()>0?(taskit->data.front()->meta.GIndex!=-1):true;
+          //is the aggregate already allocated ?
+          needStructure = needStructure && aggVectors[taskit->tgt_snode_id-1]==NULL;
+
+          if(taskit->remote_deps==0 && taskit->local_deps==0 && needStructure){
+            IncomingMessage * msg_ptr = new IncomingMessage();
+            MsgMetadata meta;
+            meta.src = taskit->src_snode_id;
+            meta.tgt = taskit->tgt_snode_id;
+            meta.GIndex = -1;
+
+            msg_ptr->meta = meta;
+           
+            upcxx::global_ptr<SuperNodeDesc> pRemote_ptr = std::get<0>(remoteFactors_[meta.tgt-1]);
+            size_t pMsg_size = std::get<1>(remoteFactors_[meta.tgt-1])*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc);
+            msg_ptr->remote_ptr = upcxx::global_ptr<char>(pRemote_ptr);
+            msg_ptr->msg_size = pMsg_size;
+
+            //allocate receive buffer
+            bool success = msg_ptr->AllocLocal();
+            if(success){
+              gIncomingRecvAsync.push_back( msg_ptr );
+              msg_ptr->AsyncGet();
+              taskit->remote_deps++;
+            }
+            else{
+              abort();
+              delete msg_ptr;
+            }
+          }
+        }
+#endif
+
+
+
+
+
+
+
+
         if(taskit->remote_deps==0 && taskit->local_deps==0){
           scheduler2_->push(*taskit);
           auto it = taskit++;
@@ -456,7 +543,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
   bool doPrint = true;
   Int prevCnt = -1;
   while(taskGraph.getTaskCount()>0){
-    CheckIncomingMessages(taskGraph);
+    CheckIncomingMessages(taskGraph,aggVectors);
 
     if(!scheduler2_->done())
     {
@@ -476,7 +563,7 @@ template <typename T> void SupernodalMatrix<T>::FanBoth()
       switch(curTask.type){
         case FACTOR:
           {
-            FBFactorizationTask(taskGraph, curTask, iLocalTGT);
+            FBFactorizationTask(taskGraph, curTask, iLocalTGT,aggVectors);
           }
           break;
         case AGGREGATE:
@@ -914,7 +1001,7 @@ template <typename T> void SupernodalMatrix<T>::FBAggregationTask(supernodalTask
 
 
 
-template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTaskGraph & taskGraph, FBTask & curTask, Int iLocalI, bool is_static)
+template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTaskGraph & taskGraph, FBTask & curTask, Int iLocalI, SYMPACK::vector< SuperNode<T> * > & aggVectors, bool is_static)
 {
   TIMER_START(FB_FACTORIZATION_TASK);
 
@@ -1067,6 +1154,44 @@ template <typename T> void SupernodalMatrix<T>::FBFactorizationTask(supernodalTa
 #pragma omp atomic
       taskit->local_deps--;
       if(!is_static){
+#ifdef PREFETCH_STRUCTURE
+        // if target of the update is remote, then get its structure
+        Int iFactorizer = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+        if(iFactorizer!=iam){
+          bool needStructure =  taskit->data.size()>0?(taskit->data.front()->meta.GIndex!=-1):true;
+          //is the aggregate already allocated ?
+          needStructure = needStructure && aggVectors[curUpdate.tgt_snode_id-1]==NULL;
+
+          if(taskit->remote_deps==0 && taskit->local_deps==0 && needStructure){
+
+            IncomingMessage * msg_ptr = new IncomingMessage();
+            MsgMetadata meta;
+            meta.src = curUpdate.src_snode_id;
+            meta.tgt = curUpdate.tgt_snode_id;
+            meta.GIndex = -1;
+
+            msg_ptr->meta = meta;
+           
+            upcxx::global_ptr<SuperNodeDesc> pRemote_ptr = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
+            size_t pMsg_size = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1])*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc);
+            msg_ptr->remote_ptr = upcxx::global_ptr<char>(pRemote_ptr);
+            msg_ptr->msg_size = pMsg_size;
+
+            //allocate receive buffer
+            bool success = msg_ptr->AllocLocal();
+            if(success){
+              gIncomingRecvAsync.push_back( msg_ptr );
+              msg_ptr->AsyncGet();
+              taskit->remote_deps++;
+            }
+            else{
+              abort();
+              delete msg_ptr;
+            }
+          }
+        }
+#endif
+
         if(taskit->remote_deps==0 && taskit->local_deps==0){
           //compute cost 
           //taskit->update_rank();
@@ -1124,9 +1249,50 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
     //AsyncComms * cur_incomingRecv = incomingRecvFactArr[tgt_snode_id-1];
 
 
+    IncomingMessage * structPtr = NULL;
     IncomingMessage * msgPtr = NULL;
     //Local or remote factor
     //we have only one local or one remote incoming aggregate
+
+#ifdef PREFETCH_STRUCTURE
+    {
+      Int iTarget = this->Mapping_->Map(curTask.tgt_snode_id-1,curTask.tgt_snode_id-1);
+      if(curTask.data.size()==0){
+        cur_src_snode = snodeLocal(curTask.src_snode_id);
+      }
+      else if(curTask.data.size()==1){
+        if(iTarget!=iam){
+          cur_src_snode = snodeLocal(curTask.src_snode_id);
+          auto msgit = curTask.data.begin();
+          structPtr = *msgit;
+          assert(structPtr->meta.GIndex==-1);
+        }
+        else{
+          auto msgit = curTask.data.begin();
+          msgPtr = *msgit;
+          assert(msgPtr->IsDone());
+          char* dataPtr = msgPtr->GetLocalPtr();
+          cur_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
+          cur_src_snode->InitIdxToBlk();
+        }
+      }
+      else if(curTask.data.size()>1){
+        assert(iTarget!=iam);
+
+        auto msgit = curTask.data.begin();
+        assert(curTask.data.size()>1);
+        structPtr = *msgit;
+        assert(structPtr->meta.GIndex==-1);
+        msgit++;
+
+        msgPtr = *msgit;
+        assert(msgPtr->IsDone());
+        char* dataPtr = msgPtr->GetLocalPtr();
+        cur_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
+        cur_src_snode->InitIdxToBlk();
+      }
+    }
+#else
     if(curTask.data.size()==0){
       cur_src_snode = snodeLocal(curTask.src_snode_id);
     }
@@ -1135,16 +1301,11 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
       msgPtr = *msgit;
       assert(msgPtr->IsDone());
       char* dataPtr = msgPtr->GetLocalPtr();
-//#ifdef _INDEFINITE_
-//      cur_src_snode = new SuperNodeInd<T>(dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
-//#else
-//      cur_src_snode = new SuperNode<T>(dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
-//#endif
       cur_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
       cur_src_snode->InitIdxToBlk();
-      //TODO this has to be written again for the new supernode type
-      //size_t read_bytes = Deserialize(dataPtr,*cur_src_snode);
     }
+#endif
+
 
     //Update everything src_snode_id own with that factor
     //Update the ancestors
@@ -1181,9 +1342,10 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
             if(options_.mappingTypeStr ==  "COL2D")
             {
               std::set<Idx> structure;
+              std::list<Int> frontier;
               {
                 scope_timer(a,MERGE_STRUCTURE_FANIN);
-                std::list<Int> frontier;
+                Idx tgt_fc = Xsuper_[curUpdate.tgt_snode_id-1];
                 dfs_traversal(chSupTree_,curUpdate.tgt_snode_id,frontier);
                 //process frontier in decreasing order of nodes and merge their structure
                 for(auto it = frontier.rbegin(); it!=frontier.rend(); it++){
@@ -1194,30 +1356,14 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
                     Idx fr = nzblk_desc.GIndex;
                     Idx lr = source->NRows(blkidx) + fr;
                     for(Idx row = fr; row<lr;row++){
-                      structure.insert(row);
+                      if(row>=tgt_fc){
+                        structure.insert(row);
+                      }
                     }
                   }
                 }
               }
-              //logfileptr->OFS()<<" 2 Frontier of "<<curUpdate.src_snode_id<<"->"<<curUpdate.tgt_snode_id<<": ";
-              //for(std::list<Int>::iterator it = frontier.begin(); it!=frontier.end(); it++){
-              //  Int I = *it;
-              //  logfileptr->OFS()<<" "<<I;
-              //}
-              //logfileptr->OFS()<<std::endl;
-
-
-              //logfileptr->OFS()<<" Merged structure:";
-              //for(auto it = structure.begin(); it!=structure.end(); it++){
-              //  Int I = *it;
-              //  logfileptr->OFS()<<" "<<I;
-              //}
-              //logfileptr->OFS()<<std::endl;
-
-              //Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
               aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
-              //logfileptr->OFS()<<*aggVectors[curUpdate.tgt_snode_id-1]<<endl;
-
             } 
             else
             #endif
@@ -1225,36 +1371,48 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
               std::set<Idx> structure;
               {
                 scope_timer(a,FETCH_REMOTE_STRUCTURE);
-                upcxx::global_ptr<SuperNodeDesc> remoteDesc = remoteFactors_[curUpdate.tgt_snode_id-1];
-                SuperNodeDesc desc = (*remoteDesc).get();
+#ifdef PREFETCH_STRUCTURE
+                char* buffer = structPtr->GetLocalPtr();
+                SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
+                NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
+                Int block_cnt = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1]);
+logfileptr->OFS()<<*pdesc<<endl<<block_cnt<<endl;
+assert(pdesc->blocks_cnt_==block_cnt);
 
-                //allocate space to receive block descriptors
-                NZBlockDesc * bufferBlocks = (NZBlockDesc*)UpcxxAllocator::allocate(sizeof(NZBlockDesc)*desc.blocks_cnt_);
-
-                upcxx::global_ptr<NZBlockDesc> remoteBlocks = upcxx::global_ptr<NZBlockDesc>(remoteDesc + 1);
-
-                upcxx::copy(remoteBlocks, &bufferBlocks[0], desc.blocks_cnt_);
-
-                //logfileptr->OFS()<<desc<<endl;
-                for(Int i =desc.blocks_cnt_-1;i>=0;i--){
+                for(Int i =block_cnt-1;i>=0;i--){
                   NZBlockDesc & curdesc = bufferBlocks[i];
-                  size_t end = (i>0)?bufferBlocks[i-1].Offset:desc.nzval_cnt_;
-                  Int numRows = (end-curdesc.Offset)/desc.iSize_;
+                  size_t end = (i>0)?bufferBlocks[i-1].Offset:pdesc->nzval_cnt_;
+                  Int numRows = (end-curdesc.Offset)/pdesc->iSize_;
 
                   for(Idx row = 0; row<numRows;row++){
                     structure.insert(curdesc.GIndex+row);
                   }
-                  //logfileptr->OFS()<<curdesc<<endl;
                 }
+#else
+                upcxx::global_ptr<SuperNodeDesc> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
+                Int block_cnt = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1]);
 
 
-                UpcxxAllocator::deallocate((char*)bufferBlocks);
+                //allocate space to receive block descriptors
+                char * buffer = (char*)UpcxxAllocator::allocate(sizeof(NZBlockDesc)*block_cnt+ sizeof(SuperNodeDesc));
+                upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
+                upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
+                SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
+                NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
+
+                for(Int i =block_cnt-1;i>=0;i--){
+                  NZBlockDesc & curdesc = bufferBlocks[i];
+                  size_t end = (i>0)?bufferBlocks[i-1].Offset:pdesc->nzval_cnt_;
+                  Int numRows = (end-curdesc.Offset)/pdesc->iSize_;
+
+                  for(Idx row = 0; row<numRows;row++){
+                    structure.insert(curdesc.GIndex+row);
+                  }
+                }
+                UpcxxAllocator::deallocate((char*)buffer);
+#endif
               }
               aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
-              
-  
-//              Int iWidth =Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1]; 
-//              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iWidth, iSize_);
             }
           }
           tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
@@ -1356,15 +1514,21 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
     TIMER_STOP(UPDATE_ANCESTORS);
 
 
-
-    if(curTask.data.size()>0){
+    if(msgPtr!=NULL){
       delete cur_src_snode;
-      auto msgit = curTask.data.begin();
-      IncomingMessage * msgPtr = *msgit;
-
-
       delete msgPtr;
     }
+
+    if(structPtr!=NULL){
+      delete structPtr;
+    }
+
+//    if(curTask.data.size()>0){
+//      delete cur_src_snode;
+//      auto msgit = curTask.data.begin();
+//      IncomingMessage * msgPtr = *msgit;
+//      delete msgPtr;
+//    }
 
 
 
@@ -1375,7 +1539,7 @@ template <typename T> void SupernodalMatrix<T>::FBUpdateTask(supernodalTaskGraph
 }
 
 
-template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodalTaskGraph & taskGraph,bool is_static)
+template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodalTaskGraph & taskGraph,SYMPACK::vector< SuperNode<T> * > & aggVectors,bool is_static)
 {
   scope_timer(a,CHECK_MESSAGE);
   //return;
@@ -1640,7 +1804,12 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
         } 
 
         taskit->remote_deps--;
-        taskit->data.push_back(msg);
+        if(msg->meta.GIndex==-1 && msg->meta.src!=msg->meta.tgt){
+          taskit->data.push_front(msg);
+        }
+        else{
+          taskit->data.push_back(msg);
+        }
 
         //if this is a factor task, then we should delete the aggregate
         if(!msg->IsLocal()){
@@ -1650,6 +1819,42 @@ template <typename T> void SupernodalMatrix<T>::CheckIncomingMessages(supernodal
         }
 
         if(!is_static){
+#ifdef PREFETCH_STRUCTURE
+        // if target of the update is remote, then get its structure
+        Int iFactorizer = this->Mapping_->Map(msg->meta.tgt-1,msg->meta.tgt-1);
+        if(iFactorizer!=iam && taskit->type == UPDATE){
+          bool needStructure =  taskit->data.size()>0?(taskit->data.front()->meta.GIndex!=-1):true;
+          //is the aggregate already allocated ?
+          needStructure = needStructure && aggVectors[msg->meta.tgt-1]==NULL;
+
+          if(taskit->remote_deps==0 && taskit->local_deps==0 && needStructure){
+            IncomingMessage * msg_ptr = new IncomingMessage();
+            MsgMetadata meta;
+            meta.src = msg->meta.src;
+            meta.tgt = msg->meta.tgt;
+            meta.GIndex = -1;
+
+            msg_ptr->meta = meta;
+           
+            upcxx::global_ptr<SuperNodeDesc> pRemote_ptr = std::get<0>(remoteFactors_[meta.tgt-1]);
+            size_t pMsg_size = std::get<1>(remoteFactors_[meta.tgt-1])*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc);
+            msg_ptr->remote_ptr = upcxx::global_ptr<char>(pRemote_ptr);
+            msg_ptr->msg_size = pMsg_size;
+
+            //allocate receive buffer
+            bool success = msg_ptr->AllocLocal();
+            if(success){
+              gIncomingRecvAsync.push_back( msg_ptr );
+              msg_ptr->AsyncGet();
+              taskit->remote_deps++;
+            }
+            else{
+              abort();
+              delete msg_ptr;
+            }
+          }
+        }
+#endif
           if(taskit->remote_deps==0 && taskit->local_deps==0){
             //scheduler_->push(taskit);    
             scheduler2_->push(*taskit);    

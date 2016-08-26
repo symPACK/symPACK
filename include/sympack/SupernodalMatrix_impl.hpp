@@ -2334,8 +2334,14 @@ Int np  = CommEnv_->MPI_Size();
     //Resize the local supernodes array
     LocalSupernodes_.reserve(snodeCount);
 
-    remoteFactors_.init(Xsuper_.size()-1);
-    logfileptr->OFS()<<"My usable global memory size is: "<<upcxx::my_usable_global_memory_size()<<endl;
+    logfileptr->OFS()<<"INITIALIZING THE SHARED ARRAY"<<endl;
+
+    std::vector<upcxx::global_ptr<SuperNodeDesc > > localFactors;
+    //localFactors.reserve(snodeCount);
+    remoteFactors_.resize(Xsuper_.size()-1);
+    std::fill((char*)&remoteFactors_[0],(char*)&remoteFactors_[0]+remoteFactors_.size()*sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ),0);
+
+    //logfileptr->OFS()<<"My usable global memory size is: "<<upcxx::my_usable_global_memory_size()<<endl;
 
     TIMER_START(DISTRIBUTE_CREATE_SNODES);
 
@@ -2357,16 +2363,11 @@ Int np  = CommEnv_->MPI_Size();
         globToLocSnodes_.Insert(snode_inter);
 #endif
 
-//#ifdef _INDEFINITE_
-//        LocalSupernodes_.push_back( new SuperNodeInd<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
-//#else
-//        LocalSupernodes_.push_back( new SuperNode<T>(I,fc,lc,iHeight,iSize_,nzBlockCnt));
-//#endif
         SuperNode<T> * newSnode = CreateSuperNode(options_.decomposition,I,fc,lc,iHeight,iSize_,nzBlockCnt);
         LocalSupernodes_.push_back(newSnode);
-        remoteFactors_[I-1] = upcxx::global_ptr<SuperNodeDesc>(newSnode->GetMeta());
       }
     }
+
 
     TIMER_STOP(DISTRIBUTE_CREATE_SNODES);
 
@@ -2670,6 +2671,19 @@ Int np  = CommEnv_->MPI_Size();
       //after the alltoallv, cleanup
       delete IrecvPtr;
       delete IsendPtr;
+
+
+      for(Int I=1;I<Xsuper_.size();I++){
+        Int iDest = this->Mapping_->Map(I-1,I-1);
+        //parse the first column to create the supernode structure
+        if(iam==iDest){
+          SuperNode<T> * newSnode = snodeLocal(I);
+          SuperNodeDesc * meta = newSnode->GetMeta();
+          remoteFactors_[I-1] = std::make_tuple( upcxx::global_ptr<SuperNodeDesc>( meta ), meta->blocks_cnt_) ;
+        }
+      }
+      MPI_Allreduce( MPI_IN_PLACE, &remoteFactors_[0], remoteFactors_.size()*sizeof( std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ), MPI_BYTE, MPI_BOR, CommEnv_->MPI_GetComm());
+
     }
 
   }
