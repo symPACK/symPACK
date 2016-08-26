@@ -1,6 +1,9 @@
 #ifndef _ENVIRONMENT_DECL_HPP_
 #define _ENVIRONMENT_DECL_HPP_
 
+#include "sympack_definitions.hpp"
+#include "sympack_config.hpp"
+
 //debug
 #include <sys/types.h>
 #include <unistd.h>
@@ -33,13 +36,7 @@
 
 // MPI
 #include <mpi.h>
-
 #include <upcxx.h>
-
-
-#include "sympack_config.h"
-
-
 
 #include "sympack/datatypes.hpp"
 

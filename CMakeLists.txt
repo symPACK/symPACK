@@ -36,7 +36,7 @@ endif()
 
 
 include(FortranCInterface)
-FortranCInterface_HEADER("${PROJECT_BINARY_DIR}/sympack_config.h" MACRO_NAMESPACE "FC_")
+FortranCInterface_HEADER("${PROJECT_BINARY_DIR}/sympack_config.hpp" MACRO_NAMESPACE "FC_")
 FortranCInterface_VERIFY(CXX)
 
 option(MMD_IDX_64 "Use 64 bit integers for MMD" OFF)
@@ -152,7 +152,8 @@ if(ENABLE_PARMETIS)
   find_package(ParMETIS REQUIRED)
   set(LIBS ${LIBS} ${PARMETIS_LIBRARIES})
   include_directories(${PARMETIS_INCLUDE_DIRS})
-  add_definitions("-DUSE_METIS -DUSE_PARMETIS")
+  add_definitions("-DUSE_METIS")
+  add_definitions("-DUSE_PARMETIS")
 endif()
 
 option(ENABLE_SCOTCH "Enable SCOTCH" OFF)
@@ -160,7 +161,8 @@ if(ENABLE_SCOTCH)
   find_package(Scotch REQUIRED)
   set(LIBS ${LIBS} ${SCOTCH_LIBRARIES})
   include_directories(${SCOTCH_INCLUDES})
-  add_definitions("-DUSE_SCOTCH -DUSE_PTSCOTCH")
+  add_definitions("-DUSE_SCOTCH")
+  add_definitions("-DUSE_PTSCOTCH")
 endif()
 
 
@@ -189,7 +191,8 @@ if(ENABLE_PROFILE)
   endif()
 
 
-  add_definitions("-DPROFILE -DNO_INTRA_PROFILE")
+  add_definitions("-DPROFILE")
+  add_definitions("-DNO_INTRA_PROFILE")
 endif()
 
 
@@ -208,13 +211,21 @@ link_directories(${UPCXX_LIBRARY_PATH})
 
 #set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${UPCXX_DEFINES})
 #add_definitions("-std=c++11")
-add_definitions(${UPCXX_DEFINES})
+#add_definitions(${UPCXX_DEFINES})
+
+foreach( d ${GASNET_DEFINES} )
+  string(STRIP ${d} d)
+  message( STATUS "Found GASNET Define: " ${d} )
+  add_definitions(${d})
+endforeach()
+foreach( d ${UPCXX_DEFINES} )
+  string(STRIP ${d} d)
+  message( STATUS "Found UPCXX Define: " ${d} )
+  add_definitions(${d})
+endforeach()
 
 
 
-
-
-message(STATUS "UPCXX DEFINES: " ${UPCXX_DEFINES})
 
 set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
   src/lapack.cpp src/global.cpp src/LogFile.cpp src/SparseMatrixStructure.cpp
@@ -228,8 +239,35 @@ set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_BINARY_DIR})
 
-add_definitions("-DITREE -D_DSW_ITREE_ -DSINGLE_BLAS -DSEPARATE_AGGREG")
-#add_definitions("-DNO_INTRA_PROFILE")
+add_definitions("-DITREE")
+add_definitions("-D_DSW_ITREE_")
+add_definitions("-DSINGLE_BLAS")
+add_definitions("-DSEPARATE_AGGREG")
+get_directory_property( ALL_DEFINITIONS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_DEFINITIONS )
+
+
+###############################################
+##  generate a config file
+###############################################
+file(WRITE "sympack_definitions.hpp.cmake" "#ifndef _HEADER_SYMPACK_DEFINITIONS_\n#define _HEADER_SYMPACK_DEFINITIONS_\n" )
+#file(APPEND "sympack_definitions.hpp.cmake" "#cmakedefine _CONFIG_HEADER_H_\n" )
+foreach( d ${ALL_DEFINITIONS} )
+  string(REPLACE "=" " " d ${d})
+  string(REPLACE " " ";" DEF_LIST ${d})
+  list(GET DEF_LIST 0 def_name)
+
+  file(APPEND "sympack_definitions.hpp.cmake" "\n#ifndef ${def_name}\n" )
+  file(APPEND "sympack_definitions.hpp.cmake" "#define ${d}\n" )
+  file(APPEND "sympack_definitions.hpp.cmake" "#endif // ${def_name}\n" )
+endforeach()
+file(APPEND "sympack_definitions.hpp.cmake" "\n#endif //_HEADER_SYMPACK_DEFINITIONS_\n" )
+
+CONFIGURE_FILE(
+    ${CMAKE_CURRENT_SOURCE_DIR}/sympack_definitions.hpp.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/sympack_definitions.hpp
+)
+
+message(STATUS "ALL DEFINES: " ${ALL_DEFINITIONS})
  
 add_library(sympack ${SYMPACKSRC})
 add_dependencies(sympack gasnet upcxx) 
@@ -237,7 +275,8 @@ target_link_libraries(sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRA
 
 install(TARGETS sympack LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 install(FILES 
-  ${PROJECT_BINARY_DIR}/sympack_config.h 
+  ${PROJECT_BINARY_DIR}/sympack_config.hpp 
+  ${PROJECT_BINARY_DIR}/sympack_definitions.hpp
   include/sympack.hpp
   DESTINATION include)
 
@@ -284,7 +323,7 @@ add_custom_target(examples DEPENDS run_sympack)
 
 add_dependencies(run_sympack sympack gasnet upcxx) 
 #target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
-target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit)# ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
+target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit)
 
 #install(TARGETS run_sympack RUNTIME DESTINATION bin)
 

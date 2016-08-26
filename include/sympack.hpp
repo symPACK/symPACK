@@ -7,7 +7,6 @@
 #include  "sympack/Mapping.hpp"
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
-
 #include  "sympack/LogFile.hpp"
 
 
