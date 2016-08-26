@@ -98,6 +98,8 @@ namespace SYMPACK{
       SYMPACK::vector<Int> & GetSupernodalPartition(){ return Xsuper_;}
       const ETree & GetETree(){return ETree_;}
       const Ordering & GetOrdering(){return Order_;}
+      const Mapping * GetMapping(){return Mapping_;}
+      NGCholOptions GetOptions(){ return options_;}
       const SYMPACK::vector<Int> & GetSupMembership(){return SupMembership_;}
       SYMPACK::vector<SuperNode<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 
       //TODO Check if that's useful
@@ -122,6 +124,35 @@ namespace SYMPACK{
       void DumpContrib();
 
       Idx TotalSupernodeCnt() { return Xsuper_.empty()?0:Xsuper_.size()-1;}
+
+
+
+
+
+
+
+
+      /******************* Global to Local Indexes utility routines ******************/
+      //returns the 1-based index of supernode id global in the local supernode array
+      Int snodeLocalIndex(Int global);
+      //returns a reference to  a local supernode with id global
+      SuperNode<T> * snodeLocal(Int global);
+      template< class Alloc>
+      SuperNode<T,Alloc> * snodeLocal(Int global, SYMPACK::vector<SuperNode<T,Alloc> *> & snodeColl);
+
+
+template <class Allocator = UpcxxAllocator>
+      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
+template <class Allocator = UpcxxAllocator>
+      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Int firstRow = -1);
+template <class Allocator = UpcxxAllocator>
+      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
+
+
+
+
+
+
 
     protected:
       NGCholOptions options_;
@@ -181,12 +212,6 @@ namespace SYMPACK{
       SYMPACK::vector<std::list<Int> > chSupTree_;
       void dfs_traversal(SYMPACK::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier);
 
-template <class Allocator = UpcxxAllocator>
-      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
-template <class Allocator = UpcxxAllocator>
-      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Idx firstRow = -1);
-template <class Allocator = UpcxxAllocator>
-      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
 
       std::list<std::list<FBTask>::iterator > readyTasks_;
 
@@ -236,16 +261,6 @@ template <class Allocator = UpcxxAllocator>
 
 
       protected:
-
-
-      /******************* Global to Local Indexes utility routines ******************/
-      //returns the 1-based index of supernode id global in the local supernode array
-      Int snodeLocalIndex(Int global);
-      //returns a reference to  a local supernode with id global
-      SuperNode<T> * snodeLocal(Int global);
-      template< class Alloc>
-      SuperNode<T,Alloc> * snodeLocal(Int global, SYMPACK::vector<SuperNode<T,Alloc> *> & snodeColl);
-
 
 
       //FanBoth related routines

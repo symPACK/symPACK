@@ -2260,7 +2260,7 @@ Int np  = CommEnv_->MPI_Size();
 
 {
   double timeSta = get_time();
-  TIMER_START(DISTRIBUTING_MATRIX);
+  scope_timer(a,DISTRIBUTING_MATRIX);
   //Icomm buffer;
   Icomm recv_buffer;
 
@@ -2693,13 +2693,13 @@ Int np  = CommEnv_->MPI_Size();
   }
   logfileptr->OFS()<<"Send Done"<<endl;
 
-  TIMER_STOP(DISTRIBUTING_MATRIX);
   double timeStop = get_time();
   if(iam==0){
     cout<<"Distribution time: "<<timeStop - timeSta<<endl;
   }
 }
 
+#if 0
 #ifdef _DEBUG_
 for(Int I=1;I<Xsuper_.size();I++){
   Int src_first_col = Xsuper_[I-1];
@@ -2737,6 +2737,7 @@ for(Int I=1;I<Xsuper_.size();I++){
     }
   }
 }
+#endif
 #endif
 //Dump();
 
@@ -2779,7 +2780,6 @@ for(Int I=1;I<Xsuper_.size();I++){
 //delete Local_;
 //delete Global_;
 #endif
-
 
 
 {
@@ -4164,7 +4164,7 @@ SuperNode<T,Allocator> * SupernodalMatrix<T>::CreateSuperNode(DecompositionType 
 
 template <typename T>
 template <class Allocator>
- SuperNode<T,Allocator> * SupernodalMatrix<T>::CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Idx firstRow){
+ SuperNode<T,Allocator> * SupernodalMatrix<T>::CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Int firstRow){
   SuperNode<T,Allocator> * retval = NULL;
   switch(type){
     case LDL:

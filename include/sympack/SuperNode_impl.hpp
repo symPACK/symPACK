@@ -1350,6 +1350,9 @@ inline void SuperNode<T,Allocator>::Reserve(size_t storage_size){
 template <typename T, class Allocator> 
 inline void SuperNode<T,Allocator>::Serialize(Icomm & buffer, Int first_blkidx, Idx first_row){
   NZBlockDesc* nzblk_ptr = &this->GetNZBlockDesc(first_blkidx);
+  if(first_row==0){
+    first_row = nzblk_ptr->GIndex;
+  }
   Idx local_first_row = first_row - nzblk_ptr->GIndex;
 
   Int nzblk_cnt = this->NZBlockCnt() - first_blkidx;
@@ -1600,6 +1603,9 @@ inline size_t SuperNode<T,Allocator>::Deserialize(char * buffer, size_t size){
 template <typename T, class Allocator> 
 inline void Serialize(Icomm & buffer,SuperNode<T, Allocator> & snode, Int first_blkidx, Idx first_row){
   NZBlockDesc* nzblk_ptr = &snode.GetNZBlockDesc(first_blkidx);
+  if(first_row==0){
+    first_row = nzblk_ptr->GIndex;
+  }
   Idx local_first_row = first_row - nzblk_ptr->GIndex;
 
   Int nzblk_cnt = snode.NZBlockCnt() - first_blkidx;

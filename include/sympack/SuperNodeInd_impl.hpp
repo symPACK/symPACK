@@ -970,6 +970,7 @@ template <typename T, class Allocator> inline std::ostream& operator<<( std::ost
 
 
 
+
   template <typename T,class Allocator> inline size_t Deserialize(char * buffer, size_t size, SuperNodeInd<T,Allocator> & snode){
     snode.Init(&buffer[0],size);
     snode.InitIdxToBlk();

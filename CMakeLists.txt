@@ -189,7 +189,7 @@ if(ENABLE_PROFILE)
   endif()
 
 
-  add_definitions("-DPROFILE")
+  add_definitions("-DPROFILE -DNO_INTRA_PROFILE")
 endif()
 
 
@@ -239,6 +239,9 @@ install(TARGETS sympack LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 install(FILES 
   ${PROJECT_BINARY_DIR}/sympack_config.h 
   include/sympack.hpp
+  DESTINATION include)
+
+install(FILES 
   include/sympack/SuperNode.hpp
   include/sympack/SuperNodeInd.hpp
   include/sympack/CommPull.hpp
@@ -272,7 +275,7 @@ install(FILES
   include/sympack/Scheduler.hpp
   include/sympack/SparseMatrixStructure.hpp 
   include/sympack/utility.hpp 
-  DESTINATION include)
+  DESTINATION include/sympack)
 
 
 
