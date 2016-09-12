@@ -2040,7 +2040,6 @@ Int np  = CommEnv_->MPI_Size();
 
     //check if the Alltoallv needs to be performed in multiple steps
     size_t total_send_size = 0;
-    size_t total_recv_size = 0;
     SYMPACK::vector<size_t> stotcounts(np,0);
     for(Int i = 0; i< send_map.size(); i++){
       total_send_size += send_map[i].first;
@@ -2092,12 +2091,10 @@ Int np  = CommEnv_->MPI_Size();
           container.resize(sz); 
           container.head = 0;
         };
+
+    IsendPtr->setHead(0);
     mpi::Alltoallv((*IsendPtr), &stotcounts[0], &spositions[0], MPI_BYTE,
                 (*IrecvPtr),CommEnv_->MPI_GetComm(), resize_lambda);
-
-    mpi::Alltoallv((*IsendPtr), &stotcounts[0], &spositions[0], MPI_BYTE,
-                (*IrecvPtr),CommEnv_->MPI_GetComm(), resize_lambda);
-
 
 
 //    //do the all to all

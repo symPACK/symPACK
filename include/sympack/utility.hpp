@@ -1465,6 +1465,20 @@ std::vector<T> &sorted_vec)
 
 void PtrSum( void *in, void *inout, int *len, MPI_Datatype *dptr ); 
 void PtrMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
+template<typename T> void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
+
+  template<typename T>
+  void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr ) 
+  { 
+    int i; 
+
+    T * pinout = (Ptr*)inout;
+    T * pin = (Ptr*)in;
+#pragma unroll
+    for (i=0; i< *len; ++i) { 
+      pinout[i] = max(pinout[i], pin[i]);
+    } 
+  }
 
 
 

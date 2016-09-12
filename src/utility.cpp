@@ -1719,6 +1719,4 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
 
 
 
-
-
 }  // namespace SYMPACK

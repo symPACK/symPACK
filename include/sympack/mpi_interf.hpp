@@ -5,6 +5,7 @@
 
 #include  "sympack/Environment.hpp"
 #include  "sympack/CommTypes.hpp"
+#include  "sympack/utility.hpp"
 
 #include <mpi.h>
 #include <functional>
@@ -12,6 +13,8 @@
 #include <limits>
 
 namespace SYMPACK{
+
+  template<typename T> void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
 
   /// @namespace mpi
   ///
@@ -55,28 +58,80 @@ namespace SYMPACK{
 template<typename _Container, typename _Size>
 int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size *stotdispls, MPI_Datatype sendtype,
                 _Container & recvbuf, MPI_Comm & comm, std::function< void(_Container &, size_t)> & resize_func){
- 
-//gdb_lock();
+
   Int mpirank, mpisize;
   MPI_Comm_rank( comm, &mpirank );
   MPI_Comm_size( comm, &mpisize );
+
+  //if _Size is signed, we can save an alltoall, reducing the overhead if there is an error
+  bool is_signed = std::numeric_limits<_Size>::is_signed;
+  
+
+
+  //first compare the localMax to the maximum chunk size. If something is bigger, set everything to -1 
+  int maxchunk = std::numeric_limits<int>::max()/mpisize;
+  const _Size * maxLocal = std::max_element(&stotcounts[0],&stotcounts[0]+mpisize);
+  bool need_split = *maxLocal>maxchunk;
+
 
   MPI_Datatype size_type;
   MPI_Type_contiguous( sizeof(_Size), MPI_BYTE, &size_type );
   MPI_Type_commit(&size_type);
   //do the all to all
   std::vector<_Size> rtotcounts(mpisize,0);
-  MPI_Alltoall(&stotcounts[0],1,size_type,&rtotcounts[0],1,size_type,comm);
+
+
+  if(need_split){
+    std::vector<_Size> serrorsizes;
+      if(is_signed){
+        serrorsizes.reserve(mpisize);
+        for(int i = 0; i<mpisize;i++){ serrorsizes[i] = -stotcounts[i]; }
+      }
+      else{
+        serrorsizes.assign(mpisize,std::numeric_limits<_Size>::max());
+      }
+    MPI_Alltoall(&serrorsizes[0],1,size_type,&rtotcounts[0],1,size_type,comm);
+  }
+  else{
+    MPI_Alltoall(&stotcounts[0],1,size_type,&rtotcounts[0],1,size_type,comm);
+  }
+
+  if(is_signed){
+    const _Size * errorLocal = std::min_element(&rtotcounts[0],&rtotcounts[0]+mpisize);
+    need_split = *errorLocal<0;
+  }
+  else{
+    const _Size * errorLocal = std::max_element(&rtotcounts[0],&rtotcounts[0]+mpisize);
+    need_split = *errorLocal==std::numeric_limits<_Size>::max();
+  }
+
+  size_t max_sr_size = 0;
+  if(need_split){
+    _Size globalMax = 0;
+    MPI_Op MPI_SYMPACK_MAX; 
+    MPI_Op_create( GenericMPIMax<_Size>, true, &MPI_SYMPACK_MAX ); 
+    MPI_Allreduce(maxLocal,&globalMax,1,size_type,MPI_SYMPACK_MAX,comm);
+    MPI_Op_free(&MPI_SYMPACK_MAX);
+    logfileptr->OFS()<<"mpi::Alltoallv ERROR has been reported by one of the nodes, reduced global max is "<<globalMax<<endl;
+    max_sr_size = std::max(max_sr_size,globalMax);
+
+    if(is_signed){
+        for(int i = 0; i<mpisize;i++){ rtotcounts[i] = std::abs(rtotcounts[i]); }
+    }
+    else{
+      //redo the alltoall to get rid of the error flags
+      MPI_Alltoall(&stotcounts[0],1,size_type,&rtotcounts[0],1,size_type,comm);
+    }
+  }
+
   MPI_Type_free(&size_type);
 
   std::vector<_Size> rtotdispls(mpisize,0);
   rtotdispls[0] = 0;
   std::partial_sum(rtotcounts.begin(),rtotcounts.end()-1,&rtotdispls[1]);
 
-  int maxchunk = 1300;//std::numeric_limits<int>::max()/mpisize;
   size_t total_send_size = 0;
   size_t total_recv_size = 0;
-  size_t max_sr_size = 0;
   size_t max_s_gap = 0;
   size_t max_r_gap = 0;
   for(Int i = 0; i< mpisize; i++){
@@ -91,6 +146,7 @@ int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size *stotdi
   if(total_send_size>0 || total_recv_size>0){
     int chunk_atav= int(std::min(max_sr_size,size_t(maxchunk)));
     int split_atav = (int)std::ceil((double)max_sr_size/(double)chunk_atav);
+    logfileptr->OFS()<<"mpi::Alltoallv collective will be split in "<<split_atav<<" calls of size "<<chunk_atav<<endl;
 
     //resize the receive container
     resize_func(recvbuf,total_recv_size);
