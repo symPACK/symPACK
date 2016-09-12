@@ -11,6 +11,7 @@ class Ordering;
 class SparseMatrixStructure;
 class DistSparseMatrixGraph;
 class SparseMatrixGraph;
+template <typename F> class DistSparseMatrix;
 
 class SparseMatrixGraph{
   friend class Ordering;
@@ -48,9 +49,11 @@ class SparseMatrixGraph{
 
 class DistSparseMatrixGraph{
   friend class Ordering;
+  template <typename F> friend class DistSparseMatrix;
 
 
   protected:
+  public:
   bool bIsExpanded;
   
 
@@ -92,7 +95,7 @@ class DistSparseMatrixGraph{
   //accessors
   bool IsExpanded() const {return bIsExpanded;}
   Idx LocalFirstVertex() const {return vertexDist[mpirank];}
-  Idx LocalVertexCount() const { return vertexDist[mpirank+1] - vertexDist[mpirank];}
+  Idx LocalVertexCount() const { Idx count = vertexDist[mpirank+1] - vertexDist[mpirank]; bassert(colptr.size()==count+1 || colptr.empty() ); return count; }
   Ptr LocalEdgeCount() const{ return rowind.size();}
 
   //utility
@@ -110,19 +113,6 @@ class DistSparseMatrixGraph{
   void GatherStructure(SparseMatrixGraph & g, int proot);
 protected:
   void permute_(Int * invp, Idx * newVertexDist=NULL, Int invpbaseval=1);
-//  void FindSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, Int maxSize = -1);
-//
-//  void RelaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, RelaxationParameters & params  );
-//
-  //Analysis related functions
-//  void GetLColRowCount(ETree & tree, Ordering & aOrder, SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & rc);
-//#ifdef REFINED_SNODE
-//  void RefineSupernodes(ETree& tree, Ordering & aOrder, SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, PtrVec & xlindx, IdxVec & lindx, SYMPACK::vector<Int> & perm);
-//#endif
-//  void RelaxSupernodes(ETree& tree, SYMPACK::vector<Int> & cc,SYMPACK::vector<Int> & supMembership, SYMPACK::vector<Int> & xsuper, RelaxationParameters & params  );
-//  void SymbolicFactorizationRelaxed(ETree& tree, Ordering & aOrder,const SYMPACK::vector<Int> & cc,const SYMPACK::vector<Int> & xsuper,const SYMPACK::vector<Int> & SupMembership, PtrVec & xlindx, IdxVec & lindx);
-//  void SymbolicFactorization(ETree& tree, Ordering & aOrder,const SYMPACK::vector<Int> & cc,const SYMPACK::vector<Int> & xsuper,const SYMPACK::vector<Int> & SupMembership, PtrVec & xlindx, IdxVec & lindx);
-
 };
 
 }

@@ -16,7 +16,7 @@
 namespace SYMPACK{
 
 
-template <typename T> class SupernodalMatrix;
+class DistSparseMatrixGraph;
 template <typename T> class SupernodalMatrix;
 
 
@@ -59,8 +59,10 @@ template <typename F> class DistSparseMatrix{
   SparseMatrixStructure Local_;
   SparseMatrixStructure Global_;
 
+  //SparseMatrixGraph Globalg_;
 
   public:
+  DistSparseMatrixGraph Localg_;
 	/// @brief Matrix dimension.
 	Int          size;
 
@@ -75,8 +77,8 @@ template <typename F> class DistSparseMatrix{
 	MPI_Comm     comm;        
 
 
-  DistSparseMatrix(){ comm = MPI_COMM_NULL; size = 0; nnz=0; globalAllocated=false;};
-  DistSparseMatrix(MPI_Comm aComm):DistSparseMatrix(){comm = aComm;};
+  DistSparseMatrix();
+  DistSparseMatrix(MPI_Comm aComm);
   void CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval,bool onebased=false);
   DistSparseMatrix(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval , MPI_Comm oComm);
   
@@ -84,10 +86,16 @@ template <typename F> class DistSparseMatrix{
 
   SparseMatrixStructure  GetGlobalStructure();
   SparseMatrixStructure  GetLocalStructure() const;
+  const DistSparseMatrixGraph & GetLocalGraph() const;
   //const SparseMatrixStructure & GetLocalStructure() const;
 
   void Dump() const;
+  void DumpMatlab() const;
 
+  void Permute(Int * invp, Ptr * newVertexDist = NULL);
+  void ExpandSymmetric();
+  void ToLowerTriangular();
+  void SortGraph();
 };
 
 // Commonly used

@@ -30,14 +30,6 @@
 #include <omp.h>
 #endif
 
-#ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a) 
-#define TIMER_STOP(a) 
-#define scope_timer(b,a)
-#endif
-#endif
-
 
 //#define PREFETCH_STRUCTURE
 
@@ -79,7 +71,7 @@ namespace SYMPACK{
 
       //Constructors
       SupernodalMatrix();
-      SupernodalMatrix(DistSparseMatrix<T> & pMat, NGCholOptions & options );
+      SupernodalMatrix(DistSparseMatrix<T> & pMat, symPACKOptions & options );
       //TODO
       SupernodalMatrix( SupernodalMatrix & M){};
       //Destructor
@@ -90,7 +82,7 @@ namespace SYMPACK{
       SupernodalMatrix & operator=( SupernodalMatrix & M){return M;};
 
 
-      void Init(DistSparseMatrix<T> & pMat, NGCholOptions & options );
+      void Init(DistSparseMatrix<T> & pMat, symPACKOptions & options );
 
       //Accessors
       Int Size(){return iSize_;}
@@ -99,7 +91,7 @@ namespace SYMPACK{
       const ETree & GetETree(){return ETree_;}
       const Ordering & GetOrdering(){return Order_;}
       const Mapping * GetMapping(){return Mapping_;}
-      NGCholOptions GetOptions(){ return options_;}
+      symPACKOptions GetOptions(){ return options_;}
       const SYMPACK::vector<Int> & GetSupMembership(){return SupMembership_;}
       SYMPACK::vector<SuperNode<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; } 
       //TODO Check if that's useful
@@ -120,6 +112,7 @@ namespace SYMPACK{
       void FanBoth_Static( );
 
 
+      void DumpMatlab();
       void Dump();
       void DumpContrib();
 
@@ -155,7 +148,7 @@ template <class Allocator = UpcxxAllocator>
 
 
     protected:
-      NGCholOptions options_;
+      symPACKOptions options_;
       CommEnvironment * CommEnv_;
 
       //Order of the matrix
@@ -292,14 +285,6 @@ template <class Allocator = UpcxxAllocator>
 
 #include "sympack/SupernodalMatrix_impl.hpp"
 
-
-#ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a) TAU_FSTART(a);
-#define TIMER_STOP(a) TAU_FSTOP(a);
-#define scope_timer(b,a) CTF_scope_timer b(#a)
-#endif
-#endif
 
 
 

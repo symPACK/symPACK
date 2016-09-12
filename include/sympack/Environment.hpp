@@ -4,9 +4,20 @@
 #include "sympack_definitions.hpp"
 #include "sympack_config.hpp"
 
+#define EXPLICIT_PERMUTE
+
+
+
+#include <upcxx.h>
+
 //debug
 #include <sys/types.h>
 #include <unistd.h>
+#include <execinfo.h>
+//#include <signal.h>
+#include <exception>
+
+
 
 // STL libraries
 #include <iostream> 
@@ -14,31 +25,70 @@
 #include <fstream>
 #include <sstream>
 #include <unistd.h>
-
 #include <cfloat>
 #include <cstdint>
 #include <complex>
 #include <string>
-
 #include <set>
 #include <map>
 #include <stack>
 #include <vector>
-
 #include <algorithm>
 #include <cmath>
-
 #include <cassert>
 #include <stdexcept>
-#include <execinfo.h>
-//#include <signal.h>
-#include <exception>
 
 // MPI
 #include <mpi.h>
-#include <upcxx.h>
 
 #include "sympack/datatypes.hpp"
+
+/***********************************************************************
+ *  Error handling
+ **********************************************************************/
+
+namespace SYMPACK{
+
+  extern upcxx::team * workteam;
+  extern Int iam;
+  extern Int np;
+
+
+  inline void gdb_lock(){
+      pid_t pid = getpid();
+      std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
+    volatile int lock = 1;
+    while (lock == 1){ }
+      std::cout<<"P"<<iam<<" is unlocked"<<std::endl;
+  }
+
+  inline void gdb_lock(Int proc){
+    if(iam==proc){
+      pid_t pid = getpid();
+      std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
+      volatile int lock = 1;
+      while (lock == 1){ }
+      std::cout<<"P"<<iam<<" is unlocked"<<std::endl;
+    }
+  }
+
+
+#ifndef NDEBUG
+  inline void bassert(bool cond){
+    if(!(cond)){
+      gdb_lock();
+    }
+  }
+#else
+  #define bassert(cond)
+#endif
+}
+
+
+
+
+
+
 
 #ifndef _USE_NUMVEC_
 namespace SYMPACK{
@@ -133,39 +183,9 @@ const char LOWER = 'L';
 
 } // namespace SYMPACK
 
-/***********************************************************************
- *  Error handling
- **********************************************************************/
+
 
 namespace SYMPACK{
-
-  extern upcxx::team * workteam;
-  extern Int iam;
-  extern Int np;
-
-
-  inline void gdb_lock(){
-      pid_t pid = getpid();
-      std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
-    volatile int lock = 1;
-    while (lock == 1){ }
-      std::cout<<"P"<<iam<<" is unlocked"<<std::endl;
-  }
-
-  inline void gdb_lock(Int proc){
-    if(iam==proc){
-      pid_t pid = getpid();
-      std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
-      volatile int lock = 1;
-      while (lock == 1){ }
-      std::cout<<"P"<<iam<<" is unlocked"<<std::endl;
-    }
-  }
-
-
-  inline void bassert(bool cond){if(!(cond)){gdb_lock();}}
-
-
 
 // We define an output stream that does nothing. This is done so that the 
 // root process can be used to print data to a file's ostream while all other 
@@ -231,28 +251,18 @@ inline double get_time()
     return tv.tv_sec + ((double) tv.tv_usec / 1000000);
   }
 
-
-#ifdef USE_TAU
-#define PROFILING_ON
-#include "TAU.h"
-#elif defined (PROFILE) || defined(PMPI)
-#define TAU
-#endif
 #include "sympack/timer.hpp"
 
 #define VAL(str) #str
 #define TOSTRING(str) VAL(str)
 
 
-#ifdef USE_TAU 
-#define TIMER_START(a) TAU_START(TOSTRING(a));
-#define TIMER_STOP(a) TAU_STOP(TOSTRING(a));
-#elif defined (PROFILE)
-#define TIMER_START(a) TAU_FSTART(a);
-#define TIMER_STOP(a) TAU_FSTOP(a);
+#if defined (SPROFILE)
+#define SYMPACK_TIMER_START(a) SYMPACK_FSTART(a);
+#define SYMPACK_TIMER_STOP(a) SYMPACK_FSTOP(a);
 #else
-#define TIMER_START(a)
-#define TIMER_STOP(a)
+#define SYMPACK_TIMER_START(a)
+#define SYMPACK_TIMER_STOP(a)
 #endif
 
 

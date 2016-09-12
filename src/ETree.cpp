@@ -70,7 +70,7 @@ namespace SYMPACK{
   void ETree::PostOrderTree(Ordering & aOrder){
     if(n_>0 && !bIsPostOrdered_){
 
-      TIMER_START(PostOrder);
+      SYMPACK_TIMER_START(PostOrder);
 
       SYMPACK::vector<Int> fson(n_,0);
       SYMPACK::vector<Int> & brother = poparent_;
@@ -122,7 +122,7 @@ namespace SYMPACK{
       logfileptr->OFS()<<"new parent: "<<brother<<std::endl;
 #endif
 
-      TIMER_STOP(PostOrder);
+      SYMPACK_TIMER_STOP(PostOrder);
     }
 
   }
@@ -234,7 +234,6 @@ namespace SYMPACK{
     //Compose the two permutations
     aOrder.Compose(invpos);
 
-    //Sort the parent
   }
 
   void ETree::ConstructETree(DistSparseMatrixGraph & aDistExp, Ordering & aOrder){
@@ -247,7 +246,7 @@ namespace SYMPACK{
     //Expand to unsymmetric storage
     tmpGraph.ExpandSymmetric();
 
-    TIMER_START(Construct_Etree);
+    SYMPACK_TIMER_START(Construct_Etree);
     //std::fill(parent_.begin(),parent_.end(),0);
 
 
@@ -337,7 +336,7 @@ namespace SYMPACK{
 #else
 #endif
 
-    TIMER_STOP(Construct_Etree);
+    SYMPACK_TIMER_STOP(Construct_Etree);
 
   }
 
@@ -350,7 +349,7 @@ namespace SYMPACK{
       throw std::logic_error( "SparseMatrixGraph must be expanded\n" );
     }
 
-    TIMER_START(Construct_Etree_Classic);
+    SYMPACK_TIMER_START(Construct_Etree_Classic);
     parent_.resize(n_,0);
 
     if(iam==0){
@@ -414,7 +413,7 @@ namespace SYMPACK{
     //Broadcast  
     team->bcast(&parent_[0], &parent_[0], n_*sizeof(Int), 0);
 
-    TIMER_STOP(Construct_Etree_Classic);
+    SYMPACK_TIMER_STOP(Construct_Etree_Classic);
 
   }
 
@@ -428,7 +427,7 @@ namespace SYMPACK{
     //Expand to symmetric storage
     aGlobal.ExpandSymmetric();
 
-    TIMER_START(Construct_Etree_Classic);
+    SYMPACK_TIMER_START(Construct_Etree_Classic);
     parent_.resize(n_,0);
 
 
@@ -548,7 +547,7 @@ namespace SYMPACK{
 
 
 
-    TIMER_STOP(Construct_Etree_Classic);
+    SYMPACK_TIMER_STOP(Construct_Etree_Classic);
 
   }
 

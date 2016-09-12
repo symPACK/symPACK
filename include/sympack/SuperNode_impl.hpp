@@ -366,7 +366,9 @@ inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiG
 
 template<typename T, class Allocator>
 inline Int SuperNode<T,Allocator>::FindBlockIdx(Int aiGIndex){
-  scope_timer(a,FindBlockIdx);
+  scope_timer_special(a,FindBlockIdx);
+
+
   Int rval = -1;
 
 #ifndef ITREE
@@ -390,7 +392,7 @@ inline Int SuperNode<T,Allocator>::FindBlockIdx(Int aiGIndex){
 
 template<typename T, class Allocator>
 inline Int SuperNode<T,Allocator>::FindBlockIdx(Int aiGIndex,Int & closestR, Int & closestL){
-  scope_timer(a,FindBlockIdx);
+  scope_timer_special(a,FindBlockIdxRL);
   Int rval = -1;
   ITree::Interval * L = NULL;
   ITree::Interval * R = NULL;
@@ -411,7 +413,7 @@ inline Int SuperNode<T,Allocator>::FindBlockIdx(Int aiGIndex,Int & closestR, Int
 
 template<typename T, class Allocator>
 inline Int SuperNode<T,Allocator>::FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap){
-  scope_timer(a,FindBlockIdx);
+  scope_timer_special(a,FindBlockIdxOverlap);
 
   Int rval = -1;
 
@@ -715,8 +717,7 @@ inline void SuperNode<T,Allocator>::FindUpdatedLastCol(SuperNode<T,Allocator> * 
 //#ifdef COMPACT_AGGREGATES
 template<typename T, class Allocator>
 inline Int SuperNode<T,Allocator>::Merge(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update){
-  //#ifndef _TAU_TRACE_
-  scope_timer(a,MERGE_SNODE);
+  scope_timer_special(a,MERGE_SNODE);
 
   assert(meta_->b_own_storage_);
 
@@ -782,7 +783,6 @@ assert(lr>=fr);
 }
 //#endif
 
-//#ifndef _TAU_TRACE_
 //#ifdef COMPACT_AGGREGATES
 template<typename T, class Allocator>
 inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode){
@@ -804,6 +804,7 @@ inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode)
   Int first_pivot_idx = 0 ;
   Int tgt_fc = FirstCol();
 
+#if 0
   for(Int blkidx = first_pivot_idx; blkidx<src_snode->NZBlockCnt(); ++blkidx){
     NZBlockDesc & blk_desc = src_snode->GetNZBlockDesc(blkidx);
     Int nrows = src_snode->NRows(blkidx);
@@ -831,6 +832,48 @@ inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode)
       }
     }
   }
+#else
+  Int tgt_blkcnt = NZBlockCnt();
+  Int tgt_blkidx = 0;
+  NZBlockDesc tgt_desc = GetNZBlockDesc(tgt_blkidx);
+  Int tgt_nrows = NRows(tgt_blkidx);
+
+  for(Int blkidx = first_pivot_idx; blkidx<src_snode->NZBlockCnt(); ++blkidx){
+    NZBlockDesc & blk_desc = src_snode->GetNZBlockDesc(blkidx);
+    Int nrows = src_snode->NRows(blkidx);
+    for(Int rowidx = 0; rowidx<nrows; ++rowidx){
+      Int row = blk_desc.GIndex + rowidx;
+
+      if(row>=tgt_fc){
+        Int src_offset = blk_desc.Offset + (row - blk_desc.GIndex)*src_snode_size;
+
+        while(row>tgt_desc.GIndex + tgt_nrows-1){
+          tgt_blkidx++;
+          tgt_desc = GetNZBlockDesc(tgt_blkidx);
+          tgt_nrows = NRows(tgt_blkidx);
+          if(tgt_blkidx==tgt_blkcnt){
+            tgt_blkidx=-1;
+            break;
+          }
+        }
+
+        if(tgt_blkidx==-1){
+          logfileptr->OFS()<<"LOCK 2: tgt_blkidx=-1"<<endl;
+          gdb_lock();
+        }
+        Int tgt_offset = tgt_desc.Offset + (row - tgt_desc.GIndex)*tgt_snode_size;
+
+        T * src = src_snode->GetNZval(src_offset);
+        T * tgt = GetNZval(tgt_offset);
+
+        //blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
+        #pragma omp simd
+        for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
+
+      }
+    }
+  }
+#endif
 
 
   return 0;
@@ -892,11 +935,11 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
     buf = &tmpBuffers.tmpBuf[0];
 
     //everything is in row-major
-    TIMER_START(UPDATE_SNODE_GEMM);
+    SYMPACK_TIMER_START(UPDATE_SNODE_GEMM);
     blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
         MINUS_ONE<T>(),pivot,src_snode_size,
         pivot,src_snode_size,beta,buf,tgt_width);
-    TIMER_STOP(UPDATE_SNODE_GEMM);
+    SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
 
     //If the GEMM wasn't done in place we need to aggregate the update
     //This is the assembly phase
@@ -905,7 +948,7 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
 #endif
 
     //now add the update to the target supernode
-    TIMER_START(UPDATE_SNODE_INDEX_MAP);
+    SYMPACK_TIMER_START(UPDATE_SNODE_INDEX_MAP);
     if(tgt_snode_size==1){
       Int rowidx = 0;
       Int src_blkcnt = src_snode->NZBlockCnt();
@@ -939,6 +982,7 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
       Int offset = 0;
 
       Int src_blkcnt = src_snode->NZBlockCnt();
+#if 0
       for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
         NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
         Int cur_src_nrows = src_snode->NRows(blkidx);
@@ -965,7 +1009,52 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
           row += (lr-row+1);
         }
       }
-      TIMER_STOP(UPDATE_SNODE_INDEX_MAP);
+#else
+
+  Int tgt_blkcnt = NZBlockCnt();
+  Int tgt_blkidx = 0;
+  NZBlockDesc tgt_desc = GetNZBlockDesc(tgt_blkidx);
+  Int tgt_nrows = NRows(tgt_blkidx);
+
+      for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
+        NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
+        Int cur_src_nrows = src_snode->NRows(blkidx);
+        Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
+        Int cur_src_fr = max(tgt_fc, cur_block_desc.GIndex);
+        cur_src_nrows = cur_src_lr - cur_src_fr +1;
+
+        Int row = cur_src_fr;
+        while(row<=cur_src_lr){
+
+
+        while(row>tgt_desc.GIndex + tgt_nrows-1){
+          tgt_blkidx++;
+          tgt_desc = GetNZBlockDesc(tgt_blkidx);
+          tgt_nrows = NRows(tgt_blkidx);
+          if(tgt_blkidx==tgt_blkcnt){
+            tgt_blkidx=-1;
+            break;
+          }
+        }
+
+          assert(tgt_blkidx>=0);
+          Int lr = min(cur_src_lr,tgt_desc.GIndex + tgt_nrows-1);
+          Int tgtOffset = tgt_desc.Offset 
+            + (row - tgt_desc.GIndex)*tgt_snode_size;
+          for(Int cr = row ;cr<=lr;++cr){
+            if(cr<=tgt_lc){
+              tmpBuffers.src_colindx[colidx++] = cr;
+            }
+            offset+=tgt_width;
+            tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
+            rowidx++;
+          }
+          row += (lr-row+1);
+        }
+      }
+
+#endif
+      SYMPACK_TIMER_STOP(UPDATE_SNODE_INDEX_MAP);
 
 
       //Multiple cases to consider
@@ -976,9 +1065,7 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
           T * A = &buf[rowidx*tgt_width];
           T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
           #pragma omp simd
-          for(Int i = 0; i < tgt_width; ++i){
-            B[i] += A[i];
-          }
+          for(Int i = 0; i < tgt_width; ++i){ B[i] += A[i]; }
 //          blas::Axpy(tgt_width,ONE<T>(),&buf[rowidx*tgt_width],1,
 //              &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset],1);
         }
@@ -1071,11 +1158,12 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
   }
 
   //everything is in row-major
-  TIMER_START(UPDATE_SNODE_GEMM);
+  SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
+logfileptr->OFS()<<"GEMM ("<<tgt_width<<"-by-"<<src_snode_size<<") x ("<<src_snode_size<<"-by-"<<src_nrows<<")"<<endl;
   blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
       MINUS_ONE<T>(),pivot,src_snode_size,
       pivot,src_snode_size,beta,buf,tgt_width);
-  TIMER_STOP(UPDATE_SNODE_GEMM);
+  SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_GEMM);
 
   //If the GEMM wasn't done in place we need to aggregate the update
   //This is the assembly phase
@@ -1085,7 +1173,7 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
 #endif
 
     //now add the update to the target supernode
-    TIMER_START(UPDATE_SNODE_INDEX_MAP);
+    SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_INDEX_MAP);
     if(tgt_snode_size==1){
       Int rowidx = 0;
       Int src_blkcnt = src_snode->NZBlockCnt();
@@ -1098,19 +1186,17 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
         Int row = cur_src_fr;
         while(row<=cur_src_lr){
           Int tgt_blk_idx = FindBlockIdx(row);
-          if(tgt_blk_idx<0){src_snode->DumpITree(); DumpITree(); 
-
-            logfileptr->OFS()<<"LOCK 3: tgt_blk_idx<0"<<endl;
-            gdb_lock();}
             assert(tgt_blk_idx>=0);
             NZBlockDesc & cur_tgt_desc = GetNZBlockDesc(tgt_blk_idx);
             Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + NRows(tgt_blk_idx)-1);
             Int tgtOffset = cur_tgt_desc.Offset 
               + (row - cur_tgt_desc.GIndex)*tgt_snode_size;
+      SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_ADD_SINGLE);
             for(Int cr = row ;cr<=lr;++cr){
               tgt[tgtOffset + (cr - row)*tgt_snode_size] += buf[rowidx]; 
               rowidx++;
             }
+      SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD_SINGLE);
             row += (lr-row+1);
         }
       }
@@ -1123,6 +1209,7 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
       Int offset = 0;
 
       Int src_blkcnt = src_snode->NZBlockCnt();
+#if 0
       for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
         NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
         Int cur_src_nrows = src_snode->NRows(blkidx);
@@ -1153,9 +1240,55 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
             row += (lr-row+1);
         }
       }
-      //Multiple cases to consider
-      TIMER_STOP(UPDATE_SNODE_INDEX_MAP);
+#else
 
+  Int tgt_blkcnt = NZBlockCnt();
+  Int tgt_blkidx = 0;
+  NZBlockDesc tgt_desc = GetNZBlockDesc(tgt_blkidx);
+  Int tgt_nrows = NRows(tgt_blkidx);
+
+      for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
+        NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
+        Int cur_src_nrows = src_snode->NRows(blkidx);
+        Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
+        Int cur_src_fr = max(tgt_fc, cur_block_desc.GIndex);
+        cur_src_nrows = cur_src_lr - cur_src_fr +1;
+
+        //The other one MUST reside into a single block in the target
+        Int row = cur_src_fr;
+        while(row<=cur_src_lr){
+
+        while(row>tgt_desc.GIndex + tgt_nrows-1){
+          tgt_blkidx++;
+          tgt_desc = GetNZBlockDesc(tgt_blkidx);
+          tgt_nrows = NRows(tgt_blkidx);
+          if(tgt_blkidx==tgt_blkcnt){
+            tgt_blkidx=-1;
+            break;
+          }
+        }
+
+
+            assert(tgt_blkidx>=0);
+            Int lr = min(cur_src_lr,tgt_desc.GIndex + tgt_nrows-1);
+            Int tgtOffset = tgt_desc.Offset 
+              + (row - tgt_desc.GIndex)*tgt_snode_size;
+            for(Int cr = row ;cr<=lr;++cr){
+              if(cr<=tgt_lc){
+                tmpBuffers.src_colindx[colidx++] = cr;
+              }
+              offset+=tgt_width;
+              tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
+              rowidx++;
+            }
+            row += (lr-row+1);
+        }
+      }
+#endif
+      //Multiple cases to consider
+      SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_INDEX_MAP);
+
+      SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_ADD);
       if(first_pivot_idx==last_pivot_idx){
         // Updating contiguous columns
         Int tgt_offset = (tgt_fc - FirstCol());
@@ -1181,6 +1314,7 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
           }
         }
       }
+      SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD);
     }
   }
   return 0;
@@ -1218,7 +1352,7 @@ template<typename T, class Allocator>
 
 template<typename T, class Allocator>
 bool SuperNode<T,Allocator>::FindNextUpdate(SnodeUpdate & nextUpdate, const SYMPACK::vector<Int> & Xsuper,  const SYMPACK::vector<Int> & SupMembership, bool isLocal){
-  scope_timer(a,FIND_NEXT_UPDATE);
+  scope_timer_special(a,FIND_NEXT_UPDATE);
   Int & tgt_snode_id = nextUpdate.tgt_snode_id;
   Int & f_ur = nextUpdate.src_first_row;
   Int & f_ub = nextUpdate.blkidx;
@@ -1317,16 +1451,16 @@ template<typename T, class Allocator>
 template<typename T, class Allocator>
 inline void SuperNode<T,Allocator>::InitIdxToBlk(){
 #ifndef ITREE
-  TIMER_START(ARRAY_INSERT);
+  SYMPACK_TIMER_START(ARRAY_INSERT);
   for(Int blkidx=0; blkidx<meta_->blocks_cnt_;++blkidx){
     Int cur_fr = GetNZBlockDesc(blkidx).GIndex;
     Int cur_lr = cur_fr + NRows(blkidx) -1;
 
     std::fill(&(*globalToLocal_)[cur_fr],&(*globalToLocal_)[cur_lr]+1,blkidx); 
   }
-  TIMER_STOP(ARRAY_INSERT);
+  SYMPACK_TIMER_STOP(ARRAY_INSERT);
 #else
-  TIMER_START(BST_INSERT);
+  SYMPACK_TIMER_START(BST_INSERT);
   for(Int blkidx=0; blkidx<meta_->blocks_cnt_;++blkidx){
     Int cur_fr = GetNZBlockDesc(blkidx).GIndex;
     Int cur_lr = cur_fr + NRows(blkidx) -1;
@@ -1334,7 +1468,7 @@ inline void SuperNode<T,Allocator>::InitIdxToBlk(){
     ITree::Interval cur_interv = { cur_fr, cur_lr, blkidx};
     idxToBlk_->Insert(cur_interv);
   }
-  TIMER_STOP(BST_INSERT);
+  SYMPACK_TIMER_STOP(BST_INSERT);
   idxToBlk_->Rebalance();
 #endif
 }

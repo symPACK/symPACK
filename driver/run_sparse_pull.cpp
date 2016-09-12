@@ -34,7 +34,7 @@ int main(int argc, char **argv)
   MPI_Init(&argc,&argv);
   upcxx::init(&argc, &argv);
 
-  NGCholOptions optionsFact;
+  symPACKOptions optionsFact;
 
   MPI_Comm worldcomm;
   MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
@@ -42,8 +42,8 @@ int main(int argc, char **argv)
   MPI_Comm_rank(worldcomm,&iam);
 
 
-#if defined(PROFILE) || defined(PMPI)
-  TAU_PROFILE_INIT(argc, argv);
+#if defined(SPROFILE) || defined(PMPI)
+  SYMPACK_SPROFILE_INIT(argc, argv);
 #endif
 
 
@@ -235,28 +235,27 @@ int main(int argc, char **argv)
 
       {
         //TODO HANDLE MULTIPLE RHS
-        SparseMatrixStructure Local = HMat.GetLocalStructure();
-        SparseMatrixStructure Global;
-        Local.ToGlobal(Global,workcomm);
-        Global.ExpandSymmetric();
 
-        Int numColFirst = std::max(1,n / np);
+      const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
+      Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
+      Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
 
         RHS.assign(n*nrhs,0.0);
         for(Int k = 0; k<nrhs; ++k){
-          for(Int j = 0; j<n; ++j){
-            Int iOwner = std::min(j/numColFirst,np-1);
-            if(iam == iOwner){
-              Int iLocal = (j-(numColFirst)*iOwner);
+          for(Idx j = 1; j<=n; ++j){
+            if(j>=firstCol && j<lastCol){
+              Idx iLocal = j-firstCol;//0-based
 
               //do I own the column ?
-              SCALAR t = XTrue[j+k*n];
+              SCALAR t = XTrue[j-1+k*n];
               //do a dense mat mat mul ?
-              for(Int ii = Local.colptr[iLocal]-1; ii< Local.colptr[iLocal+1]-1;++ii){
-                Int row = Local.rowind[ii]-1;
-                RHS[row+k*n] += t*HMat.nzvalLocal[ii];
+              Ptr colbeg = Local.colptr[iLocal]-(1-Local.GetBaseval());//1-based
+              Ptr colend = Local.colptr[iLocal+1]-(1-Local.GetBaseval());//1-based
+              for(Ptr ii = colbeg; ii< colend;++ii){
+                Idx row = Local.rowind[ii-1]-(1-Local.GetBaseval());//1-based
+                RHS[row-1+k*n] += t*HMat.nzvalLocal[ii-1];
                 if(row>j){
-                  RHS[j+k*n] += XTrue[row+k*n]*HMat.nzvalLocal[ii];
+                  RHS[j-1+k*n] += XTrue[row-1+k*n]*HMat.nzvalLocal[ii-1];
                 }
               }
             }
@@ -276,11 +275,12 @@ int main(int argc, char **argv)
       cout<<"Starting allocation"<<endl;
     }
 
-
+#ifdef EXPLICIT_PERMUTE
+    std::vector<Int> perm;
+#endif
     std::vector<SCALAR> XFinal;
     {
       //do the symbolic factorization and build supernodal matrix
-      optionsFact.maxSnode = maxSnode;
       optionsFact.maxIsend = maxIsend;
       optionsFact.maxIrecv = maxIrecv;
 
@@ -289,18 +289,26 @@ int main(int argc, char **argv)
       SupernodalMatrix<SCALAR>*  SMat;
 
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
-      try{
+#ifndef NOTRY
+      try
+#endif
+      {
         timeSta = get_time();
         SMat = new SupernodalMatrix<SCALAR>();
         SMat->team_ = workteam;
         SMat->Init(HMat,optionsFact);
         timeEnd = get_time();
+#ifdef EXPLICIT_PERMUTE
+        perm = SMat->GetOrdering().perm;
+#endif
       }
+#ifndef NOTRY
       catch(const std::bad_alloc& e){
         std::cout << "Allocation failed: " << e.what() << '\n';
         SMat = NULL;
         abort();
       }
+#endif
 
       if(iam==0){
         cout<<"Initialization time: "<<timeEnd-timeSta<<endl;
@@ -312,9 +320,9 @@ int main(int argc, char **argv)
         cout<<"Starting Factorization"<<endl;
       }
       timeSta = get_time();
-      TIMER_START(FACTORIZATION);
+      SYMPACK_TIMER_START(FACTORIZATION);
       SMat->Factorize();
-      TIMER_STOP(FACTORIZATION);
+      SYMPACK_TIMER_STOP(FACTORIZATION);
       timeEnd = get_time();
 
       if(iam==0){
@@ -323,6 +331,7 @@ int main(int argc, char **argv)
       logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
 
+//      SMat->DumpMatlab();
 
 //only for debug purpose
 #if 0
@@ -353,31 +362,41 @@ int main(int argc, char **argv)
 
         SMat->GetSolution(&XFinal[0],nrhs);
       }
-
       delete SMat;
 
     }
 
   if(nrhs>0 && XFinal.size()>0) {
-      SparseMatrixStructure Local = HMat.GetLocalStructure();
-
-      Int numColFirst = std::max(1,n / np);
+      const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
+      Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
+      Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
 
       std::vector<SCALAR> AX(n*nrhs,0.0);
 
       for(Int k = 0; k<nrhs; ++k){
         for(Int j = 1; j<=n; ++j){
-          Int iOwner = std::min((j-1)/numColFirst,np-1);
-          if(iam == iOwner){
-            Int iLocal = (j-(numColFirst)*iOwner);
-            //do I own the column ?
-            SCALAR t = XFinal[j-1+k*n];
+          //do I own the column ?
+          if(j>=firstCol && j<lastCol){
+            Int iLocal = j-firstCol;//0-based
+#ifdef EXPLICIT_PERMUTE
+            Int tgtCol = perm[j-1];
+#else
+            Int tgtCol = j;
+#endif
+            SCALAR t = XFinal[tgtCol-1+k*n];
+            Ptr colbeg = Local.colptr[iLocal]-(1-Local.GetBaseval());//1-based
+            Ptr colend = Local.colptr[iLocal+1]-(1-Local.GetBaseval());//1-based
             //do a dense mat mat mul ?
-            for(Int ii = Local.colptr[iLocal-1]; ii< Local.colptr[iLocal];++ii){
-              Int row = Local.rowind[ii-1];
-              AX[row-1+k*n] += t*HMat.nzvalLocal[ii-1];
+            for(Ptr ii = colbeg; ii< colend;++ii){
+              Int row = Local.rowind[ii-1]-(1-Local.GetBaseval());
+#ifdef EXPLICIT_PERMUTE
+              Int tgtRow = perm[row-1];
+#else
+              Int tgtRow = row;
+#endif
+              AX[tgtRow-1+k*n] += t*HMat.nzvalLocal[ii-1];
               if(row>j){
-                AX[j-1+k*n] += XFinal[row-1+k*n]*HMat.nzvalLocal[ii-1];
+                AX[tgtCol-1+k*n] += XFinal[tgtRow-1+k*n]*HMat.nzvalLocal[ii-1];
               }
             }
           }

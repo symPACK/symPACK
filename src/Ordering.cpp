@@ -1,5 +1,5 @@
 #include "sympack/Ordering.hpp"
-#include "sympack/mmd.hpp"
+//#include "sympack/mmd.hpp"
 #include "sympack/utility.hpp"
 
 #include <limits>
@@ -23,54 +23,74 @@
 /* define pour l'affichage */
 #define SCOTCH_STRAT_DIRECT                                             \
   "c{rat=0.7,"                                                          \
-  """cpr=n{sep=/(vert>120)?m{rat=0.8,"                                  \
-  ""                        "vert=100,"                                 \
-  ""                        "low=h{pass=10},"                           \
-  ""                        "asc=f{bal=0.2}}|"                          \
-  ""                      "m{rat=0.8,"                                  \
-  ""                        "vert=100,"                                 \
-  ""                        "low=h{pass=10},"                           \
-  ""                        "asc=f{bal=0.2}};,"                         \
-  ""      "ole=f{cmin=0,cmax=100000,frat=0.0},"                       \
-  ""      "ose=g},"                                                     \
-  """unc=n{sep=/(vert>120)?(m{rat=0.8,"                                 \
-  ""                         "vert=100,"                                \
-  ""                         "low=h{pass=10},"                          \
-  ""                         "asc=f{bal=0.2}})|"                        \
-  ""                        "m{rat=0.8,"                                \
-  ""                          "vert=100,"                               \
-  ""                          "low=h{pass=10},"                         \
-  ""                          "asc=f{bal=0.2}};,"                       \
-  ""      "ole=f{cmin=15,cmax=100000,frat=0.08},"                       \
-  ""      "ose=g}}"
+"""cpr=n{sep=/(vert>120)?m{rat=0.8,"                                  \
+""                        "vert=100,"                                 \
+""                        "low=h{pass=10},"                           \
+""                        "asc=f{bal=0.2}}|"                          \
+""                      "m{rat=0.8,"                                  \
+""                        "vert=100,"                                 \
+""                        "low=h{pass=10},"                           \
+""                        "asc=f{bal=0.2}};,"                         \
+""      "ole=f{cmin=0,cmax=100000,frat=0.0},"                       \
+""      "ose=g},"                                                     \
+"""unc=n{sep=/(vert>120)?(m{rat=0.8,"                                 \
+""                         "vert=100,"                                \
+""                         "low=h{pass=10},"                          \
+""                         "asc=f{bal=0.2}})|"                        \
+""                        "m{rat=0.8,"                                \
+""                          "vert=100,"                               \
+""                          "low=h{pass=10},"                         \
+""                          "asc=f{bal=0.2}};,"                       \
+""      "ole=f{cmin=15,cmax=100000,frat=0.08},"                       \
+""      "ose=g}}"
 
 #define PTSCOTCH_STRAT_DIRECT                                           \
   "c{rat=0.7,"                                                          \
-  """cpr=n{sep=/(vert>120)?m{rat=0.8,"                                 \
-  ""                        "vert=100,"                                \
-  ""                        "low=h{pass=10},"                          \
-  ""                        "asc=f{bal=0.2}}|"                         \
-  ""                      "m{rat=0.8,"                                 \
-  ""                        "vert=100,"                                \
-  ""                        "low=h{pass=10},"                          \
-  ""                        "asc=f{bal=0.2}};,"                        \
-  ""      "ole=f{cmin=0,cmax=100000,frat=0.0},"                         \
-  ""      "ose=g},"                                                     \
-  """unc=n{sep=/(vert>120)?(m{type=h,"                                  \
-  ""                         "rat=0.8,"                                 \
-  ""                         "vert=100000,"                             \
-  ""                         "low=h{pass=10},"                          \
-  ""                         "asc=f{bal=08.2}})|"                       \
-  ""                       "m{type=h,"                                  \
-  ""                         "rat=0.8,"                                 \
-  ""                         "vert=100,"                                \
-  ""                         "low=h{pass=10},"                          \
-  ""                         "asc=f{bal=0.2}};,"                        \
-  ""      "ole=f{cmin=15,cmax=100000,frat=0.08},"                       \
-  ""      "ose=g}}"
+"""cpr=n{sep=/(vert>120)?m{rat=0.8,"                                 \
+""                        "vert=100,"                                \
+""                        "low=h{pass=10},"                          \
+""                        "asc=f{bal=0.2}}|"                         \
+""                      "m{rat=0.8,"                                 \
+""                        "vert=100,"                                \
+""                        "low=h{pass=10},"                          \
+""                        "asc=f{bal=0.2}};,"                        \
+""      "ole=f{cmin=0,cmax=100000,frat=0.0},"                         \
+""      "ose=g},"                                                     \
+"""unc=n{sep=/(vert>120)?(m{type=h,"                                  \
+""                         "rat=0.8,"                                 \
+""                         "vert=100000,"                             \
+""                         "low=h{pass=10},"                          \
+""                         "asc=f{bal=08.2}})|"                       \
+""                       "m{type=h,"                                  \
+""                         "rat=0.8,"                                 \
+""                         "vert=100,"                                \
+""                         "low=h{pass=10},"                          \
+""                         "asc=f{bal=0.2}};,"                        \
+""      "ole=f{cmin=15,cmax=100000,frat=0.08},"                       \
+""      "ose=g}}"
+
+
+
 
 
 namespace SYMPACK {
+
+  extern "C" {
+    void FORTRAN(ordmmd)( MMDInt * neqns , MMDInt * nadj  , MMDInt * xadj  ,
+        MMDInt * adjncy, MMDInt * invp  , MMDInt * perm  , MMDInt * iwsiz ,
+        MMDInt * iwork , MMDInt * nofsub, MMDInt * iflag);
+  }
+
+
+  extern "C" {
+    void FORTRAN(amdbar) (AMDInt * N, AMDInt * PE, AMDInt * IW, AMDInt * LEN, AMDInt * IWLEN, AMDInt * PFREE, AMDInt * NV, AMDInt * NEXT, AMDInt *
+        LAST, AMDInt * HEAD, AMDInt * ELEN, AMDInt * DEGREE, AMDInt * NCMPA, AMDInt * W, AMDInt * IOVFLO);
+  }
+
+  extern "C" {
+    void FORTRAN(boxnd) (Int * P, Int * Q, Int * R, Int * IPERM, Int * WORK,Int * WORKSZ, Int * IERROR);
+    void FORTRAN(gridnd) (Int * P, Int * Q, Int * IPERM, Int * WORK,Int * WORKSZ, Int * IERROR);
+  }
 
   extern "C" {
     int METIS_NodeND (int * N     , int* XADJ2 , int* ADJ2  , int * VWGT, int* OPTION, int* dback , int* dforw);
@@ -337,7 +357,7 @@ namespace SYMPACK{
       AMDInt PFREE = pcolptr[N-1] + NVTXS[N-1];
 
 
-      FORTRAN(amdbar)( &N , pcolptr , prowind , &NVTXS[0] ,&IWLEN ,&PFREE ,  &QSIZE[0],&ECFORW[0] , &perm[0], &iwork[0], AMDInvp,&VTXDEG[0], &NCMPA , &MARKER[0] , &IOVFLO );
+      FORTRAN(amdbar)( &N , pcolptr , prowind , &NVTXS[0] ,&IWLEN ,&PFREE ,  &QSIZE[0],&ECFORW[0] , AMDperm, &iwork[0], AMDInvp,&VTXDEG[0], &NCMPA , &MARKER[0] , &IOVFLO );
 
       assert(iflag == 0);
 
@@ -358,10 +378,10 @@ namespace SYMPACK{
       }
 
       delete [] prowind;
-    MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
     }
     else{
-    MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
       invp.resize(N);
     }
     // broadcast invp
@@ -522,7 +542,7 @@ namespace SYMPACK{
         vtxdist[i] = (idx_t)g.vertexDist[i];
       }
 
-//      logfileptr->OFS()<<vtxdist<<endl;
+      //      logfileptr->OFS()<<vtxdist<<endl;
 
       idx_t * iperm = NULL;
       if(typeid(idx_t) != typeid(Int)){
@@ -614,8 +634,8 @@ namespace SYMPACK{
       perm[node-1] = i;
     }
 
-//    logfileptr->OFS()<<perm<<endl;
-//    logfileptr->OFS()<<invp<<endl;
+    //    logfileptr->OFS()<<perm<<endl;
+    //    logfileptr->OFS()<<invp<<endl;
 
 
   }
@@ -626,133 +646,133 @@ namespace SYMPACK{
 #endif
 
 #ifdef USE_SCOTCH
-        void Ordering::SCOTCH(const SparseMatrixGraph & g){
-          logfileptr->OFS()<<"SCOTCH used"<<endl;
-          if(iam==0){cout<<"SCOTCH used"<<endl;}
+  void Ordering::SCOTCH(const SparseMatrixGraph & g){
+    logfileptr->OFS()<<"SCOTCH used"<<endl;
+    if(iam==0){cout<<"SCOTCH used"<<endl;}
 
-          if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
-            throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call SCOTCH\n" );
-          }
-
-
-          SCOTCH_Num baseval = g.baseval;
-          SCOTCH_Num N = g.size; 
-
-          bool isSameInt = typeid(SCOTCH_Num) == typeid(Int);
-          bool isSameIdx = typeid(SCOTCH_Num) == typeid(Idx);
-          bool isSamePtr = typeid(SCOTCH_Num) == typeid(Ptr);
+    if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
+      throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call SCOTCH\n" );
+    }
 
 
+    SCOTCH_Num baseval = g.baseval;
+    SCOTCH_Num N = g.size; 
 
-          if(iam==0){
-            invp.resize(N);
-            SCOTCH_Num * permtab;      
-            if(!isSameInt){
-              permtab = new SCOTCH_Num[N];
-            }
-            else{
-              permtab = (SCOTCH_Num*)&invp[0];
-            }
-
-            SCOTCH_Num * prowind = NULL;
-            if(!isSameIdx){
-              prowind = new SCOTCH_Num[g.EdgeCount()];
-              for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (SCOTCH_Num)g.rowind[i];}
-            }
-            else{
-              prowind = (SCOTCH_Num*)&g.rowind[0];
-            }
-
-            SCOTCH_Num * pcolptr = NULL;
-            if(!isSamePtr){
-              pcolptr = new SCOTCH_Num[g.VertexCount()+1];
-              for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (SCOTCH_Num)g.colptr[i];}
-            }
-            else{
-              pcolptr = (SCOTCH_Num*)&g.colptr[0];
-            }
+    bool isSameInt = typeid(SCOTCH_Num) == typeid(Int);
+    bool isSameIdx = typeid(SCOTCH_Num) == typeid(Idx);
+    bool isSamePtr = typeid(SCOTCH_Num) == typeid(Ptr);
 
 
-            SCOTCH_Num nnz = g.EdgeCount();
-            SCOTCH_Num baseval = g.baseval;
-            {
-              SCOTCH_Graph        grafdat;                    /* Scotch graph object to interface with libScotch    */
-              SCOTCH_Ordering     ordedat;                    /* Scotch ordering object to interface with libScotch */
-              SCOTCH_Strat        stradat;
 
-              SCOTCH_graphInit (&grafdat);
+    if(iam==0){
+      invp.resize(N);
+      SCOTCH_Num * permtab;      
+      if(!isSameInt){
+        permtab = new SCOTCH_Num[N];
+      }
+      else{
+        permtab = (SCOTCH_Num*)&invp[0];
+      }
 
-              if (SCOTCH_graphBuild (
-                    &grafdat,
-                    baseval, 
-                    N, 
-                    pcolptr, 
-                    NULL, 
-                    NULL,
-                    NULL,
-                    nnz, 
-                    prowind, 
-                    NULL) == 0) {
+      SCOTCH_Num * prowind = NULL;
+      if(!isSameIdx){
+        prowind = new SCOTCH_Num[g.EdgeCount()];
+        for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (SCOTCH_Num)g.rowind[i];}
+      }
+      else{
+        prowind = (SCOTCH_Num*)&g.rowind[0];
+      }
 
-                SCOTCH_stratInit (&stradat);
+      SCOTCH_Num * pcolptr = NULL;
+      if(!isSamePtr){
+        pcolptr = new SCOTCH_Num[g.VertexCount()+1];
+        for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (SCOTCH_Num)g.colptr[i];}
+      }
+      else{
+        pcolptr = (SCOTCH_Num*)&g.colptr[0];
+      }
 
-                char strat [550];
-                sprintf(strat, SCOTCH_STRAT_DIRECT);
-                SCOTCH_stratGraphOrder (&stradat, strat);
+
+      SCOTCH_Num nnz = g.EdgeCount();
+      SCOTCH_Num baseval = g.baseval;
+      {
+        SCOTCH_Graph        grafdat;                    /* Scotch graph object to interface with libScotch    */
+        SCOTCH_Ordering     ordedat;                    /* Scotch ordering object to interface with libScotch */
+        SCOTCH_Strat        stradat;
+
+        SCOTCH_graphInit (&grafdat);
+
+        if (SCOTCH_graphBuild (
+              &grafdat,
+              baseval, 
+              N, 
+              pcolptr, 
+              NULL, 
+              NULL,
+              NULL,
+              nnz, 
+              prowind, 
+              NULL) == 0) {
+
+          SCOTCH_stratInit (&stradat);
+
+          char strat [550];
+          sprintf(strat, SCOTCH_STRAT_DIRECT);
+          SCOTCH_stratGraphOrder (&stradat, strat);
 
 #ifdef SCOTCH_DEBUG_ALL
-                if (SCOTCH_graphCheck (&grafdat) == 0)        /* TRICK: next instruction called only if graph is consistent */
+          if (SCOTCH_graphCheck (&grafdat) == 0)        /* TRICK: next instruction called only if graph is consistent */
 #endif /* SCOTCH_DEBUG_ALL */
-                {
-                  if (SCOTCH_graphOrderInit (
-                        &grafdat,
-                        &ordedat,
-                        permtab,
-                        NULL,
-                        /*nb de supernoeud*/NULL,
-                        /*ptr vers rank tab : xsuper*/ NULL,
-                        /*tree tab: parent structure*/ NULL) == 0) {
-                    SCOTCH_graphOrderCompute (&grafdat, &ordedat, &stradat);
-                    SCOTCH_graphOrderExit    (&grafdat, &ordedat);
-                  }
-                }
-                SCOTCH_stratExit (&stradat);
-              }
-              SCOTCH_graphExit (&grafdat);
-
-              if(!isSameInt ||g.baseval!=1){ 
-                //switch everything to 1 based
-                for(int col=0; col<N;++col){ invp[col] = permtab[col]+(1-baseval);}
-              }
-
-              if(!isSameInt){ 
-                delete [] permtab;
-              }
-
-              if(!isSamePtr){
-                delete [] pcolptr;
-              }
-
-              if(!isSameIdx){
-                delete [] prowind;
-              }
+          {
+            if (SCOTCH_graphOrderInit (
+                  &grafdat,
+                  &ordedat,
+                  permtab,
+                  NULL,
+                  /*nb de supernoeud*/NULL,
+                  /*ptr vers rank tab : xsuper*/ NULL,
+                  /*tree tab: parent structure*/ NULL) == 0) {
+              SCOTCH_graphOrderCompute (&grafdat, &ordedat, &stradat);
+              SCOTCH_graphOrderExit    (&grafdat, &ordedat);
             }
-            MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,CommEnv_->MPI_GetComm());
           }
-          else{
-            MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,CommEnv_->MPI_GetComm());
-            invp.resize(N);
-          }
-          // broadcast invp
-          MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
-          perm.resize(N);
-          for(Int i = 1; i <=N; ++i){
-            Int node = invp[i-1];
-            perm[node-1] = i;
-          }
-
-
+          SCOTCH_stratExit (&stradat);
         }
+        SCOTCH_graphExit (&grafdat);
+
+        if(!isSameInt ||g.baseval!=1){ 
+          //switch everything to 1 based
+          for(int col=0; col<N;++col){ invp[col] = permtab[col]+(1-baseval);}
+        }
+
+        if(!isSameInt){ 
+          delete [] permtab;
+        }
+
+        if(!isSamePtr){
+          delete [] pcolptr;
+        }
+
+        if(!isSameIdx){
+          delete [] prowind;
+        }
+      }
+      MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    }
+    else{
+      MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      invp.resize(N);
+    }
+    // broadcast invp
+    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    perm.resize(N);
+    for(Int i = 1; i <=N; ++i){
+      Int node = invp[i-1];
+      perm[node-1] = i;
+    }
+
+
+  }
 
 
 
@@ -765,228 +785,229 @@ namespace SYMPACK{
 
 
 #ifdef USE_PTSCOTCH
-        void Ordering::PTSCOTCH(const DistSparseMatrixGraph & g){
+  void Ordering::PTSCOTCH(const DistSparseMatrixGraph & g){
 
-          logfileptr->OFS()<<"PTSCOTCH used"<<endl;
-          if(iam==0){cout<<"PTSCOTCH used"<<endl;}
+    logfileptr->OFS()<<"PTSCOTCH used"<<endl;
+    if(iam==0){cout<<"PTSCOTCH used"<<endl;}
 
-          if(!g.IsExpanded() || g.keepDiag==1){
-            throw std::logic_error( "DistSparseMatrixGraph must be expanded and not including the diagonal in order to call PTSCOTCH\n" );
-          }
-
-
-          SCOTCH_Num baseval = g.baseval;
-          SCOTCH_Num N = g.size; 
-          invp.resize(N);
-
-          int mpirank;
-
-          //      SCOTCH_Num ndomains = (SCOTCH_Num)pow(2.0,std::floor(std::log2(np)));
-          //      //make sure every one have an element
-          //      while(((double)N/(double)ndomains)<1.0){ndomains /= 2;}
-          //      MPI_Comm ndcomm;
-          //      int color = iam < ndomains;
-          //      MPI_Comm_split(g.comm,color,iam,&ndcomm);
+    if(!g.IsExpanded() || g.keepDiag==1){
+      throw std::logic_error( "DistSparseMatrixGraph must be expanded and not including the diagonal in order to call PTSCOTCH\n" );
+    }
 
 
-          SCOTCH_Num ndomains = np;
-          MPI_Comm ndcomm;
-          MPI_Comm_dup(g.comm,&ndcomm);
-          //      while(((double)N/(double)ndomains)<1.0){ndomains--;}
+    SCOTCH_Num baseval = g.baseval;
+    SCOTCH_Num N = g.size; 
+    invp.resize(N);
 
-          MPI_Comm_rank(ndcomm,&mpirank);
-          SYMPACK::vector<SCOTCH_Num> vtxdist;
-          SCOTCH_Num localN;
-          if(iam<ndomains){
-            assert(mpirank==iam);
-            //vtxdist.resize(ndomains+1);
+    int mpirank;
 
-            //localN = g.LocalVertexCount();
-            ////build vtxdist SYMPACK::vector
-            //for(SCOTCH_Num i = 0; i<ndomains;++i){
-            // vtxdist[i] = i*(N/ndomains)+baseval; 
-            //} 
-            //vtxdist[ndomains] = N+baseval;
-
-            vtxdist.resize(g.vertexDist.size());
-            for(int i = 0 ; i < g.vertexDist.size(); i++){
-              vtxdist[i] = (SCOTCH_Num)g.vertexDist[i];
-            }
+    //      SCOTCH_Num ndomains = (SCOTCH_Num)pow(2.0,std::floor(std::log2(np)));
+    //      //make sure every one have an element
+    //      while(((double)N/(double)ndomains)<1.0){ndomains /= 2;}
+    //      MPI_Comm ndcomm;
+    //      int color = iam < ndomains;
+    //      MPI_Comm_split(g.comm,color,iam,&ndcomm);
 
 
-//            logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
+    SCOTCH_Num ndomains = np;
+    MPI_Comm ndcomm;
+    MPI_Comm_dup(g.comm,&ndcomm);
+    //      while(((double)N/(double)ndomains)<1.0){ndomains--;}
 
-            //        if(iam==ndomains-1){
-            //          localN = N - (ndomains-1)*localN;
-            //        }
+    MPI_Comm_rank(ndcomm,&mpirank);
+    SYMPACK::vector<SCOTCH_Num> vtxdist;
+    SCOTCH_Num localN;
+    if(iam<ndomains){
+      assert(mpirank==iam);
+      //vtxdist.resize(ndomains+1);
+
+      //localN = g.LocalVertexCount();
+      ////build vtxdist SYMPACK::vector
+      //for(SCOTCH_Num i = 0; i<ndomains;++i){
+      // vtxdist[i] = i*(N/ndomains)+baseval; 
+      //} 
+      //vtxdist[ndomains] = N+baseval;
+
+      vtxdist.resize(g.vertexDist.size());
+      for(int i = 0 ; i < g.vertexDist.size(); i++){
+        vtxdist[i] = (SCOTCH_Num)g.vertexDist[i];
+      }
 
 
-            SCOTCH_Num * prowind = NULL;
-            if(typeid(SCOTCH_Num) != typeid(Idx)){
-              prowind = new SCOTCH_Num[g.LocalEdgeCount()];
-              for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (SCOTCH_Num)g.rowind[i];}
-            }
-            else{
-              prowind = (SCOTCH_Num*)&g.rowind[0];
-            }
+      //            logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
 
-            SCOTCH_Num * pcolptr = NULL;
-            if(typeid(SCOTCH_Num) != typeid(Ptr)){
-              pcolptr = new SCOTCH_Num[g.LocalVertexCount()+1];
-              for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (SCOTCH_Num)g.colptr[i];}
-            }
-            else{
-              pcolptr = (SCOTCH_Num*)&g.colptr[0];
-            }
+      //        if(iam==ndomains-1){
+      //          localN = N - (ndomains-1)*localN;
+      //        }
 
 
-            SCOTCH_Num options[3];
-            options[0] = 0;
-            SCOTCH_Num numflag = baseval;
+      SCOTCH_Num * prowind = NULL;
+      if(typeid(SCOTCH_Num) != typeid(Idx)){
+        prowind = new SCOTCH_Num[g.LocalEdgeCount()];
+        for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (SCOTCH_Num)g.rowind[i];}
+      }
+      else{
+        prowind = (SCOTCH_Num*)&g.rowind[0];
+      }
 
-            int npnd;
-            MPI_Comm_size (ndcomm, &npnd);
+      SCOTCH_Num * pcolptr = NULL;
+      if(typeid(SCOTCH_Num) != typeid(Ptr)){
+        pcolptr = new SCOTCH_Num[g.LocalVertexCount()+1];
+        for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (SCOTCH_Num)g.colptr[i];}
+      }
+      else{
+        pcolptr = (SCOTCH_Num*)&g.colptr[0];
+      }
 
-            SCOTCH_Dgraph       grafdat;                    /* Scotch distributed graph object to SCOTCH_Numerface with libScotch    */
-            SCOTCH_Dordering    ordedat;                    /* Scotch distributed ordering object to SCOTCH_Numerface with libScotch */
-            SCOTCH_Strat        stradat;
-            SCOTCH_Num          vertlocnbr;
-            SCOTCH_Num          edgelocnbr;
 
-            vertlocnbr = g.LocalVertexCount();
-            edgelocnbr = g.LocalEdgeCount();
+      SCOTCH_Num options[3];
+      options[0] = 0;
+      SCOTCH_Num numflag = baseval;
 
-            if(SCOTCH_dgraphInit (&grafdat, ndcomm) != 0){
-              throw std::logic_error( "Error in SCOTCH_dgraphInit\n" );
-            }
+      int npnd;
+      MPI_Comm_size (ndcomm, &npnd);
 
-            if (SCOTCH_dgraphBuild (&grafdat, 
-                  baseval,
-                  vertlocnbr, 
-                  vertlocnbr, 
-                  pcolptr, 
-                  NULL,
-                  NULL, 
-                  NULL,
-                  edgelocnbr,
-                  edgelocnbr,
-                  prowind, 
-                  NULL,
-                  NULL
-                  ) != 0) {
-              throw std::logic_error( "Error in SCOTCH_dgraphBuild\n" );
-            }
+      SCOTCH_Dgraph       grafdat;                    /* Scotch distributed graph object to SCOTCH_Numerface with libScotch    */
+      SCOTCH_Dordering    ordedat;                    /* Scotch distributed ordering object to SCOTCH_Numerface with libScotch */
+      SCOTCH_Strat        stradat;
+      SCOTCH_Num          vertlocnbr;
+      SCOTCH_Num          edgelocnbr;
+
+      vertlocnbr = g.LocalVertexCount();
+      edgelocnbr = g.LocalEdgeCount();
+
+      if(SCOTCH_dgraphInit (&grafdat, ndcomm) != 0){
+        throw std::logic_error( "Error in SCOTCH_dgraphInit\n" );
+      }
+
+      if (SCOTCH_dgraphBuild (&grafdat, 
+            baseval,
+            vertlocnbr, 
+            vertlocnbr, 
+            pcolptr, 
+            NULL,
+            NULL, 
+            NULL,
+            edgelocnbr,
+            edgelocnbr,
+            prowind, 
+            NULL,
+            NULL
+            ) != 0) {
+        throw std::logic_error( "Error in SCOTCH_dgraphBuild\n" );
+      }
 
 #ifdef _DEBUG_
-            if(SCOTCH_dgraphCheck (&grafdat) != 0){
-              throw std::logic_error( "Error in SCOTCH_dgraphCheck\n" );
-            }
+      if(SCOTCH_dgraphCheck (&grafdat) != 0){
+        throw std::logic_error( "Error in SCOTCH_dgraphCheck\n" );
+      }
 #endif
 
-            if(SCOTCH_stratInit (&stradat)!= 0){
-              throw std::logic_error( "Error in SCOTCH_stratInit\n" );
-            }
+      if(SCOTCH_stratInit (&stradat)!= 0){
+        throw std::logic_error( "Error in SCOTCH_stratInit\n" );
+      }
 
-            //char strat [550];
-            //sprintf(strat, PTSCOTCH_STRAT_DIRECT);
-            //if (SCOTCH_stratDgraphOrder(&stradat, strat)){ 
-            //  throw std::logic_error( "Error in SCOTCH_stratDgraphOrder\n" );
-            //} 
+      //char strat [550];
+      //sprintf(strat, PTSCOTCH_STRAT_DIRECT);
+      //if (SCOTCH_stratDgraphOrder(&stradat, strat)){ 
+      //  throw std::logic_error( "Error in SCOTCH_stratDgraphOrder\n" );
+      //} 
 
-            if (SCOTCH_dgraphOrderInit (&grafdat, &ordedat) != 0) {
-              throw std::logic_error( "Error in SCOTCH_dgraphOrderInit\n" );
-            }
+      if (SCOTCH_dgraphOrderInit (&grafdat, &ordedat) != 0) {
+        throw std::logic_error( "Error in SCOTCH_dgraphOrderInit\n" );
+      }
 
-            if(SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat)!=0){
-              throw std::logic_error( "Error in SCOTCH_dgraphOrderCompute\n" );
-            }
-
-
+      if(SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat)!=0){
+        throw std::logic_error( "Error in SCOTCH_dgraphOrderCompute\n" );
+      }
 
 
-            SYMPACK::vector<SCOTCH_Num> sc_permtab(N);
-            SYMPACK::vector<SCOTCH_Num> sc_peritab(N);
-            SCOTCH_stratExit (&stradat);
-            SCOTCH_Ordering  ordering;
-
-            SCOTCH_dgraphCorderInit (&grafdat,
-                &ordering,
-                &sc_permtab[0],
-                &sc_peritab[0],
-                NULL,
-                NULL,
-                NULL
-                );
 
 
-            //if (iam == 0) {
-              SCOTCH_dgraphOrderGather (&grafdat, &ordedat, (iam==0?&ordering:NULL));
-            //}
-            //else {     
-            //  SCOTCH_dgraphOrderGather (&grafdat, &ordedat, NULL);
-            //}
+      SYMPACK::vector<SCOTCH_Num> sc_permtab(N);
+      SYMPACK::vector<SCOTCH_Num> sc_peritab(N);
+      SCOTCH_stratExit (&stradat);
+      SCOTCH_Ordering  ordering;
+
+      SCOTCH_dgraphCorderInit (&grafdat,
+          &ordering,
+          &sc_permtab[0],
+          &sc_peritab[0],
+          NULL,
+          NULL,
+          NULL
+          );
 
 
-//            logfileptr->OFS()<<"permtab: "<<sc_permtab<<endl;
-//            logfileptr->OFS()<<"peritab: "<<sc_peritab<<endl;
+      //if (iam == 0) {
+      SCOTCH_dgraphOrderGather (&grafdat, &ordedat, (iam==0?&ordering:NULL));
+      //}
+      //else {     
+      //  SCOTCH_dgraphOrderGather (&grafdat, &ordedat, NULL);
+      //}
 
 
-            SCOTCH_dgraphCorderExit( &grafdat, &ordering );
-            SCOTCH_dgraphOrderExit (&grafdat, &ordedat);
-            SCOTCH_dgraphExit (&grafdat);
+      //            logfileptr->OFS()<<"permtab: "<<sc_permtab<<endl;
+      //            logfileptr->OFS()<<"peritab: "<<sc_peritab<<endl;
 
 
-            if(iam==0){
-              //switch everything to 1 based
-              for(int col=0; col<N;++col){ invp[col] = sc_permtab[col] + (1-baseval);}
-            }
+      SCOTCH_dgraphCorderExit( &grafdat, &ordering );
+      SCOTCH_dgraphOrderExit (&grafdat, &ordedat);
+      SCOTCH_dgraphExit (&grafdat);
 
 
-            if(typeid(SCOTCH_Num) != typeid(Ptr)){
-              delete [] pcolptr;
-            }
-
-            if(typeid(SCOTCH_Num) != typeid(Idx)){
-              delete [] prowind;
-            }
-
-          }
-
-          MPI_Comm_free(&ndcomm);
-          vtxdist.clear();
-
-          // broadcast invp
-          MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
-          //recompute perm
-          perm.resize(N);
-          for(Int i = 1; i <=N; ++i){
-            Int node = invp[i-1];
-            perm[node-1] = i;
-          }
-
-//          logfileptr->OFS()<<perm<<endl;
-//          logfileptr->OFS()<<invp<<endl;
+      if(iam==0){
+        //switch everything to 1 based
+        for(int col=0; col<N;++col){ invp[col] = sc_permtab[col] + (1-baseval);}
+      }
 
 
-        }
+      if(typeid(SCOTCH_Num) != typeid(Ptr)){
+        delete [] pcolptr;
+      }
+
+      if(typeid(SCOTCH_Num) != typeid(Idx)){
+        delete [] prowind;
+      }
+
+    }
+
+    MPI_Comm_free(&ndcomm);
+    vtxdist.clear();
+
+    // broadcast invp
+    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    //recompute perm
+    perm.resize(N);
+    for(Int i = 1; i <=N; ++i){
+      Int node = invp[i-1];
+      perm[node-1] = i;
+    }
+
+    //          logfileptr->OFS()<<perm<<endl;
+    //          logfileptr->OFS()<<invp<<endl;
+
+
+  }
 
 #endif
 
 
-        void Ordering::SetCommEnvironment(CommEnvironment * CommEnv){
-          CommEnv_=CommEnv;
-        }
+  void Ordering::SetCommEnvironment(CommEnvironment * CommEnv){
+    CommEnv_=CommEnv;
+  }
 
-        void Ordering::Compose(SYMPACK::vector<Int> & invp2){
-          //Compose the two permutations
-          for(Int i = 1; i <= invp.size(); ++i){
-            Int interm = invp[i-1];
-            invp[i-1] = invp2[interm-1];
-          }
-          for(Int i = 1; i <= invp.size(); ++i){
-            Int node = invp[i-1];
-            perm[node-1] = i;
-          }
-        }
+  void Ordering::Compose(SYMPACK::vector<Int> & invp2){
+    //Compose the two permutations
+    for(Int i = 1; i <= invp.size(); ++i){
+      Int interm = invp[i-1];
+      invp[i-1] = invp2[interm-1];
+    }
+    for(Int i = 1; i <= invp.size(); ++i){
+      Int node = invp[i-1];
+      perm[node-1] = i;
+    }
+  }
 
-        }
+
+}

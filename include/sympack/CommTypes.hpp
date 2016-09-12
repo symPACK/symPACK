@@ -14,9 +14,9 @@
 //#include "sympack/debug.hpp"
 
 #ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a) 
-#define TIMER_STOP(a) 
+#if defined (SPROFILE)
+#define SYMPACK_TIMER_START(a) 
+#define SYMPACK_TIMER_STOP(a) 
 #endif
 #endif
 
@@ -263,8 +263,8 @@ namespace SYMPACK{
     DelayedComm(void * a_src_data, Int a_tgt_snode_id, Int a_src_nzblk_idx, Int a_src_first_row, Int a_target, Int a_tag, Int a_count=0):src_data(a_src_data),tgt_snode_id(a_tgt_snode_id),src_first_row(a_src_first_row),src_nzblk_idx(a_src_nzblk_idx),target(a_target),tag(a_tag),count(a_count){};
   };
 
-  struct Icomm{
-
+  class Icomm{
+    public:
 
 #ifdef PREALLOC_IRECV
     list<Icomm*>::iterator bufferPos_;
@@ -282,24 +282,24 @@ namespace SYMPACK{
     MPI_Request Request;
     Icomm(){
       Request = MPI_REQUEST_NULL;
-      TIMER_START(ICOMM_MALLOC);
+      SYMPACK_TIMER_START(ICOMM_MALLOC);
       pSrcBlocks = new SYMPACK::vector<char>();
-      TIMER_STOP(ICOMM_MALLOC);
+      SYMPACK_TIMER_STOP(ICOMM_MALLOC);
       head = 0;
     };
 
     Icomm(size_t aSize, MPI_Request aRequest):Request(aRequest){
-      TIMER_START(ICOMM_MALLOC);
+      SYMPACK_TIMER_START(ICOMM_MALLOC);
       pSrcBlocks = new SYMPACK::vector<char>(aSize);
-      TIMER_STOP(ICOMM_MALLOC);
+      SYMPACK_TIMER_STOP(ICOMM_MALLOC);
       head = 0;
     };
 
     Icomm(size_t aSize){
       Request = MPI_REQUEST_NULL;
-      TIMER_START(ICOMM_MALLOC);
+      SYMPACK_TIMER_START(ICOMM_MALLOC);
       pSrcBlocks = new SYMPACK::vector<char>(aSize);
-      TIMER_STOP(ICOMM_MALLOC);
+      SYMPACK_TIMER_STOP(ICOMM_MALLOC);
       head = 0;
     };
 
@@ -321,11 +321,13 @@ namespace SYMPACK{
     inline char * front(){ return &pSrcBlocks->front();}
     inline size_t capacity(){ return pSrcBlocks->size();}
     inline size_t size(){ return head;}
+
     inline void resize(size_t size){
       pSrcBlocks->resize(size);
     }
+
     inline void setHead(Int phead){ 
-      assert(phead <= pSrcBlocks->size()); 
+      bassert(phead <= pSrcBlocks->size()); 
       head = phead;
     }
     inline void clear(){ 
@@ -355,34 +357,28 @@ namespace SYMPACK{
       Request = MPI_REQUEST_NULL;     
     }
 
+    char& operator[](std::size_t idx){ return pSrcBlocks->at(idx); }
+    const char& operator[](std::size_t idx) const { return pSrcBlocks->at(idx); }
 
   };
 
   template <typename T> inline void Serialize( Icomm& os,  const T * val, const Int count){
-    TIMER_START(ICOMM_SERIALIZE);
     T* dest = reinterpret_cast<T*>(&os.pSrcBlocks->at(os.head));
     std::copy(val,val+count,dest);
     os.head += count*sizeof(T);
-    TIMER_STOP(ICOMM_SERIALIZE);
   }
 
   template <typename T> inline Icomm& operator<<( Icomm& os,  const T & val){
-    TIMER_START(ICOMM_SERIALIZE);
     T* dest = reinterpret_cast<T*>(&os.pSrcBlocks->at(os.head));
     std::copy(&val,&val+1,dest);
     os.head += sizeof(T);
-    TIMER_STOP(ICOMM_SERIALIZE);
-
     return os;
   }
 
   template <typename T> inline Icomm& operator>>( Icomm& os,  T & val){
-    TIMER_START(ICOMM_DESERIALIZE);
     T* dest = reinterpret_cast<T*>(&os.pSrcBlocks->at(os.head));
     std::copy(dest,dest+1,&val);
     os.head += sizeof(T);
-    TIMER_STOP(ICOMM_DESERIALIZE);
-
     return os;
   }
 
@@ -602,9 +598,9 @@ namespace SYMPACK{
 }
 
 #ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a) TAU_FSTART(a);
-#define TIMER_STOP(a) TAU_FSTOP(a);
+#if defined (SPROFILE)
+#define SYMPACK_TIMER_START(a) SYMPACK_FSTART(a);
+#define SYMPACK_TIMER_STOP(a) SYMPACK_FSTOP(a);
 #endif
 #endif
 

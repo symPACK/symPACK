@@ -1102,10 +1102,21 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
   }
 
   //compute local number of columns
-  Idx nlocal = (mpirank<mpisize-1)?n/mpisize:n-mpirank*(Idx)(n/mpisize);
-  Idx firstNode = mpirank*(int)(n/mpisize) + 1;
+  HMat.Localg_.SetComm(workcomm);
+  HMat.Localg_.SetBaseval(1);
+  HMat.Localg_.vertexDist.resize(mpisize+1);
+  for(int p = 1; p <mpisize;p++){
+    HMat.Localg_.vertexDist[p] = p*(int)(n/mpisize)+HMat.Localg_.GetBaseval();
+  }
+  HMat.Localg_.vertexDist.front()= HMat.Localg_.GetBaseval();
+  HMat.Localg_.vertexDist.back()= n+HMat.Localg_.GetBaseval();
+  Idx firstNode = HMat.Localg_.LocalFirstVertex();
+  Idx nlocal = HMat.Localg_.LocalVertexCount();
+
   //initialize local arrays
-  HMat.Local_.colptr.resize(nlocal+1);
+  HMat.Localg_.colptr.resize(nlocal+1);
+  HMat.Localg_.SetKeepDiag(1);
+  HMat.Localg_.SetSorted(1);
 
  
   //read from 4th line
@@ -1152,7 +1163,7 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
       Ptr j;
       Idx locPos = 0;
       while(iss>> j){
-        HMat.Local_.colptr[locPos++]=j;
+        HMat.Localg_.colptr[locPos++]=j;
       }
     }
 
@@ -1161,14 +1172,14 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
   }
 
   //convert to local colptr and compute local nnz
-  Ptr first_idx = HMat.Local_.colptr.front();
-  Ptr last_idx = HMat.Local_.colptr.back();
+  Ptr first_idx = HMat.Localg_.colptr.front();
+  Ptr last_idx = HMat.Localg_.colptr.back();
   for(Idx i=nlocal+1;i>=1;i--){
-    HMat.Local_.colptr[i-1] = HMat.Local_.colptr[i-1] - HMat.Local_.colptr[0] + 1;
+    HMat.Localg_.colptr[i-1] = HMat.Localg_.colptr[i-1] - HMat.Localg_.colptr[0] + 1;
   }
-  Ptr nnzLocal = HMat.Local_.colptr.back()-1;
+  Ptr nnzLocal = HMat.Localg_.colptr.back()-1;
   
-  HMat.Local_.rowind.resize(nnzLocal);
+  HMat.Localg_.rowind.resize(nnzLocal);
 
   Ptr elem_idx;
   //rowind
@@ -1191,7 +1202,7 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
       Idx j;
       Ptr locPos = 0;
       while(iss>> j){
-        HMat.Local_.rowind[locPos++]=j;
+        HMat.Localg_.rowind[locPos++]=j;
       }
     }
 
@@ -1237,8 +1248,17 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
 
 
   HMat.globalAllocated = false;
+  HMat.Localg_.size = HMat.size;
+  HMat.Localg_.nnz = nnzLocal;
+  HMat.Localg_.bIsExpanded = false;
+
+  //for back compatibility
   HMat.Local_.size = HMat.size;
   HMat.Local_.nnz = nnzLocal;
+  HMat.Local_.colptr = HMat.Localg_.colptr;
+  HMat.Local_.rowind = HMat.Localg_.rowind;
+  HMat.Local_.baseval = HMat.Localg_.GetBaseval();
+  HMat.Local_.keepDiag = HMat.Localg_.GetKeepDiag();
 
   return 0;
 }
@@ -1252,7 +1272,7 @@ template <typename SCALAR, typename INSCALAR >
 void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMatrix<SCALAR> & HMat){
   MPI_Comm & workcomm = HMat.comm;
   if(iam==0){ cout<<"Start reading the matrix"<<endl; }
-  TIMER_START(READING_MATRIX);
+  SYMPACK_TIMER_START(READING_MATRIX);
   double tstart = get_time();
   //Read the input matrix
   if(informatstr == "CSC"){
@@ -1313,88 +1333,144 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
 #endif
   }
   double tstop = get_time();
-  TIMER_STOP(READING_MATRIX);
+  SYMPACK_TIMER_STOP(READING_MATRIX);
   if(iam==0){ cout<<"Matrix read time: "<<tstop - tstart<<endl; }
   if(iam==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
 }
 
 
- 
+template <typename T, typename Compare>
+std::vector<std::size_t> & sort_permutation(
+    const std::vector<T>& vec,
+    Compare compare,
+    std::vector<std::size_t>& p)
+{
+    p.resize(vec.size());
+    std::iota(p.begin(), p.end(), 0);
+    std::sort(p.begin(), p.end(),
+        [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
+    return p;
+}
+
+template <typename T, typename Compare>
+std::vector<std::size_t> sort_permutation(
+    const std::vector<T>& vec,
+    Compare compare)
+{
+    std::vector<std::size_t> p(vec.size());
+    std::iota(p.begin(), p.end(), 0);
+    std::sort(p.begin(), p.end(),
+        [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
+    return p;
+}
+
+template <typename T, typename Compare>
+std::vector<std::size_t> & sort_permutation(
+    const T*begin, const T* end,
+    Compare compare,
+    std::vector<std::size_t>& p)
+{
+    p.resize(end-begin);
+    std::iota(p.begin(), p.end(), 0);
+    std::sort(p.begin(), p.end(),
+        [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
+    return p;
+}
+
+template <typename T, typename Compare>
+std::vector<std::size_t> sort_permutation(
+    const T*begin, const T* end,
+    Compare compare)
+{
+    std::vector<std::size_t> p(end-begin);
+    std::iota(p.begin(), p.end(), 0);
+    std::sort(p.begin(), p.end(),
+        [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
+    return p;
+}
+
+
+
+
+template <typename T>
+std::vector<T> apply_permutation(
+    const std::vector<T>& vec,
+    const std::vector<std::size_t>& p)
+{
+    std::vector<T> sorted_vec(p.size());
+    std::transform(p.begin(), p.end(), sorted_vec.begin(),
+        [&](std::size_t i){ return vec[i]; });
+    return sorted_vec;
+}
+
+template <typename T>
+std::vector<T> apply_permutation(
+    const T*vec,
+    const std::vector<std::size_t>& p)
+{
+    std::vector<T> sorted_vec(p.size());
+    std::transform(p.begin(), p.end(), sorted_vec.begin(),
+        [&](std::size_t i){ return vec[i]; });
+    return sorted_vec;
+}
+
+template <typename T>
+void apply_permutation(
+    T*begin, T* end,
+    const std::vector<std::size_t>& p)
+{
+    std::vector<T> sorted_vec(p.size());
+    std::transform(p.begin(), p.end(), sorted_vec.begin(),
+        [&](std::size_t i){ return begin[i]; });
+    std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
+}
+
+template <typename T>
+std::vector<T> & apply_permutation(
+    const std::vector<T>& vec,
+    const std::vector<std::size_t>& p,
+std::vector<T> &sorted_vec)
+{
+    sorted_vec.resize(p.size());
+    std::transform(p.begin(), p.end(), sorted_vec.begin(),
+        [&](std::size_t i){ return vec[i]; });
+    return sorted_vec;
+}
+
+template <typename T>
+std::vector<T> & apply_permutation(
+    const T*vec,
+    const std::vector<std::size_t>& p,
+std::vector<T> &sorted_vec)
+{
+    sorted_vec.resize(p.size());
+    std::transform(p.begin(), p.end(), sorted_vec.begin(),
+        [&](std::size_t i){ return vec[i]; });
+    return sorted_vec;
+}
+
+template <typename T>
+void apply_permutation(
+    T*begin, T* end,
+    const std::vector<std::size_t>& p,
+std::vector<T> &sorted_vec)
+{
+    sorted_vec.resize(p.size());
+    std::transform(p.begin(), p.end(), sorted_vec.begin(),
+        [&](std::size_t i){ return begin[i]; });
+    std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
+}
+
+
+
+void PtrSum( void *in, void *inout, int *len, MPI_Datatype *dptr ); 
+void PtrMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
 
 
 
 } // namespace SYMPACK
 
 #endif
-
-
-
-
-
-////namespace SYMPACK{
-////  template <typename T> void CSCToCSR(SparseMatrixStructure& sparseA, SparseMatrixStructure & sparseB, MPI_Comm & comm ){
-////
-////
-////    Int mpirank;
-////    MPI_Comm_rank(comm,&mpirank);
-////  
-////    Int mpisize;
-////    MPI_Comm_size(comm,&mpisize);
-////
-////    Int numRowLocalFirst = sparseA.size / mpisize;
-////    Int firstRow = mpirank * numRowLocalFirst;
-////    Int numRowLocal = -1;
-////    Int nnzLocal = -1;
-////
-////    sparseB.size = sparseA.size;
-////    sparseB.nnz = sparseA.nnz;
-////
-////    LongInt nnz = 0;
-////    SYMPACK::vector<Int> rowindGlobal;
-////    SYMPACK::vector<Int> colptrGlobal;
-////    //TIMER_START(ToGlobalStructure);
-////    {
-////      colptrGlobal.resize(sparseA.size+1);
-////
-////      /* Allgatherv for row indices. */ 
-////      SYMPACK::vector<Int> prevnz(mpisize);
-////      SYMPACK::vector<Int> rcounts(mpisize);
-////      MPI_Allgather(&sparseA.nnz, sizeof(sparseA.nnz), MPI_BYTE, &rcounts[0], sizeof(sparseA.nnz), MPI_BYTE, comm);
-////
-////      prevnz[0] = 0;
-////      for (Int i = 0; i < mpisize-1; ++i) { prevnz[i+1] = prevnz[i] + rcounts[i]; } 
-////
-////      nnz = 0;
-////      for (Int i = 0; i < mpisize; ++i) { nnz += rcounts[i]; } 
-////      rowindGlobal.resize(nnz);
-////      for (Int i = 0; i < mpisize; ++i) { prevnz[i] *= sizeof(Idx); } 
-////      for (Int i = 0; i < mpisize; ++i) { rcounts[i] *= sizeof(Idx); } 
-////
-////      MPI_Allgatherv(&sparseA.rowindLocal[0], sparseA.nnz*sizeof(Idx), MPI_BYTE, &rowindGlobal[0],&rcounts[0], &prevnz[0], MPI_BYTE, comm); 
-////
-////      /* Allgatherv for colptr */
-////      // Compute the number of columns on each processor
-////      Int numColFirst = std::max(1,sparseA.size / mpisize);
-////      fill(rcounts.begin(),rcounts.end(),numColFirst);
-////      rcounts[mpisize-1] = sparseA.size - numColFirst * (mpisize-1);  // Modify the last entry     
-////
-////      SYMPACK::vector<Int> rdispls(mpisize);
-////      rdispls[0] = 0;
-////      for (Int i = 0; i < mpisize-1; ++i) { rdispls[i+1] = rdispls[i] + rcounts[i]; } 
-////
-////      for (Int i = 0; i < mpisize; ++i) { rdispls[i] *= sizeof(Ptr); } 
-////      for (Int i = 0; i < mpisize; ++i) { rcounts[i] *= sizeof(Ptr); } 
-////}
-////
-////}
-////}
-
-
-
-
-
-
-
 
 
 #endif // _UTILITY_HPP_

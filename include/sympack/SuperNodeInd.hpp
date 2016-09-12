@@ -13,9 +13,9 @@
 #include "sympack/SuperNode.hpp"
 
 #ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a) 
-#define TIMER_STOP(a) 
+#if defined (SPROFILE)
+#define SYMPACK_TIMER_START(a) 
+#define SYMPACK_TIMER_STOP(a) 
 #define scope_timer(b,a)
 #endif
 #endif
@@ -81,10 +81,10 @@ template <typename T, class Allocator> inline size_t Deserialize(char * buffer, 
 
 
 #ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a) TAU_FSTART(a);
-#define TIMER_STOP(a) TAU_FSTOP(a);
-#define scope_timer(b,a) CTF_scope_timer b(#a)
+#if defined (SPROFILE)
+#define SYMPACK_TIMER_START(a) SYMPACK_FSTART(a);
+#define SYMPACK_TIMER_STOP(a) SYMPACK_FSTOP(a);
+#define scope_timer(b,a) symPACK_scope_timer b(#a)
 #endif
 #endif
 

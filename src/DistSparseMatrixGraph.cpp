@@ -162,32 +162,6 @@ namespace SYMPACK{
 
 
 
-  void PtrSum( void *in, void *inout, int *len, MPI_Datatype *dptr ) 
-  { 
-    int i; 
-
-    Ptr * pinout = (Ptr*)inout;
-    Ptr * pin = (Ptr*)in;
-#pragma unroll
-    for (i=0; i< *len; ++i) { 
-      pinout[i] += pin[i];
-    } 
-  } 
-
-
-  void PtrMax( void *in, void *inout, int *len, MPI_Datatype *dptr ) 
-  { 
-    int i; 
-
-    Ptr * pinout = (Ptr*)inout;
-    Ptr * pin = (Ptr*)in;
-#pragma unroll
-    for (i=0; i< *len; ++i) { 
-      pinout[i] = max(pinout[i], pin[i]);
-    } 
-  } 
-
-
 
 
 
@@ -217,8 +191,8 @@ namespace SYMPACK{
     nnz = g.nnz;
     colptr = g.colptr;
     rowind = g.rowind;
-    vertexDist = g.vertexDist;
     SetComm(g.comm);
+    vertexDist = g.vertexDist;
     baseval = g.baseval;
     keepDiag = g.keepDiag;
     sorted = g.sorted;
@@ -240,20 +214,35 @@ namespace SYMPACK{
 
   void DistSparseMatrixGraph::SetComm(const MPI_Comm & aComm){
     if(aComm!=comm){
+      bool doDup = true;
+      int prevSize = -1;
       if(comm!= MPI_COMM_NULL){
-        MPI_Comm_free(&comm);
-        //what do we do with vertex dist ?
+        int isSame = 0;
+        MPI_Comm_compare(comm, aComm, &isSame);
+        if(isSame==MPI_IDENT){
+          doDup=false;
+        }
+        else{
+          MPI_Comm_size(comm,&prevSize);
+          MPI_Comm_free(&comm);
+          //what do we do with vertex dist ?
+        }
       }
-      MPI_Comm_dup(aComm,&comm);
-      MPI_Comm_size(comm,&mpisize);
-      MPI_Comm_rank(comm,&mpirank);
+      if(doDup){
+        MPI_Comm_dup(aComm,&comm);
+        MPI_Comm_size(comm,&mpisize);
+        MPI_Comm_rank(comm,&mpirank);
 
-      //recompute a "balanced" distribution of vertices
-      Int colPerProc = size / mpisize;
-      vertexDist.assign(mpisize+1,colPerProc);
-      vertexDist[0] = baseval;
-      std::partial_sum(vertexDist.begin(),vertexDist.end(),vertexDist.begin());
-      vertexDist.back() = size + baseval;
+        if(prevSize!=mpisize){
+          //recompute a "balanced" distribution of vertices
+          Int colPerProc = size / mpisize;
+          vertexDist.assign(mpisize+1,colPerProc);
+          vertexDist[0] = baseval;
+          std::partial_sum(vertexDist.begin(),vertexDist.end(),vertexDist.begin());
+          vertexDist.back() = size + baseval;
+          //redistribute the graph ?
+        }
+      }
     }
   }
 
@@ -399,6 +388,7 @@ namespace SYMPACK{
     for(Idx locCol = 0 ; locCol< LocalVertexCount(); locCol++){
       Ptr colbeg = colptr[locCol]-baseval; //now 0 based
       Ptr colend = colptr[locCol+1]-baseval; // now 0 based 
+if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
       sort(&rowind[0]+colbeg,&rowind[0]+colend,std::less<Ptr>());
     }
   }
@@ -417,7 +407,7 @@ namespace SYMPACK{
   }
 
   void DistSparseMatrixGraph::permute_(Int * invp, Idx * newVertexDist, Int invpbaseval){
-    TIMER_START(PERMUTE);
+    SYMPACK_TIMER_START(PERMUTE);
 
     //handle default parameter values
     if(newVertexDist==NULL){
@@ -578,7 +568,7 @@ namespace SYMPACK{
       SortEdges();
     }
 
-    TIMER_STOP(PERMUTE);
+    SYMPACK_TIMER_STOP(PERMUTE);
   }
 
 
@@ -954,7 +944,7 @@ namespace SYMPACK{
 
 
   void DistSparseMatrixGraph::ExpandSymmetric(){
-    TIMER_START(EXPAND);
+    SYMPACK_TIMER_START(EXPAND);
     if(!bIsExpanded){
 
       int ismpi=0;
@@ -1053,10 +1043,10 @@ namespace SYMPACK{
             colptr.assign(remColCnt+1,0);
             //this array will contain the max element in our custom reduce
             colptr[0] = 0;
-            TIMER_START(REDUCE);
+            SYMPACK_TIMER_START(REDUCE);
             MPI_Reduce(&remote_colptr[1],&colptr[1],remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
             MPI_Reduce(&remote_colptr[0],&colptr[0],1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
-            TIMER_STOP(REDUCE);
+            SYMPACK_TIMER_STOP(REDUCE);
 
             maxExtraNNZ = colptr[0];
             remote_rowind.resize(maxExtraNNZ);
@@ -1073,10 +1063,10 @@ namespace SYMPACK{
             for(Idx col = 1;col<remColCnt+1;col++){ colptr[col]+=colptr[col-1]; }
           }
           else{
-            TIMER_START(REDUCE);
+            SYMPACK_TIMER_START(REDUCE);
             MPI_Reduce(&remote_colptr[1],NULL,remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
             MPI_Reduce(&remote_colptr[0],NULL,1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
-            TIMER_STOP(REDUCE);
+            SYMPACK_TIMER_STOP(REDUCE);
             remote_rowind.resize(extraNNZ);
           }
 
@@ -1155,7 +1145,7 @@ namespace SYMPACK{
               }
             }
 
-            TIMER_START(RECV);
+            SYMPACK_TIMER_START(RECV);
             for(Int pcol = 0; pcol<prow; pcol++){
               //Use an MPI_Gatherv instead ? >> memory usage : p * n/p
               //Do mpi_recv from any, anytag for pcolptr and then do the matching rowind ?
@@ -1169,7 +1159,7 @@ namespace SYMPACK{
               //receive rowinds...
               MPI_Recv(&remote_rowind[0],maxExtraNNZ*sizeof(Idx),MPI_BYTE,status.MPI_SOURCE,prow,comm,MPI_STATUS_IGNORE);
 
-              TIMER_START(PROCESSING_RECV_DATA);
+              SYMPACK_TIMER_START(PROCESSING_RECV_DATA);
               //logfileptr->OFS()<<"P"<<mpirank<<" done receiving from P"<<pcol<<endl;
               for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
                 Idx col = firstLocCol + locCol;  // 0 based
@@ -1182,9 +1172,9 @@ namespace SYMPACK{
                   rowind[pos++ - baseval] = row + baseval;  
                 }
               }
-              TIMER_STOP(PROCESSING_RECV_DATA);
+              SYMPACK_TIMER_STOP(PROCESSING_RECV_DATA);
             }
-            TIMER_STOP(RECV);
+            SYMPACK_TIMER_STOP(RECV);
 
             if(sorted){ 
               SortEdges();
@@ -1197,18 +1187,18 @@ namespace SYMPACK{
 
           }
           else{
-            TIMER_START(SEND);
+            SYMPACK_TIMER_START(SEND);
             MPI_Send(&remote_colptr[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,prow,prow,comm);
             MPI_Send(&remote_rowind[0],extraNNZ*sizeof(Idx),MPI_BYTE,prow,prow,comm);
-            TIMER_STOP(SEND);
+            SYMPACK_TIMER_STOP(SEND);
           }
 
         }
         else{
-          TIMER_START(REDUCE);
+          SYMPACK_TIMER_START(REDUCE);
             MPI_Reduce(&remote_colptr[1],NULL,remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
             MPI_Reduce(&remote_colptr[0],NULL,1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
-          TIMER_STOP(REDUCE);
+          SYMPACK_TIMER_STOP(REDUCE);
         }
 
       }
@@ -1220,7 +1210,7 @@ namespace SYMPACK{
       //nnz = LocalEdgeCount();
       bIsExpanded =true;
     }
-    TIMER_STOP(EXPAND);
+    SYMPACK_TIMER_STOP(EXPAND);
   }
 
   void DistSparseMatrixGraph::AllGatherStructure(SparseMatrixGraph & g){

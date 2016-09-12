@@ -7,24 +7,38 @@
 #define _DIST_SPARSE_MATRIX_IMPL_HPP_
 
 #include "sympack/Environment.hpp"
-#include "sympack/DistSparseMatrix.hpp"
 #include "sympack/utility.hpp"
+#include "sympack/DistSparseMatrix.hpp"
 #include "sympack/SparseMatrixStructure.hpp"
 
 #include <vector>
 
-#ifdef UPCXX
-#include <upcxx.h>
-#endif
 namespace SYMPACK{
 
 
+  template <typename T, typename Compare> std::vector<std::size_t> & sort_permutation( const std::vector<T>& vec, Compare compare, std::vector<std::size_t>& p);
+  template <typename T, typename Compare> std::vector<std::size_t> & sort_permutation( const T*begin, const T* end, Compare compare, std::vector<std::size_t>& p);
+  template <typename T, typename Compare> std::vector<std::size_t> sort_permutation( const std::vector<T>& vec, Compare compare);
+  template <typename T, typename Compare> std::vector<std::size_t> sort_permutation( const T*begin, const T* end, Compare compare);
+  template <typename T> std::vector<T> apply_permutation( const std::vector<T>& vec, const std::vector<std::size_t>& p);
+  template <typename T> std::vector<T> apply_permutation( const T*vec, const std::vector<std::size_t>& p);
+  template <typename T> void apply_permutation( T*begin, T* end, const std::vector<std::size_t>& p);
+  template <typename T> std::vector<T> & apply_permutation( const std::vector<T>& vec, const std::vector<std::size_t>& p, std::vector<T> &sorted_vec);
+  template <typename T> std::vector<T> & apply_permutation( const T*vec, const std::vector<std::size_t>& p, std::vector<T> &sorted_vec);
+  template <typename T> void apply_permutation( T*begin, T* end, const std::vector<std::size_t>& p, std::vector<T> &sorted_vec);
+
+  void PtrSum( void *in, void *inout, int *len, MPI_Datatype *dptr ); 
+  void PtrMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
 
 
 
 
   template <class F> SparseMatrixStructure  DistSparseMatrix<F>::GetLocalStructure() const {
     return Local_;
+  }
+
+  template <class F> const DistSparseMatrixGraph &  DistSparseMatrix<F>::GetLocalGraph() const {
+    return Localg_;
   }
 
   template <class F> SparseMatrixStructure DistSparseMatrix<F>::GetGlobalStructure(){
@@ -35,6 +49,18 @@ namespace SYMPACK{
     return Global_;
   }
 
+  template <class F>
+    DistSparseMatrix<F>::DistSparseMatrix(){
+      comm = MPI_COMM_NULL;
+      size = 0;
+      nnz=0;
+      globalAllocated=false;
+    }
+
+  template <class F>
+    DistSparseMatrix<F>::DistSparseMatrix(MPI_Comm aComm):DistSparseMatrix(){
+      comm = aComm;
+    }
 
   template <class F> template <typename T> void DistSparseMatrix<F>::ConvertData(const int n, const int nnz, const int * colptr, const int * rowidx, const T * nzval ,bool onebased){
     int np;
@@ -51,7 +77,8 @@ namespace SYMPACK{
     this->Global_.nnz = this->nnz;
     this->Global_.colptr.resize(n+1);
     std::copy(colptr,colptr+n+1,&this->Global_.colptr[0]);
-    this->Global_.rowind.resize(nnz+1);
+    //this->Global_.rowind.resize(nnz+1);
+    this->Global_.rowind.resize(nnz);
     std::copy(rowidx,rowidx+nnz+1,&this->Global_.rowind[0]);
 
     if(!onebased){
@@ -108,23 +135,24 @@ namespace SYMPACK{
     //    }
 
 #if 1
-{
-vector<Ptr> dummy;
-this->Global_.colptr.swap(dummy);
-}
-{
-vector<Idx> dummy;
-this->Global_.rowind.swap(dummy);
-}
-this->Global_.nnz=-1;
-this->Global_.size=1;
+    {
+      vector<Ptr> dummy;
+      this->Global_.colptr.swap(dummy);
+    }
+    {
+      vector<Idx> dummy;
+      this->Global_.rowind.swap(dummy);
+    }
+    this->Global_.nnz=-1;
+    this->Global_.size=1;
     this->globalAllocated = false;
 
-//Local_.ToGlobal(Global_,comm);
+    //Local_.ToGlobal(Global_,comm);
 
 #endif
 
-
+    Localg_.FromStructure(Local_);
+    Localg_.SetComm(comm);
 
   }
 
@@ -144,8 +172,10 @@ this->Global_.size=1;
     this->Global_.nnz = this->nnz;
     this->Global_.colptr.resize(n+1);
     std::copy(colptr,colptr+n+1,&this->Global_.colptr[0]);
-    this->Global_.rowind.resize(nnz+1);
+    //this->Global_.rowind.resize(nnz+1);
+    this->Global_.rowind.resize(nnz);
     std::copy(rowidx,rowidx+nnz+1,&this->Global_.rowind[0]);
+
 
     if(!onebased){
       //move to 1 based indices
@@ -154,6 +184,7 @@ this->Global_.size=1;
     }
 
     this->globalAllocated = true;
+    this->Local_.bIsExpanded = false;
 
     //Compute local structure info
     // Compute the number of columns on each processor
@@ -199,6 +230,10 @@ this->Global_.size=1;
     //    else if(cscptr->value_type == COMPLEX){
     //      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
     //    }
+
+
+    Localg_.FromStructure(Local_);
+    Localg_.SetComm(comm);
   }
 
 
@@ -209,164 +244,497 @@ this->Global_.size=1;
 
 
   template <class F> void DistSparseMatrix<F>::Dump() const{
-    Int baseval = 1;
-    Int numColFirst = size / np;
-    Int firstLocCol = iam * numColFirst+1;
+    Int baseval = Localg_.baseval;
+    Idx firstLocCol = Localg_.LocalFirstVertex()-Localg_.baseval;
+    Idx LocalVertexCount = Localg_.LocalVertexCount();
 
-    for(Idx locCol = 0 ; locCol< Local_.colptr.size()-1; locCol++){
+    for(Idx locCol = 0 ; locCol< LocalVertexCount; locCol++){
       Idx col = locCol + firstLocCol;
-      Ptr colbeg = Local_.colptr[locCol]-baseval; //now 0 based
-      Ptr colend = Local_.colptr[locCol+1]-baseval; // now 0 based 
+      Ptr colbeg = Localg_.colptr[locCol]-baseval; //now 0 based
+      Ptr colend = Localg_.colptr[locCol+1]-baseval; // now 0 based 
 
       logfileptr->OFS()<<col<<": ";
       for(Ptr pos = colbeg; pos<colend; pos++){
-        Idx row = Local_.rowind[pos];
+        Idx row = Localg_.rowind[pos];
         logfileptr->OFS()<<row<<" ";
       }
       logfileptr->OFS()<<endl;
     }
   }
 
-//chunk of code that might be useful to expand a matrix to unsymmetric storage
-#if 0
-    TIMER_START(EXPANDING_MATRIX);
-    DistSparseMatrix<T> ExpA(CommEnv_->MPI_GetComm());
-    {
-      double timeSta = get_time();
-      ExpA.size = pMat.size;
-      ExpA.nnz = 2*pMat.nnz-pMat.size;
-      Idx numColFirst = std::max(1,ExpA.size / np);
-      SYMPACK::vector<Idx> numColLocalVec(np,numColFirst);
-      numColLocalVec[np-1] = ExpA.size - numColFirst * (np-1);  // Modify the last entry	
-      Idx numColLocal = numColLocalVec[iam];
-      //Expand A to asymmetric storage
-      Idx localFirstCol = iam*numColFirst+1;
-      Idx localLastCol = localFirstCol+numColLocal-1;
 
-      //Initialize the Local structure
-      ExpA.Local_.size = ExpA.size;
-      ExpA.Local_.colptr.resize(numColLocal+1);
+  template <class F> void DistSparseMatrix<F>::DumpMatlab() const{
+    Int baseval = Localg_.baseval;
+    Idx firstLocCol = Localg_.LocalFirstVertex()-Localg_.baseval;
+    Idx LocalVertexCount = Localg_.LocalVertexCount();
 
-      for( Idx i = 0; i < numColLocal + 1; i++ ){
-        ExpA.Local_.colptr[i] = Global_->expColptr[iam * numColFirst+i] - Global_->expColptr[iam * numColFirst] + 1;
+    //I
+    logfileptr->OFS()<<" sparse([";
+    for(Idx locCol = 0 ; locCol< LocalVertexCount; locCol++){
+      Idx col = locCol + firstLocCol;
+      Ptr colbeg = Localg_.colptr[locCol]-baseval; //now 0 based
+      Ptr colend = Localg_.colptr[locCol+1]-baseval; // now 0 based 
+
+      for(Ptr pos = colbeg; pos<colend; pos++){
+        Idx row = Localg_.rowind[pos];
+        logfileptr->OFS()<<row<<" ";
+      }
+    }
+    logfileptr->OFS()<<"],";//<<endl;
+
+    //J
+    logfileptr->OFS()<<"[";
+    for(Idx locCol = 0 ; locCol< LocalVertexCount; locCol++){
+      Idx col = locCol + firstLocCol;
+      Ptr colbeg = Localg_.colptr[locCol]-baseval; //now 0 based
+      Ptr colend = Localg_.colptr[locCol+1]-baseval; // now 0 based 
+
+      for(Ptr pos = colbeg; pos<colend; pos++){
+        logfileptr->OFS()<<col+1<<" ";
+      }
+    }
+    logfileptr->OFS()<<"],";//<<endl;
+
+    //V
+    logfileptr->OFS()<<"[";
+    logfileptr->OFS().precision(std::numeric_limits< F >::max_digits10);
+    for(Idx locCol = 0 ; locCol< LocalVertexCount; locCol++){
+      Idx col = locCol + firstLocCol;
+      Ptr colbeg = Localg_.colptr[locCol]-baseval; //now 0 based
+      Ptr colend = Localg_.colptr[locCol+1]-baseval; // now 0 based 
+
+      for(Ptr pos = colbeg; pos<colend; pos++){
+        F val = nzvalLocal[pos];
+        logfileptr->OFS()<<std::scientific<<val<<" ";
+      }
+    }
+    logfileptr->OFS()<<"]);"<<endl;
+
+  }
+
+  template< typename F>
+    void DistSparseMatrix<F>::Permute(Int * invp, Ptr * newVertexDist){
+      scope_timer(a,DistMat_Permute);
+
+      Int invpbaseval = 1;
+
+      int mpisize,mpirank;
+      MPI_Comm_size(comm,&mpisize);
+      MPI_Comm_rank(comm,&mpirank);
+
+      vector<Ptr> tnewVertexDist;
+      if(newVertexDist==NULL){
+        tnewVertexDist.resize(Localg_.vertexDist.size());
+        for(Int i =0; i<Localg_.vertexDist.size(); i++){
+          tnewVertexDist[i] = Localg_.vertexDist[i];
+        }
+        newVertexDist=&tnewVertexDist[0];
       }
 
-      ExpA.Local_.nnz = ExpA.Local_.colptr[numColLocal] - ExpA.Local_.colptr[0];
+      auto baseval = Localg_.baseval;
+      auto & keepDiag = Localg_.keepDiag;
+      auto & bIsExpanded = Localg_.bIsExpanded;
+      auto & colptr = Localg_.colptr;
+      auto & rowind = Localg_.rowind;
 
-      ExpA.Local_.rowind.resize(ExpA.Local_.nnz);
-
-      Ptr globalColBeg = Global_->expColptr[iam*numColFirst];
-      std::copy(&Global_->expRowind[globalColBeg-1],&Global_->expRowind[globalColBeg-1]+ExpA.Local_.nnz,&ExpA.Local_.rowind[0]);
-      ExpA.nzvalLocal.resize(ExpA.Local_.nnz);
-
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Global_.colptr: "<<Global_->colptr<<endl;
-      logfileptr->OFS()<<"Global_.rowind: "<<Global_->rowind<<endl;
-      logfileptr->OFS()<<"Global_.expColptr: "<<Global_->expColptr<<endl;
-      logfileptr->OFS()<<"Global_.expRowind: "<<Global_->expRowind<<endl;
-      logfileptr->OFS()<<"ExpA.colptr: "<<ExpA.Local_.colptr<<endl;
-      logfileptr->OFS()<<"ExpA.rowind: "<<ExpA.Local_.rowind<<endl;
-      logfileptr->OFS()<<"pMat.colptr: "<<pMat.Local_.colptr<<endl;
-      logfileptr->OFS()<<"pMat.rowind: "<<pMat.Local_.rowind<<endl;
-#endif
-
-      SYMPACK::vector<Ptr> localDestColHead = ExpA.Local_.colptr;
-
-      SYMPACK::vector<T> recvNzval;
-      SYMPACK::vector<Ptr> recvColptr;
-      SYMPACK::vector<Idx> recvRowind;
-      for(Int proc = 0; proc<np; ++proc){
-        //communicate colptr
-        //Broadcast size
-        Int size = iam==proc?pMat.Local_.colptr.size():0;
-        MPI_Bcast((void*)&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
-        //Broadcast colptr
-        if(iam==proc){
-          MPI_Bcast((void*)&pMat.Local_.colptr[0],size*sizeof(Ptr),MPI_BYTE,proc,ExpA.comm);
-        }
-        else{
-          recvColptr.resize(size);
-          MPI_Bcast((void*)&recvColptr[0],size*sizeof(Ptr),MPI_BYTE,proc,ExpA.comm);
-        }
-
-        //communicate rowind
-        size = iam==proc?pMat.Local_.rowind.size():0;
-        MPI_Bcast(&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
-        //Broadcast rowind
-        if(iam==proc){
-          MPI_Bcast((void*)&pMat.Local_.rowind[0],size*sizeof(Idx),MPI_BYTE,proc,ExpA.comm);
-        }
-        else{
-          recvRowind.resize(size);
-          MPI_Bcast((void*)&recvRowind[0],size*sizeof(Idx),MPI_BYTE,proc,ExpA.comm);
-        }
+      Int newFirstCol = newVertexDist[mpirank]-baseval; //0 based
+      Ptr newVtxCount = newVertexDist[mpirank+1] - newVertexDist[mpirank];
 
 
-        //communicate nzvalLocal
-        //Broadcast size
-        size = iam==proc?pMat.nzvalLocal.size():0;
-        MPI_Bcast((void*)&size,sizeof(size),MPI_BYTE,proc,ExpA.comm);
-        //Broadcast nzvalLocal
-        if(iam==proc){
-          MPI_Bcast((void*)&pMat.nzvalLocal[0],size*sizeof(T),MPI_BYTE,proc,ExpA.comm);
-        }
-        else{
-          recvNzval.resize(size);
-          MPI_Bcast((void*)&recvNzval[0],size*sizeof(T),MPI_BYTE,proc,ExpA.comm);
-        }
+      SYMPACK::vector<int> sizes(mpisize,0);
 
-        int colptrSize = iam==proc?pMat.Local_.colptr.size()-1:recvColptr.size()-1;
-        const Ptr * colptr = iam==proc?&pMat.Local_.colptr[0]:&recvColptr[0];
-        const Idx * rowind = iam==proc?&pMat.Local_.rowind[0]:&recvRowind[0];
-        const T * nzval = iam==proc?&pMat.nzvalLocal[0]:&recvNzval[0];
-        //Parse the received data and copy it in the ExpA.nzvalLocal
-        Int recvFirstCol = proc*numColFirst+1;
-        Int recvLastCol = recvFirstCol+numColLocalVec[proc]-1;
-        for(Idx colIdx = 1; colIdx<=colptrSize;++colIdx){
-          Idx col = recvFirstCol + colIdx-1;
-          Ptr colBeg = colptr[colIdx-1];
-          Ptr colEnd = colptr[colIdx]-1;
-          for(Ptr rowIdx = colBeg; rowIdx<=colEnd;++rowIdx){
-            Idx row = rowind[rowIdx-1];
-            if(row>=localFirstCol && row<=localLastCol){
-              //copy only upper triangular part
-              if(col<row){
-                Idx localCol = row - localFirstCol +1;
-                Ptr & localDestColIdx = localDestColHead[localCol-1];
-                ExpA.nzvalLocal[localDestColIdx-1] = nzval[rowIdx-1];
-                localDestColIdx++;
-              }
-            }
+      Idx firstCol = Localg_.LocalFirstVertex()-baseval;
+      Idx LocalVertexCount = Localg_.LocalVertexCount();
+
+      for(Idx locCol = 0; locCol<LocalVertexCount; locCol++){
+        Idx col = firstCol + locCol; //0-based
+        Ptr colbeg = colptr[locCol] - baseval;
+        Ptr colend = colptr[locCol+1] - baseval;
+        Idx permCol = invp[col]-invpbaseval; // 0 based;
+        //find destination processors
+        Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
+
+        //now permute rows
+        for(Ptr jptr = colbeg; jptr<colend; jptr++){
+          Idx row = rowind[jptr] - baseval; //0 based
+          Idx permRow = invp[row] - invpbaseval; // 0 based
+          if(permRow<permCol && !bIsExpanded){
+            Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
+            sizes[pdestR]++;
+          }
+          else if(permRow>permCol || (permRow==permCol && keepDiag) || bIsExpanded){
+            sizes[pdest]++;
           }
         }
       }
-      //copy upper triangular part
-      for(Idx colIdx = 1; colIdx<pMat.Local_.colptr.size();++colIdx){
-        Ptr & localDestColIdx = localDestColHead[colIdx-1];
-        Ptr colBeg = pMat.Local_.colptr[colIdx-1];
-        Ptr colEnd = pMat.Local_.colptr[colIdx]-1;
-        for(Ptr rowIdx = colBeg; rowIdx<=colEnd;++rowIdx){
-          Idx row = pMat.Local_.rowind[rowIdx-1];
-          ExpA.nzvalLocal[localDestColIdx-1] = pMat.nzvalLocal[rowIdx-1];
-          localDestColIdx++;
+
+
+      //First allgatherv to get the receive sizes
+      SYMPACK::vector<int> displs(mpisize+1,0);
+      displs[0] = 0;
+      std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
+      Int totSend = displs.back();
+      SYMPACK::vector<triplet<F> > sbuf(totSend);
+
+      //pack
+      for(Idx locCol = 0; locCol<LocalVertexCount; locCol++){
+        Idx col = firstCol + locCol; 
+        Ptr colbeg = colptr[locCol]-baseval;
+        Ptr colend = colptr[locCol+1]-baseval;
+        Idx permCol = invp[col]-invpbaseval; // perm is 1 based;
+        //find destination processors
+        Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
+
+
+        for(Ptr jptr = colbeg; jptr<colend; jptr++){
+          Idx row = rowind[jptr] - baseval; //0 based
+          Idx permRow = invp[row] - invpbaseval; // 0 based
+          if(permRow<permCol && !bIsExpanded){
+            Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
+            auto & trip = sbuf[displs[pdestR]++];
+            trip.val = nzvalLocal[jptr];
+            trip.row = permCol;
+            trip.col = permRow;
+          }
+          else if(permRow>permCol || (permRow==permCol && keepDiag) || bIsExpanded){
+            auto & trip = sbuf[displs[pdest]++];
+            trip.val = nzvalLocal[jptr];
+            trip.row = permRow;
+            trip.col = permCol;
+          }
+
         }
       }
-      double timeEnd = get_time();
+
+      MPI_Datatype type;
+      MPI_Type_contiguous( sizeof(triplet<F>), MPI_BYTE, &type );
+      MPI_Type_commit(&type);
+
+      //re compute send displs in bytes
+      //for(auto it = sizes.begin();it!=sizes.end();it++){ (*it)*=sizeof(triplet<F>);}
+      displs[0] = 0;
+      std::partial_sum(sizes.begin(),sizes.end(),&displs[1]);
+
+      SYMPACK::vector<int> rsizes(mpisize,0);
+      SYMPACK::vector<int> rdispls(mpisize+1,0);
+      MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
+
+      //now compute receiv displs with actual sizes 
+      rdispls[0] = 0;
+      std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+      Ptr totRecv = rdispls.back();
+      SYMPACK::vector<triplet<F> > rbuf(totRecv);
+      MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],type,&rbuf[0],&rsizes[0],&rdispls[0],type,comm);
 
 
-//#ifdef _DEBUG_
-//      logfileptr->OFS()<<"ExpA.nzvalLocal: "<<ExpA.nzvalLocal<<endl;
-//      logfileptr->OFS()<<"pMat.nzvalLocal: "<<pMat.nzvalLocal<<endl;
-//#endif
+      //recompute displacements in triplets
+      //for(auto it = rsizes.begin();it!=rsizes.end();it++){ (*it)/=sizeof(triplet<F>);}
+      //rdispls[0] = 0;
+      //std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+      //totRecv = rdispls.back();
 
-      //now we can do the copy by doing sends of whole columns to the dest processor
-      if(iam==0){
-        cout<<"Time for expanding matrix to asymmetric: "<<timeEnd-timeSta<<endl;
+
+      MPI_Type_free(&type);
+
+
+      SYMPACK::vector<Ptr> newColptr(newVtxCount+1,0);
+      //compute column counts
+      for(auto it = rbuf.begin(); it!=rbuf.end(); it++){
+        //triplets are 0-based but everything is currently shifted by one
+        newColptr[it->col-newFirstCol+1]++;
+      }
+      //turn it back to colptr
+      newColptr[0]=baseval;
+      std::partial_sum(newColptr.begin(),newColptr.end(),newColptr.begin());
+
+      Ptr newNNZ = newColptr.back()-baseval;
+      rowind.resize(newNNZ);
+      this->Local_.nnz = newNNZ;
+
+      nzvalLocal.resize(newNNZ);
+
+      colptr = newColptr;
+
+      //now use newColptr as a position backup
+      for(auto it = rbuf.begin(); it!=rbuf.end(); it++){
+        triplet<F> & trip = *it;
+        Idx locCol = trip.col-newFirstCol;//0-based
+        //colptr contains column count shifted by one
+        Ptr pos = newColptr[locCol]++;//baseval-based
+        rowind[pos-baseval] = trip.row+baseval;
+        nzvalLocal[pos-baseval] = trip.val;
+      }
+
+      for(Int i = 0; i<mpisize;i++){
+        Localg_.vertexDist[i] = newVertexDist[i];
+      }
+
+      //  logfileptr->OFS()<<"**********permuted unsorted******"<<endl;
+      //  DumpMatlab();
+      //  logfileptr->OFS()<<"*********************************"<<endl;
+
+
+      if(Localg_.GetSorted()){
+        Localg_.SetSorted(false);
+        SortGraph(); 
+      }
+
+    }
+
+
+  template< typename F>
+    void DistSparseMatrix<F>::SortGraph(){
+      scope_timer(a,DistMat_SortGraph);
+      if(!Localg_.GetSorted()){
+        std::vector<std::size_t> lperm;
+        std::vector<Idx> work;
+        std::vector<F> work2;
+        Int baseval = Localg_.GetBaseval();
+        Idx FirstLocalCol = Localg_.LocalFirstVertex() - baseval;
+        for(Idx locCol = 0 ; locCol< Localg_.LocalVertexCount(); locCol++){
+          Idx col = FirstLocalCol + locCol;  // 0 based
+          Ptr colbeg = Localg_.colptr[locCol]-baseval; //now 0 based
+          Ptr colend = Localg_.colptr[locCol+1]-1-baseval; // now 0 based, inclusive
+          sort_permutation(&Localg_.rowind[colbeg],&Localg_.rowind[colend]+1,std::less<Idx>(),lperm);
+          apply_permutation(&Localg_.rowind[colbeg],&Localg_.rowind[colend]+1,lperm,work);
+          apply_permutation(&nzvalLocal[colbeg],&nzvalLocal[colend]+1,lperm,work2);
+        }
+        Localg_.SetSorted(true);
       }
     }
 
-    TIMER_STOP(EXPANDING_MATRIX);
-#endif
+  template< typename F>
+    void DistSparseMatrix<F>::ToLowerTriangular(){
+      auto & bIsExpanded = Localg_.bIsExpanded;
+      if(bIsExpanded)
+      {
+        Ptr localNNZ = 0;
+        Int baseval = Localg_.GetBaseval();
+        Idx FirstLocalCol = Localg_.LocalFirstVertex() - baseval;
+
+        std::vector<Ptr> newColptr(Localg_.colptr.size());
+        for(Idx locCol = 0 ; locCol< Localg_.LocalVertexCount(); locCol++){
+          Idx col = FirstLocalCol + locCol;  // 0 based
+          newColptr[locCol] = localNNZ+baseval;
+          Ptr colbeg = Localg_.colptr[locCol]-baseval; //now 0 based
+          Ptr colend = Localg_.colptr[locCol+1]-baseval; // now 0 based
+          for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+            Idx row = Localg_.rowind[rptr]-baseval; //0 based
+            if(row>col || (row==col && Localg_.GetKeepDiag())){
+              localNNZ++;
+            }
+          }
+        }
+        newColptr.back() = localNNZ+baseval;
+
+        //allocate new rowind & nzval
+        std::vector<Idx> newRowind(localNNZ);
+        std::vector<F> newNzvalLocal(localNNZ);
+        localNNZ = 0;
+        for(Idx locCol = 0 ; locCol< Localg_.LocalVertexCount(); locCol++){
+          Idx col = FirstLocalCol + locCol;  // 0 based
+          Ptr colbeg = Localg_.colptr[locCol]-baseval; //now 0 based
+          Ptr colend = Localg_.colptr[locCol+1]-baseval; // now 0 based
+          for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+            Idx row = Localg_.rowind[rptr]-baseval; //0 based
+            if(row>col || (row==col && Localg_.GetKeepDiag())){
+              F & val = nzvalLocal[rptr];
+              newRowind[localNNZ] = row+baseval;
+              newNzvalLocal[localNNZ] = val;
+              localNNZ++;
+            }
+          }
+        }
+
+        //swap the contents 
+        Localg_.colptr.swap(newColptr);
+        Localg_.rowind.swap(newRowind);
+        nzvalLocal.swap(newNzvalLocal);
+        Localg_.nnz = localNNZ;
+        nnz = (nnz - size)/2 + size;
+
+        //if(Localg_.GetSorted()){
+        //  Localg_.SetSorted(false);
+        //  SortGraph(); 
+        //}
+
+
+        bIsExpanded = false;
+      }
+    }
+
+  template< typename F>
+    void DistSparseMatrix<F>::ExpandSymmetric(){
+      auto & bIsExpanded = Localg_.bIsExpanded;
+      if(!bIsExpanded)
+      {
+        scope_timer(a,DistMat_Expand);
+        int ismpi=0;
+        MPI_Initialized( &ismpi);
+        int isnull= (comm == MPI_COMM_NULL);
+
+        if(!ismpi || isnull){
+          //throw an exception
+          throw std::logic_error("MPI communicator needs to be set.");
+        }
+
+        int mpisize,mpirank;
+        MPI_Comm_size(comm,&mpisize);
+        MPI_Comm_rank(comm,&mpirank);
+
+        auto baseval = this->Localg_.baseval;
+        auto & sorted = Localg_.sorted;
+        auto & keepDiag = Localg_.keepDiag;
+        auto & colptr = Localg_.colptr;
+        auto & rowind = Localg_.rowind;
+
+        Idx N = size; 
+
+
+        Idx firstLocCol = Localg_.LocalFirstVertex()-Localg_.baseval;
+        Idx locColCnt = Localg_.LocalVertexCount();
+
+        std::vector<triplet<F> > Isend,Irecv;
+        std::vector<int> ssizes(mpisize,0);
+        std::vector<int> rsizes(mpisize,0);
+        std::vector<int> sdispls(mpisize+1,0);
+        std::vector<int> rdispls(mpisize+1,0);
+
+        SYMPACK::vector<Ptr> curPos;
+        SYMPACK::vector<Ptr> prevPos;
+
+        //loop through my local columns and figure out the extra nonzero per col on prow
+        SYMPACK_TIMER_START(DistMat_Expand_count);
+        for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
+          Idx col = firstLocCol + locCol;  // 0 based
+          Ptr colbeg = colptr[locCol]-baseval; //now 0 based
+          Ptr colend = colptr[locCol+1]-baseval; // now 0 based
+          for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+            Idx row = rowind[rptr]-baseval; //0 based
+            if(row>col){
+              //where should it go ?
+              Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(row>=Localg_.vertexDist[pdest]-baseval && row < Localg_.vertexDist[pdest+1]-baseval){ break;} }
+              ssizes[pdest]++;
+            }
+          }
+        }
+        SYMPACK_TIMER_STOP(DistMat_Expand_count);
+
+
+        sdispls[0] = 0;
+        std::partial_sum(ssizes.begin(),ssizes.end(),sdispls.begin()+1);
+        int totSend = sdispls.back();
+        Isend.resize(totSend);
+        //serialize
+        SYMPACK_TIMER_START(DistMat_Expand_pack);
+        for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
+          Idx col = firstLocCol + locCol;  // 0 based
+          Ptr colbeg = colptr[locCol]-baseval; //now 0 based
+          Ptr colend = colptr[locCol+1]-baseval; // now 0 based
+          for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+            Idx row = rowind[rptr]-baseval; //0 based
+            if(row>col){
+              Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(row>=Localg_.vertexDist[pdest]-baseval && row < Localg_.vertexDist[pdest+1]-baseval){ break;} }
+              triplet<F> & trip = Isend[sdispls[pdest]++];
+              trip.row = col;
+              trip.col = row;
+              trip.val = nzvalLocal[rptr];
+            }
+          }
+        }  
+        SYMPACK_TIMER_STOP(DistMat_Expand_pack);
+
+        //for(auto it = ssizes.begin();it!=ssizes.end();it++){  (*it)*=sizeof(triplet<F>);}
+        sdispls[0] = 0;
+        std::partial_sum(ssizes.begin(),ssizes.end(),sdispls.begin()+1);
+        totSend = sdispls.back();
+
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(triplet<F>), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
+
+        SYMPACK_TIMER_START(DistMat_Expand_communication);
+        MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
+
+
+        rdispls[0] = 0;
+        std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
+        int totRecv = rdispls.back();///sizeof(triplet<F>);
+        Irecv.resize(totRecv);
+
+        MPI_Alltoallv(&Isend[0],&ssizes[0],&sdispls[0],type,&Irecv[0],&rsizes[0],&rdispls[0],type,comm);
+        SYMPACK_TIMER_STOP(DistMat_Expand_communication);
+
+        MPI_Type_free(&type);
+        //now parse
+        //for(auto it = rsizes.begin();it!=rsizes.end();it++){  (*it)/=sizeof(triplet<F>);}
+
+
+        SYMPACK::vector<Ptr> newColptr(colptr.size(),0);
+        for(int col=colptr.size()-1;col>0;col--){
+          //convert to count instead
+          newColptr[col] = colptr[col] - colptr[col-1];//baseval-based
+        }
+
+        //update the column counts
+        for(auto it = Irecv.begin(); it!=Irecv.end(); it++){
+          //triplets are 0-based but everything is currently shifted by one
+          newColptr[it->col-firstLocCol+1]++;
+        }
+
+        //turn it back to colptr
+        newColptr[0]=baseval;
+        std::partial_sum(newColptr.begin(),newColptr.end(),newColptr.begin());
+      
+
+        Ptr newNNZ = newColptr.back()-baseval;
+        rowind.resize(newNNZ);
+        this->Local_.nnz = newNNZ;
+        this->nnz = (this->nnz - this->size)*2 + this->size;
+
+        nzvalLocal.resize(newNNZ);
+
+        SYMPACK_TIMER_START(DistMat_Expand_shift);
+        //shift the content
+        for(int col=colptr.size()-2;col>=0;col--){
+          std::copy_backward(&rowind[colptr[col]-baseval],&rowind[colptr[col+1]-baseval],&rowind[newColptr[col+1]-baseval]);
+          std::copy_backward(&nzvalLocal[colptr[col]-baseval],&nzvalLocal[colptr[col+1]-baseval],&nzvalLocal[newColptr[col+1]-baseval]);
+        }
+        SYMPACK_TIMER_STOP(DistMat_Expand_shift);
+
+        //add the new content, using colptr as a position backup
+        //turn colptr to count
+        for(int col=colptr.size()-1;col>0;col--){
+          colptr[col] = colptr[col] - colptr[col-1];//baseval-based
+        }
+
+        SYMPACK_TIMER_START(DistMat_Expand_unpack);
+        for(auto it = Irecv.begin(); it!=Irecv.end(); it++){
+          triplet<F> & trip = *it;
+          Idx locCol = trip.col-firstLocCol;//0-based
+          //colptr contains column count shifted by one
+          Ptr pos = newColptr[locCol + 1] - colptr[locCol+1]-1;//baseval-based
+          colptr[locCol+1]++;
+
+          rowind[pos-baseval] = trip.row+baseval;
+          nzvalLocal[pos-baseval] = trip.val;
+        }
+        //exchange content for the colptr array
+        colptr.swap(newColptr);
+        SYMPACK_TIMER_STOP(DistMat_Expand_unpack);
+
+        bIsExpanded =true;
+        //keepDiag = 1;
+
+        if(Localg_.GetSorted()){
+          scope_timer(a,DistMat_Expand_sort);
+          Localg_.SetSorted(false);
+          SortGraph(); 
+        }
+
+      }
+    }
+
 
 
 

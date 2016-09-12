@@ -1,3 +1,9 @@
+/******************************************************************************
+    AMD, Copyright (c), 1996-2015, Timothy A. Davis,
+    Patrick R. Amestoy, and Iain S. Duff.  All Rights Reserved.
+    Used in symPACK under the BSD 3-clause license.
+******************************************************************************/
+
 #ifndef _ORDERING_HPP_ 
 #define _ORDERING_HPP_
 
@@ -11,6 +17,28 @@ namespace SYMPACK{
 class SparseMatrixGraph;
 class DistSparseMatrixGraph;
 class SparseMatrixStructure;
+class Ordering;
+
+
+
+
+#if MMDIDXSIZE==64
+  typedef    int64_t   MMDInt;
+#else
+  typedef    int32_t   MMDInt;
+#endif
+
+#if AMDIDXSIZE==64
+  typedef    int64_t   AMDInt;
+#else
+  typedef    int32_t   AMDInt;
+#endif
+
+
+
+
+
+
 class Ordering{
   public:
     CommEnvironment * CommEnv_;

@@ -97,7 +97,7 @@ namespace SYMPACK{
   enum OrderingType {NATURAL,MMD,AMD,NDBOX,NDGRID,SCOTCH,PTSCOTCH,METIS,PARMETIS,USER};
   enum SchedulerType {DL,MCT,PR,FIFO};
   //enum OrderRefinementType {BarryDL,MCT,PR,FIFO};
-  class NGCholOptions{
+  class symPACKOptions{
     public:
       DecompositionType decomposition;
       MappingType mappingType;
@@ -110,7 +110,6 @@ namespace SYMPACK{
       SchedulerType scheduler;
       Int maxIsend;
       Int maxIrecv;
-      Int maxSnode;
       CommEnvironment * commEnv;
       RelaxationParameters relax;
     protected:
@@ -132,7 +131,7 @@ namespace SYMPACK{
       }
 
     public:
-      NGCholOptions(){
+      symPACKOptions(){
         decomposition = LL; 
         mappingType = MODWRAP2D;
         mappingTypeStr = "MODWRAP2D";
@@ -142,8 +141,7 @@ namespace SYMPACK{
         scheduler = DL;
         maxIsend = 0;
         maxIrecv=0;
-        maxSnode=-1;
-        relax = RelaxationParameters(maxSnode);
+        relax = RelaxationParameters(0);
         commEnv = NULL;
         ordering = MMD;
         order_refinement_str = "NONE";
@@ -226,7 +224,34 @@ namespace SYMPACK{
 
 
 
+  template<typename T>
+  struct triplet{
+            Idx row;
+            Idx col;
+            T val;
+          };
 
+template<typename T>
+struct sortTriplet {
+  bool operator() (const triplet<T> & a, const triplet<T> & b){
+    bool retval = a.row<b.row;
+    if(a.row==b.row){
+      retval = a.col<b.col;
+    }
+    return retval;
+  }
+};
+
+template<typename T>
+struct sortTripletInv {
+  bool operator() (const triplet<T> & a, const triplet<T> & b){
+    bool retval = a.row>b.row;
+    if(a.row==b.row){
+      retval = a.col>b.col;
+    }
+    return retval;
+  }
+};
 
 
 

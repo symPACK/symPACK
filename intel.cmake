@@ -11,11 +11,12 @@ set(CMAKE_C_COMPILER icc)
 set(CMAKE_Fortran_COMPILER ifort)
 set(MPI_C_COMPILER mpiicc)
 set(MPI_CXX_COMPILER mpiicpc)
+
 #add_definitions("-gxx-name=g++-4.9")
 #add_definitions("-std=c++11")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11" CACHE STRING "" FORCE)
+add_compile_options("-mkl=sequential")
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-gxx-name=g++-4.9>")
-#add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-std=c++11>")
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-std=c++11>")
 
 

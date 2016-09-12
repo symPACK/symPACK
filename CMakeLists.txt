@@ -5,9 +5,11 @@ include(ExternalProject)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED on)
 
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0" CACHE STRING "" FORCE)
-SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0" CACHE STRING "" FORCE)
-SET(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} -O0" CACHE STRING "" FORCE)
+#SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0" CACHE STRING "" FORCE)
+#SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0" CACHE STRING "" FORCE)
+#SET(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} -O0" CACHE STRING "" FORCE)
+add_compile_options("$<$<CONFIG:Debug>:-O0>")
+add_compile_options("$<$<CONFIG:Debug>:-g>")
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
@@ -62,28 +64,46 @@ if(MKL_FOUND)
   set(LIBS ${LIBS} ${MKL_LIBRARIES})
 else()
   message(WARNING "Warning: could not find a MKL library")
-  add_definitions("-mkl")
+  add_compile_options("-mkl=sequential")
+  SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -mkl=sequential" )
 endif()
 
-
 else()
-find_package(BLAS)
-if(BLAS_FOUND)
-  message(STATUS "Found BLAS library: " ${BLAS_LIBRARIES})
-  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS})
-  set(LIBS ${LIBS} ${BLAS_LIBRARIES})
-else()
-  message(WARNING "Warning: could not find a BLAS library")
-endif()
-
-find_package(LAPACK)
-if(LAPACK_FOUND)
-  message(STATUS "Found LAPACK library: " ${LAPACK_LIBRARIES})
-  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS})
-  set(LIBS ${LIBS} ${LAPACK_LIBRARIES})
-else()
-  message(WARNING "Warning: could not find a LAPACK library")
-endif()
+  
+  
+  
+  set(MKL_FOUND false)
+  get_directory_property( ALL_OPTIONS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_OPTIONS )
+  foreach( d ${ALL_OPTIONS} )
+    string(FIND ${d} "-mkl" pos)
+    if(pos EQUAL "0")
+      set(MKL_FOUND true)
+    endif()
+  endforeach()
+  
+  
+  if(MKL_FOUND)
+    SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -mkl=sequential" )
+    message(STATUS "Found MKL in flags")
+  else()
+    find_package(BLAS)
+    if(BLAS_FOUND)
+      message(STATUS "Found BLAS library: " ${BLAS_LIBRARIES})
+      set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${BLAS_LINKER_FLAGS})
+      set(LIBS ${LIBS} ${BLAS_LIBRARIES})
+    else()
+      message(WARNING "Warning: could not find a BLAS library")
+    endif()
+    
+    find_package(LAPACK)
+    if(LAPACK_FOUND)
+      message(STATUS "Found LAPACK library: " ${LAPACK_LIBRARIES})
+      set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${LAPACK_LINKER_FLAGS})
+      set(LIBS ${LIBS} ${LAPACK_LIBRARIES})
+    else()
+      message(WARNING "Warning: could not find a LAPACK library")
+    endif()
+  endif()
 endif()
 
 
@@ -191,7 +211,7 @@ if(ENABLE_PROFILE)
   endif()
 
 
-  add_definitions("-DPROFILE")
+  add_definitions("-DSPROFILE")
   add_definitions("-DNO_INTRA_PROFILE")
 endif()
 
@@ -243,6 +263,7 @@ add_definitions("-DITREE")
 add_definitions("-D_DSW_ITREE_")
 add_definitions("-DSINGLE_BLAS")
 add_definitions("-DSEPARATE_AGGREG")
+add_definitions("-DNOTRY")
 get_directory_property( ALL_DEFINITIONS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_DEFINITIONS )
 
 
@@ -307,7 +328,6 @@ install(FILES
   include/sympack/blas.hpp
   include/sympack/datatypes.hpp
   include/sympack/lapack.hpp
-  include/sympack/mmd.hpp
   include/sympack/mpi_interf.hpp
   include/sympack/timer.hpp
   include/sympack/Ordering.hpp

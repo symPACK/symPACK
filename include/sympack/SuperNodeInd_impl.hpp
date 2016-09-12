@@ -408,7 +408,6 @@ template<typename T, class Allocator>
 #endif
 
 
-    Idx totalNRows = this->NRowsBelowBlock(0);
     Int snodeSize = this->Size();
     Int BLOCKSIZE = this->Size();
 
@@ -416,6 +415,8 @@ template<typename T, class Allocator>
 
     NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
     T * diag_nzval = this->GetNZval(diag_desc.Offset);
+#if 1
+    Idx totalNRows = this->NRowsBelowBlock(0);
     for(Int col = 0; col< snodeSize;col++){
 
       //copy the diagonal entries into the diag portion of the supernode
@@ -426,6 +427,35 @@ template<typename T, class Allocator>
       blas::Ger(snodeSize - col - 1, totalNRows - col - 1, -this->diag_[col],&diag_nzval[col + (col+1)*snodeSize],
                   snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
     }
+#else
+    for(Int col = 0; col< snodeSize;col++){
+      //copy the diagonal entries into the diag portion of the supernode
+      this->diag_[col] = diag_nzval[col+ (col)*snodeSize];
+    }
+
+    Idx totalNRows = this->NRowsBelowBlock(0);
+    SYMPACK::vector<T> work(totalNRows*snodeSize);
+    int kb = 0;
+    int info = 0;
+    lapack::lasyf_np_rm( 'L', totalNRows, snodeSize, kb, diag_nzval, snodeSize, &work[0], snodeSize, info);
+
+
+//    //NOT WORKING
+//
+//    //factor the diagonal block
+//    for(Int col = 0; col< snodeSize;col++){
+//      //copy the diagonal entries into the diag portion of the supernode
+//      this->diag_[col] = diag_nzval[col+ (col)*snodeSize];
+//      T piv = static_cast<T>(1.0) / diag_nzval[col+col*snodeSize];
+//      lapack::Scal( snodeSize - col - 1, piv, &diag_nzval[ col + (col+1)*snodeSize ], snodeSize );
+//      blas::Ger(snodeSize - col - 1, snodeSize - col - 1, -this->diag_[col],&diag_nzval[col + (col+1)*snodeSize],
+//                  snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
+//    }
+//    //apply trsm below
+//    Idx totalNRows = this->NRowsBelowBlock(0);
+//    T * nzblk_nzval = &this->GetNZval(diag_desc.Offset)[snodeSize*snodeSize];
+//    blas::Trsm('L','U','T','N',snodeSize, totalNRows-snodeSize, ONE<T>(),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
+#endif
     return 0;
 
   }
@@ -487,7 +517,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
 #endif
     buf = bufLDL + src_snode_size*tgt_width;
 
-  TIMER_START(UPDATE_SNODE_GEMM);
+  SYMPACK_TIMER_START(UPDATE_SNODE_GEMM);
  
   //everything is in row-major
   //First do W = DLT 
@@ -502,7 +532,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
   blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
       static_cast<T>(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
 
-  TIMER_STOP(UPDATE_SNODE_GEMM);
+  SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
 
 
 
@@ -518,7 +548,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
 #endif
 
     //now add the update to the target supernode
-    TIMER_START(UPDATE_SNODE_INDEX_MAP);
+    SYMPACK_TIMER_START(UPDATE_SNODE_INDEX_MAP);
     if(tgt_snode_size==1){
       Int rowidx = 0;
       Int src_blkcnt = src_snode->NZBlockCnt();
@@ -578,7 +608,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
           row += (lr-row+1);
         }
       }
-      TIMER_STOP(UPDATE_SNODE_INDEX_MAP);
+      SYMPACK_TIMER_STOP(UPDATE_SNODE_INDEX_MAP);
 
 
       //Multiple cases to consider
@@ -683,7 +713,7 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
     buf = bufLDL + src_snode_size*tgt_width;
   }
 
-  TIMER_START(UPDATE_SNODE_GEMM);
+  SYMPACK_TIMER_START(UPDATE_SNODE_GEMM);
  
   //everything is in row-major
   //First do W = DLT 
@@ -694,13 +724,11 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
     }
   }
 
-//#define DGEMM_ROWMAJOR(A,B,C,m,n,k,alpha,beta,transf_A,transf_B, lda, ldb, ldc) \
-//        DGEMM(transf_B, transf_A, n, m, k, alpha, B, ldb, A, lda, beta, C, ldc)
   //Then do -L*W (gemm)
   blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
       MINUS_ONE<T>(),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
 
-  TIMER_STOP(UPDATE_SNODE_GEMM);
+  SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
 
   //If the GEMM wasn't done in place we need to aggregate the update
   //This is the assembly phase
@@ -710,7 +738,7 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
 #endif
 
     //now add the update to the target supernode
-    TIMER_START(UPDATE_SNODE_INDEX_MAP);
+    SYMPACK_TIMER_START(UPDATE_SNODE_INDEX_MAP);
     if(tgt_snode_size==1){
       Int rowidx = 0;
       Int src_blkcnt = src_snode->NZBlockCnt();
@@ -779,7 +807,7 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
         }
       }
       //Multiple cases to consider
-      TIMER_STOP(UPDATE_SNODE_INDEX_MAP);
+      SYMPACK_TIMER_STOP(UPDATE_SNODE_INDEX_MAP);
 
       if(first_pivot_idx==last_pivot_idx){
         // Updating contiguous columns

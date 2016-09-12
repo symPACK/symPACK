@@ -1685,6 +1685,32 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
 
 
 
+  void PtrSum( void *in, void *inout, int *len, MPI_Datatype *dptr ) 
+  { 
+    int i; 
+
+    Ptr * pinout = (Ptr*)inout;
+    Ptr * pin = (Ptr*)in;
+#pragma unroll
+    for (i=0; i< *len; ++i) { 
+      pinout[i] += pin[i];
+    } 
+  } 
+
+
+  void PtrMax( void *in, void *inout, int *len, MPI_Datatype *dptr ) 
+  { 
+    int i; 
+
+    Ptr * pinout = (Ptr*)inout;
+    Ptr * pin = (Ptr*)in;
+#pragma unroll
+    for (i=0; i< *len; ++i) { 
+      pinout[i] = max(pinout[i], pin[i]);
+    } 
+  } 
+
+
 
 
 

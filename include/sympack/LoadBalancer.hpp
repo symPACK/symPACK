@@ -57,6 +57,7 @@ namespace SYMPACK{
           procMap_[i-1] = proc;
         } 
 
+        return procMap_;
 
       }
   };
@@ -1238,22 +1239,13 @@ logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
             }
             else{
               groupIdx_[I] = groupIdx_[parent];
-              //logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | ";for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
 
 #ifdef _DEBUG_LOAD_BALANCER_
-              logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+              logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;
 #endif
             }
 
 
-            //            procGroups_[I].Ranks().reserve(numProcs);
-            //            for(Int p = pFirst; p<pFirst+numProcs;++p){ procGroups_[I].Ranks().push_back(p);}
-            //
-            //pstart[parent]++;
-
-            //            logfileptr->OFS()<<I<<": "; 
-            //            for(Int i = 0; i<procGroups_[I].Ranks().size();++i){logfileptr->OFS()<<procGroups_[I].Ranks().at(i)<<" ";}
-            //            logfileptr->OFS()<<endl;
           }
 
 

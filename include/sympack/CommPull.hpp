@@ -14,15 +14,15 @@
 //#include "sympack/CommTypes.hpp"
 
 
+
+
+
 #ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a) TAU_FSTART(a);
-#define TIMER_STOP(a) TAU_FSTOP(a);
+#if defined (SPROFILE)
+#define SYMPACK_TIMER_START(a)
+#define SYMPACK_TIMER_STOP(a)
 #endif
 #endif
-
-
-
 
 namespace SYMPACK{
 
@@ -146,14 +146,14 @@ struct MSGCompare{
   void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta);
 
   inline void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
-      TIMER_START(SIGNAL_DATA);
+      SYMPACK_TIMER_START(SIGNAL_DATA);
       upcxx::async(dest)(rcv_async,local_ptr,pMsg_size,meta);
-      TIMER_STOP(SIGNAL_DATA);
+      SYMPACK_TIMER_STOP(SIGNAL_DATA);
   }
 
 
   inline void remote_delete(upcxx::global_ptr<char> pRemote_ptr){
-      TIMER_START(REMOTE_DELETE);
+      SYMPACK_TIMER_START(REMOTE_DELETE);
       if(upcxx::myrank()!=pRemote_ptr.where()){
         //logfileptr->OFS()<<"Performing remote delete on P"<<pRemote_ptr.where()<<endl;
         //upcxx::async(pRemote_ptr.where())(remote_delete,pRemote_ptr);
@@ -169,11 +169,11 @@ struct MSGCompare{
 
         upcxx::deallocate(pRemote_ptr);
       }
-      TIMER_STOP(REMOTE_DELETE);
+      SYMPACK_TIMER_STOP(REMOTE_DELETE);
   }
 
   inline void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
-    TIMER_START(RCV_ASYNC);
+    SYMPACK_TIMER_START(RCV_ASYNC);
 
 #ifdef HANDLE_LOCAL_POINTER
       char * tryPtr = (char*)pRemote_ptr;
@@ -232,12 +232,12 @@ struct MSGCompare{
         }
 
       }
-    TIMER_STOP(RCV_ASYNC);
+    SYMPACK_TIMER_STOP(RCV_ASYNC);
 
   }
 
   inline std::list< IncomingMessage * >::iterator TestAsyncIncomingMessage(){
-    scope_timer(a,TEST_ASYNC);
+    //scope_timer(a,TEST_ASYNC);
     auto it = gIncomingRecvAsync.end();
     if(!gIncomingRecvAsync.empty()){
       //find if there is some finished async comm
@@ -258,11 +258,12 @@ struct MSGCompare{
 
 
 #ifdef NO_INTRA_PROFILE
-#if defined (PROFILE)
-#define TIMER_START(a)
-#define TIMER_STOP(a)
+#if defined (SPROFILE)
+#define SYMPACK_TIMER_START(a) SYMPACK_FSTART(a);
+#define SYMPACK_TIMER_STOP(a) SYMPACK_FSTOP(a);
 #endif
 #endif
+
 
 
 
