@@ -24,6 +24,10 @@
 
 namespace SYMPACK{
 
+//  namespace lapack{
+//  template<typename T> void Potrf_LDL( const  char * UPLO,  Idx & N, T * A,  Idx & LDA, Int & NDEF, Int * IDEF,  T & TOL, T * WORK, Int & INFO);
+//  }
+
 template<typename T, class Allocator>
 SuperNodeInd<T,Allocator>::SuperNodeInd() :SuperNode<T,Allocator>(), diag_(NULL){ }
 
@@ -416,6 +420,7 @@ template<typename T, class Allocator>
     NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
     T * diag_nzval = this->GetNZval(diag_desc.Offset);
 #if 1
+#if 0
     Idx totalNRows = this->NRowsBelowBlock(0);
     for(Int col = 0; col< snodeSize;col++){
 
@@ -427,6 +432,27 @@ template<typename T, class Allocator>
       blas::Ger(snodeSize - col - 1, totalNRows - col - 1, -this->diag_[col],&diag_nzval[col + (col+1)*snodeSize],
                   snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
     }
+#else
+    Idx totalNRows = this->NRowsBelowBlock(0);
+    for(Int col = 0; col< snodeSize;col++){
+      //copy the diagonal entries into the diag portion of the supernode
+      this->diag_[col] = diag_nzval[col+ (col)*snodeSize];
+    }
+
+    Int INFO = 0;
+    Int NDEF;
+    SYMPACK::vector<Int> IDEF(snodeSize);
+    SYMPACK::vector<T> work(snodeSize);
+    T tol = 1E-16;
+    lapack::Potrf_LDL( "U", (Idx)snodeSize, diag_nzval, (Idx)snodeSize, NDEF, &IDEF[0], tol, &work[0], INFO);
+
+    T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
+    blas::Trsm('L','U','T','N',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
+
+//      //update the rest !!! (next blocks columns)
+//      T * tgt_nzval = &GetNZval(diag_desc.Offset)[snodesize+snodeSize*snodeSize];
+//      blas::Gemm('T','N',Size()-(col+bw), NRowsBelowBlock(0)-(col+bw),bw,MINUS_ONE<T>(),nzblk_nzval,Size(),nzblk_nzval,Size(),ONE<T>(),tgt_nzval,Size());
+#endif
 #else
     for(Int col = 0; col< snodeSize;col++){
       //copy the diagonal entries into the diag portion of the supernode

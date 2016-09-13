@@ -67,6 +67,7 @@ void LAPACK(zscal)( const int * N, const dcomplex * DA, dcomplex * DX, const int
 
 
 
+int LAPACK(ilaenv)(const int * Ispec, const char * name, const char * opts, const int * n1, const int * n2, const int * n3, const int * n4);
 
 
 
@@ -1625,6 +1626,9 @@ void Scal( Int N, dcomplex DA, dcomplex* DX, Int INCX){
   LAPACK(zscal)(&N,&DA,DX,&INCX);
 }
 
+int Ilaenv( int Ispec, const char * name, const char * opts, int n1, int n2, int n3, int n4){
+  return LAPACK(ilaenv) ( &Ispec, name, opts, &n1, &n2, &n3, &n4);
+}
 
 
 
