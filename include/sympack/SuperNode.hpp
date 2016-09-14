@@ -122,7 +122,7 @@ class UpcxxAllocator: public MemoryAllocator{
       Int iLastCol_;
       Int iN_; 
       Int blocks_cnt_;
-      Int nzval_cnt_;
+      Ptr nzval_cnt_;
     };
 
 
@@ -170,6 +170,7 @@ class SuperNode{
   inline Int LastCol(){ return meta_->iLastCol_;}
   inline Int Size(){ return meta_->iSize_;}
   inline Int N(){ return meta_->iN_;}
+  inline Ptr NNZ(){ return meta_->nzval_cnt_;}
   inline Int NZBlockCnt(){ return meta_->blocks_cnt_;}
   inline NZBlockDesc & GetNZBlockDesc(Int aiLocIndex){ return *(blocks_ -aiLocIndex);}
   inline T* GetNZval(size_t offset){ return &nzval_[offset];}
