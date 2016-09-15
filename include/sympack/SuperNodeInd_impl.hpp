@@ -416,7 +416,7 @@ template<typename T, class Allocator>
     NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
     T * diag_nzval = this->GetNZval(diag_desc.Offset);
 #if 1
-#if 0
+#if 1
     Idx totalNRows = this->NRowsBelowBlock(0);
     for(Int col = 0; col< snodeSize;col++){
 

@@ -83,6 +83,10 @@ namespace SYMPACK{
 
 
       void Init(DistSparseMatrix<T> & pMat, symPACKOptions & options );
+      void Init2(DistSparseMatrix<T> & pMat, symPACKOptions & options );
+
+      void SymbolicFactorization(DistSparseMatrix<T> & pMat);
+      void DistributeA(DistSparseMatrix<T> & pMat);
 
       //Accessors
       Int Size(){return iSize_;}
@@ -174,6 +178,8 @@ template <class Allocator = UpcxxAllocator>
 
       PtrVec locXlindx_;
       IdxVec locLindx_;
+
+      SYMPACK::vector<Int> numBlk_;
 
 #ifdef MULTITHREADING
       SYMPACK::vector<omp_lock_t> superLocks_;

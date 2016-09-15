@@ -6,3 +6,5 @@ set(METIS_DIR /home/mjacquel/software/intel/release/parmetis_install)
 set(PARMETIS_DIR /home/mjacquel/software/intel/release/parmetis_install)
 
 set(ENABLE_SCOTCH ON CACHE BOOL "...")
+set(ENABLE_METIS ON CACHE BOOL "...")
+set(ENABLE_PARMETIS ON CACHE BOOL "...")

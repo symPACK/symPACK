@@ -153,50 +153,75 @@ namespace SYMPACK{
           SYMPACK::vector<Int> children(supETree_.Size()+1,0);
 
 #if 1
-{
-//          SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
-//          SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
+          {
+            //          SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
+            //          SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
 
-    //      Int numLocSnode = ( (Xsuper_.size()-1) / np);
-    //      Int firstSnode = iam*numLocSnode + 1;
+            //      Int numLocSnode = ( (Xsuper_.size()-1) / np);
+            //      Int firstSnode = iam*numLocSnode + 1;
 
-    Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
-    Int firstSnode = XsuperDist_[iam];
+            Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
+            Int firstSnode = XsuperDist_[iam];
 
 
 
-          for(Int locsupno = 1; locsupno<Xlindx_.size(); ++locsupno){
-            Idx I = locsupno + firstSnode-1;
+            for(Int locsupno = 1; locsupno<Xlindx_.size(); ++locsupno){
+              Idx I = locsupno + firstSnode-1;
 
-            Idx fc = Xsuper_[I-1];
-            Idx lc = Xsuper_[I]-1;
+              Idx fc = Xsuper_[I-1];
+              Idx lc = Xsuper_[I]-1;
 
-            Int width = lc - fc + 1;
-            Int height = cc_[fc-1];
+              Int width = lc - fc + 1;
+              Int height = cc_[fc-1];
 
-            //cost of factoring curent panel
-            double local_load = factor_cost(height,width);
-            SubTreeLoad[I]+=local_load;
-            NodeLoad[I]+=local_load;
+              //cost of factoring curent panel
+              double local_load = factor_cost(height,width);
+              SubTreeLoad[I]+=local_load;
+              NodeLoad[I]+=local_load;
 
-            //cost of updating ancestors
-            {
-              Ptr lfi = Xlindx_[locsupno-1];
-              Ptr lli = Xlindx_[locsupno]-1;
+              //cost of updating ancestors
+              {
+                Ptr lfi = Xlindx_[locsupno-1];
+                Ptr lli = Xlindx_[locsupno]-1;
 
-              //parse rows
-              Int tgt_snode_id = I;
-              Idx tgt_fr = fc;
-              Idx tgt_lr = fc;
-              Ptr tgt_fr_ptr = 0;
-              Ptr tgt_lr_ptr = 0;
-              for(Ptr rowptr = lfi; rowptr<=lli;rowptr++){
-                Idx row = Lindx_[rowptr-1]; 
-                if(SupMembership_[row-1]==tgt_snode_id){ continue;}
+                //parse rows
+                Int tgt_snode_id = I;
+                Idx tgt_fr = fc;
+                Idx tgt_lr = fc;
+                Ptr tgt_fr_ptr = 0;
+                Ptr tgt_lr_ptr = 0;
+                for(Ptr rowptr = lfi; rowptr<=lli;rowptr++){
+                  Idx row = Lindx_[rowptr-1]; 
+                  if(SupMembership_[row-1]==tgt_snode_id){ continue;}
 
+                  //we have a new tgt_snode_id
+                  tgt_lr_ptr = rowptr-1;
+                  tgt_lr = Lindx_[rowptr-1 -1];
+                  if(tgt_snode_id!=I){
+                    Int m = lli-tgt_fr_ptr+1;
+                    Int n = width;
+                    Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
+                    double cost = update_cost(m,n,k);
+                    if(fan_in_){
+                      SubTreeLoad[I]+=cost;
+                      NodeLoad[I]+=cost;
+                    }
+                    else{
+                      SubTreeLoad[tgt_snode_id]+=cost;
+                      NodeLoad[tgt_snode_id]+=cost;
+                    }
+                  }
+                  tgt_fr = row;
+                  tgt_fr_ptr = rowptr;
+                  tgt_snode_id = SupMembership_[row-1];
+                }
+
+
+
+                //do the last update supernode
                 //we have a new tgt_snode_id
-                tgt_lr_ptr = rowptr-1;
-                tgt_lr = Lindx_[rowptr-1 -1];
+                tgt_lr_ptr = lli;
+                tgt_lr = Lindx_[lli -1];
                 if(tgt_snode_id!=I){
                   Int m = lli-tgt_fr_ptr+1;
                   Int n = width;
@@ -211,48 +236,23 @@ namespace SYMPACK{
                     NodeLoad[tgt_snode_id]+=cost;
                   }
                 }
-                tgt_fr = row;
-                tgt_fr_ptr = rowptr;
-                tgt_snode_id = SupMembership_[row-1];
+
               }
-
-
-
-              //do the last update supernode
-              //we have a new tgt_snode_id
-              tgt_lr_ptr = lli;
-              tgt_lr = Lindx_[lli -1];
-              if(tgt_snode_id!=I){
-                Int m = lli-tgt_fr_ptr+1;
-                Int n = width;
-                Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
-                double cost = update_cost(m,n,k);
-                if(fan_in_){
-                  SubTreeLoad[I]+=cost;
-                  NodeLoad[I]+=cost;
-                }
-                else{
-                  SubTreeLoad[tgt_snode_id]+=cost;
-                  NodeLoad[tgt_snode_id]+=cost;
-                }
-              }
-
             }
+
+            //Allreduce SubTreeLoad and NodeLoad
+            MPI_Allreduce(MPI_IN_PLACE,&NodeLoad[0],NodeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
+            MPI_Allreduce(MPI_IN_PLACE,&SubTreeLoad[0],SubTreeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
+
+            for(Int I=1;I<=supETree_.Size();I++){
+              Int parent = supETree_.Parent(I-1);
+              ++children[parent];
+              SubTreeLoad[parent]+=SubTreeLoad[I];
+            }
+
+            //logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
+            //logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
           }
-
-          //Allreduce SubTreeLoad and NodeLoad
-          MPI_Allreduce(MPI_IN_PLACE,&NodeLoad[0],NodeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
-          MPI_Allreduce(MPI_IN_PLACE,&SubTreeLoad[0],SubTreeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
-
-          for(Int I=1;I<=supETree_.Size();I++){
-            Int parent = supETree_.Parent(I-1);
-            ++children[parent];
-            SubTreeLoad[parent]+=SubTreeLoad[I];
-          }
-
-//logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
-//logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
-}
 
 #else
           for(Int I=1;I<=supETree_.Size();I++){
@@ -324,8 +324,8 @@ namespace SYMPACK{
             SubTreeLoad[parent]+=SubTreeLoad[I];
           }
 
-logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
-logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
+          logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
+          logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
 
 #endif
 
@@ -528,100 +528,100 @@ logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
 
 
 #if 1
-{
-    //      Int numLocSnode = ( (Xsuper_.size()-1) / np);
-    //      Int firstSnode = iam*numLocSnode + 1;
+              {
+                //      Int numLocSnode = ( (Xsuper_.size()-1) / np);
+                //      Int firstSnode = iam*numLocSnode + 1;
 
-    Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
-    Int firstSnode = XsuperDist_[iam];
-          for(Int locsupno = 1; locsupno<Xlindx_.size(); ++locsupno){
-            Idx I = locsupno + firstSnode-1;
+                Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
+                Int firstSnode = XsuperDist_[iam];
+                for(Int locsupno = 1; locsupno<Xlindx_.size(); ++locsupno){
+                  Idx I = locsupno + firstSnode-1;
 
-            Idx fc = Xsuper_[I-1];
-            Idx lc = Xsuper_[I]-1;
+                  Idx fc = Xsuper_[I-1];
+                  Idx lc = Xsuper_[I]-1;
 
-            Int width = lc - fc + 1;
-            Int height = cc_[fc-1];
+                  Int width = lc - fc + 1;
+                  Int height = cc_[fc-1];
 
-            //cost of factoring curent panel
-            double local_load = factor_cost(height,width);
-            SubTreeLoad[I]+=local_load;
-            NodeLoad[I]+=local_load;
+                  //cost of factoring curent panel
+                  double local_load = factor_cost(height,width);
+                  SubTreeLoad[I]+=local_load;
+                  NodeLoad[I]+=local_load;
 
-            //cost of updating ancestors
-            {
-              Ptr lfi = Xlindx_[locsupno-1];
-              Ptr lli = Xlindx_[locsupno]-1;
+                  //cost of updating ancestors
+                  {
+                    Ptr lfi = Xlindx_[locsupno-1];
+                    Ptr lli = Xlindx_[locsupno]-1;
 
-              //parse rows
-              Int tgt_snode_id = I;
-              Idx tgt_fr = fc;
-              Idx tgt_lr = fc;
-              Ptr tgt_fr_ptr = 0;
-              Ptr tgt_lr_ptr = 0;
-              for(Ptr rowptr = lfi; rowptr<=lli;rowptr++){
-                Idx row = Lindx_[rowptr-1]; 
-                if(SupMembership_[row-1]==tgt_snode_id){ continue;}
+                    //parse rows
+                    Int tgt_snode_id = I;
+                    Idx tgt_fr = fc;
+                    Idx tgt_lr = fc;
+                    Ptr tgt_fr_ptr = 0;
+                    Ptr tgt_lr_ptr = 0;
+                    for(Ptr rowptr = lfi; rowptr<=lli;rowptr++){
+                      Idx row = Lindx_[rowptr-1]; 
+                      if(SupMembership_[row-1]==tgt_snode_id){ continue;}
 
-                //we have a new tgt_snode_id
-                tgt_lr_ptr = rowptr-1;
-                tgt_lr = Lindx_[rowptr-1 -1];
-                if(tgt_snode_id!=I){
-                  Int m = lli-tgt_fr_ptr+1;
-                  Int n = width;
-                  Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
-                  double cost = update_cost(m,n,k);
-                  if(fan_in_){
-                    SubTreeLoad[I]+=cost;
-                    NodeLoad[I]+=cost;
+                      //we have a new tgt_snode_id
+                      tgt_lr_ptr = rowptr-1;
+                      tgt_lr = Lindx_[rowptr-1 -1];
+                      if(tgt_snode_id!=I){
+                        Int m = lli-tgt_fr_ptr+1;
+                        Int n = width;
+                        Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
+                        double cost = update_cost(m,n,k);
+                        if(fan_in_){
+                          SubTreeLoad[I]+=cost;
+                          NodeLoad[I]+=cost;
+                        }
+                        else{
+                          SubTreeLoad[tgt_snode_id]+=cost;
+                          NodeLoad[tgt_snode_id]+=cost;
+                        }
+                      }
+                      tgt_fr = row;
+                      tgt_fr_ptr = rowptr;
+                      tgt_snode_id = SupMembership_[row-1];
+                    }
+
+
+
+                    //do the last update supernode
+                    //we have a new tgt_snode_id
+                    tgt_lr_ptr = lli;
+                    tgt_lr = Lindx_[lli -1];
+                    if(tgt_snode_id!=I){
+                      Int m = lli-tgt_fr_ptr+1;
+                      Int n = width;
+                      Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
+                      double cost = update_cost(m,n,k);
+                      if(fan_in_){
+                        SubTreeLoad[I]+=cost;
+                        NodeLoad[I]+=cost;
+                      }
+                      else{
+                        SubTreeLoad[tgt_snode_id]+=cost;
+                        NodeLoad[tgt_snode_id]+=cost;
+                      }
+                    }
+
                   }
-                  else{
-                    SubTreeLoad[tgt_snode_id]+=cost;
-                    NodeLoad[tgt_snode_id]+=cost;
-                  }
                 }
-                tgt_fr = row;
-                tgt_fr_ptr = rowptr;
-                tgt_snode_id = SupMembership_[row-1];
+
+                //Allreduce SubTreeLoad and NodeLoad
+                MPI_Allreduce(MPI_IN_PLACE,&NodeLoad[0],NodeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
+                MPI_Allreduce(MPI_IN_PLACE,&SubTreeLoad[0],SubTreeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
+
+                for(Int I=1;I<=supETree_.Size();I++){
+                  Int parent = supETree_.Parent(I-1);
+                  ++children[parent];
+                  SubTreeLoad[parent]+=SubTreeLoad[I];
+                }
+
+                //logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
+                //logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
               }
-
-
-
-              //do the last update supernode
-              //we have a new tgt_snode_id
-              tgt_lr_ptr = lli;
-              tgt_lr = Lindx_[lli -1];
-              if(tgt_snode_id!=I){
-                Int m = lli-tgt_fr_ptr+1;
-                Int n = width;
-                Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
-                double cost = update_cost(m,n,k);
-                if(fan_in_){
-                  SubTreeLoad[I]+=cost;
-                  NodeLoad[I]+=cost;
-                }
-                else{
-                  SubTreeLoad[tgt_snode_id]+=cost;
-                  NodeLoad[tgt_snode_id]+=cost;
-                }
-              }
-
-            }
-          }
-
-          //Allreduce SubTreeLoad and NodeLoad
-          MPI_Allreduce(MPI_IN_PLACE,&NodeLoad[0],NodeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
-          MPI_Allreduce(MPI_IN_PLACE,&SubTreeLoad[0],SubTreeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
-
-          for(Int I=1;I<=supETree_.Size();I++){
-            Int parent = supETree_.Parent(I-1);
-            ++children[parent];
-            SubTreeLoad[parent]+=SubTreeLoad[I];
-          }
-
-//logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
-//logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
-}
 #else
 
               for(Int I=1;I<=supETree_.Size();I++){
@@ -692,6 +692,14 @@ logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
                 SubTreeLoad[parent]+=SubTreeLoad[I];
               }
 #endif
+
+
+
+
+
+
+
+
 
               SYMPACK::vector<Int> levels(supETree_.Size()+1,0);
               for(Int I=n_; I>= 1;I--){ 
@@ -1052,269 +1060,269 @@ logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
           };
 
 
-  class SubtreeToSubcubeGlobal: public TreeLoadBalancer{
+          class SubtreeToSubcubeGlobal: public TreeLoadBalancer{
 
-    protected:
-      bool fan_in_;
-      SYMPACK::vector<Int> & Xsuper_;
-      SYMPACK::vector<Int> & SupMembership_;
-      PtrVec & Xlindx_;
-      IdxVec & Lindx_;
-      CommEnvironment * CommEnv_;
-      SYMPACK::vector<Int> & cc_;
-
-
-      double factor_cost(Int m, Int n){
-        return CHOLESKY_COST(m,n);
-      }
-
-      double update_cost(Int m, Int n, Int k){
-        return 2.0*m*n*k;
-      }
+            protected:
+              bool fan_in_;
+              SYMPACK::vector<Int> & Xsuper_;
+              SYMPACK::vector<Int> & SupMembership_;
+              PtrVec & Xlindx_;
+              IdxVec & Lindx_;
+              CommEnvironment * CommEnv_;
+              SYMPACK::vector<Int> & cc_;
 
 
+              double factor_cost(Int m, Int n){
+                return CHOLESKY_COST(m,n);
+              }
 
-    public:
-
-      SubtreeToSubcubeGlobal(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, CommEnvironment* CommEnv, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),CommEnv_(CommEnv),TreeLoadBalancer(np,supETree){
-        fan_in_=fan_in;
-      };
+              double update_cost(Int m, Int n, Int k){
+                return 2.0*m*n*k;
+              }
 
 
-      virtual SYMPACK::vector<Int> & GetMap(){
-        if(levelGroups_.size()==0){
-          //compute number of children and load
-          Int numLevels = 1;
-          SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
-          SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
-          SYMPACK::vector<Int> children(supETree_.Size()+1,0);
 
-          for(Int I=1;I<=supETree_.Size();I++){
-            Int parent = supETree_.Parent(I-1);
-            ++children[parent];
-            Idx fc = Xsuper_[I-1];
-            Int width = Xsuper_[I] - Xsuper_[I-1];
-            Int height = cc_[fc-1];
-            //cost of factoring curent panel
-            double local_load = factor_cost(height,width);
-            SubTreeLoad[I]+=local_load;
-            NodeLoad[I]+=local_load;
-            //cost of updating ancestors
-            {
-              Ptr fi = Xlindx_[I-1];
-              Ptr li = Xlindx_[I]-1;
+            public:
 
-              //parse rows
-              Int tgt_snode_id = I;
-              Idx tgt_fr = fc;
-              Idx tgt_lr = fc;
-              Ptr tgt_fr_ptr = 0;
-              Ptr tgt_lr_ptr = 0;
-              for(Ptr rowptr = fi; rowptr<=li;rowptr++){
-                Idx row = Lindx_[rowptr-1]; 
-                if(SupMembership_[row-1]==tgt_snode_id){ continue;}
+              SubtreeToSubcubeGlobal(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, CommEnvironment* CommEnv, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),CommEnv_(CommEnv),TreeLoadBalancer(np,supETree){
+                fan_in_=fan_in;
+              };
 
-                //we have a new tgt_snode_id
-                tgt_lr_ptr = rowptr-1;
-                tgt_lr = Lindx_[rowptr-1 -1];
-                if(tgt_snode_id!=I){
-                  Int m = li-tgt_fr_ptr+1;
-                  Int n = width;
-                  Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
-                  double cost = update_cost(m,n,k);
-                  if(fan_in_){
-                    SubTreeLoad[I]+=cost;
-                    NodeLoad[I]+=cost;
+
+              virtual SYMPACK::vector<Int> & GetMap(){
+                if(levelGroups_.size()==0){
+                  //compute number of children and load
+                  Int numLevels = 1;
+                  SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
+                  SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
+                  SYMPACK::vector<Int> children(supETree_.Size()+1,0);
+
+                  for(Int I=1;I<=supETree_.Size();I++){
+                    Int parent = supETree_.Parent(I-1);
+                    ++children[parent];
+                    Idx fc = Xsuper_[I-1];
+                    Int width = Xsuper_[I] - Xsuper_[I-1];
+                    Int height = cc_[fc-1];
+                    //cost of factoring curent panel
+                    double local_load = factor_cost(height,width);
+                    SubTreeLoad[I]+=local_load;
+                    NodeLoad[I]+=local_load;
+                    //cost of updating ancestors
+                    {
+                      Ptr fi = Xlindx_[I-1];
+                      Ptr li = Xlindx_[I]-1;
+
+                      //parse rows
+                      Int tgt_snode_id = I;
+                      Idx tgt_fr = fc;
+                      Idx tgt_lr = fc;
+                      Ptr tgt_fr_ptr = 0;
+                      Ptr tgt_lr_ptr = 0;
+                      for(Ptr rowptr = fi; rowptr<=li;rowptr++){
+                        Idx row = Lindx_[rowptr-1]; 
+                        if(SupMembership_[row-1]==tgt_snode_id){ continue;}
+
+                        //we have a new tgt_snode_id
+                        tgt_lr_ptr = rowptr-1;
+                        tgt_lr = Lindx_[rowptr-1 -1];
+                        if(tgt_snode_id!=I){
+                          Int m = li-tgt_fr_ptr+1;
+                          Int n = width;
+                          Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
+                          double cost = update_cost(m,n,k);
+                          if(fan_in_){
+                            SubTreeLoad[I]+=cost;
+                            NodeLoad[I]+=cost;
+                          }
+                          else{
+                            SubTreeLoad[tgt_snode_id]+=cost;
+                            NodeLoad[tgt_snode_id]+=cost;
+                          }
+                        }
+                        tgt_fr = row;
+                        tgt_fr_ptr = rowptr;
+                        tgt_snode_id = SupMembership_[row-1];
+                      }
+                      //do the last update supernode
+                      //we have a new tgt_snode_id
+                      tgt_lr_ptr = li;
+                      tgt_lr = Lindx_[li -1];
+                      if(tgt_snode_id!=I){
+                        Int m = li-tgt_fr_ptr+1;
+                        Int n = width;
+                        Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
+                        double cost = update_cost(m,n,k);
+                        if(fan_in_){
+                          SubTreeLoad[I]+=cost;
+                          NodeLoad[I]+=cost;
+                        }
+                        else{
+                          SubTreeLoad[tgt_snode_id]+=cost;
+                          NodeLoad[tgt_snode_id]+=cost;
+                        }
+                      }
+
+                    }
+                    SubTreeLoad[parent]+=SubTreeLoad[I];
                   }
-                  else{
-                    SubTreeLoad[tgt_snode_id]+=cost;
-                    NodeLoad[tgt_snode_id]+=cost;
+
+                  logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
+                  logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
+
+
+                  SYMPACK::vector<Int> levels(supETree_.Size()+1,0);
+                  for(Int I=n_; I>= 1;I--){ 
+                    Int parent = supETree_.Parent(I-1);
+                    if(parent==0){levels[I]=0;}
+                    else{ levels[I] = levels[parent]+1; numLevels = max(numLevels,levels[I]);}
                   }
+                  numLevels++;
+
+#ifdef _DEBUG_LOAD_BALANCER_
+                  logfileptr->OFS()<<"levels : "; 
+                  for(Int i = 0; i<levels.size();++i){logfileptr->OFS()<<levels.at(i)<<" ";}
+                  logfileptr->OFS()<<endl;
+                  logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
+#endif
+
+                  //procmaps[0]/pstart[0] represents the complete list
+                  procGroups_.resize(n_+1);
+                  procGroups_[0].Ranks().reserve(np);
+                  for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
+
+
+                  SYMPACK::vector<Int> pstart(n_+1,0);
+                  levelGroups_.reserve(numLevels);
+                  levelGroups_.push_back(ProcGroup());//reserve(numLevels);
+                  levelGroups_[0].Ranks().reserve(np);
+                  for(Int p = 0;p<np;++p){levelGroups_[0].Ranks().push_back(p);}
+
+
+                  SYMPACK::vector<double> load(n_+1,0.0);
+                  for(Int I=n_; I>= 1;I--){ 
+                    Int parent = supETree_.Parent(I-1);
+
+                    //split parent's proc list
+                    double parent_load = 0.0;
+
+                    if(parent!=0){
+                      Int fc = Xsuper_[parent-1];
+                      Int width = Xsuper_[parent] - Xsuper_[parent-1];
+                      Int height = cc_[fc-1];
+                      parent_load = NodeLoad[parent];// factor_cost(height,width);
+                      load[parent] = parent_load;
+                    }
+
+
+                    double proportion = min(1.0,SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load));
+                    Int npParent = levelGroups_[groupIdx_[parent]].Ranks().size();
+                    Int pFirstIdx = min(pstart[parent],npParent-1);
+                    Int npIdeal =(Int)std::round(npParent*proportion);
+                    Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
+                    Int pFirst = levelGroups_[groupIdx_[parent]].Ranks().at(pFirstIdx);
+
+                    //Int npParent = procGroups_[parent].Ranks().size();
+                    //Int pFirst = procGroups_[parent].Ranks().at(pFirstIdx);
+#ifdef _DEBUG_LOAD_BALANCER_
+                    logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
+                    logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<endl; 
+#endif
+                    pstart[parent]+= numProcs;
+
+                    if(npParent!=numProcs){
+                      //if(iam>=pFirst && iam<pFirst+numProcs)
+                      {
+                        levelGroups_.push_back(ProcGroup());//reserve(numLevels);
+                        levelGroups_.back().Ranks().reserve(numProcs);
+                        //              for(Int p = pFirst; p<pFirst+numProcs;++p){ levelGroups_.back().Ranks().push_back(p);}
+
+                        SYMPACK::vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
+                        levelGroups_.back().Ranks().insert(levelGroups_.back().Ranks().begin(),parentRanks.begin()+pFirstIdx,parentRanks.begin()+pFirstIdx+numProcs);
+
+                        groupIdx_[I] = levelGroups_.size()-1;
+#ifdef _DEBUG_LOAD_BALANCER_
+                        logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+#endif
+                      }
+                    }
+                    else{
+                      groupIdx_[I] = groupIdx_[parent];
+
+#ifdef _DEBUG_LOAD_BALANCER_
+                      logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;
+#endif
+                    }
+
+
+                  }
+
+
+                  //now choose which processor to get
+                  //SYMPACK::vector<double> load(np,0.0);
+                  load.assign(np,0.0);
+                  for(Int I=1;I<=supETree_.Size();I++){
+                    Int minLoadP= -1;
+                    double minLoad = -1;
+                    ProcGroup & group = levelGroups_[groupIdx_[I]];
+                    for(Int i = 0; i<group.Ranks().size();++i){
+                      Int proc = group.Ranks()[i];
+                      if(load[proc]<minLoad || minLoad==-1){
+                        minLoad = load[proc];
+                        minLoadP = proc;
+                      }
+                    }
+
+#ifdef _DEBUG_LOAD_BALANCER_
+                    logfileptr->OFS()<<"MinLoadP "<<minLoadP<<endl;
+                    logfileptr->OFS()<<"group of "<<I<<endl;
+                    for(Int i = 0; i<group.Ranks().size();++i){
+                      Int proc = group.Ranks()[i];
+                      logfileptr->OFS()<<proc<<" ["<<load[proc]<<"] ";
+                    }
+                    logfileptr->OFS()<<endl;
+#endif
+                    groupWorker_[I] = minLoadP;
+
+                    //procGroups_[I].Worker() = minLoadP;
+
+
+                    Int fc = Xsuper_[I-1];
+                    Int width = Xsuper_[I] - Xsuper_[I-1];
+                    Int height = cc_[fc-1];
+                    //cost of factoring current node + updating ancestors (how about fanboth ?)
+                    //this is exactly the cost of FAN-In while 
+                    //CHOLESKY_COST(height,width) + SUM_child SubtreeLoads - SUM_descendant CHOLESKY_COSTS
+                    // would be the cost of Fan-Out
+                    double local_load = NodeLoad[I];//width*height*height;
+
+                    load[minLoadP]+=local_load;
+                  }
+
+
+#ifdef _DEBUG_LOAD_BALANCER_
+                  logfileptr->OFS()<<"Proc load: "<<load<<endl;
+#endif
+
+                  for(Int I=1;I<=supETree_.Size();I++){
+                    //for(Int I = 1; I<procGroups_.size();++I){ 
+                    //procMap_[I-1] = procGroups_[I].Worker();
+                    procMap_[I-1] = groupWorker_[I];
+                  }
+
+#ifdef _DEBUG_LOAD_BALANCER_
+                  for(Int I = 0; I<levelGroups_.size();++I){ 
+                    logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<endl;
+                  }
+#endif
+
+                  }
+
+                  return procMap_;
                 }
-                tgt_fr = row;
-                tgt_fr_ptr = rowptr;
-                tgt_snode_id = SupMembership_[row-1];
-              }
-              //do the last update supernode
-              //we have a new tgt_snode_id
-              tgt_lr_ptr = li;
-              tgt_lr = Lindx_[li -1];
-              if(tgt_snode_id!=I){
-                Int m = li-tgt_fr_ptr+1;
-                Int n = width;
-                Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
-                double cost = update_cost(m,n,k);
-                if(fan_in_){
-                  SubTreeLoad[I]+=cost;
-                  NodeLoad[I]+=cost;
-                }
-                else{
-                  SubTreeLoad[tgt_snode_id]+=cost;
-                  NodeLoad[tgt_snode_id]+=cost;
-                }
-              }
 
-            }
-            SubTreeLoad[parent]+=SubTreeLoad[I];
-          }
-
-logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
-logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
-
-
-          SYMPACK::vector<Int> levels(supETree_.Size()+1,0);
-          for(Int I=n_; I>= 1;I--){ 
-            Int parent = supETree_.Parent(I-1);
-            if(parent==0){levels[I]=0;}
-            else{ levels[I] = levels[parent]+1; numLevels = max(numLevels,levels[I]);}
-          }
-          numLevels++;
-
-#ifdef _DEBUG_LOAD_BALANCER_
-          logfileptr->OFS()<<"levels : "; 
-          for(Int i = 0; i<levels.size();++i){logfileptr->OFS()<<levels.at(i)<<" ";}
-          logfileptr->OFS()<<endl;
-          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
-#endif
-
-          //procmaps[0]/pstart[0] represents the complete list
-          procGroups_.resize(n_+1);
-          procGroups_[0].Ranks().reserve(np);
-          for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
-
-
-          SYMPACK::vector<Int> pstart(n_+1,0);
-          levelGroups_.reserve(numLevels);
-          levelGroups_.push_back(ProcGroup());//reserve(numLevels);
-          levelGroups_[0].Ranks().reserve(np);
-          for(Int p = 0;p<np;++p){levelGroups_[0].Ranks().push_back(p);}
-
-
-          SYMPACK::vector<double> load(n_+1,0.0);
-          for(Int I=n_; I>= 1;I--){ 
-            Int parent = supETree_.Parent(I-1);
-
-            //split parent's proc list
-            double parent_load = 0.0;
-
-            if(parent!=0){
-              Int fc = Xsuper_[parent-1];
-              Int width = Xsuper_[parent] - Xsuper_[parent-1];
-              Int height = cc_[fc-1];
-              parent_load = NodeLoad[parent];// factor_cost(height,width);
-              load[parent] = parent_load;
-            }
-
-
-            double proportion = min(1.0,SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load));
-            Int npParent = levelGroups_[groupIdx_[parent]].Ranks().size();
-            Int pFirstIdx = min(pstart[parent],npParent-1);
-            Int npIdeal =(Int)std::round(npParent*proportion);
-            Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
-            Int pFirst = levelGroups_[groupIdx_[parent]].Ranks().at(pFirstIdx);
-
-            //Int npParent = procGroups_[parent].Ranks().size();
-            //Int pFirst = procGroups_[parent].Ranks().at(pFirstIdx);
-#ifdef _DEBUG_LOAD_BALANCER_
-            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
-            logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<endl; 
-#endif
-            pstart[parent]+= numProcs;
-
-            if(npParent!=numProcs){
-              //if(iam>=pFirst && iam<pFirst+numProcs)
-              {
-                levelGroups_.push_back(ProcGroup());//reserve(numLevels);
-                levelGroups_.back().Ranks().reserve(numProcs);
-                //              for(Int p = pFirst; p<pFirst+numProcs;++p){ levelGroups_.back().Ranks().push_back(p);}
-
-                SYMPACK::vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
-                levelGroups_.back().Ranks().insert(levelGroups_.back().Ranks().begin(),parentRanks.begin()+pFirstIdx,parentRanks.begin()+pFirstIdx+numProcs);
-
-                groupIdx_[I] = levelGroups_.size()-1;
-#ifdef _DEBUG_LOAD_BALANCER_
-                logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
-#endif
-              }
-            }
-            else{
-              groupIdx_[I] = groupIdx_[parent];
-
-#ifdef _DEBUG_LOAD_BALANCER_
-              logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;
-#endif
-            }
+              };
 
 
           }
-
-
-          //now choose which processor to get
-          //SYMPACK::vector<double> load(np,0.0);
-          load.assign(np,0.0);
-          for(Int I=1;I<=supETree_.Size();I++){
-            Int minLoadP= -1;
-            double minLoad = -1;
-            ProcGroup & group = levelGroups_[groupIdx_[I]];
-            for(Int i = 0; i<group.Ranks().size();++i){
-              Int proc = group.Ranks()[i];
-              if(load[proc]<minLoad || minLoad==-1){
-                minLoad = load[proc];
-                minLoadP = proc;
-              }
-            }
-
-#ifdef _DEBUG_LOAD_BALANCER_
-            logfileptr->OFS()<<"MinLoadP "<<minLoadP<<endl;
-            logfileptr->OFS()<<"group of "<<I<<endl;
-            for(Int i = 0; i<group.Ranks().size();++i){
-              Int proc = group.Ranks()[i];
-              logfileptr->OFS()<<proc<<" ["<<load[proc]<<"] ";
-            }
-            logfileptr->OFS()<<endl;
-#endif
-            groupWorker_[I] = minLoadP;
-
-            //procGroups_[I].Worker() = minLoadP;
-
-
-            Int fc = Xsuper_[I-1];
-            Int width = Xsuper_[I] - Xsuper_[I-1];
-            Int height = cc_[fc-1];
-            //cost of factoring current node + updating ancestors (how about fanboth ?)
-            //this is exactly the cost of FAN-In while 
-            //CHOLESKY_COST(height,width) + SUM_child SubtreeLoads - SUM_descendant CHOLESKY_COSTS
-            // would be the cost of Fan-Out
-            double local_load = NodeLoad[I];//width*height*height;
-
-            load[minLoadP]+=local_load;
-          }
-
-
-#ifdef _DEBUG_LOAD_BALANCER_
-          logfileptr->OFS()<<"Proc load: "<<load<<endl;
-#endif
-
-          for(Int I=1;I<=supETree_.Size();I++){
-            //for(Int I = 1; I<procGroups_.size();++I){ 
-            //procMap_[I-1] = procGroups_[I].Worker();
-            procMap_[I-1] = groupWorker_[I];
-          }
-
-#ifdef _DEBUG_LOAD_BALANCER_
-          for(Int I = 0; I<levelGroups_.size();++I){ 
-            logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<endl;
-          }
-#endif
-
-          }
-
-          return procMap_;
-        }
-
-      };
-
-
-      }
 
 #endif //_LOAD_BALANCER_HPP_

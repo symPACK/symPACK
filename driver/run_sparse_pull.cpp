@@ -296,7 +296,10 @@ int main(int argc, char **argv)
         timeSta = get_time();
         SMat = new SupernodalMatrix<SCALAR>();
         SMat->team_ = workteam;
+        //SMat->Init2(HMat,optionsFact);
         SMat->Init(HMat,optionsFact);
+        SMat->SymbolicFactorization(HMat);
+        SMat->DistributeA(HMat);
         timeEnd = get_time();
 #ifdef EXPLICIT_PERMUTE
         perm = SMat->GetOrdering().perm;
@@ -330,6 +333,7 @@ int main(int argc, char **argv)
       }
       logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
+      SMat->DumpMatlab();
 
 //      SMat->DumpMatlab();
 

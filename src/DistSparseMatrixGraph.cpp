@@ -1207,6 +1207,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
       MPI_Op_free(&MPI_SYMPACK_PTR_SUM);
       MPI_Type_free(&MPI_SYMPACK_PTR);
 
+      MPI_Barrier(comm);
+
       //nnz = LocalEdgeCount();
       bIsExpanded =true;
     }

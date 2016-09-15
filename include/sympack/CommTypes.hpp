@@ -323,6 +323,7 @@ namespace SYMPACK{
     inline size_t size(){ return head;}
 
     inline void resize(size_t size){
+      bassert(size<(size_t)20*1024*1024*1024);
       pSrcBlocks->resize(size);
     }
 

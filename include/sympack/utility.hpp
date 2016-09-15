@@ -7,6 +7,7 @@
 
 #include  <mpi.h>
 #include  <stdlib.h>
+#include  <numeric>
 #include  "sympack/Environment.hpp"
 //#include  "sympack/NumVec.hpp"
 //#include  "sympack/NumMat.hpp"

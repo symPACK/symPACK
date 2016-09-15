@@ -122,7 +122,8 @@ class UpcxxAllocator: public MemoryAllocator{
       Int iLastCol_;
       Int iN_; 
       Int blocks_cnt_;
-      Ptr nzval_cnt_;
+      Int nzval_cnt_;
+      //Ptr nzval_cnt_;
     };
 
 

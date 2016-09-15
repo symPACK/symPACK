@@ -313,172 +313,181 @@ namespace SYMPACK{
   }
 
   template< typename F>
-    void DistSparseMatrix<F>::Permute(Int * invp, Ptr * newVertexDist){
+    void DistSparseMatrix<F>::Permute(Int * invp, Idx * newVertexDist){
       scope_timer(a,DistMat_Permute);
+      bool needPermute = !isPermuted(invp,newVertexDist);
+      if (needPermute ){
+        Int invpbaseval = 1;
 
-      Int invpbaseval = 1;
+        int mpisize,mpirank;
+        MPI_Comm_size(comm,&mpisize);
+        MPI_Comm_rank(comm,&mpirank);
 
-      int mpisize,mpirank;
-      MPI_Comm_size(comm,&mpisize);
-      MPI_Comm_rank(comm,&mpirank);
-
-      vector<Ptr> tnewVertexDist;
-      if(newVertexDist==NULL){
-        tnewVertexDist.resize(Localg_.vertexDist.size());
-        for(Int i =0; i<Localg_.vertexDist.size(); i++){
-          tnewVertexDist[i] = Localg_.vertexDist[i];
+        //vector<Ptr> tnewVertexDist;
+        if(newVertexDist==NULL){
+          //tnewVertexDist.resize(Localg_.vertexDist.size());
+          //for(Int i =0; i<Localg_.vertexDist.size(); i++){
+          //  tnewVertexDist[i] = Localg_.vertexDist[i];
+          //}
+          //newVertexDist=&tnewVertexDist[0];
+          newVertexDist = &Localg_.vertexDist[0];
         }
-        newVertexDist=&tnewVertexDist[0];
-      }
 
-      auto baseval = Localg_.baseval;
-      auto & keepDiag = Localg_.keepDiag;
-      auto & bIsExpanded = Localg_.bIsExpanded;
-      auto & colptr = Localg_.colptr;
-      auto & rowind = Localg_.rowind;
+        auto baseval = Localg_.baseval;
 
-      Int newFirstCol = newVertexDist[mpirank]-baseval; //0 based
-      Ptr newVtxCount = newVertexDist[mpirank+1] - newVertexDist[mpirank];
+        auto & keepDiag = Localg_.keepDiag;
+        auto & bIsExpanded = Localg_.bIsExpanded;
+        auto & colptr = Localg_.colptr;
+        auto & rowind = Localg_.rowind;
+
+        Idx newFirstCol = newVertexDist[mpirank]-baseval; //0 based
+        Idx newVtxCount = newVertexDist[mpirank+1] - newVertexDist[mpirank];
 
 
-      SYMPACK::vector<int> sizes(mpisize,0);
+        SYMPACK::vector<int> sizes(mpisize,0);
 
-      Idx firstCol = Localg_.LocalFirstVertex()-baseval;
-      Idx LocalVertexCount = Localg_.LocalVertexCount();
+        Idx firstCol = Localg_.LocalFirstVertex()-baseval;
+        Idx LocalVertexCount = Localg_.LocalVertexCount();
 
-      for(Idx locCol = 0; locCol<LocalVertexCount; locCol++){
-        Idx col = firstCol + locCol; //0-based
-        Ptr colbeg = colptr[locCol] - baseval;
-        Ptr colend = colptr[locCol+1] - baseval;
-        Idx permCol = invp[col]-invpbaseval; // 0 based;
-        //find destination processors
-        Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
+        for(Idx locCol = 0; locCol<LocalVertexCount; locCol++){
+          Idx col = firstCol + locCol; //0-based
+          Ptr colbeg = colptr[locCol] - baseval;
+          Ptr colend = colptr[locCol+1] - baseval;
+          Idx permCol = invp[col]-invpbaseval; // 0 based;
+          //find destination processors
+          Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
 
-        //now permute rows
-        for(Ptr jptr = colbeg; jptr<colend; jptr++){
-          Idx row = rowind[jptr] - baseval; //0 based
-          Idx permRow = invp[row] - invpbaseval; // 0 based
-          if(permRow<permCol && !bIsExpanded){
-            Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
-            sizes[pdestR]++;
-          }
-          else if(permRow>permCol || (permRow==permCol && keepDiag) || bIsExpanded){
-            sizes[pdest]++;
+          //now permute rows
+          for(Ptr jptr = colbeg; jptr<colend; jptr++){
+            Idx row = rowind[jptr] - baseval; //0 based
+            Idx permRow = invp[row] - invpbaseval; // 0 based
+            if(permRow<permCol && !bIsExpanded){
+              Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
+              sizes[pdestR]++;
+            }
+            else if(permRow>permCol || (permRow==permCol && keepDiag) || bIsExpanded){
+              sizes[pdest]++;
+            }
           }
         }
-      }
 
 
-      //First allgatherv to get the receive sizes
-      SYMPACK::vector<int> displs(mpisize+1,0);
-      displs[0] = 0;
-      std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
-      Int totSend = displs.back();
-      SYMPACK::vector<triplet<F> > sbuf(totSend);
+        //First allgatherv to get the receive sizes
+        SYMPACK::vector<int> displs(mpisize+1,0);
+        displs[0] = 0;
+        std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
+        Int totSend = displs.back();
+        SYMPACK::vector<triplet<F> > sbuf(totSend);
 
-      //pack
-      for(Idx locCol = 0; locCol<LocalVertexCount; locCol++){
-        Idx col = firstCol + locCol; 
-        Ptr colbeg = colptr[locCol]-baseval;
-        Ptr colend = colptr[locCol+1]-baseval;
-        Idx permCol = invp[col]-invpbaseval; // perm is 1 based;
-        //find destination processors
-        Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
+        //pack
+        for(Idx locCol = 0; locCol<LocalVertexCount; locCol++){
+          Idx col = firstCol + locCol; 
+          Ptr colbeg = colptr[locCol]-baseval;
+          Ptr colend = colptr[locCol+1]-baseval;
+          Idx permCol = invp[col]-invpbaseval; // perm is 1 based;
+          //find destination processors
+          Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
 
 
-        for(Ptr jptr = colbeg; jptr<colend; jptr++){
-          Idx row = rowind[jptr] - baseval; //0 based
-          Idx permRow = invp[row] - invpbaseval; // 0 based
-          if(permRow<permCol && !bIsExpanded){
-            Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
-            auto & trip = sbuf[displs[pdestR]++];
-            trip.val = nzvalLocal[jptr];
-            trip.row = permCol;
-            trip.col = permRow;
+          for(Ptr jptr = colbeg; jptr<colend; jptr++){
+            Idx row = rowind[jptr] - baseval; //0 based
+            Idx permRow = invp[row] - invpbaseval; // 0 based
+            if(permRow<permCol && !bIsExpanded){
+              Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
+              auto & trip = sbuf[displs[pdestR]++];
+              trip.val = nzvalLocal[jptr];
+              trip.row = permCol;
+              trip.col = permRow;
+            }
+            else if(permRow>permCol || (permRow==permCol && keepDiag) || bIsExpanded){
+              auto & trip = sbuf[displs[pdest]++];
+              trip.val = nzvalLocal[jptr];
+              trip.row = permRow;
+              trip.col = permCol;
+            }
+
           }
-          else if(permRow>permCol || (permRow==permCol && keepDiag) || bIsExpanded){
-            auto & trip = sbuf[displs[pdest]++];
-            trip.val = nzvalLocal[jptr];
-            trip.row = permRow;
-            trip.col = permCol;
-          }
+        }
 
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(triplet<F>), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
+
+        //re compute send displs in bytes
+        //for(auto it = sizes.begin();it!=sizes.end();it++){ (*it)*=sizeof(triplet<F>);}
+        displs[0] = 0;
+        std::partial_sum(sizes.begin(),sizes.end(),&displs[1]);
+
+        SYMPACK::vector<int> rsizes(mpisize,0);
+        SYMPACK::vector<int> rdispls(mpisize+1,0);
+        MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
+
+        //now compute receiv displs with actual sizes 
+        rdispls[0] = 0;
+        std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+        Ptr totRecv = rdispls.back();
+        SYMPACK::vector<triplet<F> > rbuf(totRecv);
+        MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],type,&rbuf[0],&rsizes[0],&rdispls[0],type,comm);
+
+
+        //recompute displacements in triplets
+        //for(auto it = rsizes.begin();it!=rsizes.end();it++){ (*it)/=sizeof(triplet<F>);}
+        //rdispls[0] = 0;
+        //std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+        //totRecv = rdispls.back();
+
+
+        MPI_Type_free(&type);
+
+
+        SYMPACK::vector<Ptr> newColptr(newVtxCount+1,0);
+        //compute column counts
+        for(auto it = rbuf.begin(); it!=rbuf.end(); it++){
+          //triplets are 0-based but everything is currently shifted by one
+          newColptr[it->col-newFirstCol+1]++;
+        }
+        //turn it back to colptr
+        newColptr[0]=baseval;
+        std::partial_sum(newColptr.begin(),newColptr.end(),newColptr.begin());
+
+        Ptr newNNZ = newColptr.back()-baseval;
+        rowind.resize(newNNZ);
+        this->Local_.nnz = newNNZ;
+
+        nzvalLocal.resize(newNNZ);
+
+        colptr = newColptr;
+
+        //now use newColptr as a position backup
+        for(auto it = rbuf.begin(); it!=rbuf.end(); it++){
+          triplet<F> & trip = *it;
+          Idx locCol = trip.col-newFirstCol;//0-based
+          //colptr contains column count shifted by one
+          Ptr pos = newColptr[locCol]++;//baseval-based
+          rowind[pos-baseval] = trip.row+baseval;
+          nzvalLocal[pos-baseval] = trip.val;
+        }
+
+        for(Int i = 0; i<mpisize;i++){
+          Localg_.vertexDist[i] = newVertexDist[i];
+        }
+
+        //  logfileptr->OFS()<<"**********permuted unsorted******"<<endl;
+        //  DumpMatlab();
+        //  logfileptr->OFS()<<"*********************************"<<endl;
+
+        //store it as a distributed perm ?
+        this->invp.resize(Localg_.LocalVertexCount());
+        std::copy(invp+Localg_.LocalFirstVertex()-Localg_.GetBaseval(),
+              invp+Localg_.LocalFirstVertex()-Localg_.GetBaseval()+Localg_.LocalVertexCount(),
+                this->invp.begin());
+
+
+        if(Localg_.GetSorted()){
+          Localg_.SetSorted(false);
+          SortGraph(); 
         }
       }
-
-      MPI_Datatype type;
-      MPI_Type_contiguous( sizeof(triplet<F>), MPI_BYTE, &type );
-      MPI_Type_commit(&type);
-
-      //re compute send displs in bytes
-      //for(auto it = sizes.begin();it!=sizes.end();it++){ (*it)*=sizeof(triplet<F>);}
-      displs[0] = 0;
-      std::partial_sum(sizes.begin(),sizes.end(),&displs[1]);
-
-      SYMPACK::vector<int> rsizes(mpisize,0);
-      SYMPACK::vector<int> rdispls(mpisize+1,0);
-      MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
-
-      //now compute receiv displs with actual sizes 
-      rdispls[0] = 0;
-      std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
-      Ptr totRecv = rdispls.back();
-      SYMPACK::vector<triplet<F> > rbuf(totRecv);
-      MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],type,&rbuf[0],&rsizes[0],&rdispls[0],type,comm);
-
-
-      //recompute displacements in triplets
-      //for(auto it = rsizes.begin();it!=rsizes.end();it++){ (*it)/=sizeof(triplet<F>);}
-      //rdispls[0] = 0;
-      //std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
-      //totRecv = rdispls.back();
-
-
-      MPI_Type_free(&type);
-
-
-      SYMPACK::vector<Ptr> newColptr(newVtxCount+1,0);
-      //compute column counts
-      for(auto it = rbuf.begin(); it!=rbuf.end(); it++){
-        //triplets are 0-based but everything is currently shifted by one
-        newColptr[it->col-newFirstCol+1]++;
-      }
-      //turn it back to colptr
-      newColptr[0]=baseval;
-      std::partial_sum(newColptr.begin(),newColptr.end(),newColptr.begin());
-
-      Ptr newNNZ = newColptr.back()-baseval;
-      rowind.resize(newNNZ);
-      this->Local_.nnz = newNNZ;
-
-      nzvalLocal.resize(newNNZ);
-
-      colptr = newColptr;
-
-      //now use newColptr as a position backup
-      for(auto it = rbuf.begin(); it!=rbuf.end(); it++){
-        triplet<F> & trip = *it;
-        Idx locCol = trip.col-newFirstCol;//0-based
-        //colptr contains column count shifted by one
-        Ptr pos = newColptr[locCol]++;//baseval-based
-        rowind[pos-baseval] = trip.row+baseval;
-        nzvalLocal[pos-baseval] = trip.val;
-      }
-
-      for(Int i = 0; i<mpisize;i++){
-        Localg_.vertexDist[i] = newVertexDist[i];
-      }
-
-      //  logfileptr->OFS()<<"**********permuted unsorted******"<<endl;
-      //  DumpMatlab();
-      //  logfileptr->OFS()<<"*********************************"<<endl;
-
-
-      if(Localg_.GetSorted()){
-        Localg_.SetSorted(false);
-        SortGraph(); 
-      }
-
     }
 
 
@@ -736,6 +745,38 @@ namespace SYMPACK{
     }
 
 
+  template< typename F>
+  bool DistSparseMatrix<F>::isPermuted(Int * ainvp,Idx * avertexDist){
+    //if the current invp is empty, then matrix is unpermuted
+    if(invp.empty()){
+      return false;
+    }
+  
+    //if it is not the same permutation, consider that it is unpermuted
+    int mpisize,mpirank;
+    MPI_Comm_size(comm,&mpisize);
+    MPI_Comm_rank(comm,&mpirank);
+
+    if(avertexDist == NULL){
+      avertexDist = &Localg_.vertexDist[0];
+    }
+
+    //quick check on the size
+    if(invp.size()!=avertexDist[mpirank+1]-avertexDist[mpirank]){
+      return false;
+    }
+    else{
+      //offset the ainvp pointer, avertexDist[0] contains the baseval
+      ainvp = ainvp+ avertexDist[mpirank] - avertexDist[0];
+      for(size_t i = 0; i<invp.size(); i++){
+        if(invp[i]!=ainvp[i]){
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }
 
 
 
