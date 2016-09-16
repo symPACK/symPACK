@@ -227,6 +227,7 @@ int main(int argc, char **argv)
       }
 
 
+
       if(iam==0){
         cout<<"Starting spGEMM"<<endl;
       }
@@ -236,39 +237,90 @@ int main(int argc, char **argv)
       {
         //TODO HANDLE MULTIPLE RHS
 
-      const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
-      Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
-      Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
+        const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
+        Int baseval = Local.GetBaseval();
+        Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
+        Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
 
         RHS.assign(n*nrhs,0.0);
-        for(Int k = 0; k<nrhs; ++k){
-          for(Idx j = 1; j<=n; ++j){
-            if(j>=firstCol && j<lastCol){
-              Idx iLocal = j-firstCol;//0-based
+        std::vector<Idx> rrowind;
+        std::vector<SCALAR> rnzval;
+        std::vector<SCALAR> ts(nrhs);
+        for(Idx j = 1; j<=n; ++j){
+          Int iOwner = 0; for(iOwner = 0; iOwner<np;iOwner++){ if(Local.vertexDist[iOwner]+(1-baseval)<=j && j<Local.vertexDist[iOwner+1]+(1-baseval)){ break; } }
 
-              //do I own the column ?
-              SCALAR t = XTrue[j-1+k*n];
-              //do a dense mat mat mul ?
-              Ptr colbeg = Local.colptr[iLocal]-(1-Local.GetBaseval());//1-based
-              Ptr colend = Local.colptr[iLocal+1]-(1-Local.GetBaseval());//1-based
-              for(Ptr ii = colbeg; ii< colend;++ii){
-                Idx row = Local.rowind[ii-1]-(1-Local.GetBaseval());//1-based
-                RHS[row-1+k*n] += t*HMat.nzvalLocal[ii-1];
-                if(row>j){
-                  RHS[j-1+k*n] += XTrue[row-1+k*n]*HMat.nzvalLocal[ii-1];
-                }
+
+          Ptr nnz = 0;
+          Idx * rowind = NULL;
+          SCALAR * nzval = NULL;
+
+          //do I own the column ?
+
+          if(iam==iOwner){
+            Idx iLocal = j-firstCol;//0-based
+            Ptr colbeg = Local.colptr[iLocal]-(1-Local.GetBaseval());//1-based
+            Ptr colend = Local.colptr[iLocal+1]-(1-Local.GetBaseval());//1-based
+            nnz = colend-colbeg;
+            nzval = &HMat.nzvalLocal[colbeg-1];
+            rowind = const_cast<Idx*>(&Local.rowind[colbeg-1]);
+          }
+
+          MPI_Bcast(&nnz,sizeof(Ptr),MPI_BYTE,iOwner,workcomm);
+
+          if(iam!=iOwner){
+            rrowind.resize(nnz);
+            rnzval.resize(nnz);
+            rowind = &rrowind[0];
+            nzval = &rnzval[0];
+          }
+
+
+          MPI_Bcast(rowind,nnz*sizeof(Idx),MPI_BYTE,iOwner,workcomm);
+          MPI_Bcast(nzval,nnz*sizeof(SCALAR),MPI_BYTE,iOwner,workcomm);
+
+          for(Int k = 0; k<nrhs; ++k){
+            ts[k] = XTrue[j-1+k*n];
+          }
+          //do a dense mat mat mul ?
+          for(Ptr ii = 1; ii<= nnz;++ii){
+            Idx row = rowind[ii-1]-(1-Local.GetBaseval());//1-based
+            for(Int k = 0; k<nrhs; ++k){
+              RHS[row-1+k*n] += ts[k]*nzval[ii-1];
+              if(row>j){
+                RHS[j-1+k*n] += XTrue[row-1+k*n]*nzval[ii-1];
               }
             }
           }
         }
-        //Do a reduce of RHS
-        mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&RHS[0],RHS.size(),MPI_SUM,workcomm);
       }
 
       timeEnd = get_time();
       if(iam==0){
         cout<<"spGEMM time: "<<timeEnd-timeSta<<endl;
       }
+
+#if 1
+          {
+            std::size_t N = RHS.size();
+            logfileptr->OFS()<<"RHS = [ ";
+            for(std::size_t i = 0; i<N;i++){
+              logfileptr->OFS()<<RHS[i]<<" ";
+            }
+            logfileptr->OFS()<<"];"<<std::endl;
+          }
+#endif
+
+#if 1
+          {
+            std::size_t N = XTrue.size();
+            logfileptr->OFS()<<"XTrue = [ ";
+            for(std::size_t i = 0; i<N;i++){
+              logfileptr->OFS()<<XTrue[i]<<" ";
+            }
+            logfileptr->OFS()<<"];"<<std::endl;
+          }
+#endif
+
     }
 
     if(iam==0){
@@ -317,6 +369,15 @@ int main(int argc, char **argv)
         cout<<"Initialization time: "<<timeEnd-timeSta<<endl;
       }
 
+      if(iam==0){
+        logfileptr->OFS()<<"A= ";
+      }
+      SMat->DumpMatlab();
+
+      {
+        logfileptr->OFS()<<"Supernode partition"<<SMat->GetSupernodalPartition()<<std::endl;
+      }
+
 
       /************* NUMERICAL FACTORIZATION PHASE ***********/
       if(iam==0){
@@ -333,9 +394,11 @@ int main(int argc, char **argv)
       }
       logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
+      if(iam==0){
+        logfileptr->OFS()<<"L= ";
+      }
       SMat->DumpMatlab();
 
-//      SMat->DumpMatlab();
 
 //only for debug purpose
 #if 0
@@ -365,6 +428,33 @@ int main(int argc, char **argv)
         }
 
         SMat->GetSolution(&XFinal[0],nrhs);
+
+#if 1
+        if(nrhs>0 && XFinal.size()>0) {
+          {
+            std::size_t N = XFinal.size();
+            logfileptr->OFS()<<"XFinal = [ ";
+            for(std::size_t i = 0; i<N;i++){
+              logfileptr->OFS()<<XFinal[i]<<" ";
+            }
+            logfileptr->OFS()<<"];"<<std::endl;
+          }
+
+          //mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&XFinal[0],XFinal.size(),MPI_SUM,workcomm);
+          //MPI_Allreduce( MPI_IN_PLACE, &XFinal[0], XFinal.size()*sizeof( SCALAR ), MPI_BYTE, MPI_BOR, workcomm);
+          if(iam==0)
+          {
+            std::size_t N = XFinal.size();
+            logfileptr->OFS()<<"X = [ ";
+            for(std::size_t i = 0; i<N;i++){
+              logfileptr->OFS()<<XFinal[i]<<" ";
+            }
+            logfileptr->OFS()<<"];"<<std::endl;
+          }
+        }
+#endif
+
+
       }
       delete SMat;
 
@@ -375,7 +465,7 @@ int main(int argc, char **argv)
       Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
       Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
 
-      std::vector<SCALAR> AX(n*nrhs,0.0);
+      std::vector<SCALAR> AX(n*nrhs,SCALAR(0.0));
 
       for(Int k = 0; k<nrhs; ++k){
         for(Int j = 1; j<=n; ++j){
@@ -409,6 +499,7 @@ int main(int argc, char **argv)
 
       //Do a reduce of RHS
       mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,workcomm);
+      //MPI_Allreduce( MPI_IN_PLACE, &AX[0], AX.size()*sizeof( SCALAR ), MPI_BYTE, MPI_BOR, workcomm);
 
       if(iam==0){
         blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);

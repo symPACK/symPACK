@@ -370,7 +370,7 @@ template <class F> inline std::ostream& operator<<( std::ostream& os, const std:
 // SYMPACK::vector
 template <class F> inline std::ostream& operator<<( std::ostream& os, const SYMPACK::vector<F>& vec)
 {
-	os<<vec.size()<<std::endl;
+	os<<vec.size()<<"| ";
 	os.setf(std::ios_base::scientific, std::ios_base::floatfield);
 	for(Int i=0; i<vec.size(); i++)	 
 		os<<" "<<vec[i];

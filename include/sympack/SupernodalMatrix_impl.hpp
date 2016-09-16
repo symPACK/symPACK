@@ -723,6 +723,9 @@ namespace SYMPACK{
     Int n = iSize_;
     Int iam = CommEnv_->MPI_Rank();
     Int np  = CommEnv_->MPI_Size();
+
+    std::fill(B,B+n*nrhs,T(0.0));
+
     //    Int nrhs = B.n();
     //Gather B from everybody and put it in the original matrix order
     SYMPACK::vector<T> tmp_nzval;
@@ -735,6 +738,7 @@ namespace SYMPACK{
 
       if( iOwner == iam ){
         SuperNode<T,MallocAllocator> * contrib = snodeLocal(I,Contributions_);
+        logfileptr->OFS()<<*contrib<<std::endl;
         data = contrib->GetNZval(0);
       }
       else{
@@ -742,7 +746,6 @@ namespace SYMPACK{
       }
 
       MPI_Bcast(data,nzcnt*sizeof(T),MPI_BYTE,iOwner,CommEnv_->MPI_GetComm());
-
       for(Int i = 0; i<snode_size; ++i){ 
         for(Int j = 0; j<nrhs; ++j){
           Int destRow = Xsuper_[I-1] + i;
