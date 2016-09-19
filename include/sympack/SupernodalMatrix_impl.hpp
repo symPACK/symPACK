@@ -312,9 +312,9 @@ namespace SYMPACK{
     logfileptr->OFS()<<"Local number of messages: "<<gNumMsg<<endl;
 
     size_t totalVolComm = 0;
-    team_->reduce(&gVolComm,&totalVolComm,1,0,UPCXX_SUM);
+    MPI_Reduce(&gVolComm,&totalVolComm,1,MPI_UINT64_T,MPI_SUM,0,CommEnv_->MPI_GetComm());
     size_t totalNumMsg = 0;
-    team_->reduce(&gNumMsg,&totalNumMsg,1,0,UPCXX_SUM);
+    MPI_Reduce(&gNumMsg,&totalNumMsg,1,MPI_UINT64_T,MPI_SUM,0,CommEnv_->MPI_GetComm());
 
     if(iam==0){
       cout<<"Total volume of communication: "<<totalVolComm<<endl;
@@ -1427,21 +1427,12 @@ namespace SYMPACK{
         }
         //sgraph->SetKeepDiag(1);
         sgraph->SetBaseval(1);
-        ETree_.ConstructETree(*sgraph,Order_,team_);
+//        ETree_.ConstructETree(*sgraph,Order_,team_);
+        ETree_.ConstructETree(*sgraph,Order_,CommEnv_->MPI_GetComm());
       }
 
       ETree_.PostOrderTree(Order_);
       logfileptr->OFS()<<"ETREE done"<<endl;
-#if 0
-      {
-        double timeStart = get_time();
-        this->getLColRowCount(cc,rc);
-        double timeStop = get_time();
-        if(iam==0){
-          cout<<"Column count (upcxx) construction time: "<<timeStop - timeStart<<endl;
-        }
-      }
-#endif
       {
         double timeStart = get_time();
         if(sgraph==NULL){ 
@@ -3678,7 +3669,8 @@ SYMPACK_TIMER_STOP(SUPERMATRIX_INIT);
         }
         //sgraph->SetKeepDiag(1);
         sgraph->SetBaseval(1);
-        ETree_.ConstructETree(*sgraph,Order_,team_);
+        //ETree_.ConstructETree(*sgraph,Order_,team_);
+        ETree_.ConstructETree(*sgraph,Order_,CommEnv_->MPI_GetComm());
       }
 
       ETree_.PostOrderTree(Order_);
@@ -5894,15 +5886,14 @@ void SupernodalMatrix<T>::getLColRowCount(SparseMatrixGraph & sgraph, SYMPACK::v
     }
   }
 
-  team_->barrier();
+  MPI_Barrier(CommEnv_->MPI_GetComm());
   if(iam!=0){
     cc.resize(size);
     rc.resize(size);
   }
   //Broadcast  
-  team_->bcast(&cc[0], &cc[0], size*sizeof(Int), 0);
-  team_->bcast(&rc[0], &rc[0], size*sizeof(Int), 0);
-
+  MPI_Bcast(&cc[0],size*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+  MPI_Bcast(&rc[0],size*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
 
   SYMPACK_TIMER_STOP(GetColRowCount_Classic);
 }
@@ -5940,7 +5931,7 @@ void SupernodalMatrix<T>::getLColRowCount(SYMPACK::vector<Int> & cc, SYMPACK::ve
   upcxx::shared_var<Idx> xsup = 1;
   level[0] = 0;
   for(Idx k = size; k>=1; --k){
-    team_->barrier();
+    MPI_Barrier(CommEnv_->MPI_GetComm());
     cc[k-1] = 0;
     if( (k-1) % np == iam){
       upcxx::global_ptr<Idx> gptr = &set[k-1]; assert(gptr.where()==iam);
@@ -5960,7 +5951,7 @@ void SupernodalMatrix<T>::getLColRowCount(SYMPACK::vector<Int> & cc, SYMPACK::ve
   nchild[0] = 0;
   fdesc[0] = 0;
   for(Idx k =1; k<size; ++k){
-    team_->barrier();
+    MPI_Barrier(CommEnv_->MPI_GetComm());
     Idx parent = ETree_.PostParent(k-1);
     if( (parent) % np == iam){
       upcxx::global_ptr<Int> gptr = &weight[parent]; assert(gptr.where()==iam);
@@ -5975,7 +5966,7 @@ void SupernodalMatrix<T>::getLColRowCount(SYMPACK::vector<Int> & cc, SYMPACK::ve
     }
   }
 
-  team_->barrier();
+    MPI_Barrier(CommEnv_->MPI_GetComm());
 #if 0
   logfileptr->OFS()<<"nchild: ";
   for(Idx k =0; k<=size; ++k){
@@ -6017,12 +6008,12 @@ void SupernodalMatrix<T>::getLColRowCount(SYMPACK::vector<Int> & cc, SYMPACK::ve
     logfileptr->OFS()<<rcDist[k]<<" ";
   }
   logfileptr->OFS()<<endl;
-  team_->barrier();
+    MPI_Barrier(CommEnv_->MPI_GetComm());
 #endif
 
   //foreach column in the permuted matrix
   for(Idx lownbr = 1; lownbr<=size; ++lownbr){
-    team_->barrier();
+    MPI_Barrier(CommEnv_->MPI_GetComm());
     Int lflag = 0;
 
     // get the original column index
@@ -6141,7 +6132,7 @@ void SupernodalMatrix<T>::getLColRowCount(SYMPACK::vector<Int> & cc, SYMPACK::ve
   }
 
 
-  team_->barrier();
+    MPI_Barrier(CommEnv_->MPI_GetComm());
 
 
   for(Int k = 1; k<=size; ++k){
@@ -6156,7 +6147,7 @@ void SupernodalMatrix<T>::getLColRowCount(SYMPACK::vector<Int> & cc, SYMPACK::ve
   for(Int k = 1; k<=size; ++k){
     rc[k-1] = rcDist[k-1];
   }
-  team_->barrier();
+    MPI_Barrier(CommEnv_->MPI_GetComm());
 
   //      logfileptr->OFS()<<"column counts "<<cc<<std::endl;
 

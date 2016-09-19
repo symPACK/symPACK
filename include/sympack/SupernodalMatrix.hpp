@@ -67,7 +67,6 @@ namespace SYMPACK{
 
 
     public:
-      upcxx::team * team_;
 
       //Constructors
       SupernodalMatrix();

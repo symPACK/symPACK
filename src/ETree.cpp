@@ -341,7 +341,7 @@ namespace SYMPACK{
   }
 
 
-  void ETree::ConstructETree(SparseMatrixGraph & sgraph, Ordering & aOrder, upcxx::team * team){
+  void ETree::ConstructETree(SparseMatrixGraph & sgraph, Ordering & aOrder, MPI_Comm & aComm){
     bIsPostOrdered_=false;
     n_ = sgraph.size;
 
@@ -411,7 +411,7 @@ namespace SYMPACK{
     }
     
     //Broadcast  
-    team->bcast(&parent_[0], &parent_[0], n_*sizeof(Int), 0);
+    MPI_Bcast(&parent_[0],n_*sizeof(Int),MPI_BYTE,0,aComm);
 
     SYMPACK_TIMER_STOP(Construct_Etree_Classic);
 

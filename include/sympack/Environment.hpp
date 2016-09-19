@@ -49,7 +49,6 @@
 
 namespace SYMPACK{
 
-  extern upcxx::team * workteam;
   extern Int iam;
   extern Int np;
 

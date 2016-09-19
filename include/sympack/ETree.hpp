@@ -44,7 +44,7 @@ public:
   //not working
   void ConstructETree(DistSparseMatrixGraph & aDistExp, Ordering & aOrder);
   
-  void ConstructETree(SparseMatrixGraph & sgraph, Ordering & aOrder, upcxx::team * team);
+  void ConstructETree(SparseMatrixGraph & sgraph, Ordering & aOrder, MPI_Comm & aComm);
   void ConstructETree(SparseMatrixStructure & aGlobal, Ordering & aOrder);
   void PostOrderTree(Ordering & aOrder);
   void DeepestFirst(Ordering & aOrder);

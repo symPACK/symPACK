@@ -200,7 +200,6 @@ int main(int argc, char **argv)
   MPI_Comm workcomm;
   MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
   Int new_rank = (iam<np)?iam:iam-np;
-  upcxx::team_all.split(iam<np,new_rank, workteam);
 
   if(iam<np){
     MPI_Comm_size(workcomm,&np);
@@ -347,7 +346,6 @@ int main(int argc, char **argv)
       {
         timeSta = get_time();
         SMat = new SupernodalMatrix<SCALAR>();
-        SMat->team_ = workteam;
         //SMat->Init2(HMat,optionsFact);
         SMat->Init(HMat,optionsFact);
         SMat->SymbolicFactorization(HMat);

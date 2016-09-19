@@ -348,7 +348,7 @@ defaut:
 
   SYMPACK_TIMER_START(BARRIER);
   upcxx::async_wait();
-  team_->barrier();
+  MPI_Barrier(CommEnv_->MPI_GetComm());
   SYMPACK_TIMER_STOP(BARRIER);
 
   tmpBufs.Clear();
@@ -599,7 +599,7 @@ defaut:
 
   SYMPACK_TIMER_START(BARRIER);
   upcxx::async_wait();
-  team_->barrier();
+  MPI_Barrier(CommEnv_->MPI_GetComm());
 
   SYMPACK_TIMER_STOP(BARRIER);
 #ifdef UPCXX_PROGRESS_THREAD
