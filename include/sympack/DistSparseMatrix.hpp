@@ -77,7 +77,7 @@ template <typename F> class DistSparseMatrix{
 	MPI_Comm     comm;        
 
   /// @brief Permutation currently used in the matrix. Empty vector means unpermuted matrix
-  std::vector<Int> invp;
+  std::vector<Int> cinvp;
 
   inline bool isPermuted(Int * invp, Idx * vertexDist = NULL);
 

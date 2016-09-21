@@ -41,21 +41,18 @@ class Ordering;
 
 class Ordering{
   public:
-    CommEnvironment * CommEnv_;
     SYMPACK::vector<Int> perm;
     SYMPACK::vector<Int> invp;
 
     Ordering():pStructure(NULL){};
     
-    void SetCommEnvironment(CommEnvironment * CommEnv);
 
     SparseMatrixStructure * pStructure;
-//    void SetStructure(SparseMatrixStructure & aGlobal);
 
-    void MMD(const SparseMatrixGraph & g);
-    void AMD(const SparseMatrixGraph & g);
-    void NDBOX(Int size);
-    void NDGRID(Int size);
+    void MMD(const SparseMatrixGraph & g, MPI_Comm comm);
+    void AMD(const SparseMatrixGraph & g, MPI_Comm comm);
+    void NDBOX(Int size, MPI_Comm comm);
+    void NDGRID(Int size, MPI_Comm comm);
 
 #ifdef USE_PARMETIS
   void PARMETIS(const DistSparseMatrixGraph & g);
@@ -66,11 +63,11 @@ class Ordering{
 #endif
 
 #ifdef USE_METIS
-    void METIS(const SparseMatrixGraph & g);
+    void METIS(const SparseMatrixGraph & g, MPI_Comm comm);
 #endif
 
 #ifdef USE_SCOTCH
-    void SCOTCH(const SparseMatrixGraph & g);
+    void SCOTCH(const SparseMatrixGraph & g, MPI_Comm comm);
 #endif
     void Compose(SYMPACK::vector<Int> & invp2);
 };

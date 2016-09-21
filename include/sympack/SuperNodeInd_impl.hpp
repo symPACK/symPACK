@@ -415,8 +415,7 @@ template<typename T, class Allocator>
     Int snodeSize = this->Size();
     NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
     T * diag_nzval = this->GetNZval(diag_desc.Offset);
-#if 1
-#if 1
+#if 0
     Idx totalNRows = this->NRowsBelowBlock(0);
     for(Int col = 0; col< snodeSize;col++){
 
@@ -430,6 +429,9 @@ template<typename T, class Allocator>
     }
 #else
 
+    Idx totalNRows = this->NRowsBelowBlock(0);
+
+#if 0
     auto dump = [] (Idx snodeSize, Idx totalNRows, T* buf, ostream & os){
     os.precision(std::numeric_limits< T >::max_digits10);
     os<<std::scientific;
@@ -444,151 +446,50 @@ template<typename T, class Allocator>
     os<<endl;
     };
 
-    Idx totalNRows = this->NRowsBelowBlock(0);
-    Ptr nzvalcnt = this->NNZ();
-    std::vector<T> tmp(nzvalcnt);
-    std::copy(diag_nzval,diag_nzval+nzvalcnt,&tmp[0]);
-
     {
-      T * diag_nzval = &tmp[0];
-//      dump(snodeSize,totalNRows,&tmp[0],logfileptr->OFS());
-      for(Int col = 0; col< snodeSize;col++){
-        T piv = static_cast<T>(1.0) / diag_nzval[col+col*snodeSize];
-        lapack::Scal( totalNRows - col - 1, piv, &diag_nzval[ col + (col+1)*snodeSize ], snodeSize );
-        blas::Ger(snodeSize - col - 1, totalNRows - col - 1, -this->diag_[col],&diag_nzval[col + (col+1)*snodeSize],
-                    snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
-
-//        dump(snodeSize,totalNRows,&tmp[0],logfileptr->OFS());
-
-
-
+      Ptr nzvalcnt = this->NNZ();
+      std::vector<T> tmp(nzvalcnt);
+      std::copy(diag_nzval,diag_nzval+nzvalcnt,&tmp[0]);
+      {
+        T * diag_nzval = &tmp[0];
+        for(Int col = 0; col< snodeSize;col++){
+          T piv = static_cast<T>(1.0) / diag_nzval[col+col*snodeSize];
+          lapack::Scal( totalNRows - col - 1, piv, &diag_nzval[ col + (col+1)*snodeSize ], snodeSize );
+          blas::Ger(snodeSize - col - 1, totalNRows - col - 1, -diag_nzval[col+col*snodeSize],&diag_nzval[col + (col+1)*snodeSize],
+              snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
+        }
       }
     }
+#endif
 
-//    logfileptr->OFS()<<"======================================"<<endl;
 
-    for(Int col = 0; col< snodeSize;col++){
-      //copy the diagonal entries into the diag portion of the supernode
-      this->diag_[col] = diag_nzval[col+ (col)*snodeSize];
-    }
 
     Int INFO = 0;
-    Int NDEF;
-    SYMPACK::vector<Int> IDEF(snodeSize);
-    SYMPACK::vector<T> work(snodeSize*snodeSize);
-    T tol = 1E-16;
-//    lapack::Potrf_LDL( "U", (Idx)snodeSize, diag_nzval, (Idx)snodeSize, NDEF, &IDEF[0], tol, &work[0], INFO);
-//
-//    T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
-//
-//    blas::Trsm('L','U','T','N',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
+    SYMPACK::vector<T> work(snodeSize);
 
-
-
-    Int BLOCKSIZE = snodeSize;
-    dump(snodeSize,totalNRows,&diag_nzval[0],logfileptr->OFS());
-    for(Int col = 0; col<snodeSize;col+=BLOCKSIZE){
-      Idx bw = min(BLOCKSIZE,snodeSize-col);
-
-      T * diag_nzval = &this->GetNZval(diag_desc.Offset)[col+col*snodeSize];
-      lapack::Potrf_LDL( "U", bw, diag_nzval, snodeSize, NDEF, &IDEF[0], tol, &work[0], INFO);
-
-//      dump(snodeSize,totalNRows,&diag_nzval[0],logfileptr->OFS());
-
-//      T * nzblk_nzval = &this->GetNZval(diag_desc.Offset)[col+(col+bw)*snodeSize];
-//      blas::Trsm('L','U','T','N',bw, totalNRows-(col+bw), T(1.0),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
-//
-//      //blas::Gemm( 'N', 'N', bw, N-J-JB+1,col-1, -ONE, WORK, bw, &A[(col+bw)*snodeSize],snodeSize, T(1), &A[ col + (col+bw)*snodeSize ], snodeSize );
-//      //blas::Trsm( 'L', 'U', 'T', 'N',JB, N-J-JB+1, ONE, &A[J-1+(J-1)*LDA], LDA, &A[col+(col+bw)*snodeSize], snodeSize );
-      //copy the diagonal entries into the diag portion of the supernode
-      for(Int icol = col; icol< bw;icol++){
-        this->diag_[col+icol] = diag_nzval[icol+ (icol)*snodeSize];
-      }
-//      if(col+bw<snodeSize){
-//        T * tgt_nzval = &this->GetNZval(diag_desc.Offset)[col+(col+bw)*snodeSize];
-//
-//        //update the rest !!! (next blocks columns)
-//        T * A = &this->GetNZval(diag_desc.Offset)[(col)*snodeSize];
-//        T * B = &this->GetNZval(diag_desc.Offset)[(col+bw)*snodeSize];
-//        //blas::Gemm('T','N',snodeSize-(col+bw), totalNRows-(col+bw),col,T(-1.0),A,snodeSize,B,snodeSize,T(1.0),tgt_nzval,snodeSize);
-//
-//        blas::Gemm('T','N',bw,totalNRows-(col+bw), col,T(-1.0),A,snodeSize,B,snodeSize,T(1.0),tgt_nzval,snodeSize);
-//        //blas::Trsm('L','U','T','N',bw, totalNRows-(col+bw), T(1.0),  diag_nzval, snodeSize, tgt_nzval, snodeSize);
-//        //for ( Idx I = col; I<col+bw;I++) {
-//        //  blas::Scal( totalNRows-(col+bw), T(1.0)/this->diag_[I], &B[I], snodeSize );
-//        //}
-//      }
-
-      dump(snodeSize,totalNRows,&diag_nzval[0],logfileptr->OFS());
-    }
-
-
-    logfileptr->OFS()<<"======================================"<<endl;
-
-
-
-        dump(snodeSize,totalNRows,&tmp[0],logfileptr->OFS());
-        dump(snodeSize,totalNRows,&diag_nzval[0],logfileptr->OFS());
-
-    logfileptr->OFS()<<"+++++++++++++++++++++++++++++++++++"<<endl;
-//    logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
-//    logfileptr->OFS()<<std::scientific;
-//        dump(snodeSize,totalNRows,&tmp[0],logfileptr->OFS());
-//    for(Int row = 0; row< totalNRows;row++){
-//      for(Int col = 0; col< snodeSize;col++){
-//        logfileptr->OFS()<<tmp[row*snodeSize+col];
-//        if(col<snodeSize-1) logfileptr->OFS()<<", ";
-//      }
-//      logfileptr->OFS()<<"; "<<endl;
-//      if(row==snodeSize-1) logfileptr->OFS()<<"**********************"<<endl;
-//    }
-//    logfileptr->OFS()<<endl;
-//
-//
-//    for(Int row = 0; row< totalNRows;row++){
-//      for(Int col = 0; col< snodeSize;col++){
-//        logfileptr->OFS()<<diag_nzval[row*snodeSize+col];
-//        if(col<snodeSize-1) logfileptr->OFS()<<", ";
-//      }
-//      logfileptr->OFS()<<"; "<<endl;
-//      if(row==snodeSize-1) logfileptr->OFS()<<"**********************"<<endl;
-//    }
-//    logfileptr->OFS()<<endl;
-
-
-
-//      //update the rest !!! (next blocks columns)
-//      T * tgt_nzval = &GetNZval(diag_desc.Offset)[snodesize+snodeSize*snodeSize];
-//      blas::Gemm('T','N',Size()-(col+bw), NRowsBelowBlock(0)-(col+bw),bw,MINUS_ONE<T>(),nzblk_nzval,Size(),nzblk_nzval,Size(),ONE<T>(),tgt_nzval,Size());
-#endif
-#else
+//    dump(snodeSize,totalNRows,&diag_nzval[0],logfileptr->OFS());
+    lapack::Potrf_LDL( "U", snodeSize, diag_nzval, snodeSize, &work[0], INFO);
+//    dump(snodeSize,snodeSize,&diag_nzval[0],logfileptr->OFS());
     for(Int col = 0; col< snodeSize;col++){
       //copy the diagonal entries into the diag portion of the supernode
       this->diag_[col] = diag_nzval[col+ (col)*snodeSize];
     }
 
-    Idx totalNRows = this->NRowsBelowBlock(0);
-    SYMPACK::vector<T> work(totalNRows*snodeSize);
-    int kb = 0;
-    int info = 0;
-    lapack::lasyf_np_rm( 'L', totalNRows, snodeSize, kb, diag_nzval, snodeSize, &work[0], snodeSize, info);
+    T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
+    blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
 
+    //scale column I
+    for ( Idx I = 1; I<=snodeSize;I++) {
+        blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
+    }
 
-//    //NOT WORKING
-//
-//    //factor the diagonal block
-//    for(Int col = 0; col< snodeSize;col++){
-//      //copy the diagonal entries into the diag portion of the supernode
-//      this->diag_[col] = diag_nzval[col+ (col)*snodeSize];
-//      T piv = static_cast<T>(1.0) / diag_nzval[col+col*snodeSize];
-//      lapack::Scal( snodeSize - col - 1, piv, &diag_nzval[ col + (col+1)*snodeSize ], snodeSize );
-//      blas::Ger(snodeSize - col - 1, snodeSize - col - 1, -this->diag_[col],&diag_nzval[col + (col+1)*snodeSize],
-//                  snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
-//    }
-//    //apply trsm below
-//    Idx totalNRows = this->NRowsBelowBlock(0);
-//    T * nzblk_nzval = &this->GetNZval(diag_desc.Offset)[snodeSize*snodeSize];
-//    blas::Trsm('L','U','T','N',snodeSize, totalNRows-snodeSize, ONE<T>(),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
+#if 0
+    logfileptr->OFS()<<"======================================"<<endl;
+    dump(snodeSize,totalNRows,&tmp[0],logfileptr->OFS());
+    dump(snodeSize,totalNRows,&diag_nzval[0],logfileptr->OFS());
+    logfileptr->OFS()<<"+++++++++++++++++++++++++++++++++++"<<endl;
+#endif
+
 #endif
     return 0;
 

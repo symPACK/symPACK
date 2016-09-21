@@ -121,7 +121,7 @@ namespace SYMPACK{
 
 
 
-  void Ordering::MMD(const SparseMatrixGraph & g){
+  void Ordering::MMD(const SparseMatrixGraph & g,MPI_Comm comm){
     logfileptr->OFS()<<"MMD used"<<endl;
     if(iam==0){cout<<"MMD used"<<endl;}
 
@@ -209,14 +209,14 @@ namespace SYMPACK{
       if(!isSameIdx || g.baseval!=1){
         delete [] prowind;
       }
-      MPI_Bcast(&N,sizeof(MMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Bcast(&N,sizeof(MMDInt),MPI_BYTE,0,comm);
     }
     else{
-      MPI_Bcast(&N,sizeof(MMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Bcast(&N,sizeof(MMDInt),MPI_BYTE,0,comm);
       invp.resize(N);
     }
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,comm);
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
       Int node = invp[i-1];
@@ -236,7 +236,7 @@ namespace SYMPACK{
 
 
 
-  void Ordering::NDBOX(Int size){
+  void Ordering::NDBOX(Int size, MPI_Comm comm){
     invp.resize(size);
     if(iam==0){
       Int k = std::ceil(std::pow(size,1.0/3.0));
@@ -252,7 +252,7 @@ namespace SYMPACK{
     }
 
     // broadcast invp
-    MPI_Bcast(&invp[0],size*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    MPI_Bcast(&invp[0],size*sizeof(int),MPI_BYTE,0,comm);
     perm.resize(size);
     for(Int i = 1; i <=size; ++i){
       Int node = invp[i-1];
@@ -260,7 +260,7 @@ namespace SYMPACK{
     }
   }
 
-  void Ordering::NDGRID(Int size){
+  void Ordering::NDGRID(Int size, MPI_Comm comm){
     invp.resize(size);
     if(iam==0){
       Int k = std::ceil(std::pow(size,1.0/2.0));
@@ -277,7 +277,7 @@ namespace SYMPACK{
     }
 
     // broadcast invp
-    MPI_Bcast(&invp[0],size*sizeof(int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    MPI_Bcast(&invp[0],size*sizeof(int),MPI_BYTE,0,comm);
     perm.resize(size);
     for(Int i = 1; i <=size; ++i){
       Int node = invp[i-1];
@@ -287,7 +287,7 @@ namespace SYMPACK{
   }
 
 
-  void Ordering::AMD(const SparseMatrixGraph & g){
+  void Ordering::AMD(const SparseMatrixGraph & g, MPI_Comm comm){
     logfileptr->OFS()<<"AMD used"<<endl;
     if(iam==0){cout<<"AMD used"<<endl;}
 
@@ -378,14 +378,14 @@ namespace SYMPACK{
       }
 
       delete [] prowind;
-      MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,comm);
     }
     else{
-      MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Bcast(&N,sizeof(AMDInt),MPI_BYTE,0,comm);
       invp.resize(N);
     }
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,comm);
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
       Int node = invp[i-1];
@@ -394,7 +394,7 @@ namespace SYMPACK{
   }
 
 #ifdef USE_METIS
-  void Ordering::METIS(const SparseMatrixGraph & g){
+  void Ordering::METIS(const SparseMatrixGraph & g,MPI_Comm comm){
     logfileptr->OFS()<<"METIS used"<<endl;
     if(iam==0){cout<<"METIS used"<<endl;}
 
@@ -480,14 +480,14 @@ namespace SYMPACK{
       if(!isSameIdx){
         delete [] prowind;
       }
-      MPI_Bcast(&N,sizeof(idx_t),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Bcast(&N,sizeof(idx_t),MPI_BYTE,0,comm);
     }
     else{
-      MPI_Bcast(&N,sizeof(idx_t),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Bcast(&N,sizeof(idx_t),MPI_BYTE,0,comm);
       invp.resize(N);
     }
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,comm);
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
       Int node = invp[i-1];
@@ -626,7 +626,7 @@ namespace SYMPACK{
     vtxdist.clear();
 
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,g.comm);
     //recompute perm
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
@@ -646,7 +646,7 @@ namespace SYMPACK{
 #endif
 
 #ifdef USE_SCOTCH
-  void Ordering::SCOTCH(const SparseMatrixGraph & g){
+  void Ordering::SCOTCH(const SparseMatrixGraph & g,MPI_Comm comm){
     logfileptr->OFS()<<"SCOTCH used"<<endl;
     if(iam==0){cout<<"SCOTCH used"<<endl;}
 
@@ -757,14 +757,14 @@ namespace SYMPACK{
           delete [] prowind;
         }
       }
-      MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,comm);
     }
     else{
-      MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Bcast(&N,sizeof(SCOTCH_Num),MPI_BYTE,0,comm);
       invp.resize(N);
     }
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,comm);
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
       Int node = invp[i-1];
@@ -976,7 +976,7 @@ namespace SYMPACK{
     vtxdist.clear();
 
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,g.comm);
     //recompute perm
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
@@ -993,9 +993,6 @@ namespace SYMPACK{
 #endif
 
 
-  void Ordering::SetCommEnvironment(CommEnvironment * CommEnv){
-    CommEnv_=CommEnv;
-  }
 
   void Ordering::Compose(SYMPACK::vector<Int> & invp2){
     //Compose the two permutations

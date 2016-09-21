@@ -63,9 +63,9 @@ class DistSparseMatrixGraph{
 	SYMPACK::vector<Ptr>  colptr;                 // Column index pointer
 	SYMPACK::vector<Idx>  rowind;                 // Starting row index pointer
 	SYMPACK::vector<Idx>  vertexDist;             // vertex distribution array (size np+1)
+  MPI_Comm comm;
 
   protected:
-  MPI_Comm comm;
   int mpirank;
   int mpisize;
   int baseval;

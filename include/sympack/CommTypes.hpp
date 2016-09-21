@@ -358,8 +358,8 @@ namespace SYMPACK{
       Request = MPI_REQUEST_NULL;     
     }
 
-    char& operator[](std::size_t idx){ return pSrcBlocks->at(idx); }
-    const char& operator[](std::size_t idx) const { return pSrcBlocks->at(idx); }
+    char& operator[](std::size_t idx){ return (*pSrcBlocks)[idx]; }
+    const char& operator[](std::size_t idx) const { return (*pSrcBlocks)[idx]; }
 
   };
 

@@ -419,7 +419,7 @@ namespace SYMPACK {
 
 
 template<typename T>
-  void Potf2_LDL( const char * UPLO, Idx N, T * A,  Idx LDA, Int & NDEF, Int * IDEF,  T TOL, T* WORK, Int & INFO ){
+  void Potf2_LDL( const char * UPLO, Idx N, T * A,  Idx LDA, T* WORK, Int & INFO ){
     //*
     //*  -- LAPACK-like routine --
     //*     Esmond G. Ng, Oak Ridge National Laboratory
@@ -549,7 +549,6 @@ template<typename T>
       //*
       //*           Compute the Cholesky factorization A = U'*D*U.
       //*
-      //NDEF = 0;
       for (Idx J = 1; J<=N; J++) {
         //*
         //*               Compute U(J,J) and test for non-positive-definiteness.
@@ -562,7 +561,7 @@ template<typename T>
         }
         //AJJ = A_{J,J} - U'_{1..J-1,J-1} * WORK
         AJJ = A[J-1+(J-1)*LDA] - blas::Dot( J-1, &A[(J-1)*LDA], 1, WORK, 1 );
-        //if ( AJJ > TOL ) {
+        if ( std::abs(AJJ) > 0 ) {
           A[J-1+(J-1)*LDA] = AJJ;
           //*
           //*                   Compute elements J+1:N of row J.
@@ -573,30 +572,18 @@ template<typename T>
             //U(J,J+1..N) = U(J,J+1..N) / D(J,J)
             blas::Scal( N-J, ONE/AJJ, &A[J-1+J*LDA], LDA );
           }
-        //}
-        //else if ( std::abs(AJJ) <= TOL ){
-        //  //*
-        //  //*                   Handle zero pivots ...
-        //  //*
-        //  NDEF = NDEF + 1;
-        //  IDEF[NDEF-1] = J;
-        //  A[(J-1)+(J-1)*LDA] = ONE;
-        //  for(Idx I=J+1;I<=N;I++){
-        //    A[J-1+(I-1)*LDA] = ZERO;
-        //  }
-        //}
-        //else {
-        //  A[(J-1)+(J-1)*LDA] = AJJ;
-        //  INFO = J;
-        //  return;
-        //}
+        }
+        else {
+          A[(J-1)+(J-1)*LDA] = AJJ;
+          INFO = J;
+          return;
+        }
       }
     }
     else{
       //*
       //*           Compute the Cholesky factorization A = L*D*L'.
       //*
-      //NDEF = 0;
       for (Idx J=1; J<=N;J++){
         //*
         //*               Compute L(J,J) and test for non-positive-definiteness.
@@ -607,7 +594,7 @@ template<typename T>
           }
           AJJ = A[J-1+(J-1)*LDA] - blas::Dot( J-1, &A[J-1], LDA, WORK, 1 );
 
-        //if ( AJJ > TOL ) {
+        if ( std::abs(AJJ) > 0 ) {
           A[(J-1)+(J-1)*LDA] = AJJ;
           //*
           //*                   Compute elements J+1:N of column J.
@@ -616,29 +603,18 @@ template<typename T>
             blas::Gemv( 'N', N-J, J-1,-ONE, &A[J], LDA, WORK, 1,ONE, &A[J+(J-1)*LDA], 1 );
             blas::Scal( N-J, ONE/AJJ, &A[J+(J-1)*LDA], 1 );
           }
-        //}
-        //else if ( std::abs(AJJ) <= TOL ){
-        //  //*
-        //  //*                   Handle zero pivots ...
-        //  //*
-        //  NDEF = NDEF + 1;
-        //  IDEF[NDEF-1] = J;
-        //  A[(J-1)+(J-1)*LDA] = ONE;
-        //  for(Idx I=J+1;I<=N;I++){
-        //    A[I-1+(J-1)*LDA] = ZERO;
-        //  }
-        //}
-        //else {
-        //  A[(J-1)+(J-1)*LDA] = AJJ;
-        //  INFO = J;
-        //  return;
-        //}
+        }
+        else {
+          A[(J-1)+(J-1)*LDA] = AJJ;
+          INFO = J;
+          return;
+        }
       }
     }
   }
 
 template<typename T>
-  void Potrf_LDL( const char * UPLO,  Idx N, T * A,  Idx LDA, Int & NDEF, Int * IDEF,  T TOL, T * WORK, Int & INFO) {
+  void Potrf_LDL( const char * UPLO,  Idx N, T * A,  Idx LDA, T * WORK, Int & INFO) {
     //*
     //*  -- LAPACK-like routine --
     //*     Esmond G. Ng, Oak Ridge National Laboratory
@@ -737,7 +713,6 @@ template<typename T>
     //*
     T ONE = T(1);
     T ZERO = T(0);
-    Int NDEF0;
     Idx JB,NB,ROW,COL;
     Ptr PTR;
 
@@ -770,7 +745,7 @@ template<typename T>
         //*
         //*        Use unblocked code.
         //*
-        Potf2_LDL( UPLO, N, A, LDA, NDEF, IDEF, TOL, WORK, INFO );
+        Potf2_LDL( UPLO, N, A, LDA, WORK, INFO );
       }
       else {
         //*
@@ -780,7 +755,6 @@ template<typename T>
           //*
           //*           Compute the Cholesky factorization A = U'*U.
           //*
-          NDEF = 0;
           for ( Idx J = 1; J <= N; J+=NB ) {
             //*
             //*              Update and factorize the current diagonal block and test
@@ -794,12 +768,8 @@ template<typename T>
               PTR += JB;
             }
             //WORK is already stored in a transposed fashion
-#if 0
             blas::Gemm( 'N', 'N', JB, JB, J-1, -ONE, WORK, JB, &A[(J-1)*LDA], LDA, ONE, &A[J-1+(J-1)*LDA], LDA );
-#endif
-            lapack::Potf2_LDL( "Upper", JB, &A[J-1+(J-1)*LDA], LDA, NDEF0, &IDEF[NDEF], TOL, &WORK[PTR-1], INFO );
-            //blas::Syrk( "Upper", "Transpose", JB, J-1, -ONE, &A[ (J-1)*LDA ], LDA, ONE, &A[ J-1 + (J-1)*LDA ], LDA );
-            //lapack::Potf2( "Upper", JB, &A[ J-1 + (J-1)*LDA ], LDA, INFO );
+            lapack::Potf2_LDL( "Upper", JB, &A[J-1+(J-1)*LDA], LDA, &WORK[PTR-1], INFO );
             if  ( INFO != 0 ) {
               INFO = INFO + J - 1;
                 return;
@@ -809,34 +779,17 @@ template<typename T>
               //*                 Compute the current block row.
               //*
               blas::Gemm( 'N', 'N', JB, N-J-JB+1,J-1, -ONE, WORK, JB, &A[ (J+JB-1)*LDA ],LDA, ONE, &A[ J-1 + (J+JB-1)*LDA ], LDA );
-              blas::Trsm( 'L', 'U', 'T', 'N',JB, N-J-JB+1, ONE, &A[J-1+(J-1)*LDA], LDA, &A[J-1+(J+JB-1)*LDA], LDA );
-#if 0
+              blas::Trsm( 'L', 'U', 'T', 'U',JB, N-J-JB+1, ONE, &A[J-1+(J-1)*LDA], LDA, &A[J-1+(J+JB-1)*LDA], LDA );
               for ( Idx I = J; I<=J+JB-1;I++) {
                 blas::Scal( N-J-JB+1, 1/A[I-1+(I-1)*LDA], &A[I-1+(J+JB-1)*LDA], LDA );
               }
-#endif
             }
-            //*
-            //*                   Handle zero pivots.
-            //*
-//            if ( NDEF0 != 0 ) {
-//              for (Idx I = NDEF+1; I<=NDEF+NDEF0; I++) {
-//                ROW = IDEF[I-1] + (J-1);
-//                IDEF[I-1] = ROW;
-//                for (Idx II = J+JB; II<=N;II++){
-//                  A[ROW-1+(II-1)*LDA] = ZERO;
-//                }
-//              }
-//              NDEF += NDEF0;
-//            }
-
           }
         }
         else {
           //*
           //*               Compute the Cholesky factorization A = L*L'.
           //*
-          NDEF = 0;
           for ( Idx J = 1; J <= N; J+=NB ) {
             //*
             //*                   Update and factorize the current diagonal block
@@ -849,11 +802,9 @@ template<typename T>
               blas::Scal( JB, A[I-1+(I-1)*LDA], &WORK[PTR-1], 1 );
               PTR += JB;
             }
-            //blas::Gemm( 'N','T', JB, JB, J-1, -ONE, &A[J-1], LDA, WORK, JB, ONE, &A[J-1+(J-1)*LDA], LDA );
+            blas::Gemm( 'N','T', JB, JB, J-1, -ONE, &A[J-1], LDA, WORK, JB, ONE, &A[J-1+(J-1)*LDA], LDA );
 
-            lapack::Potf2_LDL( "Lower", JB, &A[J-1+(J-1)*LDA], LDA, NDEF0, &IDEF[NDEF], TOL, &WORK[PTR-1], INFO );
-            //blas::Syrk( "Lower", "No transpose", JB, J-1, -ONE, &A[ J-1 ], LDA, ONE, &A[J-1+(J-1)*LDA], LDA );
-            //lapack::Potf2( "Lower", JB, &A[J-1+(J-1)*LDA], LDA,INFO);
+            lapack::Potf2_LDL( "Lower", JB, &A[J-1+(J-1)*LDA], LDA, &WORK[PTR-1], INFO );
             if  ( INFO != 0 ) {
               INFO = INFO + J - 1;
                 return;
@@ -864,23 +815,10 @@ template<typename T>
               //*
               blas::Gemm( 'N','T',N-J-JB+1, JB, J-1,-ONE, &A[J+JB-1], LDA, WORK, JB, ONE, &A[J+JB-1+(J-1)*LDA], LDA );
               blas::Trsm( 'R','L','T','U', N-J-JB+1, JB, ONE, &A[J-1+(J-1)*LDA], LDA, &A[J+JB-1+(J-1)*LDA], LDA );
-              //for ( Idx I = J; I<=J+JB-1;I++) {
-              //  blas::Scal( N-J-JB+1, 1/A[I-1+(I-1)*LDA], &A[J+JB-1+(I-1)*LDA], 1 );
-              //}
+              for ( Idx I = J; I<=J+JB-1;I++) {
+                blas::Scal( N-J-JB+1, 1/A[I-1+(I-1)*LDA], &A[J+JB-1+(I-1)*LDA], 1 );
+              }
             }
-            //*
-            //*                   Handle zero pivots.
-            //*
-//            if ( NDEF0 != 0 ) {
-//              for (Idx I = NDEF+1; I<=NDEF+NDEF0; I++) {
-//                COL = IDEF[I-1] + (J-1);
-//                IDEF[I-1] = COL;
-//                for (Idx II = J+JB; II<=N;II++){
-//                  A[II-1+(COL-1)*LDA] = ZERO;
-//                }
-//              }
-//              NDEF += NDEF0;
-//            }
           }
         }
       }

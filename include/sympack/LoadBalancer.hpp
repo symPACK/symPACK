@@ -124,7 +124,7 @@ namespace SYMPACK{
       SYMPACK::vector<Int> & SupMembership_;
       PtrVec & Xlindx_;
       IdxVec & Lindx_;
-      CommEnvironment * CommEnv_;
+      MPI_Comm comm;
       SYMPACK::vector<Int> & cc_;
 
 
@@ -139,7 +139,7 @@ namespace SYMPACK{
 
 
     public:
-      SubtreeToSubcube(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & XsuperDist, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, CommEnvironment* CommEnv, bool fan_in = true):Xsuper_(Xsuper),XsuperDist_(XsuperDist),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),CommEnv_(CommEnv),TreeLoadBalancer(np,supETree){
+      SubtreeToSubcube(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & XsuperDist, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, MPI_Comm & aComm, bool fan_in = true):Xsuper_(Xsuper),XsuperDist_(XsuperDist),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),comm(aComm),TreeLoadBalancer(np,supETree){
         fan_in_=fan_in;
       };
 
@@ -241,8 +241,8 @@ namespace SYMPACK{
             }
 
             //Allreduce SubTreeLoad and NodeLoad
-            MPI_Allreduce(MPI_IN_PLACE,&NodeLoad[0],NodeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
-            MPI_Allreduce(MPI_IN_PLACE,&SubTreeLoad[0],SubTreeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
+            MPI_Allreduce(MPI_IN_PLACE,&NodeLoad[0],NodeLoad.size(),MPI_DOUBLE,MPI_SUM,comm);
+            MPI_Allreduce(MPI_IN_PLACE,&SubTreeLoad[0],SubTreeLoad.size(),MPI_DOUBLE,MPI_SUM,comm);
 
             for(Int I=1;I<=supETree_.Size();I++){
               Int parent = supETree_.Parent(I-1);
@@ -499,7 +499,7 @@ namespace SYMPACK{
           SYMPACK::vector<Int> & SupMembership_;
           PtrVec & Xlindx_;
           IdxVec & Lindx_;
-          CommEnvironment * CommEnv_;
+          MPI_Comm comm;
           SYMPACK::vector<Int> & cc_;
 
 
@@ -513,7 +513,7 @@ namespace SYMPACK{
 
 
         public:
-          SubtreeToSubcubeVolume(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper,SYMPACK::vector<Int> & XsuperDist, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, CommEnvironment* CommEnv, bool fan_in = true):Xsuper_(Xsuper),XsuperDist_(XsuperDist),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),CommEnv_(CommEnv),TreeLoadBalancer(np,supETree){
+          SubtreeToSubcubeVolume(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper,SYMPACK::vector<Int> & XsuperDist, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, MPI_Comm & aComm, bool fan_in = true):Xsuper_(Xsuper),XsuperDist_(XsuperDist),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),comm(aComm),TreeLoadBalancer(np,supETree){
             fan_in_=fan_in;
           };
 
@@ -610,8 +610,8 @@ namespace SYMPACK{
                 }
 
                 //Allreduce SubTreeLoad and NodeLoad
-                MPI_Allreduce(MPI_IN_PLACE,&NodeLoad[0],NodeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
-                MPI_Allreduce(MPI_IN_PLACE,&SubTreeLoad[0],SubTreeLoad.size(),MPI_DOUBLE,MPI_SUM,CommEnv_->MPI_GetComm());
+                MPI_Allreduce(MPI_IN_PLACE,&NodeLoad[0],NodeLoad.size(),MPI_DOUBLE,MPI_SUM,comm);
+                MPI_Allreduce(MPI_IN_PLACE,&SubTreeLoad[0],SubTreeLoad.size(),MPI_DOUBLE,MPI_SUM,comm);
 
                 for(Int I=1;I<=supETree_.Size();I++){
                   Int parent = supETree_.Parent(I-1);
@@ -1068,7 +1068,7 @@ namespace SYMPACK{
               SYMPACK::vector<Int> & SupMembership_;
               PtrVec & Xlindx_;
               IdxVec & Lindx_;
-              CommEnvironment * CommEnv_;
+              MPI_Comm comm;
               SYMPACK::vector<Int> & cc_;
 
 
@@ -1084,7 +1084,7 @@ namespace SYMPACK{
 
             public:
 
-              SubtreeToSubcubeGlobal(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, CommEnvironment* CommEnv, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),CommEnv_(CommEnv),TreeLoadBalancer(np,supETree){
+              SubtreeToSubcubeGlobal(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, MPI_Comm & aComm, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),comm(aComm),TreeLoadBalancer(np,supETree){
                 fan_in_=fan_in;
               };
 

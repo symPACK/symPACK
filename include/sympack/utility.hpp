@@ -918,6 +918,8 @@ template <typename SCALAR, typename INSCALAR >
 
 
     //compute local number of columns
+    int colPerProc = std::max(1,(int)(n/mpisize));
+abort();
     int nlocal = (mpirank<mpisize-1)?n/mpisize:n-mpirank*(int)(n/mpisize);
     int firstNode = mpirank*(int)(n/mpisize) + 1;
     //initialize local arrays
@@ -1106,11 +1108,17 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
   HMat.Localg_.SetComm(workcomm);
   HMat.Localg_.SetBaseval(1);
   HMat.Localg_.vertexDist.resize(mpisize+1);
+  int colPerProc = std::max(1,(int)(n/mpisize));
   for(int p = 1; p <mpisize;p++){
-    HMat.Localg_.vertexDist[p] = p*(int)(n/mpisize)+HMat.Localg_.GetBaseval();
+    HMat.Localg_.vertexDist[p] = std::min(n-1,p*colPerProc)+HMat.Localg_.GetBaseval();
   }
   HMat.Localg_.vertexDist.front()= HMat.Localg_.GetBaseval();
   HMat.Localg_.vertexDist.back()= n+HMat.Localg_.GetBaseval();
+
+  //initialize an identity permutation
+  HMat.cinvp.resize(HMat.Localg_.LocalVertexCount());
+  std::iota(HMat.cinvp.begin(),HMat.cinvp.end(),HMat.Localg_.LocalFirstVertex());
+
   Idx firstNode = HMat.Localg_.LocalFirstVertex();
   Idx nlocal = HMat.Localg_.LocalVertexCount();
 

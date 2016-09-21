@@ -418,6 +418,7 @@ namespace SYMPACK{
         displs[0] = 0;
         std::partial_sum(sizes.begin(),sizes.end(),&displs[1]);
 
+
         SYMPACK::vector<int> rsizes(mpisize,0);
         SYMPACK::vector<int> rdispls(mpisize+1,0);
         MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
@@ -438,7 +439,6 @@ namespace SYMPACK{
 
 
         MPI_Type_free(&type);
-
 
         SYMPACK::vector<Ptr> newColptr(newVtxCount+1,0);
         //compute column counts
@@ -477,11 +477,12 @@ namespace SYMPACK{
         //  logfileptr->OFS()<<"*********************************"<<endl;
 
         //store it as a distributed perm ?
-        this->invp.resize(Localg_.LocalVertexCount());
-        std::copy(invp+Localg_.LocalFirstVertex()-Localg_.GetBaseval(),
-              invp+Localg_.LocalFirstVertex()-Localg_.GetBaseval()+Localg_.LocalVertexCount(),
-                this->invp.begin());
-
+        this->cinvp.resize(Localg_.LocalVertexCount());
+        if(Localg_.LocalVertexCount()>0){
+          std::copy(invp+Localg_.LocalFirstVertex()-Localg_.GetBaseval(),
+                invp+Localg_.LocalFirstVertex()-Localg_.GetBaseval()+Localg_.LocalVertexCount(),
+                  this->cinvp.begin());
+        }
 
         if(Localg_.GetSorted()){
           Localg_.SetSorted(false);
@@ -747,10 +748,10 @@ namespace SYMPACK{
 
   template< typename F>
   bool DistSparseMatrix<F>::isPermuted(Int * ainvp,Idx * avertexDist){
-    //if the current invp is empty, then matrix is unpermuted
-    if(invp.empty()){
-      return false;
-    }
+//    //if the current invp is empty, then matrix is unpermuted
+//    if(cinvp.empty()){
+//      return false;
+//    }
   
     //if it is not the same permutation, consider that it is unpermuted
     int mpisize,mpirank;
@@ -762,14 +763,14 @@ namespace SYMPACK{
     }
 
     //quick check on the size
-    if(invp.size()!=avertexDist[mpirank+1]-avertexDist[mpirank]){
+    if(cinvp.size()!=avertexDist[mpirank+1]-avertexDist[mpirank]){
       return false;
     }
     else{
       //offset the ainvp pointer, avertexDist[0] contains the baseval
       ainvp = ainvp+ avertexDist[mpirank] - avertexDist[0];
-      for(size_t i = 0; i<invp.size(); i++){
-        if(invp[i]!=ainvp[i]){
+      for(size_t i = 0; i<cinvp.size(); i++){
+        if(cinvp[i]!=ainvp[i]){
           return false;
         }
       }

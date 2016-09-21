@@ -81,11 +81,11 @@ namespace SYMPACK{
       SupernodalMatrix & operator=( SupernodalMatrix & M){return M;};
 
 
+      void Init(symPACKOptions & options );
       void Init(DistSparseMatrix<T> & pMat, symPACKOptions & options );
-      void Init2(DistSparseMatrix<T> & pMat, symPACKOptions & options );
 
       void SymbolicFactorization(DistSparseMatrix<T> & pMat);
-      void DistributeA(DistSparseMatrix<T> & pMat);
+      void DistributeMatrix(DistSparseMatrix<T> & pMat);
 
       //Accessors
       Int Size(){return iSize_;}
@@ -151,8 +151,12 @@ template <class Allocator = UpcxxAllocator>
 
 
     protected:
+      //MPI/UPCXX ranks and sizes
+      int iam, np,all_np;
       symPACKOptions options_;
       CommEnvironment * CommEnv_;
+      MPI_Comm non_workcomm_;
+      MPI_Comm fullcomm_;
 
       //Order of the matrix
       Int iSize_;

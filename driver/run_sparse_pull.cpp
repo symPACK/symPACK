@@ -194,19 +194,21 @@ int main(int argc, char **argv)
     optionsFact.mappingTypeStr = "ROW2D";
   }
 
+
   Int all_np = np;
   np = optionsFact.used_procs(np);
-
   MPI_Comm workcomm;
   MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
-  Int new_rank = (iam<np)?iam:iam-np;
 
-  if(iam<np){
-    MPI_Comm_size(workcomm,&np);
-    MPI_Comm_rank(workcomm,&iam);
+  //should be worldcomm at some point
+  optionsFact.MPIcomm = worldcomm;
 
+//  if(iam<np){
+//    MPI_Comm_size(workcomm,&np);
+//    MPI_Comm_rank(workcomm,&iam);
+//    DistSparseMatrix<SCALAR> HMat(workcomm);
 
-    DistSparseMatrix<SCALAR> HMat(workcomm);
+    DistSparseMatrix<SCALAR> HMat(worldcomm);
     ReadMatrix<SCALAR,INSCALAR>(filename , informatstr,  HMat);
 
 
@@ -241,6 +243,7 @@ int main(int argc, char **argv)
         Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
         Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
 
+//gdb_lock();
         RHS.assign(n*nrhs,0.0);
         std::vector<Idx> rrowind;
         std::vector<SCALAR> rnzval;
@@ -264,7 +267,8 @@ int main(int argc, char **argv)
             rowind = const_cast<Idx*>(&Local.rowind[colbeg-1]);
           }
 
-          MPI_Bcast(&nnz,sizeof(Ptr),MPI_BYTE,iOwner,workcomm);
+//          MPI_Bcast(&nnz,sizeof(Ptr),MPI_BYTE,iOwner,workcomm);
+          MPI_Bcast(&nnz,sizeof(Ptr),MPI_BYTE,iOwner,worldcomm);
 
           if(iam!=iOwner){
             rrowind.resize(nnz);
@@ -274,8 +278,10 @@ int main(int argc, char **argv)
           }
 
 
-          MPI_Bcast(rowind,nnz*sizeof(Idx),MPI_BYTE,iOwner,workcomm);
-          MPI_Bcast(nzval,nnz*sizeof(SCALAR),MPI_BYTE,iOwner,workcomm);
+//          MPI_Bcast(rowind,nnz*sizeof(Idx),MPI_BYTE,iOwner,workcomm);
+//          MPI_Bcast(nzval,nnz*sizeof(SCALAR),MPI_BYTE,iOwner,workcomm);
+          MPI_Bcast(rowind,nnz*sizeof(Idx),MPI_BYTE,iOwner,worldcomm);
+          MPI_Bcast(nzval,nnz*sizeof(SCALAR),MPI_BYTE,iOwner,worldcomm);
 
           for(Int k = 0; k<nrhs; ++k){
             ts[k] = XTrue[j-1+k*n];
@@ -336,7 +342,7 @@ int main(int argc, char **argv)
       optionsFact.maxIrecv = maxIrecv;
 
 
-      optionsFact.commEnv = new CommEnvironment(workcomm);
+//      optionsFact.commEnv = new CommEnvironment(workcomm);
       SupernodalMatrix<SCALAR>*  SMat;
 
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
@@ -347,9 +353,9 @@ int main(int argc, char **argv)
         timeSta = get_time();
         SMat = new SupernodalMatrix<SCALAR>();
         //SMat->Init2(HMat,optionsFact);
-        SMat->Init(HMat,optionsFact);
+        SMat->Init(optionsFact);
         SMat->SymbolicFactorization(HMat);
-        SMat->DistributeA(HMat);
+        SMat->DistributeMatrix(HMat);
         timeEnd = get_time();
 #ifdef EXPLICIT_PERMUTE
         perm = SMat->GetOrdering().perm;
@@ -496,7 +502,8 @@ int main(int argc, char **argv)
       }
 
       //Do a reduce of RHS
-      mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,workcomm);
+//      mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,workcomm);
+      mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,worldcomm);
       //MPI_Allreduce( MPI_IN_PLACE, &AX[0], AX.size()*sizeof( SCALAR ), MPI_BYTE, MPI_BOR, workcomm);
 
       if(iam==0){
@@ -514,8 +521,8 @@ int main(int argc, char **argv)
 #endif
 
 
-    delete optionsFact.commEnv;
-  }
+//    delete optionsFact.commEnv;
+//  }
 
   MPI_Barrier(workcomm);
   MPI_Comm_free(&workcomm);

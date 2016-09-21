@@ -112,6 +112,7 @@ namespace SYMPACK{
       Int maxIrecv;
       CommEnvironment * commEnv;
       RelaxationParameters relax;
+      MPI_Comm MPIcomm;
     protected:
       bool isSqrtP(){
         bool val = false;
@@ -143,6 +144,7 @@ namespace SYMPACK{
         maxIrecv=0;
         relax = RelaxationParameters(0);
         commEnv = NULL;
+        MPIcomm = MPI_COMM_NULL;
         ordering = MMD;
         order_refinement_str = "NONE";
       }
