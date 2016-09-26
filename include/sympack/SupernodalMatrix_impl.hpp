@@ -730,7 +730,8 @@ namespace SYMPACK{
     //Int iam = CommEnv_->MPI_Rank();
     //Int np  = CommEnv_->MPI_Size();
 
-    if(iam<np){
+    //if(iam<np)
+    {
       std::fill(B,B+n*nrhs,T(0.0));
 
       //    Int nrhs = B.n();
@@ -741,7 +742,6 @@ namespace SYMPACK{
         T * data;
         Int snode_size = Xsuper_[I] - Xsuper_[I-1];
         Int nzcnt = snode_size * nrhs;
-        tmp_nzval.resize(nzcnt);
 
         if( iOwner == iam ){
           SuperNode<T,MallocAllocator> * contrib = snodeLocal(I,Contributions_);
@@ -749,10 +749,13 @@ namespace SYMPACK{
           data = contrib->GetNZval(0);
         }
         else{
+          tmp_nzval.resize(nzcnt);
           data = &tmp_nzval[0];
         }
 
-        MPI_Bcast(data,nzcnt*sizeof(T),MPI_BYTE,iOwner,CommEnv_->MPI_GetComm());
+        //MPI_Bcast(data,nzcnt*sizeof(T),MPI_BYTE,iOwner,CommEnv_->MPI_GetComm());
+
+        if(iam==iOwner){
         for(Int i = 0; i<snode_size; ++i){ 
           for(Int j = 0; j<nrhs; ++j){
             Int destRow = Xsuper_[I-1] + i;
@@ -761,7 +764,10 @@ namespace SYMPACK{
             B[destRow-1 + j*n] = data[i*nrhs + j];
           }
         }
+        }
       }
+
+      mpi::Allreduce((T*)MPI_IN_PLACE,&B[0],n*nrhs,MPI_SUM,fullcomm_);
       MPI_Barrier(CommEnv_->MPI_GetComm());
     }
   }
@@ -1017,10 +1023,15 @@ namespace SYMPACK{
     }
 
     //do an allreduce on sc, mw and mh
-    MPI_Allreduce(MPI_IN_PLACE,&sc[0],sc.size(),MPI_INT,MPI_SUM,CommEnv_->MPI_GetComm());
-    MPI_Allreduce(MPI_IN_PLACE,&mw[0],mw.size(),MPI_INT,MPI_MAX,CommEnv_->MPI_GetComm());
-    MPI_Allreduce(MPI_IN_PLACE,&mh[0],mh.size(),MPI_INT,MPI_MAX,CommEnv_->MPI_GetComm());
-    MPI_Allreduce(MPI_IN_PLACE,&numBlk[0],numBlk.size(),MPI_INT,MPI_SUM,CommEnv_->MPI_GetComm());
+//    MPI_Allreduce(MPI_IN_PLACE,&sc[0],sc.size(),MPI_INT,MPI_SUM,CommEnv_->MPI_GetComm());
+//    MPI_Allreduce(MPI_IN_PLACE,&mw[0],mw.size(),MPI_INT,MPI_MAX,CommEnv_->MPI_GetComm());
+//    MPI_Allreduce(MPI_IN_PLACE,&mh[0],mh.size(),MPI_INT,MPI_MAX,CommEnv_->MPI_GetComm());
+//    MPI_Allreduce(MPI_IN_PLACE,&numBlk[0],numBlk.size(),MPI_INT,MPI_SUM,CommEnv_->MPI_GetComm());
+
+    MPI_Allreduce(MPI_IN_PLACE,&sc[0],sc.size(),MPI_INT,MPI_SUM,fullcomm_);
+    MPI_Allreduce(MPI_IN_PLACE,&mw[0],mw.size(),MPI_INT,MPI_MAX,fullcomm_);
+    MPI_Allreduce(MPI_IN_PLACE,&mh[0],mh.size(),MPI_INT,MPI_MAX,fullcomm_);
+    MPI_Allreduce(MPI_IN_PLACE,&numBlk[0],numBlk.size(),MPI_INT,MPI_SUM,fullcomm_);
   }
 
 
@@ -4334,45 +4345,33 @@ namespace SYMPACK{
         }
 
         SYMPACK::vector<Int> map;
-//        if(iam<np){
-          if(options_.load_balance_str=="SUBCUBE-FI"){
-            if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
-            ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-            this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,true);
-          }
-          else if(options_.load_balance_str=="SUBCUBE-FO"){
-            if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
-            ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-            this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,false);
-          }
-          else if(options_.load_balance_str=="SUBCUBE-VOLUME-FI"){
-            if(iam==0){ cout<<"Subtree to subcube volume FI mapping used"<<endl;}
-            ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-            this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,true);
-          }
-          else if(options_.load_balance_str=="SUBCUBE-VOLUME-FO"){
-            if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
-            ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-            this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,false);
-          }
-          else if(options_.load_balance_str=="NNZ"){
-            if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
-            this->Balancer_ = new NNZBalancer(np,Xsuper_,cc);
-          }
-
-
-          map = this->Balancer_->GetMap();
-//        }
-
-
-//        if( (iam==0 || iam>=np) && all_np!=np){
-//          size_t nSuper = Xsuper_.size()-1;
-//          MPI_Bcast(&nSuper,sizeof(size_t),MPI_BYTE,0,non_workcomm_);
-//          map.resize(nSuper);
-//          MPI_Bcast(&map[0],map.size()*sizeof(Int),MPI_BYTE,0,non_workcomm_);
-//        }
+        if(options_.load_balance_str=="SUBCUBE-FI"){
+          if(iam==0){ cout<<"Subtree to subcube FI mapping used"<<endl;}
+          ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+          this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,true);
+        }
+        else if(options_.load_balance_str=="SUBCUBE-FO"){
+          if(iam==0){ cout<<"Subtree to subcube FO mapping used"<<endl;}
+          ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+          this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,false);
+        }
+        else if(options_.load_balance_str=="SUBCUBE-VOLUME-FI"){
+          if(iam==0){ cout<<"Subtree to subcube volume FI mapping used"<<endl;}
+          ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+          this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,true);
+        }
+        else if(options_.load_balance_str=="SUBCUBE-VOLUME-FO"){
+          if(iam==0){ cout<<"Subtree to subcube volume FO mapping used"<<endl;}
+          ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+          this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,false);
+        }
+        else if(options_.load_balance_str=="NNZ"){
+          if(iam==0){ cout<<"Load Balancing on NNZ used"<<endl;}
+          this->Balancer_ = new NNZBalancer(np,Xsuper_,cc);
+        }
 
         if (this->Balancer_!=NULL){
+          map = this->Balancer_->GetMap();
           TreeLoadBalancer * testBalancer = dynamic_cast<TreeLoadBalancer*>(this->Balancer_);
           if(testBalancer==NULL){
             this->Mapping_->Update(map);
@@ -4398,11 +4397,11 @@ namespace SYMPACK{
       }
 
       //starting from now, this only concerns the working processors
-      if(iam<np){
         SYMPACK_TIMER_START(Get_UpdateCount);
         GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_,UpdateHeight_,numBlk_);
         SYMPACK_TIMER_STOP(Get_UpdateCount);
 
+      if(iam<np){
 
         {
           double timeSta = get_time();
@@ -4484,7 +4483,6 @@ namespace SYMPACK{
             for(Idx col = fc;col<=lc;col++){
               //corresponding column in the unsorted matrix A
               if(col>= FirstLocalCol && col < LastLocalCol){
-                Int nrows = 0;
                 Idx local_col = col - FirstLocalCol+1;//1 based
                 send_map[iDest].first += (pMat.Localg_.colptr[local_col]-pMat.Localg_.colptr[local_col-1])*(sizeof(Idx)+sizeof(T)) + sizeof(Idx) + sizeof(Ptr);
               }
@@ -4758,16 +4756,22 @@ namespace SYMPACK{
 
 #else
         std::map<Int,pair<size_t,Icomm *> > send_map;
-        for(Int p=0;p<np;++p){
+        for(Int p=0;p<all_np;++p){
           send_map[p].first = 0;
         }
         SYMPACK_TIMER_START(DISTRIBUTE_COUNTING);
+
+        Int baseval = pMat.Localg_.GetBaseval();
+        Idx FirstLocalCol = pMat.Localg_.vertexDist[iam] + (1 - baseval); //1-based
+        Idx LastLocalCol = pMat.Localg_.vertexDist[iam+1] + (1 - baseval); //1-based
 
         Int snodeCount = 0;
         for(Int I=1;I<Xsuper_.size();I++){
           Idx fc = Xsuper_[I-1];
           Idx lc = Xsuper_[I]-1;
           Int iWidth = lc-fc+1;
+    
+          
           Int iHeight = UpdateHeight_[I-1];
 
           Int iDest = this->Mapping_->Map(I-1,I-1);
@@ -4776,35 +4780,31 @@ namespace SYMPACK{
             ++snodeCount;
           }
 
-          //look at the owner of the first column of the supernode
-          Idx numColFirst = std::max(1,iSize_ / np);
-
           //post all the recv and sends
           for(Idx col = fc;col<=lc;col++){
+
             //corresponding column in the unsorted matrix A
             Idx orig_col = Order_.perm[col-1];
-            Idx iOwnerCol = std::min((orig_col-1)/numColFirst,(Idx)np-1);
-            size_t & send_bytes = send_map[iDest].first;
-            if(iam == iOwnerCol){
-              Int nrows = 0;
-              Idx local_col = (orig_col-(numColFirst)*iOwnerCol);
-              for(Ptr rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-                Idx orig_row = pMat.Local_.rowind[rowidx-1];
+
+            if(orig_col>= FirstLocalCol && orig_col < LastLocalCol){
+              Ptr nrows = 0;
+              Idx local_col = orig_col - FirstLocalCol+1;//1 based
+              for(Ptr rowidx = pMat.Localg_.colptr[local_col-1] + (1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+                Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);//1-based
                 Idx row = Order_.invp[orig_row-1];
 
                 if(row<col){
                   //add the pair (col,row) to processor owning column row
                   Int J = SupMembership_[row-1];
                   Int iDestJ = this->Mapping_->Map(J-1,J-1);
-                  send_map[iDestJ].first += sizeof(Idx)+sizeof(Int)+1*(sizeof(Idx)+sizeof(T));
+                  send_map[iDestJ].first += sizeof(Idx)+sizeof(Ptr)+1*(sizeof(Idx)+sizeof(T));
                 }
                 else{nrows++;}
               }
-              send_bytes += sizeof(Idx)+sizeof(Int)+nrows*(sizeof(Idx)+sizeof(T));
+              send_map[iDest].first += sizeof(Idx)+sizeof(Ptr)+nrows*(sizeof(Idx)+sizeof(T));
             }
           }
         }
-
         SYMPACK_TIMER_STOP(DISTRIBUTE_COUNTING);
         //Resize the local supernodes array
         LocalSupernodes_.reserve(snodeCount);
@@ -4841,12 +4841,12 @@ namespace SYMPACK{
 
         //first create the structure of every supernode
         {
-          std::vector< int > superStructure(np);
+          std::vector< int > superStructure(all_np);
           std::vector< int > rdisplsStructure;
-          std::vector< int > sSuperStructure(np);
-          std::vector< int > ssizes(np,0);
-          std::vector< int > sdispls(np+1,0);
-          std::vector< int > rsizes(np,0);
+          std::vector< int > sSuperStructure(all_np);
+          std::vector< int > ssizes(all_np,0);
+          std::vector< int > sdispls(all_np+1,0);
+          std::vector< int > rsizes(all_np,0);
 
           Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
           Int firstSnode = XsuperDist_[iam];
@@ -4922,7 +4922,7 @@ namespace SYMPACK{
               pMat.comm);
 
           //loop through received structure and create supernodes
-          for(Int p = 0; p<np; p++){
+          for(Int p = 0; p<all_np; p++){
             int pos = rdisplsStructure[p]/sizeof(int);
             int end = rdisplsStructure[p+1]/sizeof(int);
             while(pos<end){
@@ -4980,18 +4980,16 @@ namespace SYMPACK{
             logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
 #endif
 
-            //look at the owner of the first column of the supernode
-            Int numColFirst = std::max(1,iSize_ / np);
-
             //Serialize
             for(Idx col = fc;col<=lc;col++){
               Idx orig_col = Order_.perm[col-1];
-              Int iOwnerCol = std::min(Int((orig_col-1)/numColFirst),np-1);
-              if(iam == iOwnerCol){
-                Int nrows = 0;
-                Int local_col = (orig_col-(numColFirst)*iOwnerCol);
-                for(Ptr rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-                  Idx orig_row = pMat.Local_.rowind[rowidx-1];
+
+              if(orig_col>= FirstLocalCol && orig_col < LastLocalCol){
+                Ptr nrows = 0;
+                Idx local_col = orig_col - FirstLocalCol+1;//1 based
+
+                for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+                  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
                   Idx row = Order_.invp[orig_row-1];
 
 
@@ -5005,7 +5003,7 @@ namespace SYMPACK{
                     //we need to set head to the proper sdispls
                     Isend.setHead(spositions[iDestJ]);
                     Isend<<row;
-                    Isend<<1;
+                    Isend<<(Ptr)1;
                     Isend<<col;
                     Isend<<val;
                     //backup new position for processor iDestJ
@@ -5022,17 +5020,17 @@ namespace SYMPACK{
                 Isend<<col;
                 Isend<<nrows;
 
-                for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-                  Int orig_row = pMat.Local_.rowind[rowidx-1];
-                  Int row = Order_.invp[orig_row-1];
+                for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+                  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
+                  Idx row = Order_.invp[orig_row-1];
                   if(row>=col){
                     Isend<<row;
                   }
                 }
 
-                for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-                  Int orig_row = pMat.Local_.rowind[rowidx-1];
-                  Int row = Order_.invp[orig_row-1];
+                for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+                  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
+                  Idx row = Order_.invp[orig_row-1];
                   if(row>=col){
                     Isend<<pMat.nzvalLocal[rowidx-1];
                   }
@@ -5070,7 +5068,16 @@ namespace SYMPACK{
 
             char * buffer = IrecvPtr->back();
             //Deserialize
-            Idx col = *(Int*)&buffer[0];
+            Idx col = *(Idx*)&buffer[0];
+            //nrows of column col sent by processor p
+            Ptr nrows = *((Ptr*)&buffer[sizeof(Idx)]);
+            Idx * rowind = (Idx*)(&buffer[sizeof(Ptr)+sizeof(Idx)]);
+            T * nzvalA = (T*)(&buffer[(1+nrows)*sizeof(Idx)+sizeof(Ptr)]);
+
+            //advance in the buffer
+            IrecvPtr->setHead(IrecvPtr->head + sizeof(Idx) +sizeof(Ptr) + nrows*(sizeof(Idx)+sizeof(T)));
+
+
             Int I = SupMembership_[col-1];
             //do a global to local mapping
 
@@ -5084,12 +5091,6 @@ namespace SYMPACK{
 
             SuperNode<T> * snode = snodeLocal(I);
 
-            //nrows of column col sent by processor p
-            Int nrows = *((Int*)&buffer[sizeof(Int)]);
-            Idx * rowind = (Idx*)(&buffer[sizeof(Int)+sizeof(Idx)]);
-            T * nzvalA = (T*)(&buffer[(1+nrows)*sizeof(Idx)+sizeof(Int)]);
-            //advance in the buffer
-            IrecvPtr->setHead(IrecvPtr->head + sizeof(Idx) +sizeof(Int) + nrows*(sizeof(Idx)+sizeof(T)));
 
             //Here, do a linear search instead for the blkidx
 
@@ -5105,7 +5106,7 @@ namespace SYMPACK{
               //sort rowind and nzvals
 
 #if 1 
-              std::vector<size_t> lperm = sort_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,std::less<Int>());
+              std::vector<size_t> lperm = sort_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,std::less<Idx>());
               apply_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,lperm);
               apply_permutation(&nzvalA[colbeg-1],&nzvalA[colend-1]+1,lperm);
               Idx firstRow = rowind[colbeg-1];
@@ -6031,11 +6032,22 @@ void SupernodalMatrix<T>::symbolicFactorizationRelaxedDist(SYMPACK::vector<Int> 
       double tstart = get_time();
 
       //recompute vertexDist based on XsuperDist
-      std::vector<Idx> newVertexDist(np+1);
-      for(int p = 0; p < np; p++){
-        newVertexDist[p] = Xsuper_[XsuperDist_[p]-1] + (pGraph.GetBaseval()-1);
-      }
-      newVertexDist[np] = pGraph.size+1;
+//      std::vector<Idx> newVertexDist(np+1);
+//      for(int p = 0; p < np; p++){
+//        newVertexDist[p] = Xsuper_[XsuperDist_[p]-1] + (pGraph.GetBaseval()-1);
+//      }
+//      newVertexDist[np] = pGraph.size+1;
+
+      std::vector<Idx> newVertexDist;
+        {
+          newVertexDist.resize(all_np+1,0);
+          newVertexDist[all_np] = pGraph.size+1;
+          for(int p = 0; p < all_np; p++){
+            Int S = XsuperDist_[p];
+            newVertexDist[p] = Xsuper_[S-1];
+          }
+        }
+
 
 
       pGraph.Permute(&Order_.invp[0],&newVertexDist[0]);

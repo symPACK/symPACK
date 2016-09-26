@@ -203,9 +203,15 @@ namespace SYMPACK{
         SYMPACK::vector<Int> src_to_tgt_offset;
 
         void Resize(Int size, Int mw){
-          tmpBuf.resize(size*mw);
-          src_colindx.resize(mw);
-          src_to_tgt_offset.resize(size);
+          if(size*mw > tmpBuf.size()){
+            tmpBuf.resize(size*mw);
+          }
+          if(mw > src_colindx.size()){
+            src_colindx.resize(mw);
+          }
+          if(size > src_to_tgt_offset.size()){
+            src_to_tgt_offset.resize(size);
+          }
         }
 
         void Clear(){

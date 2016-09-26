@@ -431,7 +431,8 @@ template<typename T, class Allocator>
 
     Idx totalNRows = this->NRowsBelowBlock(0);
 
-#if 0
+//#define DEBUG_LDL
+#ifdef DEBUG_LDL
     auto dump = [] (Idx snodeSize, Idx totalNRows, T* buf, ostream & os){
     os.precision(std::numeric_limits< T >::max_digits10);
     os<<std::scientific;
@@ -446,7 +447,6 @@ template<typename T, class Allocator>
     os<<endl;
     };
 
-    {
       Ptr nzvalcnt = this->NNZ();
       std::vector<T> tmp(nzvalcnt);
       std::copy(diag_nzval,diag_nzval+nzvalcnt,&tmp[0]);
@@ -459,16 +459,19 @@ template<typename T, class Allocator>
               snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
         }
       }
-    }
 #endif
 
 
 
     Int INFO = 0;
-    SYMPACK::vector<T> work(snodeSize);
+//    SYMPACK::vector<T> work(snodeSize*snodeSize);
+    //SYMPACK::vector<T> work(snodeSize);
+
+
+
 
 //    dump(snodeSize,totalNRows,&diag_nzval[0],logfileptr->OFS());
-    lapack::Potrf_LDL( "U", snodeSize, diag_nzval, snodeSize, &work[0], INFO);
+    lapack::Potrf_LDL( "U", snodeSize, diag_nzval, snodeSize, tmpBuffers, INFO);
 //    dump(snodeSize,snodeSize,&diag_nzval[0],logfileptr->OFS());
     for(Int col = 0; col< snodeSize;col++){
       //copy the diagonal entries into the diag portion of the supernode
@@ -483,7 +486,7 @@ template<typename T, class Allocator>
         blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
     }
 
-#if 0
+#ifdef DEBUG_LDL
     logfileptr->OFS()<<"======================================"<<endl;
     dump(snodeSize,totalNRows,&tmp[0],logfileptr->OFS());
     dump(snodeSize,totalNRows,&diag_nzval[0],logfileptr->OFS());

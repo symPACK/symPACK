@@ -267,6 +267,7 @@ int main(int argc, char **argv)
             rowind = const_cast<Idx*>(&Local.rowind[colbeg-1]);
           }
 
+#if 0
 //          MPI_Bcast(&nnz,sizeof(Ptr),MPI_BYTE,iOwner,workcomm);
           MPI_Bcast(&nnz,sizeof(Ptr),MPI_BYTE,iOwner,worldcomm);
 
@@ -282,22 +283,26 @@ int main(int argc, char **argv)
 //          MPI_Bcast(nzval,nnz*sizeof(SCALAR),MPI_BYTE,iOwner,workcomm);
           MPI_Bcast(rowind,nnz*sizeof(Idx),MPI_BYTE,iOwner,worldcomm);
           MPI_Bcast(nzval,nnz*sizeof(SCALAR),MPI_BYTE,iOwner,worldcomm);
-
-          for(Int k = 0; k<nrhs; ++k){
-            ts[k] = XTrue[j-1+k*n];
-          }
-          //do a dense mat mat mul ?
-          for(Ptr ii = 1; ii<= nnz;++ii){
-            Idx row = rowind[ii-1]-(1-Local.GetBaseval());//1-based
+#endif
+          if(iam==iOwner){
             for(Int k = 0; k<nrhs; ++k){
-              RHS[row-1+k*n] += ts[k]*nzval[ii-1];
-              if(row>j){
-                RHS[j-1+k*n] += XTrue[row-1+k*n]*nzval[ii-1];
+              ts[k] = XTrue[j-1+k*n];
+            }
+            //do a dense mat mat mul ?
+            for(Ptr ii = 1; ii<= nnz;++ii){
+              Idx row = rowind[ii-1]-(1-Local.GetBaseval());//1-based
+              for(Int k = 0; k<nrhs; ++k){
+                RHS[row-1+k*n] += ts[k]*nzval[ii-1];
+                if(row>j){
+                  RHS[j-1+k*n] += XTrue[row-1+k*n]*nzval[ii-1];
+                }
               }
             }
           }
         }
       }
+
+      mpi::Allreduce( (SCALAR*)MPI_IN_PLACE, &RHS[0],  n*nrhs, MPI_SUM, worldcomm);
 
       timeEnd = get_time();
       if(iam==0){
@@ -533,6 +538,7 @@ int main(int argc, char **argv)
   MPI_Comm_free(&worldcomm);
 
 
+  logfileptr->OFS()<<"NB = "<<lapack::Ilaenv( 1, "DPOTRF", "Upper", 100, -1, -1, -1 )<<std::endl;
 
 
   delete logfileptr;

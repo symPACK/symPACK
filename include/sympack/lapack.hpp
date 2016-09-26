@@ -557,6 +557,7 @@ template<typename T>
         //WORK is D_{1..J-1,1..J-1} * U_{1..J-1,J-1}  
         blas::Copy( J-1, &A[(J-1)*LDA], 1, WORK, 1 );
         for (Idx I = 1; I<=J-1; I++) {
+              //bassert(I<=N);
           WORK[I-1] *= A[I-1+(I-1)*LDA];
         }
         //AJJ = A_{J,J} - U'_{1..J-1,J-1} * WORK
@@ -614,7 +615,7 @@ template<typename T>
   }
 
 template<typename T>
-  void Potrf_LDL( const char * UPLO,  Idx N, T * A,  Idx LDA, T * WORK, Int & INFO) {
+  void Potrf_LDL( const char * UPLO,  Idx N, T * A,  Idx LDA, TempUpdateBuffers<T> & tmpBuffers, Int & INFO) {
     //*
     //*  -- LAPACK-like routine --
     //*     Esmond G. Ng, Oak Ridge National Laboratory
@@ -711,6 +712,11 @@ template<typename T>
     //*
     //*     Test the input parameters.
     //*
+
+
+
+
+
     T ONE = T(1);
     T ZERO = T(0);
     Idx JB,NB,ROW,COL;
@@ -740,14 +746,21 @@ template<typename T>
     //*
     //*     Determine the block size for this environment.
     //*
-    NB = 1;//lapack::Ilaenv( 1, "DPOTRF_LDL", UPLO, N, -1, -1, -1 );
+    NB = lapack::Ilaenv( 1, "DPOTRF", UPLO, N, -1, -1, -1 );
+    //NB = 1;
+    //NB = 32;//lapack::Ilaenv( 1, "DPOTRF_LDL", UPLO, N, -1, -1, -1 );
+
       if ( NB <= 1 || NB >= N ) {
+    tmpBuffers.Resize(N,1);
+    T * WORK = &tmpBuffers.tmpBuf[0];
         //*
         //*        Use unblocked code.
         //*
         Potf2_LDL( UPLO, N, A, LDA, WORK, INFO );
       }
       else {
+    tmpBuffers.Resize(NB*N,1);
+    T * WORK = &tmpBuffers.tmpBuf[0];
         //*
         //*        Use blocked code.
         //*
@@ -763,6 +776,7 @@ template<typename T>
             JB = std::min( NB, N-J+1 );
             PTR = 1;
             for ( Idx I = 1; I<=J-1;I++) {
+              //bassert(PTR<=N);
               blas::Copy( JB, &A[I-1+(J-1)*LDA], LDA, &WORK[PTR-1], 1 );
               blas::Scal( JB, A[I-1+(I-1)*LDA], &WORK[PTR-1], 1 );
               PTR += JB;

@@ -713,9 +713,15 @@ public:
 
 void ReadDistSparseMatrix( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
 
-void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
+//void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
+//
+//void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Complex>& pspmat, MPI_Comm comm );
 
-void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Complex>& pspmat, MPI_Comm comm );
+
+
+
+
+
 
 void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
 
@@ -1053,6 +1059,226 @@ abort();
 
 
 
+template <typename T>
+void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<T>& pspmat, MPI_Comm comm );
+
+template <typename T>
+void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<T>& pspmat, MPI_Comm comm )
+{
+
+
+
+
+
+  // Get the processor information within the current communicator
+  MPI_Barrier( comm );
+  Int mpirank;  MPI_Comm_rank(comm, &mpirank);
+  Int mpisize;  MPI_Comm_size(comm, &mpisize);
+  MPI_Status mpistat;
+  MPI_Datatype type;
+  int lens[3];
+  MPI_Aint disps[3];
+  MPI_Datatype types[3];
+
+
+
+
+
+  Int err = 0;
+
+  int filemode = MPI_MODE_RDONLY | MPI_MODE_UNIQUE_OPEN;
+
+  MPI_File fin;
+  MPI_Status status;
+
+  // FIXME Maybe change to MPI_Comm_Dup.
+  pspmat.comm = comm;
+
+  err = MPI_File_open(comm,(char*) filename, filemode, MPI_INFO_NULL,  &fin);
+
+  if (err != MPI_SUCCESS) {
+    #ifdef USE_ABORT
+abort();
+#endif
+throw std::logic_error( "File cannot be opened!" );
+  }
+
+  // FIXME Note that nnz uses the Int data type for consistency of writing / reading
+  // Read header
+  if( mpirank == 0 ){
+    err = MPI_File_read_at(fin, 0,(char*)&pspmat.size, sizeof(Int), MPI_BYTE, &status);
+    err = MPI_File_read_at(fin, sizeof(Int),(char*)&pspmat.nnz, sizeof(Int), MPI_BYTE, &status);
+    pspmat.nnz = (Ptr)*((Int*)&pspmat.nnz);
+  }
+
+
+  /* define a struct that describes all our data */
+  lens[0] = sizeof(Int);
+  lens[1] = sizeof(Ptr);
+  MPI_Address(&pspmat.size, &disps[0]);
+  MPI_Address(&pspmat.nnz, &disps[1]);
+  types[0] = MPI_BYTE;
+  types[1] = MPI_BYTE;
+  MPI_Type_struct(2, lens, disps, types, &type);
+  MPI_Type_commit(&type);
+
+
+  /* broadcast the header data to everyone */
+  MPI_Bcast(MPI_BOTTOM, 1, type, 0, comm);
+
+  MPI_Type_free(&type);
+
+
+
+  //compute local number of columns
+  pspmat.Localg_.size = pspmat.size;
+  pspmat.Localg_.SetComm(comm);
+  pspmat.Localg_.SetBaseval(1);
+  pspmat.Localg_.vertexDist.resize(mpisize+1);
+  int colPerProc = std::max(1,(int)(pspmat.size/mpisize));
+  for(int p = 1; p <mpisize;p++){
+    pspmat.Localg_.vertexDist[p] = std::min(pspmat.size-1,p*colPerProc)+pspmat.Localg_.GetBaseval();
+  }
+  pspmat.Localg_.vertexDist.front()= pspmat.Localg_.GetBaseval();
+  pspmat.Localg_.vertexDist.back()= pspmat.size+pspmat.Localg_.GetBaseval();
+
+  //initialize an identity permutation
+  pspmat.cinvp.resize(pspmat.Localg_.LocalVertexCount());
+  std::iota(pspmat.cinvp.begin(),pspmat.cinvp.end(),pspmat.Localg_.LocalFirstVertex());
+
+  Idx firstNode = pspmat.Localg_.LocalFirstVertex() - pspmat.Localg_.GetBaseval();//0 based
+  Idx numColLocal = pspmat.Localg_.LocalVertexCount();
+
+  //initialize local arrays
+  pspmat.Localg_.colptr.resize(numColLocal+1);
+  pspmat.Localg_.SetKeepDiag(1);
+  pspmat.Localg_.SetSorted(1);
+
+
+  // Compute the number of columns on each processor
+//  SYMPACK::vector<Int> numColLocalVec(mpisize);
+//  Int numColLocal, numColFirst;
+//  numColFirst = pspmat.size / mpisize;
+//  SetValue( numColLocalVec, numColFirst );
+//  numColLocalVec[mpisize-1] = pspmat.size - numColFirst * (mpisize-1);  // Modify the last entry  
+//  numColLocal = numColLocalVec[mpirank];
+//  pspmat.Local_.colptr.resize( numColLocal + 1 );
+
+//  MPI_Offset myColPtrOffset = (2 * sizeof(Int))  + ((mpirank==0)?0:1 +  firstNode)*sizeof(Int);
+  MPI_Offset myColPtrOffset = (2 + ((mpirank==0)?0:1) )* sizeof(Int)  + (firstNode)*sizeof(Int);
+
+  Int np1 = 0;
+  lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
+  lens[1] = (numColLocal + 1)*sizeof(Int);
+
+  MPI_Address(&np1, &disps[0]);
+  MPI_Address(&pspmat.Localg_.colptr[0], &disps[1]);
+
+  MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
+  MPI_Type_commit(&type);
+
+  err= MPI_File_read_at_all(fin, myColPtrOffset, MPI_BOTTOM, 1, type, &status);
+
+  if (err != MPI_SUCCESS) {
+#ifdef USE_ABORT
+    abort();
+#endif
+    throw std::logic_error( "error reading colptr" );
+  }
+  MPI_Type_free(&type);
+
+  {
+    bassert(sizeof(Int)<=sizeof(Ptr));
+    Int * tmpColptr = (Int*)&pspmat.Localg_.colptr[0];
+    for (Idx col = pspmat.Localg_.colptr.size();col>0;col--){
+      pspmat.Localg_.colptr[col-1] = (Ptr)tmpColptr[col-1];
+    }
+  }
+
+
+  // Calculate nnz_loc on each processor
+  Ptr mynnz = pspmat.Localg_.colptr[numColLocal] - pspmat.Localg_.colptr[0];
+
+  pspmat.Localg_.nnz = mynnz;
+  pspmat.Localg_.rowind.resize( mynnz );
+  pspmat.nzvalLocal.resize ( mynnz );
+
+  //read rowIdx
+//  MPI_Offset myRowIdxOffset = (3 + ((mpirank==0)?0:1) )*sizeof(Int) + (pspmat.size+1 + (pspmat.Localg_.colptr[0]-1))*sizeof(Int);
+  MPI_Offset myRowIdxOffset = (3+((mpirank==0)?0:1))*sizeof(Int) + (pspmat.size+1 + (pspmat.Localg_.colptr[0]-1))*sizeof(Int);
+
+  lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
+  lens[1] = mynnz*sizeof(Int);
+
+  MPI_Address(&np1, &disps[0]);
+  MPI_Address(&pspmat.Localg_.rowind[0], &disps[1]);
+
+  MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
+  MPI_Type_commit(&type);
+
+  err= MPI_File_read_at_all(fin, myRowIdxOffset, MPI_BOTTOM, 1, type,&status);
+
+  if (err != MPI_SUCCESS) {
+    #ifdef USE_ABORT
+abort();
+#endif
+throw std::logic_error( "error reading rowind" );
+  }
+  MPI_Type_free(&type);
+
+  {
+    bassert(sizeof(int)<=sizeof(Idx));
+    int * tmpRowind = (int*)&pspmat.Localg_.rowind[0];
+    for (Ptr ptr = pspmat.Localg_.rowind.size(); ptr>0;ptr--){
+      pspmat.Localg_.rowind[ptr-1] = (Idx)tmpRowind[ptr-1];
+    }
+  }
+
+  //read nzval
+//  MPI_Offset myNzValOffset = (4 + ((mpirank==0)?0:1) )*sizeof(Int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Localg_.colptr[0]-1)*sizeof(T);
+  MPI_Offset myNzValOffset = (4+ ((mpirank==0)?0:1)  )*sizeof(Int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Localg_.colptr[0]-1)*sizeof(T);
+
+  lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
+  lens[1] = mynnz*sizeof(T);
+
+  MPI_Address(&np1, &disps[0]);
+  MPI_Address(&pspmat.nzvalLocal[0], &disps[1]);
+
+  //types[0] = MPI_BYTE;
+  //types[1] = MPI_BYTE;
+
+  //MPI_Type_create_struct(2, lens, disps, types, &type);
+  MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
+  MPI_Type_commit(&type);
+
+
+  err = MPI_File_read_at_all(fin, myNzValOffset, MPI_BOTTOM, 1, type,&status);
+
+  if (err != MPI_SUCCESS) {
+    #ifdef USE_ABORT
+abort();
+#endif
+throw std::logic_error( "error reading nzval" );
+  }
+
+  MPI_Type_free(&type);
+
+
+  //convert to local references
+  for( Int i = 1; i < numColLocal + 1; i++ ){
+    pspmat.Localg_.colptr[i] = pspmat.Localg_.colptr[i] -  pspmat.Localg_.colptr[0] + 1;
+  }
+  pspmat.Localg_.colptr[0]=1;
+
+  MPI_Barrier( comm );
+
+  MPI_File_close(&fin);
+
+  return ;
+
+}		// -----  end of function ParaReadDistSparseMatrix  ----- 
+
+
 
 
 template <typename SCALAR, typename INSCALAR >
@@ -1285,7 +1511,7 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
   double tstart = get_time();
   //Read the input matrix
   if(informatstr == "CSC"){
-    ParaReadDistSparseMatrix( filename.c_str(), HMat, workcomm ); 
+    ParaReadDistSparseMatrix<SCALAR>( filename.c_str(), HMat, workcomm ); 
   }
   else{
 #if 0
