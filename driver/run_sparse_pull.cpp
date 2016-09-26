@@ -304,7 +304,7 @@ int main(int argc, char **argv)
         cout<<"spGEMM time: "<<timeEnd-timeSta<<endl;
       }
 
-#if 1
+#if 0
           {
             std::size_t N = RHS.size();
             logfileptr->OFS()<<"RHS = [ ";
@@ -315,7 +315,7 @@ int main(int argc, char **argv)
           }
 #endif
 
-#if 1
+#if 0
           {
             std::size_t N = XTrue.size();
             logfileptr->OFS()<<"XTrue = [ ";
@@ -373,14 +373,15 @@ int main(int argc, char **argv)
         cout<<"Initialization time: "<<timeEnd-timeSta<<endl;
       }
 
+#if 0
       if(iam==0){
         logfileptr->OFS()<<"A= ";
       }
       SMat->DumpMatlab();
-
       {
         logfileptr->OFS()<<"Supernode partition"<<SMat->GetSupernodalPartition()<<std::endl;
       }
+#endif
 
 
       /************* NUMERICAL FACTORIZATION PHASE ***********/
@@ -398,11 +399,12 @@ int main(int argc, char **argv)
       }
       logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
 
+#if 0
       if(iam==0){
         logfileptr->OFS()<<"L= ";
       }
       SMat->DumpMatlab();
-
+#endif
 
 //only for debug purpose
 #if 0
@@ -433,7 +435,7 @@ int main(int argc, char **argv)
 
         SMat->GetSolution(&XFinal[0],nrhs);
 
-#if 1
+#if 0
         if(nrhs>0 && XFinal.size()>0) {
           {
             std::size_t N = XFinal.size();

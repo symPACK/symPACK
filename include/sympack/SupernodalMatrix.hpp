@@ -183,6 +183,7 @@ template <class Allocator = UpcxxAllocator>
       IdxVec locLindx_;
 
       SYMPACK::vector<Int> numBlk_;
+      SYMPACK::vector<Int> cc_,rc_;
 
 #ifdef MULTITHREADING
       SYMPACK::vector<omp_lock_t> superLocks_;

@@ -4,7 +4,7 @@
 #include "sympack_definitions.hpp"
 #include "sympack_config.hpp"
 
-#define EXPLICIT_PERMUTE
+//#define EXPLICIT_PERMUTE
 
 
 
