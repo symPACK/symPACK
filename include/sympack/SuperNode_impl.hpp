@@ -47,9 +47,8 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows,
   //loc_storage_container_ = (char *)storage_container_;
 #ifdef _USE_COREDUMPER_
   if(loc_storage_container_==NULL){
-gdb_lock();
     std::stringstream corename;
-    corename << "core.sympack." << iam;
+    corename << "core.sympack." << upcxx::myrank();
     WriteCoreDump(corename.str().c_str());
   }
 #endif
@@ -302,7 +301,7 @@ inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiG
 #ifdef _USE_COREDUMPER_
       if(locTmpPtr==NULL){
         std::stringstream corename;
-        corename << "core.sympack." << iam;
+        corename << "core.sympack." << upcxx::myrank();
         WriteCoreDump(corename.str().c_str());
       }
 #endif
@@ -464,7 +463,7 @@ inline Int SuperNode<T,Allocator>::Shrink(){
 #ifdef _USE_COREDUMPER_
       if(locTmpPtr==NULL){
         std::stringstream corename;
-        corename << "core.sympack." << iam;
+        corename << "core.sympack." << upcxx::myrank();
         WriteCoreDump(corename.str().c_str());
       }
 #endif
@@ -884,7 +883,7 @@ inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode)
 //CHECKED ON 11-18-2014
 template<typename T, class Allocator>
 inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-    TempUpdateBuffers<T> & tmpBuffers, Int iTarget){
+    TempUpdateBuffers<T> & tmpBuffers, Int iTarget, Int iam){
 
   scope_timer(a,UPDATE_AGGREGATE_SNODE);
 #if defined(_NO_COMPUTATION_)
@@ -1524,7 +1523,7 @@ inline void SuperNode<T,Allocator>::Serialize(Icomm & buffer, Int first_blkidx, 
 
 
 template <typename T, class Allocator> 
-    inline void SuperNode<T,Allocator>::forward_update(SuperNode<T,Allocator> * src_contrib,Int iOwner){
+    inline void SuperNode<T,Allocator>::forward_update(SuperNode<T,Allocator> * src_contrib,Int iOwner,Int iam){
       SuperNode<T,Allocator> * tgt_contrib = this;
 
       Int src_ncols = src_contrib->Size();

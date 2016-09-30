@@ -35,7 +35,7 @@ namespace SYMPACK{
       local_ptr = (char *)malloc(psize);
 #else
       //TODO replace this by a upcxx::allocate
-      upcxx::global_ptr<char> tmp = upcxx::allocate<char>(iam,psize);
+      upcxx::global_ptr<char> tmp = upcxx::allocate<char>(upcxx::myrank(),psize);
       local_ptr=(char*)tmp; 
 #endif
         if(local_ptr!=NULL){
@@ -192,7 +192,7 @@ namespace SYMPACK{
       local_ptr = (char *)malloc(msg_size);
 #else
       //TODO replace this by a upcxx::allocate
-      upcxx::global_ptr<char> tmp = upcxx::allocate<char>(iam,msg_size);
+      upcxx::global_ptr<char> tmp = upcxx::allocate<char>(upcxx::myrank(),msg_size);
       local_ptr=(char*)tmp; 
 #endif
 

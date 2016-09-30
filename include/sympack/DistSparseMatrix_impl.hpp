@@ -41,6 +41,10 @@ namespace SYMPACK{
     return Localg_;
   }
 
+  template <class F> void DistSparseMatrix<F>::SetLocalGraph(const DistSparseMatrixGraph & pgraph){
+    Localg_ = pgraph;
+  }
+
   template <class F> SparseMatrixStructure DistSparseMatrix<F>::GetGlobalStructure(){
     if(!globalAllocated){
       Local_.ToGlobal(Global_,comm);

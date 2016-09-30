@@ -342,6 +342,12 @@ namespace SYMPACK{
 
 
   void ETree::ConstructETree(SparseMatrixGraph & sgraph, Ordering & aOrder, MPI_Comm & aComm){
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(aComm,&iam);
+    MPI_Comm_size(aComm,&np);
+
+
     bIsPostOrdered_=false;
     n_ = sgraph.size;
 

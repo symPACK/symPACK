@@ -228,6 +228,31 @@ namespace SYMPACK{
         }
     };
 
+  struct duet{
+            Idx row;
+            Idx col;
+          };
+
+struct sortDuet {
+  bool operator() (const duet & a, const duet & b){
+    bool retval = a.row<b.row;
+    if(a.row==b.row){
+      retval = a.col<b.col;
+    }
+    return retval;
+  }
+};
+
+struct sortDuetInv {
+  bool operator() (const duet & a, const duet & b){
+    bool retval = a.row>b.row;
+    if(a.row==b.row){
+      retval = a.col>b.col;
+    }
+    return retval;
+  }
+};
+
 
 
 

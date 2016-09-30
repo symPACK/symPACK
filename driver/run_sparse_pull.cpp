@@ -36,6 +36,9 @@ int main(int argc, char **argv)
 
   symPACKOptions optionsFact;
 
+  int iam = 0;
+  int np = 1;
+  
   MPI_Comm worldcomm;
   MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
   MPI_Comm_size(worldcomm,&np);

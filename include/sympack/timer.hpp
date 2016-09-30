@@ -36,7 +36,7 @@ class symPACK_timer{
 void symPACK_set_main_args(int64_t argc, char * const * argv);
 void symPACK_set_context(MPI_Comm ctxt);
 
-extern Int iam;
+//extern Int iam;
 
 class symPACK_scope_timer{
   std::string name;

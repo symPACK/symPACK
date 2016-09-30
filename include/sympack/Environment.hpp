@@ -49,12 +49,13 @@
 
 namespace SYMPACK{
 
-  extern Int iam;
-  extern Int np;
+  //extern Int iam;
+  //extern Int np;
 
 
   inline void gdb_lock(){
       pid_t pid = getpid();
+int iam = upcxx::myrank();
       std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
     volatile int lock = 1;
     while (lock == 1){ }
@@ -62,6 +63,7 @@ namespace SYMPACK{
   }
 
   inline void gdb_lock(Int proc){
+int iam = upcxx::myrank();
     if(iam==proc){
       pid_t pid = getpid();
       std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;

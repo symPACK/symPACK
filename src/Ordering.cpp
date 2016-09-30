@@ -102,26 +102,12 @@ namespace SYMPACK {
 
 namespace SYMPACK{
 
-#if 0
-  void Ordering::SetStructure(SparseMatrixStructure & aGlobal){
-    assert(pStructure==NULL);
-    pStructure = &aGlobal;
-    invp.resize(pStructure->size);
-    perm.resize(pStructure->size);
-    for(Int i =0;i<invp.size();++i){
-      perm[i]=i+1;
-      invp[i]=i+1;
-    }
-  }
-#endif
-
-
-
-
-
-
-
   void Ordering::MMD(const SparseMatrixGraph & g,MPI_Comm comm){
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(comm,&iam);
+    MPI_Comm_size(comm,&np);
+
     logfileptr->OFS()<<"MMD used"<<endl;
     if(iam==0){cout<<"MMD used"<<endl;}
 
@@ -237,6 +223,10 @@ namespace SYMPACK{
 
 
   void Ordering::NDBOX(Int size, MPI_Comm comm){
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(comm,&iam);
+    MPI_Comm_size(comm,&np);
     invp.resize(size);
     if(iam==0){
       Int k = std::ceil(std::pow(size,1.0/3.0));
@@ -261,6 +251,10 @@ namespace SYMPACK{
   }
 
   void Ordering::NDGRID(Int size, MPI_Comm comm){
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(comm,&iam);
+    MPI_Comm_size(comm,&np);
     invp.resize(size);
     if(iam==0){
       Int k = std::ceil(std::pow(size,1.0/2.0));
@@ -288,6 +282,12 @@ namespace SYMPACK{
 
 
   void Ordering::AMD(const SparseMatrixGraph & g, MPI_Comm comm){
+
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(comm,&iam);
+    MPI_Comm_size(comm,&np);
+
     logfileptr->OFS()<<"AMD used"<<endl;
     if(iam==0){cout<<"AMD used"<<endl;}
 
@@ -395,6 +395,12 @@ namespace SYMPACK{
 
 #ifdef USE_METIS
   void Ordering::METIS(const SparseMatrixGraph & g,MPI_Comm comm){
+
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(comm,&iam);
+    MPI_Comm_size(comm,&np);
+
     logfileptr->OFS()<<"METIS used"<<endl;
     if(iam==0){cout<<"METIS used"<<endl;}
 
@@ -508,6 +514,11 @@ namespace SYMPACK{
 
 #ifdef USE_PARMETIS
   void Ordering::PARMETIS(const DistSparseMatrixGraph & g){
+
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(g.comm,&iam);
+    MPI_Comm_size(g.comm,&np);
 
     logfileptr->OFS()<<"PARMETIS used"<<endl;
     if(iam==0){cout<<"PARMETIS used"<<endl;}
@@ -647,6 +658,12 @@ namespace SYMPACK{
 
 #ifdef USE_SCOTCH
   void Ordering::SCOTCH(const SparseMatrixGraph & g,MPI_Comm comm){
+
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(comm,&iam);
+    MPI_Comm_size(comm,&np);
+
     logfileptr->OFS()<<"SCOTCH used"<<endl;
     if(iam==0){cout<<"SCOTCH used"<<endl;}
 
@@ -786,6 +803,10 @@ namespace SYMPACK{
 
 #ifdef USE_PTSCOTCH
   void Ordering::PTSCOTCH(const DistSparseMatrixGraph & g){
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(g.comm,&iam);
+    MPI_Comm_size(g.comm,&np);
 
     logfileptr->OFS()<<"PTSCOTCH used"<<endl;
     if(iam==0){cout<<"PTSCOTCH used"<<endl;}

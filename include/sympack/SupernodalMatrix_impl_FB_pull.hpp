@@ -1425,7 +1425,7 @@ assert(pdesc->blocks_cnt_==block_cnt);
 
 
         //Update the aggregate
-        tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget);
+        tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
 
 
         --UpdatesToDo[curUpdate.tgt_snode_id-1];

@@ -28,6 +28,12 @@ namespace SYMPACK{
   namespace UnitTest{
 
     bool ITree_Test(){
+int iam = upcxx::myrank();
+//    int iam =0;
+//    int np =1;
+//    MPI_Comm_rank(comm,&iam);
+//    MPI_Comm_size(comm,&np);
+
 
 
       ITree * tree;

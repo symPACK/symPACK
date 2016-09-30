@@ -435,7 +435,7 @@ namespace SYMPACK{
 #endif
 
             Int iOwner = iam;
-            contrib->forward_update(dist_contrib,iOwner);
+            contrib->forward_update(dist_contrib,iOwner,iam);
             --UpdatesToDo[I-1];
           }
 
@@ -464,7 +464,7 @@ namespace SYMPACK{
 #endif
 
             Int iOwner = recv_status.MPI_SOURCE;
-            contrib->forward_update(dist_contrib,iOwner);
+            contrib->forward_update(dist_contrib,iOwner,iam);
 
             --UpdatesToDo[I-1];
             delete dist_contrib;
@@ -5519,6 +5519,7 @@ void SupernodalMatrix<T>::getLColRowCount(SparseMatrixGraph & sgraph, SYMPACK::v
 
 template <typename T> 
 void SupernodalMatrix<T>::getLColRowCount(SYMPACK::vector<Int> & cc, SYMPACK::vector<Int> & rc){
+abort();
   //The tree need to be postordered
   if(!ETree_.IsPostOrdered()){
     ETree_.PostOrderTree(Order_);

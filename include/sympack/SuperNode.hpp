@@ -90,7 +90,7 @@ class MallocAllocator: public MemoryAllocator{
 class UpcxxAllocator: public MemoryAllocator{
   public:
     static char * allocate(size_t count){
-      upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(iam,count);
+      upcxx::global_ptr<char> tmpPtr = upcxx::allocate<char>(upcxx::myrank(),count);
       char * locTmpPtr = (char*)tmpPtr;
 #ifdef _TRACK_MEMORY_
       if(cnt_.size()==0){total_ = 0;}
@@ -236,7 +236,7 @@ virtual inline Int Aggregate(SuperNode<T,Allocator> * src_snode);
 
   //Update an Aggregate
  virtual inline Int UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-              TempUpdateBuffers<T> & tmpBuffers,Int iTarget);
+              TempUpdateBuffers<T> & tmpBuffers,Int iTarget, Int iam);
 
   //Update from a factor
  virtual inline Int Update(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
@@ -248,7 +248,7 @@ virtual inline Int Aggregate(SuperNode<T,Allocator> * src_snode);
 
 
   //forward and backward solve phases
-  virtual inline void forward_update(SuperNode<T,Allocator> * src_contrib,Int iOwner);
+  virtual inline void forward_update(SuperNode<T,Allocator> * src_contrib,Int iOwner,Int iam);
   virtual inline void forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, SYMPACK::vector<Int> & perm);
   virtual inline void back_update(SuperNode<T,Allocator> * src_contrib);
   virtual inline void back_update_contrib(SuperNode<T> * cur_snode);

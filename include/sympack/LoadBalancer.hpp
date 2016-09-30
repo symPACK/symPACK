@@ -146,6 +146,11 @@ namespace SYMPACK{
 
       virtual SYMPACK::vector<Int> & GetMap(){
         if(levelGroups_.size()==0){
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(comm,&iam);
+    MPI_Comm_size(comm,&np);
+
           //compute number of children and load
           Int numLevels = 1;
           SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
@@ -520,6 +525,11 @@ namespace SYMPACK{
 
           virtual SYMPACK::vector<Int> & GetMap(){
             if(levelGroups_.size()==0){
+
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(comm,&iam);
+    MPI_Comm_size(comm,&np);
               //compute number of children and load
               Int numLevels = 1;
               SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
@@ -1091,6 +1101,14 @@ namespace SYMPACK{
 
               virtual SYMPACK::vector<Int> & GetMap(){
                 if(levelGroups_.size()==0){
+
+
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(comm,&iam);
+    MPI_Comm_size(comm,&np);
+
+
                   //compute number of children and load
                   Int numLevels = 1;
                   SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);

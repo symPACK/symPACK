@@ -55,7 +55,7 @@ class SuperNodeInd: public SuperNode<T,Allocator>{
   //Factorize the supernode
   virtual inline Int Factorize(TempUpdateBuffers<T> & tmpBuffers);
   virtual inline Int UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-              TempUpdateBuffers<T> & tmpBuffers,Int iTarget);
+              TempUpdateBuffers<T> & tmpBuffers,Int iTarget,Int iam);
   virtual inline Int Update(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
               TempUpdateBuffers<T> & tmpBuffers);
 

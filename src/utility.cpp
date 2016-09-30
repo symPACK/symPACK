@@ -16,7 +16,7 @@ using std::cerr;
 namespace SYMPACK{
 
 
-Int iam,np;
+//Int iam,np;
 
 // *********************************************************************
 // IO functions

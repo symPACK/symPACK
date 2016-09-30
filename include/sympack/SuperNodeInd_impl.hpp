@@ -51,7 +51,7 @@ SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int ai_num
   if(this->loc_storage_container_==NULL){
 gdb_lock();
     std::stringstream corename;
-    corename << "core.sympack." << iam;
+    corename << "core.sympack." << upcxx::myrank();
     WriteCoreDump(corename.str().c_str());
   }
 #endif
@@ -278,7 +278,7 @@ inline void SuperNodeInd<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int 
 #ifdef _USE_COREDUMPER_
       if(locTmpPtr==NULL){
         std::stringstream corename;
-        corename << "core.sympack." << iam;
+        corename << "core.sympack." << upcxx::myrank();
         WriteCoreDump(corename.str().c_str());
       }
 #endif
@@ -363,7 +363,7 @@ inline Int SuperNodeInd<T,Allocator>::Shrink(){
 #ifdef _USE_COREDUMPER_
       if(locTmpPtr==NULL){
         std::stringstream corename;
-        corename << "core.sympack." << iam;
+        corename << "core.sympack." << upcxx::myrank();
         WriteCoreDump(corename.str().c_str());
       }
 #endif
@@ -502,7 +502,7 @@ template<typename T, class Allocator>
 
 template<typename T, class Allocator>
 inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-    TempUpdateBuffers<T> & tmpBuffers, Int iTarget){
+    TempUpdateBuffers<T> & tmpBuffers, Int iTarget, Int iam ){
 
   scope_timer(a,UPDATE_AGGREGATE_SNODE);
 #if defined(_NO_COMPUTATION_)
