@@ -45,7 +45,7 @@
 /// @date 2012-09-12
 #include "sympack/blas.hpp"
 
-namespace SYMPACK {
+namespace symPACK {
 namespace blas {
 
 extern "C" {
@@ -888,7 +888,7 @@ void Syr2
                         scomplex* A, Int lda )
 {
     // csyr2 doesn't exist, so we route through csyr2k. However, csyr2k expects 
-    // contiguous access of 'x', so we treat x and y as a row SYMPACK::vectors where 
+    // contiguous access of 'x', so we treat x and y as a row std::vectors where 
     // their leading dimensions are 'incx' and 'incy'. Thus we must perform 
     // A += x' y + y' x
     const char trans = 'T';
@@ -904,7 +904,7 @@ void Syr2
                         dcomplex* A, Int lda )
 {
     // zsyr2 doesn't exist, so we route through zsyr2k. However, zsyr2k expects 
-    // contiguous access of 'x', so we treat x and y as a row SYMPACK::vectors where 
+    // contiguous access of 'x', so we treat x and y as a row std::vectors where 
     // their leading dimensions are 'incx' and 'incy'. Thus we must perform 
     // A += x' y + y' x
     const char trans = 'T';

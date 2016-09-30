@@ -13,7 +13,7 @@
 #include "sympack/SparseMatrixStructure.hpp"
 #include "sympack/DistSparseMatrixGraph.hpp"
 
-namespace SYMPACK{
+namespace symPACK{
 class SparseMatrixGraph;
 class DistSparseMatrixGraph;
 class SparseMatrixStructure;
@@ -41,8 +41,8 @@ class Ordering;
 
 class Ordering{
   public:
-    SYMPACK::vector<Int> perm;
-    SYMPACK::vector<Int> invp;
+    std::vector<Int> perm;
+    std::vector<Int> invp;
 
     Ordering():pStructure(NULL){};
     
@@ -69,7 +69,7 @@ class Ordering{
 #ifdef USE_SCOTCH
     void SCOTCH(const SparseMatrixGraph & g, MPI_Comm comm);
 #endif
-    void Compose(SYMPACK::vector<Int> & invp2);
+    void Compose(std::vector<Int> & invp2);
 };
 
 }

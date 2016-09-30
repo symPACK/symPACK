@@ -9,7 +9,7 @@
 #include  "sympack/Environment.hpp"
 #include <vector>
 
-namespace SYMPACK {
+namespace symPACK {
 
   //typedef    long long int              LongInt;
   typedef    long long int              LongInt;

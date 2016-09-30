@@ -47,10 +47,8 @@
  *  Error handling
  **********************************************************************/
 
-namespace SYMPACK{
+namespace symPACK{
 
-  //extern Int iam;
-  //extern Int np;
 
 
   inline void gdb_lock(){
@@ -92,13 +90,13 @@ int iam = upcxx::myrank();
 
 
 #ifndef _USE_NUMVEC_
-namespace SYMPACK{
+namespace symPACK{
 template <typename T> using vector = std::vector<T>;
 }
 #else
 #include "NumVec.hpp"
-namespace SYMPACK{
-  template <typename T> using vector = SYMPACK::NumVec<T,size_t>;
+namespace symPACK{
+  template <typename T> using vector = symPACK::NumVec<T,size_t>;
 }
 #endif
 
@@ -150,7 +148,7 @@ namespace SYMPACK{
  *  Data types and constants
  **********************************************************************/
 
-namespace SYMPACK{
+namespace symPACK{
 
 // Basic data types
 
@@ -186,7 +184,7 @@ const char LOWER = 'L';
 
 
 
-namespace SYMPACK{
+namespace symPACK{
 
 // We define an output stream that does nothing. This is done so that the 
 // root process can be used to print data to a file's ostream while all other 

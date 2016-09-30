@@ -24,7 +24,7 @@
 #include <gasnet.h>
 #include <gasnet_tools.h>
 
-namespace SYMPACK{
+namespace symPACK{
 
   int64_t main_argc = 0;
   char * const * main_argv;
@@ -36,8 +36,8 @@ namespace SYMPACK{
 
   std::stringstream outstream;
 
-  SYMPACK::vector<gasnett_tick_t> arr_excl_tick;
-  SYMPACK::vector<gasnett_tick_t> arr_complete_tick;
+  std::vector<gasnett_tick_t> arr_excl_tick;
+  std::vector<gasnett_tick_t> arr_complete_tick;
 
   class function_timer{
     public:
@@ -49,11 +49,11 @@ namespace SYMPACK{
       int64_t calls;
       int64_t numcore;
 
-      SYMPACK::vector<gasnett_tick_t> arr_start_tick;
-      SYMPACK::vector<gasnett_tick_t> arr_start_excl_tick;
-      SYMPACK::vector<gasnett_tick_t> arr_acc_tick;
-      SYMPACK::vector<gasnett_tick_t> arr_acc_excl_tick;
-      SYMPACK::vector<int64_t> arr_calls;
+      std::vector<gasnett_tick_t> arr_start_tick;
+      std::vector<gasnett_tick_t> arr_start_excl_tick;
+      std::vector<gasnett_tick_t> arr_acc_tick;
+      std::vector<gasnett_tick_t> arr_acc_excl_tick;
+      std::vector<int64_t> arr_calls;
 
 
       gasnett_tick_t total_tick;
@@ -129,7 +129,7 @@ namespace SYMPACK{
           double ttotal = gasnett_ticks_to_ns(total_tick)/1.0E9;
           double texcl = gasnett_ticks_to_ns(total_excl_tick)/1.0E9;
           logfileptr->OFS()<<ttotal<<" "<< (double)(ttotal)/(np*numcore)<<" ";
-          logfileptr->OFS()<<texcl<<" "<< (double)(texcl)/(np*numcore)<<endl;
+          logfileptr->OFS()<<texcl<<" "<< (double)(texcl)/(np*numcore)<<std::endl;
 
           sprintf(outstr,"%5d    %lg  %3ld.%02ld  %lg  %3ld.%02ld\n",
               total_calls/(np*numcore),
@@ -241,7 +241,7 @@ namespace SYMPACK{
         arr_excl_tick.resize(core+1,0.0);
       }
       gasnett_tick_t delta_tick = cur_tick - function_timers[index].start_tick;
-      logfileptr->OFS()<<"cur_tick "<<cur_tick<<" delta "<<delta_tick<<endl;
+      logfileptr->OFS()<<"cur_tick "<<cur_tick<<" delta "<<delta_tick<<std::endl;
       function_timers[index].arr_acc_tick[core] += delta_tick;
       function_timers[index].arr_acc_excl_tick[core] += delta_tick - 
         (arr_excl_tick[core]- function_timers[index].arr_start_excl_tick[core]); 
@@ -480,7 +480,7 @@ namespace SYMPACK{
 
 #include <chrono>
 
-namespace SYMPACK{
+namespace symPACK{
   using Clock = std::chrono::high_resolution_clock;
   //using Duration = std::chrono::duration<double, std::ratio<1,1> >;
   using Duration = Clock::duration;
@@ -497,11 +497,11 @@ namespace SYMPACK{
 
   std::stringstream outstream;
 
-  SYMPACK::vector< Tick > arr_start_excl_tick;
-  SYMPACK::vector< Tick > arr_start_tick;
+  std::vector< Tick > arr_start_excl_tick;
+  std::vector< Tick > arr_start_tick;
 
-  SYMPACK::vector< Tick > arr_excl_tick;
-  SYMPACK::vector< Duration > arr_complete_time;
+  std::vector< Tick > arr_excl_tick;
+  std::vector< Duration > arr_complete_time;
 
   class function_timer;
   std::deque<function_timer> function_timers;
@@ -516,11 +516,11 @@ namespace SYMPACK{
       uint64_t calls;
       int numcore;
 
-      SYMPACK::vector<Tick> arr_start_tick;
-      SYMPACK::vector<Tick> arr_start_excl_tick;
-      SYMPACK::vector<Duration> arr_acc_time;
-      SYMPACK::vector<Duration> arr_acc_excl_time;
-      SYMPACK::vector<uint64_t> arr_calls;
+      std::vector<Tick> arr_start_tick;
+      std::vector<Tick> arr_start_excl_tick;
+      std::vector<Duration> arr_acc_time;
+      std::vector<Duration> arr_acc_excl_time;
+      std::vector<uint64_t> arr_calls;
 
 
       Duration total_time;
@@ -600,7 +600,7 @@ namespace SYMPACK{
 
 
 //          logfileptr->OFS()<<ttotal<<" "<< (double)(ttotal)/(np*numcore)<<" ";
-//          logfileptr->OFS()<<texcl<<" "<< (double)(texcl)/(np*numcore)<<endl;
+//          logfileptr->OFS()<<texcl<<" "<< (double)(texcl)/(np*numcore)<<std::endl;
           SecondDuration ttotal_time(total_time);
           SecondDuration ttotal_excl_time(total_excl_time);
           sprintf(outstr,"%5d    %lg  %3lu.%02lu  %lg  %3lu.%02lu\n",

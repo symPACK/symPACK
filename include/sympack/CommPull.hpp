@@ -24,10 +24,10 @@
 #endif
 #endif
 
-namespace SYMPACK{
+namespace symPACK{
 
 struct SnodeUpdateFB;
-class SupernodalMatrixBase;
+//class SupernodalMatrixBase;
 
   struct MsgMetadata{
     //sender taskid
@@ -134,13 +134,13 @@ struct MSGCompare{
   extern size_t gNumMsg;
 
 
-  //extern std::priority_queue< IncomingMessage * ,  SYMPACK::vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
+  //extern std::priority_queue< IncomingMessage * ,  std::vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
   extern std::list< IncomingMessage * > gIncomingRecv;
 
   extern std::list< IncomingMessage * > gIncomingRecvAsync;
   extern std::list< IncomingMessage * > gIncomingRecvLocal;
   extern int gMaxIrecv;
-  extern SupernodalMatrixBase * gSuperMatrixPtr;
+  //extern SupernodalMatrixBase * gSuperMatrixPtr;
 
   void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
   void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta);
@@ -155,17 +155,17 @@ struct MSGCompare{
   inline void remote_delete(upcxx::global_ptr<char> pRemote_ptr){
       SYMPACK_TIMER_START(REMOTE_DELETE);
       if(upcxx::myrank()!=pRemote_ptr.where()){
-        //logfileptr->OFS()<<"Performing remote delete on P"<<pRemote_ptr.where()<<endl;
+        //logfileptr->OFS()<<"Performing remote delete on P"<<pRemote_ptr.where()<<std::endl;
         //upcxx::async(pRemote_ptr.where())(remote_delete,pRemote_ptr);
         //char * ptr = (char*)pRemote_ptr;
-        //logfileptr->OFS()<<"Deallocating UPCXX "<<(uint64_t)ptr<<" "<<endl;
+        //logfileptr->OFS()<<"Deallocating UPCXX "<<(uint64_t)ptr<<" "<<std::endl;
 
         upcxx::deallocate(pRemote_ptr);
       }
       else{
 
         //char * ptr = (char*)pRemote_ptr;
-        //logfileptr->OFS()<<"Deallocating UPCXX "<<(uint64_t)ptr<<" "<<endl;
+        //logfileptr->OFS()<<"Deallocating UPCXX "<<(uint64_t)ptr<<" "<<std::endl;
 
         upcxx::deallocate(pRemote_ptr);
       }
@@ -178,7 +178,7 @@ struct MSGCompare{
 #ifdef HANDLE_LOCAL_POINTER
       char * tryPtr = (char*)pRemote_ptr;
       if(tryPtr!=NULL){
-//         logfileptr->OFS()<<"LOCAL POINTER"<<endl;
+//         logfileptr->OFS()<<"LOCAL POINTER"<<std::endl;
           gIncomingRecvLocal.push_back(new IncomingMessage() );
           IncomingMessage * msg_ptr = gIncomingRecvLocal.back();
           msg_ptr->meta = meta;
@@ -210,7 +210,7 @@ struct MSGCompare{
               gIncomingRecvAsync.push_back( msg_ptr );
 
               msg_ptr->AsyncGet();
-              //      logfileptr->OFS()<<gIncomingRecvAsync.size()<<" vs "<<gMaxIrecv<<endl;
+              //      logfileptr->OFS()<<gIncomingRecvAsync.size()<<" vs "<<gMaxIrecv<<std::endl;
               //add the function to the async queue
               //      upcxx::async(A.iam)(Aggregate_Compute_Async,Aptr,j,RemoteAggregate, async_copy_event,tstart);
               asyncComm = true;
@@ -244,7 +244,7 @@ struct MSGCompare{
       it = gIncomingRecvAsync.begin();
       for(; it!=gIncomingRecvAsync.end();++it){
         if( (*it)->IsDone() /*&& (*it)->IsAsync()*/ ){
-//logfileptr->OFS()<<"ASYNC COMM DONE"<<endl;
+//logfileptr->OFS()<<"ASYNC COMM DONE"<<std::endl;
           break;
         }
       }

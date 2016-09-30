@@ -18,7 +18,7 @@
 
 
 
-namespace SYMPACK{
+namespace symPACK{
 
 
 
@@ -120,7 +120,7 @@ if(iam==0){
       tree->Insert(47);
       tree->Dump();
 
-logfileptr->OFS()<<"Rebalancing the tree"<<endl;
+logfileptr->OFS()<<"Rebalancing the tree"<<std::endl;
       tree->Rebalance();
       tree->Dump();
 

@@ -8,7 +8,7 @@
 
 #include <string>
 
-namespace SYMPACK{
+namespace symPACK{
 
   typedef vector<Ptr> PtrVec;
   typedef vector<Idx> IdxVec;
@@ -32,9 +32,9 @@ namespace SYMPACK{
     RelaxationParameters(Int pmaxSize):RelaxationParameters(){
       maxSize = pmaxSize;
       if(maxSize>0){
-        nrelax0 = min(nrelax0,maxSize);
-        nrelax1 = min(nrelax1,maxSize);
-        nrelax2 = min(nrelax2,maxSize);
+        nrelax0 = std::min(nrelax0,maxSize);
+        nrelax1 = std::min(nrelax1,maxSize);
+        nrelax2 = std::min(nrelax2,maxSize);
       }
 
     }
@@ -42,9 +42,9 @@ namespace SYMPACK{
     RelaxationParameters(Int pnrelax0, Int pnrelax1, Int pnrelax2, Int pmaxSize){
       maxSize = pmaxSize;
       if(maxSize>0){
-        nrelax0 = min(pnrelax0,maxSize);
-        nrelax1 = min(pnrelax1,maxSize);
-        nrelax2 = min(pnrelax2,maxSize);
+        nrelax0 = std::min(pnrelax0,maxSize);
+        nrelax1 = std::min(pnrelax1,maxSize);
+        nrelax2 = std::min(pnrelax2,maxSize);
       }
       else{
         nrelax0 = pnrelax0;
@@ -57,14 +57,14 @@ namespace SYMPACK{
     void SetMaxSize(Int pmaxSize){
       maxSize = pmaxSize;
       if(maxSize>0){
-      nrelax0 = min(nrelax0,pmaxSize);
-      nrelax1 = min(nrelax1,pmaxSize);
-      nrelax2 = min(nrelax2,pmaxSize);
+      nrelax0 = std::min(nrelax0,pmaxSize);
+      nrelax1 = std::min(nrelax1,pmaxSize);
+      nrelax2 = std::min(nrelax2,pmaxSize);
       }
     }
     void SetNrelax0(Int pnrelax0){
       if(maxSize>0){
-        nrelax0 = min(pnrelax0,maxSize);
+        nrelax0 = std::min(pnrelax0,maxSize);
       }
       else{
         nrelax0 = pnrelax0;
@@ -72,7 +72,7 @@ namespace SYMPACK{
     }
     void SetNrelax1(Int pnrelax1){
       if(maxSize>0){
-      nrelax1 = min(pnrelax1,maxSize);
+      nrelax1 = std::min(pnrelax1,maxSize);
       }
       else{
         nrelax1 = pnrelax1;
@@ -80,7 +80,7 @@ namespace SYMPACK{
     }
     void SetNrelax2(Int pnrelax2){
       if(maxSize>0){
-      nrelax2 = min(pnrelax2,maxSize);
+      nrelax2 = std::min(pnrelax2,maxSize);
       }
       else{
         nrelax2 = pnrelax2;
@@ -182,7 +182,7 @@ namespace SYMPACK{
     Int src_next_row;
     Int blkidx;
     Int next_blkidx;
-    //SYMPACK::vector<bool> is_factor_sent;
+    //std::vector<bool> is_factor_sent;
 
     SnodeUpdate(){
       src_snode_id = 0;
@@ -198,9 +198,9 @@ namespace SYMPACK{
   template<typename T>
     class TempUpdateBuffers{
       public:
-        SYMPACK::vector<T> tmpBuf;
-        SYMPACK::vector<Int> src_colindx;
-        SYMPACK::vector<Int> src_to_tgt_offset;
+        std::vector<T> tmpBuf;
+        std::vector<Int> src_colindx;
+        std::vector<Int> src_to_tgt_offset;
 
         void Resize(Int size, Int mw){
           if(size*mw > tmpBuf.size()){

@@ -10,10 +10,10 @@
 using namespace std;
 using std::ifstream;
 using std::ofstream;
-using SYMPACK::vector;
+using std::vector;
 using std::cerr;
 
-namespace SYMPACK{
+namespace symPACK{
 
 
 //Int iam,np;
@@ -30,8 +30,8 @@ Int SeparateRead(std::string name, std::istringstream& is)
   int mpisize;  MPI_Comm_size(MPI_COMM_WORLD, &mpisize);
   //
   char filename[100];
-  sprintf(filename, "%s_%d_%d", name.c_str(), mpirank, mpisize);  //cerr<<filename<<endl;
-  ifstream fin(filename);
+  sprintf(filename, "%s_%d_%d", name.c_str(), mpirank, mpisize);  //cerr<<filename<<std::endl;
+  std::ifstream fin(filename);
 	if( !fin.good() ){
 		throw std::logic_error( "File cannot be openeded!" );
 	}
@@ -129,7 +129,7 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 	MPI_Bcast(&pspmat.nnz,  1, MPI_INT, 0, comm);
 
 	// Read colptr
-	SYMPACK::vector<Int>  colptr(pspmat.size+1);
+	std::vector<Int>  colptr(pspmat.size+1);
 	if( mpirank == 0 ){
 		Int tmp;
 		fin.read((char*)&tmp, sizeof(Int));  
@@ -145,7 +145,7 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 	MPI_Bcast(&colptr[0], pspmat.size+1, MPI_INT, 0, comm);
 
 	// Compute the number of columns on each processor
-	SYMPACK::vector<Int> numColLocalVec(mpisize);
+	std::vector<Int> numColLocalVec(mpisize);
 	Int numColLocal, numColFirst;
 	numColFirst = std::max(1,pspmat.size / mpisize);
   SetValue( numColLocalVec, numColFirst );
@@ -176,7 +176,7 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 				<< "size of row indices = " << tmp << std::endl;
 			throw std::logic_error( msg.str().c_str() );
 		}
-		SYMPACK::vector<Idx> buf;
+		std::vector<Idx> buf;
 		Ptr numRead;
 		for( Int ip = 0; ip < mpisize; ip++ ){
 			numRead = colptr[ip*numColFirst + numColLocalVec[ip]] - 
@@ -221,7 +221,7 @@ void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat
 				<< "size of values = " << tmp << std::endl;
 			throw std::logic_error( msg.str().c_str() );
 		}
-		SYMPACK::vector<Real> buf;
+		std::vector<Real> buf;
 		Int numRead;
 		for( Int ip = 0; ip < mpisize; ip++ ){
 			numRead = colptr[ip*numColFirst + numColLocalVec[ip]] - 
@@ -301,7 +301,7 @@ void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& p
   // Compute the number of columns on each processor
   Int numColLocal = pspmat.Local_.colptr.size()-1;
   Int numColFirst = pspmat.size / mpisize;
-  SYMPACK::vector<Int>  colptrChunk(numColLocal+1);
+  std::vector<Int>  colptrChunk(numColLocal+1);
 
   Int prev_nz = 0;
   MPI_Exscan(&pspmat.Local_.nnz, &prev_nz, 1, MPI_INT, MPI_SUM, comm);
@@ -427,7 +427,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 
 	// Read colptr
 
-	SYMPACK::vector<Int>  colptr(pspmat.size+1);
+	std::vector<Int>  colptr(pspmat.size+1);
 	if( mpirank == 0 ){
 		Int* ptr = &colptr[0];
 		for( Int i = 0; i < pspmat.size+1; i++ )
@@ -437,7 +437,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 	MPI_Bcast(&colptr[0], pspmat.size+1, MPI_INT, 0, comm);
 
 	// Compute the number of columns on each processor
-	SYMPACK::vector<Int> numColLocalVec(mpisize);
+	std::vector<Int> numColLocalVec(mpisize);
 	Int numColLocal, numColFirst;
 	numColFirst = pspmat.size / mpisize;
   SetValue( numColLocalVec, numColFirst );
@@ -458,7 +458,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 	// Read and distribute the row indices
 	if( mpirank == 0 ){
 		Int tmp;
-		SYMPACK::vector<Idx> buf;
+		std::vector<Idx> buf;
 		Ptr numRead;
 		for( Int ip = 0; ip < mpisize; ip++ ){
 			numRead = colptr[ip*numColFirst + numColLocalVec[ip]] - 
@@ -493,13 +493,13 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 	}
 		
 //	std::cout << "Proc " << mpirank << " outputs Local_.rowind.size() = " 
-//		<< pspmat.Local_.rowind.size() << endl;
+//		<< pspmat.Local_.rowind.size() << std::endl;
 
 
 	// Read and distribute the nonzero values
 	if( mpirank == 0 ){
 		Int tmp;
-		SYMPACK::vector<Real> buf;
+		std::vector<Real> buf;
 		Int numRead;
 		for( Int ip = 0; ip < mpisize; ip++ ){
 			numRead = colptr[ip*numColFirst + numColLocalVec[ip]] - 
@@ -584,7 +584,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 //			std::ostringstream msg;
 //			msg << "Serious problem. Did not find the row corresponding to the column." << std::endl
 //				<< "This happens when j = " << j << ", jcol = " << jcol << ", and the row indices are " << std::endl
-//				<< SYMPACK::vector<Int>( numRow, false, const_cast<Int*>(rowPtr) ) << std::endl;
+//				<< std::vector<Int>( numRow, false, const_cast<Int*>(rowPtr) ) << std::endl;
 //			throw std::logic_error( msg.str().c_str() );
 //		}
 //		Int diagIdx = ptr - A.Local_.rowind.Data();
@@ -601,7 +601,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real
 //}		// -----  end of function GetDiagonal  ----- 
 
 
-void SetValue( SYMPACK::vector<char>& vec, bool val ){
+void SetValue( std::vector<char>& vec, bool val ){
   fill(vec.begin(),vec.end(),val);
 }
 
@@ -618,18 +618,18 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
     int mpisize;
     MPI_Comm_size(workcomm,&mpisize);
 
-  ifstream infile;
+  std::ifstream infile;
   infile.open(filename.c_str());
 
-  string line;
+  std::string line;
   //read xadj on the first line of the input file
-  stringstream iss;
+  std::stringstream iss;
   //skip 1st line
-  if(getline(infile, line)){}
+  if(std::getline(infile, line)){}
   Idx colptrCnt;
   Ptr rowindCnt;
   Ptr nzvalCnt;
-  if(getline(infile, line)){
+  if(std::getline(infile, line)){
     iss.str("");
     iss.clear();
     iss<<line;
@@ -644,12 +644,12 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
 
 
   auto m = n;
-  if(getline(infile, line))
+  if(std::getline(infile, line))
   {
     iss.str("");
     iss.clear();
     iss<<line;
-    string type;
+    std::string type;
     iss>>type;
     iss>>m>>n>>nnz;
   }
@@ -668,12 +668,12 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
   int colptrCntPerRow = 0;
   int rowindCntPerRow = 0;
   int nzvalCntPerRow = 0;
-  if(getline(infile, line))
+  if(std::getline(infile, line))
   {
     iss.str("");
     iss.clear();
     iss<<line;
-    string format;
+    std::string format;
     iss>>format;
     int dummy;
     sscanf(format.c_str(),"(%dI%d)",&colptrCntPerRow,&colptrWidth);
@@ -693,7 +693,7 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
     size_t readBytes = (nlocal+1)*colptrWidth + (lineLastNode - lineFirstNode);
     size_t skipAfter = (n+1 - (firstNode+nlocal))*colptrWidth + (colptrCnt - lineLastNode +1) ;
 
-    infile.seekg(skip,ios_base::cur);
+    infile.seekg(skip,std::ios_base::cur);
 
     {
       std::string rdStr;
@@ -701,7 +701,7 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
 
       infile.read(&rdStr[0], readBytes);
 
-      istringstream iss(rdStr);
+      std::istringstream iss(rdStr);
       Ptr j;
       Idx locPos = 0;
       while(iss>> j){
@@ -709,7 +709,7 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
       }
     }
 
-    infile.seekg(skipAfter,ios_base::cur);
+    infile.seekg(skipAfter,std::ios_base::cur);
     size_t curEnd = infile.tellg();
   }
 
@@ -733,14 +733,14 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
     size_t readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
     size_t skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
 
-    infile.seekg(skip,ios_base::cur);
+    infile.seekg(skip,std::ios_base::cur);
 
     {
       std::string rdStr;
       rdStr.resize(readBytes);
 
       infile.read(&rdStr[0], readBytes);
-      istringstream iss(rdStr);
+      std::istringstream iss(rdStr);
       Idx j;
       Ptr locPos = 0;
       while(iss>> j){
@@ -748,7 +748,7 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
       }
     }
 
-    infile.seekg(skipAfter,ios_base::cur);
+    infile.seekg(skipAfter,std::ios_base::cur);
     size_t curEnd = infile.tellg();
   }
 
@@ -764,16 +764,16 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
     size_t readBytes = (last_idx - first_idx)*nzvalWidth + (lineLastEdge - lineFirstEdge);
     size_t skipAfter = (nnz+1 - last_idx)*nzvalWidth + (nzvalCnt - lineLastEdge +1) ;
 
-    infile.seekg(skip,ios_base::cur);
+    infile.seekg(skip,std::ios_base::cur);
 
     {
       std::string rdStr;
       rdStr.resize(readBytes);
 
       infile.read(&rdStr[0], readBytes);
-//      logfileptr->OFS()<<"nzval read string is"<<endl<<rdStr<<endl;
+//      logfileptr->OFS()<<"nzval read std::string is"<<std::endl<<rdStr<<std::endl;
 
-      istringstream iss(rdStr);
+      std::istringstream iss(rdStr);
       INSCALAR j;
       Ptr locPos = 0;
       while(iss>> j){
@@ -781,7 +781,7 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
       }
     }
 
-    infile.seekg(skipAfter,ios_base::cur);
+    infile.seekg(skipAfter,std::ios_base::cur);
     size_t curEnd = infile.tellg();
   }
 
@@ -800,9 +800,9 @@ int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
 template <>
 int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> & HMat){
 
-//logfileptr->OFS()<<HMat.Local_.colptr<<endl;
-//logfileptr->OFS()<<HMat.Local_.rowind<<endl;
-//logfileptr->OFS()<<HMat.nzvalLocal<<endl;
+//logfileptr->OFS()<<HMat.Local_.colptr<<std::endl;
+//logfileptr->OFS()<<HMat.Local_.rowind<<std::endl;
+//logfileptr->OFS()<<HMat.nzvalLocal<<std::endl;
 
   MPI_Comm & workcomm = HMat.comm;
 
@@ -812,18 +812,18 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
     int mpisize;
     MPI_Comm_size(workcomm,&mpisize);
 
-  ifstream infile;
+  std::ifstream infile;
   infile.open(filename.c_str());
 
-  string line;
+  std::string line;
   //read xadj on the first line of the input file
-  stringstream iss;
+  std::stringstream iss;
   //skip 1st line
-  if(getline(infile, line)){}
+  if(std::getline(infile, line)){}
   int64_t colptrCnt;
   int64_t rowindCnt;
   int64_t nzvalCnt;
-  if(getline(infile, line)){
+  if(std::getline(infile, line)){
     iss.str("");
     iss.clear();
     iss<<line;
@@ -838,12 +838,12 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
 
 
   int64_t m;
-  if(getline(infile, line))
+  if(std::getline(infile, line))
   {
     iss.str("");
     iss.clear();
     iss<<line;
-    string type;
+    std::string type;
     iss>>type;
     iss>>m>>n>>nnz;
   }
@@ -862,12 +862,12 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
   int colptrCntPerRow = 0;
   int rowindCntPerRow = 0;
   int nzvalCntPerRow = 0;
-  if(getline(infile, line))
+  if(std::getline(infile, line))
   {
     iss.str("");
     iss.clear();
     iss<<line;
-    string format;
+    std::string format;
     iss>>format;
     int dummy;
     sscanf(format.c_str(),"(%dI%d)",&colptrCntPerRow,&colptrWidth);
@@ -887,16 +887,16 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
     size_t readBytes = (nlocal+1)*colptrWidth + (lineLastNode - lineFirstNode);
     size_t skipAfter = (n+1 - (firstNode+nlocal))*colptrWidth + (colptrCnt - lineLastNode +1) ;
 
-    infile.seekg(skip,ios_base::cur);
+    infile.seekg(skip,std::ios_base::cur);
 
     {
       std::string rdStr;
       rdStr.resize(readBytes);
 
       infile.read(&rdStr[0], readBytes);
-//      logfileptr->OFS()<<"read string is"<<endl<<rdStr<<endl;
+//      logfileptr->OFS()<<"read std::string is"<<std::endl<<rdStr<<std::endl;
 
-      istringstream iss(rdStr);
+      std::istringstream iss(rdStr);
       Ptr j;
       Idx locPos = 0;
       while(iss>> j){
@@ -904,7 +904,7 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
       }
     }
 
-    infile.seekg(skipAfter,ios_base::cur);
+    infile.seekg(skipAfter,std::ios_base::cur);
     size_t curEnd = infile.tellg();
   }
 
@@ -929,15 +929,15 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
     size_t readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
     size_t skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
 
-    infile.seekg(skip,ios_base::cur);
+    infile.seekg(skip,std::ios_base::cur);
 
     {
       std::string rdStr;
       rdStr.resize(readBytes);
 
       infile.read(&rdStr[0], readBytes);
-//      logfileptr->OFS()<<"rowind read string is"<<endl<<rdStr<<endl;
-      istringstream iss(rdStr);
+//      logfileptr->OFS()<<"rowind read std::string is"<<std::endl<<rdStr<<std::endl;
+      std::istringstream iss(rdStr);
       Idx j;
       Ptr locPos = 0;
       while(iss>> j){
@@ -945,7 +945,7 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
       }
     }
 
-    infile.seekg(skipAfter,ios_base::cur);
+    infile.seekg(skipAfter,std::ios_base::cur);
     size_t curEnd = infile.tellg();
   }
 
@@ -962,7 +962,7 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
     size_t readBytes = (last_idx - first_idx)*nzvalWidth + (lineLastEdge - lineFirstEdge);
     size_t skipAfter = (nnz+1 - last_idx)*nzvalWidth + (nzvalCnt - lineLastEdge +1) ;
 
-    infile.seekg(skip,ios_base::cur);
+    infile.seekg(skip,std::ios_base::cur);
 
     {
       std::string rdStr;
@@ -977,7 +977,7 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
         rdStr.resize(readBytes);
         infile.read(&rdStr[0], readBytes);
 
-        istringstream iss(rdStr);
+        std::istringstream iss(rdStr);
         double j;
         while(iss>> j){
           HMat.nzvalLocal[locPos++]=(double)j;
@@ -986,7 +986,7 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
       //}
     }
 
-    infile.seekg(skipAfter,ios_base::cur);
+    infile.seekg(skipAfter,std::ios_base::cur);
     size_t curEnd = infile.tellg();
   }
 
@@ -1027,7 +1027,7 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
     Ptr * pin = (Ptr*)in;
 #pragma unroll
     for (i=0; i< *len; ++i) { 
-      pinout[i] = max(pinout[i], pin[i]);
+      pinout[i] = std::max(pinout[i], pin[i]);
     } 
   } 
 

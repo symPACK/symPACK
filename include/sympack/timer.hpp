@@ -9,7 +9,7 @@
 #include <string>
 
 
-namespace SYMPACK{
+namespace symPACK{
 
 
 

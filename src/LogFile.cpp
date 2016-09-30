@@ -1,7 +1,7 @@
 
 #include "sympack/LogFile.hpp"
 
-namespace SYMPACK{
+namespace symPACK{
 
 LogFile * logfileptr;
 

@@ -17,9 +17,9 @@
 
 
 
-using namespace std;
+//using namespace std;
 
-namespace SYMPACK{
+namespace symPACK{
 
   class ITree{
     public:
@@ -104,7 +104,7 @@ namespace SYMPACK{
 
       inline void Dump()
       {
-        logfileptr->OFS()<<"Height of tree is "<<height_(root_)<<endl;
+        logfileptr->OFS()<<"Height of tree is "<<height_(root_)<<std::endl;
         inorder_(root_);
       }
 

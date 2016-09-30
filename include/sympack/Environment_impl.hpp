@@ -6,7 +6,7 @@
 // Global utility functions 
 // These utility functions do not depend on local definitions
 // *********************************************************************
-namespace SYMPACK{
+namespace symPACK{
 inline Int 
 	iround(Real a){ 
 		Int b = 0;
@@ -42,7 +42,7 @@ inline void OptionsCreate(Int argc, char** argv, std::map<std::string,std::vecto
 }
 
 // *********************************************************************
-// Stringstream
+// std::stringstream
 // *********************************************************************
 
 // Size information.

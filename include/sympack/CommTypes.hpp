@@ -20,10 +20,10 @@
 #endif
 #endif
 
-using namespace std;
+//using namespace std;
 
 
-namespace SYMPACK{
+namespace symPACK{
 
   template<typename T, class Allocator> class SuperNode;
 
@@ -277,20 +277,20 @@ namespace SYMPACK{
     }
 #endif
 
-    SYMPACK::vector<char> * pSrcBlocks;
+    std::vector<char> * pSrcBlocks;
     size_t head;
     MPI_Request Request;
     Icomm(){
       Request = MPI_REQUEST_NULL;
       SYMPACK_TIMER_START(ICOMM_MALLOC);
-      pSrcBlocks = new SYMPACK::vector<char>();
+      pSrcBlocks = new std::vector<char>();
       SYMPACK_TIMER_STOP(ICOMM_MALLOC);
       head = 0;
     };
 
     Icomm(size_t aSize, MPI_Request aRequest):Request(aRequest){
       SYMPACK_TIMER_START(ICOMM_MALLOC);
-      pSrcBlocks = new SYMPACK::vector<char>(aSize);
+      pSrcBlocks = new std::vector<char>(aSize);
       SYMPACK_TIMER_STOP(ICOMM_MALLOC);
       head = 0;
     };
@@ -298,7 +298,7 @@ namespace SYMPACK{
     Icomm(size_t aSize){
       Request = MPI_REQUEST_NULL;
       SYMPACK_TIMER_START(ICOMM_MALLOC);
-      pSrcBlocks = new SYMPACK::vector<char>(aSize);
+      pSrcBlocks = new std::vector<char>(aSize);
       SYMPACK_TIMER_STOP(ICOMM_MALLOC);
       head = 0;
     };

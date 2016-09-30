@@ -9,10 +9,9 @@
 
 #include <time.h>
 #include <omp.h>
+#include <sympack/symPACKMatrix.hpp>
 
 #include  "sympack.hpp"
-#include  "sympack/SupernodalMatrix.hpp"
-
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
 
@@ -26,7 +25,7 @@
 #define INSCALAR double
 
 
-using namespace SYMPACK;
+using namespace symPACK;
 
 
 int main(int argc, char **argv) 
@@ -52,8 +51,8 @@ int main(int argc, char **argv)
 
   //Initialize a logfile per rank
   logfileptr = new LogFile(iam);
-  logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<endl;
-  logfileptr->OFS()<<"**********************************"<<endl;
+  logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
+  logfileptr->OFS()<<"**********************************"<<std::endl;
 
   // *********************************************************************
   // Input parameter
@@ -233,7 +232,7 @@ int main(int argc, char **argv)
 
 
       if(iam==0){
-        cout<<"Starting spGEMM"<<endl;
+        std::cout<<"Starting spGEMM"<<std::endl;
       }
 
       timeSta = get_time();
@@ -309,7 +308,7 @@ int main(int argc, char **argv)
 
       timeEnd = get_time();
       if(iam==0){
-        cout<<"spGEMM time: "<<timeEnd-timeSta<<endl;
+        std::cout<<"spGEMM time: "<<timeEnd-timeSta<<std::endl;
       }
 
 #if 0
@@ -337,7 +336,7 @@ int main(int argc, char **argv)
     }
 
     if(iam==0){
-      cout<<"Starting allocation"<<endl;
+      std::cout<<"Starting allocation"<<std::endl;
     }
 
 #ifdef EXPLICIT_PERMUTE
@@ -351,7 +350,7 @@ int main(int argc, char **argv)
 
 
 //      optionsFact.commEnv = new CommEnvironment(workcomm);
-      SupernodalMatrix<SCALAR>*  SMat;
+      symPACKMatrix<SCALAR>*  SMat;
 
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
 #ifndef NOTRY
@@ -359,7 +358,7 @@ int main(int argc, char **argv)
 #endif
       {
         timeSta = get_time();
-        SMat = new SupernodalMatrix<SCALAR>();
+        SMat = new symPACKMatrix<SCALAR>();
         //SMat->Init2(HMat,optionsFact);
         SMat->Init(optionsFact);
         SMat->SymbolicFactorization(HMat);
@@ -378,7 +377,7 @@ int main(int argc, char **argv)
 #endif
 
       if(iam==0){
-        cout<<"Initialization time: "<<timeEnd-timeSta<<endl;
+        std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
       }
 
 #if 0
@@ -394,7 +393,7 @@ int main(int argc, char **argv)
 
       /************* NUMERICAL FACTORIZATION PHASE ***********/
       if(iam==0){
-        cout<<"Starting Factorization"<<endl;
+        std::cout<<"Starting Factorization"<<std::endl;
       }
       timeSta = get_time();
       SYMPACK_TIMER_START(FACTORIZATION);
@@ -403,9 +402,9 @@ int main(int argc, char **argv)
       timeEnd = get_time();
 
       if(iam==0){
-        cout<<"Factorization time: "<<timeEnd-timeSta<<endl;
+        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
       }
-      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<endl;
+      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
 
 #if 0
       if(iam==0){
@@ -422,14 +421,14 @@ int main(int argc, char **argv)
           RHS[j*nrhs+k] = 1.0;
         }
       }
-      logfileptr->OFS()<<"RHS: "<<RHS<<endl;
+      logfileptr->OFS()<<"RHS: "<<RHS<<std::endl;
 #endif
 
 
       if(nrhs>0){
         /**************** SOLVE PHASE ***********/
         if(iam==0){
-          cout<<"Starting solve"<<endl;
+          std::cout<<"Starting solve"<<std::endl;
         }
         XFinal = RHS;
 
@@ -438,7 +437,7 @@ int main(int argc, char **argv)
         timeEnd = get_time();
 
         if(iam==0){
-          cout<<"Solve time: "<<timeEnd-timeSta<<endl;
+          std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
         }
 
         SMat->GetSolution(&XFinal[0],nrhs);
@@ -520,7 +519,7 @@ int main(int argc, char **argv)
         blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
         double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
         double normRHS = lapack::Lange('F',n,nrhs,&RHS[0],n);
-        cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
+        std::cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
       }
     }
 

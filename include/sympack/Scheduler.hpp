@@ -11,7 +11,7 @@
 #endif
 
 //#define TASKCOMPARE  MCTTaskCompare
-namespace SYMPACK{
+namespace symPACK{
 
   template <class T >
     class Scheduler{
@@ -34,7 +34,7 @@ namespace SYMPACK{
         virtual void push( const T& val) =0;
         virtual unsigned int size() =0;
 
-        //    virtual const std::priority_queue<T, SYMPACK::vector<T>, TaskCompare >  GetQueue() =0;
+        //    virtual const std::priority_queue<T, std::vector<T>, TaskCompare >  GetQueue() =0;
 
         virtual bool done() =0;
 
@@ -106,9 +106,9 @@ namespace SYMPACK{
 
 
 
-        const std::priority_queue<T, SYMPACK::vector<T>, FBTaskCompare > & GetQueue() {return  readyTasks_;}
+        const std::priority_queue<T, std::vector<T>, FBTaskCompare > & GetQueue() {return  readyTasks_;}
       protected:
-        std::priority_queue<T, SYMPACK::vector<T>, FBTaskCompare > readyTasks_;
+        std::priority_queue<T, std::vector<T>, FBTaskCompare > readyTasks_;
     };
 
 
@@ -179,7 +179,7 @@ namespace SYMPACK{
 
 
 
-        const std::priority_queue<T, SYMPACK::vector<T>, MCTTaskCompare > & GetQueue(){return  readyTasks_;}
+        const std::priority_queue<T, std::vector<T>, MCTTaskCompare > & GetQueue(){return  readyTasks_;}
 
 
 
@@ -258,7 +258,7 @@ namespace SYMPACK{
 
 
       protected:
-        std::priority_queue<T, SYMPACK::vector<T>, MCTTaskCompare > readyTasks_;
+        std::priority_queue<T, std::vector<T>, MCTTaskCompare > readyTasks_;
     };
 
 
@@ -325,9 +325,9 @@ namespace SYMPACK{
 
 
 
-        const std::priority_queue<T, SYMPACK::vector<T>, PRTaskCompare > & GetQueue(){return  readyTasks_;}
+        const std::priority_queue<T, std::vector<T>, PRTaskCompare > & GetQueue(){return  readyTasks_;}
       protected:
-        std::priority_queue<T, SYMPACK::vector<T>, PRTaskCompare > readyTasks_;
+        std::priority_queue<T, std::vector<T>, PRTaskCompare > readyTasks_;
     };
 
 

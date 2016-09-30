@@ -13,11 +13,11 @@
 #include <mpi.h>
 
 
-namespace SYMPACK{
+namespace symPACK{
 
 
 class DistSparseMatrixGraph;
-template <typename T> class SupernodalMatrix;
+template <typename T> class symPACKMatrix;
 
 
 
@@ -35,8 +35,8 @@ template <typename T> class SupernodalMatrix;
 ///
 /// TODO Add the parameter of numColLocal
 template <typename F> class DistSparseMatrix{
-  friend class SupernodalMatrix<F>;
-  friend class SupernodalMatrix<F>;
+  friend class symPACKMatrix<F>;
+  friend class symPACKMatrix<F>;
   //friend functions
   friend void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
   friend void ReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
@@ -71,7 +71,7 @@ template <typename F> class DistSparseMatrix{
 	Ptr          nnz;                             
 
 	/// @brief Dimension nnzLocal, storing the nonzero values.
-	SYMPACK::vector<F>    nzvalLocal;                      
+	std::vector<F>    nzvalLocal;                      
 
 	/// @brief MPI communicator
 	MPI_Comm     comm;        

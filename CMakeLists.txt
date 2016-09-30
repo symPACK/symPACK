@@ -309,13 +309,13 @@ install(FILES
   include/sympack/SuperNodeInd_impl.hpp
   include/sympack/CommTypes.hpp
   include/sympack/DistSparseMatrix.hpp
-  include/sympack/SupernodalMatrix.hpp
+  include/sympack/symPACKMatrix.hpp
   include/sympack/DistSparseMatrixGraph.hpp
-  include/sympack/SupernodalMatrix_impl.hpp
+  include/sympack/symPACKMatrix_impl.hpp
   include/sympack/DistSparseMatrix_impl.hpp
-  include/sympack/SupernodalMatrix_impl_FB_pull.hpp
+  include/sympack/symPACKMatrix_impl_FB_pull.hpp
   include/sympack/ETree.hpp
-  include/sympack/SupernodalMatrixBase.hpp
+  #include/sympack/SupernodalMatrixBase.hpp
   include/sympack/Environment.hpp
   include/sympack/Environment_impl.hpp 
   include/sympack/IntervalTree.hpp

@@ -5,7 +5,7 @@
 #include "sympack/Ordering.hpp"
 #include "sympack/Types.hpp"
 
-namespace SYMPACK{
+namespace symPACK{
 class ETree;
 class Ordering;
 class DistSparseMatrixGraph;
@@ -28,11 +28,11 @@ class SparseMatrixStructure{
   int sorted;
 	Int          size;                            // Matrix dimension
 	Int          nnz;                             // Number of nonzeros
-	SYMPACK::vector<Ptr>  colptr;                          // Column index pointer
-	SYMPACK::vector<Idx>  rowind;                          // Starting row index pointer
+	std::vector<Ptr>  colptr;                          // Column index pointer
+	std::vector<Idx>  rowind;                          // Starting row index pointer
 
-	SYMPACK::vector<Ptr>  expColptr;                          // Column index pointer expanded
-	SYMPACK::vector<Idx>  expRowind;                          // Starting row index pointer expanded
+	std::vector<Ptr>  expColptr;                          // Column index pointer expanded
+	std::vector<Idx>  expRowind;                          // Starting row index pointer expanded
 
   SparseMatrixStructure();
 

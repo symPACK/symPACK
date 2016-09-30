@@ -6,22 +6,22 @@
 
 
 
-namespace SYMPACK{
+namespace symPACK{
 
 
   class LoadBalancer{
     protected:
-      SYMPACK::vector<Int> procMap_;
+      std::vector<Int> procMap_;
       Int np_;
       Int n_;
 
     public:
       void Dump(){
-        logfileptr->OFS()<<"Resulting proc mapping: "<<endl;
+        logfileptr->OFS()<<"Resulting proc mapping: "<<std::endl;
         for(auto it = procMap_.begin(); it!= procMap_.end();++it){
           logfileptr->OFS()<<*it<<" ";
         }
-        logfileptr->OFS()<<endl;
+        logfileptr->OFS()<<std::endl;
       }
 
       LoadBalancer(Int np, Int n){
@@ -30,26 +30,26 @@ namespace SYMPACK{
         procMap_.resize(n);
       };
 
-      virtual SYMPACK::vector<Int> & GetMap() =0;
+      virtual std::vector<Int> & GetMap() =0;
   };
 
 
 
   class NNZBalancer: public LoadBalancer{
     protected:
-      SYMPACK::vector<Int> & Xsuper_;
-      SYMPACK::vector<Int> & cc_;
+      std::vector<Int> & Xsuper_;
+      std::vector<Int> & cc_;
     public:
-      NNZBalancer(Int np, SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & pCc):Xsuper_(Xsuper),cc_(pCc),LoadBalancer(np,Xsuper.size()-1){
+      NNZBalancer(Int np, std::vector<Int> & Xsuper, std::vector<Int> & pCc):Xsuper_(Xsuper),cc_(pCc),LoadBalancer(np,Xsuper.size()-1){
       };
 
 
-      virtual SYMPACK::vector<Int> & GetMap(){
-        SYMPACK::vector<double> load(np_,0.0);
+      virtual std::vector<Int> & GetMap(){
+        std::vector<double> load(np_,0.0);
 
         for(Int i = 1; i< Xsuper_.size();  ++i){
           //find least loaded processor
-          SYMPACK::vector<double>::iterator it = std::min_element(load.begin(),load.end());
+          std::vector<double>::iterator it = std::min_element(load.begin(),load.end());
           Int proc = (Int)(it - load.begin());
           Int width = Xsuper_[i] - Xsuper_[i-1];
           Int height = cc_[i-1];
@@ -68,10 +68,10 @@ namespace SYMPACK{
     public:
       class ProcGroup{
         protected:
-          SYMPACK::vector<Int> ranks_;
+          std::vector<Int> ranks_;
           double total_load_;
         public:
-          SYMPACK::vector<Int> & Ranks(){return ranks_;}
+          std::vector<Int> & Ranks(){return ranks_;}
           double & Load(){return total_load_;}
 
           ProcGroup():ranks_(),total_load_(0){}
@@ -88,12 +88,12 @@ namespace SYMPACK{
       };
 
     protected:
-      SYMPACK::vector< ProcGroup > procGroups_;
+      std::vector< ProcGroup > procGroups_;
       ETree supETree_;
 
-      SYMPACK::vector< Int > groupIdx_;
-      SYMPACK::vector< Int > groupWorker_;
-      SYMPACK::vector< ProcGroup > levelGroups_;
+      std::vector< Int > groupIdx_;
+      std::vector< Int > groupWorker_;
+      std::vector< ProcGroup > levelGroups_;
 
       virtual double factor_cost(Int m, Int n) = 0;
       virtual double update_cost(Int m, Int n, Int k)=0;
@@ -105,11 +105,11 @@ namespace SYMPACK{
         groupWorker_.resize(n_+1,0);
       };
 
-      SYMPACK::vector< ProcGroup > & ProcGroups(){return procGroups_;}
+      std::vector< ProcGroup > & ProcGroups(){return procGroups_;}
 
-      SYMPACK::vector< ProcGroup > & LevelGroups(){return levelGroups_;}
-      SYMPACK::vector< Int > & GroupIdx(){return groupIdx_;}
-      SYMPACK::vector< Int > & GroupWorker(){return groupWorker_;}
+      std::vector< ProcGroup > & LevelGroups(){return levelGroups_;}
+      std::vector< Int > & GroupIdx(){return groupIdx_;}
+      std::vector< Int > & GroupWorker(){return groupWorker_;}
       ETree & SupETree(){return supETree_;}
 
 
@@ -119,13 +119,13 @@ namespace SYMPACK{
 
     protected:
       bool fan_in_;
-      SYMPACK::vector<Int> & Xsuper_;
-      SYMPACK::vector<Int> & XsuperDist_;
-      SYMPACK::vector<Int> & SupMembership_;
+      std::vector<Int> & Xsuper_;
+      std::vector<Int> & XsuperDist_;
+      std::vector<Int> & SupMembership_;
       PtrVec & Xlindx_;
       IdxVec & Lindx_;
       MPI_Comm comm;
-      SYMPACK::vector<Int> & cc_;
+      std::vector<Int> & cc_;
 
 
       double factor_cost(Int m, Int n){
@@ -139,12 +139,12 @@ namespace SYMPACK{
 
 
     public:
-      SubtreeToSubcube(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & XsuperDist, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, MPI_Comm & aComm, bool fan_in = true):Xsuper_(Xsuper),XsuperDist_(XsuperDist),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),comm(aComm),TreeLoadBalancer(np,supETree){
+      SubtreeToSubcube(Int np, ETree & supETree,std::vector<Int> & Xsuper, std::vector<Int> & XsuperDist, std::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, std::vector<Int> & pCc, MPI_Comm & aComm, bool fan_in = true):Xsuper_(Xsuper),XsuperDist_(XsuperDist),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),comm(aComm),TreeLoadBalancer(np,supETree){
         fan_in_=fan_in;
       };
 
 
-      virtual SYMPACK::vector<Int> & GetMap(){
+      virtual std::vector<Int> & GetMap(){
         if(levelGroups_.size()==0){
     int iam =0;
     int np =1;
@@ -153,14 +153,14 @@ namespace SYMPACK{
 
           //compute number of children and load
           Int numLevels = 1;
-          SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
-          SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
-          SYMPACK::vector<Int> children(supETree_.Size()+1,0);
+          std::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
+          std::vector<double> NodeLoad(supETree_.Size()+1,0.0);
+          std::vector<Int> children(supETree_.Size()+1,0);
 
 #if 1
           {
-            //          SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
-            //          SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
+            //          std::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
+            //          std::vector<double> NodeLoad(supETree_.Size()+1,0.0);
 
             //      Int numLocSnode = ( (Xsuper_.size()-1) / np);
             //      Int firstSnode = iam*numLocSnode + 1;
@@ -255,8 +255,8 @@ namespace SYMPACK{
               SubTreeLoad[parent]+=SubTreeLoad[I];
             }
 
-            //logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
-            //logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
+            //logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<std::endl;
+            //logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<std::endl;
           }
 
 #else
@@ -329,24 +329,24 @@ namespace SYMPACK{
             SubTreeLoad[parent]+=SubTreeLoad[I];
           }
 
-          logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
-          logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
+          logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<std::endl;
+          logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<std::endl;
 
 #endif
 
-          SYMPACK::vector<Int> levels(supETree_.Size()+1,0);
+          std::vector<Int> levels(supETree_.Size()+1,0);
           for(Int I=n_; I>= 1;I--){ 
             Int parent = supETree_.Parent(I-1);
             if(parent==0){levels[I]=0;}
-            else{ levels[I] = levels[parent]+1; numLevels = max(numLevels,levels[I]);}
+            else{ levels[I] = levels[parent]+1; numLevels = std::max(numLevels,levels[I]);}
           }
           numLevels++;
 
 #ifdef _DEBUG_LOAD_BALANCER_
           logfileptr->OFS()<<"levels : "; 
           for(Int i = 0; i<levels.size();++i){logfileptr->OFS()<<levels.at(i)<<" ";}
-          logfileptr->OFS()<<endl;
-          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
+          logfileptr->OFS()<<std::endl;
+          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<std::endl;
 #endif
 
           //procmaps[0]/pstart[0] represents the complete list
@@ -355,14 +355,14 @@ namespace SYMPACK{
           for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
 
 
-          SYMPACK::vector<Int> pstart(n_+1,0);
+          std::vector<Int> pstart(n_+1,0);
           levelGroups_.reserve(numLevels);
           levelGroups_.push_back(ProcGroup());//reserve(numLevels);
           levelGroups_[0].Ranks().reserve(np);
           for(Int p = 0;p<np;++p){levelGroups_[0].Ranks().push_back(p);}
 
 
-          SYMPACK::vector<double> load(n_+1,0.0);
+          std::vector<double> load(n_+1,0.0);
           for(Int I=n_; I>= 1;I--){ 
             Int parent = supETree_.Parent(I-1);
 
@@ -378,18 +378,18 @@ namespace SYMPACK{
             }
 
 
-            double proportion = min(1.0,SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load));
+            double proportion = std::min(1.0,SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load));
             Int npParent = levelGroups_[groupIdx_[parent]].Ranks().size();
-            Int pFirstIdx = min(pstart[parent],npParent-1);
+            Int pFirstIdx = std::min(pstart[parent],npParent-1);
             Int npIdeal =(Int)std::round(npParent*proportion);
-            Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
+            Int numProcs = std::max(1,std::min(npParent-pFirstIdx,npIdeal));
             Int pFirst = levelGroups_[groupIdx_[parent]].Ranks().at(pFirstIdx);
 
             //Int npParent = procGroups_[parent].Ranks().size();
             //Int pFirst = procGroups_[parent].Ranks().at(pFirstIdx);
 #ifdef _DEBUG_LOAD_BALANCER_
-            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
-            logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<endl; 
+            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<std::endl; 
+            logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<std::endl; 
 #endif
             pstart[parent]+= numProcs;
 
@@ -400,21 +400,21 @@ namespace SYMPACK{
                 levelGroups_.back().Ranks().reserve(numProcs);
                 //              for(Int p = pFirst; p<pFirst+numProcs;++p){ levelGroups_.back().Ranks().push_back(p);}
 
-                SYMPACK::vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
+                std::vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
                 levelGroups_.back().Ranks().insert(levelGroups_.back().Ranks().begin(),parentRanks.begin()+pFirstIdx,parentRanks.begin()+pFirstIdx+numProcs);
 
                 groupIdx_[I] = levelGroups_.size()-1;
 #ifdef _DEBUG_LOAD_BALANCER_
-                logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+                logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<std::endl<<levelGroups_[groupIdx_[I]]<<std::endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
 #endif
               }
             }
             else{
               groupIdx_[I] = groupIdx_[parent];
-              //logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | ";for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+              //logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | ";for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
 
 #ifdef _DEBUG_LOAD_BALANCER_
-              logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+              logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<std::endl<<levelGroups_[groupIdx_[I]]<<std::endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
 #endif
             }
 
@@ -426,12 +426,12 @@ namespace SYMPACK{
 
             //            logfileptr->OFS()<<I<<": "; 
             //            for(Int i = 0; i<procGroups_[I].Ranks().size();++i){logfileptr->OFS()<<procGroups_[I].Ranks().at(i)<<" ";}
-            //            logfileptr->OFS()<<endl;
+            //            logfileptr->OFS()<<std::endl;
           }
 
 
           //now choose which processor to get
-          //SYMPACK::vector<double> load(np,0.0);
+          //std::vector<double> load(np,0.0);
           load.assign(np,0.0);
           for(Int I=1;I<=supETree_.Size();I++){
             Int minLoadP= -1;
@@ -446,13 +446,13 @@ namespace SYMPACK{
             }
 
 #ifdef _DEBUG_LOAD_BALANCER_
-            logfileptr->OFS()<<"MinLoadP "<<minLoadP<<endl;
-            logfileptr->OFS()<<"group of "<<I<<endl;
+            logfileptr->OFS()<<"MinLoadP "<<minLoadP<<std::endl;
+            logfileptr->OFS()<<"group of "<<I<<std::endl;
             for(Int i = 0; i<group.Ranks().size();++i){
               Int proc = group.Ranks()[i];
               logfileptr->OFS()<<proc<<" ["<<load[proc]<<"] ";
             }
-            logfileptr->OFS()<<endl;
+            logfileptr->OFS()<<std::endl;
 #endif
             groupWorker_[I] = minLoadP;
 
@@ -473,7 +473,7 @@ namespace SYMPACK{
 
 
 #ifdef _DEBUG_LOAD_BALANCER_
-          logfileptr->OFS()<<"Proc load: "<<load<<endl;
+          logfileptr->OFS()<<"Proc load: "<<load<<std::endl;
 #endif
 
           for(Int I=1;I<=supETree_.Size();I++){
@@ -484,7 +484,7 @@ namespace SYMPACK{
 
 #ifdef _DEBUG_LOAD_BALANCER_
           for(Int I = 0; I<levelGroups_.size();++I){ 
-            logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<endl;
+            logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<std::endl;
           }
 #endif
 
@@ -499,13 +499,13 @@ namespace SYMPACK{
       class SubtreeToSubcubeVolume: public TreeLoadBalancer{
         protected:
           bool fan_in_;
-          SYMPACK::vector<Int> & Xsuper_;
-          SYMPACK::vector<Int> & XsuperDist_;
-          SYMPACK::vector<Int> & SupMembership_;
+          std::vector<Int> & Xsuper_;
+          std::vector<Int> & XsuperDist_;
+          std::vector<Int> & SupMembership_;
           PtrVec & Xlindx_;
           IdxVec & Lindx_;
           MPI_Comm comm;
-          SYMPACK::vector<Int> & cc_;
+          std::vector<Int> & cc_;
 
 
           double factor_cost(Int m, Int n){
@@ -518,12 +518,12 @@ namespace SYMPACK{
 
 
         public:
-          SubtreeToSubcubeVolume(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper,SYMPACK::vector<Int> & XsuperDist, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, MPI_Comm & aComm, bool fan_in = true):Xsuper_(Xsuper),XsuperDist_(XsuperDist),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),comm(aComm),TreeLoadBalancer(np,supETree){
+          SubtreeToSubcubeVolume(Int np, ETree & supETree,std::vector<Int> & Xsuper,std::vector<Int> & XsuperDist, std::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, std::vector<Int> & pCc, MPI_Comm & aComm, bool fan_in = true):Xsuper_(Xsuper),XsuperDist_(XsuperDist),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),comm(aComm),TreeLoadBalancer(np,supETree){
             fan_in_=fan_in;
           };
 
 
-          virtual SYMPACK::vector<Int> & GetMap(){
+          virtual std::vector<Int> & GetMap(){
             if(levelGroups_.size()==0){
 
     int iam =0;
@@ -532,9 +532,9 @@ namespace SYMPACK{
     MPI_Comm_size(comm,&np);
               //compute number of children and load
               Int numLevels = 1;
-              SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
-              SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
-              SYMPACK::vector<Int> children(supETree_.Size()+1,0);
+              std::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
+              std::vector<double> NodeLoad(supETree_.Size()+1,0.0);
+              std::vector<Int> children(supETree_.Size()+1,0);
 
 
 #if 1
@@ -629,8 +629,8 @@ namespace SYMPACK{
                   SubTreeLoad[parent]+=SubTreeLoad[I];
                 }
 
-                //logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
-                //logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
+                //logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<std::endl;
+                //logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<std::endl;
               }
 #else
 
@@ -711,18 +711,18 @@ namespace SYMPACK{
 
 
 
-              SYMPACK::vector<Int> levels(supETree_.Size()+1,0);
+              std::vector<Int> levels(supETree_.Size()+1,0);
               for(Int I=n_; I>= 1;I--){ 
                 Int parent = supETree_.Parent(I-1);
                 if(parent==0){levels[I]=0;}
-                else{ levels[I] = levels[parent]+1; numLevels = max(numLevels,levels[I]);}
+                else{ levels[I] = levels[parent]+1; numLevels = std::max(numLevels,levels[I]);}
               }
               numLevels++;
 #ifdef _DEBUG_LOAD_BALANCER_
               logfileptr->OFS()<<"levels : "; 
               for(Int i = 0; i<levels.size();++i){logfileptr->OFS()<<levels.at(i)<<" ";}
-              logfileptr->OFS()<<endl;
-              logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
+              logfileptr->OFS()<<std::endl;
+              logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<std::endl;
 #endif
 
               //procmaps[0]/pstart[0] represents the complete list
@@ -731,13 +731,13 @@ namespace SYMPACK{
               for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
 
 
-              SYMPACK::vector<Int> pstart(n_+1,0);
+              std::vector<Int> pstart(n_+1,0);
               levelGroups_.push_back(ProcGroup());//reserve(numLevels);
               levelGroups_[0].Ranks().reserve(np);
               for(Int p = 0;p<np;++p){levelGroups_[0].Ranks().push_back(p);}
 
 
-              SYMPACK::vector<double> load(n_+1,0.0);
+              std::vector<double> load(n_+1,0.0);
               for(Int I=n_; I>= 1;I--){ 
                 Int parent = supETree_.Parent(I-1);
 
@@ -753,18 +753,18 @@ namespace SYMPACK{
                 }
 
 
-                double proportion = min(1.0,SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load));
+                double proportion = std::min(1.0,SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load));
                 Int npParent = levelGroups_[groupIdx_[parent]].Ranks().size();
-                Int pFirstIdx = min(pstart[parent],npParent-1);
+                Int pFirstIdx = std::min(pstart[parent],npParent-1);
                 Int npIdeal =(Int)std::round(npParent*proportion);
-                Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
+                Int numProcs = std::max(1,std::min(npParent-pFirstIdx,npIdeal));
                 Int pFirst = levelGroups_[groupIdx_[parent]].Ranks().at(pFirstIdx);
 
                 //Int npParent = procGroups_[parent].Ranks().size();
                 //Int pFirst = procGroups_[parent].Ranks().at(pFirstIdx);
 #ifdef _DEBUG_LOAD_BALANCER_
-                logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
-                logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<endl; 
+                logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<std::endl; 
+                logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<std::endl; 
 #endif
                 pstart[parent]+= numProcs;
 
@@ -775,20 +775,20 @@ namespace SYMPACK{
                     levelGroups_.back().Ranks().reserve(numProcs);
                     //              for(Int p = pFirst; p<pFirst+numProcs;++p){ levelGroups_.back().Ranks().push_back(p);}
 
-                    SYMPACK::vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
+                    std::vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
                     levelGroups_.back().Ranks().insert(levelGroups_.back().Ranks().begin(),parentRanks.begin()+pFirstIdx,parentRanks.begin()+pFirstIdx+numProcs);
 
                     groupIdx_[I] = levelGroups_.size()-1;
 #ifdef _DEBUG_LOAD_BALANCER_
-                    logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+                    logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<std::endl<<levelGroups_[groupIdx_[I]]<<std::endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
 #endif
                   }
                 }
                 else{
                   groupIdx_[I] = groupIdx_[parent];
-                  //logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | ";for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+                  //logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | ";for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
 #ifdef _DEBUG_LOAD_BALANCER_
-                  logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+                  logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<std::endl<<levelGroups_[groupIdx_[I]]<<std::endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
 #endif
                 }
 
@@ -800,12 +800,12 @@ namespace SYMPACK{
 
                 //            logfileptr->OFS()<<I<<": "; 
                 //            for(Int i = 0; i<procGroups_[I].Ranks().size();++i){logfileptr->OFS()<<procGroups_[I].Ranks().at(i)<<" ";}
-                //            logfileptr->OFS()<<endl;
+                //            logfileptr->OFS()<<std::endl;
               }
 
 
               //now choose which processor to get
-              //SYMPACK::vector<double> load(np,0.0);
+              //std::vector<double> load(np,0.0);
               load.assign(np,0.0);
               for(Int I=1;I<=supETree_.Size();I++){
                 Int minLoadP= -1;
@@ -820,13 +820,13 @@ namespace SYMPACK{
                 }
 
 #ifdef _DEBUG_LOAD_BALANCER_
-                logfileptr->OFS()<<"MinLoadP "<<minLoadP<<endl;
-                logfileptr->OFS()<<"group of "<<I<<endl;
+                logfileptr->OFS()<<"MinLoadP "<<minLoadP<<std::endl;
+                logfileptr->OFS()<<"group of "<<I<<std::endl;
                 for(Int i = 0; i<group.Ranks().size();++i){
                   Int proc = group.Ranks()[i];
                   logfileptr->OFS()<<proc<<" ["<<load[proc]<<"] ";
                 }
-                logfileptr->OFS()<<endl;
+                logfileptr->OFS()<<std::endl;
 #endif
                 groupWorker_[I] = minLoadP;
 
@@ -847,7 +847,7 @@ namespace SYMPACK{
 
 
 #ifdef _DEBUG_LOAD_BALANCER_
-              logfileptr->OFS()<<"Proc load: "<<load<<endl;
+              logfileptr->OFS()<<"Proc load: "<<load<<std::endl;
 #endif
 
 
@@ -859,7 +859,7 @@ namespace SYMPACK{
 
 #ifdef _DEBUG_LOAD_BALANCER_
               for(Int I = 0; I<levelGroups_.size();++I){ 
-                logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<endl;
+                logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<std::endl;
               }
 #endif
 
@@ -869,16 +869,16 @@ namespace SYMPACK{
             }
 
 
-            //  virtual inline SYMPACK::vector<Int> & GetMap(){
+            //  virtual inline std::vector<Int> & GetMap(){
             //      if(procGroups_.size()==0){
             //
             ////////gdb_lock();
             //////
             //////          //compute number of children and load
             //////          Int numLevels = 1;
-            //////          SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
-            //////          SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
-            //////          SYMPACK::vector<Int> children(supETree_.Size()+1,0);
+            //////          std::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
+            //////          std::vector<double> NodeLoad(supETree_.Size()+1,0.0);
+            //////          std::vector<Int> children(supETree_.Size()+1,0);
             //////          for(Int I=1;I<=supETree_.Size();I++){
             //////            Int parent = supETree_.Parent(I-1);
             //////            ++children[parent];
@@ -941,7 +941,7 @@ namespace SYMPACK{
             //////#endif
             //////          }
             //////
-            //////          SYMPACK::vector<Int> levels(supETree_.Size()+1,0);
+            //////          std::vector<Int> levels(supETree_.Size()+1,0);
             //////          for(Int I=n_; I>= 1;I--){ 
             //////            Int parent = supETree_.Parent(I-1);
             //////            if(parent==0){levels[I]=0;}
@@ -950,15 +950,15 @@ namespace SYMPACK{
             //////          numLevels++;
             //////            logfileptr->OFS()<<"levels : "; 
             //////            for(Int i = 0; i<levels.size();++i){logfileptr->OFS()<<levels.at(i)<<" ";}
-            //////            logfileptr->OFS()<<endl;
+            //////            logfileptr->OFS()<<std::endl;
             //////
             //////
-            //////          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
+            //////          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<std::endl;
             //////
             //////
             //////          //procmaps[0]/pstart[0] represents the complete list
             //////          procGroups_.resize(n_+1);
-            //////          SYMPACK::vector<Int> pstart(n_+1,0);
+            //////          std::vector<Int> pstart(n_+1,0);
             //////          procGroups_[0].Ranks().reserve(np);
             //////          for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
             //////
@@ -990,7 +990,7 @@ namespace SYMPACK{
             //////            Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
             //////            Int pFirst = procGroups_[parent].Ranks().at(pFirstIdx);
             //////
-            //////            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
+            //////            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<std::endl; 
             //////            pstart[parent]+= numProcs;
             //////
             //////            if(npParent!=numProcs){
@@ -1002,12 +1002,12 @@ namespace SYMPACK{
             //////              levelGroups_.back().Ranks().reserve(numProcs);
             //////              for(Int p = pFirst; p<pFirst+numProcs;++p){ levelGroups_.back().Ranks().push_back(p);}
             //////              groupIdx_[I] = levelGroups_.size()-1;
-            //////              logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | ";for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+            //////              logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | ";for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
             //////            }
             //////            }
             //////            else{
             //////              groupIdx_[I] = groupIdx_[parent];
-            //////              logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | ";for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+            //////              logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | ";for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
             //////            }
             //////
             //////            procGroups_[I].Ranks().reserve(numProcs);
@@ -1017,12 +1017,12 @@ namespace SYMPACK{
             //////
             //////            logfileptr->OFS()<<I<<": "; 
             //////            for(Int i = 0; i<procGroups_[I].Ranks().size();++i){logfileptr->OFS()<<procGroups_[I].Ranks().at(i)<<" ";}
-            //////            logfileptr->OFS()<<endl;
+            //////            logfileptr->OFS()<<std::endl;
             //////          }
             //////
             //////
             //////          //now choose which processor to get
-            //////          SYMPACK::vector<double> load(np,0.0);
+            //////          std::vector<double> load(np,0.0);
             //////          for(Int I=1;I<=supETree_.Size();I++){
             //////            Int minLoadP= -1;
             //////            double minLoad = -1;
@@ -1050,7 +1050,7 @@ namespace SYMPACK{
             //////          }
             //////
             //////
-            //////          logfileptr->OFS()<<"Proc load: "<<load<<endl;
+            //////          logfileptr->OFS()<<"Proc load: "<<load<<std::endl;
             //////
             //////
             //////          for(Int I = 1; I<procGroups_.size();++I){ 
@@ -1058,7 +1058,7 @@ namespace SYMPACK{
             //////          }
             //////
             //////          for(Int I = 0; I<levelGroups_.size();++I){ 
-            //////            logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<endl;
+            //////            logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<std::endl;
             //////          }
             //////
             //////
@@ -1074,12 +1074,12 @@ namespace SYMPACK{
 
             protected:
               bool fan_in_;
-              SYMPACK::vector<Int> & Xsuper_;
-              SYMPACK::vector<Int> & SupMembership_;
+              std::vector<Int> & Xsuper_;
+              std::vector<Int> & SupMembership_;
               PtrVec & Xlindx_;
               IdxVec & Lindx_;
               MPI_Comm comm;
-              SYMPACK::vector<Int> & cc_;
+              std::vector<Int> & cc_;
 
 
               double factor_cost(Int m, Int n){
@@ -1094,12 +1094,12 @@ namespace SYMPACK{
 
             public:
 
-              SubtreeToSubcubeGlobal(Int np, ETree & supETree,SYMPACK::vector<Int> & Xsuper, SYMPACK::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, SYMPACK::vector<Int> & pCc, MPI_Comm & aComm, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),comm(aComm),TreeLoadBalancer(np,supETree){
+              SubtreeToSubcubeGlobal(Int np, ETree & supETree,std::vector<Int> & Xsuper, std::vector<Int> & SupMembership,PtrVec & Xlindx, IdxVec & Lindx, std::vector<Int> & pCc, MPI_Comm & aComm, bool fan_in = true):Xsuper_(Xsuper),SupMembership_(SupMembership),cc_(pCc),Xlindx_(Xlindx),Lindx_(Lindx),comm(aComm),TreeLoadBalancer(np,supETree){
                 fan_in_=fan_in;
               };
 
 
-              virtual SYMPACK::vector<Int> & GetMap(){
+              virtual std::vector<Int> & GetMap(){
                 if(levelGroups_.size()==0){
 
 
@@ -1111,9 +1111,9 @@ namespace SYMPACK{
 
                   //compute number of children and load
                   Int numLevels = 1;
-                  SYMPACK::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
-                  SYMPACK::vector<double> NodeLoad(supETree_.Size()+1,0.0);
-                  SYMPACK::vector<Int> children(supETree_.Size()+1,0);
+                  std::vector<double> SubTreeLoad(supETree_.Size()+1,0.0);
+                  std::vector<double> NodeLoad(supETree_.Size()+1,0.0);
+                  std::vector<Int> children(supETree_.Size()+1,0);
 
                   for(Int I=1;I<=supETree_.Size();I++){
                     Int parent = supETree_.Parent(I-1);
@@ -1184,23 +1184,23 @@ namespace SYMPACK{
                     SubTreeLoad[parent]+=SubTreeLoad[I];
                   }
 
-                  logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<endl;
-                  logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<endl;
+                  logfileptr->OFS()<<"NodeLoad: "<<NodeLoad<<std::endl;
+                  logfileptr->OFS()<<"SubTreeLoad: "<<SubTreeLoad<<std::endl;
 
 
-                  SYMPACK::vector<Int> levels(supETree_.Size()+1,0);
+                  std::vector<Int> levels(supETree_.Size()+1,0);
                   for(Int I=n_; I>= 1;I--){ 
                     Int parent = supETree_.Parent(I-1);
                     if(parent==0){levels[I]=0;}
-                    else{ levels[I] = levels[parent]+1; numLevels = max(numLevels,levels[I]);}
+                    else{ levels[I] = levels[parent]+1; numLevels = std::max(numLevels,levels[I]);}
                   }
                   numLevels++;
 
 #ifdef _DEBUG_LOAD_BALANCER_
                   logfileptr->OFS()<<"levels : "; 
                   for(Int i = 0; i<levels.size();++i){logfileptr->OFS()<<levels.at(i)<<" ";}
-                  logfileptr->OFS()<<endl;
-                  logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<endl;
+                  logfileptr->OFS()<<std::endl;
+                  logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<std::endl;
 #endif
 
                   //procmaps[0]/pstart[0] represents the complete list
@@ -1209,14 +1209,14 @@ namespace SYMPACK{
                   for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
 
 
-                  SYMPACK::vector<Int> pstart(n_+1,0);
+                  std::vector<Int> pstart(n_+1,0);
                   levelGroups_.reserve(numLevels);
                   levelGroups_.push_back(ProcGroup());//reserve(numLevels);
                   levelGroups_[0].Ranks().reserve(np);
                   for(Int p = 0;p<np;++p){levelGroups_[0].Ranks().push_back(p);}
 
 
-                  SYMPACK::vector<double> load(n_+1,0.0);
+                  std::vector<double> load(n_+1,0.0);
                   for(Int I=n_; I>= 1;I--){ 
                     Int parent = supETree_.Parent(I-1);
 
@@ -1232,18 +1232,18 @@ namespace SYMPACK{
                     }
 
 
-                    double proportion = min(1.0,SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load));
+                    double proportion = std::min(1.0,SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load));
                     Int npParent = levelGroups_[groupIdx_[parent]].Ranks().size();
-                    Int pFirstIdx = min(pstart[parent],npParent-1);
+                    Int pFirstIdx = std::min(pstart[parent],npParent-1);
                     Int npIdeal =(Int)std::round(npParent*proportion);
-                    Int numProcs = max(1,min(npParent-pFirstIdx,npIdeal));
+                    Int numProcs = std::max(1,std::min(npParent-pFirstIdx,npIdeal));
                     Int pFirst = levelGroups_[groupIdx_[parent]].Ranks().at(pFirstIdx);
 
                     //Int npParent = procGroups_[parent].Ranks().size();
                     //Int pFirst = procGroups_[parent].Ranks().at(pFirstIdx);
 #ifdef _DEBUG_LOAD_BALANCER_
-                    logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<endl; 
-                    logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<endl; 
+                    logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<std::endl; 
+                    logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<std::endl; 
 #endif
                     pstart[parent]+= numProcs;
 
@@ -1254,12 +1254,12 @@ namespace SYMPACK{
                         levelGroups_.back().Ranks().reserve(numProcs);
                         //              for(Int p = pFirst; p<pFirst+numProcs;++p){ levelGroups_.back().Ranks().push_back(p);}
 
-                        SYMPACK::vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
+                        std::vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
                         levelGroups_.back().Ranks().insert(levelGroups_.back().Ranks().begin(),parentRanks.begin()+pFirstIdx,parentRanks.begin()+pFirstIdx+numProcs);
 
                         groupIdx_[I] = levelGroups_.size()-1;
 #ifdef _DEBUG_LOAD_BALANCER_
-                        logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<endl;
+                        logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<std::endl<<levelGroups_[groupIdx_[I]]<<std::endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
 #endif
                       }
                     }
@@ -1267,7 +1267,7 @@ namespace SYMPACK{
                       groupIdx_[I] = groupIdx_[parent];
 
 #ifdef _DEBUG_LOAD_BALANCER_
-                      logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<endl<<levelGroups_[groupIdx_[I]]<<endl;
+                      logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<std::endl<<levelGroups_[groupIdx_[I]]<<std::endl;
 #endif
                     }
 
@@ -1276,7 +1276,7 @@ namespace SYMPACK{
 
 
                   //now choose which processor to get
-                  //SYMPACK::vector<double> load(np,0.0);
+                  //std::vector<double> load(np,0.0);
                   load.assign(np,0.0);
                   for(Int I=1;I<=supETree_.Size();I++){
                     Int minLoadP= -1;
@@ -1291,13 +1291,13 @@ namespace SYMPACK{
                     }
 
 #ifdef _DEBUG_LOAD_BALANCER_
-                    logfileptr->OFS()<<"MinLoadP "<<minLoadP<<endl;
-                    logfileptr->OFS()<<"group of "<<I<<endl;
+                    logfileptr->OFS()<<"MinLoadP "<<minLoadP<<std::endl;
+                    logfileptr->OFS()<<"group of "<<I<<std::endl;
                     for(Int i = 0; i<group.Ranks().size();++i){
                       Int proc = group.Ranks()[i];
                       logfileptr->OFS()<<proc<<" ["<<load[proc]<<"] ";
                     }
-                    logfileptr->OFS()<<endl;
+                    logfileptr->OFS()<<std::endl;
 #endif
                     groupWorker_[I] = minLoadP;
 
@@ -1318,7 +1318,7 @@ namespace SYMPACK{
 
 
 #ifdef _DEBUG_LOAD_BALANCER_
-                  logfileptr->OFS()<<"Proc load: "<<load<<endl;
+                  logfileptr->OFS()<<"Proc load: "<<load<<std::endl;
 #endif
 
                   for(Int I=1;I<=supETree_.Size();I++){
@@ -1329,7 +1329,7 @@ namespace SYMPACK{
 
 #ifdef _DEBUG_LOAD_BALANCER_
                   for(Int I = 0; I<levelGroups_.size();++I){ 
-                    logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<endl;
+                    logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<std::endl;
                   }
 #endif
 

@@ -26,7 +26,7 @@
 
 //#define _INDEFINITE_
 
-namespace SYMPACK{
+namespace symPACK{
 
 struct NZBlockDesc{
     bool Last;
@@ -49,7 +49,7 @@ class MemoryAllocator{
   public:
 #ifdef _TRACK_MEMORY_
     static void printStats(){
-logfileptr->OFS()<<"Memory HWM: "<<hwm_<<endl;
+logfileptr->OFS()<<"Memory HWM: "<<hwm_<<std::endl;
     }
 #endif
 
@@ -67,8 +67,8 @@ class MallocAllocator: public MemoryAllocator{
       if(cnt_.size()==0){total_ = 0;}
       cnt_[locTmpPtr] = count;
       total_ += count;
-      hwm_ = max(hwm_,total_);
-//      logfileptr->OFS()<<"Allocating "<<" "<<count<<" bytes at "<<(uint64_t)locTmpPtr<<", total "<< total_<<endl;
+      hwm_ = std::max(hwm_,total_);
+//      logfileptr->OFS()<<"Allocating "<<" "<<count<<" bytes at "<<(uint64_t)locTmpPtr<<", total "<< total_<<std::endl;
 #endif
       return locTmpPtr;
     }
@@ -76,7 +76,7 @@ class MallocAllocator: public MemoryAllocator{
     static void deallocate(char* ptr){
 #ifdef _TRACK_MEMORY_
       total_-=cnt_[ptr];
-      //logfileptr->OFS()<<"Deallocating "<<(uint64_t)ptr<<" "<<cnt_[ptr]<<" bytes, total "<< total_<< endl;
+      //logfileptr->OFS()<<"Deallocating "<<(uint64_t)ptr<<" "<<cnt_[ptr]<<" bytes, total "<< total_<< std::endl;
       cnt_.erase(ptr);
 #endif
       delete [] ptr;
@@ -96,8 +96,8 @@ class UpcxxAllocator: public MemoryAllocator{
       if(cnt_.size()==0){total_ = 0;}
       cnt_[locTmpPtr] = count;
       total_ += count;
-      hwm_ = max(hwm_,total_);
-      //logfileptr->OFS()<<"Allocating UPCXX "<<" "<<count<<" bytes at "<<(uint64_t)locTmpPtr<<", total "<< total_<<endl;
+      hwm_ = std::max(hwm_,total_);
+      //logfileptr->OFS()<<"Allocating UPCXX "<<" "<<count<<" bytes at "<<(uint64_t)locTmpPtr<<", total "<< total_<<std::endl;
 #endif
       return locTmpPtr;
     }
@@ -105,7 +105,7 @@ class UpcxxAllocator: public MemoryAllocator{
     static void deallocate(char* ptr){
 #ifdef _TRACK_MEMORY_
       total_-=cnt_[ptr];
-      //logfileptr->OFS()<<"Deallocating UPCXX "<<(uint64_t)ptr<<" "<<cnt_[ptr]<<" bytes, total "<< total_<<endl;
+      //logfileptr->OFS()<<"Deallocating UPCXX "<<(uint64_t)ptr<<" "<<cnt_[ptr]<<" bytes, total "<< total_<<std::endl;
       cnt_.erase(ptr);
 #endif
       upcxx::global_ptr<char> tmpPtr((char*)ptr);
@@ -141,13 +141,13 @@ class SuperNode{
 
 #ifndef ITREE
   Int iLastRow_;
-  SYMPACK::vector<Int> * globalToLocal_;
+  std::vector<Int> * globalToLocal_;
 #else
   ITree * idxToBlk_;
 #endif
 
   //actual storage
-  //SYMPACK::vector<char> storage_container_;
+  //std::vector<char> storage_container_;
   //upcxx::global_ptr<char> storage_container_;
   char * storage_container_;
   char * loc_storage_container_;
@@ -244,12 +244,12 @@ virtual inline Int Aggregate(SuperNode<T,Allocator> * src_snode);
 
   //Factorize the supernode
   virtual inline Int Factorize(TempUpdateBuffers<T> & tmpBuffers);
-  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const SYMPACK::vector<Int> & Xsuper,  const SYMPACK::vector<Int> & SupMembership,bool isLocal=true); 
+  inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const std::vector<Int> & Xsuper,  const std::vector<Int> & SupMembership,bool isLocal=true); 
 
 
   //forward and backward solve phases
   virtual inline void forward_update(SuperNode<T,Allocator> * src_contrib,Int iOwner,Int iam);
-  virtual inline void forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, SYMPACK::vector<Int> & perm);
+  virtual inline void forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, std::vector<Int> & perm);
   virtual inline void back_update(SuperNode<T,Allocator> * src_contrib);
   virtual inline void back_update_contrib(SuperNode<T> * cur_snode);
 

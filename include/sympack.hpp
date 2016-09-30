@@ -5,6 +5,7 @@
 #include  "sympack/Environment.hpp"
 #include  "sympack/utility.hpp"
 #include  "sympack/DistSparseMatrix.hpp"
+#include  "sympack/symPACKMatrix.hpp"
 #include  "sympack/Mapping.hpp"
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"

@@ -4,7 +4,7 @@
 
 #include <upcxx.h>
 
-namespace SYMPACK{
+namespace symPACK{
 
 
 
@@ -20,7 +20,7 @@ namespace SYMPACK{
 // *********************************************************************
   std::ofstream  statusOFS;
 
-  SYMPACK::vector<std::ofstream>  statusOFSs;
+  std::vector<std::ofstream>  statusOFSs;
 
 // *********************************************************************
 // Error handling

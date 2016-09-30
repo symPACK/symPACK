@@ -1,17 +1,17 @@
 #include "sympack/CommPull.hpp"
 #include "sympack/CommTypes.hpp"
-#include "sympack/SupernodalMatrixBase.hpp"
+//#include "sympack/SupernodalMatrixBase.hpp"
 #include "sympack/timer.hpp"
 
 #define USE_LOCAL_ALLOCATE
 
 
-namespace SYMPACK{
+namespace symPACK{
   std::list< IncomingMessage * > gIncomingRecv;
-  //std::priority_queue< IncomingMessage *, SYMPACK::vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
+  //std::priority_queue< IncomingMessage *, std::vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
   std::list< IncomingMessage * > gIncomingRecvAsync;
   std::list< IncomingMessage * > gIncomingRecvLocal;
-  SupernodalMatrixBase * gSuperMatrixPtr = NULL;
+  //SupernodalMatrixBase * gSuperMatrixPtr = NULL;
 
   int gMaxIrecv = 0;
 

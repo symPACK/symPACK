@@ -4,7 +4,7 @@
 #include <sstream>
 #include <fstream>
 
-namespace SYMPACK{
+namespace symPACK{
 
 class LogFile{
 protected:

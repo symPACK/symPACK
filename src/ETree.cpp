@@ -7,7 +7,7 @@
 
 #include <upcxx.h>
 
-namespace SYMPACK{
+namespace symPACK{
 
 
   void DisjointSet::Initialize(Int n){
@@ -20,7 +20,7 @@ namespace SYMPACK{
   }
 }
 
-namespace SYMPACK{
+namespace symPACK{
   ETree::ETree(){
     bIsPostOrdered_=false;
   }
@@ -32,9 +32,9 @@ namespace SYMPACK{
 
 
 
-  void ETree::BTreeToPO(SYMPACK::vector<Int> & fson, SYMPACK::vector<Int> & brother, SYMPACK::vector<Int> & invpos){
+  void ETree::BTreeToPO(std::vector<Int> & fson, std::vector<Int> & brother, std::vector<Int> & invpos){
     //Do a depth first search to construct the postordered tree
-    SYMPACK::vector<Int> stack(n_);
+    std::vector<Int> stack(n_);
     invpos.resize(n_);
 
     Int stacktop=0, vertex=n_,m=0;
@@ -72,8 +72,8 @@ namespace SYMPACK{
 
       SYMPACK_TIMER_START(PostOrder);
 
-      SYMPACK::vector<Int> fson(n_,0);
-      SYMPACK::vector<Int> & brother = poparent_;
+      std::vector<Int> fson(n_,0);
+      std::vector<Int> & brother = poparent_;
       brother.resize(n_,0);
 
       Int lroot = n_;
@@ -96,7 +96,7 @@ namespace SYMPACK{
       logfileptr->OFS()<<"brother "<<brother<<std::endl;
 #endif
 
-      SYMPACK::vector<Int> invpos;
+      std::vector<Int> invpos;
       BTreeToPO(fson,brother,invpos);
 
       //modify the parent list ?
@@ -128,14 +128,14 @@ namespace SYMPACK{
   }
 
 
-  void ETree::SortChildren(SYMPACK::vector<Int> & cc, Ordering & aOrder){
+  void ETree::SortChildren(std::vector<Int> & cc, Ordering & aOrder){
     if(!bIsPostOrdered_){
       this->PostOrderTree(aOrder);
     }
 
-    SYMPACK::vector<Int> fson(n_,0);
-    SYMPACK::vector<Int> brother(n_,0);
-    SYMPACK::vector<Int> lson(n_,0);
+    std::vector<Int> fson(n_,0);
+    std::vector<Int> brother(n_,0);
+    std::vector<Int> lson(n_,0);
 
     //Get Binary tree representation
     Int lroot = n_;
@@ -167,12 +167,12 @@ namespace SYMPACK{
     brother[lroot-1]=0;
 
 
-    SYMPACK::vector<Int> invpos;
-    //      SYMPACK::vector<Int> invperm;
+    std::vector<Int> invpos;
+    //      std::vector<Int> invperm;
 
     //Compute the parent permutation and update postNumber_
     //Do a depth first search to construct the postordered tree
-    SYMPACK::vector<Int> stack(n_);
+    std::vector<Int> stack(n_);
     invpos.resize(n_);
     //      invperm.Resize(n_);
 
@@ -261,7 +261,7 @@ namespace SYMPACK{
     tmpGraph.Permute(&aOrder.invp[0]);
 
     parent_.assign(n_,0);
-    SYMPACK::vector<Int> ancstr(n_,-1);
+    std::vector<Int> ancstr(n_,-1);
 
     Idx fc = tmpGraph.LocalFirstVertex()-tmpGraph.GetBaseval(); //0 - based
 
@@ -275,14 +275,14 @@ namespace SYMPACK{
       parent_[i] = 0;
       ancstr[i] = 0;
 
-      //logfileptr->OFS()<<"i = "<<i+1<<endl;
+      //logfileptr->OFS()<<"i = "<<i+1<<std::endl;
 
       Ptr jstrt = tmpGraph.colptr[locCol] - tmpGraph.GetBaseval(); //0-based
       Ptr jstop = tmpGraph.colptr[locCol+1] - tmpGraph.GetBaseval();//0-based
       if(jstrt<jstop-1){
         for(Ptr j = jstrt; j<jstop; ++j){
           Idx nbr = tmpGraph.rowind[j] - tmpGraph.GetBaseval(); //0-based
-          //logfileptr->OFS()<<"   nbr = "<<nbr+1<<endl;
+          //logfileptr->OFS()<<"   nbr = "<<nbr+1<<std::endl;
           if  ( nbr < i ){
             // -------------------------------------------
             // for each nbr, find the root of its current
@@ -303,7 +303,7 @@ namespace SYMPACK{
                 nbr = next - 1;
                 //logfileptr->OFS()<<nbr+1<<" ";
               }
-              //logfileptr->OFS()<<endl;
+              //logfileptr->OFS()<<std::endl;
 
               // --------------------------------------------
               // now, nbr is the root of the subtree.  make i
@@ -321,10 +321,10 @@ namespace SYMPACK{
     }
 
     if(mpirank<mpisize-1){
-      //        logfileptr->OFS()<<"my parent now is: "<<myParent<<endl;
-      //        logfileptr->OFS()<<"my ancstr now is: "<<myAncstr<<endl;
-      logfileptr->OFS()<<"parent now is: "<<parent_<<endl;
-      logfileptr->OFS()<<"ancstr now is: "<<ancstr<<endl;
+      //        logfileptr->OFS()<<"my parent now is: "<<myParent<<std::endl;
+      //        logfileptr->OFS()<<"my ancstr now is: "<<myAncstr<<std::endl;
+      logfileptr->OFS()<<"parent now is: "<<parent_<<std::endl;
+      logfileptr->OFS()<<"ancstr now is: "<<ancstr<<std::endl;
       MPI_Send(&parent_[0],(fc+tmpGraph.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,tmpGraph.GetComm());
       MPI_Send(&ancstr[0],(fc+tmpGraph.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,tmpGraph.GetComm());
     }
@@ -359,7 +359,7 @@ namespace SYMPACK{
     parent_.resize(n_,0);
 
     if(iam==0){
-      SYMPACK::vector<Int> ancstr(n_);
+      std::vector<Int> ancstr(n_);
 
 
 
@@ -367,7 +367,7 @@ namespace SYMPACK{
         parent_[i-1] = 0;
         ancstr[i-1] = 0;
         Int node = aOrder.perm[i-1];
-        //          logfileptr->OFS()<<"i = "<<node<<endl;
+        //          logfileptr->OFS()<<"i = "<<node<<std::endl;
         Ptr jstrt = sgraph.colptr[node-1];
         Ptr jstop = sgraph.colptr[node] - 1;
         if  ( jstrt < jstop ){
@@ -375,8 +375,8 @@ namespace SYMPACK{
             Idx nbr = sgraph.rowind[j-1];
             //logfileptr->OFS()<<"   nbr = "<<nbr<<"  ";
             nbr = aOrder.invp[nbr-1];
-            //          logfileptr->OFS()<<"   nbr = "<<nbr<<endl;
-            //logfileptr->OFS()<<"|  nbr = "<<nbr<<endl;
+            //          logfileptr->OFS()<<"   nbr = "<<nbr<<std::endl;
+            //logfileptr->OFS()<<"|  nbr = "<<nbr<<std::endl;
             if  ( nbr < i ){
               //                       -------------------------------------------
               //                       for each nbr, find the root of its current
@@ -400,7 +400,7 @@ namespace SYMPACK{
                   nbr = next;
                   //              logfileptr->OFS()<<nbr<<" ";
                 }
-                //              logfileptr->OFS()<<endl;
+                //              logfileptr->OFS()<<std::endl;
                 //                       --------------------------------------------
                 //                       now, nbr is the root of the subtree.  make i
                 //                       the parent node of this root.
@@ -437,7 +437,7 @@ namespace SYMPACK{
     parent_.resize(n_,0);
 
 
-    SYMPACK::vector<Int> ancstr(n_);
+    std::vector<Int> ancstr(n_);
 
 
 
@@ -445,7 +445,7 @@ namespace SYMPACK{
       parent_[i-1] = 0;
       ancstr[i-1] = 0;
       Int node = aOrder.perm[i-1];
-      //          logfileptr->OFS()<<"i = "<<node<<endl;
+      //          logfileptr->OFS()<<"i = "<<node<<std::endl;
       Ptr jstrt = aGlobal.expColptr[node-1];
       Ptr jstop = aGlobal.expColptr[node] - 1;
       if  ( jstrt < jstop ){
@@ -453,8 +453,8 @@ namespace SYMPACK{
           Idx nbr = aGlobal.expRowind[j-1];
           //logfileptr->OFS()<<"   nbr = "<<nbr<<"  ";
           nbr = aOrder.invp[nbr-1];
-          //          logfileptr->OFS()<<"   nbr = "<<nbr<<endl;
-          //logfileptr->OFS()<<"|  nbr = "<<nbr<<endl;
+          //          logfileptr->OFS()<<"   nbr = "<<nbr<<std::endl;
+          //logfileptr->OFS()<<"|  nbr = "<<nbr<<std::endl;
           if  ( nbr < i ){
             //                       -------------------------------------------
             //                       for each nbr, find the root of its current
@@ -478,7 +478,7 @@ namespace SYMPACK{
                 nbr = next;
                 //              logfileptr->OFS()<<nbr<<" ";
               }
-              //              logfileptr->OFS()<<endl;
+              //              logfileptr->OFS()<<std::endl;
               //                       --------------------------------------------
               //                       now, nbr is the root of the subtree.  make i
               //                       the parent node of this root.
@@ -499,7 +499,7 @@ namespace SYMPACK{
       Int i = aOrder.invp[node-1];
       parent_[i-1] = 0;
       ancstr[i-1] = 0;
-      logfileptr->OFS()<<"node = "<<node<<endl; 
+      logfileptr->OFS()<<"node = "<<node<<std::endl; 
       Ptr jstrt = aGlobal.expColptr[node-1];
       Ptr jstop = aGlobal.expColptr[node] - 1;
       if  ( jstrt < jstop ){
@@ -507,7 +507,7 @@ namespace SYMPACK{
           Idx nbr = aGlobal.expRowind[j-1];
           logfileptr->OFS()<<"   nbr = "<<nbr<<"  ";
           nbr = aOrder.invp[nbr-1];
-          logfileptr->OFS()<<"|  nbr = "<<nbr<<endl;
+          logfileptr->OFS()<<"|  nbr = "<<nbr<<std::endl;
           if  ( nbr < i ){
             //                       -------------------------------------------
             //                       for each nbr, find the root of its current
@@ -531,7 +531,7 @@ namespace SYMPACK{
                 nbr = next;
                 logfileptr->OFS()<<nbr<<" ";
               }
-              logfileptr->OFS()<<endl;
+              logfileptr->OFS()<<std::endl;
               //                       --------------------------------------------
               //                       now, nbr is the root of the subtree.  make i
               //                       the parent node of this root.
@@ -545,7 +545,7 @@ namespace SYMPACK{
         }
       }
     }
-    logfileptr->OFS()<<parent_<<endl;
+    logfileptr->OFS()<<parent_<<std::endl;
 #endif
 
 
@@ -561,7 +561,7 @@ namespace SYMPACK{
 
 
 
-  ETree ETree::ToSupernodalETree(SYMPACK::vector<Int> & aXsuper,SYMPACK::vector<Int> & aSupMembership,Ordering & aOrder) const{
+  ETree ETree::ToSupernodalETree(std::vector<Int> & aXsuper,std::vector<Int> & aSupMembership,Ordering & aOrder) const{
     ETree newTree;
     newTree.n_ = aXsuper.size()-1;
     newTree.parent_.resize(aXsuper.size()-1);
@@ -605,8 +605,8 @@ namespace SYMPACK{
 
 
 
-    SYMPACK::vector<Int> treesize(n_,0);
-    SYMPACK::vector<Int> depths(n_);
+    std::vector<Int> treesize(n_,0);
+    std::vector<Int> depths(n_);
     //first, compute the depth of each node
     for(Int col=n_; col>=1; --col){
       Int parent = PostParent(col-1);
@@ -623,7 +623,7 @@ namespace SYMPACK{
     for(Int col=n_; col>=1; --col){
       Int parent = PostParent(col-1);
       if(parent!=0){
-        depths[parent-1]=max(depths[col-1],depths[parent-1]);
+        depths[parent-1]=std::max(depths[col-1],depths[parent-1]);
       }
     }
 

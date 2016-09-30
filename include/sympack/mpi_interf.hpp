@@ -12,7 +12,7 @@
 #include <numeric>
 #include <limits>
 
-namespace SYMPACK{
+namespace symPACK{
 
   template<typename T> void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
 
@@ -33,8 +33,8 @@ namespace SYMPACK{
         MPI_Comm_size( comm, &mpisize );
 
         Int localSize = localIcomm.size();
-        SYMPACK::vector<Int>  localSizeVec( mpisize );
-        SYMPACK::vector<Int>  localSizeDispls( mpisize );
+        std::vector<Int>  localSizeVec( mpisize );
+        std::vector<Int>  localSizeDispls( mpisize );
         MPI_Gather( &localSize, sizeof(Int), MPI_BYTE, &localSizeVec[0], sizeof(Int), MPI_BYTE,root, comm );
         localSizeDispls[0] = 0;
         for( Int ip = 1; ip < mpisize; ip++ ){
@@ -112,7 +112,7 @@ int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size *stotdi
     MPI_Op_create( GenericMPIMax<_Size>, true, &MPI_SYMPACK_MAX ); 
     MPI_Allreduce(maxLocal,&globalMax,1,size_type,MPI_SYMPACK_MAX,comm);
     MPI_Op_free(&MPI_SYMPACK_MAX);
-    logfileptr->OFS()<<"mpi::Alltoallv ERROR has been reported by one of the nodes, reduced global max is "<<globalMax<<endl;
+    logfileptr->OFS()<<"mpi::Alltoallv ERROR has been reported by one of the nodes, reduced global max is "<<globalMax<<std::endl;
     max_sr_size = std::max(max_sr_size,globalMax);
 
     if(is_signed){
@@ -146,7 +146,7 @@ int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size *stotdi
   if(total_send_size>0 || total_recv_size>0){
     int chunk_atav= int(std::min(max_sr_size,size_t(maxchunk)));
     int split_atav = (int)std::ceil((double)max_sr_size/(double)chunk_atav);
-    logfileptr->OFS()<<"mpi::Alltoallv collective will be split in "<<split_atav<<" calls of size "<<chunk_atav<<endl;
+    logfileptr->OFS()<<"mpi::Alltoallv collective will be split in "<<split_atav<<" calls of size "<<chunk_atav<<std::endl;
 
     //resize the receive container
     resize_func(recvbuf,total_recv_size);

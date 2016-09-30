@@ -14,17 +14,17 @@
 #include  "sympack/DistSparseMatrix.hpp"
 #include  "sympack/ETree.hpp"
 
-namespace SYMPACK{
+namespace symPACK{
 
   //exact cost of a mxn panel
 #define CHOLESKY_COST(m,n)  ((n)*pow((m),2.0) + 2*(n)*(m)-pow((n),3.0)/3.0 - 3.0*pow((n),2.0)/2.0 - (n)/6.0 -1.0)
 
 
-  template <typename F> void SetValue( SYMPACK::vector<F>& vec, F val ){
+  template <typename F> void SetValue( std::vector<F>& vec, F val ){
     fill(vec.begin(),vec.end(),val);
   }
 
-  void SetValue( SYMPACK::vector<char>& vec, bool val );
+  void SetValue( std::vector<char>& vec, bool val );
 
 
   // *********************************************************************
@@ -55,7 +55,7 @@ namespace SYMPACK{
     return 0;
   }
 
-  // String
+  // std::string
   inline Int Print(std::ostream &os, const std::string name) {
     os << std::setiosflags(std::ios::left) << name << std::endl;
     return 0;
@@ -367,8 +367,8 @@ namespace SYMPACK{
 
 
 
-  // SYMPACK::vector
-  template <class F> inline std::ostream& operator<<( std::ostream& os, const SYMPACK::vector<F>& vec)
+  // std::vector
+  template <class F> inline std::ostream& operator<<( std::ostream& os, const std::vector<F>& vec)
   {
     os<<vec.size()<<"| ";
     os.setf(std::ios_base::scientific, std::ios_base::floatfield);
@@ -406,29 +406,29 @@ namespace SYMPACK{
   // *********************************************************************
 
   // standard case for most serialization/deserialization process.
-  const SYMPACK::vector<Int> NO_MASK(1);
+  const std::vector<Int> NO_MASK(1);
 
   //bool
-  inline Int serialize(const bool& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
+  inline Int serialize(const bool& val, std::ostream& os, const std::vector<Int>& mask)
   {
     os.write((char*)&val, sizeof(bool));
     return 0;
   }
 
-  inline Int deserialize(bool& val, std::istream& is, const SYMPACK::vector<Int>& mask)
+  inline Int deserialize(bool& val, std::istream& is, const std::vector<Int>& mask)
   {
     is.read((char*)&val, sizeof(bool));
     return 0;
   }
 
   //char
-  inline Int serialize(const char& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
+  inline Int serialize(const char& val, std::ostream& os, const std::vector<Int>& mask)
   {
     os.write((char*)&val, sizeof(char));
     return 0;
   }
 
-  inline Int deserialize(char& val, std::istream& is, const SYMPACK::vector<Int>& mask)
+  inline Int deserialize(char& val, std::istream& is, const std::vector<Int>& mask)
   {
     is.read((char*)&val, sizeof(char));
     return 0;
@@ -441,13 +441,13 @@ namespace SYMPACK{
 
   //-------------------
   //Int
-  inline Int serialize(const Int& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
+  inline Int serialize(const Int& val, std::ostream& os, const std::vector<Int>& mask)
   {
     os.write((char*)&val, sizeof(Int));
     return 0;
   }
 
-  inline Int deserialize(Int& val, std::istream& is, const SYMPACK::vector<Int>& mask)
+  inline Int deserialize(Int& val, std::istream& is, const std::vector<Int>& mask)
   {
     is.read((char*)&val, sizeof(Int));
     return 0;
@@ -461,13 +461,13 @@ namespace SYMPACK{
 
   //-------------------
   //Real
-  inline Int serialize(const Real& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
+  inline Int serialize(const Real& val, std::ostream& os, const std::vector<Int>& mask)
   {
     os.write((char*)&val, sizeof(Real));
     return 0;
   }
 
-  inline Int deserialize(Real& val, std::istream& is, const SYMPACK::vector<Int>& mask)
+  inline Int deserialize(Real& val, std::istream& is, const std::vector<Int>& mask)
   {
     is.read((char*)&val, sizeof(Real));
     return 0;
@@ -481,13 +481,13 @@ namespace SYMPACK{
 
   //-------------------
   //Complex
-  inline Int serialize(const Complex& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
+  inline Int serialize(const Complex& val, std::ostream& os, const std::vector<Int>& mask)
   {
     os.write((char*)&val, sizeof(Complex));
     return 0;
   }
 
-  inline Int deserialize(Complex& val, std::istream& is, const SYMPACK::vector<Int>& mask)
+  inline Int deserialize(Complex& val, std::istream& is, const std::vector<Int>& mask)
   {
     is.read((char*)&val, sizeof(Complex));
     return 0;
@@ -500,9 +500,9 @@ namespace SYMPACK{
   }
 
   //-------------------
-  //SYMPACK::vector
+  //std::vector
   template<class T>
-    Int serialize(const SYMPACK::vector<T>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
+    Int serialize(const std::vector<T>& val, std::ostream& os, const std::vector<Int>& mask)
     {
       Int sz = val.size();
       os.write((char*)&sz, sizeof(Int));
@@ -512,7 +512,7 @@ namespace SYMPACK{
     }
 
   template<class T>
-    Int deserialize(SYMPACK::vector<T>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
+    Int deserialize(std::vector<T>& val, std::istream& is, const std::vector<Int>& mask)
     {
       Int sz;
       is.read((char*)&sz, sizeof(Int));
@@ -523,7 +523,7 @@ namespace SYMPACK{
     }
 
   template<class T>
-    Int combine(SYMPACK::vector<T>& val, SYMPACK::vector<T>& ext)
+    Int combine(std::vector<T>& val, std::vector<T>& ext)
     {
       throw  std::logic_error( "Combine operation not implemented." );
       return 0;
@@ -532,7 +532,7 @@ namespace SYMPACK{
   //-------------------
   //std::set
   template<class T>
-    Int serialize(const std::set<T>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
+    Int serialize(const std::set<T>& val, std::ostream& os, const std::vector<Int>& mask)
     {
       Int sz = val.size();
       os.write((char*)&sz, sizeof(Int));
@@ -542,7 +542,7 @@ namespace SYMPACK{
     }
 
   template<class T>
-    Int deserialize(std::set<T>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
+    Int deserialize(std::set<T>& val, std::istream& is, const std::vector<Int>& mask)
     {
       val.clear();
       Int sz;
@@ -564,7 +564,7 @@ namespace SYMPACK{
   //-------------------
   //std::map
   template<class T, class S>
-    Int serialize(const std::map<T,S>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
+    Int serialize(const std::map<T,S>& val, std::ostream& os, const std::vector<Int>& mask)
     {
       Int sz = val.size();
       os.write((char*)&sz, sizeof(Int));
@@ -576,7 +576,7 @@ namespace SYMPACK{
     }
 
   template<class T, class S>
-    Int deserialize(std::map<T,S>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
+    Int deserialize(std::map<T,S>& val, std::istream& is, const std::vector<Int>& mask)
     {
       val.clear();
       Int sz;
@@ -599,7 +599,7 @@ namespace SYMPACK{
   //-------------------
   //std::pair
   template<class T, class S>
-    Int serialize(const std::pair<T,S>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
+    Int serialize(const std::pair<T,S>& val, std::ostream& os, const std::vector<Int>& mask)
     {
       serialize(val.first, os, mask);
       serialize(val.second, os, mask);
@@ -607,7 +607,7 @@ namespace SYMPACK{
     }
 
   template<class T, class S>
-    Int deserialize(std::pair<T,S>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
+    Int deserialize(std::pair<T,S>& val, std::istream& is, const std::vector<Int>& mask)
     {
       deserialize(val.first, is, mask);
       deserialize(val.second, is, mask);
@@ -626,7 +626,7 @@ namespace SYMPACK{
   //-------------------
   //DistSparseMatrix
   template<class T>
-    Int inline serialize(const DistSparseMatrix<T>& val, std::ostream& os, const SYMPACK::vector<Int>& mask)
+    Int inline serialize(const DistSparseMatrix<T>& val, std::ostream& os, const std::vector<Int>& mask)
     {
       serialize( val.size,        os, mask );
       serialize( val.nnz,         os, mask );
@@ -639,7 +639,7 @@ namespace SYMPACK{
     }
 
   template<class T>
-    Int inline deserialize(DistSparseMatrix<T>& val, std::istream& is, const SYMPACK::vector<Int>& mask)
+    Int inline deserialize(DistSparseMatrix<T>& val, std::istream& is, const std::vector<Int>& mask)
     {
       deserialize( val.size,        is, mask );
       deserialize( val.nnz,         is, mask );
@@ -691,7 +691,7 @@ namespace SYMPACK{
 
   // For sorting with indices
   // Example usage:
-  //   std::sort(val.begin(), val.end(), IndexComp<SYMPACK::vector<int>&>(indices));
+  //   std::sort(val.begin(), val.end(), IndexComp<std::vector<int>&>(indices));
   template<class T> 
     struct IndexComp {
       private: 
@@ -749,10 +749,10 @@ namespace SYMPACK{
 
   void
     LinearInterpolation ( 
-        const SYMPACK::vector<Real>& x, 
-        const SYMPACK::vector<Real>& y,
-        const SYMPACK::vector<Real>& xx,
-        SYMPACK::vector<Real>& yy );
+        const std::vector<Real>& x, 
+        const std::vector<Real>& y,
+        const std::vector<Real>& xx,
+        std::vector<Real>& yy );
 
 } // namespace SYMPACK
 
@@ -776,7 +776,7 @@ extern "C" {
 #endif
 
 
-namespace SYMPACK{
+namespace symPACK{
 
 
 
@@ -805,14 +805,14 @@ namespace SYMPACK{
       int nzvalCnt = 0;
 
       if(mpirank==0){
-        ifstream infile;
+        std::ifstream infile;
         infile.open(filename.c_str());
 
-        string line;
-        stringstream iss;
+        std::string line;
+        std::stringstream iss;
         //skip 1st line
-        if(getline(infile, line)){}
-        if(getline(infile, line)){
+        if(std::getline(infile, line)){}
+        if(std::getline(infile, line)){
           iss.str("");
           iss.clear();
           iss<<line;
@@ -823,24 +823,24 @@ namespace SYMPACK{
         //read from third line
 
         int m;
-        if(getline(infile, line))
+        if(std::getline(infile, line))
         {
           iss.str("");
           iss.clear();
           iss<<line;
-          string type;
+          std::string type;
           iss>>type;
           iss>>m>>n>>nnz;
         }
 
 
         //read from 4th line
-        if(getline(infile, line))
+        if(std::getline(infile, line))
         {
           iss.str("");
           iss.clear();
           iss<<line;
-          string format;
+          std::string format;
           iss>>format;
           int dummy;
           sscanf(format.c_str(),"(%dI%d)",&colptrCntPerRow,&colptrWidth);
@@ -954,7 +954,7 @@ namespace SYMPACK{
             throw std::logic_error( "error reading colptr" );
           }
 
-          istringstream iss(rdStr);
+          std::istringstream iss(rdStr);
           Ptr j;
           Int locPos = 0;
           while(iss>> j){
@@ -998,7 +998,7 @@ namespace SYMPACK{
             throw std::logic_error( "error reading colptr" );
           }
 
-          istringstream iss(rdStr);
+          std::istringstream iss(rdStr);
           Idx j;
           Int locPos = 0;
           while(iss>> j){
@@ -1030,7 +1030,8 @@ namespace SYMPACK{
           err= MPI_File_read_at_all(fin, myNzvalOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
           if (err != MPI_SUCCESS) {
             throw std::logic_error( "error reading colptr" );
-          }      istringstream iss(rdStr);
+          }
+          std::istringstream iss(rdStr);
 
           INSCALAR j;
           Int locPos = 0;
@@ -1284,18 +1285,18 @@ namespace SYMPACK{
       int mpisize;
       MPI_Comm_size(workcomm,&mpisize);
 
-      ifstream infile;
+      std::ifstream infile;
       infile.open(filename.c_str());
 
-      string line;
+      std::string line;
       //read xadj on the first line of the input file
-      stringstream iss;
+      std::stringstream iss;
       //skip 1st line
-      if(getline(infile, line)){}
+      if(std::getline(infile, line)){}
       Idx colptrCnt;
       Ptr rowindCnt;
       Ptr nzvalCnt;
-      if(getline(infile, line)){
+      if(std::getline(infile, line)){
         iss.str("");
         iss.clear();
         iss<<line;
@@ -1310,12 +1311,12 @@ namespace SYMPACK{
 
 
       auto m = n;
-      if(getline(infile, line))
+      if(std::getline(infile, line))
       {
         iss.str("");
         iss.clear();
         iss<<line;
-        string type;
+        std::string type;
         iss>>type;
         iss>>m>>n>>nnz;
       }
@@ -1351,12 +1352,12 @@ namespace SYMPACK{
       int colptrCntPerRow = 0;
       int rowindCntPerRow = 0;
       int nzvalCntPerRow = 0;
-      if(getline(infile, line))
+      if(std::getline(infile, line))
       {
         iss.str("");
         iss.clear();
         iss<<line;
-        string format;
+        std::string format;
         iss>>format;
         int dummy;
         sscanf(format.c_str(),"(%dI%d)",&colptrCntPerRow,&colptrWidth);
@@ -1376,7 +1377,7 @@ namespace SYMPACK{
         size_t readBytes = (nlocal+1)*colptrWidth + (lineLastNode - lineFirstNode);
         size_t skipAfter = (n+1 - (firstNode+nlocal))*colptrWidth + (colptrCnt - lineLastNode +1) ;
 
-        infile.seekg(skip,ios_base::cur);
+        infile.seekg(skip,std::ios_base::cur);
 
         {
           std::string rdStr;
@@ -1384,7 +1385,7 @@ namespace SYMPACK{
 
           infile.read(&rdStr[0], readBytes);
 
-          istringstream iss(rdStr);
+          std::istringstream iss(rdStr);
           Ptr j;
           Idx locPos = 0;
           while(iss>> j){
@@ -1392,7 +1393,7 @@ namespace SYMPACK{
           }
         }
 
-        infile.seekg(skipAfter,ios_base::cur);
+        infile.seekg(skipAfter,std::ios_base::cur);
         size_t curEnd = infile.tellg();
       }
 
@@ -1416,14 +1417,14 @@ namespace SYMPACK{
         size_t readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
         size_t skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
 
-        infile.seekg(skip,ios_base::cur);
+        infile.seekg(skip,std::ios_base::cur);
 
         {
           std::string rdStr;
           rdStr.resize(readBytes);
 
           infile.read(&rdStr[0], readBytes);
-          istringstream iss(rdStr);
+          std::istringstream iss(rdStr);
           Idx j;
           Ptr locPos = 0;
           while(iss>> j){
@@ -1431,7 +1432,7 @@ namespace SYMPACK{
           }
         }
 
-        infile.seekg(skipAfter,ios_base::cur);
+        infile.seekg(skipAfter,std::ios_base::cur);
         size_t curEnd = infile.tellg();
       }
 
@@ -1447,16 +1448,16 @@ namespace SYMPACK{
         size_t readBytes = (last_idx - first_idx)*nzvalWidth + (lineLastEdge - lineFirstEdge);
         size_t skipAfter = (nnz+1 - last_idx)*nzvalWidth + (nzvalCnt - lineLastEdge +1) ;
 
-        infile.seekg(skip,ios_base::cur);
+        infile.seekg(skip,std::ios_base::cur);
 
         {
           std::string rdStr;
           rdStr.resize(readBytes);
 
           infile.read(&rdStr[0], readBytes);
-          //      logfileptr->OFS()<<"nzval read string is"<<endl<<rdStr<<endl;
+          //      logfileptr->OFS()<<"nzval read std::string is"<<std::endl<<rdStr<<std::endl;
 
-          istringstream iss(rdStr);
+          std::istringstream iss(rdStr);
           INSCALAR j;
           Ptr locPos = 0;
           while(iss>> j){
@@ -1464,7 +1465,7 @@ namespace SYMPACK{
           }
         }
 
-        infile.seekg(skipAfter,ios_base::cur);
+        infile.seekg(skipAfter,std::ios_base::cur);
         size_t curEnd = infile.tellg();
       }
 
@@ -1501,7 +1502,7 @@ namespace SYMPACK{
       MPI_Comm_rank(workcomm,&mpirank);
       int mpisize;
       MPI_Comm_size(workcomm,&mpisize);
-      if(mpirank==0){ cout<<"Start reading the matrix"<<endl; }
+      if(mpirank==0){ std::cout<<"Start reading the matrix"<<std::endl; }
       SYMPACK_TIMER_START(READING_MATRIX);
       double tstart = get_time();
       //Read the input matrix
@@ -1513,8 +1514,8 @@ namespace SYMPACK{
       }
       double tstop = get_time();
       SYMPACK_TIMER_STOP(READING_MATRIX);
-      if(mpirank==0){ cout<<"Matrix read time: "<<tstop - tstart<<endl; }
-      if(mpirank==0){ cout<<"Matrix order is "<<HMat.size<<endl; }
+      if(mpirank==0){ std::cout<<"Matrix read time: "<<tstop - tstart<<std::endl; }
+      if(mpirank==0){ std::cout<<"Matrix order is "<<HMat.size<<std::endl; }
     }
 
 
@@ -1655,7 +1656,7 @@ namespace SYMPACK{
       T * pin = (Ptr*)in;
 #pragma unroll
       for (i=0; i< *len; ++i) { 
-        pinout[i] = max(pinout[i], pin[i]);
+        pinout[i] = std::max(pinout[i], pin[i]);
       } 
     }
 

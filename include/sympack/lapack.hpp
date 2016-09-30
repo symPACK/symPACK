@@ -48,7 +48,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include  "sympack/Environment.hpp"
 #include  "sympack/blas.hpp"
 
-namespace SYMPACK {
+namespace symPACK {
 
   /// @namespace lapack
   ///

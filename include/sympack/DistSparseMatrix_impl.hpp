@@ -13,7 +13,7 @@
 
 #include <vector>
 
-namespace SYMPACK{
+namespace symPACK{
 
 
   template <typename T, typename Compare> std::vector<std::size_t> & sort_permutation( const std::vector<T>& vec, Compare compare, std::vector<std::size_t>& p);
@@ -97,7 +97,7 @@ namespace SYMPACK{
     // Compute the number of columns on each processor
     Idx numColLocal, numColFirst;
     numColFirst = this->size / np;
-    SYMPACK::vector<Idx> numColLocalVec(np,numColFirst );
+    std::vector<Idx> numColLocalVec(np,numColFirst );
     numColLocalVec[np-1] = this->size - numColFirst * (np-1) ;  // Modify the last entry	
     numColLocal = numColLocalVec[iam];
 
@@ -192,7 +192,7 @@ namespace SYMPACK{
 
     //Compute local structure info
     // Compute the number of columns on each processor
-    SYMPACK::vector<Int> numColLocalVec(np);
+    std::vector<Int> numColLocalVec(np);
     Int numColLocal, numColFirst;
     numColFirst = this->size / np;
     std::fill(numColLocalVec.begin(),numColLocalVec.end(),numColFirst);
@@ -262,7 +262,7 @@ namespace SYMPACK{
         Idx row = Localg_.rowind[pos];
         logfileptr->OFS()<<row<<" ";
       }
-      logfileptr->OFS()<<endl;
+      logfileptr->OFS()<<std::endl;
     }
   }
 
@@ -284,7 +284,7 @@ namespace SYMPACK{
         logfileptr->OFS()<<row<<" ";
       }
     }
-    logfileptr->OFS()<<"],";//<<endl;
+    logfileptr->OFS()<<"],";//<<std::endl;
 
     //J
     logfileptr->OFS()<<"[";
@@ -297,7 +297,7 @@ namespace SYMPACK{
         logfileptr->OFS()<<col+1<<" ";
       }
     }
-    logfileptr->OFS()<<"],";//<<endl;
+    logfileptr->OFS()<<"],";//<<std::endl;
 
     //V
     logfileptr->OFS()<<"[";
@@ -312,7 +312,7 @@ namespace SYMPACK{
         logfileptr->OFS()<<std::scientific<<val<<" ";
       }
     }
-    logfileptr->OFS()<<"]);"<<endl;
+    logfileptr->OFS()<<"]);"<<std::endl;
 
   }
 
@@ -348,7 +348,7 @@ namespace SYMPACK{
         Idx newVtxCount = newVertexDist[mpirank+1] - newVertexDist[mpirank];
 
 
-        SYMPACK::vector<int> sizes(mpisize,0);
+        std::vector<int> sizes(mpisize,0);
 
         Idx firstCol = Localg_.LocalFirstVertex()-baseval;
         Idx LocalVertexCount = Localg_.LocalVertexCount();
@@ -377,11 +377,11 @@ namespace SYMPACK{
 
 
         //First allgatherv to get the receive sizes
-        SYMPACK::vector<int> displs(mpisize+1,0);
+        std::vector<int> displs(mpisize+1,0);
         displs[0] = 0;
         std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
         Int totSend = displs.back();
-        SYMPACK::vector<triplet<F> > sbuf(totSend);
+        std::vector<triplet<F> > sbuf(totSend);
 
         //pack
         for(Idx locCol = 0; locCol<LocalVertexCount; locCol++){
@@ -423,15 +423,15 @@ namespace SYMPACK{
         std::partial_sum(sizes.begin(),sizes.end(),&displs[1]);
 
 
-        SYMPACK::vector<int> rsizes(mpisize,0);
-        SYMPACK::vector<int> rdispls(mpisize+1,0);
+        std::vector<int> rsizes(mpisize,0);
+        std::vector<int> rdispls(mpisize+1,0);
         MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
 
         //now compute receiv displs with actual sizes 
         rdispls[0] = 0;
         std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
         Ptr totRecv = rdispls.back();
-        SYMPACK::vector<triplet<F> > rbuf(totRecv);
+        std::vector<triplet<F> > rbuf(totRecv);
         MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],type,&rbuf[0],&rsizes[0],&rdispls[0],type,comm);
 
 
@@ -444,7 +444,7 @@ namespace SYMPACK{
 
         MPI_Type_free(&type);
 
-        SYMPACK::vector<Ptr> newColptr(newVtxCount+1,0);
+        std::vector<Ptr> newColptr(newVtxCount+1,0);
         //compute column counts
         for(auto it = rbuf.begin(); it!=rbuf.end(); it++){
           //triplets are 0-based but everything is currently shifted by one
@@ -476,9 +476,9 @@ namespace SYMPACK{
           Localg_.vertexDist[i] = newVertexDist[i];
         }
 
-        //  logfileptr->OFS()<<"**********permuted unsorted******"<<endl;
+        //  logfileptr->OFS()<<"**********permuted unsorted******"<<std::endl;
         //  DumpMatlab();
-        //  logfileptr->OFS()<<"*********************************"<<endl;
+        //  logfileptr->OFS()<<"*********************************"<<std::endl;
 
         //store it as a distributed perm ?
         this->cinvp.resize(Localg_.LocalVertexCount());
@@ -614,8 +614,8 @@ namespace SYMPACK{
         std::vector<int> sdispls(mpisize+1,0);
         std::vector<int> rdispls(mpisize+1,0);
 
-        SYMPACK::vector<Ptr> curPos;
-        SYMPACK::vector<Ptr> prevPos;
+        std::vector<Ptr> curPos;
+        std::vector<Ptr> prevPos;
 
         //loop through my local columns and figure out the extra nonzero per col on prow
         SYMPACK_TIMER_START(DistMat_Expand_count);
@@ -684,7 +684,7 @@ namespace SYMPACK{
         //for(auto it = rsizes.begin();it!=rsizes.end();it++){  (*it)/=sizeof(triplet<F>);}
 
 
-        SYMPACK::vector<Ptr> newColptr(colptr.size(),0);
+        std::vector<Ptr> newColptr(colptr.size(),0);
         for(int col=colptr.size()-1;col>0;col--){
           //convert to count instead
           newColptr[col] = colptr[col] - colptr[col-1];//baseval-based

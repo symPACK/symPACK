@@ -47,7 +47,7 @@
 /// @date 2012-09-12
 #include  "sympack/Environment.hpp"
 
-namespace SYMPACK {
+namespace symPACK {
 
 /// @namespace blas
 ///

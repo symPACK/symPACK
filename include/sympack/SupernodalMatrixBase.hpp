@@ -4,13 +4,13 @@
 #include <list>
 #include <vector>
 
-namespace SYMPACK{
+namespace symPACK{
 
   struct SnodeUpdateFB;
 
   class SupernodalMatrixBase{
     protected:
-//      SYMPACK::vector<std::list<SnodeUpdateFB> > taskLists_;
+//      std::vector<std::list<SnodeUpdateFB> > taskLists_;
 //      std::list<SnodeUpdateFB*> readyTasks_;
       
       //MAPCLASS describing the Mapping of the computations

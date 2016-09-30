@@ -17,7 +17,7 @@
 
 #define USE_REDUCE
 
-namespace SYMPACK{
+namespace symPACK{
 
 
   SparseMatrixGraph::SparseMatrixGraph(){
@@ -41,7 +41,7 @@ namespace SYMPACK{
     if(aKeepDiag != keepDiag){
       if(aKeepDiag){
         //add the diagonal entry
-        SYMPACK::vector<Idx> newRowind(rowind.size()+VertexCount());
+        std::vector<Idx> newRowind(rowind.size()+VertexCount());
         Ptr pos = 0;
         for(Idx locCol = 0;locCol < VertexCount(); locCol++){
           Idx col = baseval + locCol; // baseval based
@@ -259,7 +259,7 @@ namespace SYMPACK{
     if(aKeepDiag != keepDiag){
       if(aKeepDiag){
         //add the diagonal entry
-        SYMPACK::vector<Idx> newRowind(rowind.size()+LocalVertexCount());
+        std::vector<Idx> newRowind(rowind.size()+LocalVertexCount());
         Ptr pos = 0;
         for(Idx locCol = 0;locCol < LocalVertexCount(); locCol++){
           Idx col = LocalFirstVertex() + locCol; // baseval based
@@ -388,7 +388,7 @@ namespace SYMPACK{
     for(Idx locCol = 0 ; locCol< LocalVertexCount(); locCol++){
       Ptr colbeg = colptr[locCol]-baseval; //now 0 based
       Ptr colend = colptr[locCol+1]-baseval; // now 0 based 
-if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
+if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       sort(&rowind[0]+colbeg,&rowind[0]+colend,std::less<Ptr>());
     }
   }
@@ -420,7 +420,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
     Ptr newVtxCount = newVertexDist[mpirank+1] - newVertexDist[mpirank];
 
 
-    SYMPACK::vector<int> sizes(mpisize,0);
+    std::vector<int> sizes(mpisize,0);
 
     for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
       Idx col = firstCol + locCol; //0-based
@@ -446,21 +446,21 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 
 
     //First allgatherv to get the receive sizes
-    SYMPACK::vector<int> displs(mpisize+1,0);
-    SYMPACK::vector<int> rsizes(mpisize,0);
-    SYMPACK::vector<int> rdispls(mpisize+1,0);
+    std::vector<int> displs(mpisize+1,0);
+    std::vector<int> rsizes(mpisize,0);
+    std::vector<int> rdispls(mpisize+1,0);
 
     MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
-    //logfileptr->OFS()<<rsizes<<endl;
+    //logfileptr->OFS()<<rsizes<<std::endl;
     //    MPI_Alltoallv(&sizes[0],&displs[0],&rdispls[0],MPI_BYTE,&rsizes[0],&displs[0],&rdispls[0],MPI_BYTE,comm);
-    //logfileptr->OFS()<<rsizes<<endl;
+    //logfileptr->OFS()<<rsizes<<std::endl;
 
 
 
     displs[0] = 0;
     std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
     Int totSend = displs.back();//std::accumulate(sizes.begin(),sizes.end(),0);
-    SYMPACK::vector<char> sbuf(totSend);
+    std::vector<char> sbuf(totSend);
 
     //pack
     for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
@@ -493,7 +493,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
       //      for(Ptr jptr = 0; jptr<*pRowsCnt; jptr++){
       //        logfileptr->OFS()<<pPermRows[jptr]<<" ";
       //      }
-      //      logfileptr->OFS()<<endl;
+      //      logfileptr->OFS()<<std::endl;
 
 
     }
@@ -507,7 +507,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
     rdispls[0] = 0;
     std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
     Ptr totRecv = rdispls.back();//std::accumulate(rsizes.begin(),rsizes.end(),0);
-    SYMPACK::vector<char> rbuf(totRecv);
+    std::vector<char> rbuf(totRecv);
 
     MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],MPI_BYTE,&rbuf[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
 
@@ -538,7 +538,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
     //now fill rowind
     Ptr nnzLoc = colptr.back()-baseval;
     rowind.resize(nnzLoc);
-    SYMPACK::vector<Ptr> colpos = colptr;
+    std::vector<Ptr> colpos = colptr;
     rpos = 0;
     while(rpos<totRecv){
       Idx * permCol = (Idx*)&rbuf[rpos];
@@ -554,7 +554,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
       //for(Ptr jptr = 0; jptr<*rowsCnt; jptr++){
       //  logfileptr->OFS()<<permRows[jptr]<<" ";
       //}
-      //logfileptr->OFS()<<endl;
+      //logfileptr->OFS()<<std::endl;
 
       std::copy(permRows,permRows + *rowsCnt, &rowind[colpos[locCol]-baseval]);
       //colpos[locCol] += *rowsCnt;
@@ -604,26 +604,26 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
     Idx curFirstColumn = firstCol; //0-based
 
 
-    //    logfileptr->OFS()<<"["<<curFirstColumn<<" - "<<curLastColumn<<"] to ["<<supFirstColumn<<" - "<<supLastColumn<<"]"<<endl;
+    //    logfileptr->OFS()<<"["<<curFirstColumn<<" - "<<curLastColumn<<"] to ["<<supFirstColumn<<" - "<<supLastColumn<<"]"<<std::endl;
 
 
-    Int numColSentBefore = supFirstColumn>curFirstColumn?min(curLastColumn,supFirstColumn) - curFirstColumn +(curLastColumn<supFirstColumn?1:0):0;
-    Ptr numRowSentBefore = numColSentBefore>0?colptr[min(curLastColumn,supFirstColumn)-firstCol]-colptr[curFirstColumn-firstCol]:0;
-    Int numColSentAfter = curLastColumn>supLastColumn?curLastColumn-max(curFirstColumn,supLastColumn)+(curFirstColumn>supLastColumn?1:0):0;
+    Int numColSentBefore = supFirstColumn>curFirstColumn?std::min(curLastColumn,supFirstColumn) - curFirstColumn +(curLastColumn<supFirstColumn?1:0):0;
+    Ptr numRowSentBefore = numColSentBefore>0?colptr[std::min(curLastColumn,supFirstColumn)-firstCol]-colptr[curFirstColumn-firstCol]:0;
+    Int numColSentAfter = curLastColumn>supLastColumn?curLastColumn-std::max(curFirstColumn,supLastColumn)+(curFirstColumn>supLastColumn?1:0):0;
 
-    Idx startColAfter = max(curFirstColumn,supLastColumn)+(curFirstColumn>supLastColumn?0:1);
+    Idx startColAfter = std::max(curFirstColumn,supLastColumn)+(curFirstColumn>supLastColumn?0:1);
     Ptr numRowSentAfter = numColSentAfter>0?colptr[curLastColumn+1-firstCol]-colptr[startColAfter-firstCol]:0;
 
 
-    //logfileptr->OFS()<<"numColSentBefore: "<<numColSentBefore<<endl;
-    //logfileptr->OFS()<<" numColSentAfter: "<<numColSentAfter <<endl;
-    //logfileptr->OFS()<<"numRowSentBefore: "<<numRowSentBefore<<endl;
-    //logfileptr->OFS()<<" numRowSentAfter: "<<numRowSentAfter <<endl;
+    //logfileptr->OFS()<<"numColSentBefore: "<<numColSentBefore<<std::endl;
+    //logfileptr->OFS()<<" numColSentAfter: "<<numColSentAfter <<std::endl;
+    //logfileptr->OFS()<<"numRowSentBefore: "<<numRowSentBefore<<std::endl;
+    //logfileptr->OFS()<<" numRowSentAfter: "<<numRowSentAfter <<std::endl;
 
 
 
-    //    logfileptr->OFS()<<"colptr was: "<<colptr<<endl;
-    //    logfileptr->OFS()<<"rowind was: "<<rowind<<endl;
+    //    logfileptr->OFS()<<"colptr was: "<<colptr<<std::endl;
+    //    logfileptr->OFS()<<"rowind was: "<<rowind<<std::endl;
 
 
     //first transfer column pointers
@@ -664,7 +664,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
         totSentR+=nrows*sizeof(Idx);
         ssizesR[pdest]+=nrows*sizeof(Idx);
       }
-      //logfileptr->OFS()<<"}"<<endl;
+      //logfileptr->OFS()<<"}"<<std::endl;
 
       for(int p =0; p<mpisize;p++){
         if(ssizes[p]>0){
@@ -705,7 +705,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
         totSentR+=nrows*sizeof(Idx);
         ssizesR[pdest]+=nrows*sizeof(Idx);
       }
-      //logfileptr->OFS()<<"}"<<endl;
+      //logfileptr->OFS()<<"}"<<std::endl;
       for(int p =0; p<mpisize;p++){
         if(ssizesAfter[p]>0){
           //add an extra colptr entry to send
@@ -721,8 +721,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 
     }
 
-    //    logfileptr->OFS()<<"ssizes: "<<ssizes<<endl;
-    //    logfileptr->OFS()<<"sdispls orig : "<<sdispls<<endl;
+    //    logfileptr->OFS()<<"ssizes: "<<ssizes<<std::endl;
+    //    logfileptr->OFS()<<"sdispls orig : "<<sdispls<<std::endl;
 
 
     vector<int> rsizes(mpisize,0);
@@ -737,11 +737,11 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
     rdisplsR[0] = 0;
     std::partial_sum(rsizesR.begin(),rsizesR.end(),&rdisplsR[1]);
 
-    //    logfileptr->OFS()<<"rsizes: "<<rsizes<<endl;
-    //    logfileptr->OFS()<<"rdispls orig : "<<rdispls<<endl;
+    //    logfileptr->OFS()<<"rsizes: "<<rsizes<<std::endl;
+    //    logfileptr->OFS()<<"rdispls orig : "<<rdispls<<std::endl;
 
 
-    SYMPACK::vector<char> recvBuf(rdispls.back()); 
+    std::vector<char> recvBuf(rdispls.back()); 
     MPI_Alltoallv(&colptr[0], &ssizes[0], &sdispls[0], MPI_BYTE,
         &recvBuf[0], &rsizes[0], &rdispls[0], MPI_BYTE,
         comm);
@@ -777,7 +777,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
     Ptr * ptrBuf = (Ptr*)&recvBuf[0];
 
 
-    //        logfileptr->OFS()<<"Recv colptr: "<<endl;
+    //        logfileptr->OFS()<<"Recv colptr: "<<std::endl;
     //    for(int p=0;p<mpisize;p++){
     //      if(rsizes[p]>0){
     //        int numCols = (int)(rsizes[p]/sizeof(Ptr))-1;
@@ -785,7 +785,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
     //        for(int col = 0;col<=numCols;col++){
     //          logfileptr->OFS()<<ptrBuf[col]<<" ";
     //        }
-    //        logfileptr->OFS()<<endl;
+    //        logfileptr->OFS()<<std::endl;
     //      }
     //    }
 
@@ -867,7 +867,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
     if(colptr.size()>0){
       colptr.back()=rowind.size()+baseval;
     }
-    //logfileptr->OFS()<<"colptr now is: "<<colptr<<endl;
+    //logfileptr->OFS()<<"colptr now is: "<<colptr<<std::endl;
 
     if(recvCntBefore>0){
       std::copy_backward(rowind.begin(),rowind.begin()+rowindSize,rowind.begin()+recvCntBefore+rowindSize);
@@ -883,7 +883,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 
 
 
-    //logfileptr->OFS()<<"Recv rowind: "<<endl;
+    //logfileptr->OFS()<<"Recv rowind: "<<std::endl;
     //for(int p=0;p<mpisize;p++){
     //  if(rsizesR[p]>0){
     //    int numRows = (int)(rsizesR[p]/sizeof(Idx));
@@ -891,7 +891,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
     //    for(int row = 0;row<=numRows;row++){
     //      logfileptr->OFS()<<idxBuf[row]<<" ";
     //    }
-    //    logfileptr->OFS()<<endl;
+    //    logfileptr->OFS()<<std::endl;
     //  }
     //}
 
@@ -919,21 +919,21 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
       }
     }
     bassert(rowindPos == rowindSize+recvCnt);
-    //logfileptr->OFS()<<"rowind now is: "<<rowind<<endl;
+    //logfileptr->OFS()<<"rowind now is: "<<rowind<<std::endl;
 
-    //logfileptr->OFS()<<"Vertex distribution was: "<<vertexDist<<endl;
+    //logfileptr->OFS()<<"Vertex distribution was: "<<vertexDist<<std::endl;
     supLastColumn = supLastColumn + baseval +1;
     MPI_Allgather(&supLastColumn,sizeof(supLastColumn),MPI_BYTE,&vertexDist[1],sizeof(supLastColumn),MPI_BYTE,comm);
-    //logfileptr->OFS()<<"and is now: "<<vertexDist<<endl;
+    //logfileptr->OFS()<<"and is now: "<<vertexDist<<std::endl;
 
 
     //SparseMatrixGraph sgr;
     //AllGatherStructure(sgr);
 
-    //logfileptr->OFS()<<sg.colptr<<endl;
-    //logfileptr->OFS()<<sgr.colptr<<endl;
-    //logfileptr->OFS()<<sg.rowind<<endl;
-    //logfileptr->OFS()<<sgr.rowind<<endl;
+    //logfileptr->OFS()<<sg.colptr<<std::endl;
+    //logfileptr->OFS()<<sgr.colptr<<std::endl;
+    //logfileptr->OFS()<<sg.rowind<<std::endl;
+    //logfileptr->OFS()<<sgr.rowind<<std::endl;
 
   }
 
@@ -973,8 +973,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
         std::vector<int> sdispls(mpisize+1,0);
         std::vector<int> rdispls(mpisize+1,0);
 
-        SYMPACK::vector<Ptr> curPos;
-        SYMPACK::vector<Ptr> prevPos;
+        std::vector<Ptr> curPos;
+        std::vector<Ptr> prevPos;
 
         //loop through my local columns and figure out the extra nonzero per col on prow
         SYMPACK_TIMER_START(DistMat_Expand_count);
@@ -1042,7 +1042,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
         //for(auto it = rsizes.begin();it!=rsizes.end();it++){  (*it)/=sizeof(triplet<F>);}
 
 
-        SYMPACK::vector<Ptr> newColptr(colptr.size(),0);
+        std::vector<Ptr> newColptr(colptr.size(),0);
         for(int col=colptr.size()-1;col>0;col--){
           //convert to count instead
           newColptr[col] = colptr[col] - colptr[col-1];//baseval-based
@@ -1121,8 +1121,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 /////
 /////      Idx locColCnt = LocalVertexCount();
 /////      //make copies first
-/////      SYMPACK::vector<Ptr> prevColptr;
-/////      SYMPACK::vector<Idx> prevRowind;
+/////      std::vector<Ptr> prevColptr;
+/////      std::vector<Idx> prevRowind;
 /////      prevColptr.swap(colptr);
 /////      prevRowind.swap(rowind);
 /////
@@ -1136,11 +1136,11 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 /////      Idx maxLocN = 0;
 /////      for(int p = 0; p<mpisize;p++){maxLocN = max(maxLocN, vertexDist[p+1]-vertexDist[p]);}
 /////      //               max(locColCnt,N-(mpisize-1)*colPerProc); // can be 0
-/////      SYMPACK::vector<Ptr> remote_colptr(maxLocN+1);
-/////      SYMPACK::vector<Idx> remote_rowind;
-/////      SYMPACK::vector<Ptr> remote_rowindPos(maxLocN+1);
-/////      SYMPACK::vector<Ptr> curPos(locColCnt);
-/////      SYMPACK::vector<Ptr> prevPos(locColCnt);
+/////      std::vector<Ptr> remote_colptr(maxLocN+1);
+/////      std::vector<Idx> remote_rowind;
+/////      std::vector<Ptr> remote_rowindPos(maxLocN+1);
+/////      std::vector<Ptr> curPos(locColCnt);
+/////      std::vector<Ptr> prevPos(locColCnt);
 /////
 /////      std::copy(pcolptr,pcolptr+locColCnt,curPos.begin());
 /////      for(Int prow = 0; prow<mpisize; prow++){
@@ -1253,18 +1253,18 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 /////          for(Idx col = 0;col<=remColCnt;col++){
 /////            logfileptr->OFS()<<remote_colptr[col]<<" ";
 /////          }
-/////          logfileptr->OFS()<<endl;
+/////          logfileptr->OFS()<<std::endl;
 /////
 /////          logfileptr->OFS()<<"remote_rowind ";
 /////          for(Ptr col = 0;col<extraNNZ;col++){
 /////            logfileptr->OFS()<<remote_rowind[col]<<" ";
 /////          }
-/////          logfileptr->OFS()<<endl;
+/////          logfileptr->OFS()<<std::endl;
 /////#endif
 /////
 /////          if(prow==mpirank){
 /////#ifdef DEBUG
-/////            logfileptr->OFS()<<"expColptr "<<colptr<<endl;
+/////            logfileptr->OFS()<<"expColptr "<<colptr<<std::endl;
 /////#endif
 /////            if(colptr.size()>0){
 /////              rowind.resize(colptr.back()-baseval);
@@ -1298,17 +1298,17 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 /////              //Use an MPI_Gatherv instead ? >> memory usage : p * n/p
 /////              //Do mpi_recv from any, anytag for pcolptr and then do the matching rowind ?
 /////
-/////              //logfileptr->OFS()<<"P"<<mpirank<<" receives pcolptr from P"<<pcol<<endl;
+/////              //logfileptr->OFS()<<"P"<<mpirank<<" receives pcolptr from P"<<pcol<<std::endl;
 /////              //receive colptrs...
 /////              MPI_Status status;
 /////              MPI_Recv(&remote_colptr[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,MPI_ANY_SOURCE,prow,comm,&status);
 /////
-/////              //logfileptr->OFS()<<"P"<<mpirank<<" receives rowind from P"<<pcol<<endl;
+/////              //logfileptr->OFS()<<"P"<<mpirank<<" receives rowind from P"<<pcol<<std::endl;
 /////              //receive rowinds...
 /////              MPI_Recv(&remote_rowind[0],maxExtraNNZ*sizeof(Idx),MPI_BYTE,status.MPI_SOURCE,prow,comm,MPI_STATUS_IGNORE);
 /////
 /////              SYMPACK_TIMER_START(PROCESSING_RECV_DATA);
-/////              //logfileptr->OFS()<<"P"<<mpirank<<" done receiving from P"<<pcol<<endl;
+/////              //logfileptr->OFS()<<"P"<<mpirank<<" done receiving from P"<<pcol<<std::endl;
 /////              for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
 /////                Idx col = firstLocCol + locCol;  // 0 based
 /////                //copy the extra NNZ into the expanded structure
@@ -1329,8 +1329,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 /////            }
 /////
 /////#ifdef DEBUG
-/////            logfileptr->OFS()<<"expRowind "<<rowind<<endl;
-/////            //logfileptr->OFS()<<"true expRowind "<<Global.expRowind<<endl;
+/////            logfileptr->OFS()<<"expRowind "<<rowind<<std::endl;
+/////            //logfileptr->OFS()<<"true expRowind "<<Global.expRowind<<std::endl;
 /////#endif
 /////
 /////          }
@@ -1382,21 +1382,21 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 
     //get other proc vertex counts
     Idx localVertexCnt = LocalVertexCount();
-    SYMPACK::vector<Idx> remoteVertexCnt(mpisize,0);
+    std::vector<Idx> remoteVertexCnt(mpisize,0);
     MPI_Allgather(&localVertexCnt,sizeof(localVertexCnt),MPI_BYTE,&remoteVertexCnt[0],sizeof(localVertexCnt),MPI_BYTE,comm);
     Idx totalVertexCnt = std::accumulate(remoteVertexCnt.begin(),remoteVertexCnt.end(),0,std::plus<Idx>());
     g.colptr.resize(totalVertexCnt+1);
     //compute receive displacements
-    SYMPACK::vector<int> rsizes(mpisize,0);
+    std::vector<int> rsizes(mpisize,0);
     for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
-    SYMPACK::vector<int> rdispls(mpisize+1,0);
+    std::vector<int> rdispls(mpisize+1,0);
     rdispls[0]=0;
     std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
     MPI_Allgatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&g.colptr[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
 
 
     Ptr localEdgeCnt = LocalEdgeCount();
-    SYMPACK::vector<Ptr> remoteEdgeCnt(mpisize,0);
+    std::vector<Ptr> remoteEdgeCnt(mpisize,0);
     MPI_Allgather(&localEdgeCnt,sizeof(localEdgeCnt),MPI_BYTE,&remoteEdgeCnt[0],sizeof(localEdgeCnt),MPI_BYTE,comm);
     Ptr totalEdgeCnt = std::accumulate(remoteEdgeCnt.begin(),remoteEdgeCnt.end(),0,std::plus<Ptr>());
 
@@ -1454,7 +1454,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 
     //get other proc vertex counts
     Idx localVertexCnt = LocalVertexCount();
-    SYMPACK::vector<Idx> remoteVertexCnt(mpisize,0);
+    std::vector<Idx> remoteVertexCnt(mpisize,0);
     MPI_Allgather(&localVertexCnt,sizeof(localVertexCnt),MPI_BYTE,&remoteVertexCnt[0],sizeof(localVertexCnt),MPI_BYTE,comm);
     if(iam==proot){
       Idx totalVertexCnt = std::accumulate(remoteVertexCnt.begin(),remoteVertexCnt.end(),0,std::plus<Idx>());
@@ -1462,9 +1462,9 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 
 
       //compute receive displacements
-      SYMPACK::vector<int> rsizes(mpisize,0);
+      std::vector<int> rsizes(mpisize,0);
       for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
-      SYMPACK::vector<int> rdispls(mpisize+1,0);
+      std::vector<int> rdispls(mpisize+1,0);
       rdispls[0]=0;
       std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
       MPI_Gatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&g.colptr[0],&rsizes[0],&rdispls[0],MPI_BYTE,proot,comm);
@@ -1475,7 +1475,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
 
 
     Ptr localEdgeCnt = LocalEdgeCount();
-    SYMPACK::vector<Ptr> remoteEdgeCnt(mpisize,0);
+    std::vector<Ptr> remoteEdgeCnt(mpisize,0);
     MPI_Gather(&localEdgeCnt,sizeof(localEdgeCnt),MPI_BYTE,&remoteEdgeCnt[0],sizeof(localEdgeCnt),MPI_BYTE,proot,comm);
     Ptr totalEdgeCnt = std::accumulate(remoteEdgeCnt.begin(),remoteEdgeCnt.end(),0,std::plus<Ptr>());
 
@@ -1483,8 +1483,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<endl; gdb_lock();}
     if(iam==proot){
     g.rowind.resize(totalEdgeCnt);
     //compute receive displacements
-      SYMPACK::vector<int> rsizes(mpisize,0);
-      SYMPACK::vector<int> rdispls(mpisize+1,0);
+      std::vector<int> rsizes(mpisize,0);
+      std::vector<int> rdispls(mpisize+1,0);
     for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p]*sizeof(Idx);}
     rdispls[0]=0;
     std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);

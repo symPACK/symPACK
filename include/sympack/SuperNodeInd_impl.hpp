@@ -22,7 +22,7 @@
 /*                                      */
 /****************************************/
 
-namespace SYMPACK{
+namespace symPACK{
 
 //  namespace lapack{
 //  template<typename T> void Potrf_LDL( const  char * UPLO,  Idx & N, T * A,  Idx & LDA, Int & NDEF, Int * IDEF,  T & TOL, T * WORK, Int & INFO);
@@ -36,7 +36,7 @@ SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int ai_num
   //compute supernode size / width
   Int size = aiLc - aiFc +1;
   //compute maximum number of blocks, number of off-diagonal rows + 1
-  Int num_blocks = max(1,ai_num_rows-size + 1);
+  Int num_blocks = std::max(1,ai_num_rows-size + 1);
   if(aiNZBlkCnt!=-1){
     num_blocks=aiNZBlkCnt;
   }
@@ -73,7 +73,7 @@ gdb_lock();
   this->meta_->b_own_storage_ = true;
 
 #ifndef ITREE
-  globalToLocal_ = new SYMPACK::vector<Int>(aiN+1,-1);
+  globalToLocal_ = new std::vector<Int>(aiN+1,-1);
 #else
   this->idxToBlk_ = this->CreateITree();
 #endif
@@ -135,7 +135,7 @@ SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int aiN, s
 
 
 #ifndef ITREE
-  this->globalToLocal_ = new SYMPACK::vector<Int>(aiN+1,-1);
+  this->globalToLocal_ = new std::vector<Int>(aiN+1,-1);
 #else
   this->idxToBlk_ = this->CreateITree();
 #endif
@@ -233,7 +233,7 @@ void SuperNodeInd<T,Allocator>::Init(char * storage_ptr,size_t storage_size, Int
 
 
 #ifndef ITREE
-  globalToLocal_ = new SYMPACK::vector<Int>(this->meta_->iN_+1,-1);
+  globalToLocal_ = new std::vector<Int>(this->meta_->iN_+1,-1);
 #else
   this->idxToBlk_ = this->CreateITree();
 #endif
@@ -266,8 +266,8 @@ inline void SuperNodeInd<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int 
     if(block_space==0 || nzval_space<cur_nzval_cnt){
       //need to resize storage space. this is expensive !
       Int size = this->Size();
-      Int extra_nzvals = max(0,cur_nzval_cnt - nzval_space);
-      Int extra_blocks = max(0,1 - block_space);
+      Int extra_nzvals = std::max(0,cur_nzval_cnt - nzval_space);
+      Int extra_blocks = std::max(0,1 - block_space);
       size_t new_size = this->storage_size_ + extra_nzvals*sizeof(T) + extra_blocks*sizeof(NZBlockDesc);
       size_t offset_diag = (char*)this->diag_ - (char*)this->nzval_;
       size_t offset_meta = (char*)this->meta_ - (char*)this->nzval_;
@@ -441,10 +441,10 @@ template<typename T, class Allocator>
         os<<buf[row*snodeSize+col];
         if(col<snodeSize-1) os<<", ";
       }
-      os<<"; "<<endl;
-      if(row==snodeSize-1) os<<"**********************"<<endl;
+      os<<"; "<<std::endl;
+      if(row==snodeSize-1) os<<"**********************"<<std::endl;
     }
-    os<<endl;
+    os<<std::endl;
     };
 
       Ptr nzvalcnt = this->NNZ();
@@ -464,8 +464,8 @@ template<typename T, class Allocator>
 
 
     Int INFO = 0;
-//    SYMPACK::vector<T> work(snodeSize*snodeSize);
-    //SYMPACK::vector<T> work(snodeSize);
+//    std::vector<T> work(snodeSize*snodeSize);
+    //std::vector<T> work(snodeSize);
 
 
 
@@ -487,10 +487,10 @@ template<typename T, class Allocator>
     }
 
 #ifdef DEBUG_LDL
-    logfileptr->OFS()<<"======================================"<<endl;
+    logfileptr->OFS()<<"======================================"<<std::endl;
     dump(snodeSize,totalNRows,&tmp[0],logfileptr->OFS());
     dump(snodeSize,totalNRows,&diag_nzval[0],logfileptr->OFS());
-    logfileptr->OFS()<<"+++++++++++++++++++++++++++++++++++"<<endl;
+    logfileptr->OFS()<<"+++++++++++++++++++++++++++++++++++"<<std::endl;
 #endif
 
 #endif
@@ -594,14 +594,14 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
         NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
         Int cur_src_nrows = src_snode->NRows(blkidx);
         Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
-        Int cur_src_fr = max(tgt_fc, cur_block_desc.GIndex);
+        Int cur_src_fr = std::max(tgt_fc, cur_block_desc.GIndex);
 
         Int row = cur_src_fr;
         while(row<=cur_src_lr){
           Int tgt_blk_idx = this->FindBlockIdx(row);
           assert(tgt_blk_idx>=0);
           NZBlockDesc & cur_tgt_desc = this->GetNZBlockDesc(tgt_blk_idx);
-          Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + this->NRows(tgt_blk_idx)-1);
+          Int lr = std::min(cur_src_lr,cur_tgt_desc.GIndex + this->NRows(tgt_blk_idx)-1);
           Int tgtOffset = cur_tgt_desc.Offset 
             + (row - cur_tgt_desc.GIndex)*tgt_snode_size;
           for(Int cr = row ;cr<=lr;++cr){
@@ -624,7 +624,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
         NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
         Int cur_src_nrows = src_snode->NRows(blkidx);
         Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
-        Int cur_src_fr = max(tgt_fc, cur_block_desc.GIndex);
+        Int cur_src_fr = std::max(tgt_fc, cur_block_desc.GIndex);
         cur_src_nrows = cur_src_lr - cur_src_fr +1;
 
         Int row = cur_src_fr;
@@ -632,7 +632,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
           Int tgt_blk_idx = this->FindBlockIdx(row);
           assert(tgt_blk_idx>=0);
           NZBlockDesc & cur_tgt_desc = this->GetNZBlockDesc(tgt_blk_idx);
-          Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + this->NRows(tgt_blk_idx)-1);
+          Int lr = std::min(cur_src_lr,cur_tgt_desc.GIndex + this->NRows(tgt_blk_idx)-1);
           Int tgtOffset = cur_tgt_desc.Offset 
             + (row - cur_tgt_desc.GIndex)*tgt_snode_size;
           for(Int cr = row ;cr<=lr;++cr){
@@ -784,18 +784,18 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
         NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
         Int cur_src_nrows = src_snode->NRows(blkidx);
         Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
-        Int cur_src_fr = max(tgt_fc, cur_block_desc.GIndex);
+        Int cur_src_fr = std::max(tgt_fc, cur_block_desc.GIndex);
 
         Int row = cur_src_fr;
         while(row<=cur_src_lr){
           Int tgt_blk_idx = this->FindBlockIdx(row);
           if(tgt_blk_idx<0){src_snode->DumpITree(); this->DumpITree(); 
 
-            logfileptr->OFS()<<"LOCK 3: tgt_blk_idx<0"<<endl;
+            logfileptr->OFS()<<"LOCK 3: tgt_blk_idx<0"<<std::endl;
             gdb_lock();}
             assert(tgt_blk_idx>=0);
             NZBlockDesc & cur_tgt_desc = this->GetNZBlockDesc(tgt_blk_idx);
-            Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + this->NRows(tgt_blk_idx)-1);
+            Int lr = std::min(cur_src_lr,cur_tgt_desc.GIndex + this->NRows(tgt_blk_idx)-1);
             Int tgtOffset = cur_tgt_desc.Offset 
               + (row - cur_tgt_desc.GIndex)*tgt_snode_size;
             for(Int cr = row ;cr<=lr;++cr){
@@ -818,7 +818,7 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
         NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
         Int cur_src_nrows = src_snode->NRows(blkidx);
         Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
-        Int cur_src_fr = max(tgt_fc, cur_block_desc.GIndex);
+        Int cur_src_fr = std::max(tgt_fc, cur_block_desc.GIndex);
         cur_src_nrows = cur_src_lr - cur_src_fr +1;
 
         //The other one MUST reside into a single block in the target
@@ -826,11 +826,11 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
         while(row<=cur_src_lr){
           Int tgt_blk_idx = this->FindBlockIdx(row);
           if(tgt_blk_idx<0){
-            logfileptr->OFS()<<"LOCK 4: tgt_blk_idx<0"<<endl;
+            logfileptr->OFS()<<"LOCK 4: tgt_blk_idx<0"<<std::endl;
             gdb_lock();}
             assert(tgt_blk_idx>=0);
             NZBlockDesc & cur_tgt_desc = this->GetNZBlockDesc(tgt_blk_idx);
-            Int lr = min(cur_src_lr,cur_tgt_desc.GIndex + this->NRows(tgt_blk_idx)-1);
+            Int lr = std::min(cur_src_lr,cur_tgt_desc.GIndex + this->NRows(tgt_blk_idx)-1);
             Int tgtOffset = cur_tgt_desc.Offset 
               + (row - cur_tgt_desc.GIndex)*tgt_snode_size;
             for(Int cr = row ;cr<=lr;++cr){
@@ -923,7 +923,7 @@ template <typename T, class Allocator>
 
 
 template <typename T, class Allocator> 
-inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, SYMPACK::vector<Int> & perm){
+inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, std::vector<Int> & perm){
   SuperNodeInd<T> * cur_snodeInd = static_cast<SuperNodeInd<T>*>(cur_snode);
   SuperNodeInd<T,Allocator> * contrib = this;
   Int n = perm.size();

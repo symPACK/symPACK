@@ -73,7 +73,7 @@
 
 
 
-namespace SYMPACK {
+namespace symPACK {
 
   extern "C" {
     void FORTRAN(ordmmd)( MMDInt * neqns , MMDInt * nadj  , MMDInt * xadj  ,
@@ -100,7 +100,7 @@ namespace SYMPACK {
 
 }
 
-namespace SYMPACK{
+namespace symPACK{
 
   void Ordering::MMD(const SparseMatrixGraph & g,MPI_Comm comm){
     int iam =0;
@@ -108,8 +108,8 @@ namespace SYMPACK{
     MPI_Comm_rank(comm,&iam);
     MPI_Comm_size(comm,&np);
 
-    logfileptr->OFS()<<"MMD used"<<endl;
-    if(iam==0){cout<<"MMD used"<<endl;}
+    logfileptr->OFS()<<"MMD used"<<std::endl;
+    if(iam==0){std::cout<<"MMD used"<<std::endl;}
 
     if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
       throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call MMD\n" );
@@ -127,7 +127,7 @@ namespace SYMPACK{
     if(iam==0){
       invp.resize(N);
       MMDInt iwsiz = 4*N;
-      SYMPACK::vector<MMDInt> iwork (iwsiz);
+      std::vector<MMDInt> iwork (iwsiz);
 
       MMDInt * MMDInvp;      
       if(!isSameInt){
@@ -230,11 +230,11 @@ namespace SYMPACK{
     invp.resize(size);
     if(iam==0){
       Int k = std::ceil(std::pow(size,1.0/3.0));
-      logfileptr->OFS()<<"BOX K = "<<k<<endl;
+      logfileptr->OFS()<<"BOX K = "<<k<<std::endl;
       Int iflag =1;
 
       {
-        SYMPACK::vector<Int> stack(k*k>25?invp.size():2*invp.size());
+        std::vector<Int> stack(k*k>25?invp.size():2*invp.size());
         Int tmp = stack.size();
         FORTRAN(boxnd)( &k , &k, &k, &invp[0], &stack[0],&tmp, &iflag);
       }
@@ -260,10 +260,10 @@ namespace SYMPACK{
       Int k = std::ceil(std::pow(size,1.0/2.0));
       Int iflag =1;
 
-      logfileptr->OFS()<<"GRID K = "<<k<<endl;
+      logfileptr->OFS()<<"GRID K = "<<k<<std::endl;
 
       {
-        SYMPACK::vector<Int> stack(k*k>25?invp.size():2*invp.size());
+        std::vector<Int> stack(k*k>25?invp.size():2*invp.size());
         Int tmp = stack.size();
         FORTRAN(gridnd)( &k , &k, &invp[0], &stack[0],&tmp, &iflag);
         assert(iflag==0);
@@ -288,8 +288,8 @@ namespace SYMPACK{
     MPI_Comm_rank(comm,&iam);
     MPI_Comm_size(comm,&np);
 
-    logfileptr->OFS()<<"AMD used"<<endl;
-    if(iam==0){cout<<"AMD used"<<endl;}
+    logfileptr->OFS()<<"AMD used"<<std::endl;
+    if(iam==0){std::cout<<"AMD used"<<std::endl;}
 
     if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
       throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call AMD\n" );
@@ -342,12 +342,12 @@ namespace SYMPACK{
       AMDInt nofsub =0;
       AMDInt iflag =0;
       AMDInt iwsiz = 4*N;
-      SYMPACK::vector<AMDInt> iwork (iwsiz);
-      SYMPACK::vector<AMDInt> VTXDEG(N);
-      SYMPACK::vector<AMDInt> QSIZE(N);
-      SYMPACK::vector<AMDInt> ECFORW(N);
-      SYMPACK::vector<AMDInt> MARKER(N);
-      SYMPACK::vector<AMDInt> NVTXS(N+1);
+      std::vector<AMDInt> iwork (iwsiz);
+      std::vector<AMDInt> VTXDEG(N);
+      std::vector<AMDInt> QSIZE(N);
+      std::vector<AMDInt> ECFORW(N);
+      std::vector<AMDInt> MARKER(N);
+      std::vector<AMDInt> NVTXS(N+1);
       for(AMDInt i=0;i<N;++i){
         NVTXS[i] = pcolptr[i+1]-pcolptr[i];
       }
@@ -401,8 +401,8 @@ namespace SYMPACK{
     MPI_Comm_rank(comm,&iam);
     MPI_Comm_size(comm,&np);
 
-    logfileptr->OFS()<<"METIS used"<<endl;
-    if(iam==0){cout<<"METIS used"<<endl;}
+    logfileptr->OFS()<<"METIS used"<<std::endl;
+    if(iam==0){std::cout<<"METIS used"<<std::endl;}
 
     if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
       throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call METIS\n" );
@@ -520,8 +520,8 @@ namespace SYMPACK{
     MPI_Comm_rank(g.comm,&iam);
     MPI_Comm_size(g.comm,&np);
 
-    logfileptr->OFS()<<"PARMETIS used"<<endl;
-    if(iam==0){cout<<"PARMETIS used"<<endl;}
+    logfileptr->OFS()<<"PARMETIS used"<<std::endl;
+    if(iam==0){std::cout<<"PARMETIS used"<<std::endl;}
 
     if(!g.IsExpanded() || g.keepDiag==1){
       throw std::logic_error( "DistSparseMatrixGraph must be expanded and not including the diagonal in order to call PARMETIS\n" );
@@ -542,18 +542,18 @@ namespace SYMPACK{
     MPI_Comm_split(g.comm,iam<ndomains,iam,&ndcomm);
 
     MPI_Comm_rank(ndcomm,&mpirank);
-    SYMPACK::vector<idx_t> vtxdist;
+    std::vector<idx_t> vtxdist;
     idx_t localN;
     if(iam<ndomains){
       assert(mpirank==iam);
 
-      SYMPACK::vector<idx_t> sizes(2*ndomains);
+      std::vector<idx_t> sizes(2*ndomains);
       vtxdist.resize(g.vertexDist.size());
       for(int i = 0 ; i < g.vertexDist.size(); i++){
         vtxdist[i] = (idx_t)g.vertexDist[i];
       }
 
-      //      logfileptr->OFS()<<vtxdist<<endl;
+      //      logfileptr->OFS()<<vtxdist<<std::endl;
 
       idx_t * iperm = NULL;
       if(typeid(idx_t) != typeid(Int)){
@@ -600,8 +600,8 @@ namespace SYMPACK{
       ParMETIS_V3_NodeND( &vtxdist[0], pcolptr , prowind, &numflag, &options[0], pperm, &sizes[0], &ndcomm );
 
       //compute displs
-      SYMPACK::vector<int> mpidispls(ndomains,0);
-      SYMPACK::vector<int> mpisizes(ndomains,0);
+      std::vector<int> mpidispls(ndomains,0);
+      std::vector<int> mpisizes(ndomains,0);
       for(int p = 1;p<=ndomains;++p){
         mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(idx_t);
         mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(idx_t);
@@ -645,8 +645,8 @@ namespace SYMPACK{
       perm[node-1] = i;
     }
 
-    //    logfileptr->OFS()<<perm<<endl;
-    //    logfileptr->OFS()<<invp<<endl;
+    //    logfileptr->OFS()<<perm<<std::endl;
+    //    logfileptr->OFS()<<invp<<std::endl;
 
 
   }
@@ -664,8 +664,8 @@ namespace SYMPACK{
     MPI_Comm_rank(comm,&iam);
     MPI_Comm_size(comm,&np);
 
-    logfileptr->OFS()<<"SCOTCH used"<<endl;
-    if(iam==0){cout<<"SCOTCH used"<<endl;}
+    logfileptr->OFS()<<"SCOTCH used"<<std::endl;
+    if(iam==0){std::cout<<"SCOTCH used"<<std::endl;}
 
     if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
       throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call SCOTCH\n" );
@@ -808,8 +808,8 @@ namespace SYMPACK{
     MPI_Comm_rank(g.comm,&iam);
     MPI_Comm_size(g.comm,&np);
 
-    logfileptr->OFS()<<"PTSCOTCH used"<<endl;
-    if(iam==0){cout<<"PTSCOTCH used"<<endl;}
+    logfileptr->OFS()<<"PTSCOTCH used"<<std::endl;
+    if(iam==0){std::cout<<"PTSCOTCH used"<<std::endl;}
 
     if(!g.IsExpanded() || g.keepDiag==1){
       throw std::logic_error( "DistSparseMatrixGraph must be expanded and not including the diagonal in order to call PTSCOTCH\n" );
@@ -836,14 +836,14 @@ namespace SYMPACK{
     //      while(((double)N/(double)ndomains)<1.0){ndomains--;}
 
     MPI_Comm_rank(ndcomm,&mpirank);
-    SYMPACK::vector<SCOTCH_Num> vtxdist;
+    std::vector<SCOTCH_Num> vtxdist;
     SCOTCH_Num localN;
     if(iam<ndomains){
       assert(mpirank==iam);
       //vtxdist.resize(ndomains+1);
 
       //localN = g.LocalVertexCount();
-      ////build vtxdist SYMPACK::vector
+      ////build vtxdist std::vector
       //for(SCOTCH_Num i = 0; i<ndomains;++i){
       // vtxdist[i] = i*(N/ndomains)+baseval; 
       //} 
@@ -855,7 +855,7 @@ namespace SYMPACK{
       }
 
 
-      //            logfileptr->OFS()<<"vtxdist: "<<vtxdist<<endl;
+      //            logfileptr->OFS()<<"vtxdist: "<<vtxdist<<std::endl;
 
       //        if(iam==ndomains-1){
       //          localN = N - (ndomains-1)*localN;
@@ -945,8 +945,8 @@ namespace SYMPACK{
 
 
 
-      SYMPACK::vector<SCOTCH_Num> sc_permtab(N);
-      SYMPACK::vector<SCOTCH_Num> sc_peritab(N);
+      std::vector<SCOTCH_Num> sc_permtab(N);
+      std::vector<SCOTCH_Num> sc_peritab(N);
       SCOTCH_stratExit (&stradat);
       SCOTCH_Ordering  ordering;
 
@@ -968,8 +968,8 @@ namespace SYMPACK{
       //}
 
 
-      //            logfileptr->OFS()<<"permtab: "<<sc_permtab<<endl;
-      //            logfileptr->OFS()<<"peritab: "<<sc_peritab<<endl;
+      //            logfileptr->OFS()<<"permtab: "<<sc_permtab<<std::endl;
+      //            logfileptr->OFS()<<"peritab: "<<sc_peritab<<std::endl;
 
 
       SCOTCH_dgraphCorderExit( &grafdat, &ordering );
@@ -1005,8 +1005,8 @@ namespace SYMPACK{
       perm[node-1] = i;
     }
 
-    //          logfileptr->OFS()<<perm<<endl;
-    //          logfileptr->OFS()<<invp<<endl;
+    //          logfileptr->OFS()<<perm<<std::endl;
+    //          logfileptr->OFS()<<invp<<std::endl;
 
 
   }
@@ -1015,7 +1015,7 @@ namespace SYMPACK{
 
 
 
-  void Ordering::Compose(SYMPACK::vector<Int> & invp2){
+  void Ordering::Compose(std::vector<Int> & invp2){
     //Compose the two permutations
     for(Int i = 1; i <= invp.size(); ++i){
       Int interm = invp[i-1];

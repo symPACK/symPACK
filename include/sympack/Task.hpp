@@ -3,7 +3,7 @@
 
 #include "sympack/Environment.hpp"
 
-namespace SYMPACK{
+namespace symPACK{
 
   class IncomingMessage;
 

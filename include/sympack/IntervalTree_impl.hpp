@@ -78,7 +78,7 @@ inline   ITree::ITNode * ITree::insert_(ITree::ITNode *root, ITree::Interval & i
     root->min = i.low;
 
   /* 2. Update height of this ancestor node */
-  root->height = max(height_(root->left), height_(root->right)) + 1;
+  root->height = std::max(height_(root->left), height_(root->right)) + 1;
 
   return root;
 }
@@ -214,7 +214,7 @@ inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int 
 
   if(root->left!=NULL){
     if(closestL!=NULL){
-      if( min(0,end - root->left->i->high) < min(0,end - closestL->high)){
+      if( std::min(0,end - root->left->i->high) < std::min(0,end - closestL->high)){
         closestL = root->left->i;
       }
     }
@@ -223,7 +223,7 @@ inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int 
     }
 
     if(closestR!=NULL){
-      if( min(0,root->left->i->low - begin) < min(0,closestL->low - begin)){
+      if( std::min(0,root->left->i->low - begin) < std::min(0,closestL->low - begin)){
         closestR = root->left->i;
       }
     }
@@ -234,7 +234,7 @@ inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int 
 
   if(root->right!=NULL){
     if(closestL!=NULL){
-      if( min(0,end - root->right->i->high) < min(0,end - closestL->high)){
+      if( std::min(0,end - root->right->i->high) < std::min(0,end - closestL->high)){
         closestL = root->right->i;
       }
     }
@@ -243,7 +243,7 @@ inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int 
     }
 
     if(closestR!=NULL){
-      if( min(0,root->right->i->low - begin) < min(0,closestL->low - begin)){
+      if( std::min(0,root->right->i->low - begin) < std::min(0,closestL->low - begin)){
         closestR = root->right->i;
       }
     }
@@ -279,14 +279,14 @@ inline   void ITree::inorder_(ITree::ITNode *root)
 {
   if (root == NULL) return;
 
-  logfileptr->OFS()<< " LEFT of "<< "[" << root->i->low << ", " << root->i->high << "]"<<": "<<endl;
+  logfileptr->OFS()<< " LEFT of "<< "[" << root->i->low << ", " << root->i->high << "]"<<": "<<std::endl;
   inorder_(root->left);
 
-  logfileptr->OFS()<< " MIDDLE: "<<endl;
+  logfileptr->OFS()<< " MIDDLE: "<<std::endl;
   logfileptr->OFS()<< "[" << root->i->low << ", " << root->i->high << "] on "<<root->i->block_idx
-    << " max = " << root->max << endl;
+    << " max = " << root->max << std::endl;
 
-  logfileptr->OFS()<< " RIGHT of "<< "[" << root->i->low << ", " << root->i->high << "]"<<": "<<endl;
+  logfileptr->OFS()<< " RIGHT of "<< "[" << root->i->low << ", " << root->i->high << "]"<<": "<<std::endl;
   inorder_(root->right);
 }
 
@@ -323,30 +323,30 @@ inline   ITree::ITNode * AVLITree::insert_(ITree::ITNode *root, ITree::Interval 
   // Left Left Case
   if (balance > 1 && i.low < root->left->i->low)
   {
-    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
-    //logfileptr->OFS()<<" LEFT LEFT ROTATION "<<endl;
+    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<std::endl;
+    //logfileptr->OFS()<<" LEFT LEFT ROTATION "<<std::endl;
     root = rightRotate_(root);
   }
   // Right Right Case
   else if (balance < -1 && i.low > root->right->i->low)
   {
-    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
-    //logfileptr->OFS()<<" RIGHT RIGHT ROTATION "<<endl;
+    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<std::endl;
+    //logfileptr->OFS()<<" RIGHT RIGHT ROTATION "<<std::endl;
     root = leftRotate_(root);
   }
   // Left Right Case
   else if (balance > 1 && i.low > root->left->i->low)
   {
-    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
-    //logfileptr->OFS()<<" LEFT RIGHT ROTATION "<<endl;
+    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<std::endl;
+    //logfileptr->OFS()<<" LEFT RIGHT ROTATION "<<std::endl;
     root->left =  leftRotate_(root->left);
     root = rightRotate_(root);
   }
   // Right Left Case
   else if (balance < -1 && i.low < root->right->i->low)
   {
-    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<endl;
-    //logfileptr->OFS()<<" RIGHT LEFT ROTATION "<<endl;
+    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<std::endl;
+    //logfileptr->OFS()<<" RIGHT LEFT ROTATION "<<std::endl;
     root->right = rightRotate_(root->right);
     root = leftRotate_(root);
   }
@@ -371,8 +371,8 @@ inline   ITree::ITNode * AVLITree::rightRotate_(ITree::ITNode *y)
   y->left = T2;
 
   // Update heights
-  y->height = max(height_(y->left), height_(y->right))+1;
-  x->height = max(height_(x->left), height_(x->right))+1;
+  y->height = std::max(height_(y->left), height_(y->right))+1;
+  x->height = std::max(height_(x->left), height_(x->right))+1;
 
   // Return new root
   return x;
@@ -387,8 +387,8 @@ inline   ITree::ITNode * AVLITree::leftRotate_(ITree::ITNode *x)
   x->right = T2;
 
   //  Update heights
-  x->height = max(height_(x->left), height_(x->right))+1;
-  y->height = max(height_(y->left), height_(y->right))+1;
+  x->height = std::max(height_(x->left), height_(x->right))+1;
+  y->height = std::max(height_(y->left), height_(y->right))+1;
 
   // Return new root
   return y;

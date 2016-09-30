@@ -21,7 +21,7 @@
 #endif
 
 
-namespace SYMPACK{
+namespace symPACK{
 
 
 ////////////////////////////////////////
@@ -60,7 +60,7 @@ class SuperNodeInd: public SuperNode<T,Allocator>{
               TempUpdateBuffers<T> & tmpBuffers);
 
   //forward and backward solve phases
-  virtual inline void forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, SYMPACK::vector<Int> & perm);
+  virtual inline void forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, std::vector<Int> & perm);
   virtual inline void back_update_contrib(SuperNode<T> * cur_snode);
 
 };

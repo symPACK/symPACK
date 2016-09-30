@@ -12,7 +12,7 @@
 
 #define USE_REDUCE
 
-namespace SYMPACK{
+namespace symPACK{
 
 
   //special reduction: first element contains the max local sum
@@ -22,11 +22,11 @@ namespace SYMPACK{
 
     Ptr * pinout = (Ptr*)inout;
     Ptr * pin = (Ptr*)in;
-    pinout[0] = max(pinout[0],pin[0]);
-    //logfileptr->OFS()<<"REDUCE max is "<<pinout[0]<<" vs (max) "<<pin[0]<<endl;
+    pinout[0] = std::max(pinout[0],pin[0]);
+    //logfileptr->OFS()<<"REDUCE max is "<<pinout[0]<<" vs (max) "<<pin[0]<<std::endl;
 #pragma unroll
     for (i=1; i< *len; ++i) { 
-      //logfileptr->OFS()<<"REDUCE elem is "<<pin[i]<<endl;
+      //logfileptr->OFS()<<"REDUCE elem is "<<pin[i]<<std::endl;
       pinout[i] += pin[i];
     } 
   } 
@@ -86,8 +86,8 @@ namespace SYMPACK{
     MPI_Type_commit( &MPI_SYMPACK_IDX ); 
 
     /* Allgatherv for row indices. */ 
-    SYMPACK::vector<int> prevnz(np);
-    SYMPACK::vector<int> rcounts(np);
+    std::vector<int> prevnz(np);
+    std::vector<int> rcounts(np);
     Ptr lnnz = G.LocalEdgeCount();
     MPI_Allgather(&lnnz, 1, MPI_SYMPACK_PTR, &rcounts[0], 1, MPI_SYMPACK_PTR, comm);
 
@@ -111,7 +111,7 @@ namespace SYMPACK{
       prowind = &rowind[0];
     }
 
-    SYMPACK::vector<int> rdispls = prevnz;
+    std::vector<int> rdispls = prevnz;
     MPI_Allgatherv(&G.rowind[0], lnnz, MPI_SYMPACK_IDX, &prowind[0],&rcounts[0], &rdispls[0], MPI_BYTE, comm); 
     
     /* Allgatherv for colptr */
@@ -169,11 +169,11 @@ namespace SYMPACK{
 
   void SparseMatrixStructure::ClearExpandedSymmetric(){
     {
-      SYMPACK::vector<Ptr> dummy;
+      std::vector<Ptr> dummy;
       expColptr.swap(dummy);
     }
     {
-      SYMPACK::vector<Idx> dummy;
+      std::vector<Idx> dummy;
       expRowind.swap(dummy);
     }
     bIsExpanded=false;
@@ -191,8 +191,8 @@ namespace SYMPACK{
       //code from sparsematrixconverter
       /* set-up */
 
-      SYMPACK::vector<Ptr> cur_col_nnz(size);
-      SYMPACK::vector<Ptr> new_col_nnz(size);
+      std::vector<Ptr> cur_col_nnz(size);
+      std::vector<Ptr> new_col_nnz(size);
 //gdb_lock(0);
       /*
        * Scan A and count how many new non-zeros we'll need to create.
@@ -207,8 +207,8 @@ namespace SYMPACK{
        */
 
 
-//logfileptr->OFS()<<colptr<<endl;
-//logfileptr->OFS()<<rowind<<endl;
+//logfileptr->OFS()<<colptr<<std::endl;
+//logfileptr->OFS()<<rowind<<std::endl;
 
 
 //gdb_lock(0);
@@ -338,8 +338,8 @@ namespace SYMPACK{
       }
       //expRowind[new_nnz-1] = size;
 
-//logfileptr->OFS()<<expColptr<<endl;
-//logfileptr->OFS()<<expRowind<<endl;
+//logfileptr->OFS()<<expColptr<<std::endl;
+//logfileptr->OFS()<<expRowind<<std::endl;
 
 
 
@@ -347,10 +347,10 @@ namespace SYMPACK{
       }
       else{
         throw std::logic_error("Please use DistSparseMatrixGraph instead.");
-        //logfileptr->OFS()<<"N is"<<this->size<<endl;
-        //logfileptr->OFS()<<"baseval is"<<this->baseval<<endl;
-        //logfileptr->OFS()<<"keepDiag is"<<this->keepDiag<<endl;
-        //logfileptr->OFS()<<"sorted is"<<this->sorted<<endl;
+        //logfileptr->OFS()<<"N is"<<this->size<<std::endl;
+        //logfileptr->OFS()<<"baseval is"<<this->baseval<<std::endl;
+        //logfileptr->OFS()<<"keepDiag is"<<this->keepDiag<<std::endl;
+        //logfileptr->OFS()<<"sorted is"<<this->sorted<<std::endl;
         //int baseval =1;
 
         //this would be declared by sympack
@@ -391,15 +391,15 @@ namespace SYMPACK{
           //first generate the expanded distributed structure
           {
             Int firstLocCol = mpirank>0?(mpirank)*colPerProc:0; //0 based
-            Int maxLocN = max(locColCnt,N-(mpisize-1)*colPerProc); // can be 0
+            Int maxLocN = std::max(locColCnt,N-(mpisize-1)*colPerProc); // can be 0
 
-            //SYMPACK::vector<Ptr> extra_nnz_percol(maxLocN,0);
-            SYMPACK::vector<Ptr> remote_colptr(maxLocN+1);
-            SYMPACK::vector<Idx> remote_rowind;
-            SYMPACK::vector<Ptr> remote_rowindPos(maxLocN+1);
-            //SYMPACK::vector<Idx> extra_rowind(maxLocN,0);
-            SYMPACK::vector<Ptr> curPos(locColCnt);
-            SYMPACK::vector<Ptr> prevPos(locColCnt);
+            //std::vector<Ptr> extra_nnz_percol(maxLocN,0);
+            std::vector<Ptr> remote_colptr(maxLocN+1);
+            std::vector<Idx> remote_rowind;
+            std::vector<Ptr> remote_rowindPos(maxLocN+1);
+            //std::vector<Idx> extra_rowind(maxLocN,0);
+            std::vector<Ptr> curPos(locColCnt);
+            std::vector<Ptr> prevPos(locColCnt);
 
             std::copy(pcolptr,pcolptr+locColCnt,curPos.begin());
 
@@ -466,7 +466,7 @@ namespace SYMPACK{
                   MPI_Reduce(&remote_colptr[0],&expColptr[0],remColCnt+1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,splitcomm);
 #else
                   {
-                    SYMPACK::vector<Ptr> recv(remColCnt+1);
+                    std::vector<Ptr> recv(remColCnt+1);
                     //first copy remote_colptr in expColptr
                     int len = remColCnt+1;
                     _PtrSum(&remote_colptr[0],&expColptr[0],&len,NULL);
@@ -538,19 +538,19 @@ namespace SYMPACK{
                 for(Idx col = 0;col<=remColCnt;col++){
                   logfileptr->OFS()<<remote_colptr[col]<<" ";
                 }
-                logfileptr->OFS()<<endl;
+                logfileptr->OFS()<<std::endl;
 
                 logfileptr->OFS()<<"remote_rowind ";
                 for(Ptr col = 0;col<extraNNZ;col++){
                   logfileptr->OFS()<<remote_rowind[col]<<" ";
                 }
-                logfileptr->OFS()<<endl;
+                logfileptr->OFS()<<std::endl;
 #endif
 
                 if(prow==mpirank){
 #ifdef DEBUG
-                  logfileptr->OFS()<<"expColptr "<<expColptr<<endl;
-                  //logfileptr->OFS()<<"true expColptr "<<Global.expColptr<<endl;
+                  logfileptr->OFS()<<"expColptr "<<expColptr<<std::endl;
+                  //logfileptr->OFS()<<"true expColptr "<<Global.expColptr<<std::endl;
 #endif
                   expRowind.resize(expColptr.back()-baseval);//totalExtraNNZ+locNNZ-(1-keepDiag)*locColCnt);
                   std::copy(expColptr.begin(),expColptr.end(),remote_rowindPos.begin()); 
@@ -582,17 +582,17 @@ namespace SYMPACK{
                     //Use an MPI_Gatherv instead ? >> memory usage : p * n/p
                     //Do mpi_recv from any, anytag for pcolptr and then do the matching rowind ?
 
-                    //logfileptr->OFS()<<"P"<<mpirank<<" receives pcolptr from P"<<pcol<<endl;
+                    //logfileptr->OFS()<<"P"<<mpirank<<" receives pcolptr from P"<<pcol<<std::endl;
                     //receive colptrs...
                     MPI_Status status;
                     MPI_Recv(&remote_colptr[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,MPI_ANY_SOURCE,prow,splitcomm,&status);
 
-                    //logfileptr->OFS()<<"P"<<mpirank<<" receives rowind from P"<<pcol<<endl;
+                    //logfileptr->OFS()<<"P"<<mpirank<<" receives rowind from P"<<pcol<<std::endl;
                     //receive rowinds...
                     MPI_Recv(&remote_rowind[0],maxExtraNNZ*sizeof(Idx),MPI_BYTE,status.MPI_SOURCE,prow,splitcomm,MPI_STATUS_IGNORE);
 
                     SYMPACK_TIMER_START(PROCESSING_RECV_DATA);
-                    //logfileptr->OFS()<<"P"<<mpirank<<" done receiving from P"<<pcol<<endl;
+                    //logfileptr->OFS()<<"P"<<mpirank<<" done receiving from P"<<pcol<<std::endl;
                     for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
                       Idx col = firstLocCol + locCol;  // 0 based
                       //copy the extra NNZ into the expanded structure
@@ -618,19 +618,19 @@ namespace SYMPACK{
                   }
 
 #ifdef DEBUG
-                  logfileptr->OFS()<<"expRowind "<<expRowind<<endl;
-                  //logfileptr->OFS()<<"true expRowind "<<Global.expRowind<<endl;
+                  logfileptr->OFS()<<"expRowind "<<expRowind<<std::endl;
+                  //logfileptr->OFS()<<"true expRowind "<<Global.expRowind<<std::endl;
 #endif
 
                 }
                 else{
                   SYMPACK_TIMER_START(SEND);
                   //MPI_Send
-                  //            logfileptr->OFS()<<"P"<<mpirank<<" sends pcolptr to P"<<prow<<endl;
+                  //            logfileptr->OFS()<<"P"<<mpirank<<" sends pcolptr to P"<<prow<<std::endl;
                   MPI_Send(&remote_colptr[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,prow,prow,splitcomm);
-                  //            logfileptr->OFS()<<"P"<<mpirank<<" sends rowind to P"<<prow<<endl;
+                  //            logfileptr->OFS()<<"P"<<mpirank<<" sends rowind to P"<<prow<<std::endl;
                   MPI_Send(&remote_rowind[0],extraNNZ*sizeof(Idx),MPI_BYTE,prow,prow,splitcomm);
-                  //            logfileptr->OFS()<<"P"<<mpirank<<" done sending to P"<<prow<<endl;
+                  //            logfileptr->OFS()<<"P"<<mpirank<<" done sending to P"<<prow<<std::endl;
                   SYMPACK_TIMER_STOP(SEND);
                 }
 
@@ -708,8 +708,8 @@ namespace SYMPACK{
 
       {
         /* Allgatherv for row indices. */ 
-        SYMPACK::vector<int> prevnz(np);
-        SYMPACK::vector<int> rcounts(np);
+        std::vector<int> prevnz(np);
+        std::vector<int> rcounts(np);
         MPI_Allgather(&nnz, sizeof(nnz), MPI_BYTE, &rcounts[0], sizeof(nnz), MPI_BYTE, comm);
 
         prevnz[0] = 0;
@@ -719,7 +719,7 @@ namespace SYMPACK{
         for (Int i = 0; i < np; ++i) { pGlobal.nnz += rcounts[i]; } 
         pGlobal.rowind.resize(pGlobal.nnz);
 
-        SYMPACK::vector<int> rdispls = prevnz;
+        std::vector<int> rdispls = prevnz;
         for (Int i = 0; i < np; ++i) { rcounts[i] *= sizeof(Idx); } 
         for (Int i = 0; i < np; ++i) { rdispls[i] *= sizeof(Idx); } 
 
@@ -758,8 +758,8 @@ namespace SYMPACK{
 
 
         /* Allgatherv for row indices. */ 
-        SYMPACK::vector<int> prevnz(np);
-        SYMPACK::vector<int> rcounts(np);
+        std::vector<int> prevnz(np);
+        std::vector<int> rcounts(np);
         Ptr gnnz = expRowind.size();
         MPI_Allgather(&gnnz, sizeof(gnnz), MPI_BYTE, &rcounts[0], sizeof(gnnz), MPI_BYTE, comm);
 
@@ -770,7 +770,7 @@ namespace SYMPACK{
         for (Int i = 0; i < np; ++i) { totnnz += rcounts[i]; } 
         pGlobal.expRowind.resize(totnnz);
 
-        SYMPACK::vector<int> rdispls = prevnz;
+        std::vector<int> rdispls = prevnz;
         for (Int i = 0; i < np; ++i) { rcounts[i] *= sizeof(Idx); } 
         for (Int i = 0; i < np; ++i) { rdispls[i] *= sizeof(Idx); } 
 
