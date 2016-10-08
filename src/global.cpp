@@ -4,6 +4,16 @@
 
 #include <upcxx.h>
 
+  extern "C"
+  int symPACK_Init(int *argc=NULL, char ***argv=NULL){
+    return upcxx::init(argc, argv);
+  }
+
+  extern "C"
+  int symPACK_Finalize(){
+    return upcxx::finalize();
+  }
+
 namespace symPACK{
 
 
@@ -13,6 +23,7 @@ namespace symPACK{
   size_t MemoryAllocator::total_=0;
   size_t MemoryAllocator::hwm_=0;
 #endif
+
 
 
 // *********************************************************************

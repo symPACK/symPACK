@@ -935,6 +935,7 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
 
     //everything is in row-major
     SYMPACK_TIMER_START(UPDATE_SNODE_GEMM);
+    //blas::Gemm('C','N',tgt_width, src_nrows,src_snode_size,
     blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
         MINUS_ONE<T>(),pivot,src_snode_size,
         pivot,src_snode_size,beta,buf,tgt_width);
@@ -1158,7 +1159,8 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
 
   //everything is in row-major
   SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
-logfileptr->OFS()<<"GEMM ("<<tgt_width<<"-by-"<<src_snode_size<<") x ("<<src_snode_size<<"-by-"<<src_nrows<<")"<<std::endl;
+  //logfileptr->OFS()<<"GEMM ("<<tgt_width<<"-by-"<<src_snode_size<<") x ("<<src_snode_size<<"-by-"<<src_nrows<<")"<<std::endl;
+  //blas::Gemm('C','N',tgt_width, src_nrows,src_snode_size,
   blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
       MINUS_ONE<T>(),pivot,src_snode_size,
       pivot,src_snode_size,beta,buf,tgt_width);
@@ -1328,19 +1330,12 @@ template<typename T, class Allocator>
 #endif
 
 
-    Int BLOCKSIZE = Size();
+    Int snode_size = Size();
     NZBlockDesc & diag_desc = GetNZBlockDesc(0);
-    for(Int col = 0; col<Size();col+=BLOCKSIZE){
-      Int bw = std::min(BLOCKSIZE,Size()-col);
-      T * diag_nzval = &GetNZval(diag_desc.Offset)[col+col*Size()];
-      lapack::Potrf( 'U', bw, diag_nzval, Size());
-      T * nzblk_nzval = &GetNZval(diag_desc.Offset)[col+(col+bw)*Size()];
-      blas::Trsm('L','U','T','N',bw, NRowsBelowBlock(0)-(col+bw), ONE<T>(),  diag_nzval, Size(), nzblk_nzval, Size());
-
-      //update the rest !!! (next blocks columns)
-      T * tgt_nzval = &GetNZval(diag_desc.Offset)[col+bw+(col+bw)*Size()];
-      blas::Gemm('T','N',Size()-(col+bw), NRowsBelowBlock(0)-(col+bw),bw,MINUS_ONE<T>(),nzblk_nzval,Size(),nzblk_nzval,Size(),ONE<T>(),tgt_nzval,Size());
-    }
+    T * diag_nzval = &GetNZval(diag_desc.Offset)[0];
+    lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
+    T * nzblk_nzval = &GetNZval(diag_desc.Offset)[(snode_size)*snode_size];
+    blas::Trsm('L','U','T','N',snode_size, NRowsBelowBlock(0)-snode_size, ONE<T>(),  diag_nzval, snode_size, nzblk_nzval, snode_size);
     return 0;
 
   }
@@ -1652,13 +1647,15 @@ template <typename T, class Allocator>
                 if(chol_desc.GIndex+kk>cur_snode->FirstCol()+ii){
                   Int src_row = chol_desc.GIndex - cur_desc.GIndex +kk;
                   if(src_row< cur_nrows){
-                    temp += -chol_nzval[kk*cur_snode->Size()+ii]*cur_nzval[src_row*nrhs+j];
+                    temp += -(chol_nzval[kk*cur_snode->Size()+ii])*cur_nzval[src_row*nrhs+j];
                   }
                 }
               }
             }
 
-            temp = temp / diag_nzval[ii*cur_snode->Size()+ii];
+            //if nounit
+            //temp = temp / (diag_nzval[ii*cur_snode->Size()+ii]);
+            temp = symPACK::div(temp,(diag_nzval[ii*cur_snode->Size()+ii]));
             tgt_nzval[ii*nrhs+j] = temp;
           }
         }
@@ -1695,9 +1692,13 @@ inline void SuperNode<T,Allocator>::forward_update_contrib( T * RHS, SuperNode<T
         for(Int j = 0; j<nrhs;++j){
           //NOTE: RHS is stored in COLUMN major format, and is not permuted
           Int srcRow = perm[diag_desc.GIndex+kk-1];
-          diag_nzval[kk*nrhs+j] = (RHS[srcRow-1 + j*n] + diag_nzval[kk*nrhs+j]) / chol_nzval[kk*cur_snode->Size()+kk];
+
+          //if non unit
+          //diag_nzval[kk*nrhs+j] = (RHS[srcRow-1 + j*n] + diag_nzval[kk*nrhs+j]) / (chol_nzval[kk*cur_snode->Size()+kk]);
+          diag_nzval[kk*nrhs+j] = symPACK::div((RHS[srcRow-1 + j*n] + diag_nzval[kk*nrhs+j]) , (chol_nzval[kk*cur_snode->Size()+kk]));
+
           for(Int i = kk+1; i<cur_nrows;++i){
-            diag_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*chol_nzval[i*cur_snode->Size()+kk];
+            diag_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*(chol_nzval[i*cur_snode->Size()+kk]);
           }
         }
       }
@@ -1706,7 +1707,7 @@ inline void SuperNode<T,Allocator>::forward_update_contrib( T * RHS, SuperNode<T
       for(Int kk = 0; kk<cur_snode->Size(); ++kk){
         for(Int j = 0; j<nrhs;++j){
           for(Int i = 0; i<cur_nrows;++i){
-            cur_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*chol_nzval[i*cur_snode->Size()+kk];
+            cur_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*(chol_nzval[i*cur_snode->Size()+kk]);
           }
         }
       }
@@ -1815,89 +1816,6 @@ inline std::ostream& operator<<( std::ostream& os,  SuperNodeDesc& desc){
   return os;
 }
 
-
-
-
-//  template <typename T> inline void Serialize(Icomm & buffer,SuperNode<T,Allocator> & snode){
-//    Int nzblk_cnt = snode.NZBlockCnt();
-//    Int nzval_cnt_ = snode.Size()*snode.NRowsBelowBlock(0);
-//    T* nzval_ptr = snode.GetNZval(0);
-//    NZBlockDesc* nzblk_ptr = &snode.GetNZBlockDesc(0);
-//    Int snode_id = snode.Id();
-//    Int snode_fc = snode.FirstCol();
-//    Int snode_lc = snode.LastCol();
-//
-//    buffer.clear();
-//    buffer.resize(6*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T));
-//
-//    buffer<<snode_id;
-//    buffer<<snode_fc;
-//    buffer<<snode_lc;
-//    buffer<<snode.N();
-//    buffer<<nzblk_cnt;
-//    Serialize(buffer,nzblk_ptr,nzblk_cnt);
-//    buffer<<nzval_cnt_;
-//    Serialize(buffer,nzval_ptr,nzval_cnt_);
-//  }
-//
-//  template <typename T> inline void Serialize(Icomm & buffer,SuperNode<T> & snode, Int first_blkidx, Int first_row){
-//    NZBlockDesc* nzblk_ptr = &snode.GetNZBlockDesc(first_blkidx);
-//    Int local_first_row = first_row - nzblk_ptr->GIndex;
-//    Int nzblk_cnt = snode.NZBlockCnt() - first_blkidx;
-//    Int nzval_cnt_ = snode.Size()*(snode.NRowsBelowBlock(first_blkidx)-local_first_row);
-//    T* nzval_ptr = snode.GetNZval(nzblk_ptr->Offset) + local_first_row*snode.Size();
-//    Int snode_id = snode.Id();
-//    Int snode_fc = snode.FirstCol();
-//    Int snode_lc = snode.LastCol();
-//
-//    buffer.clear();
-//    buffer.resize(6*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T));
-//
-//    buffer<<snode_id;
-//    buffer<<snode_fc;
-//    buffer<<snode_lc;
-//    buffer<<snode.N();
-//    buffer<<nzblk_cnt;
-//    NZBlockDesc * new_nzblk_ptr = reinterpret_cast<NZBlockDesc *>(buffer.back());
-//    Serialize(buffer,nzblk_ptr,nzblk_cnt);
-//    //replace the GIndex of the serialized block descriptor
-//    // by the new first row, and update the offset appropriately
-//    new_nzblk_ptr->GIndex = first_row;
-//    new_nzblk_ptr->Offset = nzblk_ptr->Offset + local_first_row*snode.Size();
-//
-//    buffer<<nzval_cnt_;
-//    Serialize(buffer,nzval_ptr,nzval_cnt_);
-//  }
-//
-//
-//  template <typename T> inline void Serialize(Icomm & buffer,SuperNode<T> & snode, Int first_blkidx, Int first_row, size_t extra_bytespace){
-//    NZBlockDesc* nzblk_ptr = &snode.GetNZBlockDesc(first_blkidx);
-//    Int local_first_row = first_row - nzblk_ptr->GIndex;
-//    Int nzblk_cnt = snode.NZBlockCnt() - first_blkidx;
-//    Int nzval_cnt_ = snode.Size()*(snode.NRowsBelowBlock(first_blkidx)-local_first_row);
-//    T* nzval_ptr = snode.GetNZval(nzblk_ptr->Offset) + local_first_row*snode.Size();
-//    Int snode_id = snode.Id();
-//    Int snode_fc = snode.FirstCol();
-//    Int snode_lc = snode.LastCol();
-//
-//    buffer.clear();
-//    buffer.resize(6*sizeof(Int) + nzblk_cnt*sizeof(NZBlockDesc) + nzval_cnt_*sizeof(T) + extra_bytespace);
-//
-//    buffer<<snode_id;
-//    buffer<<snode_fc;
-//    buffer<<snode_lc;
-//    buffer<<snode.N();
-//    buffer<<nzblk_cnt;
-//    NZBlockDesc * new_nzblk_ptr = reinterpret_cast<NZBlockDesc *>(buffer.back());
-//    Serialize(buffer,nzblk_ptr,nzblk_cnt);
-//    //replace the GIndex of the serialized block descriptor
-//    // by the new first row, and update the offset appropriately
-//    new_nzblk_ptr->GIndex = first_row;
-//    new_nzblk_ptr->Offset = nzblk_ptr->Offset + local_first_row*snode.Size();
-//
-//    buffer<<nzval_cnt_;
-//    Serialize(buffer,nzval_ptr,nzval_cnt_);
-//  }
 
 
 

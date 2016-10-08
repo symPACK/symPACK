@@ -5,6 +5,10 @@
 #ifndef _UTILITY_HPP_ 
 #define _UTILITY_HPP_
 
+
+
+
+
 #include  <mpi.h>
 #include  <stdlib.h>
 #include  <numeric>
@@ -13,6 +17,98 @@
 //#include  "sympack/NumMat.hpp"
 #include  "sympack/DistSparseMatrix.hpp"
 #include  "sympack/ETree.hpp"
+
+
+namespace symPACK{
+//  template<typename T>
+//    class complex: public std::complex<T> {
+//      public:
+//      complex():std::complex<T>(){};
+//
+//      complex(const T val,const T imagval):std::complex<T>(val,imagval){};
+//      //complex(const T & val,const T & imagval):std::complex<T>(val,imagval){};
+//      complex(const T val):std::complex<T>(val){};
+//      complex(const std::complex<T> val):std::complex<T>(val){};
+//      //complex(const T & val):std::complex<T>(val){};
+//    };
+//
+//  template<typename T>
+//      inline complex<T> operator/(const complex<T> & left, const complex<T> & right) {
+//        gdb_lock();
+//        complex<T> cconj = std::conj(right);
+//        complex<T> div = right*cconj;
+//        return (left*cconj)/div;
+//      }
+
+  template<typename T>
+  inline std::complex<T> div(const std::complex<T> & left, const std::complex<T> & right) {
+        std::complex<T> cconj = std::conj(right);
+        std::complex<T> div = right*cconj;
+        return (left*cconj)/div;
+      }
+
+  template<typename T>
+  inline T div(const T & left, const T & right) {
+        return left/right;
+      }
+
+
+
+
+//  template<typename T>
+//std::complex<T> operator/ (const std::complex<T>& left, std::complex<T> num) {
+//    //divide by num
+//gdb_lock();
+//    std::complex<T> cconj = std::conj(num);
+//    std::complex<T> div = num*cconj;
+//    return (left*cconj)/div;
+//}
+//
+//  template<typename T>
+//std::complex<T> operator/ (std::complex<T> num, const std::complex<T>& right) {
+//    //return (right / num); // call the first one
+//gdb_lock();
+//    std::complex<T> cconj = std::conj(right);
+//    std::complex<T> div = right*cconj;
+//    return (num*cconj)/div;
+//}
+
+
+//  template<typename T>
+//inline std::complex<T> operator/ (const std::complex<T> & left, const std::complex<T> & num) {
+//    //divide by num
+//gdb_lock();
+//    std::complex<T> cconj = std::conj(num);
+//    std::complex<T> div = num*cconj;
+//    return (left*cconj)/div;
+//}
+
+//  template<typename T>
+//inline complex<T> operator/ (const complex<T> & left, const complex<T> & num) {
+//    //divide by num
+//gdb_lock();
+//    complex<T> cconj = conj(num);
+//    complex<T> div = num*cconj;
+//    return (left*cconj)/div;
+//}
+//
+//
+//
+//  template<typename T>
+//inline complex<T> operator/ (complex<T> left, complex<T> num) {
+//    //divide by num
+//gdb_lock();
+//    complex<T> cconj = conj(num);
+//    complex<T> div = num*cconj;
+//    return (left*cconj)/div;
+//}
+
+
+}
+
+
+
+
 
 namespace symPACK{
 
@@ -778,6 +874,19 @@ extern "C" {
 
 namespace symPACK{
 
+  template<typename T> struct is_complex_type{
+    static bool value;
+  };
+
+  template< > struct is_complex_type<std::complex<float> >{
+    static bool value;
+  };
+
+  template< > struct is_complex_type<std::complex<double> >{
+    static bool value;
+  };
+
+  template<typename T> bool is_complex_type<T>::value = false;
 
 
   template <typename SCALAR, typename INSCALAR >
@@ -1191,7 +1300,8 @@ namespace symPACK{
       // Calculate nnz_loc on each processor
       Ptr mynnz = pspmat.Localg_.colptr[numColLocal] - pspmat.Localg_.colptr[0];
 
-      pspmat.Localg_.nnz = mynnz;
+      //pspmat.Localg_.nnz = mynnz;
+      pspmat.Localg_.nnz = pspmat.nnz;
       pspmat.Localg_.rowind.resize( mynnz );
       pspmat.nzvalLocal.resize ( mynnz );
 
@@ -1276,8 +1386,11 @@ namespace symPACK{
   template <typename SCALAR, typename INSCALAR >
     int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat);
 
+ // template <>
+ //   int ReadHB_PARA<std::complex<double>,std::complex<double> >(std::string & filename, DistSparseMatrix<std::complex<double> > & HMat);
+
   template <typename SCALAR, typename INSCALAR >
-    int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
+    inline int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
       MPI_Comm & workcomm = HMat.comm;
 
       int mpirank;
@@ -1369,7 +1482,6 @@ namespace symPACK{
 
       //now compute the actual number of rows
       //colptr
-      {
         size_t curPos = infile.tellg();
         size_t lineLastNode = std::ceil(( double(firstNode+nlocal) / double(colptrCntPerRow)));
         size_t lineFirstNode = std::ceil(( double(firstNode) / double(colptrCntPerRow)));
@@ -1379,23 +1491,20 @@ namespace symPACK{
 
         infile.seekg(skip,std::ios_base::cur);
 
-        {
           std::string rdStr;
           rdStr.resize(readBytes);
 
           infile.read(&rdStr[0], readBytes);
 
-          std::istringstream iss(rdStr);
-          Ptr j;
+       iss.str(rdStr);
+          Ptr cptr;
           Idx locPos = 0;
-          while(iss>> j){
-            HMat.Localg_.colptr[locPos++]=j;
+          while(iss>> cptr){
+            HMat.Localg_.colptr[locPos++]=cptr;
           }
-        }
 
         infile.seekg(skipAfter,std::ios_base::cur);
         size_t curEnd = infile.tellg();
-      }
 
       //convert to local colptr and compute local nnz
       Ptr first_idx = HMat.Localg_.colptr.front();
@@ -1409,65 +1518,91 @@ namespace symPACK{
 
       Ptr elem_idx;
       //rowind
-      {
-        size_t curPos = infile.tellg();
+        curPos = infile.tellg();
         size_t lineLastEdge = std::ceil(( double(last_idx-1) / double(rowindCntPerRow)));
         size_t lineFirstEdge = std::ceil(( double(first_idx) / double(rowindCntPerRow)));
-        size_t skip = (first_idx - 1)*rowindWidth + (lineFirstEdge - 1);
-        size_t readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
-        size_t skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
+        skip = (first_idx - 1)*rowindWidth + (lineFirstEdge - 1);
+        readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
+        skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
 
         infile.seekg(skip,std::ios_base::cur);
 
-        {
-          std::string rdStr;
           rdStr.resize(readBytes);
 
           infile.read(&rdStr[0], readBytes);
-          std::istringstream iss(rdStr);
-          Idx j;
-          Ptr locPos = 0;
-          while(iss>> j){
-            HMat.Localg_.rowind[locPos++]=j;
+          iss.str(rdStr);
+iss.clear(); // Clear state flags.
+          Idx rind;
+          locPos = 0;
+          while(iss>> rind){
+            HMat.Localg_.rowind[locPos++]=rind;
           }
-        }
 
         infile.seekg(skipAfter,std::ios_base::cur);
-        size_t curEnd = infile.tellg();
-      }
+        curEnd = infile.tellg();
 
 
       HMat.nzvalLocal.resize(nnzLocal);
 
       //nzval
-      {
-        size_t curPos = infile.tellg();
-        size_t lineLastEdge = std::ceil(( double(last_idx-1) / double(nzvalCntPerRow)));
-        size_t lineFirstEdge = std::ceil(( double(first_idx) / double(nzvalCntPerRow)));
-        size_t skip = (first_idx - 1)*nzvalWidth + (lineFirstEdge - 1);
-        size_t readBytes = (last_idx - first_idx)*nzvalWidth + (lineLastEdge - lineFirstEdge);
-        size_t skipAfter = (nnz+1 - last_idx)*nzvalWidth + (nzvalCnt - lineLastEdge +1) ;
+//            gdb_lock();
+        int scalarPerNzval = is_complex_type<INSCALAR>::value?2:1;//double(sizeof(INSCALAR))/double(sizeof(double));
+        curPos = infile.tellg();
+        lineLastEdge = std::ceil(( double(last_idx-1)*scalarPerNzval / double(nzvalCntPerRow)));
+        lineFirstEdge = std::ceil(( double(first_idx*scalarPerNzval) / double(nzvalCntPerRow)));
+        skip = (first_idx - 1)*scalarPerNzval*nzvalWidth + (lineFirstEdge - 1);
+        readBytes = (last_idx - first_idx)*scalarPerNzval*nzvalWidth + (lineLastEdge - lineFirstEdge);
+//        size_t skipAfter = (nnz*scalarPerNzval+1 - last_idx*scalarPerNzval)*nzvalWidth + (nzvalCnt*scalarPerNzval - lineLastEdge +1) ;
 
+//            gdb_lock();
         infile.seekg(skip,std::ios_base::cur);
 
-        {
-          std::string rdStr;
           rdStr.resize(readBytes);
 
           infile.read(&rdStr[0], readBytes);
           //      logfileptr->OFS()<<"nzval read std::string is"<<std::endl<<rdStr<<std::endl;
 
-          std::istringstream iss(rdStr);
-          INSCALAR j;
-          Ptr locPos = 0;
-          while(iss>> j){
-            HMat.nzvalLocal[locPos++]=(SCALAR)j;
-          }
-        }
+          iss.str(rdStr);
+iss.clear(); // Clear state flags.
+        
+          SCALAR tmp(0.0);
+          auto j = std::abs(tmp);
+          locPos = 0;
+          decltype(j) * nzval_ptr = (decltype(j)*)(&HMat.nzvalLocal[0]);
 
-        infile.seekg(skipAfter,std::ios_base::cur);
-        size_t curEnd = infile.tellg();
-      }
+          //if(scalarPerNzval>1){
+            logfileptr->OFS().precision(std::numeric_limits< SCALAR >::max_digits10);
+            while(iss>> j){
+              logfileptr->OFS()<<std::scientific<<j<<" ";
+              nzval_ptr[locPos++]=j;
+            }
+
+//            gdb_lock();
+//            std::stringbuf *pbuf = iss.rdbuf();
+//            std::string nzvalBuffer;
+//            nzvalBuffer.resize(nzvalWidth);
+//
+//            std::istringstream nzval_iss;
+//            while(iss.good()){
+//              pbuf->sgetn(&nzvalBuffer[0],nzvalWidth);
+//              nzval_iss.str(nzvalBuffer);
+//              nzval_iss >> j;
+//
+//              logfileptr->OFS()<<std::scientific<<j<<" ";
+//              nzval_ptr[locPos++]=j;
+//            }
+//            gdb_lock();
+            logfileptr->OFS()<<std::endl;
+//              logfileptr->OFS()<<HMat.nzvalLocal<<std::endl;
+          //}
+          //else
+          //{
+          //  INSCALAR j;
+          //  Ptr locPos = 0;
+          //  while(iss>> j){
+          //    HMat.nzvalLocal[locPos++]=(SCALAR)j;
+          //  }
+          //}
 
 
       infile.close();
@@ -1475,16 +1610,17 @@ namespace symPACK{
 
       HMat.globalAllocated = false;
       HMat.Localg_.size = HMat.size;
-      HMat.Localg_.nnz = nnzLocal;
+      //HMat.Localg_.nnz = nnzLocal;
+      HMat.Localg_.nnz = nnz;
       HMat.Localg_.bIsExpanded = false;
 
       //for back compatibility
-      HMat.Local_.size = HMat.size;
-      HMat.Local_.nnz = nnzLocal;
-      HMat.Local_.colptr = HMat.Localg_.colptr;
-      HMat.Local_.rowind = HMat.Localg_.rowind;
-      HMat.Local_.baseval = HMat.Localg_.GetBaseval();
-      HMat.Local_.keepDiag = HMat.Localg_.GetKeepDiag();
+      //HMat.Local_.size = HMat.size;
+      //HMat.Local_.nnz = nnzLocal;
+      //HMat.Local_.colptr = HMat.Localg_.colptr;
+      //HMat.Local_.rowind = HMat.Localg_.rowind;
+      //HMat.Local_.baseval = HMat.Localg_.GetBaseval();
+      //HMat.Local_.keepDiag = HMat.Localg_.GetKeepDiag();
 
       return 0;
     }
@@ -1660,9 +1796,29 @@ namespace symPACK{
       } 
     }
 
+  template<typename T>
+  inline std::string ToMatlabScalar( std::complex<T> val){
+    std::stringstream s;
+    s.precision(std::numeric_limits< std::complex<T> >::max_digits10);
+    s.precision(15);
+    s<<"complex("<<std::scientific<<std::real(val)<<","<<std::imag(val)<<")";
+    return s.str();
+  }
+
+  template<typename T>
+  inline std::string ToMatlabScalar( T val){
+    std::stringstream s;
+    s.precision(std::numeric_limits< T >::max_digits10);
+    s<<std::scientific<<val;
+    return s.str();
+  }
+
+
 
 
 } // namespace SYMPACK
+
+
 
 #endif
 

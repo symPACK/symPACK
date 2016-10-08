@@ -424,10 +424,10 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
 
     for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
       Idx col = firstCol + locCol; //0-based
-      //Ptr colbeg = colptr[locCol] - baseval;
-      //Ptr colend = colptr[locCol+1] - baseval;
-      Ptr colbeg = colptr.at(locCol) - baseval;
-      Ptr colend = colptr.at(locCol+1) - baseval;
+      Ptr colbeg = colptr[locCol] - baseval;
+      Ptr colend = colptr[locCol+1] - baseval;
+      //Ptr colbeg = colptr.at(locCol) - baseval;
+      //Ptr colend = colptr.at(locCol+1) - baseval;
       Idx permCol = invp[col]-invpbaseval; // 0 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
@@ -436,11 +436,11 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
 
       //now permute rows
       for(Ptr jptr = colbeg; jptr<colend; jptr++){
-        //Idx row = rowind[jptr] - baseval; //0 based
-        Idx row = rowind.at(jptr) - baseval; //0 based
+        Idx row = rowind[jptr] - baseval; //0 based
+        //Idx row = rowind.at(jptr) - baseval; //0 based
         Idx permRow = invp[row] - invpbaseval; // 0 based
-        //rowind[jptr] = permRow + baseval;
-        rowind.at(jptr) = permRow + baseval;
+        rowind[jptr] = permRow + baseval;
+        //rowind.at(jptr) = permRow + baseval;
       }
     }
 
@@ -465,10 +465,10 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     //pack
     for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
       Idx col = firstCol + locCol; 
-      //Ptr colbeg = colptr[locCol]-baseval;
-      //Ptr colend = colptr[locCol+1]-baseval;
-      Ptr colbeg = colptr.at(locCol) - baseval;
-      Ptr colend = colptr.at(locCol+1) - baseval;
+      Ptr colbeg = colptr[locCol]-baseval;
+      Ptr colend = colptr[locCol+1]-baseval;
+      //Ptr colbeg = colptr.at(locCol) - baseval;
+      //Ptr colend = colptr.at(locCol+1) - baseval;
       Idx permCol = invp[col]-invpbaseval; // perm is 1 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
@@ -485,8 +485,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
 
       *pPermCol = permCol;
       *pRowsCnt = (colend - colbeg);
-      //std::copy(&rowind[0]+colbeg ,&rowind[0]+colend, pPermRows );
-      std::copy(&rowind.at(colbeg) ,&rowind.at(colend-1)+1, pPermRows );
+      std::copy(&rowind[0]+colbeg ,&rowind[0]+colend, pPermRows );
+      //std::copy(&rowind.at(colbeg) ,&rowind.at(colend-1)+1, pPermRows );
 
 
       //      logfileptr->OFS()<<*pPermCol<<" ("<<locCol<<"): ";
@@ -530,8 +530,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       rpos += (*rowsCnt)*sizeof(Idx);
 
       Idx locCol = *permCol - newFirstCol;
-      //colptr[locCol+1] = *rowsCnt; 
-      colptr.at(locCol+1) = *rowsCnt; 
+      colptr[locCol+1] = *rowsCnt; 
+      //colptr.at(locCol+1) = *rowsCnt; 
     }
     std::partial_sum(colptr.begin(),colptr.end(),colptr.begin());
 
@@ -557,8 +557,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       //logfileptr->OFS()<<std::endl;
 
       std::copy(permRows,permRows + *rowsCnt, &rowind[colpos[locCol]-baseval]);
-      //colpos[locCol] += *rowsCnt;
-      colpos.at(locCol) += *rowsCnt;
+      colpos[locCol] += *rowsCnt;
+      //colpos.at(locCol) += *rowsCnt;
     }
 
     //copy newVertexDist into vertexDist

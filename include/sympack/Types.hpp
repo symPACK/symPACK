@@ -107,12 +107,15 @@ namespace symPACK{
       std::string load_balance_str;
       std::string order_refinement_str;
       OrderingType ordering;
+      std::string orderingStr;
       SchedulerType scheduler;
       Int maxIsend;
       Int maxIrecv;
       CommEnvironment * commEnv;
       RelaxationParameters relax;
       MPI_Comm MPIcomm;
+      int verbose;
+      int * perm;
     protected:
       bool isSqrtP(){
         bool val = false;
@@ -133,20 +136,26 @@ namespace symPACK{
 
     public:
       symPACKOptions(){
+        verbose = 0;
         decomposition = LL; 
-        mappingType = MODWRAP2D;
-        mappingTypeStr = "MODWRAP2D";
         factorization = FANBOTH;
-        load_balance = NNZ;
-        load_balance_str = "SUBCUBE";
+        mappingTypeStr = "ROW2D";
+        load_balance_str = "SUBCUBE-FO";
+        orderingStr = "MMD";
+        order_refinement_str = "NONE";
         scheduler = DL;
         maxIsend = 0;
         maxIrecv=0;
         relax = RelaxationParameters(0);
+        relax.SetMaxSize(150);
+
         commEnv = NULL;
         MPIcomm = MPI_COMM_NULL;
-        ordering = MMD;
-        order_refinement_str = "NONE";
+
+        perm = NULL;
+//        mappingType = ROW2D;
+///        ordering = MMD;
+//        load_balance = SUBCUBE;
       }
 
       Int used_procs(Int np){

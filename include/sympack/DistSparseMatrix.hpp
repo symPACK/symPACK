@@ -91,6 +91,8 @@ template <typename F> class DistSparseMatrix{
   SparseMatrixStructure  GetGlobalStructure();
   SparseMatrixStructure  GetLocalStructure() const;
   const DistSparseMatrixGraph & GetLocalGraph() const;
+  DistSparseMatrixGraph & GetLocalGraph();
+
   void SetLocalGraph(const DistSparseMatrixGraph & pgraph);
   //const SparseMatrixStructure & GetLocalStructure() const;
 

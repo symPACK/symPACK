@@ -1034,8 +1034,237 @@ int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> 
 
 
 
+  bool is_complex_type<std::complex<float> >::value = true;
+  bool is_complex_type<std::complex<double> >::value = true;
 
 
+
+//  template <>
+//    int ReadHB_PARA<std::complex<double>,std::complex<double> >(std::string & filename, DistSparseMatrix<std::complex<double> > & HMat){
+//gdb_lock();
+//      using SCALAR = std::complex<double>;
+//      using INSCALAR = std::complex<double>;
+//      MPI_Comm & workcomm = HMat.comm;
+//
+//      int mpirank;
+//      MPI_Comm_rank(workcomm,&mpirank);
+//      int mpisize;
+//      MPI_Comm_size(workcomm,&mpisize);
+//
+//      std::ifstream infile;
+//      infile.open(filename.c_str());
+//
+//      std::string line;
+//      //read xadj on the first line of the input file
+//      std::stringstream iss;
+//      //skip 1st line
+//      if(std::getline(infile, line)){}
+//      Idx colptrCnt;
+//      Ptr rowindCnt;
+//      Ptr nzvalCnt;
+//      if(std::getline(infile, line)){
+//        iss.str("");
+//        iss.clear();
+//        iss<<line;
+//        Ptr dummy;
+//        iss>>dummy;
+//        iss>>colptrCnt>>rowindCnt>>nzvalCnt;
+//      }
+//      //read from third line
+//
+//      auto & n = HMat.size;
+//      auto & nnz = HMat.nnz;
+//
+//
+//      auto m = n;
+//      if(std::getline(infile, line))
+//      {
+//        iss.str("");
+//        iss.clear();
+//        iss<<line;
+//        std::string type;
+//        iss>>type;
+//        iss>>m>>n>>nnz;
+//      }
+//
+//      //compute local number of columns
+//      HMat.Localg_.SetComm(workcomm);
+//      HMat.Localg_.SetBaseval(1);
+//      HMat.Localg_.vertexDist.resize(mpisize+1);
+//      int colPerProc = std::max(1,(int)(n/mpisize));
+//      for(int p = 1; p <mpisize;p++){
+//        HMat.Localg_.vertexDist[p] = std::min(n-1,p*colPerProc)+HMat.Localg_.GetBaseval();
+//      }
+//      HMat.Localg_.vertexDist.front()= HMat.Localg_.GetBaseval();
+//      HMat.Localg_.vertexDist.back()= n+HMat.Localg_.GetBaseval();
+//
+//      //initialize an identity permutation
+//      HMat.cinvp.resize(HMat.Localg_.LocalVertexCount());
+//      std::iota(HMat.cinvp.begin(),HMat.cinvp.end(),HMat.Localg_.LocalFirstVertex());
+//
+//      Idx firstNode = HMat.Localg_.LocalFirstVertex();
+//      Idx nlocal = HMat.Localg_.LocalVertexCount();
+//
+//      //initialize local arrays
+//      HMat.Localg_.colptr.resize(nlocal+1);
+//      HMat.Localg_.SetKeepDiag(1);
+//      HMat.Localg_.SetSorted(1);
+//
+//
+//      //read from 4th line
+//      int colptrWidth = 0;
+//      int rowindWidth = 0;
+//      int nzvalWidth = 0;
+//      int colptrCntPerRow = 0;
+//      int rowindCntPerRow = 0;
+//      int nzvalCntPerRow = 0;
+//      if(std::getline(infile, line))
+//      {
+//        iss.str("");
+//        iss.clear();
+//        iss<<line;
+//        std::string format;
+//        iss>>format;
+//        int dummy;
+//        sscanf(format.c_str(),"(%dI%d)",&colptrCntPerRow,&colptrWidth);
+//        iss>>format;
+//        sscanf(format.c_str(),"(%dI%d)",&rowindCntPerRow,&rowindWidth);
+//        iss>>format;
+//        sscanf(format.c_str(),"(%dE%d.%d)",&nzvalCntPerRow,&nzvalWidth,&dummy);
+//        //nzvalCntPerRow *= double(sizeof(double))/double(sizeof(INSCALAR));
+//        //nzvalWidth *= double(sizeof(INSCALAR))/double(sizeof(double));
+//      }
+//
+//      //now compute the actual number of rows
+//      //colptr
+//        size_t curPos = infile.tellg();
+//        size_t lineLastNode = std::ceil(( double(firstNode+nlocal) / double(colptrCntPerRow)));
+//        size_t lineFirstNode = std::ceil(( double(firstNode) / double(colptrCntPerRow)));
+//        size_t skip = (firstNode - 1)*colptrWidth + (lineFirstNode - 1);
+//        size_t readBytes = (nlocal+1)*colptrWidth + (lineLastNode - lineFirstNode);
+//        size_t skipAfter = (n+1 - (firstNode+nlocal))*colptrWidth + (colptrCnt - lineLastNode +1) ;
+//
+//        infile.seekg(skip,std::ios_base::cur);
+//
+//        {
+//          std::string rdStr;
+//          rdStr.resize(readBytes);
+//
+//          infile.read(&rdStr[0], readBytes);
+//
+//          std::istringstream iss(rdStr);
+//          Ptr j;
+//          Idx locPos = 0;
+//          while(iss>> j){
+//            HMat.Localg_.colptr[locPos++]=j;
+//          }
+//        }
+//
+//        infile.seekg(skipAfter,std::ios_base::cur);
+//        size_t curEnd = infile.tellg();
+//
+//      //convert to local colptr and compute local nnz
+//      Ptr first_idx = HMat.Localg_.colptr.front();
+//      Ptr last_idx = HMat.Localg_.colptr.back();
+//      for(Idx i=nlocal+1;i>=1;i--){
+//        HMat.Localg_.colptr[i-1] = HMat.Localg_.colptr[i-1] - HMat.Localg_.colptr[0] + 1;
+//      }
+//      Ptr nnzLocal = HMat.Localg_.colptr.back()-1;
+//
+//      HMat.Localg_.rowind.resize(nnzLocal);
+//
+//      Ptr elem_idx;
+//      //rowind
+//        curPos = infile.tellg();
+//        size_t lineLastEdge = std::ceil(( double(last_idx-1) / double(rowindCntPerRow)));
+//        size_t lineFirstEdge = std::ceil(( double(first_idx) / double(rowindCntPerRow)));
+//        skip = (first_idx - 1)*rowindWidth + (lineFirstEdge - 1);
+//        readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
+//        skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
+//
+//        infile.seekg(skip,std::ios_base::cur);
+//
+//        {
+//          std::string rdStr;
+//          rdStr.resize(readBytes);
+//
+//          infile.read(&rdStr[0], readBytes);
+//
+//          std::istringstream iss(rdStr);
+//          Idx j;
+//          Ptr locPos = 0;
+//          while(iss>> j){
+//            HMat.Localg_.rowind[locPos++]=j;
+//          }
+//        }
+//
+//        infile.seekg(skipAfter,std::ios_base::cur);
+//        curEnd = infile.tellg();
+//
+//
+//      HMat.nzvalLocal.resize(nnzLocal);
+//
+//      //nzval
+//        int scalarPerNzval = is_complex_type<INSCALAR>::value?2:1;//double(sizeof(INSCALAR))/double(sizeof(double));
+//        curPos = infile.tellg();
+//        lineLastEdge = std::ceil(( double(last_idx-1)*scalarPerNzval / double(nzvalCntPerRow)));
+//        lineFirstEdge = std::ceil(( double(first_idx*scalarPerNzval) / double(nzvalCntPerRow)));
+//        skip = (first_idx - 1)*scalarPerNzval*nzvalWidth + (lineFirstEdge - 1);
+//        readBytes = (last_idx - first_idx)*scalarPerNzval*nzvalWidth + (lineLastEdge - lineFirstEdge);
+////        size_t skipAfter = (nnz*scalarPerNzval+1 - last_idx*scalarPerNzval)*nzvalWidth + (nzvalCnt*scalarPerNzval - lineLastEdge +1) ;
+//
+//        infile.seekg(skip,std::ios_base::cur);
+//
+//        {
+//          std::string rdStr;
+//          rdStr.resize(readBytes);
+//
+//          infile.read(&rdStr[0], readBytes);
+//          //      logfileptr->OFS()<<"nzval read std::string is"<<std::endl<<rdStr<<std::endl;
+//
+//logfileptr->OFS()<<rdStr<<std::endl;
+//logfileptr->OFS().flush();
+//
+//          std::istringstream iss(rdStr);
+//        
+//          if(scalarPerNzval>1){
+//            double j;
+//            Ptr locPos = 0;
+//            while(iss>> j){
+//              ((double*)(&HMat.nzvalLocal[0]))[locPos++]=j;
+//            }
+//          }
+//          else
+//          {
+//            INSCALAR j;
+//            Ptr locPos = 0;
+//            while(iss>> j){
+//              HMat.nzvalLocal[locPos++]=(SCALAR)j;
+//            }
+//          }
+//        }
+//
+//
+//      infile.close();
+//
+//
+//      HMat.globalAllocated = false;
+//      HMat.Localg_.size = HMat.size;
+//      //HMat.Localg_.nnz = nnzLocal;
+//      HMat.Localg_.nnz = nnz;
+//      HMat.Localg_.bIsExpanded = false;
+//
+//      //for back compatibility
+//      //HMat.Local_.size = HMat.size;
+//      //HMat.Local_.nnz = nnzLocal;
+//      //HMat.Local_.colptr = HMat.Localg_.colptr;
+//      //HMat.Local_.rowind = HMat.Localg_.rowind;
+//      //HMat.Local_.baseval = HMat.Localg_.GetBaseval();
+//      //HMat.Local_.keepDiag = HMat.Localg_.GetKeepDiag();
+//
+//      return 0;
+//    }
+//
 
 
 

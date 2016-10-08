@@ -11,5 +11,13 @@
 #include  "sympack/Ordering.hpp"
 #include  "sympack/LogFile.hpp"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+  int symPACK_Init(int *argc=NULL, char ***argv=NULL);
+  int symPACK_Finalize();
+#ifdef __cplusplus
+}
+#endif
 
 #endif // _SYMPACK_HEADER_

@@ -41,6 +41,10 @@ namespace symPACK{
     return Localg_;
   }
 
+  template <class F> DistSparseMatrixGraph &  DistSparseMatrix<F>::GetLocalGraph() {
+    return Localg_;
+  }
+
   template <class F> void DistSparseMatrix<F>::SetLocalGraph(const DistSparseMatrixGraph & pgraph){
     Localg_ = pgraph;
   }
@@ -69,7 +73,7 @@ namespace symPACK{
   template <class F> template <typename T> void DistSparseMatrix<F>::ConvertData(const int n, const int nnz, const int * colptr, const int * rowidx, const T * nzval ,bool onebased){
     int np;
     int iam;
-
+abort();
     MPI_Comm_size(comm,&np);
     MPI_Comm_rank(comm, &iam);
 
@@ -309,7 +313,7 @@ namespace symPACK{
 
       for(Ptr pos = colbeg; pos<colend; pos++){
         F val = nzvalLocal[pos];
-        logfileptr->OFS()<<std::scientific<<val<<" ";
+        logfileptr->OFS()<<std::scientific<<ToMatlabScalar(val)<<" ";
       }
     }
     logfileptr->OFS()<<"]);"<<std::endl;
@@ -456,7 +460,8 @@ namespace symPACK{
 
         Ptr newNNZ = newColptr.back()-baseval;
         rowind.resize(newNNZ);
-        this->Local_.nnz = newNNZ;
+        //TODO this has been commented because nnz contains the global nnz
+        //this->Local_.nnz = newNNZ;
 
         nzvalLocal.resize(newNNZ);
 
@@ -564,8 +569,10 @@ namespace symPACK{
         Localg_.colptr.swap(newColptr);
         Localg_.rowind.swap(newRowind);
         nzvalLocal.swap(newNzvalLocal);
-        Localg_.nnz = localNNZ;
         nnz = (nnz - size)/2 + size;
+        //TODO this has been commented because nnz contains the global nnz
+        //Localg_.nnz = localNNZ;
+        Localg_.nnz = nnz;
 
         //if(Localg_.GetSorted()){
         //  Localg_.SetSorted(false);
@@ -703,8 +710,10 @@ namespace symPACK{
 
         Ptr newNNZ = newColptr.back()-baseval;
         rowind.resize(newNNZ);
-        this->Local_.nnz = newNNZ;
         this->nnz = (this->nnz - this->size)*2 + this->size;
+        //TODO this has been commented because nnz contains the global nnz
+        //this->Local_.nnz = newNNZ;
+        this->Local_.nnz = this->nnz;
 
         nzvalLocal.resize(newNNZ);
 

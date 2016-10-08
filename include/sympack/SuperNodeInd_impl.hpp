@@ -422,7 +422,8 @@ template<typename T, class Allocator>
       //copy the diagonal entries into the diag portion of the supernode
       this->diag_[col] = diag_nzval[col+ (col)*snodeSize];
 
-      T piv = static_cast<T>(1.0) / diag_nzval[col+col*snodeSize];
+      //T piv = static_cast<T>(1.0) / diag_nzval[col+col*snodeSize];
+      T piv = symPACK::div(static_cast<T>(1.0) , diag_nzval[col+col*snodeSize]);
       lapack::Scal( totalNRows - col - 1, piv, &diag_nzval[ col + (col+1)*snodeSize ], snodeSize );
       blas::Ger(snodeSize - col - 1, totalNRows - col - 1, -this->diag_[col],&diag_nzval[col + (col+1)*snodeSize],
                   snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
@@ -430,69 +431,20 @@ template<typename T, class Allocator>
 #else
 
     Idx totalNRows = this->NRowsBelowBlock(0);
-
-//#define DEBUG_LDL
-#ifdef DEBUG_LDL
-    auto dump = [] (Idx snodeSize, Idx totalNRows, T* buf, ostream & os){
-    os.precision(std::numeric_limits< T >::max_digits10);
-    os<<std::scientific;
-    for(Int row = 0; row< totalNRows;row++){
-      for(Int col = 0; col< snodeSize;col++){
-        os<<buf[row*snodeSize+col];
-        if(col<snodeSize-1) os<<", ";
-      }
-      os<<"; "<<std::endl;
-      if(row==snodeSize-1) os<<"**********************"<<std::endl;
-    }
-    os<<std::endl;
-    };
-
-      Ptr nzvalcnt = this->NNZ();
-      std::vector<T> tmp(nzvalcnt);
-      std::copy(diag_nzval,diag_nzval+nzvalcnt,&tmp[0]);
-      {
-        T * diag_nzval = &tmp[0];
-        for(Int col = 0; col< snodeSize;col++){
-          T piv = static_cast<T>(1.0) / diag_nzval[col+col*snodeSize];
-          lapack::Scal( totalNRows - col - 1, piv, &diag_nzval[ col + (col+1)*snodeSize ], snodeSize );
-          blas::Ger(snodeSize - col - 1, totalNRows - col - 1, -diag_nzval[col+col*snodeSize],&diag_nzval[col + (col+1)*snodeSize],
-              snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
-        }
-      }
-#endif
-
-
-
     Int INFO = 0;
-//    std::vector<T> work(snodeSize*snodeSize);
-    //std::vector<T> work(snodeSize);
-
-
-
-
-//    dump(snodeSize,totalNRows,&diag_nzval[0],logfileptr->OFS());
     lapack::Potrf_LDL( "U", snodeSize, diag_nzval, snodeSize, tmpBuffers, INFO);
-//    dump(snodeSize,snodeSize,&diag_nzval[0],logfileptr->OFS());
-    for(Int col = 0; col< snodeSize;col++){
-      //copy the diagonal entries into the diag portion of the supernode
-      this->diag_[col] = diag_nzval[col+ (col)*snodeSize];
-    }
+    //copy the diagonal entries into the diag portion of the supernode
+    #pragma unroll
+    for(Int col = 0; col< snodeSize;col++){ this->diag_[col] = diag_nzval[col+ (col)*snodeSize]; }
+
 
     T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
     blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
 
     //scale column I
     for ( Idx I = 1; I<=snodeSize;I++) {
-        blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
+        blas::Scal( totalNRows-snodeSize, symPACK::div(T(1.0),this->diag_[I-1]), &nzblk_nzval[I-1], snodeSize );
     }
-
-#ifdef DEBUG_LDL
-    logfileptr->OFS()<<"======================================"<<std::endl;
-    dump(snodeSize,totalNRows,&tmp[0],logfileptr->OFS());
-    dump(snodeSize,totalNRows,&diag_nzval[0],logfileptr->OFS());
-    logfileptr->OFS()<<"+++++++++++++++++++++++++++++++++++"<<std::endl;
-#endif
-
 #endif
     return 0;
 
@@ -562,7 +514,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
   T * diag = static_cast<SuperNodeInd<T,Allocator> * >(src_snode)->GetDiag();
   for(Int row = 0; row<src_snode_size; row++){
     for(Int col = 0; col<tgt_width; col++){
-      bufLDL[col+row*tgt_width] = diag[row]*pivot[row+col*src_snode_size];
+      bufLDL[col+row*tgt_width] = diag[row]*(pivot[row+col*src_snode_size]);
     }
   }
 
@@ -758,7 +710,7 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
   T * diag = static_cast<SuperNodeInd<T,Allocator> * >(src_snode)->GetDiag();
   for(Int row = 0; row<src_snode_size; row++){
     for(Int col = 0; col<tgt_width; col++){
-      bufLDL[col+row*tgt_width] = diag[row]*pivot[row+col*src_snode_size];
+      bufLDL[col+row*tgt_width] = diag[row]*(pivot[row+col*src_snode_size]);
     }
   }
 
@@ -894,6 +846,7 @@ template <typename T, class Allocator>
 //    }
 //  }
       Int nzblk_cnt = cur_snode->NZBlockCnt();
+#if 1
       if(nzblk_cnt>=1){
         //for each row (of the diagonal block)
         T * updated_nzval = contrib->GetNZval(0);
@@ -912,12 +865,44 @@ template <typename T, class Allocator>
             T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
             T * fact_nzval = cur_snodeInd->GetNZval(fact_desc.Offset);
 
-            blas::Gemv( 'N', nrhs, cur_nrows, static_cast<T>(-1), &cur_nzval[(rowK)*nrhs],nrhs,
-                &fact_nzval[rowK*snodeSize+kk],snodeSize, static_cast<T>(1), &updated_nzval[(kk)*nrhs], 1);
+            blas::Gemv( 'N', nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*nrhs],nrhs,
+                &fact_nzval[rowK*snodeSize+kk],snodeSize, T(1.0), &updated_nzval[(kk)*nrhs], 1);
 
           }
         }
       }
+#else
+        Int snodeSize = cur_snode->Size();
+        if(nzblk_cnt>0){
+          Int blkidx =0;
+          NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
+          NZBlockDesc & fact_desc = cur_snodeInd->GetNZBlockDesc(blkidx);
+          Int cur_nrows = contrib->NRows(blkidx);
+          T * updated_nzval = contrib->GetNZval(cur_desc.Offset);
+          T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
+          T * fact_nzval = cur_snodeInd->GetNZval(fact_desc.Offset);
+
+          for (Int kk = snodeSize-1; kk>=0; --kk){
+            Int rowK =kk+1;
+            blas::Gemv( 'N', nrhs, cur_nrows-rowK, T(-1.0), &cur_nzval[(rowK)*nrhs],nrhs,
+                &fact_nzval[rowK*snodeSize+kk],snodeSize, T(1.0), &updated_nzval[(kk)*nrhs], 1);
+          }
+        }
+
+        if(nzblk_cnt>1){
+          Int blkidx =1;
+          NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
+          NZBlockDesc & fact_desc = cur_snodeInd->GetNZBlockDesc(blkidx);
+          Int tot_nrows = contrib->NRowsBelowBlock(blkidx);
+          T * updated_nzval = contrib->GetNZval(cur_desc.Offset);
+          T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
+          T * fact_nzval = cur_snodeInd->GetNZval(fact_desc.Offset);
+
+          blas::Gemm();
+
+        }
+#endif
+
 }
 
 
@@ -937,7 +922,49 @@ inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNod
     T * chol_diag = cur_snodeInd->GetDiag();
 
 
-  //for(Int blkidx = cur_snodeInd->NZBlockCnt() -1 ; blkidx >=0;--blkidx){
+#if 1
+  if(cur_snodeInd->NZBlockCnt()>0){
+    Int blkidx = 0;
+    NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
+    NZBlockDesc & chol_desc = cur_snodeInd->GetNZBlockDesc(blkidx);
+
+    Int cur_nrows = contrib->NRows(blkidx);
+    Int chol_nrows = cur_snodeInd->NRows(blkidx);
+
+    T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
+    T * chol_nzval = cur_snodeInd->GetNZval(chol_desc.Offset);
+    for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
+      //First, add the RHS into the contribution
+      Int srcRow = perm[diag_desc.GIndex+kk-1];
+      for(Int j = 0; j<nrhs;++j){
+        diag_nzval[kk*nrhs+j] += RHS[srcRow-1 + j*n];
+      }
+
+      blas::Gemm( 'N' , 'N', nrhs, cur_nrows-kk-1, 1, T(-1.0), &diag_nzval[(kk+1)*nrhs],nrhs, &chol_nzval[kk+1],snodeSize, T(1.0), &cur_nzval[(kk)*nrhs], nrhs);
+    }
+
+
+  }
+
+  if(cur_snodeInd->NZBlockCnt()>1){
+    Int blkidx = 1;
+    NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
+    NZBlockDesc & chol_desc = cur_snodeInd->GetNZBlockDesc(blkidx);
+
+    Int total_nrows = contrib->NRowsBelowBlock(blkidx);
+
+    T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
+    T * chol_nzval = cur_snodeInd->GetNZval(chol_desc.Offset);
+
+    blas::Gemm( 'N' , 'N', nrhs, total_nrows, snodeSize, T(-1.0), &diag_nzval[0],nrhs, &chol_nzval[0],snodeSize, T(1.0), &cur_nzval[0], nrhs);
+
+  }
+
+  for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
+      //scale the kk-th row of the solution
+      lapack::Scal(nrhs, symPACK::div(T(1.0),chol_diag[kk]), &diag_nzval[kk*nrhs], 1);
+  }
+#else
   for(Int blkidx = 0; blkidx < cur_snodeInd->NZBlockCnt() ; ++blkidx){
     NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
     NZBlockDesc & chol_desc = cur_snodeInd->GetNZBlockDesc(blkidx);
@@ -963,7 +990,7 @@ inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNod
 
         //then compute the rank one update
         //blas::Ger(cur_nrows-kk-1, nrhs, static_cast<T>(-1.0), &chol_nzval[(kk + 1)*snodeSize+kk], snodeSize, &diag_nzval[kk*nrhs], 1, &cur_nzval[(kk + 1)*nrhs], cur_nrows );
-        blas::Ger(nrhs,cur_nrows-kk-1, static_cast<T>(-1.0),  &diag_nzval[kk*nrhs], 1,&chol_nzval[(kk + 1)*snodeSize+kk], snodeSize, &cur_nzval[(kk + 1)*nrhs], nrhs );
+        blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*nrhs], 1,&chol_nzval[(kk + 1)*snodeSize+kk], snodeSize, &cur_nzval[(kk + 1)*nrhs], nrhs );
         //scale the kk-th row of the solution
         //lapack::Scal(nrhs, static_cast<T>(-1.0)/chol_diag[kk], &diag_nzval[kk*nrhs], 1);
       }
@@ -972,8 +999,9 @@ inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNod
       for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
         //compute the rank one update
         //blas::Ger(cur_nrows, nrhs, static_cast<T>(-1.0), &chol_nzval[kk], snodeSize, &diag_nzval[kk*nrhs], 1, &cur_nzval[0], cur_nrows );
-        blas::Ger(nrhs,cur_nrows, static_cast<T>(-1.0), &diag_nzval[kk*nrhs], 1, &chol_nzval[kk], snodeSize, &cur_nzval[0], nrhs );
+        blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*nrhs], 1, &chol_nzval[kk], snodeSize, &cur_nzval[0], nrhs );
       }
+      
     }
 
 
@@ -992,9 +1020,9 @@ inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNod
 
     for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
         //scale the kk-th row of the solution
-        lapack::Scal(nrhs, static_cast<T>(1.0)/chol_diag[kk], &diag_nzval[kk*nrhs], 1);
+        lapack::Scal(nrhs, symPACK::div(T(1.0),chol_diag[kk]), &diag_nzval[kk*nrhs], 1);
     }
-
+#endif
 
 
   }

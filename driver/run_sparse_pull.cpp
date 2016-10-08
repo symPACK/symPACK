@@ -18,11 +18,12 @@
 #include <upcxx.h>
 
 /******* TYPE used in the computations ********/
-#define SCALAR double
-//#define SCALAR std::complex<double>
+//#define SCALAR double
+#define SCALAR std::complex<double>
 
 /******* TYPE in the input matrix ********/
-#define INSCALAR double
+#define RSCALAR double
+#define CSCALAR std::complex<double>
 
 
 using namespace symPACK;
@@ -31,9 +32,27 @@ using namespace symPACK;
 int main(int argc, char **argv) 
 {
   MPI_Init(&argc,&argv);
-  upcxx::init(&argc, &argv);
+  //upcxx::init(&argc, &argv);
 
   symPACKOptions optionsFact;
+
+
+  {
+    std::complex<double> test(4.0,-0.1);
+    std::complex<double> test2(-1.0,0.0);
+    std::complex<double> test3 = test2 / test;
+    test3 = div(test2,test);
+
+    std::complex<double> testb = std::conj(test);
+    std::complex<double> div = test*testb;
+    std::complex<double> test33 = test2*testb;
+    test33 /= div;
+
+  }
+
+
+
+
 
   int iam = 0;
   int np = 1;
@@ -47,7 +66,6 @@ int main(int argc, char **argv)
 #if defined(SPROFILE) || defined(PMPI)
   SYMPACK_SPROFILE_INIT(argc, argv);
 #endif
-
 
   //Initialize a logfile per rank
   logfileptr = new LogFile(iam);
@@ -74,6 +92,12 @@ int main(int argc, char **argv)
   if( options.find("-b") != options.end() ){
     maxSnode= atoi(options["-b"].front().c_str());
   }
+
+  bool complextype=false;
+  if (options.find("-z") != options.end()){
+    complextype = true;
+  }
+
 
   optionsFact.relax.SetMaxSize(maxSnode);
   if( options.find("-relax") != options.end() ){
@@ -131,43 +155,48 @@ int main(int argc, char **argv)
     optionsFact.load_balance_str = options["-lb"].front();
   }
 
+  optionsFact.orderingStr = "MMD" ;
   if( options.find("-ordering") != options.end() ){
-    if(options["-ordering"].front()=="AMD"){
-      optionsFact.ordering = AMD;
-    }
-    else if(options["-ordering"].front()=="MMD"){
-      optionsFact.ordering = MMD;
-    }
-    else if(options["-ordering"].front()=="NDBOX"){
-      optionsFact.ordering = NDBOX;
-    }
-    else if(options["-ordering"].front()=="NDGRID"){
-      optionsFact.ordering = NDGRID;
-    }
-#ifdef USE_SCOTCH
-    else if(options["-ordering"].front()=="SCOTCH"){
-      optionsFact.ordering = SCOTCH;
-    }
-#endif
-#ifdef USE_METIS
-    else if(options["-ordering"].front()=="METIS"){
-      optionsFact.ordering = METIS;
-    }
-#endif
-#ifdef USE_PARMETIS
-    else if(options["-ordering"].front()=="PARMETIS"){
-      optionsFact.ordering = PARMETIS;
-    }
-#endif
-#ifdef USE_PTSCOTCH
-    else if(options["-ordering"].front()=="PTSCOTCH"){
-      optionsFact.ordering = PTSCOTCH;
-    }
-#endif
-    else{
-      optionsFact.ordering = NATURAL;
-    }
+    optionsFact.orderingStr = options["-ordering"].front();
   }
+
+//  if( options.find("-ordering") != options.end() ){
+//    if(options["-ordering"].front()=="AMD"){
+//      optionsFact.ordering = AMD;
+//    }
+//    else if(options["-ordering"].front()=="MMD"){
+//      optionsFact.ordering = MMD;
+//    }
+//    else if(options["-ordering"].front()=="NDBOX"){
+//      optionsFact.ordering = NDBOX;
+//    }
+//    else if(options["-ordering"].front()=="NDGRID"){
+//      optionsFact.ordering = NDGRID;
+//    }
+//#ifdef USE_SCOTCH
+//    else if(options["-ordering"].front()=="SCOTCH"){
+//      optionsFact.ordering = SCOTCH;
+//    }
+//#endif
+//#ifdef USE_METIS
+//    else if(options["-ordering"].front()=="METIS"){
+//      optionsFact.ordering = METIS;
+//    }
+//#endif
+//#ifdef USE_PARMETIS
+//    else if(options["-ordering"].front()=="PARMETIS"){
+//      optionsFact.ordering = PARMETIS;
+//    }
+//#endif
+//#ifdef USE_PTSCOTCH
+//    else if(options["-ordering"].front()=="PTSCOTCH"){
+//      optionsFact.ordering = PTSCOTCH;
+//    }
+//#endif
+//    else{
+//      optionsFact.ordering = NATURAL;
+//    }
+//  }
 
   if( options.find("-scheduler") != options.end() ){
     if(options["-scheduler"].front()=="MCT"){
@@ -211,7 +240,12 @@ int main(int argc, char **argv)
 //    DistSparseMatrix<SCALAR> HMat(workcomm);
 
     DistSparseMatrix<SCALAR> HMat(worldcomm);
-    ReadMatrix<SCALAR,INSCALAR>(filename , informatstr,  HMat);
+    if(complextype){
+      ReadMatrix<SCALAR,CSCALAR>(filename , informatstr,  HMat);
+    }
+    else{
+      ReadMatrix<SCALAR,RSCALAR>(filename , informatstr,  HMat);
+    }
 
 
     Int n = HMat.size;
@@ -311,23 +345,23 @@ int main(int argc, char **argv)
         std::cout<<"spGEMM time: "<<timeEnd-timeSta<<std::endl;
       }
 
-#if 0
+#if 1
           {
             std::size_t N = RHS.size();
             logfileptr->OFS()<<"RHS = [ ";
             for(std::size_t i = 0; i<N;i++){
-              logfileptr->OFS()<<RHS[i]<<" ";
+              logfileptr->OFS()<<ToMatlabScalar(RHS[i])<<" ";
             }
             logfileptr->OFS()<<"];"<<std::endl;
           }
 #endif
 
-#if 0
+#if 1
           {
             std::size_t N = XTrue.size();
             logfileptr->OFS()<<"XTrue = [ ";
             for(std::size_t i = 0; i<N;i++){
-              logfileptr->OFS()<<XTrue[i]<<" ";
+              logfileptr->OFS()<<ToMatlabScalar(XTrue[i])<<" ";
             }
             logfileptr->OFS()<<"];"<<std::endl;
           }
@@ -380,11 +414,13 @@ int main(int argc, char **argv)
         std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
       }
 
-#if 0
+#if 1
       if(iam==0){
         logfileptr->OFS()<<"A= ";
       }
       SMat->DumpMatlab();
+#endif
+#if 0
       {
         logfileptr->OFS()<<"Supernode partition"<<SMat->GetSupernodalPartition()<<std::endl;
       }
@@ -406,7 +442,7 @@ int main(int argc, char **argv)
       }
       logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
 
-#if 0
+#if 1
       if(iam==0){
         logfileptr->OFS()<<"L= ";
       }
@@ -442,28 +478,28 @@ int main(int argc, char **argv)
 
         SMat->GetSolution(&XFinal[0],nrhs);
 
-#if 0
+#if 1
         if(nrhs>0 && XFinal.size()>0) {
           {
             std::size_t N = XFinal.size();
             logfileptr->OFS()<<"XFinal = [ ";
             for(std::size_t i = 0; i<N;i++){
-              logfileptr->OFS()<<XFinal[i]<<" ";
+              logfileptr->OFS()<<ToMatlabScalar(XFinal[i])<<" ";
             }
             logfileptr->OFS()<<"];"<<std::endl;
           }
 
-          //mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&XFinal[0],XFinal.size(),MPI_SUM,workcomm);
-          //MPI_Allreduce( MPI_IN_PLACE, &XFinal[0], XFinal.size()*sizeof( SCALAR ), MPI_BYTE, MPI_BOR, workcomm);
-          if(iam==0)
-          {
-            std::size_t N = XFinal.size();
-            logfileptr->OFS()<<"X = [ ";
-            for(std::size_t i = 0; i<N;i++){
-              logfileptr->OFS()<<XFinal[i]<<" ";
-            }
-            logfileptr->OFS()<<"];"<<std::endl;
-          }
+//          //mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&XFinal[0],XFinal.size(),MPI_SUM,workcomm);
+//          //MPI_Allreduce( MPI_IN_PLACE, &XFinal[0], XFinal.size()*sizeof( SCALAR ), MPI_BYTE, MPI_BOR, workcomm);
+//          if(iam==0)
+//          {
+//            std::size_t N = XFinal.size();
+//            logfileptr->OFS()<<"X = [ ";
+//            for(std::size_t i = 0; i<N;i++){
+//              logfileptr->OFS()<<XFinal[i]<<" ";
+//            }
+//            logfileptr->OFS()<<"];"<<std::endl;
+//          }
         }
 #endif
 

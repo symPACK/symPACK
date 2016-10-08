@@ -12,16 +12,21 @@ protected:
   void init_(const char * prefix, const char * suffix){
     std::stringstream  ss;
     ss << prefix << suffix;
-    myOFS_.open( ss.str().c_str() );
+    if(verbose){
+      myOFS_.open( ss.str().c_str() );
+    }
   }
 public:
+  bool verbose;
   std::ofstream myOFS_;
 
-  LogFile(const char * prefix, const char * suffix){
+  LogFile(const char * prefix, const char * suffix,bool averbose = true){
+    verbose = averbose;
     init_(prefix,suffix);
   }
 
-  LogFile(int iam){
+  LogFile(int iam,bool averbose = true){
+    verbose = averbose;
     std::stringstream ss;
     ss<<iam;
     init_("logTest",ss.str().c_str());

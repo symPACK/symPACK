@@ -241,183 +241,6 @@ namespace symPACK {
     void Scal( Int N, dcomplex DA, dcomplex* DX, Int INCX);
 
 
-    template<typename T>
-      void Sytrf_np(char uplo, Int n, T* A, Int lda ){
-        if(uplo == 'L'){
-          for(Int col = 0; col< n; col++){
-            T piv = static_cast<T>(1.0) / A[col+col*lda];
-            blas::Syr( uplo, n-1-col, -piv, &A[col+1+col*lda], 1,&A[col+1+(col+1)*lda],lda);
-            lapack::Scal( n-1, piv, &A[col+1+col*lda], 1 );
-            //#pragma unroll
-            //      for(Int row = col+1; row< n; row++){
-            //        A[row+col*lda] /= piv;
-            //      }
-
-            //      //update next columns
-            //      for(Int k = col+1; k< n; k++){
-            //        #pragma unroll
-            //        for(Int row = col+1; row< n; row++){
-            //          A[row+k*lda] -= A[row+col*lda] * A[col+col*lda] * A[k + row*lda];
-            //        }
-            //      }
-
-
-
-
-          }
-        }
-        else{
-          for(Int K = n; K>=1; K--){
-            T piv = static_cast<T>(1.0) / A[K-1+(K-1)*lda];
-
-            blas::Syr( uplo, K-1, -piv, &A[(K-1)*lda], 1, A, lda );
-            lapack::Scal( K-1, piv, &A[(K-1)*lda], 1 );
-
-          }
-        }
-      }
-
-//    template<typename T>
-//      void lasyf_np( char uplo, int n, int nb, int & kb, T * A, int lda, T * W, int ldw, int &info){
-//        if(uplo=='U'){
-//        }
-//        else{
-//          // Factorize the leading columns of A using the lower triangle
-//          // of A and working forwards, and compute the matrix W = L21*D
-//          // for use in updating A22
-//          // 
-//          // K is the main loop index, increasing from 1 in steps of 1 or 2
-//          T one = static_cast<T>(1.0);
-//          int k = 1;
-//          int kstep;
-//          T absakk;
-//          while( !((k>=nb && nb < n) || k > n)){
-//
-//            // Copy column K of A to column K of W and update it
-//            blas::Copy( n-k+1, &A[ (k-1) + (k-1)*lda ], 1, &W[ (k-1) + (k-1)*ldw ], 1 );
-//            blas::Gemv( 'N', n-k+1, k-1, -one, &A[ k-1 ], lda, &W[ k-1 ], ldw, one, &W[ (k-1) + (k-1)*ldw], 1 );
-//
-//            kstep = 1;
-//            absakk = std::abs( W[ k-1 + (k-1)*ldw] );
-//            if ( absakk == 0.0 ) {
-//              // Column K is zero or underflow: set INFO and continue
-//              if( info == 0 ){
-//                info = k;
-//              }
-//              kp = k;
-//            }
-//            else {
-//              kp = k;
-//              // ============================================================
-//              // 1-by-1 pivot block D(k): column k of W now holds
-//              // W(k) = L(k)*D(k),
-//              // where L(k) is the k-th column of L
-//              //
-//              // Store subdiag. elements of column L(k)
-//              // and 1-by-1 block D(k) in column k of A.
-//              // (NOTE: Diagonal element L(k,k) is a UNIT element
-//              // and not stored)
-//              //    A(k,k) := D(k,k) = W(k,k)
-//              //    A(k+1:N,k) := L(k+1:N,k) = W(k+1:N,k)/D(k,k)
-//              blas::Copy( n-k+1, &W[(k-1) + (k-1)*ldw], 1, &A[ (k-1)+(k-1)*lda], 1 );
-//              if ( k < n ) {
-//                r1 = one / A[ (k-1) + (k-1) * lda ];
-//                lapack::Scal( n-k, r1, &A[(k+1-1) + (k-1)*lda ], 1 );
-//              }
-//            }
-//            k += kstep;
-//          }
-//
-//          // Update the lower triangle of A22 (= A(k:n,k:n)) as
-//          // A22 := A22 - L21*D*L21**T = A22 - L21*W**T
-//          // computing blocks of NB columns at a time
-//          for(Int j = k; j<=n; j+=nb){
-//            Int jb = std::min( nb, n-j+1);
-//            // Update the lower triangle of the diagonal block
-//            for(Int jj=j;jj<=j+jb-1;jj++){
-//              blas::Gemv( 'N', j+jb-jj, k-1, -one, &A[ jj-1 ], lda, &W[ (jj-1) ], ldw, one, &A[ (jj-1) + (jj-1)*lda ], 1 );
-//            }
-//            // Update the rectangular subdiagonal block
-//            if ( j+jb <= n ){
-//              blas::Gemm( 'N', 'T', n-j-jb+1, jb, k-1, -one, &A[ (j+jb-1) ], lda, &W[ (j-1) ], ldw, one, &A[ (j+jb-1) + (j-1)*lda ], lda );
-//            }
-//          }
-//
-//
-//          // Set KB to the number of columns factorized
-//          kb = k - 1;
-//        }
-//      }
-
-    template<typename T>
-      void lasyf_np_rm( char uplo, int n, int nb, int & kb, T * A, int lda, T * W, int ldw, int &info){
-        // Factorize the leading columns of A using the lower triangle
-        // of A and working forwards, and compute the matrix W = L21*D
-        // for use in updating A22
-        // 
-        // K is the main loop index, increasing from 1 in steps of 1 or 2
-        T one = static_cast<T>(1.0);
-        int k = 1;
-        T absakk;
-        while( !((k>=nb && nb < n) || k > n)){
-
-          // Copy column K of A to column K of W and update it
-          blas::Copy( n-k+1, &A[ (k-1) + (k-1)*lda ], lda, &W[ (k-1) + (k-1)*ldw ], ldw );
-          // W[k:n,k] -= A[k:n,1:k] * W[k,1:n]
-          //TODO check A , lda
-          blas::Gemv( 'T', k-1, n-k+1, -one, &A[ (k-1)*lda ], lda, &W[ (k-1)*ldw ], 1, one, &W[ (k-1) + (k-1)*ldw], ldw );
-
-          absakk = std::abs( W[ k-1 + (k-1)*ldw] );
-          if ( absakk == 0.0 ) {
-            // Column K is zero or underflow: set INFO and continue
-            if( info == 0 ){
-              info = k;
-            }
-          }
-          else {
-            // ============================================================
-            // column k of W now holds
-            // W(k) = L(k)*D(k),
-            // where L(k) is the k-th column of L
-            //
-            // Store subdiag. elements of column L(k)
-            // and 1-by-1 block D(k) in column k of A.
-            // (NOTE: Diagonal element L(k,k) is a UNIT element
-            // and not stored)
-            //    A(k,k) := D(k,k) = W(k,k)
-            //    A(k+1:N,k) := L(k+1:N,k) = W(k+1:N,k)/D(k,k)
-            blas::Copy( n-k+1, &W[(k-1) + (k-1)*ldw], ldw, &A[ (k-1)+(k-1)*lda], lda );
-            if ( k < n ) {
-              T r1 = one / A[ (k-1) + (k-1) * lda ];
-              lapack::Scal( n-k, r1, &A[(k+1-1)*lda + (k-1) ], lda );
-            }
-          }
-          k++;
-        }
-
-        // Update the lower triangle of A22 (= A(k:n,k:n)) as
-        // A22 := A22 - L21*D*L21**T = A22 - L21*W**T
-        // computing blocks of NB columns at a time
-        for(Int j = k; j<=n; j+=nb){
-          Int jb = std::min( nb, n-j+1);
-          // Update the lower triangle of the diagonal block
-          for(Int jj=j;jj<=j+jb-1;jj++){
-            //TODO check A , lda
-            blas::Gemv( 'T', k-1, j+jb-jj, -one, &A[ (jj-1)*lda ], lda, &W[ (jj-1)*ldw ], 1, one, &A[ (jj-1) + (jj-1)*lda ], lda );
-          }
-          // Update the rectangular subdiagonal block
-          if ( j+jb <= n ){
-            //              blas::Gemm( 'N', 'T', n-j-jb+1, jb, k-1, -one, &A[ (j+jb-1) ], lda, &W[ (j-1) ], ldw, one, &A[ (j+jb-1) + (j-1)*lda ], lda );
-            blas::Gemm( 'T', 'N', jb, n-j-jb+1, k-1, -one, &W[ (j-1)*ldw ], ldw, &A[ (j+jb-1)*lda ], lda, one, &A[ (j+jb-1)*lda + (j-1) ], lda );
-          }
-        }
-
-
-        // Set KB to the number of columns factorized
-        kb = k - 1;
-      }
-
-
 template<typename T>
   void Potf2_LDL( const char * UPLO, Idx N, T * A,  Idx LDA, T* WORK, Int & INFO ){
     //*
@@ -558,10 +381,13 @@ template<typename T>
         blas::Copy( J-1, &A[(J-1)*LDA], 1, WORK, 1 );
         for (Idx I = 1; I<=J-1; I++) {
               //bassert(I<=N);
-          WORK[I-1] *= A[I-1+(I-1)*LDA];
+          WORK[I-1] = (WORK[I-1]) * A[I-1+(I-1)*LDA];
         }
         //AJJ = A_{J,J} - U'_{1..J-1,J-1} * WORK
         AJJ = A[J-1+(J-1)*LDA] - blas::Dot( J-1, &A[(J-1)*LDA], 1, WORK, 1 );
+
+        bassert( std::abs(AJJ) > 1.0E-13 );
+
         if ( std::abs(AJJ) > 0 ) {
           A[J-1+(J-1)*LDA] = AJJ;
           //*
@@ -571,7 +397,7 @@ template<typename T>
             //U(J,J+1..N) = U'_{1..J,J+1..N} *  D_{1..J-1,1..J-1} * U_{1..J-1,J-1}
             blas::Gemv( 'T', J-1, N-J, -ONE, &A[J*LDA], LDA, WORK, 1,ONE, &A[J-1+J*LDA], LDA );
             //U(J,J+1..N) = U(J,J+1..N) / D(J,J)
-            blas::Scal( N-J, ONE/AJJ, &A[J-1+J*LDA], LDA );
+            blas::Scal( N-J, symPACK::div(ONE,AJJ), &A[J-1+J*LDA], LDA );
           }
         }
         else {
@@ -591,7 +417,7 @@ template<typename T>
         //*
           blas::Copy( J-1, &A[J-1], LDA, WORK, 1 );
           for (Idx I = 1; I<=J-1; I++) {
-            WORK[I-1] *= A[I-1+(I-1)*LDA];
+            WORK[I-1] = (WORK[I-1]) * A[I-1+(I-1)*LDA];
           }
           AJJ = A[J-1+(J-1)*LDA] - blas::Dot( J-1, &A[J-1], LDA, WORK, 1 );
 
@@ -602,7 +428,7 @@ template<typename T>
           //*
           if( J < N ){
             blas::Gemv( 'N', N-J, J-1,-ONE, &A[J], LDA, WORK, 1,ONE, &A[J+(J-1)*LDA], 1 );
-            blas::Scal( N-J, ONE/AJJ, &A[J+(J-1)*LDA], 1 );
+            blas::Scal( N-J, symPACK::div(ONE,AJJ), &A[J+(J-1)*LDA], 1 );
           }
         }
         else {
@@ -778,6 +604,11 @@ template<typename T>
             for ( Idx I = 1; I<=J-1;I++) {
               //bassert(PTR<=N);
               blas::Copy( JB, &A[I-1+(J-1)*LDA], LDA, &WORK[PTR-1], 1 );
+              //#pragma unroll
+              //for( Idx JJ = 0; JJ<JB; JJ++){
+              //  WORK[PTR-1+JJ] = (A[I-1+(J-1)*LDA + JJ*LDA]);
+              //}
+
               blas::Scal( JB, A[I-1+(I-1)*LDA], &WORK[PTR-1], 1 );
               PTR += JB;
             }
@@ -795,7 +626,7 @@ template<typename T>
               blas::Gemm( 'N', 'N', JB, N-J-JB+1,J-1, -ONE, WORK, JB, &A[ (J+JB-1)*LDA ],LDA, ONE, &A[ J-1 + (J+JB-1)*LDA ], LDA );
               blas::Trsm( 'L', 'U', 'T', 'U',JB, N-J-JB+1, ONE, &A[J-1+(J-1)*LDA], LDA, &A[J-1+(J+JB-1)*LDA], LDA );
               for ( Idx I = J; I<=J+JB-1;I++) {
-                blas::Scal( N-J-JB+1, 1/A[I-1+(I-1)*LDA], &A[I-1+(J+JB-1)*LDA], LDA );
+                blas::Scal( N-J-JB+1, symPACK::div(ONE,A[I-1+(I-1)*LDA]), &A[I-1+(J+JB-1)*LDA], LDA );
               }
             }
           }
@@ -812,7 +643,11 @@ template<typename T>
             JB = std::min( NB, N-J+1 );
             PTR = 1;
             for ( Idx I = 1; I<=J-1;I++) {
-              blas::Copy( JB, &A[J-1+(I-1)*LDA],1,&WORK[PTR-1],1);
+              //blas::Copy( JB, &A[J-1+(I-1)*LDA],1,&WORK[PTR-1],1);
+              #pragma unroll
+              for( Idx JJ = 0; JJ<JB; JJ++){
+                WORK[PTR-1+JJ] = (A[J-1+(I-1)*LDA + JJ]);
+              }
               blas::Scal( JB, A[I-1+(I-1)*LDA], &WORK[PTR-1], 1 );
               PTR += JB;
             }
@@ -830,7 +665,7 @@ template<typename T>
               blas::Gemm( 'N','T',N-J-JB+1, JB, J-1,-ONE, &A[J+JB-1], LDA, WORK, JB, ONE, &A[J+JB-1+(J-1)*LDA], LDA );
               blas::Trsm( 'R','L','T','U', N-J-JB+1, JB, ONE, &A[J-1+(J-1)*LDA], LDA, &A[J+JB-1+(J-1)*LDA], LDA );
               for ( Idx I = J; I<=J+JB-1;I++) {
-                blas::Scal( N-J-JB+1, 1/A[I-1+(I-1)*LDA], &A[J+JB-1+(I-1)*LDA], 1 );
+                blas::Scal( N-J-JB+1, symPACK::div(ONE,A[I-1+(I-1)*LDA]), &A[J+JB-1+(I-1)*LDA], 1 );
               }
             }
           }

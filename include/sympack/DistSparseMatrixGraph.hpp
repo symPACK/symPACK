@@ -59,13 +59,13 @@ class DistSparseMatrixGraph{
 
   public:
 	Idx          size;                            // Matrix dimension (global)
-	Ptr          nnz;                             // Number of nonzeros (global)
+	Ptr          nnz;                             // Number of nonzeros (local)
 	std::vector<Ptr>  colptr;                 // Column index pointer
 	std::vector<Idx>  rowind;                 // Starting row index pointer
 	std::vector<Idx>  vertexDist;             // vertex distribution array (size np+1)
   MPI_Comm comm;
 
-  protected:
+  public:
   int mpirank;
   int mpisize;
   int baseval;
@@ -99,6 +99,8 @@ class DistSparseMatrixGraph{
   Ptr LocalEdgeCount() const{ return rowind.size();}
 
   //utility
+
+  void SetExpanded(bool aExpanded) {bIsExpanded = aExpanded;}
   void FromStructure(const SparseMatrixStructure & A);
   void SortEdges();
   void ExpandSymmetric();
