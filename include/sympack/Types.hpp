@@ -115,6 +115,7 @@ namespace symPACK{
       RelaxationParameters relax;
       MPI_Comm MPIcomm;
       int verbose;
+      int dumpPerm;
       int * perm;
     protected:
       bool isSqrtP(){
@@ -153,6 +154,7 @@ namespace symPACK{
         MPIcomm = MPI_COMM_NULL;
 
         perm = NULL;
+        dumpPerm = 0;
 //        mappingType = ROW2D;
 ///        ordering = MMD;
 //        load_balance = SUBCUBE;

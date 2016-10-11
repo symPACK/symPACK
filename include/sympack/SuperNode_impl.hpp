@@ -937,7 +937,7 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
     SYMPACK_TIMER_START(UPDATE_SNODE_GEMM);
     //blas::Gemm('C','N',tgt_width, src_nrows,src_snode_size,
     blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
-        MINUS_ONE<T>(),pivot,src_snode_size,
+        T(-1.0),pivot,src_snode_size,
         pivot,src_snode_size,beta,buf,tgt_width);
     SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
 
@@ -1162,7 +1162,7 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
   //logfileptr->OFS()<<"GEMM ("<<tgt_width<<"-by-"<<src_snode_size<<") x ("<<src_snode_size<<"-by-"<<src_nrows<<")"<<std::endl;
   //blas::Gemm('C','N',tgt_width, src_nrows,src_snode_size,
   blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
-      MINUS_ONE<T>(),pivot,src_snode_size,
+      T(-1.0),pivot,src_snode_size,
       pivot,src_snode_size,beta,buf,tgt_width);
   SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_GEMM);
 
@@ -1335,7 +1335,7 @@ template<typename T, class Allocator>
     T * diag_nzval = &GetNZval(diag_desc.Offset)[0];
     lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
     T * nzblk_nzval = &GetNZval(diag_desc.Offset)[(snode_size)*snode_size];
-    blas::Trsm('L','U','T','N',snode_size, NRowsBelowBlock(0)-snode_size, ONE<T>(),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+    blas::Trsm('L','U','T','N',snode_size, NRowsBelowBlock(0)-snode_size, T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
     return 0;
 
   }
@@ -1551,7 +1551,7 @@ template <typename T, class Allocator>
 
 
         blas::Axpy((tgt_local_lr - tgt_local_fr +1)*src_ncols,
-            ONE<T>(),src,1,tgt,1);
+            T(1.0),src,1,tgt,1);
 
 
         if(src_lr>tgt_lr){
@@ -1654,8 +1654,7 @@ template <typename T, class Allocator>
             }
 
             //if nounit
-            //temp = temp / (diag_nzval[ii*cur_snode->Size()+ii]);
-            temp = symPACK::div(temp,(diag_nzval[ii*cur_snode->Size()+ii]));
+            temp = temp / (diag_nzval[ii*cur_snode->Size()+ii]);
             tgt_nzval[ii*nrhs+j] = temp;
           }
         }
@@ -1694,8 +1693,7 @@ inline void SuperNode<T,Allocator>::forward_update_contrib( T * RHS, SuperNode<T
           Int srcRow = perm[diag_desc.GIndex+kk-1];
 
           //if non unit
-          //diag_nzval[kk*nrhs+j] = (RHS[srcRow-1 + j*n] + diag_nzval[kk*nrhs+j]) / (chol_nzval[kk*cur_snode->Size()+kk]);
-          diag_nzval[kk*nrhs+j] = symPACK::div((RHS[srcRow-1 + j*n] + diag_nzval[kk*nrhs+j]) , (chol_nzval[kk*cur_snode->Size()+kk]));
+          diag_nzval[kk*nrhs+j] = (RHS[srcRow-1 + j*n] + diag_nzval[kk*nrhs+j]) / (chol_nzval[kk*cur_snode->Size()+kk]);
 
           for(Int i = kk+1; i<cur_nrows;++i){
             diag_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*(chol_nzval[i*cur_snode->Size()+kk]);

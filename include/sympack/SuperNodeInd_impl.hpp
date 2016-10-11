@@ -443,7 +443,7 @@ template<typename T, class Allocator>
 
     //scale column I
     for ( Idx I = 1; I<=snodeSize;I++) {
-        blas::Scal( totalNRows-snodeSize, symPACK::div(T(1.0),this->diag_[I-1]), &nzblk_nzval[I-1], snodeSize );
+        blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
     }
 #endif
     return 0;
@@ -460,6 +460,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
 #if defined(_NO_COMPUTATION_)
   return 0;
 #endif
+
 
   if(iTarget != iam){
     this->Merge(src_snode, update);
@@ -520,7 +521,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
 
   //Then do -L*W (gemm)
   blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
-      static_cast<T>(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
+      T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
 
   SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
 
@@ -608,7 +609,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
         for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
           T * A = &buf[rowidx*tgt_width];
           T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
-          #pragma omp simd
+          #pragma unroll
           for(Int i = 0; i < tgt_width; ++i){
             B[i] += A[i];
           }
@@ -650,6 +651,7 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
 #if defined(_NO_COMPUTATION_)
   return 0;
 #endif
+
 
   Int & pivot_idx = update.blkidx;
   Int & pivot_fr = update.src_first_row;
@@ -716,7 +718,7 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
 
   //Then do -L*W (gemm)
   blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
-      MINUS_ONE<T>(),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
+      T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
 
   SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
 
@@ -805,7 +807,7 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
         for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
           T * A = &buf[rowidx*tgt_width];
           T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
-          #pragma omp simd
+          #pragma unroll
           for(Int i = 0; i < tgt_width; ++i){
             B[i] += A[i];
           }
@@ -922,7 +924,7 @@ inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNod
     T * chol_diag = cur_snodeInd->GetDiag();
 
 
-#if 1
+#if 0
   if(cur_snodeInd->NZBlockCnt()>0){
     Int blkidx = 0;
     NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
@@ -1020,7 +1022,7 @@ inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNod
 
     for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
         //scale the kk-th row of the solution
-        lapack::Scal(nrhs, symPACK::div(T(1.0),chol_diag[kk]), &diag_nzval[kk*nrhs], 1);
+        lapack::Scal(nrhs, T(1.0)/chol_diag[kk], &diag_nzval[kk*nrhs], 1);
     }
 #endif
 

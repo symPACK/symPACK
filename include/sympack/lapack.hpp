@@ -241,441 +241,428 @@ namespace symPACK {
     void Scal( Int N, dcomplex DA, dcomplex* DX, Int INCX);
 
 
-template<typename T>
-  void Potf2_LDL( const char * UPLO, Idx N, T * A,  Idx LDA, T* WORK, Int & INFO ){
-    //*
-    //*  -- LAPACK-like routine --
-    //*     Esmond G. Ng, Oak Ridge National Laboratory
-    //*     March 17, 1998
-    //*
-    //*     .. Scalar Arguments ..
-    //      CHARACTER          UPLO
-    //      INTEGER            INFO, LDA, N, NDEF
-    //      DOUBLE PRECISION   TOL
-    //*     ..
-    //*     .. Array Arguments ..
-    //      INTEGER            IDEF(*)
-    //      DOUBLE PRECISION   A(LDA,*), WORK(*)
-    //*     ..
-    //*
-    //*  Purpose
-    //*  =======
-    //*
-    //*  DPOTF2_LDL computes the Cholesky factorization of a real symmetric
-    //*  positive definite or semi-definite matrix A.
-    //*
-    //*  The factorization has the form
-    //*     A = U' * D * U ,  if UPLO = 'U', or
-    //*     A = L  * D * L',  if UPLO = 'L',
-    //*  where U is a unit upper triangular matrix, L is unit lower
-    //*  triangular, and D is diagonal.
-    //*
-    //*  This is the unblocked version of the algorithm, calling Level 2 BLAS.
-    //*
-    //*  Arguments
-    //*  =========
-    //*
-    //*  UPLO    (input) CHARACTER*1
-    //*          Specifies whether the upper or lower triangular part of the
-    //*          symmetric matrix A is stored.
-    //*          = 'U':  Upper triangular
-    //*          = 'L':  Lower triangular
-    //*
-    //*  N       (input) INTEGER
-    //*          The order of the matrix A.  N >= 0.
-    //*
-    //*  A       (input/output) DOUBLE PRECISION array, dimension (LDA,N)
-    //*          On entry, the symmetric matrix A.  If UPLO = 'U', the leading
-    //*          n by n upper triangular part of A contains the upper
-    //*          triangular part of the matrix A, and the strictly lower
-    //*          triangular part of A is not referenced.  If UPLO = 'L', the
-    //*          leading n by n lower triangular part of A contains the lower
-    //*          triangular part of the matrix A, and the strictly upper
-    //*          triangular part of A is not referenced.
-    //*
-    //*          On exit, if INFO = 0, the factor U+D or L+D from the Cholesky
-    //*          factorization A = U'*D*U  or A = L*D*L'.
-    //*
-    //*  LDA     (input) INTEGER
-    //*          The leading dimension of the array A.  LDA >= max(1,N).
-    //*
-    //*  NDEF    (output) INTEGER
-    //*          The rank deficiency of the matrix A.  NDEF <= N.
-    //*
-    //*  IDEF    (output) INTEGER array, dimension NDEF
-    //*          Indices of columns for which zero pivots are encountered.
-    //*
-    //*  TOL     (input) DOUBLE PRECISION
-    //*          Tolerance for checking if a pivot is zero.
-    //*
-    //*  WORK    (input) DOUBLE PRECISION array, dimension N.
-    //*          Temporary work array.
-    //*
-    //*  INFO    (output) INTEGER
-    //*          = 0: successful exit
-    //*          < 0: if INFO = -k, the k-th argument had an illegal value
-    //*          > 0: if INFO = k, the leading minor of order k is not
-    //*               positive definite or semi-definite, and the
-    //*               factorization could not be completed.
-    //*
-    //*  =====================================================================
-    //*
-    //*       .. Parameters ..
-    //        DOUBLE PRECISION   ONE, ZERO
-    //        PARAMETER          ( ONE = 1.0D+0, ZERO = 0.0D+0 )
-    //*       ..
-    //*       .. Local Scalars ..
-    //        LOGICAL            UPPER
-    //        INTEGER            I, J
-    //        DOUBLE PRECISION   AJJ
-    //*       ..
-    //*       .. External Functions ..
-    //        LOGICAL            LSAME
-    //        DOUBLE PRECISION   DDOT
-    //        EXTERNAL           LSAME, DDOT
-    //*       ..
-    //*       .. External Subroutines ..
-    //        EXTERNAL           DGEMV, DSCAL, XERBLA
-    //*       ..
-    //*       .. Intrinsic Functions ..
-    //        INTRINSIC          ABS, MAX
-    //*       ..
-    //*       .. Executable Statements ..
-    //*
-    //*       Test the input parameters.
-    //*
-    T AJJ;
-    T ONE = T(1);
-    T ZERO = T(0);
-
-
-    INFO = 0;
-    bool UPPER = *UPLO == 'U';
-    if ( !UPPER  && *UPLO!= 'L' ) {
-      INFO = -1;
-    }
-    else if ( N < 0 ) {
-      INFO = -2;
-    }
-    else if ( LDA < std::max(Idx(1),N) ) {
-      INFO = -4;
-    }
-    if( INFO != 0 ) {
-      //CALL  XERBLA ( 'DPOTF2_LDL', -INFO )
-      return;
-    }
-    //*
-    //*       Quick return if possible
-    //*
-    if ( N == 0 ) return;
-    if ( UPPER ) {
-      //*
-      //*           Compute the Cholesky factorization A = U'*D*U.
-      //*
-      for (Idx J = 1; J<=N; J++) {
+    template<typename T>
+      void Potf2_LDL( const char * UPLO, Idx N, T * A,  Idx LDA, T* WORK, Int & INFO ){
         //*
-        //*               Compute U(J,J) and test for non-positive-definiteness.
+        //*  -- LAPACK-like routine --
+        //*     Esmond G. Ng, Oak Ridge National Laboratory
+        //*     March 17, 1998
         //*
-        //Copy Column J of A into WORK
-        //WORK is D_{1..J-1,1..J-1} * U_{1..J-1,J-1}  
-        blas::Copy( J-1, &A[(J-1)*LDA], 1, WORK, 1 );
-        for (Idx I = 1; I<=J-1; I++) {
-              //bassert(I<=N);
-          WORK[I-1] = (WORK[I-1]) * A[I-1+(I-1)*LDA];
-        }
-        //AJJ = A_{J,J} - U'_{1..J-1,J-1} * WORK
-        AJJ = A[J-1+(J-1)*LDA] - blas::Dot( J-1, &A[(J-1)*LDA], 1, WORK, 1 );
+        //*     .. Scalar Arguments ..
+        //      CHARACTER          UPLO
+        //      INTEGER            INFO, LDA, N, NDEF
+        //      DOUBLE PRECISION   TOL
+        //*     ..
+        //*     .. Array Arguments ..
+        //      INTEGER            IDEF(*)
+        //      DOUBLE PRECISION   A(LDA,*), WORK(*)
+        //*     ..
+        //*
+        //*  Purpose
+        //*  =======
+        //*
+        //*  DPOTF2_LDL computes the Cholesky factorization of a real symmetric
+        //*  positive definite or semi-definite matrix A.
+        //*
+        //*  The factorization has the form
+        //*     A = U' * D * U ,  if UPLO = 'U', or
+        //*     A = L  * D * L',  if UPLO = 'L',
+        //*  where U is a unit upper triangular matrix, L is unit lower
+        //*  triangular, and D is diagonal.
+        //*
+        //*  This is the unblocked version of the algorithm, calling Level 2 BLAS.
+        //*
+        //*  Arguments
+        //*  =========
+        //*
+        //*  UPLO    (input) CHARACTER*1
+        //*          Specifies whether the upper or lower triangular part of the
+        //*          symmetric matrix A is stored.
+        //*          = 'U':  Upper triangular
+        //*          = 'L':  Lower triangular
+        //*
+        //*  N       (input) INTEGER
+        //*          The order of the matrix A.  N >= 0.
+        //*
+        //*  A       (input/output) DOUBLE PRECISION array, dimension (LDA,N)
+        //*          On entry, the symmetric matrix A.  If UPLO = 'U', the leading
+        //*          n by n upper triangular part of A contains the upper
+        //*          triangular part of the matrix A, and the strictly lower
+        //*          triangular part of A is not referenced.  If UPLO = 'L', the
+        //*          leading n by n lower triangular part of A contains the lower
+        //*          triangular part of the matrix A, and the strictly upper
+        //*          triangular part of A is not referenced.
+        //*
+        //*          On exit, if INFO = 0, the factor U+D or L+D from the Cholesky
+        //*          factorization A = U'*D*U  or A = L*D*L'.
+        //*
+        //*  LDA     (input) INTEGER
+        //*          The leading dimension of the array A.  LDA >= max(1,N).
+        //*
+        //*  NDEF    (output) INTEGER
+        //*          The rank deficiency of the matrix A.  NDEF <= N.
+        //*
+        //*  IDEF    (output) INTEGER array, dimension NDEF
+        //*          Indices of columns for which zero pivots are encountered.
+        //*
+        //*  TOL     (input) DOUBLE PRECISION
+        //*          Tolerance for checking if a pivot is zero.
+        //*
+        //*  WORK    (input) DOUBLE PRECISION array, dimension N.
+        //*          Temporary work array.
+        //*
+        //*  INFO    (output) INTEGER
+        //*          = 0: successful exit
+        //*          < 0: if INFO = -k, the k-th argument had an illegal value
+        //*          > 0: if INFO = k, the leading minor of order k is not
+        //*               positive definite or semi-definite, and the
+        //*               factorization could not be completed.
+        //*
+        //*  =====================================================================
+        //*
+        //*       .. Parameters ..
+        //        DOUBLE PRECISION   ONE, ZERO
+        //        PARAMETER          ( ONE = 1.0D+0, ZERO = 0.0D+0 )
+        //*       ..
+        //*       .. Local Scalars ..
+        //        LOGICAL            UPPER
+        //        INTEGER            I, J
+        //        DOUBLE PRECISION   AJJ
+        //*       ..
+        //*       .. External Functions ..
+        //        LOGICAL            LSAME
+        //        DOUBLE PRECISION   DDOT
+        //        EXTERNAL           LSAME, DDOT
+        //*       ..
+        //*       .. External Subroutines ..
+        //        EXTERNAL           DGEMV, DSCAL, XERBLA
+        //*       ..
+        //*       .. Intrinsic Functions ..
+        //        INTRINSIC          ABS, MAX
+        //*       ..
+        //*       .. Executable Statements ..
+        //*
+        //*       Test the input parameters.
+        //*
+        T AJJ;
+        T ONE = T(1.0);
+        T MINUS_ONE = T(-1.0);
+        T ZERO = T(0);
 
-        bassert( std::abs(AJJ) > 1.0E-13 );
 
-        if ( std::abs(AJJ) > 0 ) {
-          A[J-1+(J-1)*LDA] = AJJ;
-          //*
-          //*                   Compute elements J+1:N of row J.
-          //*
-          if( J < N ){
-            //U(J,J+1..N) = U'_{1..J,J+1..N} *  D_{1..J-1,1..J-1} * U_{1..J-1,J-1}
-            blas::Gemv( 'T', J-1, N-J, -ONE, &A[J*LDA], LDA, WORK, 1,ONE, &A[J-1+J*LDA], LDA );
-            //U(J,J+1..N) = U(J,J+1..N) / D(J,J)
-            blas::Scal( N-J, symPACK::div(ONE,AJJ), &A[J-1+J*LDA], LDA );
-          }
+        INFO = 0;
+        bool UPPER = *UPLO == 'U';
+        if ( !UPPER  && *UPLO!= 'L' ) {
+          INFO = -1;
         }
-        else {
-          A[(J-1)+(J-1)*LDA] = AJJ;
-          INFO = J;
+        else if ( N < 0 ) {
+          INFO = -2;
+        }
+        else if ( LDA < std::max(Idx(1),N) ) {
+          INFO = -4;
+        }
+        if( INFO != 0 ) {
+          //CALL  XERBLA ( 'DPOTF2_LDL', -INFO )
           return;
         }
-      }
-    }
-    else{
-      //*
-      //*           Compute the Cholesky factorization A = L*D*L'.
-      //*
-      for (Idx J=1; J<=N;J++){
         //*
-        //*               Compute L(J,J) and test for non-positive-definiteness.
+        //*       Quick return if possible
         //*
-          blas::Copy( J-1, &A[J-1], LDA, WORK, 1 );
-          for (Idx I = 1; I<=J-1; I++) {
-            WORK[I-1] = (WORK[I-1]) * A[I-1+(I-1)*LDA];
-          }
-          AJJ = A[J-1+(J-1)*LDA] - blas::Dot( J-1, &A[J-1], LDA, WORK, 1 );
-
-        if ( std::abs(AJJ) > 0 ) {
-          A[(J-1)+(J-1)*LDA] = AJJ;
-          //*
-          //*                   Compute elements J+1:N of column J.
-          //*
-          if( J < N ){
-            blas::Gemv( 'N', N-J, J-1,-ONE, &A[J], LDA, WORK, 1,ONE, &A[J+(J-1)*LDA], 1 );
-            blas::Scal( N-J, symPACK::div(ONE,AJJ), &A[J+(J-1)*LDA], 1 );
-          }
-        }
-        else {
-          A[(J-1)+(J-1)*LDA] = AJJ;
-          INFO = J;
-          return;
-        }
-      }
-    }
-  }
-
-template<typename T>
-  void Potrf_LDL( const char * UPLO,  Idx N, T * A,  Idx LDA, TempUpdateBuffers<T> & tmpBuffers, Int & INFO) {
-    //*
-    //*  -- LAPACK-like routine --
-    //*     Esmond G. Ng, Oak Ridge National Laboratory
-    //*
-    //*     .. Scalar Arguments ..
-    //      CHARACTER          UPLO
-    //      INTEGER            INFO, LDA, N, NDEF
-    //      DOUBLE PRECISION   TOL
-    //*     ..
-    //*     .. Array Arguments ..
-    //      INTEGER            IDEF(*)
-    //      DOUBLE PRECISION   A(LDA,*), WORK(*)
-    //*     ..
-    //*
-    //*  Purpose
-    //*  =======
-    //*
-    //*  DPOTRF_LDL computes the Cholesky factorization of a real symmetric
-    //*  positive definite matrix A.
-    //*
-    //*  The factorization has the form
-    //*     A = U**T * U,  if UPLO = 'U', or
-    //*     A = L  * L**T,  if UPLO = 'L',
-    //*  where U is an upper triangular matrix and L is lower triangular.
-    //*
-    //*  This is the block version of the algorithm, calling Level 3 BLAS.
-    //*
-    //*  Arguments
-    //*  =========
-    //*
-    //*  UPLO    (input) CHARACTER*1
-    //*          = 'U':  Upper triangle of A is stored;
-    //*          = 'L':  Lower triangle of A is stored.
-    //*
-    //*  N       (input) INTEGER
-    //*          The order of the matrix A.  N >= 0.
-    //*
-    //*  A       (input/output) DOUBLE PRECISION array, dimension (LDA,N)
-    //*          On entry, the symmetric matrix A.  If UPLO = 'U', the leading
-    //*          N-by-N upper triangular part of A contains the upper
-    //*          triangular part of the matrix A, and the strictly lower
-    //*          triangular part of A is not referenced.  If UPLO = 'L', the
-    //*          leading N-by-N lower triangular part of A contains the lower
-    //*          triangular part of the matrix A, and the strictly upper
-    //*          triangular part of A is not referenced.
-    //*
-    //*          On exit, if INFO = 0, the factor U or L from the Cholesky
-    //*          factorization A = U**T*U or A = L*L**T.
-    //*
-    //*  LDA     (input) INTEGER
-    //*          The leading dimension of the array A.  LDA >= max(1,N).
-    //*
-    //*  NDEF    (output) INTEGER
-    //*          The rank deficiency of the matrix A.  NDEF <= N.
-    //*
-    //*  IDEF    (output) INTEGER array, dimension NDEF
-    //*          Indices of columns for which zero pivots are encountered.
-    //*
-    //*  TOL     (input) DOUBLE PRECISION
-    //*          Tolerance for checking if a pivot is zero.
-    //*
-    //*  WORK    (input) DOUBLE PRECISION array, dimension N.
-    //*          Temporary work array.
-    //*
-    //*  INFO    (output) INTEGER
-    //*          = 0:  successful exit
-    //*          < 0:  if INFO = -i, the i-th argument had an illegal value
-    //*          > 0:  if INFO = i, the leading minor of order i is not
-    //*                positive definite, and the factorization could not be
-    //*                completed.
-    //*
-    //*  =====================================================================
-    //*
-    //*     .. Parameters ..
-    //      DOUBLE PRECISION  ONE, ZERO
-    //      PARAMETER         ( ONE = 1.0D+0, ZERO = 0.0D+0 )
-    //*     ..
-    //*     .. Local Scalars ..
-    //      LOGICAL           UPPER
-    //      INTEGER           COL, I, II, J, JB, NB, NDEF0, PTR
-    //*     ..
-    //*     .. External Functions ..
-    //      LOGICAL           LSAME
-    //      INTEGER           ILAENV
-    //      EXTERNAL          LSAME, ILAENV
-    //*     ..
-    //*     .. External Subroutines ..
-    //      EXTERNAL          DGEMM, DPOTF2_LDL, DSYRK, DTRSM, XERBLA
-    //*     ..
-    //*     .. Intrinsic Functions ..
-    //      INTRINSIC         MAX, MIN
-    //*     ..
-    //*     .. Executable Statements ..
-    //*
-    //*     Test the input parameters.
-    //*
-
-
-
-
-
-    T ONE = T(1);
-    T ZERO = T(0);
-    Idx JB,NB,ROW,COL;
-    Ptr PTR;
-
-
-    INFO = 0;
-    bool UPPER = *UPLO == 'U';
-    if ( !UPPER  && *UPLO!= 'L' ) {
-      INFO = -1;
-    }
-    else if ( N < 0 ) {
-      INFO = -2;
-    }
-    else if ( LDA < std::max(Idx(1),N) ) {
-      INFO = -4;
-    }
-    if( INFO != 0 ) {
-      //CALL XERBLA( 'DPOTRF_LDL', -INFO )
-      return;
-    }
-    //*
-    //*       Quick return if possible
-    //*
-    if ( N == 0 ) return;
-
-    //*
-    //*     Determine the block size for this environment.
-    //*
-    NB = lapack::Ilaenv( 1, "DPOTRF", UPLO, N, -1, -1, -1 );
-    //NB = 1;
-    //NB = 32;//lapack::Ilaenv( 1, "DPOTRF_LDL", UPLO, N, -1, -1, -1 );
-
-      if ( NB <= 1 || NB >= N ) {
-    tmpBuffers.Resize(N,1);
-    T * WORK = &tmpBuffers.tmpBuf[0];
-        //*
-        //*        Use unblocked code.
-        //*
-        Potf2_LDL( UPLO, N, A, LDA, WORK, INFO );
-      }
-      else {
-    tmpBuffers.Resize(NB*N,1);
-    T * WORK = &tmpBuffers.tmpBuf[0];
-        //*
-        //*        Use blocked code.
-        //*
+        if ( N == 0 ) return;
         if ( UPPER ) {
           //*
-          //*           Compute the Cholesky factorization A = U'*U.
+          //*           Compute the Cholesky factorization A = U'*D*U.
           //*
-          for ( Idx J = 1; J <= N; J+=NB ) {
+          for (Idx J = 1; J<=N; J++) {
             //*
-            //*              Update and factorize the current diagonal block and test
-            //*              for non-positive-definiteness.
+            //*               Compute U(J,J) and test for non-positive-definiteness.
             //*
-            JB = std::min( NB, N-J+1 );
-            PTR = 1;
-            for ( Idx I = 1; I<=J-1;I++) {
-              //bassert(PTR<=N);
-              blas::Copy( JB, &A[I-1+(J-1)*LDA], LDA, &WORK[PTR-1], 1 );
-              //#pragma unroll
-              //for( Idx JJ = 0; JJ<JB; JJ++){
-              //  WORK[PTR-1+JJ] = (A[I-1+(J-1)*LDA + JJ*LDA]);
-              //}
+            blas::Copy( J-1, &A[(J-1)*LDA], 1, WORK, 1 );
+            for (Idx I = 1; I<=J-1; I++) {
+              WORK[I-1] = (WORK[I-1]) * A[I-1+(I-1)*LDA];
+            }
+            AJJ = A[J-1+(J-1)*LDA] - blas::Dotu( J-1, &A[(J-1)*LDA], 1, WORK, 1 );
 
-              blas::Scal( JB, A[I-1+(I-1)*LDA], &WORK[PTR-1], 1 );
-              PTR += JB;
-            }
-            //WORK is already stored in a transposed fashion
-            blas::Gemm( 'N', 'N', JB, JB, J-1, -ONE, WORK, JB, &A[(J-1)*LDA], LDA, ONE, &A[J-1+(J-1)*LDA], LDA );
-            lapack::Potf2_LDL( "Upper", JB, &A[J-1+(J-1)*LDA], LDA, &WORK[PTR-1], INFO );
-            if  ( INFO != 0 ) {
-              INFO = INFO + J - 1;
-                return;
-            }
-            if ( J+JB <= N ) {
+            bassert( std::abs(AJJ) > 1.0E-13 );
+
+            if ( std::abs(AJJ) > 0 ) {
+              A[J-1+(J-1)*LDA] = AJJ;
               //*
-              //*                 Compute the current block row.
+              //*                   Compute elements J+1:N of row J.
               //*
-              blas::Gemm( 'N', 'N', JB, N-J-JB+1,J-1, -ONE, WORK, JB, &A[ (J+JB-1)*LDA ],LDA, ONE, &A[ J-1 + (J+JB-1)*LDA ], LDA );
-              blas::Trsm( 'L', 'U', 'T', 'U',JB, N-J-JB+1, ONE, &A[J-1+(J-1)*LDA], LDA, &A[J-1+(J+JB-1)*LDA], LDA );
-              for ( Idx I = J; I<=J+JB-1;I++) {
-                blas::Scal( N-J-JB+1, symPACK::div(ONE,A[I-1+(I-1)*LDA]), &A[I-1+(J+JB-1)*LDA], LDA );
+              if( J < N ){
+                blas::Gemv( 'T', J-1, N-J, MINUS_ONE, &A[J*LDA], LDA, WORK, 1,ONE, &A[J-1+J*LDA], LDA );
+                blas::Scal( N-J, ONE/AJJ, &A[J-1+J*LDA], LDA );
               }
+            }
+            else {
+              A[(J-1)+(J-1)*LDA] = AJJ;
+              INFO = J;
+              return;
             }
           }
         }
-        else {
+        else{
           //*
-          //*               Compute the Cholesky factorization A = L*L'.
+          //*           Compute the Cholesky factorization A = L*D*L'.
           //*
-          for ( Idx J = 1; J <= N; J+=NB ) {
+          for (Idx J=1; J<=N;J++){
             //*
-            //*                   Update and factorize the current diagonal block
-            //*                   and test for non-positive-definiteness.
+            //*               Compute L(J,J) and test for non-positive-definiteness.
             //*
-            JB = std::min( NB, N-J+1 );
-            PTR = 1;
-            for ( Idx I = 1; I<=J-1;I++) {
-              //blas::Copy( JB, &A[J-1+(I-1)*LDA],1,&WORK[PTR-1],1);
-              #pragma unroll
-              for( Idx JJ = 0; JJ<JB; JJ++){
-                WORK[PTR-1+JJ] = (A[J-1+(I-1)*LDA + JJ]);
-              }
-              blas::Scal( JB, A[I-1+(I-1)*LDA], &WORK[PTR-1], 1 );
-              PTR += JB;
+            blas::Copy( J-1, &A[J-1], LDA, WORK, 1 );
+            for (Idx I = 1; I<=J-1; I++) {
+              WORK[I-1] = (WORK[I-1]) * A[I-1+(I-1)*LDA];
             }
-            blas::Gemm( 'N','T', JB, JB, J-1, -ONE, &A[J-1], LDA, WORK, JB, ONE, &A[J-1+(J-1)*LDA], LDA );
+            AJJ = A[J-1+(J-1)*LDA] - blas::Dotu( J-1, &A[J-1], LDA, WORK, 1 );
 
-            lapack::Potf2_LDL( "Lower", JB, &A[J-1+(J-1)*LDA], LDA, &WORK[PTR-1], INFO );
-            if  ( INFO != 0 ) {
-              INFO = INFO + J - 1;
-                return;
-            }
-            if ( J+JB <= N ) {
+            if ( std::abs(AJJ) > 0 ) {
+              A[(J-1)+(J-1)*LDA] = AJJ;
               //*
-              //*                       Compute the current block column.
+              //*                   Compute elements J+1:N of column J.
               //*
-              blas::Gemm( 'N','T',N-J-JB+1, JB, J-1,-ONE, &A[J+JB-1], LDA, WORK, JB, ONE, &A[J+JB-1+(J-1)*LDA], LDA );
-              blas::Trsm( 'R','L','T','U', N-J-JB+1, JB, ONE, &A[J-1+(J-1)*LDA], LDA, &A[J+JB-1+(J-1)*LDA], LDA );
-              for ( Idx I = J; I<=J+JB-1;I++) {
-                blas::Scal( N-J-JB+1, symPACK::div(ONE,A[I-1+(I-1)*LDA]), &A[J+JB-1+(I-1)*LDA], 1 );
+              if( J < N ){
+                blas::Gemv( 'N', N-J, J-1,MINUS_ONE, &A[J], LDA, WORK, 1,ONE, &A[J+(J-1)*LDA], 1 );
+                blas::Scal( N-J, ONE/AJJ, &A[J+(J-1)*LDA], 1 );
               }
+            }
+            else {
+              A[(J-1)+(J-1)*LDA] = AJJ;
+              INFO = J;
+              return;
             }
           }
         }
       }
-    return;
-    //*
-    //*     End of DPOTRF_LDL
-    //*
-  }
+
+    template<typename T>
+      void Potrf_LDL( const char * UPLO,  Idx N, T * A,  Idx LDA, TempUpdateBuffers<T> & tmpBuffers, Int & INFO) {
+        //*
+        //*  -- LAPACK-like routine --
+        //*     Esmond G. Ng, Oak Ridge National Laboratory
+        //*
+        //*     .. Scalar Arguments ..
+        //      CHARACTER          UPLO
+        //      INTEGER            INFO, LDA, N, NDEF
+        //      DOUBLE PRECISION   TOL
+        //*     ..
+        //*     .. Array Arguments ..
+        //      INTEGER            IDEF(*)
+        //      DOUBLE PRECISION   A(LDA,*), WORK(*)
+        //*     ..
+        //*
+        //*  Purpose
+        //*  =======
+        //*
+        //*  DPOTRF_LDL computes the Cholesky factorization of a real symmetric
+        //*  positive definite matrix A.
+        //*
+        //*  The factorization has the form
+        //*     A = U**T * U,  if UPLO = 'U', or
+        //*     A = L  * L**T,  if UPLO = 'L',
+        //*  where U is an upper triangular matrix and L is lower triangular.
+        //*
+        //*  This is the block version of the algorithm, calling Level 3 BLAS.
+        //*
+        //*  Arguments
+        //*  =========
+        //*
+        //*  UPLO    (input) CHARACTER*1
+        //*          = 'U':  Upper triangle of A is stored;
+        //*          = 'L':  Lower triangle of A is stored.
+        //*
+        //*  N       (input) INTEGER
+        //*          The order of the matrix A.  N >= 0.
+        //*
+        //*  A       (input/output) DOUBLE PRECISION array, dimension (LDA,N)
+        //*          On entry, the symmetric matrix A.  If UPLO = 'U', the leading
+        //*          N-by-N upper triangular part of A contains the upper
+        //*          triangular part of the matrix A, and the strictly lower
+        //*          triangular part of A is not referenced.  If UPLO = 'L', the
+        //*          leading N-by-N lower triangular part of A contains the lower
+        //*          triangular part of the matrix A, and the strictly upper
+        //*          triangular part of A is not referenced.
+        //*
+        //*          On exit, if INFO = 0, the factor U or L from the Cholesky
+        //*          factorization A = U**T*U or A = L*L**T.
+        //*
+        //*  LDA     (input) INTEGER
+        //*          The leading dimension of the array A.  LDA >= max(1,N).
+        //*
+        //*  NDEF    (output) INTEGER
+        //*          The rank deficiency of the matrix A.  NDEF <= N.
+        //*
+        //*  IDEF    (output) INTEGER array, dimension NDEF
+        //*          Indices of columns for which zero pivots are encountered.
+        //*
+        //*  TOL     (input) DOUBLE PRECISION
+        //*          Tolerance for checking if a pivot is zero.
+        //*
+        //*  WORK    (input) DOUBLE PRECISION array, dimension N.
+        //*          Temporary work array.
+        //*
+        //*  INFO    (output) INTEGER
+        //*          = 0:  successful exit
+        //*          < 0:  if INFO = -i, the i-th argument had an illegal value
+        //*          > 0:  if INFO = i, the leading minor of order i is not
+        //*                positive definite, and the factorization could not be
+        //*                completed.
+        //*
+        //*  =====================================================================
+        //*
+        //*     .. Parameters ..
+        //      DOUBLE PRECISION  ONE, ZERO
+        //      PARAMETER         ( ONE = 1.0D+0, ZERO = 0.0D+0 )
+        //*     ..
+        //*     .. Local Scalars ..
+        //      LOGICAL           UPPER
+        //      INTEGER           COL, I, II, J, JB, NB, NDEF0, PTR
+        //*     ..
+        //*     .. External Functions ..
+        //      LOGICAL           LSAME
+        //      INTEGER           ILAENV
+        //      EXTERNAL          LSAME, ILAENV
+        //*     ..
+        //*     .. External Subroutines ..
+        //      EXTERNAL          DGEMM, DPOTF2_LDL, DSYRK, DTRSM, XERBLA
+        //*     ..
+        //*     .. Intrinsic Functions ..
+        //      INTRINSIC         MAX, MIN
+        //*     ..
+        //*     .. Executable Statements ..
+        //*
+        //*     Test the input parameters.
+        //*
+
+
+
+
+
+        T ONE = T(1.0);
+        T MINUS_ONE = T(-1.0);
+        T ZERO = T(0.0);
+        Idx JB,NB,ROW,COL;
+        Ptr PTR;
+
+
+        INFO = 0;
+        bool UPPER = *UPLO == 'U';
+        if ( !UPPER  && *UPLO!= 'L' ) {
+          INFO = -1;
+        }
+        else if ( N < 0 ) {
+          INFO = -2;
+        }
+        else if ( LDA < std::max(Idx(1),N) ) {
+          INFO = -4;
+        }
+        if( INFO != 0 ) {
+          //CALL XERBLA( 'DPOTRF_LDL', -INFO )
+          return;
+        }
+        //*
+        //*       Quick return if possible
+        //*
+        if ( N == 0 ) return;
+
+        //*
+        //*     Determine the block size for this environment.
+        //*
+        NB = lapack::Ilaenv( 1, "DPOTRF", UPLO, N, -1, -1, -1 );
+
+        if ( NB <= 1 || NB >= N ) {
+          tmpBuffers.Resize(N,1);
+          T * WORK = &tmpBuffers.tmpBuf[0];
+          //*
+          //*        Use unblocked code.
+          //*
+          Potf2_LDL( UPLO, N, A, LDA, WORK, INFO );
+        }
+        else {
+          tmpBuffers.Resize(NB*N,1);
+          T * WORK = &tmpBuffers.tmpBuf[0];
+          //*
+          //*        Use blocked code.
+          //*
+          if ( UPPER ) {
+            //*
+            //*           Compute the Cholesky factorization A = U'*U.
+            //*
+            for ( Idx J = 1; J <= N; J+=NB ) {
+              //*
+              //*              Update and factorize the current diagonal block and test
+              //*              for non-positive-definiteness.
+              //*
+              JB = std::min( NB, N-J+1 );
+              PTR = 1;
+              for ( Idx I = J; I<=J+JB;I++) {
+                bassert(PTR<=NB*N);
+                for(Idx K = 1; K = J-1; K++){
+                  //copy and scale
+                  WORK[(I-1)*(J-1)+K-1]=A[(I-1)*LDA + K-1]*A[K-1+(K-1)*LDA];
+                }
+                PTR += J-1;
+              }
+              PTR=JB*J-1;
+              blas::Gemm( 'T', 'N', JB, JB, J-1, MINUS_ONE, WORK, J-1, &A[(J-1)*LDA], LDA, ONE, &A[J-1+(J-1)*LDA], LDA );
+              lapack::Potf2_LDL( "Upper", JB, &A[J-1+(J-1)*LDA], LDA, &WORK[PTR-1], INFO );
+              if  ( INFO != 0 ) {
+                INFO = INFO + J - 1;
+                return;
+              }
+              if ( J+JB <= N ) {
+                //*
+                //*                 Compute the current block row.
+                //*
+                blas::Gemm( 'T','N',JB,N-J-JB+1, J-1,MINUS_ONE, WORK, J-1 , &A[(J+JB-1)*LDA], LDA, ONE, &A[(J+JB-1)*LDA+ J-1], LDA );
+                blas::Trsm( 'L', 'U', 'T', 'U',JB, N-J-JB+1, ONE, &A[J-1+(J-1)*LDA], LDA, &A[J-1+(J+JB-1)*LDA], LDA );
+                for ( Idx I = J; I<=J+JB-1;I++) {
+                  blas::Scal( N-J-JB+1, ONE/A[I-1+(I-1)*LDA], &A[I-1+(J+JB-1)*LDA], LDA );
+                }
+              }
+            }
+          }
+          else {
+            //*
+            //*               Compute the Cholesky factorization A = L*L'.
+            //*
+            for ( Idx J = 1; J <= N; J+=NB ) {
+              //*
+              //*                   Update and factorize the current diagonal block
+              //*                   and test for non-positive-definiteness.
+              //*
+              JB = std::min( NB, N-J+1 );
+              PTR = 1;
+              for ( Idx I = 1; I<=J-1;I++) {
+                blas::Copy( JB, &A[J-1+(I-1)*LDA],1,&WORK[PTR-1],1);
+                blas::Scal( JB, A[I-1+(I-1)*LDA], &WORK[PTR-1], 1 );
+                PTR += JB;
+              }
+              blas::Gemm( 'N','T', JB, JB, J-1, MINUS_ONE, &A[J-1], LDA, WORK, JB, ONE, &A[J-1+(J-1)*LDA], LDA );
+
+              lapack::Potf2_LDL( "Lower", JB, &A[J-1+(J-1)*LDA], LDA, &WORK[PTR-1], INFO );
+              if  ( INFO != 0 ) {
+                INFO = INFO + J - 1;
+                return;
+              }
+              if ( J+JB <= N ) {
+                //*
+                //*                       Compute the current block column.
+                //*
+                blas::Gemm( 'N','T',N-J-JB+1, JB, J-1,MINUS_ONE, &A[J+JB-1], LDA, WORK, JB, ONE, &A[J+JB-1+(J-1)*LDA], LDA );
+                blas::Trsm( 'R','L','T','U', N-J-JB+1, JB, ONE, &A[J-1+(J-1)*LDA], LDA, &A[J+JB-1+(J-1)*LDA], LDA );
+                for ( Idx I = J; I<=J+JB-1;I++) {
+                  blas::Scal( N-J-JB+1, ONE/A[I-1+(I-1)*LDA], &A[J+JB-1+(I-1)*LDA], 1 );
+                }
+              }
+            }
+          }
+        }
+        return;
+        //*
+        //*     End of DPOTRF_LDL
+        //*
+      }
 
 
   } // namespace lapack

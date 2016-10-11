@@ -40,17 +40,17 @@ namespace symPACK{
 //        return (left*cconj)/div;
 //      }
 
-  template<typename T>
-  inline std::complex<T> div(const std::complex<T> & left, const std::complex<T> & right) {
-        std::complex<T> cconj = std::conj(right);
-        std::complex<T> div = right*cconj;
-        return (left*cconj)/div;
-      }
-
-  template<typename T>
-  inline T div(const T & left, const T & right) {
-        return left/right;
-      }
+//  template<typename T>
+//  inline std::complex<T> div(const std::complex<T> & left, const std::complex<T> & right) {
+//        std::complex<T> cconj = std::conj(right);
+//        std::complex<T> div = right*cconj;
+//        return (left*cconj)/div;
+//      }
+//
+//  template<typename T>
+//  inline T div(const T & left, const T & right) {
+//        return left/right;
+//      }
 
 
 
@@ -1386,8 +1386,6 @@ namespace symPACK{
   template <typename SCALAR, typename INSCALAR >
     int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat);
 
- // template <>
- //   int ReadHB_PARA<std::complex<double>,std::complex<double> >(std::string & filename, DistSparseMatrix<std::complex<double> > & HMat);
 
   template <typename SCALAR, typename INSCALAR >
     inline int ReadHB_PARA(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
@@ -1563,19 +1561,23 @@ iss.clear(); // Clear state flags.
           //      logfileptr->OFS()<<"nzval read std::string is"<<std::endl<<rdStr<<std::endl;
 
           iss.str(rdStr);
-iss.clear(); // Clear state flags.
+          iss.clear(); // Clear state flags.
         
           SCALAR tmp(0.0);
           auto j = std::abs(tmp);
           locPos = 0;
+          if(scalarPerNzval>1){
           decltype(j) * nzval_ptr = (decltype(j)*)(&HMat.nzvalLocal[0]);
-
-          //if(scalarPerNzval>1){
-            logfileptr->OFS().precision(std::numeric_limits< SCALAR >::max_digits10);
             while(iss>> j){
-              logfileptr->OFS()<<std::scientific<<j<<" ";
               nzval_ptr[locPos++]=j;
             }
+          }
+          else{
+            SCALAR * nzval_ptr = &HMat.nzvalLocal[0];
+            while(iss>> j){
+              nzval_ptr[locPos++]=SCALAR(j);
+            }
+          }
 
 //            gdb_lock();
 //            std::stringbuf *pbuf = iss.rdbuf();
@@ -1592,7 +1594,7 @@ iss.clear(); // Clear state flags.
 //              nzval_ptr[locPos++]=j;
 //            }
 //            gdb_lock();
-            logfileptr->OFS()<<std::endl;
+//            logfileptr->OFS()<<std::endl;
 //              logfileptr->OFS()<<HMat.nzvalLocal<<std::endl;
           //}
           //else
@@ -1613,14 +1615,6 @@ iss.clear(); // Clear state flags.
       //HMat.Localg_.nnz = nnzLocal;
       HMat.Localg_.nnz = nnz;
       HMat.Localg_.bIsExpanded = false;
-
-      //for back compatibility
-      //HMat.Local_.size = HMat.size;
-      //HMat.Local_.nnz = nnzLocal;
-      //HMat.Local_.colptr = HMat.Localg_.colptr;
-      //HMat.Local_.rowind = HMat.Localg_.rowind;
-      //HMat.Local_.baseval = HMat.Localg_.GetBaseval();
-      //HMat.Local_.keepDiag = HMat.Localg_.GetKeepDiag();
 
       return 0;
     }

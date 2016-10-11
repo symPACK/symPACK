@@ -18,8 +18,8 @@
 #include <upcxx.h>
 
 /******* TYPE used in the computations ********/
-//#define SCALAR double
-#define SCALAR std::complex<double>
+#define SCALAR double
+//#define SCALAR std::complex<double>
 
 /******* TYPE in the input matrix ********/
 #define RSCALAR double
@@ -32,25 +32,8 @@ using namespace symPACK;
 int main(int argc, char **argv) 
 {
   MPI_Init(&argc,&argv);
-  //upcxx::init(&argc, &argv);
 
   symPACKOptions optionsFact;
-
-
-  {
-    std::complex<double> test(4.0,-0.1);
-    std::complex<double> test2(-1.0,0.0);
-    std::complex<double> test3 = test2 / test;
-    test3 = div(test2,test);
-
-    std::complex<double> testb = std::conj(test);
-    std::complex<double> div = test*testb;
-    std::complex<double> test33 = test2*testb;
-    test33 /= div;
-
-  }
-
-
 
 
 
@@ -128,6 +111,10 @@ int main(int argc, char **argv)
     nrhs= atoi(options["-nrhs"].front().c_str());
   }
 
+  if( options.find("-dumpPerm") != options.end() ){
+    optionsFact.dumpPerm = atoi(options["-dumpPerm"].front().c_str());
+  }
+
   optionsFact.factorization = FANBOTH;
   if( options.find("-fb") != options.end() ){
     if(options["-fb"].front()=="static"){
@@ -148,9 +135,6 @@ int main(int argc, char **argv)
     }
   }
 
-
-
-
   if( options.find("-lb") != options.end() ){
     optionsFact.load_balance_str = options["-lb"].front();
   }
@@ -159,44 +143,6 @@ int main(int argc, char **argv)
   if( options.find("-ordering") != options.end() ){
     optionsFact.orderingStr = options["-ordering"].front();
   }
-
-//  if( options.find("-ordering") != options.end() ){
-//    if(options["-ordering"].front()=="AMD"){
-//      optionsFact.ordering = AMD;
-//    }
-//    else if(options["-ordering"].front()=="MMD"){
-//      optionsFact.ordering = MMD;
-//    }
-//    else if(options["-ordering"].front()=="NDBOX"){
-//      optionsFact.ordering = NDBOX;
-//    }
-//    else if(options["-ordering"].front()=="NDGRID"){
-//      optionsFact.ordering = NDGRID;
-//    }
-//#ifdef USE_SCOTCH
-//    else if(options["-ordering"].front()=="SCOTCH"){
-//      optionsFact.ordering = SCOTCH;
-//    }
-//#endif
-//#ifdef USE_METIS
-//    else if(options["-ordering"].front()=="METIS"){
-//      optionsFact.ordering = METIS;
-//    }
-//#endif
-//#ifdef USE_PARMETIS
-//    else if(options["-ordering"].front()=="PARMETIS"){
-//      optionsFact.ordering = PARMETIS;
-//    }
-//#endif
-//#ifdef USE_PTSCOTCH
-//    else if(options["-ordering"].front()=="PTSCOTCH"){
-//      optionsFact.ordering = PTSCOTCH;
-//    }
-//#endif
-//    else{
-//      optionsFact.ordering = NATURAL;
-//    }
-//  }
 
   if( options.find("-scheduler") != options.end() ){
     if(options["-scheduler"].front()=="MCT"){
@@ -228,16 +174,9 @@ int main(int argc, char **argv)
 
   Int all_np = np;
   np = optionsFact.used_procs(np);
-  MPI_Comm workcomm;
-  MPI_Comm_split(worldcomm,iam<np,iam,&workcomm);
 
   //should be worldcomm at some point
   optionsFact.MPIcomm = worldcomm;
-
-//  if(iam<np){
-//    MPI_Comm_size(workcomm,&np);
-//    MPI_Comm_rank(workcomm,&iam);
-//    DistSparseMatrix<SCALAR> HMat(workcomm);
 
     DistSparseMatrix<SCALAR> HMat(worldcomm);
     if(complextype){
@@ -272,14 +211,11 @@ int main(int argc, char **argv)
       timeSta = get_time();
 
       {
-        //TODO HANDLE MULTIPLE RHS
-
         const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
         Int baseval = Local.GetBaseval();
         Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
         Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
 
-//gdb_lock();
         RHS.assign(n*nrhs,0.0);
         std::vector<Idx> rrowind;
         std::vector<SCALAR> rnzval;
@@ -303,23 +239,6 @@ int main(int argc, char **argv)
             rowind = const_cast<Idx*>(&Local.rowind[colbeg-1]);
           }
 
-#if 0
-//          MPI_Bcast(&nnz,sizeof(Ptr),MPI_BYTE,iOwner,workcomm);
-          MPI_Bcast(&nnz,sizeof(Ptr),MPI_BYTE,iOwner,worldcomm);
-
-          if(iam!=iOwner){
-            rrowind.resize(nnz);
-            rnzval.resize(nnz);
-            rowind = &rrowind[0];
-            nzval = &rnzval[0];
-          }
-
-
-//          MPI_Bcast(rowind,nnz*sizeof(Idx),MPI_BYTE,iOwner,workcomm);
-//          MPI_Bcast(nzval,nnz*sizeof(SCALAR),MPI_BYTE,iOwner,workcomm);
-          MPI_Bcast(rowind,nnz*sizeof(Idx),MPI_BYTE,iOwner,worldcomm);
-          MPI_Bcast(nzval,nnz*sizeof(SCALAR),MPI_BYTE,iOwner,worldcomm);
-#endif
           if(iam==iOwner){
             for(Int k = 0; k<nrhs; ++k){
               ts[k] = XTrue[j-1+k*n];
@@ -345,7 +264,7 @@ int main(int argc, char **argv)
         std::cout<<"spGEMM time: "<<timeEnd-timeSta<<std::endl;
       }
 
-#if 1
+#ifdef DUMP_MATLAB
           {
             std::size_t N = RHS.size();
             logfileptr->OFS()<<"RHS = [ ";
@@ -356,7 +275,7 @@ int main(int argc, char **argv)
           }
 #endif
 
-#if 1
+#ifdef DUMP_MATLAB
           {
             std::size_t N = XTrue.size();
             logfileptr->OFS()<<"XTrue = [ ";
@@ -383,7 +302,6 @@ int main(int argc, char **argv)
       optionsFact.maxIrecv = maxIrecv;
 
 
-//      optionsFact.commEnv = new CommEnvironment(workcomm);
       symPACKMatrix<SCALAR>*  SMat;
 
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
@@ -393,7 +311,6 @@ int main(int argc, char **argv)
       {
         timeSta = get_time();
         SMat = new symPACKMatrix<SCALAR>();
-        //SMat->Init2(HMat,optionsFact);
         SMat->Init(optionsFact);
         SMat->SymbolicFactorization(HMat);
         SMat->DistributeMatrix(HMat);
@@ -414,7 +331,7 @@ int main(int argc, char **argv)
         std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
       }
 
-#if 1
+#ifdef DUMP_MATLAB
       if(iam==0){
         logfileptr->OFS()<<"A= ";
       }
@@ -442,24 +359,12 @@ int main(int argc, char **argv)
       }
       logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
 
-#if 1
+#ifdef DUMP_MATLAB
       if(iam==0){
         logfileptr->OFS()<<"L= ";
       }
       SMat->DumpMatlab();
 #endif
-
-//only for debug purpose
-#if 0
-      SMat->Dump();
-      for(Int k = 0; k<nrhs; ++k){
-        for(Int j = 0; j<n; ++j){
-          RHS[j*nrhs+k] = 1.0;
-        }
-      }
-      logfileptr->OFS()<<"RHS: "<<RHS<<std::endl;
-#endif
-
 
       if(nrhs>0){
         /**************** SOLVE PHASE ***********/
@@ -478,7 +383,7 @@ int main(int argc, char **argv)
 
         SMat->GetSolution(&XFinal[0],nrhs);
 
-#if 1
+#ifdef DUMP_MATLAB
         if(nrhs>0 && XFinal.size()>0) {
           {
             std::size_t N = XFinal.size();
@@ -488,18 +393,6 @@ int main(int argc, char **argv)
             }
             logfileptr->OFS()<<"];"<<std::endl;
           }
-
-//          //mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&XFinal[0],XFinal.size(),MPI_SUM,workcomm);
-//          //MPI_Allreduce( MPI_IN_PLACE, &XFinal[0], XFinal.size()*sizeof( SCALAR ), MPI_BYTE, MPI_BOR, workcomm);
-//          if(iam==0)
-//          {
-//            std::size_t N = XFinal.size();
-//            logfileptr->OFS()<<"X = [ ";
-//            for(std::size_t i = 0; i<N;i++){
-//              logfileptr->OFS()<<XFinal[i]<<" ";
-//            }
-//            logfileptr->OFS()<<"];"<<std::endl;
-//          }
         }
 #endif
 
@@ -547,9 +440,7 @@ int main(int argc, char **argv)
       }
 
       //Do a reduce of RHS
-//      mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,workcomm);
       mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,worldcomm);
-      //MPI_Allreduce( MPI_IN_PLACE, &AX[0], AX.size()*sizeof( SCALAR ), MPI_BYTE, MPI_BOR, workcomm);
 
       if(iam==0){
         blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
@@ -566,17 +457,9 @@ int main(int argc, char **argv)
 #endif
 
 
-//    delete optionsFact.commEnv;
-//  }
-
-  MPI_Barrier(workcomm);
-  MPI_Comm_free(&workcomm);
 
   MPI_Barrier(worldcomm);
   MPI_Comm_free(&worldcomm);
-
-
-  logfileptr->OFS()<<"NB = "<<lapack::Ilaenv( 1, "DPOTRF", "Upper", 100, -1, -1, -1 )<<std::endl;
 
 
   delete logfileptr;
