@@ -55,25 +55,25 @@ class symPACK_scope_timer{
 
 #ifdef SPROFILE
 #define SYMPACK_FSTART(ARG)                                           \
-  do { SYMPACK::symPACK_timer t(#ARG);/* logfileptr->OFS()<<"DEBUG START "<<#ARG<<std::endl;*/ t.start(); } while (0)
+  do { symPACK::symPACK_timer t(#ARG);/* logfileptr->OFS()<<"DEBUG START "<<#ARG<<std::endl;*/ t.start(); } while (0)
 
 #define SYMPACK_FSTOP(ARG)                                            \
-  do { SYMPACK::symPACK_timer t(#ARG);/* logfileptr->OFS()<<"DEBUG STOP "<<#ARG<<std::endl;*/ t.stop(); } while (0)
+  do { symPACK::symPACK_timer t(#ARG);/* logfileptr->OFS()<<"DEBUG STOP "<<#ARG<<std::endl;*/ t.stop(); } while (0)
 
 
 #define SYMPACK_SPROFILE_INIT(argc, argv)                              \
-  SYMPACK::symPACK_set_main_args(argc, argv);
+  symPACK::symPACK_set_main_args(argc, argv);
 
 #define SYMPACK_PROFILE_SET_CONTEXT(ARG)                              \
-  if (ARG==0) SYMPACK::symPACK_set_context(MPI_COMM_WORLD);                    \
-  else SYMPACK::symPACK_set_context((MPI_Comm)ARG);
+  if (ARG==0) symPACK::symPACK_set_context(MPI_COMM_WORLD);                    \
+  else symPACK::symPACK_set_context((MPI_Comm)ARG);
 
 #define SYMPACK_TIMER_START(a) SYMPACK_FSTART(a);
 #define SYMPACK_TIMER_STOP(a) SYMPACK_FSTOP(a);
 #define SYMPACK_TIMER_SPECIAL_START(a) SYMPACK_FSTART(a);
 #define SYMPACK_TIMER_SPECIAL_STOP(a) SYMPACK_FSTOP(a);
-#define scope_timer(b,a) SYMPACK::symPACK_scope_timer b(#a)
-#define scope_timer_special(b,a) SYMPACK::symPACK_scope_timer b(#a)
+#define scope_timer(b,a) symPACK::symPACK_scope_timer b(#a)
+#define scope_timer_special(b,a) symPACK::symPACK_scope_timer b(#a)
 
 #else
 #define SYMPACK_TIMER_START(a)

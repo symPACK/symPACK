@@ -928,7 +928,7 @@ namespace symPACK{
       function_timers.clear();
 
       char suffix[50];
-      sprintf(suffix,"%d",iam);
+      sprintf(suffix,"%d",upcxx::myrank());
       profileptr = new LogFile("sprofile",suffix);
 
       profileptr->OFS() << outstream.str();
