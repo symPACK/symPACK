@@ -593,15 +593,15 @@ namespace symPACK {
               //*              for non-positive-definiteness.
               //*
               JB = std::min( NB, N-J+1 );
-#if 0
+#if 1
               PTR = 1;
+              #pragma unroll
               for ( Idx I = J; I<=J+JB;I++) {
-                bassert(PTR<=NB*N);
-                for(Idx K = 1; K = J-1; K++){
+                #pragma unroll
+                for(Idx K = 1; K <= J-1; K++){
                   //copy and scale
                   WORK[(I-1)*(J-1)+K-1]=A[(I-1)*LDA + K-1]*A[K-1+(K-1)*LDA];
                 }
-                PTR += J-1;
               }
               PTR=JB*J-1;
               if(J>1){
