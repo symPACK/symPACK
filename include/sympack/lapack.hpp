@@ -593,7 +593,7 @@ namespace symPACK {
               //*              for non-positive-definiteness.
               //*
               JB = std::min( NB, N-J+1 );
-#if 1
+#if 0
               PTR = 1;
               #pragma unroll
               for ( Idx I = J; I<=J+JB;I++) {

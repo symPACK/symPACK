@@ -1682,9 +1682,23 @@ template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTas
             }
           }
           else{
+#if 1
+            //find a task we would like to process
+            auto it = gIncomingRecv.begin();
+            for(auto cur_msg = gIncomingRecv.begin(); 
+                  cur_msg!= gIncomingRecv.end(); cur_msg++){
+              //look at the meta data
+              if((*cur_msg)->meta.tgt < (*it)->meta.tgt){
+                it = cur_msg;
+              }
+            }
+            msg = *it;
+            gIncomingRecv.erase(it);
+#else
             auto it = gIncomingRecv.front();
             msg = it;
             gIncomingRecv.pop_front();
+#endif
           }
           SYMPACK_TIMER_STOP(RM_MSG_SYNC);
         }

@@ -5260,7 +5260,7 @@ namespace symPACK{
 
 
 
-        std::vector<upcxx::global_ptr<SuperNodeDesc > > localFactors;
+        //std::vector<upcxx::global_ptr<SuperNodeDesc > > localFactors;
         remoteFactors_.resize(Xsuper_.size()-1);
         std::fill((char*)&remoteFactors_[0],(char*)&remoteFactors_[0]+remoteFactors_.size()*sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ),0);
         //logfileptr->OFS()<<"My usable global memory size is: "<<upcxx::my_usable_global_memory_size()<<std::endl;

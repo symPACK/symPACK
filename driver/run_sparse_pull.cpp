@@ -18,8 +18,8 @@
 #include <upcxx.h>
 
 /******* TYPE used in the computations ********/
-//#define SCALAR double
-#define SCALAR std::complex<double>
+#define SCALAR double
+//#define SCALAR std::complex<double>
 
 /******* TYPE in the input matrix ********/
 #define RSCALAR double
