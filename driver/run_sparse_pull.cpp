@@ -32,6 +32,7 @@ using namespace symPACK;
 int main(int argc, char **argv) 
 {
   MPI_Init(&argc,&argv);
+#if 1
   upcxx::init(&argc,&argv);
 
   symPACKOptions optionsFact;
@@ -468,7 +469,7 @@ int main(int argc, char **argv)
 
 
   delete logfileptr;
-
+#endif
 
   //This will also finalize MPI
   upcxx::finalize();
