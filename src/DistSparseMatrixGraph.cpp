@@ -399,6 +399,12 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
   void DistSparseMatrixGraph::Permute(Int * invp, Idx * newVertexDist){
     permute_(invp, newVertexDist, 1);
   }
+
+  void DistSparseMatrixGraph::Redistribute(Idx * newVertexDist){
+    permute_(NULL, newVertexDist, 1);
+  }
+
+
   void DistSparseMatrixGraph::Permute(Int * invp, Int invpbaseval){
     permute_(invp, &vertexDist[0], invpbaseval);
   }
@@ -428,7 +434,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       Ptr colend = colptr[locCol+1] - baseval;
       //Ptr colbeg = colptr.at(locCol) - baseval;
       //Ptr colend = colptr.at(locCol+1) - baseval;
-      Idx permCol = invp[col]-invpbaseval; // 0 based;
+      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // 0 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
       //Idx pdest = min( (Idx)mpisize-1, permCol / colPerProc);
@@ -438,7 +444,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       for(Ptr jptr = colbeg; jptr<colend; jptr++){
         Idx row = rowind[jptr] - baseval; //0 based
         //Idx row = rowind.at(jptr) - baseval; //0 based
-        Idx permRow = invp[row] - invpbaseval; // 0 based
+        Idx permRow = invp!=NULL?invp[row] - invpbaseval:row; // 0 based
         rowind[jptr] = permRow + baseval;
         //rowind.at(jptr) = permRow + baseval;
       }
@@ -469,7 +475,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       Ptr colend = colptr[locCol+1]-baseval;
       //Ptr colbeg = colptr.at(locCol) - baseval;
       //Ptr colend = colptr.at(locCol+1) - baseval;
-      Idx permCol = invp[col]-invpbaseval; // perm is 1 based;
+      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // perm is 1 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
       //Idx pdest = min((Idx)mpisize-1, permCol / colPerProc);

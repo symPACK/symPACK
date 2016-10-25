@@ -43,11 +43,11 @@ class Ordering{
   public:
     std::vector<Int> perm;
     std::vector<Int> invp;
+    int NpOrdering;
 
-    Ordering():pStructure(NULL){};
+    Ordering():NpOrdering(0){};
     
 
-    SparseMatrixStructure * pStructure;
 
     void MMD(const SparseMatrixGraph & g, MPI_Comm comm);
     void AMD(const SparseMatrixGraph & g, MPI_Comm comm);

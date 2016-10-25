@@ -534,107 +534,230 @@ namespace symPACK{
 
     int mpirank;
 
-    idx_t ndomains = (idx_t)pow(2.0,std::floor(std::log2(np)));
-    //make sure every one have an element
-    while(((double)N/(double)ndomains)<1.0){ndomains /= 2;}
+    idx_t ndomains = np;
+    //idx_t ndomains = (idx_t)pow(2.0,std::floor(std::log2(np)));
+    ////make sure every one have an element
+    //while(((double)N/(double)ndomains)<1.0){ndomains /= 2;}
 
-    MPI_Comm ndcomm;
-    MPI_Comm_split(g.comm,iam<ndomains,iam,&ndcomm);
+    NpOrdering = std::min(std::max(0,NpOrdering),np);
+    if(NpOrdering!=0){
+      ndomains = NpOrdering;
+      //make a copy
+      DistSparseMatrixGraph ng = g;
+      //create a new vertexDist, this is the important stuff
+      Idx colPerProc = g.size / NpOrdering;
+      std::vector<Idx> newVertexDist(np+1,colPerProc);
+      newVertexDist[0]=1;
+      std::partial_sum(newVertexDist.begin(),newVertexDist.end(),newVertexDist.begin());
+      for(int i = NpOrdering;i<np+1;i++){ newVertexDist[i] = g.size+newVertexDist[0];}
+      
+      //redistribute ng
+      ng.Redistribute(&newVertexDist[0]);
 
-    MPI_Comm_rank(ndcomm,&mpirank);
-    std::vector<idx_t> vtxdist;
-    idx_t localN;
-    if(iam<ndomains){
-      assert(mpirank==iam);
+      MPI_Comm ndcomm;
+      MPI_Comm_split(g.comm,iam<ndomains,iam,&ndcomm);
 
-      std::vector<idx_t> sizes(2*ndomains);
-      vtxdist.resize(g.vertexDist.size());
-      for(int i = 0 ; i < g.vertexDist.size(); i++){
-        vtxdist[i] = (idx_t)g.vertexDist[i];
+      MPI_Comm_rank(ndcomm,&mpirank);
+      std::vector<idx_t> vtxdist;
+      idx_t localN;
+      if(iam<ndomains){
+        assert(mpirank==iam);
+
+        std::vector<idx_t> sizes(2*ndomains);
+        vtxdist.resize(ng.vertexDist.size());
+        for(int i = 0 ; i < ng.vertexDist.size(); i++){
+          vtxdist[i] = (idx_t)ng.vertexDist[i];
+          //vtxdist[i] = (idx_t)ng.vertexDist[i]-ng.vertexDist[0];//0-based
+        }
+
+        //      logfileptr->OFS()<<vtxdist<<std::endl;
+
+        idx_t * iperm = NULL;
+        if(typeid(idx_t) != typeid(Int)){
+          iperm = new idx_t[N];
+        }
+        else{
+          iperm = (idx_t*)&invp[0];
+        }
+
+        idx_t * pperm = NULL;
+        if(typeid(idx_t) != typeid(Int)){
+          pperm = new idx_t[N];
+        }
+        else{
+          perm.resize(N);
+          pperm = (idx_t*)&perm[0];
+        }
+
+        idx_t * prowind = NULL;
+        if(typeid(idx_t) != typeid(Idx)){
+          prowind = new idx_t[ng.LocalEdgeCount()];
+          for(Ptr i = 0; i<ng.rowind.size();i++){ prowind[i] = (idx_t)ng.rowind[i];}
+        }
+        else{
+          prowind = (idx_t*)&ng.rowind[0];
+        }
+
+        idx_t * pcolptr = NULL;
+        if(typeid(idx_t) != typeid(Ptr)){
+          pcolptr = new idx_t[ng.LocalVertexCount()+1];
+          for(Ptr i = 0; i<ng.colptr.size();i++){ pcolptr[i] = (idx_t)ng.colptr[i];}
+        }
+        else{
+          pcolptr = (idx_t*)&ng.colptr[0];
+        }
+
+
+        idx_t options[3];
+        options[0] = 0;
+        idx_t numflag = ng.baseval;
+
+        int npnd;
+        MPI_Comm_size (ndcomm, &npnd);
+        ParMETIS_V3_NodeND( &vtxdist[0], pcolptr , prowind, &numflag, &options[0], pperm, &sizes[0], &ndcomm );
+
+        //compute displs
+        std::vector<int> mpidispls(ndomains,0);
+        std::vector<int> mpisizes(ndomains,0);
+        for(int p = 1;p<=ndomains;++p){
+          mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(idx_t);
+          mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(idx_t);
+        }
+
+        //gather on the root
+        MPI_Gatherv(pperm,mpisizes[iam],MPI_BYTE,iperm,&mpisizes[0],&mpidispls[0],MPI_BYTE,0,ndcomm);
+
+        if(iam==0 && (ng.baseval!=1 || typeid(idx_t) != typeid(Int))){
+          //switch everything to 1 based
+          for(int col=0; col<N;++col){ invp[col] = iperm[col] + (1-baseval);}
+        }
+
+        if(typeid(idx_t) != typeid(Int)){
+          delete [] pperm;
+        }
+
+        if(typeid(idx_t) != typeid(Int)){
+          delete [] iperm;
+        }
+
+        if(typeid(idx_t) != typeid(Ptr)){
+          delete [] pcolptr;
+        }
+
+        if(typeid(idx_t) != typeid(Idx)){
+          delete [] prowind;
+        }
+
       }
 
-      //      logfileptr->OFS()<<vtxdist<<std::endl;
-
-      idx_t * iperm = NULL;
-      if(typeid(idx_t) != typeid(Int)){
-        iperm = new idx_t[N];
-      }
-      else{
-        iperm = (idx_t*)&invp[0];
-      }
-
-      idx_t * pperm = NULL;
-      if(typeid(idx_t) != typeid(Int)){
-        pperm = new idx_t[N];
-      }
-      else{
-        perm.resize(N);
-        pperm = (idx_t*)&perm[0];
-      }
-
-      idx_t * prowind = NULL;
-      if(typeid(idx_t) != typeid(Idx)){
-        prowind = new idx_t[g.LocalEdgeCount()];
-        for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (idx_t)g.rowind[i];}
-      }
-      else{
-        prowind = (idx_t*)&g.rowind[0];
-      }
-
-      idx_t * pcolptr = NULL;
-      if(typeid(idx_t) != typeid(Ptr)){
-        pcolptr = new idx_t[g.LocalVertexCount()+1];
-        for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (idx_t)g.colptr[i];}
-      }
-      else{
-        pcolptr = (idx_t*)&g.colptr[0];
-      }
+      MPI_Comm_free(&ndcomm);
+      vtxdist.clear();
 
 
-      idx_t options[3];
-      options[0] = 0;
-      idx_t numflag = g.baseval;
 
-      int npnd;
-      MPI_Comm_size (ndcomm, &npnd);
-      ParMETIS_V3_NodeND( &vtxdist[0], pcolptr , prowind, &numflag, &options[0], pperm, &sizes[0], &ndcomm );
+    }
+    else{
+      MPI_Comm ndcomm;
+      MPI_Comm_split(g.comm,iam<ndomains,iam,&ndcomm);
 
-      //compute displs
-      std::vector<int> mpidispls(ndomains,0);
-      std::vector<int> mpisizes(ndomains,0);
-      for(int p = 1;p<=ndomains;++p){
-        mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(idx_t);
-        mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(idx_t);
+      MPI_Comm_rank(ndcomm,&mpirank);
+      std::vector<idx_t> vtxdist;
+      idx_t localN;
+      if(iam<ndomains){
+        assert(mpirank==iam);
+
+        std::vector<idx_t> sizes(2*ndomains);
+        vtxdist.resize(g.vertexDist.size());
+        for(int i = 0 ; i < g.vertexDist.size(); i++){
+          vtxdist[i] = (idx_t)g.vertexDist[i];
+          //vtxdist[i] = (idx_t)g.vertexDist[i]-g.vertexDist[0];//0-based
+        }
+
+        //      logfileptr->OFS()<<vtxdist<<std::endl;
+
+        idx_t * iperm = NULL;
+        if(typeid(idx_t) != typeid(Int)){
+          iperm = new idx_t[N];
+        }
+        else{
+          iperm = (idx_t*)&invp[0];
+        }
+
+        idx_t * pperm = NULL;
+        if(typeid(idx_t) != typeid(Int)){
+          pperm = new idx_t[N];
+        }
+        else{
+          perm.resize(N);
+          pperm = (idx_t*)&perm[0];
+        }
+
+        idx_t * prowind = NULL;
+        if(typeid(idx_t) != typeid(Idx)){
+          prowind = new idx_t[g.LocalEdgeCount()];
+          for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (idx_t)g.rowind[i];}
+        }
+        else{
+          prowind = (idx_t*)&g.rowind[0];
+        }
+
+        idx_t * pcolptr = NULL;
+        if(typeid(idx_t) != typeid(Ptr)){
+          pcolptr = new idx_t[g.LocalVertexCount()+1];
+          for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (idx_t)g.colptr[i];}
+        }
+        else{
+          pcolptr = (idx_t*)&g.colptr[0];
+        }
+
+
+        idx_t options[3];
+        options[0] = 0;
+        idx_t numflag = g.baseval;
+
+        int npnd;
+        MPI_Comm_size (ndcomm, &npnd);
+        ParMETIS_V3_NodeND( &vtxdist[0], pcolptr , prowind, &numflag, &options[0], pperm, &sizes[0], &ndcomm );
+
+        //compute displs
+        std::vector<int> mpidispls(ndomains,0);
+        std::vector<int> mpisizes(ndomains,0);
+        for(int p = 1;p<=ndomains;++p){
+          mpisizes[p-1] = (vtxdist[p] - vtxdist[p-1])*sizeof(idx_t);
+          mpidispls[p-1] = (vtxdist[p-1]-baseval)*sizeof(idx_t);
+        }
+
+        //gather on the root
+        MPI_Gatherv(pperm,mpisizes[iam],MPI_BYTE,iperm,&mpisizes[0],&mpidispls[0],MPI_BYTE,0,ndcomm);
+
+        if(iam==0 && (g.baseval!=1 || typeid(idx_t) != typeid(Int))){
+          //switch everything to 1 based
+          for(int col=0; col<N;++col){ invp[col] = iperm[col] + (1-baseval);}
+        }
+
+        if(typeid(idx_t) != typeid(Int)){
+          delete [] pperm;
+        }
+
+        if(typeid(idx_t) != typeid(Int)){
+          delete [] iperm;
+        }
+
+        if(typeid(idx_t) != typeid(Ptr)){
+          delete [] pcolptr;
+        }
+
+        if(typeid(idx_t) != typeid(Idx)){
+          delete [] prowind;
+        }
+
       }
 
-      //gather on the root
-      MPI_Gatherv(pperm,mpisizes[iam],MPI_BYTE,iperm,&mpisizes[0],&mpidispls[0],MPI_BYTE,0,ndcomm);
-
-      if(iam==0 && (g.baseval!=1 || typeid(idx_t) != typeid(Int))){
-        //switch everything to 1 based
-        for(int col=0; col<N;++col){ invp[col] = iperm[col] + (1-baseval);}
-      }
-
-      if(typeid(idx_t) != typeid(Int)){
-        delete [] pperm;
-      }
-
-      if(typeid(idx_t) != typeid(Int)){
-        delete [] iperm;
-      }
-
-      if(typeid(idx_t) != typeid(Ptr)){
-        delete [] pcolptr;
-      }
-
-      if(typeid(idx_t) != typeid(Idx)){
-        delete [] prowind;
-      }
+      MPI_Comm_free(&ndcomm);
+      vtxdist.clear();
 
     }
 
-    MPI_Comm_free(&ndcomm);
-    vtxdist.clear();
 
     // broadcast invp
     MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,g.comm);

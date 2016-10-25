@@ -32,6 +32,7 @@ using namespace symPACK;
 int main(int argc, char **argv) 
 {
   MPI_Init(&argc,&argv);
+  upcxx::init(&argc,&argv);
 
   symPACKOptions optionsFact;
 
@@ -81,6 +82,10 @@ int main(int argc, char **argv)
     complextype = true;
   }
 
+  
+  if( options.find("-npord") != options.end() ){
+    optionsFact.NpOrdering= atoi(options["-npord"].front().c_str());
+  }
 
   optionsFact.relax.SetMaxSize(maxSnode);
   if( options.find("-relax") != options.end() ){

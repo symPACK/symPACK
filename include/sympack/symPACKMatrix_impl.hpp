@@ -4057,7 +4057,7 @@ namespace symPACK{
 
 
 
-
+        Order_.NpOrdering = options_.NpOrdering;
         switch(options_.ordering){
           case MMD:
             {

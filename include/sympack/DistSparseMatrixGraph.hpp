@@ -108,6 +108,7 @@ class DistSparseMatrixGraph{
   void Permute(Int * invp, Idx * newVertexDist);
   void Permute(Int * invp, Int invpbaseval);
   void Permute(Int * invp, Idx * newVertexDist, Int invpbaseval);
+  void Redistribute(Idx * newVertexDist);
  
   //redistribute the graph according to the supernodal partition
   void RedistributeSupernodal(Int nsuper, Int * xsuper, Int * xsuperdist, Int * supMembership );

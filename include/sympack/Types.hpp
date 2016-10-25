@@ -99,6 +99,7 @@ namespace symPACK{
   //enum OrderRefinementType {BarryDL,MCT,PR,FIFO};
   class symPACKOptions{
     public:
+      int NpOrdering;
       DecompositionType decomposition;
       MappingType mappingType;
       std::string mappingTypeStr;
@@ -138,6 +139,7 @@ namespace symPACK{
     public:
       symPACKOptions(){
         verbose = 0;
+        NpOrdering = 0;
         decomposition = LL; 
         factorization = FANBOTH;
         mappingTypeStr = "ROW2D";
