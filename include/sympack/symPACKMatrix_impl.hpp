@@ -4327,8 +4327,7 @@ namespace symPACK{
       if(options_.order_refinement_str == "SET") {
         abort();
         //          if(iam<np){
-        this->refineSupernodes(2,1);
-        //We should get the permutation from this operation and repermute the matrix with that
+        this->refineSupernodes(2,1,&pMat);
 
         if(iam==0){
           std::cout<<"Supernode reodering done"<<std::endl;
@@ -6463,7 +6462,7 @@ namespace symPACK{
 
 
   template <typename T> 
-    void symPACKMatrix<T>::refineSupernodes(int ordflag,int altflag){
+    void symPACKMatrix<T>::refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T> * pMat){
       ETree& tree = ETree_;
       Ordering & aOrder = Order_;
       std::vector<Int> & supMembership = SupMembership_; 
@@ -6471,6 +6470,8 @@ namespace symPACK{
 
       std::vector<int> ixlindx;
       std::vector<int> ilindx;
+
+      std::vector<int>  new_invp;
 
       //Gather locXlindx_ and locLindx_
       {
@@ -6569,7 +6570,9 @@ namespace symPACK{
         std::vector<int>  invp2(neqns,0);
         std::vector<int>  heap (2*nsuper,0);
 
-        std::vector<int>  new_invp(neqns,0);
+        new_invp.assign(neqns,0);
+
+
         std::vector<int>  new_perm(neqns,0);
         std::iota(new_invp.begin(),new_invp.end(),1);
         std::iota(new_perm.begin(),new_perm.end(),1);
@@ -6585,15 +6588,24 @@ namespace symPACK{
             &setsnode[0], &supperm[0], &mark[0], &set[0], &compset[0],
             &invp2[0], &heap[0]);
 
-#ifdef EXPLICIT_PERMUTE
-        //Bcast the individual permutation
-#else
         Order_.Compose(new_invp);
-#endif
 
       }
-      //broadcast perm and invp
+      
 
+#ifdef EXPLICIT_PERMUTE
+      
+      //Bcast the individual permutation
+      new_invp.resize(iSize_);
+      MPI_Bcast(&new_invp[0],iSize_*sizeof(int),MPI_BYTE,0,fullcomm_);
+
+      //re permute the matrix
+      pMat->Permute(&new_invp[0]);
+      graph_ = pMat->GetLocalGraph();
+      graph_.SetBaseval(1);
+      graph_.SetKeepDiag(1);
+      graph_.SetSorted(1);
+#endif
       // broadcast invp
       Int N = aOrder.invp.size();
       MPI_Bcast(&aOrder.invp[0],N*sizeof(int),MPI_BYTE,0,fullcomm_);

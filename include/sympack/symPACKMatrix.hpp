@@ -260,7 +260,7 @@ template <class Allocator = UpcxxAllocator>
 
   void symbolicFactorizationRelaxedDist(std::vector<Int> & cc);
 
-  void refineSupernodes(int ordflag,int altflag);
+  void refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T>* pMat = NULL);
 
   void getLColRowCount(std::vector<Int> & cc, std::vector<Int> & rc);
   void getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc);
