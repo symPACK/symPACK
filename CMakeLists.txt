@@ -221,7 +221,6 @@ endif()
 option(ENABLE_ARIES "Enable ARIES" OFF)
 
 include(cmake/gasnet.cmake)
-
 include(cmake/upcxx.cmake)
 
 include_directories(${UPCXX_INCLUDE_DIR})
@@ -233,22 +232,25 @@ link_directories(${UPCXX_LIBRARY_PATH})
 #add_definitions("-std=c++11")
 #add_definitions(${UPCXX_DEFINES})
 
-string(REPLACE " " ";" GASNET_DEFINES ${GASNET_DEFINES})
-message( STATUS "GASNET_DEFINES: " ${GASNET_DEFINES} )
-foreach( d ${GASNET_DEFINES} )
-  string(STRIP ${d} d)
-  message( STATUS "Found GASNET Define: " ${d} )
-  add_definitions("${d}")
-endforeach()
+if(GASNET_DEFINES)
+  string(REPLACE " " ";" GASNET_DEFINES ${GASNET_DEFINES})
+  message( STATUS "GASNET_DEFINES: " ${GASNET_DEFINES} )
+  foreach( d ${GASNET_DEFINES} )
+    string(STRIP ${d} d)
+    message( STATUS "Found GASNET Define: " ${d} )
+    add_definitions("${d}")
+  endforeach()
+endif()
 
-string(REPLACE " " ";" UPCXX_DEFINES ${UPCXX_DEFINES})
-message( STATUS "UPCXX_DEFINES: " ${UPCXX_DEFINES} )
-foreach( d ${UPCXX_DEFINES} )
-  string(STRIP ${d} d)
-  message( STATUS "Found UPCXX Define: " ${d} )
-  add_definitions("${d}")
-endforeach()
-
+if(UPCXX_DEFINES)
+  string(REPLACE " " ";" UPCXX_DEFINES ${UPCXX_DEFINES})
+  message( STATUS "UPCXX_DEFINES: " ${UPCXX_DEFINES} )
+  foreach( d ${UPCXX_DEFINES} )
+    string(STRIP ${d} d)
+    message( STATUS "Found UPCXX Define: " ${d} )
+    add_definitions("${d}")
+  endforeach()
+endif()
 
 
 
