@@ -148,15 +148,15 @@ template <typename T> void symPACKMatrix<T>::FanBoth_Static()
   //Create a copy of the task graph
   supernodalTaskGraph taskGraph = taskGraph_;
 
-  std::vector<std::list<FBTask> * > taskLists;
-  Int localTaskCount = localTaskCount_;
-  taskLists.resize(origTaskLists_.size(),NULL);
-  for(int i = 0; i<taskLists.size(); ++i){
-    if(origTaskLists_[i] != NULL){
-      taskLists[i] = new std::list<FBTask>(); 
-      taskLists[i]->insert(taskLists[i]->end(),origTaskLists_[i]->begin(),origTaskLists_[i]->end());
-    }
-  }
+  //std::vector<std::list<FBTask> * > taskLists;
+  //Int localTaskCount = localTaskCount_;
+  //taskLists.resize(origTaskLists_.size(),NULL);
+  //for(int i = 0; i<taskLists.size(); ++i){
+  //  if(origTaskLists_[i] != NULL){
+  //    taskLists[i] = new std::list<FBTask>(); 
+  //    taskLists[i]->insert(taskLists[i]->end(),origTaskLists_[i]->begin(),origTaskLists_[i]->end());
+  //  }
+  //}
 
   for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
     if(taskGraph.taskLists_[i] != NULL){

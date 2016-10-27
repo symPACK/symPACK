@@ -233,6 +233,7 @@ link_directories(${UPCXX_LIBRARY_PATH})
 #add_definitions("-std=c++11")
 #add_definitions(${UPCXX_DEFINES})
 
+#if(${GASNET_DEFINES})
 string(REPLACE " " ";" GASNET_DEFINES ${GASNET_DEFINES})
 message( STATUS "GASNET_DEFINES: " ${GASNET_DEFINES} )
 foreach( d ${GASNET_DEFINES} )
@@ -240,7 +241,9 @@ foreach( d ${GASNET_DEFINES} )
   message( STATUS "Found GASNET Define: " ${d} )
   add_definitions("${d}")
 endforeach()
+#endif()
 
+#if(${UPCXX_DEFINES})
 string(REPLACE " " ";" UPCXX_DEFINES ${UPCXX_DEFINES})
 message( STATUS "UPCXX_DEFINES: " ${UPCXX_DEFINES} )
 foreach( d ${UPCXX_DEFINES} )
@@ -248,7 +251,7 @@ foreach( d ${UPCXX_DEFINES} )
   message( STATUS "Found UPCXX Define: " ${d} )
   add_definitions("${d}")
 endforeach()
-
+#endif()
 
 
 
@@ -296,7 +299,11 @@ CONFIGURE_FILE(
 message(STATUS "ALL DEFINES: " ${ALL_DEFINITIONS})
  
 add_library(sympack ${SYMPACKSRC})
-add_dependencies(sympack gasnet upcxx) 
+add_dependencies(sympack gasnet upcxx)
+ 
+if(UNIX AND NOT APPLE)
+    target_link_libraries(sympack rt)
+endif()
 target_link_libraries(sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
 
 install(TARGETS sympack LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
