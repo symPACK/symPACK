@@ -253,7 +253,6 @@ if(UPCXX_DEFINES)
 endif()
 
 
-
 set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
   src/lapack.cpp src/global.cpp src/LogFile.cpp src/SparseMatrixStructure.cpp
   src/IntervalTree.cpp src/Ordering.cpp src/CommPull.cpp
@@ -298,7 +297,11 @@ CONFIGURE_FILE(
 message(STATUS "ALL DEFINES: " ${ALL_DEFINITIONS})
  
 add_library(sympack ${SYMPACKSRC})
-add_dependencies(sympack gasnet upcxx) 
+add_dependencies(sympack gasnet upcxx)
+ 
+if(UNIX AND NOT APPLE)
+    target_link_libraries(sympack rt)
+endif()
 target_link_libraries(sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
 
 install(TARGETS sympack LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)

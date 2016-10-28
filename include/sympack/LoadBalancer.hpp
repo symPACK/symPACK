@@ -62,6 +62,36 @@ namespace symPACK{
       }
   };
 
+  class WorkBalancer: public LoadBalancer{
+    protected:
+      std::vector<Int> & Xsuper_;
+      std::vector<Int> & cc_;
+    public:
+      WorkBalancer(Int np, std::vector<Int> & Xsuper, std::vector<Int> & pCc):Xsuper_(Xsuper),cc_(pCc),LoadBalancer(np,Xsuper.size()-1){
+      };
+
+
+      virtual std::vector<Int> & GetMap(){
+        std::vector<double> load(np_,0.0);
+
+        for(Int i = 1; i< Xsuper_.size();  ++i){
+          //find least loaded processor
+          std::vector<double>::iterator it = std::min_element(load.begin(),load.end());
+          Int proc = (Int)(it - load.begin());
+          Int width = Xsuper_[i] - Xsuper_[i-1];
+          Int height = cc_[i-1];
+
+          double local_load = CHOLESKY_COST(height,width);
+          *it += local_load;
+          procMap_[i-1] = proc;
+        } 
+
+        return procMap_;
+
+      }
+  };
+
+
 
 
   class TreeLoadBalancer: public LoadBalancer{

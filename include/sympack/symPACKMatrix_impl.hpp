@@ -4325,7 +4325,7 @@ namespace symPACK{
       //}
 
       if(options_.order_refinement_str == "SET") {
-        abort();
+        //abort();
         //          if(iam<np){
         this->refineSupernodes(2,1,&pMat);
 
@@ -4368,7 +4368,6 @@ namespace symPACK{
 
         //          if(iam<np){
         {
-          //permute matrix again ?
           double timeSta = get_time();
           this->symbolicFactorizationRelaxedDist(cc);
           double timeStop = get_time();
@@ -4392,10 +4391,6 @@ namespace symPACK{
 #endif
 
 
-#ifdef _OUTPUT_ETREE_
-    logfileptr->OFS()<<"ETree is "<<ETree_<<std::endl;
-    logfileptr->OFS()<<"Supernodal ETree is "<<ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_)<<std::endl;
-#endif
 
 
     {
@@ -4431,6 +4426,10 @@ namespace symPACK{
         if(iam==0){ std::cout<<"Load Balancing on NNZ used"<<std::endl;}
         this->Balancer_ = new NNZBalancer(np,Xsuper_,cc);
       }
+      else if(options_.load_balance_str=="WORK"){
+        if(iam==0){ std::cout<<"Load Balancing on WORK used"<<std::endl;}
+        this->Balancer_ = new WorkBalancer(np,Xsuper_,cc);
+      }
 
       if (this->Balancer_!=NULL){
         map = this->Balancer_->GetMap();
@@ -4458,6 +4457,23 @@ namespace symPACK{
       }
     }
 
+
+    //Now split supernodes larger than the maximum size. XlindxLocal_, LindxLocal_, Xsuper_, SupMembership_, Balancer_ and Mapping_ need to up updated
+
+
+
+
+#define _OUTPUT_ETREE_
+#ifdef _OUTPUT_ETREE_
+    logfileptr->OFS()<<"ETree is "<<ETree_<<std::endl;
+    {
+      auto supETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+    logfileptr->OFS()<<"Supernodal ETree is "<<supETree<<std::endl;
+    logfileptr->OFS()<<"Mapping is ";for(Int i = 0;i<supETree.Size();i++){logfileptr->OFS()<<this->Mapping_->Map(i,i)<<" ";}logfileptr->OFS()<<std::endl;
+    logfileptr->OFS()<<"Xsuper is "<<Xsuper_<<std::endl;//;for(Int i = 0;i<supETree.Size();i++){logfileptr->OFS()<<this->Xsuper_->Map(i,i)<<" ";}logfileptr->OFS()<<std::endl;
+    } 
+#endif
+
     //starting from now, this only concerns the working processors
     SYMPACK_TIMER_START(Get_UpdateCount);
     GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_,UpdateHeight_,numBlk_);
@@ -4473,6 +4489,32 @@ namespace symPACK{
         FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
 
         generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
+
+
+#define _OUTPUT_TASK_GRAPH_
+#ifdef _OUTPUT_TASK_GRAPH_
+        logfileptr->OFS()<<"tasks: ";
+        for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
+          if((*binit)!=NULL){
+          for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
+            logfileptr->OFS()<<"t_"<<taskit->src_snode_id<<"_"<<taskit->tgt_snode_id<<" ";
+          }
+          }
+      
+        }
+        logfileptr->OFS()<<std::endl; 
+        logfileptr->OFS()<<"taskmap: ";
+        for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
+          if((*binit)!=NULL){
+          for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
+        //for(auto&& bin : taskGraph_.taskLists_)
+        //  for(auto&& taskp : *bin)
+            logfileptr->OFS()<<iam<<" ";
+          }
+          }
+        }
+        logfileptr->OFS()<<std::endl; 
+#endif
 
         double timeStop = get_time();
         if(iam==0){
