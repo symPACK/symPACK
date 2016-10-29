@@ -4025,6 +4025,9 @@ namespace symPACK{
         if(options_.orderingStr=="MMD"){
           options_.ordering = symPACK::MMD;
         }
+        else if(options_.orderingStr=="RCM"){
+          options_.ordering = symPACK::RCM;
+        }
         else if(options_.orderingStr=="AMD"){
           options_.ordering = symPACK::AMD;
         }
@@ -4066,6 +4069,16 @@ namespace symPACK{
               sgraph->SetBaseval(1);
               sgraph->SetKeepDiag(0);
               Order_.MMD(*sgraph, graph_.comm);
+            }
+            break;
+
+          case RCM:
+            {
+              sgraph = new SparseMatrixGraph();
+              graph_.GatherStructure(*sgraph,0);
+              sgraph->SetBaseval(1);
+              sgraph->SetKeepDiag(0);
+              Order_.RCM(*sgraph, graph_.comm);
             }
             break;
 
@@ -4463,7 +4476,7 @@ namespace symPACK{
 
 
 
-#define _OUTPUT_ETREE_
+//#define _OUTPUT_ETREE_
 #ifdef _OUTPUT_ETREE_
     logfileptr->OFS()<<"ETree is "<<ETree_<<std::endl;
     {
@@ -4491,7 +4504,7 @@ namespace symPACK{
         generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
 
 
-#define _OUTPUT_TASK_GRAPH_
+//#define _OUTPUT_TASK_GRAPH_
 #ifdef _OUTPUT_TASK_GRAPH_
         logfileptr->OFS()<<"tasks: ";
         for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){

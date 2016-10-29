@@ -59,7 +59,8 @@ class DistSparseMatrixGraph{
 
   public:
 	Idx          size;                            // Matrix dimension (global)
-	Ptr          nnz;                             // Number of nonzeros (local)
+	//Ptr          nnz;                             // Number of nonzeros (local)
+  Ptr          nnz;                             // Number of nonzeros (global)
 	std::vector<Ptr>  colptr;                 // Column index pointer
 	std::vector<Idx>  rowind;                 // Starting row index pointer
 	std::vector<Idx>  vertexDist;             // vertex distribution array (size np+1)

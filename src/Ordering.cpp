@@ -97,6 +97,9 @@ namespace symPACK {
     int ParMETIS_V3_NodeND(int * vtxdist  , int* XADJ , int* ADJ  , int * numflag, int* OPTION, int* order , int* sizes, MPI_Comm * comm);
   }
 
+  extern "C" {
+    void FORTRAN(genrcm)(RCMInt *, RCMInt*, RCMInt *,RCMInt*,RCMInt*,RCMInt*);
+  }
 
 }
 
@@ -199,6 +202,114 @@ namespace symPACK{
     }
     else{
       MPI_Bcast(&N,sizeof(MMDInt),MPI_BYTE,0,comm);
+      invp.resize(N);
+    }
+    // broadcast invp
+    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,comm);
+    perm.resize(N);
+    for(Int i = 1; i <=N; ++i){
+      Int node = invp[i-1];
+      perm[node-1] = i;
+    }
+  }
+
+
+  void Ordering::RCM(const SparseMatrixGraph & g,MPI_Comm comm){
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(comm,&iam);
+    MPI_Comm_size(comm,&np);
+
+    logfileptr->OFS()<<"RCM used"<<std::endl;
+    if(iam==0){std::cout<<"RCM used"<<std::endl;}
+
+    if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
+      throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call RCM\n" );
+    }
+
+
+    bool isSameInt = typeid(RCMInt) == typeid(Int);
+    bool isSameIdx = typeid(RCMInt) == typeid(Idx);
+    bool isSamePtr = typeid(RCMInt) == typeid(Ptr);
+
+
+    RCMInt N = g.VertexCount();
+
+
+    if(iam==0){
+      invp.resize(N);
+      RCMInt iwsiz = 4*N;
+      std::vector<RCMInt> iwork (iwsiz);
+
+      RCMInt * RCMInvp;      
+      if(!isSameInt){
+        RCMInvp = new RCMInt[N];
+      }
+      else{
+        RCMInvp = (RCMInt*)&invp[0];
+      }
+
+      RCMInt * RCMperm;      
+      if(!isSameInt){
+        RCMperm = new RCMInt[N];
+      }
+      else{
+        perm.resize(N);
+        RCMperm = (RCMInt*)&perm[0];
+      }
+
+
+      RCMInt * prowind = NULL;
+      if(!isSameIdx || g.baseval!=1){
+        prowind = new RCMInt[g.EdgeCount()];
+        for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (RCMInt)g.rowind[i];}
+      }
+      else{
+        prowind = (RCMInt*)&g.rowind[0];
+      }
+
+      RCMInt * pcolptr = NULL;
+      if(!isSamePtr || g.baseval!=1){
+        pcolptr = new RCMInt[g.VertexCount()+1];
+        for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (RCMInt)g.colptr[i];}
+      }
+      else{
+        pcolptr = (RCMInt*)&g.colptr[0];
+      }
+
+      std::vector<RCMInt>mark(2*N);
+      std::vector<RCMInt>xls(2*N);
+      FORTRAN(genrcm)(&N, pcolptr, prowind, RCMperm, mark.data(), xls.data() );
+      for(Int i = 1; i <=N; ++i){
+        Int node = RCMperm[i-1];
+        RCMInvp[node-1] = i;
+      }
+
+
+
+      if(!isSameInt){ 
+        //switch everything to 1 based
+        for(int col=0; col<N;++col){ invp[col] = RCMInvp[col];}
+      }
+
+      if(!isSameInt){ 
+        delete [] RCMperm;
+      }
+
+      if(!isSameInt){ 
+        delete [] RCMInvp;
+      }
+      if(!isSamePtr || g.baseval!=1){
+        delete [] pcolptr;
+      }
+
+      if(!isSameIdx || g.baseval!=1){
+        delete [] prowind;
+      }
+      MPI_Bcast(&N,sizeof(RCMInt),MPI_BYTE,0,comm);
+    }
+    else{
+      MPI_Bcast(&N,sizeof(RCMInt),MPI_BYTE,0,comm);
       invp.resize(N);
     }
     // broadcast invp

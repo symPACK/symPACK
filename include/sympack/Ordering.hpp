@@ -20,6 +20,11 @@ class SparseMatrixStructure;
 class Ordering;
 
 
+//#if RCMIDXSIZE==64
+//  typedef    int64_t   RCMInt;
+//#else
+  typedef    int32_t   RCMInt;
+//#endif
 
 
 #if MMDIDXSIZE==64
@@ -49,6 +54,7 @@ class Ordering{
     
 
 
+    void RCM(const SparseMatrixGraph & g, MPI_Comm comm);
     void MMD(const SparseMatrixGraph & g, MPI_Comm comm);
     void AMD(const SparseMatrixGraph & g, MPI_Comm comm);
     void NDBOX(Int size, MPI_Comm comm);

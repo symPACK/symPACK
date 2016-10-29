@@ -41,6 +41,13 @@ include(FortranCInterface)
 FortranCInterface_HEADER("${PROJECT_BINARY_DIR}/sympack_config.hpp" MACRO_NAMESPACE "FC_")
 FortranCInterface_VERIFY(CXX)
 
+option(RCM_IDX_64 "Use 64 bit integers for RCM" OFF)
+if(RCM_IDX_64)
+add_definitions( "-DRCMIDXSIZE=64")
+else()
+add_definitions( "-DRCMIDXSIZE=32")
+endif()
+
 option(MMD_IDX_64 "Use 64 bit integers for MMD" OFF)
 if(MMD_IDX_64)
 add_definitions( "-DMMDIDXSIZE=64")
@@ -260,6 +267,7 @@ set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
   src/mmdint.F src/mmdnum.F src/mmdupd.F src/ordmmd.F
   src/betree.f src/del_heap.f src/ins_heap.f src/mcssup.f
   src/move_down.f src/ordsup.f src/boxnd.f src/gridnd.f
+  src/degree.F src/fnroot.F src/genrcm.F src/rcm.F src/rootls.F
   src/invinv.f src/mod_heap.f src/move_up.f)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
@@ -294,6 +302,57 @@ CONFIGURE_FILE(
     ${CMAKE_CURRENT_BINARY_DIR}/sympack_definitions.hpp
 )
 
+# generate a makefile include file
+
+file(WRITE "sympack.mak.cmake" "SYMPACK_DIR = ${CMAKE_INSTALL_PREFIX}\n\n")
+file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE = -I\$(SYMPACK_DIR)/include\n")
+
+if(ENABLE_SCOTCH)
+  file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += -I${SCOTCH_INCLUDE_DIRS}\n")
+endif()
+if(ENABLE_METIS)
+  file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += -I${METIS_INCLUDE_DIRS}\n")
+endif()
+if(ENABLE_PARMETIS)
+  file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += -I${PARMETIS_INCLUDE_DIRS}\n")
+endif()
+
+list(GET UPCXX_INCLUDE_DIR 0 TMPUPCXXDIR)
+file(APPEND "sympack.mak.cmake" "\ninclude ${TMPUPCXXDIR}/upcxx.mak\n")
+file(APPEND "sympack.mak.cmake" "VPATH=${TMPUPCXXDIR}\n\n")
+file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += \$(UPCXX_CXXFLAGS)\n\n")
+file(APPEND "sympack.mak.cmake" "SYMPACK_LIB = -L\$(SYMPACK_DIR)/lib -lsympack\n")
+
+foreach( d ${LIBS} )
+  file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += ${d}\n")
+endforeach()
+
+#foreach( d ${GASNET_LIBRARIES} )
+#  file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += ${d}\n")
+#endforeach()
+
+file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += \$(UPCXX_LDLIBS)\n")
+file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += -l${CMAKE_DL_LIBS}\n")
+
+unset(MAKLIBS)
+unset(TMPUPCXXDIR)
+
+#if(ENABLE_SCOTCH)
+#  file(APPEND "sympack.mak" "SYMPACK_LIB += ${SCOTCH_LIBRARIES}\n")
+#endif()
+#if(ENABLE_METIS)
+#  file(APPEND "sympack.mak" "SYMPACK_LIB += ${METIS_LIBRARIES}\n")
+#endif()
+#if(ENABLE_PARMETIS)
+#  file(APPEND "sympack.mak" "SYMPACK_LIB += ${PARMETIS_LIBRARIES}\n")
+#endif()
+
+CONFIGURE_FILE(
+    ${CMAKE_CURRENT_SOURCE_DIR}/sympack.mak.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/sympack.mak
+)
+
+
 message(STATUS "ALL DEFINES: " ${ALL_DEFINITIONS})
  
 add_library(sympack ${SYMPACKSRC})
@@ -308,6 +367,7 @@ install(TARGETS sympack LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 install(FILES 
   ${PROJECT_BINARY_DIR}/sympack_config.hpp 
   ${PROJECT_BINARY_DIR}/sympack_definitions.hpp
+  ${PROJECT_BINARY_DIR}/sympack.mak
   include/sympack.hpp
   DESTINATION include)
 
