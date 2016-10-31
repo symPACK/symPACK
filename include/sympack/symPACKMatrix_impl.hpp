@@ -4092,6 +4092,18 @@ namespace symPACK{
             }
             break;
 
+          case USER:
+          {
+            Order_.perm.resize(iSize_);
+            //find baseval
+            auto baseval = std::min_element(&options_.perm[0],&options_.perm[0]+iSize_);
+            //now compute everything in 1 based 
+            for(int i=0;i<Order_.perm.size();i++){Order_.perm[i] = options_.perm[i] - *baseval + 1; /*1 based*/}
+            Order_.invp.resize(iSize_);
+            for(int i=0;i<Order_.perm.size();i++){Order_.invp[Order_.perm[i]-1] = i;} 
+          }
+          break;
+
           case NDBOX:
             Order_.NDBOX(Size(), graph_.comm);
             break;

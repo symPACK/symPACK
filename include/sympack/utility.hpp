@@ -805,23 +805,6 @@ namespace symPACK{
   // Sparse Matrix
   // *********************************************************************
 
-  // TODO Complex format
-
-  void ReadDistSparseMatrix( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
-
-  //void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
-  //
-  //void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<Complex>& pspmat, MPI_Comm comm );
-
-
-
-
-
-
-
-  void ParaWriteDistSparseMatrix ( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
-
-  void ReadDistSparseMatrixFormatted( const char* filename, DistSparseMatrix<Real>& pspmat, MPI_Comm comm );
 
   // Functions for DistSparseMatrix
 
@@ -1494,7 +1477,7 @@ namespace symPACK{
 
           infile.read(&rdStr[0], readBytes);
 
-       iss.str(rdStr);
+          iss.str(rdStr);
           Ptr cptr;
           Idx locPos = 0;
           while(iss>> cptr){
@@ -1567,7 +1550,7 @@ iss.clear(); // Clear state flags.
           auto j = std::abs(tmp);
           locPos = 0;
           if(scalarPerNzval>1){
-          decltype(j) * nzval_ptr = (decltype(j)*)(&HMat.nzvalLocal[0]);
+            decltype(j) * nzval_ptr = (decltype(j)*)(&HMat.nzvalLocal[0]);
             while(iss>> j){
               nzval_ptr[locPos++]=j;
             }
@@ -1619,9 +1602,214 @@ iss.clear(); // Clear state flags.
       return 0;
     }
 
+  template <typename SCALAR, typename INSCALAR >
+  void ReadDistSparseMatrixFormatted( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm );
+  template <typename SCALAR, typename INSCALAR >
+  void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm )
+{
+  // Get the processor information within the current communicator
+  MPI_Barrier( comm );
+  Int mpirank;  MPI_Comm_rank(comm, &mpirank);
+  Int mpisize;  MPI_Comm_size(comm, &mpisize);
+  MPI_Status mpistat;
+  std::ifstream fin;
 
-  //template <>
-  //int ReadHB_PARA<double,double>(std::string & filename, DistSparseMatrix<double> & HMat);
+  // Read basic information
+  if( mpirank == 0 ){
+    fin.open(filename);
+    if( !fin.good() ){
+      throw std::logic_error( "File cannot be openeded!" );
+    }
+    Int dummy;
+    fin >> pspmat.size >> dummy;
+    fin >> pspmat.nnz >> dummy;
+  }
+
+  MPI_Bcast(&pspmat.size, 1, MPI_INT, 0, comm);
+  MPI_Bcast(&pspmat.nnz,  1, MPI_INT, 0, comm);
+
+  Int n = pspmat.size;
+  pspmat.Localg_.size = n;
+  pspmat.Localg_.nnz = pspmat.nnz;
+  //compute local number of columns
+  pspmat.Localg_.SetComm(comm);
+  int baseval = 1;
+  pspmat.Localg_.SetBaseval(baseval);
+  pspmat.Localg_.vertexDist.resize(mpisize+1);
+  int colPerProc = std::max(1,(int)(n/mpisize));
+  for(int p = 1; p <mpisize;p++){
+    pspmat.Localg_.vertexDist[p] = std::min(n-1,p*colPerProc)+baseval;
+  }
+  pspmat.Localg_.vertexDist.front()= baseval;
+  pspmat.Localg_.vertexDist.back()= n+baseval;
+
+  
+
+  //initialize an identity permutation
+  pspmat.cinvp.resize(pspmat.Localg_.LocalVertexCount());
+  std::iota(pspmat.cinvp.begin(),pspmat.cinvp.end(),pspmat.Localg_.LocalFirstVertex());
+
+  Idx firstNode = pspmat.Localg_.LocalFirstVertex();
+  Idx nlocal = pspmat.Localg_.LocalVertexCount();
+
+  pspmat.Localg_.SetKeepDiag(1);
+  pspmat.Localg_.SetSorted(1);
+
+  // Read colptr
+  std::vector<Ptr>  gcolptr;
+  if( mpirank == 0 ){
+    gcolptr.resize(pspmat.size+1);
+    Ptr* ptr = &gcolptr[0];
+    for( Int i = 0; i < pspmat.size+1; i++ )
+      fin >> *(ptr++);
+  }
+
+  std::vector<int> sizes(mpisize,0);
+  for(int p = 0; p<mpisize; p++){
+    sizes[p] = pspmat.Localg_.vertexDist[p+1] - pspmat.Localg_.vertexDist[p];
+  }
+  std::vector<int> disps(mpisize+1,0);
+  std::partial_sum(sizes.begin(),sizes.end(),disps.begin()+1);
+  //recomput the sizes to add one extra element
+  for(int p = 0; p<mpisize; p++){
+    sizes[p] +=1;
+  }
+
+
+  MPI_Datatype type;
+  MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &type );
+  MPI_Type_commit(&type);
+  //scatter colptr
+  pspmat.Localg_.colptr.resize(nlocal+1);
+  MPI_Scatterv(mpirank==0?&gcolptr[0]:NULL,&sizes[0],&disps[0],type,&pspmat.Localg_.colptr[0],nlocal+1,type,0,comm);
+  MPI_Type_free(&type);
+
+  logfileptr->OFS()<<pspmat.Localg_.colptr<<std::endl;
+  for( Int i = nlocal; i >=0; i-- ){
+    pspmat.Localg_.colptr[i] -= (pspmat.Localg_.colptr[0] - baseval);
+  }
+  logfileptr->OFS()<<pspmat.Localg_.colptr<<std::endl;
+
+  // Calculate nnz_loc on each processor
+  Ptr nnzLocal = pspmat.Localg_.colptr.back()-1;
+
+  pspmat.Localg_.rowind.resize( nnzLocal );
+  pspmat.nzvalLocal.resize ( nnzLocal );
+
+  // Read and distribute the row indices
+  bool isLowerTri = true;
+  MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &type );
+  MPI_Type_commit(&type);
+  if( mpirank == 0 ){
+    Int tmp;
+    std::vector<Idx> buf;
+    Ptr numRead;
+    for( Int ip = 0; ip < mpisize; ip++ ){
+      numRead = gcolptr[ pspmat.Localg_.vertexDist[ip+1] - baseval ] 
+        - gcolptr[ pspmat.Localg_.vertexDist[ip] - baseval ];
+      Idx * ptr = NULL;
+      if(ip>0){
+        buf.resize(numRead);
+        ptr = &buf[0];
+      }
+      else{
+        ptr = &pspmat.Localg_.rowind[0];
+      }
+
+      for(Idx col = pspmat.Localg_.vertexDist[ip];
+          col < pspmat.Localg_.vertexDist[ip+1]; col++){
+        for( Ptr rptr = gcolptr[ col  - baseval ];
+            rptr < gcolptr[ col+1 - baseval ]; rptr++){
+          Idx tmp = 0;
+          fin >> tmp;
+          if(tmp<col-baseval+1){
+            isLowerTri = false;
+          }
+          *(ptr++) = tmp;
+        }
+      }
+logfileptr->OFS()<<"Sending "<<numRead<<" to P"<<ip<<std::endl;
+      if( ip > 0 ){
+        MPI_Send(&buf[0], numRead, type, ip, 1, comm);
+      }
+    }
+  }
+  else{
+logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
+    MPI_Recv( &pspmat.Localg_.rowind[0], nnzLocal, type, 0, 1, comm, &mpistat );
+  }
+  MPI_Type_free(&type);
+
+  // Read and distribute the nonzero values
+  MPI_Type_contiguous( sizeof(SCALAR), MPI_BYTE, &type );
+  MPI_Type_commit(&type);
+  if( mpirank == 0 ){
+    Int tmp;
+    std::vector<SCALAR> buf;
+    Ptr numRead;
+    for( Int ip = 0; ip < mpisize; ip++ ){
+      numRead = gcolptr[ pspmat.Localg_.vertexDist[ip+1] - baseval ] 
+        - gcolptr[ pspmat.Localg_.vertexDist[ip] - baseval ];
+      SCALAR * ptr = NULL;
+      if(ip>0){
+        buf.resize(numRead);
+        ptr = &buf[0];
+      }
+      else{
+        ptr = &pspmat.nzvalLocal[0];
+      }
+
+        if(is_complex_type<INSCALAR>::value && !is_complex_type<SCALAR>::value){
+          throw std::logic_error( "Cannot convert from COMPLEX to REAL." );
+        }
+        else if(!is_complex_type<INSCALAR>::value && is_complex_type<SCALAR>::value){
+          INSCALAR * tptr = (INSCALAR*)(ptr);
+          for( Int i = 0; i < numRead; i+=2 ){
+            INSCALAR val;
+            fin >> val;
+            *(tptr++) = val;
+            fin >> val;
+            *(tptr++) = val;
+          }
+        }
+        else{
+          for( Int i = 0; i < numRead; i++ ){
+            SCALAR tmp;
+            fin >> tmp;
+            *(ptr++) = (SCALAR)tmp;
+          }
+        }
+      if( ip > 0 ){
+        MPI_Send(&buf[0], numRead, type, ip, 1, comm);
+      }
+    }
+  }
+  else{
+    MPI_Recv( &pspmat.nzvalLocal[0], nnzLocal, type, 0, 1, comm, &mpistat );
+  }
+  MPI_Type_free(&type);
+
+  // Close the file
+  if( mpirank == 0 ){
+    fin.close();
+  }
+
+  //Enforce lower triangular format
+  MPI_Bcast(&isLowerTri,sizeof(bool),MPI_BYTE,0,comm);
+  if(!isLowerTri){
+    if(mpirank==0){
+        std::cout<<"Input matrix is not in lower triangular format. symPACK is converting it."<<std::endl;
+    }
+    pspmat.Localg_.bIsExpanded = true;
+    pspmat.ToLowerTriangular();
+  }
+
+  return ;
+}		// -----  end of function ReadDistSparseMatrixFormatted  ----- 
+
+
+
+
 
 
   template <typename SCALAR, typename INSCALAR >
@@ -1639,8 +1827,14 @@ iss.clear(); // Clear state flags.
       if(informatstr == "CSC"){
         ParaReadDistSparseMatrix<SCALAR>( filename.c_str(), HMat, workcomm ); 
       }
-      else{
+      else if (informatstr == "HB" || informatstr == "RB" || informatstr == "HARWELL_BOEING"){
         ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat);
+      }
+      else if(informatstr == "matrix"){
+        ReadDistSparseMatrixFormatted<SCALAR,INSCALAR>( filename.c_str(), HMat, workcomm );
+      }
+      else{
+        throw std::logic_error( "Unknown matrix format." );
       }
       double tstop = get_time();
       SYMPACK_TIMER_STOP(READING_MATRIX);
