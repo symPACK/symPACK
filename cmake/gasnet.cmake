@@ -31,9 +31,9 @@ else()
   
   if(ENABLE_ARIES)
     ExternalProject_Add(${GASNET_NAME}
-  #URL ${GASNET_URL}/${GASNET_GZ}
-  # URL_MD5 ${GASNET_MD5}
-    URL ${PROJECT_SOURCE_DIR}/tarballs/${GASNET_GZ}
+    URL ${GASNET_URL}/${GASNET_GZ}
+    URL_MD5 ${GASNET_MD5}
+    #URL ${PROJECT_SOURCE_DIR}/tarballs/${GASNET_GZ}
     INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install
     CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-pshm-hugetlbfs --enable-pshm-xpmem --enable-pshm --disable-pshm-posix --enable-aries --prefix=<INSTALL_DIR> CFLAGS=-DGASNETI_PSHM_BARRIER_HIER=0 CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} 
         )
