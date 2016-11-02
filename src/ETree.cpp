@@ -2,92 +2,84 @@
 /// @brief Implementation of the elimination-tree related algorithms.
 /// @author Mathias Jacquelin
 /// @date 2012-08-31
-#include "ETree.hpp"
-#include "utility.hpp"
+#include "sympack/ETree.hpp"
+#include "sympack/utility.hpp"
 
-namespace LIBCHOLESKY{
+#include <upcxx.h>
+
+namespace symPACK{
+
 
   void DisjointSet::Initialize(Int n){
-    pp_.Resize(n);
-    SetValue(pp_,I_ZERO);
-    root_.Resize(n);
+    pp_.resize(n,0);
+    root_.resize(n);
   }
 
   void DisjointSet::Finalize(){
-    pp_.Resize(0);
+    pp_.resize(0);
   }
-
-
-
-
-  ETree::ETree(){
-
-  }
-
-  ETree::ETree(SparseMatrixStructure & aGlobal){
-    ConstructETree(aGlobal);
-  }
-
-
-
-  void ETree::BTreeToPO(IntNumVec & fson, IntNumVec & brother){
-      //Do a depth first search to construct the postordered tree
-      IntNumVec stack(n_);
-      postNumber_.Resize(n_);
-      invPostNumber_.Resize(n_);
-
-      Int stacktop=0, vertex=n_,m=0;
-      bool exit = false;
-      while( m<n_){
-        do{
-          stacktop++;
-          stack(stacktop-1) = vertex;
-          vertex = fson(vertex-1);
-        }while(vertex>0);
-
-        while(vertex==0){
-
-          if(stacktop<=0){
-            exit = true;
-            break;
-          }
-          vertex = stack(stacktop-1);
-          stacktop--;
-          m++;
-
-          postNumber_(vertex-1) = m;
-          invPostNumber_(m-1) = vertex;
-
-          vertex = brother(vertex-1);
-        }
-
-        if(exit){
-          break;
-        }
-      }
 }
 
+namespace symPACK{
+  ETree::ETree(){
+    bIsPostOrdered_=false;
+  }
 
-  void ETree::PostOrderTree(){
+
+  void ETree::BTreeToPO(std::vector<Int> & fson, std::vector<Int> & brother, std::vector<Int> & invpos){
+    //Do a depth first search to construct the postordered tree
+    std::vector<Int> stack(n_);
+    invpos.resize(n_);
+
+    Int stacktop=0, vertex=n_,m=0;
+    bool exit = false;
+    while( m<n_){
+      do{
+        stacktop++;
+        stack[stacktop-1] = vertex;
+        vertex = fson[vertex-1];
+      }while(vertex>0);
+
+      while(vertex==0){
+
+        if(stacktop<=0){
+          exit = true;
+          break;
+        }
+        vertex = stack[stacktop-1];
+        stacktop--;
+        m++;
+
+        invpos[vertex-1] = m;
+        vertex = brother[vertex-1];
+      }
+
+      if(exit){
+        break;
+      }
+    }
+  }
+
+
+  void ETree::PostOrderTree(Ordering & aOrder){
     if(n_>0 && !bIsPostOrdered_){
 
-     TIMER_START(PostOrder);
+      SYMPACK_TIMER_START(PostOrder);
 
-      IntNumVec fson(n_);
-      SetValue(fson, I_ZERO);
-      IntNumVec brother(n_);
-      SetValue(brother, I_ZERO);
+      std::vector<Int> fson(n_,0);
+      std::vector<Int> & brother = poparent_;
+      brother.resize(n_,0);
 
       Int lroot = n_;
       for(Int vertex=n_-1; vertex>0; vertex--){
-        Int curParent = parent_(vertex-1);
+        Int curParent = parent_[vertex-1];
         if(curParent==0 || curParent == vertex){
-          brother(lroot-1) = vertex;
+          brother[lroot-1] = vertex;
           lroot = vertex;
         }
         else{
-          brother(vertex-1) = fson(curParent-1);
-          fson(curParent-1) = vertex;
+          brother[vertex-1] = fson[curParent-1];
+          fson[curParent-1] = vertex;
         }
       }
 
@@ -98,395 +90,411 @@ namespace LIBCHOLESKY{
       logfileptr->OFS()<<"brother "<<brother<<std::endl;
 #endif
 
-      BTreeToPO(fson,brother);
+      std::vector<Int> invpos;
+      BTreeToPO(fson,brother,invpos);
 
-
-      //      postParent_.Resize(n_);
       //modify the parent list ?
-      // node i is now node postNumber(i-1)
-            for(Int i=1; i<=n_;i++){
-              Int nunode = postNumber_(i-1);
-              Int ndpar = parent_(i-1);
-              if(ndpar>0){
-                ndpar = postNumber_(ndpar-1);
-              }
-              brother(nunode-1) = ndpar;
-            }
+      // node i is now node invpos(i-1)
+      for(Int i=1; i<=n_;i++){
+        Int nunode = invpos[i-1];
+        Int ndpar = parent_[i-1];
+        if(ndpar>0){
+          ndpar = invpos[ndpar-1];
+        }
+        poparent_[nunode-1] = ndpar;
+      }
+
+      //we need to compose aOrder.invp and invpos
+      aOrder.Compose(invpos);
+
+
+
+      bIsPostOrdered_ = true;
+
 
 #ifdef _DEBUG_
       logfileptr->OFS()<<"new parent: "<<brother<<std::endl;
-      logfileptr->OFS()<<"postNumber: "<<postNumber_<<std::endl;
-      logfileptr->OFS()<<"invPostNumber: "<<invPostNumber_<<std::endl;
 #endif
 
-      bIsPostOrdered_ = true;
-     TIMER_STOP(PostOrder);
+      SYMPACK_TIMER_STOP(PostOrder);
     }
 
   }
 
 
-  IntNumVec ETree::SortChildren(IntNumVec & cc){
+  void ETree::SortChildren(std::vector<Int> & cc, Ordering & aOrder){
     if(!bIsPostOrdered_){
-      this->PostOrderTree();
+      this->PostOrderTree(aOrder);
     }
 
-      IntNumVec fson(n_);
-      SetValue(fson, I_ZERO);
-      IntNumVec brother(n_);
-      SetValue(brother, I_ZERO);
-      IntNumVec lson(n_);
-      SetValue(lson, I_ZERO);
+    std::vector<Int> fson(n_,0);
+    std::vector<Int> brother(n_,0);
+    std::vector<Int> lson(n_,0);
 
-      //Get Binary tree representation
-      Int lroot = n_;
-      for(Int vertex=n_-1; vertex>0; vertex--){
-        Int curParent = PostParent(vertex-1);
-        //Int curParent = parent_(vertex-1);
-        if(curParent==0 || curParent == vertex){
-          brother(lroot-1) = vertex;
-          lroot = vertex;
+    //Get Binary tree representation
+    Int lroot = n_;
+    for(Int vertex=n_-1; vertex>0; vertex--){
+      Int curParent = PostParent(vertex-1);
+      //Int curParent = parent_(vertex-1);
+      if(curParent==0 || curParent == vertex){
+        brother[lroot-1] = vertex;
+        lroot = vertex;
+      }
+      else{
+        Int ndlson = lson[curParent-1];
+        if(ndlson > 0){
+          if  ( cc[vertex-1] >= cc[ndlson-1] ) {
+            brother[vertex-1] = fson[curParent-1];
+            fson[curParent-1] = vertex;
+          }
+          else{                                                                                                                                            
+            brother[ndlson-1] = vertex;
+            lson[curParent-1] = vertex;
+          }                                                                                                                                                               
         }
         else{
-          Int ndlson = lson(curParent-1);
-          if(ndlson > 0){
-             if  ( cc(vertex-1) >= cc(ndlson-1) ) {
-             //if  ( cc(ToPostOrder(vertex)-1) >= cc(ToPostOrder(ndlson)-1) ) {
-                brother(vertex-1) = fson(curParent-1);
-                fson(curParent-1) = vertex;
-             }
-             else{                                                                                                                                            
-                brother(ndlson-1) = vertex;
-                lson(curParent-1) = vertex;
-             }                                                                                                                                                               
-          }
-          else{
-             fson(curParent-1) = vertex;
-             lson(curParent-1) = vertex;
-          }
+          fson[curParent-1] = vertex;
+          lson[curParent-1] = vertex;
         }
       }
-      brother(lroot-1)=0;
+    }
+    brother[lroot-1]=0;
 
 
-      IntNumVec perm;
-      IntNumVec invperm;
+    std::vector<Int> invpos;
+    //      std::vector<Int> invperm;
 
-      //Compute the parent permutation and update postNumber_
-      //Do a depth first search to construct the postordered tree
-      IntNumVec stack(n_);
-      perm.Resize(n_);
-      invperm.Resize(n_);
+    //Compute the parent permutation and update postNumber_
+    //Do a depth first search to construct the postordered tree
+    std::vector<Int> stack(n_);
+    invpos.resize(n_);
+    //      invperm.Resize(n_);
 
-      Int stacktop=0, vertex=n_,m=0;
-      bool exit = false;
-      while( m<n_){
-        do{
-          stacktop++;
-          stack(stacktop-1) = vertex;
-          vertex = fson(vertex-1);
-        }while(vertex>0);
+    Int stacktop=0, vertex=n_,m=0;
+    bool exit = false;
+    while( m<n_){
+      do{
+        stacktop++;
+        stack[stacktop-1] = vertex;
+        vertex = fson[vertex-1];
+      }while(vertex>0);
 
-        while(vertex==0){
+      while(vertex==0){
 
-          if(stacktop<=0){
-            exit = true;
-            break;
-          }
-          vertex = stack(stacktop-1);
-          stacktop--;
-          m++;
-
-          perm(vertex-1) = m;
-          invperm(m-1) = vertex;
-
-          vertex = brother(vertex-1);
-        }
-
-        if(exit){
+        if(stacktop<=0){
+          exit = true;
           break;
         }
+        vertex = stack[stacktop-1];
+        stacktop--;
+        m++;
+
+        invpos[vertex-1] = m;
+
+        vertex = brother[vertex-1];
       }
 
-      //Permute CC     
-      for(Int node = 1; node <= n_; ++node){
-        Int nunode = perm(node-1);
-        stack(nunode-1) = cc(node-1);
+      if(exit){
+        break;
       }
-
-      for(Int node = 1; node <= n_; ++node){
-        cc(node-1) = stack(node-1);
-      }
-
-      //Compose the two permutations
-      for(Int i = 1; i <= n_; ++i){
-            Int interm = postNumber_(i-1);
-            postNumber_(i-1) = perm(interm-1);
-      }
-      for(Int i = 1; i <= n_; ++i){
-        Int node = postNumber_(i-1);
-        invPostNumber_(node-1) = i;
-      } 
-
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"ORDERED fson "<<fson<<std::endl;
-      logfileptr->OFS()<<"ORDERED brother "<<brother<<std::endl;
-
-      IntNumVec poParent(n_+1);
-            for(Int i=1; i<=n_;i++){
-              Int nunode = postNumber_(i-1);
-              Int ndpar = parent_(i-1);
-              if(ndpar>0){
-                ndpar = postNumber_(ndpar-1);
-              }
-              poParent(nunode-1) = ndpar;
-            }
-
-
-      logfileptr->OFS()<<"ORDERED new parent: "<<poParent<<std::endl;
-      logfileptr->OFS()<<"ORDERED postNumber: "<<postNumber_<<std::endl;
-      logfileptr->OFS()<<"ORDERED invPostNumber: "<<invPostNumber_<<std::endl;
-#endif
-
-    return perm;
-
-  }
-
-
-
-  void ETree::ConstructETree(SparseMatrixStructure & aGlobal){
-
-    n_ = aGlobal.size;
-
-    //Expand to symmetric storage
-    aGlobal.ExpandSymmetric();
-
-TIMER_START(Construct_Etree_Classic);
-    parent_.Resize(n_);
-    SetValue(parent_,I_ZERO );
-
-
-    IntNumVec ancstr(n_);
-
-
-
-    for(Int i = 1; i<=n_; ++i){
-            parent_(i-1) = 0;
-            ancstr(i-1) = 0;
-            Int node = i; //perm(i)
-
-            Int jstrt = aGlobal.expColptr(node-1);
-            Int jstop = aGlobal.expColptr(node) - 1;
-            if  ( jstrt < jstop ){
-              for(Int j = jstrt; j<=jstop; ++j){
-                    Int nbr = aGlobal.expRowind(j-1);
-                    //nbr = invp(nbr)
-                    if  ( nbr < i ){
-//                       -------------------------------------------
-//                       for each nbr, find the root of its current
-//                       elimination tree.  perform path compression
-//                       as the subtree is traversed.
-//                       -------------------------------------------
-                      Int break_loop = 0;
-                      if  ( ancstr(nbr-1) == i ){
-                        break_loop = 1;
-                      }
-                      else{
-                        while(ancstr(nbr-1) >0){
-                          if  ( ancstr(nbr-1) == i ){
-                            break_loop = 1;
-                            break;
-                          }
-                          Int next = ancstr(nbr-1);
-                          ancstr(nbr-1) = i;
-                          nbr = next;
-                        }
-                        //                       --------------------------------------------
-                        //                       now, nbr is the root of the subtree.  make i
-                        //                       the parent node of this root.
-                        //                       --------------------------------------------
-                        if(!break_loop){
-                          parent_(nbr-1) = i;
-                          ancstr(nbr-1) = i;
-                        }
-                      }
-                    }
-              }
-            }
-  }
-
-TIMER_STOP(Construct_Etree_Classic);
-
-  }
-
-
-  void ETree::ConstructETree2(SparseMatrixStructure & aGlobal){
-
-    //Expand to symmetric storage
-    aGlobal.ExpandSymmetric();
-
-    TIMER_START(ConstructETree);
-    n_ = aGlobal.size;
-
-
-    parent_.Resize(n_);
-    SetValue(parent_,I_ZERO );
-
-    DisjointSet sets;
-    sets.Initialize(n_);
-
-    Int cset,croot,rset,rroot,row;
-
-
-    for (Int col = 1; col <= n_; col++) {
-      parent_(col-1)=col; //1 based indexes
-      cset = sets.makeSet (col);
-      sets.Root(cset-1) = col;
-      parent_(col-1) = 0; 
     }
 
-/*
-    for (Int col = 1; col <= n_; col++) {
-      cset = sets.find (col);
 
-
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
-#endif
-      for (Int p = aGlobal.expColptr(col-1); p < aGlobal.expColptr(col); p++) {
-        row = aGlobal.expRowind(p-1);
-
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
-#endif
-
-
-        if (row <= col) continue;
-
-        rset = sets.find(row);
-        croot = sets.Root(cset-1);
-        rroot = sets.Root(rset-1);
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
-#endif
-
-        if (croot != row) {
-          parent_(croot-1) = row;
-          cset = sets.link(cset, rset);
-          sets.Root(cset-1) = row;
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"Parent of "<<croot<<" is "<<row<<" which now represents set"<<cset<<std::endl;
-#endif
-          break;
-        }
+    //modify the parent list ?
+    // node i is now node invpos(i-1)
+    for(Int i=1; i<=n_;i++){
+      Int nunode = invpos[i-1];
+      Int ndpar = poparent_[i-1];
+      if(ndpar>0){
+        ndpar = invpos[ndpar-1];
       }
-
+      brother[nunode-1] = ndpar;
     }
-*/
+    poparent_ = brother;
 
 
 
 
+    //Permute CC     
+    for(Int node = 1; node <= n_; ++node){
+      Int nunode = invpos[node-1];
+      stack[nunode-1] = cc[node-1];
+    }
+
+    for(Int node = 1; node <= n_; ++node){
+      cc[node-1] = stack[node-1];
+    }
+
+    //Compose the two permutations
+    aOrder.Compose(invpos);
+
+  }
+
+  void ETree::ConstructETree(DistSparseMatrixGraph & aDistExp, Ordering & aOrder){
+    throw std::logic_error( "ETree::ConstructETree(DistSparseMatrixGraph & , Ordering & ) not implemented\n" );
+    bIsPostOrdered_=false;
+    n_ = aDistExp.size;
+
+    DistSparseMatrixGraph tmpGraph = aDistExp;
+
+    //Expand to unsymmetric storage
+    tmpGraph.ExpandSymmetric();
+
+    SYMPACK_TIMER_START(Construct_Etree);
+    //std::fill(parent_.begin(),parent_.end(),0);
 
 
-
-    for (Int col = 1; col <= n_; col++) {
-      parent_(col-1)=col; //1 based indexes
-      cset = sets.makeSet (col);
-      sets.Root(cset-1) = col;
-      parent_(col-1) = 0; 
-
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Examining col "<<col<<std::endl;
-#endif
-      for (Int p = aGlobal.expColptr(col-1); p < aGlobal.expColptr(col); p++) {
-        row = aGlobal.expRowind(p-1);
-
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Row = "<<row<<" vs col = "<<col<<std::endl;
-#endif
+    int mpisize;
+    MPI_Comm_size(tmpGraph.GetComm(),&mpisize);
 
 
-        if (row >= col) continue;
+#if 1 
+    int mpirank;
+    MPI_Comm_rank(tmpGraph.GetComm(),&mpirank);
+    //first permute locally then redistribute with alltoallv then do the etree
+    tmpGraph.Permute(&aOrder.invp[0]);
 
-        rset = sets.find(row);
-        rroot = sets.Root(rset-1);
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"Row "<<row<<" is in set "<<rset<<" represented by "<<rroot<<std::endl;
-#endif
+    parent_.assign(n_,0);
+    std::vector<Int> ancstr(n_,-1);
 
-        if (rroot != col) {
-          parent_(rroot-1) = col;
-          cset = sets.link(cset, rset);
-          sets.Root(cset-1) = col;
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"Parent of "<<rroot<<" is "<<col<<" which now represents set"<<cset<<std::endl;
-#endif
+    Idx fc = tmpGraph.LocalFirstVertex()-tmpGraph.GetBaseval(); //0 - based
+
+    if(mpirank>0){
+      MPI_Recv(&parent_[0],fc*sizeof(Int),MPI_BYTE,mpirank-1,mpirank-1,tmpGraph.GetComm(),MPI_STATUS_IGNORE);
+      MPI_Recv(&ancstr[0],fc*sizeof(Int),MPI_BYTE,mpirank-1,mpirank-1,tmpGraph.GetComm(),MPI_STATUS_IGNORE);
+    }
+    for(Idx locCol = 0; locCol< tmpGraph.LocalVertexCount(); locCol++){
+
+      Idx i = fc + locCol; // 0 - based;
+      parent_[i] = 0;
+      ancstr[i] = 0;
+
+      //logfileptr->OFS()<<"i = "<<i+1<<std::endl;
+
+      Ptr jstrt = tmpGraph.colptr[locCol] - tmpGraph.GetBaseval(); //0-based
+      Ptr jstop = tmpGraph.colptr[locCol+1] - tmpGraph.GetBaseval();//0-based
+      if(jstrt<jstop-1){
+        for(Ptr j = jstrt; j<jstop; ++j){
+          Idx nbr = tmpGraph.rowind[j] - tmpGraph.GetBaseval(); //0-based
+          //logfileptr->OFS()<<"   nbr = "<<nbr+1<<std::endl;
+          if  ( nbr < i ){
+            // -------------------------------------------
+            // for each nbr, find the root of its current
+            // elimination tree.  perform path compression
+            // as the subtree is traversed.
+            // -------------------------------------------
+            //column i (unpermuted) is not the parent of column nbr
+            if  ( ancstr[nbr] != i+1 ){
+              //logfileptr->OFS()<<"path: "<<nbr<<" ";
+              Int break_loop = 0;
+              while(ancstr[nbr] >0){
+                if  ( ancstr[nbr] == i+1 ){
+                  break_loop = 1;
+                  break;
+                }
+                Int next = ancstr[nbr];
+                ancstr[nbr] = i+1;
+                nbr = next - 1;
+                //logfileptr->OFS()<<nbr+1<<" ";
+              }
+              //logfileptr->OFS()<<std::endl;
+
+              // --------------------------------------------
+              // now, nbr is the root of the subtree.  make i
+              // the parent node of this root.
+              // --------------------------------------------
+              if(!break_loop){
+                parent_[nbr] = i + 1; // 1-based
+                ancstr[nbr] = i + 1; // 1-based
+              }
+            }
+          }
         }
       }
 
     }
 
+    if(mpirank<mpisize-1){
+      //        logfileptr->OFS()<<"my parent now is: "<<myParent<<std::endl;
+      //        logfileptr->OFS()<<"my ancstr now is: "<<myAncstr<<std::endl;
+      logfileptr->OFS()<<"parent now is: "<<parent_<<std::endl;
+      logfileptr->OFS()<<"ancstr now is: "<<ancstr<<std::endl;
+      MPI_Send(&parent_[0],(fc+tmpGraph.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,tmpGraph.GetComm());
+      MPI_Send(&ancstr[0],(fc+tmpGraph.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,tmpGraph.GetComm());
+    }
 
-    parent_(n_-1) = 0;
+    //Now proc mpisize-1 bcast the parent_ array
+    MPI_Bcast(&parent_[0],n_*sizeof(Int),MPI_BYTE,mpisize-1,tmpGraph.GetComm());
 
-    TIMER_STOP(ConstructETree);
+
+#else
+#endif
+
+    SYMPACK_TIMER_STOP(Construct_Etree);
+
   }
 
 
-  ETree ETree::ToSupernodalETree(IntNumVec & aXsuper) const{
-    ETree newTree;
-    newTree.n_ = aXsuper.m()-1;
-    newTree.parent_.Resize(aXsuper.m()-1);
+  void ETree::ConstructETree(SparseMatrixGraph & sgraph, Ordering & aOrder, MPI_Comm & aComm){
+    int iam =0;
+    int np =1;
+    MPI_Comm_rank(aComm,&iam);
+    MPI_Comm_size(aComm,&np);
+
+
+    bIsPostOrdered_=false;
+    n_ = sgraph.size;
+
+    if(iam == 0 && (!sgraph.IsExpanded() ) ){
+      throw std::logic_error( "SparseMatrixGraph must be expanded\n" );
+    }
+
+    SYMPACK_TIMER_START(Construct_Etree_Classic);
+    parent_.resize(n_,0);
+
+    if(iam==0){
+      std::vector<Int> ancstr(n_);
+
+
+
+      for(Int i = 1; i<=n_; ++i){
+        parent_[i-1] = 0;
+        ancstr[i-1] = 0;
+        Int node = aOrder.perm[i-1];
+        //          logfileptr->OFS()<<"i = "<<node<<std::endl;
+        Ptr jstrt = sgraph.colptr[node-1];
+        Ptr jstop = sgraph.colptr[node] - 1;
+        if  ( jstrt < jstop ){
+          for(Ptr j = jstrt; j<=jstop; ++j){
+            Idx nbr = sgraph.rowind[j-1];
+            //logfileptr->OFS()<<"   nbr = "<<nbr<<"  ";
+            nbr = aOrder.invp[nbr-1];
+            //          logfileptr->OFS()<<"   nbr = "<<nbr<<std::endl;
+            //logfileptr->OFS()<<"|  nbr = "<<nbr<<std::endl;
+            if  ( nbr < i ){
+              //                       -------------------------------------------
+              //                       for each nbr, find the root of its current
+              //                       elimination tree.  perform path compression
+              //                       as the subtree is traversed.
+              //                       -------------------------------------------
+              Int break_loop = 0;
+              if  ( ancstr[nbr-1] == i ){
+                break_loop = 1;
+              }
+              else{
+
+                //              logfileptr->OFS()<<"path: "<<nbr<<" ";
+                while(ancstr[nbr-1] >0){
+                  if  ( ancstr[nbr-1] == i ){
+                    break_loop = 1;
+                    break;
+                  }
+                  Int next = ancstr[nbr-1];
+                  ancstr[nbr-1] = i;
+                  nbr = next;
+                  //              logfileptr->OFS()<<nbr<<" ";
+                }
+                //              logfileptr->OFS()<<std::endl;
+                //                       --------------------------------------------
+                //                       now, nbr is the root of the subtree.  make i
+                //                       the parent node of this root.
+                //                       --------------------------------------------
+                if(!break_loop){
+                  parent_[nbr-1] = i;
+                  ancstr[nbr-1] = i;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
     
+    //Broadcast  
+    MPI_Bcast(&parent_[0],n_*sizeof(Int),MPI_BYTE,0,aComm);
 
-assert(bIsPostOrdered_);
+    SYMPACK_TIMER_STOP(Construct_Etree_Classic);
 
-    IntNumVec colToSup(this->parent_.m());
-    for(Int i=1; i<aXsuper.m(); ++i){
-      for(Int j = aXsuper(i-1); j< aXsuper(i); ++j){
-        colToSup(j-1) = i;
-      }
-    }
-    colToSup(this->parent_.m()-1) = 0;
-
-//    logfileptr->OFS()<<aXsuper<<std::endl;
-//    logfileptr->OFS()<<this->parent_<<std::endl;
-//    logfileptr->OFS()<<colToSup<<std::endl;
+  }
 
 
-    for(Int i=1; i<=colToSup.m(); ++i){
-        Int curSnode = colToSup(i-1);
-        Int parent_col = this->PostParent(i-1);
-        Int parentSnode = ( parent_col == 0) ? 0:colToSup(parent_col-1);
 
-        if( curSnode != parentSnode){
-          newTree.parent_(curSnode-1) = parentSnode;
+
+
+
+  ETree ETree::ToSupernodalETree(std::vector<Int> & aXsuper,std::vector<Int> & aSupMembership,Ordering & aOrder) const{
+    ETree newTree;
+    newTree.n_ = aXsuper.size()-1;
+    newTree.parent_.resize(aXsuper.size()-1);
+
+
+    assert(bIsPostOrdered_);
+
+    for(Int snode=1; snode<=newTree.n_; ++snode){
+      Int fc = aXsuper[snode-1];
+      Int lc = aXsuper[snode]-1;
+      Int parent_col = this->PostParent(lc-1);
+      Int parentSnode = ( parent_col == 0) ? 0:aSupMembership[parent_col-1];
+
+      newTree.parent_[snode-1] = parentSnode;
 #ifdef _DEBUG_
-          logfileptr->OFS()<<"parent of curSnode "<<curSnode<<" is "<<parentSnode<<std::endl;
+      logfileptr->OFS()<<"parent of curSnode "<<snode<<" is "<<parentSnode<<std::endl;
 #endif
-        }
     } 
 
-    newTree.PostOrderTree();
-
-    return newTree;
-
-//      //translate from columns to supernodes etree using supIdx
-//      etree_supno.resize(this->NumSuper());
-//      for(Int i = 0; i < superNode->etree.m(); ++i){
-//        Int curSnode = superNode->superIdx[i];
-//        Int parentSnode = (superNode->etree[i]>= superNode->etree.m()) ?this->NumSuper():superNode->superIdx[superNode->etree[i]];
-//        if( curSnode != parentSnode){
-//          etree_supno[curSnode] = parentSnode;
-//        }
-//      }
-
+    newTree.poparent_ = newTree.parent_;
+    newTree.bIsPostOrdered_ = true;
 
 
     return newTree;
+
   }
 
+
+
+
+
+  void ETree::DeepestFirst(Ordering & aOrder)
+  {
+    assert(bIsPostOrdered_);
+
+
+
+
+
+
+
+
+
+    std::vector<Int> treesize(n_,0);
+    std::vector<Int> depths(n_);
+    //first, compute the depth of each node
+    for(Int col=n_; col>=1; --col){
+      Int parent = PostParent(col-1);
+      if(parent==0){
+        depths[col-1]=0;
+      }
+      else{
+        treesize[parent-1]++;
+        depths[col-1]=depths[parent-1]+1;
+      }
+    }
+
+
+    for(Int col=n_; col>=1; --col){
+      Int parent = PostParent(col-1);
+      if(parent!=0){
+        depths[parent-1]=std::max(depths[col-1],depths[parent-1]);
+      }
+    }
+
+
+
+
+    //relabel the nodes within a subtree based on their depths
+
+  }
 
 
 }
+

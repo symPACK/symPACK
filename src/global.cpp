@@ -1,8 +1,30 @@
-#include  "Environment.hpp"
-#include  "utility.hpp"
+#include  "sympack/Environment.hpp"
+#include  "sympack/utility.hpp"
+#include  "sympack/SuperNode.hpp"
+
+#include <upcxx.h>
+
+  extern "C"
+  int symPACK_Init(int *argc=NULL, char ***argv=NULL){
+    return upcxx::init(argc, argv);
+  }
+
+  extern "C"
+  int symPACK_Finalize(){
+    return upcxx::finalize();
+  }
+
+namespace symPACK{
 
 
-namespace LIBCHOLESKY{
+
+#ifdef _TRACK_MEMORY_
+  std::map<char*,size_t> MemoryAllocator::cnt_;
+  size_t MemoryAllocator::total_=0;
+  size_t MemoryAllocator::hwm_=0;
+#endif
+
+
 
 // *********************************************************************
 // IO
@@ -37,4 +59,4 @@ namespace LIBCHOLESKY{
 	}
 
 #endif // ifndef _RELEASE_
-} // namespace LIBCHOLESKY
+} // namespace SYMPACK

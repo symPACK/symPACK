@@ -1,8 +1,12 @@
 
-#include "LogFile.hpp"
+#include "sympack/LogFile.hpp"
 
-LogFile * logfileptr;
+namespace symPACK{
 
-LogFile * profileptr;
+LogFile * logfileptr = NULL;
+LogFile * profileptr = NULL;
+LogFile * progressptr = NULL;
+std::stringstream * progstr = NULL;
 
+}
 

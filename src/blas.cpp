@@ -43,9 +43,9 @@
 /// @file blas.cpp
 /// @brief Thin interface to BLAS
 /// @date 2012-09-12
-#include "blas.hpp"
+#include "sympack/blas.hpp"
 
-namespace LIBCHOLESKY {
+namespace symPACK {
 namespace blas {
 
 extern "C" {
@@ -888,7 +888,7 @@ void Syr2
                         scomplex* A, Int lda )
 {
     // csyr2 doesn't exist, so we route through csyr2k. However, csyr2k expects 
-    // contiguous access of 'x', so we treat x and y as a row vectors where 
+    // contiguous access of 'x', so we treat x and y as a row std::vectors where 
     // their leading dimensions are 'incx' and 'incy'. Thus we must perform 
     // A += x' y + y' x
     const char trans = 'T';
@@ -904,7 +904,7 @@ void Syr2
                         dcomplex* A, Int lda )
 {
     // zsyr2 doesn't exist, so we route through zsyr2k. However, zsyr2k expects 
-    // contiguous access of 'x', so we treat x and y as a row vectors where 
+    // contiguous access of 'x', so we treat x and y as a row std::vectors where 
     // their leading dimensions are 'incx' and 'incy'. Thus we must perform 
     // A += x' y + y' x
     const char trans = 'T';
@@ -976,6 +976,22 @@ void Gemm
 {
     const char fixedTransA = ( transA == 'C' ? 'T' : transA );
     const char fixedTransB = ( transB == 'C' ? 'T' : transB );
+
+
+#ifdef _DEBUG_BLAS_
+    logfileptr->OFS()<<"Param 1 transA = "<<fixedTransA<<std::endl;
+    logfileptr->OFS()<<"Param 2 transB = "<<fixedTransB<<std::endl;
+    logfileptr->OFS()<<"Param 3 m = "<<m<<std::endl;
+    logfileptr->OFS()<<"Param 4 n = "<<n<<std::endl;
+    logfileptr->OFS()<<"Param 5 k = "<<k<<std::endl;
+    logfileptr->OFS()<<"Param 6 alpha = "<<alpha<<std::endl;
+    logfileptr->OFS()<<"Param 8 lda = "<<lda<<std::endl;
+    logfileptr->OFS()<<"Param 10 ldb = "<<ldb<<std::endl;
+    logfileptr->OFS()<<"Param 11 beta = "<<beta<<std::endl;
+    logfileptr->OFS()<<"Param 13 ldc = "<<ldc<<std::endl;
+assert(ldc>0 && lda>0 && ldb>0);
+#endif
+
     BLAS(dgemm)( &fixedTransA, &fixedTransB, &m, &n, &k,
                  &alpha, A, &lda, B, &ldb, &beta, C, &ldc );
 }
