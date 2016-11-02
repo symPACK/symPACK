@@ -33,9 +33,6 @@ namespace symPACK{
 
 
 
-  template <class F> SparseMatrixStructure  DistSparseMatrix<F>::GetLocalStructure() const {
-    return Local_;
-  }
 
   template <class F> const DistSparseMatrixGraph &  DistSparseMatrix<F>::GetLocalGraph() const {
     return Localg_;
@@ -49,207 +46,18 @@ namespace symPACK{
     Localg_ = pgraph;
   }
 
-  template <class F> SparseMatrixStructure DistSparseMatrix<F>::GetGlobalStructure(){
-    if(!globalAllocated){
-      Local_.ToGlobal(Global_,comm);
-      globalAllocated = true;
-    }
-    return Global_;
-  }
 
   template <class F>
     DistSparseMatrix<F>::DistSparseMatrix(){
       comm = MPI_COMM_NULL;
       size = 0;
       nnz=0;
-      globalAllocated=false;
     }
 
   template <class F>
     DistSparseMatrix<F>::DistSparseMatrix(MPI_Comm aComm):DistSparseMatrix(){
       comm = aComm;
     }
-
-  template <class F> template <typename T> void DistSparseMatrix<F>::ConvertData(const int n, const int nnz, const int * colptr, const int * rowidx, const T * nzval ,bool onebased){
-    int np;
-    int iam;
-abort();
-    MPI_Comm_size(comm,&np);
-    MPI_Comm_rank(comm, &iam);
-
-    this->size = n; 
-    this->nnz = nnz; 
-
-    //fill global structure info as we have it directly
-    this->Global_.size = this->size;
-    this->Global_.nnz = this->nnz;
-    this->Global_.colptr.resize(n+1);
-    std::copy(colptr,colptr+n+1,&this->Global_.colptr[0]);
-    //this->Global_.rowind.resize(nnz+1);
-    this->Global_.rowind.resize(nnz);
-    std::copy(rowidx,rowidx+nnz+1,&this->Global_.rowind[0]);
-
-    if(!onebased){
-      //move to 1 based indices
-      for(int i=0;i<this->Global_.colptr.size();i++){ ++this->Global_.colptr[i]; }
-      for(int i=0;i<this->Global_.rowind.size();i++){ ++this->Global_.rowind[i]; }
-    }
-
-    this->globalAllocated = true;
-
-    //Compute local structure info
-    // Compute the number of columns on each processor
-    Idx numColLocal, numColFirst;
-    numColFirst = this->size / np;
-    std::vector<Idx> numColLocalVec(np,numColFirst );
-    numColLocalVec[np-1] = this->size - numColFirst * (np-1) ;  // Modify the last entry	
-    numColLocal = numColLocalVec[iam];
-
-    this->Local_.colptr.resize( numColLocal + 1 );
-
-    for( Idx i = 0; i < numColLocal+1; i++ ){
-      this->Local_.colptr[i] = this->Global_.colptr[iam * numColFirst+i] - this->Global_.colptr[iam * numColFirst] + 1;
-    }
-
-    this->Local_.size = this->size;
-    // Calculate nnz_loc on each processor
-    this->Local_.nnz = this->Local_.colptr[numColLocal] - this->Local_.colptr[0];
-    this->Local_.colptr.back() = this->Local_.nnz +1;
-
-    // resize rowind and nzval appropriately 
-    this->Local_.rowind.resize( this->Local_.nnz );
-    this->nzvalLocal.resize ( this->Local_.nnz );
-
-    //Read my row indices
-    Int prevRead = 0;
-    Int numRead = 0;
-    for( Int ip = 0; ip <iam; ip++ ){	
-      prevRead += this->Global_.colptr[ip*numColFirst + numColLocalVec[ip]]
-        - this->Global_.colptr[ip*numColFirst];
-    }
-
-    numRead = this->Global_.colptr[iam*numColFirst + numColLocalVec[iam]] - this->Global_.colptr[iam*numColFirst];
-    std::copy(&this->Global_.rowind[prevRead],&this->Global_.rowind[prevRead+numRead],&this->Local_.rowind[0]);
-
-    for(int i = 0; i<numRead;++i){
-      this->nzvalLocal[i] = (F)((const T*)nzval)[prevRead+i];
-    }
-    //copy appropriate nnz values
-    //    if(cscptr->value_type == REAL){
-    //      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
-    //    }
-    //    else if(cscptr->value_type == COMPLEX){
-    //      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
-    //    }
-
-#if 1
-    {
-      vector<Ptr> dummy;
-      this->Global_.colptr.swap(dummy);
-    }
-    {
-      vector<Idx> dummy;
-      this->Global_.rowind.swap(dummy);
-    }
-    this->Global_.nnz=-1;
-    this->Global_.size=1;
-    this->globalAllocated = false;
-
-    //Local_.ToGlobal(Global_,comm);
-
-#endif
-
-    Localg_.FromStructure(Local_);
-    Localg_.SetComm(comm);
-
-  }
-
-
-
-  template <class F> void DistSparseMatrix<F>::CopyData(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval ,bool onebased){
-    int np;
-    int iam;
-
-    MPI_Comm_size(comm,&np);
-    MPI_Comm_rank(comm, &iam);
-
-    //fill global structure info as we have it directly
-    this->size = n; 
-    this->nnz = nnz; 
-    this->Global_.size = this->size;
-    this->Global_.nnz = this->nnz;
-    this->Global_.colptr.resize(n+1);
-    std::copy(colptr,colptr+n+1,&this->Global_.colptr[0]);
-    //this->Global_.rowind.resize(nnz+1);
-    this->Global_.rowind.resize(nnz);
-    std::copy(rowidx,rowidx+nnz+1,&this->Global_.rowind[0]);
-
-
-    if(!onebased){
-      //move to 1 based indices
-      for(int i=0;i<this->Global_.colptr.size();i++){ ++this->Global_.colptr[i]; }
-      for(int i=0;i<this->Global_.rowind.size();i++){ ++this->Global_.rowind[i]; }
-    }
-
-    this->globalAllocated = true;
-    this->Local_.bIsExpanded = false;
-
-    //Compute local structure info
-    // Compute the number of columns on each processor
-    std::vector<Int> numColLocalVec(np);
-    Int numColLocal, numColFirst;
-    numColFirst = this->size / np;
-    std::fill(numColLocalVec.begin(),numColLocalVec.end(),numColFirst);
-
-    numColLocalVec[np-1] = this->size - numColFirst * (np-1) ;  // Modify the last entry	
-    numColLocal = numColLocalVec[iam];
-
-    this->Local_.colptr.resize( numColLocal + 1 );
-
-    for( Int i = 0; i < numColLocal+1; i++ ){
-      this->Local_.colptr[i] = this->Global_.colptr[iam * numColFirst+i] - this->Global_.colptr[iam * numColFirst] + 1;
-    }
-
-    this->Local_.size = this->size;
-    // Calculate nnz_loc on each processor
-    this->Local_.nnz = this->Local_.colptr[numColLocal] - this->Local_.colptr[0];
-    this->Local_.colptr.back() = this->Local_.nnz +1;
-
-    // resize rowind and nzval appropriately 
-    this->Local_.rowind.resize( this->Local_.nnz );
-    this->nzvalLocal.resize ( this->Local_.nnz );
-
-    //Read my row indices
-    Int prevRead = 0;
-    Int numRead = 0;
-    for( Int ip = 0; ip <iam; ip++ ){	
-      prevRead += this->Global_.colptr[ip*numColFirst + numColLocalVec[ip]]
-        - this->Global_.colptr[ip*numColFirst];
-    }
-
-    numRead = this->Global_.colptr[iam*numColFirst + numColLocalVec[iam]] - this->Global_.colptr[iam*numColFirst];
-    std::copy(&this->Global_.rowind[prevRead],&this->Global_.rowind[prevRead+numRead],&this->Local_.rowind[0]);
-
-    std::copy(&((const F*)nzval)[prevRead],&((const F*)nzval)[prevRead+numRead],&this->nzvalLocal[0]);
-    //copy appropriate nnz values
-    //    if(cscptr->value_type == REAL){
-    //      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
-    //    }
-    //    else if(cscptr->value_type == COMPLEX){
-    //      std::copy(&((const double*)cscptr->values)[prevRead],&((const double*)cscptr->values)[prevRead+numRead],this->nzvalLocal.Data());
-    //    }
-
-
-    Localg_.FromStructure(Local_);
-    Localg_.SetComm(comm);
-  }
-
-
-  template <class F> DistSparseMatrix<F>::DistSparseMatrix(const int n, const int nnz, const int * colptr, const int * rowidx, const F * nzval ,MPI_Comm oComm ):comm(oComm){
-    globalAllocated=false;
-    this->CopyData(n,nnz,colptr,rowidx,nzval);
-  }
-
 
   template <class F> void DistSparseMatrix<F>::Dump() const{
     Int baseval = Localg_.baseval;
@@ -460,8 +268,6 @@ abort();
 
         Ptr newNNZ = newColptr.back()-baseval;
         rowind.resize(newNNZ);
-        //TODO this has been commented because nnz contains the global nnz
-        //this->Local_.nnz = newNNZ;
 
         nzvalLocal.resize(newNNZ);
 
@@ -711,9 +517,6 @@ abort();
         Ptr newNNZ = newColptr.back()-baseval;
         rowind.resize(newNNZ);
         this->nnz = (this->nnz - this->size)*2 + this->size;
-        //TODO this has been commented because nnz contains the global nnz
-        //this->Local_.nnz = newNNZ;
-        this->Local_.nnz = this->nnz;
 
         nzvalLocal.resize(newNNZ);
 

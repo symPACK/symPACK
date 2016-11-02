@@ -1,5 +1,4 @@
 #include "sympack/DistSparseMatrixGraph.hpp"
-#include "sympack/SparseMatrixStructure.hpp"
 #include "sympack/ETree.hpp"
 #include "sympack/utility.hpp"
 #include <limits>       // std::numeric_limits
@@ -203,15 +202,6 @@ namespace symPACK{
     (*this) = g;
   }
 
-  DistSparseMatrixGraph::DistSparseMatrixGraph(const SparseMatrixStructure & A):DistSparseMatrixGraph(){
-    baseval = A.baseval;
-    keepDiag = A.keepDiag;
-    sorted = A.sorted;
-    FromStructure(A);
-  }
-
-
-
   void DistSparseMatrixGraph::SetComm(const MPI_Comm & aComm){
     if(aComm!=comm){
       bool doDup = true;
@@ -325,63 +315,6 @@ namespace symPACK{
   }
 
 
-
-  void DistSparseMatrixGraph::FromStructure(const SparseMatrixStructure & A){
-
-    if(A.bIsGlobal){
-      throw std::logic_error( "DistSparseMatrixGraph from Global (non distributed) SparseMatrixStructure not implemented yet\n" );
-    }
-    else{
-      bIsExpanded = A.bIsExpanded;
-
-      size = A.size;
-      Idx locColCnt = A.IsExpanded()?A.expColptr.size()-1:A.colptr.size()-1;
-      Idx firstCol = 0;
-
-
-
-      Int colPerProc = size / mpisize;
-      vertexDist.assign(mpisize+1,colPerProc);
-      vertexDist[0] = baseval;
-      std::partial_sum(vertexDist.begin(),vertexDist.end(),vertexDist.begin());
-      vertexDist.back() = size + baseval;
-
-      firstCol = LocalFirstVertex()-baseval; //0 based
-
-      colptr.resize(locColCnt+1);
-
-      const Ptr * acolptr = A.IsExpanded()?&A.expColptr[0]:&A.colptr[0];
-      const Idx * arowind = A.IsExpanded()?&A.expRowind[0]:&A.rowind[0];
-
-      nnz = keepDiag?(A.keepDiag?A.nnz:A.nnz+locColCnt):(A.keepDiag?A.nnz-locColCnt:A.nnz);
-      rowind.resize(nnz);
-
-      colptr[0] = baseval;
-      for(Idx locCol = 0; locCol < locColCnt; locCol++){
-        Idx col = firstCol + locCol; // 0 -based
-        Ptr colbeg = acolptr[locCol] - A.baseval;
-        Ptr colend = acolptr[locCol+1] - A.baseval;
-
-        Ptr & pos = colptr[locCol+1];
-        pos = colptr[locCol];
-
-        //if we need to add the diagonal entry
-        if(!A.keepDiag && keepDiag){
-          rowind[pos++ - baseval] = col + baseval;
-        }
-        for(Ptr jptr = colbeg; jptr<colend; jptr++){
-          Idx row = arowind[jptr] - A.baseval;
-          if(keepDiag || row!=col){
-            rowind[pos++ - baseval] = row + baseval;
-          }
-        }
-      }
-
-      if(sorted){
-        SortEdges();
-      }
-    }
-  }
 
 
   void DistSparseMatrixGraph::SortEdges(){

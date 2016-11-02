@@ -261,7 +261,7 @@ endif()
 
 
 set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
-  src/lapack.cpp src/global.cpp src/LogFile.cpp src/SparseMatrixStructure.cpp
+  src/lapack.cpp src/global.cpp src/LogFile.cpp 
   src/IntervalTree.cpp src/Ordering.cpp src/CommPull.cpp
   src/DistSparseMatrixGraph.cpp src/amdbar.F src/genmmd.F src/mmdelm.F
   src/mmdint.F src/mmdnum.F src/mmdupd.F src/ordmmd.F
@@ -275,8 +275,6 @@ include_directories(${PROJECT_BINARY_DIR})
 
 add_definitions("-DITREE")
 add_definitions("-D_DSW_ITREE_")
-add_definitions("-DSINGLE_BLAS")
-add_definitions("-DSEPARATE_AGGREG")
 add_definitions("-DNOTRY")
 get_directory_property( ALL_DEFINITIONS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_DEFINITIONS )
 
@@ -402,7 +400,6 @@ install(FILES
   include/sympack/timer.hpp
   include/sympack/Ordering.hpp
   include/sympack/Scheduler.hpp
-  include/sympack/SparseMatrixStructure.hpp 
   include/sympack/utility.hpp 
   DESTINATION include/sympack)
 

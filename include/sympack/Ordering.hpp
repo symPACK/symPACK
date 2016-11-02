@@ -10,21 +10,19 @@
 #include  <stdlib.h>
 
 #include "sympack/Environment.hpp"
-#include "sympack/SparseMatrixStructure.hpp"
 #include "sympack/DistSparseMatrixGraph.hpp"
 
 namespace symPACK{
 class SparseMatrixGraph;
 class DistSparseMatrixGraph;
-class SparseMatrixStructure;
 class Ordering;
 
 
-//#if RCMIDXSIZE==64
-//  typedef    int64_t   RCMInt;
-//#else
+#if RCMIDXSIZE==64
+  typedef    int64_t   RCMInt;
+#else
   typedef    int32_t   RCMInt;
-//#endif
+#endif
 
 
 #if MMDIDXSIZE==64

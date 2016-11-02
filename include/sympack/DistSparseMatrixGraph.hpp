@@ -8,7 +8,6 @@
 namespace symPACK{
 class ETree;
 class Ordering;
-class SparseMatrixStructure;
 class DistSparseMatrixGraph;
 class SparseMatrixGraph;
 template <typename F> class DistSparseMatrix;
@@ -90,7 +89,6 @@ class DistSparseMatrixGraph{
   ~DistSparseMatrixGraph();
   DistSparseMatrixGraph( const DistSparseMatrixGraph& g );
   //constructor from global to local
-  DistSparseMatrixGraph(const SparseMatrixStructure & A);
 
   DistSparseMatrixGraph& operator=( const DistSparseMatrixGraph& g );
   //accessors
@@ -102,7 +100,6 @@ class DistSparseMatrixGraph{
   //utility
 
   void SetExpanded(bool aExpanded) {bIsExpanded = aExpanded;}
-  void FromStructure(const SparseMatrixStructure & A);
   void SortEdges();
   void ExpandSymmetric();
   void Permute(Int * invp);

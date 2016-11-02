@@ -9,7 +9,6 @@
 
 #include "sympack/Environment.hpp"
 #include "sympack/DistSparseMatrixGraph.hpp"
-#include "sympack/SparseMatrixStructure.hpp"
 #include "sympack/Ordering.hpp"
 
 
@@ -39,13 +38,11 @@ protected:
 
 public:
   ETree();
-  ETree(SparseMatrixStructure & aGlobal, Ordering & aOrder);
 
   //not working
   void ConstructETree(DistSparseMatrixGraph & aDistExp, Ordering & aOrder);
   
   void ConstructETree(SparseMatrixGraph & sgraph, Ordering & aOrder, MPI_Comm & aComm);
-  void ConstructETree(SparseMatrixStructure & aGlobal, Ordering & aOrder);
   void PostOrderTree(Ordering & aOrder);
   void DeepestFirst(Ordering & aOrder);
 

@@ -8,7 +8,6 @@
 
 #include "sympack/Environment.hpp"
 #include "sympack/ETree.hpp"
-#include "sympack/SparseMatrixStructure.hpp"
 
 #include <mpi.h>
 
@@ -19,21 +18,6 @@ namespace symPACK{
 class DistSparseMatrixGraph;
 template <typename T> class symPACKMatrix;
 
-
-
-/// @class DistSparseMatrix
-///
-/// @brief DistSparseMatrix describes a Sparse matrix in the compressed
-/// sparse column format (CSC) and distributed with column major partition. 
-///
-/// Note
-/// ----
-/// 
-/// Since in PEXSI and PPEXSI only symmetric matrix is considered, the
-/// compressed sparse row format will also be represented by the
-/// compressed sparse column format.
-///
-/// TODO Add the parameter of numColLocal
 template <typename F> class DistSparseMatrix{
   friend class symPACKMatrix<F>;
   friend class symPACKMatrix<F>;
@@ -54,12 +38,6 @@ template <typename F> class DistSparseMatrix{
   template <typename SCALAR, typename INSCALAR >
   friend int ReadHB_PARA_MPIIO(std::string & filename, DistSparseMatrix<SCALAR> & HMat);
 
-  protected:
-  bool globalAllocated;
-  SparseMatrixStructure Local_;
-  SparseMatrixStructure Global_;
-
-  //SparseMatrixGraph Globalg_;
 
   public:
   DistSparseMatrixGraph Localg_;
@@ -88,13 +66,10 @@ template <typename F> class DistSparseMatrix{
   
   template <typename T> void ConvertData(const int n, const int nnz, const int * colptr, const int * rowidx, const T * nzval,bool onebased=false);
 
-  SparseMatrixStructure  GetGlobalStructure();
-  SparseMatrixStructure  GetLocalStructure() const;
   const DistSparseMatrixGraph & GetLocalGraph() const;
   DistSparseMatrixGraph & GetLocalGraph();
 
   void SetLocalGraph(const DistSparseMatrixGraph & pgraph);
-  //const SparseMatrixStructure & GetLocalStructure() const;
 
   void Dump() const;
   void DumpMatlab() const;

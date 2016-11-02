@@ -102,8 +102,6 @@ namespace symPACK{
       //TODO Check if that's useful
       SuperNode<T> & GetLocalSupernode(Int i){ return *LocalSupernodes_[i]; } 
 
-//      SparseMatrixStructure GetGlobalStructure();
-//      SparseMatrixStructure GetLocalStructure() const;
 
       //core functionalities
       void Factorize();
@@ -172,16 +170,10 @@ template <class Allocator = UpcxxAllocator>
 
       //Local and Global structure of the matrix (CSC format)
       DistSparseMatrixGraph graph_;
-      //SparseMatrixStructure * Local_;
-      //SparseMatrixStructure * Global_;
-
-      //Is the global structure of the matrix allocated
-      //bool isGlobStructAllocated_;
 
       //CSC structure of L factor
-      PtrVec xlindx_;
-      IdxVec lindx_;
-
+//      PtrVec xlindx_;
+//      IdxVec lindx_;
       PtrVec locXlindx_;
       IdxVec locLindx_;
 
@@ -203,7 +195,6 @@ template <class Allocator = UpcxxAllocator>
       //TODO Task lists
       Scheduler<std::list<FBTask>::iterator> * scheduler_;
       Scheduler<FBTask> * scheduler2_;
-      //std::vector<std::list<FBTask> * > taskLists_;
 
       //backup for factorization
       std::vector<Int> UpdatesToDo_;
