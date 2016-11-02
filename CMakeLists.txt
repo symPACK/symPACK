@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.3)
 project(SYMPACK CXX C Fortran)
 include(ExternalProject)
 
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
+
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED on)
 
@@ -11,7 +13,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED on)
 add_compile_options("$<$<CONFIG:Debug>:-O0>")
 add_compile_options("$<$<CONFIG:Debug>:-g>")
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
 #set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS})
 #include_directories(/path/to/upcxx)
