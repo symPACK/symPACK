@@ -1,4 +1,4 @@
-# Build symPACK
+# Building symPACK
 --------------------------
 
 
