@@ -44,7 +44,8 @@ Some platforms have preconfigured toolchain files which can be used by adding th
 ```
 #!
 
--DCMAKE_TOOLCHAIN_FILE=/path/to/sympack/toolchains/edison.cmake     (To build on NERSC Edison for instance)
+-DCMAKE_TOOLCHAIN_FILE=/path/to/sympack/toolchains/edison.cmake     
+(To build on NERSC Edison for instance)
 
 ```
 
