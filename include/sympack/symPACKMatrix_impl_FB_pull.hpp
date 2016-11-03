@@ -5,6 +5,7 @@
 
 template<typename T> void symPACKMatrix<T>::generateTaskGraph(Int & localTaskCount, std::vector<std::list<FBTask> * > & taskLists)
 {
+  //we will need to communicate if only partial xlindx_, lindx_
   //idea: build tasklist per processor and then exchange
   std::map<Idx, std::list<std::pair<Idx,Idx> >  > Updates;
   std::vector<int> marker(np,0);
@@ -219,6 +220,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_Static()
 
 
 
+
   SYMPACK_TIMER_STOP(BUILD_TASK_LIST);
 
   SYMPACK_TIMER_STOP(FB_INIT);
@@ -362,6 +364,9 @@ template <typename T> void symPACKMatrix<T>::FanBoth()
   SYMPACK_TIMER_START(FB_INIT);
   double timeSta, timeEnd;
 
+#ifdef UPCXX_PROGRESS_THREAD
+  upcxx::progress_thread_start();
+#endif
 
 
   //  Int iam = CommEnv_->MPI_Rank();
@@ -478,6 +483,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth()
 
 
 
+
   #ifdef FANIN_OPTIMIZATION
   if(options_.mappingTypeStr ==  "COL2D")
   {
@@ -565,6 +571,9 @@ defaut:
   MPI_Barrier(CommEnv_->MPI_GetComm());
 
   SYMPACK_TIMER_STOP(BARRIER);
+#ifdef UPCXX_PROGRESS_THREAD
+  upcxx::progress_thread_stop();
+#endif
 
   tmpBufs.Clear();
 
@@ -1442,6 +1451,11 @@ template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTas
 
     //call advance
 
+#ifndef UPCXX_PROGRESS_THREAD
+    SYMPACK_TIMER_START(UPCXX_ADVANCE);
+    upcxx::advance();
+    SYMPACK_TIMER_STOP(UPCXX_ADVANCE);
+#endif
 
     bool comm_found = false;
     IncomingMessage * msg = NULL;
@@ -1517,6 +1531,19 @@ template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTas
       }
       SYMPACK_TIMER_STOP(MV_MSG_SYNC);
 
+#ifdef HANDLE_LOCAL_POINTER
+      //find if there is some local (SHMEM) comms
+      if(!gIncomingRecvLocal.empty()){
+        auto it = gIncomingRecvLocal.begin();
+        msg = *it;
+        gIncomingRecvLocal.erase(it);
+
+#ifdef _DEBUG_PROGRESS_
+        logfileptr->OFS()<<"COMM LOCAL: AVAILABLE MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<msg->remote_ptr.where()<<std::endl;
+#endif
+      }
+      else
+#endif
       {
         //find if there is some finished async comm
         auto it = TestAsyncIncomingMessage();
@@ -1532,6 +1559,19 @@ template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTas
         }
         else if((is_static || scheduler2_->done()) && !gIncomingRecv.empty()){
           //find a "high priority" task
+
+#if 0
+          {
+            auto tmp = gIncomingRecv;
+            while(!tmp.empty()){
+              auto it = tmp.top();
+              msg = it;
+              tmp.pop();
+              logfileptr->OFS()<<"COMM: AVAILABLE MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<msg->remote_ptr.where()<<std::endl;
+            }
+          }
+#endif
+
           SYMPACK_TIMER_START(RM_MSG_SYNC);
           if(is_static){
             msg=NULL;
@@ -1736,6 +1776,13 @@ template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTas
           }
         }
       }
+#ifdef UPCXX_PROGRESS_THREAD
+      else{
+        upcxx::progress_thread_stop();
+        upcxx::advance();
+        upcxx::progress_thread_start();
+      }
+#endif
 
     }while(msg!=NULL);
 }
