@@ -16,9 +16,9 @@ git clone git@bitbucket.org:berkeleylab/sympack.git  /path/to/sympack
 
 Several environment variables can be optionally set before configuring the build:
 
-- `METIS_DIR` = Installation directory for **METIS**
+- `METIS_DIR` = Installation directory for **MeTiS**
 
-- `PARMETIS_DIR` = Installation directory for **PARMETIS**
+- `PARMETIS_DIR` = Installation directory for **ParMETIS**
 
 - `SCOTCH_DIR` = Installation directory for **SCOTCH** and **PT-SCOTCH**
 
@@ -34,11 +34,11 @@ cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/install/sympack
 
 The `...OPTIONS...` can be one of the following:
 
-* `-DENABLE_METIS=ON|OFF`   to make METIS ordering available in **symPACK** (`METIS_DIR` must be set in the environment)
+* `-DENABLE_METIS=ON|OFF`   to make **MeTiS** ordering available in **symPACK** (`METIS_DIR` must be set in the environment)
 
-* `-DENABLE_PARMETIS=ON|OFF`   to make PARMETIS ordering available in **symPACK** (`PARMETIS_DIR` must be set in the environment, `METIS_DIR` is required as well)
+* `-DENABLE_PARMETIS=ON|OFF`   to make **ParMETIS** ordering available in **symPACK** (`PARMETIS_DIR` must be set in the environment, `METIS_DIR` is required as well)
 
-* `-DENABLE_SCOTCH=ON|OFF`   to make SCOTCH / PT-SCOTCH orderings available in **symPACK** (`SCOTCH_DIR` must be set in the environment)
+* `-DENABLE_SCOTCH=ON|OFF`   to make **SCOTCH** / **PT-SCOTCH** orderings available in **symPACK** (`SCOTCH_DIR` must be set in the environment)
 
 
 
