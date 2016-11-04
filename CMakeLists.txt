@@ -13,6 +13,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED on)
 add_compile_options("$<$<CONFIG:Debug>:-O0>")
 add_compile_options("$<$<CONFIG:Debug>:-g>")
 
+string( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
+IF(${config_type} STREQUAL "debug")
+  message("Debug mode")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g" CACHE STRING "" FORCE)
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g" CACHE STRING "" FORCE)
+  SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O0 -g" CACHE STRING "" FORCE)
+ENDIF()  
+  
+
 
 #set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS})
 #include_directories(/path/to/upcxx)
@@ -77,9 +86,6 @@ else()
 endif()
 
 else()
-  
-  
-  
   set(MKL_FOUND false)
   get_directory_property( ALL_OPTIONS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_OPTIONS )
   foreach( d ${ALL_OPTIONS} )
@@ -88,7 +94,6 @@ else()
       set(MKL_FOUND true)
     endif()
   endforeach()
-  
   
   if(MKL_FOUND)
     SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -mkl=sequential" )
@@ -274,6 +279,10 @@ set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_BINARY_DIR})
 
+#message(STATUS "CMAKE_C_FLAGS: " ${CMAKE_C_FLAGS})
+#get_directory_property( ALL_FLAGS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_OPTIONS )
+#message(STATUS "COMPILE_OPTIONS: " ${ALL_FLAGS})
+
 add_definitions("-DITREE")
 add_definitions("-D_DSW_ITREE_")
 add_definitions("-DNOTRY")
@@ -284,7 +293,6 @@ get_directory_property( ALL_DEFINITIONS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_DE
 ##  generate a config file
 ###############################################
 file(WRITE "sympack_definitions.hpp.cmake" "#ifndef _HEADER_SYMPACK_DEFINITIONS_\n#define _HEADER_SYMPACK_DEFINITIONS_\n" )
-#file(APPEND "sympack_definitions.hpp.cmake" "#cmakedefine _CONFIG_HEADER_H_\n" )
 foreach( d ${ALL_DEFINITIONS} )
   string(REPLACE "=" " " d ${d})
   string(REPLACE " " ";" DEF_LIST ${d})
@@ -301,8 +309,9 @@ CONFIGURE_FILE(
     ${CMAKE_CURRENT_BINARY_DIR}/sympack_definitions.hpp
 )
 
-# generate a makefile include file
-
+###############################################
+## generate a makefile include file
+###############################################
 file(WRITE "sympack.mak.cmake" "SYMPACK_DIR = ${CMAKE_INSTALL_PREFIX}\n\n")
 file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE = -I\$(SYMPACK_DIR)/include\n")
 
@@ -326,25 +335,11 @@ foreach( d ${LIBS} )
   file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += ${d}\n")
 endforeach()
 
-#foreach( d ${GASNET_LIBRARIES} )
-#  file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += ${d}\n")
-#endforeach()
-
 file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += \$(UPCXX_LDLIBS)\n")
 file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += -l${CMAKE_DL_LIBS}\n")
 
 unset(MAKLIBS)
 unset(TMPUPCXXDIR)
-
-#if(ENABLE_SCOTCH)
-#  file(APPEND "sympack.mak" "SYMPACK_LIB += ${SCOTCH_LIBRARIES}\n")
-#endif()
-#if(ENABLE_METIS)
-#  file(APPEND "sympack.mak" "SYMPACK_LIB += ${METIS_LIBRARIES}\n")
-#endif()
-#if(ENABLE_PARMETIS)
-#  file(APPEND "sympack.mak" "SYMPACK_LIB += ${PARMETIS_LIBRARIES}\n")
-#endif()
 
 CONFIGURE_FILE(
     ${CMAKE_CURRENT_SOURCE_DIR}/sympack.mak.cmake
@@ -352,10 +347,14 @@ CONFIGURE_FILE(
 )
 
 
-message(STATUS "ALL DEFINES: " ${ALL_DEFINITIONS})
+
+#message(STATUS "ALL DEFINES: " ${ALL_DEFINITIONS})
  
 add_library(sympack ${SYMPACKSRC})
 add_dependencies(sympack gasnet upcxx)
+set_target_properties(gasnet PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(upcxx PROPERTIES POSITION_INDEPENDENT_CODE ON)
+set_target_properties(sympack PROPERTIES POSITION_INDEPENDENT_CODE ON)
  
 if(UNIX AND NOT APPLE)
     target_link_libraries(sympack rt)
@@ -415,8 +414,8 @@ target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit)
 
 #install(TARGETS run_sympack RUNTIME DESTINATION bin)
 
-set(SYMPACK_VERSION_MAJOR 0)
-set(SYMPACK_VERSION_MINOR 1)
+set(SYMPACK_VERSION_MAJOR 1)
+set(SYMPACK_VERSION_MINOR 0)
 set(SYMPACK_VERSION_PATCH 0)
 set(SYMPACK_VERSION_FULL "${SYMPACK_VERSION_MAJOR}.${SYMPACK_VERSION_MINOR}")
 set(CPACK_GENERATOR "TGZ")

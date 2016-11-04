@@ -1,5 +1,47 @@
-#ifndef _SUPERNODAL_MATRIX_IMPL_FB_PULL_HPP_
-#define _SUPERNODAL_MATRIX_IMPL_FB_PULL_HPP_
+/*
+	 Copyright (c) 2016 The Regents of the University of California,
+	 through Lawrence Berkeley National Laboratory.  
+
+   Author: Mathias Jacquelin
+	 
+   This file is part of symPACK. All rights reserved.
+
+	 Redistribution and use in source and binary forms, with or without
+	 modification, are permitted provided that the following conditions are met:
+
+	 (1) Redistributions of source code must retain the above copyright notice, this
+	 list of conditions and the following disclaimer.
+	 (2) Redistributions in binary form must reproduce the above copyright notice,
+	 this list of conditions and the following disclaimer in the documentation
+	 and/or other materials provided with the distribution.
+	 (3) Neither the name of the University of California, Lawrence Berkeley
+	 National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
+	 be used to endorse or promote products derived from this software without
+	 specific prior written permission.
+
+	 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+	 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+	 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+	 DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+	 ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+	 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+	 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+	 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+	 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+	 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+	 You are under no obligation whatsoever to provide any bug fixes, patches, or
+	 upgrades to the features, functionality or performance of the source code
+	 ("Enhancements") to anyone; however, if you choose to make your Enhancements
+	 available either publicly, or directly to Lawrence Berkeley National
+	 Laboratory, without imposing a separate written license agreement for such
+	 Enhancements, then you hereby grant the following license: a non-exclusive,
+	 royalty-free perpetual license to install, use, modify, prepare derivative
+	 works, incorporate into other computer software, distribute, and sublicense
+	 such enhancements or derivative works thereof, in binary and source code form.
+*/
+#ifndef _SYMPACK_MATRIX_IMPL_FB_PULL_HPP_
+#define _SYMPACK_MATRIX_IMPL_FB_PULL_HPP_
 
 #define FANIN_OPTIMIZATION
 
@@ -105,238 +147,6 @@ template<typename T> void symPACKMatrix<T>::generateTaskGraph(Int & localTaskCou
     localTaskCount++;
   }
 
-
-#ifdef MULTITHREADING
-  superLocks_.resize( TotalSupernodeCnt() );
-  std::for_each(superLocks_.begin(), superLocks_.end(), [] (omp_lock_t & lock) { omp_init_lock(&lock);});
-#endif
-
-}
-
-
-template <typename T> void symPACKMatrix<T>::FanBoth_Static() 
-{
-  SYMPACK_TIMER_START(FACTORIZATION_FB);
-
-  SYMPACK_TIMER_START(FB_INIT);
-  double timeSta, timeEnd;
-
-  std::vector<Int> UpdatesToDo = UpdatesToDo_;
-
-  //tmp buffer space
-  std::vector<T> src_nzval;
-  std::vector<char> src_blocks;
-
-  Int maxheight = 0;
-  Int maxwidth = 0;
-  for(Int i = 1; i<Xsuper_.size(); ++i){
-    Int width =Xsuper_[i] - Xsuper_[i-1];
-    if(width>=maxwidth){
-      maxwidth = width;
-    }
-    if(UpdateHeight_[i-1]>=maxheight){
-      maxheight = UpdateHeight_[i-1];
-    }
-  }
-  tmpBufs.Resize(maxheight/*Size()*/,maxwidth);
-
-
-  std::vector< SuperNode<T> * > aggVectors(Xsuper_.size()-1,NULL);
-
-  timeSta =  get_time( );
-  SYMPACK_TIMER_START(BUILD_TASK_LIST);
-  //Create a copy of the task graph
-  supernodalTaskGraph taskGraph = taskGraph_;
-
-  //std::vector<std::list<FBTask> * > taskLists;
-  //Int localTaskCount = localTaskCount_;
-  //taskLists.resize(origTaskLists_.size(),NULL);
-  //for(int i = 0; i<taskLists.size(); ++i){
-  //  if(origTaskLists_[i] != NULL){
-  //    taskLists[i] = new std::list<FBTask>(); 
-  //    taskLists[i]->insert(taskLists[i]->end(),origTaskLists_[i]->begin(),origTaskLists_[i]->end());
-  //  }
-  //}
-
-  for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
-    if(taskGraph.taskLists_[i] != NULL){
-      auto taskit = taskGraph.taskLists_[i]->begin();
-      while (taskit != taskGraph.taskLists_[i]->end())
-      {
-
-
-#ifdef PREFETCH_STRUCTURE
-        // if target of the update is remote, then get its structure
-        Int iFactorizer = this->Mapping_->Map(taskit->tgt_snode_id-1,taskit->tgt_snode_id-1);
-        if(iFactorizer!=iam && taskit->type == UPDATE){
-          bool needStructure =  taskit->data.size()>0?(taskit->data.front()->meta.GIndex!=-1):true;
-          //is the aggregate already allocated ?
-          needStructure = needStructure && aggVectors[taskit->tgt_snode_id-1]==NULL;
-
-          if(taskit->remote_deps==0 && taskit->local_deps==0 && needStructure){
-            IncomingMessage * msg_ptr = new IncomingMessage();
-            MsgMetadata meta;
-            meta.src = taskit->src_snode_id;
-            meta.tgt = taskit->tgt_snode_id;
-            meta.GIndex = -1;
-
-            msg_ptr->meta = meta;
-           
-            upcxx::global_ptr<SuperNodeDesc> pRemote_ptr = std::get<0>(remoteFactors_[meta.tgt-1]);
-            size_t pMsg_size = std::get<1>(remoteFactors_[meta.tgt-1])*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc);
-            msg_ptr->remote_ptr = upcxx::global_ptr<char>(pRemote_ptr);
-            msg_ptr->msg_size = pMsg_size;
-
-            //allocate receive buffer
-            bool success = msg_ptr->AllocLocal();
-            if(success){
-              gIncomingRecvAsync.push_back( msg_ptr );
-              msg_ptr->AsyncGet();
-              taskit->remote_deps++;
-            }
-            else{
-              abort();
-              delete msg_ptr;
-            }
-          }
-        }
-#endif
-
-
-
-        if(taskit->remote_deps==0 && taskit->local_deps==0){
-          scheduler2_->push(*taskit);
-          auto it = taskit++;
-          taskGraph.removeTask(it);
-        }
-        else
-        {
-          ++taskit;
-        }
-      }
-    }
-  }
-
-
-
-
-
-  SYMPACK_TIMER_STOP(BUILD_TASK_LIST);
-
-  SYMPACK_TIMER_STOP(FB_INIT);
-
-#if 1
-
-  bool doPrint = true;
-  Int prevCnt = -1;
-  while(taskGraph.getTaskCount()>0){
-    //  if(scheduler_->done()){
-    //CheckIncomingMessages();
-    // }
-
-    //logfileptr->OFS()<<"scheduler size: "<<scheduler_->size()<<" vs "<<localTaskCount_<<std::endl;
-    if(!scheduler2_->done()){
-      //  SYMPACK_TIMER_START(SORT_TASK);
-      //    readyTasks_.sort(comp);
-      //  SYMPACK_TIMER_STOP(SORT_TASK);
-
-      //Pick a ready task
-      //auto taskit = scheduler_->top();
-      FBTask curTask = scheduler2_->top();
-      //auto taskit = *rtaskit;
-      //process task
-
-
-      while(curTask.remote_deps>0){
-        CheckIncomingMessages(taskGraph,aggVectors,true);
-      }
-
-      //FBTask & curTask = *taskit;
-      //scheduler_->pop();
-      scheduler2_->pop();
-      assert(curTask.local_deps==0);
-
-
-      //    assert(find(taskLists_[curTask.tgt_snode_id-1]->begin(),taskLists_[curTask.tgt_snode_id-1]->end(),curTask)!=taskLists_[curTask.tgt_snode_id-1]->end());
-#ifdef _DEBUG_PROGRESS_
-      logfileptr->OFS()<<"Processing T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") "<<std::endl;
-#endif
-      Int iLocalTGT = snodeLocalIndex(curTask.tgt_snode_id);
-      switch(curTask.type){
-        case FACTOR:
-          {
-            FBFactorizationTask(taskGraph,curTask, iLocalTGT,aggVectors,true);
-          }
-          break;
-        case AGGREGATE:
-          {
-            FBAggregationTask(taskGraph,curTask, iLocalTGT,true);
-          }
-          break;
-        case UPDATE:
-          {
-            FBUpdateTask(taskGraph,curTask, UpdatesToDo, aggVectors,true);
-          }
-          break;
-defaut:
-          {
-            abort();
-          }
-          break;
-      }
-
-      SYMPACK_TIMER_START(REMOVE_TASK);
-      //remove task
-      //taskLists[curTask.tgt_snode_id-1]->erase(taskit);
-      //localTaskCount--;
-      //taskGraph.removeTask(taskit);
-      taskGraph.decreaseTaskCount();
-      SYMPACK_TIMER_STOP(REMOVE_TASK);
-    }
-
-#if 0
-    //dump what still needs to be done
-    if(localTaskCount==prevCnt){
-      if(doPrint){
-        logfileptr->OFS()<<"=================================="<<std::endl;
-        logfileptr->OFS()<<"Still to do: "<<std::endl;
-        Int cnt = 0;
-        for(Int I = 1; I<Xsuper_.size(); ++I){
-          logfileptr->OFS()<<I<<": "<<std::endl;
-          if(taskLists_[I-1]!=NULL){
-            for(auto taskit = taskLists_[I-1]->begin();
-                taskit!=taskLists_[I-1]->end();
-                taskit++){
-              logfileptr->OFS()<<"   T("<<taskit->src_snode_id<<","<<taskit->tgt_snode_id<<") ";
-              cnt++;
-            }
-          }
-          logfileptr->OFS()<<std::endl;
-        }
-        logfileptr->OFS()<<"=================================="<<std::endl;
-        if(cnt==0){
-          logfileptr->OFS()<<localTaskCount<<std::endl;
-          break;
-        }
-        doPrint = false;
-      }
-    }
-    else{
-      doPrint = true;
-    }
-#endif
-    prevCnt=taskGraph.getTaskCount();
-  }
-#endif
-
-  SYMPACK_TIMER_START(BARRIER);
-  upcxx::async_wait();
-  MPI_Barrier(CommEnv_->MPI_GetComm());
-  SYMPACK_TIMER_STOP(BARRIER);
-
-  tmpBufs.Clear();
-
-  SYMPACK_TIMER_STOP(FACTORIZATION_FB);
 }
 
  template <typename T> void symPACKMatrix<T>::dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier){
@@ -1788,4 +1598,4 @@ template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTas
 }
 
 
-#endif
+#endif //_SYMPACK_MATRIX_IMPL_FB_PULL_HPP_

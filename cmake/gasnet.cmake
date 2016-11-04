@@ -28,14 +28,16 @@ else()
   set(GASNET_URL https://gasnet.lbl.gov/)
   set(GASNET_GZ  GASNet-1.26.3.tar.gz)
   set(GASNET_MD5 "93ab985881ca19de319bb73583c385d2")
-  
+  set(GASNET_CFLAGS "${CMAKE_C_FLAGS} -DGASNETI_PSHM_BARRIER_HIER=0")
+ 
   if(ENABLE_ARIES)
     ExternalProject_Add(${GASNET_NAME}
     URL ${GASNET_URL}/${GASNET_GZ}
     URL_MD5 ${GASNET_MD5}
     #URL ${PROJECT_SOURCE_DIR}/tarballs/${GASNET_GZ}
     INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install
-    CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-pshm-hugetlbfs --enable-pshm-xpmem --enable-pshm --disable-pshm-posix --enable-aries --prefix=<INSTALL_DIR> CFLAGS=-DGASNETI_PSHM_BARRIER_HIER=0 CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} 
+    CONFIGURE_COMMAND <SOURCE_DIR>/configure --enable-pshm-hugetlbfs --enable-pshm-xpmem --enable-pshm --disable-pshm-posix --enable-aries --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+
         )
   
   
@@ -61,11 +63,13 @@ else()
   
   else()
     ExternalProject_Add(${GASNET_NAME}
-  URL ${GASNET_URL}/${GASNET_GZ}
-   URL_MD5 ${GASNET_MD5}
+        URL ${GASNET_URL}/${GASNET_GZ}
+        URL_MD5 ${GASNET_MD5}
   #      URL ${PROJECT_SOURCE_DIR}/tarballs/${GASNET_GZ}
         INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install
-        CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CFLAGS=-DGASNETI_PSHM_BARRIER_HIER=0 CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} 
+        CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+
+
         )
   
     set(GASNET_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install/include)

@@ -29,7 +29,7 @@ ExternalProject_Add(${UPCXX_NAME}
  UPDATE_COMMAND ""
  #URL ${PROJECT_SOURCE_DIR}/tarballs/upcxx.tar.gz
  INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/upcxx_install
- CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER}  
+ CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER} CFLAGS=${CMAKE_C_FLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
 )
 
 ExternalProject_Add_Step(${UPCXX_NAME} bootstrap
