@@ -15,7 +15,6 @@
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
 
-#include <upcxx.h>
 
 /******* TYPE used in the computations ********/
 #define SCALAR double
@@ -31,17 +30,12 @@ using namespace symPACK;
 
 int main(int argc, char **argv) 
 {
-  MPI_Init(&argc,&argv);
-#if 1
-  upcxx::init(&argc,&argv);
+  symPACK_Init(&argc,&argv);
 
   symPACKOptions optionsFact;
 
-
-
   int iam = 0;
   int np = 1;
-  
   MPI_Comm worldcomm;
   MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
   MPI_Comm_size(worldcomm,&np);
@@ -82,7 +76,6 @@ int main(int argc, char **argv)
   if (options.find("-z") != options.end()){
     complextype = true;
   }
-
   
   if( options.find("-npord") != options.end() ){
     optionsFact.NpOrdering= atoi(options["-npord"].front().c_str());
@@ -122,11 +115,6 @@ int main(int argc, char **argv)
   }
 
   optionsFact.factorization = FANBOTH;
-  if( options.find("-fb") != options.end() ){
-    if(options["-fb"].front()=="static"){
-      optionsFact.factorization = FANBOTH_STATIC;
-    }
-  }
 
   if( options.find("-refine") != options.end() ){
     optionsFact.order_refinement_str = options["-refine"].front();
@@ -469,10 +457,9 @@ int main(int argc, char **argv)
 
 
   delete logfileptr;
-#endif
 
   //This will also finalize MPI
-  upcxx::finalize();
+  symPACK_Finalize();
   return 0;
 }
 

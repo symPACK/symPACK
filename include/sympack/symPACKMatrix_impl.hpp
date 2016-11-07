@@ -138,7 +138,6 @@ namespace symPACK{
   Int supernodalTaskGraph::increaseTaskCount()
   {
     Int val;
-#pragma omp atomic capture
     val = ++localTaskCount_;
     return val;
   }
@@ -146,7 +145,6 @@ namespace symPACK{
   Int supernodalTaskGraph::decreaseTaskCount()
   {
     Int val;
-#pragma omp atomic capture
     val = --localTaskCount_;
     return val;
   }
@@ -1038,11 +1036,6 @@ namespace symPACK{
     }
 
     //do an allreduce on sc, mw and mh
-    //    MPI_Allreduce(MPI_IN_PLACE,&sc[0],sc.size(),MPI_INT,MPI_SUM,CommEnv_->MPI_GetComm());
-    //    MPI_Allreduce(MPI_IN_PLACE,&mw[0],mw.size(),MPI_INT,MPI_MAX,CommEnv_->MPI_GetComm());
-    //    MPI_Allreduce(MPI_IN_PLACE,&mh[0],mh.size(),MPI_INT,MPI_MAX,CommEnv_->MPI_GetComm());
-    //    MPI_Allreduce(MPI_IN_PLACE,&numBlk[0],numBlk.size(),MPI_INT,MPI_SUM,CommEnv_->MPI_GetComm());
-
     MPI_Allreduce(MPI_IN_PLACE,&sc[0],sc.size(),MPI_INT,MPI_SUM,fullcomm_);
     MPI_Allreduce(MPI_IN_PLACE,&mw[0],mw.size(),MPI_INT,MPI_MAX,fullcomm_);
     MPI_Allreduce(MPI_IN_PLACE,&mh[0],mh.size(),MPI_INT,MPI_MAX,fullcomm_);
@@ -2563,18 +2556,26 @@ namespace symPACK{
         else if(options_.orderingStr=="AMD"){
           options_.ordering = symPACK::AMD;
         }
+#ifdef USE_METIS
         else if(options_.orderingStr=="METIS"){
           options_.ordering = symPACK::METIS;
         }
+#endif
+#ifdef USE_SCOTCH
         else if(options_.orderingStr=="SCOTCH"){
           options_.ordering = symPACK::SCOTCH;
         }
+#endif
+#ifdef USE_PARMETIS
         else if(options_.orderingStr=="PARMETIS"){
           options_.ordering = symPACK::PARMETIS;
         }
+#endif
+#ifdef USE_PTSCOTCH
         else if(options_.orderingStr=="PTSCOTCH"){
           options_.ordering = symPACK::PTSCOTCH;
         }
+#endif
         else if(options_.orderingStr=="NATURAL"){
           options_.ordering = symPACK::NATURAL;
         }
@@ -2587,7 +2588,24 @@ namespace symPACK{
           }
         }
         else{
-          throw std::logic_error( "Unknown ordering technique.\n" );
+              std::stringstream sstr;
+              sstr<<"This ordering method is not supported by symPACK. Valid options are:";
+              sstr<<"MMD AMD RCM NDBOX NDGRID USER ";
+#ifdef USE_SCOTCH
+              sstr<<"SCOTCH ";
+#endif
+#ifdef USE_PTSCOTCH
+              sstr<<"PTSCOTCH ";
+#endif
+#ifdef USE_METIS
+              sstr<<"METIS ";
+#endif
+#ifdef USE_PARMETIS
+              sstr<<"PARMETIS ";
+#endif
+              sstr<<std::endl;
+            throw std::logic_error( sstr.str()  );
+
         }
 
 
@@ -2686,9 +2704,27 @@ namespace symPACK{
             for(int i=0;i<Order_.perm.size();i++){Order_.perm[i]=i+1;} 
             Order_.invp = Order_.perm;
           default:
-
+            {
+              std::stringstream sstr;
+              sstr<<"This ordering method is not supported by symPACK. Valid options are:";
+              sstr<<"MMD AMD RCM NDBOX NDGRID USER ";
+#ifdef USE_SCOTCH
+              sstr<<"SCOTCH ";
+#endif
+#ifdef USE_PTSCOTCH
+              sstr<<"PTSCOTCH ";
+#endif
+#ifdef USE_METIS
+              sstr<<"METIS ";
+#endif
+#ifdef USE_PARMETIS
+              sstr<<"PARMETIS ";
+#endif
+              sstr<<std::endl;
+            throw std::logic_error( sstr.str()  );
             //do nothing: either natural or user provided ordering
-            break;
+          }
+          break;
         }
         SYMPACK_TIMER_STOP(ORDERING);
 

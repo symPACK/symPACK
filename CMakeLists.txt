@@ -279,19 +279,15 @@ set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_BINARY_DIR})
 
-#message(STATUS "CMAKE_C_FLAGS: " ${CMAKE_C_FLAGS})
-#get_directory_property( ALL_FLAGS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_OPTIONS )
-#message(STATUS "COMPILE_OPTIONS: " ${ALL_FLAGS})
-
 add_definitions("-DITREE")
 add_definitions("-D_DSW_ITREE_")
-add_definitions("-DNOTRY")
-get_directory_property( ALL_DEFINITIONS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_DEFINITIONS )
+#add_definitions("-DNOTRY")
 
 
 ###############################################
 ##  generate a config file
 ###############################################
+get_directory_property( ALL_DEFINITIONS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_DEFINITIONS )
 file(WRITE "sympack_definitions.hpp.cmake" "#ifndef _HEADER_SYMPACK_DEFINITIONS_\n#define _HEADER_SYMPACK_DEFINITIONS_\n" )
 foreach( d ${ALL_DEFINITIONS} )
   string(REPLACE "=" " " d ${d})
@@ -338,7 +334,6 @@ endforeach()
 file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += \$(UPCXX_LDLIBS)\n")
 file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += -l${CMAKE_DL_LIBS}\n")
 
-unset(MAKLIBS)
 unset(TMPUPCXXDIR)
 
 CONFIGURE_FILE(
@@ -383,7 +378,6 @@ install(FILES
   include/sympack/DistSparseMatrix_impl.hpp
   include/sympack/symPACKMatrix_impl_FB_pull.hpp
   include/sympack/ETree.hpp
-  #include/sympack/SupernodalMatrixBase.hpp
   include/sympack/Environment.hpp
   include/sympack/Environment_impl.hpp 
   include/sympack/IntervalTree.hpp

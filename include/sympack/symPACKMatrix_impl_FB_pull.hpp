@@ -866,7 +866,6 @@ template <typename T> void symPACKMatrix<T>::FBFactorizationTask(supernodalTaskG
 
       //auto taskit = find_task(taskLists,curUpdate.src_snode_id,curUpdate.tgt_snode_id,UPDATE);
       auto taskit = taskGraph.find_task(curUpdate.src_snode_id,curUpdate.tgt_snode_id,UPDATE);
-#pragma omp atomic
       taskit->local_deps--;
       if(!is_static){
 #ifdef PREFETCH_STRUCTURE
@@ -1180,33 +1179,11 @@ assert(pdesc->blocks_cnt_==block_cnt);
           }
         }
 
-#if 0
-        //IF IT IS AN IMPLICIT TASK, MAYBE IT WAS NOT WORTH CREATING IT IN THE FIRST PLACE
-        if(curTask.tgt_snode_id!=curUpdate.tgt_snode_id){
-          auto taskit = find_task(curUpdate.src_snode_id, curUpdate.tgt_snode_id);
-          taskLists_[curUpdate.tgt_snode_id-1]->erase(taskit);
-          localTaskCount--;
-
-          //          for(auto taskit = taskLists_[curUpdate.tgt_snode_id-1]->begin();
-          //              taskit!=taskLists_[curUpdate.tgt_snode_id-1]->end();
-          //              taskit++){
-          //            if(taskit->src_snode_id==curUpdate.src_snode_id
-          //                && taskit->tgt_snode_id==curUpdate.tgt_snode_id){
-          //              taskLists_[curUpdate.tgt_snode_id-1]->erase(taskit); 
-          //              localTaskCount--; 
-          //              break;
-          //            }
-          //          }
-
-        }
-#endif
-
         if(iTarget == iam)
         {
           //update the dependency of the factorization
           //auto taskit = find_task(taskLists,curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,FACTOR);
           auto taskit = taskGraph.find_task(curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,FACTOR);
-#pragma omp atomic
           taskit->local_deps--;
           if(!is_static){
             if(taskit->remote_deps==0 && taskit->local_deps==0){

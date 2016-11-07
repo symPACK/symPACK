@@ -908,7 +908,7 @@ inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode)
         T * tgt = GetNZval(tgt_offset);
 
         //blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
-        #pragma omp simd
+        #pragma unroll
         for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
 
       }
@@ -1106,7 +1106,7 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
         for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
           T * A = &buf[rowidx*tgt_width];
           T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
-          #pragma omp simd
+          #pragma unroll
           for(Int i = 0; i < tgt_width; ++i){ B[i] += A[i]; }
 //          blas::Axpy(tgt_width,ONE<T>(),&buf[rowidx*tgt_width],1,
 //              &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset],1);
@@ -1338,10 +1338,8 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
         for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
           T * A = &buf[rowidx*tgt_width];
           T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
-          #pragma omp simd
-          for(Int i = 0; i < tgt_width; ++i){
-            B[i] += A[i];
-          }
+          #pragma unroll
+          for(Int i = 0; i < tgt_width; ++i){ B[i] += A[i]; }
 //          blas::Axpy(tgt_width,ONE<T>(),&buf[rowidx*tgt_width],1,
 //              &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset],1);
         }

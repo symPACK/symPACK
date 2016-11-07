@@ -48,7 +48,10 @@
 
   extern "C"
   int symPACK_Init(int *argc=NULL, char ***argv=NULL){
-    return upcxx::init(argc, argv);
+    int retval = 0;
+    retval = MPI_Init(argc,argv);
+    retval = retval && upcxx::init(argc, argv);
+    return retval;
   }
 
   extern "C"
