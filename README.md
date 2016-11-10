@@ -8,10 +8,7 @@ First, download **symPACK** as follows:
 
 
 ```
-#!
-
 git clone git@bitbucket.org:berkeleylab/sympack.git  /path/to/sympack
-
 ```
 
 Several environment variables can be optionally set before configuring the build:
@@ -25,11 +22,8 @@ Several environment variables can be optionally set before configuring the build
 Then, create a build directory, enter that directory and type:
 
 ```
-#!
-
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/install/sympack
  ...OPTIONS... /path/to/sympack
-
 ```
 
 The `...OPTIONS...` can be one of the following:
@@ -44,8 +38,6 @@ The `...OPTIONS...` can be one of the following:
 
 Some platforms have preconfigured toolchain files which can be used by adding the following option to the `cmake` command:
 ```
-#!
-
 -DCMAKE_TOOLCHAIN_FILE=/path/to/sympack/toolchains/edison.cmake     
 (To build on NERSC Edison for instance)
 
