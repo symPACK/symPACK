@@ -1,29 +1,63 @@
-# README #
+# Building symPACK
+--------------------------
 
-This README would normally document whatever steps are necessary to get your application up and running.
 
-### What is this repository for? ###
+**symPACK** is a sparse symmetric matrix direct linear solver. It can be built using the following procedure.
 
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+First, download **symPACK** as follows:
 
-### How do I get set up? ###
 
-* Summary of set up
-* Configuration
-* Dependencies
-* Database configuration
-* How to run tests
-* Deployment instructions
+```
+#!
 
-### Contribution guidelines ###
+git clone git@bitbucket.org:berkeleylab/sympack.git  /path/to/sympack
 
-* Writing tests
-* Code review
-* Other guidelines
+```
 
-### Who do I talk to? ###
+Several environment variables can be optionally set before configuring the build:
 
-* Repo owner or admin
-* Other community or team contact
+- `METIS_DIR` = Installation directory for **MeTiS**
+
+- `PARMETIS_DIR` = Installation directory for **ParMETIS**
+
+- `SCOTCH_DIR` = Installation directory for **SCOTCH** and **PT-SCOTCH**
+
+Then, create a build directory, enter that directory and type:
+
+```
+#!
+
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/install/sympack
+ ...OPTIONS... /path/to/sympack
+
+```
+
+The `...OPTIONS...` can be one of the following:
+
+* `-DENABLE_METIS=ON|OFF`   to make **MeTiS** ordering available in **symPACK** (`METIS_DIR` must be set in the environment)
+
+* `-DENABLE_PARMETIS=ON|OFF`   to make **ParMETIS** ordering available in **symPACK** (`PARMETIS_DIR` must be set in the environment, `METIS_DIR` is required as well)
+
+* `-DENABLE_SCOTCH=ON|OFF`   to make **SCOTCH** / **PT-SCOTCH** orderings available in **symPACK** (`SCOTCH_DIR` must be set in the environment)
+
+
+
+Some platforms have preconfigured toolchain files which can be used by adding the following option to the `cmake` command:
+```
+#!
+
+-DCMAKE_TOOLCHAIN_FILE=/path/to/sympack/toolchains/edison.cmake     
+(To build on NERSC Edison for instance)
+
+```
+
+A sample toolchain file can be found in `/path/to/sympack/toolchains/build_config.cmake` and customized for the target platform.
+
+
+The `cmake` command will configure the build process, which can now start by typing:
+```
+make
+make install
+```
+
+Additionally, a standalone driver for **symPACK** can be built by typing `make examples`
