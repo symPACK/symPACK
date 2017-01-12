@@ -54,39 +54,45 @@ c                           maximum cardinality.
 c       (i) heapinv     -   array of length nsuper, contains the heap
 c                           inverse pointers from the supernode to its
 c                           cell in the heap.
+c       (i) ndesc       -   array of length nsuper, contains the number
+c                           of descendants in the supernodal elimination
+c                           tree (counting self as a descendant).
 C
 C***********************************************************************
 C
-      SUBROUTINE  mcssup (  neqns , nofsub, nsuper, xsuper, snode ,
-     &                      xlindx, lindx , supperm, suppar, fchild, 
-     &                      siblng, heap  , heapinv                 )
+      SUBROUTINE  mcssup (  ordflag, neqns , nofsub, nsuper, xsuper, 
+     &                      snode , xlindx, lindx , supperm, suppar, 
+     &                      fchild, siblng, heap  , heapinv, ndesc   )
 C
 C***********************************************************************
 C
 C       -----------
 C       PARAMETERS.
 C       -----------
-        integer             neqns , nofsub, nsuper
+        integer             neqns , nofsub, nsuper, ordflag
 c
         INTEGER             fchild(nsuper), heap(2*nsuper),
      &                      heapinv(nsuper), lindx(nofsub),
-     &                      siblng(nsuper), snode(neqns)  ,
-     &                      suppar(nsuper), supperm(nsuper),
-     &                      xlindx(nsuper+1), xsuper(nsuper+1)
+     &                      ndesc(nsuper) , siblng(nsuper), 
+     &                      snode(neqns)  , suppar(nsuper), 
+     &                      supperm(nsuper), xlindx(nsuper+1), 
+     &                      xsuper(nsuper+1)
 c
 c       ----------------
 c       local variables.
 c       ----------------
         INTEGER             card  , heapsize, istart, istop, jsup  ,
-     &                      ksuper, nxtchild, offset
+     &                      ksuper, nxtchild, offset, score
 C
 C***********************************************************************
 C
-c       ------------------------------
-c       initialize null parent vector.
-c       ------------------------------
+c       -----------------------------------------------------------------
+c       initialize null parent vector, and
+c       account for jsup's contribution to its own number of descendants.
+c       -----------------------------------------------------------------
         do  jsup = 1, nsuper
             suppar(jsup) = 0
+            ndesc(jsup) = 1
         end do
 c
 c       ----------------------------
@@ -100,10 +106,13 @@ c           -----------------------------------------------------------
 c           if jsup is not a root in the supernode elimination tree ...
 c           -----------------------------------------------------------
             if  ( istart .le. istop )  then
-c               -------------------------------
+c               --------------------------------------------------
 c               store parent supernode of jsup.
-c               -------------------------------
+c               compute jsup's contribution to its parent's number 
+c               of descendants.
+c               --------------------------------------------------
                 suppar(jsup) = snode(lindx(istart))
+                ndesc(suppar(jsup)) = ndesc(suppar(jsup)) + ndesc(jsup)
             end if
         end do
 c
@@ -150,14 +159,22 @@ c           for each child nxtchild of jsup ...
 c           -----------------------------------
             nxtchild = fchild(jsup)
             do while  ( nxtchild .gt. 0 )  
-                offset = xsuper(nxtchild+1) - xsuper(nxtchild)
-                card = xlindx(nxtchild+1) - xlindx(nxtchild) - offset
 c               ------------------------------------------------------
-c               insert nxtchild onto the heap with -cardinality as its
-c               score.
+c               use cardinality or number of descendants as the score.
 c               ------------------------------------------------------
+                if  ( ordflag .eq. 2 )  then
+                    offset = xsuper(nxtchild+1) - xsuper(nxtchild)
+                    card = xlindx(nxtchild+1) - xlindx(nxtchild) 
+     &                     - offset
+                    score  = - card
+                else if  ( ordflag .eq. 3 )  then
+                    score = - ndesc(nxtchild)
+                end if
+c               ----------------------------------------------
+c               insert nxtchild onto the heap using its score.
+c               ----------------------------------------------
                 call  ins_heap  ( heap, heapsize, heapinv, nxtchild,
-     &                            -card                               )
+     &                            score                               )
                 nxtchild = siblng(nxtchild)
             end do
 c           ------------------------------------------------------

@@ -51,6 +51,12 @@
     int retval = 0;
     retval = MPI_Init(argc,argv);
     retval = retval && upcxx::init(argc, argv);
+    int mpirank = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD,&mpirank);
+    std::cout<<"My rank is "<<mpirank<<std::endl;
+
+//    retval = upcxx::init(argc, argv);
+//    retval = retval && MPI_Init(argc,argv);
     return retval;
   }
 

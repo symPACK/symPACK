@@ -2920,7 +2920,7 @@ namespace symPACK{
       if(options_.order_refinement_str == "SET") {
         //abort();
         //          if(iam<np){
-        this->refineSupernodes(2,1,&pMat);
+        this->refineSupernodes(3,1,&pMat);
 
         if(iam==0){
           std::cout<<"Supernode reodering done"<<std::endl;

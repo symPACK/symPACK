@@ -23,6 +23,11 @@ c       (i) ordflag     -      1 - The supernodes will be processed in the rever
 c                                  of the current labelling (the natural ordering).
 c                              2 - The supernodes will be processed in the reverse
 c                                  of a maximum cardinality search (MCS).
+c                              3 - The supernodes will be processed in the reverse
+c                                  order by the number of descendants they have
+c                                  in the supernodal elimination tree (larger
+c                                  number of descendants before lesser number
+c                                  of descendants).
 c       (i) altflag     -      0 - There is no alternating between moving the 
 c                                  adjacent subset up and moving it down.
 c                              1 - There is alternating between moving the 
@@ -157,11 +162,15 @@ c           -----------------
             end do
         else 
 c           --------------------------------------------------------------------------
+c           ordflag = 2:
 c           maximum cardinality search ordering (much like a minimum degree ordering).
+c           ordflag = 3:
+c           order supernodes by the number of descendants the have in the supernodal
+c           elimination tree.
 c           --------------------------------------------------------------------------
-            call  mcssup ( neqns , nofsub, nsuper, xsuper, snode ,
-     &                     xlindx, lindx , supperm, sforw, sback ,
-     &                     freeforw, heap, freeback                )
+            call  mcssup ( ordflag, neqns , nofsub, nsuper, xsuper, 
+     &                     snode , xlindx, lindx , supperm, sforw, 
+     &                     sback , freeforw, heap, freeback, nodehead )
         end if
 c
 c       ----------------------------------------------------
