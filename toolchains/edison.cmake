@@ -13,5 +13,8 @@ set(CMAKE_C_COMPILER cc)
 set(CMAKE_Fortran_COMPILER ftn)
 set(MPI_C_COMPILER cc)
 set(MPI_CXX_COMPILER CC)
+
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-gxx-name=g++-4.7>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-mkl=sequential>")
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-std=c++11>")
 
