@@ -18,6 +18,15 @@ set(UPCXX_LIBRARY_PATH ${UPCXX_LIBRARY_PATH} ${GASNET_LIBRARY_PATH})
 set(UPCXX_NAME upcxx)
   set(UPCXX_REPO https://bitbucket.org/upcxx/upcxx.git)
 
+    if(ENABLE_KNL)
+  ExternalProject_Add(${UPCXX_NAME}
+      DEPENDS ${GASNET_NAME}
+      GIT_REPOSITORY ${UPCXX_REPO}
+      UPDATE_COMMAND ""
+      INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/upcxx_install
+      CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-upcxx --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER} CFLAGS=${CMAKE_C_FLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+      )
+    else()
   ExternalProject_Add(${UPCXX_NAME}
       DEPENDS ${GASNET_NAME}
       GIT_REPOSITORY ${UPCXX_REPO}
@@ -25,8 +34,19 @@ set(UPCXX_NAME upcxx)
       INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/upcxx_install
       CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER} CFLAGS=${CMAKE_C_FLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
       )
+    endif()
 
+    if(ENABLE_KNL)
   ExternalProject_Add_Step(${UPCXX_NAME} bootstrap
+      DEPENDEES patch update patch download
+      DEPENDERS configure
+      COMMAND libtoolize COMMAND autoreconf -fi COMMAND <SOURCE_DIR>/Bootstrap.sh COMMAND ln -s ${PROJECT_SOURCE_DIR}/contrib/config/cross-configure-intel-knl-upcxx <SOURCE_DIR> 
+      WORKING_DIRECTORY <SOURCE_DIR>
+#ALWAYS 1
+      COMMENT "Bootstraping the source directory"
+      )
+    else()
+      ExternalProject_Add_Step(${UPCXX_NAME} bootstrap
       DEPENDEES patch update patch download
       DEPENDERS configure
       COMMAND libtoolize COMMAND autoreconf -fi COMMAND <SOURCE_DIR>/Bootstrap.sh 
@@ -34,6 +54,9 @@ set(UPCXX_NAME upcxx)
 #ALWAYS 1
       COMMENT "Bootstraping the source directory"
       )
+
+
+    endif()
 
 
 set(UPCXX_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/upcxx_install/include)

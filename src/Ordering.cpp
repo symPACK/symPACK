@@ -60,6 +60,7 @@
 #endif
 #ifdef USE_PARMETIS
 #include <metis.h>
+#include <parmetis.h>
 #endif
 
 /* define pour l'affichage */
@@ -134,10 +135,11 @@ namespace symPACK {
     void FORTRAN(gridnd) (Int * P, Int * Q, Int * IPERM, Int * WORK,Int * WORKSZ, Int * IERROR);
   }
 
-  extern "C" {
-    int METIS_NodeND (int * N     , int* XADJ2 , int* ADJ2  , int * VWGT, int* OPTION, int* dback , int* dforw);
-    int ParMETIS_V3_NodeND(int * vtxdist  , int* XADJ , int* ADJ  , int * numflag, int* OPTION, int* order , int* sizes, MPI_Comm * comm);
-  }
+
+//  extern "C" {
+//    int METIS_NodeND (int * N     , int* XADJ2 , int* ADJ2  , int * VWGT, int* OPTION, int* dback , int* dforw);
+//    int ParMETIS_V3_NodeND(int * vtxdist  , int* XADJ , int* ADJ  , int * numflag, int* OPTION, int* order , int* sizes, MPI_Comm * comm);
+//  }
 
   extern "C" {
     void FORTRAN(genrcm)(RCMInt *, RCMInt*, RCMInt *,RCMInt*,RCMInt*,RCMInt*);

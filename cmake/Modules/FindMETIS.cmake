@@ -87,6 +87,9 @@ if(NOT METIS_VERSION_STRING AND METIS_INCLUDE_DIR AND EXISTS "${METIS_INCLUDE_DI
   unset(version_pattern)
 endif()
 
+if(ENABLE_KNL)
+  set(METIS_TEST_RUNS 1 CACHE INTERNAL "Skipping METIS tests on KNL")
+else()
 # Try compiling and running test program
 if(METIS_INCLUDE_DIR AND METIS_LIBRARY)
 
@@ -108,6 +111,7 @@ int main( int argc, char* argv[] )
 
   unset(CMAKE_REQUIRED_INCLUDES)
   unset(CMAKE_REQUIRED_LIBRARIES)
+endif()
 endif()
 
 # Standard package handling

@@ -232,6 +232,7 @@ endif()
 #######   GASNET AND UPCXX OPTIONS ######
 
 option(ENABLE_ARIES "Enable ARIES" OFF)
+option(ENABLE_KNL "Cross compiling" OFF)
 
 include(cmake/gasnet.cmake)
 include(cmake/upcxx.cmake)
