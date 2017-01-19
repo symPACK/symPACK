@@ -1031,6 +1031,7 @@ template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph & 
       if(curUpdate.tgt_snode_id<curTask.tgt_snode_id){continue;}
 
       Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
+
       if(iUpdater == iam){
 #ifdef _DEBUG_PROGRESS_
         logfileptr->OFS()<<"implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
@@ -1042,12 +1043,16 @@ template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph & 
         Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
         if(iTarget == iam){
           //the aggregate std::vector is directly the target snode
+    SYMPACK_TIMER_START(UPD_ANC_Agg_local);
           tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
           assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
+    SYMPACK_TIMER_STOP(UPD_ANC_Agg_local);
         }
         else{
+    SYMPACK_TIMER_START(UPD_ANC_Agg_tmp);
           //Check if src_snode_id already have an aggregate std::vector
           if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==NULL){
+    SYMPACK_TIMER_START(UPD_ANC_Agg_tmp_creat);
             //use number of rows below factor as initializer
 
             //TODO do a customized version for FANIN as we have all the factors locally
@@ -1128,8 +1133,11 @@ assert(pdesc->blocks_cnt_==block_cnt);
               }
               aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
             }
+    SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
           }
           tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
+
+    SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp);
         }
 
 #ifdef _DEBUG_
@@ -1138,7 +1146,9 @@ assert(pdesc->blocks_cnt_==block_cnt);
 
 
         //Update the aggregate
+    SYMPACK_TIMER_START(UPD_ANC_UPD);
         tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
+    SYMPACK_TIMER_STOP(UPD_ANC_UPD);
 
 
         --UpdatesToDo[curUpdate.tgt_snode_id-1];
@@ -1148,6 +1158,7 @@ assert(pdesc->blocks_cnt_==block_cnt);
 
         //Send the aggregate if it's the last
         //If this is my last update sent it to curUpdate.tgt_snode_id
+    SYMPACK_TIMER_START(UPD_ANC_Agg_Send);
         if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
           if(iTarget != iam){
 #ifdef _DEBUG_
@@ -1178,7 +1189,9 @@ assert(pdesc->blocks_cnt_==block_cnt);
 
           }
         }
+    SYMPACK_TIMER_STOP(UPD_ANC_Agg_Send);
 
+    SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
         if(iTarget == iam)
         {
           //update the dependency of the factorization
@@ -1195,6 +1208,7 @@ assert(pdesc->blocks_cnt_==block_cnt);
             }
           }
         }
+    SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
 
         //if local update, push a new task in the queue and stop the while loop
         if(iam==iSrcOwner ){

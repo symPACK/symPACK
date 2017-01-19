@@ -396,6 +396,7 @@ install(FILES
   include/sympack/Ordering.hpp
   include/sympack/Scheduler.hpp
   include/sympack/utility.hpp 
+  include/sympack/supernodalTaskGraph.hpp
   DESTINATION include/sympack)
 
 
