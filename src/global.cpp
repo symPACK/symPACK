@@ -49,9 +49,30 @@
   extern "C"
   int symPACK_Init(int *argc=NULL, char ***argv=NULL){
     int retval = 0;
+
     retval = MPI_Init(argc,argv);
+
+char *orig_pmi_gni_cookie = getenv("PMI_GNI_COOKIE");
+if (orig_pmi_gni_cookie) {
+     char *new_pmi_gni_cookie = (char *)malloc(32);
+     sprintf(new_pmi_gni_cookie, "PMI_GNI_COOKIE=%d",
+                 1+atoi(orig_pmi_gni_cookie));
+     putenv(new_pmi_gni_cookie);
+}
+
+
     retval = retval && upcxx::init(argc, argv);
 //    retval = upcxx::init(argc, argv);
+//
+//char *orig_pmi_gni_cookie = getenv("PMI_GNI_COOKIE");
+//if (orig_pmi_gni_cookie) {
+//     char *new_pmi_gni_cookie = (char *)malloc(32);
+//     sprintf(new_pmi_gni_cookie, "PMI_GNI_COOKIE=%d",
+//                 1+atoi(orig_pmi_gni_cookie));
+//     putenv(new_pmi_gni_cookie);
+//}
+//
+//
 //    retval = retval && MPI_Init(argc,argv);
     return retval;
   }
