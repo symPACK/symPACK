@@ -350,8 +350,8 @@ inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiG
 
       assert(locTmpPtr!=NULL);
 
-      //std::copy(loc_storage_container_,loc_storage_container_+storage_size_,locTmpPtr);
-      for(size_t i = 0;i<storage_size_;i++){locTmpPtr[i] = loc_storage_container_[i];}
+      std::copy(loc_storage_container_,loc_storage_container_+storage_size_,locTmpPtr);
+      //for(size_t i = 0;i<storage_size_;i++){locTmpPtr[i] = loc_storage_container_[i];}
 
 
       //upcxx::deallocate(storage_container_);

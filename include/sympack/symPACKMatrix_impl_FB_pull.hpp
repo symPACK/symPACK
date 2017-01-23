@@ -212,18 +212,20 @@ template <typename T> void symPACKMatrix<T>::FanBoth()
 
   //Create a copy of the task graph
   supernodalTaskGraph taskGraph = taskGraph_;
+  size_t gTaskCnt = taskGraph.taskLists_.size();
 
-  std::vector<std::list<FBTask> * > taskLists;
   Int localTaskCount = localTaskCount_;
-  taskLists.resize(origTaskLists_.size(),NULL);
-  for(int i = 0; i<taskLists.size(); ++i){
-    if(origTaskLists_[i] != NULL){
-      taskLists[i] = new std::list<FBTask>(); 
-      taskLists[i]->insert(taskLists[i]->end(),origTaskLists_[i]->begin(),origTaskLists_[i]->end());
-    }
-  }
+  //std::vector<std::list<FBTask> * > taskLists;
+  //taskLists.resize(origTaskLists_.size(),NULL);
+  //size_t taskCnt = taskLists.size();
+  //for(int i = 0; i<taskCnt; ++i){
+  //  if(origTaskLists_[i] != NULL){
+  //    taskLists[i] = new std::list<FBTask>(); 
+  //    taskLists[i]->insert(taskLists[i]->end(),origTaskLists_[i]->begin(),origTaskLists_[i]->end());
+  //  }
+  //}
 
-  for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
+  for(int i = 0; i<gTaskCnt; ++i){
     if(taskGraph.taskLists_[i] != NULL){
       auto taskit = taskGraph.taskLists_[i]->begin();
       while (taskit != taskGraph.taskLists_[i]->end())

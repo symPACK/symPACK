@@ -24,9 +24,41 @@ set(CMAKE_Fortran_COMPILER ftn)
 set(MPI_C_COMPILER cc)
 set(MPI_CXX_COMPILER CC)
 
-add_compile_options("$<$<COMPILE_LANGUAGE:C>:-axMIC-AVX-512,AVX>")
-add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-axMIC-AVX-512,AVX>")
-add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-axMIC-AVX-512,AVX>")
+
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-g>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-g>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-g>")
+
+
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-debug inline-debug-info>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-debug inline-debug-info>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-debug inline-debug-info>")
+
+
+
+
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-dynamic>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-dynamic>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-dynamic>")
+
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-axMIC-AVX512,AVX2>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-axMIC-AVX512,AVX2>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-axMIC-AVX512,AVX2>")
+
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-opt-report=5>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-opt-report=5>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-opt-report=5>")
+
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-opt-report-phase=vec>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-opt-report-phase=vec>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-opt-report-phase=vec>")
+
+#add_compile_options("$<$<COMPILE_LANGUAGE:C>:-opt-report-file=$ENV{HOME}/vecreport>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-opt-report-file=$ENV{HOME}/vecreport>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-opt-report-file=$ENV{HOME}/vecreport>")
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-opt-report-file=stderr>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-opt-report-file=stderr>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-opt-report-file=stderr>")
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-mkl=sequential>")
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-std=c++11>")

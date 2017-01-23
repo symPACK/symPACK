@@ -684,11 +684,12 @@ namespace symPACK{
 
         if(iam==iOwner){
           for(Int i = 0; i<snode_size; ++i){ 
+            Int destRow = Xsuper_[I-1] + i;
+            destRow = Order_.perm[destRow - 1];
+            auto * Bptr = &B[destRow-1];
+            auto * dataPtr = &data[i*nrhs];
             for(Int j = 0; j<nrhs; ++j){
-              Int destRow = Xsuper_[I-1] + i;
-              destRow = Order_.perm[destRow - 1];
-              //B(destRow-1, j) = data[i*nrhs + j];
-              B[destRow-1 + j*n] = data[i*nrhs + j];
+              Bptr[j*n] = dataPtr[j];
             }
           }
         }
