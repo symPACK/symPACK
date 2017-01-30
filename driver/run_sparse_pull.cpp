@@ -30,6 +30,23 @@ using namespace symPACK;
 
 int main(int argc, char **argv) 
 {
+  if(0){
+    std::vector<SCALAR,AlignedAllocator<SCALAR> > tmp(5);
+    tmp[0]=1.0;
+    tmp[1]=2.0;
+    tmp[2]=3.0;
+    tmp[3]=4.0;
+    tmp[4]=5.0;
+
+    for(auto && val: tmp){
+      std::cout<<val<<" ";
+    }
+    std::cout<<std::endl;
+
+    tmp.resize(0);
+  }
+
+
   symPACK_Init(&argc,&argv);
 
   symPACKOptions optionsFact;

@@ -1295,11 +1295,14 @@ namespace symPACK{
 
   void Ordering::Compose(std::vector<Int> & invp2){
     //Compose the two permutations
-    for(Int i = 1; i <= invp.size(); ++i){
+    Int n = invp.size();
+    #pragma ivdep
+    for(Int i = 1; i <= n; ++i){
       Int interm = invp[i-1];
       invp[i-1] = invp2[interm-1];
     }
-    for(Int i = 1; i <= invp.size(); ++i){
+    #pragma ivdep
+    for(Int i = 1; i <= n; ++i){
       Int node = invp[i-1];
       perm[node-1] = i;
     }

@@ -425,7 +425,6 @@ namespace symPACK{
               }
               else{
 
-                //              logfileptr->OFS()<<"path: "<<nbr<<" ";
                 while(ancstr[nbr-1] >0){
                   if  ( ancstr[nbr-1] == i ){
                     break_loop = 1;
@@ -434,7 +433,6 @@ namespace symPACK{
                   Int next = ancstr[nbr-1];
                   ancstr[nbr-1] = i;
                   nbr = next;
-                  //              logfileptr->OFS()<<nbr<<" ";
                 }
                 //              logfileptr->OFS()<<std::endl;
                 //                       --------------------------------------------
