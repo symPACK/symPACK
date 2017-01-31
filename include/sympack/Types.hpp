@@ -1,44 +1,44 @@
 /*
-	 Copyright (c) 2016 The Regents of the University of California,
-	 through Lawrence Berkeley National Laboratory.  
+   Copyright (c) 2016 The Regents of the University of California,
+   through Lawrence Berkeley National Laboratory.  
 
-   Author: Mathias Jacquelin
-	 
-   This file is part of symPACK. All rights reserved.
+Author: Mathias Jacquelin
 
-	 Redistribution and use in source and binary forms, with or without
-	 modification, are permitted provided that the following conditions are met:
+This file is part of symPACK. All rights reserved.
 
-	 (1) Redistributions of source code must retain the above copyright notice, this
-	 list of conditions and the following disclaimer.
-	 (2) Redistributions in binary form must reproduce the above copyright notice,
-	 this list of conditions and the following disclaimer in the documentation
-	 and/or other materials provided with the distribution.
-	 (3) Neither the name of the University of California, Lawrence Berkeley
-	 National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
-	 be used to endorse or promote products derived from this software without
-	 specific prior written permission.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-	 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-	 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-	 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-	 DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-	 ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-	 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-	 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-	 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-	 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-	 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+(1) Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+(2) Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+(3) Neither the name of the University of California, Lawrence Berkeley
+National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
 
-	 You are under no obligation whatsoever to provide any bug fixes, patches, or
-	 upgrades to the features, functionality or performance of the source code
-	 ("Enhancements") to anyone; however, if you choose to make your Enhancements
-	 available either publicly, or directly to Lawrence Berkeley National
-	 Laboratory, without imposing a separate written license agreement for such
-	 Enhancements, then you hereby grant the following license: a non-exclusive,
-	 royalty-free perpetual license to install, use, modify, prepare derivative
-	 works, incorporate into other computer software, distribute, and sublicense
-	 such enhancements or derivative works thereof, in binary and source code form.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+You are under no obligation whatsoever to provide any bug fixes, patches, or
+upgrades to the features, functionality or performance of the source code
+("Enhancements") to anyone; however, if you choose to make your Enhancements
+available either publicly, or directly to Lawrence Berkeley National
+Laboratory, without imposing a separate written license agreement for such
+Enhancements, then you hereby grant the following license: a non-exclusive,
+royalty-free perpetual license to install, use, modify, prepare derivative
+works, incorporate into other computer software, distribute, and sublicense
+such enhancements or derivative works thereof, in binary and source code form.
 */
 #ifndef _TYPES_DECL_HPP_
 #define _TYPES_DECL_HPP_
@@ -99,9 +99,9 @@ namespace symPACK{
     void SetMaxSize(Int pmaxSize){
       maxSize = pmaxSize;
       if(maxSize>0){
-      nrelax0 = std::min(nrelax0,pmaxSize);
-      nrelax1 = std::min(nrelax1,pmaxSize);
-      nrelax2 = std::min(nrelax2,pmaxSize);
+        nrelax0 = std::min(nrelax0,pmaxSize);
+        nrelax1 = std::min(nrelax1,pmaxSize);
+        nrelax2 = std::min(nrelax2,pmaxSize);
       }
     }
     void SetNrelax0(Int pnrelax0){
@@ -114,7 +114,7 @@ namespace symPACK{
     }
     void SetNrelax1(Int pnrelax1){
       if(maxSize>0){
-      nrelax1 = std::min(pnrelax1,maxSize);
+        nrelax1 = std::min(pnrelax1,maxSize);
       }
       else{
         nrelax1 = pnrelax1;
@@ -122,7 +122,7 @@ namespace symPACK{
     }
     void SetNrelax2(Int pnrelax2){
       if(maxSize>0){
-      nrelax2 = std::min(pnrelax2,maxSize);
+        nrelax2 = std::min(pnrelax2,maxSize);
       }
       else{
         nrelax2 = pnrelax2;
@@ -142,6 +142,7 @@ namespace symPACK{
   class symPACKOptions{
     public:
       int NpOrdering;
+      bool print_stats;
       DecompositionType decomposition;
       MappingType mappingType;
       std::string mappingTypeStr;
@@ -199,9 +200,10 @@ namespace symPACK{
 
         perm = NULL;
         dumpPerm = 0;
-//        mappingType = ROW2D;
-///        ordering = MMD;
-//        load_balance = SUBCUBE;
+        //        mappingType = ROW2D;
+        ///        ordering = MMD;
+        //        load_balance = SUBCUBE;
+        print_stats=false;
       }
 
       Int used_procs(Int np){
@@ -255,117 +257,117 @@ namespace symPACK{
 
 
 
-template <class T>
-   class AlignedAllocator {
-     public:
-       // type definitions
-       //typename std::aligned_storage<sizeof(T),alignof(T)>::type T_pod;
-       using T_pod = typename std::aligned_storage<sizeof(T),alignof(T)>::type;
+  template <class T>
+    class AlignedAllocator {
+      public:
+        // type definitions
+        //typename std::aligned_storage<sizeof(T),alignof(T)>::type T_pod;
+        using T_pod = typename std::aligned_storage<sizeof(T),alignof(T)>::type;
 
-       typedef T        value_type;
-       typedef T*       pointer;
-       typedef const T* const_pointer;
-       typedef T&       reference;
-       typedef const T& const_reference;
-       typedef std::size_t    size_type;
-       typedef std::ptrdiff_t difference_type;
+        typedef T        value_type;
+        typedef T*       pointer;
+        typedef const T* const_pointer;
+        typedef T&       reference;
+        typedef const T& const_reference;
+        typedef std::size_t    size_type;
+        typedef std::ptrdiff_t difference_type;
 
-     protected:
-       T_pod * storage_pod_;
-     public:
+      protected:
+        T_pod * storage_pod_;
+      public:
 
-       // rebind allocator to type U
-       template <class U>
-       struct rebind {
-           typedef AlignedAllocator<U> other;
-       };
+        // rebind allocator to type U
+        template <class U>
+          struct rebind {
+            typedef AlignedAllocator<U> other;
+          };
 
-       // return address of values
-       pointer address (reference value) const {
-           return &value;
-       }
-       const_pointer address (const_reference value) const {
-           return &value;
-       }
+        // return address of values
+        pointer address (reference value) const {
+          return &value;
+        }
+        const_pointer address (const_reference value) const {
+          return &value;
+        }
 
-       /* constructors and destructor
-        * - nothing to do because the allocator has no state
-        */
-       AlignedAllocator() throw() {
-           storage_pod_ = nullptr;
-       }
+        /* constructors and destructor
+         * - nothing to do because the allocator has no state
+         */
+        AlignedAllocator() throw() {
+          storage_pod_ = nullptr;
+        }
 
-       AlignedAllocator(const AlignedAllocator&) throw() {
-           storage_pod_ = nullptr;
-       }
+        AlignedAllocator(const AlignedAllocator&) throw() {
+          storage_pod_ = nullptr;
+        }
 
-       template <class U>
-         AlignedAllocator (const AlignedAllocator<U>&) throw() {
-           storage_pod_ = nullptr;
-       }
+        template <class U>
+          AlignedAllocator (const AlignedAllocator<U>&) throw() {
+            storage_pod_ = nullptr;
+          }
 
-       ~AlignedAllocator() throw() {
-       }
+        ~AlignedAllocator() throw() {
+        }
 
-       // return maximum number of elements that can be allocated
-       size_type max_size () const throw() {
-           return std::numeric_limits<std::size_t>::max() / sizeof(T);
-       }
+        // return maximum number of elements that can be allocated
+        size_type max_size () const throw() {
+          return std::numeric_limits<std::size_t>::max() / sizeof(T);
+        }
 
-       // allocate but don't initialize num elements of type T
-       pointer allocate (size_type num, const void* = 0) {
-           // print message and allocate memory with global new
-           //std::cerr << "allocate " << num << " element(s)"
-           //          << " of size " << sizeof(T) << std::endl;
+        // allocate but don't initialize num elements of type T
+        pointer allocate (size_type num, const void* = 0) {
+          // print message and allocate memory with global new
+          //std::cerr << "allocate " << num << " element(s)"
+          //          << " of size " << sizeof(T) << std::endl;
 
-           //pointer ret = (pointer)(::operator new(num*sizeof(T)));
-           
-           //storage_pod_ = reinterpret_cast<T_pod *>(::operator new( T_pod[num] ));
-           storage_pod_ = new T_pod[num];
-           pointer ret = reinterpret_cast<pointer>(storage_pod_);
+          //pointer ret = (pointer)(::operator new(num*sizeof(T)));
 
-           //std::cerr << " allocated at: " << (void*)ret << std::endl;
+          //storage_pod_ = reinterpret_cast<T_pod *>(::operator new( T_pod[num] ));
+          storage_pod_ = new T_pod[num];
+          pointer ret = reinterpret_cast<pointer>(storage_pod_);
 
-           return ret;
-       }
+          //std::cerr << " allocated at: " << (void*)ret << std::endl;
 
-       // initialize elements of allocated storage p with value value
-       void construct (pointer p, const T& value) {
-           // initialize memory with placement new
-           //new((void*)p)T(value);
-           new((void*)p)T(value);
-       }
+          return ret;
+        }
 
-       // destroy elements of initialized storage p
-       void destroy (pointer p) {
-           // destroy objects by calling their destructor
-           p->~T();
-       }
+        // initialize elements of allocated storage p with value value
+        void construct (pointer p, const T& value) {
+          // initialize memory with placement new
+          //new((void*)p)T(value);
+          new((void*)p)T(value);
+        }
 
-       // deallocate storage p of deleted elements
-       void deallocate (pointer p, size_type num) {
-           // print message and deallocate memory with global delete
-           //std::cerr << "deallocate " << num << " element(s)"
-           //          << " of size " << sizeof(T)
-           //          << " at: " << (void*)p << std::endl;
+        // destroy elements of initialized storage p
+        void destroy (pointer p) {
+          // destroy objects by calling their destructor
+          p->~T();
+        }
 
-           //::operator delete((void*)p);
-           ::operator delete[](this->storage_pod_);
-           storage_pod_ = nullptr;
-       }
-   };
+        // deallocate storage p of deleted elements
+        void deallocate (pointer p, size_type num) {
+          // print message and deallocate memory with global delete
+          //std::cerr << "deallocate " << num << " element(s)"
+          //          << " of size " << sizeof(T)
+          //          << " at: " << (void*)p << std::endl;
 
-   // return that all specializations of this allocator are interchangeable
-   template <class T1, class T2>
-   bool operator== (const AlignedAllocator<T1>&,
-                    const AlignedAllocator<T2>&) throw() {
-       return true;
-   }
-   template <class T1, class T2>
-   bool operator!= (const AlignedAllocator<T1>&,
-                    const AlignedAllocator<T2>&) throw() {
-       return false;
-   }
+          //::operator delete((void*)p);
+          ::operator delete[](this->storage_pod_);
+          storage_pod_ = nullptr;
+        }
+    };
+
+  // return that all specializations of this allocator are interchangeable
+  template <class T1, class T2>
+    bool operator== (const AlignedAllocator<T1>&,
+        const AlignedAllocator<T2>&) throw() {
+      return true;
+    }
+  template <class T1, class T2>
+    bool operator!= (const AlignedAllocator<T1>&,
+        const AlignedAllocator<T2>&) throw() {
+      return false;
+    }
 
 
 
@@ -375,9 +377,12 @@ template <class T>
   template<typename T>
     class TempUpdateBuffers{
       public:
-        std::vector<T  ,AlignedAllocator<T> > tmpBuf;
-        std::vector<Int,AlignedAllocator<Int> > src_colindx;
-        std::vector<Int,AlignedAllocator<Int> > src_to_tgt_offset;
+        //std::vector<T  ,AlignedAllocator<T> > tmpBuf;
+        //std::vector<Int,AlignedAllocator<Int> > src_colindx;
+        //std::vector<Int,AlignedAllocator<Int> > src_to_tgt_offset;
+        std::vector<T   > tmpBuf;
+        std::vector<Int > src_colindx;
+        std::vector<Int > src_to_tgt_offset;
 
         void Resize(Int size, Int mw){
           if(size*mw > tmpBuf.size()){
@@ -406,65 +411,192 @@ template <class T>
     };
 
   struct duet{
-            Idx row;
-            Idx col;
-          };
+    Idx row;
+    Idx col;
+  };
 
-struct sortDuet {
-  bool operator() (const duet & a, const duet & b){
-    bool retval = a.row<b.row;
-    if(a.row==b.row){
-      retval = a.col<b.col;
+  struct sortDuet {
+    bool operator() (const duet & a, const duet & b){
+      bool retval = a.row<b.row;
+      if(a.row==b.row){
+        retval = a.col<b.col;
+      }
+      return retval;
     }
-    return retval;
-  }
-};
+  };
 
-struct sortDuetInv {
-  bool operator() (const duet & a, const duet & b){
-    bool retval = a.row>b.row;
-    if(a.row==b.row){
-      retval = a.col>b.col;
+  struct sortDuetInv {
+    bool operator() (const duet & a, const duet & b){
+      bool retval = a.row>b.row;
+      if(a.row==b.row){
+        retval = a.col>b.col;
+      }
+      return retval;
     }
-    return retval;
-  }
-};
+  };
 
 
 
 
 
   template<typename T>
-  struct triplet{
-            Idx row;
-            Idx col;
-            T val;
-          };
+    struct triplet{
+      Idx row;
+      Idx col;
+      T val;
+    };
 
-template<typename T>
-struct sortTriplet {
-  bool operator() (const triplet<T> & a, const triplet<T> & b){
-    bool retval = a.row<b.row;
-    if(a.row==b.row){
-      retval = a.col<b.col;
+  template<typename T>
+    struct sortTriplet {
+      bool operator() (const triplet<T> & a, const triplet<T> & b){
+        bool retval = a.row<b.row;
+        if(a.row==b.row){
+          retval = a.col<b.col;
+        }
+        return retval;
+      }
+    };
+
+  template<typename T>
+    struct sortTripletInv {
+      bool operator() (const triplet<T> & a, const triplet<T> & b){
+        bool retval = a.row>b.row;
+        if(a.row==b.row){
+          retval = a.col>b.col;
+        }
+        return retval;
+      }
+    };
+
+
+
+
+  struct OrderStats{
+    int64_t totalSnodeBlocks = 0;
+    int64_t totalBlocks = 0;
+    double blocksPerSnode = 0;
+    double blocksPerCol = 0;
+    double avgSnodeBlockSize = 0;
+    double avgBlockSize = 0;
+    void reset(){
+      totalSnodeBlocks = 0;
+      totalBlocks = 0;
+      blocksPerSnode = 0;
+      blocksPerCol = 0;
+      avgSnodeBlockSize = 0;
+      avgBlockSize = 0;
     }
-    return retval;
-  }
-};
-
-template<typename T>
-struct sortTripletInv {
-  bool operator() (const triplet<T> & a, const triplet<T> & b){
-    bool retval = a.row>b.row;
-    if(a.row==b.row){
-      retval = a.col>b.col;
+    void print(){
+      std::cout<<"totalSnodeBlocks: "<<totalSnodeBlocks<<std::endl;
+      std::cout<<"totalBlocks: "<<totalBlocks<<std::endl;
+      std::cout<<"blocksPerSnode: "<<blocksPerSnode<<std::endl;
+      std::cout<<"blocksPerCol: "<<blocksPerCol<<std::endl;
+      std::cout<<"avgSnodeBlockSize (lines): "<<avgSnodeBlockSize<<std::endl;
+      std::cout<<"avgBlockSize (nnz): "<<avgBlockSize<<std::endl;
     }
-    return retval;
-  }
-};
+
+
+    void get(const std::vector<Int> & Xsuper, const std::vector<Int> & XsuperDist, const std::vector<Ptr> & locXlindx, const std::vector<Idx> & locLindx, const MPI_Comm & comm)
+    {
+      this->reset();
+
+      int iam = 0;
+      int mpisize = 1;
+      MPI_Comm_size(comm,&mpisize);
+      MPI_Comm_rank(comm,&iam);
+      int64_t supNrows = 0;
+
+      Int numLocSnode = XsuperDist[iam+1]-XsuperDist[iam];
+      Int firstSnode = XsuperDist[iam];
+
+      for(Int locsupno = 1; locsupno<locXlindx.size(); ++locsupno){
+        Int I = locsupno + firstSnode-1;
+
+        //count number of contiguous blocks (at least one diagonal block)
+        Idx fc = Xsuper[I-1];
+        Idx lc = Xsuper[I]-1;
+        Ptr fi = locXlindx[locsupno-1];
+        Ptr li = locXlindx[locsupno]-1;
+        Idx iPrevRow = locLindx[fi-1]-1;
+        Idx iFirstRow = locLindx[fi-1];
+
+        Int width = lc - fc + 1; 
+
+        for(Idx col = fc; col<=lc;col++){ 
+          //1 to count the diagonal block, 0 to skip it
+          int32_t nzBlockCnt = 0;//1;
+          int32_t height = li - fi + 1;
+          for(Ptr idx = fi; idx<=li;idx++){
+            Idx iRow = locLindx[idx-1];
+            if(iRow<col){
+              --height; 
+            }
+            //enforce the first block to be a square diagonal block
+            if(nzBlockCnt==1 && iRow>col){
+              nzBlockCnt++;
+              this->avgBlockSize+=col-iFirstRow+1;
+              if(col==fc){
+                this->avgSnodeBlockSize+=width;
+              }
+              iFirstRow=iRow;
+            }
+            else if(iRow!=iPrevRow+1){
+              nzBlockCnt++;
+              this->avgBlockSize+=iPrevRow-iFirstRow+1;
+              if(col==fc){
+                this->avgSnodeBlockSize+=iPrevRow-iFirstRow+1;
+              }
+              iFirstRow=iRow;
+            }
+
+            iPrevRow=iRow;
+          }
+
+
+          this->totalBlocks+=nzBlockCnt;
+          if(col==lc){
+            this->totalSnodeBlocks+=nzBlockCnt;
+            supNrows+=height;
+          }
+        }
+      }
+
+      //Now reduce everything and then compute averages
+
+      auto locavgSnodeBlockSize = this->avgSnodeBlockSize;
+      auto locavgBlockSize =      this->avgBlockSize;
+      auto loctotalBlocks =       this->totalBlocks; 
+      auto loctotalSnodeBlocks =  this->totalSnodeBlocks;
+
+      // logfileptr->OFS()<<"totalSnodeBlocks: "<<totalSnodeBlocks<<std::endl;
+      // logfileptr->OFS()<<"totalBlocks: "<<totalBlocks<<std::endl;
+      // logfileptr->OFS()<<"blocksPerSnode: "<<blocksPerSnode<<std::endl;
+      // logfileptr->OFS()<<"blocksPerCol: "<<blocksPerCol<<std::endl;
+      // logfileptr->OFS()<<"avgSnodeBlockSize: "<<avgSnodeBlockSize<<std::endl;
+      // logfileptr->OFS()<<"avgBlockSize: "<<avgBlockSize<<std::endl;
+
+      this->avgSnodeBlockSize = 0;
+      this->avgBlockSize = 0;
+      this->totalBlocks = 0; 
+      this->totalSnodeBlocks = 0;
+
+
+      MPI_Allreduce(&locavgSnodeBlockSize, &this->avgSnodeBlockSize, 1,MPI_DOUBLE,MPI_SUM,comm);
+      MPI_Allreduce(&locavgBlockSize,      &this->avgBlockSize,      1,MPI_DOUBLE,MPI_SUM,comm);
+      MPI_Allreduce(&loctotalBlocks,       &this->totalBlocks,       1,MPI_LONG_LONG,MPI_SUM,comm);
+      MPI_Allreduce(&loctotalSnodeBlocks,  &this->totalSnodeBlocks,  1,MPI_LONG_LONG,MPI_SUM,comm);
+
+
+      this->avgBlockSize/=this->totalBlocks;
+      this->avgSnodeBlockSize/=this->totalSnodeBlocks;
+
+      this->blocksPerCol=this->totalBlocks/(Xsuper.back()-1);
+      this->blocksPerSnode=this->totalSnodeBlocks/(Xsuper.size()-1);
+    }
 
 
 
+  };
 
 
 

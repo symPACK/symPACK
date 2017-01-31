@@ -89,6 +89,11 @@ int main(int argc, char **argv)
     maxSnode= atoi(options["-b"].front().c_str());
   }
 
+  optionsFact.print_stats=false;
+  if (options.find("-ps") != options.end()){
+    optionsFact.print_stats = atoi(options["-ps"].front().c_str()) == 1;
+  }
+
   bool complextype=false;
   if (options.find("-z") != options.end()){
     complextype = true;

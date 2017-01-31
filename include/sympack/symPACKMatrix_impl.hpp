@@ -2894,16 +2894,26 @@ namespace symPACK{
           std::vector<Idx> lindx;
           this->gatherLStructure(xlindx, lindx);
 
-          TSP::SymbolMatrix * symbmtx = TSP::GetPastixSymbolMatrix(Xsuper_,SupMembership_, xlindx, lindx);
-          TSP::Order * psorder = TSP::GetPastixOrder(symbmtx,Xsuper_, SupETree, &Order_.perm[0], &Order_.invp[0]);
+          if(iam==0){
+            TSP::SymbolMatrix * symbmtx = TSP::GetPastixSymbolMatrix(Xsuper_,SupMembership_, xlindx, lindx);
+            TSP::Order * psorder = TSP::GetPastixOrder(symbmtx,Xsuper_, SupETree, &Order_.perm[0], &Order_.invp[0]);
 
-          TSP::symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
+          double timeSta = get_time();
+            TSP::symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
+          double timeStop = get_time();
+        if(iam==0){
+          std::cout<<"TSP reodering done in "<<timeStop-timeSta<<std::endl;
+        }
 
-          //overwrite order
-          for(int i = 0; i < Order_.perm.size(); ++i){
-            Order_.perm[i] = psorder->peritab[i]+1;
-            Order_.invp[i] = psorder->permtab[i]+1;
+            //overwrite order
+            for(int i = 0; i < Order_.perm.size(); ++i){
+              Order_.perm[i] = psorder->peritab[i]+1;
+              Order_.invp[i] = psorder->permtab[i]+1;
+            }
           }
+
+          MPI_Bcast(Order_.perm.data(),Order_.perm.size()*sizeof(Int),MPI_BYTE,0,fullcomm_);
+          MPI_Bcast(Order_.invp.data(),Order_.invp.size()*sizeof(Int),MPI_BYTE,0,fullcomm_);
         } 
           double timeStop = get_time();
 
@@ -2945,6 +2955,17 @@ namespace symPACK{
       if(iam==0){
         std::cout<<"Total symbolic factorization time: "<<timeStop - timeSta<<std::endl;
       }
+
+      //Print statistics
+      if(options_.print_stats){
+        OrderStats stats;
+        stats.get(Xsuper_, XsuperDist_, locXlindx_, locLindx_, fullcomm_);
+        if (iam==0){
+          stats.print();
+        }
+      }
+
+
     }
 
 #ifdef _DEBUG_
