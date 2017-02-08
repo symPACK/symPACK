@@ -211,7 +211,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth()
   SYMPACK_TIMER_START(BUILD_TASK_LIST);
 
   //Create a copy of the task graph
-  supernodalTaskGraph taskGraph = taskGraph_;
+  supernodalTaskGraph<FBTask> taskGraph = taskGraph_;
   size_t gTaskCnt = taskGraph.taskLists_.size();
 
   Int localTaskCount = localTaskCount_;
@@ -685,7 +685,7 @@ template <typename T> void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> &
   SYMPACK_TIMER_STOP(FB_GET_UPDATE_COUNT);
 }
 
-template <typename T> void symPACKMatrix<T>::FBAggregationTask(supernodalTaskGraph & taskGraph, FBTask & curTask, Int iLocalI, bool is_static)
+template <typename T> void symPACKMatrix<T>::FBAggregationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, bool is_static)
 {
   SYMPACK_TIMER_START(FB_AGGREGATION_TASK);
 
@@ -744,7 +744,7 @@ template <typename T> void symPACKMatrix<T>::FBAggregationTask(supernodalTaskGra
 
 
 
-template <typename T> void symPACKMatrix<T>::FBFactorizationTask(supernodalTaskGraph & taskGraph, FBTask & curTask, Int iLocalI, std::vector< SuperNode<T> * > & aggVectors, bool is_static)
+template <typename T> void symPACKMatrix<T>::FBFactorizationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, std::vector< SuperNode<T> * > & aggVectors, bool is_static)
 {
   SYMPACK_TIMER_START(FB_FACTORIZATION_TASK);
 
@@ -930,6 +930,7 @@ template <typename T> void symPACKMatrix<T>::FBFactorizationTask(supernodalTaskG
 
 template <typename T> std::list<FBTask>::iterator symPACKMatrix<T>::find_task(std::vector<std::list<FBTask> * > & taskLists,Int src, Int tgt, TaskType type )
 {
+  abort();
   SYMPACK_TIMER_START(FB_FIND_TASK);
   //find task corresponding to curUpdate
   auto taskit = taskLists[tgt-1]->begin();
@@ -944,7 +945,7 @@ template <typename T> std::list<FBTask>::iterator symPACKMatrix<T>::find_task(st
   return taskit;
 }
 
-template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph & taskGraph, FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector< SuperNode<T> * > & aggVectors, bool is_static)
+template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector< SuperNode<T> * > & aggVectors, bool is_static)
 {
   SYMPACK_TIMER_START(FB_UPDATE_TASK);
   Int src_snode_id = curTask.src_snode_id;
@@ -1247,7 +1248,7 @@ assert(pdesc->blocks_cnt_==block_cnt);
 }
 
 
-template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTaskGraph & taskGraph,std::vector< SuperNode<T> * > & aggVectors,bool is_static)
+template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTaskGraph<FBTask> & taskGraph,std::vector< SuperNode<T> * > & aggVectors,bool is_static)
 {
   scope_timer(a,CHECK_MESSAGE);
   //return;

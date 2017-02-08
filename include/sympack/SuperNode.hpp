@@ -169,6 +169,12 @@ class UpcxxAllocator: public MemoryAllocator{
     };
 
 
+template<typename T>
+class SuperNodeBase{
+  public:
+    virtual ~SuperNodeBase(){};
+    virtual inline Int & Id() = 0;
+};
 
 ////////////////////////////////////////
 /// Class representing a supernode.
@@ -176,7 +182,7 @@ class UpcxxAllocator: public MemoryAllocator{
 /// blocks of contiguous rows in row-major format.
 /////////////////////////////////////////
 template<typename T, class Allocator = UpcxxAllocator>
-class SuperNode{
+class SuperNode: public SuperNodeBase<T>{
   public:
 
   protected:
@@ -290,8 +296,9 @@ virtual inline Int Aggregate(SuperNode<T,Allocator> * src_snode);
 
 
   //forward and backward solve phases
-  virtual inline void forward_update(SuperNode<T,Allocator> * src_contrib,Int iOwner,Int iam);
   virtual inline void forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, std::vector<Int> & perm);
+  virtual inline void forward_update(SuperNode<T,Allocator> * src_contrib, Int iOwner,Int iam);
+  virtual inline void forward_update_contrib( SuperNode<T> * cur_snode);
   virtual inline void back_update(SuperNode<T,Allocator> * src_contrib);
   virtual inline void back_update_contrib(SuperNode<T> * cur_snode);
 

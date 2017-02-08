@@ -141,6 +141,7 @@ namespace symPACK{
   //enum OrderRefinementType {BarryDL,MCT,PR,FIFO};
   class symPACKOptions{
     public:
+      bool iterRefinement;
       int NpOrdering;
       bool print_stats;
       DecompositionType decomposition;
@@ -204,6 +205,7 @@ namespace symPACK{
         ///        ordering = MMD;
         //        load_balance = SUBCUBE;
         print_stats=false;
+        iterRefinement=false;
       }
 
       Int used_procs(Int np){

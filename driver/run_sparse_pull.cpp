@@ -16,6 +16,8 @@
 #include  "sympack/Ordering.hpp"
 
 
+//#define DUMP_MATLAB
+
 /******* TYPE used in the computations ********/
 #define SCALAR double
 //#define SCALAR std::complex<double>
@@ -303,6 +305,10 @@ int main(int argc, char **argv)
 #endif
 
     }
+
+
+
+
 
     if(iam==0){
       std::cout<<"Starting allocation"<<std::endl;

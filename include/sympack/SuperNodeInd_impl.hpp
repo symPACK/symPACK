@@ -970,6 +970,55 @@ namespace symPACK{
     }
 
 
+  template <typename T, class Allocator> 
+    inline void SuperNodeInd<T,Allocator>::forward_update_contrib( SuperNode<T> * cur_snode){
+      SuperNodeInd<T> * cur_snodeInd = static_cast<SuperNodeInd<T>*>(cur_snode);
+      SuperNodeInd<T,Allocator> * contrib = this;
+      Int nrhs = this->Size();
+      Int snodeSize = cur_snodeInd->Size();
+
+      if(cur_snodeInd->NZBlockCnt()>=1){
+        NZBlockDesc & diag_desc = contrib->GetNZBlockDesc(0);
+        Int diag_nrows = contrib->NRows(0);
+        T * diag_nzval = contrib->GetNZval(diag_desc.Offset);
+        T * chol_diag = cur_snodeInd->GetDiag();
+
+        for(Int blkidx = 0; blkidx < cur_snodeInd->NZBlockCnt() ; ++blkidx){
+          NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
+          NZBlockDesc & chol_desc = cur_snodeInd->GetNZBlockDesc(blkidx);
+
+          Int cur_nrows = contrib->NRows(blkidx);
+          Int chol_nrows = cur_snodeInd->NRows(blkidx);
+
+          T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
+          T * chol_nzval = cur_snodeInd->GetNZval(chol_desc.Offset);
+
+          //compute my contribution
+          //Handle the diagonal block
+          if(blkidx==0){
+            //TODO That's where we can use the selective inversion
+            //if we are processing the "pivot" block
+            for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
+              //then compute the rank one update
+              blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*nrhs], 1,&chol_nzval[(kk + 1)*snodeSize+kk], snodeSize, &cur_nzval[(kk + 1)*nrhs], nrhs );
+            }
+          }
+          else{
+            for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
+              //compute the rank one update
+              blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*nrhs], 1, &chol_nzval[kk], snodeSize, &cur_nzval[0], nrhs );
+            }
+          }
+        }
+
+        for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
+          //scale the kk-th row of the solution
+          lapack::Scal(nrhs, T(1.0)/chol_diag[kk], &diag_nzval[kk*nrhs], 1);
+        }
+      }
+    }
+
+
 
   template <typename T, class Allocator> 
     inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, std::vector<Int> & perm){

@@ -103,6 +103,7 @@ class SuperNodeInd: public SuperNode<T,Allocator>{
 
   //forward and backward solve phases
   virtual inline void forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, std::vector<Int> & perm);
+  virtual inline void forward_update_contrib( SuperNode<T> * cur_snode);
   virtual inline void back_update_contrib(SuperNode<T> * cur_snode);
 
 };

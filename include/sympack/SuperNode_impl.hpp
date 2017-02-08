@@ -1558,7 +1558,7 @@ inline void SuperNode<T,Allocator>::Serialize(Icomm & buffer, Int first_blkidx, 
 
 
 template <typename T, class Allocator> 
-    inline void SuperNode<T,Allocator>::forward_update(SuperNode<T,Allocator> * src_contrib,Int iOwner,Int iam){
+    inline void SuperNode<T,Allocator>::forward_update(SuperNode<T,Allocator> * src_contrib, Int iOwner,Int iam){
       SuperNode<T,Allocator> * tgt_contrib = this;
 
       Int src_ncols = src_contrib->Size();
@@ -1699,6 +1699,55 @@ template <typename T, class Allocator>
           }
         }
 }
+
+template <typename T, class Allocator> 
+inline void SuperNode<T,Allocator>::forward_update_contrib(SuperNode<T> * cur_snode){
+  SuperNode<T,Allocator> * contrib = this;
+  Int nrhs = this->Size();
+
+  //This corresponds to the i loop in dtrsm
+  for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
+
+    NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
+    NZBlockDesc & chol_desc = cur_snode->GetNZBlockDesc(blkidx);
+    NZBlockDesc & diag_desc = contrib->GetNZBlockDesc(0);
+
+    Int cur_nrows = contrib->NRows(blkidx);
+    Int chol_nrows = cur_snode->NRows(blkidx);
+    Int diag_nrows = contrib->NRows(0);
+
+    T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
+    T * chol_nzval = cur_snode->GetNZval(chol_desc.Offset);
+    T * diag_nzval = contrib->GetNZval(diag_desc.Offset);
+
+    //compute my contribution
+    //Handle the diagonal block
+    if(blkidx==0){
+      //TODO That's where we can use the selective inversion
+      //if we are processing the "pivot" block
+      for(Int kk = 0; kk<cur_snode->Size(); ++kk){
+        for(Int j = 0; j<nrhs;++j){
+          //if non unit
+          diag_nzval[kk*nrhs+j] = ( diag_nzval[kk*nrhs+j]) / (chol_nzval[kk*cur_snode->Size()+kk]);
+
+          for(Int i = kk+1; i<cur_nrows;++i){
+            diag_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*(chol_nzval[i*cur_snode->Size()+kk]);
+          }
+        }
+      }
+    }
+    else{
+      for(Int kk = 0; kk<cur_snode->Size(); ++kk){
+        for(Int j = 0; j<nrhs;++j){
+          for(Int i = 0; i<cur_nrows;++i){
+            cur_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*(chol_nzval[i*cur_snode->Size()+kk]);
+          }
+        }
+      }
+    }
+  }
+}
+
 
 
 template <typename T, class Allocator> 

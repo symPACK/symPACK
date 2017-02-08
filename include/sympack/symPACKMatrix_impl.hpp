@@ -41,7 +41,7 @@
 	 such enhancements or derivative works thereof, in binary and source code form.
 */
 
-#ifndef _SYMPACK_MATRIX_IMPL_HP_
+#ifndef _SYMPACK_MATRIX_IMPL_HPP_
 #define _SYMPACK_MATRIX_IMPL_HPP_
 
 #include <sympack/symPACKMatrix.hpp>
@@ -72,6 +72,7 @@ namespace symPACK{
   }
 }
 
+#define NEW_SOLVE
 
 
 #define SPLIT_AT_BOUNDARY
@@ -79,7 +80,7 @@ namespace symPACK{
 namespace symPACK{
 
 
-  template<typename T> void symPACKMatrix<T>::generateTaskGraph(supernodalTaskGraph & taskGraph,
+  template<typename T> void symPACKMatrix<T>::generateTaskGraph(supernodalTaskGraph<FBTask> & taskGraph,
       std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates)
   {
     //we will need to communicate if only partial xlindx_, lindx_
@@ -166,7 +167,7 @@ namespace symPACK{
 
     //now process recvbuf and add the tasks to my tasklists
     taskGraph.taskLists_.resize(TotalSupernodeCnt(),NULL);
-    Int localTaskCount = 0;
+    //Int localTaskCount = 0;
     for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
       FBTask curUpdate;
       curUpdate.src_snode_id = it->first;
@@ -175,14 +176,18 @@ namespace symPACK{
 
       Int J = curUpdate.tgt_snode_id;
 
-      //create the list if needed
-      if(taskGraph.taskLists_[J-1] == NULL){
-        taskGraph.taskLists_[J-1]=new std::list<FBTask>();
-      }
-      taskGraph.taskLists_[J-1]->push_back(curUpdate);
-      localTaskCount++;
+      taskGraph.addTask(curUpdate);
+
+      ////create the list if needed
+      //if(taskGraph.taskLists_[J-1] == NULL){
+      //  taskGraph.taskLists_[J-1]=new std::list<FBTask>();
+      //}
+      //taskGraph.taskLists_[J-1]->push_back(curUpdate);
+
+      //TODO
+      //localTaskCount++;
     }
-    taskGraph.localTaskCount_=localTaskCount;
+    //taskGraph.localTaskCount_=localTaskCount;
 
 
 
@@ -271,9 +276,35 @@ namespace symPACK{
   }
 
 
-  //Solve related routines
   template <typename T> void symPACKMatrix<T>::Solve(T * RHS, int nrhs,  T * Xptr) {
-    SYMPACK_TIMER_START(SPARSE_SOLVE);
+    scope_timer(a,SPARSE_SOLVE);
+
+    if (options_.iterRefinement){
+      abort();  
+      this->solveNew_(RHS,nrhs,Xptr);
+      //do{
+      //  this->solve_(RHS,nrhs,Xptr);
+
+      //  //update
+
+      //  //compute residual
+      //}
+      //while();
+    }
+    else{
+
+#ifndef NEW_SOLVE
+      this->solve_(RHS,nrhs,Xptr);
+#else
+      this->solveNew_(RHS,nrhs,Xptr);
+#endif
+    }
+ 
+  }
+
+  //Solve related routines
+  template <typename T> void symPACKMatrix<T>::solve_(T * RHS, int nrhs,  T * Xptr) {
+    scope_timer(a,SPARSE_SOLVE_INTERNAL);
 
     Int n = iSize_;
     //Int iam = CommEnv_->MPI_Rank();
@@ -305,7 +336,6 @@ namespace symPACK{
 
       AsyncComms outgoingSend;
 
-      //gdb_lock(3);
       //This corresponds to the k loop in dtrsm
       for(Int I=1;I<Xsuper_.size();I++){
         Int iOwner = this->Mapping_->Map(I-1,I-1);
@@ -314,7 +344,6 @@ namespace symPACK{
           //Create the blocks of my contrib with the same nz structure as L
           //and the same width as the final solution
           //MEMORY CONSUMPTION TOO HIGH ?
-          //Int iLocalI = (I-1) / np +1 ;
           Int iLocalI = snodeLocalIndex(I);
           SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
           SuperNode<T,MallocAllocator> * contrib = CreateSuperNode<MallocAllocator>(options_.decomposition,I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
@@ -527,7 +556,6 @@ namespace symPACK{
               LocalUpdates[iLocalI-1].pop();
               dist_contrib = snodeLocal(contrib_snode_id,Contributions_);
               contrib->back_update(dist_contrib);
-              //this->back_update(dist_contrib,contrib);
             }
             else{
               //Receive parent contrib
@@ -549,7 +577,6 @@ namespace symPACK{
               logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib->Id()<<std::endl;
 #endif
               contrib->back_update(dist_contrib);
-              //this->back_update(dist_contrib,contrib);
               delete dist_contrib;
             }
           }
@@ -648,7 +675,6 @@ namespace symPACK{
 
     }
     //DumpContrib();
-    SYMPACK_TIMER_STOP(SPARSE_SOLVE);
 
   }
 
@@ -671,7 +697,12 @@ namespace symPACK{
         Int nzcnt = snode_size * nrhs;
 
         if( iOwner == iam ){
+#ifndef NEW_SOLVE
           SuperNode<T,MallocAllocator> * contrib = snodeLocal(I,Contributions_);
+#else
+          Int Ilocal = snodeLocalIndex(I); 
+          auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[Ilocal-1]);
+#endif
           //logfileptr->OFS()<<*contrib<<std::endl;
           data = contrib->GetNZval(0);
         }
@@ -5078,6 +5109,7 @@ namespace symPACK{
 
 
 #include "symPACKMatrix_impl_FB_pull.hpp"
+#include "symPACKMatrix_impl_solve.hpp"
 
 
 #ifdef _INDEFINITE_

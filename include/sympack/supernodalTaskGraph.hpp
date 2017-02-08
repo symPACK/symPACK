@@ -48,10 +48,15 @@
 //Declaration
 namespace symPACK{
 
+namespace Solve{
+  enum class op_type;
+}
+
+  template <typename Task = FBTask>
       class supernodalTaskGraph{
         template<typename T> friend class symPACKMatrix;
         protected:
-        std::vector<std::list<FBTask> * > taskLists_;
+        typename std::vector<typename std::list<Task> * > taskLists_;
         Int localTaskCount_;
         
         public:
@@ -61,53 +66,74 @@ namespace symPACK{
         supernodalTaskGraph& operator=( const supernodalTaskGraph& g );
         ~supernodalTaskGraph();
 
-        void removeTask(std::list<FBTask>::iterator & taskit); 
-        std::list<FBTask>::iterator addTask(FBTask & task);
+        void removeTask(typename std::list<Task>::iterator & taskit); 
+        typename std::list<Task>::iterator addTask(Task & task);
         Int getTaskCount();
         Int setTaskCount(Int value);
         Int increaseTaskCount();
         Int decreaseTaskCount();
-        std::list<FBTask>::iterator find_task(Int src, Int tgt, TaskType type );
+
+        template<typename Type = TaskType>
+        typename std::list<Task>::iterator find_task(Int src, Int tgt, Type type );
       };
 }
 
 //Implementation
 namespace symPACK{
 
-  supernodalTaskGraph::supernodalTaskGraph(){
+  template <typename Task>
+  supernodalTaskGraph<Task>::supernodalTaskGraph(){
     localTaskCount_=0;
   }
-  supernodalTaskGraph::supernodalTaskGraph( const supernodalTaskGraph& g ){
+  template <typename Task>
+  supernodalTaskGraph<Task>::supernodalTaskGraph( const supernodalTaskGraph<Task>& g ){
     (*this) = g;
   }
 
-  supernodalTaskGraph& supernodalTaskGraph::operator=( const supernodalTaskGraph& g ){
+  template <typename Task>
+  supernodalTaskGraph<Task>& supernodalTaskGraph<Task>::operator=( const supernodalTaskGraph<Task>& g ){
     localTaskCount_ = g.localTaskCount_;
     taskLists_.resize(g.taskLists_.size(),NULL);
     for(int i = 0; i<taskLists_.size(); ++i){
       if(g.taskLists_[i] != NULL){
-        taskLists_[i] = new std::list<FBTask>(); 
+        taskLists_[i] = new std::list<Task>(); 
         taskLists_[i]->insert(taskLists_[i]->end(),g.taskLists_[i]->begin(),g.taskLists_[i]->end());
       }
     }
-
   }
 
-  supernodalTaskGraph::~supernodalTaskGraph(){
+  template <typename Task>
+  supernodalTaskGraph<Task>::~supernodalTaskGraph(){
     for(int i = 0; i<taskLists_.size(); ++i){
       if(taskLists_[i] != NULL){
         delete taskLists_[i];
       }
     }
-
   }        
 
-  void supernodalTaskGraph::removeTask(std::list<FBTask>::iterator & taskit){
-    taskLists_[taskit->tgt_snode_id-1]->erase(taskit);
-    //decreaseTaskCount();
+  template <typename Task>
+  void supernodalTaskGraph<Task>::removeTask(typename std::list<Task>::iterator & taskit){
+    throw std::logic_error( "removeTask(std::list<Task>::iterator &taskit) is not implemented for that type.");
   }
 
-  std::list<FBTask>::iterator supernodalTaskGraph::addTask(FBTask & task){
+  template <>
+  void supernodalTaskGraph<FBTask>::removeTask(std::list<FBTask>::iterator & taskit){
+    taskLists_[taskit->tgt_snode_id-1]->erase(taskit);
+  }
+  
+  template <>
+  void supernodalTaskGraph<CompTask>::removeTask(std::list<CompTask>::iterator & taskit){
+    Int * meta = reinterpret_cast<Int*>(taskit->meta.data());
+    Int tgt = meta[1];
+    taskLists_[tgt-1]->erase(taskit);
+  }
+
+  template <typename Task>
+  typename std::list<Task>::iterator supernodalTaskGraph<Task>::addTask(Task & task){
+  }
+
+  template <>
+  std::list<FBTask>::iterator supernodalTaskGraph<FBTask>::addTask(FBTask & task){
     if(taskLists_[task.tgt_snode_id-1] == NULL){
       taskLists_[task.tgt_snode_id-1]=new std::list<FBTask>();
     }
@@ -118,41 +144,96 @@ namespace symPACK{
     return taskit;
   }
 
+  template <>
+  std::list<CompTask>::iterator supernodalTaskGraph<CompTask>::addTask(CompTask & task){
+
+    Int * meta = reinterpret_cast<Int*>(task.meta.data());
+    Int tgt = meta[1];
+
+    if(taskLists_[tgt-1] == NULL){
+      taskLists_[tgt-1]=new std::list<CompTask>();
+    }
+    taskLists_[tgt-1]->push_back(task);
+    increaseTaskCount();
+
+    std::list<CompTask>::iterator taskit = --taskLists_[tgt-1]->end();
+    return taskit;
+  }
 
 
-  Int supernodalTaskGraph::getTaskCount()
+
+  template <typename Task>
+  Int supernodalTaskGraph<Task>::getTaskCount()
   {
     Int val = localTaskCount_;
     return val;
   }
 
-  Int supernodalTaskGraph::setTaskCount(Int value)
+  template <typename Task>
+  Int supernodalTaskGraph<Task>::setTaskCount(Int value)
   {
     localTaskCount_ = value;
     return value;
   }
 
-  Int supernodalTaskGraph::increaseTaskCount()
+  template <typename Task>
+  Int supernodalTaskGraph<Task>::increaseTaskCount()
   {
     Int val;
     val = ++localTaskCount_;
     return val;
   }
 
-  Int supernodalTaskGraph::decreaseTaskCount()
+  template <typename Task>
+  Int supernodalTaskGraph<Task>::decreaseTaskCount()
   {
     Int val;
     val = --localTaskCount_;
     return val;
   }
 
-  std::list<FBTask>::iterator supernodalTaskGraph::find_task(Int src, Int tgt, TaskType type )
+  template <typename Task>
+  template <typename Type>
+  typename std::list<Task>::iterator supernodalTaskGraph<Task>::find_task(Int src, Int tgt, Type type )
+  {
+    throw std::logic_error( "find_task(Int src, Int tgt, TaskType type) is not implemented for that type.");
+    auto taskit = taskLists_[tgt-1]->begin();
+    return taskit;
+  }
+
+  template <>
+  template <>
+  std::list<CompTask>::iterator supernodalTaskGraph<CompTask>::find_task(Int src, Int tgt, Solve::op_type type )
+  {
+    scope_timer(a,FB_FIND_TASK);
+
+    //find task corresponding to curUpdate
+    auto taskit = taskLists_[tgt-1]->begin();
+    for( ;
+        taskit!=this->taskLists_[tgt-1]->end();
+        taskit++){
+
+      Int * meta = reinterpret_cast<Int*>(taskit->meta.data());
+      Int tsrc = meta[0];
+      Int ttgt = meta[1];
+      const Solve::op_type & ttype = *reinterpret_cast<Solve::op_type*>(&meta[2]);
+
+      if(tsrc==src && ttgt==tgt && ttype==type){
+        break;
+      }
+    }
+    return taskit;
+  }
+
+  template <>
+  template <>
+  std::list<FBTask>::iterator supernodalTaskGraph<FBTask>::find_task(Int src, Int tgt, TaskType type )
   {
     scope_timer(a,FB_FIND_TASK);
     //find task corresponding to curUpdate
     auto taskit = taskLists_[tgt-1]->begin();
     for(;
-        taskit!=taskLists_[tgt-1]->end();
+        taskit!=this->taskLists_[tgt-1]->end();
         taskit++){
       if(taskit->src_snode_id==src && taskit->tgt_snode_id==tgt && taskit->type==type){
         break;

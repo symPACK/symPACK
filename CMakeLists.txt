@@ -396,6 +396,7 @@ install(FILES
   include/sympack/symPACKMatrix_impl.hpp
   include/sympack/DistSparseMatrix_impl.hpp
   include/sympack/symPACKMatrix_impl_FB_pull.hpp
+  include/sympack/symPACKMatrix_impl_solve.hpp
   include/sympack/ETree.hpp
   include/sympack/Environment.hpp
   include/sympack/Environment_impl.hpp 

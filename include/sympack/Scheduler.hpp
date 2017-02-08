@@ -102,9 +102,9 @@ namespace symPACK{
 
 
 
-        const std::priority_queue<T, std::vector<T>, FBTaskCompare > & GetQueue() {return  readyTasks_;}
+        const std::priority_queue<T, std::vector<T>, FBTaskCompare<T> > & GetQueue() {return  readyTasks_;}
       protected:
-        std::priority_queue<T, std::vector<T>, FBTaskCompare > readyTasks_;
+        std::priority_queue<T, std::vector<T>, FBTaskCompare<T> > readyTasks_;
     };
 
 

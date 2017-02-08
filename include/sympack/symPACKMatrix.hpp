@@ -109,7 +109,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 namespace symPACK{
 
   //Forward declarations
-  class supernodalTaskGraph;
+  template<typename Task> class supernodalTaskGraph;
   template<typename T> class symPACKMatrix;
 
   template <typename T> class symPACKMatrix{
@@ -240,13 +240,16 @@ namespace symPACK{
       void generateTaskGraph(Int & localTaskCount, std::vector<std::list<FBTask> * > & taskLists);
       std::list<FBTask>::iterator find_task(std::vector<std::list<FBTask> * > & taskLists, Int src, Int tgt, TaskType type );
 
-      supernodalTaskGraph taskGraph_;
-      void generateTaskGraph(supernodalTaskGraph & taskGraph,std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates);
+      supernodalTaskGraph<FBTask> taskGraph_;
+      void generateTaskGraph(supernodalTaskGraph<FBTask> & taskGraph,std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates);
 
       std::vector<std::list<Int> > chSupTree_;
       void dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier);
 
       void gatherLStructure(std::vector<Ptr>& xlindx, std::vector<Idx> & lindx);
+
+      void solve_(T * RHS, int nrhs,  T * Xptr=NULL);
+      void solveNew_(T * RHS, int nrhs,  T * Xptr=NULL);
 
       std::list<std::list<FBTask>::iterator > readyTasks_;
 
@@ -273,6 +276,7 @@ namespace symPACK{
       //Vector holding pointers to local contributions
       //This has to be renamed because it contains the distributed solution
       std::vector<SuperNode<T,MallocAllocator> *> Contributions_;
+      std::vector< std::shared_ptr<SuperNodeBase<T> > > Contributions2_;
 
 
 #ifndef ITREE2
@@ -302,9 +306,9 @@ namespace symPACK{
       void FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv, std::vector<Int> & LocalAggregates);
       void GetUpdatingSupernodeCount( std::vector<Int> & sc,std::vector<Int> & mw, std::vector<Int> & mh, std::vector<Int> & numBlk);
 
-      void FBFactorizationTask(supernodalTaskGraph & taskGraph, FBTask & curTask, Int iLocalI, std::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
-      void FBAggregationTask(supernodalTaskGraph & taskGraph, FBTask & curTask, Int iLocalI, bool is_static = false);
-      void FBUpdateTask(supernodalTaskGraph & taskGraph, FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
+      void FBFactorizationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, std::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
+      void FBAggregationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, bool is_static = false);
+      void FBUpdateTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
 
 
       //Communication related routines
@@ -317,7 +321,12 @@ namespace symPACK{
       template< class Alloc>
         void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl);
 
-      void CheckIncomingMessages(supernodalTaskGraph & taskGraph, std::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
+      void CheckIncomingMessages(supernodalTaskGraph<FBTask> & taskGraph, std::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
+
+
+
+      template<typename Task>
+      void CheckIncomingMessages_Solve(supernodalTaskGraph<Task> & taskGraph, std::shared_ptr<Scheduler<Task> > scheduler);
 
 
   };
