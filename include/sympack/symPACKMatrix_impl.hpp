@@ -296,7 +296,8 @@ namespace symPACK{
 #ifndef NEW_SOLVE
       this->solve_(RHS,nrhs,Xptr);
 #else
-      this->solveNew_(RHS,nrhs,Xptr);
+//      this->solveNew_(RHS,nrhs,Xptr);
+      this->solveNew2_(RHS,nrhs,Xptr);
 #endif
     }
  
@@ -2451,7 +2452,12 @@ namespace symPACK{
 
     if(iam<np){
       //Options
-      gMaxIrecv = options_.maxIrecv+options_.maxIsend;
+      if(options_.maxIrecv==-1 && options_.maxIsend==-1){
+        gMaxIrecv = -1;
+      }
+      else{
+        gMaxIrecv = options_.maxIrecv + options_.maxIsend;
+      }
 
       //SYMPACK_TIMER_START(SCHEDULER);
       switch(options_.scheduler){
@@ -2570,7 +2576,7 @@ namespace symPACK{
         else{
               std::stringstream sstr;
               sstr<<"This ordering method is not supported by symPACK. Valid options are:";
-              sstr<<"MMD AMD RCM NDBOX NDGRID USER ";
+              sstr<<"NATURAL MMD AMD RCM NDBOX NDGRID USER ";
 #ifdef USE_SCOTCH
               sstr<<"SCOTCH ";
 #endif
@@ -2683,6 +2689,7 @@ namespace symPACK{
             Order_.perm.resize(iSize_);
             for(int i=0;i<Order_.perm.size();i++){Order_.perm[i]=i+1;} 
             Order_.invp = Order_.perm;
+            break;
           default:
             {
               std::stringstream sstr;

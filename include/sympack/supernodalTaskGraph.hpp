@@ -48,9 +48,6 @@
 //Declaration
 namespace symPACK{
 
-namespace Solve{
-  enum class op_type;
-}
 
   template <typename Task = FBTask>
       class supernodalTaskGraph{
@@ -75,6 +72,7 @@ namespace Solve{
 
         template<typename Type = TaskType>
         typename std::list<Task>::iterator find_task(Int src, Int tgt, Type type );
+
       };
 }
 
@@ -243,5 +241,54 @@ namespace symPACK{
   }
 
 }
+
+
+namespace symPACK{
+
+      class taskGraph{
+        protected:
+        
+        public:
+          typedef typename std::map<GenericTask::id_type, std::shared_ptr<GenericTask> > task_list; 
+          typedef typename task_list::iterator task_iterator; 
+
+          template<typename T> friend class symPACKMatrix;
+          task_list tasks_;
+
+        //taskGraph( );
+        //supernodalTaskGraph( const supernodalTaskGraph& g );
+        //supernodalTaskGraph& operator=( const supernodalTaskGraph& g );
+        //~taskGraph();
+
+        void removeTask( const GenericTask::id_type & hash); 
+        void addTask(std::shared_ptr<GenericTask> & task);
+        Int getTaskCount();
+        task_iterator find_task( const GenericTask::id_type & hash );
+      };
+}
+
+//Implementation
+namespace symPACK{
+
+  void taskGraph::removeTask(const GenericTask::id_type & hash){
+    this->tasks_.erase(hash);
+  }
+
+  void taskGraph::addTask(std::shared_ptr<GenericTask> & task){
+//    return this->tasks_[hash] = task;
+    this->tasks_.emplace(task->id,task);
+  }
+
+  Int taskGraph::getTaskCount()
+  {
+    Int val = tasks_.size();
+    return val;
+  }
+
+  taskGraph::task_iterator taskGraph::find_task( const GenericTask::id_type & hash ){
+    return tasks_.find(hash);
+  }
+}
+
 
 #endif // _SUPERNODAL_TASK_GRAPH_DECL_HPP_

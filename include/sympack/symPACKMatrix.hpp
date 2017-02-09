@@ -250,6 +250,7 @@ namespace symPACK{
 
       void solve_(T * RHS, int nrhs,  T * Xptr=NULL);
       void solveNew_(T * RHS, int nrhs,  T * Xptr=NULL);
+      void solveNew2_(T * RHS, int nrhs,  T * Xptr=NULL);
 
       std::list<std::list<FBTask>::iterator > readyTasks_;
 

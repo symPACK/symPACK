@@ -51,6 +51,7 @@
 
 namespace symPACK{
 
+
   template <class T >
     class Scheduler{
       public:
@@ -66,6 +67,11 @@ namespace symPACK{
         //    virtual const std::priority_queue<T, std::vector<T>, TaskCompare >  GetQueue() =0;
 
         virtual bool done() =0;
+
+
+        int checkIncomingMessages_(taskGraph & graph);
+        void run(MPI_Comm & workcomm, taskGraph & graph);
+
 
       protected:
     };
@@ -297,6 +303,230 @@ namespace symPACK{
       protected:
         std::queue<T> readyTasks_;
     };
+
+
+template< typename Task> 
+int Scheduler<Task>::checkIncomingMessages_(taskGraph & taskGraph)
+{
+  abort();
+  return 0;
+}
+
+template<>
+int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph & taskGraph)
+{
+  scope_timer(a,CHECK_MESSAGE);
+
+  int num_recv = 0;
+
+  SYMPACK_TIMER_START(UPCXX_ADVANCE);
+  upcxx::advance();
+  SYMPACK_TIMER_STOP(UPCXX_ADVANCE);
+
+  bool comm_found = false;
+  IncomingMessage * msg = NULL;
+
+  do{
+    msg=NULL;
+    //if we have some room, turn blocking comms into async comms
+    if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
+      scope_timer(b,MV_MSG_SYNC);
+      while((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()){
+        bool success = false;
+        auto it = gIncomingRecv.begin();
+        //find one which is not done
+        while((*it)->IsDone()){it++;}
+
+        success = (*it)->AllocLocal();
+        if(success){
+          (*it)->AsyncGet();
+          gIncomingRecvAsync.push_back(*it);
+          gIncomingRecv.erase(it);
+        }
+        else{
+          //TODO handle out of memory
+          abort();
+          break;
+        }
+      }
+    }
+
+    {
+      //find if there is some finished async comm
+      auto it = TestAsyncIncomingMessage();
+      if(it!=gIncomingRecvAsync.end()){
+        scope_timer(b,RM_MSG_ASYNC);
+        msg = *it;
+        gIncomingRecvAsync.erase(it);
+      }
+      else if(this->done() && !gIncomingRecv.empty()){
+        scope_timer(c,RM_MSG_ASYNC);
+        //find a "high priority" task
+        //find a task we would like to process
+        auto it = gIncomingRecv.begin();
+        //for(auto cur_msg = gIncomingRecv.begin(); 
+        //    cur_msg!= gIncomingRecv.end(); cur_msg++){
+        //  //look at the meta data
+        //  //TODO check if we can parametrize that
+        //  if((*cur_msg)->meta.tgt < (*it)->meta.tgt){
+        //    it = cur_msg;
+        //  }
+        //}
+        msg = *it;
+        gIncomingRecv.erase(it);
+      }
+    }
+
+    if(msg!=NULL){
+      scope_timer(a,WAIT_AND_UPDATE_DEPS);
+      num_recv++;
+
+      bool success = msg->Wait(); 
+      //TODO what are the reasons of failure ?
+      bassert(success);
+
+      auto taskit = taskGraph.find_task(msg->meta.id);
+
+      bassert(taskit!=taskGraph.tasks_.end());
+#if 0
+      {
+        std::hash<std::string> hash_fn;
+        std::stringstream sstr;
+        sstr<<50<<"_"<<50<<"_"<<(Int)Solve::op_type::FU;
+        auto id = hash_fn(sstr.str());
+
+        SparseTask * tmp = ((SparseTask*)taskit->second.get());
+        Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
+        Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
+        std::string name;
+        switch(type){
+          case Solve::op_type::FUC:
+            name="FUC";
+            break;
+          case Solve::op_type::BUC:
+            name="BUC";
+            break;
+          case Solve::op_type::BU:
+            name="BU";
+            break;
+          case Solve::op_type::FU:
+            name="FU";
+            break;
+        }
+        logfileptr->OFS()<<"  receiving & updating "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
+      }
+#endif
+
+      taskit->second->remote_deps_cnt--;
+      taskit->second->data.push_back(msg);
+
+      if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+        this->push(taskit->second);    
+        taskGraph.removeTask(taskit->second->id);
+      }
+    }
+  }while(msg!=NULL);
+
+  return num_recv;
+}
+
+
+  template <class Task > 
+  void Scheduler<Task>::run(MPI_Comm & workcomm,taskGraph & graph){
+  }
+
+  template <> 
+  void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm,taskGraph & graph){
+
+    //put rdy tasks in rdy queue
+    {
+      auto taskit = graph.tasks_.begin();
+      while (taskit != graph.tasks_.end()) {
+        if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+          auto it = taskit;
+          this->push(it->second);
+          taskit++;
+          graph.removeTask(it->second->id);
+        }
+        else{
+          taskit++;
+        }
+      }
+    }
+
+    auto log_task = [&] (std::shared_ptr<GenericTask> & task){
+        SparseTask * tmp = ((SparseTask*)task.get());
+        Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
+        Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
+        std::string name;
+        switch(type){
+          case Solve::op_type::FUC:
+            name="FUC";
+            break;
+          case Solve::op_type::BUC:
+            name="BUC";
+            break;
+          case Solve::op_type::BU:
+            name="BU";
+            break;
+          case Solve::op_type::FU:
+            name="FU";
+            break;
+        }
+        logfileptr->OFS()<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
+    };
+
+    while(graph.getTaskCount()>0 || !this->done()){
+      int num_msg = checkIncomingMessages_(graph);
+
+      if(!this->done())
+      {
+        //Pick a ready task
+        auto curTask = this->top();
+        this->pop();
+
+#if 0
+        SparseTask * tmp = ((SparseTask*)curTask.get());
+        Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
+        Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
+        std::string name;
+        switch(type){
+          case Solve::op_type::FUC:
+            name="FUC";
+            break;
+          case Solve::op_type::BUC:
+            name="BUC";
+            break;
+          case Solve::op_type::BU:
+            name="BU";
+            break;
+          case Solve::op_type::FU:
+            name="FU";
+            break;
+        }
+        logfileptr->OFS()<<"Running "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
+#endif
+
+        curTask->execute();
+      }
+#if 0
+      else if (num_msg==0 && graph.getTaskCount()>0){
+        logfileptr->OFS()<<"NOT PROGRESSING"<<std::endl;
+        for(auto taskit: graph.tasks_){
+          log_task(taskit.second);
+        }
+        logfileptr->OFS()<<"END OF NOT PROGRESSING"<<std::endl;
+        upcxx::async_wait();
+        //abort();
+      }
+#endif
+
+    }
+
+    upcxx::async_wait();
+    MPI_Barrier(workcomm);
+
+  }
 
 
 

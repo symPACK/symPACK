@@ -80,6 +80,7 @@ struct SnodeUpdateFB;
     int GIndex;
     //type of message
 //    TaskType type;
+    size_t id;
   };
 
 class BackupBuffer{

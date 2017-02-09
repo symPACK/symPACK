@@ -120,12 +120,16 @@ int main(int argc, char **argv)
 
   Int maxIsend = -1;
   if( options.find("-is") != options.end() ){
-    maxIsend= atoi(options["-is"].front().c_str());
+    if(options["-is"].front() != "inf"){
+      maxIsend= atoi(options["-is"].front().c_str());
+    }
   }
 
   Int maxIrecv = -1;
   if( options.find("-ir") != options.end() ){
-    maxIrecv= atoi(options["-ir"].front().c_str());
+    if(options["-ir"].front() != "inf"){
+      maxIrecv= atoi(options["-ir"].front().c_str());
+    }
   }
 
 

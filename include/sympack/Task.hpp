@@ -129,6 +129,38 @@ namespace symPACK{
       CompTask( ):remote_deps(0),local_deps(0){}
   };
 
+
+  class GenericTask{
+    public:
+      typedef size_t id_type;
+      id_type id;
+
+      //dependencies
+      Int remote_deps_cnt;
+      Int local_deps_cnt;
+
+      std::list< id_type > remote_deps;
+      std::list< id_type > local_deps;
+
+      //list of incoming messages
+      std::list<IncomingMessage*> data;
+  
+      std::function< void() > execute;
+
+      GenericTask( ):remote_deps_cnt(0),local_deps_cnt(0){}
+  };
+
+  class SparseTask: public GenericTask{
+    public:
+      //byte storage for tasks 
+      std::vector<char> meta;
+
+      SparseTask( ):GenericTask(){}
+  };
+
+
+
+
   ///template<typename F>
   ///class CompTask;
 
@@ -304,6 +336,37 @@ namespace symPACK{
         }
 
     };
+
+  template<>
+    inline bool FBTaskCompare<SparseTask>::operator()(const SparseTask & a,const SparseTask & b) const
+    {
+      bool retval = false;
+
+      const Int * ameta = reinterpret_cast<const Int*>(a.meta.data());
+      const Int asrc = ameta[0];
+      const Int atgt = ameta[1];
+      //const Solve::op_type & atype = *reinterpret_cast<const Solve::op_type*>(&ameta[2]);
+
+      const Int * bmeta = reinterpret_cast<const Int*>(b.meta.data());
+      const Int bsrc = bmeta[0];
+      const Int btgt = bmeta[1];
+      //const Solve::op_type & btype = *reinterpret_cast<const Solve::op_type*>(&bmeta[2]);
+
+      //use the classic priorities otherwise
+      if(atgt>btgt){
+        retval = true;
+      }
+      else if(atgt==btgt){
+        retval = asrc>bsrc;
+      }
+      else{
+        retval = false;
+      }
+
+      return retval;
+    }
+
+
 
 
   template<>

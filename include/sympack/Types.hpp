@@ -602,8 +602,14 @@ namespace symPACK{
 
 
 
+namespace Solve{
+  enum class op_type {FUC,FU,BUC,BU};
+}
 
 }
+
+
+
 
 #endif //_TYPES_DECL_HPP_
 
