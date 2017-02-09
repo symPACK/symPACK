@@ -43,6 +43,8 @@
 #ifndef _ENVIRONMENT_DECL_HPP_
 #define _ENVIRONMENT_DECL_HPP_
 
+#define SP_THREADS
+
 #include "sympack_definitions.hpp"
 #include "sympack_config.hpp"
 

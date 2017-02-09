@@ -45,6 +45,13 @@
 #include <limits>
 #include <numeric>
 
+//#define SP_THREADS
+
+#ifdef SP_THREADS
+#include <future>
+#include <mutex>
+#endif
+
 //Declaration
 namespace symPACK{
 
@@ -264,6 +271,10 @@ namespace symPACK{
         void addTask(std::shared_ptr<GenericTask> & task);
         Int getTaskCount();
         task_iterator find_task( const GenericTask::id_type & hash );
+
+#ifdef SP_THREADS
+        std::mutex list_mutex_;
+#endif
       };
 }
 
@@ -271,21 +282,34 @@ namespace symPACK{
 namespace symPACK{
 
   void taskGraph::removeTask(const GenericTask::id_type & hash){
+#ifdef SP_THREADS
+    std::lock_guard<std::mutex> lock(list_mutex_);
+#endif
     this->tasks_.erase(hash);
   }
 
   void taskGraph::addTask(std::shared_ptr<GenericTask> & task){
+
+#ifdef SP_THREADS
+    std::lock_guard<std::mutex> lock(list_mutex_);
+#endif
 //    return this->tasks_[hash] = task;
     this->tasks_.emplace(task->id,task);
   }
 
   Int taskGraph::getTaskCount()
   {
+#ifdef SP_THREADS
+    std::lock_guard<std::mutex> lock(list_mutex_);
+#endif
     Int val = tasks_.size();
     return val;
   }
 
   taskGraph::task_iterator taskGraph::find_task( const GenericTask::id_type & hash ){
+#ifdef SP_THREADS
+    std::lock_guard<std::mutex> lock(list_mutex_);
+#endif
     return tasks_.find(hash);
   }
 }

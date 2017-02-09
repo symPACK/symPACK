@@ -673,8 +673,8 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
       }
     }
 
-    //std::shared_ptr<Scheduler< std::shared_ptr<GenericTask> > > scheduler(new FIFOScheduler< std::shared_ptr<GenericTask> >( ));
-    std::shared_ptr<Scheduler< std::shared_ptr<GenericTask> > > scheduler(new DLScheduler< std::shared_ptr<GenericTask> >( ));
+    std::shared_ptr<Scheduler< std::shared_ptr<GenericTask> > > scheduler(new FIFOScheduler< std::shared_ptr<GenericTask> >( ));
+    //std::shared_ptr<Scheduler< std::shared_ptr<GenericTask> > > scheduler(new DLScheduler< std::shared_ptr<GenericTask> >( ));
     //std::shared_ptr<Scheduler<SparseTask> > scheduler(new DLScheduler<SparseTask>( ));
 
     taskGraph graph;
@@ -683,6 +683,9 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
     std::hash<std::string> hash_fn;
 
     auto dec_ref = [&] ( taskGraph::task_iterator taskit, Int loc, Int rem) {
+#ifdef SP_THREADS
+        std::lock_guard<std::mutex> lock(scheduler->list_mutex_);
+#endif
       taskit->second->local_deps_cnt-= loc;
       taskit->second->remote_deps_cnt-= rem;
       if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
@@ -756,9 +759,14 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
           //Loop through my children to get the dependencies
 
-          FUCtask.execute = [&,this,I](){
+          FUCtask.execute = [&,this,I,pFUCtask](){
             Int src = I;
             Int tgt = I;
+            SparseTask & FUCtask = *(SparseTask*)pFUCtask.get();
+
+            //std::stringstream sstr;
+            //sstr<<I<<"_"<<I<<"_"<<(Int)Solve::op_type::FUC;
+            //auto id = hash_fn(sstr.str());
 
             Int src_local = this->snodeLocalIndex(src); 
             auto cur_snode = this->LocalSupernodes_[src_local-1];
@@ -793,7 +801,12 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
                   //log_msg(src,parent,Solve::op_type::FU);
 
+                  {
+#ifdef SP_THREADS
+        std::lock_guard<std::mutex> lock(scheduler->upcxx_mutex_);
+#endif
                   signal_data(sendPtr, msgSize, parentOwner, meta);
+                  }
                 }
               }
               else{
@@ -841,9 +854,10 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
           BUCtask.local_deps_cnt = 1;
 
-          BUCtask.execute = [&,this,I] () {
+          BUCtask.execute = [&,this,I,pBUCtask] () {
             Int src = I;
             Int tgt = I;
+            SparseTask & BUCtask = *(SparseTask*)pBUCtask.get();
 
           Int * meta = reinterpret_cast<Int*>(BUCtask.meta.data());
           Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
@@ -888,8 +902,12 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
                       size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
 
                   //log_msg(src,child_snode_id,Solve::op_type::BU);
+                  {
+#ifdef SP_THREADS
+        std::lock_guard<std::mutex> lock(scheduler->upcxx_mutex_);
+#endif
                       signal_data(sendPtr, msgSize, iTarget, meta);
-
+                  }
                       is_sent[iTarget] = true;
                     }
                   }
@@ -1007,7 +1025,8 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
               BUtask.remote_deps_cnt = 1;
             }
 
-            BUtask.execute = [&,this,I,parent] () {
+            BUtask.execute = [&,this,I,parent,pBUtask] () {
+            SparseTask & BUtask = *(SparseTask*)pBUtask.get();
               Int src = parent;
               Int tgt = I;
               Int tgt_local = snodeLocalIndex(tgt); 

@@ -43,11 +43,19 @@
 #ifndef _SCHEDULER_DECL_HPP_
 #define _SCHEDULER_DECL_HPP_
 
+#include "sympack/Environment.hpp"
 #include "sympack/Types.hpp"
 #include "sympack/Task.hpp"
+#include "sympack/CommPull.hpp"
 #include <list>
 #include <queue>
 
+
+
+#ifdef SP_THREADS
+#include <future>
+#include <mutex>
+#endif
 
 namespace symPACK{
 
@@ -73,6 +81,10 @@ namespace symPACK{
         void run(MPI_Comm & workcomm, taskGraph & graph);
 
 
+#ifdef SP_THREADS
+        std::mutex upcxx_mutex_;
+        std::mutex list_mutex_;
+#endif
       protected:
     };
 
@@ -306,74 +318,84 @@ namespace symPACK{
 
 
 template< typename Task> 
-int Scheduler<Task>::checkIncomingMessages_(taskGraph & taskGraph)
+int Scheduler<Task>::checkIncomingMessages_(taskGraph & graph)
 {
   abort();
   return 0;
 }
 
 template<>
-int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph & taskGraph)
+int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph & graph)
 {
   scope_timer(a,CHECK_MESSAGE);
 
   int num_recv = 0;
 
-  SYMPACK_TIMER_START(UPCXX_ADVANCE);
-  upcxx::advance();
-  SYMPACK_TIMER_STOP(UPCXX_ADVANCE);
+  {
+    scope_timer(a,UPCXX_ADVANCE);
+#ifdef SP_THREADS
+    std::lock_guard<std::mutex> lock(upcxx_mutex_);
+#endif
+    upcxx::advance();
+  }
 
   bool comm_found = false;
   IncomingMessage * msg = NULL;
 
   do{
     msg=NULL;
-    //if we have some room, turn blocking comms into async comms
-    if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
-      scope_timer(b,MV_MSG_SYNC);
-      while((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()){
-        bool success = false;
-        auto it = gIncomingRecv.begin();
-        //find one which is not done
-        while((*it)->IsDone()){it++;}
-
-        success = (*it)->AllocLocal();
-        if(success){
-          (*it)->AsyncGet();
-          gIncomingRecvAsync.push_back(*it);
-          gIncomingRecv.erase(it);
-        }
-        else{
-          //TODO handle out of memory
-          abort();
-          break;
-        }
-      }
-    }
 
     {
-      //find if there is some finished async comm
-      auto it = TestAsyncIncomingMessage();
-      if(it!=gIncomingRecvAsync.end()){
-        scope_timer(b,RM_MSG_ASYNC);
-        msg = *it;
-        gIncomingRecvAsync.erase(it);
+#ifdef SP_THREADS
+      std::lock_guard<std::mutex> lock(upcxx_mutex_);
+#endif
+      //if we have some room, turn blocking comms into async comms
+      if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
+        scope_timer(b,MV_MSG_SYNC);
+        while((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()){
+          bool success = false;
+          auto it = gIncomingRecv.begin();
+          //find one which is not done
+          while((*it)->IsDone()){it++;}
+
+          success = (*it)->AllocLocal();
+          if(success){
+            (*it)->AsyncGet();
+            gIncomingRecvAsync.push_back(*it);
+            gIncomingRecv.erase(it);
+          }
+          else{
+            //TODO handle out of memory
+            abort();
+            break;
+          }
+        }
       }
-      else if(this->done() && !gIncomingRecv.empty()){
-        scope_timer(c,RM_MSG_ASYNC);
-        //find a "high priority" task
-        //find a task we would like to process
-        auto it = gIncomingRecv.begin();
-        //for(auto cur_msg = gIncomingRecv.begin(); 
-        //    cur_msg!= gIncomingRecv.end(); cur_msg++){
-        //  //look at the meta data
-        //  //TODO check if we can parametrize that
-        //  if((*cur_msg)->meta.tgt < (*it)->meta.tgt){
-        //    it = cur_msg;
-        //  }
-        //}
-        msg = *it;
-        gIncomingRecv.erase(it);
+
+      {
+        //find if there is some finished async comm
+        auto it = TestAsyncIncomingMessage();
+        if(it!=gIncomingRecvAsync.end()){
+          scope_timer(b,RM_MSG_ASYNC);
+          msg = *it;
+          gIncomingRecvAsync.erase(it);
+        }
+        else if(this->done() && !gIncomingRecv.empty()){
+          scope_timer(c,RM_MSG_ASYNC);
+          //find a "high priority" task
+          //find a task we would like to process
+          auto it = gIncomingRecv.begin();
+          //for(auto cur_msg = gIncomingRecv.begin(); 
+          //    cur_msg!= gIncomingRecv.end(); cur_msg++){
+          //  //look at the meta data
+          //  //TODO check if we can parametrize that
+          //  if((*cur_msg)->meta.tgt < (*it)->meta.tgt){
+          //    it = cur_msg;
+          //  }
+          //}
+          msg = *it;
+          gIncomingRecv.erase(it);
+        }
       }
     }
 
@@ -385,9 +407,9 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
       //TODO what are the reasons of failure ?
       bassert(success);
 
-      auto taskit = taskGraph.find_task(msg->meta.id);
+      auto taskit = graph.find_task(msg->meta.id);
 
-      bassert(taskit!=taskGraph.tasks_.end());
+      bassert(taskit!=graph.tasks_.end());
 #if 0
       {
         std::hash<std::string> hash_fn;
@@ -416,13 +438,17 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
         logfileptr->OFS()<<"  receiving & updating "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
       }
 #endif
+      {
+#ifdef SP_THREADS
+        std::lock_guard<std::mutex> lock(list_mutex_);
+#endif
+        taskit->second->remote_deps_cnt--;
+        taskit->second->data.push_back(msg);
 
-      taskit->second->remote_deps_cnt--;
-      taskit->second->data.push_back(msg);
-
-      if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
-        this->push(taskit->second);    
-        taskGraph.removeTask(taskit->second->id);
+        if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+          this->push(taskit->second);    
+          graph.removeTask(taskit->second->id);
+        }
       }
     }
   }while(msg!=NULL);
@@ -437,6 +463,11 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
 
   template <> 
   void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm,taskGraph & graph){
+
+    int np = 1;
+    MPI_Comm_size(workcomm,&np);
+    int iam = 0;
+    MPI_Comm_rank(workcomm,&iam);
 
     //put rdy tasks in rdy queue
     {
@@ -476,15 +507,49 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
         logfileptr->OFS()<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
     };
 
+#ifdef SP_THREADS
+      auto check_handle = [] (std::future< void > const& f) -> bool {
+           return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; };
+    std::vector<std::future<void> > handles;
+    Int nthr = (2*std::thread::hardware_concurrency()-1)/np;
+    if(iam==np-1){ nthr= 2*std::thread::hardware_concurrency()-1-(np-1)*nthr; }
+    //nthr = 20;
+
+    logfileptr->OFS()<<"Num threads = "<<nthr<<std::endl;
+    handles.reserve(nthr);
+#endif
+
     while(graph.getTaskCount()>0 || !this->done()){
       int num_msg = checkIncomingMessages_(graph);
 
+#ifdef SP_THREADS
+        auto it = handles.begin();
+        while(it != handles.end()){
+          if(check_handle(*it)){
+            it->get();
+            it = handles.erase(it);
+          }
+          else{
+            it++;
+          }
+        }
+#endif
+
+#ifdef SP_THREADS
+      while(!this->done())
+#else
       if(!this->done())
+#endif
       {
         //Pick a ready task
-        auto curTask = this->top();
+        std::shared_ptr<GenericTask> curTask = nullptr;
+        {
+#ifdef SP_THREADS
+        std::lock_guard<std::mutex> lock(list_mutex_);
+#endif
+        curTask = this->top();
         this->pop();
-
+        }
 #if 0
         SparseTask * tmp = ((SparseTask*)curTask.get());
         Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
@@ -507,7 +572,17 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
         logfileptr->OFS()<<"Running "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
 #endif
 
+#ifdef SP_THREADS
+        if( handles.size()<handles.capacity()){
+          auto fut = std::async(std::launch::async,curTask->execute);
+          handles.push_back(std::move(fut));
+        }
+        else{
+          curTask->execute();
+        }
+#else
         curTask->execute();
+#endif
       }
 #if 0
       else if (num_msg==0 && graph.getTaskCount()>0){
@@ -522,6 +597,15 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
 #endif
 
     }
+
+#ifdef SP_THREADS
+        auto it = handles.begin();
+        while(it != handles.end()){
+          it->get();
+          it = handles.erase(it);
+        }
+#endif
+
 
     upcxx::async_wait();
     MPI_Barrier(workcomm);
