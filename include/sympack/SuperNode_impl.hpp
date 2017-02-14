@@ -1558,8 +1558,23 @@ inline void SuperNode<T,Allocator>::Serialize(Icomm & buffer, Int first_blkidx, 
 
 
 template <typename T, class Allocator> 
-    inline void SuperNode<T,Allocator>::forward_update(SuperNode<T,Allocator> * src_contrib, Int iOwner,Int iam){
+    inline void SuperNode<T,Allocator>::forward_update(SuperNode<T,Allocator> * src_contrib, Int iOwner,Int iam, Int nrhsOffset, Int pnrhs){
       SuperNode<T,Allocator> * tgt_contrib = this;
+
+  Int nrhs = pnrhs;
+  if(pnrhs==-1){
+    nrhs = src_contrib->Size();
+    assert(nrhsOffset==0);
+  }
+  else{
+    nrhs = std::min(pnrhs,src_contrib->Size() - nrhsOffset);
+  }
+
+  Int ldsol = src_contrib->Size();
+
+
+
+
 
       Int src_ncols = src_contrib->Size();
       Int tgt_ncols = tgt_contrib->Size();
@@ -1586,13 +1601,18 @@ template <typename T, class Allocator>
         Int tgt_lr = tgt_desc.GIndex+tgt_nrows-1;
         Int tgt_local_lr = std::min(src_lr,tgt_lr) - tgt_desc.GIndex;
 
-        T * src = &src_contrib->GetNZval(src_desc.Offset)[src_local_fr*src_ncols];
-        T * tgt = &tgt_contrib->GetNZval(tgt_desc.Offset)[tgt_local_fr*tgt_ncols];
+        T * src = &src_contrib->GetNZval(src_desc.Offset)[src_local_fr*ldsol+nrhsOffset];
+        T * tgt = &tgt_contrib->GetNZval(tgt_desc.Offset)[tgt_local_fr*ldsol+nrhsOffset];
 
-
-        blas::Axpy((tgt_local_lr - tgt_local_fr +1)*src_ncols,
-            T(1.0),src,1,tgt,1);
-
+        if(nrhs!=ldsol){
+          Int nrows = tgt_local_lr - tgt_local_fr +1;
+          for(Int row=0;row<nrows;row++){
+            blas::Axpy(nrhs, T(1.0),&src[row*ldsol],1,&tgt[row*ldsol],1);
+          }
+        }
+        else{
+          blas::Axpy((tgt_local_lr - tgt_local_fr +1)*nrhs, T(1.0),src,1,tgt,1);
+        }
 
         if(src_lr>tgt_lr){
           //the src block hasn't been completely used and is
@@ -1617,9 +1637,20 @@ template <typename T, class Allocator>
 
 
 template <typename T, class Allocator> 
-    inline void SuperNode<T,Allocator>::back_update(SuperNode<T,Allocator> * src_contrib){
+    inline void SuperNode<T,Allocator>::back_update(SuperNode<T,Allocator> * src_contrib, Int nrhsOffset, Int pnrhs){
       SuperNode<T,Allocator> * tgt_contrib = this;
-      Int nrhs = tgt_contrib->Size();
+Int nrhs = pnrhs;
+  if(pnrhs==-1){
+    nrhs = tgt_contrib->Size();
+    assert(nrhsOffset==0);
+  }
+  else{
+    nrhs = std::min(pnrhs,tgt_contrib->Size() - nrhsOffset);
+  }
+  Int ldsol = tgt_contrib->Size();
+
+
+
       for(Int blkidx = 1; blkidx<tgt_contrib->NZBlockCnt();++blkidx){
         NZBlockDesc & tgt_desc = tgt_contrib->GetNZBlockDesc(blkidx);
         Int tgt_nrows = tgt_contrib->NRows(blkidx);
@@ -1637,10 +1668,19 @@ template <typename T, class Allocator>
           Int tgt_local_fr = std::max(src_desc.GIndex - tgt_desc.GIndex,0);
           Int tgt_local_lr = std::min(src_lr,tgt_lr) - tgt_desc.GIndex;
 
-          T * src = &src_contrib->GetNZval(src_desc.Offset)[src_local_fr*nrhs];
-          T * tgt = &tgt_contrib->GetNZval(tgt_desc.Offset)[tgt_local_fr*nrhs];
+          T * src = &src_contrib->GetNZval(src_desc.Offset)[src_local_fr*ldsol+nrhsOffset];
+          T * tgt = &tgt_contrib->GetNZval(tgt_desc.Offset)[tgt_local_fr*ldsol+nrhsOffset];
 
+        if(nrhs!=ldsol){
+          Int nrows = tgt_local_lr - tgt_local_fr +1;
+          for(Int row=0;row<nrows;row++){
+            std::copy(&src[row*ldsol],&src[row*ldsol]+nrhs,&tgt[row*ldsol]);
+          }
+        }
+        else{
           std::copy(src,src+(tgt_local_lr - tgt_local_fr +1)*nrhs,tgt);
+        }
+
           //              lapack::Lacpy('N',nrhs,(tgt_local_lr - tgt_local_fr +1),
           //                  src,nrhs,  
           //                  tgt,nrhs);
@@ -1657,9 +1697,22 @@ template <typename T, class Allocator>
 
 
 template <typename T, class Allocator> 
-    inline void SuperNode<T,Allocator>::back_update_contrib(SuperNode<T> * cur_snode){
+    inline void SuperNode<T,Allocator>::back_update_contrib(SuperNode<T> * cur_snode, Int nrhsOffset, Int pnrhs){
         SuperNode<T,Allocator> * contrib = this;
-        Int nrhs = this->Size();
+  Int nrhs = pnrhs;
+  if(pnrhs==-1){
+    nrhs = contrib->Size();
+    assert(nrhsOffset==0);
+  }
+  else{
+    nrhs = std::min(pnrhs,contrib->Size() - nrhsOffset);
+  }
+
+  Int ldsol = contrib->Size();
+  Int ldfact = cur_snode->Size();
+
+  nrhs += nrhsOffset;
+
 
         NZBlockDesc & diag_desc = cur_snode->GetNZBlockDesc(0);
         NZBlockDesc & tgt_desc = contrib->GetNZBlockDesc(0);
@@ -1667,9 +1720,9 @@ template <typename T, class Allocator>
         T* diag_nzval = cur_snode->GetNZval(diag_desc.Offset);
         T* tgt_nzval = contrib->GetNZval(tgt_desc.Offset);
 
-        for(Int j = 0; j<nrhs;++j){
-          for(Int ii = cur_snode->Size()-1; ii>=0; --ii){
-            T temp = tgt_nzval[ii*nrhs+j];
+        for(Int j = nrhsOffset; j<nrhs;++j){
+          for(Int ii = ldfact-1; ii>=0; --ii){
+            T temp = tgt_nzval[ii*ldsol+j];
 
             //This corresponds to the k loop in dtrsm
             for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
@@ -1687,23 +1740,36 @@ template <typename T, class Allocator>
                 if(chol_desc.GIndex+kk>cur_snode->FirstCol()+ii){
                   Int src_row = chol_desc.GIndex - cur_desc.GIndex +kk;
                   if(src_row< cur_nrows){
-                    temp += -(chol_nzval[kk*cur_snode->Size()+ii])*cur_nzval[src_row*nrhs+j];
+                    temp += -(chol_nzval[kk*ldfact+ii])*cur_nzval[src_row*ldsol+j];
                   }
                 }
               }
             }
 
             //if nounit
-            temp = temp / (diag_nzval[ii*cur_snode->Size()+ii]);
-            tgt_nzval[ii*nrhs+j] = temp;
+            temp = temp / (diag_nzval[ii*ldfact+ii]);
+            tgt_nzval[ii*ldsol+j] = temp;
           }
         }
 }
 
 template <typename T, class Allocator> 
-inline void SuperNode<T,Allocator>::forward_update_contrib(SuperNode<T> * cur_snode){
+inline void SuperNode<T,Allocator>::forward_update_contrib(SuperNode<T> * cur_snode, Int nrhsOffset, Int pnrhs){
   SuperNode<T,Allocator> * contrib = this;
-  Int nrhs = this->Size();
+  
+  Int nrhs = pnrhs;
+  if(pnrhs==-1){
+    nrhs = contrib->Size();
+    assert(nrhsOffset==0);
+  }
+  else{
+    nrhs = std::min(pnrhs,contrib->Size() - nrhsOffset);
+  }
+
+  Int ldsol = contrib->Size();
+  Int ldfact = cur_snode->Size();
+
+  nrhs += nrhsOffset;
 
   //This corresponds to the i loop in dtrsm
   for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
@@ -1725,22 +1791,22 @@ inline void SuperNode<T,Allocator>::forward_update_contrib(SuperNode<T> * cur_sn
     if(blkidx==0){
       //TODO That's where we can use the selective inversion
       //if we are processing the "pivot" block
-      for(Int kk = 0; kk<cur_snode->Size(); ++kk){
-        for(Int j = 0; j<nrhs;++j){
+      for(Int kk = 0; kk< ldfact; ++kk){
+        for(Int j = nrhsOffset; j<nrhs;++j){
           //if non unit
-          diag_nzval[kk*nrhs+j] = ( diag_nzval[kk*nrhs+j]) / (chol_nzval[kk*cur_snode->Size()+kk]);
+          diag_nzval[kk*ldsol+j] = ( diag_nzval[kk*ldsol+j]) / (chol_nzval[kk*ldfact+kk]);
 
           for(Int i = kk+1; i<cur_nrows;++i){
-            diag_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*(chol_nzval[i*cur_snode->Size()+kk]);
+            diag_nzval[i*ldsol+j] += -diag_nzval[kk*ldsol+j]*(chol_nzval[i*ldfact+kk]);
           }
         }
       }
     }
     else{
-      for(Int kk = 0; kk<cur_snode->Size(); ++kk){
-        for(Int j = 0; j<nrhs;++j){
+      for(Int kk = 0; kk<ldfact; ++kk){
+        for(Int j = nrhsOffset; j<nrhs;++j){
           for(Int i = 0; i<cur_nrows;++i){
-            cur_nzval[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*(chol_nzval[i*cur_snode->Size()+kk]);
+            cur_nzval[i*ldsol+j] += -diag_nzval[kk*ldsol+j]*(chol_nzval[i*ldfact+kk]);
           }
         }
       }

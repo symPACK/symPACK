@@ -297,10 +297,11 @@ virtual inline Int Aggregate(SuperNode<T,Allocator> * src_snode);
 
   //forward and backward solve phases
   virtual inline void forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, std::vector<Int> & perm);
-  virtual inline void forward_update(SuperNode<T,Allocator> * src_contrib, Int iOwner,Int iam);
-  virtual inline void forward_update_contrib( SuperNode<T> * cur_snode);
-  virtual inline void back_update(SuperNode<T,Allocator> * src_contrib);
-  virtual inline void back_update_contrib(SuperNode<T> * cur_snode);
+  virtual inline void forward_update_contrib( SuperNode<T> * cur_snode, Int nrhsOffset = 0,Int pnrhs=-1);
+  virtual inline void forward_update(SuperNode<T,Allocator> * src_contrib, Int iOwner,Int iam, Int nrhsOffset = 0,Int pnrhs=-1);
+
+  virtual inline void back_update_contrib(SuperNode<T> * cur_snode, Int nrhsOffset = 0,Int pnrhs=-1);
+  virtual inline void back_update(SuperNode<T,Allocator> * src_contrib, Int nrhsOffset = 0,Int pnrhs=-1);
 
 
  virtual inline void Serialize(Icomm & buffer, Int first_blkidx=0, Idx first_row=0);

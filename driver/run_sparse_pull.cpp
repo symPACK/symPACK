@@ -118,6 +118,14 @@ int main(int argc, char **argv)
     }
   }
 
+
+
+  Int numThreads = 1;
+  if( options.find("-t") != options.end() ){
+    numThreads = atoi(options["-t"].front().c_str());
+  }
+
+
   Int maxIsend = -1;
   if( options.find("-is") != options.end() ){
     if(options["-is"].front() != "inf"){
@@ -326,6 +334,7 @@ int main(int argc, char **argv)
       //do the symbolic factorization and build supernodal matrix
       optionsFact.maxIsend = maxIsend;
       optionsFact.maxIrecv = maxIrecv;
+      optionsFact.numThreads = numThreads;
 
 
       symPACKMatrix<SCALAR>*  SMat;

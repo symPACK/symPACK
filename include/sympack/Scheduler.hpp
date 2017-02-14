@@ -59,6 +59,137 @@
 
 namespace symPACK{
 
+#ifdef SP_THREADS
+#include <atomic>
+   
+  class SpinLock
+  {
+    public:
+      void lock()
+      {
+        while(lck.test_and_set(std::memory_order_acquire))
+        {}
+      }
+
+      void unlock()
+      {
+        lck.clear(std::memory_order_release);
+      }
+
+    private:
+      std::atomic_flag lck = ATOMIC_FLAG_INIT;
+  };
+
+
+  template<typename T, typename Queue = std::queue<std::function<T()> > >
+    class WorkQueue{
+#if 1
+      public:
+        std::mutex list_mutex_;
+        Queue workQueue_;
+        std::vector<std::thread> threads;
+        std::condition_variable sync;
+        bool done = false;
+
+        WorkQueue(Int nthreads){
+          for (unsigned int count {0}; count < nthreads; count += 1)
+            threads.emplace_back(static_cast<void(WorkQueue<void>::*)()>(&WorkQueue::consume), this);
+        }
+
+        WorkQueue(WorkQueue &&) = default;
+        WorkQueue &operator=(WorkQueue &&) = delete;
+
+
+        ~WorkQueue(){
+          if(threads.size()>0){
+            std::lock_guard<std::mutex> guard(list_mutex_);
+            done = true;
+            sync.notify_all();
+          }
+          for (auto &&thread: threads) thread.join();
+        }
+
+        void pushTask(std::function<T()> && fut){
+          std::unique_lock<std::mutex> lock(list_mutex_);
+          workQueue_.push(std::forward<std::function<T()> >(fut));
+          sync.notify_one();
+        }
+
+      protected:
+        void consume()
+        {
+          std::unique_lock<std::mutex> lock(list_mutex_);
+          while (true) {
+            if (not workQueue_.empty()) {
+              std::function<T()> func { std::move(workQueue_.front()) };
+              workQueue_.pop();
+              sync.notify_one();
+              lock.unlock();
+              func();
+              lock.lock();
+            } else if (done) {
+              break;
+            } else {
+              sync.wait(lock);
+            }
+          }
+        }
+#else
+      public:
+        SpinLock list_lock_;
+        Queue workQueue_;
+        std::vector<std::thread> threads;
+        bool done = false;
+
+        WorkQueue(Int nthreads){
+          for (unsigned int count {0}; count < nthreads; count += 1)
+            threads.emplace_back(static_cast<void(WorkQueue<void>::*)()>(&WorkQueue::consume), this);
+        }
+
+        WorkQueue(WorkQueue &&) = default;
+        WorkQueue &operator=(WorkQueue &&) = delete;
+
+
+        ~WorkQueue(){
+          if(threads.size()>0){
+            list_lock_.lock();
+            done = true;
+            list_lock_.unlock();
+          }
+          for (auto &&thread: threads) thread.join();
+        }
+
+        void pushTask(std::function<T()> && fut){
+            list_lock_.lock();
+          workQueue_.push(std::forward<std::function<T()> >(fut));
+            list_lock_.unlock();
+        }
+
+
+
+      protected:
+        void consume()
+        {
+          while (true) {
+            list_lock_.lock();
+            if (not workQueue_.empty()) {
+              std::function<T()> func { std::move(workQueue_.front()) };
+              workQueue_.pop();
+              list_lock_.unlock();
+              func();
+            } else if (done) {
+              list_lock_.unlock();
+              break;
+            } 
+            else{
+              list_lock_.unlock();
+            }
+          }
+        }
+
+#endif
+    };
+#endif
 
   template <class T >
     class Scheduler{
@@ -77,8 +208,8 @@ namespace symPACK{
         virtual bool done() =0;
 
 
-        int checkIncomingMessages_(taskGraph & graph);
-        void run(MPI_Comm & workcomm, taskGraph & graph);
+        Int checkIncomingMessages_(Int nthr, taskGraph & graph);
+        void run(MPI_Comm & workcomm, Int nthr, taskGraph & graph);
 
 
 #ifdef SP_THREADS
@@ -318,24 +449,28 @@ namespace symPACK{
 
 
 template< typename Task> 
-int Scheduler<Task>::checkIncomingMessages_(taskGraph & graph)
+int Scheduler<Task>::checkIncomingMessages_(Int nthr, taskGraph & graph)
 {
   abort();
   return 0;
 }
 
 template<>
-int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph & graph)
+int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, taskGraph & graph)
 {
   scope_timer(a,CHECK_MESSAGE);
 
   int num_recv = 0;
 
-  {
+  if(nthr>1){
     scope_timer(a,UPCXX_ADVANCE);
 #ifdef SP_THREADS
     std::lock_guard<std::mutex> lock(upcxx_mutex_);
 #endif
+    upcxx::advance();
+  }
+  else{
+    scope_timer(a,UPCXX_ADVANCE);
     upcxx::advance();
   }
 
@@ -347,30 +482,12 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
 
     {
 #ifdef SP_THREADS
-      std::lock_guard<std::mutex> lock(upcxx_mutex_);
-#endif
-      //if we have some room, turn blocking comms into async comms
-      if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
-        scope_timer(b,MV_MSG_SYNC);
-        while((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()){
-          bool success = false;
-          auto it = gIncomingRecv.begin();
-          //find one which is not done
-          while((*it)->IsDone()){it++;}
-
-          success = (*it)->AllocLocal();
-          if(success){
-            (*it)->AsyncGet();
-            gIncomingRecvAsync.push_back(*it);
-            gIncomingRecv.erase(it);
-          }
-          else{
-            //TODO handle out of memory
-            abort();
-            break;
-          }
-        }
+      if(nthr>1){
+        upcxx_mutex_.lock();
       }
+      //std::lock_guard<std::mutex> lock(upcxx_mutex_);
+#endif
+
 
       {
         //find if there is some finished async comm
@@ -397,6 +514,12 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
           gIncomingRecv.erase(it);
         }
       }
+
+#ifdef SP_THREADS
+      if(nthr>1){
+        upcxx_mutex_.unlock();
+      }
+#endif
     }
 
     if(msg!=NULL){
@@ -440,7 +563,10 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
 #endif
       {
 #ifdef SP_THREADS
-        std::lock_guard<std::mutex> lock(list_mutex_);
+        //std::lock_guard<std::mutex> lock(list_mutex_);
+        if(nthr>1){
+          list_mutex_.lock();
+        }
 #endif
         taskit->second->remote_deps_cnt--;
         taskit->second->data.push_back(msg);
@@ -449,20 +575,59 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
           this->push(taskit->second);    
           graph.removeTask(taskit->second->id);
         }
+
+#ifdef SP_THREADS
+        if(nthr>1){
+          list_mutex_.unlock();
+        }
+#endif
       }
     }
   }while(msg!=NULL);
+
+#ifdef SP_THREADS
+      if(nthr>1){
+        upcxx_mutex_.lock();
+      }
+#endif
+      //if we have some room, turn blocking comms into async comms
+      if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
+        scope_timer(b,MV_MSG_SYNC);
+        while((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()){
+          bool success = false;
+          auto it = gIncomingRecv.begin();
+          //find one which is not done
+          while((*it)->IsDone()){it++;}
+
+          success = (*it)->AllocLocal();
+          if(success){
+            (*it)->AsyncGet();
+            gIncomingRecvAsync.push_back(*it);
+            gIncomingRecv.erase(it);
+          }
+          else{
+            //TODO handle out of memory
+            abort();
+            break;
+          }
+        }
+      }
+#ifdef SP_THREADS
+      if(nthr>1){
+        upcxx_mutex_.unlock();
+      }
+#endif
 
   return num_recv;
 }
 
 
   template <class Task > 
-  void Scheduler<Task>::run(MPI_Comm & workcomm,taskGraph & graph){
+  void Scheduler<Task>::run(MPI_Comm & workcomm, Int nthr,taskGraph & graph){
   }
 
   template <> 
-  void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm,taskGraph & graph){
+  void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm,Int nthr,taskGraph & graph){
 
     int np = 1;
     MPI_Comm_size(workcomm,&np);
@@ -508,24 +673,28 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
     };
 
 #ifdef SP_THREADS
-      auto check_handle = [] (std::future< void > const& f) -> bool {
-           return f.wait_for(std::chrono::seconds(0)) == std::future_status::ready; };
-    std::vector<std::future<void> > handles;
-    Int nthr = (2*std::thread::hardware_concurrency()-1)/np;
-    if(iam==np-1){ nthr= 2*std::thread::hardware_concurrency()-1-(np-1)*nthr; }
+      auto check_handle = [] (std::future< void > const& f) {
+            bool retval = f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
+            //logfileptr->OFS()<<"thread done ? "<<retval<<std::endl;
+           return retval; };
+     
+    std::list<std::future<void> > handles;
+    //Int nthr = (2*std::thread::hardware_concurrency()-1)/np;
+    //if(iam==np-1){ nthr= 2*std::thread::hardware_concurrency()-1-(np-1)*nthr; }
     //nthr = 20;
 
     logfileptr->OFS()<<"Num threads = "<<nthr<<std::endl;
-    handles.reserve(nthr);
-#endif
+    //handles.reserve(nthr);
 
-    while(graph.getTaskCount()>0 || !this->done()){
-      int num_msg = checkIncomingMessages_(graph);
-
-#ifdef SP_THREADS
+      auto progress_threads = [&]() {
+          //logfileptr->OFS()<<"handle size "<<handles.size()<<std::endl;
+        scope_timer(a,SOLVE_PROGRESS_THREADS);
         auto it = handles.begin();
         while(it != handles.end()){
+//          it->wait();
+          //logfileptr->OFS()<<"checking handle"<<std::endl;
           if(check_handle(*it)){
+            //logfileptr->OFS()<<"thread done"<<std::endl;
             it->get();
             it = handles.erase(it);
           }
@@ -533,6 +702,61 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
             it++;
           }
         }
+      };
+#endif
+
+#if 1
+      {
+        WorkQueue<void> queue(nthr);
+
+        Int num_msg =0;
+        std::shared_ptr<GenericTask> curTask = nullptr;
+        if(nthr>1){
+          while(graph.getTaskCount()>0 || !this->done()){
+            
+            if(np>1){
+              num_msg = checkIncomingMessages_(nthr,graph);
+            }
+
+            //while(!this->done())
+            if(!this->done())
+            {
+              //Pick a ready task
+              {
+                std::lock_guard<std::mutex> lock(list_mutex_);
+                curTask = this->top();
+                this->pop();
+              }
+              queue.pushTask(std::move(curTask->execute));
+            }
+          }
+        }
+        else{
+          while(graph.getTaskCount()>0 || !this->done()){
+            if(np>1){
+              num_msg = checkIncomingMessages_(nthr,graph);
+            }
+            if(!this->done())
+            {
+              //Pick a ready task
+              curTask = this->top();
+              this->pop();
+              curTask->execute();
+            }
+          }
+        }
+
+        upcxx::async_wait();
+        MPI_Barrier(workcomm);
+
+
+      }
+#else
+    while(graph.getTaskCount()>0 || !this->done()){
+      int num_msg = checkIncomingMessages_(nthr,graph);
+
+#ifdef SP_THREADS
+//      progress_threads();
 #endif
 
 #ifdef SP_THREADS
@@ -573,12 +797,18 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
 #endif
 
 #ifdef SP_THREADS
-        if( handles.size()<handles.capacity()){
-          auto fut = std::async(std::launch::async,curTask->execute);
-          handles.push_back(std::move(fut));
+      progress_threads();
+    //logfileptr->OFS()<<"running threads "<<handles.size()<<" vs "<<nthr<<std::endl;
+        if( handles.size()<nthr){
+            //logfileptr->OFS()<<"thread done"<<std::endl;
+          //auto fut = std::async(std::launch::async,curTask->execute);
+          //handles.push_back(std::move(fut));
+          handles.push_back(std::async(std::launch::async,curTask->execute));
+      //progress_threads();
         }
         else{
           curTask->execute();
+          break;
         }
 #else
         curTask->execute();
@@ -609,6 +839,7 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph &
 
     upcxx::async_wait();
     MPI_Barrier(workcomm);
+#endif
 
   }
 

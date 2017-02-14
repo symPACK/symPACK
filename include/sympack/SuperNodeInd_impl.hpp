@@ -898,10 +898,24 @@ namespace symPACK{
 
 
   template <typename T, class Allocator> 
-    inline void SuperNodeInd<T,Allocator>::back_update_contrib(SuperNode<T> * cur_snode){
+    inline void SuperNodeInd<T,Allocator>::back_update_contrib(SuperNode<T> * cur_snode, Int nrhsOffset, Int pnrhs){
       SuperNodeInd<T,Allocator> * contrib = this;
       SuperNodeInd<T> * cur_snodeInd = static_cast<SuperNodeInd<T>*>(cur_snode);
-      Int nrhs = this->Size();
+
+  Int nrhs = pnrhs;
+  if(pnrhs==-1){
+    nrhs = contrib->Size();
+    assert(nrhsOffset==0);
+  }
+  else{
+    nrhs = std::min(pnrhs,contrib->Size() - nrhsOffset);
+  }
+
+  Int ldsol = contrib->Size();
+  Int ldfact = cur_snode->Size();
+
+
+
 
       //  for(k=n;k>=1;k--){
       //    if(k<n){
@@ -929,8 +943,8 @@ namespace symPACK{
             T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
             T * fact_nzval = cur_snodeInd->GetNZval(fact_desc.Offset);
 
-            blas::Gemv( 'N', nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*nrhs],nrhs,
-                &fact_nzval[rowK*snodeSize+kk],snodeSize, T(1.0), &updated_nzval[(kk)*nrhs], 1);
+            blas::Gemv( 'N', nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*ldsol+nrhsOffset],ldsol,
+                &fact_nzval[rowK*ldfact+kk],ldfact, T(1.0), &updated_nzval[(kk)*ldsol+nrhsOffset], 1);
 
           }
         }
@@ -971,11 +985,26 @@ namespace symPACK{
 
 
   template <typename T, class Allocator> 
-    inline void SuperNodeInd<T,Allocator>::forward_update_contrib( SuperNode<T> * cur_snode){
+    inline void SuperNodeInd<T,Allocator>::forward_update_contrib( SuperNode<T> * cur_snode, Int nrhsOffset, Int pnrhs){
       SuperNodeInd<T> * cur_snodeInd = static_cast<SuperNodeInd<T>*>(cur_snode);
       SuperNodeInd<T,Allocator> * contrib = this;
-      Int nrhs = this->Size();
       Int snodeSize = cur_snodeInd->Size();
+
+  Int nrhs = pnrhs;
+  if(pnrhs==-1){
+    nrhs = contrib->Size();
+    assert(nrhsOffset==0);
+  }
+  else{
+    nrhs = std::min(pnrhs,contrib->Size() - nrhsOffset);
+  }
+
+  Int ldsol = contrib->Size();
+  Int ldfact = cur_snodeInd->Size();
+
+
+
+
 
       if(cur_snodeInd->NZBlockCnt()>=1){
         NZBlockDesc & diag_desc = contrib->GetNZBlockDesc(0);
@@ -998,22 +1027,22 @@ namespace symPACK{
           if(blkidx==0){
             //TODO That's where we can use the selective inversion
             //if we are processing the "pivot" block
-            for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
+            for(Int kk = 0; kk<snodeSize; ++kk){
               //then compute the rank one update
-              blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*nrhs], 1,&chol_nzval[(kk + 1)*snodeSize+kk], snodeSize, &cur_nzval[(kk + 1)*nrhs], nrhs );
+              blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*ldsol+nrhsOffset], 1,&chol_nzval[(kk + 1)*ldfact+kk], ldfact, &cur_nzval[(kk + 1)*ldsol+nrhsOffset], ldsol );
             }
           }
           else{
-            for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
+            for(Int kk = 0; kk<snodeSize; ++kk){
               //compute the rank one update
-              blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*nrhs], 1, &chol_nzval[kk], snodeSize, &cur_nzval[0], nrhs );
+              blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*ldsol+nrhsOffset], 1, &chol_nzval[kk], ldfact, &cur_nzval[nrhsOffset], ldsol );
             }
           }
         }
 
-        for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
+        for(Int kk = 0; kk<snodeSize; ++kk){
           //scale the kk-th row of the solution
-          lapack::Scal(nrhs, T(1.0)/chol_diag[kk], &diag_nzval[kk*nrhs], 1);
+          lapack::Scal(nrhs, T(1.0)/chol_diag[kk], &diag_nzval[kk*ldsol+nrhsOffset], 1);
         }
       }
     }
