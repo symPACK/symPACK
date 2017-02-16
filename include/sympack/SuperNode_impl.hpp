@@ -1559,6 +1559,10 @@ inline void SuperNode<T,Allocator>::Serialize(Icomm & buffer, Int first_blkidx, 
 
 template <typename T, class Allocator> 
     inline void SuperNode<T,Allocator>::forward_update(SuperNode<T,Allocator> * src_contrib, Int iOwner,Int iam, Int nrhsOffset, Int pnrhs){
+      //if(!this->lock_.try_lock()){
+      //  gdb_lock();
+      //}
+
       SuperNode<T,Allocator> * tgt_contrib = this;
 
   Int nrhs = pnrhs;
@@ -1607,11 +1611,23 @@ template <typename T, class Allocator>
         if(nrhs!=ldsol){
           Int nrows = tgt_local_lr - tgt_local_fr +1;
           for(Int row=0;row<nrows;row++){
-            blas::Axpy(nrhs, T(1.0),&src[row*ldsol],1,&tgt[row*ldsol],1);
+            //blas::Axpy(nrhs, T(1.0),&src[row*ldsol],1,&tgt[row*ldsol],1);
+
+            for(Int col=0; col<nrhs;col++){
+              //atomic operations ?
+              tgt[row*ldsol+col] += src[row*ldsol+col];
+            }
           }
         }
         else{
-          blas::Axpy((tgt_local_lr - tgt_local_fr +1)*nrhs, T(1.0),src,1,tgt,1);
+          //blas::Axpy((tgt_local_lr - tgt_local_fr +1)*nrhs, T(1.0),src,1,tgt,1);
+          Int nrows = tgt_local_lr - tgt_local_fr +1;
+          for(Int row=0;row<nrows;row++){
+            for(Int col=0; col<nrhs;col++){
+              //atomic operations ?
+              tgt[row*ldsol+col] += src[row*ldsol+col];
+            }
+          }
         }
 
         if(src_lr>tgt_lr){
@@ -1631,6 +1647,8 @@ template <typename T, class Allocator>
           }
         }
       }
+
+      //this->lock_.unlock();
     }
 
 
@@ -1638,6 +1656,10 @@ template <typename T, class Allocator>
 
 template <typename T, class Allocator> 
     inline void SuperNode<T,Allocator>::back_update(SuperNode<T,Allocator> * src_contrib, Int nrhsOffset, Int pnrhs){
+      //if(!this->lock_.try_lock()){
+      //  gdb_lock();
+      //}
+
       SuperNode<T,Allocator> * tgt_contrib = this;
 Int nrhs = pnrhs;
   if(pnrhs==-1){
@@ -1693,6 +1715,7 @@ Int nrhs = pnrhs;
 
         } while(tgt_lr>src_lr);
       }
+      //this->lock_.unlock();
     }
 
 

@@ -56,6 +56,7 @@
 
 #include <upcxx.h>
 #include <list>
+#include <mutex>
 
 #ifdef NO_INTRA_PROFILE
 #if defined (SPROFILE)
@@ -172,6 +173,7 @@ class UpcxxAllocator: public MemoryAllocator{
 template<typename T>
 class SuperNodeBase{
   public:
+    std::mutex lock_;
     virtual ~SuperNodeBase(){};
     virtual inline Int & Id() = 0;
 };

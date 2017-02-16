@@ -17,6 +17,7 @@
 
 
 //#define DUMP_MATLAB
+//#define DUMP_MATLAB_SOL
 
 /******* TYPE used in the computations ********/
 #define SCALAR double
@@ -418,7 +419,7 @@ int main(int argc, char **argv)
 
         SMat->GetSolution(&XFinal[0],nrhs);
 
-#ifdef DUMP_MATLAB
+#if defined(DUMP_MATLAB) || defined(DUMP_MATLAB_SOL)
         if(nrhs>0 && XFinal.size()>0) {
           {
             std::size_t N = XFinal.size();

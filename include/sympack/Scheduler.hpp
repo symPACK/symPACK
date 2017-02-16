@@ -120,6 +120,35 @@ namespace symPACK{
         {
           std::unique_lock<std::mutex> lock(list_mutex_);
           while (true) {
+#if 0
+std::function<T()> func;
+            {
+          std::unique_lock<std::mutex> lock(list_mutex_);
+            sync.wait(lock,[this]{return !workQueue_.empty();});
+              func = { std::move(workQueue_.front()) };
+              workQueue_.pop();
+              sync.notify_one();
+            }
+              func();
+
+
+
+
+//            sync.wait(lock,[this]{return !workQueue_.empty() || done;});
+//
+//            if (done){
+//            //  lock.unlock();
+//              break;
+//            }
+//            else {
+//              std::function<T()> func { std::move(workQueue_.front()) };
+//              workQueue_.pop();
+//              sync.notify_one();
+//            //  lock.unlock();
+//              func();
+//            //  lock.lock();
+//            }
+#else
             if (not workQueue_.empty()) {
               std::function<T()> func { std::move(workQueue_.front()) };
               workQueue_.pop();
@@ -132,6 +161,7 @@ namespace symPACK{
             } else {
               sync.wait(lock);
             }
+#endif
           }
         }
 #else
@@ -718,9 +748,10 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
               num_msg = checkIncomingMessages_(nthr,graph);
             }
 
-            //while(!this->done())
-            if(!this->done())
+            while(!this->done())
+            //if(!this->done())
             {
+              
               //Pick a ready task
               {
                 std::lock_guard<std::mutex> lock(list_mutex_);
