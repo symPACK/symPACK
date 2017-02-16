@@ -650,7 +650,8 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
     double timeAlloc = 0.0;
     double timeCopy = 0.0;
-    for(Int iLocalI = 1; iLocalI <= LocalSupernodes_.size(); iLocalI++){
+    Int nsupLocal = LocalSupernodes_.size();
+    for(Int iLocalI = 1; iLocalI <= nsupLocal; iLocalI++){
       auto cur_snode = this->LocalSupernodes_[iLocalI-1];
       Int I = cur_snode->Id();
         //Create the blocks of my contrib with the same nz structure as L
@@ -770,10 +771,9 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
     //Do a bottom up traversal
 
-    for(Int iLocalI = 1; iLocalI <= LocalSupernodes_.size(); iLocalI++){
+    for(Int iLocalI = 1; iLocalI <= nsupLocal; iLocalI++){
       auto cur_snode = this->LocalSupernodes_[iLocalI-1];
       Int I = cur_snode->Id();
-    //for(Int I=1;I<=nsuper;I++)
       //Add the FUC task
       {
         Int iOwner = Mapping_->Map(I-1,I-1);
@@ -791,8 +791,8 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
             Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[3]);
             type = Solve::op_type::FUC;
 
-            FUCtask.local_deps_cnt = loc_children[I-1];//+rem_children[I-1];
-            FUCtask.remote_deps_cnt = +rem_children[I-1];
+            FUCtask.local_deps_cnt = loc_children[I-1];
+            FUCtask.remote_deps_cnt = rem_children[I-1];
             //if this is the last task, add all the other subtasks as dependencies
             Int parent = SupETree.PostParent(I-1);
             if(parent!=0){

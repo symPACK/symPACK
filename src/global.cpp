@@ -50,7 +50,10 @@
   int symPACK_Init(int *argc=NULL, char ***argv=NULL){
     int retval = 0;
 
-    retval = MPI_Init(argc,argv);
+    MPI_Initialized(&retval);
+    if(retval==0){
+      retval = MPI_Init(argc,argv);
+    }
 
 char *orig_pmi_gni_cookie = getenv("PMI_GNI_COOKIE");
 if (orig_pmi_gni_cookie) {

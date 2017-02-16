@@ -83,7 +83,7 @@ namespace symPACK{
 
   template<typename T, typename Queue = std::queue<std::function<T()> > >
     class WorkQueue{
-#if 1
+#if 0
       public:
         std::mutex list_mutex_;
         Queue workQueue_;

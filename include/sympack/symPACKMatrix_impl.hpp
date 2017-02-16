@@ -240,6 +240,175 @@ namespace symPACK{
   }
 
 
+#if 0
+  template<typename T> void symPACKMatrix<T>::generateTaskGraph_New_(taskGraph & taskGraph,
+      std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates)
+  {
+    //we will need to communicate if only partial xlindx_, lindx_
+    //idea: build tasklist per processor and then exchange
+    std::map<Idx, std::list<std::pair<Idx,Idx> >  > Updates;
+    std::vector<int> marker(np,0);
+    Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
+    Int firstSnode = XsuperDist_[iam];
+    for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
+      Idx I = locsupno + firstSnode-1;
+      Int iOwner = Mapping_->Map(I-1,I-1);
+
+      Int first_col = Xsuper_[I-1];
+      Int last_col = Xsuper_[I]-1;
+
+      //Create the factor task on the owner
+      Updates[iOwner].push_back(std::make_pair(I,I));
+
+      Int J = -1; 
+      Ptr lfi = locXlindx_[locsupno-1];
+      Ptr lli = locXlindx_[locsupno]-1;
+      Idx prevSnode = -1;
+      for(Ptr sidx = lfi; sidx<=lli;sidx++){
+        Idx row = locLindx_[sidx-1];
+        J = SupMembership_[row-1];
+        if(J!=prevSnode){
+          //J = locSupLindx_[sidx-1];
+          Int iUpdater = Mapping_->Map(J-1,I-1);
+
+          if(J>I){
+            if(marker[iUpdater]!=I){
+              //create the task on iUpdater
+              Updates[iUpdater].push_back(std::make_pair(I,J));
+              //create only one task if I don't own the factor
+              if(iUpdater!=iOwner){
+                marker[iUpdater]=I;
+              }
+            }
+          }
+        }
+        prevSnode = J;
+      }
+    }
+
+    MPI_Datatype type;
+    MPI_Type_contiguous( sizeof(std::pair<Idx,Idx>), MPI_BYTE, &type );
+    MPI_Type_commit(&type);
+
+    //then do an alltoallv
+    //compute send sizes
+    vector<int> ssizes(np,0);
+    for(auto itp = Updates.begin();itp!=Updates.end();itp++){
+      ssizes[itp->first] = itp->second.size();//*sizeof(std::pair<Idx,Idx>);
+    }
+
+    //compute send displacements
+    vector<int> sdispls(np+1,0);
+    sdispls[0] = 0;
+    std::partial_sum(ssizes.begin(),ssizes.end(),&sdispls[1]);
+
+    //Build the contiguous array of pairs
+    vector<std::pair<Idx,Idx> > sendbuf;
+    sendbuf.reserve(sdispls.back());///sizeof(std::pair<Idx,Idx>));
+
+    for(auto itp = Updates.begin();itp!=Updates.end();itp++){
+      sendbuf.insert(sendbuf.end(),itp->second.begin(),itp->second.end());
+    }
+
+    //gather receive sizes
+    vector<int> rsizes(np,0);
+    MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,CommEnv_->MPI_GetComm());
+
+    //compute receive displacements
+    vector<int> rdispls(np+1,0);
+    rdispls[0] = 0;
+    std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+
+
+    //Now do the alltoallv
+    vector<std::pair<Idx,Idx> > recvbuf(rdispls.back());///sizeof(std::pair<Idx,Idx>));
+    MPI_Alltoallv(&sendbuf[0],&ssizes[0],&sdispls[0],type,&recvbuf[0],&rsizes[0],&rdispls[0],type,CommEnv_->MPI_GetComm());
+
+    MPI_Type_free(&type);
+
+    //now process recvbuf and add the tasks to my tasklists
+    taskGraph.taskLists_.resize(TotalSupernodeCnt(),NULL);
+    //Int localTaskCount = 0;
+    for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
+      FBTask curUpdate;
+      curUpdate.src_snode_id = it->first;
+      curUpdate.tgt_snode_id = it->second;
+      curUpdate.type=(it->first==it->second)?FACTOR:UPDATE;
+
+      Int J = curUpdate.tgt_snode_id;
+
+      taskGraph.addTask(curUpdate);
+
+      ////create the list if needed
+      //if(taskGraph.taskLists_[J-1] == NULL){
+      //  taskGraph.taskLists_[J-1]=new std::list<FBTask>();
+      //}
+      //taskGraph.taskLists_[J-1]->push_back(curUpdate);
+
+      //TODO
+      //localTaskCount++;
+    }
+    //taskGraph.localTaskCount_=localTaskCount;
+
+
+
+    for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
+      if(taskGraph.taskLists_[i] != NULL){
+        for(auto taskit = taskGraph.taskLists_[i]->begin(); taskit!=taskGraph.taskLists_[i]->end();taskit++){
+          FBTask & curUpdate = *taskit;
+          if(curUpdate.type==FACTOR){
+            curUpdate.remote_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
+            curUpdate.local_deps = LocalAggregates[curUpdate.tgt_snode_id-1];
+          }
+          else if(curUpdate.type==UPDATE){
+            Int iOwner = Mapping_->Map(curUpdate.src_snode_id-1,curUpdate.src_snode_id-1);
+            //If I own the factor, it is a local dependency
+            if(iam==iOwner){
+              curUpdate.remote_deps = 0;
+              curUpdate.local_deps = 1;
+            }
+            else{
+              curUpdate.remote_deps = 1;
+              curUpdate.local_deps = 0;
+            }
+          }
+        }
+      }
+    }
+
+
+    std::vector<Int> levels;
+    levels.resize(Xsuper_.size());
+    levels[0]=0;
+    Int numLevel = 0; 
+    for(Int i=Xsuper_.size()-1-1; i>=0; i-- ){     
+      Int fcol = Xsuper_[i];
+      bassert(fcol-1>=0);
+      Int pcol =ETree_.PostParent(fcol-1);
+      Int supno = pcol>0?SupMembership_[pcol-1]:0;
+      levels[i] = levels[supno]+1;
+    }
+
+    for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
+      if(taskGraph.taskLists_[i] != NULL){
+        for(auto taskit = taskGraph.taskLists_[i]->begin(); taskit!=taskGraph.taskLists_[i]->end();taskit++){
+          taskit->rank = levels[taskit->src_snode_id];
+        }
+      }
+    }
+
+
+  }
+#endif
+
+
+
+
+
+
+
+
+
   template <typename T> void symPACKMatrix<T>::Factorize(){
     SYMPACK_TIMER_START(NUMERICAL_FACT);
     if(iam<np){
