@@ -925,11 +925,24 @@ inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode)
 //CHECKED ON 11-18-2014
 template<typename T, class Allocator>
 inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-    TempUpdateBuffers<T> & tmpBuffers, Int iTarget, Int iam){
+#ifdef SP_THREADS
+    TempUpdateBuffers<T> & tmpBuffers_disabled,
+#else
+    TempUpdateBuffers<T> & tmpBuffers,
+#endif
+    Int iTarget, Int iam){
 
   scope_timer(a,UPDATE_AGGREGATE_SNODE);
 #if defined(_NO_COMPUTATION_)
   return 0;
+#endif
+
+#ifdef SP_THREADS
+      //hide the parameter
+        TempUpdateBuffers<T> tmpBuffers;
+        tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
+        tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
+        tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
 #endif
 
   if(iTarget != iam){
@@ -969,9 +982,6 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
     //Pointer to the output buffer of the GEMM
     T * buf = NULL;
     T beta = ZERO<T>();
-#ifdef _DEBUG_
-    tmpBuffers.tmpBuf.Resize(tgt_width,src_nrows);
-#endif
 
     buf = &tmpBuffers.tmpBuf[0];
 
@@ -1141,11 +1151,24 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
 //CHECKED ON 11-18-2014
 template<typename T, class Allocator>
 inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-    TempUpdateBuffers<T> & tmpBuffers){
+#ifdef SP_THREADS
+    TempUpdateBuffers<T> & tmpBuffers_disabled
+#else
+    TempUpdateBuffers<T> & tmpBuffers
+#endif
+    ){
 
   scope_timer(a,UPDATE_SNODE);
 #if defined(_NO_COMPUTATION_)
   return 0;
+#endif
+
+#ifdef SP_THREADS
+      //hide the parameter
+        TempUpdateBuffers<T> tmpBuffers;
+        tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
+        tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
+        tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
 #endif
 
   Int & pivot_idx = update.blkidx;
@@ -1193,9 +1216,6 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
   }
   else{
     //Compute the update in a temporary buffer
-#ifdef _DEBUG_
-    tmpBuffers.tmpBuf.Resize(tgt_width,src_nrows);
-#endif
     buf = &tmpBuffers.tmpBuf[0];
   }
 
@@ -1364,11 +1384,24 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
 
 //CHECKED ON 11-18-2014
 template<typename T, class Allocator>
-  inline Int SuperNode<T,Allocator>::Factorize(TempUpdateBuffers<T> & tmpBuffers){
+  inline Int SuperNode<T,Allocator>::Factorize(
+#ifdef SP_THREADS
+      TempUpdateBuffers<T> & tmpBuffers_disabled
+#else
+      TempUpdateBuffers<T> & tmpBuffers
+#endif
+      ){
 #if defined(_NO_COMPUTATION_)
     return 0;
 #endif
 
+#ifdef SP_THREADS
+      //hide the parameter
+        TempUpdateBuffers<T> tmpBuffers;
+        tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
+        tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
+        tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
+#endif
 
     Int snode_size = Size();
     NZBlockDesc & diag_desc = GetNZBlockDesc(0);

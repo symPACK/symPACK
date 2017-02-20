@@ -157,6 +157,7 @@ namespace symPACK{
       void GetSolution(T * B, int nrhs);
 
       void FanBoth( );
+      void FanBoth_New( );
 
 
       //debug routines
@@ -235,13 +236,13 @@ namespace symPACK{
 
       //backup for factorization
       std::vector<Int> UpdatesToDo_;
-      std::vector<std::list<FBTask> * > origTaskLists_;
       Int localTaskCount_;
-      void generateTaskGraph(Int & localTaskCount, std::vector<std::list<FBTask> * > & taskLists);
-      std::list<FBTask>::iterator find_task(std::vector<std::list<FBTask> * > & taskLists, Int src, Int tgt, TaskType type );
 
       supernodalTaskGraph<FBTask> taskGraph_;
       void generateTaskGraph(supernodalTaskGraph<FBTask> & taskGraph,std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates);
+
+      taskGraph taskGraph_New_;
+      void generateTaskGraph_New(taskGraph & taskGraph, std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates);
 
       std::vector<std::list<Int> > chSupTree_;
       void dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier);
@@ -288,6 +289,9 @@ namespace symPACK{
 
 
       TempUpdateBuffers<T> tmpBufs;
+#ifdef SP_THREADS
+      std::map<std::thread::id,TempUpdateBuffers<T> > tmpBufs_th;
+#endif
 
       void findSupernodes(ETree& tree, Ordering & aOrder, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, Int maxSize = -1);
       void relaxSupernodes(ETree& tree, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, RelaxationParameters & params  );

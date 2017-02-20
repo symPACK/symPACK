@@ -771,6 +771,7 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
     //Do a bottom up traversal
 
+    Int nsupLocal = LocalSupernodes_.size();
     for(Int iLocalI = 1; iLocalI <= nsupLocal; iLocalI++){
       auto cur_snode = this->LocalSupernodes_[iLocalI-1];
       Int I = cur_snode->Id();
@@ -1407,7 +1408,6 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
                             if(taskit!=graph.tasks_.end()){
                               child_found = true;
-                              msgPtr->meta.id = id;
                               taskit->second->data.push_back(msgPtr);
                               //log_task(taskit);
                               dec_ref(taskit,0,1);
@@ -1436,6 +1436,7 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
 
                   if(!child_found && task == numSubTasks-1){
+                    //TODO THIS MAY NOT WORK IN A MT CONTEXT: if other children are not done, we cant erase the data !
                     //delete otherwise
                     delete msgPtr;
                   }

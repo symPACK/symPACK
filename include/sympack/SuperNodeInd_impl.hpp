@@ -448,11 +448,24 @@ namespace symPACK{
     }
 
   template<typename T, class Allocator>
-    inline Int SuperNodeInd<T,Allocator>::Factorize(TempUpdateBuffers<T> & tmpBuffers){
+    inline Int SuperNodeInd<T,Allocator>::Factorize(
+//#ifdef SP_THREADS
+//        TempUpdateBuffers<T> & tmpBuffers_disabled
+//#else
+        TempUpdateBuffers<T> & tmpBuffers
+//#endif
+        ){
 #if defined(_NO_COMPUTATION_)
       return 0;
 #endif
 
+//#ifdef SP_THREADS
+//      //hide the parameter
+//        TempUpdateBuffers<T> tmpBuffers;
+//        //tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
+//        //tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
+//        //tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
+//#endif
 
       Int snodeSize = this->Size();
       NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
@@ -496,13 +509,25 @@ namespace symPACK{
 
   template<typename T, class Allocator>
     inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-        TempUpdateBuffers<T> & tmpBuffers, Int iTarget, Int iam ){
-
+//#ifdef SP_THREADS
+//        TempUpdateBuffers<T> & tmpBuffers_disabled,
+//#else
+        TempUpdateBuffers<T> & tmpBuffers,
+//#endif
+        Int iTarget, Int iam ){
       scope_timer(a,UPDATE_AGGREGATE_SNODE);
+
 #if defined(_NO_COMPUTATION_)
       return 0;
 #endif
 
+///#ifdef SP_THREADS
+///      //hide the parameter
+///        TempUpdateBuffers<T> tmpBuffers;
+///        tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
+///        tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
+///        tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
+///#endif
 
       if(iTarget != iam){
         this->Merge(src_snode, update);
@@ -544,10 +569,10 @@ namespace symPACK{
         T beta = ZERO<T>();
         //If the target supernode has the same structure,
         //The GEMM is directly done in place
-        T * bufLDL = &tmpBuffers.tmpBuf[0];
-#ifdef _DEBUG_
-        tmpBuffers.tmpBuf.Resize(src_snode_size,src_nrows+tgt_width);
+#ifdef SP_THREADS
+        tmpBuffers.tmpBuf.resize(src_snode_size*tgt_width+tgt_width*src_nrows);
 #endif
+        T * bufLDL = &tmpBuffers.tmpBuf[0];
         buf = bufLDL + src_snode_size*tgt_width;
 
         SYMPACK_TIMER_START(UPDATE_SNODE_GEMM);
@@ -687,7 +712,19 @@ namespace symPACK{
 
   template<typename T, class Allocator>
     inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-        TempUpdateBuffers<T> & tmpBuffers){
+//#ifdef SP_THREADS
+//        TempUpdateBuffers<T> & tmpBuffers_disabled
+//#else
+        TempUpdateBuffers<T> & tmpBuffers
+//#endif
+        ){
+#ifdef SP_THREADS
+      //hide the parameter
+        //TempUpdateBuffers<T> tmpBuffers;
+        //tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
+        //tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
+        //tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
+#endif
 
       scope_timer(a,UPDATE_SNODE);
 #if defined(_NO_COMPUTATION_)
@@ -733,6 +770,11 @@ namespace symPACK{
       T beta = ZERO<T>();
       //If the target supernode has the same structure,
       //The GEMM is directly done in place
+#ifdef SP_THREADS
+        tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+#endif
+
+
       T * bufLDL = &tmpBuffers.tmpBuf[0];
       if(src_nrows == tgt_nrows){
         Int tgt_offset = (tgt_fc - this->FirstCol());
@@ -741,9 +783,6 @@ namespace symPACK{
       }
       else{
         //Compute the update in a temporary buffer
-#ifdef _DEBUG_
-        tmpBuffers.tmpBuf.Resize(src_snode_size,src_nrows+tgt_width);
-#endif
         buf = bufLDL + src_snode_size*tgt_width;
       }
 

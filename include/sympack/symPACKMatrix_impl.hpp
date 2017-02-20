@@ -240,8 +240,8 @@ namespace symPACK{
   }
 
 
-#if 0
-  template<typename T> void symPACKMatrix<T>::generateTaskGraph_New_(taskGraph & taskGraph,
+#if 1
+  template<typename T> void symPACKMatrix<T>::generateTaskGraph_New(taskGraph & graph,
       std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates)
   {
     //we will need to communicate if only partial xlindx_, lindx_
@@ -276,9 +276,10 @@ namespace symPACK{
               //create the task on iUpdater
               Updates[iUpdater].push_back(std::make_pair(I,J));
               //create only one task if I don't own the factor
-              if(iUpdater!=iOwner){
-                marker[iUpdater]=I;
-              }
+              //TODO CHANGE THIS
+              //if(iUpdater!=iOwner){
+              //  marker[iUpdater]=I;
+              //}
             }
           }
         }
@@ -326,78 +327,50 @@ namespace symPACK{
 
     MPI_Type_free(&type);
 
-    //now process recvbuf and add the tasks to my tasklists
-    taskGraph.taskLists_.resize(TotalSupernodeCnt(),NULL);
+    std::hash<std::string> hash_fn;
+    //now process recvbuf and add the tasks to the taskGraph
     //Int localTaskCount = 0;
     for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
-      FBTask curUpdate;
-      curUpdate.src_snode_id = it->first;
-      curUpdate.tgt_snode_id = it->second;
-      curUpdate.type=(it->first==it->second)?FACTOR:UPDATE;
+            std::shared_ptr<GenericTask> pTask(new SparseTask);
+            SparseTask & Task = *(SparseTask*)pTask.get();
 
-      Int J = curUpdate.tgt_snode_id;
+            Task.meta.resize(2*sizeof(Int)+sizeof(Factorization::op_type));
+            Int * meta = reinterpret_cast<Int*>(Task.meta.data());
+            meta[0] = it->first;
+            meta[1] = it->second;
+            Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+            type = (it->first==it->second)?Factorization::op_type::FACTOR:Factorization::op_type::UPDATE;
 
-      taskGraph.addTask(curUpdate);
-
-      ////create the list if needed
-      //if(taskGraph.taskLists_[J-1] == NULL){
-      //  taskGraph.taskLists_[J-1]=new std::list<FBTask>();
-      //}
-      //taskGraph.taskLists_[J-1]->push_back(curUpdate);
-
-      //TODO
-      //localTaskCount++;
-    }
-    //taskGraph.localTaskCount_=localTaskCount;
-
-
-
-    for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
-      if(taskGraph.taskLists_[i] != NULL){
-        for(auto taskit = taskGraph.taskLists_[i]->begin(); taskit!=taskGraph.taskLists_[i]->end();taskit++){
-          FBTask & curUpdate = *taskit;
-          if(curUpdate.type==FACTOR){
-            curUpdate.remote_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
-            curUpdate.local_deps = LocalAggregates[curUpdate.tgt_snode_id-1];
-          }
-          else if(curUpdate.type==UPDATE){
-            Int iOwner = Mapping_->Map(curUpdate.src_snode_id-1,curUpdate.src_snode_id-1);
-            //If I own the factor, it is a local dependency
-            if(iam==iOwner){
-              curUpdate.remote_deps = 0;
-              curUpdate.local_deps = 1;
+            switch(type){
+              case Factorization::op_type::FACTOR:
+                {
+                  Task.remote_deps_cnt = AggregatesToRecv[meta[1]-1];
+                  Task.local_deps_cnt =   LocalAggregates[meta[1]-1];
+                }
+                break;
+              case Factorization::op_type::UPDATE:
+                {
+                  Int iOwner = Mapping_->Map(meta[0]-1,meta[0]-1);
+                  //If I own the factor, it is a local dependency
+                  if(iam==iOwner){
+                    Task.remote_deps_cnt = 0;
+                    Task.local_deps_cnt = 1;
+                  }
+                  else{
+                    Task.remote_deps_cnt = 1;
+                    Task.local_deps_cnt = 0;
+                  }
+                }
+                break;
             }
-            else{
-              curUpdate.remote_deps = 1;
-              curUpdate.local_deps = 0;
-            }
-          }
-        }
-      }
+
+      std::stringstream sstr;
+      sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)type;
+      Task.id = hash_fn(sstr.str());
+      graph.addTask(pTask);
+
+
     }
-
-
-    std::vector<Int> levels;
-    levels.resize(Xsuper_.size());
-    levels[0]=0;
-    Int numLevel = 0; 
-    for(Int i=Xsuper_.size()-1-1; i>=0; i-- ){     
-      Int fcol = Xsuper_[i];
-      bassert(fcol-1>=0);
-      Int pcol =ETree_.PostParent(fcol-1);
-      Int supno = pcol>0?SupMembership_[pcol-1]:0;
-      levels[i] = levels[supno]+1;
-    }
-
-    for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
-      if(taskGraph.taskLists_[i] != NULL){
-        for(auto taskit = taskGraph.taskLists_[i]->begin(); taskit!=taskGraph.taskLists_[i]->end();taskit++){
-          taskit->rank = levels[taskit->src_snode_id];
-        }
-      }
-    }
-
-
   }
 #endif
 
@@ -414,7 +387,7 @@ namespace symPACK{
     if(iam<np){
       switch(options_.factorization){
         case FANBOTH:
-          FanBoth();
+          FanBoth_New();
           break;
         default:
           FanBoth();
@@ -3273,12 +3246,12 @@ namespace symPACK{
 
       {
         double timeSta = get_time();
-        origTaskLists_.resize(Xsuper_.size(),NULL);
         std::vector<Int> AggregatesToRecv;
         std::vector<Int> LocalAggregates;
         FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
 
         generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
+        generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates);
 
 
 //#define _OUTPUT_TASK_GRAPH_

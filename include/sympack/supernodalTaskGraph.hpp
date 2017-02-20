@@ -262,6 +262,9 @@ namespace symPACK{
           template<typename T> friend class symPACKMatrix;
           task_list tasks_;
 
+        taskGraph(){};
+        taskGraph( const taskGraph& g );
+        taskGraph& operator=( const taskGraph& g );
         //taskGraph( );
         //supernodalTaskGraph( const supernodalTaskGraph& g );
         //supernodalTaskGraph& operator=( const supernodalTaskGraph& g );
@@ -312,6 +315,18 @@ namespace symPACK{
 #endif
     return tasks_.find(hash);
   }
+
+  taskGraph::taskGraph( const taskGraph& g ){
+    (*this) = g;
+  }
+
+  taskGraph& taskGraph::operator=( const taskGraph& g ){
+    tasks_ = g.tasks_;
+  }
+
+
+
+
 }
 
 

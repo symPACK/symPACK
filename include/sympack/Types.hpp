@@ -603,6 +603,9 @@ namespace symPACK{
   };
 
 
+namespace Factorization{
+  enum class op_type {UPDATE,AGGREGATE,FACTOR};
+}
 
 namespace Solve{
   enum class op_type {FUC,FU,BUC,BU};

@@ -83,7 +83,7 @@ namespace symPACK{
 
   template<typename T, typename Queue = std::queue<std::function<T()> > >
     class WorkQueue{
-#if 0
+#if 1
       public:
         std::mutex list_mutex_;
         Queue workQueue_;
@@ -219,6 +219,86 @@ std::function<T()> func;
 
 #endif
     };
+
+
+ template<typename T, typename Queue = std::list<T>  >
+    class WorkQueue2{
+      public:
+        std::mutex list_mutex_;
+        Queue workQueue_;
+        std::vector<std::thread> threads;
+        std::condition_variable sync;
+        bool done = false;
+#ifdef THREAD_VERBOSE
+        std::vector<T> processing_;  
+#endif
+
+        WorkQueue2(Int nthreads){
+#ifdef THREAD_VERBOSE
+          processing_.resize(nthreads,nullptr);
+#endif
+          for (Int count {0}; count < nthreads; count += 1)
+            threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue2::consume ) , this, count);
+        }
+
+        WorkQueue2(WorkQueue2 &&) = default;
+        WorkQueue2 &operator=(WorkQueue2 &&) = delete;
+
+
+        ~WorkQueue2(){
+          if(threads.size()>0){
+            std::lock_guard<std::mutex> guard(list_mutex_);
+            done = true;
+            sync.notify_all();
+          }
+          for (auto &&thread: threads) thread.join();
+        }
+
+        void pushTask(T & fut){
+          std::unique_lock<std::mutex> lock(list_mutex_);
+#ifdef THREAD_VERBOSE
+          auto it = std::find(workQueue_.begin(),workQueue_.end(),fut);
+          bassert(it==workQueue_.end());
+#endif
+          workQueue_.push_back(fut);
+          sync.notify_one();
+        }
+
+      protected:
+        void consume(Int tid)
+        {
+#ifdef THREAD_VERBOSE
+          std::stringstream sstr;
+          sstr<<"Thread "<<tid<<std::endl;
+          logfileptr->OFS()<<sstr.str();
+#endif
+          while (true) {
+          std::unique_lock<std::mutex> lock(list_mutex_);
+            if (not workQueue_.empty()) {
+              T func { std::move(workQueue_.front()) };
+              workQueue_.pop_front();
+
+
+              sync.notify_one();
+              lock.unlock();
+#ifdef THREAD_VERBOSE
+              processing_[tid] = func;
+#endif
+              func->execute();
+#ifdef THREAD_VERBOSE
+              processing_[tid] = nullptr;
+#endif
+              lock.lock();
+            } else if (done) {
+              break;
+            } else {
+              sync.wait(lock);
+            }
+          }
+        }
+    };
+
+
 #endif
 
   template <class T >
@@ -237,7 +317,9 @@ std::function<T()> func;
 
         virtual bool done() =0;
 
-
+        std::list<T> delayedTasks_;
+        std::function<bool(T&)> extraTaskHandle_;
+        std::function<void(IncomingMessage *)> msgHandle;
         Int checkIncomingMessages_(Int nthr, taskGraph & graph);
         void run(MPI_Comm & workcomm, Int nthr, taskGraph & graph);
 
@@ -560,8 +642,12 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
       //TODO what are the reasons of failure ?
       bassert(success);
 
-      auto taskit = graph.find_task(msg->meta.id);
+      if(msgHandle!=nullptr){
+        //call user handle
+        msgHandle(msg);
+      }
 
+      auto taskit = graph.find_task(msg->meta.id);
       bassert(taskit!=graph.tasks_.end());
 #if 0
       {
@@ -737,29 +823,178 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
 
 #if 1
       {
-        WorkQueue<void> queue(nthr);
+
+  auto log_task = [&] (std::shared_ptr<GenericTask> & taskptr, std::stringstream & sstr){
+        SparseTask * tmp = ((SparseTask*)taskptr.get());
+        std::string name;
+        Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
+
+        if(tmp->meta.size()==(2*sizeof(Int)+sizeof(Factorization::op_type))){
+          Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+          switch(type){
+            case Factorization::op_type::FACTOR:
+              name="FACTOR";
+              break;
+            case Factorization::op_type::AGGREGATE:
+              name="AGGREGATE";
+              break;
+            case Factorization::op_type::UPDATE:
+              name="UPDATE";
+              break;
+          }
+        }
+        else{
+        }
+
+        sstr<<"           T "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
+    };
+
+
 
         Int num_msg =0;
         std::shared_ptr<GenericTask> curTask = nullptr;
         if(nthr>1){
-          while(graph.getTaskCount()>0 || !this->done()){
+          WorkQueue2<std::shared_ptr<GenericTask> > queue(nthr);
+
+          while(graph.getTaskCount()>0 || !this->done() || !delayedTasks_.empty() ){
             
             if(np>1){
               num_msg = checkIncomingMessages_(nthr,graph);
             }
 
-            while(!this->done())
-            //if(!this->done())
+            if(extraTaskHandle_!=nullptr)
             {
-              
-              //Pick a ready task
-              {
-                std::lock_guard<std::mutex> lock(list_mutex_);
-                curTask = this->top();
-                this->pop();
+              auto taskit = delayedTasks_.begin();
+              while(taskit!=delayedTasks_.end()){
+                  bool delay = extraTaskHandle_(*taskit);
+                  if(!delay){
+#ifdef THREAD_VERBOSE
+                    std::stringstream sstr;
+                    sstr<<"Resuming";
+                    log_task(curTask,sstr);
+                    logfileptr->OFS()<<sstr.str();
+#endif
+                    queue.pushTask(*taskit);
+                    taskit = delayedTasks_.erase(taskit);
+                  }
+                  else{
+                    taskit++;
+                  }
               }
-              queue.pushTask(std::move(curTask->execute));
             }
+
+            while(!this->done()){
+              curTask = nullptr;
+              std::lock_guard<std::mutex> lock(list_mutex_);
+              curTask = this->top();
+              bassert(curTask!=nullptr);
+              this->pop();
+              bool delay = false;
+              if(extraTaskHandle_!=nullptr){
+                 delay = extraTaskHandle_(curTask);
+                 if(delay){
+#ifdef THREAD_VERBOSE
+                   std::stringstream sstr;
+                   sstr<<"Delaying";
+                   log_task(curTask,sstr);
+                   logfileptr->OFS()<<sstr.str();
+#endif
+                   delayedTasks_.push_back(curTask);
+                 }
+              }
+
+              if(!delay){
+                queue.pushTask(curTask);
+              }
+            }
+
+#ifdef THREAD_VERBOSE
+            {
+                std::stringstream sstr;
+                queue.list_mutex_.lock();
+
+                sstr<<"======delayed======"<<std::endl;
+                for(auto ptr: delayedTasks_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
+                sstr<<"======waiting======"<<std::endl;
+                for(auto && ptr : queue.workQueue_){ log_task(ptr,sstr); }
+                sstr<<"======running======"<<std::endl;
+                bassert(queue.processing_.size()==nthr);
+                for(auto ptr: queue.processing_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
+                sstr<<"==================="<<std::endl;
+                logfileptr->OFS()<<sstr.str();
+                queue.list_mutex_.unlock();
+            }
+#endif
+
+
+#if 0
+            //while(!this->done())
+            if(!this->done() || !delayedTasks_.empty())
+            {
+              curTask = nullptr;
+
+              //Pick a ready task or a delayed task
+              bool delay = false;
+              auto taskit = delayedTasks_.begin();
+              if(extraTaskHandle_!=nullptr){
+                for(; taskit!=delayedTasks_.end(); taskit++){
+                  delay = extraTaskHandle_(*taskit);
+                  if(!delay){
+                    break;
+                  }
+                }
+              }
+
+              if(taskit!=delayedTasks_.end()){
+                curTask = *taskit;
+                bassert(curTask!=nullptr);
+                delayedTasks_.erase(taskit);
+                std::stringstream sstr;
+                sstr<<"Resuming";
+                log_task(curTask,sstr);
+                logfileptr->OFS()<<sstr.str();
+              }
+              else if(!done()){
+                do{
+                  std::lock_guard<std::mutex> lock(list_mutex_);
+                  curTask = this->top();
+                  bassert(curTask!=nullptr);
+                  this->pop();
+                  delay = false;
+                  if(extraTaskHandle_!=nullptr){
+                    delay = extraTaskHandle_(curTask);
+                    if(delay){
+                std::stringstream sstr;
+                sstr<<"Delaying";
+                log_task(curTask,sstr);
+                logfileptr->OFS()<<sstr.str();
+                      delayedTasks_.push_back(curTask);
+                    }
+                  }
+
+                }while(delay && !done() );
+              }
+
+              if(curTask!=nullptr){
+                //queue.pushTask(std::move(curTask->execute));
+                queue.pushTask(curTask);
+              }
+
+              {
+                std::stringstream sstr;
+                queue.list_mutex_.lock();
+                sstr<<"======waiting======"<<std::endl;
+                for(auto && ptr : queue.workQueue_){ log_task(ptr,sstr); }
+                sstr<<"======running======"<<std::endl;
+                bassert(queue.processing_.size()==nthr);
+                for(auto ptr: queue.processing_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
+                sstr<<"==================="<<std::endl;
+                logfileptr->OFS()<<sstr.str();
+                queue.list_mutex_.unlock();
+              }
+
+            }
+#endif
           }
         }
         else{
