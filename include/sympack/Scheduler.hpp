@@ -325,7 +325,6 @@ std::function<T()> func;
 
 
 #ifdef SP_THREADS
-        std::mutex upcxx_mutex_;
         std::mutex list_mutex_;
 #endif
       protected:
@@ -577,7 +576,7 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
   if(nthr>1){
     scope_timer(a,UPCXX_ADVANCE);
 #ifdef SP_THREADS
-    std::lock_guard<std::mutex> lock(upcxx_mutex_);
+//    std::lock_guard<std::mutex> lock(upcxx_mutex);
 #endif
     upcxx::advance();
   }
@@ -595,9 +594,8 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
     {
 #ifdef SP_THREADS
       if(nthr>1){
-        upcxx_mutex_.lock();
+        upcxx_mutex.lock();
       }
-      //std::lock_guard<std::mutex> lock(upcxx_mutex_);
 #endif
 
 
@@ -629,7 +627,7 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
 
 #ifdef SP_THREADS
       if(nthr>1){
-        upcxx_mutex_.unlock();
+        upcxx_mutex.unlock();
       }
 #endif
     }
@@ -639,6 +637,7 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
       num_recv++;
 
       bool success = msg->Wait(); 
+
       //TODO what are the reasons of failure ?
       bassert(success);
 
@@ -703,7 +702,7 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
 
 #ifdef SP_THREADS
       if(nthr>1){
-        upcxx_mutex_.lock();
+        upcxx_mutex.lock();
       }
 #endif
       //if we have some room, turn blocking comms into async comms
@@ -730,7 +729,7 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
       }
 #ifdef SP_THREADS
       if(nthr>1){
-        upcxx_mutex_.unlock();
+        upcxx_mutex.unlock();
       }
 #endif
 

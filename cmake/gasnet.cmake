@@ -49,9 +49,14 @@ else()
       )
 
     set(GASNET_DEFINES "")
-    set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_SEQ -DGASNET_ALLOW_OPTIMIZED_DEBUG")
-    
-    SET(GASNET_LIBRARIES ${MPI_CXX_LIBRARIES} -L/opt/cray/pe/pmi/5.0.10-1.0000.11050.0.0.ari/lib64 -lpmi -L/opt/cray/ugni/6.0.12-2.1/lib64 -lugni -L/opt/cray/udreg/2.3.2-4.6/lib64 -ludreg  -L/opt/cray/xpmem/0.1-4.5/lib64 -lxpmem -lhugetlbfs -lm )
+
+    #set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_SEQ -DGASNET_ALLOW_OPTIMIZED_DEBUG")
+    #SET(GASNET_LIBRARIES ${MPI_CXX_LIBRARIES} -L/opt/cray/pe/pmi/5.0.10-1.0000.11050.0.0.ari/lib64 -lpmi -L/opt/cray/ugni/6.0.12-2.1/lib64 -lugni -L/opt/cray/udreg/2.3.2-4.6/lib64 -ludreg  -L/opt/cray/xpmem/0.1-4.5/lib64 -lxpmem -lhugetlbfs -lm )
+
+
+
+    set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_PAR -DGASNET_ALLOW_OPTIMIZED_DEBUG -D_REENTRANT")
+    SET(GASNET_LIBRARIES ${MPI_CXX_LIBRARIES} -L/opt/cray/pe/pmi/5.0.10-1.0000.11050.0.0.ari/lib64 -lpmi -L/opt/cray/ugni/6.0.12-2.1/lib64 -lugni -L/opt/cray/udreg/2.3.2-4.6/lib64 -ludreg -L/opt/cray/xpmem/0.1-4.5/lib64 -lxpmem -lhugetlbfs -lm )
 
     else()
      ExternalProject_Add(${GASNET_NAME}
@@ -82,8 +87,10 @@ else()
     
     
     set(GASNET_CONDUIT_INCLUDE_DIR ${GASNET_INCLUDE_DIR}/aries-conduit)
-    set(GASNET_CONDUIT ${GASNET_CONDUIT_INCLUDE_DIR}/aries-seq.mak)
-    set_property(TARGET libgasnet-conduit PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libgasnet-aries-seq.a)
+    #set(GASNET_CONDUIT ${GASNET_CONDUIT_INCLUDE_DIR}/aries-seq.mak)
+    #set_property(TARGET libgasnet-conduit PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libgasnet-aries-seq.a)
+    set(GASNET_CONDUIT ${GASNET_CONDUIT_INCLUDE_DIR}/aries-par.mak)
+    set_property(TARGET libgasnet-conduit PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libgasnet-aries-par.a)
 
     
     add_dependencies(libgasnet-conduit ${GASNET_NAME})

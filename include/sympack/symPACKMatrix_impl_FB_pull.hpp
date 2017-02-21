@@ -378,9 +378,6 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
 
               //if(src==1100){gdb_lock();}
                     {
-#ifdef SP_THREADS
-                      std::lock_guard<std::mutex> lock(scheduler->upcxx_mutex_);
-#endif
                       signal_data(sendPtr, msgSize, iTarget, meta);
                     }
                     is_factor_sent[iTarget] = true;
@@ -589,7 +586,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                           upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
                           {
 #ifdef SP_THREADS
-                        std::lock_guard<std::mutex> lock(scheduler->upcxx_mutex_);
+                        std::lock_guard<std::mutex> lock(upcxx_mutex);
 #endif
                           upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
                           }
@@ -679,9 +676,6 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                       //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
                       size_t msgSize = tgt_aggreg->StorageSize();
                       {
-#ifdef SP_THREADS
-                        std::lock_guard<std::mutex> lock(scheduler->upcxx_mutex_);
-#endif
                         signal_data(sendPtr, msgSize, iTarget, meta);
                       }
                     }

@@ -923,9 +923,6 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
                       size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
 
                       {
-#ifdef SP_THREADS
-                        std::lock_guard<std::mutex> lock(scheduler->upcxx_mutex_);
-#endif
                         signal_data(sendPtr, msgSize, parentOwner, meta);
                       }
                     }
@@ -1137,9 +1134,6 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
                           //log_msg(src,child_snode_id,Solve::op_type::BU);
                           {
-#ifdef SP_THREADS
-                            std::lock_guard<std::mutex> lock(scheduler->upcxx_mutex_);
-#endif
                             signal_data(sendPtr, msgSize, iTarget, meta);
                           }
                           is_sent[iTarget] = true;

@@ -49,6 +49,11 @@
 
 
 namespace symPACK{
+
+#ifdef SP_THREADS
+  std::mutex upcxx_mutex;
+#endif
+
   std::list< IncomingMessage * > gIncomingRecv;
   //std::priority_queue< IncomingMessage *, std::vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
   std::list< IncomingMessage * > gIncomingRecvAsync;
@@ -134,6 +139,9 @@ namespace symPACK{
     IncomingMessage::~IncomingMessage(){
       //assert(IsDone());
       if(event_ptr!=NULL){
+#ifdef SP_THREADS
+//    std::lock_guard<std::mutex> lock(upcxx_mutex);
+#endif
         delete event_ptr;
       }
       if(task_ptr!=NULL){
@@ -144,6 +152,9 @@ namespace symPACK{
     }
 
     void IncomingMessage::AsyncGet(){
+#ifdef SP_THREADS
+    std::lock_guard<std::mutex> lock(upcxx_mutex);
+#endif
       assert(event_ptr==NULL);
       event_ptr = new upcxx::event;
       upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr()),msg_size,event_ptr);
@@ -161,6 +172,9 @@ namespace symPACK{
         success = true;
       }
       else if(event_ptr!=NULL){
+#ifdef SP_THREADS
+    std::lock_guard<std::mutex> lock(upcxx_mutex);
+#endif
         //TODO wait is not necessary if calling async_try/isdone
         event_ptr->wait();
         assert(event_ptr->isdone());
@@ -173,6 +187,9 @@ namespace symPACK{
         //allocate receive buffer
         success = AllocLocal();
         if(success){
+#ifdef SP_THREADS
+    std::lock_guard<std::mutex> lock(upcxx_mutex);
+#endif
           upcxx::copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr()),msg_size);
           isDone = true;
         }
@@ -202,6 +219,9 @@ namespace symPACK{
 #ifndef USE_LOCAL_ALLOCATE
         delete local_ptr;
 #else
+#ifdef SP_THREADS
+//    std::lock_guard<std::mutex> lock(upcxx_mutex);
+#endif
         //TODO use upcxx::deallocate
         upcxx::global_ptr<char> tmp(local_ptr);
         upcxx::deallocate(tmp);
@@ -214,6 +234,9 @@ namespace symPACK{
     bool IncomingMessage::IsDone(){
       scope_timer(a,IN_MSG_ISDONE);
       if(event_ptr!=NULL){
+#ifdef SP_THREADS
+    std::lock_guard<std::mutex> lock(upcxx_mutex);
+#endif
         //return event_ptr->isdone();
         return event_ptr->async_try();
         //TODO also look at event_ptr async_try because it calls "progress"
@@ -233,6 +256,9 @@ namespace symPACK{
 #ifndef USE_LOCAL_ALLOCATE
       local_ptr = (char *)malloc(msg_size);
 #else
+#ifdef SP_THREADS
+//    std::lock_guard<std::mutex> lock(upcxx_mutex);
+#endif
       //TODO replace this by a upcxx::allocate
       upcxx::global_ptr<char> tmp = upcxx::allocate<char>(upcxx::myrank(),msg_size);
       local_ptr=(char*)tmp; 

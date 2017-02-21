@@ -50,6 +50,8 @@
 
 #include <upcxx.h>
 
+#include <mutex>
+#include <thread>
 
 
 #include "sympack/Environment.hpp"
@@ -67,6 +69,10 @@
 #endif
 
 namespace symPACK{
+
+#ifdef SP_THREADS
+  extern std::mutex upcxx_mutex;
+#endif
 
 struct SnodeUpdateFB;
 //class SupernodalMatrixBase;
@@ -189,6 +195,9 @@ struct MSGCompare{
   void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta);
 
   inline void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
+#ifdef SP_THREADS
+    std::lock_guard<std::mutex> lock(upcxx_mutex);
+#endif
       SYMPACK_TIMER_START(SIGNAL_DATA);
       upcxx::async(dest)(rcv_async,local_ptr,pMsg_size,meta);
       SYMPACK_TIMER_STOP(SIGNAL_DATA);
@@ -196,6 +205,9 @@ struct MSGCompare{
 
 
   inline void remote_delete(upcxx::global_ptr<char> pRemote_ptr){
+//#ifdef SP_THREADS
+    //std::lock_guard<std::mutex> lock(upcxx_mutex);
+//#endif
       SYMPACK_TIMER_START(REMOTE_DELETE);
       if(upcxx::myrank()!=pRemote_ptr.where()){
         //logfileptr->OFS()<<"Performing remote delete on P"<<pRemote_ptr.where()<<std::endl;
@@ -237,7 +249,9 @@ struct MSGCompare{
         //if we still have async buffers
 
 
+
         bool asyncComm = false;
+//    std::lock_guard<std::mutex> lock(upcxx_mutex);
         if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
 
             IncomingMessage * msg_ptr = new IncomingMessage();

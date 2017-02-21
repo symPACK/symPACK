@@ -27,6 +27,13 @@ set(CMAKE_Fortran_COMPILER ftn)
 set(MPI_C_COMPILER cc)
 set(MPI_CXX_COMPILER CC)
 
+STRING( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
+if(config_type STREQUAL "debug")
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-debug full>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-debug full>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-debug full>")
+endif()
+
 
 if(ENABLE_VTUNE)
 add_compile_options("$<$<COMPILE_LANGUAGE:C>:-g>")
