@@ -1,44 +1,44 @@
 /*
-	 Copyright (c) 2016 The Regents of the University of California,
-	 through Lawrence Berkeley National Laboratory.  
+   Copyright (c) 2016 The Regents of the University of California,
+   through Lawrence Berkeley National Laboratory.  
 
-   Author: Mathias Jacquelin
-	 
-   This file is part of symPACK. All rights reserved.
+Author: Mathias Jacquelin
 
-	 Redistribution and use in source and binary forms, with or without
-	 modification, are permitted provided that the following conditions are met:
+This file is part of symPACK. All rights reserved.
 
-	 (1) Redistributions of source code must retain the above copyright notice, this
-	 list of conditions and the following disclaimer.
-	 (2) Redistributions in binary form must reproduce the above copyright notice,
-	 this list of conditions and the following disclaimer in the documentation
-	 and/or other materials provided with the distribution.
-	 (3) Neither the name of the University of California, Lawrence Berkeley
-	 National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
-	 be used to endorse or promote products derived from this software without
-	 specific prior written permission.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-	 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-	 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-	 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-	 DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-	 ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-	 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-	 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-	 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-	 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-	 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+(1) Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+(2) Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+(3) Neither the name of the University of California, Lawrence Berkeley
+National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
 
-	 You are under no obligation whatsoever to provide any bug fixes, patches, or
-	 upgrades to the features, functionality or performance of the source code
-	 ("Enhancements") to anyone; however, if you choose to make your Enhancements
-	 available either publicly, or directly to Lawrence Berkeley National
-	 Laboratory, without imposing a separate written license agreement for such
-	 Enhancements, then you hereby grant the following license: a non-exclusive,
-	 royalty-free perpetual license to install, use, modify, prepare derivative
-	 works, incorporate into other computer software, distribute, and sublicense
-	 such enhancements or derivative works thereof, in binary and source code form.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+You are under no obligation whatsoever to provide any bug fixes, patches, or
+upgrades to the features, functionality or performance of the source code
+("Enhancements") to anyone; however, if you choose to make your Enhancements
+available either publicly, or directly to Lawrence Berkeley National
+Laboratory, without imposing a separate written license agreement for such
+Enhancements, then you hereby grant the following license: a non-exclusive,
+royalty-free perpetual license to install, use, modify, prepare derivative
+works, incorporate into other computer software, distribute, and sublicense
+such enhancements or derivative works thereof, in binary and source code form.
 */
 #ifndef _SCHEDULER_DECL_HPP_
 #define _SCHEDULER_DECL_HPP_
@@ -61,7 +61,7 @@ namespace symPACK{
 
 #ifdef SP_THREADS
 #include <atomic>
-   
+
   class SpinLock
   {
     public:
@@ -121,33 +121,33 @@ namespace symPACK{
           std::unique_lock<std::mutex> lock(list_mutex_);
           while (true) {
 #if 0
-std::function<T()> func;
+            std::function<T()> func;
             {
-          std::unique_lock<std::mutex> lock(list_mutex_);
-            sync.wait(lock,[this]{return !workQueue_.empty();});
+              std::unique_lock<std::mutex> lock(list_mutex_);
+              sync.wait(lock,[this]{return !workQueue_.empty();});
               func = { std::move(workQueue_.front()) };
               workQueue_.pop();
               sync.notify_one();
             }
-              func();
+            func();
 
 
 
 
-//            sync.wait(lock,[this]{return !workQueue_.empty() || done;});
-//
-//            if (done){
-//            //  lock.unlock();
-//              break;
-//            }
-//            else {
-//              std::function<T()> func { std::move(workQueue_.front()) };
-//              workQueue_.pop();
-//              sync.notify_one();
-//            //  lock.unlock();
-//              func();
-//            //  lock.lock();
-//            }
+            //            sync.wait(lock,[this]{return !workQueue_.empty() || done;});
+            //
+            //            if (done){
+            //            //  lock.unlock();
+            //              break;
+            //            }
+            //            else {
+            //              std::function<T()> func { std::move(workQueue_.front()) };
+            //              workQueue_.pop();
+            //              sync.notify_one();
+            //            //  lock.unlock();
+            //              func();
+            //            //  lock.lock();
+            //            }
 #else
             if (not workQueue_.empty()) {
               std::function<T()> func { std::move(workQueue_.front()) };
@@ -190,9 +190,9 @@ std::function<T()> func;
         }
 
         void pushTask(std::function<T()> && fut){
-            list_lock_.lock();
+          list_lock_.lock();
           workQueue_.push(std::forward<std::function<T()> >(fut));
-            list_lock_.unlock();
+          list_lock_.unlock();
         }
 
 
@@ -221,7 +221,7 @@ std::function<T()> func;
     };
 
 
- template<typename T, typename Queue = std::list<T>  >
+  template<typename T, typename Queue = std::list<T>  >
     class WorkQueue2{
       public:
         std::mutex list_mutex_;
@@ -273,7 +273,7 @@ std::function<T()> func;
           logfileptr->OFS()<<sstr.str();
 #endif
           while (true) {
-          std::unique_lock<std::mutex> lock(list_mutex_);
+            std::unique_lock<std::mutex> lock(list_mutex_);
             if (not workQueue_.empty()) {
               T func { std::move(workQueue_.front()) };
               workQueue_.pop_front();
@@ -320,8 +320,8 @@ std::function<T()> func;
         std::list<T> delayedTasks_;
         std::function<bool(T&)> extraTaskHandle_;
         std::function<void(IncomingMessage *)> msgHandle;
-        Int checkIncomingMessages_(Int nthr, taskGraph & graph);
-        void run(MPI_Comm & workcomm, Int nthr, taskGraph & graph);
+        Int checkIncomingMessages_(taskGraph & graph);
+        void run(MPI_Comm & workcomm, taskGraph & graph);
 
 
 #ifdef SP_THREADS
@@ -559,149 +559,149 @@ std::function<T()> func;
     };
 
 
-template< typename Task> 
-int Scheduler<Task>::checkIncomingMessages_(Int nthr, taskGraph & graph)
-{
-  abort();
-  return 0;
-}
-
-template<>
-int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, taskGraph & graph)
-{
-  scope_timer(a,CHECK_MESSAGE);
-
-  int num_recv = 0;
-
-  if(nthr>1){
-    scope_timer(a,UPCXX_ADVANCE);
-#ifdef SP_THREADS
-//    std::lock_guard<std::mutex> lock(upcxx_mutex);
-#endif
-    upcxx::advance();
-  }
-  else{
-    scope_timer(a,UPCXX_ADVANCE);
-    upcxx::advance();
-  }
-
-  bool comm_found = false;
-  IncomingMessage * msg = NULL;
-
-  do{
-    msg=NULL;
-
+  template< typename Task> 
+    int Scheduler<Task>::checkIncomingMessages_(taskGraph & graph)
     {
-#ifdef SP_THREADS
-      if(nthr>1){
-        upcxx_mutex.lock();
-      }
-#endif
-
-
-      {
-        //find if there is some finished async comm
-        auto it = TestAsyncIncomingMessage();
-        if(it!=gIncomingRecvAsync.end()){
-          scope_timer(b,RM_MSG_ASYNC);
-          msg = *it;
-          gIncomingRecvAsync.erase(it);
-        }
-        else if(this->done() && !gIncomingRecv.empty()){
-          scope_timer(c,RM_MSG_ASYNC);
-          //find a "high priority" task
-          //find a task we would like to process
-          auto it = gIncomingRecv.begin();
-          //for(auto cur_msg = gIncomingRecv.begin(); 
-          //    cur_msg!= gIncomingRecv.end(); cur_msg++){
-          //  //look at the meta data
-          //  //TODO check if we can parametrize that
-          //  if((*cur_msg)->meta.tgt < (*it)->meta.tgt){
-          //    it = cur_msg;
-          //  }
-          //}
-          msg = *it;
-          gIncomingRecv.erase(it);
-        }
-      }
-
-#ifdef SP_THREADS
-      if(nthr>1){
-        upcxx_mutex.unlock();
-      }
-#endif
+      abort();
+      return 0;
     }
 
-    if(msg!=NULL){
-      scope_timer(a,WAIT_AND_UPDATE_DEPS);
-      num_recv++;
+  template<>
+    int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph & graph)
+    {
+      scope_timer(a,CHECK_MESSAGE);
 
-      bool success = msg->Wait(); 
+      int num_recv = 0;
 
-      //TODO what are the reasons of failure ?
-      bassert(success);
-
-      if(msgHandle!=nullptr){
-        //call user handle
-        msgHandle(msg);
+#ifdef SP_THREADS
+      if(Multithreading::NumThread>1){
+        scope_timer(a,UPCXX_ADVANCE);
+        std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+        upcxx::advance();
+      }
+      else
+#endif
+      {
+        scope_timer(a,UPCXX_ADVANCE);
+        upcxx::advance();
       }
 
-      auto taskit = graph.find_task(msg->meta.id);
-      bassert(taskit!=graph.tasks_.end());
+      bool comm_found = false;
+      IncomingMessage * msg = NULL;
+
+      do{
+        msg=NULL;
+
+        {
+#ifdef SP_THREADS
+          if(Multithreading::NumThread>1){
+            upcxx_mutex.lock();
+          }
+#endif
+
+
+          {
+            //find if there is some finished async comm
+            auto it = TestAsyncIncomingMessage();
+            if(it!=gIncomingRecvAsync.end()){
+              scope_timer(b,RM_MSG_ASYNC);
+              msg = *it;
+              gIncomingRecvAsync.erase(it);
+            }
+            else if(this->done() && !gIncomingRecv.empty()){
+              scope_timer(c,RM_MSG_ASYNC);
+              //find a "high priority" task
+              //find a task we would like to process
+              auto it = gIncomingRecv.begin();
+              //for(auto cur_msg = gIncomingRecv.begin(); 
+              //    cur_msg!= gIncomingRecv.end(); cur_msg++){
+              //  //look at the meta data
+              //  //TODO check if we can parametrize that
+              //  if((*cur_msg)->meta.tgt < (*it)->meta.tgt){
+              //    it = cur_msg;
+              //  }
+              //}
+              msg = *it;
+              gIncomingRecv.erase(it);
+            }
+          }
+
+#ifdef SP_THREADS
+          if(Multithreading::NumThread>1){
+            upcxx_mutex.unlock();
+          }
+#endif
+        }
+
+        if(msg!=NULL){
+          scope_timer(a,WAIT_AND_UPDATE_DEPS);
+          num_recv++;
+
+          bool success = msg->Wait(); 
+
+          //TODO what are the reasons of failure ?
+          bassert(success);
+
+          if(msgHandle!=nullptr){
+            //call user handle
+            msgHandle(msg);
+          }
+
+          auto taskit = graph.find_task(msg->meta.id);
+          bassert(taskit!=graph.tasks_.end());
 #if 0
-      {
-        std::hash<std::string> hash_fn;
-        std::stringstream sstr;
-        sstr<<50<<"_"<<50<<"_"<<(Int)Solve::op_type::FU;
-        auto id = hash_fn(sstr.str());
+          {
+            std::hash<std::string> hash_fn;
+            std::stringstream sstr;
+            sstr<<50<<"_"<<50<<"_"<<(Int)Solve::op_type::FU;
+            auto id = hash_fn(sstr.str());
 
-        SparseTask * tmp = ((SparseTask*)taskit->second.get());
-        Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
-        Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
-        std::string name;
-        switch(type){
-          case Solve::op_type::FUC:
-            name="FUC";
-            break;
-          case Solve::op_type::BUC:
-            name="BUC";
-            break;
-          case Solve::op_type::BU:
-            name="BU";
-            break;
-          case Solve::op_type::FU:
-            name="FU";
-            break;
-        }
-        logfileptr->OFS()<<"  receiving & updating "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
-      }
+            SparseTask * tmp = ((SparseTask*)taskit->second.get());
+            Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
+            Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
+            std::string name;
+            switch(type){
+              case Solve::op_type::FUC:
+                name="FUC";
+                break;
+              case Solve::op_type::BUC:
+                name="BUC";
+                break;
+              case Solve::op_type::BU:
+                name="BU";
+                break;
+              case Solve::op_type::FU:
+                name="FU";
+                break;
+            }
+            logfileptr->OFS()<<"  receiving & updating "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
+          }
 #endif
-      {
+          {
 #ifdef SP_THREADS
-        //std::lock_guard<std::mutex> lock(list_mutex_);
-        if(nthr>1){
-          list_mutex_.lock();
-        }
+      if(Multithreading::NumThread>1){
+              list_mutex_.lock();
+            }
 #endif
-        taskit->second->remote_deps_cnt--;
-        taskit->second->data.push_back(msg);
+            taskit->second->remote_deps_cnt--;
+            taskit->second->data.push_back(msg);
 
-        if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
-          this->push(taskit->second);    
-          graph.removeTask(taskit->second->id);
-        }
-
-#ifdef SP_THREADS
-        if(nthr>1){
-          list_mutex_.unlock();
-        }
-#endif
-      }
-    }
-  }while(msg!=NULL);
+            if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+              this->push(taskit->second);    
+              graph.removeTask(taskit->second->id);
+            }
 
 #ifdef SP_THREADS
-      if(nthr>1){
+      if(Multithreading::NumThread>1){
+              list_mutex_.unlock();
+            }
+#endif
+          }
+        }
+      }while(msg!=NULL);
+
+#ifdef SP_THREADS
+      if(Multithreading::NumThread>1){
         upcxx_mutex.lock();
       }
 #endif
@@ -728,44 +728,44 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
         }
       }
 #ifdef SP_THREADS
-      if(nthr>1){
+      if(Multithreading::NumThread>1){
         upcxx_mutex.unlock();
       }
 #endif
 
-  return num_recv;
-}
+      return num_recv;
+    }
 
 
   template <class Task > 
-  void Scheduler<Task>::run(MPI_Comm & workcomm, Int nthr,taskGraph & graph){
-  }
-
-  template <> 
-  void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm,Int nthr,taskGraph & graph){
-
-    int np = 1;
-    MPI_Comm_size(workcomm,&np);
-    int iam = 0;
-    MPI_Comm_rank(workcomm,&iam);
-
-    //put rdy tasks in rdy queue
-    {
-      auto taskit = graph.tasks_.begin();
-      while (taskit != graph.tasks_.end()) {
-        if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
-          auto it = taskit;
-          this->push(it->second);
-          taskit++;
-          graph.removeTask(it->second->id);
-        }
-        else{
-          taskit++;
-        }
-      }
+    void Scheduler<Task>::run(MPI_Comm & workcomm, taskGraph & graph){
     }
 
-    auto log_task = [&] (std::shared_ptr<GenericTask> & task){
+  template <> 
+    void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm,taskGraph & graph){
+
+      int np = 1;
+      MPI_Comm_size(workcomm,&np);
+      int iam = 0;
+      MPI_Comm_rank(workcomm,&iam);
+
+      //put rdy tasks in rdy queue
+      {
+        auto taskit = graph.tasks_.begin();
+        while (taskit != graph.tasks_.end()) {
+          if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+            auto it = taskit;
+            this->push(it->second);
+            taskit++;
+            graph.removeTask(it->second->id);
+          }
+          else{
+            taskit++;
+          }
+        }
+      }
+
+      auto log_task = [&] (std::shared_ptr<GenericTask> & task){
         SparseTask * tmp = ((SparseTask*)task.get());
         Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
         Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
@@ -785,28 +785,28 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
             break;
         }
         logfileptr->OFS()<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
-    };
+      };
 
 #ifdef SP_THREADS
       auto check_handle = [] (std::future< void > const& f) {
-            bool retval = f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
-            //logfileptr->OFS()<<"thread done ? "<<retval<<std::endl;
-           return retval; };
-     
-    std::list<std::future<void> > handles;
-    //Int nthr = (2*std::thread::hardware_concurrency()-1)/np;
-    //if(iam==np-1){ nthr= 2*std::thread::hardware_concurrency()-1-(np-1)*nthr; }
-    //nthr = 20;
+        bool retval = f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
+        //logfileptr->OFS()<<"thread done ? "<<retval<<std::endl;
+        return retval; };
 
-    logfileptr->OFS()<<"Num threads = "<<nthr<<std::endl;
-    //handles.reserve(nthr);
+      std::list<std::future<void> > handles;
+
+      if(Multithreading::NumThread>1){
+        logfileptr->OFS()<<"Num threads = "<<Multithreading::NumThread<<std::endl;
+      }
+
+      //handles.reserve(nthr);
 
       auto progress_threads = [&]() {
-          //logfileptr->OFS()<<"handle size "<<handles.size()<<std::endl;
+        //logfileptr->OFS()<<"handle size "<<handles.size()<<std::endl;
         scope_timer(a,SOLVE_PROGRESS_THREADS);
         auto it = handles.begin();
         while(it != handles.end()){
-//          it->wait();
+          //          it->wait();
           //logfileptr->OFS()<<"checking handle"<<std::endl;
           if(check_handle(*it)){
             //logfileptr->OFS()<<"thread done"<<std::endl;
@@ -823,62 +823,62 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
 #if 1
       {
 
-  auto log_task = [&] (std::shared_ptr<GenericTask> & taskptr, std::stringstream & sstr){
-        SparseTask * tmp = ((SparseTask*)taskptr.get());
-        std::string name;
-        Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
+        auto log_task = [&] (std::shared_ptr<GenericTask> & taskptr, std::stringstream & sstr){
+          SparseTask * tmp = ((SparseTask*)taskptr.get());
+          std::string name;
+          Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
 
-        if(tmp->meta.size()==(2*sizeof(Int)+sizeof(Factorization::op_type))){
-          Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
-          switch(type){
-            case Factorization::op_type::FACTOR:
-              name="FACTOR";
-              break;
-            case Factorization::op_type::AGGREGATE:
-              name="AGGREGATE";
-              break;
-            case Factorization::op_type::UPDATE:
-              name="UPDATE";
-              break;
+          if(tmp->meta.size()==(2*sizeof(Int)+sizeof(Factorization::op_type))){
+            Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+            switch(type){
+              case Factorization::op_type::FACTOR:
+                name="FACTOR";
+                break;
+              case Factorization::op_type::AGGREGATE:
+                name="AGGREGATE";
+                break;
+              case Factorization::op_type::UPDATE:
+                name="UPDATE";
+                break;
+            }
           }
-        }
-        else{
-        }
+          else{
+          }
 
-        sstr<<"           T "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
-    };
+          sstr<<"           T "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
+        };
 
 
 
         Int num_msg =0;
         std::shared_ptr<GenericTask> curTask = nullptr;
-        if(nthr>1){
-          WorkQueue2<std::shared_ptr<GenericTask> > queue(nthr);
+        if(Multithreading::NumThread>1){
+          WorkQueue2<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread);
 
           while(graph.getTaskCount()>0 || !this->done() || !delayedTasks_.empty() ){
-            
+
             if(np>1){
-              num_msg = checkIncomingMessages_(nthr,graph);
+              num_msg = checkIncomingMessages_(graph);
             }
 
             if(extraTaskHandle_!=nullptr)
             {
               auto taskit = delayedTasks_.begin();
               while(taskit!=delayedTasks_.end()){
-                  bool delay = extraTaskHandle_(*taskit);
-                  if(!delay){
+                bool delay = extraTaskHandle_(*taskit);
+                if(!delay){
 #ifdef THREAD_VERBOSE
-                    std::stringstream sstr;
-                    sstr<<"Resuming";
-                    log_task(curTask,sstr);
-                    logfileptr->OFS()<<sstr.str();
+                  std::stringstream sstr;
+                  sstr<<"Resuming";
+                  log_task(curTask,sstr);
+                  logfileptr->OFS()<<sstr.str();
 #endif
-                    queue.pushTask(*taskit);
-                    taskit = delayedTasks_.erase(taskit);
-                  }
-                  else{
-                    taskit++;
-                  }
+                  queue.pushTask(*taskit);
+                  taskit = delayedTasks_.erase(taskit);
+                }
+                else{
+                  taskit++;
+                }
               }
             }
 
@@ -890,16 +890,16 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
               this->pop();
               bool delay = false;
               if(extraTaskHandle_!=nullptr){
-                 delay = extraTaskHandle_(curTask);
-                 if(delay){
+                delay = extraTaskHandle_(curTask);
+                if(delay){
 #ifdef THREAD_VERBOSE
-                   std::stringstream sstr;
-                   sstr<<"Delaying";
-                   log_task(curTask,sstr);
-                   logfileptr->OFS()<<sstr.str();
+                  std::stringstream sstr;
+                  sstr<<"Delaying";
+                  log_task(curTask,sstr);
+                  logfileptr->OFS()<<sstr.str();
 #endif
-                   delayedTasks_.push_back(curTask);
-                 }
+                  delayedTasks_.push_back(curTask);
+                }
               }
 
               if(!delay){
@@ -909,19 +909,18 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
 
 #ifdef THREAD_VERBOSE
             {
-                std::stringstream sstr;
-                queue.list_mutex_.lock();
+              std::stringstream sstr;
+              queue.list_mutex_.lock();
 
-                sstr<<"======delayed======"<<std::endl;
-                for(auto ptr: delayedTasks_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
-                sstr<<"======waiting======"<<std::endl;
-                for(auto && ptr : queue.workQueue_){ log_task(ptr,sstr); }
-                sstr<<"======running======"<<std::endl;
-                bassert(queue.processing_.size()==nthr);
-                for(auto ptr: queue.processing_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
-                sstr<<"==================="<<std::endl;
-                logfileptr->OFS()<<sstr.str();
-                queue.list_mutex_.unlock();
+              sstr<<"======delayed======"<<std::endl;
+              for(auto ptr: delayedTasks_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
+              sstr<<"======waiting======"<<std::endl;
+              for(auto && ptr : queue.workQueue_){ log_task(ptr,sstr); }
+              sstr<<"======running======"<<std::endl;
+              for(auto ptr: queue.processing_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
+              sstr<<"==================="<<std::endl;
+              logfileptr->OFS()<<sstr.str();
+              queue.list_mutex_.unlock();
             }
 #endif
 
@@ -963,10 +962,10 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
                   if(extraTaskHandle_!=nullptr){
                     delay = extraTaskHandle_(curTask);
                     if(delay){
-                std::stringstream sstr;
-                sstr<<"Delaying";
-                log_task(curTask,sstr);
-                logfileptr->OFS()<<sstr.str();
+                      std::stringstream sstr;
+                      sstr<<"Delaying";
+                      log_task(curTask,sstr);
+                      logfileptr->OFS()<<sstr.str();
                       delayedTasks_.push_back(curTask);
                     }
                   }
@@ -999,7 +998,7 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
         else{
           while(graph.getTaskCount()>0 || !this->done()){
             if(np>1){
-              num_msg = checkIncomingMessages_(nthr,graph);
+              num_msg = checkIncomingMessages_(graph);
             }
             if(!this->done())
             {
@@ -1017,96 +1016,96 @@ int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(Int nthr, t
 
       }
 #else
-    while(graph.getTaskCount()>0 || !this->done()){
-      int num_msg = checkIncomingMessages_(nthr,graph);
+      while(graph.getTaskCount()>0 || !this->done()){
+        int num_msg = checkIncomingMessages_(graph);
 
 #ifdef SP_THREADS
-//      progress_threads();
+        //      progress_threads();
 #endif
 
 #ifdef SP_THREADS
-      while(!this->done())
+        while(!this->done())
 #else
-      if(!this->done())
+          if(!this->done())
 #endif
-      {
-        //Pick a ready task
-        std::shared_ptr<GenericTask> curTask = nullptr;
-        {
+          {
+            //Pick a ready task
+            std::shared_ptr<GenericTask> curTask = nullptr;
+            {
 #ifdef SP_THREADS
-        std::lock_guard<std::mutex> lock(list_mutex_);
+              std::lock_guard<std::mutex> lock(list_mutex_);
 #endif
-        curTask = this->top();
-        this->pop();
-        }
+              curTask = this->top();
+              this->pop();
+            }
 #if 0
-        SparseTask * tmp = ((SparseTask*)curTask.get());
-        Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
-        Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
-        std::string name;
-        switch(type){
-          case Solve::op_type::FUC:
-            name="FUC";
-            break;
-          case Solve::op_type::BUC:
-            name="BUC";
-            break;
-          case Solve::op_type::BU:
-            name="BU";
-            break;
-          case Solve::op_type::FU:
-            name="FU";
-            break;
-        }
-        logfileptr->OFS()<<"Running "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
+            SparseTask * tmp = ((SparseTask*)curTask.get());
+            Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
+            Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
+            std::string name;
+            switch(type){
+              case Solve::op_type::FUC:
+                name="FUC";
+                break;
+              case Solve::op_type::BUC:
+                name="BUC";
+                break;
+              case Solve::op_type::BU:
+                name="BU";
+                break;
+              case Solve::op_type::FU:
+                name="FU";
+                break;
+            }
+            logfileptr->OFS()<<"Running "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
 #endif
 
 #ifdef SP_THREADS
-      progress_threads();
-    //logfileptr->OFS()<<"running threads "<<handles.size()<<" vs "<<nthr<<std::endl;
-        if( handles.size()<nthr){
-            //logfileptr->OFS()<<"thread done"<<std::endl;
-          //auto fut = std::async(std::launch::async,curTask->execute);
-          //handles.push_back(std::move(fut));
-          handles.push_back(std::async(std::launch::async,curTask->execute));
-      //progress_threads();
-        }
-        else{
-          curTask->execute();
-          break;
-        }
+            progress_threads();
+            //logfileptr->OFS()<<"running threads "<<handles.size()<<" vs "<<nthr<<std::endl;
+            if( handles.size()<nthr){
+              //logfileptr->OFS()<<"thread done"<<std::endl;
+              //auto fut = std::async(std::launch::async,curTask->execute);
+              //handles.push_back(std::move(fut));
+              handles.push_back(std::async(std::launch::async,curTask->execute));
+              //progress_threads();
+            }
+            else{
+              curTask->execute();
+              break;
+            }
 #else
-        curTask->execute();
+            curTask->execute();
 #endif
-      }
+          }
 #if 0
-      else if (num_msg==0 && graph.getTaskCount()>0){
-        logfileptr->OFS()<<"NOT PROGRESSING"<<std::endl;
-        for(auto taskit: graph.tasks_){
-          log_task(taskit.second);
-        }
-        logfileptr->OFS()<<"END OF NOT PROGRESSING"<<std::endl;
-        upcxx::async_wait();
-        //abort();
+          else if (num_msg==0 && graph.getTaskCount()>0){
+            logfileptr->OFS()<<"NOT PROGRESSING"<<std::endl;
+            for(auto taskit: graph.tasks_){
+              log_task(taskit.second);
+            }
+            logfileptr->OFS()<<"END OF NOT PROGRESSING"<<std::endl;
+            upcxx::async_wait();
+            //abort();
+          }
+#endif
+
       }
+
+#ifdef SP_THREADS
+      auto it = handles.begin();
+      while(it != handles.end()){
+        it->get();
+        it = handles.erase(it);
+      }
+#endif
+
+
+      upcxx::async_wait();
+      MPI_Barrier(workcomm);
 #endif
 
     }
-
-#ifdef SP_THREADS
-        auto it = handles.begin();
-        while(it != handles.end()){
-          it->get();
-          it = handles.erase(it);
-        }
-#endif
-
-
-    upcxx::async_wait();
-    MPI_Barrier(workcomm);
-#endif
-
-  }
 
 
 

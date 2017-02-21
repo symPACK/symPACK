@@ -304,7 +304,11 @@ inline double get_time()
 #include "sympack/Environment_impl.hpp"
 
 
-
+namespace symPACK{
+  namespace Multithreading{ 
+    extern int NumThread;
+  } // namespace Multithreading
+} // namespace SYMPACK
 
 
 

@@ -179,6 +179,27 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
     logfileptr->OFS()<<" T "<<name<<" "<<meta[0]<<"_"<<meta[1]<<" "<<tmp->local_deps_cnt<<" "<<tmp->remote_deps_cnt<<std::endl;
   };
 
+  auto log_task_internal = [&] ( const std::shared_ptr<GenericTask> & taskptr){
+    SparseTask * tmp = ((SparseTask*)taskptr.get());
+    Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
+    Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+    std::string name;
+    switch(type){
+      case Factorization::op_type::FACTOR:
+        name="FACTOR";
+        break;
+      case Factorization::op_type::AGGREGATE:
+        name="AGGREGATE";
+        break;
+      case Factorization::op_type::UPDATE:
+        name="UPDATE";
+        break;
+    }
+
+    std::stringstream sstr;
+    sstr<<" Running T "<<name<<" "<<meta[0]<<"_"<<meta[1]<<" "<<tmp->local_deps_cnt<<" "<<tmp->remote_deps_cnt<<std::endl;
+    logfileptr->OFS()<<sstr.str();
+  };
 
 #ifdef FANIN_OPTIMIZATION
   if(options_.mappingTypeStr ==  "COL2D")
@@ -225,6 +246,8 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
         Task.execute = [&,this,src,tgt,pTask] () {
           scope_timer(a,FB_AGGREGATION_TASK);
           Int iLocalI = snodeLocalIndex(tgt);
+
+          //log_task_internal(pTask);
 
 #ifdef _DEBUG_PROGRESS_
           logfileptr->OFS()<<"Processing T_AGGREG("<<src<<","<<tgt<<") "<<std::endl;
@@ -314,6 +337,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
           {
             Task.execute = [&,this,src,tgt,iLocalTGT,pTask] () {
 
+          //log_task_internal(pTask);
               scope_timer(b,FB_FACTORIZATION_TASK);
 
 
@@ -406,6 +430,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
         case Factorization::op_type::UPDATE:
           {
             Task.execute = [&,this,src,tgt,iLocalTGT,pTask,type] () {
+          //log_task_internal(pTask);
               scope_timer(a,FB_UPDATE_TASK);
               Int src_snode_id = src;
               Int tgt_snode_id = tgt;
@@ -586,7 +611,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                           upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
                           {
 #ifdef SP_THREADS
-                        std::lock_guard<std::mutex> lock(upcxx_mutex);
+                        std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
 #endif
                           upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
                           }
@@ -734,17 +759,18 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
   SYMPACK_TIMER_STOP(FB_INIT);
 
 
-
+#ifndef NDEBUG
   for(auto taskit = graph.tasks_.begin();taskit!=graph.tasks_.end();taskit++){
     log_task(taskit);
   }
+#endif
 
 
   if(iam==0){
     std::cout<<"TaskGraph size is: "<<graph.tasks_.size()<<std::endl;
   }
   timeSta = get_time();
-  scheduler->run(CommEnv_->MPI_GetComm(),options_.numThreads,graph);
+  scheduler->run(CommEnv_->MPI_GetComm(),graph);
   double timeStop = get_time();
   if(iam==0){
     std::cout<<"Factorization task graph execution time: "<<timeStop - timeSta<<std::endl;

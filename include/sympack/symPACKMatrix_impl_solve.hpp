@@ -1464,7 +1464,7 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
     
 
     timeSta = get_time();
-    scheduler->run(CommEnv_->MPI_GetComm(),options_.numThreads,graph);
+    scheduler->run(CommEnv_->MPI_GetComm(),graph);
     timeStop = get_time();
         if(iam==0){
           std::cout<<"Solve task graph execution time: "<<timeStop - timeSta<<std::endl;

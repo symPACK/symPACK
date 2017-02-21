@@ -337,6 +337,9 @@ int main(int argc, char **argv)
       optionsFact.maxIrecv = maxIrecv;
       optionsFact.numThreads = numThreads;
 
+      //Set up the threading environment
+      Multithreading::NumThread = numThreads;
+
 
       symPACKMatrix<SCALAR>*  SMat;
 
