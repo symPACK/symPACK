@@ -139,9 +139,6 @@ namespace symPACK{
       Int remote_deps_cnt;
       Int local_deps_cnt;
 
-      std::list< id_type > remote_deps;
-      std::list< id_type > local_deps;
-
       //list of incoming messages
       std::list<IncomingMessage*> data;
   

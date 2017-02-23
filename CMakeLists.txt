@@ -2,6 +2,28 @@ cmake_minimum_required(VERSION 2.8)
 project(SYMPACK C CXX Fortran)
 include(ExternalProject)
 
+#all options
+option(GASNET_PAR "Use Gasnet Parallel conduits" OFF)
+option(ENABLE_ARIES "Enable ARIES" OFF)
+option(ENABLE_KNL "Cross compiling" OFF)
+option(ENABLE_PROFILE "Enable profiling" OFF)
+option(ENABLE_OPENMP "Enable OpenMP" OFF)
+option(TRACK_MEMORY "Enable (partial) Memory allocation tracking" OFF)
+option(ENABLE_SCOTCH "Enable SCOTCH" OFF)
+option(ENABLE_PARMETIS "Enable PARMETIS" OFF)
+option(ENABLE_METIS "Enable METIS" OFF)
+option(ENABLE_MKL "Enable MKL" OFF)
+option(AMD_IDX_64 "Use 64 bit integers for AMD" OFF)
+option(MMD_IDX_64 "Use 64 bit integers for MMD" OFF)
+option(RCM_IDX_64 "Use 64 bit integers for RCM" OFF)
+
+
+
+
+
+
+
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 
 set(CMAKE_CXX_STANDARD 11)
@@ -51,28 +73,24 @@ include(FortranCInterface)
 FortranCInterface_HEADER("${PROJECT_BINARY_DIR}/sympack_config.hpp" MACRO_NAMESPACE "FC_")
 FortranCInterface_VERIFY(CXX)
 
-option(RCM_IDX_64 "Use 64 bit integers for RCM" OFF)
 if(RCM_IDX_64)
 add_definitions( "-DRCMIDXSIZE=64")
 else()
 add_definitions( "-DRCMIDXSIZE=32")
 endif()
 
-option(MMD_IDX_64 "Use 64 bit integers for MMD" OFF)
 if(MMD_IDX_64)
 add_definitions( "-DMMDIDXSIZE=64")
 else()
 add_definitions( "-DMMDIDXSIZE=32")
 endif()
 
-option(AMD_IDX_64 "Use 64 bit integers for AMD" OFF)
 if(AMD_IDX_64)
 add_definitions( "-DAMDIDXSIZE=64")
 else()
 add_definitions( "-DAMDIDXSIZE=32")
 endif()
 
-option(ENABLE_MKL "Enable MKL" OFF)
 if(ENABLE_MKL)
 find_package(MKL)
 if(MKL_FOUND)
@@ -172,7 +190,6 @@ endif()
 
 #######   ORDERING LIBRARIES ######
 
-option(ENABLE_METIS "Enable METIS" OFF)
 if(ENABLE_METIS)
   find_package(METIS REQUIRED)
   set(LIBS ${LIBS} ${METIS_LIBRARIES})
@@ -180,7 +197,6 @@ if(ENABLE_METIS)
   add_definitions("-DUSE_METIS")
 endif()
 
-option(ENABLE_PARMETIS "Enable PARMETIS" OFF)
 if(ENABLE_PARMETIS)
   find_package(ParMETIS REQUIRED)
   set(LIBS ${LIBS} ${PARMETIS_LIBRARIES})
@@ -189,7 +205,6 @@ if(ENABLE_PARMETIS)
   add_definitions("-DUSE_PARMETIS")
 endif()
 
-option(ENABLE_SCOTCH "Enable SCOTCH" OFF)
 if(ENABLE_SCOTCH)
   find_package(Scotch REQUIRED)
   set(LIBS ${LIBS} ${SCOTCH_LIBRARIES})
@@ -201,12 +216,10 @@ endif()
 
 #######   SYMPACK OPTIONS ######
 
-option(TRACK_MEMORY "Enable (partial) Memory allocation tracking" OFF)
 if(TRACK_MEMORY)
   add_definitions("-D_TRACK_MEMORY_")
 endif()
 
-option(ENABLE_OPENMP "Enable OpenMP" OFF)
 if(ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
   if(OPENMP_FOUND)
@@ -223,7 +236,6 @@ if(ENABLE_OPENMP)
   endif()
 endif()
 
-option(ENABLE_PROFILE "Enable profiling" OFF)
 if(ENABLE_PROFILE)
   if(NOT ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
@@ -249,8 +261,6 @@ endif()
 
 #######   GASNET AND UPCXX OPTIONS ######
 
-option(ENABLE_ARIES "Enable ARIES" OFF)
-option(ENABLE_KNL "Cross compiling" OFF)
 
 include(cmake/gasnet.cmake)
 include(cmake/upcxx.cmake)

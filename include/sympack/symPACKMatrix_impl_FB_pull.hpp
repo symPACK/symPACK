@@ -114,6 +114,15 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
   std::map<Int,bool> superNodeInUse;
   std::mutex inuse_mutex_;
 
+#ifdef SP_THREADS
+  scheduler->threadInitHandle_ = [&,this](){
+              std::thread::id tid = std::this_thread::get_id();
+              scheduler->list_mutex_.lock();
+              auto & tmpBuf = tmpBufs_th[tid];
+              scheduler->list_mutex_.unlock();
+  };
+#endif
+
   scheduler->extraTaskHandle_ = [&,this](std::shared_ptr<GenericTask> & pTask)->bool {
     SparseTask & Task = *(SparseTask*)pTask.get();
 
@@ -355,7 +364,10 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
               SYMPACK_TIMER_START(FACTOR_PANEL);
 #ifdef SP_THREADS
               std::thread::id tid = std::this_thread::get_id();
-              src_snode->Factorize(tmpBufs_th[tid]);
+//              scheduler->list_mutex_.lock();
+              auto & tmpBuf = tmpBufs_th[tid];
+//              scheduler->list_mutex_.unlock();
+              src_snode->Factorize(tmpBuf);
 #else
               src_snode->Factorize(tmpBufs);
 #endif
@@ -647,7 +659,10 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                   SYMPACK_TIMER_START(UPD_ANC_UPD);
 
 #ifdef SP_THREADS
-                  tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs_th[tid],iTarget,iam);
+              //scheduler->list_mutex_.lock();
+              auto & tmpBuf = tmpBufs_th[tid];
+              //scheduler->list_mutex_.unlock();
+                  tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,iam);
 #else
                   tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
 #endif

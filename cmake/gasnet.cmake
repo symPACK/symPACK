@@ -12,7 +12,6 @@ if (GASNET_PREFIX)
 
     set(GASNET_DEFINES "")
     set(GASNET_DEFINES $ENV{GASNET_DEFINES})
-    #set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_SEQ -DUSE_GASNET_FAST_SEGMENT -DONLY_MSPACES -DGASNET_ALLOW_OPTIMIZED_DEBUG")
 
 
     get_filename_component(GASNET_CONDUIT_NAME ${GASNET_CONDUIT} NAME_WE)
@@ -50,13 +49,17 @@ else()
 
     set(GASNET_DEFINES "")
 
-    #set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_SEQ -DGASNET_ALLOW_OPTIMIZED_DEBUG")
-    #SET(GASNET_LIBRARIES ${MPI_CXX_LIBRARIES} -L/opt/cray/pe/pmi/5.0.10-1.0000.11050.0.0.ari/lib64 -lpmi -L/opt/cray/ugni/6.0.12-2.1/lib64 -lugni -L/opt/cray/udreg/2.3.2-4.6/lib64 -ludreg  -L/opt/cray/xpmem/0.1-4.5/lib64 -lxpmem -lhugetlbfs -lm )
+    if(GASNET_PAR)
+      set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_PAR -DGASNET_ALLOW_OPTIMIZED_DEBUG -D_REENTRANT")
+      set(GASNET_LIBRARIES ${MPI_CXX_LIBRARIES} -L/opt/cray/pe/pmi/5.0.10-1.0000.11050.0.0.ari/lib64 -lpmi -L/opt/cray/ugni/6.0.12-2.1/lib64 -lugni -L/opt/cray/udreg/2.3.2-4.6/lib64 -ludreg -L/opt/cray/xpmem/0.1-4.5/lib64 -lxpmem -lhugetlbfs -lm )
+    else()
+      set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_SEQ -DGASNET_ALLOW_OPTIMIZED_DEBUG")
+      set(GASNET_LIBRARIES ${MPI_CXX_LIBRARIES} -L/opt/cray/pe/pmi/5.0.10-1.0000.11050.0.0.ari/lib64 -lpmi -L/opt/cray/ugni/6.0.12-2.1/lib64 -lugni -L/opt/cray/udreg/2.3.2-4.6/lib64 -ludreg  -L/opt/cray/xpmem/0.1-4.5/lib64 -lxpmem -lhugetlbfs -lm )
+    endif()
 
 
 
-    set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_PAR -DGASNET_ALLOW_OPTIMIZED_DEBUG -D_REENTRANT")
-    SET(GASNET_LIBRARIES ${MPI_CXX_LIBRARIES} -L/opt/cray/pe/pmi/5.0.10-1.0000.11050.0.0.ari/lib64 -lpmi -L/opt/cray/ugni/6.0.12-2.1/lib64 -lugni -L/opt/cray/udreg/2.3.2-4.6/lib64 -ludreg -L/opt/cray/xpmem/0.1-4.5/lib64 -lxpmem -lhugetlbfs -lm )
+
 
     else()
      ExternalProject_Add(${GASNET_NAME}
@@ -67,9 +70,13 @@ else()
     CONFIGURE_COMMAND <SOURCE_DIR>/configure  --enable-pshm-hugetlbfs --enable-pshm-xpmem --enable-pshm --disable-pshm-posix --enable-aries --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
         )
 
-    set(GASNET_DEFINES "")
-    set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_SEQ -DUSE_GASNET_FAST_SEGMENT -DONLY_MSPACES -DGASNET_ALLOW_OPTIMIZED_DEBUG")
-
+    if(GASNET_PAR)
+      set(GASNET_DEFINES "")
+      set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_PAR -DUSE_GASNET_FAST_SEGMENT -DONLY_MSPACES -DGASNET_ALLOW_OPTIMIZED_DEBUG -D_REENTRANT")
+    else()
+      set(GASNET_DEFINES "")
+      set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_SEQ -DUSE_GASNET_FAST_SEGMENT -DONLY_MSPACES -DGASNET_ALLOW_OPTIMIZED_DEBUG")
+    endif()
     
     if(APPLE)
       SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lhugetlbfs -lpthread )
@@ -87,10 +94,13 @@ else()
     
     
     set(GASNET_CONDUIT_INCLUDE_DIR ${GASNET_INCLUDE_DIR}/aries-conduit)
-    #set(GASNET_CONDUIT ${GASNET_CONDUIT_INCLUDE_DIR}/aries-seq.mak)
-    #set_property(TARGET libgasnet-conduit PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libgasnet-aries-seq.a)
+    if(GASNET_PAR)
     set(GASNET_CONDUIT ${GASNET_CONDUIT_INCLUDE_DIR}/aries-par.mak)
     set_property(TARGET libgasnet-conduit PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libgasnet-aries-par.a)
+    else()
+    set(GASNET_CONDUIT ${GASNET_CONDUIT_INCLUDE_DIR}/aries-seq.mak)
+    set_property(TARGET libgasnet-conduit PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libgasnet-aries-seq.a)
+    endif()
 
     
     add_dependencies(libgasnet-conduit ${GASNET_NAME})
@@ -112,10 +122,16 @@ else()
     set(GASNET_DEFINES "")
   
     set(GASNET_CONDUIT_INCLUDE_DIR ${GASNET_INCLUDE_DIR}/mpi-conduit)
-    set(GASNET_CONDUIT ${GASNET_CONDUIT_INCLUDE_DIR}/mpi-seq.mak)
-    set_property(TARGET libgasnet-conduit PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libgasnet-mpi-seq.a)
-    set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_SEQ -DGASNETT_USE_GCC_ATTRIBUTE_MAYALIAS=1")
-  
+    if(GASNET_PAR)
+      set(GASNET_CONDUIT ${GASNET_CONDUIT_INCLUDE_DIR}/mpi-par.mak)
+      set_property(TARGET libgasnet-conduit PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libgasnet-mpi-par.a)
+      set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_PAR -D_REENTRANT -DGASNETT_USE_GCC_ATTRIBUTE_MAYALIAS=1")
+    else()
+      set(GASNET_CONDUIT ${GASNET_CONDUIT_INCLUDE_DIR}/mpi-seq.mak)
+      set_property(TARGET libgasnet-conduit PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libgasnet-mpi-seq.a)
+      set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_SEQ -DGASNETT_USE_GCC_ATTRIBUTE_MAYALIAS=1")
+    endif()
+
     if(APPLE)
       SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lpthread )
     else()

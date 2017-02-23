@@ -228,6 +228,7 @@ namespace symPACK{
         Queue workQueue_;
         std::vector<std::thread> threads;
         std::condition_variable sync;
+        std::function<void()> threadInitHandle_;
         bool done = false;
 #ifdef THREAD_VERBOSE
         std::vector<T> processing_;  
@@ -237,6 +238,16 @@ namespace symPACK{
 #ifdef THREAD_VERBOSE
           processing_.resize(nthreads,nullptr);
 #endif
+          for (Int count {0}; count < nthreads; count += 1)
+            threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue2::consume ) , this, count);
+        }
+
+
+        WorkQueue2(Int nthreads, std::function<void()> & threadInitHandle ){
+#ifdef THREAD_VERBOSE
+          processing_.resize(nthreads,nullptr);
+#endif
+          threadInitHandle_ = threadInitHandle;
           for (Int count {0}; count < nthreads; count += 1)
             threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue2::consume ) , this, count);
         }
@@ -272,6 +283,11 @@ namespace symPACK{
           sstr<<"Thread "<<tid<<std::endl;
           logfileptr->OFS()<<sstr.str();
 #endif
+
+          if(threadInitHandle_!=nullptr){
+            threadInitHandle_();
+          }
+
           while (true) {
             std::unique_lock<std::mutex> lock(list_mutex_);
             if (not workQueue_.empty()) {
@@ -318,6 +334,7 @@ namespace symPACK{
         virtual bool done() =0;
 
         std::list<T> delayedTasks_;
+        std::function<void()> threadInitHandle_;
         std::function<bool(T&)> extraTaskHandle_;
         std::function<void(IncomingMessage *)> msgHandle;
         Int checkIncomingMessages_(taskGraph & graph);
@@ -853,7 +870,7 @@ namespace symPACK{
         Int num_msg =0;
         std::shared_ptr<GenericTask> curTask = nullptr;
         if(Multithreading::NumThread>1){
-          WorkQueue2<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread);
+          WorkQueue2<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread,threadInitHandle_);
 
           while(graph.getTaskCount()>0 || !this->done() || !delayedTasks_.empty() ){
 
@@ -921,76 +938,6 @@ namespace symPACK{
               sstr<<"==================="<<std::endl;
               logfileptr->OFS()<<sstr.str();
               queue.list_mutex_.unlock();
-            }
-#endif
-
-
-#if 0
-            //while(!this->done())
-            if(!this->done() || !delayedTasks_.empty())
-            {
-              curTask = nullptr;
-
-              //Pick a ready task or a delayed task
-              bool delay = false;
-              auto taskit = delayedTasks_.begin();
-              if(extraTaskHandle_!=nullptr){
-                for(; taskit!=delayedTasks_.end(); taskit++){
-                  delay = extraTaskHandle_(*taskit);
-                  if(!delay){
-                    break;
-                  }
-                }
-              }
-
-              if(taskit!=delayedTasks_.end()){
-                curTask = *taskit;
-                bassert(curTask!=nullptr);
-                delayedTasks_.erase(taskit);
-                std::stringstream sstr;
-                sstr<<"Resuming";
-                log_task(curTask,sstr);
-                logfileptr->OFS()<<sstr.str();
-              }
-              else if(!done()){
-                do{
-                  std::lock_guard<std::mutex> lock(list_mutex_);
-                  curTask = this->top();
-                  bassert(curTask!=nullptr);
-                  this->pop();
-                  delay = false;
-                  if(extraTaskHandle_!=nullptr){
-                    delay = extraTaskHandle_(curTask);
-                    if(delay){
-                      std::stringstream sstr;
-                      sstr<<"Delaying";
-                      log_task(curTask,sstr);
-                      logfileptr->OFS()<<sstr.str();
-                      delayedTasks_.push_back(curTask);
-                    }
-                  }
-
-                }while(delay && !done() );
-              }
-
-              if(curTask!=nullptr){
-                //queue.pushTask(std::move(curTask->execute));
-                queue.pushTask(curTask);
-              }
-
-              {
-                std::stringstream sstr;
-                queue.list_mutex_.lock();
-                sstr<<"======waiting======"<<std::endl;
-                for(auto && ptr : queue.workQueue_){ log_task(ptr,sstr); }
-                sstr<<"======running======"<<std::endl;
-                bassert(queue.processing_.size()==nthr);
-                for(auto ptr: queue.processing_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
-                sstr<<"==================="<<std::endl;
-                logfileptr->OFS()<<sstr.str();
-                queue.list_mutex_.unlock();
-              }
-
             }
 #endif
           }
