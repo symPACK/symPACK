@@ -79,9 +79,25 @@
 #include <cmath>
 #include <cassert>
 #include <stdexcept>
+#include <mutex>
 
 // MPI
 #include <mpi.h>
+
+namespace symPACK{
+#ifdef SP_THREADS
+  using upcxx_mutex_type = std::recursive_mutex;
+  extern upcxx_mutex_type upcxx_mutex;
+#endif
+}
+
+namespace symPACK{
+  namespace Multithreading{ 
+    extern int NumThread;
+  } // namespace Multithreading
+} // namespace SYMPACK
+
+
 
 #include "sympack/datatypes.hpp"
 
@@ -301,14 +317,8 @@ inline double get_time()
 #endif
 
 
+
 #include "sympack/Environment_impl.hpp"
-
-
-namespace symPACK{
-  namespace Multithreading{ 
-    extern int NumThread;
-  } // namespace Multithreading
-} // namespace SYMPACK
 
 
 

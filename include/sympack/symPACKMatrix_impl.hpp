@@ -1,44 +1,44 @@
 /*
-	 Copyright (c) 2016 The Regents of the University of California,
-	 through Lawrence Berkeley National Laboratory.  
+   Copyright (c) 2016 The Regents of the University of California,
+   through Lawrence Berkeley National Laboratory.  
 
-   Author: Mathias Jacquelin
-	 
-   This file is part of symPACK. All rights reserved.
+Author: Mathias Jacquelin
 
-	 Redistribution and use in source and binary forms, with or without
-	 modification, are permitted provided that the following conditions are met:
+This file is part of symPACK. All rights reserved.
 
-	 (1) Redistributions of source code must retain the above copyright notice, this
-	 list of conditions and the following disclaimer.
-	 (2) Redistributions in binary form must reproduce the above copyright notice,
-	 this list of conditions and the following disclaimer in the documentation
-	 and/or other materials provided with the distribution.
-	 (3) Neither the name of the University of California, Lawrence Berkeley
-	 National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
-	 be used to endorse or promote products derived from this software without
-	 specific prior written permission.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-	 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-	 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-	 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-	 DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-	 ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-	 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-	 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-	 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-	 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-	 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+(1) Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+(2) Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+(3) Neither the name of the University of California, Lawrence Berkeley
+National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
 
-	 You are under no obligation whatsoever to provide any bug fixes, patches, or
-	 upgrades to the features, functionality or performance of the source code
-	 ("Enhancements") to anyone; however, if you choose to make your Enhancements
-	 available either publicly, or directly to Lawrence Berkeley National
-	 Laboratory, without imposing a separate written license agreement for such
-	 Enhancements, then you hereby grant the following license: a non-exclusive,
-	 royalty-free perpetual license to install, use, modify, prepare derivative
-	 works, incorporate into other computer software, distribute, and sublicense
-	 such enhancements or derivative works thereof, in binary and source code form.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+You are under no obligation whatsoever to provide any bug fixes, patches, or
+upgrades to the features, functionality or performance of the source code
+("Enhancements") to anyone; however, if you choose to make your Enhancements
+available either publicly, or directly to Lawrence Berkeley National
+Laboratory, without imposing a separate written license agreement for such
+Enhancements, then you hereby grant the following license: a non-exclusive,
+royalty-free perpetual license to install, use, modify, prepare derivative
+works, incorporate into other computer software, distribute, and sublicense
+such enhancements or derivative works thereof, in binary and source code form.
 */
 
 #ifndef _SYMPACK_MATRIX_IMPL_HPP_
@@ -242,7 +242,7 @@ namespace symPACK{
 
 #if 1
   template<typename T> void symPACKMatrix<T>::generateTaskGraph_New(taskGraph & graph,
-      std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates)
+      std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates, std::vector<Int> & mw, std::vector<Int> & mh)
   {
     //we will need to communicate if only partial xlindx_, lindx_
     //idea: build tasklist per processor and then exchange
@@ -268,18 +268,12 @@ namespace symPACK{
         Idx row = locLindx_[sidx-1];
         J = SupMembership_[row-1];
         if(J!=prevSnode){
-          //J = locSupLindx_[sidx-1];
           Int iUpdater = Mapping_->Map(J-1,I-1);
 
           if(J>I){
             if(marker[iUpdater]!=I){
               //create the task on iUpdater
               Updates[iUpdater].push_back(std::make_pair(I,J));
-              //create only one task if I don't own the factor
-              //TODO CHANGE THIS
-              //if(iUpdater!=iOwner){
-              //  marker[iUpdater]=I;
-              //}
             }
           }
         }
@@ -305,7 +299,7 @@ namespace symPACK{
 
     //Build the contiguous array of pairs
     vector<std::pair<Idx,Idx> > sendbuf;
-    sendbuf.reserve(sdispls.back());///sizeof(std::pair<Idx,Idx>));
+    sendbuf.reserve(sdispls.back());
 
     for(auto itp = Updates.begin();itp!=Updates.end();itp++){
       sendbuf.insert(sendbuf.end(),itp->second.begin(),itp->second.end());
@@ -328,41 +322,545 @@ namespace symPACK{
     MPI_Type_free(&type);
 
     std::hash<std::string> hash_fn;
+
+#if 0
+  auto dec_ref = [&] ( taskGraph::task_iterator taskit, Int loc, Int rem) {
+#ifdef SP_THREADS
+    std::lock_guard<std::mutex> lock(scheduler->list_mutex_);
+#endif
+    taskit->second->local_deps_cnt-= loc;
+    taskit->second->remote_deps_cnt-= rem;
+
+    if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+      {
+        //SparseTask * tmp = ((SparseTask*)taskit->second.get());
+        //Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
+        //Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+        //if(meta[0]==10 && meta[1]==10){
+        // gdb_lock();
+        //} 
+      }
+      scheduler->push(taskit->second);
+      graph.removeTask(taskit->second->id);
+    }
+  };
+#endif
+
+
+
+
     //now process recvbuf and add the tasks to the taskGraph
-    //Int localTaskCount = 0;
+    size_t max_mem_req = 0;
     for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
-            std::shared_ptr<GenericTask> pTask(new SparseTask);
-            SparseTask & Task = *(SparseTask*)pTask.get();
+      std::shared_ptr<GenericTask> pTask(new SparseTask);
+      SparseTask & Task = *(SparseTask*)pTask.get();
 
-            Task.meta.resize(2*sizeof(Int)+sizeof(Factorization::op_type));
-            Int * meta = reinterpret_cast<Int*>(Task.meta.data());
-            meta[0] = it->first;
-            meta[1] = it->second;
-            Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
-            type = (it->first==it->second)?Factorization::op_type::FACTOR:Factorization::op_type::UPDATE;
+      Task.meta.resize(2*sizeof(Int)+sizeof(Factorization::op_type));
+      Int * meta = reinterpret_cast<Int*>(Task.meta.data());
+      meta[0] = it->first;
+      meta[1] = it->second;
+      Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+      type = (it->first==it->second)?Factorization::op_type::FACTOR:Factorization::op_type::UPDATE;
 
-            switch(type){
-              case Factorization::op_type::FACTOR:
-                {
-                  Task.remote_deps_cnt = AggregatesToRecv[meta[1]-1];
-                  Task.local_deps_cnt =   LocalAggregates[meta[1]-1];
-                }
-                break;
-              case Factorization::op_type::UPDATE:
-                {
-                  Int iOwner = Mapping_->Map(meta[0]-1,meta[0]-1);
-                  //If I own the factor, it is a local dependency
-                  if(iam==iOwner){
-                    Task.remote_deps_cnt = 0;
-                    Task.local_deps_cnt = 1;
+      Int src = meta[0];
+      Int tgt = meta[1];
+      size_t mem_req = 0;
+      switch(type){
+        case Factorization::op_type::FACTOR:
+          {
+            Task.remote_deps_cnt = AggregatesToRecv[tgt-1];
+            Task.local_deps_cnt = LocalAggregates[tgt-1];
+            //memory req is: aggregate to recv * mw[tgt] * mh[tgt]
+            mem_req = Task.remote_deps_cnt * mw[tgt] * mh[tgt] * sizeof(T);
+
+            //extra work storage for potrf
+            if(options_.decomposition == DecompositionType::LDL){
+              Int NB = lapack::Ilaenv( 1, "DPOTRF", "U", mw[src], -1, -1, -1 );
+              mem_req += NB * mw[src] * sizeof(T); 
+            }
+          }
+          break;
+        case Factorization::op_type::UPDATE:
+          {
+            Int iOwner = Mapping_->Map(src-1,src-1);
+            //If I own the factor, it is a local dependency
+            if(iam==iOwner){
+              Task.remote_deps_cnt = 0;
+              Task.local_deps_cnt = 1;
+            }
+            else{
+              Task.remote_deps_cnt = 1;
+              Task.local_deps_cnt = 0;                    
+            }
+
+            Int iOwnerTgt = Mapping_->Map(tgt-1,tgt-1);
+            if(iam!=iOwnerTgt){
+              //memory req is: mw[tgt] * mh[tgt]
+              mem_req += mw[tgt] * mh[tgt] * sizeof(T);
+            }
+            if(iam!=iOwner){
+              //memory req is: mw[src]*mh[src]
+              mem_req += mw[src] * mh[src] * sizeof(T);
+            }
+
+            if(options_.decomposition == DecompositionType::LL){
+              mem_req += mh[src]*mw[tgt]*sizeof(T) + mw[tgt]*sizeof(Idx) + mh[src]*sizeof(Ptr);
+            }
+            else{
+              mem_req += mh[src]*mw[tgt]*sizeof(T) + mw[tgt]*sizeof(Idx) + mh[src]*sizeof(Ptr);
+              mem_req += mw[src]*mw[tgt]*sizeof(T);
+            }
+
+          }
+          break;
+      }
+
+
+#if 0
+      {
+
+        Int iLocalTGT = snodeLocalIndex(tgt);
+        switch(type){
+          case Factorization::op_type::FACTOR:
+            {
+              Task.execute = [&,this,src,tgt,iLocalTGT,pTask] () {
+                scope_timer(b,FB_FACTORIZATION_TASK);
+
+
+                Int src_snode_id = src;
+                Int tgt_snode_id = tgt;
+                Int I = src_snode_id;
+                auto src_snode = LocalSupernodes_[iLocalTGT -1];
+                Int src_first_col = src_snode->FirstCol();
+                Int src_last_col = src_snode->LastCol();
+
+#ifdef _DEBUG_PROGRESS_
+                logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
+#endif
+
+                SYMPACK_TIMER_START(FACTOR_PANEL);
+#ifdef SP_THREADS
+                std::thread::id tid = std::this_thread::get_id();
+                auto & tmpBuf = tmpBufs_th[tid];
+                src_snode->Factorize(tmpBuf);
+#else
+                src_snode->Factorize(tmpBufs);
+#endif
+
+                SYMPACK_TIMER_STOP(FACTOR_PANEL);
+
+                //Sending factors and update local tasks
+                //Send my factor to my ancestors. 
+                std::vector<char> is_factor_sent(np);
+                SetValue(is_factor_sent,false);
+
+                SnodeUpdate curUpdate;
+                SYMPACK_TIMER_START(FIND_UPDATED_ANCESTORS);
+                SYMPACK_TIMER_START(FIND_UPDATED_ANCESTORS_FACTORIZATION);
+                while(src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
+                  Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode->Id()-1);
+
+                  if(iTarget != iam){
+                    if(!is_factor_sent[iTarget]){
+                      MsgMetadata meta;
+
+                      //if(curUpdate.tgt_snode_id==29 && curUpdate.src_snode_id==28){gdb_lock(0);}
+                      //TODO Replace all this by a Serialize function
+                      NZBlockDesc & nzblk_desc = src_snode->GetNZBlockDesc(curUpdate.blkidx);
+                      Int local_first_row = curUpdate.src_first_row - nzblk_desc.GIndex;
+                      Int nzblk_cnt = src_snode->NZBlockCnt() - curUpdate.blkidx;
+                      Int nzval_cnt_ = src_snode->Size()*(src_snode->NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
+                      T* nzval_ptr = src_snode->GetNZval(nzblk_desc.Offset) + local_first_row*src_snode->Size();
+
+                      upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
+                      //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
+
+                      //Send factor 
+                      meta.src = curUpdate.src_snode_id;
+                      meta.tgt = curUpdate.tgt_snode_id;
+                      meta.GIndex = curUpdate.src_first_row;
+
+                      std::stringstream sstr;
+                      sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
+                      meta.id = hash_fn(sstr.str());
+
+                      char * last_byte_ptr = (char*)&nzblk_desc + sizeof(NZBlockDesc);
+                      size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
+
+                      //if(src==1100){gdb_lock();}
+                      {
+                        signal_data(sendPtr, msgSize, iTarget, meta);
+                      }
+                      is_factor_sent[iTarget] = true;
+                    }
                   }
                   else{
-                    Task.remote_deps_cnt = 1;
-                    Task.local_deps_cnt = 0;
+                    //Update local tasks
+                    //find task corresponding to curUpdate
+
+                    std::stringstream sstr;
+                    sstr<<curUpdate.src_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
+                    auto id = hash_fn(sstr.str());
+                    auto taskit = graph.find_task(id);
+                    bassert(taskit!=graph.tasks_.end());
+                    dec_ref(taskit,1,0);
                   }
                 }
-                break;
+                SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS_FACTORIZATION);
+                SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS);
+              };
+
+
+
             }
+            break;
+          case Factorization::op_type::UPDATE:
+            {
+              Task.execute = [&,this,src,tgt,iLocalTGT,pTask,type] () {
+                //log_task_internal(pTask);
+                scope_timer(a,FB_UPDATE_TASK);
+                Int src_snode_id = src;
+                Int tgt_snode_id = tgt;
+
+                src_snode_id = abs(src_snode_id);
+                bool is_first_local = src <0;
+
+                SuperNode<T> * cur_src_snode; 
+
+#ifdef SP_THREADS
+                std::thread::id tid = std::this_thread::get_id();
+#endif
+
+                Int iSrcOwner = this->Mapping_->Map(abs(src_snode_id)-1,abs(src_snode_id)-1);
+
+                {
+                  IncomingMessage * structPtr = NULL;
+                  IncomingMessage * msgPtr = NULL;
+                  //Local or remote factor
+                  //we have only one local or one remote incoming aggregate
+
+
+                  SnodeUpdate curUpdate;
+                  bool found = false;
+
+                  if(pTask->data.size()==0){
+                    cur_src_snode = snodeLocal(src_snode_id);
+                  }
+                  else{
+                    auto msgit = pTask->data.begin();
+                    msgPtr = *msgit;
+                    assert(msgPtr->IsDone());
+                    char* dataPtr = msgPtr->GetLocalPtr();
+                    cur_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
+                    cur_src_snode->InitIdxToBlk();
+
+                    //TODO add the message to other local updates and update their remote dependencies
+                    //GET MY ID
+                    std::stringstream sstr;
+                    sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
+                    auto id = hash_fn(sstr.str());
+                    if(msgPtr->meta.id == id){
+                      SYMPACK_TIMER_START(UPDATE_ANCESTORS);
+                      SnodeUpdate localUpdate;
+
+                      {
+                        std::lock_guard<std::mutex> lock(factorinuse_mutex_);
+                        while(cur_src_snode->FindNextUpdate(localUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+
+                          //skip if this update is "lower"
+                          if(localUpdate.tgt_snode_id<tgt){
+                            continue;
+                          }
+                          else{
+                            Int iUpdater = this->Mapping_->Map(localUpdate.tgt_snode_id-1,localUpdate.src_snode_id-1);
+                            if(iUpdater==iam){
+                              if(localUpdate.tgt_snode_id==tgt){
+                                curUpdate = localUpdate;
+                                found = true;
+                              }
+                              else{
+
+                                std::stringstream sstr;
+                                sstr<<localUpdate.src_snode_id<<"_"<<localUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
+                                auto id = hash_fn(sstr.str());
+                                auto taskit = graph.find_task(id);
+
+                                bassert(taskit!=graph.tasks_.end());
+
+
+                                factorUser[localUpdate.src_snode_id]++;
+                                //this is where we put the msg in the list
+                                taskit->second->data.push_back(msgPtr);
+                                dec_ref(taskit,0,1);
+
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+
+                  //TODO UPDATE do my update here
+                  {
+
+                    SYMPACK_TIMER_START(UPDATE_ANCESTORS);
+                    if(!found){
+                      while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+
+                        //skip if this update is "lower"
+                        if(curUpdate.tgt_snode_id<tgt){
+                          continue;
+                        }
+                        else{
+                          Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.src_snode_id-1);
+                          if(iUpdater==iam){
+                            if(curUpdate.tgt_snode_id==tgt){
+                              found = true;
+                              break;
+                            }
+                          }
+
+                          if(curUpdate.tgt_snode_id>tgt){
+                            break;
+                          }
+                        }
+                      }
+                    }
+
+                    bassert(found);
+                    Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
+                    bassert(iUpdater == iam);
+
+#ifdef _DEBUG_PROGRESS_
+                    logfileptr->OFS()<<"implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
+                    logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<std::endl;
+#endif
+
+                    SuperNode<T> * tgt_aggreg;
+
+                    Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+                    if(iTarget == iam){
+                      //the aggregate std::vector is directly the target snode
+                      SYMPACK_TIMER_START(UPD_ANC_Agg_local);
+                      tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
+                      assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
+                      SYMPACK_TIMER_STOP(UPD_ANC_Agg_local);
+                    }
+                    else{
+                      SYMPACK_TIMER_START(UPD_ANC_Agg_tmp);
+                      //Check if src_snode_id already have an aggregate std::vector
+                      if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==NULL){
+                        SYMPACK_TIMER_START(UPD_ANC_Agg_tmp_creat);
+                        //use number of rows below factor as initializer
+
+                        //TODO do a customized version for FANIN as we have all the factors locally
+                        // the idea is the following: do a DFS and stop each exploration at the first local descendant of current node
+#ifdef FANIN_OPTIMIZATION
+                        if(options_.mappingTypeStr ==  "COL2D")
+                        {
+                          std::set<Idx> structure;
+                          std::list<Int> frontier;
+                          {
+                            scope_timer(a,MERGE_STRUCTURE_FANIN);
+                            Idx tgt_fc = Xsuper_[curUpdate.tgt_snode_id-1];
+                            dfs_traversal(chSupTree_,curUpdate.tgt_snode_id,frontier);
+                            //process frontier in decreasing order of nodes and merge their structure
+                            for(auto it = frontier.rbegin(); it!=frontier.rend(); it++){
+                              Int I = *it;
+                              SuperNode<T> * source = snodeLocal(I);
+                              for(Int blkidx=0; blkidx< source->NZBlockCnt();blkidx++){
+                                NZBlockDesc & nzblk_desc = source->GetNZBlockDesc(blkidx);
+                                Idx fr = nzblk_desc.GIndex;
+                                Idx lr = source->NRows(blkidx) + fr;
+                                for(Idx row = fr; row<lr;row++){
+                                  if(row>=tgt_fc){
+                                    structure.insert(row);
+                                  }
+                                }
+                              }
+                            }
+                          }
+                          aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                        } 
+                        else
+#endif
+                        {
+                          std::set<Idx> structure;
+                          {
+                            scope_timer(a,FETCH_REMOTE_STRUCTURE);
+                            upcxx::global_ptr<SuperNodeDesc> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
+                            Int block_cnt = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1]);
+
+
+                            //allocate space to receive block descriptors
+                            char * buffer = (char*)UpcxxAllocator::allocate(sizeof(NZBlockDesc)*block_cnt+ sizeof(SuperNodeDesc));
+                            upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
+                            {
+#ifdef SP_THREADS
+                              if(Multithreading::NumThread>1){
+                                std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+                                upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
+                              }
+                              else
+#endif
+                                upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
+                            }
+                            SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
+                            NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
+
+                            for(Int i =block_cnt-1;i>=0;i--){
+                              NZBlockDesc & curdesc = bufferBlocks[i];
+                              size_t end = (i>0)?bufferBlocks[i-1].Offset:pdesc->nzval_cnt_;
+                              Int numRows = (end-curdesc.Offset)/pdesc->iSize_;
+
+                              for(Idx row = 0; row<numRows;row++){
+                                structure.insert(curdesc.GIndex+row);
+                              }
+                            }
+                            UpcxxAllocator::deallocate((char*)buffer);
+                          }
+                          aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                        }
+                        SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
+                      }
+                      tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
+
+                      SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp);
+                    }
+
+#ifdef _DEBUG_
+                    logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
+#endif
+
+
+                    //Update the aggregate
+                    SYMPACK_TIMER_START(UPD_ANC_UPD);
+
+#ifdef SP_THREADS
+                    //scheduler->list_mutex_.lock();
+                    auto & tmpBuf = tmpBufs_th[tid];
+                    //scheduler->list_mutex_.unlock();
+                    tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,iam);
+#else
+                    tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
+#endif
+
+                    SYMPACK_TIMER_STOP(UPD_ANC_UPD);
+
+#ifdef SP_THREADS
+                    {
+                      std::lock_guard<std::mutex> lock(inuse_mutex_);
+                      superNodeInUse[tgt_aggreg->Id()] = false;
+                    }
+#endif
+
+                    --UpdatesToDo[curUpdate.tgt_snode_id-1];
+#ifdef _DEBUG_
+                    logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<std::endl;
+#endif
+                    SYMPACK_TIMER_STOP(UPDATE_ANCESTORS);
+
+
+
+
+                    //TODO if I am the last one updating that target, send it
+                    //THIS SHOULD NOT HAVE TO BE PROTECTED OR BE ATOMICAL BECAUSE NO OTHER RUNNING TASK SHOULD UPDATE THE SAME TARGET
+                    //Send the aggregate if it's the last
+                    //If this is my last update sent it to curUpdate.tgt_snode_id
+                    SYMPACK_TIMER_START(UPD_ANC_Agg_Send);
+                    if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
+                      if(iTarget != iam){
+#ifdef _DEBUG_
+                        logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
+#endif
+
+                        tgt_aggreg->Shrink();
+
+                        MsgMetadata meta;
+
+                        NZBlockDesc & nzblk_desc = tgt_aggreg->GetNZBlockDesc(0);
+                        T* nzval_ptr = tgt_aggreg->GetNZval(0);
+
+                        //this is an aggregate
+                        meta.src = curUpdate.src_snode_id;
+                        meta.tgt = curUpdate.tgt_snode_id;
+                        meta.GIndex = nzblk_desc.GIndex;
+
+                        std::stringstream sstr;
+                        sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
+                        meta.id = hash_fn(sstr.str());
+
+                        upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
+                        //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
+                        size_t msgSize = tgt_aggreg->StorageSize();
+                        {
+                          signal_data(sendPtr, msgSize, iTarget, meta);
+                        }
+                      }
+                    }
+                    SYMPACK_TIMER_STOP(UPD_ANC_Agg_Send);
+
+                    SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
+                    if(iTarget == iam)
+                    {
+                      std::stringstream sstr;
+                      sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
+                      auto id = hash_fn(sstr.str());
+                      auto taskit = graph.find_task(id);
+                      bassert(taskit!=graph.tasks_.end());
+                      dec_ref(taskit,1,0);
+
+                    }
+                    SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
+                  }
+
+
+
+                  if(msgPtr!=NULL){
+                    delete cur_src_snode;
+
+                    //TODO if I am the last one using that source factor, delete the message
+                    //THIS HAS TO BE PROTECTED OR BE ATOMICAL
+                    Int userCount =0;
+                    {
+                      std::lock_guard<std::mutex> lock(factorinuse_mutex_);
+                      userCount = --factorUser[tgt_snode_id];
+                    }
+                    if(userCount==0){
+                      delete msgPtr;
+                    }
+
+
+                  }
+
+                  if(structPtr!=NULL){
+                    delete structPtr;
+                  }
+
+                }
+              };
+
+
+
+
+            }
+            break;
+        }
+      }
+#endif
+
+
+
+
+
+
+
+
+
+
+      max_mem_req = std::max(mem_req,max_mem_req);
+
 
       std::stringstream sstr;
       sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)type;
@@ -371,6 +869,9 @@ namespace symPACK{
 
 
     }
+
+
+    logfileptr->OFS()<<"Maximum single task memory requirement is: "<<max_mem_req<<std::endl;
   }
 #endif
 
@@ -438,11 +939,11 @@ namespace symPACK{
 #ifndef NEW_SOLVE
       this->solve_(RHS,nrhs,Xptr);
 #else
-//      this->solveNew_(RHS,nrhs,Xptr);
+      //      this->solveNew_(RHS,nrhs,Xptr);
       this->solveNew2_(RHS,nrhs,Xptr);
 #endif
     }
- 
+
   }
 
   //Solve related routines
@@ -1093,9 +1594,9 @@ namespace symPACK{
       Idx width = mh[s-1]; 
 
 #ifdef SPLIT_AT_BOUNDARY
-        Int nextSup = s+1;
-        Idx next_fc = first_col;
-        Idx next_lc = last_col;
+      Int nextSup = s+1;
+      Idx next_fc = first_col;
+      Idx next_lc = last_col;
 #endif
 
       Idx nzBlockCnt = 1;
@@ -1120,7 +1621,7 @@ namespace symPACK{
             if( nextSup<Xsuper_.size()-1){
               next_fc = Xsuper_[nextSup-1];
               next_lc = Xsuper_[nextSup]-1;
- //             logfileptr->OFS()<<"P Moving on to next supernode"<<std::endl;
+              //             logfileptr->OFS()<<"P Moving on to next supernode"<<std::endl;
             }
             else{
               break;
@@ -1129,8 +1630,8 @@ namespace symPACK{
 
           if(row==iPrevRow+1){
             if( nextSup<Xsuper_.size()-2 && row==next_fc){
-//              logfileptr->OFS()<<"P "<<row<<" Next fc and lc are: "<<next_fc<<" "<<next_lc<<std::endl;
-//              logfileptr->OFS()<<"Crossed boundary"<<std::endl;
+              //              logfileptr->OFS()<<"P "<<row<<" Next fc and lc are: "<<next_fc<<" "<<next_lc<<std::endl;
+              //              logfileptr->OFS()<<"Crossed boundary"<<std::endl;
               nzBlockCnt++;
             }
           }
@@ -2606,22 +3107,27 @@ namespace symPACK{
         case DL:
           scheduler_ = new DLScheduler<std::list<FBTask>::iterator>();
           scheduler2_ = new DLScheduler<FBTask>();
+          scheduler_new_.reset(new DLScheduler< std::shared_ptr<GenericTask> >( ));
           break;
         case MCT:
           scheduler_ = new MCTScheduler<std::list<FBTask>::iterator>();
           scheduler2_ = new MCTScheduler<FBTask>();
+          //scheduler_new_.reset(new MCTScheduler< std::shared_ptr<GenericTask> >( ));
           break;
         case PR:
           scheduler_ = new PRScheduler<std::list<FBTask>::iterator>();
           scheduler2_ = new PRScheduler<FBTask>();
+          //scheduler_new_.reset(new PRScheduler< std::shared_ptr<GenericTask> >( ));
           break;
         case FIFO:
           scheduler_ = new FIFOScheduler<std::list<FBTask>::iterator>();
           scheduler2_ = new FIFOScheduler<FBTask>();
+          scheduler_new_.reset(new FIFOScheduler< std::shared_ptr<GenericTask> >( ));
           break;
         default:
           scheduler_ = new DLScheduler<std::list<FBTask>::iterator>();
           scheduler2_ = new DLScheduler<FBTask>();
+          scheduler_new_.reset(new DLScheduler< std::shared_ptr<GenericTask> >( ));
           break;
       }
       //SYMPACK_TIMER_STOP(SCHEDULER);
@@ -2716,23 +3222,23 @@ namespace symPACK{
           }
         }
         else{
-              std::stringstream sstr;
-              sstr<<"This ordering method is not supported by symPACK. Valid options are:";
-              sstr<<"NATURAL MMD AMD RCM NDBOX NDGRID USER ";
+          std::stringstream sstr;
+          sstr<<"This ordering method is not supported by symPACK. Valid options are:";
+          sstr<<"NATURAL MMD AMD RCM NDBOX NDGRID USER ";
 #ifdef USE_SCOTCH
-              sstr<<"SCOTCH ";
+          sstr<<"SCOTCH ";
 #endif
 #ifdef USE_PTSCOTCH
-              sstr<<"PTSCOTCH ";
+          sstr<<"PTSCOTCH ";
 #endif
 #ifdef USE_METIS
-              sstr<<"METIS ";
+          sstr<<"METIS ";
 #endif
 #ifdef USE_PARMETIS
-              sstr<<"PARMETIS ";
+          sstr<<"PARMETIS ";
 #endif
-              sstr<<std::endl;
-            throw std::logic_error( sstr.str()  );
+          sstr<<std::endl;
+          throw std::logic_error( sstr.str()  );
 
         }
 
@@ -2771,16 +3277,16 @@ namespace symPACK{
             break;
 
           case USER:
-          {
-            Order_.perm.resize(iSize_);
-            //find baseval
-            auto baseval = std::min_element(&options_.perm[0],&options_.perm[0]+iSize_);
-            //now compute everything in 1 based 
-            for(int i=0;i<Order_.perm.size();i++){Order_.perm[i] = options_.perm[i] - *baseval + 1; /*1 based*/}
-            Order_.invp.resize(iSize_);
-            for(int i=0;i<Order_.perm.size();i++){Order_.invp[Order_.perm[i]-1] = i;} 
-          }
-          break;
+            {
+              Order_.perm.resize(iSize_);
+              //find baseval
+              auto baseval = std::min_element(&options_.perm[0],&options_.perm[0]+iSize_);
+              //now compute everything in 1 based 
+              for(int i=0;i<Order_.perm.size();i++){Order_.perm[i] = options_.perm[i] - *baseval + 1; /*1 based*/}
+              Order_.invp.resize(iSize_);
+              for(int i=0;i<Order_.perm.size();i++){Order_.invp[Order_.perm[i]-1] = i;} 
+            }
+            break;
 
           case NDBOX:
             Order_.NDBOX(Size(), graph_.comm);
@@ -2850,10 +3356,10 @@ namespace symPACK{
               sstr<<"PARMETIS ";
 #endif
               sstr<<std::endl;
-            throw std::logic_error( sstr.str()  );
-            //do nothing: either natural or user provided ordering
-          }
-          break;
+              throw std::logic_error( sstr.str()  );
+              //do nothing: either natural or user provided ordering
+            }
+            break;
         }
         SYMPACK_TIMER_STOP(ORDERING);
 
@@ -3045,7 +3551,7 @@ namespace symPACK{
       logfileptr->OFS()<<"Symbfact done"<<std::endl;
 
       if(options_.order_refinement_str != "NO") {
-          double timeSta = get_time();
+        double timeSta = get_time();
         if(options_.order_refinement_str == "SET"){ 
           this->refineSupernodes(3,1,&pMat);
         }
@@ -3078,12 +3584,12 @@ namespace symPACK{
             TSP::SymbolMatrix * symbmtx = TSP::GetPastixSymbolMatrix(Xsuper_,SupMembership_, xlindx, lindx);
             TSP::Order * psorder = TSP::GetPastixOrder(symbmtx,Xsuper_, SupETree, &Order_.perm[0], &Order_.invp[0]);
 
-          double timeSta = get_time();
+            double timeSta = get_time();
             TSP::symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
-          double timeStop = get_time();
-        if(iam==0){
-          std::cout<<"TSP reodering done in "<<timeStop-timeSta<<std::endl;
-        }
+            double timeStop = get_time();
+            if(iam==0){
+              std::cout<<"TSP reodering done in "<<timeStop-timeSta<<std::endl;
+            }
 
             //overwrite order
             for(int i = 0; i < Order_.perm.size(); ++i){
@@ -3095,7 +3601,7 @@ namespace symPACK{
           MPI_Bcast(Order_.perm.data(),Order_.perm.size()*sizeof(Int),MPI_BYTE,0,fullcomm_);
           MPI_Bcast(Order_.invp.data(),Order_.invp.size()*sizeof(Int),MPI_BYTE,0,fullcomm_);
         } 
-          double timeStop = get_time();
+        double timeStop = get_time();
 
         if(iam==0){
           std::cout<<"Supernode reodering done in "<<timeStop-timeSta<<std::endl;
@@ -3226,14 +3732,14 @@ namespace symPACK{
 
 
 
-//#define _OUTPUT_ETREE_
+    //#define _OUTPUT_ETREE_
 #ifdef _OUTPUT_ETREE_
     logfileptr->OFS()<<"ETree is "<<ETree_<<std::endl;
     {
       auto supETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
-    logfileptr->OFS()<<"Supernodal ETree is "<<supETree<<std::endl;
-    logfileptr->OFS()<<"Mapping is ";for(Int i = 0;i<supETree.Size();i++){logfileptr->OFS()<<this->Mapping_->Map(i,i)<<" ";}logfileptr->OFS()<<std::endl;
-    logfileptr->OFS()<<"Xsuper is "<<Xsuper_<<std::endl;//;for(Int i = 0;i<supETree.Size();i++){logfileptr->OFS()<<this->Xsuper_->Map(i,i)<<" ";}logfileptr->OFS()<<std::endl;
+      logfileptr->OFS()<<"Supernodal ETree is "<<supETree<<std::endl;
+      logfileptr->OFS()<<"Mapping is ";for(Int i = 0;i<supETree.Size();i++){logfileptr->OFS()<<this->Mapping_->Map(i,i)<<" ";}logfileptr->OFS()<<std::endl;
+      logfileptr->OFS()<<"Xsuper is "<<Xsuper_<<std::endl;//;for(Int i = 0;i<supETree.Size();i++){logfileptr->OFS()<<this->Xsuper_->Map(i,i)<<" ";}logfileptr->OFS()<<std::endl;
     } 
 #endif
 
@@ -3251,29 +3757,29 @@ namespace symPACK{
         FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
 
         generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
-        generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates);
+        generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
 
 
-//#define _OUTPUT_TASK_GRAPH_
+        //#define _OUTPUT_TASK_GRAPH_
 #ifdef _OUTPUT_TASK_GRAPH_
         logfileptr->OFS()<<"tasks: ";
         for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
           if((*binit)!=NULL){
-          for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
-            logfileptr->OFS()<<"t_"<<taskit->src_snode_id<<"_"<<taskit->tgt_snode_id<<" ";
+            for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
+              logfileptr->OFS()<<"t_"<<taskit->src_snode_id<<"_"<<taskit->tgt_snode_id<<" ";
+            }
           }
-          }
-      
+
         }
         logfileptr->OFS()<<std::endl; 
         logfileptr->OFS()<<"taskmap: ";
         for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
           if((*binit)!=NULL){
-          for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
-        //for(auto&& bin : taskGraph_.taskLists_)
-        //  for(auto&& taskp : *bin)
-            logfileptr->OFS()<<iam<<" ";
-          }
+            for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
+              //for(auto&& bin : taskGraph_.taskLists_)
+              //  for(auto&& taskp : *bin)
+              logfileptr->OFS()<<iam<<" ";
+            }
           }
         }
         logfileptr->OFS()<<std::endl; 
@@ -3335,7 +3841,18 @@ namespace symPACK{
         ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
         globToLocSnodes_.Insert(snode_inter);
 #endif
-        SuperNode<T> * newSnode = CreateSuperNode(options_.decomposition,I,fc,lc,iHeight,iSize_,nzBlockCnt);
+        SuperNode<T> * newSnode = NULL;
+        try{
+          newSnode = CreateSuperNode(options_.decomposition,I,fc,lc,iHeight,iSize_,nzBlockCnt);
+        }
+        catch(const MemoryAllocationException & e){
+          std::stringstream sstr;
+          sstr<<"There is not enough memory on the system to allocate the factors. Try to increase GASNET_MAX_SEGSIZE value."<<std::endl;
+          logfileptr->OFS()<<sstr.str();
+          std::cerr<<sstr.str();
+          throw(e);
+        }
+
         LocalSupernodes_.push_back(newSnode);
       }
     }
@@ -3400,27 +3917,27 @@ namespace symPACK{
             }
 
 #ifdef SPLIT_AT_BOUNDARY
-              if( nextSup<Xsuper_.size()-1){
+            if( nextSup<Xsuper_.size()-1){
               next_fc = Xsuper_[nextSup-1];
               next_lc = Xsuper_[nextSup]-1;
-              }
+            }
             while(iCurRow>=next_lc){
               nextSup++;
               if( nextSup<Xsuper_.size()-1){
-              next_fc = Xsuper_[nextSup-1];
-              next_lc = Xsuper_[nextSup]-1;
-            //  logfileptr->OFS()<<"Moving on to next supernode"<<std::endl;
+                next_fc = Xsuper_[nextSup-1];
+                next_lc = Xsuper_[nextSup]-1;
+                //  logfileptr->OFS()<<"Moving on to next supernode"<<std::endl;
               }
               else{
                 break;
               }
             } 
 
-           
-           
+
+
             if( nextSup<Xsuper_.size()-2 &&   iCurRow==next_fc){
-           //   logfileptr->OFS()<<iCurRow<<" Next fc and lc are: "<<next_fc<<" "<<next_lc<<std::endl;
-           //   logfileptr->OFS()<<"Crossed boundary"<<std::endl;
+              //   logfileptr->OFS()<<iCurRow<<" Next fc and lc are: "<<next_fc<<" "<<next_lc<<std::endl;
+              //   logfileptr->OFS()<<"Crossed boundary"<<std::endl;
               break;
             }
 #endif
@@ -4442,7 +4959,7 @@ namespace symPACK{
       MPI_Bcast(&rc[0],size*sizeof(Int),MPI_BYTE,0,fullcomm_);
       //upcxx::bcast(&cc[0],&cc[0],size*sizeof(Int),0);
       //upcxx::bcast(&rc[0],&rc[0],size*sizeof(Int),0);
-       
+
 
 
       SYMPACK_TIMER_STOP(GetColRowCount_Classic);
@@ -5045,52 +5562,52 @@ namespace symPACK{
 
   template <typename T> 
     void symPACKMatrix<T>::gatherLStructure(std::vector<Ptr>& xlindx, std::vector<Idx> & lindx){
-     //Gather locXlindx_ and locLindx_
-        //get other proc vertex counts
-        Idx localVertexCnt = locXlindx_.size()-1;
-        std::vector<Idx> remoteVertexCnt(np,0);
-        MPI_Gather(&localVertexCnt,sizeof(localVertexCnt),MPI_BYTE,&remoteVertexCnt[0],sizeof(localVertexCnt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
-        Idx totalVertexCnt = std::accumulate(remoteVertexCnt.begin(),remoteVertexCnt.end(),0,std::plus<Idx>());
-        if(iam==0){
-          xlindx.resize(totalVertexCnt+1);
-        }
-        //compute receive displacements
-        std::vector<int> rsizes(np,0);
-        for(int p = 0; p<np;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
-        std::vector<int> rdispls(np+1,0);
-        rdispls[0]=0;
-        std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-        MPI_Gatherv(&locXlindx_[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&xlindx[0],&rsizes[0],&rdispls[0],MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      //Gather locXlindx_ and locLindx_
+      //get other proc vertex counts
+      Idx localVertexCnt = locXlindx_.size()-1;
+      std::vector<Idx> remoteVertexCnt(np,0);
+      MPI_Gather(&localVertexCnt,sizeof(localVertexCnt),MPI_BYTE,&remoteVertexCnt[0],sizeof(localVertexCnt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      Idx totalVertexCnt = std::accumulate(remoteVertexCnt.begin(),remoteVertexCnt.end(),0,std::plus<Idx>());
+      if(iam==0){
+        xlindx.resize(totalVertexCnt+1);
+      }
+      //compute receive displacements
+      std::vector<int> rsizes(np,0);
+      for(int p = 0; p<np;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
+      std::vector<int> rdispls(np+1,0);
+      rdispls[0]=0;
+      std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
+      MPI_Gatherv(&locXlindx_[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&xlindx[0],&rsizes[0],&rdispls[0],MPI_BYTE,0,CommEnv_->MPI_GetComm());
 
 
-        Ptr localEdgeCnt = locLindx_.size();
-        std::vector<Ptr> remoteEdgeCnt(np,0);
-        MPI_Gather(&localEdgeCnt,sizeof(localEdgeCnt),MPI_BYTE,&remoteEdgeCnt[0],sizeof(localEdgeCnt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
-        Ptr totalEdgeCnt = std::accumulate(remoteEdgeCnt.begin(),remoteEdgeCnt.end(),0,std::plus<Ptr>());
+      Ptr localEdgeCnt = locLindx_.size();
+      std::vector<Ptr> remoteEdgeCnt(np,0);
+      MPI_Gather(&localEdgeCnt,sizeof(localEdgeCnt),MPI_BYTE,&remoteEdgeCnt[0],sizeof(localEdgeCnt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      Ptr totalEdgeCnt = std::accumulate(remoteEdgeCnt.begin(),remoteEdgeCnt.end(),0,std::plus<Ptr>());
 
-        //fix xlindx
-        if(iam==0){
+      //fix xlindx
+      if(iam==0){
 
-          Idx pos = remoteVertexCnt[0];
-          Ptr offset = 0;
-          for(int p=1;p<np;p++){
-            offset+=remoteEdgeCnt[p-1]; 
-            for(Idx lv = 0; lv < remoteVertexCnt[p]; lv++){
-              xlindx[pos++] += offset;//remoteEdgeCnt[p-1];//(vertexDist[p] - baseval);
-            }
+        Idx pos = remoteVertexCnt[0];
+        Ptr offset = 0;
+        for(int p=1;p<np;p++){
+          offset+=remoteEdgeCnt[p-1]; 
+          for(Idx lv = 0; lv < remoteVertexCnt[p]; lv++){
+            xlindx[pos++] += offset;//remoteEdgeCnt[p-1];//(vertexDist[p] - baseval);
           }
-          xlindx.back()=totalEdgeCnt + 1;
-
-          lindx.resize(totalEdgeCnt);
         }
+        xlindx.back()=totalEdgeCnt + 1;
 
-        //compute receive displacements
-        rsizes.assign(np,0);
-        for(int p = 0; p<np;p++){rsizes[p] = (int)remoteEdgeCnt[p]*sizeof(Idx);}
-        rdispls[0]=0;
-        std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-        MPI_Gatherv(&locLindx_[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,&lindx[0],&rsizes[0],&rdispls[0],MPI_BYTE,0,CommEnv_->MPI_GetComm());
-  }
+        lindx.resize(totalEdgeCnt);
+      }
+
+      //compute receive displacements
+      rsizes.assign(np,0);
+      for(int p = 0; p<np;p++){rsizes[p] = (int)remoteEdgeCnt[p]*sizeof(Idx);}
+      rdispls[0]=0;
+      std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
+      MPI_Gatherv(&locLindx_[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,&lindx[0],&rsizes[0],&rdispls[0],MPI_BYTE,0,CommEnv_->MPI_GetComm());
+    }
 
 
 
@@ -5175,10 +5692,10 @@ namespace symPACK{
         Order_.Compose(new_invp);
 
       }
-      
+
 
 #ifdef EXPLICIT_PERMUTE
-      
+
       //Bcast the individual permutation
       new_invp.resize(iSize_);
       MPI_Bcast(&new_invp[0],iSize_*sizeof(int),MPI_BYTE,0,fullcomm_);
@@ -5201,17 +5718,22 @@ namespace symPACK{
     template <class Allocator>
     SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt){
       SuperNode<T,Allocator> * retval = NULL;
+        try{
       switch(type){
-        case LDL:
+        case DecompositionType::LDL:
           retval = new SuperNodeInd<T,Allocator>( aiId,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
           break;
-        case LL:
+        case DecompositionType::LL:
           retval = new SuperNode<T,Allocator>( aiId,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
           break;
         default:
           retval = new SuperNode<T,Allocator>( aiId,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
           break;
       }
+        }
+        catch(const MemoryAllocationException & e){
+          throw;
+        }
       return retval;
     }
 
@@ -5220,10 +5742,10 @@ namespace symPACK{
     SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices){
       SuperNode<T,Allocator> * retval = NULL;
       switch(type){
-        case LDL:
+        case DecompositionType::LDL:
           retval = new SuperNodeInd<T,Allocator>( aiId,  aiFc,  aiLc,  aiN,  rowIndices);
           break;
-        case LL:
+        case DecompositionType::LL:
           retval = new SuperNode<T,Allocator>( aiId,  aiFc,  aiLc,  aiN,  rowIndices);
           break;
         default:
@@ -5233,6 +5755,23 @@ namespace symPACK{
       return retval;
     }
 
+  template <typename T> 
+    template <class Allocator>
+    SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type){
+      SuperNode<T,Allocator> * retval = NULL;
+        switch(type){
+          case DecompositionType::LDL:
+            retval = new SuperNodeInd<T,Allocator>();
+            break;
+          case DecompositionType::LL:
+            retval = new SuperNode<T,Allocator>();
+            break;
+          default:
+            retval = new SuperNode<T,Allocator>();
+            break;
+        }
+      return retval;
+    }
 
 
   template <typename T>
@@ -5240,10 +5779,10 @@ namespace symPACK{
     SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Int firstRow){
       SuperNode<T,Allocator> * retval = NULL;
       switch(type){
-        case LDL:
+        case DecompositionType::LDL:
           retval = new SuperNodeInd<T,Allocator>(dataPtr,size,firstRow);
           break;
-        case LL:
+        case DecompositionType::LL:
           retval = new SuperNode<T,Allocator>(dataPtr,size,firstRow);
           break;
         default:
@@ -5265,842 +5804,842 @@ namespace symPACK{
 #undef _INDEFINITE_
 #endif
 
-namespace TSP{
-
-inline void countBlock(const vector<Int> & Xsuper, const vector<Ptr> & Xlindx, const vector<Idx> & Lindx, const vector<Int> & supMembership, vector<int> & blkCount){
-  blkCount.assign(Xlindx.size(),0);
-
-  int totalBlocks = 0;
-  for(Int I = 1; I<Xlindx.size();++I){
-    //count number of contiguous blocks (at least one diagonal block)
-    Idx fc = Xsuper[I-1];
-    Idx lc = Xsuper[I]-1;
-    Ptr fi = Xlindx[I-1];
-    Ptr li = Xlindx[I]-1;
-    Idx iPrevRow = Lindx[fi-1]-1;
-    Idx iFirstRow = Lindx[fi-1];
-
-    Int width = lc - fc + 1; 
-
-    //only go through last column
-    for(Idx col = lc; col<=lc;col++){ 
-      //1 to count the diagonal block, 0 to skip it
-      int nzBlockCnt = 1;
-      Int prevFacing = I;
-      for(Ptr idx = fi; idx<=li;idx++){
-        Idx iRow = Lindx[idx-1];
-        Int facing = supMembership[iRow-1];
-        //enforce the first block to be a square diagonal block
-        if(nzBlockCnt==1 && iRow>col){
-          nzBlockCnt++;
-          iFirstRow=iRow;
-        }
-        else if(iRow!=iPrevRow+1 || prevFacing != facing){
-          nzBlockCnt++;
-          iFirstRow=iRow;
-        }
-        iPrevRow=iRow;
-        prevFacing = facing;
-      }
-
-      //totalBlocks+=nzBlockCnt;
-      if(col==lc){
-        blkCount[I-1] = nzBlockCnt;
-        totalBlocks+=nzBlockCnt;
-      }
-    }
-  }
-  blkCount.back() = totalBlocks;
-}
-
-
-inline void symbolBuildRowtab(SymbolMatrix *symbptr) {
-  SymbolCblk *cblk;
-  SymbolBlok *blok;
-  int *innbr, *intmp, *browtab;
-  int  itercblk;
-  int  cblknbr;
-  int  edgenbr = symbptr->bloknbr - symbptr->cblknbr;
-
-  cblknbr = symbptr->cblknbr;
-
-  innbr = new int[cblknbr];
-  std::fill(innbr,innbr+cblknbr,0);
-
-  /* Count the number of input edge per cblk */
-  cblk = symbptr->cblktab;
-  blok = symbptr->bloktab;
-  for(itercblk=0; itercblk<cblknbr; itercblk++, cblk++)
-  {
-#ifdef VERBOSE1
-    cout<<itercblk<<"/"<<cblknbr<<std::endl;
-    cout<<"["<<cblk[0].fcolnum<<".."<<cblk[0].lcolnum<<"] "<<cblk[0].bloknum<<std::endl;
-    cout<<"["<<cblk[1].fcolnum<<".."<<cblk[1].lcolnum<<"] "<<cblk[1].bloknum<<std::endl;
-#endif
-
-    int iterblok = cblk[0].bloknum + 1;
-    int lbloknum = cblk[1].bloknum;
-
-#ifdef VERBOSE1
-    cout<<"Looping from "<<iterblok<<" to "<<lbloknum<<std::endl;
-#endif
-
-    /* Skip diagonal block */
-    blok++;
-
-    /* Off-diagonal blocks */
-    for( ; iterblok < lbloknum; iterblok++, blok++)
-    {
-#ifdef VERBOSE1
-      cout<<iterblok<<" ["<< blok->frownum <<".."<<blok->lrownum<< "] facing "<<blok->fcblknm<<std::endl;
-#endif
-      innbr[ blok->fcblknm ]++;
-    }
-  }
-
-#ifdef VERBOSE1
-for(int i =0;i<cblknbr;++i){
-    cout<<i+1<<": "<<innbr[i]<<std::endl;
-}
-#endif
-
-  /* Initialize the brownum fields */
-  cblk = symbptr->cblktab;
-  cblk->brownum = 0;
-  for(itercblk=0; itercblk<cblknbr; itercblk++, cblk++)
-  {
-    cblk[1].brownum = cblk[0].brownum + innbr[ itercblk ];
-    innbr[itercblk] = cblk[0].brownum;
-  }
-
-
-#ifdef VERBOSE1
-for(int i =0;i<=cblknbr;++i){
-    cout<<i+1<<": "<<symbptr->cblktab[i].brownum<<std::endl;
-}
-#endif
-
-  assert( cblk[0].brownum == edgenbr );
-
-  /* Initialize the browtab */
-  browtab = new int[edgenbr];
-
-  cblk = symbptr->cblktab;
-  blok = symbptr->bloktab;
-  for(itercblk=0; itercblk<symbptr->cblknbr; itercblk++, cblk++)
-  {
-    int iterblok = cblk[0].bloknum + 1;
-    int lbloknum = cblk[1].bloknum;
-
-    /* Skip diagonal block */
-    blok++;
-
-    /* Off-diagonal blocks */
-    for( ; iterblok < lbloknum; iterblok++, blok++)
-    {
-      intmp = innbr + blok->fcblknm;
-      browtab[ *intmp ] = iterblok;
-      (*intmp)++;
-    }
-  }
-  //if (symbptr->browtab == NULL) {
-  //   delete [] symbptr->browtab;
-  //}
-  symbptr->browtab = browtab;
-
-  delete [] innbr;
-  return;
-}
-
-
-
-inline Order * GetPastixOrder(SymbolMatrix * symbptr,const vector<Int> & xsuper, const ETree & etree, const Int * perm, const Int * iperm){
-
-  Order * order = new Order();
-  order->baseval = 0;
-  order->vertnbr = symbptr->nodenbr;
-  order->cblknbr = symbptr->cblknbr;
-
-  order->permtab = new int[order->vertnbr];
-  for(int i =0; i<order->vertnbr;++i){order->permtab[i] = iperm[i]-1;}
-
-  order->peritab = new int[order->vertnbr];
-  for(int i =0; i<order->vertnbr;++i){order->peritab[i] = perm[i]-1;}
-
-  order->rangtab = new int[xsuper.size()];
-  for(int i = 0;i<xsuper.size();++i){order->rangtab[i] = xsuper[i]-1;} 
-
-  assert(xsuper.size()-1 == etree.Size());
-  order->treetab = new int[etree.Size()];
-  for(int i = 0;i<etree.Size();++i){order->treetab[i] = etree.Parent(i)-1;} 
-
-  return order;
-};
-
-
-inline SymbolMatrix *  GetPastixSymbolMatrix(const vector<Int> & xsuper,const vector<Int> & supMembership, vector<Ptr> & xlindx, vector<Idx> & lindx){
-  //count the number of blocks and blocks per supernode
-  vector<int> blkCount;
-  countBlock(xsuper, xlindx, lindx, supMembership, blkCount);
-
-
-  SymbolMatrix * symbmtx = new SymbolMatrix;
-
-  symbmtx->baseval = 0;
-  //ignore dof
-  symbmtx->cblknbr = xsuper.size()-1;
-  symbmtx->bloknbr = blkCount.back();
-  //nodenbr should be n
-  symbmtx->nodenbr = xsuper.back()-1;
-
-
-
-
-
-  symbmtx->cblktab = new SymbolCblk[symbmtx->cblknbr+1];
-  symbmtx->bloktab = new SymbolBlok[symbmtx->bloknbr];
-  Int blockIdx = 1;
-  for(Int I = 1; I<xlindx.size();++I){
-    //count number of contiguous blocks (at least one diagonal block)
-
-    Int fc = xsuper[I-1];
-    Int lc = xsuper[I]-1;
-    Ptr fi = xlindx[I-1];
-    Ptr li = xlindx[I]-1;
-    Idx iPrevRow = lindx[fi-1]-1;
-    Idx iFirstRow = lindx[fi-1];
-
-    Int width = lc - fc + 1; 
-
-    //only go through last column
-    for(Int col = lc; col<=lc;col++){ 
-      //1 to count the diagonal block, 0 to skip it
-      Int nzBlockCnt = 1;
-      Int prevFacing = I;
-      for(Ptr idx = fi; idx<=li;idx++){
-        Idx iRow = lindx[idx-1];
-        //enforce the first block to be a square diagonal block
-        Int facing = supMembership[iRow-1];
-        if(nzBlockCnt==1 && iRow>col){
-
-          symbmtx->bloktab[blockIdx-1].frownum = fc-1;  /*< First row index            */
-          symbmtx->bloktab[blockIdx-1].lrownum = lc-1;  /*< Last row index (inclusive) */
-          symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
-          symbmtx->bloktab[blockIdx-1].fcblknm = I-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
-
-          symbmtx->cblktab[I-1].fcolnum = fc-1;
-          symbmtx->cblktab[I-1].lcolnum = lc-1;
-          symbmtx->cblktab[I-1].bloknum = blockIdx-1;  /*< First block in column (diagonal) */
-
-          blockIdx++;
-          nzBlockCnt++;
-          iFirstRow=iRow;
-        }
-        else if(iRow!=iPrevRow+1 || prevFacing != facing){
-
-          Int facingSnode = supMembership[iFirstRow-1];
-          symbmtx->bloktab[blockIdx-1].frownum = iFirstRow-1;  /*< First row index            */
-          symbmtx->bloktab[blockIdx-1].lrownum = iPrevRow-1;  /*< Last row index (inclusive) */
-          symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
-          symbmtx->bloktab[blockIdx-1].fcblknm = facingSnode-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
-
-          blockIdx++;
-          nzBlockCnt++;
-          iFirstRow=iRow;
-        }
-
-        iPrevRow=iRow;
-        prevFacing = facing;
-      }
-
-      if(col==lc){
-
-        if(nzBlockCnt==1){
-          symbmtx->bloktab[blockIdx-1].frownum = fc-1;  /*< First row index            */
-          symbmtx->bloktab[blockIdx-1].lrownum = lc-1;  /*< Last row index (inclusive) */
-          symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
-          symbmtx->bloktab[blockIdx-1].fcblknm = I-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
-
-          symbmtx->cblktab[I-1].fcolnum = fc-1;
-          symbmtx->cblktab[I-1].lcolnum = lc-1;
-          symbmtx->cblktab[I-1].bloknum = blockIdx-1;  /*< First block in column (diagonal) */
-        }
-        else{
-
-          Int facingSnode = supMembership[iFirstRow-1];
-          symbmtx->bloktab[blockIdx-1].frownum = iFirstRow-1;  /*< First row index            */
-          symbmtx->bloktab[blockIdx-1].lrownum = iPrevRow-1;  /*< Last row index (inclusive) */
-          symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
-          symbmtx->bloktab[blockIdx-1].fcblknm = facingSnode-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
-
-        }
-
-        blockIdx++;
-      }
-
-    }
-  }
-
-  symbmtx->cblktab[xlindx.size()-1].fcolnum = xsuper.back()-1;
-  symbmtx->cblktab[xlindx.size()-1].lcolnum = xsuper.back()-1;
-  symbmtx->cblktab[xlindx.size()-1].bloknum = blockIdx-1;  /*< First block in column (diagonal) */
-
-  symbolBuildRowtab(symbmtx);
-
-  return symbmtx;
-}
-
-
-
-
-///**
-// *
-// * @file symbol_reordering.c
-// *
-// *  PaStiX symbol structure routines
-// *  PaStiX is a software package provided by Inria Bordeaux - Sud-Ouest,
-// *  LaBRI, University of Bordeaux 1 and IPB.
-// *
-// * @version 5.1.0
-// * @author Gregoire Pichon
-// * @author Mathieu Faverge
-// * @author Pierre Ramet
-// * @date 2015-04
-// *
-// **/
-//#include "common.h"
-//#include "symbol.h"
-//#include "order.h"
-
-  static inline int
-compute_cblklevel( const int *treetab,
-    int *levels,
-    int  cblknum )
-{
-  /* cblknum level has already been computed */
-  if ( levels[cblknum] != 0 ) {
-    return levels[cblknum];
-  }
-  else {
-    int father = treetab[cblknum];
-
-    if ( father == -1 ) {
-      return 1;
-    }
-    else {
-      return compute_cblklevel( treetab, levels, father ) + 1;
-    }
-  }
-}
-
-  static inline int
-hamming_distance(int **vectors,
-    int  *vectors_size,
-    int   xi,
-    int   xj,
-    int   stop)
-{
-  /* For the fictive vertex */
-  if (xi == -1){
-    return vectors_size[xj];
-  }
-  if (xj == -1){
-    return vectors_size[xi];
-  }
-
-  int sum = 0;
-  int *set1 = vectors[xi];
-  int *set2 = vectors[xj];
-  int *end1 = vectors[xi] + vectors_size[xi];
-  int *end2 = vectors[xj] + vectors_size[xj];
-
-  if (vectors_size[xi] - vectors_size[xj] >= stop){
-    return stop;
-  }
-  if (vectors_size[xj] - vectors_size[xi] >= stop){
-    return stop;
-  }
-
-  while((set1 < end1) && (set2 < end2))
-  {
-    if( *set1 == *set2)
-    {
-      set1++;
-      set2++;
-    }
-    else if( *set1 < *set2 )
-    {
-      while (( set1 < end1 ) && ( *set1 < *set2 ))
-      {
-        sum ++;
-        set1++;
-      }
-    }
-    else if( *set1 > *set2 )
-    {
-      while (( set2 < end2 ) && ( *set1 > *set2 ))
-      {
-        sum ++;
-        set2++;
-      }
-    }
-    else
-    {
-      assert(0);
-    }
-
-    /* The computation is stopped if sum overlapped a given limit */
-    if (sum >= stop){
-      return stop;
-    }
-  }
-
-  sum += end1-set1;
-  sum += end2-set2;
-
-  if (sum >= stop){
-    return stop;
-  }
-
-  return sum;
-}
-
-
-  static inline void
-symbol_reorder_tsp(int size, Order *order, int sn_id,
-    int **lw_vectors, int *lw_vectors_size,
-    int **up_vectors, int *up_vectors_size,
-    int stop_criteria, int stop_when_fitting)
-{
-
-  if ( size < 3 ) {
-    return;
-  }
-
-  int  i, j, k, l, elected;
-  int *tmpinvp;
-  int *tmplen;
-  int distance;
-
-  tmpinvp = (int*)malloc((size+1)*sizeof(int));
-    tmplen = (int*)malloc((size+1)*sizeof(int));
-    memset(tmplen, 0, (size+1)*sizeof(int));
-
-  tmpinvp[0] = -1;
-  tmpinvp[1] = 0;
-
-  distance = hamming_distance(lw_vectors, lw_vectors_size, 0, -1, stop_criteria);
-
-  tmplen[0] = distance;
-  tmplen[1] = distance;
-
-  int min_cut = -1;
-  for(i=1; i<size; i++) {
-    int first_pos;
-    int last_pos;
-
-    int lw_before_pos;
-    int lw_after_pos;
-
-    int up_before_pos;
-    int up_after_pos;
-
-    /* Start by adding the row in first position */
-    lw_before_pos = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[0], stop_criteria);
-    lw_after_pos  = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[1], stop_criteria);
-    up_after_pos  = hamming_distance(up_vectors, up_vectors_size, i, tmpinvp[1], 1);
-
-    int minl = lw_before_pos + lw_after_pos - tmplen[0];
-    int mpos = 1;
-    int min_cut = -1;
-
-    for(j=1; j<i; j++ ){
-      up_before_pos = up_after_pos;
-      up_after_pos  = hamming_distance(up_vectors, up_vectors_size, i, tmpinvp[j+1], 1);
-
-      if ( up_before_pos < 1 ||
-          up_after_pos  < 1 )
-      {
-
-        /* If split was used previously, this first distance may not be already computed */
-        if (lw_after_pos == -1)
-          lw_before_pos = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[j], stop_criteria);
-        else
-          lw_before_pos = lw_after_pos;
-
-
-        lw_after_pos = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[j+1], stop_criteria);
-
-        l = lw_before_pos + lw_after_pos - tmplen[j];
-
-
-        /* Minimize the cut between two lines, for the same TSP result */
-        if ( l == minl ) {
-          if (lw_before_pos < min_cut){
-            min_cut = lw_before_pos;
-            minl = l; mpos = j+1;
+  namespace TSP{
+
+    inline void countBlock(const vector<Int> & Xsuper, const vector<Ptr> & Xlindx, const vector<Idx> & Lindx, const vector<Int> & supMembership, vector<int> & blkCount){
+      blkCount.assign(Xlindx.size(),0);
+
+      int totalBlocks = 0;
+      for(Int I = 1; I<Xlindx.size();++I){
+        //count number of contiguous blocks (at least one diagonal block)
+        Idx fc = Xsuper[I-1];
+        Idx lc = Xsuper[I]-1;
+        Ptr fi = Xlindx[I-1];
+        Ptr li = Xlindx[I]-1;
+        Idx iPrevRow = Lindx[fi-1]-1;
+        Idx iFirstRow = Lindx[fi-1];
+
+        Int width = lc - fc + 1; 
+
+        //only go through last column
+        for(Idx col = lc; col<=lc;col++){ 
+          //1 to count the diagonal block, 0 to skip it
+          int nzBlockCnt = 1;
+          Int prevFacing = I;
+          for(Ptr idx = fi; idx<=li;idx++){
+            Idx iRow = Lindx[idx-1];
+            Int facing = supMembership[iRow-1];
+            //enforce the first block to be a square diagonal block
+            if(nzBlockCnt==1 && iRow>col){
+              nzBlockCnt++;
+              iFirstRow=iRow;
+            }
+            else if(iRow!=iPrevRow+1 || prevFacing != facing){
+              nzBlockCnt++;
+              iFirstRow=iRow;
+            }
+            iPrevRow=iRow;
+            prevFacing = facing;
           }
-          if (lw_after_pos < min_cut){
-            min_cut = lw_after_pos;
-            minl = l; mpos = j+1;
+
+          //totalBlocks+=nzBlockCnt;
+          if(col==lc){
+            blkCount[I-1] = nzBlockCnt;
+            totalBlocks+=nzBlockCnt;
+          }
+        }
+      }
+      blkCount.back() = totalBlocks;
+    }
+
+
+    inline void symbolBuildRowtab(SymbolMatrix *symbptr) {
+      SymbolCblk *cblk;
+      SymbolBlok *blok;
+      int *innbr, *intmp, *browtab;
+      int  itercblk;
+      int  cblknbr;
+      int  edgenbr = symbptr->bloknbr - symbptr->cblknbr;
+
+      cblknbr = symbptr->cblknbr;
+
+      innbr = new int[cblknbr];
+      std::fill(innbr,innbr+cblknbr,0);
+
+      /* Count the number of input edge per cblk */
+      cblk = symbptr->cblktab;
+      blok = symbptr->bloktab;
+      for(itercblk=0; itercblk<cblknbr; itercblk++, cblk++)
+      {
+#ifdef VERBOSE1
+        cout<<itercblk<<"/"<<cblknbr<<std::endl;
+        cout<<"["<<cblk[0].fcolnum<<".."<<cblk[0].lcolnum<<"] "<<cblk[0].bloknum<<std::endl;
+        cout<<"["<<cblk[1].fcolnum<<".."<<cblk[1].lcolnum<<"] "<<cblk[1].bloknum<<std::endl;
+#endif
+
+        int iterblok = cblk[0].bloknum + 1;
+        int lbloknum = cblk[1].bloknum;
+
+#ifdef VERBOSE1
+        cout<<"Looping from "<<iterblok<<" to "<<lbloknum<<std::endl;
+#endif
+
+        /* Skip diagonal block */
+        blok++;
+
+        /* Off-diagonal blocks */
+        for( ; iterblok < lbloknum; iterblok++, blok++)
+        {
+#ifdef VERBOSE1
+          cout<<iterblok<<" ["<< blok->frownum <<".."<<blok->lrownum<< "] facing "<<blok->fcblknm<<std::endl;
+#endif
+          innbr[ blok->fcblknm ]++;
+        }
+      }
+
+#ifdef VERBOSE1
+      for(int i =0;i<cblknbr;++i){
+        cout<<i+1<<": "<<innbr[i]<<std::endl;
+      }
+#endif
+
+      /* Initialize the brownum fields */
+      cblk = symbptr->cblktab;
+      cblk->brownum = 0;
+      for(itercblk=0; itercblk<cblknbr; itercblk++, cblk++)
+      {
+        cblk[1].brownum = cblk[0].brownum + innbr[ itercblk ];
+        innbr[itercblk] = cblk[0].brownum;
+      }
+
+
+#ifdef VERBOSE1
+      for(int i =0;i<=cblknbr;++i){
+        cout<<i+1<<": "<<symbptr->cblktab[i].brownum<<std::endl;
+      }
+#endif
+
+      assert( cblk[0].brownum == edgenbr );
+
+      /* Initialize the browtab */
+      browtab = new int[edgenbr];
+
+      cblk = symbptr->cblktab;
+      blok = symbptr->bloktab;
+      for(itercblk=0; itercblk<symbptr->cblknbr; itercblk++, cblk++)
+      {
+        int iterblok = cblk[0].bloknum + 1;
+        int lbloknum = cblk[1].bloknum;
+
+        /* Skip diagonal block */
+        blok++;
+
+        /* Off-diagonal blocks */
+        for( ; iterblok < lbloknum; iterblok++, blok++)
+        {
+          intmp = innbr + blok->fcblknm;
+          browtab[ *intmp ] = iterblok;
+          (*intmp)++;
+        }
+      }
+      //if (symbptr->browtab == NULL) {
+      //   delete [] symbptr->browtab;
+      //}
+      symbptr->browtab = browtab;
+
+      delete [] innbr;
+      return;
+    }
+
+
+
+    inline Order * GetPastixOrder(SymbolMatrix * symbptr,const vector<Int> & xsuper, const ETree & etree, const Int * perm, const Int * iperm){
+
+      Order * order = new Order();
+      order->baseval = 0;
+      order->vertnbr = symbptr->nodenbr;
+      order->cblknbr = symbptr->cblknbr;
+
+      order->permtab = new int[order->vertnbr];
+      for(int i =0; i<order->vertnbr;++i){order->permtab[i] = iperm[i]-1;}
+
+      order->peritab = new int[order->vertnbr];
+      for(int i =0; i<order->vertnbr;++i){order->peritab[i] = perm[i]-1;}
+
+      order->rangtab = new int[xsuper.size()];
+      for(int i = 0;i<xsuper.size();++i){order->rangtab[i] = xsuper[i]-1;} 
+
+      assert(xsuper.size()-1 == etree.Size());
+      order->treetab = new int[etree.Size()];
+      for(int i = 0;i<etree.Size();++i){order->treetab[i] = etree.Parent(i)-1;} 
+
+      return order;
+    };
+
+
+    inline SymbolMatrix *  GetPastixSymbolMatrix(const vector<Int> & xsuper,const vector<Int> & supMembership, vector<Ptr> & xlindx, vector<Idx> & lindx){
+      //count the number of blocks and blocks per supernode
+      vector<int> blkCount;
+      countBlock(xsuper, xlindx, lindx, supMembership, blkCount);
+
+
+      SymbolMatrix * symbmtx = new SymbolMatrix;
+
+      symbmtx->baseval = 0;
+      //ignore dof
+      symbmtx->cblknbr = xsuper.size()-1;
+      symbmtx->bloknbr = blkCount.back();
+      //nodenbr should be n
+      symbmtx->nodenbr = xsuper.back()-1;
+
+
+
+
+
+      symbmtx->cblktab = new SymbolCblk[symbmtx->cblknbr+1];
+      symbmtx->bloktab = new SymbolBlok[symbmtx->bloknbr];
+      Int blockIdx = 1;
+      for(Int I = 1; I<xlindx.size();++I){
+        //count number of contiguous blocks (at least one diagonal block)
+
+        Int fc = xsuper[I-1];
+        Int lc = xsuper[I]-1;
+        Ptr fi = xlindx[I-1];
+        Ptr li = xlindx[I]-1;
+        Idx iPrevRow = lindx[fi-1]-1;
+        Idx iFirstRow = lindx[fi-1];
+
+        Int width = lc - fc + 1; 
+
+        //only go through last column
+        for(Int col = lc; col<=lc;col++){ 
+          //1 to count the diagonal block, 0 to skip it
+          Int nzBlockCnt = 1;
+          Int prevFacing = I;
+          for(Ptr idx = fi; idx<=li;idx++){
+            Idx iRow = lindx[idx-1];
+            //enforce the first block to be a square diagonal block
+            Int facing = supMembership[iRow-1];
+            if(nzBlockCnt==1 && iRow>col){
+
+              symbmtx->bloktab[blockIdx-1].frownum = fc-1;  /*< First row index            */
+              symbmtx->bloktab[blockIdx-1].lrownum = lc-1;  /*< Last row index (inclusive) */
+              symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
+              symbmtx->bloktab[blockIdx-1].fcblknm = I-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
+
+              symbmtx->cblktab[I-1].fcolnum = fc-1;
+              symbmtx->cblktab[I-1].lcolnum = lc-1;
+              symbmtx->cblktab[I-1].bloknum = blockIdx-1;  /*< First block in column (diagonal) */
+
+              blockIdx++;
+              nzBlockCnt++;
+              iFirstRow=iRow;
+            }
+            else if(iRow!=iPrevRow+1 || prevFacing != facing){
+
+              Int facingSnode = supMembership[iFirstRow-1];
+              symbmtx->bloktab[blockIdx-1].frownum = iFirstRow-1;  /*< First row index            */
+              symbmtx->bloktab[blockIdx-1].lrownum = iPrevRow-1;  /*< Last row index (inclusive) */
+              symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
+              symbmtx->bloktab[blockIdx-1].fcblknm = facingSnode-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
+
+              blockIdx++;
+              nzBlockCnt++;
+              iFirstRow=iRow;
+            }
+
+            iPrevRow=iRow;
+            prevFacing = facing;
+          }
+
+          if(col==lc){
+
+            if(nzBlockCnt==1){
+              symbmtx->bloktab[blockIdx-1].frownum = fc-1;  /*< First row index            */
+              symbmtx->bloktab[blockIdx-1].lrownum = lc-1;  /*< Last row index (inclusive) */
+              symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
+              symbmtx->bloktab[blockIdx-1].fcblknm = I-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
+
+              symbmtx->cblktab[I-1].fcolnum = fc-1;
+              symbmtx->cblktab[I-1].lcolnum = lc-1;
+              symbmtx->cblktab[I-1].bloknum = blockIdx-1;  /*< First block in column (diagonal) */
+            }
+            else{
+
+              Int facingSnode = supMembership[iFirstRow-1];
+              symbmtx->bloktab[blockIdx-1].frownum = iFirstRow-1;  /*< First row index            */
+              symbmtx->bloktab[blockIdx-1].lrownum = iPrevRow-1;  /*< Last row index (inclusive) */
+              symbmtx->bloktab[blockIdx-1].lcblknm = I-1;  /*< Local column block         */
+              symbmtx->bloktab[blockIdx-1].fcblknm = facingSnode-1;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
+
+            }
+
+            blockIdx++;
+          }
+
+        }
+      }
+
+      symbmtx->cblktab[xlindx.size()-1].fcolnum = xsuper.back()-1;
+      symbmtx->cblktab[xlindx.size()-1].lcolnum = xsuper.back()-1;
+      symbmtx->cblktab[xlindx.size()-1].bloknum = blockIdx-1;  /*< First block in column (diagonal) */
+
+      symbolBuildRowtab(symbmtx);
+
+      return symbmtx;
+    }
+
+
+
+
+    ///**
+    // *
+    // * @file symbol_reordering.c
+    // *
+    // *  PaStiX symbol structure routines
+    // *  PaStiX is a software package provided by Inria Bordeaux - Sud-Ouest,
+    // *  LaBRI, University of Bordeaux 1 and IPB.
+    // *
+    // * @version 5.1.0
+    // * @author Gregoire Pichon
+    // * @author Mathieu Faverge
+    // * @author Pierre Ramet
+    // * @date 2015-04
+    // *
+    // **/
+    //#include "common.h"
+    //#include "symbol.h"
+    //#include "order.h"
+
+    static inline int
+      compute_cblklevel( const int *treetab,
+          int *levels,
+          int  cblknum )
+      {
+        /* cblknum level has already been computed */
+        if ( levels[cblknum] != 0 ) {
+          return levels[cblknum];
+        }
+        else {
+          int father = treetab[cblknum];
+
+          if ( father == -1 ) {
+            return 1;
+          }
+          else {
+            return compute_cblklevel( treetab, levels, father ) + 1;
+          }
+        }
+      }
+
+    static inline int
+      hamming_distance(int **vectors,
+          int  *vectors_size,
+          int   xi,
+          int   xj,
+          int   stop)
+      {
+        /* For the fictive vertex */
+        if (xi == -1){
+          return vectors_size[xj];
+        }
+        if (xj == -1){
+          return vectors_size[xi];
+        }
+
+        int sum = 0;
+        int *set1 = vectors[xi];
+        int *set2 = vectors[xj];
+        int *end1 = vectors[xi] + vectors_size[xi];
+        int *end2 = vectors[xj] + vectors_size[xj];
+
+        if (vectors_size[xi] - vectors_size[xj] >= stop){
+          return stop;
+        }
+        if (vectors_size[xj] - vectors_size[xi] >= stop){
+          return stop;
+        }
+
+        while((set1 < end1) && (set2 < end2))
+        {
+          if( *set1 == *set2)
+          {
+            set1++;
+            set2++;
+          }
+          else if( *set1 < *set2 )
+          {
+            while (( set1 < end1 ) && ( *set1 < *set2 ))
+            {
+              sum ++;
+              set1++;
+            }
+          }
+          else if( *set1 > *set2 )
+          {
+            while (( set2 < end2 ) && ( *set1 > *set2 ))
+            {
+              sum ++;
+              set2++;
+            }
+          }
+          else
+          {
+            assert(0);
+          }
+
+          /* The computation is stopped if sum overlapped a given limit */
+          if (sum >= stop){
+            return stop;
           }
         }
 
-        /* Position that minimizes TSP */
-        if ( l < minl ) {
-          minl = l; mpos = j+1;
+        sum += end1-set1;
+        sum += end2-set2;
 
-          min_cut = lw_before_pos;
-          if (lw_after_pos < min_cut){
-            min_cut = lw_after_pos;
-          }
+        if (sum >= stop){
+          return stop;
         }
 
-        if ( l < minl ) {
-          minl = l; mpos = j+1;
-          min_cut = lw_before_pos;
-          if (lw_after_pos < min_cut){
-            min_cut = lw_after_pos;
-          }
-        }
-
-
-        /* Stop if two lines are equal (already done tmpinvp[j]) */
-        if (lw_after_pos == 0){
-          min_cut = 0;
-          minl = l; mpos = j+1;
-          j = i;
-        }
-      }
-      else{
-        lw_after_pos = -1;
+        return sum;
       }
 
-    }
 
-    /* Test between last and first */
-    first_pos = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[0], stop_criteria);
-    last_pos  = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[i], stop_criteria);
-
-    lw_before_pos = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[mpos-1], stop_criteria);
-    lw_after_pos  = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[mpos  ], stop_criteria);
-
-    l = first_pos + last_pos - tmplen[i];
-    if ( l < minl ) {
-      minl = l; mpos = i+1;
-    }
-
-    if (mpos > 0){
-      tmplen[mpos-1] = lw_before_pos;
-    }
-
-    if (mpos < (i+1))
-    {
-      int tmpi, tmpl;
-      k = i;
-      l = lw_after_pos;
-
-      /* Insert the line in the tmpinvp/tmplen arrays */
-      for(j=mpos; j<i+2; j++ )
+    static inline void
+      symbol_reorder_tsp(int size, Order *order, int sn_id,
+          int **lw_vectors, int *lw_vectors_size,
+          int **up_vectors, int *up_vectors_size,
+          int stop_criteria, int stop_when_fitting)
       {
-        tmpi = tmpinvp[j];
-        tmpl = tmplen[j];
 
-        tmpinvp[j] = k;
-        tmplen[j]  = l;
+        if ( size < 3 ) {
+          return;
+        }
 
-        k = tmpi;
-        l = tmpl;
+        int  i, j, k, l, elected;
+        int *tmpinvp;
+        int *tmplen;
+        int distance;
+
+        tmpinvp = (int*)malloc((size+1)*sizeof(int));
+        tmplen = (int*)malloc((size+1)*sizeof(int));
+        memset(tmplen, 0, (size+1)*sizeof(int));
+
+        tmpinvp[0] = -1;
+        tmpinvp[1] = 0;
+
+        distance = hamming_distance(lw_vectors, lw_vectors_size, 0, -1, stop_criteria);
+
+        tmplen[0] = distance;
+        tmplen[1] = distance;
+
+        int min_cut = -1;
+        for(i=1; i<size; i++) {
+          int first_pos;
+          int last_pos;
+
+          int lw_before_pos;
+          int lw_after_pos;
+
+          int up_before_pos;
+          int up_after_pos;
+
+          /* Start by adding the row in first position */
+          lw_before_pos = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[0], stop_criteria);
+          lw_after_pos  = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[1], stop_criteria);
+          up_after_pos  = hamming_distance(up_vectors, up_vectors_size, i, tmpinvp[1], 1);
+
+          int minl = lw_before_pos + lw_after_pos - tmplen[0];
+          int mpos = 1;
+          int min_cut = -1;
+
+          for(j=1; j<i; j++ ){
+            up_before_pos = up_after_pos;
+            up_after_pos  = hamming_distance(up_vectors, up_vectors_size, i, tmpinvp[j+1], 1);
+
+            if ( up_before_pos < 1 ||
+                up_after_pos  < 1 )
+            {
+
+              /* If split was used previously, this first distance may not be already computed */
+              if (lw_after_pos == -1)
+                lw_before_pos = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[j], stop_criteria);
+              else
+                lw_before_pos = lw_after_pos;
+
+
+              lw_after_pos = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[j+1], stop_criteria);
+
+              l = lw_before_pos + lw_after_pos - tmplen[j];
+
+
+              /* Minimize the cut between two lines, for the same TSP result */
+              if ( l == minl ) {
+                if (lw_before_pos < min_cut){
+                  min_cut = lw_before_pos;
+                  minl = l; mpos = j+1;
+                }
+                if (lw_after_pos < min_cut){
+                  min_cut = lw_after_pos;
+                  minl = l; mpos = j+1;
+                }
+              }
+
+              /* Position that minimizes TSP */
+              if ( l < minl ) {
+                minl = l; mpos = j+1;
+
+                min_cut = lw_before_pos;
+                if (lw_after_pos < min_cut){
+                  min_cut = lw_after_pos;
+                }
+              }
+
+              if ( l < minl ) {
+                minl = l; mpos = j+1;
+                min_cut = lw_before_pos;
+                if (lw_after_pos < min_cut){
+                  min_cut = lw_after_pos;
+                }
+              }
+
+
+              /* Stop if two lines are equal (already done tmpinvp[j]) */
+              if (lw_after_pos == 0){
+                min_cut = 0;
+                minl = l; mpos = j+1;
+                j = i;
+              }
+            }
+            else{
+              lw_after_pos = -1;
+            }
+
+          }
+
+          /* Test between last and first */
+          first_pos = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[0], stop_criteria);
+          last_pos  = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[i], stop_criteria);
+
+          lw_before_pos = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[mpos-1], stop_criteria);
+          lw_after_pos  = hamming_distance(lw_vectors, lw_vectors_size, i, tmpinvp[mpos  ], stop_criteria);
+
+          l = first_pos + last_pos - tmplen[i];
+          if ( l < minl ) {
+            minl = l; mpos = i+1;
+          }
+
+          if (mpos > 0){
+            tmplen[mpos-1] = lw_before_pos;
+          }
+
+          if (mpos < (i+1))
+          {
+            int tmpi, tmpl;
+            k = i;
+            l = lw_after_pos;
+
+            /* Insert the line in the tmpinvp/tmplen arrays */
+            for(j=mpos; j<i+2; j++ )
+            {
+              tmpi = tmpinvp[j];
+              tmpl = tmplen[j];
+
+              tmpinvp[j] = k;
+              tmplen[j]  = l;
+
+              k = tmpi;
+              l = tmpl;
+            }
+          }
+          else {
+            tmpinvp[i+1] = i;
+            tmplen[i+1]  = first_pos;
+          }
+        }
+
+        elected = 0;
+        for (i=0; i<size; i++)
+        {
+          if (tmpinvp[i] == -1){
+            elected = i;
+          }
+        }
+
+        int *sn_connected;
+        sn_connected = (int*)malloc(size*sizeof(int));
+        {
+          //TODO
+          int *peritab = order->peritab + order->rangtab[sn_id];
+          for (i=0; i<size; i++)
+          {
+            sn_connected[i] = peritab[ tmpinvp[(i + 1 + elected)%(size+1)] ];
+          }
+          memcpy( peritab, sn_connected, size * sizeof(int) );
+        }
+
+        free(sn_connected);
+        free(tmpinvp);
+        free(tmplen);
       }
-    }
-    else {
-      tmpinvp[i+1] = i;
-      tmplen[i+1]  = first_pos;
-    }
-  }
 
-  elected = 0;
-  for (i=0; i<size; i++)
-  {
-    if (tmpinvp[i] == -1){
-      elected = i;
-    }
-  }
+    static inline void
+      symbol_reorder_cblk( const SymbolMatrix *symbptr,
+          const SymbolCblk   *cblk,
+          Order              *order,
+          const int *levels,
+          int        cblklvl,
+          int       *depthweight,
+          int        depthmax,
+          int        split_level,
+          int                 stop_criteria,
+          int                 stop_when_fitting,
+          double             *time_compute_vectors,
+          double             *time_update_perm)
+      {
+        SymbolBlok *blok;
+        int **up_vectors, *up_vectors_size;
+        int **lw_vectors, *lw_vectors_size;
+        int size = cblk->lcolnum - cblk->fcolnum + 1;
+        int local_split_level = split_level;
+        int i, iterblok;
+        int *brow = symbptr->browtab;
+        double timer;
 
-  int *sn_connected;
-  sn_connected = (int*)malloc(size*sizeof(int));
-  {
-    //TODO
-    int *peritab = order->peritab + order->rangtab[sn_id];
-    for (i=0; i<size; i++)
-    {
-      sn_connected[i] = peritab[ tmpinvp[(i + 1 + elected)%(size+1)] ];
-    }
-    memcpy( peritab, sn_connected, size * sizeof(int) );
-  }
+        /**
+         * Compute hamming vectors in two subsets:
+         *   - The upper subset contains the cblk with level higher than the split_level
+         *     in the elimination tree, (or depth lower than levels[cblk])
+         *   - The lower subset contains the cblk with level lower than the split_level
+         *     in the elimination tree, (or depth higher than levels[cblk])
+         *
+         * The delimitation between the lower and upper levels is made such that
+         * the upper level represents 17% to 25% of the total number of cblk.
+         */
+        //  clockStart(timer);
+        {
+          int weight = 0;
 
-  free(sn_connected);
-  free(tmpinvp);
-  free(tmplen);
-}
+          /* Compute the weigth of each level */
+          //MATHIAS: this is a loop through blocks in current column 
+          for(iterblok=cblk[0].brownum; iterblok<cblk[1].brownum; iterblok++)
+          {
+            int blokweight;
+            blok = symbptr->bloktab + brow[iterblok];
+            blokweight = blok->lrownum - blok->frownum + 1;
+            depthweight[ levels[ blok->lcblknm ] - 1 ] += blokweight;
+            weight += blokweight;
+          }
 
-  static inline void
-symbol_reorder_cblk( const SymbolMatrix *symbptr,
-    const SymbolCblk   *cblk,
-    Order              *order,
-    const int *levels,
-    int        cblklvl,
-    int       *depthweight,
-    int        depthmax,
-    int        split_level,
-    int                 stop_criteria,
-    int                 stop_when_fitting,
-    double             *time_compute_vectors,
-    double             *time_update_perm)
-{
-  SymbolBlok *blok;
-  int **up_vectors, *up_vectors_size;
-  int **lw_vectors, *lw_vectors_size;
-  int size = cblk->lcolnum - cblk->fcolnum + 1;
-  int local_split_level = split_level;
-  int i, iterblok;
-  int *brow = symbptr->browtab;
-  double timer;
-
-  /**
-   * Compute hamming vectors in two subsets:
-   *   - The upper subset contains the cblk with level higher than the split_level
-   *     in the elimination tree, (or depth lower than levels[cblk])
-   *   - The lower subset contains the cblk with level lower than the split_level
-   *     in the elimination tree, (or depth higher than levels[cblk])
-   *
-   * The delimitation between the lower and upper levels is made such that
-   * the upper level represents 17% to 25% of the total number of cblk.
-   */
-//  clockStart(timer);
-  {
-    int weight = 0;
-
-    /* Compute the weigth of each level */
-    //MATHIAS: this is a loop through blocks in current column 
-    for(iterblok=cblk[0].brownum; iterblok<cblk[1].brownum; iterblok++)
-    {
-      int blokweight;
-      blok = symbptr->bloktab + brow[iterblok];
-      blokweight = blok->lrownum - blok->frownum + 1;
-      depthweight[ levels[ blok->lcblknm ] - 1 ] += blokweight;
-      weight += blokweight;
-    }
-
-    /**
-     * Compute the split_level:
-     *    We start with the given split_level parameter
-     *    and we try to correct it to minimize the following iterative process
-     */
-    {
-      /* Current for each line within the current cblk the number of contributions */
-      int up_total = 0;
-      int lw_total = 0;
-      int sign = 0;
+          /**
+           * Compute the split_level:
+           *    We start with the given split_level parameter
+           *    and we try to correct it to minimize the following iterative process
+           */
+          {
+            /* Current for each line within the current cblk the number of contributions */
+            int up_total = 0;
+            int lw_total = 0;
+            int sign = 0;
 
 split:
-      up_total = 0;
-      lw_total = 0;
+            up_total = 0;
+            lw_total = 0;
 
-      for(i=0; i<local_split_level; i++)
-      {
-        up_total += depthweight[i];
-      }
-      for(; i<depthmax; i++)
-      {
-        lw_total += depthweight[i];
-      }
+            for(i=0; i<local_split_level; i++)
+            {
+              up_total += depthweight[i];
+            }
+            for(; i<depthmax; i++)
+            {
+              lw_total += depthweight[i];
+            }
 
-      /* If there are too many upper bloks */
-      if ( (lw_total < (5 * up_total)) &&
-          (lw_total > 10) && (up_total > 10) && (sign <= 0))
-      {
-        local_split_level--;
-        sign--;
-        goto split;
-      }
+            /* If there are too many upper bloks */
+            if ( (lw_total < (5 * up_total)) &&
+                (lw_total > 10) && (up_total > 10) && (sign <= 0))
+            {
+              local_split_level--;
+              sign--;
+              goto split;
+            }
 
-      /* If there are too many lower bloks */
-      if ( (lw_total > (3 * up_total)) &&
-          (lw_total > 10) && (up_total > 10) && (sign >= 0) )
-      {
-        local_split_level++;
-        sign++;
-        goto split;
-      }
+            /* If there are too many lower bloks */
+            if ( (lw_total > (3 * up_total)) &&
+                (lw_total > 10) && (up_total > 10) && (sign >= 0) )
+            {
+              local_split_level++;
+              sign++;
+              goto split;
+            }
 
-      /* Adjust to depth of the level array */
-      /* symbol_reorder_cblk( symbptr, cblk, order, */
-      /*                      levels, levels[itercblk], */
-      /*                      depthweight + levels[itercblk], maxdepth-levels[itercblk], */
-      /*                      split_level, stop_criteria, stop_when_fitting, */
-      /*                      &time_compute_vectors, &time_update_perm); */
-      /* local_split_level += cblklvl; */
-      /* for(i=0; (i<local_split_level) && (depthweight[i] != 0); i++) */
-      /* for(; (i<depthmax) && (depthweight[i] != 0); i++) */
-    }
+            /* Adjust to depth of the level array */
+            /* symbol_reorder_cblk( symbptr, cblk, order, */
+            /*                      levels, levels[itercblk], */
+            /*                      depthweight + levels[itercblk], maxdepth-levels[itercblk], */
+            /*                      split_level, stop_criteria, stop_when_fitting, */
+            /*                      &time_compute_vectors, &time_update_perm); */
+            /* local_split_level += cblklvl; */
+            /* for(i=0; (i<local_split_level) && (depthweight[i] != 0); i++) */
+            /* for(; (i<depthmax) && (depthweight[i] != 0); i++) */
+          }
 
-    /* Compute the Hamming vector size for each row of the cblk */
-    up_vectors_size = (int*)malloc(size*sizeof(int));
-    memset(up_vectors_size, 0, size * sizeof(int));
-    lw_vectors_size = (int*)malloc(size*sizeof(int));
-    memset(lw_vectors_size, 0, size * sizeof(int));
+          /* Compute the Hamming vector size for each row of the cblk */
+          up_vectors_size = (int*)malloc(size*sizeof(int));
+          memset(up_vectors_size, 0, size * sizeof(int));
+          lw_vectors_size = (int*)malloc(size*sizeof(int));
+          memset(lw_vectors_size, 0, size * sizeof(int));
 
-    for(iterblok=cblk[0].brownum; iterblok<cblk[1].brownum; iterblok++)
-    {
-      blok = symbptr->bloktab + brow[iterblok];
+          for(iterblok=cblk[0].brownum; iterblok<cblk[1].brownum; iterblok++)
+          {
+            blok = symbptr->bloktab + brow[iterblok];
 
-      /* For upper levels in nested dissection */
-      if (levels[blok->lcblknm] <= local_split_level){
-        for (i=blok->frownum; i<=blok->lrownum; i++){
-          int index = i - cblk->fcolnum;
-          up_vectors_size[index]++;
+            /* For upper levels in nested dissection */
+            if (levels[blok->lcblknm] <= local_split_level){
+              for (i=blok->frownum; i<=blok->lrownum; i++){
+                int index = i - cblk->fcolnum;
+                up_vectors_size[index]++;
+              }
+            }
+            else{
+              for (i=blok->frownum; i<=blok->lrownum; i++){
+                int index = i - cblk->fcolnum;
+                lw_vectors_size[index]++;
+              }
+            }
+          }
+
+          /* Initiate Hamming vectors structure */
+          lw_vectors = (int**)malloc(size*sizeof(int*));
+          up_vectors = (int**)malloc(size*sizeof(int*));
+          for (i=0; i<size; i++) {
+            lw_vectors[i] = (int*)malloc(lw_vectors_size[i]*sizeof(int));
+            up_vectors[i]=(int*)malloc(up_vectors_size[i]*sizeof(int));
+            memset(lw_vectors[i], 0, lw_vectors_size[i] * sizeof(int));
+            memset(up_vectors[i], 0, up_vectors_size[i] * sizeof(int));
+          }
+          memset(lw_vectors_size, 0, size * sizeof(int));
+          memset(up_vectors_size, 0, size * sizeof(int));
+
+          /* Fill-in vectors structure with contributing cblks */
+          for(iterblok=cblk[0].brownum; iterblok<cblk[1].brownum; iterblok++)
+          {
+            blok = symbptr->bloktab + brow[iterblok];
+
+            /* For upper levels in nested dissection */
+            if (levels[blok->lcblknm] <= local_split_level) {
+              for (i=blok->frownum; i<=blok->lrownum; i++){
+                int index = i - cblk->fcolnum;
+                up_vectors[index][up_vectors_size[index]] = blok->lcblknm;
+                up_vectors_size[index]++;
+              }
+            }
+            else{
+              for (i=blok->frownum; i<=blok->lrownum; i++){
+                int index = i - cblk->fcolnum;
+                lw_vectors[index][lw_vectors_size[index]] = blok->lcblknm;
+                lw_vectors_size[index]++;
+              }
+            }
+          }
         }
-      }
-      else{
-        for (i=blok->frownum; i<=blok->lrownum; i++){
-          int index = i - cblk->fcolnum;
-          lw_vectors_size[index]++;
+
+        //  clockStop(timer);
+        //  *time_compute_vectors += clockVal(timer);
+
+        //  clockStart(timer);
+        {
+          /* Apply the pseudo-TSP algorithm to the rows in the current supernode */
+          symbol_reorder_tsp(size, order, cblk - symbptr->cblktab,
+              lw_vectors, lw_vectors_size,
+              up_vectors, up_vectors_size,
+              stop_criteria, stop_when_fitting);
         }
-      }
-    }
+        //  clockStop(timer);
+        //  *time_update_perm += clockVal(timer);
 
-    /* Initiate Hamming vectors structure */
-    lw_vectors = (int**)malloc(size*sizeof(int*));
-    up_vectors = (int**)malloc(size*sizeof(int*));
-    for (i=0; i<size; i++) {
-      lw_vectors[i] = (int*)malloc(lw_vectors_size[i]*sizeof(int));
-      up_vectors[i]=(int*)malloc(up_vectors_size[i]*sizeof(int));
-      memset(lw_vectors[i], 0, lw_vectors_size[i] * sizeof(int));
-      memset(up_vectors[i], 0, up_vectors_size[i] * sizeof(int));
-    }
-    memset(lw_vectors_size, 0, size * sizeof(int));
-    memset(up_vectors_size, 0, size * sizeof(int));
-
-    /* Fill-in vectors structure with contributing cblks */
-    for(iterblok=cblk[0].brownum; iterblok<cblk[1].brownum; iterblok++)
-    {
-      blok = symbptr->bloktab + brow[iterblok];
-
-      /* For upper levels in nested dissection */
-      if (levels[blok->lcblknm] <= local_split_level) {
-        for (i=blok->frownum; i<=blok->lrownum; i++){
-          int index = i - cblk->fcolnum;
-          up_vectors[index][up_vectors_size[index]] = blok->lcblknm;
-          up_vectors_size[index]++;
+        for (i=0; i<size; i++){
+          free(lw_vectors[i]);
+          free(up_vectors[i]);
         }
+
+        free(lw_vectors);
+        free(up_vectors);
+        free(lw_vectors_size);
+        free(up_vectors_size);
       }
-      else{
-        for (i=blok->frownum; i<=blok->lrownum; i++){
-          int index = i - cblk->fcolnum;
-          lw_vectors[index][lw_vectors_size[index]] = blok->lcblknm;
-          lw_vectors_size[index]++;
+
+    /* For split_level parameter */
+    /* The chosen level to reduce computational cost: no effects if set to 0 */
+    /* A first comparison is computed according to upper levels */
+    /* If hamming distances are equal, the computation goes through lower levels */
+
+    /* For stop_criteria parameter */
+    /* Criteria to limit the number of comparisons when computing hamming distances */
+
+    /* For stop_when_fitting parameter */
+    /* Criteria to insert a line when no extra-blok is created */
+    /* If set to 0, the algorithm will minimize the cut between two lines */
+
+    inline   void
+      symbolReordering( const SymbolMatrix *symbptr,
+          Order *order,
+          int split_level,
+          int stop_criteria,
+          int stop_when_fitting )
+      {
+        SymbolCblk  *cblk;
+        int itercblk;
+        int cblknbr = symbptr->cblknbr;
+
+        double time_compute_vectors = 0.;
+        double time_update_perm     = 0.;
+
+        int i, maxdepth;
+        int *levels, *depthweight;
+
+        /* Create the level array to compute the depth of each cblk and the maximum depth */
+        {
+          maxdepth = 0;
+          levels = new int[cblknbr];
+          for(int i = 0; i<cblknbr; ++i){levels[i] = 0;}
+
+          for (i=0; i<cblknbr; i++) {
+            levels[i] = compute_cblklevel( order->treetab, levels, i );
+            maxdepth = std::max( maxdepth, levels[i] );
+          }
         }
+
+        /**
+         * Solves the Traveler Salesman Problem on each cblk to minimize the number
+         * of off-diagonal blocks per row
+         */
+        cblk = symbptr->cblktab;
+        depthweight = new int[maxdepth];
+        for (itercblk=0; itercblk<cblknbr; itercblk++, cblk++) {
+
+          memset( depthweight, 0, maxdepth * sizeof(int) );
+
+          symbol_reorder_cblk( symbptr, cblk, order,
+              levels, levels[itercblk],
+              depthweight, maxdepth,
+              split_level, stop_criteria, stop_when_fitting,
+              &time_compute_vectors, &time_update_perm);
+        }
+
+        printf("Time to compute vectors  %lf s\n", time_compute_vectors);
+        printf("Time to update  perm     %lf s\n", time_update_perm);
+
+        /* Update the permutation */
+        for (i=0; i<symbptr->nodenbr; i++) {
+          order->permtab[ order->peritab[i] ] = i;
+        }
+        delete [] levels; levels = NULL;
+        delete [] depthweight; depthweight = NULL;
       }
-    }
-  }
-
-//  clockStop(timer);
-//  *time_compute_vectors += clockVal(timer);
-
-//  clockStart(timer);
-  {
-    /* Apply the pseudo-TSP algorithm to the rows in the current supernode */
-    symbol_reorder_tsp(size, order, cblk - symbptr->cblktab,
-        lw_vectors, lw_vectors_size,
-        up_vectors, up_vectors_size,
-        stop_criteria, stop_when_fitting);
-  }
-//  clockStop(timer);
-//  *time_update_perm += clockVal(timer);
-
-  for (i=0; i<size; i++){
-    free(lw_vectors[i]);
-    free(up_vectors[i]);
-  }
-
-  free(lw_vectors);
-  free(up_vectors);
-  free(lw_vectors_size);
-  free(up_vectors_size);
-}
-
-/* For split_level parameter */
-/* The chosen level to reduce computational cost: no effects if set to 0 */
-/* A first comparison is computed according to upper levels */
-/* If hamming distances are equal, the computation goes through lower levels */
-
-/* For stop_criteria parameter */
-/* Criteria to limit the number of comparisons when computing hamming distances */
-
-/* For stop_when_fitting parameter */
-/* Criteria to insert a line when no extra-blok is created */
-/* If set to 0, the algorithm will minimize the cut between two lines */
-
-inline   void
-symbolReordering( const SymbolMatrix *symbptr,
-    Order *order,
-    int split_level,
-    int stop_criteria,
-    int stop_when_fitting )
-{
-  SymbolCblk  *cblk;
-  int itercblk;
-  int cblknbr = symbptr->cblknbr;
-
-  double time_compute_vectors = 0.;
-  double time_update_perm     = 0.;
-
-  int i, maxdepth;
-  int *levels, *depthweight;
-
-  /* Create the level array to compute the depth of each cblk and the maximum depth */
-  {
-    maxdepth = 0;
-    levels = new int[cblknbr];
-    for(int i = 0; i<cblknbr; ++i){levels[i] = 0;}
-
-    for (i=0; i<cblknbr; i++) {
-      levels[i] = compute_cblklevel( order->treetab, levels, i );
-      maxdepth = std::max( maxdepth, levels[i] );
-    }
-  }
-
-  /**
-   * Solves the Traveler Salesman Problem on each cblk to minimize the number
-   * of off-diagonal blocks per row
-   */
-  cblk = symbptr->cblktab;
-  depthweight = new int[maxdepth];
-  for (itercblk=0; itercblk<cblknbr; itercblk++, cblk++) {
-
-    memset( depthweight, 0, maxdepth * sizeof(int) );
-
-    symbol_reorder_cblk( symbptr, cblk, order,
-        levels, levels[itercblk],
-        depthweight, maxdepth,
-        split_level, stop_criteria, stop_when_fitting,
-        &time_compute_vectors, &time_update_perm);
-  }
-
-  printf("Time to compute vectors  %lf s\n", time_compute_vectors);
-  printf("Time to update  perm     %lf s\n", time_update_perm);
-
-  /* Update the permutation */
-  for (i=0; i<symbptr->nodenbr; i++) {
-    order->permtab[ order->peritab[i] ] = i;
-  }
-  delete [] levels; levels = NULL;
-  delete [] depthweight; depthweight = NULL;
-}
 
 
-} //namespace TSP
+  } //namespace TSP
 
 
 

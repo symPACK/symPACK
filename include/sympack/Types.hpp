@@ -131,7 +131,7 @@ namespace symPACK{
 
   };
 
-  enum DecompositionType {LL,LDL};
+  enum class DecompositionType {LL,LDL};
 
   enum MappingType {ROW2D,COL2D,MODWRAP2D,MODWRAP2DNS,WRAP2D,WRAP2DFORCED};
   enum FactorizationType {FANOUT,FANBOTH,FANBOTH_STATIC};
@@ -186,7 +186,7 @@ namespace symPACK{
         numThreads = 1;
         verbose = 0;
         NpOrdering = 0;
-        decomposition = LL; 
+        decomposition = DecompositionType::LL; 
         factorization = FANBOTH;
         mappingTypeStr = "ROW2D";
         load_balance_str = "SUBCUBE-FO";
@@ -610,6 +610,142 @@ namespace Factorization{
 namespace Solve{
   enum class op_type {FUC,FU,BUC,BU};
 }
+
+}
+
+
+namespace symPACK{
+      class MemoryAllocationException: public std::runtime_error {
+        public:
+          MemoryAllocationException(size_t psz)
+            : std::runtime_error("Memory allocation error"), sz(psz)
+          {
+            //gdb_lock();
+            std::stringstream err_sstr;
+            err_sstr<<std::runtime_error::what()<< " of size "<<sz<<std::endl;
+            err_str = err_sstr.str();
+          }
+
+          virtual char const * what() const throw() { 
+            return err_str.c_str();
+          }
+        protected:
+          size_t sz;
+          std::string err_str;  
+      };
+
+
+
+  class MemoryAllocator{
+    public:
+
+    protected:
+#ifdef _TRACK_MEMORY_
+      static std::map<char*,size_t> cnt_;
+      static size_t total_;
+      static size_t hwm_;
+#endif
+
+    public:
+#ifdef _TRACK_MEMORY_
+      static void printStats(){
+        logfileptr->OFS()<<"Memory HWM: "<<hwm_<<std::endl;
+      }
+#endif
+
+      static char * allocate(size_t count){};
+
+      static void deallocate(char* ptr) {};
+  };
+
+
+  class MallocAllocator: public MemoryAllocator{
+    public:
+      static char * allocate(size_t count){
+char * locTmpPtr = NULL; 
+        try{
+          locTmpPtr = new char[count];
+        }
+        catch (const std::bad_alloc& e) {
+          throw MemoryAllocationException(count);
+        }
+
+#ifdef _TRACK_MEMORY_
+        if(cnt_.size()==0){total_ = 0;}
+        cnt_[locTmpPtr] = count;
+        total_ += count;
+        hwm_ = std::max(hwm_,total_);
+#endif
+        return locTmpPtr;
+      }
+
+      static void deallocate(char* ptr){
+        if(ptr!=nullptr){
+#ifdef _TRACK_MEMORY_
+          total_-=cnt_[ptr];
+          cnt_.erase(ptr);
+#endif
+          delete [] ptr;
+        }
+      }
+  };
+
+
+
+
+
+  class UpcxxAllocator: public MemoryAllocator{
+    public:
+      static char * allocate(size_t count){
+        upcxx::global_ptr<char> tmpPtr;
+#ifdef SP_THREADS
+
+        if(Multithreading::NumThread>1){
+          std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+          tmpPtr = upcxx::allocate<char>(upcxx::myrank(),count);
+        }
+        else
+#endif
+          tmpPtr = upcxx::allocate<char>(upcxx::myrank(),count);
+        char * locTmpPtr = (char*)tmpPtr;
+
+        if(locTmpPtr == NULL){
+          throw MemoryAllocationException(count);
+        }
+
+#ifdef _TRACK_MEMORY_
+        if(cnt_.size()==0){total_ = 0;}
+        cnt_[locTmpPtr] = count;
+        total_ += count;
+        hwm_ = std::max(hwm_,total_);
+        //logfileptr->OFS()<<"Allocating UPCXX "<<" "<<count<<" bytes at "<<(uint64_t)locTmpPtr<<", total "<< total_<<std::endl;
+#endif
+        return locTmpPtr;
+      }
+
+      static void deallocate(char* ptr){
+        if(ptr!=nullptr){
+#ifdef _TRACK_MEMORY_
+        total_-=cnt_[ptr];
+        //logfileptr->OFS()<<"Deallocating UPCXX "<<(uint64_t)ptr<<" "<<cnt_[ptr]<<" bytes, total "<< total_<<std::endl;
+        cnt_.erase(ptr);
+#endif
+
+        upcxx::global_ptr<char> tmpPtr((char*)ptr);
+#ifdef SP_THREADS
+
+        if(Multithreading::NumThread>1){
+          std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+          upcxx::deallocate(tmpPtr);
+        }
+        else
+#endif
+          upcxx::deallocate(tmpPtr);
+        }
+      }
+  };
+
+
 
 }
 

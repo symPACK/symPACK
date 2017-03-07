@@ -66,10 +66,6 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 namespace symPACK{
 
-  //  namespace lapack{
-  //  template<typename T> void Potrf_LDL( const  char * UPLO,  Idx & N, T * A,  Idx & LDA, Int & NDEF, Int * IDEF,  T & TOL, T * WORK, Int & INFO);
-  //  }
-
   template<typename T, class Allocator>
     SuperNodeInd<T,Allocator>::SuperNodeInd() :SuperNode<T,Allocator>(), diag_(NULL){ }
 
@@ -86,7 +82,15 @@ namespace symPACK{
       this->storage_size_ = sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
       this->storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
 
-      this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
+      try{
+        this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
+      }
+      catch(const MemoryAllocationException & e){
+        this->loc_storage_container_=NULL;
+        this->storage_size_ = 0;
+        throw;
+      }
+
       //storage_container_ = upcxx::allocate<char>(iam,this->storage_size_); 
       //this->loc_storage_container_ = (char *)storage_container_;
 #ifdef _USE_COREDUMPER_
@@ -127,89 +131,9 @@ namespace symPACK{
 
 
 
-
   template<typename T, class Allocator>
     SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
-
-      //compute supernode size / width
-      Int size = aiLc - aiFc +1;
-
-      Int num_blocks = 0;
-      if(rowIndices.size()>0){
-        //go through the set and count the number of nz blocks
-        Idx prevRow = *rowIndices.begin();
-        Idx firstRow = *rowIndices.begin();
-        for(auto it = rowIndices.begin();it!=rowIndices.end();it++){
-          Idx row = *it;
-
-          if(row>prevRow+1){
-            num_blocks++;
-            firstRow = row;
-          }
-          prevRow = row;
-        }
-        num_blocks++;
-      }
-
-      assert(num_blocks>0);
-
-      Int numRows = rowIndices.size();
-      this->storage_size_ = sizeof(T)*size*numRows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
-      this->storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
-
-      this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
-      assert(this->loc_storage_container_!=NULL);
-
-      this->nzval_ = (T*)&this->loc_storage_container_[0];
-      this->diag_ = (T*)(this->nzval_+size*numRows);
-      this->meta_ = (SuperNodeDesc*)(this->diag_ + size);
-      char * last = this->loc_storage_container_+this->storage_size_-1 - (sizeof(NZBlockDesc) -1);
-      this->blocks_ = (NZBlockDesc*) last;
-
-      this->meta_->iId_ = aiId;
-      this->meta_->iFirstCol_ = aiFc;
-      this->meta_->iLastCol_ = aiLc;
-      this->meta_->iN_=aiN;
-      this->meta_->iSize_ = size;
-      this->meta_->nzval_cnt_ = 0;
-      this->meta_->blocks_cnt_ = 0;
-      this->meta_->b_own_storage_ = true;
-
-
-#ifndef ITREE
-      this->globalToLocal_ = new std::vector<Int>(aiN+1,-1);
-#else
-      this->idxToBlk_ = this->CreateITree();
-#endif
-
-
-
-      //now add the blocks 
-      if(rowIndices.size()>0){
-        //go through the set and count the number of nz blocks
-        Idx prevRow = *rowIndices.begin();
-        Idx firstRow = *rowIndices.begin();
-        for(auto it = rowIndices.begin();it!=rowIndices.end();it++){
-          Idx row = *it;
-
-          if(row>prevRow+1){
-            this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
-            firstRow = row;
-          }
-          prevRow = row;
-        }
-        this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
-      }
-
-
-
-
-
-
-
-
-
-
+  Init(aiId,aiFc,aiLc,aiN,rowIndices);
     }; 
 
 
@@ -282,6 +206,105 @@ namespace symPACK{
 
     }
 
+
+  template<typename T, class Allocator>
+  void SuperNodeInd<T,Allocator>::Init(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices){
+      //compute supernode size / width
+      Int size = aiLc - aiFc +1;
+
+      Int num_blocks = 0;
+      if(rowIndices.size()>0){
+        //go through the set and count the number of nz blocks
+        Idx prevRow = *rowIndices.begin();
+        Idx firstRow = *rowIndices.begin();
+        for(auto it = rowIndices.begin();it!=rowIndices.end();it++){
+          Idx row = *it;
+
+          if(row>prevRow+1){
+            num_blocks++;
+            firstRow = row;
+          }
+          prevRow = row;
+        }
+        num_blocks++;
+      }
+
+      assert(num_blocks>0);
+
+      Int numRows = rowIndices.size();
+      this->storage_size_ = sizeof(T)*size*numRows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+      this->storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
+
+      try{
+        this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
+      }
+      catch(const MemoryAllocationException & e){
+        this->loc_storage_container_=NULL;
+        this->storage_size_ = 0;
+        throw;
+      }
+
+      this->nzval_ = (T*)&this->loc_storage_container_[0];
+      this->diag_ = (T*)(this->nzval_+size*numRows);
+      this->meta_ = (SuperNodeDesc*)(this->diag_ + size);
+      char * last = this->loc_storage_container_+this->storage_size_-1 - (sizeof(NZBlockDesc) -1);
+      this->blocks_ = (NZBlockDesc*) last;
+
+      this->meta_->iId_ = aiId;
+      this->meta_->iFirstCol_ = aiFc;
+      this->meta_->iLastCol_ = aiLc;
+      this->meta_->iN_=aiN;
+      this->meta_->iSize_ = size;
+      this->meta_->nzval_cnt_ = 0;
+      this->meta_->blocks_cnt_ = 0;
+      this->meta_->b_own_storage_ = true;
+
+
+#ifndef ITREE
+      this->globalToLocal_ = new std::vector<Int>(aiN+1,-1);
+#else
+      this->idxToBlk_ = this->CreateITree();
+#endif
+
+
+
+      //now add the blocks 
+      if(rowIndices.size()>0){
+        //go through the set and count the number of nz blocks
+        Idx prevRow = *rowIndices.begin();
+        Idx firstRow = *rowIndices.begin();
+        for(auto it = rowIndices.begin();it!=rowIndices.end();it++){
+          Idx row = *it;
+
+          if(row>prevRow+1){
+            this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
+            firstRow = row;
+          }
+          prevRow = row;
+        }
+        this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
+      }
+
+
+
+
+
+
+
+
+
+
+    }; 
+
+
+
+
+
+
+
+
+
+
   template<typename T, class Allocator>
     inline void SuperNodeInd<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex){
 
@@ -316,6 +339,7 @@ namespace symPACK{
           size_t offset_block = (char*)this->blocks_ - (char*)this->nzval_;
 
           char * locTmpPtr = Allocator::allocate(new_size);
+
 
 #ifdef _USE_COREDUMPER_
           if(locTmpPtr==NULL){
@@ -448,24 +472,10 @@ namespace symPACK{
     }
 
   template<typename T, class Allocator>
-    inline Int SuperNodeInd<T,Allocator>::Factorize(
-//#ifdef SP_THREADS
-//        TempUpdateBuffers<T> & tmpBuffers_disabled
-//#else
-        TempUpdateBuffers<T> & tmpBuffers
-//#endif
-        ){
+    inline Int SuperNodeInd<T,Allocator>::Factorize( TempUpdateBuffers<T> & tmpBuffers){
 #if defined(_NO_COMPUTATION_)
       return 0;
 #endif
-
-//#ifdef SP_THREADS
-//      //hide the parameter
-//        TempUpdateBuffers<T> tmpBuffers;
-//        //tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
-//        //tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
-//        //tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
-//#endif
 
       Int snodeSize = this->Size();
       NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
@@ -506,6 +516,48 @@ namespace symPACK{
     }
 
 
+  template<typename T, class Allocator>
+  inline Int SuperNodeInd<T,Allocator>::Factorize(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers){
+    abort();
+#if defined(_NO_COMPUTATION_)
+      return 0;
+#endif
+      Int snodeSize = this->Size();
+      NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
+      T * diag_nzval = this->GetNZval(diag_desc.Offset);
+#if 0
+      Idx totalNRows = this->NRowsBelowBlock(0);
+      for(Int col = 0; col< snodeSize;col++){
+
+        //copy the diagonal entries into the diag portion of the supernode
+        this->diag_[col] = diag_nzval[col+ (col)*snodeSize];
+
+        //T piv = static_cast<T>(1.0) / diag_nzval[col+col*snodeSize];
+        T piv = symPACK::div(static_cast<T>(1.0) , diag_nzval[col+col*snodeSize]);
+        lapack::Scal( totalNRows - col - 1, piv, &diag_nzval[ col + (col+1)*snodeSize ], snodeSize );
+        blas::Ger(snodeSize - col - 1, totalNRows - col - 1, -this->diag_[col],&diag_nzval[col + (col+1)*snodeSize],
+            snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
+      }
+#else
+
+      Idx totalNRows = this->NRowsBelowBlock(0);
+      Int INFO = 0;
+      lapack::Potrf_LDL( "U", snodeSize, diag_nzval, snodeSize, tmpBuffers, INFO);
+      //copy the diagonal entries into the diag portion of the supernode
+#pragma unroll
+      for(Int col = 0; col< snodeSize;col++){ this->diag_[col] = diag_nzval[col+ (col)*snodeSize]; }
+
+
+      T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
+      blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
+
+      //scale column I
+      for ( Idx I = 1; I<=snodeSize;I++) {
+        blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
+      }
+#endif
+      return 0;
+  }
 
   template<typename T, class Allocator>
     inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
@@ -515,6 +567,7 @@ namespace symPACK{
         TempUpdateBuffers<T> & tmpBuffers,
 //#endif
         Int iTarget, Int iam ){
+bassert(this->meta_!=nullptr);
       scope_timer(a,UPDATE_AGGREGATE_SNODE);
 
 #if defined(_NO_COMPUTATION_)
@@ -711,27 +764,11 @@ namespace symPACK{
 
 
   template<typename T, class Allocator>
-    inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-//#ifdef SP_THREADS
-//        TempUpdateBuffers<T> & tmpBuffers_disabled
-//#else
-        TempUpdateBuffers<T> & tmpBuffers
-//#endif
-        ){
-#ifdef SP_THREADS
-      //hide the parameter
-        //TempUpdateBuffers<T> tmpBuffers;
-        //tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
-        //tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
-        //tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
-#endif
-
+    inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, TempUpdateBuffers<T> & tmpBuffers){
       scope_timer(a,UPDATE_SNODE);
 #if defined(_NO_COMPUTATION_)
       return 0;
 #endif
-
-
       Int & pivot_idx = update.blkidx;
       Int & pivot_fr = update.src_first_row;
 

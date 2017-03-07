@@ -40,6 +40,7 @@ royalty-free perpetual license to install, use, modify, prepare derivative
 works, incorporate into other computer software, distribute, and sublicense
 such enhancements or derivative works thereof, in binary and source code form.
 */
+#include "sympack/Environment.hpp"
 #include "sympack/CommPull.hpp"
 #include "sympack/CommTypes.hpp"
 //#include "sympack/SupernodalMatrixBase.hpp"
@@ -88,6 +89,9 @@ namespace symPACK{
       if(local_ptr!=NULL){
         size = psize;
       }
+      else{
+        throw MemoryAllocationException(psize);
+      }
       return local_ptr!=NULL;
     }
     else{
@@ -134,6 +138,10 @@ namespace symPACK{
 
     allocated = false;
     ownLocalStorage = false;
+
+#ifdef SP_THREADS
+    references=0;
+#endif
   }
 
   IncomingMessage::~IncomingMessage(){
@@ -314,6 +322,10 @@ namespace symPACK{
 
       allocated = local_ptr!=NULL;
       ownLocalStorage = allocated;
+
+      if(local_ptr==NULL){
+        throw MemoryAllocationException(msg_size);
+      }
       return local_ptr!=NULL;
     }
     else{

@@ -697,7 +697,10 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
         }
   }
 
-    std::shared_ptr<Scheduler< std::shared_ptr<GenericTask> > > scheduler(new FIFOScheduler< std::shared_ptr<GenericTask> >( ));
+  scheduler_new_->msgHandle = nullptr;
+  scheduler_new_->threadInitHandle_ = nullptr;
+  scheduler_new_->extraTaskHandle_  = nullptr;
+    //std::shared_ptr<Scheduler< std::shared_ptr<GenericTask> > > scheduler(new FIFOScheduler< std::shared_ptr<GenericTask> >( ));
     //std::shared_ptr<Scheduler< std::shared_ptr<GenericTask> > > scheduler(new DLScheduler< std::shared_ptr<GenericTask> >( ));
     //std::shared_ptr<Scheduler<SparseTask> > scheduler(new DLScheduler<SparseTask>( ));
 
@@ -708,12 +711,12 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
     auto dec_ref = [&] ( taskGraph::task_iterator taskit, Int loc, Int rem) {
 #ifdef SP_THREADS
-        std::lock_guard<std::mutex> lock(scheduler->list_mutex_);
+        std::lock_guard<std::mutex> lock(scheduler_new_->list_mutex_);
 #endif
       taskit->second->local_deps_cnt-= loc;
       taskit->second->remote_deps_cnt-= rem;
       if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
-        scheduler->push(taskit->second);
+        scheduler_new_->push(taskit->second);
         graph.removeTask(taskit->second->id);
       }
     };
@@ -823,7 +826,7 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
               //Apply all forward updates first
               //Do the remote ones
-              for(auto && msgPtr : FUCtask.data){
+              for(auto && msgPtr : FUCtask.getData() ){
                   assert(msgPtr->IsDone());
                   char* dataPtr = msgPtr->GetLocalPtr();
                   auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
@@ -844,7 +847,7 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
                       auto taskit = graph.find_task(id);
 
                       //msgPtr->meta.id = id;
-                      taskit->second->data.push_back(msgPtr);
+                      taskit->second->addData(msgPtr);
 
                       //log_task(taskit);
                       dec_ref(taskit,0,1);
@@ -1348,8 +1351,8 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
                 }
                 else{
                   //remote
-                  assert(BUtask.data.size()==1);
-                  IncomingMessage * msgPtr = *BUtask.data.begin();
+                  assert(BUtask.getData().size()==1);
+                  IncomingMessage * msgPtr = *BUtask.getData().begin();
                   assert(msgPtr->IsDone());
                   char* dataPtr = msgPtr->GetLocalPtr();
                   auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
@@ -1369,7 +1372,7 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
                       auto taskit = graph.find_task(id);
 
                       //msgPtr->meta.id = id;
-                      taskit->second->data.push_back(msgPtr);
+                      taskit->second->addData(msgPtr);
 
                       //log_task(taskit);
                       dec_ref(taskit,0,1);
@@ -1402,10 +1405,10 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
                             if(taskit!=graph.tasks_.end()){
                               child_found = true;
-                              taskit->second->data.push_back(msgPtr);
+                              taskit->second->addData(msgPtr);
                               //log_task(taskit);
                               dec_ref(taskit,0,1);
-                              BUtask.data.clear();
+                              BUtask.clearData();
                               break;
                             }
                           }
@@ -1464,7 +1467,7 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
     
 
     timeSta = get_time();
-    scheduler->run(CommEnv_->MPI_GetComm(),graph);
+    scheduler_new_->run(CommEnv_->MPI_GetComm(),graph);
     timeStop = get_time();
         if(iam==0){
           std::cout<<"Solve task graph execution time: "<<timeStop - timeSta<<std::endl;

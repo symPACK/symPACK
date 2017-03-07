@@ -1,44 +1,44 @@
 /*
-	 Copyright (c) 2016 The Regents of the University of California,
-	 through Lawrence Berkeley National Laboratory.  
+   Copyright (c) 2016 The Regents of the University of California,
+   through Lawrence Berkeley National Laboratory.  
 
-   Author: Mathias Jacquelin
-	 
-   This file is part of symPACK. All rights reserved.
+Author: Mathias Jacquelin
 
-	 Redistribution and use in source and binary forms, with or without
-	 modification, are permitted provided that the following conditions are met:
+This file is part of symPACK. All rights reserved.
 
-	 (1) Redistributions of source code must retain the above copyright notice, this
-	 list of conditions and the following disclaimer.
-	 (2) Redistributions in binary form must reproduce the above copyright notice,
-	 this list of conditions and the following disclaimer in the documentation
-	 and/or other materials provided with the distribution.
-	 (3) Neither the name of the University of California, Lawrence Berkeley
-	 National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
-	 be used to endorse or promote products derived from this software without
-	 specific prior written permission.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-	 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-	 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-	 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-	 DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-	 ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-	 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-	 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-	 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-	 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-	 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+(1) Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+(2) Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+(3) Neither the name of the University of California, Lawrence Berkeley
+National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
 
-	 You are under no obligation whatsoever to provide any bug fixes, patches, or
-	 upgrades to the features, functionality or performance of the source code
-	 ("Enhancements") to anyone; however, if you choose to make your Enhancements
-	 available either publicly, or directly to Lawrence Berkeley National
-	 Laboratory, without imposing a separate written license agreement for such
-	 Enhancements, then you hereby grant the following license: a non-exclusive,
-	 royalty-free perpetual license to install, use, modify, prepare derivative
-	 works, incorporate into other computer software, distribute, and sublicense
-	 such enhancements or derivative works thereof, in binary and source code form.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+You are under no obligation whatsoever to provide any bug fixes, patches, or
+upgrades to the features, functionality or performance of the source code
+("Enhancements") to anyone; however, if you choose to make your Enhancements
+available either publicly, or directly to Lawrence Berkeley National
+Laboratory, without imposing a separate written license agreement for such
+Enhancements, then you hereby grant the following license: a non-exclusive,
+royalty-free perpetual license to install, use, modify, prepare derivative
+works, incorporate into other computer software, distribute, and sublicense
+such enhancements or derivative works thereof, in binary and source code form.
 */
 /// @file utility.hpp
 /// @brief Various utility subroutines.
@@ -54,97 +54,16 @@
 #include  <mpi.h>
 #include  <stdlib.h>
 #include  <numeric>
+
+#include <exception>
+#include <stdexcept>
+#include <sstream>
+#include <mutex>
+
 #include  "sympack/Environment.hpp"
 #include  "sympack/DistSparseMatrix.hpp"
 #include  "sympack/ETree.hpp"
 
-
-namespace symPACK{
-//  template<typename T>
-//    class complex: public std::complex<T> {
-//      public:
-//      complex():std::complex<T>(){};
-//
-//      complex(const T val,const T imagval):std::complex<T>(val,imagval){};
-//      //complex(const T & val,const T & imagval):std::complex<T>(val,imagval){};
-//      complex(const T val):std::complex<T>(val){};
-//      complex(const std::complex<T> val):std::complex<T>(val){};
-//      //complex(const T & val):std::complex<T>(val){};
-//    };
-//
-//  template<typename T>
-//      inline complex<T> operator/(const complex<T> & left, const complex<T> & right) {
-//        gdb_lock();
-//        complex<T> cconj = std::conj(right);
-//        complex<T> div = right*cconj;
-//        return (left*cconj)/div;
-//      }
-
-//  template<typename T>
-//  inline std::complex<T> div(const std::complex<T> & left, const std::complex<T> & right) {
-//        std::complex<T> cconj = std::conj(right);
-//        std::complex<T> div = right*cconj;
-//        return (left*cconj)/div;
-//      }
-//
-//  template<typename T>
-//  inline T div(const T & left, const T & right) {
-//        return left/right;
-//      }
-
-
-
-
-//  template<typename T>
-//std::complex<T> operator/ (const std::complex<T>& left, std::complex<T> num) {
-//    //divide by num
-//gdb_lock();
-//    std::complex<T> cconj = std::conj(num);
-//    std::complex<T> div = num*cconj;
-//    return (left*cconj)/div;
-//}
-//
-//  template<typename T>
-//std::complex<T> operator/ (std::complex<T> num, const std::complex<T>& right) {
-//    //return (right / num); // call the first one
-//gdb_lock();
-//    std::complex<T> cconj = std::conj(right);
-//    std::complex<T> div = right*cconj;
-//    return (num*cconj)/div;
-//}
-
-
-//  template<typename T>
-//inline std::complex<T> operator/ (const std::complex<T> & left, const std::complex<T> & num) {
-//    //divide by num
-//gdb_lock();
-//    std::complex<T> cconj = std::conj(num);
-//    std::complex<T> div = num*cconj;
-//    return (left*cconj)/div;
-//}
-
-//  template<typename T>
-//inline complex<T> operator/ (const complex<T> & left, const complex<T> & num) {
-//    //divide by num
-//gdb_lock();
-//    complex<T> cconj = conj(num);
-//    complex<T> div = num*cconj;
-//    return (left*cconj)/div;
-//}
-//
-//
-//
-//  template<typename T>
-//inline complex<T> operator/ (complex<T> left, complex<T> num) {
-//    //divide by num
-//gdb_lock();
-//    complex<T> cconj = conj(num);
-//    complex<T> div = num*cconj;
-//    return (left*cconj)/div;
-//}
-
-
-}
 
 
 
@@ -914,273 +833,273 @@ namespace symPACK{
 
   template <typename SCALAR, typename INSCALAR >
     int ReadHB_PARA_MPIIO(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
-////
-////      MPI_Comm & workcomm = HMat.comm;
-////
-////      int mpirank;
-////      MPI_Comm_rank(workcomm,&mpirank);
-////
-////      int mpisize;
-////      MPI_Comm_size(workcomm,&mpisize);
-////
-////      auto n = HMat.size;
-////      auto nnz = HMat.nnz;
-////      size_t headerOffset = 0;
-////      int colptrWidth = 0;
-////      int rowindWidth = 0;
-////      int nzvalWidth = 0;
-////      int colptrCntPerRow = 0;
-////      int rowindCntPerRow = 0;
-////      int nzvalCntPerRow = 0;
-////      int colptrCnt = 0;
-////      int rowindCnt = 0;
-////      int nzvalCnt = 0;
-////
-////      if(mpirank==0){
-////        std::ifstream infile;
-////        infile.open(filename.c_str());
-////
-////        std::string line;
-////        std::stringstream iss;
-////        //skip 1st line
-////        if(std::getline(infile, line)){}
-////        if(std::getline(infile, line)){
-////          iss.str("");
-////          iss.clear();
-////          iss<<line;
-////          int dummy;
-////          iss>>dummy;
-////          iss>>colptrCnt>>rowindCnt>>nzvalCnt;
-////        }
-////        //read from third line
-////
-////        int m;
-////        if(std::getline(infile, line))
-////        {
-////          iss.str("");
-////          iss.clear();
-////          iss<<line;
-////          std::string type;
-////          iss>>type;
-////          iss>>m>>n>>nnz;
-////        }
-////
-////
-////        //read from 4th line
-////        if(std::getline(infile, line))
-////        {
-////          iss.str("");
-////          iss.clear();
-////          iss<<line;
-////          std::string format;
-////          iss>>format;
-////          int dummy;
-////          sscanf(format.c_str(),"(%dI%d)",&colptrCntPerRow,&colptrWidth);
-////          iss>>format;
-////          sscanf(format.c_str(),"(%dI%d)",&rowindCntPerRow,&rowindWidth);
-////          iss>>format;
-////          sscanf(format.c_str(),"(%dE%d.%d)",&nzvalCntPerRow,&nzvalWidth,&dummy);
-////        }
-////
-////        headerOffset = infile.tellg();
-////        infile.close();
-////      }
-////
-////
-////      MPI_Status mpistat;
-////      MPI_Datatype type;
-////      int lens[12];
-////      MPI_Aint disps[12];
-////      MPI_Datatype types[12];
-////
-////      /* define a struct that describes all our data */
-////      lens[0] = sizeof(n);
-////      lens[1] = sizeof(nnz);
-////      lens[2] = sizeof(headerOffset   );
-////      lens[3] = sizeof(colptrWidth    );
-////      lens[4] = sizeof(rowindWidth    );
-////      lens[5] = sizeof(nzvalWidth     );
-////      lens[6] = sizeof(colptrCntPerRow);
-////      lens[7] = sizeof(rowindCntPerRow);
-////      lens[8] = sizeof(nzvalCntPerRow );
-////      lens[9] =  sizeof(colptrCnt);
-////      lens[10] = sizeof(rowindCnt);
-////      lens[11] = sizeof(nzvalCnt );
-////      MPI_Address(&n, &disps[0]);
-////      MPI_Address(&nnz, &disps[1]);
-////      MPI_Address(&headerOffset   , &disps[2]);
-////      MPI_Address(&colptrWidth    , &disps[3]);
-////      MPI_Address(&rowindWidth    , &disps[4]);
-////      MPI_Address(&nzvalWidth     , &disps[5]);
-////      MPI_Address(&colptrCntPerRow, &disps[6]);
-////      MPI_Address(&rowindCntPerRow, &disps[7]);
-////      MPI_Address(&nzvalCntPerRow , &disps[8]);
-////      MPI_Address(&colptrCnt , &disps[9]);
-////      MPI_Address(&rowindCnt , &disps[10]);
-////      MPI_Address(&nzvalCnt  , &disps[11]);
-////      types[0] = MPI_BYTE;
-////      types[1] = MPI_BYTE;
-////      types[2] = MPI_BYTE;
-////      types[3] = MPI_BYTE;
-////      types[4] = MPI_BYTE;
-////      types[5] = MPI_BYTE;
-////      types[6] = MPI_BYTE;
-////      types[7] = MPI_BYTE;
-////      types[8] = MPI_BYTE;
-////      types[9] = MPI_BYTE;
-////      types[10] = MPI_BYTE;
-////      types[11] = MPI_BYTE;
-////      MPI_Type_struct(12, lens, disps, types, &type);
-////      MPI_Type_commit(&type);
-////
-////
-////      /* broadcast the header data to everyone */
-////      MPI_Bcast(MPI_BOTTOM, 1, type, 0, workcomm);
-////      MPI_Type_free(&type);
-////
-////      HMat.size = n;
-////      HMat.nnz = nnz;
-////
-////
-////      Int err = 0;
-////      int filemode = MPI_MODE_RDONLY | MPI_MODE_UNIQUE_OPEN;
-////
-////      MPI_File fin;
-////      MPI_Status status;
-////
-////      err = MPI_File_open(workcomm,(char*) filename.c_str(), filemode, MPI_INFO_NULL,  &fin);
-////
-////      if (err != MPI_SUCCESS) {
-////        throw std::logic_error( "File cannot be opened!" );
-////      }
-////
-////
-////      //compute local number of columns
-////      int colPerProc = std::max(1,(int)(n/mpisize));
-////      abort();
-////      int nlocal = (mpirank<mpisize-1)?n/mpisize:n-mpirank*(int)(n/mpisize);
-////      int firstNode = mpirank*(int)(n/mpisize) + 1;
-////      //initialize local arrays
-////      HMat.Local_.colptr.resize(nlocal+1);
-////
-////
-////      //colptr
-////      MPI_Offset myColptrOffset = 0;
-////      {
-////
-////        int lineLastNode = std::ceil(( double(firstNode+nlocal) / double(colptrCntPerRow)));
-////        int lineFirstNode = std::ceil(( double(firstNode) / double(colptrCntPerRow)));
-////        int skip = (firstNode - 1)*colptrWidth + (lineFirstNode - 1);
-////        int readBytes = (nlocal+1)*colptrWidth + (lineLastNode - lineFirstNode);
-////        int skipAfter = (n+1 - (firstNode+nlocal))*colptrWidth + (colptrCnt - lineLastNode +1) ;
-////
-////        myColptrOffset = headerOffset + skip;
-////
-////
-////        {
-////          std::string rdStr;
-////          rdStr.resize(readBytes);
-////
-////          err= MPI_File_read_at_all(fin, myColptrOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
-////          if (err != MPI_SUCCESS) {
-////            throw std::logic_error( "error reading colptr" );
-////          }
-////
-////          std::istringstream iss(rdStr);
-////          Ptr j;
-////          Int locPos = 0;
-////          while(iss>> j){
-////            HMat.Local_.colptr[locPos++]=j;
-////          }
-////        }
-////        myColptrOffset += skipAfter;
-////      }
-////
-////      //convert to local colptr and compute local nnz
-////      Ptr first_idx = HMat.Local_.colptr.front();
-////      Ptr last_idx = HMat.Local_.colptr.back();
-////      for(int i=nlocal;i>=0;i--){
-////        HMat.Local_.colptr[i] = HMat.Local_.colptr[i] - HMat.Local_.colptr[0] + 1;
-////      }
-////      Ptr nnzLocal = HMat.Local_.colptr.back()-1;
-////
-////      HMat.Local_.rowind.resize(nnzLocal);
-////
-////      //rowind
-////      MPI_Offset myRowindOffset = 0;
-////      {
-////
-////        int lineLastEdge = std::ceil(( double(last_idx-1) / double(rowindCntPerRow)));
-////        int lineFirstEdge = std::ceil(( double(first_idx) / double(rowindCntPerRow)));
-////        int skip = (first_idx - 1)*rowindWidth + (lineFirstEdge - 1);
-////        int readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
-////        int skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
-////
-////
-////
-////        myRowindOffset = myColptrOffset + skip;
-////
-////
-////        {
-////          std::string rdStr;
-////          rdStr.resize(readBytes);
-////
-////          err= MPI_File_read_at_all(fin, myRowindOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
-////          if (err != MPI_SUCCESS) {
-////            throw std::logic_error( "error reading colptr" );
-////          }
-////
-////          std::istringstream iss(rdStr);
-////          Idx j;
-////          Int locPos = 0;
-////          while(iss>> j){
-////            HMat.Local_.rowind[locPos++]=j;
-////          }
-////        }
-////
-////        myRowindOffset+=skipAfter;
-////      }
-////
-////
-////      HMat.nzvalLocal.resize(nnzLocal);
-////
-////      //nzval
-////      MPI_Offset myNzvalOffset = 0;
-////      {
-////        int lineLastEdge = std::ceil(( double(last_idx-1) / double(nzvalCntPerRow)));
-////        int lineFirstEdge = std::ceil(( double(first_idx) / double(nzvalCntPerRow)));
-////        int skip = (first_idx - 1)*nzvalWidth + (lineFirstEdge - 1);
-////        int readBytes = (last_idx - first_idx)*nzvalWidth + (lineLastEdge - lineFirstEdge);
-////        int skipAfter = (nnz+1 - last_idx)*nzvalWidth + (nzvalCnt - lineLastEdge +1) ;
-////
-////        myNzvalOffset = myRowindOffset + skip;
-////        {
-////          std::string rdStr;
-////          rdStr.resize(readBytes);
-////
-////
-////          err= MPI_File_read_at_all(fin, myNzvalOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
-////          if (err != MPI_SUCCESS) {
-////            throw std::logic_error( "error reading colptr" );
-////          }
-////          std::istringstream iss(rdStr);
-////
-////          INSCALAR j;
-////          Int locPos = 0;
-////          while(iss>> j){
-////            HMat.nzvalLocal[locPos++]=(SCALAR)j;
-////          }
-////        }
-////
-////        myNzvalOffset+=skipAfter;
-////      }
-////
-////
-////      MPI_Barrier( workcomm );
-////      MPI_File_close(&fin);
-////
-////      return 0;
-////
+      ////
+      ////      MPI_Comm & workcomm = HMat.comm;
+      ////
+      ////      int mpirank;
+      ////      MPI_Comm_rank(workcomm,&mpirank);
+      ////
+      ////      int mpisize;
+      ////      MPI_Comm_size(workcomm,&mpisize);
+      ////
+      ////      auto n = HMat.size;
+      ////      auto nnz = HMat.nnz;
+      ////      size_t headerOffset = 0;
+      ////      int colptrWidth = 0;
+      ////      int rowindWidth = 0;
+      ////      int nzvalWidth = 0;
+      ////      int colptrCntPerRow = 0;
+      ////      int rowindCntPerRow = 0;
+      ////      int nzvalCntPerRow = 0;
+      ////      int colptrCnt = 0;
+      ////      int rowindCnt = 0;
+      ////      int nzvalCnt = 0;
+      ////
+      ////      if(mpirank==0){
+      ////        std::ifstream infile;
+      ////        infile.open(filename.c_str());
+      ////
+      ////        std::string line;
+      ////        std::stringstream iss;
+      ////        //skip 1st line
+      ////        if(std::getline(infile, line)){}
+      ////        if(std::getline(infile, line)){
+      ////          iss.str("");
+      ////          iss.clear();
+      ////          iss<<line;
+      ////          int dummy;
+      ////          iss>>dummy;
+      ////          iss>>colptrCnt>>rowindCnt>>nzvalCnt;
+      ////        }
+      ////        //read from third line
+      ////
+      ////        int m;
+      ////        if(std::getline(infile, line))
+      ////        {
+      ////          iss.str("");
+      ////          iss.clear();
+      ////          iss<<line;
+      ////          std::string type;
+      ////          iss>>type;
+      ////          iss>>m>>n>>nnz;
+      ////        }
+      ////
+      ////
+      ////        //read from 4th line
+      ////        if(std::getline(infile, line))
+      ////        {
+      ////          iss.str("");
+      ////          iss.clear();
+      ////          iss<<line;
+      ////          std::string format;
+      ////          iss>>format;
+      ////          int dummy;
+      ////          sscanf(format.c_str(),"(%dI%d)",&colptrCntPerRow,&colptrWidth);
+      ////          iss>>format;
+      ////          sscanf(format.c_str(),"(%dI%d)",&rowindCntPerRow,&rowindWidth);
+      ////          iss>>format;
+      ////          sscanf(format.c_str(),"(%dE%d.%d)",&nzvalCntPerRow,&nzvalWidth,&dummy);
+      ////        }
+      ////
+      ////        headerOffset = infile.tellg();
+      ////        infile.close();
+      ////      }
+      ////
+      ////
+      ////      MPI_Status mpistat;
+      ////      MPI_Datatype type;
+      ////      int lens[12];
+      ////      MPI_Aint disps[12];
+      ////      MPI_Datatype types[12];
+      ////
+      ////      /* define a struct that describes all our data */
+      ////      lens[0] = sizeof(n);
+      ////      lens[1] = sizeof(nnz);
+      ////      lens[2] = sizeof(headerOffset   );
+      ////      lens[3] = sizeof(colptrWidth    );
+      ////      lens[4] = sizeof(rowindWidth    );
+      ////      lens[5] = sizeof(nzvalWidth     );
+      ////      lens[6] = sizeof(colptrCntPerRow);
+      ////      lens[7] = sizeof(rowindCntPerRow);
+      ////      lens[8] = sizeof(nzvalCntPerRow );
+      ////      lens[9] =  sizeof(colptrCnt);
+      ////      lens[10] = sizeof(rowindCnt);
+      ////      lens[11] = sizeof(nzvalCnt );
+      ////      MPI_Address(&n, &disps[0]);
+      ////      MPI_Address(&nnz, &disps[1]);
+      ////      MPI_Address(&headerOffset   , &disps[2]);
+      ////      MPI_Address(&colptrWidth    , &disps[3]);
+      ////      MPI_Address(&rowindWidth    , &disps[4]);
+      ////      MPI_Address(&nzvalWidth     , &disps[5]);
+      ////      MPI_Address(&colptrCntPerRow, &disps[6]);
+      ////      MPI_Address(&rowindCntPerRow, &disps[7]);
+      ////      MPI_Address(&nzvalCntPerRow , &disps[8]);
+      ////      MPI_Address(&colptrCnt , &disps[9]);
+      ////      MPI_Address(&rowindCnt , &disps[10]);
+      ////      MPI_Address(&nzvalCnt  , &disps[11]);
+      ////      types[0] = MPI_BYTE;
+      ////      types[1] = MPI_BYTE;
+      ////      types[2] = MPI_BYTE;
+      ////      types[3] = MPI_BYTE;
+      ////      types[4] = MPI_BYTE;
+      ////      types[5] = MPI_BYTE;
+      ////      types[6] = MPI_BYTE;
+      ////      types[7] = MPI_BYTE;
+      ////      types[8] = MPI_BYTE;
+      ////      types[9] = MPI_BYTE;
+      ////      types[10] = MPI_BYTE;
+      ////      types[11] = MPI_BYTE;
+      ////      MPI_Type_struct(12, lens, disps, types, &type);
+      ////      MPI_Type_commit(&type);
+      ////
+      ////
+      ////      /* broadcast the header data to everyone */
+      ////      MPI_Bcast(MPI_BOTTOM, 1, type, 0, workcomm);
+      ////      MPI_Type_free(&type);
+      ////
+      ////      HMat.size = n;
+      ////      HMat.nnz = nnz;
+      ////
+      ////
+      ////      Int err = 0;
+      ////      int filemode = MPI_MODE_RDONLY | MPI_MODE_UNIQUE_OPEN;
+      ////
+      ////      MPI_File fin;
+      ////      MPI_Status status;
+      ////
+      ////      err = MPI_File_open(workcomm,(char*) filename.c_str(), filemode, MPI_INFO_NULL,  &fin);
+      ////
+      ////      if (err != MPI_SUCCESS) {
+      ////        throw std::logic_error( "File cannot be opened!" );
+      ////      }
+      ////
+      ////
+      ////      //compute local number of columns
+      ////      int colPerProc = std::max(1,(int)(n/mpisize));
+      ////      abort();
+      ////      int nlocal = (mpirank<mpisize-1)?n/mpisize:n-mpirank*(int)(n/mpisize);
+      ////      int firstNode = mpirank*(int)(n/mpisize) + 1;
+      ////      //initialize local arrays
+      ////      HMat.Local_.colptr.resize(nlocal+1);
+      ////
+      ////
+      ////      //colptr
+      ////      MPI_Offset myColptrOffset = 0;
+      ////      {
+      ////
+      ////        int lineLastNode = std::ceil(( double(firstNode+nlocal) / double(colptrCntPerRow)));
+      ////        int lineFirstNode = std::ceil(( double(firstNode) / double(colptrCntPerRow)));
+      ////        int skip = (firstNode - 1)*colptrWidth + (lineFirstNode - 1);
+      ////        int readBytes = (nlocal+1)*colptrWidth + (lineLastNode - lineFirstNode);
+      ////        int skipAfter = (n+1 - (firstNode+nlocal))*colptrWidth + (colptrCnt - lineLastNode +1) ;
+      ////
+      ////        myColptrOffset = headerOffset + skip;
+      ////
+      ////
+      ////        {
+      ////          std::string rdStr;
+      ////          rdStr.resize(readBytes);
+      ////
+      ////          err= MPI_File_read_at_all(fin, myColptrOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
+      ////          if (err != MPI_SUCCESS) {
+      ////            throw std::logic_error( "error reading colptr" );
+      ////          }
+      ////
+      ////          std::istringstream iss(rdStr);
+      ////          Ptr j;
+      ////          Int locPos = 0;
+      ////          while(iss>> j){
+      ////            HMat.Local_.colptr[locPos++]=j;
+      ////          }
+      ////        }
+      ////        myColptrOffset += skipAfter;
+      ////      }
+      ////
+      ////      //convert to local colptr and compute local nnz
+      ////      Ptr first_idx = HMat.Local_.colptr.front();
+      ////      Ptr last_idx = HMat.Local_.colptr.back();
+      ////      for(int i=nlocal;i>=0;i--){
+      ////        HMat.Local_.colptr[i] = HMat.Local_.colptr[i] - HMat.Local_.colptr[0] + 1;
+      ////      }
+      ////      Ptr nnzLocal = HMat.Local_.colptr.back()-1;
+      ////
+      ////      HMat.Local_.rowind.resize(nnzLocal);
+      ////
+      ////      //rowind
+      ////      MPI_Offset myRowindOffset = 0;
+      ////      {
+      ////
+      ////        int lineLastEdge = std::ceil(( double(last_idx-1) / double(rowindCntPerRow)));
+      ////        int lineFirstEdge = std::ceil(( double(first_idx) / double(rowindCntPerRow)));
+      ////        int skip = (first_idx - 1)*rowindWidth + (lineFirstEdge - 1);
+      ////        int readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
+      ////        int skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
+      ////
+      ////
+      ////
+      ////        myRowindOffset = myColptrOffset + skip;
+      ////
+      ////
+      ////        {
+      ////          std::string rdStr;
+      ////          rdStr.resize(readBytes);
+      ////
+      ////          err= MPI_File_read_at_all(fin, myRowindOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
+      ////          if (err != MPI_SUCCESS) {
+      ////            throw std::logic_error( "error reading colptr" );
+      ////          }
+      ////
+      ////          std::istringstream iss(rdStr);
+      ////          Idx j;
+      ////          Int locPos = 0;
+      ////          while(iss>> j){
+      ////            HMat.Local_.rowind[locPos++]=j;
+      ////          }
+      ////        }
+      ////
+      ////        myRowindOffset+=skipAfter;
+      ////      }
+      ////
+      ////
+      ////      HMat.nzvalLocal.resize(nnzLocal);
+      ////
+      ////      //nzval
+      ////      MPI_Offset myNzvalOffset = 0;
+      ////      {
+      ////        int lineLastEdge = std::ceil(( double(last_idx-1) / double(nzvalCntPerRow)));
+      ////        int lineFirstEdge = std::ceil(( double(first_idx) / double(nzvalCntPerRow)));
+      ////        int skip = (first_idx - 1)*nzvalWidth + (lineFirstEdge - 1);
+      ////        int readBytes = (last_idx - first_idx)*nzvalWidth + (lineLastEdge - lineFirstEdge);
+      ////        int skipAfter = (nnz+1 - last_idx)*nzvalWidth + (nzvalCnt - lineLastEdge +1) ;
+      ////
+      ////        myNzvalOffset = myRowindOffset + skip;
+      ////        {
+      ////          std::string rdStr;
+      ////          rdStr.resize(readBytes);
+      ////
+      ////
+      ////          err= MPI_File_read_at_all(fin, myNzvalOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
+      ////          if (err != MPI_SUCCESS) {
+      ////            throw std::logic_error( "error reading colptr" );
+      ////          }
+      ////          std::istringstream iss(rdStr);
+      ////
+      ////          INSCALAR j;
+      ////          Int locPos = 0;
+      ////          while(iss>> j){
+      ////            HMat.nzvalLocal[locPos++]=(SCALAR)j;
+      ////          }
+      ////        }
+      ////
+      ////        myNzvalOffset+=skipAfter;
+      ////      }
+      ////
+      ////
+      ////      MPI_Barrier( workcomm );
+      ////      MPI_File_close(&fin);
+      ////
+      ////      return 0;
+      ////
     }
 
 
@@ -1499,29 +1418,29 @@ namespace symPACK{
 
       //now compute the actual number of rows
       //colptr
-        size_t curPos = infile.tellg();
-        size_t lineLastNode = std::ceil(( double(firstNode+nlocal) / double(colptrCntPerRow)));
-        size_t lineFirstNode = std::ceil(( double(firstNode) / double(colptrCntPerRow)));
-        size_t skip = (firstNode - 1)*colptrWidth + (lineFirstNode - 1);
-        size_t readBytes = (nlocal+1)*colptrWidth + (lineLastNode - lineFirstNode);
-        size_t skipAfter = (n+1 - (firstNode+nlocal))*colptrWidth + (colptrCnt - lineLastNode +1) ;
+      size_t curPos = infile.tellg();
+      size_t lineLastNode = std::ceil(( double(firstNode+nlocal) / double(colptrCntPerRow)));
+      size_t lineFirstNode = std::ceil(( double(firstNode) / double(colptrCntPerRow)));
+      size_t skip = (firstNode - 1)*colptrWidth + (lineFirstNode - 1);
+      size_t readBytes = (nlocal+1)*colptrWidth + (lineLastNode - lineFirstNode);
+      size_t skipAfter = (n+1 - (firstNode+nlocal))*colptrWidth + (colptrCnt - lineLastNode +1) ;
 
-        infile.seekg(skip,std::ios_base::cur);
+      infile.seekg(skip,std::ios_base::cur);
 
-          std::string rdStr;
-          rdStr.resize(readBytes);
+      std::string rdStr;
+      rdStr.resize(readBytes);
 
-          infile.read(&rdStr[0], readBytes);
+      infile.read(&rdStr[0], readBytes);
 
-          iss.str(rdStr);
-          Ptr cptr;
-          Idx locPos = 0;
-          while(iss>> cptr){
-            HMat.Localg_.colptr[locPos++]=cptr;
-          }
+      iss.str(rdStr);
+      Ptr cptr;
+      Idx locPos = 0;
+      while(iss>> cptr){
+        HMat.Localg_.colptr[locPos++]=cptr;
+      }
 
-        infile.seekg(skipAfter,std::ios_base::cur);
-        size_t curEnd = infile.tellg();
+      infile.seekg(skipAfter,std::ios_base::cur);
+      size_t curEnd = infile.tellg();
 
       //convert to local colptr and compute local nnz
       Ptr first_idx = HMat.Localg_.colptr.front();
@@ -1535,95 +1454,95 @@ namespace symPACK{
 
       Ptr elem_idx;
       //rowind
-        curPos = infile.tellg();
-        size_t lineLastEdge = std::ceil(( double(last_idx-1) / double(rowindCntPerRow)));
-        size_t lineFirstEdge = std::ceil(( double(first_idx) / double(rowindCntPerRow)));
-        skip = (first_idx - 1)*rowindWidth + (lineFirstEdge - 1);
-        readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
-        skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
+      curPos = infile.tellg();
+      size_t lineLastEdge = std::ceil(( double(last_idx-1) / double(rowindCntPerRow)));
+      size_t lineFirstEdge = std::ceil(( double(first_idx) / double(rowindCntPerRow)));
+      skip = (first_idx - 1)*rowindWidth + (lineFirstEdge - 1);
+      readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
+      skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
 
-        infile.seekg(skip,std::ios_base::cur);
+      infile.seekg(skip,std::ios_base::cur);
 
-          rdStr.resize(readBytes);
+      rdStr.resize(readBytes);
 
-          infile.read(&rdStr[0], readBytes);
-          iss.str(rdStr);
-iss.clear(); // Clear state flags.
-          Idx rind;
-          locPos = 0;
-          while(iss>> rind){
-            HMat.Localg_.rowind[locPos++]=rind;
-          }
+      infile.read(&rdStr[0], readBytes);
+      iss.str(rdStr);
+      iss.clear(); // Clear state flags.
+      Idx rind;
+      locPos = 0;
+      while(iss>> rind){
+        HMat.Localg_.rowind[locPos++]=rind;
+      }
 
-        infile.seekg(skipAfter,std::ios_base::cur);
-        curEnd = infile.tellg();
+      infile.seekg(skipAfter,std::ios_base::cur);
+      curEnd = infile.tellg();
 
 
       HMat.nzvalLocal.resize(nnzLocal);
 
       //nzval
-//            gdb_lock();
-        int scalarPerNzval = is_complex_type<INSCALAR>::value?2:1;//double(sizeof(INSCALAR))/double(sizeof(double));
-        curPos = infile.tellg();
-        lineLastEdge = std::ceil(( double(last_idx-1)*scalarPerNzval / double(nzvalCntPerRow)));
-        lineFirstEdge = std::ceil(( double(first_idx*scalarPerNzval) / double(nzvalCntPerRow)));
-        skip = (first_idx - 1)*scalarPerNzval*nzvalWidth + (lineFirstEdge - 1);
-        readBytes = (last_idx - first_idx)*scalarPerNzval*nzvalWidth + (lineLastEdge - lineFirstEdge);
-//        size_t skipAfter = (nnz*scalarPerNzval+1 - last_idx*scalarPerNzval)*nzvalWidth + (nzvalCnt*scalarPerNzval - lineLastEdge +1) ;
+      //            gdb_lock();
+      int scalarPerNzval = is_complex_type<INSCALAR>::value?2:1;//double(sizeof(INSCALAR))/double(sizeof(double));
+      curPos = infile.tellg();
+      lineLastEdge = std::ceil(( double(last_idx-1)*scalarPerNzval / double(nzvalCntPerRow)));
+      lineFirstEdge = std::ceil(( double(first_idx*scalarPerNzval) / double(nzvalCntPerRow)));
+      skip = (first_idx - 1)*scalarPerNzval*nzvalWidth + (lineFirstEdge - 1);
+      readBytes = (last_idx - first_idx)*scalarPerNzval*nzvalWidth + (lineLastEdge - lineFirstEdge);
+      //        size_t skipAfter = (nnz*scalarPerNzval+1 - last_idx*scalarPerNzval)*nzvalWidth + (nzvalCnt*scalarPerNzval - lineLastEdge +1) ;
 
-//            gdb_lock();
-        infile.seekg(skip,std::ios_base::cur);
+      //            gdb_lock();
+      infile.seekg(skip,std::ios_base::cur);
 
-          rdStr.resize(readBytes);
+      rdStr.resize(readBytes);
 
-          infile.read(&rdStr[0], readBytes);
-          //      logfileptr->OFS()<<"nzval read std::string is"<<std::endl<<rdStr<<std::endl;
+      infile.read(&rdStr[0], readBytes);
+      //      logfileptr->OFS()<<"nzval read std::string is"<<std::endl<<rdStr<<std::endl;
 
-          iss.str(rdStr);
-          iss.clear(); // Clear state flags.
-        
-          SCALAR tmp(0.0);
-          auto j = std::abs(tmp);
-          locPos = 0;
-          if(scalarPerNzval>1){
-            decltype(j) * nzval_ptr = (decltype(j)*)(&HMat.nzvalLocal[0]);
-            while(iss>> j){
-              nzval_ptr[locPos++]=j;
-            }
-          }
-          else{
-            SCALAR * nzval_ptr = &HMat.nzvalLocal[0];
-            while(iss>> j){
-              nzval_ptr[locPos++]=SCALAR(j);
-            }
-          }
+      iss.str(rdStr);
+      iss.clear(); // Clear state flags.
 
-//            gdb_lock();
-//            std::stringbuf *pbuf = iss.rdbuf();
-//            std::string nzvalBuffer;
-//            nzvalBuffer.resize(nzvalWidth);
-//
-//            std::istringstream nzval_iss;
-//            while(iss.good()){
-//              pbuf->sgetn(&nzvalBuffer[0],nzvalWidth);
-//              nzval_iss.str(nzvalBuffer);
-//              nzval_iss >> j;
-//
-//              logfileptr->OFS()<<std::scientific<<j<<" ";
-//              nzval_ptr[locPos++]=j;
-//            }
-//            gdb_lock();
-//            logfileptr->OFS()<<std::endl;
-//              logfileptr->OFS()<<HMat.nzvalLocal<<std::endl;
-          //}
-          //else
-          //{
-          //  INSCALAR j;
-          //  Ptr locPos = 0;
-          //  while(iss>> j){
-          //    HMat.nzvalLocal[locPos++]=(SCALAR)j;
-          //  }
-          //}
+      SCALAR tmp(0.0);
+      auto j = std::abs(tmp);
+      locPos = 0;
+      if(scalarPerNzval>1){
+        decltype(j) * nzval_ptr = (decltype(j)*)(&HMat.nzvalLocal[0]);
+        while(iss>> j){
+          nzval_ptr[locPos++]=j;
+        }
+      }
+      else{
+        SCALAR * nzval_ptr = &HMat.nzvalLocal[0];
+        while(iss>> j){
+          nzval_ptr[locPos++]=SCALAR(j);
+        }
+      }
+
+      //            gdb_lock();
+      //            std::stringbuf *pbuf = iss.rdbuf();
+      //            std::string nzvalBuffer;
+      //            nzvalBuffer.resize(nzvalWidth);
+      //
+      //            std::istringstream nzval_iss;
+      //            while(iss.good()){
+      //              pbuf->sgetn(&nzvalBuffer[0],nzvalWidth);
+      //              nzval_iss.str(nzvalBuffer);
+      //              nzval_iss >> j;
+      //
+      //              logfileptr->OFS()<<std::scientific<<j<<" ";
+      //              nzval_ptr[locPos++]=j;
+      //            }
+      //            gdb_lock();
+      //            logfileptr->OFS()<<std::endl;
+      //              logfileptr->OFS()<<HMat.nzvalLocal<<std::endl;
+      //}
+      //else
+      //{
+      //  INSCALAR j;
+      //  Ptr locPos = 0;
+      //  while(iss>> j){
+      //    HMat.nzvalLocal[locPos++]=(SCALAR)j;
+      //  }
+      //}
 
 
       infile.close();
@@ -1634,12 +1553,12 @@ iss.clear(); // Clear state flags.
       HMat.Localg_.bIsExpanded = false;
 
       return 0;
-    }
+}
 
+template <typename SCALAR, typename INSCALAR >
+void ReadDistSparseMatrixFormatted( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm );
   template <typename SCALAR, typename INSCALAR >
-  void ReadDistSparseMatrixFormatted( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm );
-  template <typename SCALAR, typename INSCALAR >
-  void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm )
+void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm )
 {
   // Get the processor information within the current communicator
   MPI_Barrier( comm );
@@ -1677,7 +1596,7 @@ iss.clear(); // Clear state flags.
   pspmat.Localg_.vertexDist.front()= baseval;
   pspmat.Localg_.vertexDist.back()= n+baseval;
 
-  
+
 
   //initialize an identity permutation
   pspmat.cinvp.resize(pspmat.Localg_.LocalVertexCount());
@@ -1762,14 +1681,14 @@ iss.clear(); // Clear state flags.
           *(ptr++) = tmp;
         }
       }
-logfileptr->OFS()<<"Sending "<<numRead<<" to P"<<ip<<std::endl;
+      logfileptr->OFS()<<"Sending "<<numRead<<" to P"<<ip<<std::endl;
       if( ip > 0 ){
         MPI_Send(&buf[0], numRead, type, ip, 1, comm);
       }
     }
   }
   else{
-logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
+    logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
     MPI_Recv( &pspmat.Localg_.rowind[0], nnzLocal, type, 0, 1, comm, &mpistat );
   }
   MPI_Type_free(&type);
@@ -1793,26 +1712,26 @@ logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
         ptr = &pspmat.nzvalLocal[0];
       }
 
-        if(is_complex_type<INSCALAR>::value && !is_complex_type<SCALAR>::value){
-          throw std::logic_error( "Cannot convert from COMPLEX to REAL." );
+      if(is_complex_type<INSCALAR>::value && !is_complex_type<SCALAR>::value){
+        throw std::logic_error( "Cannot convert from COMPLEX to REAL." );
+      }
+      else if(!is_complex_type<INSCALAR>::value && is_complex_type<SCALAR>::value){
+        INSCALAR * tptr = (INSCALAR*)(ptr);
+        for( Int i = 0; i < numRead; i+=2 ){
+          INSCALAR val;
+          fin >> val;
+          *(tptr++) = val;
+          fin >> val;
+          *(tptr++) = val;
         }
-        else if(!is_complex_type<INSCALAR>::value && is_complex_type<SCALAR>::value){
-          INSCALAR * tptr = (INSCALAR*)(ptr);
-          for( Int i = 0; i < numRead; i+=2 ){
-            INSCALAR val;
-            fin >> val;
-            *(tptr++) = val;
-            fin >> val;
-            *(tptr++) = val;
-          }
+      }
+      else{
+        for( Int i = 0; i < numRead; i++ ){
+          SCALAR tmp;
+          fin >> tmp;
+          *(ptr++) = (SCALAR)tmp;
         }
-        else{
-          for( Int i = 0; i < numRead; i++ ){
-            SCALAR tmp;
-            fin >> tmp;
-            *(ptr++) = (SCALAR)tmp;
-          }
-        }
+      }
       if( ip > 0 ){
         MPI_Send(&buf[0], numRead, type, ip, 1, comm);
       }
@@ -1832,7 +1751,7 @@ logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
   MPI_Bcast(&isLowerTri,sizeof(bool),MPI_BYTE,0,comm);
   if(!isLowerTri){
     if(mpirank==0){
-        std::cout<<"Input matrix is not in lower triangular format. symPACK is converting it."<<std::endl;
+      std::cout<<"Input matrix is not in lower triangular format. symPACK is converting it."<<std::endl;
     }
     pspmat.Localg_.bIsExpanded = true;
     pspmat.ToLowerTriangular();
@@ -1846,194 +1765,194 @@ logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
 
 
 
-  template <typename SCALAR, typename INSCALAR >
-    void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMatrix<SCALAR> & HMat){
-      MPI_Comm & workcomm = HMat.comm;
+template <typename SCALAR, typename INSCALAR >
+void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMatrix<SCALAR> & HMat){
+  MPI_Comm & workcomm = HMat.comm;
 
-      int mpirank;
-      MPI_Comm_rank(workcomm,&mpirank);
-      int mpisize;
-      MPI_Comm_size(workcomm,&mpisize);
-      if(mpirank==0){ std::cout<<"Start reading the matrix"<<std::endl; }
-      SYMPACK_TIMER_START(READING_MATRIX);
-      double tstart = get_time();
-      //Read the input matrix
-      if(informatstr == "CSC"){
-        ParaReadDistSparseMatrix<SCALAR>( filename.c_str(), HMat, workcomm ); 
-      }
-      else if (informatstr == "HB" || informatstr == "RB" || informatstr == "HARWELL_BOEING"){
-        ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat);
-      }
-      else if(informatstr == "matrix"){
-        ReadDistSparseMatrixFormatted<SCALAR,INSCALAR>( filename.c_str(), HMat, workcomm );
-      }
-      else{
-        throw std::logic_error( "Unknown matrix format." );
-      }
-      double tstop = get_time();
-      SYMPACK_TIMER_STOP(READING_MATRIX);
-      if(mpirank==0){ std::cout<<"Matrix read time: "<<tstop - tstart<<std::endl; }
-      if(mpirank==0){ std::cout<<"Matrix order is "<<HMat.size<<std::endl; }
-    }
+  int mpirank;
+  MPI_Comm_rank(workcomm,&mpirank);
+  int mpisize;
+  MPI_Comm_size(workcomm,&mpisize);
+  if(mpirank==0){ std::cout<<"Start reading the matrix"<<std::endl; }
+  SYMPACK_TIMER_START(READING_MATRIX);
+  double tstart = get_time();
+  //Read the input matrix
+  if(informatstr == "CSC"){
+    ParaReadDistSparseMatrix<SCALAR>( filename.c_str(), HMat, workcomm ); 
+  }
+  else if (informatstr == "HB" || informatstr == "RB" || informatstr == "HARWELL_BOEING"){
+    ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat);
+  }
+  else if(informatstr == "matrix"){
+    ReadDistSparseMatrixFormatted<SCALAR,INSCALAR>( filename.c_str(), HMat, workcomm );
+  }
+  else{
+    throw std::logic_error( "Unknown matrix format." );
+  }
+  double tstop = get_time();
+  SYMPACK_TIMER_STOP(READING_MATRIX);
+  if(mpirank==0){ std::cout<<"Matrix read time: "<<tstop - tstart<<std::endl; }
+  if(mpirank==0){ std::cout<<"Matrix order is "<<HMat.size<<std::endl; }
+}
 
 
   template <typename T, typename Compare>
-    std::vector<std::size_t> & sort_permutation(
-        const std::vector<T>& vec,
-        Compare compare,
-        std::vector<std::size_t>& p)
-    {
-      p.resize(vec.size());
-      std::iota(p.begin(), p.end(), 0);
-      std::sort(p.begin(), p.end(),
-          [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
-      return p;
-    }
+std::vector<std::size_t> & sort_permutation(
+    const std::vector<T>& vec,
+    Compare compare,
+    std::vector<std::size_t>& p)
+{
+  p.resize(vec.size());
+  std::iota(p.begin(), p.end(), 0);
+  std::sort(p.begin(), p.end(),
+      [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
+  return p;
+}
 
   template <typename T, typename Compare>
-    std::vector<std::size_t> sort_permutation(
-        const std::vector<T>& vec,
-        Compare compare)
-    {
-      std::vector<std::size_t> p(vec.size());
-      std::iota(p.begin(), p.end(), 0);
-      std::sort(p.begin(), p.end(),
-          [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
-      return p;
-    }
+std::vector<std::size_t> sort_permutation(
+    const std::vector<T>& vec,
+    Compare compare)
+{
+  std::vector<std::size_t> p(vec.size());
+  std::iota(p.begin(), p.end(), 0);
+  std::sort(p.begin(), p.end(),
+      [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
+  return p;
+}
 
   template <typename T, typename Compare>
-    std::vector<std::size_t> & sort_permutation(
-        const T*begin, const T* end,
-        Compare compare,
-        std::vector<std::size_t>& p)
-    {
-      p.resize(end-begin);
-      std::iota(p.begin(), p.end(), 0);
-      std::sort(p.begin(), p.end(),
-          [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
-      return p;
-    }
+std::vector<std::size_t> & sort_permutation(
+    const T*begin, const T* end,
+    Compare compare,
+    std::vector<std::size_t>& p)
+{
+  p.resize(end-begin);
+  std::iota(p.begin(), p.end(), 0);
+  std::sort(p.begin(), p.end(),
+      [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
+  return p;
+}
 
   template <typename T, typename Compare>
-    std::vector<std::size_t> sort_permutation(
-        const T*begin, const T* end,
-        Compare compare)
-    {
-      std::vector<std::size_t> p(end-begin);
-      std::iota(p.begin(), p.end(), 0);
-      std::sort(p.begin(), p.end(),
-          [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
-      return p;
-    }
+std::vector<std::size_t> sort_permutation(
+    const T*begin, const T* end,
+    Compare compare)
+{
+  std::vector<std::size_t> p(end-begin);
+  std::iota(p.begin(), p.end(), 0);
+  std::sort(p.begin(), p.end(),
+      [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
+  return p;
+}
 
 
 
 
   template <typename T>
-    std::vector<T> apply_permutation(
-        const std::vector<T>& vec,
-        const std::vector<std::size_t>& p)
-    {
-      std::vector<T> sorted_vec(p.size());
-      std::transform(p.begin(), p.end(), sorted_vec.begin(),
-          [&](std::size_t i){ return vec[i]; });
-      return sorted_vec;
-    }
+std::vector<T> apply_permutation(
+    const std::vector<T>& vec,
+    const std::vector<std::size_t>& p)
+{
+  std::vector<T> sorted_vec(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return vec[i]; });
+  return sorted_vec;
+}
 
   template <typename T>
-    std::vector<T> apply_permutation(
-        const T*vec,
-        const std::vector<std::size_t>& p)
-    {
-      std::vector<T> sorted_vec(p.size());
-      std::transform(p.begin(), p.end(), sorted_vec.begin(),
-          [&](std::size_t i){ return vec[i]; });
-      return sorted_vec;
-    }
+std::vector<T> apply_permutation(
+    const T*vec,
+    const std::vector<std::size_t>& p)
+{
+  std::vector<T> sorted_vec(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return vec[i]; });
+  return sorted_vec;
+}
 
   template <typename T>
-    void apply_permutation(
-        T*begin, T* end,
-        const std::vector<std::size_t>& p)
-    {
-      std::vector<T> sorted_vec(p.size());
-      std::transform(p.begin(), p.end(), sorted_vec.begin(),
-          [&](std::size_t i){ return begin[i]; });
-      std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
-    }
+void apply_permutation(
+    T*begin, T* end,
+    const std::vector<std::size_t>& p)
+{
+  std::vector<T> sorted_vec(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return begin[i]; });
+  std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
+}
 
   template <typename T>
-    std::vector<T> & apply_permutation(
-        const std::vector<T>& vec,
-        const std::vector<std::size_t>& p,
-        std::vector<T> &sorted_vec)
-    {
-      sorted_vec.resize(p.size());
-      std::transform(p.begin(), p.end(), sorted_vec.begin(),
-          [&](std::size_t i){ return vec[i]; });
-      return sorted_vec;
-    }
+std::vector<T> & apply_permutation(
+    const std::vector<T>& vec,
+    const std::vector<std::size_t>& p,
+    std::vector<T> &sorted_vec)
+{
+  sorted_vec.resize(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return vec[i]; });
+  return sorted_vec;
+}
 
   template <typename T>
-    std::vector<T> & apply_permutation(
-        const T*vec,
-        const std::vector<std::size_t>& p,
-        std::vector<T> &sorted_vec)
-    {
-      sorted_vec.resize(p.size());
-      std::transform(p.begin(), p.end(), sorted_vec.begin(),
-          [&](std::size_t i){ return vec[i]; });
-      return sorted_vec;
-    }
+std::vector<T> & apply_permutation(
+    const T*vec,
+    const std::vector<std::size_t>& p,
+    std::vector<T> &sorted_vec)
+{
+  sorted_vec.resize(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return vec[i]; });
+  return sorted_vec;
+}
 
   template <typename T>
-    void apply_permutation(
-        T*begin, T* end,
-        const std::vector<std::size_t>& p,
-        std::vector<T> &sorted_vec)
-    {
-      sorted_vec.resize(p.size());
-      std::transform(p.begin(), p.end(), sorted_vec.begin(),
-          [&](std::size_t i){ return begin[i]; });
-      std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
-    }
+void apply_permutation(
+    T*begin, T* end,
+    const std::vector<std::size_t>& p,
+    std::vector<T> &sorted_vec)
+{
+  sorted_vec.resize(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return begin[i]; });
+  std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
+}
 
 
 
-  void PtrSum( void *in, void *inout, int *len, MPI_Datatype *dptr ); 
-  void PtrMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
-  template<typename T> void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
+void PtrSum( void *in, void *inout, int *len, MPI_Datatype *dptr ); 
+void PtrMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
+template<typename T> void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
 
   template<typename T>
-    void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr ) 
-    { 
-      int i; 
+void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr ) 
+{ 
+  int i; 
 
-      T * pinout = (Ptr*)inout;
-      T * pin = (Ptr*)in;
+  T * pinout = (Ptr*)inout;
+  T * pin = (Ptr*)in;
 #pragma unroll
-      for (i=0; i< *len; ++i) { 
-        pinout[i] = std::max(pinout[i], pin[i]);
-      } 
-    }
+  for (i=0; i< *len; ++i) { 
+    pinout[i] = std::max(pinout[i], pin[i]);
+  } 
+}
 
-  template<typename T>
-  inline std::string ToMatlabScalar( std::complex<T> val){
-    std::stringstream s;
-    s.precision(std::numeric_limits< std::complex<T> >::max_digits10);
-    s.precision(15);
-    s<<"complex("<<std::scientific<<std::real(val)<<","<<std::imag(val)<<")";
-    return s.str();
-  }
+template<typename T>
+inline std::string ToMatlabScalar( std::complex<T> val){
+  std::stringstream s;
+  s.precision(std::numeric_limits< std::complex<T> >::max_digits10);
+  s.precision(15);
+  s<<"complex("<<std::scientific<<std::real(val)<<","<<std::imag(val)<<")";
+  return s.str();
+}
 
-  template<typename T>
-  inline std::string ToMatlabScalar( T val){
-    std::stringstream s;
-    s.precision(std::numeric_limits< T >::max_digits10);
-    s<<std::scientific<<val;
-    return s.str();
-  }
+template<typename T>
+inline std::string ToMatlabScalar( T val){
+  std::stringstream s;
+  s.precision(std::numeric_limits< T >::max_digits10);
+  s<<std::scientific<<val;
+  return s.str();
+}
 
 
 

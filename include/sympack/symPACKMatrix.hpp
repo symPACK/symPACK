@@ -184,9 +184,15 @@ namespace symPACK{
 
 
       template <class Allocator = UpcxxAllocator>
+        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type);
+
+      template <class Allocator = UpcxxAllocator>
         SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
+
+
       template <class Allocator = UpcxxAllocator>
         SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Int firstRow = -1);
+
       template <class Allocator = UpcxxAllocator>
         SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
 
@@ -233,6 +239,8 @@ namespace symPACK{
       //TODO Task lists
       Scheduler<std::list<FBTask>::iterator> * scheduler_;
       Scheduler<FBTask> * scheduler2_;
+      
+      std::shared_ptr< Scheduler< std::shared_ptr<GenericTask> > > scheduler_new_;
 
       //backup for factorization
       std::vector<Int> UpdatesToDo_;
@@ -242,7 +250,7 @@ namespace symPACK{
       void generateTaskGraph(supernodalTaskGraph<FBTask> & taskGraph,std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates);
 
       taskGraph taskGraph_New_;
-      void generateTaskGraph_New(taskGraph & taskGraph, std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates);
+      void generateTaskGraph_New(taskGraph & taskGraph, std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates, std::vector<Int> & mw, std::vector<Int> & mh);
 
       std::vector<std::list<Int> > chSupTree_;
       void dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier);

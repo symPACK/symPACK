@@ -43,6 +43,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #ifndef _TASK_DECL_HPP_
 #define _TASK_DECL_HPP_
 
+#include "sympack/CommPull.hpp"
 #include "sympack/Environment.hpp"
 
 #include <memory>
@@ -131,6 +132,9 @@ namespace symPACK{
 
 
   class GenericTask{
+    protected:
+      //list of incoming messages
+      std::list<IncomingMessage*> data;
     public:
       typedef size_t id_type;
       id_type id;
@@ -139,8 +143,25 @@ namespace symPACK{
       Int remote_deps_cnt;
       Int local_deps_cnt;
 
-      //list of incoming messages
-      std::list<IncomingMessage*> data;
+      void addData(IncomingMessage * ptr){
+        data.push_back(ptr);
+#ifdef SP_THREADS
+        ptr->incref();
+#endif
+      }
+
+      void clearData(){
+#ifdef SP_THREADS
+        for(auto&& ptr : data){
+          ptr->decref();
+        }
+#endif
+        data.clear();
+      }
+
+      std::list<IncomingMessage*> & getData(){
+        return std::ref(data);
+      }
   
       std::function< void() > execute;
 

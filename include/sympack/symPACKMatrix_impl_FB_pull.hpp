@@ -102,28 +102,29 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
 
   //Create a copy of the task graph
   taskGraph graph = taskGraph_New_;
-  std::shared_ptr<Scheduler< std::shared_ptr<GenericTask> > > scheduler(new FIFOScheduler< std::shared_ptr<GenericTask> >( ));
+  //std::shared_ptr<Scheduler< std::shared_ptr<GenericTask> > > scheduler(new FIFOScheduler< std::shared_ptr<GenericTask> >( ));
 
   std::hash<std::string> hash_fn;
 
-  std::map<Int,Int> factorUser;
-  std::mutex factorinuse_mutex_;
+//  std::map<Int,Int> factorUser;
+//  std::mutex factorinuse_mutex_;
 
   //This is the important one
 #ifdef SP_THREADS
-  std::map<Int,bool> superNodeInUse;
-  std::mutex inuse_mutex_;
+//  std::map<Int,bool> superNodeInUse;
+//  std::mutex inuse_mutex_;
+  scheduler_new_->threadInitHandle_ = nullptr;
+  scheduler_new_->extraTaskHandle_  = nullptr;
+  scheduler_new_->msgHandle = nullptr;
 
-#ifdef SP_THREADS
-  scheduler->threadInitHandle_ = [&,this](){
+  scheduler_new_->threadInitHandle_ = [&,this](){
               std::thread::id tid = std::this_thread::get_id();
-              scheduler->list_mutex_.lock();
+              scheduler_new_->list_mutex_.lock();
               auto & tmpBuf = tmpBufs_th[tid];
-              scheduler->list_mutex_.unlock();
+              scheduler_new_->list_mutex_.unlock();
   };
-#endif
 
-  scheduler->extraTaskHandle_ = [&,this](std::shared_ptr<GenericTask> & pTask)->bool {
+  scheduler_new_->extraTaskHandle_ = [&,this](std::shared_ptr<GenericTask> & pTask)->bool {
     SparseTask & Task = *(SparseTask*)pTask.get();
 
     Int * meta = reinterpret_cast<Int*>(Task.meta.data());
@@ -133,23 +134,39 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
       return false;
     }
     else{
-      std::lock_guard<std::mutex> lock(inuse_mutex_);
-      bool & inuse = superNodeInUse[meta[1]];
-      if(!inuse){
-        inuse = true;
+      int tgt = meta[1];
+
+
+      SuperNode<T> * tgt_aggreg = nullptr;
+      Int iTarget = this->Mapping_->Map(tgt-1,tgt-1);
+      if(iTarget == iam){
+        tgt_aggreg = snodeLocal(tgt);
+      }
+      else{
+        tgt_aggreg = aggVectors[tgt-1];
+        if(tgt_aggreg == nullptr){
+          aggVectors[tgt-1] = CreateSuperNode(options_.decomposition);
+          tgt_aggreg = aggVectors[tgt-1];
+        }
+      }
+
+      //assert(tgt_aggreg!=nullptr);
+
+      if(!tgt_aggreg->in_use){
+        tgt_aggreg->in_use = true;
         return false;
       }
       else{
-        //            gdb_lock();
         return true;
       }
     }
   };
+
 #endif
 
   auto dec_ref = [&] ( taskGraph::task_iterator taskit, Int loc, Int rem) {
 #ifdef SP_THREADS
-    std::lock_guard<std::mutex> lock(scheduler->list_mutex_);
+    std::lock_guard<std::mutex> lock(scheduler_new_->list_mutex_);
 #endif
     taskit->second->local_deps_cnt-= loc;
     taskit->second->remote_deps_cnt-= rem;
@@ -163,7 +180,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
         // gdb_lock();
         //} 
       }
-      scheduler->push(taskit->second);
+      scheduler_new_->push(taskit->second);
       graph.removeTask(taskit->second->id);
     }
   };
@@ -226,7 +243,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
   //Finish the initialization of the tasks by creating the lambdas
   {
 
-    scheduler->msgHandle = [&,this](IncomingMessage * msg) {
+    scheduler_new_->msgHandle = [&,this](IncomingMessage * msg) {
       Int iOwner = Mapping_->Map(msg->meta.tgt-1,msg->meta.tgt-1);
       Int iUpdater = Mapping_->Map(msg->meta.tgt-1,msg->meta.src-1);
       //this is an aggregate
@@ -277,8 +294,8 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
           //Applying aggregates
           //TODO we might have to create a third UPDATE type of task
           //process them one by one
-          assert(pTask->data.size()==1);
-          for(auto msgit = pTask->data.begin();msgit!=pTask->data.end();msgit++){
+          assert(pTask->getData().size()==1);
+          for(auto msgit = pTask->getData().begin();msgit!=pTask->getData().end();msgit++){
             IncomingMessage * msgPtr = *msgit;
             assert(msgPtr->IsDone());
 
@@ -299,10 +316,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
 
 
 #ifdef SP_THREADS
-          {
-            std::lock_guard<std::mutex> lock(inuse_mutex_);
-            superNodeInUse[tgt] = false;
-          }
+                  src_snode->in_use = false;
 #endif
 
 
@@ -323,14 +337,14 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
         Task.id = hash_fn(sstr.str());
         graph.addTask(pTask);
 
-        auto taskit = graph.find_task(Task.id);
-        log_task(taskit);
+        //auto taskit = graph.find_task(Task.id);
+        //log_task(taskit);
       }
 
     };
 
 
-
+#if 1
     for(auto taskit = graph.tasks_.begin(); taskit != graph.tasks_.end(); taskit++){
       auto & pTask = taskit->second;
       SparseTask & Task = *(SparseTask*)pTask.get();
@@ -468,11 +482,11 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                 SnodeUpdate curUpdate;
                 bool found = false;
 
-                if(pTask->data.size()==0){
+                if(pTask->getData().size()==0){
                   cur_src_snode = snodeLocal(src_snode_id);
                 }
                 else{
-                  auto msgit = pTask->data.begin();
+                  auto msgit = pTask->getData().begin();
                   msgPtr = *msgit;
                   assert(msgPtr->IsDone());
                   char* dataPtr = msgPtr->GetLocalPtr();
@@ -489,7 +503,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                     SnodeUpdate localUpdate;
 
                     {
-                      std::lock_guard<std::mutex> lock(factorinuse_mutex_);
+                      //std::lock_guard<std::mutex> lock(factorinuse_mutex_);
                       while(cur_src_snode->FindNextUpdate(localUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
 
                         //skip if this update is "lower"
@@ -513,9 +527,9 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                               bassert(taskit!=graph.tasks_.end());
 
 
-                              factorUser[localUpdate.src_snode_id]++;
+//                              factorUser[localUpdate.src_snode_id]++;
                               //this is where we put the msg in the list
-                              taskit->second->data.push_back(msgPtr);
+                              taskit->second->addData(msgPtr);
                               dec_ref(taskit,0,1);
 
                             }
@@ -562,8 +576,8 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                   logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<std::endl;
 #endif
 
-                  SuperNode<T> * tgt_aggreg;
 
+                  SuperNode<T> * tgt_aggreg;
                   Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
                   if(iTarget == iam){
                     //the aggregate std::vector is directly the target snode
@@ -575,7 +589,15 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                   else{
                     SYMPACK_TIMER_START(UPD_ANC_Agg_tmp);
                     //Check if src_snode_id already have an aggregate std::vector
-                    if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==NULL){
+                    bool creation_needed = false;
+                    if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
+                      creation_needed = true;
+                    }
+                    else if(aggVectors[curUpdate.tgt_snode_id-1]->StorageSize()==0){
+                      creation_needed = true;
+                    }
+
+                    if(creation_needed){
                       SYMPACK_TIMER_START(UPD_ANC_Agg_tmp_creat);
                       //use number of rows below factor as initializer
 
@@ -606,7 +628,12 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                             }
                           }
                         }
-                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+//                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+
+                        if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
+                          aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
+                        }
+                        aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
                       } 
                       else
 #endif
@@ -623,9 +650,13 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                           upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
                           {
 #ifdef SP_THREADS
-                        std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+                            if(Multithreading::NumThread>1){
+                              std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+                              upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
+                            }
+                            else
 #endif
-                          upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
+                              upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
                           }
                           SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
                           NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
@@ -641,7 +672,13 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                           }
                           UpcxxAllocator::deallocate((char*)buffer);
                         }
-                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+//                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                        if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
+                          aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
+                        }
+//                        bassert(aggVectors[curUpdate.tgt_snode_id-1]!=nullptr);
+                        aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+
                       }
                       SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
                     }
@@ -657,7 +694,6 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
 
                   //Update the aggregate
                   SYMPACK_TIMER_START(UPD_ANC_UPD);
-
 #ifdef SP_THREADS
               //scheduler->list_mutex_.lock();
               auto & tmpBuf = tmpBufs_th[tid];
@@ -670,10 +706,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                   SYMPACK_TIMER_STOP(UPD_ANC_UPD);
 
 #ifdef SP_THREADS
-                  {
-                    std::lock_guard<std::mutex> lock(inuse_mutex_);
-                    superNodeInUse[tgt_aggreg->Id()] = false;
-                  }
+                  tgt_aggreg->in_use = false;
 #endif
 
                   --UpdatesToDo[curUpdate.tgt_snode_id-1];
@@ -743,14 +776,23 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
 
                   //TODO if I am the last one using that source factor, delete the message
                   //THIS HAS TO BE PROTECTED OR BE ATOMICAL
-                  Int userCount =0;
-                  {
-                    std::lock_guard<std::mutex> lock(factorinuse_mutex_);
-                    userCount = --factorUser[tgt_snode_id];
-                  }
+#ifdef SP_THREADS
+                  int userCount = msgPtr->decref();
                   if(userCount==0){
                     delete msgPtr;
                   }
+#else
+                    delete msgPtr;
+#endif
+
+//                  Int userCount =0;
+//                  {
+//                    std::lock_guard<std::mutex> lock(factorinuse_mutex_);
+//                    userCount = --factorUser[tgt_snode_id];
+//                  }
+//                  if(userCount==0){
+//                    delete msgPtr;
+//                  }
 
 
                 }
@@ -769,6 +811,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
           break;
       }
     }
+#endif
   }
 
   SYMPACK_TIMER_STOP(FB_INIT);
@@ -785,7 +828,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
     std::cout<<"TaskGraph size is: "<<graph.tasks_.size()<<std::endl;
   }
   timeSta = get_time();
-  scheduler->run(CommEnv_->MPI_GetComm(),graph);
+  scheduler_new_->run(CommEnv_->MPI_GetComm(),graph);
   double timeStop = get_time();
   if(iam==0){
     std::cout<<"Factorization task graph execution time: "<<timeStop - timeSta<<std::endl;

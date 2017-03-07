@@ -66,10 +66,18 @@ namespace symPACK{
 
 //SuperNode implementation
 template<typename T, class Allocator>
-SuperNode<T,Allocator>::SuperNode() : meta_(NULL), blocks_(NULL), nzval_(NULL) { }
+SuperNode<T,Allocator>::SuperNode() : meta_(nullptr), blocks_(nullptr), nzval_(nullptr), storage_size_(0),
+                                      loc_storage_container_(nullptr), storage_container_(nullptr),in_use(false){
+#ifndef ITREE
+globalToLocal_=nullptr;
+#else
+idxToBlk_=nullptr;
+#endif
+}
 
 template<typename T, class Allocator>
 SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {
+
 
   //this is an upper bound
   assert(ai_num_rows>=0);
@@ -84,7 +92,16 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows,
 
   storage_size_ = sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
 
-  loc_storage_container_ = Allocator::allocate(storage_size_);
+      try{
+        this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
+      }
+      catch(const MemoryAllocationException & e){
+        this->loc_storage_container_=NULL;
+        this->storage_size_ = 0;
+        throw;
+      }
+
+
   //storage_container_ = upcxx::allocate<char>(iam,storage_size_); 
   //loc_storage_container_ = (char *)storage_container_;
 #ifdef _USE_COREDUMPER_
@@ -94,7 +111,6 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows,
     WriteCoreDump(corename.str().c_str());
   }
 #endif
-  assert(loc_storage_container_!=NULL);
 
   nzval_ = (T*)&loc_storage_container_[0];
   meta_ = (SuperNodeDesc*)(nzval_+size*ai_num_rows);
@@ -124,8 +140,54 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows,
 
 template<typename T, class Allocator>
 SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
+  Init(aiId,aiFc,aiLc,aiN,rowIndices);
+}; 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+template<typename T, class Allocator>
+SuperNode<T,Allocator>::SuperNode(char * storage_ptr,size_t storage_size, Int GIndex ) {
+  //Init(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt,aiN);
+  Init(storage_ptr,storage_size,GIndex);
+}
+
+template<typename T, class Allocator>
+SuperNode<T,Allocator>::~SuperNode(){
+if(loc_storage_container_!=nullptr && meta_!=nullptr){
+  if(meta_->b_own_storage_){
+//    upcxx::deallocate(storage_container_);
+    Allocator::deallocate(loc_storage_container_);
+  }
+#ifndef ITREE
+if(globalToLocal_!=nullptr){
+  delete globalToLocal_;
+}
+#else
+  if(idxToBlk_!=nullptr){
+  delete idxToBlk_;
+  }
+#endif
+}
+}
+
+//CHECKED ON 11-18-2014
+//
+template<typename T, class Allocator>
+void SuperNode<T,Allocator>::Init(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
   //compute supernode size / width
   Int size = aiLc - aiFc +1;
 
@@ -153,8 +215,16 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, std::se
   Int numRows = rowIndices.size();
   storage_size_ = sizeof(T)*size*numRows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
 
-  loc_storage_container_ = Allocator::allocate(storage_size_);
-  assert(loc_storage_container_!=NULL);
+try{
+        this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
+      }
+      catch(const MemoryAllocationException & e){
+        this->loc_storage_container_=NULL;
+        this->storage_size_ = 0;
+        throw;
+      }
+
+
 
   nzval_ = (T*)&loc_storage_container_[0];
   meta_ = (SuperNodeDesc*)(nzval_+size*numRows);
@@ -194,58 +264,12 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, std::se
     }
     this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
   }
-
-
-
-
-
-
-
-
-
-
 }; 
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-template<typename T, class Allocator>
-SuperNode<T,Allocator>::SuperNode(char * storage_ptr,size_t storage_size, Int GIndex ) {
-  //Init(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt,aiN);
-  Init(storage_ptr,storage_size,GIndex);
-}
-
-template<typename T, class Allocator>
-SuperNode<T,Allocator>::~SuperNode(){
-  if(meta_->b_own_storage_){
-//    upcxx::deallocate(storage_container_);
-    Allocator::deallocate(loc_storage_container_);
-  }
-#ifndef ITREE
-  delete globalToLocal_;
-#else
-  delete idxToBlk_;
-#endif
-}
-
-//CHECKED ON 11-18-2014
 template<typename T, class Allocator>
 void SuperNode<T,Allocator>::Init(char * storage_ptr,size_t storage_size, Int GIndex ) {
-
-
   //loop through the block descriptors
   char * last = (char*)(storage_ptr+storage_size-1) - (sizeof(NZBlockDesc) -1);
 
@@ -760,7 +784,7 @@ template<typename T, class Allocator>
 inline Int SuperNode<T,Allocator>::Merge(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update){
   scope_timer_special(a,MERGE_SNODE);
 
-  assert(meta_->b_own_storage_);
+  bassert(meta_->b_own_storage_);
 
   Int src_snode_size = src_snode->Size();
   Int tgt_snode_size = Size();
@@ -924,26 +948,13 @@ inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode)
 //#ifdef COMPACT_AGGREGATES
 //CHECKED ON 11-18-2014
 template<typename T, class Allocator>
-inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-#ifdef SP_THREADS
-    TempUpdateBuffers<T> & tmpBuffers_disabled,
-#else
-    TempUpdateBuffers<T> & tmpBuffers,
-#endif
-    Int iTarget, Int iam){
+inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, TempUpdateBuffers<T> & tmpBuffers, Int iTarget, Int iam){
 
   scope_timer(a,UPDATE_AGGREGATE_SNODE);
 #if defined(_NO_COMPUTATION_)
   return 0;
 #endif
 
-#ifdef SP_THREADS
-      //hide the parameter
-        TempUpdateBuffers<T> tmpBuffers;
-        tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
-        tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
-        tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
-#endif
 
   if(iTarget != iam){
     Merge(src_snode, update);
@@ -1150,26 +1161,13 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
 
 //CHECKED ON 11-18-2014
 template<typename T, class Allocator>
-inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-#ifdef SP_THREADS
-    TempUpdateBuffers<T> & tmpBuffers_disabled
-#else
-    TempUpdateBuffers<T> & tmpBuffers
-#endif
-    ){
+inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, TempUpdateBuffers<T> & tmpBuffers){
 
   scope_timer(a,UPDATE_SNODE);
 #if defined(_NO_COMPUTATION_)
   return 0;
 #endif
 
-#ifdef SP_THREADS
-      //hide the parameter
-        TempUpdateBuffers<T> tmpBuffers;
-        tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
-        tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
-        tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
-#endif
 
   Int & pivot_idx = update.blkidx;
   Int & pivot_fr = update.src_first_row;
@@ -1384,29 +1382,32 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
 
 //CHECKED ON 11-18-2014
 template<typename T, class Allocator>
-  inline Int SuperNode<T,Allocator>::Factorize(
-#ifdef SP_THREADS
-      TempUpdateBuffers<T> & tmpBuffers_disabled
-#else
-      TempUpdateBuffers<T> & tmpBuffers
-#endif
-      ){
+  inline Int SuperNode<T,Allocator>::Factorize( TempUpdateBuffers<T> & tmpBuffers){
 #if defined(_NO_COMPUTATION_)
     return 0;
-#endif
-
-#ifdef SP_THREADS
-      //hide the parameter
-        TempUpdateBuffers<T> tmpBuffers;
-        tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
-        tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
-        tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
 #endif
 
     Int snode_size = Size();
     NZBlockDesc & diag_desc = GetNZBlockDesc(0);
     T * diag_nzval = &GetNZval(diag_desc.Offset)[0];
     lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
+    T * nzblk_nzval = &GetNZval(diag_desc.Offset)[(snode_size)*snode_size];
+    blas::Trsm('L','U','T','N',snode_size, NRowsBelowBlock(0)-snode_size, T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+    return 0;
+
+  }
+
+  template<typename T, class Allocator>
+  inline Int SuperNode<T,Allocator>::Factorize(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers){
+    abort();
+#if defined(_NO_COMPUTATION_)
+      return 0;
+#endif
+
+    Int snode_size = Size();
+    NZBlockDesc & diag_desc = diag_snode->GetNZBlockDesc(0);
+    T * diag_nzval = &diag_snode->GetNZval(diag_desc.Offset)[0];
+    //lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
     T * nzblk_nzval = &GetNZval(diag_desc.Offset)[(snode_size)*snode_size];
     blas::Trsm('L','U','T','N',snode_size, NRowsBelowBlock(0)-snode_size, T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
     return 0;

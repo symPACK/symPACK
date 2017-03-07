@@ -55,6 +55,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #ifdef SP_THREADS
 #include <future>
 #include <mutex>
+#include <chrono>
 #endif
 
 namespace symPACK{
@@ -80,145 +81,6 @@ namespace symPACK{
       std::atomic_flag lck = ATOMIC_FLAG_INIT;
   };
 
-
-  template<typename T, typename Queue = std::queue<std::function<T()> > >
-    class WorkQueue{
-#if 1
-      public:
-        std::mutex list_mutex_;
-        Queue workQueue_;
-        std::vector<std::thread> threads;
-        std::condition_variable sync;
-        bool done = false;
-
-        WorkQueue(Int nthreads){
-          for (unsigned int count {0}; count < nthreads; count += 1)
-            threads.emplace_back(static_cast<void(WorkQueue<void>::*)()>(&WorkQueue::consume), this);
-        }
-
-        WorkQueue(WorkQueue &&) = default;
-        WorkQueue &operator=(WorkQueue &&) = delete;
-
-
-        ~WorkQueue(){
-          if(threads.size()>0){
-            std::lock_guard<std::mutex> guard(list_mutex_);
-            done = true;
-            sync.notify_all();
-          }
-          for (auto &&thread: threads) thread.join();
-        }
-
-        void pushTask(std::function<T()> && fut){
-          std::unique_lock<std::mutex> lock(list_mutex_);
-          workQueue_.push(std::forward<std::function<T()> >(fut));
-          sync.notify_one();
-        }
-
-      protected:
-        void consume()
-        {
-          std::unique_lock<std::mutex> lock(list_mutex_);
-          while (true) {
-#if 0
-            std::function<T()> func;
-            {
-              std::unique_lock<std::mutex> lock(list_mutex_);
-              sync.wait(lock,[this]{return !workQueue_.empty();});
-              func = { std::move(workQueue_.front()) };
-              workQueue_.pop();
-              sync.notify_one();
-            }
-            func();
-
-
-
-
-            //            sync.wait(lock,[this]{return !workQueue_.empty() || done;});
-            //
-            //            if (done){
-            //            //  lock.unlock();
-            //              break;
-            //            }
-            //            else {
-            //              std::function<T()> func { std::move(workQueue_.front()) };
-            //              workQueue_.pop();
-            //              sync.notify_one();
-            //            //  lock.unlock();
-            //              func();
-            //            //  lock.lock();
-            //            }
-#else
-            if (not workQueue_.empty()) {
-              std::function<T()> func { std::move(workQueue_.front()) };
-              workQueue_.pop();
-              sync.notify_one();
-              lock.unlock();
-              func();
-              lock.lock();
-            } else if (done) {
-              break;
-            } else {
-              sync.wait(lock);
-            }
-#endif
-          }
-        }
-#else
-      public:
-        SpinLock list_lock_;
-        Queue workQueue_;
-        std::vector<std::thread> threads;
-        bool done = false;
-
-        WorkQueue(Int nthreads){
-          for (unsigned int count {0}; count < nthreads; count += 1)
-            threads.emplace_back(static_cast<void(WorkQueue<void>::*)()>(&WorkQueue::consume), this);
-        }
-
-        WorkQueue(WorkQueue &&) = default;
-        WorkQueue &operator=(WorkQueue &&) = delete;
-
-
-        ~WorkQueue(){
-          if(threads.size()>0){
-            list_lock_.lock();
-            done = true;
-            list_lock_.unlock();
-          }
-          for (auto &&thread: threads) thread.join();
-        }
-
-        void pushTask(std::function<T()> && fut){
-          list_lock_.lock();
-          workQueue_.push(std::forward<std::function<T()> >(fut));
-          list_lock_.unlock();
-        }
-
-
-
-      protected:
-        void consume()
-        {
-          while (true) {
-            list_lock_.lock();
-            if (not workQueue_.empty()) {
-              std::function<T()> func { std::move(workQueue_.front()) };
-              workQueue_.pop();
-              list_lock_.unlock();
-              func();
-            } else if (done) {
-              list_lock_.unlock();
-              break;
-            } 
-            else{
-              list_lock_.unlock();
-            }
-          }
-        }
-
-#endif
-    };
 
 
   template<typename T, typename Queue = std::list<T>  >
@@ -288,23 +150,52 @@ namespace symPACK{
             threadInitHandle_();
           }
 
-          while (true) {
             std::unique_lock<std::mutex> lock(list_mutex_);
+          while (true) {
             if (not workQueue_.empty()) {
               T func { std::move(workQueue_.front()) };
               workQueue_.pop_front();
 
 
-              sync.notify_one();
-              lock.unlock();
 #ifdef THREAD_VERBOSE
               processing_[tid] = func;
 #endif
-              func->execute();
+                sync.notify_one();
+              bool success = false;
+              while(!success){
+                lock.unlock();
+                try{
+                  func->execute();
+                  success=true;
+                  lock.lock();
+                }
+                catch(const MemoryAllocationException & e){
+                  {
+                    std::stringstream sstr;
+                  sstr<<"Task locked on T"<<tid<<std::endl;
+                  sstr<<e.what();
+                  logfileptr->OFS()<<sstr.str();
+                  }
+
+                  lock.lock();
+                  //gdb_lock();
+                  //wait for a task to be completed before retrying
+                  //sync.wait(lock);
+                  sync.wait_for(lock,std::chrono::milliseconds(10));
+                  {
+                    std::stringstream sstr;
+                    sstr<<"Task un locked on T"<<tid<<std::endl;
+                    logfileptr->OFS()<<sstr.str();
+                  }
+
+                sync.notify_all();
+
+                }
+              }
+
 #ifdef THREAD_VERBOSE
               processing_[tid] = nullptr;
 #endif
-              lock.lock();
             } else if (done) {
               break;
             } else {
@@ -616,7 +507,6 @@ namespace symPACK{
           }
 #endif
 
-
           {
             //find if there is some finished async comm
             auto it = TestAsyncIncomingMessage();
@@ -654,65 +544,89 @@ namespace symPACK{
           scope_timer(a,WAIT_AND_UPDATE_DEPS);
           num_recv++;
 
-          bool success = msg->Wait(); 
+          bool success = false;
+          try{
+            success = msg->Wait(); 
+          }
+          catch(const MemoryAllocationException & e){
+            //put the message back in the blocking message queue
+#ifdef SP_THREADS
+            if(Multithreading::NumThread>1){
+              upcxx_mutex.lock();
+            }
+#endif
+            gdb_lock();
 
-          //TODO what are the reasons of failure ?
-          bassert(success);
+            gIncomingRecv.push_back(msg);
+#ifdef SP_THREADS
+            if(Multithreading::NumThread>1){
+              upcxx_mutex.unlock();
+            }
+#endif
 
-          if(msgHandle!=nullptr){
-            //call user handle
-            msgHandle(msg);
+
+            msg = NULL;
           }
 
-          auto taskit = graph.find_task(msg->meta.id);
-          bassert(taskit!=graph.tasks_.end());
+          if(msg!=NULL){
+            //TODO what are the reasons of failure ?
+            bassert(success);
+
+            if(msgHandle!=nullptr){
+              //call user handle
+              msgHandle(msg);
+            }
+
+            auto taskit = graph.find_task(msg->meta.id);
+            bassert(taskit!=graph.tasks_.end());
 #if 0
-          {
-            std::hash<std::string> hash_fn;
-            std::stringstream sstr;
-            sstr<<50<<"_"<<50<<"_"<<(Int)Solve::op_type::FU;
-            auto id = hash_fn(sstr.str());
+            {
+              std::hash<std::string> hash_fn;
+              std::stringstream sstr;
+              sstr<<50<<"_"<<50<<"_"<<(Int)Solve::op_type::FU;
+              auto id = hash_fn(sstr.str());
 
-            SparseTask * tmp = ((SparseTask*)taskit->second.get());
-            Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
-            Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
-            std::string name;
-            switch(type){
-              case Solve::op_type::FUC:
-                name="FUC";
-                break;
-              case Solve::op_type::BUC:
-                name="BUC";
-                break;
-              case Solve::op_type::BU:
-                name="BU";
-                break;
-              case Solve::op_type::FU:
-                name="FU";
-                break;
+              SparseTask * tmp = ((SparseTask*)taskit->second.get());
+              Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
+              Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
+              std::string name;
+              switch(type){
+                case Solve::op_type::FUC:
+                  name="FUC";
+                  break;
+                case Solve::op_type::BUC:
+                  name="BUC";
+                  break;
+                case Solve::op_type::BU:
+                  name="BU";
+                  break;
+                case Solve::op_type::FU:
+                  name="FU";
+                  break;
+              }
+              logfileptr->OFS()<<"  receiving & updating "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
             }
-            logfileptr->OFS()<<"  receiving & updating "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
-          }
 #endif
-          {
+            {
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){
-              list_mutex_.lock();
-            }
+              if(Multithreading::NumThread>1){
+                list_mutex_.lock();
+              }
 #endif
-            taskit->second->remote_deps_cnt--;
-            taskit->second->data.push_back(msg);
+              taskit->second->remote_deps_cnt--;
+              taskit->second->addData(msg);
 
-            if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
-              this->push(taskit->second);    
-              graph.removeTask(taskit->second->id);
-            }
+              if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+                this->push(taskit->second);    
+                graph.removeTask(taskit->second->id);
+              }
 
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){
-              list_mutex_.unlock();
-            }
+              if(Multithreading::NumThread>1){
+                list_mutex_.unlock();
+              }
 #endif
+            }
           }
         }
       }while(msg!=NULL);

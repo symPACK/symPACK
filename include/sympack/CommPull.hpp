@@ -52,7 +52,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #include <mutex>
 #include <thread>
-
+#include <atomic>
 
 #include "sympack/Environment.hpp"
 //#include "sympack/CommTypes.hpp"
@@ -70,10 +70,6 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 namespace symPACK{
 
-#ifdef SP_THREADS
-  using upcxx_mutex_type = std::recursive_mutex;
-  extern upcxx_mutex_type upcxx_mutex;
-#endif
 
   struct SnodeUpdateFB;
   //class SupernodalMatrixBase;
@@ -120,6 +116,20 @@ namespace symPACK{
       bool isDone; 
       bool remoteDealloc; 
       bool isLocal;
+
+#ifdef SP_THREADS
+      std::atomic<int> references;
+      int decref(){
+        return references.fetch_sub(1,std::memory_order_relaxed);
+      }
+      int incref(){
+        return references.fetch_add(1,std::memory_order_relaxed);
+      }
+      int getref(){
+        return references;
+      }
+#endif
+
 
       IncomingMessage();
       ~IncomingMessage();

@@ -89,6 +89,7 @@ class SuperNodeInd: public SuperNode<T,Allocator>{
 
     
   virtual void Init(char * storage_ptr,size_t storage_size, Int GIndex = -1);
+  virtual void Init(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
 
   virtual inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex);
 
@@ -96,6 +97,8 @@ class SuperNodeInd: public SuperNode<T,Allocator>{
   
   //Factorize the supernode
   virtual inline Int Factorize(TempUpdateBuffers<T> & tmpBuffers);
+  virtual inline Int Factorize(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers);
+  
   virtual inline Int UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
               TempUpdateBuffers<T> & tmpBuffers,Int iTarget,Int iam);
   virtual inline Int Update(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 

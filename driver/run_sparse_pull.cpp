@@ -159,10 +159,10 @@ int main(int argc, char **argv)
 
   if( options.find("-fact") != options.end() ){
     if(options["-fact"].front()=="LL"){
-      optionsFact.decomposition = LL;
+      optionsFact.decomposition = DecompositionType::LL;
     }
     else if(options["-fact"].front()=="LDL"){
-      optionsFact.decomposition = LDL;
+      optionsFact.decomposition = DecompositionType::LDL;
     }
   }
 
