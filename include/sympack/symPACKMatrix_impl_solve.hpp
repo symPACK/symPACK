@@ -517,14 +517,14 @@ template <typename T> void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,  T * X
             else{
               //remote
               assert(curTask.data.size()==1);
-              IncomingMessage * msgPtr = *curTask.data.begin();
+              auto msgPtr = *curTask.data.begin();
               assert(msgPtr->IsDone());
               char* dataPtr = msgPtr->GetLocalPtr();
               auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
               dist_contrib->InitIdxToBlk();
               contrib->forward_update(&*dist_contrib,iOwner,iam);
               delete dist_contrib;
-              delete msgPtr;
+              //delete msgPtr;
             }
             auto taskit = taskGraph.find_task(tgt,tgt,Solve::op_type::FUC);
             dec_ref(taskit,1,0);
@@ -546,7 +546,7 @@ template <typename T> void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,  T * X
             else{
               //remote
               assert(curTask.data.size()==1);
-              IncomingMessage * msgPtr = *curTask.data.begin();
+              auto msgPtr = *curTask.data.begin();
               assert(msgPtr->IsDone());
               char* dataPtr = msgPtr->GetLocalPtr();
               auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
@@ -568,6 +568,7 @@ template <typename T> void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,  T * X
                       auto taskit = taskGraph.find_task(src,child,Solve::op_type::BU);
                       if(taskit!=taskGraph.taskLists_[child-1]->end()){
                         child_found = true;
+abort();
                         taskit->data.push_back(msgPtr);
                         dec_ref(taskit,0,1);
                         curTask.data.clear();
@@ -579,10 +580,10 @@ template <typename T> void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,  T * X
                 }
               }
 
-              if(!child_found){
-                //delete otherwise
-                delete msgPtr;
-              }
+              //if(!child_found){
+              //  //delete otherwise
+              //  delete msgPtr;
+              //}
             }
             auto taskit = taskGraph.find_task(tgt,tgt,Solve::op_type::BUC);
             dec_ref(taskit,1,0);
@@ -867,9 +868,9 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
 
                   //If last subtasks, delete msg
-                  if(task==numSubTasks-1){
-                    delete msgPtr;
-                  }
+                  //if(task==numSubTasks-1){
+                  //  delete msgPtr;
+                  //}
               }
 
               //Do the local ones
@@ -1352,7 +1353,7 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
                 else{
                   //remote
                   assert(BUtask.getData().size()==1);
-                  IncomingMessage * msgPtr = *BUtask.getData().begin();
+                  auto msgPtr = *BUtask.getData().begin();
                   assert(msgPtr->IsDone());
                   char* dataPtr = msgPtr->GetLocalPtr();
                   auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
@@ -1371,6 +1372,7 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
                       auto id = hash_fn(sstr.str());
                       auto taskit = graph.find_task(id);
 
+abort();
                       //msgPtr->meta.id = id;
                       taskit->second->addData(msgPtr);
 
@@ -1405,10 +1407,11 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
                             if(taskit!=graph.tasks_.end()){
                               child_found = true;
+logfileptr->OFS()<<"WARNING: this is suboptimal and should use the new ChainedMessage class."<<std::endl;
                               taskit->second->addData(msgPtr);
                               //log_task(taskit);
                               dec_ref(taskit,0,1);
-                              BUtask.clearData();
+//                              BUtask.clearData();
                               break;
                             }
                           }
@@ -1432,11 +1435,11 @@ template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * 
 
 
 
-                  if(!child_found && task == numSubTasks-1){
-                    //TODO THIS MAY NOT WORK IN A MT CONTEXT: if other children are not done, we cant erase the data !
-                    //delete otherwise
-                    delete msgPtr;
-                  }
+                  //if(!child_found && task == numSubTasks-1){
+                  //  //TODO THIS MAY NOT WORK IN A MT CONTEXT: if other children are not done, we cant erase the data !
+                  //  //delete otherwise
+                  //  delete msgPtr;
+                  //}
                 }
 
                 std::stringstream sstr;

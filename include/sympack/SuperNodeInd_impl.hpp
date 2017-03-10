@@ -497,19 +497,28 @@ namespace symPACK{
 
       Idx totalNRows = this->NRowsBelowBlock(0);
       Int INFO = 0;
+SYMPACK_TIMER_START(FACT_POTRF_LDL);
       lapack::Potrf_LDL( "U", snodeSize, diag_nzval, snodeSize, tmpBuffers, INFO);
+SYMPACK_TIMER_STOP(FACT_POTRF_LDL);
       //copy the diagonal entries into the diag portion of the supernode
+SYMPACK_TIMER_START(FACT_DIAG_COPY);
 #pragma unroll
       for(Int col = 0; col< snodeSize;col++){ this->diag_[col] = diag_nzval[col+ (col)*snodeSize]; }
+SYMPACK_TIMER_STOP(FACT_DIAG_COPY);
 
 
+SYMPACK_TIMER_START(FACT_TRSM);
       T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
       blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
+SYMPACK_TIMER_STOP(FACT_TRSM);
 
+SYMPACK_TIMER_START(FACT_SCALE);
       //scale column I
       for ( Idx I = 1; I<=snodeSize;I++) {
         blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
       }
+SYMPACK_TIMER_STOP(FACT_SCALE);
+
 #endif
       return 0;
 

@@ -118,16 +118,16 @@ namespace symPACK{
       bool isLocal;
 
 #ifdef SP_THREADS
-      std::atomic<int> references;
-      int decref(){
-        return references.fetch_sub(1,std::memory_order_relaxed);
-      }
-      int incref(){
-        return references.fetch_add(1,std::memory_order_relaxed);
-      }
-      int getref(){
-        return references;
-      }
+//      std::atomic<int> references;
+//      int decref(){
+//        return --references;//.fetch_sub(1,std::memory_order_relaxed);
+//      }
+//      int incref(){
+//        return ++references;//.fetch_add(1,std::memory_order_relaxed);
+//      }
+//      int getref(){
+//        return references;
+//      }
 #endif
 
 
@@ -142,12 +142,33 @@ namespace symPACK{
       upcxx::global_ptr<char> GetRemotePtr();
       char * GetLocalPtr();
       void SetLocalPtr(char * ptr,bool ownStorage = true);
-      size_t Size(){return msg_size;}
+      virtual size_t Size(){return msg_size;}
       void AsyncGet();
       void DeallocRemote();
       void DeallocLocal();
   };
 
+  template< typename C >
+  class ChainedMessage: public IncomingMessage{
+    public:
+      std::shared_ptr<C> data;
+      std::shared_ptr<IncomingMessage> chainedMsg;
+      virtual size_t Size(){return msg_size;}
+
+      ChainedMessage(std::shared_ptr<C> adata, std::shared_ptr<IncomingMessage> amsg):IncomingMessage(){
+        data = adata;
+        chainedMsg = amsg;
+
+        isDone = amsg->IsDone(); 
+        ownLocalStorage = false;
+      }
+
+//#ifndef NDEBUG
+//      ~ChainedMessage(){
+//        logfileptr->OFS()<<"Deleting chained message from "<<chainedMsg->meta.src<<" to "<<chainedMsg->meta.tgt<<std::endl;
+//      }
+//#endif
+  };
 
 
   struct MSGCompare{
@@ -204,6 +225,7 @@ namespace symPACK{
 
   void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
   void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta);
+  void dealloc_async(upcxx::global_ptr<char> ptr);
 
   inline void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
     scope_timer(a,SIGNAL_DATA);
@@ -220,6 +242,9 @@ namespace symPACK{
 
   inline void remote_delete(upcxx::global_ptr<char> pRemote_ptr){
     scope_timer(a,REMOTE_DELETE);
+#if 0
+
+
 #ifdef SP_THREADS
     if(Multithreading::NumThread>1){
       std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
@@ -235,7 +260,29 @@ namespace symPACK{
         upcxx::deallocate(pRemote_ptr);
       }
     }
+#else
+
+    int dest = pRemote_ptr.where();
+#ifdef SP_THREADS
+    if(Multithreading::NumThread>1){
+      std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+      upcxx::async(dest)(dealloc_async,pRemote_ptr);
+    }
+    else
+#endif
+    {
+      //upcxx::async(dest)(upcxx::deallocate,pRemote_ptr);
+      upcxx::async(dest)(dealloc_async,pRemote_ptr);
+    }
+
+#endif
+
   }
+
+  inline void dealloc_async(upcxx::global_ptr<char> ptr){
+        upcxx::deallocate(ptr);
+  }
+
 
   inline void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
     SYMPACK_TIMER_START(RCV_ASYNC);

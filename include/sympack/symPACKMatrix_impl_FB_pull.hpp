@@ -124,49 +124,54 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
               scheduler_new_->list_mutex_.unlock();
   };
 
-  scheduler_new_->extraTaskHandle_ = [&,this](std::shared_ptr<GenericTask> & pTask)->bool {
-    SparseTask & Task = *(SparseTask*)pTask.get();
+  if(Multithreading::NumThread>1){
+    scheduler_new_->extraTaskHandle_ = [&,this](std::shared_ptr<GenericTask> & pTask)->bool {
+      SparseTask & Task = *(SparseTask*)pTask.get();
 
-    Int * meta = reinterpret_cast<Int*>(Task.meta.data());
-    Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+      Int * meta = reinterpret_cast<Int*>(Task.meta.data());
+      Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
 
-    if(type == Factorization::op_type::FACTOR){
-      return false;
-    }
-    else{
-      int tgt = meta[1];
-
-
-      SuperNode<T> * tgt_aggreg = nullptr;
-      Int iTarget = this->Mapping_->Map(tgt-1,tgt-1);
-      if(iTarget == iam){
-        tgt_aggreg = snodeLocal(tgt);
-      }
-      else{
-        tgt_aggreg = aggVectors[tgt-1];
-        if(tgt_aggreg == nullptr){
-          aggVectors[tgt-1] = CreateSuperNode(options_.decomposition);
-          tgt_aggreg = aggVectors[tgt-1];
-        }
-      }
-
-      //assert(tgt_aggreg!=nullptr);
-
-      if(!tgt_aggreg->in_use){
-        tgt_aggreg->in_use = true;
+      if(type == Factorization::op_type::FACTOR){
         return false;
       }
       else{
-        return true;
+        int tgt = meta[1];
+
+
+        SuperNode<T> * tgt_aggreg = nullptr;
+        Int iTarget = this->Mapping_->Map(tgt-1,tgt-1);
+        if(iTarget == iam){
+          tgt_aggreg = snodeLocal(tgt);
+        }
+        else{
+          tgt_aggreg = aggVectors[tgt-1];
+          if(tgt_aggreg == nullptr){
+            aggVectors[tgt-1] = CreateSuperNode(options_.decomposition);
+            tgt_aggreg = aggVectors[tgt-1];
+          }
+        }
+
+        //assert(tgt_aggreg!=nullptr);
+
+        if(!tgt_aggreg->in_use){
+          tgt_aggreg->in_use = true;
+          return false;
+        }
+        else{
+          return true;
+        }
       }
-    }
-  };
+    };
+  }
 
 #endif
 
   auto dec_ref = [&] ( taskGraph::task_iterator taskit, Int loc, Int rem) {
+            scope_timer(a,DECREF);
 #ifdef SP_THREADS
-    std::lock_guard<std::mutex> lock(scheduler_new_->list_mutex_);
+    if(Multithreading::NumThread>1){
+      scheduler_new_->list_mutex_.lock();
+    }
 #endif
     taskit->second->local_deps_cnt-= loc;
     taskit->second->remote_deps_cnt-= rem;
@@ -183,6 +188,12 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
       scheduler_new_->push(taskit->second);
       graph.removeTask(taskit->second->id);
     }
+
+#ifdef SP_THREADS
+    if(Multithreading::NumThread>1){
+      scheduler_new_->list_mutex_.unlock();
+    }
+#endif
   };
 
   auto log_task = [&] (taskGraph::task_iterator taskit){
@@ -243,7 +254,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
   //Finish the initialization of the tasks by creating the lambdas
   {
 
-    scheduler_new_->msgHandle = [&,this](IncomingMessage * msg) {
+    scheduler_new_->msgHandle = [&,this](std::shared_ptr<IncomingMessage> msg) {
       Int iOwner = Mapping_->Map(msg->meta.tgt-1,msg->meta.tgt-1);
       Int iUpdater = Mapping_->Map(msg->meta.tgt-1,msg->meta.src-1);
       //this is an aggregate
@@ -294,9 +305,11 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
           //Applying aggregates
           //TODO we might have to create a third UPDATE type of task
           //process them one by one
+          {
+            scope_timer(a,FACT_AGGREGATE);
           assert(pTask->getData().size()==1);
           for(auto msgit = pTask->getData().begin();msgit!=pTask->getData().end();msgit++){
-            IncomingMessage * msgPtr = *msgit;
+            auto msgPtr = *msgit;
             assert(msgPtr->IsDone());
 
             if(!msgPtr->IsLocal()){
@@ -311,9 +324,9 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
             src_snode->Aggregate(dist_src_snode);
 
             delete dist_src_snode;
-            delete msgPtr;
+            //delete msgPtr;
           }
-
+          }
 
 #ifdef SP_THREADS
                   src_snode->in_use = false;
@@ -465,6 +478,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
               bool is_first_local = src <0;
 
               SuperNode<T> * cur_src_snode; 
+              std::shared_ptr<SuperNode<T> > shptr_cur_src_snode = nullptr; 
 
 #ifdef SP_THREADS
               std::thread::id tid = std::this_thread::get_id();
@@ -474,7 +488,8 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
 
               {
                 IncomingMessage * structPtr = NULL;
-                IncomingMessage * msgPtr = NULL;
+                std::shared_ptr<IncomingMessage> msgPtr = nullptr;
+                std::shared_ptr<ChainedMessage<SuperNodeBase<T> > > newMsgPtr = nullptr;
                 //Local or remote factor
                 //we have only one local or one remote incoming aggregate
 
@@ -486,58 +501,90 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                   cur_src_snode = snodeLocal(src_snode_id);
                 }
                 else{
+                  scope_timer(b,FB_UPD_UNPACK_MSG);
                   auto msgit = pTask->getData().begin();
                   msgPtr = *msgit;
-                  assert(msgPtr->IsDone());
-                  char* dataPtr = msgPtr->GetLocalPtr();
-                  cur_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
-                  cur_src_snode->InitIdxToBlk();
+                  bassert(msgPtr->IsDone());
 
-                  //TODO add the message to other local updates and update their remote dependencies
+
                   //GET MY ID
                   std::stringstream sstr;
                   sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
                   auto id = hash_fn(sstr.str());
+
                   if(msgPtr->meta.id == id){
-                    SYMPACK_TIMER_START(UPDATE_ANCESTORS);
-                    SnodeUpdate localUpdate;
+                    char* dataPtr = msgPtr->GetLocalPtr();
+
 
                     {
-                      //std::lock_guard<std::mutex> lock(factorinuse_mutex_);
-                      while(cur_src_snode->FindNextUpdate(localUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
-
-                        //skip if this update is "lower"
-                        if(localUpdate.tgt_snode_id<tgt){
-                          continue;
-                        }
-                        else{
-                          Int iUpdater = this->Mapping_->Map(localUpdate.tgt_snode_id-1,localUpdate.src_snode_id-1);
-                          if(iUpdater==iam){
-                            if(localUpdate.tgt_snode_id==tgt){
-                              curUpdate = localUpdate;
-                              found = true;
-                            }
-                            else{
-
-                              std::stringstream sstr;
-                              sstr<<localUpdate.src_snode_id<<"_"<<localUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                              auto id = hash_fn(sstr.str());
-                              auto taskit = graph.find_task(id);
-
-                              bassert(taskit!=graph.tasks_.end());
+                      scope_timer(c,FB_UPD_UNPACK_MSG_CREATE);
+                      shptr_cur_src_snode.reset(CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex));
+                      cur_src_snode = shptr_cur_src_snode.get();
+                    }
+                    {
+                      scope_timer(d,FB_UPD_UNPACK_MSG_INIT_TREE);
+                      cur_src_snode->InitIdxToBlk();
+                    }
 
 
-//                              factorUser[localUpdate.src_snode_id]++;
-                              //this is where we put the msg in the list
-                              taskit->second->addData(msgPtr);
-                              dec_ref(taskit,0,1);
 
+
+                    //TODO add the message to other local updates and update their remote dependencies
+
+                    {
+                      scope_timer(a,ENQUEUING_UPDATE_MSGS);
+                      SnodeUpdate localUpdate;
+
+                      {
+                        //std::lock_guard<std::mutex> lock(factorinuse_mutex_);
+                        while(cur_src_snode->FindNextUpdate(localUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+
+                          //skip if this update is "lower"
+                          if(localUpdate.tgt_snode_id<tgt){
+                            continue;
+                          }
+                          else{
+                            Int iUpdater = this->Mapping_->Map(localUpdate.tgt_snode_id-1,localUpdate.src_snode_id-1);
+                            if(iUpdater==iam){
+                              if(localUpdate.tgt_snode_id==tgt){
+                                curUpdate = localUpdate;
+                                found = true;
+                              }
+                              else{
+
+                                std::stringstream sstr;
+                                sstr<<localUpdate.src_snode_id<<"_"<<localUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
+                                auto id = hash_fn(sstr.str());
+                                auto taskit = graph.find_task(id);
+
+                                bassert(taskit!=graph.tasks_.end());
+                                if(newMsgPtr==nullptr){
+                                  auto base_ptr = std::static_pointer_cast<SuperNodeBase<T> >(shptr_cur_src_snode);
+                                  newMsgPtr = std::make_shared<ChainedMessage<SuperNodeBase<T> > >(  base_ptr  ,msgPtr);
+                                }
+
+
+                                //                              factorUser[localUpdate.src_snode_id]++;
+                                //this is where we put the msg in the list
+                                auto base_ptr = std::static_pointer_cast<IncomingMessage>(newMsgPtr);
+                                taskit->second->addData( base_ptr );
+                                dec_ref(taskit,0,1);
+
+                              }
                             }
                           }
                         }
                       }
+
                     }
+
                   }
+                  else{
+                    newMsgPtr = std::dynamic_pointer_cast<ChainedMessage<SuperNodeBase<T> > >(msgPtr);
+                    cur_src_snode = dynamic_cast<SuperNode<T> *>(newMsgPtr->data.get());
+                  }
+
+
                 }
 
                 //TODO UPDATE do my update here
@@ -695,18 +742,22 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                   //Update the aggregate
                   SYMPACK_TIMER_START(UPD_ANC_UPD);
 #ifdef SP_THREADS
+              if(Multithreading::NumThread>1){
               //scheduler->list_mutex_.lock();
               auto & tmpBuf = tmpBufs_th[tid];
               //scheduler->list_mutex_.unlock();
                   tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,iam);
-#else
-                  tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
+              }
+              else
 #endif
+                  tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
 
                   SYMPACK_TIMER_STOP(UPD_ANC_UPD);
 
 #ifdef SP_THREADS
+              if(Multithreading::NumThread>1){
                   tgt_aggreg->in_use = false;
+              }
 #endif
 
                   --UpdatesToDo[curUpdate.tgt_snode_id-1];
@@ -771,31 +822,23 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
 
 
 
-                if(msgPtr!=NULL){
-                  delete cur_src_snode;
-
-                  //TODO if I am the last one using that source factor, delete the message
-                  //THIS HAS TO BE PROTECTED OR BE ATOMICAL
-#ifdef SP_THREADS
-                  int userCount = msgPtr->decref();
-                  if(userCount==0){
-                    delete msgPtr;
-                  }
-#else
-                    delete msgPtr;
-#endif
-
-//                  Int userCount =0;
-//                  {
-//                    std::lock_guard<std::mutex> lock(factorinuse_mutex_);
-//                    userCount = --factorUser[tgt_snode_id];
-//                  }
-//                  if(userCount==0){
-//                    delete msgPtr;
-//                  }
-
-
-                }
+//                if(msgPtr!=NULL){
+//                  scope_timer(a,DELETE_MSG);
+//
+//                  //TODO if I am the last one using that source factor, delete the message
+//                  //THIS HAS TO BE PROTECTED OR BE ATOMICAL
+////#ifdef SP_THREADS
+////                  int userCount = msgPtr->decref();
+////                  if(userCount==0){
+////                    delete msgPtr;
+////                  }
+////#else
+////                    delete msgPtr;
+////#endif
+//
+//
+//
+//                }
 
                 if(structPtr!=NULL){
                   delete structPtr;
@@ -818,9 +861,9 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
 
 
 #ifndef NDEBUG
-  for(auto taskit = graph.tasks_.begin();taskit!=graph.tasks_.end();taskit++){
-    log_task(taskit);
-  }
+//  for(auto taskit = graph.tasks_.begin();taskit!=graph.tasks_.end();taskit++){
+//    log_task(taskit);
+//  }
 #endif
 
 
@@ -846,8 +889,6 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
 #endif
 
   tmpBufs.Clear();
-
-  SYMPACK_TIMER_STOP(FACTORIZATION_FB);
 }
 
 

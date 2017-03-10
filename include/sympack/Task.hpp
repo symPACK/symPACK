@@ -134,7 +134,7 @@ namespace symPACK{
   class GenericTask{
     protected:
       //list of incoming messages
-      std::list<IncomingMessage*> data;
+      std::list< std::shared_ptr<IncomingMessage> > data;
     public:
       typedef size_t id_type;
       id_type id;
@@ -142,30 +142,58 @@ namespace symPACK{
       //dependencies
       Int remote_deps_cnt;
       Int local_deps_cnt;
+      Int remote_deps;
+      Int local_deps;
 
-      void addData(IncomingMessage * ptr){
+      void addData(std::shared_ptr<IncomingMessage> & ptr){
         data.push_back(ptr);
 #ifdef SP_THREADS
-        ptr->incref();
+//        ptr->incref();
 #endif
       }
 
       void clearData(){
 #ifdef SP_THREADS
-        for(auto&& ptr : data){
-          ptr->decref();
-        }
+//        for(auto&& ptr : data){
+//          ptr->decref();
+//        }
 #endif
+//#ifndef NDEBUG
+//        logfileptr->OFS()<<"List size "<<data.size()<<std::endl;
+//        for(auto&& ptr : data){
+//          logfileptr->OFS()<<"Incoming msg "<<ptr->meta.src<<"->"<<ptr->meta.tgt<<" used by "<<ptr.use_count()<<std::endl;
+//        }
+//#endif
         data.clear();
       }
 
-      std::list<IncomingMessage*> & getData(){
+      virtual void init(){
+        remote_deps_cnt = remote_deps;
+        local_deps_cnt = local_deps;
+      }
+
+      virtual void reset(){
+        clearData();
+        init();
+      }
+
+
+      std::list<std::shared_ptr<IncomingMessage> > & getData(){
         return std::ref(data);
       }
   
       std::function< void() > execute;
 
-      GenericTask( ):remote_deps_cnt(0),local_deps_cnt(0){}
+      GenericTask( ):remote_deps_cnt(0),local_deps_cnt(0),remote_deps(0),local_deps(0){}
+
+//#ifndef NDEBUG
+//      ~GenericTask(){
+//        logfileptr->OFS()<<"List size "<<data.size()<<std::endl;
+//        for(auto&& ptr : data){
+//          logfileptr->OFS()<<"Incoming msg "<<ptr->meta.src<<"->"<<ptr->meta.tgt<<" used by "<<ptr.use_count()<<std::endl;
+//        }
+//      }
+//#endif
   };
 
   class SparseTask: public GenericTask{

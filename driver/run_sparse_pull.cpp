@@ -152,6 +152,15 @@ int main(int argc, char **argv)
   }
 
   optionsFact.factorization = FANBOTH;
+  if( options.find("-alg") != options.end() ){
+    if(options["-alg"].front()=="FANBOTH"){
+      optionsFact.factorization = FANBOTH;
+    }
+    else if(options["-alg"].front()=="FANOUT"){
+      optionsFact.factorization = FANOUT;
+    }
+  }
+
 
   if( options.find("-refine") != options.end() ){
     optionsFact.order_refinement_str = options["-refine"].front();

@@ -286,7 +286,11 @@ namespace symPACK{
 
   void taskGraph::removeTask(const GenericTask::id_type & hash){
 #ifdef SP_THREADS
+    if(Multithreading::NumThread>1){
     std::lock_guard<std::mutex> lock(list_mutex_);
+    this->tasks_.erase(hash);
+    }
+    else
 #endif
     this->tasks_.erase(hash);
   }
@@ -294,24 +298,36 @@ namespace symPACK{
   void taskGraph::addTask(std::shared_ptr<GenericTask> & task){
 
 #ifdef SP_THREADS
+    if(Multithreading::NumThread>1){
     std::lock_guard<std::mutex> lock(list_mutex_);
+    this->tasks_.emplace(task->id,std::move(task));
+    }
+    else
 #endif
-//    return this->tasks_[hash] = task;
-    this->tasks_.emplace(task->id,task);
+    this->tasks_.emplace(task->id,std::move(task));
   }
 
   Int taskGraph::getTaskCount()
   {
+    Int val = 0;
 #ifdef SP_THREADS
+    if(Multithreading::NumThread>1){
     std::lock_guard<std::mutex> lock(list_mutex_);
+    val = tasks_.size();
+    }
+    else
 #endif
-    Int val = tasks_.size();
+    val = tasks_.size();
     return val;
   }
 
   taskGraph::task_iterator taskGraph::find_task( const GenericTask::id_type & hash ){
 #ifdef SP_THREADS
+    if(Multithreading::NumThread>1){
     std::lock_guard<std::mutex> lock(list_mutex_);
+    return tasks_.find(hash);
+    }
+    else
 #endif
     return tasks_.find(hash);
   }
@@ -321,6 +337,13 @@ namespace symPACK{
   }
 
   taskGraph& taskGraph::operator=( const taskGraph& g ){
+    //tasks_.clear();
+    ////do a deep copy
+    //for(auto && taskit : g.tasks_){
+    //  //auto task = *taskit.second;
+    //  std::shared_ptr<GenericTask> tptr = std::make_shared<GenericTask>(*taskit.second);
+    //  tasks_[taskit.first] = tptr;
+    //}
     tasks_ = g.tasks_;
   }
 

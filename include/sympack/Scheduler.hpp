@@ -55,8 +55,8 @@ such enhancements or derivative works thereof, in binary and source code form.
 #ifdef SP_THREADS
 #include <future>
 #include <mutex>
-#include <chrono>
 #endif
+#include <chrono>
 
 namespace symPACK{
 
@@ -167,6 +167,8 @@ namespace symPACK{
                 try{
                   func->execute();
                   success=true;
+                  //clear resources
+                  func->reset();
                   lock.lock();
                 }
                 catch(const MemoryAllocationException & e){
@@ -227,7 +229,7 @@ namespace symPACK{
         std::list<T> delayedTasks_;
         std::function<void()> threadInitHandle_;
         std::function<bool(T&)> extraTaskHandle_;
-        std::function<void(IncomingMessage *)> msgHandle;
+        std::function<void( std::shared_ptr<IncomingMessage> )> msgHandle;
         Int checkIncomingMessages_(taskGraph & graph);
         void run(MPI_Comm & workcomm, taskGraph & graph);
 
@@ -495,10 +497,10 @@ namespace symPACK{
       }
 
       bool comm_found = false;
-      IncomingMessage * msg = NULL;
+      IncomingMessage * msg = nullptr;
 
       do{
-        msg=NULL;
+        msg = nullptr;
 
         {
 #ifdef SP_THREADS
@@ -512,7 +514,7 @@ namespace symPACK{
             auto it = TestAsyncIncomingMessage();
             if(it!=gIncomingRecvAsync.end()){
               scope_timer(b,RM_MSG_ASYNC);
-              msg = *it;
+              msg = (*it);
               gIncomingRecvAsync.erase(it);
             }
             else if(this->done() && !gIncomingRecv.empty()){
@@ -528,7 +530,7 @@ namespace symPACK{
               //    it = cur_msg;
               //  }
               //}
-              msg = *it;
+              msg = (*it);
               gIncomingRecv.erase(it);
             }
           }
@@ -540,7 +542,7 @@ namespace symPACK{
 #endif
         }
 
-        if(msg!=NULL){
+        if(msg!=nullptr){
           scope_timer(a,WAIT_AND_UPDATE_DEPS);
           num_recv++;
 
@@ -555,7 +557,7 @@ namespace symPACK{
               upcxx_mutex.lock();
             }
 #endif
-            gdb_lock();
+            //gdb_lock();
 
             gIncomingRecv.push_back(msg);
 #ifdef SP_THREADS
@@ -565,48 +567,23 @@ namespace symPACK{
 #endif
 
 
-            msg = NULL;
+            msg = nullptr;
           }
 
-          if(msg!=NULL){
+          if(msg!=nullptr){
+            std::shared_ptr<IncomingMessage> msgPtr(msg);
+
             //TODO what are the reasons of failure ?
             bassert(success);
 
             if(msgHandle!=nullptr){
+          scope_timer(a,WAIT_USER_MSG_HANDLE);
               //call user handle
-              msgHandle(msg);
+              msgHandle(msgPtr);
             }
 
             auto taskit = graph.find_task(msg->meta.id);
             bassert(taskit!=graph.tasks_.end());
-#if 0
-            {
-              std::hash<std::string> hash_fn;
-              std::stringstream sstr;
-              sstr<<50<<"_"<<50<<"_"<<(Int)Solve::op_type::FU;
-              auto id = hash_fn(sstr.str());
-
-              SparseTask * tmp = ((SparseTask*)taskit->second.get());
-              Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
-              Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
-              std::string name;
-              switch(type){
-                case Solve::op_type::FUC:
-                  name="FUC";
-                  break;
-                case Solve::op_type::BUC:
-                  name="BUC";
-                  break;
-                case Solve::op_type::BU:
-                  name="BU";
-                  break;
-                case Solve::op_type::FU:
-                  name="FU";
-                  break;
-              }
-              logfileptr->OFS()<<"  receiving & updating "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
-            }
-#endif
             {
 #ifdef SP_THREADS
               if(Multithreading::NumThread>1){
@@ -614,7 +591,7 @@ namespace symPACK{
               }
 #endif
               taskit->second->remote_deps_cnt--;
-              taskit->second->addData(msg);
+              taskit->second->addData(msgPtr);
 
               if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
                 this->push(taskit->second);    
@@ -629,7 +606,7 @@ namespace symPACK{
             }
           }
         }
-      }while(msg!=NULL);
+      }while(msg!=nullptr);
 
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
@@ -857,16 +834,22 @@ namespace symPACK{
           }
         }
         else{
+          std::chrono::time_point<std::chrono::system_clock> start;
           while(graph.getTaskCount()>0 || !this->done()){
             if(np>1){
               num_msg = checkIncomingMessages_(graph);
             }
-            if(!this->done())
-            {
+
+//            start = std::chrono::system_clock::now();
+//            while(!this->done() && (std::chrono::system_clock::now() - start < std::chrono::milliseconds(1))   ){
+            while(!this->done()){// && (std::chrono::system_clock::now() - start < std::chrono::milliseconds(1))   ){
               //Pick a ready task
               curTask = this->top();
               this->pop();
               curTask->execute();
+              //clear resources
+              curTask->reset();
+upcxx::advance();
             }
           }
         }

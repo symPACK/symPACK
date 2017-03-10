@@ -368,10 +368,10 @@ namespace symPACK{
       switch(type){
         case Factorization::op_type::FACTOR:
           {
-            Task.remote_deps_cnt = AggregatesToRecv[tgt-1];
-            Task.local_deps_cnt = LocalAggregates[tgt-1];
+            Task.remote_deps = AggregatesToRecv[tgt-1];
+            Task.local_deps = LocalAggregates[tgt-1];
             //memory req is: aggregate to recv * mw[tgt] * mh[tgt]
-            mem_req = Task.remote_deps_cnt * mw[tgt] * mh[tgt] * sizeof(T);
+            mem_req = Task.remote_deps * mw[tgt] * mh[tgt] * sizeof(T);
 
             //extra work storage for potrf
             if(options_.decomposition == DecompositionType::LDL){
@@ -385,12 +385,12 @@ namespace symPACK{
             Int iOwner = Mapping_->Map(src-1,src-1);
             //If I own the factor, it is a local dependency
             if(iam==iOwner){
-              Task.remote_deps_cnt = 0;
-              Task.local_deps_cnt = 1;
+              Task.remote_deps = 0;
+              Task.local_deps = 1;
             }
             else{
-              Task.remote_deps_cnt = 1;
-              Task.local_deps_cnt = 0;                    
+              Task.remote_deps = 1;
+              Task.local_deps = 0;                    
             }
 
             Int iOwnerTgt = Mapping_->Map(tgt-1,tgt-1);
@@ -865,11 +865,17 @@ namespace symPACK{
       std::stringstream sstr;
       sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)type;
       Task.id = hash_fn(sstr.str());
+
+      pTask->init();
+
       graph.addTask(pTask);
 
 
     }
 
+//    for(auto & itpTask: graph.tasks_){
+//logfileptr->OFS()<<"Before 1 "<<itpTask.second.use_count()<<std::endl;
+//    } 
 
     logfileptr->OFS()<<"Maximum single task memory requirement is: "<<max_mem_req<<std::endl;
   }
@@ -889,6 +895,9 @@ namespace symPACK{
       switch(options_.factorization){
         case FANBOTH:
           FanBoth_New();
+          break;
+        case FANOUT:
+          FanBoth();
           break;
         default:
           FanBoth();
@@ -3107,7 +3116,7 @@ namespace symPACK{
         case DL:
           scheduler_ = new DLScheduler<std::list<FBTask>::iterator>();
           scheduler2_ = new DLScheduler<FBTask>();
-          scheduler_new_.reset(new DLScheduler< std::shared_ptr<GenericTask> >( ));
+          scheduler_new_ = std::make_shared<DLScheduler< std::shared_ptr<GenericTask> > >( );
           break;
         case MCT:
           scheduler_ = new MCTScheduler<std::list<FBTask>::iterator>();
@@ -3122,12 +3131,12 @@ namespace symPACK{
         case FIFO:
           scheduler_ = new FIFOScheduler<std::list<FBTask>::iterator>();
           scheduler2_ = new FIFOScheduler<FBTask>();
-          scheduler_new_.reset(new FIFOScheduler< std::shared_ptr<GenericTask> >( ));
+          scheduler_new_ = std::make_shared<FIFOScheduler< std::shared_ptr<GenericTask> > >( );
           break;
         default:
           scheduler_ = new DLScheduler<std::list<FBTask>::iterator>();
           scheduler2_ = new DLScheduler<FBTask>();
-          scheduler_new_.reset(new DLScheduler< std::shared_ptr<GenericTask> >( ));
+          scheduler_new_ = std::make_shared<DLScheduler< std::shared_ptr<GenericTask> > >( );
           break;
       }
       //SYMPACK_TIMER_STOP(SCHEDULER);

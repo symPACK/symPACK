@@ -869,7 +869,7 @@ inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode)
   Int first_pivot_idx = 0 ;
   Int tgt_fc = FirstCol();
 
-#if 0
+#if 1
   for(Int blkidx = first_pivot_idx; blkidx<src_snode->NZBlockCnt(); ++blkidx){
     NZBlockDesc & blk_desc = src_snode->GetNZBlockDesc(blkidx);
     Int nrows = src_snode->NRows(blkidx);
@@ -1045,7 +1045,7 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
       Int offset = 0;
 
       Int src_blkcnt = src_snode->NZBlockCnt();
-#if 0
+#if 1
       for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
         NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
         Int cur_src_nrows = src_snode->NRows(blkidx);
@@ -1270,7 +1270,7 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
       Int offset = 0;
 
       Int src_blkcnt = src_snode->NZBlockCnt();
-#if 0
+#if 1
       for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
         NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
         Int cur_src_nrows = src_snode->NRows(blkidx);
@@ -1519,6 +1519,7 @@ template<typename T, class Allocator>
 template<typename T, class Allocator>
 inline void SuperNode<T,Allocator>::InitIdxToBlk(){
 #ifndef ITREE
+gdb_lock();
   SYMPACK_TIMER_START(ARRAY_INSERT);
   for(Int blkidx=0; blkidx<meta_->blocks_cnt_;++blkidx){
     Int cur_fr = GetNZBlockDesc(blkidx).GIndex;

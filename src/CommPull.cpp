@@ -140,7 +140,7 @@ namespace symPACK{
     ownLocalStorage = false;
 
 #ifdef SP_THREADS
-    references=0;
+//    references=0;
 #endif
   }
 
@@ -248,6 +248,9 @@ namespace symPACK{
 
   void IncomingMessage::DeallocRemote(){
     if(!remoteDealloc){
+//#ifndef NDEBUG
+//      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<std::endl;
+//#endif
       remote_delete(GetRemotePtr());
       remoteDealloc=true;
     }
@@ -257,6 +260,16 @@ namespace symPACK{
       if(!isLocal && local_ptr!=NULL){
 #ifndef USE_LOCAL_ALLOCATE
         delete local_ptr;
+#else
+
+#if 1
+
+//#ifndef NDEBUG
+//      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<std::endl;
+//#endif
+      upcxx::global_ptr<char> tmp(local_ptr);
+      remote_delete(tmp);
+
 #else
 #ifdef SP_THREADS
         if(Multithreading::NumThread>1){
@@ -272,6 +285,7 @@ namespace symPACK{
           upcxx::global_ptr<char> tmp(local_ptr);
           upcxx::deallocate(tmp);
         }
+#endif
 #endif
       }
     }
