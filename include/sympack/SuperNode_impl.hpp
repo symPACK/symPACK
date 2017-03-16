@@ -85,7 +85,7 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows,
   //compute supernode size / width
   Int size = aiLc - aiFc +1;
   //compute maximum number of blocks, number of off-diagonal rows + 1
-  Int num_blocks = std::max(1,ai_num_rows-size + 1);
+  Int num_blocks = std::max((Int)1,ai_num_rows-size + 1);
   if(aiNZBlkCnt!=-1){
     num_blocks=aiNZBlkCnt;
   }
@@ -344,8 +344,8 @@ inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiG
     if(block_space==0 || nzval_space<cur_nzval_cnt){
       //need to resize storage space. this is expensive !
       Int size = Size();
-      Int extra_nzvals = std::max(0,cur_nzval_cnt - nzval_space);
-      Int extra_blocks = std::max(0,1 - block_space);
+      Int extra_nzvals = std::max((Int)0,cur_nzval_cnt - nzval_space);
+      Int extra_blocks = std::max((Int)0,(Int)1 - block_space);
       size_t new_size = storage_size_ + extra_nzvals*sizeof(T) + extra_blocks*sizeof(NZBlockDesc);
       size_t offset_meta = (char*)meta_ - (char*)nzval_;
       size_t offset_block = (char*)blocks_ - (char*)nzval_;
@@ -1721,8 +1721,8 @@ Int nrhs = pnrhs;
           Int src_nrows = src_contrib->NRows(src_nzblk_idx);
           src_lr = src_desc.GIndex+src_nrows-1;
 
-          Int src_local_fr = std::max(tgt_desc.GIndex - src_desc.GIndex,0);
-          Int tgt_local_fr = std::max(src_desc.GIndex - tgt_desc.GIndex,0);
+          Int src_local_fr = std::max(tgt_desc.GIndex - src_desc.GIndex,(Int)0);
+          Int tgt_local_fr = std::max(src_desc.GIndex - tgt_desc.GIndex,(Int)0);
           Int tgt_local_lr = std::min(src_lr,tgt_lr) - tgt_desc.GIndex;
 
           T * src = &src_contrib->GetNZval(src_desc.Offset)[src_local_fr*ldsol+nrhsOffset];

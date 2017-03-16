@@ -24,6 +24,9 @@ set(UPCXX_NAME upcxx)
       GIT_REPOSITORY ${UPCXX_REPO}
       UPDATE_COMMAND ""
       INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/upcxx_install
+      #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/upcxx_prefix
+      #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/upcxx_install
+      #INSTALL_COMMAND ""
       CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-upcxx --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER} CFLAGS=${CMAKE_C_FLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
       )
     else()
@@ -32,6 +35,9 @@ set(UPCXX_NAME upcxx)
       GIT_REPOSITORY ${UPCXX_REPO}
       UPDATE_COMMAND ""
       INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/upcxx_install
+      #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/upcxx_prefix
+      #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/upcxx_install
+      #INSTALL_COMMAND ""
       CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER} CFLAGS=${CMAKE_C_FLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
       )
     endif()

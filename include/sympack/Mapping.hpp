@@ -442,7 +442,7 @@ class ModWrap2DTreeMapping: public TreeMapping{
 
   protected:
       virtual Int GroupMap(Int i, Int j,Int iPRows, Int iNp){
-      return std::min(iNp-1,(int)(std::min(i,j)%iPRows + iPRows*floor((double)(std::max(i,j)%iNp)/(double)iPRows)));
+      return std::min(iNp-1,(Int)(std::min(i,j)%iPRows + iPRows*floor((double)(std::max(i,j)%iNp)/(double)iPRows)));
 }
 };
 

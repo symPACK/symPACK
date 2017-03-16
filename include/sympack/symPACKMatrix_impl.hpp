@@ -4034,7 +4034,7 @@ namespace symPACK{
 
       AsyncComms incomingRecv;
       AsyncComms outgoingSend;
-      Int numColFirst = std::max(1,iSize_ / np);
+      Int numColFirst = std::max((Int)1,iSize_ / np);
 
       logfileptr->OFS()<<"Starting Send"<<std::endl;
 

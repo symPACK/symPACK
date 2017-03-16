@@ -74,7 +74,7 @@ namespace symPACK{
       //compute supernode size / width
       Int size = aiLc - aiFc +1;
       //compute maximum number of blocks, number of off-diagonal rows + 1
-      Int num_blocks = std::max(1,ai_num_rows-size + 1);
+      Int num_blocks = std::max((Int)1,ai_num_rows-size + 1);
       if(aiNZBlkCnt!=-1){
         num_blocks=aiNZBlkCnt;
       }
@@ -331,8 +331,8 @@ namespace symPACK{
         if(block_space==0 || nzval_space<cur_nzval_cnt){
           //need to resize storage space. this is expensive !
           Int size = this->Size();
-          Int extra_nzvals = std::max(0,cur_nzval_cnt - nzval_space);
-          Int extra_blocks = std::max(0,1 - block_space);
+          Int extra_nzvals = std::max((Int)0,cur_nzval_cnt - nzval_space);
+          Int extra_blocks = std::max((Int)0,1 - block_space);
           size_t new_size = this->storage_size_ + extra_nzvals*sizeof(T) + extra_blocks*sizeof(NZBlockDesc);
           size_t offset_diag = (char*)this->diag_ - (char*)this->nzval_;
           size_t offset_meta = (char*)this->meta_ - (char*)this->nzval_;

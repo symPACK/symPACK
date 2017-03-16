@@ -454,7 +454,7 @@ namespace symPACK{
             Int npParent = levelGroups_[groupIdx_[parent]].Ranks().size();
             Int pFirstIdx = std::min(pstart[parent],npParent-1);
             Int npIdeal =(Int)std::round(npParent*proportion);
-            Int numProcs = std::max(1,std::min(npParent-pFirstIdx,npIdeal));
+            Int numProcs = std::max((Int)1,std::min(npParent-pFirstIdx,npIdeal));
             Int pFirst = levelGroups_[groupIdx_[parent]].Ranks().at(pFirstIdx);
 
             //Int npParent = procGroups_[parent].Ranks().size();
@@ -829,7 +829,7 @@ namespace symPACK{
                 Int npParent = levelGroups_[groupIdx_[parent]].Ranks().size();
                 Int pFirstIdx = std::min(pstart[parent],npParent-1);
                 Int npIdeal =(Int)std::round(npParent*proportion);
-                Int numProcs = std::max(1,std::min(npParent-pFirstIdx,npIdeal));
+                Int numProcs = std::max((Int)1,std::min(npParent-pFirstIdx,npIdeal));
                 Int pFirst = levelGroups_[groupIdx_[parent]].Ranks().at(pFirstIdx);
 
                 //Int npParent = procGroups_[parent].Ranks().size();
@@ -1308,7 +1308,7 @@ namespace symPACK{
                     Int npParent = levelGroups_[groupIdx_[parent]].Ranks().size();
                     Int pFirstIdx = std::min(pstart[parent],npParent-1);
                     Int npIdeal =(Int)std::round(npParent*proportion);
-                    Int numProcs = std::max(1,std::min(npParent-pFirstIdx,npIdeal));
+                    Int numProcs = std::max((Int)1,std::min(npParent-pFirstIdx,npIdeal));
                     Int pFirst = levelGroups_[groupIdx_[parent]].Ranks().at(pFirstIdx);
 
                     //Int npParent = procGroups_[parent].Ranks().size();

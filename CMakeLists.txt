@@ -428,6 +428,8 @@ install(FILES
   include/sympack/supernodalTaskGraph.hpp
   DESTINATION include/sympack)
 
+install (SCRIPT "${CMAKE_SOURCE_DIR}/cmake/gasnetPostInstall.cmake")
+install (SCRIPT "${CMAKE_SOURCE_DIR}/cmake/upcxxPostInstall.cmake")
 
 
 add_executable(run_sympack EXCLUDE_FROM_ALL driver/run_sparse_pull.cpp)

@@ -470,18 +470,18 @@ namespace symPACK{
 
 
   template< typename Task> 
-    int Scheduler<Task>::checkIncomingMessages_(taskGraph & graph)
+    Int Scheduler<Task>::checkIncomingMessages_(taskGraph & graph)
     {
       abort();
       return 0;
     }
 
   template<>
-    int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph & graph)
+    Int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph & graph)
     {
       scope_timer(a,CHECK_MESSAGE);
 
-      int num_recv = 0;
+      Int num_recv = 0;
 
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){

@@ -70,7 +70,7 @@ namespace symPACK{
           Int root,
           MPI_Comm          comm )
       {
-        Int mpirank, mpisize;
+        int mpirank, mpisize;
         MPI_Comm_rank( comm, &mpirank );
         MPI_Comm_size( comm, &mpisize );
 
@@ -101,7 +101,7 @@ template<typename _Container, typename _Size>
 int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size *stotdispls, MPI_Datatype sendtype,
                 _Container & recvbuf, MPI_Comm & comm, std::function< void(_Container &, size_t)> & resize_func){
 
-  Int mpirank, mpisize;
+  int mpirank, mpisize;
   MPI_Comm_rank( comm, &mpirank );
   MPI_Comm_size( comm, &mpisize );
 

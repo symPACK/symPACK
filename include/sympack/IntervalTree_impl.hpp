@@ -256,7 +256,7 @@ inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int 
 
   if(root->left!=NULL){
     if(closestL!=NULL){
-      if( std::min(0,end - root->left->i->high) < std::min(0,end - closestL->high)){
+      if( std::min((Int)0,end - root->left->i->high) < std::min((Int)0,end - closestL->high)){
         closestL = root->left->i;
       }
     }
@@ -265,7 +265,7 @@ inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int 
     }
 
     if(closestR!=NULL){
-      if( std::min(0,root->left->i->low - begin) < std::min(0,closestL->low - begin)){
+      if( std::min((Int)0,root->left->i->low - begin) < std::min((Int)0,closestL->low - begin)){
         closestR = root->left->i;
       }
     }
@@ -276,7 +276,7 @@ inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int 
 
   if(root->right!=NULL){
     if(closestL!=NULL){
-      if( std::min(0,end - root->right->i->high) < std::min(0,end - closestL->high)){
+      if( std::min((Int)0,end - root->right->i->high) < std::min((Int)0,end - closestL->high)){
         closestL = root->right->i;
       }
     }
@@ -285,7 +285,7 @@ inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int 
     }
 
     if(closestR!=NULL){
-      if( std::min(0,root->right->i->low - begin) < std::min(0,closestL->low - begin)){
+      if( std::min((Int)0,root->right->i->low - begin) < std::min((Int)0,closestL->low - begin)){
         closestR = root->right->i;
       }
     }

@@ -135,7 +135,7 @@ namespace symPACK{
       ~IncomingMessage();
       int Sender();
       bool Wait();
-      bool IsDone();
+      virtual bool IsDone();
       bool IsLocal();
       bool IsAsync();
       bool AllocLocal();
@@ -155,6 +155,19 @@ namespace symPACK{
       std::shared_ptr<IncomingMessage> chainedMsg;
       virtual size_t Size(){return msg_size;}
 
+      virtual bool IsDone(){
+        isDone = IncomingMessage::IsDone();
+        return isDone;
+      }
+
+      ChainedMessage(std::shared_ptr<IncomingMessage> amsg):IncomingMessage(){
+        data = nullptr;
+        chainedMsg = amsg;
+
+        isDone = amsg->IsDone(); 
+        ownLocalStorage = false;
+      }
+
       ChainedMessage(std::shared_ptr<C> adata, std::shared_ptr<IncomingMessage> amsg):IncomingMessage(){
         data = adata;
         chainedMsg = amsg;
@@ -162,12 +175,6 @@ namespace symPACK{
         isDone = amsg->IsDone(); 
         ownLocalStorage = false;
       }
-
-//#ifndef NDEBUG
-//      ~ChainedMessage(){
-//        logfileptr->OFS()<<"Deleting chained message from "<<chainedMsg->meta.src<<" to "<<chainedMsg->meta.tgt<<std::endl;
-//      }
-//#endif
   };
 
 

@@ -40,10 +40,8 @@ MPI_CFLAGS="${AVXFLAGS}" ; export MPI_CFLAGS  # flags for MPI_CC
 MPI_LIBS='' ; export MPI_LIBS      # libs for linking with MPI_CC
 MPIRUN_CMD='srun -n %N %C' # User must set GASNET_NODEFILE
 export MPIRUN_CMD  # launch command for MPI jobs
-#EXTRA_CONFIGURE_ARGS='--disable-aligned-segments --enable-pshm --enable-large-pshm' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
-#EXTRA_CONFIGURE_ARGS="--disable-auto-conduit-detect --enable-aries --enable-mpi --enable-pshm --enable-large-pshm --disable-aligned-segments"; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
-#EXTRA_CONFIGURE_ARGS="--disable-auto-conduit-detect --enable-aries --disable-aligned-segments  --enable-pshm --disable-pshm-posix --enable-pshm-xpmem"; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
-EXTRA_CONFIGURE_ARGS="--disable-auto-conduit-detect --enable-mpi --enable-smp --enable-aries --disable-aligned-segments --enable-pshm --disable-pshm-posix --enable-pshm-xpmem --enable-throttle-poll"
+#EXTRA_CONFIGURE_ARGS="--disable-auto-conduit-detect --enable-mpi --enable-smp --enable-aries --disable-aligned-segments --enable-pshm --disable-pshm-posix --enable-pshm-xpmem --enable-throttle-poll"
+EXTRA_CONFIGURE_ARGS="--disable-auto-conduit-detect --enable-mpi --disable-smp --enable-aries --disable-aligned-segments --disable-pshm --disable-pshm-posix --disable-pshm-xpmem --disable-throttle-poll --enable-segment-large"
 EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --enable-backtrace-execinfo"
 export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
 

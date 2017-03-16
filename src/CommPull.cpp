@@ -298,11 +298,15 @@ namespace symPACK{
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
         std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-        return event_ptr->async_try();
+        isDone = event_ptr->async_try();
+        return isDone; 
       }
       else
 #endif
-        return event_ptr->async_try();
+      {
+        isDone = event_ptr->async_try();
+        return isDone; 
+      }
     }
     else{
       return isDone;

@@ -564,8 +564,8 @@ namespace symPACK{
       bool        isMpi_;
       /// @brief MPI communicator
       MPI_Comm    pComm_;
-      Int         MPI_rank_;
-      Int         MPI_size_;
+      int         MPI_rank_;
+      int         MPI_size_;
     public:
       CommEnvironment(){
           isMpi_ = false;
@@ -616,8 +616,8 @@ namespace symPACK{
 
       inline bool IsMPI(){return isMpi_;}
       inline MPI_Comm & MPI_GetComm() {return pComm_;}
-      inline Int MPI_Size(){return MPI_size_;}
-      inline Int MPI_Rank(){return MPI_rank_;}
+      inline int MPI_Size(){return MPI_size_;}
+      inline int MPI_Rank(){return MPI_rank_;}
   };
 
 

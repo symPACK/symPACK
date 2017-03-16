@@ -36,6 +36,9 @@ else()
     URL_MD5 ${GASNET_MD5}
     #URL ${PROJECT_SOURCE_DIR}/tarballs/${GASNET_GZ}
     INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install
+    #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/gasnet_prefix
+    #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/gasnet_install
+    #INSTALL_COMMAND ""
     CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-gasnet --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
         )
 
@@ -67,6 +70,9 @@ else()
     URL_MD5 ${GASNET_MD5}
     #URL ${PROJECT_SOURCE_DIR}/tarballs/${GASNET_GZ}
     INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install
+    #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/gasnet_prefix
+    #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/gasnet_install
+    #INSTALL_COMMAND ""
     CONFIGURE_COMMAND <SOURCE_DIR>/configure  --enable-aries --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
     #CONFIGURE_COMMAND <SOURCE_DIR>/configure  --enable-pshm-hugetlbfs --enable-pshm-xpmem --enable-pshm --disable-pshm-posix --enable-aries --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
         )
@@ -112,6 +118,9 @@ else()
         URL_MD5 ${GASNET_MD5}
   #      URL ${PROJECT_SOURCE_DIR}/tarballs/${GASNET_GZ}
         INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install
+    #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/gasnet_prefix
+    #    INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/gasnet_install
+    #    INSTALL_COMMAND ""
         CONFIGURE_COMMAND <SOURCE_DIR>/configure --disable-aligned-segments --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
         )
   
