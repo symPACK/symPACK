@@ -1107,11 +1107,11 @@ namespace symPACK{
 
 
 
-  template <typename T>
-    void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<T>& pspmat, MPI_Comm comm );
+  template <typename SCALAR,typename INSCALAR>
+    void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm );
 
-  template <typename T>
-    void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<T>& pspmat, MPI_Comm comm )
+  template <typename SCALAR,typename INSCALAR>
+    void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm )
     {
 
           MPI_Errhandler_set(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
@@ -1126,7 +1126,7 @@ namespace symPACK{
   MPI_Type_commit(&typePtr);
 
   MPI_Datatype typeVal;
-  MPI_Type_contiguous( sizeof(T), MPI_BYTE, &typeVal );
+  MPI_Type_contiguous( sizeof(INSCALAR), MPI_BYTE, &typeVal );
   MPI_Type_commit(&typeVal);
 
       // Get the processor information within the current communicator
@@ -1215,18 +1215,20 @@ if(mpirank==mpisize-1){gdb_lock();}
 
 
       // Compute the number of columns on each processor
-      MPI_Offset myColPtrOffset = (2 + ((mpirank==0)?0:1) )* sizeof(Int)  + (firstNode)*sizeof(Int);
+      MPI_Offset myColPtrOffset = (2 + ((mpirank==0)?0:1) )* sizeof(Int)  + (firstNode)*sizeof(Int) + (mpirank==0?sizeof(Int):0);
 
       Int np1 = 0;
 
-      lens[0] = ((mpirank==0)?1:0);
-      lens[1] = (numColLocal + 1);
-      types[0] = typeInt;
-      types[1] = typeInt;
-      MPI_Get_address(&np1, &disps[0]);
-      MPI_Get_address(&pspmat.Localg_.colptr[0], &disps[1]);
-      MPI_Type_struct(2, lens, disps, types, &type);
-      MPI_Type_commit(&type);
+//      lens[0] = ((mpirank==0)?1:0);
+//      lens[1] = (numColLocal + 1);
+//      types[0] = typeInt;
+//      types[1] = typeInt;
+//      MPI_Get_address(&np1, &disps[0]);
+//      MPI_Get_address(&pspmat.Localg_.colptr[0], &disps[1]);
+      //MPI_Type_struct(2, lens, disps, types, &type);
+      //MPI_Type_commit(&type);
+
+
       //lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
       //lens[1] = (numColLocal + 1)*sizeof(Int);
 
@@ -1236,15 +1238,16 @@ if(mpirank==mpisize-1){gdb_lock();}
       //MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
       //MPI_Type_commit(&type);
 
-      err= MPI_File_read_at_all(fin, myColPtrOffset, MPI_BOTTOM, 1, type, &status);
+      err= MPI_File_read_at_all(fin, myColPtrOffset, &pspmat.Localg_.colptr[0], numColLocal+1, typeInt, &status);
 
+//      err= MPI_File_read_at_all(fin, myColPtrOffset, MPI_BOTTOM, 1, type, &status);
       if (err != MPI_SUCCESS) {
 #ifdef USE_ABORT
         abort();
 #endif
         throw std::logic_error( "error reading colptr" );
       }
-      MPI_Type_free(&type);
+//      MPI_Type_free(&type);
 
       {
         bassert(sizeof(Int)<=sizeof(Ptr));
@@ -1261,20 +1264,19 @@ if(mpirank==mpisize-1){gdb_lock();}
       //pspmat.Localg_.nnz = mynnz;
       pspmat.Localg_.nnz = pspmat.nnz;
       pspmat.Localg_.rowind.resize( mynnz );
-      pspmat.nzvalLocal.resize ( mynnz );
 
       //read rowIdx
       //  MPI_Offset myRowIdxOffset = (3 + ((mpirank==0)?0:1) )*sizeof(Int) + (pspmat.size+1 + (pspmat.Localg_.colptr[0]-1))*sizeof(Int);
-      MPI_Offset myRowIdxOffset = (3+((mpirank==0)?0:1))*sizeof(Int) + (pspmat.size+1 + (pspmat.Localg_.colptr[0]-1))*sizeof(Int);
+      MPI_Offset myRowIdxOffset = (3+((mpirank==0)?0:1))*sizeof(Int) + (pspmat.size+1 + (pspmat.Localg_.colptr[0]-1))*sizeof(Int) + (mpirank==0?sizeof(Int):0);
 
-      lens[0] = ((mpirank==0)?1:0);
-      lens[1] = mynnz;
-      types[0] = typeInt;
-      types[1] = typeInt;
-      MPI_Get_address(&np1, &disps[0]);
-      MPI_Get_address(&pspmat.Localg_.rowind[0], &disps[1]);
-      MPI_Type_struct(2, lens, disps, types, &type);
-      MPI_Type_commit(&type);
+//      lens[0] = ((mpirank==0)?1:0);
+//      lens[1] = mynnz;
+//      types[0] = typeInt;
+//      types[1] = typeInt;
+//      MPI_Get_address(&np1, &disps[0]);
+//      MPI_Get_address(&pspmat.Localg_.rowind[0], &disps[1]);
+//      MPI_Type_struct(2, lens, disps, types, &type);
+//      MPI_Type_commit(&type);
 
       //lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
       //lens[1] = mynnz*sizeof(Int);
@@ -1285,7 +1287,8 @@ if(mpirank==mpisize-1){gdb_lock();}
       //MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
       //MPI_Type_commit(&type);
 
-      err= MPI_File_read_at_all(fin, myRowIdxOffset, MPI_BOTTOM, 1, type,&status);
+      //err= MPI_File_read_at_all(fin, myRowIdxOffset, MPI_BOTTOM, 1, type,&status);
+      err= MPI_File_read_at_all(fin, myRowIdxOffset, &pspmat.Localg_.rowind[0], mynnz, typeInt,&status);
 
       if (err != MPI_SUCCESS) {
 #ifdef USE_ABORT
@@ -1293,7 +1296,7 @@ if(mpirank==mpisize-1){gdb_lock();}
 #endif
         throw std::logic_error( "error reading rowind" );
       }
-      MPI_Type_free(&type);
+      //MPI_Type_free(&type);
 
       {
         bassert(sizeof(int)<=sizeof(Idx));
@@ -1304,30 +1307,42 @@ if(mpirank==mpisize-1){gdb_lock();}
       }
 
       //read nzval
-      //  MPI_Offset myNzValOffset = (4 + ((mpirank==0)?0:1) )*sizeof(Int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Localg_.colptr[0]-1)*sizeof(T);
-      MPI_Offset myNzValOffset = (4+ ((mpirank==0)?0:1)  )*sizeof(Int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Localg_.colptr[0]-1)*sizeof(T);
+      //  MPI_Offset myNzValOffset = (4 + ((mpirank==0)?0:1) )*sizeof(Int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Localg_.colptr[0]-1)*sizeof(INSCALAR);
+      MPI_Offset myNzValOffset = (4+ ((mpirank==0)?0:1)  )*sizeof(Int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Localg_.colptr[0]-1)*sizeof(INSCALAR) + (mpirank==0?sizeof(Int):0);
 
 //TODO this cant work
-      lens[0] = ((mpirank==0)?1:0);
-      lens[1] = mynnz;
-      MPI_Get_address(&np1, &disps[0]);
-      MPI_Get_address(&pspmat.nzvalLocal[0], &disps[1]);
-      types[0] = typeInt;
-      types[1] = typeVal;
-      MPI_Type_struct(2, lens, disps, types, &type);
-      MPI_Type_commit(&type);
+//      lens[0] = ((mpirank==0)?1:0);
+//      lens[1] = mynnz;
+//      MPI_Get_address(&np1, &disps[0]);
+//      MPI_Get_address(&pspmat.nzvalLocal[0], &disps[1]);
+//      types[0] = typeInt;
+//      types[1] = typeVal;
+//      MPI_Type_struct(2, lens, disps, types, &type);
+//      MPI_Type_commit(&type);
 
 
 //      lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
-//      lens[1] = mynnz*sizeof(T);
+//      lens[1] = mynnz*sizeof(INSCALAR);
 //      MPI_Address(&np1, &disps[0]);
 //      MPI_Address(&pspmat.nzvalLocal[0], &disps[1]);
 //      MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
 //      MPI_Type_commit(&type);
 
-      logfileptr->OFS()<<"About to read NZVal, offset="<<myNzValOffset<<" nnz="<<mynnz<<std::endl;
+      if(typeid(SCALAR)==typeid(INSCALAR)){
+        pspmat.nzvalLocal.resize ( mynnz );
+        err = MPI_File_read_at_all(fin, myNzValOffset, &pspmat.nzvalLocal[0], mynnz, typeVal,&status);
+      }
+      else{
+        std::vector<INSCALAR> tmpBuf(mynnz);
+        err = MPI_File_read_at_all(fin, myNzValOffset, &tmpBuf[0], mynnz, typeVal,&status);
+        pspmat.nzvalLocal.resize ( mynnz );
+        for(Ptr i = 0; i<mynnz;i++){
+          pspmat.nzvalLocal[i] = SCALAR(tmpBuf[i]);
+        }
+      }
 
-      err = MPI_File_read_at_all(fin, myNzValOffset, MPI_BOTTOM, 1, type,&status);
+
+      //err = MPI_File_read_at_all(fin, myNzValOffset, MPI_BOTTOM, 1, type,&status);
 
       int error_code = err;
       if(error_code!=MPI_SUCCESS){
@@ -1359,7 +1374,7 @@ if(mpirank==mpisize-1){gdb_lock();}
         throw std::logic_error( "error reading nzval" );
       }
 
-      MPI_Type_free(&type);
+//      MPI_Type_free(&type);
 
 
       //convert to local references
@@ -1839,7 +1854,7 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
   double tstart = get_time();
   //Read the input matrix
   if(informatstr == "CSC"){
-    ParaReadDistSparseMatrix<SCALAR>( filename.c_str(), HMat, workcomm ); 
+    ParaReadDistSparseMatrix<SCALAR,INSCALAR>( filename.c_str(), HMat, workcomm ); 
   }
   else if (informatstr == "HB" || informatstr == "RB" || informatstr == "HARWELL_BOEING"){
     ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat);
