@@ -32,6 +32,9 @@ if(config_type STREQUAL "debug")
 add_compile_options("$<$<COMPILE_LANGUAGE:C>:-debug full>")
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-debug full>")
 add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-debug full>")
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-inline-debug-info>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-inline-debug-info>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-inline-debug-info>")
 endif()
 
 

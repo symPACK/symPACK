@@ -1114,9 +1114,20 @@ namespace symPACK{
     void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<T>& pspmat, MPI_Comm comm )
     {
 
+          MPI_Errhandler_set(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
+          MPI_Errhandler_set(comm, MPI_ERRORS_RETURN);
 
+  MPI_Datatype typeInt;
+  MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &typeInt );
+  MPI_Type_commit(&typeInt);
 
+  MPI_Datatype typePtr;
+  MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &typePtr );
+  MPI_Type_commit(&typePtr);
 
+  MPI_Datatype typeVal;
+  MPI_Type_contiguous( sizeof(T), MPI_BYTE, &typeVal );
+  MPI_Type_commit(&typeVal);
 
       // Get the processor information within the current communicator
       MPI_Barrier( comm );
@@ -1127,14 +1138,14 @@ namespace symPACK{
       int lens[3];
       MPI_Aint disps[3];
       MPI_Datatype types[3];
-
+if(mpirank==mpisize-1){gdb_lock();}
 
 
 
 
       Int err = 0;
 
-      int filemode = MPI_MODE_RDONLY | MPI_MODE_UNIQUE_OPEN;
+      int filemode = MPI_MODE_RDONLY;// | MPI_MODE_UNIQUE_OPEN;
 
       MPI_File fin;
       MPI_Status status;
@@ -1207,14 +1218,23 @@ namespace symPACK{
       MPI_Offset myColPtrOffset = (2 + ((mpirank==0)?0:1) )* sizeof(Int)  + (firstNode)*sizeof(Int);
 
       Int np1 = 0;
-      lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
-      lens[1] = (numColLocal + 1)*sizeof(Int);
 
-      MPI_Address(&np1, &disps[0]);
-      MPI_Address(&pspmat.Localg_.colptr[0], &disps[1]);
-
-      MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
+      lens[0] = ((mpirank==0)?1:0);
+      lens[1] = (numColLocal + 1);
+      types[0] = typeInt;
+      types[1] = typeInt;
+      MPI_Get_address(&np1, &disps[0]);
+      MPI_Get_address(&pspmat.Localg_.colptr[0], &disps[1]);
+      MPI_Type_struct(2, lens, disps, types, &type);
       MPI_Type_commit(&type);
+      //lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
+      //lens[1] = (numColLocal + 1)*sizeof(Int);
+
+      //MPI_Get_address(&np1, &disps[0]);
+      //MPI_Get_address(&pspmat.Localg_.colptr[0], &disps[1]);
+
+      //MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
+      //MPI_Type_commit(&type);
 
       err= MPI_File_read_at_all(fin, myColPtrOffset, MPI_BOTTOM, 1, type, &status);
 
@@ -1247,14 +1267,23 @@ namespace symPACK{
       //  MPI_Offset myRowIdxOffset = (3 + ((mpirank==0)?0:1) )*sizeof(Int) + (pspmat.size+1 + (pspmat.Localg_.colptr[0]-1))*sizeof(Int);
       MPI_Offset myRowIdxOffset = (3+((mpirank==0)?0:1))*sizeof(Int) + (pspmat.size+1 + (pspmat.Localg_.colptr[0]-1))*sizeof(Int);
 
-      lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
-      lens[1] = mynnz*sizeof(Int);
-
-      MPI_Address(&np1, &disps[0]);
-      MPI_Address(&pspmat.Localg_.rowind[0], &disps[1]);
-
-      MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
+      lens[0] = ((mpirank==0)?1:0);
+      lens[1] = mynnz;
+      types[0] = typeInt;
+      types[1] = typeInt;
+      MPI_Get_address(&np1, &disps[0]);
+      MPI_Get_address(&pspmat.Localg_.rowind[0], &disps[1]);
+      MPI_Type_struct(2, lens, disps, types, &type);
       MPI_Type_commit(&type);
+
+      //lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
+      //lens[1] = mynnz*sizeof(Int);
+
+      //MPI_Address(&np1, &disps[0]);
+      //MPI_Address(&pspmat.Localg_.rowind[0], &disps[1]);
+
+      //MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
+      //MPI_Type_commit(&type);
 
       err= MPI_File_read_at_all(fin, myRowIdxOffset, MPI_BOTTOM, 1, type,&status);
 
@@ -1278,21 +1307,50 @@ namespace symPACK{
       //  MPI_Offset myNzValOffset = (4 + ((mpirank==0)?0:1) )*sizeof(Int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Localg_.colptr[0]-1)*sizeof(T);
       MPI_Offset myNzValOffset = (4+ ((mpirank==0)?0:1)  )*sizeof(Int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Localg_.colptr[0]-1)*sizeof(T);
 
-      lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
-      lens[1] = mynnz*sizeof(T);
-
-      MPI_Address(&np1, &disps[0]);
-      MPI_Address(&pspmat.nzvalLocal[0], &disps[1]);
-
-      //types[0] = MPI_BYTE;
-      //types[1] = MPI_BYTE;
-
-      //MPI_Type_create_struct(2, lens, disps, types, &type);
-      MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
+//TODO this cant work
+      lens[0] = ((mpirank==0)?1:0);
+      lens[1] = mynnz;
+      MPI_Get_address(&np1, &disps[0]);
+      MPI_Get_address(&pspmat.nzvalLocal[0], &disps[1]);
+      types[0] = typeInt;
+      types[1] = typeVal;
+      MPI_Type_struct(2, lens, disps, types, &type);
       MPI_Type_commit(&type);
 
 
+//      lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
+//      lens[1] = mynnz*sizeof(T);
+//      MPI_Address(&np1, &disps[0]);
+//      MPI_Address(&pspmat.nzvalLocal[0], &disps[1]);
+//      MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
+//      MPI_Type_commit(&type);
+
+      logfileptr->OFS()<<"About to read NZVal, offset="<<myNzValOffset<<" nnz="<<mynnz<<std::endl;
+
       err = MPI_File_read_at_all(fin, myNzValOffset, MPI_BOTTOM, 1, type,&status);
+
+      int error_code = err;
+      if(error_code!=MPI_SUCCESS){
+        char error_string[BUFSIZ];
+        int length_of_error_string, error_class;
+
+        MPI_Error_class(error_code, &error_class);
+        MPI_Error_string(error_class, error_string, &length_of_error_string);
+        logfileptr->OFS()<<error_string<<std::endl;
+        MPI_Error_string(error_code, error_string, &length_of_error_string);
+        logfileptr->OFS()<<error_string<<std::endl;
+
+        //now check the status
+        error_code = status.MPI_ERROR;
+        if(error_code != MPI_SUCCESS){
+          MPI_Error_class(error_code, &error_class);
+          MPI_Error_string(error_class, error_string, &length_of_error_string);
+          logfileptr->OFS()<<error_string<<std::endl;
+          MPI_Error_string(error_code, error_string, &length_of_error_string);
+          logfileptr->OFS()<<error_string<<std::endl;
+        }
+        gdb_lock();
+      }
 
       if (err != MPI_SUCCESS) {
 #ifdef USE_ABORT
@@ -1305,7 +1363,7 @@ namespace symPACK{
 
 
       //convert to local references
-      for( Int i = 1; i < numColLocal + 1; i++ ){
+      for( Idx i = 1; i < numColLocal + 1; i++ ){
         pspmat.Localg_.colptr[i] = pspmat.Localg_.colptr[i] -  pspmat.Localg_.colptr[0] + 1;
       }
       pspmat.Localg_.colptr[0]=1;
@@ -1314,6 +1372,9 @@ namespace symPACK{
 
       MPI_File_close(&fin);
 
+  MPI_Type_free(&typeVal);
+  MPI_Type_free(&typePtr);
+  MPI_Type_free(&typeInt);
       return ;
 
     }		// -----  end of function ParaReadDistSparseMatrix  ----- 

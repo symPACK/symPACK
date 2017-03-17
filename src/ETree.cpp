@@ -359,8 +359,8 @@ namespace symPACK{
     if(mpirank<mpisize-1){
       //        logfileptr->OFS()<<"my parent now is: "<<myParent<<std::endl;
       //        logfileptr->OFS()<<"my ancstr now is: "<<myAncstr<<std::endl;
-      logfileptr->OFS()<<"parent now is: "<<parent_<<std::endl;
-      logfileptr->OFS()<<"ancstr now is: "<<ancstr<<std::endl;
+      //logfileptr->OFS()<<"parent now is: "<<parent_<<std::endl;
+      //logfileptr->OFS()<<"ancstr now is: "<<ancstr<<std::endl;
       MPI_Send(&parent_[0],(fc+tmpGraph.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,tmpGraph.GetComm());
       MPI_Send(&ancstr[0],(fc+tmpGraph.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,tmpGraph.GetComm());
     }
@@ -450,8 +450,12 @@ namespace symPACK{
       }
     }
     
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
     //Broadcast  
-    MPI_Bcast(&parent_[0],n_*sizeof(Int),MPI_BYTE,0,aComm);
+    MPI_Bcast(&parent_[0],n_,type,0,aComm);
+        MPI_Type_free(&type);
 
     SYMPACK_TIMER_STOP(Construct_Etree_Classic);
 

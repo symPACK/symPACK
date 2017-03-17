@@ -167,6 +167,9 @@ namespace symPACK{
     bool isSameIdx = typeid(MMDInt) == typeid(Idx);
     bool isSamePtr = typeid(MMDInt) == typeid(Ptr);
 
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
 
     MMDInt N = g.VertexCount();
 
@@ -249,12 +252,18 @@ namespace symPACK{
       invp.resize(N);
     }
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,comm);
+    MPI_Bcast(&invp[0],N,type,0,comm);
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
       Int node = invp[i-1];
       perm[node-1] = i;
     }
+
+        MPI_Type_free(&type);
+
+
+
+
   }
 
 
@@ -276,6 +285,9 @@ namespace symPACK{
     bool isSameIdx = typeid(RCMInt) == typeid(Idx);
     bool isSamePtr = typeid(RCMInt) == typeid(Ptr);
 
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
 
     RCMInt N = g.VertexCount();
 
@@ -357,12 +369,13 @@ namespace symPACK{
       invp.resize(N);
     }
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,comm);
+    MPI_Bcast(&invp[0],N,type,0,comm);
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
       Int node = invp[i-1];
       perm[node-1] = i;
     }
+        MPI_Type_free(&type);
   }
 
 
@@ -380,6 +393,9 @@ namespace symPACK{
   void Ordering::NDBOX(Int size, MPI_Comm comm){
     int iam =0;
     int np =1;
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
     MPI_Comm_rank(comm,&iam);
     MPI_Comm_size(comm,&np);
     invp.resize(size);
@@ -397,12 +413,13 @@ namespace symPACK{
     }
 
     // broadcast invp
-    MPI_Bcast(&invp[0],size*sizeof(int),MPI_BYTE,0,comm);
+    MPI_Bcast(&invp[0],size,type,0,comm);
     perm.resize(size);
     for(Int i = 1; i <=size; ++i){
       Int node = invp[i-1];
       perm[node-1] = i;
     }
+        MPI_Type_free(&type);
   }
 
   void Ordering::NDGRID(Int size, MPI_Comm comm){

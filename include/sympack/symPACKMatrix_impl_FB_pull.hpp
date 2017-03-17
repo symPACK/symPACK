@@ -1202,11 +1202,15 @@ template <typename T> void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> &
 
   //Build a Alltoallv communication for Updates
   {
+    MPI_Datatype type;
+    MPI_Type_contiguous( sizeof(std::pair<Idx,Idx>), MPI_BYTE, &type );
+    MPI_Type_commit(&type);
+
     //compute send sizes
     vector<int> ssizes(np,0);
     int numPairs = 0;
     for(auto itp = Updates.begin();itp!=Updates.end();itp++){
-      ssizes[itp->first] = itp->second.size()*sizeof(std::pair<Idx,Idx>);
+      ssizes[itp->first] = itp->second.size();
       numPairs+=itp->second.size();
     }
 
@@ -1246,8 +1250,9 @@ template <typename T> void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> &
     //logfileptr->OFS()<<"Recv displs: "<<rdispls<<std::endl;
 
     //Now do the alltoallv
-    vector<std::pair<Idx, Idx> > recvbuf(rdispls.back()/sizeof(std::pair<Idx,Idx>));
-    MPI_Alltoallv(&sendbuf[0],&ssizes[0],&sdispls[0],MPI_BYTE,&recvbuf[0],&rsizes[0],&rdispls[0],MPI_BYTE,CommEnv_->MPI_GetComm());
+
+    vector<std::pair<Idx, Idx> > recvbuf(rdispls.back());
+    MPI_Alltoallv(&sendbuf[0],&ssizes[0],&sdispls[0],type,&recvbuf[0],&rsizes[0],&rdispls[0],type,CommEnv_->MPI_GetComm());
 
     //logfileptr->OFS()<<"Recv updates: ";
     //for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
@@ -1266,6 +1271,8 @@ template <typename T> void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> &
       }
     }
 
+    MPI_Type_free(&type);
+
     //logfileptr->OFS()<<"Local updates: ";
     //for(auto it = LocalUpdates.begin();it!=LocalUpdates.end();it++){
     //  logfileptr->OFS()<<it->first<<" = "<<it->second<<" | ";
@@ -1279,11 +1286,14 @@ template <typename T> void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> &
 
   //Build a Alltoallv communication for sendAfter
   {
+    MPI_Datatype type;
+    MPI_Type_contiguous( sizeof(std::pair<Idx,Idx>), MPI_BYTE, &type );
+    MPI_Type_commit(&type);
     //compute send sizes
     vector<int> ssizes(np,0);
     int numPairs = 0;
     for(auto itp = sendAfter.begin();itp!=sendAfter.end();itp++){
-      ssizes[itp->first] = itp->second.size()*sizeof(std::pair<Idx,Idx>);
+      ssizes[itp->first] = itp->second.size();
       numPairs+=itp->second.size();
     }
 
@@ -1323,8 +1333,8 @@ template <typename T> void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> &
     //logfileptr->OFS()<<"Recv displs: "<<rdispls<<std::endl;
 
     //Now do the alltoallv
-    vector<std::pair<Idx, Idx> > recvbuf(rdispls.back()/sizeof(std::pair<Idx,Idx>));
-    MPI_Alltoallv(&sendbuf[0],&ssizes[0],&sdispls[0],MPI_BYTE,&recvbuf[0],&rsizes[0],&rdispls[0],MPI_BYTE,CommEnv_->MPI_GetComm());
+    vector<std::pair<Idx, Idx> > recvbuf(rdispls.back());
+    MPI_Alltoallv(&sendbuf[0],&ssizes[0],&sdispls[0],type,&recvbuf[0],&rsizes[0],&rdispls[0],type,CommEnv_->MPI_GetComm());
 
     //logfileptr->OFS()<<"Recv sendAfter: ";
     //for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
@@ -1350,19 +1360,19 @@ template <typename T> void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> &
     sendbuf.resize(mLocalSendAfter.size());
     std::copy(mLocalSendAfter.begin(),mLocalSendAfter.end(),sendbuf.begin());
 
-    int sendsize = sendbuf.size()*sizeof(std::pair<Idx,Idx>);
+    int sendsize = sendbuf.size();
     MPI_Allgather(&sendsize,sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,CommEnv_->MPI_GetComm());
     rdispls[0] = 0;
     std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
 
-    recvbuf.resize(rdispls.back()/sizeof(std::pair<Idx,Idx>));
-    MPI_Allgatherv(&sendbuf[0],sendsize,MPI_BYTE,&recvbuf[0],&rsizes[0],&rdispls[0],MPI_BYTE,CommEnv_->MPI_GetComm());
+    recvbuf.resize(rdispls.back());
+    MPI_Allgatherv(&sendbuf[0],sendsize,type,&recvbuf[0],&rsizes[0],&rdispls[0],type,CommEnv_->MPI_GetComm());
 
     //rebuild a map structure
     sendAfter.clear();
     for(int p=0;p<np;p++){
-      int start = rdispls[p]/sizeof(std::pair<Idx,Idx>);
-      int end = rdispls[p+1]/sizeof(std::pair<Idx,Idx>);
+      int start = rdispls[p];
+      int end = rdispls[p+1];
 
       for(int idx = start; idx<end;idx++){
         sendAfter[p][recvbuf[idx].first] = recvbuf[idx].second;
@@ -1401,6 +1411,7 @@ template <typename T> void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> &
         prevSnode = supno;
       }
     }
+    MPI_Type_free(&type);
   }
 
   MPI_Allreduce(MPI_IN_PLACE,&AggregatesToRecv[0],AggregatesToRecv.size(),MPI_INT,MPI_SUM,CommEnv_->MPI_GetComm());

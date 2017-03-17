@@ -3971,21 +3971,27 @@ namespace symPACK{
       std::partial_sum(rsizes.begin(),rsizes.end(),&rdisplsStructure[1]);
       superStructure.resize(rdisplsStructure.back());
 
+
+
+    MPI_Datatype type;
+    MPI_Type_contiguous( sizeof(int), MPI_BYTE, &type );
+    MPI_Type_commit(&type);
+
       //turn everything into byte sizes
-      for(int p = 0; p<ssizes.size();p++){ ssizes[p]*=sizeof(int); }
-      for(int p = 0; p<rsizes.size();p++){ rsizes[p]*=sizeof(int); }
-      for(int p = 0; p<sdispls.size();p++){ sdispls[p]*=sizeof(int); }
-      for(int p = 0; p<rdisplsStructure.size();p++){ rdisplsStructure[p]*=sizeof(int); }
+      //for(int p = 0; p<ssizes.size();p++){ ssizes[p]*=sizeof(int); }
+      //for(int p = 0; p<rsizes.size();p++){ rsizes[p]*=sizeof(int); }
+      //for(int p = 0; p<sdispls.size();p++){ sdispls[p]*=sizeof(int); }
+      //for(int p = 0; p<rdisplsStructure.size();p++){ rdisplsStructure[p]*=sizeof(int); }
 
       //Do the alltoallv to get the structures        
-      MPI_Alltoallv(&sSuperStructure[0], &ssizes[0], &sdispls[0], MPI_BYTE,
-          &superStructure[0], &rsizes[0], &rdisplsStructure[0], MPI_BYTE,
+      MPI_Alltoallv(&sSuperStructure[0], &ssizes[0], &sdispls[0], type,
+          &superStructure[0], &rsizes[0], &rdisplsStructure[0], type,
           pMat.comm);
 
       //loop through received structure and create supernodes
       for(Int p = 0; p<all_np; p++){
-        int pos = rdisplsStructure[p]/sizeof(int);
-        int end = rdisplsStructure[p+1]/sizeof(int);
+        int pos = rdisplsStructure[p];
+        int end = rdisplsStructure[p+1];
         while(pos<end){
           Int I = superStructure[pos++];
           Int nzBlockCnt = numBlk_[I-1];
@@ -4004,6 +4010,7 @@ namespace symPACK{
           }
         }
       } 
+    MPI_Type_free(&type);
     }
 
 
@@ -5581,12 +5588,20 @@ namespace symPACK{
         xlindx.resize(totalVertexCnt+1);
       }
       //compute receive displacements
+
+    MPI_Datatype type;
+    MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &type );
+    MPI_Type_commit(&type);
+    MPI_Datatype typeIdx;
+    MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &typeIdx );
+    MPI_Type_commit(&typeIdx);
+
       std::vector<int> rsizes(np,0);
-      for(int p = 0; p<np;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
+      for(int p = 0; p<np;p++){rsizes[p] = (int)remoteVertexCnt[p];}
       std::vector<int> rdispls(np+1,0);
       rdispls[0]=0;
       std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-      MPI_Gatherv(&locXlindx_[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&xlindx[0],&rsizes[0],&rdispls[0],MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Gatherv(&locXlindx_[0],localVertexCnt,type,&xlindx[0],&rsizes[0],&rdispls[0],type,0,CommEnv_->MPI_GetComm());
 
 
       Ptr localEdgeCnt = locLindx_.size();
@@ -5612,10 +5627,12 @@ namespace symPACK{
 
       //compute receive displacements
       rsizes.assign(np,0);
-      for(int p = 0; p<np;p++){rsizes[p] = (int)remoteEdgeCnt[p]*sizeof(Idx);}
+      for(int p = 0; p<np;p++){rsizes[p] = (int)remoteEdgeCnt[p];}
       rdispls[0]=0;
       std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-      MPI_Gatherv(&locLindx_[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,&lindx[0],&rsizes[0],&rdispls[0],MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Gatherv(&locLindx_[0],localEdgeCnt,typeIdx,&lindx[0],&rsizes[0],&rdispls[0],typeIdx,0,CommEnv_->MPI_GetComm());
+    MPI_Type_free(&typeIdx);
+    MPI_Type_free(&type);
     }
 
 

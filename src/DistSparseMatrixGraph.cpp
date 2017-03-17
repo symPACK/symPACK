@@ -388,6 +388,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
   }
 
   void DistSparseMatrixGraph::permute_(Int * invp, Idx * newVertexDist, Int invpbaseval){
+    assert(sizeof(Ptr)>=sizeof(Idx));
+
     SYMPACK_TIMER_START(PERMUTE);
 
     //handle default parameter values
@@ -400,6 +402,12 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     Int newFirstCol = newVertexDist[mpirank]-baseval; //0 based
     Ptr newVtxCount = newVertexDist[mpirank+1] - newVertexDist[mpirank];
 
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
+
+    //express Ptr in terms of Idx
+    size_t PtrIdx_sz = std::ceil(sizeof(Ptr)/sizeof(Idx));
 
     std::vector<int> sizes(mpisize,0);
 
@@ -413,7 +421,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
       //Idx pdest = min( (Idx)mpisize-1, permCol / colPerProc);
-      sizes[pdest] += (colend - colbeg)*sizeof(Idx) + sizeof(Ptr) + sizeof(Idx); //extra 2 are for the count of elements and the permuted columns
+      //sizes[pdest] += (colend - colbeg)*sizeof(Idx) + sizeof(Ptr) + sizeof(Idx); //extra 2 are for the count of elements and the permuted columns
+      sizes[pdest] += (colend - colbeg) + PtrIdx_sz + 1; //extra 2 are for the count of elements and the permuted columns
 
       //now permute rows
       for(Ptr jptr = colbeg; jptr<colend; jptr++){
@@ -441,7 +450,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     displs[0] = 0;
     std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
     Int totSend = displs.back();//std::accumulate(sizes.begin(),sizes.end(),0);
-    std::vector<char> sbuf(totSend);
+    //std::vector<char> sbuf(totSend);
+    std::vector<Idx> sbuf(totSend);
 
     //pack
     for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
@@ -456,12 +466,18 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       //Idx pdest = min((Idx)mpisize-1, permCol / colPerProc);
 
       int & pos = displs[pdest];
+      //Idx * pPermCol = (Idx*)&sbuf[pos];
+      //pos+=sizeof(Idx);
+      //Ptr * pRowsCnt = (Ptr*)&sbuf[pos];
+      //pos+=sizeof(Ptr);
+      //Idx * pPermRows = (Idx*)&sbuf[pos];
+      //pos+=(colend-colbeg)*sizeof(Idx);
       Idx * pPermCol = (Idx*)&sbuf[pos];
-      pos+=sizeof(Idx);
+      pos++;
       Ptr * pRowsCnt = (Ptr*)&sbuf[pos];
-      pos+=sizeof(Ptr);
+      pos+=PtrIdx_sz;
       Idx * pPermRows = (Idx*)&sbuf[pos];
-      pos+=(colend-colbeg)*sizeof(Idx);
+      pos+=(colend-colbeg);
 
 
       *pPermCol = permCol;
@@ -488,9 +504,11 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     rdispls[0] = 0;
     std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
     Ptr totRecv = rdispls.back();//std::accumulate(rsizes.begin(),rsizes.end(),0);
-    std::vector<char> rbuf(totRecv);
+    //std::vector<char> rbuf(totRecv);
+    std::vector<Idx> rbuf(totRecv);
 
-    MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],MPI_BYTE,&rbuf[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
+    //MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],MPI_BYTE,&rbuf[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
+    MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],type,&rbuf[0],&rsizes[0],&rdispls[0],type,comm);
 
     sbuf.clear();
     sizes.clear(); 
@@ -503,12 +521,18 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     Ptr rpos = 0; 
     colptr[0]=baseval;
     while(rpos<totRecv){
+      //Idx * permCol = (Idx*)&rbuf[rpos];
+      //rpos+=sizeof(Idx);
+      //Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
+      //rpos+=sizeof(Ptr);
+      //Idx * permRows = (Idx*)&rbuf[rpos];
+      //rpos += (*rowsCnt)*sizeof(Idx);
       Idx * permCol = (Idx*)&rbuf[rpos];
-      rpos+=sizeof(Idx);
+      rpos++;
       Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
-      rpos+=sizeof(Ptr);
+      rpos+=PtrIdx_sz;
       Idx * permRows = (Idx*)&rbuf[rpos];
-      rpos += (*rowsCnt)*sizeof(Idx);
+      rpos += (*rowsCnt);
 
       Idx locCol = *permCol - newFirstCol;
       colptr[locCol+1] = *rowsCnt; 
@@ -522,12 +546,18 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     std::vector<Ptr> colpos = colptr;
     rpos = 0;
     while(rpos<totRecv){
+      //Idx * permCol = (Idx*)&rbuf[rpos];
+      //rpos+=sizeof(Idx);
+      //Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
+      //rpos+=sizeof(Ptr);
+      //Idx * permRows = (Idx*)&rbuf[rpos];
+      //rpos += (*rowsCnt)*sizeof(Idx);
       Idx * permCol = (Idx*)&rbuf[rpos];
-      rpos+=sizeof(Idx);
+      rpos++;
       Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
-      rpos+=sizeof(Ptr);
+      rpos+=PtrIdx_sz;
       Idx * permRows = (Idx*)&rbuf[rpos];
-      rpos += (*rowsCnt)*sizeof(Idx);
+      rpos += (*rowsCnt);
 
       Idx locCol = *permCol - newFirstCol;
 
@@ -545,6 +575,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     //copy newVertexDist into vertexDist
     std::copy(newVertexDist,newVertexDist+mpisize+1,&vertexDist[0]);
 
+        MPI_Type_free(&type);
     if(sorted){
       SortEdges();
     }

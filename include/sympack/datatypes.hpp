@@ -96,8 +96,8 @@ namespace symPACK {
 
 
   typedef Idx64 Ptr;
-  //typedef Idx32 Idx;
-  typedef Idx64 Idx;
+  typedef Idx32 Idx;
+  //typedef Idx64 Idx;
 
 
 
