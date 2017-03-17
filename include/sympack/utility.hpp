@@ -1138,7 +1138,7 @@ namespace symPACK{
       int lens[3];
       MPI_Aint disps[3];
       MPI_Datatype types[3];
-if(mpirank==mpisize-1){gdb_lock();}
+//if(mpirank==mpisize-1){gdb_lock();}
 
 
 
