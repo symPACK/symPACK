@@ -1468,6 +1468,13 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     Idx localVertexCnt = LocalVertexCount();
     std::vector<Idx> remoteVertexCnt(mpisize,0);
     MPI_Allgather(&localVertexCnt,sizeof(localVertexCnt),MPI_BYTE,&remoteVertexCnt[0],sizeof(localVertexCnt),MPI_BYTE,comm);
+
+
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
+
+
     if(iam==proot){
       Idx totalVertexCnt = std::accumulate(remoteVertexCnt.begin(),remoteVertexCnt.end(),0,std::plus<Idx>());
       g.colptr.resize(totalVertexCnt+1);
@@ -1475,36 +1482,40 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
 
       //compute receive displacements
       std::vector<int> rsizes(mpisize,0);
-      for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
+      for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p];}
       std::vector<int> rdispls(mpisize+1,0);
       rdispls[0]=0;
       std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-      MPI_Gatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&g.colptr[0],&rsizes[0],&rdispls[0],MPI_BYTE,proot,comm);
+      MPI_Gatherv(&colptr[0],localVertexCnt,type,&g.colptr[0],&rsizes[0],&rdispls[0],type,proot,comm);
     }
     else{
-    MPI_Gatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,NULL,NULL,NULL,MPI_BYTE,proot,comm);
+    MPI_Gatherv(&colptr[0],localVertexCnt,type,NULL,NULL,NULL,type,proot,comm);
     }
 
+        MPI_Type_free(&type);
 
     Ptr localEdgeCnt = LocalEdgeCount();
     std::vector<Ptr> remoteEdgeCnt(mpisize,0);
     MPI_Gather(&localEdgeCnt,sizeof(localEdgeCnt),MPI_BYTE,&remoteEdgeCnt[0],sizeof(localEdgeCnt),MPI_BYTE,proot,comm);
     Ptr totalEdgeCnt = std::accumulate(remoteEdgeCnt.begin(),remoteEdgeCnt.end(),0,std::plus<Ptr>());
 
+        MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
 
     if(iam==proot){
     g.rowind.resize(totalEdgeCnt);
     //compute receive displacements
       std::vector<int> rsizes(mpisize,0);
       std::vector<int> rdispls(mpisize+1,0);
-    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p]*sizeof(Idx);}
+    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p];}
     rdispls[0]=0;
     std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-    MPI_Gatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,&g.rowind[0],&rsizes[0],&rdispls[0],MPI_BYTE,proot,comm);
+    MPI_Gatherv(&rowind[0],localEdgeCnt,type,&g.rowind[0],&rsizes[0],&rdispls[0],type,proot,comm);
     }
     else{
-    MPI_Gatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,NULL,NULL,NULL,MPI_BYTE,proot,comm);
+    MPI_Gatherv(&rowind[0],localEdgeCnt,type,NULL,NULL,NULL,type,proot,comm);
     }
+        MPI_Type_free(&type);
 
     if(iam==proot){
       //fix colptr
