@@ -19,6 +19,18 @@ set(UPCXX_NAME upcxx)
   set(UPCXX_REPO https://bitbucket.org/upcxx/upcxx.git)
 
     if(ENABLE_KNL)
+    if(ENABLE_KNL_ONLY)
+  ExternalProject_Add(${UPCXX_NAME}
+      DEPENDS ${GASNET_NAME}
+      GIT_REPOSITORY ${UPCXX_REPO}
+      UPDATE_COMMAND ""
+      INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/upcxx_install
+      #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/upcxx_prefix
+      #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/upcxx_install
+      #INSTALL_COMMAND ""
+      CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-upcxx-knl-only --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER} CFLAGS=${CMAKE_C_FLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+      )
+    else()
   ExternalProject_Add(${UPCXX_NAME}
       DEPENDS ${GASNET_NAME}
       GIT_REPOSITORY ${UPCXX_REPO}
@@ -29,6 +41,7 @@ set(UPCXX_NAME upcxx)
       #INSTALL_COMMAND ""
       CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-upcxx --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER} CFLAGS=${CMAKE_C_FLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
       )
+    endif()
     else()
   ExternalProject_Add(${UPCXX_NAME}
       DEPENDS ${GASNET_NAME}
@@ -43,6 +56,16 @@ set(UPCXX_NAME upcxx)
     endif()
 
     if(ENABLE_KNL)
+    if(ENABLE_KNL_ONLY)
+ExternalProject_Add_Step(${UPCXX_NAME} bootstrap
+      DEPENDEES patch update patch download
+      DEPENDERS configure
+      COMMAND libtoolize COMMAND autoreconf -fi COMMAND <SOURCE_DIR>/Bootstrap.sh COMMAND ln -s ${PROJECT_SOURCE_DIR}/contrib/config/cross-configure-intel-knl-upcxx-knl-only <SOURCE_DIR> 
+      WORKING_DIRECTORY <SOURCE_DIR>
+#ALWAYS 1
+      COMMENT "Bootstraping the source directory"
+      )
+    else()
   ExternalProject_Add_Step(${UPCXX_NAME} bootstrap
       DEPENDEES patch update patch download
       DEPENDERS configure
@@ -51,6 +74,7 @@ set(UPCXX_NAME upcxx)
 #ALWAYS 1
       COMMENT "Bootstraping the source directory"
       )
+endif()
     else()
       ExternalProject_Add_Step(${UPCXX_NAME} bootstrap
       DEPENDEES patch update patch download

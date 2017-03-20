@@ -427,6 +427,9 @@ namespace symPACK{
     int np =1;
     MPI_Comm_rank(comm,&iam);
     MPI_Comm_size(comm,&np);
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
     invp.resize(size);
     if(iam==0){
       Int k = std::ceil(std::pow(size,1.0/2.0));
@@ -443,13 +446,14 @@ namespace symPACK{
     }
 
     // broadcast invp
-    MPI_Bcast(&invp[0],size*sizeof(int),MPI_BYTE,0,comm);
+    MPI_Bcast(&invp[0],size,type,0,comm);
     perm.resize(size);
     for(Int i = 1; i <=size; ++i){
       Int node = invp[i-1];
       perm[node-1] = i;
     }
 
+        MPI_Type_free(&type);
   }
 
 
@@ -460,6 +464,9 @@ namespace symPACK{
     MPI_Comm_rank(comm,&iam);
     MPI_Comm_size(comm,&np);
 
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
     logfileptr->OFS()<<"AMD used"<<std::endl;
     if(iam==0){std::cout<<"AMD used"<<std::endl;}
 
@@ -557,12 +564,13 @@ namespace symPACK{
       invp.resize(N);
     }
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,comm);
+    MPI_Bcast(&invp[0],N,type,0,comm);
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
       Int node = invp[i-1];
       perm[node-1] = i;
     }
+        MPI_Type_free(&type);
   }
 
 #ifdef USE_METIS
@@ -573,6 +581,9 @@ namespace symPACK{
     MPI_Comm_rank(comm,&iam);
     MPI_Comm_size(comm,&np);
 
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
     logfileptr->OFS()<<"METIS used"<<std::endl;
     if(iam==0){std::cout<<"METIS used"<<std::endl;}
 
@@ -665,13 +676,14 @@ namespace symPACK{
       invp.resize(N);
     }
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,comm);
+    MPI_Bcast(&invp[0],N,type,0,comm);
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
       Int node = invp[i-1];
       perm[node-1] = i;
     }
 
+        MPI_Type_free(&type);
 
   }
 
@@ -692,6 +704,9 @@ namespace symPACK{
     MPI_Comm_rank(g.comm,&iam);
     MPI_Comm_size(g.comm,&np);
 
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
     logfileptr->OFS()<<"PARMETIS used"<<std::endl;
     if(iam==0){std::cout<<"PARMETIS used"<<std::endl;}
 
@@ -932,7 +947,7 @@ namespace symPACK{
 
 
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,g.comm);
+    MPI_Bcast(&invp[0],N,type,0,g.comm);
     //recompute perm
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
@@ -943,6 +958,7 @@ namespace symPACK{
     //    logfileptr->OFS()<<perm<<std::endl;
     //    logfileptr->OFS()<<invp<<std::endl;
 
+        MPI_Type_free(&type);
 
   }
 
@@ -959,6 +975,9 @@ namespace symPACK{
     MPI_Comm_rank(comm,&iam);
     MPI_Comm_size(comm,&np);
 
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
     logfileptr->OFS()<<"SCOTCH used"<<std::endl;
     if(iam==0){std::cout<<"SCOTCH used"<<std::endl;}
 
@@ -1076,13 +1095,14 @@ namespace symPACK{
       invp.resize(N);
     }
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,comm);
+    MPI_Bcast(&invp[0],N,type,0,comm);
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
       Int node = invp[i-1];
       perm[node-1] = i;
     }
 
+        MPI_Type_free(&type);
 
   }
 
@@ -1103,6 +1123,9 @@ namespace symPACK{
     MPI_Comm_rank(g.comm,&iam);
     MPI_Comm_size(g.comm,&np);
 
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
     logfileptr->OFS()<<"PTSCOTCH used"<<std::endl;
     if(iam==0){std::cout<<"PTSCOTCH used"<<std::endl;}
 
@@ -1292,7 +1315,7 @@ namespace symPACK{
     vtxdist.clear();
 
     // broadcast invp
-    MPI_Bcast(&invp[0],N*sizeof(Int),MPI_BYTE,0,g.comm);
+    MPI_Bcast(&invp[0],N,type,0,g.comm);
     //recompute perm
     perm.resize(N);
     for(Int i = 1; i <=N; ++i){
@@ -1303,6 +1326,7 @@ namespace symPACK{
     //          logfileptr->OFS()<<perm<<std::endl;
     //          logfileptr->OFS()<<invp<<std::endl;
 
+        MPI_Type_free(&type);
 
   }
 

@@ -31,6 +31,26 @@ else()
  
   if(ENABLE_ARIES)
     if(ENABLE_KNL)
+    if(ENABLE_KNL_ONLY)
+ExternalProject_Add(${GASNET_NAME}
+    URL ${GASNET_URL}/${GASNET_GZ}
+    URL_MD5 ${GASNET_MD5}
+    #URL ${PROJECT_SOURCE_DIR}/tarballs/${GASNET_GZ}
+    INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install
+    #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/gasnet_prefix
+    #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/gasnet_install
+    #INSTALL_COMMAND ""
+    CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-gasnet-knl-only --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+        )
+
+  ExternalProject_Add_Step(${GASNET_NAME} cross-compile
+      DEPENDEES patch update patch download
+      DEPENDERS configure
+      COMMAND ln -s ${PROJECT_SOURCE_DIR}/contrib/config/cross-configure-intel-knl-gasnet-knl-only <SOURCE_DIR> 
+      WORKING_DIRECTORY <SOURCE_DIR>
+#ALWAYS 1
+      )
+    else()
     ExternalProject_Add(${GASNET_NAME}
     URL ${GASNET_URL}/${GASNET_GZ}
     URL_MD5 ${GASNET_MD5}
@@ -49,6 +69,7 @@ else()
       WORKING_DIRECTORY <SOURCE_DIR>
 #ALWAYS 1
       )
+    endif()
 
     set(GASNET_DEFINES "")
 
