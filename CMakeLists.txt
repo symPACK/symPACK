@@ -352,8 +352,11 @@ if(ENABLE_PARMETIS)
 endif()
 
 list(GET UPCXX_INCLUDE_DIR 0 TMPUPCXXDIR)
-file(APPEND "sympack.mak.cmake" "\ninclude ${TMPUPCXXDIR}/upcxx.mak\n")
-file(APPEND "sympack.mak.cmake" "VPATH=${TMPUPCXXDIR}\n\n")
+#file(APPEND "sympack.mak.cmake" "\ninclude ${TMPUPCXXDIR}/upcxx.mak\n")
+#file(APPEND "sympack.mak.cmake" "VPATH=${TMPUPCXXDIR}\n\n")
+file(APPEND "sympack.mak.cmake" "\ninclude \$(SYMPACK_DIR)/upcxx_install/include/upcxx.mak\n")
+file(APPEND "sympack.mak.cmake" "VPATH=\$(SYMPACK_DIR)/upcxx_install\n\n")
+
 file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += \$(UPCXX_CXXFLAGS)\n\n")
 file(APPEND "sympack.mak.cmake" "SYMPACK_LIB = -L\$(SYMPACK_DIR)/lib -lsympack\n")
 

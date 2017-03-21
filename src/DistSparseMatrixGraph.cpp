@@ -167,16 +167,23 @@ namespace symPACK{
     int blocklen[8];
     MPI_Aint disps[8];
 
+        MPI_Datatype Idxtype;
+        MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &Idxtype );
+        MPI_Type_commit(&Idxtype);
+        MPI_Datatype Ptrtype;
+        MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &Ptrtype );
+        MPI_Type_commit(&Ptrtype);
+
     MPI_Datatype types[8] = {MPI_BYTE,MPI_BYTE,MPI_BYTE,MPI_BYTE,MPI_BYTE,
-      MPI_BYTE,MPI_BYTE,MPI_BYTE};
+      MPI_BYTE,Ptrtype,Idxtype};
     blocklen[0] = sizeof(size);
     blocklen[1] = sizeof(nnz);
     blocklen[2] = sizeof(baseval);
     blocklen[3] = sizeof(keepDiag);
     blocklen[4] = sizeof(sorted);
     blocklen[5] = sizeof(bIsExpanded);
-    blocklen[6] = colptr.size()*sizeof(Ptr);
-    blocklen[7] = rowind.size()*sizeof(Idx);
+    blocklen[6] = colptr.size();
+    blocklen[7] = rowind.size();
 
     MPI_Address( (void *)&size,  &disps[0]);
     MPI_Address( (void *)&nnz,  &disps[1]);
@@ -194,6 +201,8 @@ namespace symPACK{
     MPI_Bcast(MPI_BOTTOM,1,graphType,root,comm); 
       
     MPI_Type_free(&graphType);
+        MPI_Type_free(&Ptrtype);
+        MPI_Type_free(&Idxtype);
   }
 
   void SparseMatrixGraph::ExpandSymmetric(){
@@ -1400,11 +1409,16 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     g.colptr.resize(totalVertexCnt+1);
     //compute receive displacements
     std::vector<int> rsizes(mpisize,0);
-    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
+    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p];}
     std::vector<int> rdispls(mpisize+1,0);
     rdispls[0]=0;
     std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-    MPI_Allgatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&g.colptr[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
+
+        MPI_Datatype Ptrtype;
+        MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &Ptrtype );
+        MPI_Type_commit(&Ptrtype);
+    MPI_Allgatherv(&colptr[0],localVertexCnt,Ptrtype,&g.colptr[0],&rsizes[0],&rdispls[0],Ptrtype,comm);
+        MPI_Type_free(&Ptrtype);
 
 
     Ptr localEdgeCnt = LocalEdgeCount();
@@ -1416,12 +1430,16 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
 
     //compute receive displacements
     rsizes.assign(mpisize,0);
-    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p]*sizeof(Idx);}
+    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p];}
     rdispls[0]=0;
     std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-    MPI_Allgatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,&g.rowind[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
+        MPI_Datatype Idxtype;
+        MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &Idxtype );
+        MPI_Type_commit(&Idxtype);
+    MPI_Allgatherv(&rowind[0],localEdgeCnt,Idxtype,&g.rowind[0],&rsizes[0],&rdispls[0],Idxtype,comm);
 
 
+        MPI_Type_free(&Idxtype);
 
 
     //fix colptr
