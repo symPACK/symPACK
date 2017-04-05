@@ -820,26 +820,6 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
                   SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
                 }
 
-
-
-//                if(msgPtr!=NULL){
-//                  scope_timer(a,DELETE_MSG);
-//
-//                  //TODO if I am the last one using that source factor, delete the message
-//                  //THIS HAS TO BE PROTECTED OR BE ATOMICAL
-////#ifdef SP_THREADS
-////                  int userCount = msgPtr->decref();
-////                  if(userCount==0){
-////                    delete msgPtr;
-////                  }
-////#else
-////                    delete msgPtr;
-////#endif
-//
-//
-//
-//                }
-
                 if(structPtr!=NULL){
                   delete structPtr;
                 }
@@ -1554,7 +1534,7 @@ template <typename T> void symPACKMatrix<T>::FBFactorizationTask(supernodalTaskG
           //Update local tasks
           //find task corresponding to curUpdate
           auto taskit = taskGraph.find_task(src_snode->Id(),tgt_snode_id,UPDATE);
-#pragma omp atomic
+//#pragma omp atomic
           taskit->local_deps--;
           if(!is_static){
             if(taskit->remote_deps==0 && taskit->local_deps==0){

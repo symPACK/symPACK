@@ -1,3 +1,5 @@
+set(UPCXX_PREFIX $ENV{UPCXX_DIR})
+if (NOT UPCXX_PREFIX)
 file(INSTALL ${CMAKE_CURRENT_BINARY_DIR}/external/upcxx_install DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 
@@ -22,4 +24,4 @@ foreach(file ${files})
   message(${ofile})
   file(WRITE ${ofile} ${ModifiedContents})
 endforeach()
-
+endif()

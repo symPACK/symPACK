@@ -1,3 +1,6 @@
+set(GASNET_PREFIX $ENV{GASNET_DIR})
+if (NOT GASNET_PREFIX)
+
 file(INSTALL ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 
@@ -24,3 +27,4 @@ foreach(file ${files})
   file(WRITE ${ofile} ${ModifiedContents})
 endforeach()
 
+endif()

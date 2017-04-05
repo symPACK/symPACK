@@ -65,9 +65,13 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-opt-report-file=stderr>")
 add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-opt-report-file=stderr>")
 endif()
 
-add_compile_options("$<$<COMPILE_LANGUAGE:C>:-axAVX2,MIC-AVX512>")
-add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-axAVX2,MIC-AVX512>")
-add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-axAVX2,MIC-AVX512>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:C>:-axAVX2,MIC-AVX512>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-axAVX2,MIC-AVX512>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-axAVX2,MIC-AVX512>")
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-axMIC-AVX512,AVX2>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-axMIC-AVX512,AVX2>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-axMIC-AVX512,AVX2>")
+
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-mkl>")
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-std=c++11>")

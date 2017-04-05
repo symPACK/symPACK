@@ -837,7 +837,7 @@ bassert(this->meta_!=nullptr);
       //everything is in row-major
       //First do W = DLT 
       T * diag = static_cast<SuperNodeInd<T,Allocator> * >(src_snode)->GetDiag();
-      #pragma omp parallel for
+      //#pragma omp parallel for
       for(Int row = 0; row<src_snode_size; row++){
         for(Int col = 0; col<tgt_width; col++){
           bufLDL[col+row*tgt_width] = diag[row]*(pivot[row+col*src_snode_size]);

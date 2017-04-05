@@ -891,7 +891,7 @@ inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode)
         T * tgt = GetNZval(tgt_offset);
 
         //blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
-        #pragma omp simd
+        //#pragma omp simd
         for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
 
       }
