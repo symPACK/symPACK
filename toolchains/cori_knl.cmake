@@ -5,9 +5,9 @@ set(ENABLE_ARIES ON CACHE BOOL "...")
 set(ENABLE_KNL ON CACHE BOOL "...")
 
 
-set(SCOTCH_DIR $ENV{SWPREFIX}/release/scotch_install)
-set(METIS_DIR $ENV{SWPREFIX}/release/metis_install)
-set(PARMETIS_DIR $ENV{SWPREFIX}/release/parmetis_install)
+#set(SCOTCH_DIR $ENV{SWPREFIX}/release/scotch_install)
+set(METIS_DIR $ENV{SWPREFIX}/release/knl/metis_install)
+set(PARMETIS_DIR $ENV{SWPREFIX}/release/knl/parmetis_install)
 
 
 #need to set METIS_DIR accordingly
@@ -15,7 +15,7 @@ set(ENABLE_METIS ON CACHE BOOL "...")
 #need to set PARMETIS_DIR accordingly
 set(ENABLE_PARMETIS ON CACHE BOOL "...")
 #need to set SCOTCH_DIR accordingly
-set(ENABLE_SCOTCH ON CACHE BOOL "...")
+#set(ENABLE_SCOTCH ON CACHE BOOL "...")
 
 set(CMAKE_CXX_COMPILER CC)
 #set(MPI_CXX_COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS} -mkl=sequential -axMIC-AVX512,AVX2 -g -dynamic" CACHE STRING "" FORCE)
@@ -68,11 +68,14 @@ endif()
 #add_compile_options("$<$<COMPILE_LANGUAGE:C>:-axAVX2,MIC-AVX512>")
 #add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-axAVX2,MIC-AVX512>")
 #add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-axAVX2,MIC-AVX512>")
-add_compile_options("$<$<COMPILE_LANGUAGE:C>:-axMIC-AVX512,AVX2>")
-add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-axMIC-AVX512,AVX2>")
-add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-axMIC-AVX512,AVX2>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:C>:-axMIC-AVX512,AVX2>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-axMIC-AVX512,AVX2>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-axMIC-AVX512,AVX2>")
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-xMIC-AVX512>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-xMIC-AVX512>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-xMIC-AVX512>")
 
 
-add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-mkl>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-mkl=sequential>")
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-std=c++11>")
 
