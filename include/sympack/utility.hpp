@@ -1211,7 +1211,7 @@ namespace symPACK{
       //initialize local arrays
       pspmat.Localg_.colptr.resize(numColLocal+1);
       pspmat.Localg_.SetKeepDiag(1);
-      pspmat.Localg_.SetSorted(1);
+      pspmat.Localg_.SetSorted(0);
 
 
       // Compute the number of columns on each processor
@@ -1336,8 +1336,16 @@ namespace symPACK{
         std::vector<INSCALAR> tmpBuf(mynnz);
         err = MPI_File_read_at_all(fin, myNzValOffset, &tmpBuf[0], mynnz, typeVal,&status);
         pspmat.nzvalLocal.resize ( mynnz );
-        for(Ptr i = 0; i<mynnz;i++){
-          pspmat.nzvalLocal[i] = SCALAR(tmpBuf[i]);
+        if(typeid(SCALAR)==typeid(std::complex<float>) || typeid(SCALAR) == typeid(std::complex<double>)){
+          for(Ptr i = 0; i<mynnz;i++){
+            pspmat.nzvalLocal[i] = SCALAR( std::abs(tmpBuf[i]) );
+          }
+        }
+        else{
+          for(Ptr i = 0; i<mynnz;i++){
+            pspmat.nzvalLocal[i] = SCALAR(std::real(tmpBuf[i]));
+            //SCALAR(tmpBuf[i]);
+          }
         }
       }
 
@@ -1386,6 +1394,8 @@ namespace symPACK{
       MPI_Barrier( comm );
 
       MPI_File_close(&fin);
+  
+      pspmat.Localg_.SetSorted(1);
 
   MPI_Type_free(&typeVal);
   MPI_Type_free(&typePtr);
@@ -1467,7 +1477,7 @@ namespace symPACK{
       //initialize local arrays
       HMat.Localg_.colptr.resize(nlocal+1);
       HMat.Localg_.SetKeepDiag(1);
-      HMat.Localg_.SetSorted(1);
+      HMat.Localg_.SetSorted(0);
 
 
       //read from 4th line
@@ -1627,6 +1637,8 @@ namespace symPACK{
       HMat.Localg_.size = HMat.size;
       HMat.Localg_.nnz = nnz;
       HMat.Localg_.bIsExpanded = false;
+      //sort the edges
+      HMat.Localg_.SetSorted(1);
 
       return 0;
 }
@@ -1682,7 +1694,7 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<SCAL
   Idx nlocal = pspmat.Localg_.LocalVertexCount();
 
   pspmat.Localg_.SetKeepDiag(1);
-  pspmat.Localg_.SetSorted(1);
+  pspmat.Localg_.SetSorted(0);
 
   // Read colptr
   std::vector<Ptr>  gcolptr;
@@ -1822,6 +1834,8 @@ void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<SCAL
   if( mpirank == 0 ){
     fin.close();
   }
+
+  pspmat.Localg_.SetSorted(1);
 
   //Enforce lower triangular format
   MPI_Bcast(&isLowerTri,sizeof(bool),MPI_BYTE,0,comm);

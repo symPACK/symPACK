@@ -45,7 +45,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #define FANIN_OPTIMIZATION
 
-template <typename T> void symPACKMatrix<T>::dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier){
+template <typename T> inline void symPACKMatrix<T>::dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier){
   for(std::list<Int>::iterator it = tree[node].begin(); it!=tree[node].end(); it++){
     Int I = *it;
 
@@ -62,7 +62,7 @@ template <typename T> void symPACKMatrix<T>::dfs_traversal(std::vector<std::list
 };
 
 
-template <typename T> void symPACKMatrix<T>::FanBoth_New() 
+template <typename T> inline void symPACKMatrix<T>::FanBoth_New() 
 {
   scope_timer(a,FACTORIZATION_FB);
 
@@ -874,7 +874,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth_New()
 
 
 
-template <typename T> void symPACKMatrix<T>::FanBoth() 
+template <typename T> inline void symPACKMatrix<T>::FanBoth() 
 {
   SYMPACK_TIMER_START(FACTORIZATION_FB);
 
@@ -1100,7 +1100,7 @@ defaut:
 }
 
 
-template <typename T> void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv,std::vector<Int> & LocalAggregates)
+template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv,std::vector<Int> & LocalAggregates)
 {
   SYMPACK_TIMER_START(FB_GET_UPDATE_COUNT);
   UpdatesToDo.resize(Xsuper_.size(),I_ZERO);
@@ -1403,7 +1403,7 @@ template <typename T> void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> &
   SYMPACK_TIMER_STOP(FB_GET_UPDATE_COUNT);
 }
 
-template <typename T> void symPACKMatrix<T>::FBAggregationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, bool is_static)
+template <typename T> inline void symPACKMatrix<T>::FBAggregationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, bool is_static)
 {
   SYMPACK_TIMER_START(FB_AGGREGATION_TASK);
 
@@ -1462,7 +1462,7 @@ template <typename T> void symPACKMatrix<T>::FBAggregationTask(supernodalTaskGra
 
 
 
-template <typename T> void symPACKMatrix<T>::FBFactorizationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, std::vector< SuperNode<T> * > & aggVectors, bool is_static)
+template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, std::vector< SuperNode<T> * > & aggVectors, bool is_static)
 {
   SYMPACK_TIMER_START(FB_FACTORIZATION_TASK);
 
@@ -1645,7 +1645,7 @@ template <typename T> void symPACKMatrix<T>::FBFactorizationTask(supernodalTaskG
   SYMPACK_TIMER_STOP(FB_FACTORIZATION_TASK);
 }
 
-template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector< SuperNode<T> * > & aggVectors, bool is_static)
+template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector< SuperNode<T> * > & aggVectors, bool is_static)
 {
   SYMPACK_TIMER_START(FB_UPDATE_TASK);
   Int src_snode_id = curTask.src_snode_id;
@@ -1948,7 +1948,7 @@ template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph<FB
 }
 
 
-template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTaskGraph<FBTask> & taskGraph,std::vector< SuperNode<T> * > & aggVectors,bool is_static)
+template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supernodalTaskGraph<FBTask> & taskGraph,std::vector< SuperNode<T> * > & aggVectors,bool is_static)
 {
   scope_timer(a,CHECK_MESSAGE);
   //return;

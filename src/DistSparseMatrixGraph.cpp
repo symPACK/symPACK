@@ -372,7 +372,7 @@ namespace symPACK{
     for(Idx locCol = 0 ; locCol< LocalVertexCount(); locCol++){
       Ptr colbeg = colptr[locCol]-baseval; //now 0 based
       Ptr colend = colptr[locCol+1]-baseval; // now 0 based 
-if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
+bassert(colbeg<=colend);
       sort(&rowind[0]+colbeg,&rowind[0]+colend,std::less<Ptr>());
     }
   }

@@ -299,6 +299,7 @@ endif()
 set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
   src/lapack.cpp src/global.cpp src/LogFile.cpp 
   src/IntervalTree.cpp src/Ordering.cpp src/CommPull.cpp
+  src/symPACK_c_interface.cpp
   src/DistSparseMatrixGraph.cpp src/amdbar.F src/genmmd.F src/mmdelm.F
   src/mmdint.F src/mmdnum.F src/mmdupd.F src/ordmmd.F
   src/betree.f src/del_heap.f src/ins_heap.f src/mcssup.f
@@ -435,6 +436,7 @@ install(FILES
   include/sympack/Scheduler.hpp
   include/sympack/utility.hpp 
   include/sympack/supernodalTaskGraph.hpp
+  include/sympack/supernodalTaskGraph_impl.hpp
   DESTINATION include/sympack)
 
 install (SCRIPT "${CMAKE_SOURCE_DIR}/cmake/gasnetPostInstall.cmake")
@@ -442,11 +444,14 @@ install (SCRIPT "${CMAKE_SOURCE_DIR}/cmake/upcxxPostInstall.cmake")
 
 
 add_executable(run_sympack EXCLUDE_FROM_ALL driver/run_sparse_pull.cpp)
-add_custom_target(examples DEPENDS run_sympack)
+add_executable(run_sympack_c EXCLUDE_FROM_ALL driver/run_c_interface.cpp)
+add_custom_target(examples DEPENDS run_sympack run_sympack_c)
 
 add_dependencies(run_sympack sympack gasnet upcxx) 
+add_dependencies(run_sympack_c sympack gasnet upcxx) 
 #target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
 target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit)
+target_link_libraries(run_sympack_c sympack libupcxx libgasnet-conduit)
 
 #install(TARGETS run_sympack RUNTIME DESTINATION bin)
 

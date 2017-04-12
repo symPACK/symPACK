@@ -43,7 +43,7 @@
 #ifndef _SYMPACK_HEADER_
 #define _SYMPACK_HEADER_
 
-
+#ifdef __cplusplus
 #include  "sympack/Environment.hpp"
 #include  "sympack/utility.hpp"
 #include  "sympack/DistSparseMatrix.hpp"
@@ -52,14 +52,72 @@
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
 #include  "sympack/LogFile.hpp"
+#endif
+
+#include <mpi.h>
+
+
+//namespace symPACK{
+//
+//extern template class symPACKMatrix<float>;
+//extern template class symPACKMatrix<double>;
+//extern template class symPACKMatrix<std::complex<float> >;
+//extern template class symPACKMatrix<std::complex<double> >;
+//
+//extern template class supernodalTaskGraph<FBTask>;
+//extern template class supernodalTaskGraph<CompTask>;
+//}
+
+
+
+
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
   int symPACK_Init(int *argc=NULL, char ***argv=NULL);
   int symPACK_Finalize();
+
+
+  //returns an integer corresponding to a symPACK handle
+
+  int symPACK_C_InitInstanceFloat(MPI_Comm ccomm);
+  int symPACK_C_InitInstanceDouble(MPI_Comm ccomm);
+  int symPACK_C_InitInstanceComplex(MPI_Comm ccomm);
+  int symPACK_C_InitInstanceDoubleComplex(MPI_Comm ccomm);
+  
+  int symPACK_InitInstanceFloat(MPI_Fint * Fcomm);
+  int symPACK_InitInstanceDouble(MPI_Fint * Fcomm);
+  int symPACK_InitInstanceComplex(MPI_Fint * Fcomm);
+  int symPACK_InitInstanceDoubleComplex(MPI_Fint * Fcomm);
+  
+  void symPACK_SymbolicFactorize(int * sp_handle, int * n, int * colptr , int * rowind);
+  
+  void symPACK_DistributeFloat(int * sp_handle, float * nzvals);
+  void symPACK_DistributeDouble(int * sp_handle, double * nzvals);
+  void symPACK_DistributeComplex(int * sp_handle, float * nzvals);
+  void symPACK_DistributeDoubleComplex(int * sp_handle, double * nzvals);
+  
+  void symPACK_NumericalFactorize(int * sp_handle);
+  
+  void symPACK_NumericalSolveFloat(int * sp_handle, int * nrhs, float * rhs);
+  void symPACK_NumericalSolveDouble(int * sp_handle, int * nrhs, double * rhs);
+  void symPACK_NumericalSolveComplex(int * sp_handle, int * nrhs, float * rhs);
+  void symPACK_NumericalSolveDoubleComplex(int * sp_handle, int * nrhs, double * rhs);
+  
+  void symPACK_FinalizeInstance(int * sp_handle);
+
+
+
+
 #ifdef __cplusplus
 }
+
+
+
 #endif
 
 #endif // _SYMPACK_HEADER_
