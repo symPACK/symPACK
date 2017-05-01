@@ -21,7 +21,7 @@
 
 /******* TYPE used in the computations ********/
 #define SCALAR double
-#define SCALAR std::complex<double>
+//#define SCALAR std::complex<double>
 
 /******* TYPE in the input matrix ********/
 #define RSCALAR double
@@ -48,6 +48,7 @@ int main(int argc, char **argv)
 
     tmp.resize(0);
   }
+
 
 
   symPACK_Init(&argc,&argv);

@@ -44,7 +44,29 @@
 #include  "sympack/utility.hpp"
 #include  "sympack/SuperNode.hpp"
 
+//#include  "sympack/symPACKMatrix.hpp"
+
+//namespace symPACK{
+//template class symPACKMatrix<float>;
+//template class symPACKMatrix<double>;
+//template class symPACKMatrix<std::complex<float> >;
+//template class symPACKMatrix<std::complex<double> >;
+//template class supernodalTaskGraph<FBTask>;
+//template class supernodalTaskGraph<CompTask>;
+//}
+//namespace symPACK{
+//
+//extern template class symPACKMatrix<float>;
+//extern template class symPACKMatrix<double>;
+//extern template class symPACKMatrix<std::complex<float> >;
+//extern template class symPACKMatrix<std::complex<double> >;
+//}
+
 #include <upcxx.h>
+
+
+  bool libMPIInit = false;
+  bool libUPCXXInit = false;
 
   extern "C"
   int symPACK_Init(int *argc=NULL, char ***argv=NULL){
@@ -53,6 +75,7 @@
     MPI_Initialized(&retval);
     if(retval==0){
       retval = MPI_Init(argc,argv);
+      libMPIInit = true;
     }
 
 char *orig_pmi_gni_cookie = getenv("PMI_GNI_COOKIE");
@@ -64,7 +87,11 @@ if (orig_pmi_gni_cookie) {
 }
 
 
-    retval = retval && upcxx::init(argc, argv);
+    if(!upcxx::is_init()){
+      retval = retval && upcxx::init(argc, argv);
+      libUPCXXInit = true;
+    }
+
 //    retval = upcxx::init(argc, argv);
 //
 //char *orig_pmi_gni_cookie = getenv("PMI_GNI_COOKIE");
@@ -82,8 +109,20 @@ if (orig_pmi_gni_cookie) {
 
   extern "C"
   int symPACK_Finalize(){
-    return upcxx::finalize();
+    if(libUPCXXInit){
+      return upcxx::finalize();
+    }
+    else{
+      return 0;
+    }
   }
+
+
+
+
+
+
+
 
 namespace symPACK{
 
@@ -112,6 +151,11 @@ namespace symPACK{
   namespace Multithreading{ 
     int NumThread = 1;
   } // namespace Multithreading
+
+
+
+
+
 } // namespace SYMPACK
 
 

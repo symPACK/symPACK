@@ -57,10 +57,18 @@
 namespace symPACK{
 
 
+
 class DistSparseMatrixGraph;
+class symPACKMatrixBase;
 template <typename T> class symPACKMatrix;
 
-template <typename F> class DistSparseMatrix{
+class DistSparseMatrixBase{
+  public:
+    virtual ~DistSparseMatrixBase(){};
+};
+
+
+template <typename F> class DistSparseMatrix: public DistSparseMatrixBase{
   friend class symPACKMatrix<F>;
   friend class symPACKMatrix<F>;
   //friend functions
@@ -125,6 +133,12 @@ template <typename F> class DistSparseMatrix{
 // Commonly used
 typedef DistSparseMatrix<Real>       DblDistSparseMatrix;
 typedef DistSparseMatrix<Complex>    CpxDistSparseMatrix;
+
+template <typename T>
+  void symPACK_LoadGraph( T & pHMat, int n, int * colptr , int * rowind);
+
+
+
 
 
 

@@ -110,9 +110,17 @@ namespace symPACK{
 
   //Forward declarations
   template<typename Task> class supernodalTaskGraph;
-  template<typename T> class symPACKMatrix;
 
-  template <typename T> class symPACKMatrix{
+  class symPACKMatrixBase{
+    public:
+      virtual ~symPACKMatrixBase(){ }
+  };
+
+
+
+
+
+  template <typename T> class symPACKMatrix: public symPACKMatrixBase{
     public:
 
       //Constructors
@@ -344,6 +352,14 @@ namespace symPACK{
 
   };
 
+typedef symPACKMatrix<float>       symPACKMatrixFloat;
+typedef symPACKMatrix<double>       symPACKMatrixDouble;
+typedef symPACKMatrix<std::complex<float> >       symPACKMatrixComplex;
+typedef symPACKMatrix<std::complex<double> >       symPACKMatrixDoubleComplex;
+
+
+
+
   namespace TSP{
     typedef struct SymbolBlok_ {
       int frownum;  /*< First row index            */
@@ -395,6 +411,18 @@ namespace symPACK{
 } // namespace SYMPACK
 
 #include <sympack/symPACKMatrix_impl.hpp>
+
+//namespace symPACK{
+//struct symPACK_handle;
+////class symPACKMatrixBase;
+////class DistSparseMatrixBase;
+//
+//
+//  extern std::map<int, symPACK_handle  > symPACK_handles;
+//
+//
+//
+//}
 
 
 

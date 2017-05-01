@@ -53,7 +53,7 @@
 
 
   template <typename T>
-template< typename Task> void symPACKMatrix<T>::CheckIncomingMessages_Solve(supernodalTaskGraph<Task> & taskGraph, std::shared_ptr<Scheduler<Task> > scheduler)
+template< typename Task> inline void symPACKMatrix<T>::CheckIncomingMessages_Solve(supernodalTaskGraph<Task> & taskGraph, std::shared_ptr<Scheduler<Task> > scheduler)
 {
   scope_timer(a,CHECK_MESSAGE);
 
@@ -167,7 +167,7 @@ template< typename Task> void symPACKMatrix<T>::CheckIncomingMessages_Solve(supe
 
 
 
-template <typename T> void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,  T * Xptr) {
+template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,  T * Xptr) {
   scope_timer(a,SPARSE_SOLVE_INTERNAL);
   Int n = iSize_;
 
@@ -609,7 +609,7 @@ abort();
 }
 
 
-template <typename T> void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * Xptr) {
+template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * Xptr) {
   scope_timer(a,SPARSE_SOLVE_INTERNAL);
   Int n = iSize_;
 

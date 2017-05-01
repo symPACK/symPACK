@@ -636,7 +636,92 @@ namespace symPACK{
     return true;
   }
 
+  template <typename T>
+  void symPACK_LoadGraph( T & pHMat, int * n, int * colptr , int * rowind){
+    auto & HMat = *pHMat;
 
+    int mpirank = 0;
+    MPI_Comm_rank(HMat.comm,&mpirank);
+    int mpisize = 1;
+    MPI_Comm_size(HMat.comm,&mpisize);
+
+    //compute local number of columns
+    auto & graph = HMat.GetLocalGraph();
+    graph.SetComm(HMat.comm);
+    HMat.size = *n;
+    graph.size = HMat.size;
+
+    assert(n>0);
+    //find baseval in first column
+    auto begin = colptr[0];
+    auto end = colptr[1];
+    int baseval = begin;
+    int keepdiag = 1;
+    if(mpirank==0){
+      keepdiag = 0;
+      for(Idx ptr = begin; ptr < end; ptr++){
+        int row = rowind[ptr-baseval];
+        if(row==baseval){
+          keepdiag =1;
+        }
+      }
+    }
+    MPI_Bcast(&baseval,sizeof(baseval),MPI_BYTE,0,HMat.comm);
+    MPI_Bcast(&keepdiag,sizeof(keepdiag),MPI_BYTE,0,HMat.comm);
+
+    graph.SetKeepDiag(keepdiag);
+    graph.SetBaseval(baseval);
+
+    graph.vertexDist.resize(mpisize+1);
+
+    for(int p = 1; p <mpisize;p++){
+      graph.vertexDist[p] = HMat.size-1+baseval;
+    }
+    graph.vertexDist.front()= baseval;
+    graph.vertexDist.back()= HMat.size+baseval;
+
+
+    //initialize an identity permutation
+    HMat.cinvp.resize(graph.LocalVertexCount());
+    std::iota(HMat.cinvp.begin(),HMat.cinvp.end(),graph.LocalFirstVertex());
+
+    Idx firstNode = graph.LocalFirstVertex();
+    Idx nlocal = graph.LocalVertexCount();
+
+    //initialize local arrays
+    graph.SetSorted(0);
+    graph.colptr.resize(nlocal+1);
+
+    //now copy
+    if(mpirank==0){
+      
+      for(Idx ptr = 0; ptr <= HMat.size; ptr++){
+        graph.colptr[ptr] = Ptr(colptr[ptr]); 
+      }
+      HMat.nnz = (Ptr) graph.colptr.back() - baseval;// +1;
+    }
+
+    MPI_Bcast(&HMat.nnz,sizeof(HMat.nnz),MPI_BYTE,0,HMat.comm);
+
+    graph.nnz = HMat.nnz;
+    graph.colptr.back() = HMat.nnz + baseval;
+
+    Ptr nnzlocal = 0;
+    if(mpirank==0){
+      nnzlocal = HMat.nnz;
+    }
+    graph.rowind.resize(nnzlocal);
+
+    if(mpirank==0){
+      for(Ptr ptr = 0; ptr < nnzlocal; ptr++){
+        graph.rowind[ptr] = Idx(rowind[ptr]);
+      }
+    }
+
+    graph.SetSorted(1);
+
+
+  }
 
 
 }

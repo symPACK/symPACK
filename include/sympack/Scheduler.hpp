@@ -470,14 +470,14 @@ namespace symPACK{
 
 
   template< typename Task> 
-    Int Scheduler<Task>::checkIncomingMessages_(taskGraph & graph)
+    inline Int Scheduler<Task>::checkIncomingMessages_(taskGraph & graph)
     {
       abort();
       return 0;
     }
 
   template<>
-    Int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph & graph)
+    inline Int Scheduler<std::shared_ptr<GenericTask> >::checkIncomingMessages_(taskGraph & graph)
     {
       scope_timer(a,CHECK_MESSAGE);
 
@@ -646,11 +646,11 @@ namespace symPACK{
 
 
   template <class Task > 
-    void Scheduler<Task>::run(MPI_Comm & workcomm, taskGraph & graph){
+    inline void Scheduler<Task>::run(MPI_Comm & workcomm, taskGraph & graph){
     }
 
   template <> 
-    void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm,taskGraph & graph){
+    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm,taskGraph & graph){
 
       int np = 1;
       MPI_Comm_size(workcomm,&np);

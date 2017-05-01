@@ -80,7 +80,8 @@ namespace symPACK{
 namespace symPACK{
 
 
-  template<typename T> void symPACKMatrix<T>::generateTaskGraph(supernodalTaskGraph<FBTask> & taskGraph,
+  template<typename T> 
+  inline void symPACKMatrix<T>::generateTaskGraph(supernodalTaskGraph<FBTask> & taskGraph,
       std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates)
   {
     //we will need to communicate if only partial xlindx_, lindx_
@@ -241,7 +242,8 @@ namespace symPACK{
 
 
 #if 1
-  template<typename T> void symPACKMatrix<T>::generateTaskGraph_New(taskGraph & graph,
+  template<typename T> 
+    inline void symPACKMatrix<T>::generateTaskGraph_New(taskGraph & graph,
       std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates, std::vector<Int> & mw, std::vector<Int> & mh)
   {
     //we will need to communicate if only partial xlindx_, lindx_
@@ -898,7 +900,8 @@ namespace symPACK{
 
 
 
-  template <typename T> void symPACKMatrix<T>::Factorize(){
+  template <typename T> 
+   inline  void symPACKMatrix<T>::Factorize(){
     SYMPACK_TIMER_START(NUMERICAL_FACT);
     if(iam<np){
       switch(options_.factorization){
@@ -937,7 +940,7 @@ namespace symPACK{
   }
 
 
-  template <typename T> void symPACKMatrix<T>::Solve(T * RHS, int nrhs,  T * Xptr) {
+  template <typename T> inline void symPACKMatrix<T>::Solve(T * RHS, int nrhs,  T * Xptr) {
     scope_timer(a,SPARSE_SOLVE);
 
     if (options_.iterRefinement){
@@ -965,7 +968,7 @@ namespace symPACK{
   }
 
   //Solve related routines
-  template <typename T> void symPACKMatrix<T>::solve_(T * RHS, int nrhs,  T * Xptr) {
+  template <typename T> inline void symPACKMatrix<T>::solve_(T * RHS, int nrhs,  T * Xptr) {
     scope_timer(a,SPARSE_SOLVE_INTERNAL);
 
     Int n = iSize_;
@@ -1340,7 +1343,7 @@ namespace symPACK{
 
   }
 
-  template<typename T> void symPACKMatrix<T>::GetSolution(T * B, int nrhs){
+  template<typename T> inline void symPACKMatrix<T>::GetSolution(T * B, int nrhs){
     Int n = iSize_;
     //Int iam = CommEnv_->MPI_Rank();
     //Int np  = CommEnv_->MPI_Size();
@@ -1396,7 +1399,7 @@ namespace symPACK{
 
   template <typename T>
     template< class Alloc>
-    void symPACKMatrix<T>::SendDelayedMessagesUp(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl){
+    inline void symPACKMatrix<T>::SendDelayedMessagesUp(Int iLocalI, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl){
       if(snodeColl.empty() || MsgToSend.empty()) { return;}
 
       //Index of the last global snode to do
@@ -1436,7 +1439,7 @@ namespace symPACK{
 
   template <typename T>
     template< class Alloc>
-    void symPACKMatrix<T>::SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl){
+    inline void symPACKMatrix<T>::SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl){
       if(snodeColl.empty() || MsgToSend.empty()) { return;}
 
       //Index of the first local supernode
@@ -1506,7 +1509,7 @@ namespace symPACK{
 
   template <typename T>
     template< class Alloc>
-    void symPACKMatrix<T>::SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl){
+    inline void symPACKMatrix<T>::SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl){
       Int src_snode_id = comm.src_snode_id;
       Int tgt_snode_id = comm.tgt_snode_id;
       Int src_nzblk_idx = comm.src_nzblk_idx;
@@ -1556,7 +1559,7 @@ namespace symPACK{
 
 
 
-  template <typename T> void symPACKMatrix<T>::AdvanceOutgoing(AsyncComms & outgoingSend){
+  template <typename T> inline void symPACKMatrix<T>::AdvanceOutgoing(AsyncComms & outgoingSend){
     scope_timer(a,ADVANCE_OUTGOING_COMM);
     //Check for completion of outgoing communication
     if(!outgoingSend.empty()){
@@ -1575,12 +1578,12 @@ namespace symPACK{
   }
 
 
-  template<typename T> void symPACKMatrix<T>::AddOutgoingComm(AsyncComms & outgoingSend, Icomm * send_buffer){
+  template<typename T> inline void symPACKMatrix<T>::AddOutgoingComm(AsyncComms & outgoingSend, Icomm * send_buffer){
     outgoingSend.push_back(send_buffer);
   }
 
 
-  template <typename T> void symPACKMatrix<T>::GetUpdatingSupernodeCount(std::vector<Int> & sc,std::vector<Int> & mw, std::vector<Int> & mh, std::vector<Int> & numBlk){
+  template <typename T> inline void symPACKMatrix<T>::GetUpdatingSupernodeCount(std::vector<Int> & sc,std::vector<Int> & mw, std::vector<Int> & mh, std::vector<Int> & numBlk){
     sc.resize(Xsuper_.size(),I_ZERO);
     std::vector<Int> marker(Xsuper_.size(),I_ZERO);
     mw.resize(Xsuper_.size(),I_ZERO);
@@ -1685,7 +1688,7 @@ namespace symPACK{
   }
 
   template<typename T>
-    void symPACKMatrix<T>::DumpMatlab(){
+    inline void symPACKMatrix<T>::DumpMatlab(){
       logfileptr->OFS()<<"+sparse([";
       for(Int I=1;I<Xsuper_.size();I++){
         Int src_first_col = Xsuper_[I-1];
@@ -1758,7 +1761,7 @@ namespace symPACK{
     }
 
   template<typename T>
-    void symPACKMatrix<T>::Dump(){
+    inline void symPACKMatrix<T>::Dump(){
       for(Int I=1;I<Xsuper_.size();I++){
         Int src_first_col = Xsuper_[I-1];
         Int src_last_col = Xsuper_[I]-1;
@@ -1798,7 +1801,7 @@ namespace symPACK{
     }
 
   template<typename T>
-    void symPACKMatrix<T>::DumpContrib(){
+    inline void symPACKMatrix<T>::DumpContrib(){
       for(Int I=1;I<Xsuper_.size();I++){
         Int src_first_col = Xsuper_[I-1];
         Int src_last_col = Xsuper_[I]-1;
@@ -3056,7 +3059,7 @@ namespace symPACK{
 
 
 
-  template <typename T> void symPACKMatrix<T>::Init(symPACKOptions & options ){
+  template <typename T> inline void symPACKMatrix<T>::Init(symPACKOptions & options ){
     SYMPACK_TIMER_START(A);
     //scope_timer_special(a,Initialization);
 #ifdef _STAT_COMM_
@@ -3159,7 +3162,7 @@ namespace symPACK{
     //exit(-1);
   }
 
-  template <typename T> void symPACKMatrix<T>::SymbolicFactorization(DistSparseMatrix<T> & pMat){
+  template <typename T> inline void symPACKMatrix<T>::SymbolicFactorization(DistSparseMatrix<T> & pMat){
     scope_timer(a,SymbolicFactorization);
 
     if(fullcomm_!=MPI_COMM_NULL){
@@ -4034,7 +4037,7 @@ namespace symPACK{
     MPI_Barrier(fullcomm_);
   }
 
-  template <typename T> void symPACKMatrix<T>::DistributeMatrix(DistSparseMatrix<T> & pMat){
+  template <typename T> inline void symPACKMatrix<T>::DistributeMatrix(DistSparseMatrix<T> & pMat){
     scope_timer(a,DistributeA);
 #ifdef EXPLICIT_PERMUTE
     pMat.Localg_.SetSorted(0);
@@ -4681,7 +4684,7 @@ namespace symPACK{
 
 
 
-  template <typename T> symPACKMatrix<T>::symPACKMatrix(){
+  template <typename T> inline symPACKMatrix<T>::symPACKMatrix(){
     CommEnv_=NULL;
     Mapping_ = NULL;
     Balancer_ = NULL;
@@ -4703,11 +4706,11 @@ namespace symPACK{
     }
   }
 
-  template <typename T> symPACKMatrix<T>::symPACKMatrix(DistSparseMatrix<T> & pMat, symPACKOptions & options ):symPACKMatrix(){
+  template <typename T> inline symPACKMatrix<T>::symPACKMatrix(DistSparseMatrix<T> & pMat, symPACKOptions & options ):symPACKMatrix(){
     Init(pMat, options);
   }
 
-  template <typename T> symPACKMatrix<T>::~symPACKMatrix(){
+  template <typename T> inline symPACKMatrix<T>::~symPACKMatrix(){
     for(Int i=0;i<LocalSupernodes_.size();++i){
       delete LocalSupernodes_[i];
     }
@@ -4763,7 +4766,7 @@ namespace symPACK{
 
 
   //returns the 1-based index of supernode id global in the local supernode array
-  template <typename T> Int symPACKMatrix<T>::snodeLocalIndex(Int global){
+  template <typename T> inline Int symPACKMatrix<T>::snodeLocalIndex(Int global){
 #ifndef ITREE2
     auto it = std::lower_bound(globToLocSnodes_.begin(),globToLocSnodes_.end(),global);
     return it - globToLocSnodes_.begin();
@@ -4775,21 +4778,21 @@ namespace symPACK{
   }
 
   //returns a reference to  a local supernode with id global
-  template <typename T> SuperNode<T> * symPACKMatrix<T>::snodeLocal(Int global){
+  template <typename T> inline SuperNode<T> * symPACKMatrix<T>::snodeLocal(Int global){
     Int iLocal = snodeLocalIndex(global);
     return LocalSupernodes_[iLocal -1];
   }
 
   template <typename T> 
     template< class Alloc>
-    SuperNode<T,Alloc> * symPACKMatrix<T>::snodeLocal(Int global, std::vector<SuperNode<T,Alloc> *> & snodeColl){
+    inline SuperNode<T,Alloc> * symPACKMatrix<T>::snodeLocal(Int global, std::vector<SuperNode<T,Alloc> *> & snodeColl){
       Int iLocal = snodeLocalIndex(global);
       return snodeColl[iLocal -1];
     }
 
 
   template <typename T> 
-    void symPACKMatrix<T>::findSupernodes(ETree& tree, Ordering & aOrder, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, Int maxSize ){
+    inline void symPACKMatrix<T>::findSupernodes(ETree& tree, Ordering & aOrder, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, Int maxSize ){
       SYMPACK_TIMER_START(FindSupernodes);
       Int size = iSize_;
       //TODO: tree order cc supmembership xsuper are all members of the class. no need for argument
@@ -4832,7 +4835,7 @@ namespace symPACK{
 
 
   template <typename T> 
-    void symPACKMatrix<T>::getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc){
+    inline void symPACKMatrix<T>::getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc){
       //The tree need to be postordered
       if(!ETree_.IsPostOrdered()){
         ETree_.PostOrderTree(Order_);
@@ -4995,7 +4998,7 @@ namespace symPACK{
 
 
   template <typename T> 
-    void symPACKMatrix<T>::relaxSupernodes(ETree& tree, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, RelaxationParameters & params ){
+    inline void symPACKMatrix<T>::relaxSupernodes(ETree& tree, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, RelaxationParameters & params ){
       //todo tree cc supmembership xsuper and relax params are members, no need for arguments
       Int nsuper = xsuper.size()-1;
 
@@ -5145,7 +5148,7 @@ namespace symPACK{
 
 
   template <typename T> 
-    void symPACKMatrix<T>::symbolicFactorizationRelaxedDist(std::vector<Int> & cc){
+    inline void symPACKMatrix<T>::symbolicFactorizationRelaxedDist(std::vector<Int> & cc){
       scope_timer(a,SymbolicFactorization);
       Int size = iSize_;
       ETree& tree = ETree_;
@@ -5450,7 +5453,7 @@ namespace symPACK{
           } while(jsup!=0 && knz < length);
 
 
-          //TODO do better than this:need to avoid sending unnecessary data
+          //TODO do better than this:need to ainline void sending unnecessary data
           //receive the speculative sends
           jsup = mrglnk[ksup-1];
           //get the next element of the list
@@ -5586,7 +5589,7 @@ namespace symPACK{
 
 
   template <typename T> 
-    void symPACKMatrix<T>::gatherLStructure(std::vector<Ptr>& xlindx, std::vector<Idx> & lindx){
+    inline void symPACKMatrix<T>::gatherLStructure(std::vector<Ptr>& xlindx, std::vector<Idx> & lindx){
       //Gather locXlindx_ and locLindx_
       //get other proc vertex counts
       Idx localVertexCnt = locXlindx_.size()-1;
@@ -5648,7 +5651,7 @@ namespace symPACK{
 
 
   template <typename T> 
-    void symPACKMatrix<T>::refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T> * pMat){
+    inline void symPACKMatrix<T>::refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T> * pMat){
       ETree& tree = ETree_;
       Ordering & aOrder = Order_;
       std::vector<Int> & supMembership = SupMembership_; 
@@ -5751,7 +5754,7 @@ namespace symPACK{
 
   template <typename T> 
     template <class Allocator>
-    SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt){
+    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt){
       SuperNode<T,Allocator> * retval = NULL;
         try{
       switch(type){
@@ -5774,7 +5777,7 @@ namespace symPACK{
 
   template <typename T> 
     template <class Allocator>
-    SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices){
+    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices){
       SuperNode<T,Allocator> * retval = NULL;
       switch(type){
         case DecompositionType::LDL:
@@ -5792,7 +5795,7 @@ namespace symPACK{
 
   template <typename T> 
     template <class Allocator>
-    SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type){
+    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type){
       SuperNode<T,Allocator> * retval = NULL;
         switch(type){
           case DecompositionType::LDL:
@@ -5811,7 +5814,7 @@ namespace symPACK{
 
   template <typename T>
     template <class Allocator>
-    SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Int firstRow){
+    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Int firstRow){
       SuperNode<T,Allocator> * retval = NULL;
       switch(type){
         case DecompositionType::LDL:
@@ -6616,7 +6619,7 @@ split:
     /* Criteria to insert a line when no extra-blok is created */
     /* If set to 0, the algorithm will minimize the cut between two lines */
 
-    inline   void
+    inline void
       symbolReordering( const SymbolMatrix *symbptr,
           Order *order,
           int split_level,

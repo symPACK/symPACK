@@ -191,7 +191,7 @@ namespace symPACK{
         mappingTypeStr = "ROW2D";
         load_balance_str = "SUBCUBE-FO";
         orderingStr = "MMD";
-        order_refinement_str = "NONE";
+        order_refinement_str = "NO";
         scheduler = DL;
         maxIsend = 0;
         maxIrecv=0;
