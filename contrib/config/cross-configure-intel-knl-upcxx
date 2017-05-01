@@ -1,6 +1,6 @@
 #!/bin/sh
 
-AVXFLAGS="-axAVX2,MIC-AVX512"; export AVXFLAGS
+#AVXFLAGS="-axAVX2,MIC-AVX512"; export AVXFLAGS
 #AVXFLAGS="-xMIC-AVX512"; export AVXFLAGS
 CC="cc ${AVXFLAGS} -wd10120" ; export CC  # vanilla target C compiler
 CXX="CC ${AVXFLAGS} -wd10120" ; export CXX  # vanilla target C++ compiler

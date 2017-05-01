@@ -6,8 +6,8 @@ set(ENABLE_KNL ON CACHE BOOL "...")
 
 
 #set(SCOTCH_DIR $ENV{SWPREFIX}/release/scotch_install)
-set(METIS_DIR $ENV{SWPREFIX}/release/knl/metis_install)
-set(PARMETIS_DIR $ENV{SWPREFIX}/release/knl/parmetis_install)
+set(METIS_DIR $ENV{SWPREFIX}/release/metis_install)
+set(PARMETIS_DIR $ENV{SWPREFIX}/release/parmetis_install)
 
 
 #need to set METIS_DIR accordingly
@@ -71,9 +71,9 @@ endif()
 #add_compile_options("$<$<COMPILE_LANGUAGE:C>:-axMIC-AVX512,AVX2>")
 #add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-axMIC-AVX512,AVX2>")
 #add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-axMIC-AVX512,AVX2>")
-add_compile_options("$<$<COMPILE_LANGUAGE:C>:-xMIC-AVX512>")
-add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-xMIC-AVX512>")
-add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-xMIC-AVX512>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:C>:-xMIC-AVX512>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-xMIC-AVX512>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-xMIC-AVX512>")
 
 
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-mkl=sequential>")

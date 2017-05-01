@@ -18,7 +18,7 @@
 # Usage Instructions: 
 #  1. fill in the following values to point to the target and host compilers:
 
-AVXFLAGS="-axAVX2,MIC-AVX512"; export AVXFLAGS
+#AVXFLAGS="-axAVX2,MIC-AVX512"; export AVXFLAGS
 #AVXFLAGS="-xMIC-AVX512"; export AVXFLAGS
 CC="cc ${AVXFLAGS} -wd10120" ; export CC  # vanilla target C compiler
 CXX="CC ${AVXFLAGS} -wd10120" ; export CXX  # vanilla target C++ compiler
@@ -40,7 +40,8 @@ MPI_CFLAGS="${AVXFLAGS}" ; export MPI_CFLAGS  # flags for MPI_CC
 MPI_LIBS='' ; export MPI_LIBS      # libs for linking with MPI_CC
 MPIRUN_CMD='srun -n %N %C' # User must set GASNET_NODEFILE
 export MPIRUN_CMD  # launch command for MPI jobs
-EXTRA_CONFIGURE_ARGS="--disable-auto-conduit-detect --enable-mpi --enable-smp --enable-aries --disable-aligned-segments --enable-pshm --disable-pshm-posix --enable-pshm-xpmem --enable-throttle-poll"
+#EXTRA_CONFIGURE_ARGS="--disable-auto-conduit-detect --enable-mpi --enable-smp --enable-aries --disable-aligned-segments --enable-pshm --disable-pshm-posix --enable-pshm-xpmem --enable-throttle-poll"
+EXTRA_CONFIGURE_ARGS="--disable-auto-conduit-detect --disable-mpi --disable-smp --enable-aries --disable-pshm --disable-pshm-posix --disable-pshm-xpmem --disable-throttle-poll --disable-aligned-segments"
 #EXTRA_CONFIGURE_ARGS="--disable-auto-conduit-detect --enable-mpi --disable-smp --enable-aries --disable-aligned-segments --disable-pshm --disable-pshm-posix --disable-pshm-xpmem --disable-throttle-poll --enable-segment-large"
 EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --enable-backtrace-execinfo"
 export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
@@ -52,6 +53,7 @@ TARGET_ID='knl-unknown-linux-gnu'
 # 3. Optionally cross-compile and run the detect-cachesz.c utility and
 #    fill in the value below and uncomment.  If not set the default is 128.
 CROSS_CACHE_LINE_BYTES=64; export CROSS_CACHE_LINE_BYTES
+#CROSS_CACHE_LINE_BYTES=128; export CROSS_CACHE_LINE_BYTES
 
 # 4. Review the automatically-detected settings below and make corrections as necessary.
 

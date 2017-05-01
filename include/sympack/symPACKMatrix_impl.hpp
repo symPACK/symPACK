@@ -275,6 +275,15 @@ namespace symPACK{
               //create the task on iUpdater
               Updates[iUpdater].push_back(std::make_pair(I,J));
             }
+
+#if 0
+            if(Multithreading::NumThread==1){
+              //create only one task if I don't own the factor
+              if(iUpdater!=iOwner){
+                marker[iUpdater]=I;
+              }
+            }
+#endif
           }
         }
         prevSnode = J;
