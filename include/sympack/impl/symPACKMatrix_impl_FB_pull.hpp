@@ -315,7 +315,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             if(!msgPtr->IsLocal()){
               msgPtr->DeallocRemote();
             }
-            char* dataPtr = msgPtr->GetLocalPtr();
+            char* dataPtr = msgPtr->GetLocalPtr().get();
 
             auto dist_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
 
@@ -816,8 +816,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     auto id = hash_fn(sstr.str());
 
                     if(msgPtr->meta.id == id){
-                      char* dataPtr = msgPtr->GetLocalPtr();
+                      char* dataPtr = msgPtr->GetLocalPtr().get();
 
+//                      logfileptr->OFS()<<"2 Data for snode id "<<tgt<<" "<<msgPtr->local_ptr.use_count()<<std::endl;
+//                      logfileptr->OFS()<<"3 Data for snode id "<<tgt<<" "<<msgPtr->GetLocalPtr().use_count()<<std::endl;
 
                       {
                         scope_timer(c,FB_UPD_UNPACK_MSG_CREATE);
@@ -825,6 +827,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                         cur_src_snode = shptr_cur_src_snode.get();
                       }
                       {
+
                         scope_timer(d,FB_UPD_UNPACK_MSG_INIT_TREE);
                         cur_src_snode->InitIdxToBlk();
                       }
@@ -866,6 +869,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                     newMsgPtr = std::make_shared<ChainedMessage<SuperNodeBase<T> > >(  base_ptr  ,msgPtr);
                                   }
 
+                                  
 
                                   //                              factorUser[localUpdate.src_snode_id]++;
                                   //this is where we put the msg in the list
@@ -873,6 +877,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                   taskit->second->addData( base_ptr );
                                   dec_ref(taskit,0,1);
 
+//                                  auto tmp = new IncomingMessage();
+//                                  *tmp = *msgPtr;
+//                                  tmp->meta = msgPtr->meta;
+//                                  tmp->local_ptr = msgPtr->GetLocalPtr();
+//                                  tmp->msg_size = msgPtr->msg_size;
+//                      logfileptr->OFS()<<"4 Chained Data for snode id "<<tgt<<" "<<tmp->GetLocalPtr().use_count()<<std::endl;
+                                  delete tmp;
                                 }
                               }
                             }
@@ -885,6 +896,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     else{
                       newMsgPtr = std::dynamic_pointer_cast<ChainedMessage<SuperNodeBase<T> > >(msgPtr);
                       cur_src_snode = dynamic_cast<SuperNode<T> *>(newMsgPtr->data.get());
+//                      logfileptr->OFS()<<"Chained message for snode id "<<cur_src_snode->Id()<<" "<<newMsgPtr->data.use_count()<<std::endl;
+//                      logfileptr->OFS()<<"Chained Data for snode id "<<cur_src_snode->Id()<<" "<<newMsgPtr->GetLocalPtr().use_count()<<std::endl;
                     }
 
 
@@ -1738,7 +1751,7 @@ template <typename T> inline void symPACKMatrix<T>::FBAggregationTask(supernodal
     if(!msgPtr->IsLocal()){
       msgPtr->DeallocRemote();
     }
-    char* dataPtr = msgPtr->GetLocalPtr();
+    char* dataPtr = msgPtr->GetLocalPtr().get();
 
     SuperNode<T> * dist_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
 
@@ -1993,7 +2006,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
           auto msgit = curTask.data.begin();
           msgPtr = *msgit;
           assert(msgPtr->IsDone());
-          char* dataPtr = msgPtr->GetLocalPtr();
+          char* dataPtr = msgPtr->GetLocalPtr().get();
           cur_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
           cur_src_snode->InitIdxToBlk();
         }
@@ -2009,7 +2022,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
 
         msgPtr = *msgit;
         assert(msgPtr->IsDone());
-        char* dataPtr = msgPtr->GetLocalPtr();
+        char* dataPtr = msgPtr->GetLocalPtr().get();
         cur_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
         cur_src_snode->InitIdxToBlk();
       }
@@ -2022,7 +2035,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
       auto msgit = curTask.data.begin();
       msgPtr = *msgit;
       assert(msgPtr->IsDone());
-      char* dataPtr = msgPtr->GetLocalPtr();
+      char* dataPtr = msgPtr->GetLocalPtr().get();
       cur_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
       cur_src_snode->InitIdxToBlk();
     }
@@ -2099,7 +2112,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
               {
                 scope_timer(a,FETCH_REMOTE_STRUCTURE);
 #ifdef PREFETCH_STRUCTURE
-                char* buffer = structPtr->GetLocalPtr();
+                char* buffer = structPtr->GetLocalPtr().get();
                 SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
                 NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
                 Int block_cnt = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1]);

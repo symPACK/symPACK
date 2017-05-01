@@ -240,7 +240,7 @@ namespace symPACK{
   };
 
 
-#include "sympack/IntervalTree_impl.hpp"
+#include "sympack/impl/IntervalTree_impl.hpp"
 
 
 

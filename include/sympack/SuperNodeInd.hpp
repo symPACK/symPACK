@@ -123,7 +123,7 @@ template <typename T, class Allocator> inline size_t Deserialize(char * buffer, 
 } // namespace SYMPACK
 
 
-#include "sympack/SuperNodeInd_impl.hpp"
+#include "sympack/impl/SuperNodeInd_impl.hpp"
 
 
 #ifdef NO_INTRA_PROFILE

@@ -410,7 +410,7 @@ typedef symPACKMatrix<std::complex<double> >       symPACKMatrixDoubleComplex;
   }
 } // namespace SYMPACK
 
-#include <sympack/symPACKMatrix_impl.hpp>
+#include <sympack/impl/symPACKMatrix_impl.hpp>
 
 //namespace symPACK{
 //struct symPACK_handle;

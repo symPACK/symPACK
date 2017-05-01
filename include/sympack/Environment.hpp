@@ -318,7 +318,7 @@ inline double get_time()
 
 
 
-#include "sympack/Environment_impl.hpp"
+#include "sympack/impl/Environment_impl.hpp"
 
 
 

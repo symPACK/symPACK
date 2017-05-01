@@ -147,17 +147,9 @@ namespace symPACK{
 
       void addData(std::shared_ptr<IncomingMessage> & ptr){
         data.push_back(ptr);
-#ifdef SP_THREADS
-//        ptr->incref();
-#endif
       }
 
       void clearData(){
-#ifdef SP_THREADS
-//        for(auto&& ptr : data){
-//          ptr->decref();
-//        }
-#endif
 //#ifndef NDEBUG
 //        logfileptr->OFS()<<"List size "<<data.size()<<std::endl;
 //        for(auto&& ptr : data){
@@ -185,15 +177,6 @@ namespace symPACK{
       std::function< void() > execute;
 
       GenericTask( ):remote_deps_cnt(0),local_deps_cnt(0),remote_deps(0),local_deps(0){}
-
-//#ifndef NDEBUG
-//      ~GenericTask(){
-//        logfileptr->OFS()<<"List size "<<data.size()<<std::endl;
-//        for(auto&& ptr : data){
-//          logfileptr->OFS()<<"Incoming msg "<<ptr->meta.src<<"->"<<ptr->meta.tgt<<" used by "<<ptr.use_count()<<std::endl;
-//        }
-//      }
-//#endif
   };
 
   class SparseTask: public GenericTask{

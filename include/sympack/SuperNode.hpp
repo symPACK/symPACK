@@ -257,7 +257,7 @@ namespace symPACK{
 } // namespace SYMPACK
 
 
-#include "sympack/SuperNode_impl.hpp"
+#include "sympack/impl/SuperNode_impl.hpp"
 
 
 

@@ -519,7 +519,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
               assert(curTask.data.size()==1);
               auto msgPtr = *curTask.data.begin();
               assert(msgPtr->IsDone());
-              char* dataPtr = msgPtr->GetLocalPtr();
+              char* dataPtr = msgPtr->GetLocalPtr().get();
               auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
               dist_contrib->InitIdxToBlk();
               contrib->forward_update(&*dist_contrib,iOwner,iam);
@@ -548,7 +548,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
               assert(curTask.data.size()==1);
               auto msgPtr = *curTask.data.begin();
               assert(msgPtr->IsDone());
-              char* dataPtr = msgPtr->GetLocalPtr();
+              char* dataPtr = msgPtr->GetLocalPtr().get();
               auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
               dist_contrib->InitIdxToBlk();
               contrib->back_update(&*dist_contrib);
@@ -829,7 +829,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               //Do the remote ones
               for(auto && msgPtr : FUCtask.getData() ){
                   assert(msgPtr->IsDone());
-                  char* dataPtr = msgPtr->GetLocalPtr();
+                  char* dataPtr = msgPtr->GetLocalPtr().get();
                   auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
                   Int iOwner = this->Mapping_->Map(dist_contrib->Id()-1,dist_contrib->Id()-1);
                   dist_contrib->InitIdxToBlk();
@@ -1355,7 +1355,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                   assert(BUtask.getData().size()==1);
                   auto msgPtr = *BUtask.getData().begin();
                   assert(msgPtr->IsDone());
-                  char* dataPtr = msgPtr->GetLocalPtr();
+                  char* dataPtr = msgPtr->GetLocalPtr().get();
                   auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
                   dist_contrib->InitIdxToBlk();
                   contrib->back_update(&*dist_contrib,nrhsOffset,taskNrhs);
