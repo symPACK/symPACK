@@ -134,6 +134,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
       if(type == Factorization::op_type::FACTOR){
         return false;
       }
+      else if(type == Factorization::op_type::TRSM){
+        return false;
+      }
       else{
         int tgt = meta[1];
 
@@ -401,6 +404,33 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
               SYMPACK_TIMER_STOP(FACTOR_PANEL);
 
+#if 1
+//if(src_snode_id==101){gdb_lock();}
+              //unlock the TRSM tasks
+              for(Int blkidx=1; blkidx< src_snode->NZBlockCnt();blkidx++){
+                NZBlockDesc & nzblk_desc = src_snode->GetNZBlockDesc(blkidx);
+                Idx fr = nzblk_desc.GIndex;
+                Idx lr = src_snode->NRows(blkidx) + fr;
+
+                std::stringstream sstr;
+                sstr<<src_snode_id<<"_"<<fr<<"_"<<0<<"_"<<(Int)Factorization::op_type::TRSM;
+                auto id = hash_fn(sstr.str());
+
+      logfileptr->OFS()<<"UNLOCK "<<sstr.str()<< "-> "<<Task.id<<std::endl;
+
+                auto taskit = graph.find_task(id);
+                if(taskit!=graph.tasks_.end()){
+                  dec_ref(taskit,1,0);
+                }
+                else{
+                  abort();
+                  //TODO send diagonal block to remote rank
+                }
+              }
+#endif
+
+
+
               //Sending factors and update local tasks
               //Send my factor to my ancestors. 
               std::vector<char> is_factor_sent(np);
@@ -464,6 +494,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
 
 
+          }
+          break;
+        case Factorization::op_type::TRSM:
+          {
+            Task.execute = [&,this,src,tgt,iLocalTGT,pTask] () {
+              Int firstRow = tgt;
+            };
           }
           break;
         case Factorization::op_type::UPDATE:
@@ -883,7 +920,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 //                                  tmp->local_ptr = msgPtr->GetLocalPtr();
 //                                  tmp->msg_size = msgPtr->msg_size;
 //                      logfileptr->OFS()<<"4 Chained Data for snode id "<<tgt<<" "<<tmp->GetLocalPtr().use_count()<<std::endl;
-                                  delete tmp;
+//                                  delete tmp;
                                 }
                               }
                             }
@@ -996,7 +1033,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
                             aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
                           }
-                          aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                          aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id,Xsuper_[curUpdate.tgt_snode_id-1],
+                                           Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
                         } 
                         else
 #endif
@@ -1040,7 +1078,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                             aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
                           }
                           //                        bassert(aggVectors[curUpdate.tgt_snode_id-1]!=nullptr);
-                          aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                          aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1],
+                                         Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
 
                         }
                         SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
@@ -2103,7 +2142,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
                   }
                 }
               }
-              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
             } 
             else
 #endif
@@ -2152,7 +2191,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
                 UpcxxAllocator::deallocate((char*)buffer);
 #endif
               }
-              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
             }
             SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
           }

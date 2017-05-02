@@ -76,7 +76,7 @@ idxToBlk_=nullptr;
 }
 
 template<typename T, class Allocator>
-SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {
+SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {
 
 
   //this is an upper bound
@@ -118,6 +118,7 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows,
   blocks_ = (NZBlockDesc*) last;
 
   meta_->iId_ = aiId;
+  meta_->iFirstRow_ = aiFr;
   meta_->iFirstCol_ = aiFc;
   meta_->iLastCol_ = aiLc;
   meta_->iN_=aiN;
@@ -139,8 +140,8 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows,
 
 
 template<typename T, class Allocator>
-SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
-  Init(aiId,aiFc,aiLc,aiN,rowIndices);
+SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
+  Init(aiId,aiFr,aiFc,aiLc,aiN,rowIndices);
 }; 
 
 
@@ -187,7 +188,7 @@ if(globalToLocal_!=nullptr){
 //CHECKED ON 11-18-2014
 //
 template<typename T, class Allocator>
-void SuperNode<T,Allocator>::Init(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
+void SuperNode<T,Allocator>::Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
   //compute supernode size / width
   Int size = aiLc - aiFc +1;
 
@@ -232,6 +233,7 @@ try{
   blocks_ = (NZBlockDesc*) last;
 
   meta_->iId_ = aiId;
+  meta_->iFirstRow_ = aiFr;
   meta_->iFirstCol_ = aiFc;
   meta_->iLastCol_ = aiLc;
   meta_->iN_=aiN;

@@ -248,7 +248,7 @@ namespace symPACK{
   {
     //we will need to communicate if only partial xlindx_, lindx_
     //idea: build tasklist per processor and then exchange
-    std::map<Idx, std::list<std::pair<Idx,Idx> >  > Updates;
+    std::map<Idx, std::list<std::tuple<Idx,Idx,Factorization::op_type> >  > Updates;
     std::vector<int> marker(np,0);
     Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
     Int firstSnode = XsuperDist_[iam];
@@ -260,22 +260,46 @@ namespace symPACK{
       Int last_col = Xsuper_[I]-1;
 
       //Create the factor task on the owner
-      Updates[iOwner].push_back(std::make_pair(I,I));
+      Updates[iOwner].push_back(std::make_tuple(I,I,Factorization::op_type::FACTOR));
 
       Int J = -1; 
       Ptr lfi = locXlindx_[locsupno-1];
       Ptr lli = locXlindx_[locsupno]-1;
+
+      Idx blockIdx = -1;
+      Idx prevRow = -1;
       Idx prevSnode = -1;
+      
+
       for(Ptr sidx = lfi; sidx<=lli;sidx++){
         Idx row = locLindx_[sidx-1];
         J = SupMembership_[row-1];
+
+        //Split at boundary or after diagonal block
+#ifdef SPLIT_AT_BOUNDARY
+        if( (row!=prevRow+1) || (blockIdx==0 && row > last_col) || (J!=prevSnode) )
+#else
+        if( (row!=prevRow+1) || (blockIdx==0 && row > last_col))
+#endif
+        {
+          //Increase the blockIdx
+          blockIdx++;
+          
+          //TODO hint: First globalIdx of each supernodde should ideally be shared across all ranks to be able to compute the mapping without storing it ?
+          //TODO for now it is restricted to be executed on the Owner, which is the rank factoring the diagonal block
+          if(blockIdx>0){
+            Updates[iOwner].push_back(std::make_tuple(I,row,Factorization::op_type::TRSM));
+          }
+        }
+        prevRow = row;
+
         if(J!=prevSnode){
           Int iUpdater = Mapping_->Map(J-1,I-1);
 
           if(J>I){
             if(marker[iUpdater]!=I){
               //create the task on iUpdater
-              Updates[iUpdater].push_back(std::make_pair(I,J));
+              Updates[iUpdater].push_back(std::make_tuple(I,J,Factorization::op_type::UPDATE));
             }
 
 #if 0
@@ -293,7 +317,7 @@ namespace symPACK{
     }
 
     MPI_Datatype type;
-    MPI_Type_contiguous( sizeof(std::pair<Idx,Idx>), MPI_BYTE, &type );
+    MPI_Type_contiguous( sizeof(std::tuple<Idx,Idx,Factorization::op_type>), MPI_BYTE, &type );
     MPI_Type_commit(&type);
 
     //then do an alltoallv
@@ -309,7 +333,7 @@ namespace symPACK{
     std::partial_sum(ssizes.begin(),ssizes.end(),&sdispls[1]);
 
     //Build the contiguous array of pairs
-    vector<std::pair<Idx,Idx> > sendbuf;
+    vector<std::tuple<Idx,Idx,Factorization::op_type> > sendbuf;
     sendbuf.reserve(sdispls.back());
 
     for(auto itp = Updates.begin();itp!=Updates.end();itp++){
@@ -327,7 +351,7 @@ namespace symPACK{
 
 
     //Now do the alltoallv
-    vector<std::pair<Idx,Idx> > recvbuf(rdispls.back());///sizeof(std::pair<Idx,Idx>));
+    vector<std::tuple<Idx,Idx,Factorization::op_type> > recvbuf(rdispls.back());///sizeof(std::pair<Idx,Idx>));
     MPI_Alltoallv(&sendbuf[0],&ssizes[0],&sdispls[0],type,&recvbuf[0],&rsizes[0],&rdispls[0],type,CommEnv_->MPI_GetComm());
 
     MPI_Type_free(&type);
@@ -363,15 +387,18 @@ namespace symPACK{
     //now process recvbuf and add the tasks to the taskGraph
     size_t max_mem_req = 0;
     for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
+      
+
+
       std::shared_ptr<GenericTask> pTask(new SparseTask);
       SparseTask & Task = *(SparseTask*)pTask.get();
 
       Task.meta.resize(2*sizeof(Int)+sizeof(Factorization::op_type));
       Int * meta = reinterpret_cast<Int*>(Task.meta.data());
-      meta[0] = it->first;
-      meta[1] = it->second;
+      meta[0] = std::get<0>(*it);
+      meta[1] = std::get<1>(*it);
       Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
-      type = (it->first==it->second)?Factorization::op_type::FACTOR:Factorization::op_type::UPDATE;
+      type = std::get<2>(*it);//(it->first==it->second)?Factorization::op_type::FACTOR:Factorization::op_type::UPDATE;
 
       Int src = meta[0];
       Int tgt = meta[1];
@@ -389,6 +416,18 @@ namespace symPACK{
               Int NB = lapack::Ilaenv( 1, "DPOTRF", "U", mw[src], -1, -1, -1 );
               mem_req += NB * mw[src] * sizeof(T); 
             }
+          }
+          break;
+        case Factorization::op_type::TRSM:
+          {
+            Int iOwnerSrc = Mapping_->Map(src-1,src-1);
+            Task.remote_deps = iOwnerSrc!=iam?1:0;
+            Task.local_deps = iOwnerSrc==iam?1:0;
+
+//      std::stringstream sstr;
+//      sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)type;
+//      Task.id = hash_fn(sstr.str());
+//      logfileptr->OFS()<<"CREATE_TRSM "<<sstr.str()<< "-> "<<Task.id<<std::endl;
           }
           break;
         case Factorization::op_type::UPDATE:
@@ -425,7 +464,12 @@ namespace symPACK{
           }
           break;
       }
-
+#if 0
+      if (type == Factorization::op_type::TRSM){
+        //delete pTask;
+        continue;
+      }
+#endif
 
 #if 0
       {
@@ -1011,7 +1055,7 @@ namespace symPACK{
           //MEMORY CONSUMPTION TOO HIGH ?
           Int iLocalI = snodeLocalIndex(I);
           SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-          SuperNode<T,MallocAllocator> * contrib = CreateSuperNode<MallocAllocator>(options_.decomposition,I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
+          SuperNode<T,MallocAllocator> * contrib = CreateSuperNode<MallocAllocator>(options_.decomposition,I,cur_snode->FirstRow(),1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_);
 
           Contributions_[iLocalI-1] = contrib;
 
@@ -1633,13 +1677,13 @@ namespace symPACK{
         }
         else{
 #ifdef SPLIT_AT_BOUNDARY
-          if( nextSup<Xsuper_.size()-1){
+          if( nextSup<=Xsuper_.size()-1){
             next_fc = Xsuper_[nextSup-1];
             next_lc = Xsuper_[nextSup]-1;
           }
           while(row>=next_lc){
             nextSup++;
-            if( nextSup<Xsuper_.size()-1){
+            if( nextSup<=Xsuper_.size()-1){
               next_fc = Xsuper_[nextSup-1];
               next_lc = Xsuper_[nextSup]-1;
               //             logfileptr->OFS()<<"P Moving on to next supernode"<<std::endl;
@@ -1650,7 +1694,7 @@ namespace symPACK{
           } 
 
           if(row==iPrevRow+1){
-            if( nextSup<Xsuper_.size()-2 && row==next_fc){
+            if( nextSup<Xsuper_.size()-0 && row==next_fc){
               //              logfileptr->OFS()<<"P "<<row<<" Next fc and lc are: "<<next_fc<<" "<<next_lc<<std::endl;
               //              logfileptr->OFS()<<"Crossed boundary"<<std::endl;
               nzBlockCnt++;
@@ -3864,7 +3908,7 @@ namespace symPACK{
 #endif
         SuperNode<T> * newSnode = NULL;
         try{
-          newSnode = CreateSuperNode(options_.decomposition,I,fc,lc,iHeight,iSize_,nzBlockCnt);
+          newSnode = CreateSuperNode(options_.decomposition,I,fc,fc,lc,iHeight,iSize_,nzBlockCnt);
         }
         catch(const MemoryAllocationException & e){
           std::stringstream sstr;
@@ -3938,13 +3982,13 @@ namespace symPACK{
             }
 
 #ifdef SPLIT_AT_BOUNDARY
-            if( nextSup<Xsuper_.size()-1){
+            if( nextSup<=Xsuper_.size()-1){
               next_fc = Xsuper_[nextSup-1];
               next_lc = Xsuper_[nextSup]-1;
             }
             while(iCurRow>=next_lc){
               nextSup++;
-              if( nextSup<Xsuper_.size()-1){
+              if( nextSup<=Xsuper_.size()-1){
                 next_fc = Xsuper_[nextSup-1];
                 next_lc = Xsuper_[nextSup]-1;
                 //  logfileptr->OFS()<<"Moving on to next supernode"<<std::endl;
@@ -3956,7 +4000,7 @@ namespace symPACK{
 
 
 
-            if( nextSup<Xsuper_.size()-2 &&   iCurRow==next_fc){
+            if( nextSup<Xsuper_.size()-0 &&   iCurRow==next_fc){
               //   logfileptr->OFS()<<iCurRow<<" Next fc and lc are: "<<next_fc<<" "<<next_lc<<std::endl;
               //   logfileptr->OFS()<<"Crossed boundary"<<std::endl;
               break;
@@ -5754,18 +5798,18 @@ namespace symPACK{
 
   template <typename T> 
     template <class Allocator>
-    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt){
+    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt){
       SuperNode<T,Allocator> * retval = NULL;
         try{
       switch(type){
         case DecompositionType::LDL:
-          retval = new SuperNodeInd<T,Allocator>( aiId,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
+          retval = new SuperNodeInd<T,Allocator>( aiId,  aiFr, aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
           break;
         case DecompositionType::LL:
-          retval = new SuperNode<T,Allocator>( aiId,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
+          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
           break;
         default:
-          retval = new SuperNode<T,Allocator>( aiId,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
+          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
           break;
       }
         }
@@ -5777,17 +5821,17 @@ namespace symPACK{
 
   template <typename T> 
     template <class Allocator>
-    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices){
+    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices){
       SuperNode<T,Allocator> * retval = NULL;
       switch(type){
         case DecompositionType::LDL:
-          retval = new SuperNodeInd<T,Allocator>( aiId,  aiFc,  aiLc,  aiN,  rowIndices);
+          retval = new SuperNodeInd<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  aiN,  rowIndices);
           break;
         case DecompositionType::LL:
-          retval = new SuperNode<T,Allocator>( aiId,  aiFc,  aiLc,  aiN,  rowIndices);
+          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  aiN,  rowIndices);
           break;
         default:
-          retval = new SuperNode<T,Allocator>( aiId,  aiFc,  aiLc,  aiN,  rowIndices);
+          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  aiN,  rowIndices);
           break;
       }
       return retval;

@@ -86,6 +86,7 @@ namespace symPACK{
     bool b_own_storage_;
     Int iId_;
     Int iSize_;
+    Int iFirstRow_;
     Int iFirstCol_;
     Int iLastCol_;
     Int iN_; 
@@ -138,6 +139,7 @@ namespace symPACK{
 
         inline void InitIdxToBlk();
         inline Int & Id(){ return meta_->iId_;}
+        inline Int FirstRow(){ return meta_->iFirstRow_;}
         inline Int FirstCol(){ return meta_->iFirstCol_;}
         inline Int LastCol(){ return meta_->iLastCol_;}
         inline Int Size(){ return meta_->iSize_;}
@@ -170,14 +172,14 @@ namespace symPACK{
         }
 
         SuperNode();
-        SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
-        SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
-        SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN);
+        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
+        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
+        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN);
         SuperNode(char * storage_ptr,size_t storage_size, Int GIndex = -1);
         ~SuperNode();
 
         virtual void Init(char * storage_ptr,size_t storage_size, Int GIndex = -1);
-        virtual void Init(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
+        virtual void Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
 
         virtual inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex);
         inline void Reserve(size_t storage_size);
@@ -212,6 +214,8 @@ namespace symPACK{
         //Factorize the supernode
         virtual inline Int Factorize(TempUpdateBuffers<T> & tmpBuffers);
         virtual inline Int Factorize(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers);
+        //virtual inline Int TRSM(TempUpdateBuffers<T> & tmpBuffers);
+        //virtual inline Int TRSM(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers);
         inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const std::vector<Int> & Xsuper,  const std::vector<Int> & SupMembership,bool isLocal=true); 
 
 
