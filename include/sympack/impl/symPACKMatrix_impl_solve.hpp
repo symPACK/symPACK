@@ -659,7 +659,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
         //and the same width as the final solution
         //MEMORY CONSUMPTION TOO HIGH ?
         timeAlloc -= get_time();
-        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(options_.decomposition,I,cur_snode->FirstRow(),1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_, cur_snode->NZBlockCnt() ));
+        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(options_.decomposition,I,0/*cur_snode->FirstRow()*/,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_, cur_snode->NZBlockCnt() ));
         auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[iLocalI-1]);
         timeAlloc += get_time();
 

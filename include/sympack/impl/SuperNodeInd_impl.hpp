@@ -39,7 +39,7 @@ Enhancements, then you hereby grant the following license: a non-exclusive,
 royalty-free perpetual license to install, use, modify, prepare derivative
 works, incorporate into other computer software, distribute, and sublicense
 such enhancements or derivative works thereof, in binary and source code form.
- */
+*/
 #ifndef _SUPERNODE_IND_IMPL_HPP_
 #define _SUPERNODE_IND_IMPL_HPP_
 
@@ -51,6 +51,10 @@ such enhancements or derivative works thereof, in binary and source code form.
 /****************************************/
 /*            _________________         */
 /*           |     nzval       |        */
+/*           |                 |        */
+/*           |_________________|        */
+/*           |                 |        */
+/*           |    updrows      |        */
 /*           |                 |        */
 /*           |_________________|        */
 /*           |      Diag       |        */
@@ -82,6 +86,13 @@ namespace symPACK{
       this->storage_size_ = sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
       this->storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
 
+      Int num_updrows = 0;
+      if (aiFr == aiFc){
+        num_updrows = num_blocks;
+        this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
+      }
+
+
       try{
         this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
       }
@@ -90,21 +101,11 @@ namespace symPACK{
         this->storage_size_ = 0;
         throw;
       }
-
-      //storage_container_ = upcxx::allocate<char>(iam,this->storage_size_); 
-      //this->loc_storage_container_ = (char *)storage_container_;
-#ifdef _USE_COREDUMPER_
-      if(this->loc_storage_container_==NULL){
-        gdb_lock();
-        std::stringstream corename;
-        corename << "core.sympack." << upcxx::myrank();
-        WriteCoreDump(corename.str().c_str());
-      }
-#endif
-      assert(this->loc_storage_container_!=NULL);
+      bassert(this->loc_storage_container_!=NULL);
 
       this->nzval_ = (T*)&this->loc_storage_container_[0];
-      this->diag_ = (T*)(this->nzval_+size*ai_num_rows);
+      this->updrows_ = (Idx*)(this->nzval_+size*ai_num_rows);
+      this->diag_ = (T*)(this->updrows_+num_updrows);
       this->meta_ = (SuperNodeDesc*)(this->diag_ + size);
       char * last = this->loc_storage_container_+this->storage_size_-1 - (sizeof(NZBlockDesc) -1);
       this->blocks_ = (NZBlockDesc*) last;
@@ -117,6 +118,7 @@ namespace symPACK{
       this->meta_->iSize_ = size;
       this->meta_->nzval_cnt_ = 0;
       this->meta_->blocks_cnt_ = 0;
+      this->meta_->updrows_cnt_ = 0;
       this->meta_->b_own_storage_ = true;
 
 #ifndef ITREE
@@ -126,32 +128,15 @@ namespace symPACK{
 #endif
     }; 
 
-
-
-
-
-
-
   template<typename T, class Allocator>
     SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
-  Init(aiId,aiFr,aiFc,aiLc,aiN,rowIndices);
+      Init(aiId,aiFr,aiFc,aiLc,aiN,rowIndices);
     }; 
-
-
-
-
-
-
-
-
-
-
 
   template<typename T, class Allocator>
     SuperNodeInd<T,Allocator>::SuperNodeInd(char * storage_ptr,size_t storage_size, Int GIndex ) {
       this->Init(storage_ptr,storage_size,GIndex);
     }
-
 
   //CHECKED ON 11-18-2014
   template<typename T, class Allocator>
@@ -174,12 +159,12 @@ namespace symPACK{
 
       this->meta_= (SuperNodeDesc*)(this->blocks_ - blkCnt +1) - 1;
       this->diag_= (T*)(this->meta_) - this->Size();
-
+      this->updrows_ = (Idx*)this->diag_ - this->meta_->updrows_cnt_;
       this->nzval_ = (T*) storage_ptr;
       //we now need to update the meta data
       this->meta_->b_own_storage_ = false;
       this->meta_->blocks_cnt_ = blkCnt;
-      this->meta_->nzval_cnt_ = (T*)this->diag_ - this->nzval_;
+      this->meta_->nzval_cnt_ = (T*)this->updrows_ - this->nzval_;
 
       if(GIndex==-1){
         GIndex = this->GetNZBlockDesc(0).GIndex;
@@ -209,7 +194,7 @@ namespace symPACK{
 
 
   template<typename T, class Allocator>
-  void SuperNodeInd<T,Allocator>::Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices){
+    void SuperNodeInd<T,Allocator>::Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices){
       //compute supernode size / width
       Int size = aiLc - aiFc +1;
 
@@ -236,6 +221,13 @@ namespace symPACK{
       this->storage_size_ = sizeof(T)*size*numRows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
       this->storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
 
+      Int num_updrows = 0;
+      if (aiFr == aiFc){
+        num_updrows = num_blocks;
+        this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
+      }
+
+
       try{
         this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
       }
@@ -246,7 +238,8 @@ namespace symPACK{
       }
 
       this->nzval_ = (T*)&this->loc_storage_container_[0];
-      this->diag_ = (T*)(this->nzval_+size*numRows);
+      this->updrows_ = (Idx*)(this->nzval_+size*numRows);
+      this->diag_ = (T*)(this->updrows_+num_updrows);
       this->meta_ = (SuperNodeDesc*)(this->diag_ + size);
       char * last = this->loc_storage_container_+this->storage_size_-1 - (sizeof(NZBlockDesc) -1);
       this->blocks_ = (NZBlockDesc*) last;
@@ -259,6 +252,7 @@ namespace symPACK{
       this->meta_->iSize_ = size;
       this->meta_->nzval_cnt_ = 0;
       this->meta_->blocks_cnt_ = 0;
+      this->meta_->updrows_cnt_ = 0;
       this->meta_->b_own_storage_ = true;
 
 
@@ -326,35 +320,34 @@ namespace symPACK{
         this->idxToBlk_->Insert(cur_interv);
 #endif
 
+        bool ownDiagonal = this->OwnDiagonal();
         //if there is no more room for either nzval or blocks, extend
         Int block_space = (Int)(this->blocks_+1 - (NZBlockDesc*)(this->meta_ +1)) - this->meta_->blocks_cnt_;
-        Int nzval_space = (Int)((T*)this->diag_ - this->nzval_) - this->meta_->nzval_cnt_;
+        size_t nzval_space = ((size_t)((char*)this->diag_ - (char*)this->nzval_) - this->meta_->nzval_cnt_*sizeof(T) );
+        if(ownDiagonal){
+          nzval_space = nzval_space - (this->meta_->updrows_cnt_+1)*sizeof(Idx);
+        }
 
-        if(block_space==0 || nzval_space<cur_nzval_cnt){
+        if(block_space==0 || nzval_space<cur_nzval_cnt*sizeof(T)){
           //need to resize storage space. this is expensive !
           Int size = this->Size();
-          Int extra_nzvals = std::max((Int)0,cur_nzval_cnt - nzval_space);
+          size_t extra_nzvals_bytes = std::max((size_t)0,cur_nzval_cnt*sizeof(T) - nzval_space);
           Int extra_blocks = std::max((Int)0,1 - block_space);
-          size_t new_size = this->storage_size_ + extra_nzvals*sizeof(T) + extra_blocks*sizeof(NZBlockDesc);
+          size_t new_size = this->storage_size_ + extra_nzvals_bytes + extra_blocks*sizeof(NZBlockDesc);
+          if(ownDiagonal){
+            new_size += sizeof(Idx);
+          }
+
+          size_t offset_updrows = (char*)this->updrows_ - (char*)this->nzval_;
           size_t offset_diag = (char*)this->diag_ - (char*)this->nzval_;
           size_t offset_meta = (char*)this->meta_ - (char*)this->nzval_;
           size_t offset_block = (char*)this->blocks_ - (char*)this->nzval_;
 
           char * locTmpPtr = Allocator::allocate(new_size);
+          bassert(locTmpPtr!=NULL);
 
-
-#ifdef _USE_COREDUMPER_
-          if(locTmpPtr==NULL){
-            std::stringstream corename;
-            corename << "core.sympack." << upcxx::myrank();
-            WriteCoreDump(corename.str().c_str());
-          }
-#endif
-
-          assert(locTmpPtr!=NULL);
-
-          //std::copy(this->loc_storage_container_,this->loc_storage_container_+this->storage_size_,locTmpPtr);
-          for(size_t i = 0;i<this->storage_size_;i++){locTmpPtr[i] = this->loc_storage_container_[i];}
+          std::copy(this->loc_storage_container_,this->loc_storage_container_+this->storage_size_,locTmpPtr);
+          //for(size_t i = 0;i<this->storage_size_;i++){locTmpPtr[i] = this->loc_storage_container_[i];}
 
 
           Allocator::deallocate(this->loc_storage_container_);
@@ -369,22 +362,28 @@ namespace symPACK{
 
           //move the diag entries if required
           char * cur_diag_ptr = (char*)&this->loc_storage_container_[0] + offset_diag;
+          //move the updated rows if required
+          char * cur_updrows_ptr = (char*)&this->loc_storage_container_[0] + offset_updrows;
 
           this->meta_ = (SuperNodeDesc*) cur_meta_ptr;
           //we need to move everything, starting from the blocks, then meta
-          //blocks need to be moved by extra_nzvals + extra_blocks
-          char * new_blocks_ptr = cur_blocks_ptr + extra_nzvals*sizeof(T) +extra_blocks*sizeof(NZBlockDesc);
+          //blocks need to be moved by extra_nzvals_bytes + extra_blocks
+          char * new_blocks_ptr = cur_blocks_ptr + extra_nzvals_bytes +extra_blocks*sizeof(NZBlockDesc);
           std::copy_backward(cur_blocks_ptr - (this->meta_->blocks_cnt_-1)*sizeof(NZBlockDesc),cur_blocks_ptr+sizeof(NZBlockDesc),new_blocks_ptr+sizeof(NZBlockDesc));
 
-          //now move the meta data by extra_nzvals
-          char * new_meta_ptr = cur_meta_ptr + extra_nzvals*sizeof(T);
+          //now move the meta data by extra_nzvals_bytes
+          char * new_meta_ptr = cur_meta_ptr + extra_nzvals_bytes;
           std::copy(cur_meta_ptr,cur_meta_ptr + sizeof(SuperNodeDesc),new_meta_ptr);
 
-          //now move the diag entries by extra_nzvals
-          char * new_diag_ptr = cur_diag_ptr + extra_nzvals*sizeof(T);
+          //now move the diag entries by extra_nzvals_bytes
+          char * new_diag_ptr = cur_diag_ptr + extra_nzvals_bytes;
           std::copy(cur_diag_ptr,cur_diag_ptr + sizeof(T)*size,new_diag_ptr);
+          //now move the updated rows by extra_nzvals_bytes
+          char * new_updrows_ptr = cur_updrows_ptr + extra_nzvals_bytes;
+          std::copy(cur_updrows_ptr,cur_updrows_ptr + this->meta_->updrows_cnt_*sizeof(Idx),new_updrows_ptr);
 
           //update pointers
+          this->updrows_ = (Idx*) new_updrows_ptr;
           this->diag_ = (T*) new_diag_ptr;
           this->meta_ = (SuperNodeDesc*) new_meta_ptr;
           this->blocks_ = (NZBlockDesc*) new_blocks_ptr;
@@ -398,6 +397,11 @@ namespace symPACK{
         }
 
         this->meta_->blocks_cnt_++;
+        if(this->OwnDiagonal()){
+          this->updrows_[this->meta_->updrows_cnt_] = aiGIndex;
+          this->meta_->updrows_cnt_++;
+        }
+        this->trsm_count++;
 
         //fill the new block with zeros
         std::fill(this->nzval_+this->meta_->nzval_cnt_,this->nzval_+this->meta_->nzval_cnt_+cur_nzval_cnt,ZERO<T>());
@@ -413,34 +417,31 @@ namespace symPACK{
       if(this->meta_->b_own_storage_){
         //TODO make sure that we do not have any extra space anywhere.
 
+        bool ownDiagonal = this->OwnDiagonal();
         //if there is too much room for either nzval or blocks, contract
         Int block_space = (Int)(this->blocks_+1 - (NZBlockDesc*)(this->meta_ +1)) - this->meta_->blocks_cnt_;
-        Int nzval_space = (Int)((T*)this->diag_ - this->nzval_) - this->meta_->nzval_cnt_;
+        size_t nzval_space = ((size_t)((char*)this->diag_ - (char*)this->nzval_) - this->meta_->nzval_cnt_*sizeof(T) );
+        if(ownDiagonal && nzval_space>0){
+          nzval_space = nzval_space - (this->meta_->updrows_cnt_)*sizeof(Idx);
+        }
 
         if(block_space >0 || nzval_space >0){
 
-          size_t new_size = this->storage_size_ - nzval_space*sizeof(T) - block_space*sizeof(NZBlockDesc);
+          size_t new_size = this->storage_size_ - nzval_space - block_space*sizeof(NZBlockDesc);
 
-          size_t offset_diag = this->meta_->nzval_cnt_*sizeof(T);
+          size_t offset_updrows = this->meta_->nzval_cnt_*sizeof(T);
+          size_t offset_diag = offset_updrows + this->meta_->updrows_cnt_*sizeof(Idx);
           size_t offset_meta = (this->meta_->nzval_cnt_+this->meta_->iSize_)*sizeof(T);
           size_t offset_block = (this->meta_->nzval_cnt_+this->meta_->iSize_)*sizeof(T)+sizeof(SuperNodeDesc);
 
           char * locTmpPtr = Allocator::allocate(new_size);
-
-
-#ifdef _USE_COREDUMPER_
-          if(locTmpPtr==NULL){
-            std::stringstream corename;
-            corename << "core.sympack." << upcxx::myrank();
-            WriteCoreDump(corename.str().c_str());
-          }
-#endif
-
-
-          assert(locTmpPtr!=NULL);
+          bassert(locTmpPtr!=NULL);
 
           //copy nzvals
           std::copy(this->nzval_,this->nzval_+this->meta_->nzval_cnt_,(T*)locTmpPtr);
+
+          //copy updrows
+          std::copy(this->updrows_,this->updrows_+this->meta_->updrows_cnt_,(Idx*)(locTmpPtr+offset_updrows));
 
           //copy diag
           std::copy(this->diag_,this->diag_+this->Size(),(T*)(locTmpPtr+offset_diag));
@@ -463,7 +464,10 @@ namespace symPACK{
 
           //now move the diag entries by extra_nzvals
           char * new_diag_ptr = this->loc_storage_container_ + offset_diag;
+          //move the updated rows data if required
+          char * new_updrows_ptr = this->loc_storage_container_ + offset_updrows;
           //update pointers
+          this->updrows_ = (Idx*) new_updrows_ptr;
           this->diag_ = (T*) new_diag_ptr;
           this->meta_ = (SuperNodeDesc*) new_meta_ptr;
           this->blocks_ = (NZBlockDesc*) new_blocks_ptr;
@@ -499,27 +503,27 @@ namespace symPACK{
 
       Idx totalNRows = this->NRowsBelowBlock(0);
       Int INFO = 0;
-SYMPACK_TIMER_START(FACT_POTRF_LDL);
+      SYMPACK_TIMER_START(FACT_POTRF_LDL);
       lapack::Potrf_LDL( "U", snodeSize, diag_nzval, snodeSize, tmpBuffers, INFO);
-SYMPACK_TIMER_STOP(FACT_POTRF_LDL);
+      SYMPACK_TIMER_STOP(FACT_POTRF_LDL);
       //copy the diagonal entries into the diag portion of the supernode
-SYMPACK_TIMER_START(FACT_DIAG_COPY);
+      SYMPACK_TIMER_START(FACT_DIAG_COPY);
 #pragma unroll
       for(Int col = 0; col< snodeSize;col++){ this->diag_[col] = diag_nzval[col+ (col)*snodeSize]; }
-SYMPACK_TIMER_STOP(FACT_DIAG_COPY);
+      SYMPACK_TIMER_STOP(FACT_DIAG_COPY);
 
 
-SYMPACK_TIMER_START(FACT_TRSM);
+      SYMPACK_TIMER_START(FACT_TRSM);
       T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
       blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
-SYMPACK_TIMER_STOP(FACT_TRSM);
+      SYMPACK_TIMER_STOP(FACT_TRSM);
 
-SYMPACK_TIMER_START(FACT_SCALE);
+      SYMPACK_TIMER_START(FACT_SCALE);
       //scale column I
       for ( Idx I = 1; I<=snodeSize;I++) {
         blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
       }
-SYMPACK_TIMER_STOP(FACT_SCALE);
+      SYMPACK_TIMER_STOP(FACT_SCALE);
 
 #endif
       return 0;
@@ -528,8 +532,8 @@ SYMPACK_TIMER_STOP(FACT_SCALE);
 
 
   template<typename T, class Allocator>
-  inline Int SuperNodeInd<T,Allocator>::Factorize(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers){
-    abort();
+    inline Int SuperNodeInd<T,Allocator>::Factorize(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers){
+      abort();
 #if defined(_NO_COMPUTATION_)
       return 0;
 #endif
@@ -568,30 +572,71 @@ SYMPACK_TIMER_STOP(FACT_SCALE);
       }
 #endif
       return 0;
-  }
+    }
+
+  template<typename T, class Allocator>
+    inline Int SuperNodeInd<T,Allocator>::Factorize_diag(TempUpdateBuffers<T> & tmpBuffers){
+#if defined(_NO_COMPUTATION_)
+      return 0;
+#endif
+      Int snodeSize = this->Size();
+      NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
+      T * diag_nzval = this->GetNZval(diag_desc.Offset);
+
+      Int INFO = 0;
+      lapack::Potrf_LDL( "U", snodeSize, diag_nzval, snodeSize, tmpBuffers, INFO);
+      //copy the diagonal entries into the diag portion of the supernode
+#pragma unroll
+      for(Int col = 0; col< snodeSize;col++){ this->diag_[col] = diag_nzval[col+ (col)*snodeSize]; }
+
+      return 0;
+    }
+
+  template<typename T, class Allocator>
+    inline Int SuperNodeInd<T,Allocator>::Factorize_TRSM(SuperNode<T,Allocator> * diag_snode, Int blkidx){
+#if defined(_NO_COMPUTATION_)
+      return 0;
+#endif
+      Int snodeSize = this->Size();
+      NZBlockDesc & diag_desc = diag_snode->GetNZBlockDesc(0);
+      T * diag_nzval = diag_snode->GetNZval(diag_desc.Offset);
+
+      Idx nRows = this->NRows(blkidx);
+
+      NZBlockDesc & cur_desc = this->GetNZBlockDesc(blkidx);
+      T * nzblk_nzval = this->GetNZval(cur_desc.Offset);
+      blas::Trsm('L','U','T','U',snodeSize, nRows, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
+
+      //scale column I
+      for ( Idx I = 1; I<=snodeSize;I++) {
+        blas::Scal( nRows, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
+      }
+      return 0;
+    }
+
 
   template<typename T, class Allocator>
     inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-//#ifdef SP_THREADS
-//        TempUpdateBuffers<T> & tmpBuffers_disabled,
-//#else
+        //#ifdef SP_THREADS
+        //        TempUpdateBuffers<T> & tmpBuffers_disabled,
+        //#else
         TempUpdateBuffers<T> & tmpBuffers,
-//#endif
+        //#endif
         Int iTarget, Int iam ){
-bassert(this->meta_!=nullptr);
+      bassert(this->meta_!=nullptr);
       scope_timer(a,UPDATE_AGGREGATE_SNODE);
 
 #if defined(_NO_COMPUTATION_)
       return 0;
 #endif
 
-///#ifdef SP_THREADS
-///      //hide the parameter
-///        TempUpdateBuffers<T> tmpBuffers;
-///        tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
-///        tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
-///        tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
-///#endif
+      ///#ifdef SP_THREADS
+      ///      //hide the parameter
+      ///        TempUpdateBuffers<T> tmpBuffers;
+      ///        tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
+      ///        tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
+      ///        tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
+      ///#endif
 
       if(iTarget != iam){
         this->Merge(src_snode, update);
@@ -819,7 +864,7 @@ bassert(this->meta_!=nullptr);
       //If the target supernode has the same structure,
       //The GEMM is directly done in place
 #ifdef SP_THREADS
-        tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+      tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
 #endif
 
 
@@ -864,9 +909,9 @@ bassert(this->meta_!=nullptr);
         if(tgt_snode_size==1){
           Int rowidx = 0;
           Int src_blkcnt = src_snode->NZBlockCnt();
-//#pragma omp parallel
+          //#pragma omp parallel
           {
-//#pragma omp for
+            //#pragma omp for
             for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
               NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
               Int cur_src_nrows = src_snode->NRows(blkidx);
@@ -903,9 +948,9 @@ bassert(this->meta_!=nullptr);
 
           Int src_blkcnt = src_snode->NZBlockCnt();
 
-//#pragma omp parallel
+          //#pragma omp parallel
           {
-//#pragma omp for
+            //#pragma omp for
             for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
               NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
               Int cur_src_nrows = src_snode->NRows(blkidx);
@@ -944,9 +989,9 @@ bassert(this->meta_!=nullptr);
             // Updating contiguous columns
             Int tgt_offset = (tgt_fc - this->FirstCol());
 
-//#pragma omp parallel
+            //#pragma omp parallel
             {
-//#pragma omp for
+              //#pragma omp for
               for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
                 T * A = &buf[rowidx*tgt_width];
                 T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
@@ -962,9 +1007,9 @@ bassert(this->meta_!=nullptr);
           else{
             // full sparse case
 
-//#pragma omp parallel
+            //#pragma omp parallel
             {
-//#pragma omp for
+              //#pragma omp for
               for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
                 for(Int colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx){
                   Int col = tmpBuffers.src_colindx[colidx];
@@ -989,17 +1034,17 @@ bassert(this->meta_!=nullptr);
       SuperNodeInd<T,Allocator> * contrib = this;
       SuperNodeInd<T> * cur_snodeInd = static_cast<SuperNodeInd<T>*>(cur_snode);
 
-  Int nrhs = pnrhs;
-  if(pnrhs==-1){
-    nrhs = contrib->Size();
-    assert(nrhsOffset==0);
-  }
-  else{
-    nrhs = std::min(pnrhs,contrib->Size() - nrhsOffset);
-  }
+      Int nrhs = pnrhs;
+      if(pnrhs==-1){
+        nrhs = contrib->Size();
+        assert(nrhsOffset==0);
+      }
+      else{
+        nrhs = std::min(pnrhs,contrib->Size() - nrhsOffset);
+      }
 
-  Int ldsol = contrib->Size();
-  Int ldfact = cur_snode->Size();
+      Int ldsol = contrib->Size();
+      Int ldfact = cur_snode->Size();
 
 
 
@@ -1077,17 +1122,17 @@ bassert(this->meta_!=nullptr);
       SuperNodeInd<T,Allocator> * contrib = this;
       Int snodeSize = cur_snodeInd->Size();
 
-  Int nrhs = pnrhs;
-  if(pnrhs==-1){
-    nrhs = contrib->Size();
-    assert(nrhsOffset==0);
-  }
-  else{
-    nrhs = std::min(pnrhs,contrib->Size() - nrhsOffset);
-  }
+      Int nrhs = pnrhs;
+      if(pnrhs==-1){
+        nrhs = contrib->Size();
+        assert(nrhsOffset==0);
+      }
+      else{
+        nrhs = std::min(pnrhs,contrib->Size() - nrhsOffset);
+      }
 
-  Int ldsol = contrib->Size();
-  Int ldfact = cur_snodeInd->Size();
+      Int ldsol = contrib->Size();
+      Int ldfact = cur_snodeInd->Size();
 
 
 

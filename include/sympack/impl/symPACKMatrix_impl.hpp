@@ -424,6 +424,8 @@ namespace symPACK{
             Task.remote_deps = iOwnerSrc!=iam?1:0;
             Task.local_deps = iOwnerSrc==iam?1:0;
 
+            //TODO compute the memreq
+
 //      std::stringstream sstr;
 //      sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)type;
 //      Task.id = hash_fn(sstr.str());
