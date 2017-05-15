@@ -113,8 +113,9 @@ namespace symPACK{
       }
 
       nzval_ = (T*)&loc_storage_container_[0];
-      updrows_ = (Idx*)(nzval_+size*ai_num_rows);
-      meta_ = (SuperNodeDesc*)(updrows_+num_updrows);
+      //updrows_ = (Idx*)(nzval_+size*ai_num_rows);
+      //meta_ = (SuperNodeDesc*)(updrows_+num_updrows);
+      meta_ = (SuperNodeDesc*)(nzval_+size*ai_num_rows);
       char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
       blocks_ = (NZBlockDesc*) last;
 
@@ -126,7 +127,7 @@ namespace symPACK{
       meta_->iSize_ = size;
       meta_->nzval_cnt_ = 0;
       meta_->blocks_cnt_ = 0;
-      meta_->updrows_cnt_ = 0;
+      //meta_->updrows_cnt_ = 0;
       meta_->b_own_storage_ = true;
 
 #ifndef ITREE
@@ -219,8 +220,9 @@ namespace symPACK{
 
 
       nzval_ = (T*)&loc_storage_container_[0];
-      updrows_ = (Idx*)(nzval_+size*numRows);
-      meta_ = (SuperNodeDesc*)(updrows_+num_updrows);
+      //updrows_ = (Idx*)(nzval_+size*numRows);
+      //meta_ = (SuperNodeDesc*)(updrows_+num_updrows);
+      meta_ = (SuperNodeDesc*)(nzval_+size*numRows);
       char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
       blocks_ = (NZBlockDesc*) last;
 
@@ -232,7 +234,7 @@ namespace symPACK{
       meta_->iSize_ = size;
       meta_->nzval_cnt_ = 0;
       meta_->blocks_cnt_ = 0;
-      meta_->updrows_cnt_ = 0;
+      //meta_->updrows_cnt_ = 0;
       meta_->b_own_storage_ = true;
 
 #ifndef ITREE
@@ -283,8 +285,9 @@ namespace symPACK{
       //we now need to update the meta data
       meta_->b_own_storage_ = false;
       meta_->blocks_cnt_ = blkCnt;
-      updrows_ = (Idx*)meta_ - meta_->updrows_cnt_;
-      meta_->nzval_cnt_ = (T*)updrows_ - nzval_;
+      //updrows_ = (Idx*)meta_ - meta_->updrows_cnt_;
+      //meta_->nzval_cnt_ = (T*)updrows_ - nzval_;
+      meta_->nzval_cnt_ = (T*)meta_ - nzval_;
 
       if(GIndex==-1){
         GIndex = GetNZBlockDesc(0).GIndex;
@@ -337,9 +340,9 @@ namespace symPACK{
         //if there is no more room for either nzval or blocks, extend
         Int block_space = (Int)(blocks_+1 - (NZBlockDesc*)(meta_ +1)) - meta_->blocks_cnt_;
         size_t nzval_space = ((size_t)((char*)meta_ - (char*)nzval_) - meta_->nzval_cnt_*sizeof(T) );
-        if(ownDiagonal){
-          nzval_space = nzval_space - (meta_->updrows_cnt_+1)*sizeof(Idx);
-        }
+        //if(ownDiagonal){
+        //  nzval_space = nzval_space - (meta_->updrows_cnt_+1)*sizeof(Idx);
+        //}
 
 
         if(block_space==0 || nzval_space<cur_nzval_cnt*sizeof(T)){
@@ -348,11 +351,11 @@ namespace symPACK{
           size_t extra_nzvals_bytes = std::max((size_t)0,(cur_nzval_cnt*sizeof(T) - nzval_space));
           Int extra_blocks = std::max((Int)0,(Int)1 - block_space);
           size_t new_size = storage_size_ + extra_nzvals_bytes + extra_blocks*sizeof(NZBlockDesc);
-          if(ownDiagonal){
-            new_size += sizeof(Idx);
-          }
+          //if(ownDiagonal){
+          //  new_size += sizeof(Idx);
+          //}
 
-          size_t offset_updrows = (char*)updrows_ - (char*)nzval_;
+          //size_t offset_updrows = (char*)updrows_ - (char*)nzval_;
           size_t offset_meta = (char*)meta_ - (char*)nzval_;
           size_t offset_block = (char*)blocks_ - (char*)nzval_;
 
@@ -370,7 +373,7 @@ namespace symPACK{
           //move the meta data if required
           char * cur_meta_ptr = (char*)&loc_storage_container_[0] + offset_meta;
           //move the updated rows if required
-          char * cur_updrows_ptr = (char*)&loc_storage_container_[0] + offset_updrows;
+          //char * cur_updrows_ptr = (char*)&loc_storage_container_[0] + offset_updrows;
 
 
           meta_ = (SuperNodeDesc*) cur_meta_ptr;
@@ -390,11 +393,11 @@ namespace symPACK{
           std::copy(cur_meta_ptr,cur_meta_ptr + sizeof(SuperNodeDesc),new_meta_ptr);
 
           //now move the updated rows by extra_nzvals_bytes
-          char * new_updrows_ptr = cur_updrows_ptr + extra_nzvals_bytes;
-          std::copy(cur_updrows_ptr,cur_updrows_ptr + meta_->updrows_cnt_*sizeof(Idx),new_updrows_ptr);
+          //char * new_updrows_ptr = cur_updrows_ptr + extra_nzvals_bytes;
+          //std::copy(cur_updrows_ptr,cur_updrows_ptr + meta_->updrows_cnt_*sizeof(Idx),new_updrows_ptr);
 
           //update pointers
-          updrows_ = (Idx*) new_updrows_ptr;
+          //updrows_ = (Idx*) new_updrows_ptr;
           meta_ = (SuperNodeDesc*) new_meta_ptr;
           blocks_ = (NZBlockDesc*) new_blocks_ptr;
         }
@@ -409,10 +412,10 @@ namespace symPACK{
         //blocks_container_.push_back(NZBlockDesc(aiGIndex,nzval_cnt_));
 
         meta_->blocks_cnt_++;
-        if(OwnDiagonal()){
-          updrows_[meta_->updrows_cnt_] = aiGIndex;
-          meta_->updrows_cnt_++;
-        }
+        //if(OwnDiagonal()){
+        //  updrows_[meta_->updrows_cnt_] = aiGIndex;
+        //  meta_->updrows_cnt_++;
+        //}
         trsm_count++;
 
         //fill the new block with zeros
@@ -503,20 +506,18 @@ namespace symPACK{
         //if there is too much room for either nzval or blocks, contract
         Int block_space = (Int)(blocks_+1 - (NZBlockDesc*)(meta_ +1)) - meta_->blocks_cnt_;
         size_t nzval_space = ((size_t)((char*)meta_ - (char*)nzval_) - meta_->nzval_cnt_*sizeof(T) );
-        if(ownDiagonal && nzval_space>0){
-          nzval_space = nzval_space - (meta_->updrows_cnt_)*sizeof(Idx);
-        }
+        //if(ownDiagonal && nzval_space>0){
+        //  nzval_space = nzval_space - (meta_->updrows_cnt_)*sizeof(Idx);
+        //}
 
         if(block_space >0 || nzval_space >0){
 
           size_t new_size = storage_size_ - nzval_space - block_space*sizeof(NZBlockDesc);
-          //      if(ownDiagonal){
-          //        new_size -= sizeof(Idx);
-          //      }
 
 #if 1
-          size_t offset_updrows = meta_->nzval_cnt_*sizeof(T);
-          size_t offset_meta = offset_updrows + meta_->updrows_cnt_*sizeof(Idx);
+          //size_t offset_updrows = meta_->nzval_cnt_*sizeof(T);
+          //size_t offset_meta = offset_updrows + meta_->updrows_cnt_*sizeof(Idx);
+          size_t offset_meta = meta_->nzval_cnt_*sizeof(T);
           size_t offset_block = offset_meta +sizeof(SuperNodeDesc);
 #else
           size_t offset_meta = (char*)meta_ - (char*)nzval_;
@@ -530,7 +531,7 @@ namespace symPACK{
           std::copy(nzval_,nzval_+meta_->nzval_cnt_,(T*)locTmpPtr);
 
           //copy updrows
-          std::copy(updrows_,updrows_+meta_->updrows_cnt_,(Idx*)(locTmpPtr+offset_updrows));
+          //std::copy(updrows_,updrows_+meta_->updrows_cnt_,(Idx*)(locTmpPtr+offset_updrows));
           //copy meta
           std::copy(meta_,meta_+1,(SuperNodeDesc*)(locTmpPtr+offset_meta));
           //copy blocks
@@ -544,12 +545,12 @@ namespace symPACK{
           //move the block descriptors if required
           char * new_blocks_ptr = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
           //move the updated rows data if required
-          char * new_updrows_ptr = loc_storage_container_ + offset_updrows;
+          //char * new_updrows_ptr = loc_storage_container_ + offset_updrows;
           //move the meta data if required
           char * new_meta_ptr = loc_storage_container_ + offset_meta;
 
           //update pointers
-          updrows_ = (Idx*) new_updrows_ptr;
+          //updrows_ = (Idx*) new_updrows_ptr;
           meta_ = (SuperNodeDesc*) new_meta_ptr;
           blocks_ = (NZBlockDesc*) new_blocks_ptr;
         }

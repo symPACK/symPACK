@@ -92,10 +92,10 @@ namespace symPACK{
     Int iN_; 
     Int blocks_cnt_;
     Int nzval_cnt_;
-    Int updrows_cnt_;
+    //Int updrows_cnt_;
 
     SuperNodeDesc():iId_(-1),iSize_(-1),iFirstRow_(-1),iFirstCol_(-1),
-        iLastCol_(-1),iN_(-1),blocks_cnt_(-1),nzval_cnt_(-1),updrows_cnt_(-1){}
+        iLastCol_(-1),iN_(-1),blocks_cnt_(-1),nzval_cnt_(-1)/*,updrows_cnt_(-1)*/{}
   };
 
 
@@ -116,7 +116,7 @@ namespace symPACK{
     class SuperNode: public SuperNodeBase<T>{
       public:
         std::atomic<int> trsm_count;
-        Idx * updrows_;
+        //Idx * updrows_;
 
       protected:
 

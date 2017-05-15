@@ -139,9 +139,11 @@ namespace symPACK{
       typedef size_t id_type;
       id_type id;
 
+      std::function< id_type(char *) > getHash;
+
       //dependencies
-      Int remote_deps_cnt;
-      Int local_deps_cnt;
+      //Int remote_deps_cnt;
+      //Int local_deps_cnt;
       Int remote_deps;
       Int local_deps;
 
@@ -160,8 +162,8 @@ namespace symPACK{
       }
 
       virtual void init(){
-        remote_deps_cnt = remote_deps;
-        local_deps_cnt = local_deps;
+        //remote_deps_cnt = remote_deps;
+        //local_deps_cnt = local_deps;
       }
 
       virtual void reset(){
@@ -176,7 +178,7 @@ namespace symPACK{
   
       std::function< void() > execute;
 
-      GenericTask( ):remote_deps_cnt(0),local_deps_cnt(0),remote_deps(0),local_deps(0){}
+      GenericTask( ):/*remote_deps_cnt(0),local_deps_cnt(0),*/remote_deps(0),local_deps(0){}
   };
 
   class SparseTask: public GenericTask{

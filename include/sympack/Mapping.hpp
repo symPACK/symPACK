@@ -448,7 +448,130 @@ class ModWrap2DTreeMapping: public TreeMapping{
 
 
 
+class Mapping2D: public Mapping{
+  public:
+      virtual inline void MapInsert(Int row, Int supno, Int proc, Int nrows)=0;
+      Mapping2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
+      Mapping2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      Mapping2D(Mapping2D & C):Mapping(C){};
+      Mapping2D():Mapping(0,0,0,0){};
+      ~Mapping2D(){};
+};
 
+
+
+class Block2D: public Mapping2D{
+  public:
+    std::map< Int, std::map< Int , std::tuple<Int,Int> > > block2rank_;
+   
+  protected:
+  public:
+      Block2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping2D(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
+      Block2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping2D(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
+      Block2D(Block2D & C):Mapping2D(C){};
+      Block2D():Mapping2D(0,0,0,0){};
+
+      void Merge(MPI_Comm & comm){
+        using procmap_t = std::tuple<Int,Int,Int,Int>;
+
+
+        std::vector<procmap_t> sendBuf;
+        sendBuf.reserve(block2rank_.size());
+        for(auto && cur: block2rank_){
+          for(auto && icur: cur.second){
+            procmap_t tmp = std::make_tuple( cur.first, icur.first, std::get<0>(icur.second),std::get<1>(icur.second) );
+            sendBuf.push_back(tmp);
+          }
+        }
+
+        //for(auto && cur : sendBuf){ logfileptr->OFS()<<"3 Block("<<std::get<0>(cur)<<","<<std::get<1>(cur)<<") on P"<<std::get<2>(cur)<<std::endl; }
+
+        std::vector<int> recvSize(iNumProc_);
+        int sendsz = sendBuf.size();
+        MPI_Allgather(&sendsz,1,MPI_INT,recvSize.data(),1,MPI_INT,comm);
+
+        //for(auto && i: recvSize){logfileptr->OFS()<<i<<" ";}logfileptr->OFS()<<std::endl;
+
+        std::vector<int> recvDispls(iNumProc_+1);
+        recvDispls[0] = 0;
+        std::partial_sum(recvSize.begin(),recvSize.end(),&recvDispls[1]);
+
+
+
+        //gcd between sizes received
+        auto gcd = [](int a, int b)->int {
+          while (b > 0)
+          {
+            long temp = b;
+            b = a % b; // % is remainder
+            a = temp;
+          }
+          return a;
+        };
+
+        auto colgcd = [&gcd](std::vector<int> & input)->int{
+          int result = input[0];
+          for(int i = 0; i < input.size(); i++){
+            result = gcd(result, input[i]);
+          }
+          return result;
+        };
+
+        int sz = colgcd(recvSize);
+        MPI_Datatype type,type_array;
+        MPI_Type_contiguous( sizeof(procmap_t), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
+        MPI_Type_contiguous( sz, type, &type_array );
+        MPI_Type_commit(&type_array);
+
+
+        //for(auto && i: recvDispls){logfileptr->OFS()<<i<<" ";}logfileptr->OFS()<<std::endl;
+
+        std::vector<procmap_t> recvBuf(recvDispls.back());
+
+        for(int i = 0; i< recvSize.size(); i++){ recvSize[i] /= sz; }
+        recvDispls[0] = 0;
+        std::partial_sum(recvSize.begin(),recvSize.end(),&recvDispls[1]);
+        MPI_Allgatherv(sendBuf.data(),sendBuf.size()/sz,type_array,recvBuf.data(),recvSize.data(),recvDispls.data(),type_array,comm);
+
+
+
+        //now clear and insert
+        for(auto && cur : recvBuf){
+          //logfileptr->OFS()<<"2 Block("<<std::get<0>(cur)<<","<<std::get<1>(cur)<<") on P"<<std::get<2>(cur)<<std::endl;
+          block2rank_[std::get<0>(cur)][std::get<1>(cur)] = std::make_tuple(std::get<2>(cur),std::get<3>(cur));
+          //block2rank_[std::make_tuple(std::get<0>(cur),std::get<1>(cur))] = std::make_tuple(std::get<2>(cur),std::get<3>(cur));
+        }
+
+        MPI_Type_free(&type_array);
+        MPI_Type_free(&type);
+      }
+
+
+      inline void MapInsert(Int row, Int supno, Int proc, Int nrows){
+//       auto key = std::make_tuple(row,supno);
+       auto val = std::make_tuple(proc,nrows);
+       block2rank_[supno][row] = val;
+      }
+
+      inline Int Map(Int row, Int supno){
+//       auto tupl = std::make_tuple(row,supno);
+        Int proc = 0;
+        auto it = block2rank_.find(supno);
+        if(it != block2rank_.end()){
+          auto it2 = it->second.find(row);
+          if(it2 != it->second.end()){
+            proc = std::get<0>(it2->second);
+          }
+        }
+
+          
+        //Int & proc = std::get<0>(block2rank_[supno][row]);
+        return proc;
+      }
+
+      ~Block2D(){};
+};
 
 
 

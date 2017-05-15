@@ -242,10 +242,10 @@ namespace symPACK{
                 list_mutex_.lock();
               }
 #endif
-              taskit->second->remote_deps_cnt--;
+              taskit->second->remote_deps--;
               taskit->second->addData(msgPtr);
 
-              if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+              if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
                 this->push(taskit->second);    
                 graph.removeTask(taskit->second->id);
               }
@@ -313,7 +313,7 @@ namespace symPACK{
       {
         auto taskit = graph.tasks_.begin();
         while (taskit != graph.tasks_.end()) {
-          if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+          if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
             auto it = taskit;
             this->push(it->second);
             taskit++;

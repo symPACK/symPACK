@@ -129,7 +129,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
       SparseTask & Task = *(SparseTask*)pTask.get();
 
       Int * meta = reinterpret_cast<Int*>(Task.meta.data());
-      Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+      Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[3]);
 
       if(type == Factorization::op_type::FACTOR){
         return false;
@@ -176,10 +176,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
       scheduler_new_->list_mutex_.lock();
     }
 #endif
-    taskit->second->local_deps_cnt-= loc;
-    taskit->second->remote_deps_cnt-= rem;
+    taskit->second->local_deps-= loc;
+    taskit->second->remote_deps-= rem;
 
-    if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+    if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
       {
         //SparseTask * tmp = ((SparseTask*)taskit->second.get());
         //Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
@@ -202,7 +202,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
   auto log_task = [&] (taskGraph::task_iterator taskit){
     SparseTask * tmp = ((SparseTask*)taskit->second.get());
     Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
-    Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+    Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[3]);
     std::string name;
     switch(type){
       case Factorization::op_type::FACTOR:
@@ -216,13 +216,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
         break;
     }
 
-    logfileptr->OFS()<<" T "<<name<<" "<<meta[0]<<"_"<<meta[1]<<" "<<tmp->local_deps_cnt<<" "<<tmp->remote_deps_cnt<<std::endl;
+    logfileptr->OFS()<<" T "<<name<<" "<<meta[0]<<"_"<<meta[1]<<" "<<tmp->local_deps<<" "<<tmp->remote_deps<<std::endl;
   };
 
   auto log_task_internal = [&] ( const std::shared_ptr<GenericTask> & taskptr){
     SparseTask * tmp = ((SparseTask*)taskptr.get());
     Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
-    Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+    Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[3]);
     std::string name;
     switch(type){
       case Factorization::op_type::FACTOR:
@@ -237,7 +237,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
     }
 
     std::stringstream sstr;
-    sstr<<" Running T "<<name<<" "<<meta[0]<<"_"<<meta[1]<<" "<<tmp->local_deps_cnt<<" "<<tmp->remote_deps_cnt<<std::endl;
+    sstr<<" Running T "<<name<<" "<<meta[0]<<"_"<<meta[1]<<" "<<tmp->local_deps<<" "<<tmp->remote_deps<<std::endl;
     logfileptr->OFS()<<sstr.str();
   };
 
@@ -271,15 +271,15 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
         Int J = msg->meta.tgt;
         std::shared_ptr<GenericTask> pTask(new SparseTask);
         SparseTask & Task = *(SparseTask*)pTask.get();
-        Task.meta.resize(2*sizeof(Int)+sizeof(Factorization::op_type));
+        Task.meta.resize(3*sizeof(Int)+sizeof(Factorization::op_type));
         Int * meta = reinterpret_cast<Int*>(Task.meta.data());
         meta[0] = I;
         meta[1] = J;
-        Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+        Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[3]);
         type = Factorization::op_type::AGGREGATE;
 
-        Task.remote_deps_cnt = 1;
-        Task.local_deps_cnt = 0;
+        Task.remote_deps = 1;
+        Task.local_deps = 0;
 
         Int src = meta[0];
         Int tgt = meta[1];
@@ -368,7 +368,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
       Int * meta = reinterpret_cast<Int*>(Task.meta.data());
       Int src = meta[0];
       Int tgt = meta[1];
-      Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
+      Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[3]);
 
       switch(type){
         case Factorization::op_type::FACTOR:
@@ -1625,6 +1625,7 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
   Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
   Int firstSnode = XsuperDist_[iam];
   Int lastSnode = firstSnode + numLocSnode-1;
+  bool is2D = dynamic_cast<Mapping2D*>(Mapping_)!=nullptr;
 
   for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
     Idx s = locsupno + firstSnode-1;
@@ -1643,8 +1644,16 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
         if(marker[supno-1]!=s && supno!=s){
           marker[supno-1] = s;
 
-          Int iFactorizer = Mapping_->Map(supno-1,supno-1);
-          Int iUpdater = Mapping_->Map(supno-1,s-1);
+          Int iFactorizer = -1;
+          Int iUpdater = -1;
+          if(is2D){
+            iFactorizer = Mapping_->Map(Xsuper_[supno-1],supno);
+            iUpdater = Mapping_->Map(Xsuper_[supno-1],s);
+          }
+          else{
+            iFactorizer = Mapping_->Map(supno-1,supno-1);
+            iUpdater = Mapping_->Map(supno-1,s-1);
+          }
 
           if( iUpdater==iFactorizer){
             LocalAggregates[supno-1]++;
@@ -1884,8 +1893,18 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
           if(marker[supno-1]!=s && supno!=s){
             marker[supno-1] = s;
 
-            Int iFactorizer = Mapping_->Map(supno-1,supno-1);
-            Int iUpdater = Mapping_->Map(supno-1,s-1);
+          Int iFactorizer = -1;
+          Int iUpdater = -1;
+          if(is2D){
+            iFactorizer = Mapping_->Map(Xsuper_[supno-1],supno);
+            iUpdater = Mapping_->Map(Xsuper_[supno-1],s);
+          }
+          else{
+            iFactorizer = Mapping_->Map(supno-1,supno-1);
+            iUpdater = Mapping_->Map(supno-1,s-1);
+          }
+
+
             if( iUpdater!=iFactorizer){
               auto & procSendAfter = sendAfter[iUpdater];
               if(s==procSendAfter[supno]){

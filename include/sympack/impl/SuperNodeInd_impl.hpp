@@ -104,8 +104,9 @@ namespace symPACK{
       bassert(this->loc_storage_container_!=NULL);
 
       this->nzval_ = (T*)&this->loc_storage_container_[0];
-      this->updrows_ = (Idx*)(this->nzval_+size*ai_num_rows);
-      this->diag_ = (T*)(this->updrows_+num_updrows);
+      //this->updrows_ = (Idx*)(this->nzval_+size*ai_num_rows);
+      //this->diag_ = (T*)(this->updrows_+num_updrows);
+      this->diag_ = (T*)(this->nzval_+size*ai_num_rows);
       this->meta_ = (SuperNodeDesc*)(this->diag_ + size);
       char * last = this->loc_storage_container_+this->storage_size_-1 - (sizeof(NZBlockDesc) -1);
       this->blocks_ = (NZBlockDesc*) last;
@@ -118,7 +119,7 @@ namespace symPACK{
       this->meta_->iSize_ = size;
       this->meta_->nzval_cnt_ = 0;
       this->meta_->blocks_cnt_ = 0;
-      this->meta_->updrows_cnt_ = 0;
+      //this->meta_->updrows_cnt_ = 0;
       this->meta_->b_own_storage_ = true;
 
 #ifndef ITREE
@@ -159,12 +160,13 @@ namespace symPACK{
 
       this->meta_= (SuperNodeDesc*)(this->blocks_ - blkCnt +1) - 1;
       this->diag_= (T*)(this->meta_) - this->Size();
-      this->updrows_ = (Idx*)this->diag_ - this->meta_->updrows_cnt_;
+      //this->updrows_ = (Idx*)this->diag_ - this->meta_->updrows_cnt_;
       this->nzval_ = (T*) storage_ptr;
       //we now need to update the meta data
       this->meta_->b_own_storage_ = false;
       this->meta_->blocks_cnt_ = blkCnt;
-      this->meta_->nzval_cnt_ = (T*)this->updrows_ - this->nzval_;
+      //this->meta_->nzval_cnt_ = (T*)this->updrows_ - this->nzval_;
+      this->meta_->nzval_cnt_ = (T*)this->diag_ - this->nzval_;
 
       if(GIndex==-1){
         GIndex = this->GetNZBlockDesc(0).GIndex;
@@ -238,8 +240,9 @@ namespace symPACK{
       }
 
       this->nzval_ = (T*)&this->loc_storage_container_[0];
-      this->updrows_ = (Idx*)(this->nzval_+size*numRows);
-      this->diag_ = (T*)(this->updrows_+num_updrows);
+      //this->updrows_ = (Idx*)(this->nzval_+size*numRows);
+      //this->diag_ = (T*)(this->updrows_+num_updrows);
+      this->diag_ = (T*)(this->nzval_+size*numRows);
       this->meta_ = (SuperNodeDesc*)(this->diag_ + size);
       char * last = this->loc_storage_container_+this->storage_size_-1 - (sizeof(NZBlockDesc) -1);
       this->blocks_ = (NZBlockDesc*) last;
@@ -252,7 +255,7 @@ namespace symPACK{
       this->meta_->iSize_ = size;
       this->meta_->nzval_cnt_ = 0;
       this->meta_->blocks_cnt_ = 0;
-      this->meta_->updrows_cnt_ = 0;
+      //this->meta_->updrows_cnt_ = 0;
       this->meta_->b_own_storage_ = true;
 
 
@@ -324,9 +327,9 @@ namespace symPACK{
         //if there is no more room for either nzval or blocks, extend
         Int block_space = (Int)(this->blocks_+1 - (NZBlockDesc*)(this->meta_ +1)) - this->meta_->blocks_cnt_;
         size_t nzval_space = ((size_t)((char*)this->diag_ - (char*)this->nzval_) - this->meta_->nzval_cnt_*sizeof(T) );
-        if(ownDiagonal){
-          nzval_space = nzval_space - (this->meta_->updrows_cnt_+1)*sizeof(Idx);
-        }
+        //if(ownDiagonal){
+        //  nzval_space = nzval_space - (this->meta_->updrows_cnt_+1)*sizeof(Idx);
+        //}
 
         if(block_space==0 || nzval_space<cur_nzval_cnt*sizeof(T)){
           //need to resize storage space. this is expensive !
@@ -334,11 +337,11 @@ namespace symPACK{
           size_t extra_nzvals_bytes = std::max((size_t)0,cur_nzval_cnt*sizeof(T) - nzval_space);
           Int extra_blocks = std::max((Int)0,1 - block_space);
           size_t new_size = this->storage_size_ + extra_nzvals_bytes + extra_blocks*sizeof(NZBlockDesc);
-          if(ownDiagonal){
-            new_size += sizeof(Idx);
-          }
+          //if(ownDiagonal){
+          //  new_size += sizeof(Idx);
+          //}
 
-          size_t offset_updrows = (char*)this->updrows_ - (char*)this->nzval_;
+          //size_t offset_updrows = (char*)this->updrows_ - (char*)this->nzval_;
           size_t offset_diag = (char*)this->diag_ - (char*)this->nzval_;
           size_t offset_meta = (char*)this->meta_ - (char*)this->nzval_;
           size_t offset_block = (char*)this->blocks_ - (char*)this->nzval_;
@@ -363,7 +366,7 @@ namespace symPACK{
           //move the diag entries if required
           char * cur_diag_ptr = (char*)&this->loc_storage_container_[0] + offset_diag;
           //move the updated rows if required
-          char * cur_updrows_ptr = (char*)&this->loc_storage_container_[0] + offset_updrows;
+          //char * cur_updrows_ptr = (char*)&this->loc_storage_container_[0] + offset_updrows;
 
           this->meta_ = (SuperNodeDesc*) cur_meta_ptr;
           //we need to move everything, starting from the blocks, then meta
@@ -379,11 +382,11 @@ namespace symPACK{
           char * new_diag_ptr = cur_diag_ptr + extra_nzvals_bytes;
           std::copy(cur_diag_ptr,cur_diag_ptr + sizeof(T)*size,new_diag_ptr);
           //now move the updated rows by extra_nzvals_bytes
-          char * new_updrows_ptr = cur_updrows_ptr + extra_nzvals_bytes;
-          std::copy(cur_updrows_ptr,cur_updrows_ptr + this->meta_->updrows_cnt_*sizeof(Idx),new_updrows_ptr);
+          //char * new_updrows_ptr = cur_updrows_ptr + extra_nzvals_bytes;
+          //std::copy(cur_updrows_ptr,cur_updrows_ptr + this->meta_->updrows_cnt_*sizeof(Idx),new_updrows_ptr);
 
           //update pointers
-          this->updrows_ = (Idx*) new_updrows_ptr;
+          //this->updrows_ = (Idx*) new_updrows_ptr;
           this->diag_ = (T*) new_diag_ptr;
           this->meta_ = (SuperNodeDesc*) new_meta_ptr;
           this->blocks_ = (NZBlockDesc*) new_blocks_ptr;
@@ -397,10 +400,10 @@ namespace symPACK{
         }
 
         this->meta_->blocks_cnt_++;
-        if(this->OwnDiagonal()){
-          this->updrows_[this->meta_->updrows_cnt_] = aiGIndex;
-          this->meta_->updrows_cnt_++;
-        }
+        //if(this->OwnDiagonal()){
+        //  this->updrows_[this->meta_->updrows_cnt_] = aiGIndex;
+        //  this->meta_->updrows_cnt_++;
+        //}
         this->trsm_count++;
 
         //fill the new block with zeros
@@ -421,16 +424,17 @@ namespace symPACK{
         //if there is too much room for either nzval or blocks, contract
         Int block_space = (Int)(this->blocks_+1 - (NZBlockDesc*)(this->meta_ +1)) - this->meta_->blocks_cnt_;
         size_t nzval_space = ((size_t)((char*)this->diag_ - (char*)this->nzval_) - this->meta_->nzval_cnt_*sizeof(T) );
-        if(ownDiagonal && nzval_space>0){
-          nzval_space = nzval_space - (this->meta_->updrows_cnt_)*sizeof(Idx);
-        }
+        //if(ownDiagonal && nzval_space>0){
+        //  nzval_space = nzval_space - (this->meta_->updrows_cnt_)*sizeof(Idx);
+        //}
 
         if(block_space >0 || nzval_space >0){
 
           size_t new_size = this->storage_size_ - nzval_space - block_space*sizeof(NZBlockDesc);
 
-          size_t offset_updrows = this->meta_->nzval_cnt_*sizeof(T);
-          size_t offset_diag = offset_updrows + this->meta_->updrows_cnt_*sizeof(Idx);
+          //size_t offset_updrows = this->meta_->nzval_cnt_*sizeof(T);
+          //size_t offset_diag = offset_updrows + this->meta_->updrows_cnt_*sizeof(Idx);
+          size_t offset_diag = this->meta_->nzval_cnt_*sizeof(T);
           size_t offset_meta = (this->meta_->nzval_cnt_+this->meta_->iSize_)*sizeof(T);
           size_t offset_block = (this->meta_->nzval_cnt_+this->meta_->iSize_)*sizeof(T)+sizeof(SuperNodeDesc);
 
@@ -441,7 +445,7 @@ namespace symPACK{
           std::copy(this->nzval_,this->nzval_+this->meta_->nzval_cnt_,(T*)locTmpPtr);
 
           //copy updrows
-          std::copy(this->updrows_,this->updrows_+this->meta_->updrows_cnt_,(Idx*)(locTmpPtr+offset_updrows));
+          //std::copy(this->updrows_,this->updrows_+this->meta_->updrows_cnt_,(Idx*)(locTmpPtr+offset_updrows));
 
           //copy diag
           std::copy(this->diag_,this->diag_+this->Size(),(T*)(locTmpPtr+offset_diag));
@@ -465,9 +469,9 @@ namespace symPACK{
           //now move the diag entries by extra_nzvals
           char * new_diag_ptr = this->loc_storage_container_ + offset_diag;
           //move the updated rows data if required
-          char * new_updrows_ptr = this->loc_storage_container_ + offset_updrows;
+          //char * new_updrows_ptr = this->loc_storage_container_ + offset_updrows;
           //update pointers
-          this->updrows_ = (Idx*) new_updrows_ptr;
+          //this->updrows_ = (Idx*) new_updrows_ptr;
           this->diag_ = (T*) new_diag_ptr;
           this->meta_ = (SuperNodeDesc*) new_meta_ptr;
           this->blocks_ = (NZBlockDesc*) new_blocks_ptr;

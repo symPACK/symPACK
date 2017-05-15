@@ -714,9 +714,9 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 #ifdef SP_THREADS
         std::lock_guard<std::mutex> lock(scheduler_new_->list_mutex_);
 #endif
-      taskit->second->local_deps_cnt-= loc;
-      taskit->second->remote_deps_cnt-= rem;
-      if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+      taskit->second->local_deps-= loc;
+      taskit->second->remote_deps-= rem;
+      if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
         scheduler_new_->push(taskit->second);
         graph.removeTask(taskit->second->id);
       }
@@ -796,15 +796,15 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
             Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[3]);
             type = Solve::op_type::FUC;
 
-            FUCtask.local_deps_cnt = loc_children[I-1];
-            FUCtask.remote_deps_cnt = rem_children[I-1];
+            FUCtask.local_deps = loc_children[I-1];
+            FUCtask.remote_deps = rem_children[I-1];
             //if this is the last task, add all the other subtasks as dependencies
             Int parent = SupETree.PostParent(I-1);
             if(parent!=0){
               Int parentOwner = this->Mapping_->Map(parent-1,parent-1);
               if(parentOwner!=iam){
                 if(numSubTasks>1 && task==numSubTasks-1){
-                  FUCtask.local_deps_cnt += numSubTasks-1;
+                  FUCtask.local_deps += numSubTasks-1;
                 }
               }
             }
@@ -1080,10 +1080,10 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
             Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[3]);
             type = Solve::op_type::BUC;
 
-            BUCtask.local_deps_cnt = 1;
+            BUCtask.local_deps = 1;
             //if this is the last task, add all the other subtasks as dependencies
             if(numSubTasks>1 && task==numSubTasks-1){
-              BUCtask.local_deps_cnt += numSubTasks-1;
+              BUCtask.local_deps += numSubTasks-1;
             }
 
             BUCtask.execute = [&,this,I,pBUCtask,task,maxNrhsPerTask,numSubTasks,taskNrhs] () {
@@ -1203,14 +1203,14 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
               Int childOwner = this->Mapping_->Map(I-1,I-1);
               if(childOwner==iam){
-                FUtask.local_deps_cnt = 1;
+                FUtask.local_deps = 1;
               }
               else{
-                FUtask.remote_deps_cnt = 1;
+                FUtask.remote_deps = 1;
 
                 if(numSubTasks>1){
                   if(task==numSubTasks-1){
-                    FUtask.local_deps_cnt += numSubTasks - 1;
+                    FUtask.local_deps += numSubTasks - 1;
                   }
                 }
               }
@@ -1321,14 +1321,14 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
               Int parentOwner = this->Mapping_->Map(parent-1,parent-1);
               if(parentOwner==iam){
-                BUtask.local_deps_cnt = 1;
+                BUtask.local_deps = 1;
               }
               else{
-                BUtask.remote_deps_cnt = 1;
+                BUtask.remote_deps = 1;
 
                 if(numSubTasks>1){
                   if(task==numSubTasks-1){
-                    BUtask.local_deps_cnt += numSubTasks - 1;
+                    BUtask.local_deps += numSubTasks - 1;
                   }
                 }
               }
