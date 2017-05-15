@@ -195,14 +195,14 @@ namespace symPACK{
         SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type);
 
       template <class Allocator = UpcxxAllocator>
-        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
+        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
 
 
       template <class Allocator = UpcxxAllocator>
         SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Int firstRow = -1);
 
       template <class Allocator = UpcxxAllocator>
-        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
+        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
 
 
     protected:
@@ -410,7 +410,7 @@ typedef symPACKMatrix<std::complex<double> >       symPACKMatrixDoubleComplex;
   }
 } // namespace SYMPACK
 
-#include <sympack/symPACKMatrix_impl.hpp>
+#include <sympack/impl/symPACKMatrix_impl.hpp>
 
 //namespace symPACK{
 //struct symPACK_handle;

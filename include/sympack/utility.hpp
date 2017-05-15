@@ -65,8 +65,32 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include  "sympack/ETree.hpp"
 
 
+#include <atomic>
+
+namespace symPACK{
+  namespace Multithreading{
+
+    class SpinLock
+    {
+      public:
+        void lock()
+        {
+          while(lck.test_and_set(std::memory_order_acquire))
+          {}
+        }
+
+        void unlock()
+        {
+          lck.clear(std::memory_order_release);
+        }
+
+      private:
+        std::atomic_flag lck = ATOMIC_FLAG_INIT;
+    };
 
 
+  }
+}
 
 
 namespace symPACK{

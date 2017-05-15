@@ -604,7 +604,7 @@ namespace symPACK{
 
 
 namespace Factorization{
-  enum class op_type {UPDATE,AGGREGATE,FACTOR};
+  enum class op_type {UPDATE,AGGREGATE,FACTOR,TRSM,COMM};
 }
 
 namespace Solve{

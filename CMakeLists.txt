@@ -19,39 +19,15 @@ option(MMD_IDX_64 "Use 64 bit integers for MMD" OFF)
 option(RCM_IDX_64 "Use 64 bit integers for RCM" OFF)
 
 
-
-
-
-
-
-
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
-
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED on)
-
-#SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0" CACHE STRING "" FORCE)
-#SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -O0" CACHE STRING "" FORCE)
-#SET(CMAKE_Fortran_FLAGS_DEBUG "${CMAKE_Fortran_FLAGS_DEBUG} -O0" CACHE STRING "" FORCE)
-#add_compile_options("$<$<CONFIG:Debug>:-O0>")
-#add_compile_options("$<$<CONFIG:Debug>:-g>")
 
 string( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
 IF(${config_type} STREQUAL "debug")
   message("Debug mode")
-  #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0" CACHE STRING "" FORCE)
-  #SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0" CACHE STRING "" FORCE)
-  #SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -O0" CACHE STRING "" FORCE)
 ENDIF()  
   
-
-
-#set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS})
-#include_directories(/path/to/upcxx)
-#set(LIBS ${LIBS} )
-
-
-
 find_package(MPI REQUIRED)
 if(MPI_CXX_FOUND)
   message(STATUS "Found CXX MPI compiler: ${MPI_CXX_COMPILER}")
@@ -60,6 +36,7 @@ if(MPI_CXX_FOUND)
   set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${MPI_CXX_LINK_FLAGS})
   set(LIBS ${LIBS} ${MPI_CXX_LIBRARIES})
 endif()
+
 if(MPI_C_FOUND)
   message(STATUS "Found C MPI compiler: ${MPI_C_COMPILER}")
   include_directories(${MPI_C_INCLUDE_PATH})
@@ -75,35 +52,34 @@ FortranCInterface_HEADER("${PROJECT_BINARY_DIR}/sympack_config.hpp" MACRO_NAMESP
 FortranCInterface_VERIFY(CXX)
 
 if(RCM_IDX_64)
-add_definitions( "-DRCMIDXSIZE=64")
+  add_definitions( "-DRCMIDXSIZE=64")
 else()
-add_definitions( "-DRCMIDXSIZE=32")
+  add_definitions( "-DRCMIDXSIZE=32")
 endif()
 
 if(MMD_IDX_64)
-add_definitions( "-DMMDIDXSIZE=64")
+  add_definitions( "-DMMDIDXSIZE=64")
 else()
-add_definitions( "-DMMDIDXSIZE=32")
+  add_definitions( "-DMMDIDXSIZE=32")
 endif()
 
 if(AMD_IDX_64)
-add_definitions( "-DAMDIDXSIZE=64")
+  add_definitions( "-DAMDIDXSIZE=64")
 else()
-add_definitions( "-DAMDIDXSIZE=32")
+  add_definitions( "-DAMDIDXSIZE=32")
 endif()
 
 if(ENABLE_MKL)
-find_package(MKL)
-if(MKL_FOUND)
-  message(STATUS "Found MKL library: " ${MKL_LIBRARIES})
-  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${MKL_LINKER_FLAGS})
-  set(LIBS ${LIBS} ${MKL_LIBRARIES})
-else()
-  message(WARNING "Warning: could not find a MKL library")
-  add_compile_options("-mkl=sequential")
-  SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -mkl=sequential" )
-endif()
-
+  find_package(MKL)
+  if(MKL_FOUND)
+    message(STATUS "Found MKL library: " ${MKL_LIBRARIES})
+    set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${MKL_LINKER_FLAGS})
+    set(LIBS ${LIBS} ${MKL_LIBRARIES})
+  else()
+    message(WARNING "Warning: could not find a MKL library")
+    add_compile_options("-mkl=sequential")
+    SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -mkl=sequential" )
+  endif()
 else()
   set(MKL_FOUND false)
   get_directory_property( ALL_OPTIONS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_OPTIONS )
@@ -137,56 +113,6 @@ else()
     endif()
   endif()
 endif()
-
-
-#find_package(MKL)
-#if(MKL_FOUND)
-#  message(STATUS "Found MKL library: " ${MKL_LIBRARIES})
-#  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${MKL_LINKER_FLAGS})
-#  set(LIBS ${LIBS} ${MKL_LIBRARIES})
-#else()
-#  message(WARNING "Warning: could not find a MKL library")
-#endif()
-
-#find_package(LIBSCI)
-#if(LIBSCI_FOUND)
-#  message(STATUS "Found LIBSCI library: " ${LIBSCI_LIBRARIES})
-#  set(CMAKE_EXE_LINKER_FLAGS ${CMAKE_EXE_LINKER_FLAGS} ${LIBSCI_LINKER_FLAGS})
-#  set(LIBS ${LIBS} ${LIBSCI_LIBRARIES})
-#else()
-#  message(WARNING "Warning: could not find a LIBSCI library")
-#endif()
-
-
-
-
-
-#find_package(GASNET)
-#if(GASNET_FOUND)
-#  message(STATUS "Found GASNET library: " ${GASNET_LIBRARIES})
-#  include_directories(${GASNET_INCLUDE_DIR})
-#  set(LIBS ${LIBS} ${GASNET_LIBRARIES})
-#endif()
-
-
-#option(ENABLE_GASNET "Enable GASNET and dependencies" ON)
-#cmake_dependent_option(ENABLE_GASNET "Enable gasnet" ON
-#                       "ENABLE_GASNET" OFF)
-
-
-##MACRO( CONFIGURE_UPCXX )
-##  find_package(OpenMP REQUIRED)
-#find_package(UPCXX REQUIRED)
-#if(UPCXX_FOUND)
-#  message(STATUS "Found UPC++ library: " ${UPCXX_LIBRARIES})
-#  add_definitions(${UPCXX_DEFINES})
-#  include_directories(${UPCXX_INCLUDE_DIR})
-#  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-#  set(LIBS ${LIBS} ${UPCXX_LIBRARIES})
-##LINK_DIRECTORIES(${UPCXX_LIBRARY_PATH})
-#endif()
-##ENDMACRO( CONFIGURE_UPCXX )
-
 
 
 #######   ORDERING LIBRARIES ######
@@ -228,30 +154,20 @@ if(ENABLE_OPENMP)
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
     set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-#add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>")
-#add_compile_options("$<$<COMPILE_LANGUAGE:C>:${OpenMP_C_FLAGS}>")
-#add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:${OpenMP_Fortran_FLAGS}>")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_CXX_FLAGS}")
-  #  set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS})
-  #  set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS})
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_CXX_FLAGS}")
   endif()
 endif()
 
 if(ENABLE_PROFILE)
   if(NOT ENABLE_OPENMP)
-  find_package(OpenMP REQUIRED)
-  if(OPENMP_FOUND)
-    message(STATUS "OpenMP found")
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-#add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:${OpenMP_CXX_FLAGS}>")
-#add_compile_options("$<$<COMPILE_LANGUAGE:C>:${OpenMP_C_FLAGS}>")
-#add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:${OpenMP_Fortran_FLAGS}>")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_CXX_FLAGS}")
-  #  set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS})
-  #  set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS})
-  endif()
+    find_package(OpenMP REQUIRED)
+    if(OPENMP_FOUND)
+      message(STATUS "OpenMP found")
+      set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+      set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
+      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_CXX_FLAGS}")
+    endif()
   endif()
 
 
@@ -261,19 +177,11 @@ endif()
 
 
 #######   GASNET AND UPCXX OPTIONS ######
-
-
 include(cmake/gasnet.cmake)
 include(cmake/upcxx.cmake)
 
 include_directories(${UPCXX_INCLUDE_DIR})
 link_directories(${UPCXX_LIBRARY_PATH})
-
-#list( APPEND CMAKE_CXX_FLAGS -std=c++11)
-
-#set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${UPCXX_DEFINES})
-#add_definitions("-std=c++11")
-#add_definitions(${UPCXX_DEFINES})
 
 if(GASNET_DEFINES)
   string(REPLACE " " ";" GASNET_DEFINES ${GASNET_DEFINES})
@@ -381,9 +289,6 @@ CONFIGURE_FILE(
 )
 
 
-
-#message(STATUS "ALL DEFINES: " ${ALL_DEFINITIONS})
- 
 add_library(sympack ${SYMPACKSRC})
 add_dependencies(sympack gasnet upcxx)
 set_target_properties(gasnet PROPERTIES POSITION_INDEPENDENT_CODE ON)
@@ -407,21 +312,13 @@ install(FILES
   include/sympack/SuperNode.hpp
   include/sympack/SuperNodeInd.hpp
   include/sympack/CommPull.hpp
-  include/sympack/SuperNode_impl.hpp
-  include/sympack/SuperNodeInd_impl.hpp
   include/sympack/CommTypes.hpp
   include/sympack/DistSparseMatrix.hpp
   include/sympack/symPACKMatrix.hpp
   include/sympack/DistSparseMatrixGraph.hpp
-  include/sympack/symPACKMatrix_impl.hpp
-  include/sympack/DistSparseMatrix_impl.hpp
-  include/sympack/symPACKMatrix_impl_FB_pull.hpp
-  include/sympack/symPACKMatrix_impl_solve.hpp
   include/sympack/ETree.hpp
   include/sympack/Environment.hpp
-  include/sympack/Environment_impl.hpp 
   include/sympack/IntervalTree.hpp
-  include/sympack/IntervalTree_impl.hpp 
   include/sympack/LoadBalancer.hpp 
   include/sympack/Task.hpp
   include/sympack/LogFile.hpp
@@ -436,8 +333,19 @@ install(FILES
   include/sympack/Scheduler.hpp
   include/sympack/utility.hpp 
   include/sympack/supernodalTaskGraph.hpp
-  include/sympack/supernodalTaskGraph_impl.hpp
   DESTINATION include/sympack)
+
+install(FILES 
+  include/sympack/impl/symPACKMatrix_impl.hpp
+  include/sympack/impl/SuperNode_impl.hpp
+  include/sympack/impl/SuperNodeInd_impl.hpp
+  include/sympack/impl/DistSparseMatrix_impl.hpp
+  include/sympack/impl/symPACKMatrix_impl_FB_pull.hpp
+  include/sympack/impl/symPACKMatrix_impl_solve.hpp
+  include/sympack/impl/Environment_impl.hpp 
+  include/sympack/impl/IntervalTree_impl.hpp 
+  include/sympack/impl/supernodalTaskGraph_impl.hpp
+  DESTINATION include/sympack/impl)
 
 install (SCRIPT "${CMAKE_SOURCE_DIR}/cmake/gasnetPostInstall.cmake")
 install (SCRIPT "${CMAKE_SOURCE_DIR}/cmake/upcxxPostInstall.cmake")

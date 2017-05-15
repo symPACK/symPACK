@@ -144,6 +144,6 @@ template <typename T>
 
 } // namespace SYMPACK
 
-#include "sympack/DistSparseMatrix_impl.hpp"
+#include "sympack/impl/DistSparseMatrix_impl.hpp"
 
 #endif // _DIST_SPARSE_MATRIX_DECL_HPP_

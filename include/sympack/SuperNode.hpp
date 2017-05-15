@@ -86,12 +86,16 @@ namespace symPACK{
     bool b_own_storage_;
     Int iId_;
     Int iSize_;
+    Int iFirstRow_;
     Int iFirstCol_;
     Int iLastCol_;
     Int iN_; 
     Int blocks_cnt_;
     Int nzval_cnt_;
-    //Ptr nzval_cnt_;
+    //Int updrows_cnt_;
+
+    SuperNodeDesc():iId_(-1),iSize_(-1),iFirstRow_(-1),iFirstCol_(-1),
+        iLastCol_(-1),iN_(-1),blocks_cnt_(-1),nzval_cnt_(-1)/*,updrows_cnt_(-1)*/{}
   };
 
 
@@ -111,8 +115,11 @@ namespace symPACK{
   template<typename T, class Allocator = UpcxxAllocator>
     class SuperNode: public SuperNodeBase<T>{
       public:
+        std::atomic<int> trsm_count;
+        //Idx * updrows_;
 
       protected:
+
 
 #ifndef ITREE
         Int iLastRow_;
@@ -138,6 +145,8 @@ namespace symPACK{
 
         inline void InitIdxToBlk();
         inline Int & Id(){ return meta_->iId_;}
+        inline bool OwnDiagonal(){ return FirstRow() == FirstCol();}
+        inline Int FirstRow(){ return meta_->iFirstRow_;}
         inline Int FirstCol(){ return meta_->iFirstCol_;}
         inline Int LastCol(){ return meta_->iLastCol_;}
         inline Int Size(){ return meta_->iSize_;}
@@ -170,14 +179,14 @@ namespace symPACK{
         }
 
         SuperNode();
-        SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
-        SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
-        SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN);
+        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
+        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
+        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN);
         SuperNode(char * storage_ptr,size_t storage_size, Int GIndex = -1);
         ~SuperNode();
 
         virtual void Init(char * storage_ptr,size_t storage_size, Int GIndex = -1);
-        virtual void Init(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
+        virtual void Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
 
         virtual inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex);
         inline void Reserve(size_t storage_size);
@@ -212,6 +221,9 @@ namespace symPACK{
         //Factorize the supernode
         virtual inline Int Factorize(TempUpdateBuffers<T> & tmpBuffers);
         virtual inline Int Factorize(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers);
+        virtual inline Int Factorize_diag(TempUpdateBuffers<T> & tmpBuffers);
+        virtual inline Int Factorize_TRSM(SuperNode<T,Allocator> * diag_snode, Int blkidx);
+
         inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const std::vector<Int> & Xsuper,  const std::vector<Int> & SupMembership,bool isLocal=true); 
 
 
@@ -257,7 +269,7 @@ namespace symPACK{
 } // namespace SYMPACK
 
 
-#include "sympack/SuperNode_impl.hpp"
+#include "sympack/impl/SuperNode_impl.hpp"
 
 
 

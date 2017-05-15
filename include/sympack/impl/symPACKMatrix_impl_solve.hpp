@@ -204,7 +204,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
         //MEMORY CONSUMPTION TOO HIGH ?
         Int iLocalI = snodeLocalIndex(I);
         SuperNode<T> * cur_snode = this->LocalSupernodes_[iLocalI-1];
-        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(options_.decomposition,I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_));
+        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(options_.decomposition,I,cur_snode->FirstRow(),1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_));
         auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[iLocalI-1]);
 
         for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
@@ -519,7 +519,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
               assert(curTask.data.size()==1);
               auto msgPtr = *curTask.data.begin();
               assert(msgPtr->IsDone());
-              char* dataPtr = msgPtr->GetLocalPtr();
+              char* dataPtr = msgPtr->GetLocalPtr().get();
               auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
               dist_contrib->InitIdxToBlk();
               contrib->forward_update(&*dist_contrib,iOwner,iam);
@@ -548,7 +548,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
               assert(curTask.data.size()==1);
               auto msgPtr = *curTask.data.begin();
               assert(msgPtr->IsDone());
-              char* dataPtr = msgPtr->GetLocalPtr();
+              char* dataPtr = msgPtr->GetLocalPtr().get();
               auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
               dist_contrib->InitIdxToBlk();
               contrib->back_update(&*dist_contrib);
@@ -659,7 +659,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
         //and the same width as the final solution
         //MEMORY CONSUMPTION TOO HIGH ?
         timeAlloc -= get_time();
-        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(options_.decomposition,I,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_, cur_snode->NZBlockCnt() ));
+        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(options_.decomposition,I,0/*cur_snode->FirstRow()*/,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_, cur_snode->NZBlockCnt() ));
         auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[iLocalI-1]);
         timeAlloc += get_time();
 
@@ -714,9 +714,9 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 #ifdef SP_THREADS
         std::lock_guard<std::mutex> lock(scheduler_new_->list_mutex_);
 #endif
-      taskit->second->local_deps_cnt-= loc;
-      taskit->second->remote_deps_cnt-= rem;
-      if(taskit->second->remote_deps_cnt==0 && taskit->second->local_deps_cnt==0){
+      taskit->second->local_deps-= loc;
+      taskit->second->remote_deps-= rem;
+      if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
         scheduler_new_->push(taskit->second);
         graph.removeTask(taskit->second->id);
       }
@@ -796,15 +796,15 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
             Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[3]);
             type = Solve::op_type::FUC;
 
-            FUCtask.local_deps_cnt = loc_children[I-1];
-            FUCtask.remote_deps_cnt = rem_children[I-1];
+            FUCtask.local_deps = loc_children[I-1];
+            FUCtask.remote_deps = rem_children[I-1];
             //if this is the last task, add all the other subtasks as dependencies
             Int parent = SupETree.PostParent(I-1);
             if(parent!=0){
               Int parentOwner = this->Mapping_->Map(parent-1,parent-1);
               if(parentOwner!=iam){
                 if(numSubTasks>1 && task==numSubTasks-1){
-                  FUCtask.local_deps_cnt += numSubTasks-1;
+                  FUCtask.local_deps += numSubTasks-1;
                 }
               }
             }
@@ -829,7 +829,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               //Do the remote ones
               for(auto && msgPtr : FUCtask.getData() ){
                   assert(msgPtr->IsDone());
-                  char* dataPtr = msgPtr->GetLocalPtr();
+                  char* dataPtr = msgPtr->GetLocalPtr().get();
                   auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
                   Int iOwner = this->Mapping_->Map(dist_contrib->Id()-1,dist_contrib->Id()-1);
                   dist_contrib->InitIdxToBlk();
@@ -1080,10 +1080,10 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
             Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[3]);
             type = Solve::op_type::BUC;
 
-            BUCtask.local_deps_cnt = 1;
+            BUCtask.local_deps = 1;
             //if this is the last task, add all the other subtasks as dependencies
             if(numSubTasks>1 && task==numSubTasks-1){
-              BUCtask.local_deps_cnt += numSubTasks-1;
+              BUCtask.local_deps += numSubTasks-1;
             }
 
             BUCtask.execute = [&,this,I,pBUCtask,task,maxNrhsPerTask,numSubTasks,taskNrhs] () {
@@ -1203,14 +1203,14 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
               Int childOwner = this->Mapping_->Map(I-1,I-1);
               if(childOwner==iam){
-                FUtask.local_deps_cnt = 1;
+                FUtask.local_deps = 1;
               }
               else{
-                FUtask.remote_deps_cnt = 1;
+                FUtask.remote_deps = 1;
 
                 if(numSubTasks>1){
                   if(task==numSubTasks-1){
-                    FUtask.local_deps_cnt += numSubTasks - 1;
+                    FUtask.local_deps += numSubTasks - 1;
                   }
                 }
               }
@@ -1321,14 +1321,14 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
               Int parentOwner = this->Mapping_->Map(parent-1,parent-1);
               if(parentOwner==iam){
-                BUtask.local_deps_cnt = 1;
+                BUtask.local_deps = 1;
               }
               else{
-                BUtask.remote_deps_cnt = 1;
+                BUtask.remote_deps = 1;
 
                 if(numSubTasks>1){
                   if(task==numSubTasks-1){
-                    BUtask.local_deps_cnt += numSubTasks - 1;
+                    BUtask.local_deps += numSubTasks - 1;
                   }
                 }
               }
@@ -1355,7 +1355,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                   assert(BUtask.getData().size()==1);
                   auto msgPtr = *BUtask.getData().begin();
                   assert(msgPtr->IsDone());
-                  char* dataPtr = msgPtr->GetLocalPtr();
+                  char* dataPtr = msgPtr->GetLocalPtr().get();
                   auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
                   dist_contrib->InitIdxToBlk();
                   contrib->back_update(&*dist_contrib,nrhsOffset,taskNrhs);

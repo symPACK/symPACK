@@ -109,27 +109,16 @@ namespace symPACK{
       size_t msg_size;
       MsgMetadata meta;
       upcxx::event * event_ptr;
-      char * local_ptr;
+
+      //char * local_ptr;
+      std::shared_ptr<char> local_ptr;
+
       SnodeUpdateFB * task_ptr;
       bool allocated;
       bool ownLocalStorage;
       bool isDone; 
       bool remoteDealloc; 
       bool isLocal;
-
-#ifdef SP_THREADS
-//      std::atomic<int> references;
-//      int decref(){
-//        return --references;//.fetch_sub(1,std::memory_order_relaxed);
-//      }
-//      int incref(){
-//        return ++references;//.fetch_add(1,std::memory_order_relaxed);
-//      }
-//      int getref(){
-//        return references;
-//      }
-#endif
-
 
       IncomingMessage();
       ~IncomingMessage();
@@ -140,8 +129,11 @@ namespace symPACK{
       bool IsAsync();
       bool AllocLocal();
       upcxx::global_ptr<char> GetRemotePtr();
-      char * GetLocalPtr();
-      void SetLocalPtr(char * ptr,bool ownStorage = true);
+      //char * GetLocalPtr();
+      std::shared_ptr<char> & GetLocalPtr();
+
+      //void SetLocalPtr(char * ptr,bool ownStorage = true);
+      void SetLocalPtr(std::shared_ptr<char> & ptr,bool ownStorage = true);
       virtual size_t Size(){return msg_size;}
       void AsyncGet();
       void DeallocRemote();
@@ -171,6 +163,7 @@ namespace symPACK{
       ChainedMessage(std::shared_ptr<C> adata, std::shared_ptr<IncomingMessage> amsg):IncomingMessage(){
         data = adata;
         chainedMsg = amsg;
+        //local_ptr = amsg->GetLocalPtr();
 
         isDone = amsg->IsDone(); 
         ownLocalStorage = false;
@@ -376,7 +369,50 @@ namespace symPACK{
 
 }
 
-
+//namespace symPACK{
+//  class RemoteMessage{
+//    public:
+//      //data related information
+//      upcxx::global_ptr<char> remote_ptr;
+//      char * local_ptr;
+//      size_t msg_size;
+//
+//
+//      MsgMetadata meta;
+//      upcxx::event * event_ptr;
+//      SnodeUpdateFB * task_ptr;
+//
+//
+//      bool allocated;
+//      bool ownLocalStorage;
+//      bool isDone; 
+//      bool remoteDealloc; 
+//      bool isLocal;
+//
+//      RemoteMessage();
+//      ~RemoteMessage();
+//
+//
+//      int Sender();
+//      bool Wait();
+//      virtual bool IsDone();
+//      bool IsLocal();
+//      bool IsAsync();
+//
+//      upcxx::global_ptr<char> GetRemotePtr();
+//      char * GetLocalPtr();
+//
+//      void SetLocalPtr(char * ptr,bool ownStorage = true);
+//      virtual size_t Size(){return msg_size;}
+//      void AsyncGet();
+//
+//      bool AllocLocal();
+//      void DeallocRemote();
+//      void DeallocLocal();
+//  };
+//
+//
+//}
 
 #ifdef NO_INTRA_PROFILE
 #if defined (SPROFILE)

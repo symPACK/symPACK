@@ -131,7 +131,7 @@ namespace symPACK{
   IncomingMessage::IncomingMessage(){
     event_ptr=NULL;
     task_ptr =NULL;
-    local_ptr=NULL;
+    local_ptr=nullptr;
     isDone = false;
     isLocal = false;
     remoteDealloc = false;
@@ -169,14 +169,14 @@ namespace symPACK{
       std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
       assert(event_ptr==NULL);
       event_ptr = new upcxx::event;
-      upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr()),msg_size,event_ptr);
+      upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size,event_ptr);
     }
     else
 #endif
     {
       assert(event_ptr==NULL);
       event_ptr = new upcxx::event;
-      upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr()),msg_size,event_ptr);
+      upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size,event_ptr);
     }
   }
 
@@ -222,13 +222,13 @@ namespace symPACK{
 #ifdef SP_THREADS
         if(Multithreading::NumThread>1){
           std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-          upcxx::copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr()),msg_size);
+          upcxx::copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size);
           isDone = true;
         }
         else
 #endif
         {
-          upcxx::copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr()),msg_size);
+          upcxx::copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size);
           isDone = true;
         }
       }
@@ -257,9 +257,9 @@ namespace symPACK{
   }
   void IncomingMessage::DeallocLocal(){
     if(allocated && ownLocalStorage){
-      if(!isLocal && local_ptr!=NULL){
+      if(!isLocal && local_ptr!=nullptr){
 #ifndef USE_LOCAL_ALLOCATE
-        delete local_ptr;
+//        delete local_ptr;
 #else
 
 #if 1
@@ -267,8 +267,10 @@ namespace symPACK{
 //#ifndef NDEBUG
 //      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<std::endl;
 //#endif
-      upcxx::global_ptr<char> tmp(local_ptr);
-      remote_delete(tmp);
+      //upcxx::global_ptr<char> tmp(local_ptr);
+//      upcxx::global_ptr<char> tmp(local_ptr.get());
+//      remote_delete(tmp);
+      local_ptr = nullptr;
 
 #else
 #ifdef SP_THREADS
@@ -319,32 +321,41 @@ namespace symPACK{
 
   bool IncomingMessage::AllocLocal(){
     if(!allocated){
-      local_ptr=NULL;
+      local_ptr=nullptr;
 #ifndef USE_LOCAL_ALLOCATE
-      local_ptr = (char *)malloc(msg_size);
+      //local_ptr = (char *)malloc(msg_size);
+      local_ptr=std::shared_ptr<char>((char *)malloc(msg_size)); 
 #else
       upcxx::global_ptr<char> tmp;
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
         std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-        tmp = upcxx::allocate<char>(upcxx::myrank(),msg_size);
-        local_ptr=(char*)tmp; 
+        //tmp = upcxx::allocate<char>(upcxx::myrank(),msg_size);
+        //local_ptr=(char*)tmp; 
+        local_ptr=std::shared_ptr<char>( (char *)upcxx::allocate<char>(upcxx::myrank(),msg_size), [=](char * ptr){
+      upcxx::global_ptr<char> tmp(ptr);
+      remote_delete(tmp);
+            }); 
       }
       else
 #endif
       {
-        tmp = upcxx::allocate<char>(upcxx::myrank(),msg_size);
-        local_ptr=(char*)tmp; 
+//        tmp = upcxx::allocate<char>(upcxx::myrank(),msg_size);
+//        local_ptr=(char*)tmp; 
+        local_ptr=std::shared_ptr<char>((char*)upcxx::allocate<char>(upcxx::myrank(),msg_size), [=](char * ptr){
+      upcxx::global_ptr<char> tmp(ptr);
+      remote_delete(tmp);
+            }); 
       }
 #endif
 
-      allocated = local_ptr!=NULL;
+      allocated = local_ptr!=nullptr;
       ownLocalStorage = allocated;
 
-      if(local_ptr==NULL){
+      if(local_ptr==nullptr){
         throw MemoryAllocationException(msg_size);
       }
-      return local_ptr!=NULL;
+      return local_ptr!=nullptr;
     }
     else{
       return true;
@@ -352,11 +363,22 @@ namespace symPACK{
   }
 
 
-  char * IncomingMessage::GetLocalPtr(){
-    return (char*)local_ptr;
+  //char * IncomingMessage::GetLocalPtr(){
+  //  return (char*)local_ptr;
+  //}
+
+  std::shared_ptr<char> & IncomingMessage::GetLocalPtr(){
+    return std::ref(local_ptr);
   }
 
-  void IncomingMessage::SetLocalPtr(char * ptr,bool ownStorage){
+//  void IncomingMessage::SetLocalPtr(char * ptr,bool ownStorage){
+//    local_ptr = ptr;
+//    allocated = true;
+//    ownLocalStorage = ownStorage;
+//  }
+
+
+  void IncomingMessage::SetLocalPtr(std::shared_ptr<char> & ptr,bool ownStorage){
     local_ptr = ptr;
     allocated = true;
     ownLocalStorage = ownStorage;

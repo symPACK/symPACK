@@ -82,14 +82,14 @@ class SuperNodeInd: public SuperNode<T,Allocator>{
   inline T* GetDiag(){ return diag_;}
 
   SuperNodeInd();
-  SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
-  SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
-  SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int aiN);
+  SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
+  SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
+  SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN);
   SuperNodeInd(char * storage_ptr,size_t storage_size, Int GIndex = -1);
 
     
   virtual void Init(char * storage_ptr,size_t storage_size, Int GIndex = -1);
-  virtual void Init(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
+  virtual void Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
 
   virtual inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex);
 
@@ -98,6 +98,9 @@ class SuperNodeInd: public SuperNode<T,Allocator>{
   //Factorize the supernode
   virtual inline Int Factorize(TempUpdateBuffers<T> & tmpBuffers);
   virtual inline Int Factorize(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers);
+
+  virtual inline Int Factorize_diag(TempUpdateBuffers<T> & tmpBuffers);
+  virtual inline Int Factorize_TRSM(SuperNode<T,Allocator> * diag_snode, Int blkidx);
   
   virtual inline Int UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
               TempUpdateBuffers<T> & tmpBuffers,Int iTarget,Int iam);
@@ -123,7 +126,7 @@ template <typename T, class Allocator> inline size_t Deserialize(char * buffer, 
 } // namespace SYMPACK
 
 
-#include "sympack/SuperNodeInd_impl.hpp"
+#include "sympack/impl/SuperNodeInd_impl.hpp"
 
 
 #ifdef NO_INTRA_PROFILE
