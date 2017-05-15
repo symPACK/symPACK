@@ -4,6 +4,9 @@ set(ENABLE_METIS ON CACHE BOOL "...")
 #need to set PARMETIS_DIR accordingly
 set(ENABLE_PARMETIS ON CACHE BOOL "...")
 
+set(SCOTCH_DIR $ENV{SWPREFIX}/release/scotch_install)
+set(ENABLE_SCOTCH ON CACHE BOOL "...")
+
 set(CMAKE_CXX_COMPILER CC)
 #set(MPI_CXX_COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS} -gxx-name=g++-4.7" CACHE STRING "" FORCE)
 

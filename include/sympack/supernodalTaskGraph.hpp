@@ -109,6 +109,6 @@ namespace symPACK{
       };
 }
 
-#include "sympack/supernodalTaskGraph_impl.hpp"
+#include "sympack/impl/supernodalTaskGraph_impl.hpp"
 
 #endif // _SUPERNODAL_TASK_GRAPH_DECL_HPP_
