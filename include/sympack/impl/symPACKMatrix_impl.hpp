@@ -4196,7 +4196,7 @@ else if (this->Balancer_!=NULL){
     } 
 #endif
 
-    if(iam<np){
+    if(0 && iam<np){
         std::vector<Int> AggregatesToRecv;
         std::vector<Int> LocalAggregates;
         generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);

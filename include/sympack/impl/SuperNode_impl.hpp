@@ -332,7 +332,10 @@ namespace symPACK{
 #ifndef ITREE
         std::fill(&(*globalToLocal_)[cur_fr],&(*globalToLocal_)[cur_lr]+1,meta_->blocks_cnt_); 
 #else
-        ITree::Interval cur_interv = { cur_fr, cur_lr, meta_->blocks_cnt_};
+        ITree<Int>::Interval<Int> cur_interv;
+        cur_interv.low = cur_fr;
+        cur_interv.high = cur_lr;
+        cur_interv.data = meta_->blocks_cnt_;
         idxToBlk_->Insert(cur_interv);
 #endif
 
@@ -445,9 +448,9 @@ namespace symPACK{
 #endif
 
 
-      ITree::Interval * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex);
+      ITree<Int>::Interval<Int> * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex);
       if (res != NULL){
-        rval = res->block_idx;
+        rval = res->data;
       }
 #endif
       return rval;
@@ -457,9 +460,9 @@ namespace symPACK{
     inline Int SuperNode<T,Allocator>::FindBlockIdx(Int aiGIndex,Int & closestR, Int & closestL){
       scope_timer_special(a,FindBlockIdxRL);
       Int rval = -1;
-      ITree::Interval * L = NULL;
-      ITree::Interval * R = NULL;
-      ITree::Interval * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex,R,L);
+      ITree<Int>::Interval<Int> * L = NULL;
+      ITree<Int>::Interval<Int> * R = NULL;
+      ITree<Int>::Interval<Int> * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex,R,L);
       if(R!=NULL){
         closestR = R->low;
       }
@@ -469,21 +472,21 @@ namespace symPACK{
       }
 
       if (res != NULL){
-        rval = res->block_idx;
+        rval = res->data;
       }
       return rval;
     }
 
   template<typename T, class Allocator>
-    inline Int SuperNode<T,Allocator>::FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap){
+    inline Int SuperNode<T,Allocator>::FindBlockIdx(Int fr, Int lr, ITree<Int>::Interval<Int> & overlap){
       scope_timer_special(a,FindBlockIdxOverlap);
 
       Int rval = -1;
 
-      ITree::Interval * res = idxToBlk_->IntervalSearch(fr,lr);
+      ITree<Int>::Interval<Int> * res = idxToBlk_->IntervalSearch(fr,lr);
       if (res != NULL){
         overlap = *res;
-        rval = res->block_idx;
+        rval = res->data;
       }
       return rval;
     }
@@ -783,10 +786,10 @@ namespace symPACK{
       NZBlockDesc & first_pivot_desc = src_snode->GetNZBlockDesc(first_pivot_idx);
 
       //parse src_snode
-      ITree::Interval overlap;
-      ITree::Interval curInter;
-      ITree::Interval newInter;
-      std::queue< ITree::Interval > toInsert;
+      ITree<Int>::Interval<Int> overlap;
+      ITree<Int>::Interval<Int> curInter;
+      ITree<Int>::Interval<Int> newInter;
+      std::queue< ITree<Int>::Interval<Int> > toInsert;
       for(Int blkidx = first_pivot_idx; blkidx<src_snode->NZBlockCnt(); ++blkidx){
         NZBlockDesc & blk_desc = src_snode->GetNZBlockDesc(blkidx);
         Int fr = std::max(FirstCol(),blk_desc.GIndex);
@@ -1521,13 +1524,13 @@ namespace symPACK{
 
 
   template<typename T, class Allocator>
-    inline ITree * SuperNode<T,Allocator>::CreateITree(){
+    inline ITree<Int> * SuperNode<T,Allocator>::CreateITree(){
 #if defined(_AVL_ITREE_)
-      return new AVLITree();
+      return new AVLITree<Int>();
 #elif defined(_DSW_ITREE_)
-      return new DSWITree();
+      return new DSWITree<Int>();
 #else
-      return new ITree();
+      return new ITree<Int>();
 #endif
     } 
 
@@ -1549,7 +1552,11 @@ namespace symPACK{
         Int cur_fr = GetNZBlockDesc(blkidx).GIndex;
         Int cur_lr = cur_fr + NRows(blkidx) -1;
 
-        ITree::Interval cur_interv = { cur_fr, cur_lr, blkidx};
+        ITree<Int>::Interval<Int> cur_interv;
+        cur_interv.low = cur_fr;
+        cur_interv.high = cur_lr;
+        cur_interv.data = blkidx;
+
         idxToBlk_->Insert(cur_interv);
       }
       SYMPACK_TIMER_STOP(BST_INSERT);

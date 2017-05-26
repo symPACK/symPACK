@@ -319,7 +319,10 @@ namespace symPACK{
 #ifndef ITREE
         std::fill(&(*globalToLocal_)[cur_fr],&(*globalToLocal_)[cur_lr]+1,this->meta_->blocks_cnt_); 
 #else
-        ITree::Interval cur_interv = { cur_fr, cur_lr, this->meta_->blocks_cnt_};
+        ITree<Int>::Interval<Int> cur_interv;
+        cur_interv.low = cur_fr;
+        cur_interv.high = cur_lr;
+        cur_interv.data = this->meta_->blocks_cnt_;
         this->idxToBlk_->Insert(cur_interv);
 #endif
 
