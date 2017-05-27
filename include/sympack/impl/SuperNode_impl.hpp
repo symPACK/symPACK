@@ -100,7 +100,7 @@ namespace symPACK{
       Int num_updrows = 0;
       if (aiFr == aiFc){
         num_updrows = num_blocks;
-        storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
+        //storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
       }
 
       try{
@@ -201,7 +201,7 @@ namespace symPACK{
       Int num_updrows = 0;
       if (aiFr == aiFc){
         num_updrows = num_blocks;
-        storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
+        //storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
       }
 
 

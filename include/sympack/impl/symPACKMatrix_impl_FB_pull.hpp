@@ -404,7 +404,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
               SYMPACK_TIMER_STOP(FACTOR_PANEL);
 
-#if 1
+#if 0
               //unlock the TRSM tasks
               for(Int blkidx=1; blkidx< src_snode->NZBlockCnt();blkidx++){
                 NZBlockDesc & nzblk_desc = src_snode->GetNZBlockDesc(blkidx);

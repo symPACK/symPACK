@@ -5357,11 +5357,26 @@ gdb_lock();
           }
         }
 
-    MPI_Datatype type;
-    MPI_Type_contiguous( sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ), MPI_BYTE, &type );
-    MPI_Type_commit(&type);
-        MPI_Allreduce( MPI_IN_PLACE, &remoteFactors_[0], remoteFactors_.size(), type, MPI_BOR, fullcomm_);
-    MPI_Type_free(&type);
+        auto bor_op = []( void *in, void *inout, int *len, MPI_Datatype *dptr ){ 
+  size_t i; 
+      using F = std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int>; 
+  char * pinout = (char*)inout;
+  char * pin = (char*)in;
+#pragma unroll
+  for (i=0; i< (*len)*sizeof(F); ++i) { 
+    pinout[i] &= pin[i];
+  } 
+};
+
+    MPI_Op MPI_SYMPACK_BOR; 
+    MPI_Op_create( bor_op, true, &MPI_SYMPACK_BOR ); 
+
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
+        MPI_Allreduce( MPI_IN_PLACE, &remoteFactors_[0], remoteFactors_.size(), type, MPI_SYMPACK_BOR, fullcomm_);
+        MPI_Type_free(&type);
+    MPI_Op_free(&MPI_SYMPACK_BOR);
       }
 #ifndef NOTRY
       catch(const std::bad_alloc& e){

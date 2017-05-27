@@ -83,13 +83,15 @@ namespace symPACK{
         num_blocks=aiNZBlkCnt;
       }
 
-      this->storage_size_ = sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+      this->storage_size_  = sizeof(T)*size*ai_num_rows; //size of nzvals
+      this->storage_size_ += num_blocks*sizeof(NZBlockDesc); //size of block desc
+      this->storage_size_ += sizeof(SuperNodeDesc); //size of the supernode metadata
       this->storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
 
       Int num_updrows = 0;
       if (aiFr == aiFc){
         num_updrows = num_blocks;
-        this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
+        //this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
       }
 
 
@@ -226,7 +228,7 @@ namespace symPACK{
       Int num_updrows = 0;
       if (aiFr == aiFc){
         num_updrows = num_blocks;
-        this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
+        //this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
       }
 
 
