@@ -1184,11 +1184,15 @@ gdb_lock();
         max_mem_req = std::max(mem_req,max_mem_req);
 
 
-        std::stringstream sstr;
-        sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)type;
-        Task.id = hash_fn(sstr.str());
 
-        pTask->init();
+        Task.getHash = [&](char * ameta=nullptr)->GenericTask::id_type{
+          char * pmeta = ameta;
+          //if(pmeta==nullptr){ pmeta = Task.meta.data(); } 
+          std::stringstream sstr;
+          sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)(*reinterpret_cast<Factorization::op_type*>(&meta[3]));
+          return hash_fn(sstr.str());
+        };
+        Task.id = Task.getHash(Task.meta.data());
 
         graph.addTask(pTask);
 
