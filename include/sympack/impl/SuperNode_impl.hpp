@@ -1402,36 +1402,6 @@ namespace symPACK{
 
     }
 
-  template<typename T, class Allocator>
-    inline Int SuperNode<T,Allocator>::Factorize_diag(TempUpdateBuffers<T> & tmpBuffers){
-#if defined(_NO_COMPUTATION_)
-      return 0;
-#endif
-
-      Int snode_size = Size();
-      NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
-      T * diag_nzval = &this->GetNZval(diag_desc.Offset)[0];
-      lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
-
-      return 0;
-    }
-
-  template<typename T, class Allocator>
-    inline Int SuperNode<T,Allocator>::Factorize_TRSM(SuperNode<T,Allocator> * diag_snode, Int blkidx){
-#if defined(_NO_COMPUTATION_)
-      return 0;
-#endif
-
-      Int snode_size = Size();
-      NZBlockDesc & diag_desc = diag_snode->GetNZBlockDesc(0);
-      T * diag_nzval = &diag_snode->GetNZval(diag_desc.Offset)[0];
-      NZBlockDesc & cur_desc = this->GetNZBlockDesc(blkidx);
-      T * nzblk_nzval = &this->GetNZval(cur_desc.Offset)[0];
-      blas::Trsm('L','U','T','N',snode_size, NRows(blkidx), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
-      return 0;
-
-    }
-
 
 
 

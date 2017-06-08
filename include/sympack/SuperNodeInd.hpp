@@ -99,8 +99,6 @@ class SuperNodeInd: public SuperNode<T,Allocator>{
   virtual inline Int Factorize(TempUpdateBuffers<T> & tmpBuffers);
   virtual inline Int Factorize(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers);
 
-  virtual inline Int Factorize_diag(TempUpdateBuffers<T> & tmpBuffers);
-  virtual inline Int Factorize_TRSM(SuperNode<T,Allocator> * diag_snode, Int blkidx);
   
   virtual inline Int UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
               TempUpdateBuffers<T> & tmpBuffers,Int iTarget,Int iam);

@@ -221,8 +221,6 @@ namespace symPACK{
         //Factorize the supernode
         virtual inline Int Factorize(TempUpdateBuffers<T> & tmpBuffers);
         virtual inline Int Factorize(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers);
-        virtual inline Int Factorize_diag(TempUpdateBuffers<T> & tmpBuffers);
-        virtual inline Int Factorize_TRSM(SuperNode<T,Allocator> * diag_snode, Int blkidx);
 
         inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const std::vector<Int> & Xsuper,  const std::vector<Int> & SupMembership,bool isLocal=true); 
 
