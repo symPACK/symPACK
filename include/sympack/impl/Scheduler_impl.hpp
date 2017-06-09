@@ -161,6 +161,7 @@ namespace symPACK{
           }
 #endif
 
+#if 1
           {
             //find if there is some finished async comm
             auto it = TestAsyncIncomingMessage();
@@ -186,6 +187,8 @@ namespace symPACK{
               gIncomingRecv.erase(it);
             }
           }
+#else
+#endif
 
 #ifdef SP_THREADS
           if(Multithreading::NumThread>1){
@@ -199,28 +202,28 @@ namespace symPACK{
           num_recv++;
 
           bool success = false;
-          try{
+//          try{
             success = msg->Wait(); 
-          }
-          catch(const MemoryAllocationException & e){
-            //put the message back in the blocking message queue
-#ifdef SP_THREADS
-            if(Multithreading::NumThread>1){
-              upcxx_mutex.lock();
-            }
-#endif
-            //gdb_lock();
-
-            gIncomingRecv.push_back(msg);
-#ifdef SP_THREADS
-            if(Multithreading::NumThread>1){
-              upcxx_mutex.unlock();
-            }
-#endif
-
-
-            msg = nullptr;
-          }
+//          }
+//          catch(const MemoryAllocationException & e){
+//            //put the message back in the blocking message queue
+//#ifdef SP_THREADS
+//            if(Multithreading::NumThread>1){
+//              upcxx_mutex.lock();
+//            }
+//#endif
+//            //gdb_lock();
+//
+//            gIncomingRecv.push_back(msg);
+//#ifdef SP_THREADS
+//            if(Multithreading::NumThread>1){
+//              upcxx_mutex.unlock();
+//            }
+//#endif
+//
+//
+//            msg = nullptr;
+//          }
 
           if(msg!=nullptr){
             std::shared_ptr<IncomingMessage> msgPtr(msg);

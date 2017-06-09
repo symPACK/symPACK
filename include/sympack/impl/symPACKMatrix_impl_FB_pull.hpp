@@ -469,11 +469,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             break;
           case Factorization::op_type::UPDATE:
             {
-#if 0
+#if 1
               if(Multithreading::NumThread==1){
-                Task.execute = [&,this,src,tgt,iLocalTGT,pTask,type] () {
+                Task.execute = [&,this,src,tgt,pTask,type] () {
                   scope_timer(a,FB_UPDATE_TASK);
 
+                  Int iLocalTGT = snodeLocalIndex(tgt);
                   Int src_snode_id = src;
                   Int tgt_snode_id = tgt;
                   src_snode_id = abs(src_snode_id);
@@ -512,257 +513,243 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
                     auto id = hash_fn(sstr.str());
 
-                    if(msgPtr->meta.id == id){
-                      char* dataPtr = msgPtr->GetLocalPtr();
+                    bassert(msgPtr->meta.id == id);
 
-
-                      {
-                        scope_timer(c,FB_UPD_UNPACK_MSG_CREATE);
-                        shptr_cur_src_snode.reset(CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex));
-                        cur_src_snode = shptr_cur_src_snode.get();
-                      }
-                      {
-                        scope_timer(d,FB_UPD_UNPACK_MSG_INIT_TREE);
-                        cur_src_snode->InitIdxToBlk();
-                      }
-
-
-
-
-                      //TODO add the message to other local updates and update their remote dependencies
-
-                      {
-                        SYMPACK_TIMER_START(UPDATE_ANCESTORS);
-                        SnodeUpdate curUpdate;
-
-                        while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
-
-                          //skip if this update is "lower"
-                          if(curUpdate.tgt_snode_id<tgt){
-                            continue;
-                          }
-                          else{
-                            Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.src_snode_id-1);
-                            if(iUpdater==iam){
-
-
-#ifdef _DEBUG_PROGRESS_
-                              logfileptr->OFS()<<"implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
-                              logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<std::endl;
-#endif
-
-
-                              SuperNode<T> * tgt_aggreg;
-                              Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
-                              if(iTarget == iam){
-                                //the aggregate std::vector is directly the target snode
-                                SYMPACK_TIMER_START(UPD_ANC_Agg_local);
-                                tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
-                                assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
-                                SYMPACK_TIMER_STOP(UPD_ANC_Agg_local);
-                              }
-                              else{
-                                SYMPACK_TIMER_START(UPD_ANC_Agg_tmp);
-                                //Check if src_snode_id already have an aggregate std::vector
-                                bool creation_needed = false;
-                                if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
-                                  creation_needed = true;
-                                }
-                                else if(aggVectors[curUpdate.tgt_snode_id-1]->StorageSize()==0){
-                                  creation_needed = true;
-                                }
-
-                                if(creation_needed){
-                                  SYMPACK_TIMER_START(UPD_ANC_Agg_tmp_creat);
-                                  //use number of rows below factor as initializer
-
-                                  //TODO do a customized version for FANIN as we have all the factors locally
-                                  // the idea is the following: do a DFS and stop each exploration at the first local descendant of current node
-#ifdef FANIN_OPTIMIZATION
-                                  if(options_.mappingTypeStr ==  "COL2D")
-                                  {
-                                    std::set<Idx> structure;
-                                    std::list<Int> frontier;
-                                    {
-                                      scope_timer(a,MERGE_STRUCTURE_FANIN);
-                                      Idx tgt_fc = Xsuper_[curUpdate.tgt_snode_id-1];
-                                      dfs_traversal(chSupTree_,curUpdate.tgt_snode_id,frontier);
-                                      //process frontier in decreasing order of nodes and merge their structure
-                                      for(auto it = frontier.rbegin(); it!=frontier.rend(); it++){
-                                        Int I = *it;
-                                        SuperNode<T> * source = snodeLocal(I);
-                                        for(Int blkidx=0; blkidx< source->NZBlockCnt();blkidx++){
-                                          NZBlockDesc & nzblk_desc = source->GetNZBlockDesc(blkidx);
-                                          Idx fr = nzblk_desc.GIndex;
-                                          Idx lr = source->NRows(blkidx) + fr;
-                                          for(Idx row = fr; row<lr;row++){
-                                            if(row>=tgt_fc){
-                                              structure.insert(row);
-                                            }
-                                          }
-                                        }
-                                      }
-                                    }
-                                    //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
-
-                                    if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
-                                      aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
-                                    }
-                                    aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
-                                  } 
-                                  else
-#endif
-                                  {
-                                    std::set<Idx> structure;
-                                    {
-                                      scope_timer(a,FETCH_REMOTE_STRUCTURE);
-                                      upcxx::global_ptr<SuperNodeDesc> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
-                                      Int block_cnt = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1]);
-
-
-                                      //allocate space to receive block descriptors
-                                      char * buffer = (char*)UpcxxAllocator::allocate(sizeof(NZBlockDesc)*block_cnt+ sizeof(SuperNodeDesc));
-                                      upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
-                                      {
-#ifdef SP_THREADS
-                                        if(Multithreading::NumThread>1){
-                                          std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-                                          upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
-                                        }
-                                        else
-#endif
-                                          upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
-                                      }
-                                      SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
-                                      NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
-
-                                      for(Int i =block_cnt-1;i>=0;i--){
-                                        NZBlockDesc & curdesc = bufferBlocks[i];
-                                        size_t end = (i>0)?bufferBlocks[i-1].Offset:pdesc->nzval_cnt_;
-                                        Int numRows = (end-curdesc.Offset)/pdesc->iSize_;
-
-                                        for(Idx row = 0; row<numRows;row++){
-                                          structure.insert(curdesc.GIndex+row);
-                                        }
-                                      }
-                                      UpcxxAllocator::deallocate((char*)buffer);
-                                    }
-                                    //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
-                                    if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
-                                      aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
-                                    }
-                                    //                        bassert(aggVectors[curUpdate.tgt_snode_id-1]!=nullptr);
-                                    aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
-
-                                  }
-                                  SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
-                                }
-                                tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
-
-                                SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp);
-                              }
-
-#ifdef _DEBUG_
-                              logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-#endif
-
-
-                              //Update the aggregate
-                              SYMPACK_TIMER_START(UPD_ANC_UPD);
-#ifdef SP_THREADS
-                              if(Multithreading::NumThread>1){
-                                //scheduler->list_mutex_.lock();
-                                auto & tmpBuf = tmpBufs_th[tid];
-                                //scheduler->list_mutex_.unlock();
-                                tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,iam);
-                              }
-                              else
-#endif
-                                tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
-
-                              SYMPACK_TIMER_STOP(UPD_ANC_UPD);
-
-#ifdef SP_THREADS
-                              if(Multithreading::NumThread>1){
-                                tgt_aggreg->in_use = false;
-                              }
-#endif
-
-                              --UpdatesToDo[curUpdate.tgt_snode_id-1];
-#ifdef _DEBUG_
-                              logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<std::endl;
-#endif
-                              SYMPACK_TIMER_STOP(UPDATE_ANCESTORS);
-
-                              //TODO if I am the last one updating that target, send it
-                              //THIS SHOULD NOT HAVE TO BE PROTECTED OR BE ATOMICAL BECAUSE NO OTHER RUNNING TASK SHOULD UPDATE THE SAME TARGET
-                              //Send the aggregate if it's the last
-                              //If this is my last update sent it to curUpdate.tgt_snode_id
-                              SYMPACK_TIMER_START(UPD_ANC_Agg_Send);
-                              if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
-                                if(iTarget != iam){
-#ifdef _DEBUG_
-                                  logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
-#endif
-
-                                  tgt_aggreg->Shrink();
-
-                                  MsgMetadata meta;
-
-                                  NZBlockDesc & nzblk_desc = tgt_aggreg->GetNZBlockDesc(0);
-                                  T* nzval_ptr = tgt_aggreg->GetNZval(0);
-
-                                  //this is an aggregate
-                                  meta.src = curUpdate.src_snode_id;
-                                  meta.tgt = curUpdate.tgt_snode_id;
-                                  meta.GIndex = nzblk_desc.GIndex;
-
-                                  std::stringstream sstr;
-                                  sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
-                                  meta.id = hash_fn(sstr.str());
-
-                                  upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
-                                  //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
-                                  size_t msgSize = tgt_aggreg->StorageSize();
-                                  {
-                                    signal_data(sendPtr, msgSize, iTarget, meta);
-                                  }
-                                }
-                              }
-                              SYMPACK_TIMER_STOP(UPD_ANC_Agg_Send);
-
-                              SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
-                              if(iTarget == iam)
-                              {
-                                std::stringstream sstr;
-                                sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
-                                auto id = hash_fn(sstr.str());
-                                auto taskit = graph.find_task(id);
-                                bassert(taskit!=graph.tasks_.end());
-                                dec_ref(taskit,1,0);
-
-                              }
-                              SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
-
-
-                              if(structPtr!=NULL){
-                                delete structPtr;
-                              }
-
-
-                            }
-                          }
-                        }
-
-                      }
-
+                    char* dataPtr = msgPtr->GetLocalPtr().get();
+                    {
+                      scope_timer(c,FB_UPD_UNPACK_MSG_CREATE);
+                      shptr_cur_src_snode.reset(CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex));
+                      cur_src_snode = shptr_cur_src_snode.get();
                     }
-                    else{
-                      abort();
+                    {
+                      scope_timer(d,FB_UPD_UNPACK_MSG_INIT_TREE);
+                      cur_src_snode->InitIdxToBlk();
                     }
-
 
                   }
+
+                  {
+                    //Update everything owned locally src_snode_id updates with that factor
+                    SYMPACK_TIMER_START(UPDATE_ANCESTORS);
+                    SnodeUpdate curUpdate;
+
+                    while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+
+                      //skip if this update is "lower"
+                      if(curUpdate.tgt_snode_id<tgt){
+                        continue;
+                      }
+                      else{
+                        Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.src_snode_id-1);
+                        if(iUpdater==iam){
+                          SuperNode<T> * tgt_aggreg;
+                          Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
+                          if(iTarget == iam){
+                            //the aggregate std::vector is directly the target snode
+                            scope_timer(a,UPD_ANC_Agg_local);
+                            tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
+                            bassert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
+                          }
+                          else{
+                            SYMPACK_TIMER_START(UPD_ANC_Agg_tmp);
+                            //Check if src_snode_id already have an aggregate std::vector
+                            bool creation_needed = false;
+                            if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
+                              creation_needed = true;
+                            }
+                            else if(aggVectors[curUpdate.tgt_snode_id-1]->StorageSize()==0){
+                              creation_needed = true;
+                            }
+
+                            if(creation_needed){
+                              SYMPACK_TIMER_START(UPD_ANC_Agg_tmp_creat);
+                              //use number of rows below factor as initializer
+
+                              //TODO do a customized version for FANIN as we have all the factors locally
+                              // the idea is the following: do a DFS and stop each exploration at the first local descendant of current node
+#ifdef FANIN_OPTIMIZION
+                              if(options_.mappingTypeStr ==  "COL2D")
+                              {
+                                std::set<Idx> structure;
+                                std::list<Int> frontier;
+                                {
+                                  scope_timer(a,MERGE_STRUCTURE_FANIN);
+                                  Idx tgt_fc = Xsuper_[curUpdate.tgt_snode_id-1];
+                                  dfs_traversal(chSupTree_,curUpdate.tgt_snode_id,frontier);
+                                  //process frontier in decreasing order of nodes and merge their structure
+                                  for(auto it = frontier.rbegin(); it!=frontier.rend(); it++){
+                                    Int I = *it;
+                                    SuperNode<T> * source = snodeLocal(I);
+                                    for(Int blkidx=0; blkidx< source->NZBlockCnt();blkidx++){
+                                      NZBlockDesc & nzblk_desc = source->GetNZBlockDesc(blkidx);
+                                      Idx fr = nzblk_desc.GIndex;
+                                      Idx lr = source->NRows(blkidx) + fr;
+                                      for(Idx row = fr; row<lr;row++){
+                                        if(row>=tgt_fc){
+                                          structure.insert(row);
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                                //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+
+                                if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
+                                  aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
+                                }
+                                aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                              } 
+                              else
+#endif
+                              {
+                                std::set<Idx> structure;
+                                {
+                                  scope_timer(a,FETCH_REMOTE_STRUCTURE);
+                                  //TODO where is prefetch
+                                  upcxx::global_ptr<SuperNodeDesc> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
+                                  Int block_cnt = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1]);
+
+
+                                  //allocate space to receive block descriptors
+                                  char * buffer = (char*)UpcxxAllocator::allocate(sizeof(NZBlockDesc)*block_cnt+ sizeof(SuperNodeDesc));
+                                  upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
+                                  {
+#ifdef SP_THREADS
+                                    if(Multithreading::NumThread>1){
+                                      std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+                                      upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
+                                    }
+                                    else
+#endif
+                                      upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
+                                  }
+                                  SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
+                                  NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
+
+                                  for(Int i =block_cnt-1;i>=0;i--){
+                                    NZBlockDesc & curdesc = bufferBlocks[i];
+                                    size_t end = (i>0)?bufferBlocks[i-1].Offset:pdesc->nzval_cnt_;
+                                    Int numRows = (end-curdesc.Offset)/pdesc->iSize_;
+
+                                    for(Idx row = 0; row<numRows;row++){
+                                      structure.insert(curdesc.GIndex+row);
+                                    }
+                                  }
+                                  UpcxxAllocator::deallocate((char*)buffer);
+                                }
+                                //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                                if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
+                                  aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
+                                }
+                                aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+
+                              }
+                              SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
+                            }
+                            tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
+
+                            SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp);
+                          }
+
+#ifdef _DEBUG_
+                          logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
+#endif
+
+
+                          //Update the aggregate
+                          SYMPACK_TIMER_START(UPD_ANC_UPD);
+#ifdef SP_THREADS
+                          if(Multithreading::NumThread>1){
+                            //scheduler->list_mutex_.lock();
+                            auto & tmpBuf = tmpBufs_th[tid];
+                            //scheduler->list_mutex_.unlock();
+                            tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,iam);
+                          }
+                          else
+#endif
+                            tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
+
+                          SYMPACK_TIMER_STOP(UPD_ANC_UPD);
+
+#ifdef SP_THREADS
+                          if(Multithreading::NumThread>1){
+                            tgt_aggreg->in_use = false;
+                          }
+#endif
+
+                          --UpdatesToDo[curUpdate.tgt_snode_id-1];
+#ifdef _DEBUG_
+                          logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<std::endl;
+#endif
+                          SYMPACK_TIMER_STOP(UPDATE_ANCESTORS);
+
+                          //TODO if I am the last one updating that target, send it
+                          //THIS SHOULD NOT HAVE TO BE PROTECTED OR BE ATOMICAL BECAUSE NO OTHER RUNNING TASK SHOULD UPDATE THE SAME TARGET
+                          //Send the aggregate if it's the last
+                          //If this is my last update sent it to curUpdate.tgt_snode_id
+                          SYMPACK_TIMER_START(UPD_ANC_Agg_Send);
+                          if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
+                            if(iTarget != iam){
+#ifdef _DEBUG_
+                              logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
+#endif
+
+                              tgt_aggreg->Shrink();
+
+                              MsgMetadata meta;
+
+                              NZBlockDesc & nzblk_desc = tgt_aggreg->GetNZBlockDesc(0);
+                              T* nzval_ptr = tgt_aggreg->GetNZval(0);
+
+                              //this is an aggregate
+                              meta.src = curUpdate.src_snode_id;
+                              meta.tgt = curUpdate.tgt_snode_id;
+                              meta.GIndex = nzblk_desc.GIndex;
+
+                              std::stringstream sstr;
+                              sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
+                              meta.id = hash_fn(sstr.str());
+
+                              upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
+                              //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
+                              size_t msgSize = tgt_aggreg->StorageSize();
+                              signal_data(sendPtr, msgSize, iTarget, meta);
+                            }
+                          }
+                          SYMPACK_TIMER_STOP(UPD_ANC_Agg_Send);
+
+                          SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
+                          if(iTarget == iam)
+                          {
+                            std::stringstream sstr;
+                            sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
+                            auto id = hash_fn(sstr.str());
+                            auto taskit = graph.find_task(id);
+                            bassert(taskit!=graph.tasks_.end());
+                            dec_ref(taskit,1,0);
+
+                          }
+                          SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
+
+        //if local update, push a new task in the queue and stop the while loop
+        if(iam==iSrcOwner ){
+          break;
+        }
+
+                         // if(structPtr!=NULL){
+                         //   delete structPtr;
+                         // }
+
+
+                        }
+                      }
+                    }
+                    SYMPACK_TIMER_STOP(UPDATE_ANCESTORS);
+
+                  }
+
+
+
 
 
 
