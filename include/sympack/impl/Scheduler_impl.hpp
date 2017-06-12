@@ -1,6 +1,11 @@
 #ifndef _SCHEDULER_IMPL_HPP_
 #define _SCHEDULER_IMPL_HPP_
 
+#include <sched.h>
+#include <errno.h>
+#include <unistd.h>
+#include <pthread.h>
+
 //Definitions of the WorkQueue class
 namespace symPACK{
 
@@ -12,6 +17,18 @@ namespace symPACK{
       for (Int count {0}; count < nthreads; count += 1){
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
       }
+      for(int i = 0; i<threads.size(); i++){
+        auto & thread = threads[i];
+        // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
+        // only CPU i as set.
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(i, &cpuset);
+        int rc = pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+        if (rc != 0) {
+          std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+        }
+      }
     }
 
 
@@ -21,8 +38,21 @@ namespace symPACK{
       processing_.resize(nthreads,nullptr);
 #endif
       threadInitHandle_ = threadInitHandle;
-      for (Int count {0}; count < nthreads; count += 1)
+      for (Int count {0}; count < nthreads; count += 1){
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
+      }
+      for(int i = 0; i<threads.size(); i++){
+        auto & thread = threads[i];
+        // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
+        // only CPU i as set.
+        cpu_set_t cpuset;
+        CPU_ZERO(&cpuset);
+        CPU_SET(i, &cpuset);
+        int rc = pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
+        if (rc != 0) {
+          std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+        }
+      }
     }
 
   template<typename T, typename Queue >
@@ -54,6 +84,10 @@ namespace symPACK{
       sstr<<"Thread "<<tid<<std::endl;
       logfileptr->OFS()<<sstr.str();
 #endif
+
+      std::stringstream sstr2;
+      sstr2 << "Thread #" << tid << ": on CPU " << sched_getcpu() << "\n";
+      logfileptr->OFS()<<sstr2.str();
 
       if(threadInitHandle_!=nullptr){
         threadInitHandle_();
