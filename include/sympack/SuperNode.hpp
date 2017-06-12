@@ -125,7 +125,7 @@ namespace symPACK{
         Int iLastRow_;
         std::vector<Int> * globalToLocal_;
 #else
-        ITree * idxToBlk_;
+        ITree<Int> * idxToBlk_;
 #endif
 
         //actual storage
@@ -139,7 +139,7 @@ namespace symPACK{
         NZBlockDesc * blocks_;
 
       protected:
-        inline ITree * CreateITree();
+        inline ITree<Int> * CreateITree();
 
       public:
 
@@ -193,7 +193,7 @@ namespace symPACK{
 
         inline Int FindBlockIdx(Int aiGIndex);
         inline Int FindBlockIdx(Int aiGIndex,Int & closestR, Int & closestL);
-        inline Int FindBlockIdx(Int fr, Int lr, ITree::Interval & overlap);
+        inline Int FindBlockIdx(Int fr, Int lr, ITree<Int>::Interval<Int> & overlap);
 
         inline void DumpITree();
         virtual inline Int Shrink();
@@ -221,8 +221,6 @@ namespace symPACK{
         //Factorize the supernode
         virtual inline Int Factorize(TempUpdateBuffers<T> & tmpBuffers);
         virtual inline Int Factorize(SuperNode<T,Allocator> * diag_snode, TempUpdateBuffers<T> & tmpBuffers);
-        virtual inline Int Factorize_diag(TempUpdateBuffers<T> & tmpBuffers);
-        virtual inline Int Factorize_TRSM(SuperNode<T,Allocator> * diag_snode, Int blkidx);
 
         inline bool FindNextUpdate(SnodeUpdate & nextUpdate, const std::vector<Int> & Xsuper,  const std::vector<Int> & SupMembership,bool isLocal=true); 
 

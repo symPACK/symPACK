@@ -49,10 +49,11 @@
 
 
 // A utility function to create a new Interval Search Tree Node
-inline ITree::ITNode * ITree::newNode_(ITree::Interval & i)
+  template<typename F>
+inline ITree<F>::ITNode<F> * ITree<F>::newNode_(ITree<F>::Interval<F> & i)
 {
-  ITree::ITNode *temp = new ITree::ITNode;
-  temp->i = new ITree::Interval(i);
+  ITree<F>::ITNode<F> *temp = new ITree<F>::ITNode<F>;
+  temp->i = new ITree<F>::Interval<F>(i);
   temp->max = i.high;
   temp->left = temp->right = NULL;
   temp->height = 1;
@@ -63,21 +64,24 @@ inline ITree::ITNode * ITree::newNode_(ITree::Interval & i)
 };
 
 
-inline   Int ITree::height_(ITree::ITNode *N)
+  template<typename F>
+inline   Int ITree<F>::height_(ITree<F>::ITNode<F> *N)
 {
   if (N == NULL)
     return 0;
   return N->height;
 }
 
-inline   Int ITree::max_(ITree::ITNode *N)
+  template<typename F>
+inline   Int ITree<F>::max_(ITree<F>::ITNode<F> *N)
 {
   if (N == NULL)
     return 0;
   return N->max;
 }
 
-inline   Int ITree::min_(ITree::ITNode *N)
+  template<typename F>
+inline   Int ITree<F>::min_(ITree<F>::ITNode<F> *N)
 {
   if (N == NULL)
     return 0;
@@ -91,7 +95,8 @@ inline   Int ITree::min_(ITree::ITNode *N)
 // A utility function to insert a new ITree::Interval Search Tree Node
 // This is similar to BST Insert.  Here the low value of interval
 // is used tomaintain BST property
-inline   ITree::ITNode * ITree::insert_(ITree::ITNode *root, ITree::Interval & i)
+  template<typename F>
+inline   ITree<F>::ITNode<F> * ITree<F>::insert_(ITree<F>::ITNode<F> *root, ITree<F>::Interval<F> & i)
 {
   assert(i.low<=i.high);
 
@@ -125,7 +130,8 @@ inline   ITree::ITNode * ITree::insert_(ITree::ITNode *root, ITree::Interval & i
   return root;
 }
 
-inline   Int ITree::recomputeMax_(ITree::ITNode * root)
+  template<typename F>
+inline   Int ITree<F>::recomputeMax_(ITree<F>::ITNode<F> * root)
 {
   root->max = root->i->high;
 
@@ -146,7 +152,8 @@ inline   Int ITree::recomputeMax_(ITree::ITNode * root)
 }
 
 
-inline   Int ITree::recomputeMinMax_(ITree::ITNode * root)
+  template<typename F>
+inline   Int ITree<F>::recomputeMinMax_(ITree<F>::ITNode<F> * root)
 {
   root->max = root->i->high;
   root->min = root->i->low;
@@ -185,14 +192,16 @@ inline   Int ITree::recomputeMinMax_(ITree::ITNode * root)
 
 
 // A utility function to check if given two intervals overlap
-inline   bool ITree::doOVerlap_(const ITree::Interval &i1, const ITree::Interval &i2)
+  template<typename F>
+inline   bool ITree<F>::doOVerlap_(const ITree<F>::Interval<F> &i1, const ITree<F>::Interval<F> &i2)
 {
   if (i1.low <= i2.high && i2.low <= i1.high)
     return true;
   return false;
 }
 
-inline   bool ITree::doOVerlap_(const ITree::Interval &i1, const Int & low, const Int & high)
+  template<typename F>
+inline   bool ITree<F>::doOVerlap_(const ITree<F>::Interval<F> &i1, const Int & low, const Int & high)
 {
   if (i1.low <= high && low <= i1.high)
     return true;
@@ -203,7 +212,8 @@ inline   bool ITree::doOVerlap_(const ITree::Interval &i1, const Int & low, cons
 
 // The main function that searches a given interval i in a given
 // Interval Tree.
-inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int & begin,const Int &end)
+  template<typename F>
+inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *root,const Int & begin,const Int &end)
 //  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, ITree::Interval &i)
 {
   // Base Case, tree is empty
@@ -235,7 +245,8 @@ inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int 
 }
 
 
-inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int & begin,const Int &end, Interval * & closestR, Interval * & closestL)
+  template<typename F>
+inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *root,const Int & begin,const Int &end, Interval<F> * & closestR, Interval<F> * & closestL)
 //  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, ITree::Interval &i)
 {
   // Base Case, tree is empty
@@ -317,7 +328,8 @@ inline   ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root,const Int 
 
 
 
-inline   void ITree::inorder_(ITree::ITNode *root)
+  template<typename F>
+inline   void ITree<F>::inorder_(ITree<F>::ITNode<F> *root)
 {
   if (root == NULL) return;
 
@@ -325,7 +337,7 @@ inline   void ITree::inorder_(ITree::ITNode *root)
   inorder_(root->left);
 
   logfileptr->OFS()<< " MIDDLE: "<<std::endl;
-  logfileptr->OFS()<< "[" << root->i->low << ", " << root->i->high << "] on "<<root->i->block_idx
+  logfileptr->OFS()<< "[" << root->i->low << ", " << root->i->high << "] on "<<root->i->data
     << " max = " << root->max << std::endl;
 
   logfileptr->OFS()<< " RIGHT of "<< "[" << root->i->low << ", " << root->i->high << "]"<<": "<<std::endl;
@@ -333,7 +345,8 @@ inline   void ITree::inorder_(ITree::ITNode *root)
 }
 
 
-inline   Int ITree::getSize_(ITree::ITNode *root)
+  template<typename F>
+inline   Int ITree<F>::getSize_(ITree<F>::ITNode<F> *root)
 {
   if (root == NULL) return 0;
 
@@ -351,9 +364,10 @@ inline   Int ITree::getSize_(ITree::ITNode *root)
 // A utility function to insert a new ITree::Interval Search Tree Node
 // This is similar to BST Insert.  Here the low value of interval
 // is used tomaintain BST property
-inline   ITree::ITNode * AVLITree::insert_(ITree::ITNode *root, ITree::Interval & i)
+  template<typename F>
+inline   typename ITree<F>::template ITNode<F> * AVLITree<F>::insert_(typename ITree<F>::template ITNode<F> *root, typename ITree<F>::template Interval<F> & i)
 {
-  root = ITree::insert_(root,i);
+  root = ITree<F>::insert_(root,i);
 
   SYMPACK_TIMER_START(ITREE_BALANCE_AVL);
   /* 3. Get the balance factor of this ancestor node to check whether
@@ -403,10 +417,11 @@ inline   ITree::ITNode * AVLITree::insert_(ITree::ITNode *root, ITree::Interval 
 
 // A utility function to right rotate subtree rooted with y
 // See the diagram given above.
-inline   ITree::ITNode * AVLITree::rightRotate_(ITree::ITNode *y)
+  template<typename F>
+inline   typename ITree<F>::template ITNode<F> * AVLITree<F>::rightRotate_(typename ITree<F>::template ITNode<F> *y)
 {
-  ITree::ITNode *x = y->left;
-  ITree::ITNode *T2 = x->right;
+  typename ITree<F>::template ITNode<F> *x = y->left;
+  typename ITree<F>::template ITNode<F> *T2 = x->right;
 
   // Perform rotation
   x->right = y;
@@ -419,10 +434,12 @@ inline   ITree::ITNode * AVLITree::rightRotate_(ITree::ITNode *y)
   // Return new root
   return x;
 }
-inline   ITree::ITNode * AVLITree::leftRotate_(ITree::ITNode *x)
+
+  template<typename F>
+inline   typename ITree<F>::template ITNode<F> * AVLITree<F>::leftRotate_(typename ITree<F>::template ITNode<F> *x)
 {
-  ITree::ITNode *y = x->right;
-  ITree::ITNode *T2 = y->left;
+  typename ITree<F>::template ITNode<F> *y = x->right;
+  typename ITree<F>::template ITNode<F> *T2 = y->left;
 
   // Perform rotation
   y->left = x;
@@ -437,7 +454,8 @@ inline   ITree::ITNode * AVLITree::leftRotate_(ITree::ITNode *x)
 }
 
 // Get Balance factor of node N
-inline   Int AVLITree::getBalance_(ITree::ITNode *N)
+  template<typename F>
+inline   Int AVLITree<F>::getBalance_(typename ITree<F>::template ITNode<F> *N)
 {
   if (N == NULL)
     return 0;
@@ -449,9 +467,10 @@ inline   Int AVLITree::getBalance_(ITree::ITNode *N)
 
 // Tree to Vine algorithm:  a "pseudo-root" is passed ---
 // comparable with a dummy header for a linked list.
-inline void DSWITree::tree_to_vine_( ITree::ITNode* root, Int &size )
+  template<typename F>
+inline void DSWITree<F>::tree_to_vine_( typename ITree<F>::template ITNode<F>* root, Int &size )
 {  
-  ITree::ITNode* vineTail, *remainder, *tempPtr;
+  typename ITree<F>::template ITNode<F>* vineTail, *remainder, *tempPtr;
 
   vineTail = root;
   remainder = vineTail->right;
@@ -475,9 +494,10 @@ inline void DSWITree::tree_to_vine_( ITree::ITNode* root, Int &size )
   }
 }
 
-inline void DSWITree::compression_( ITree::ITNode* root, Int count )
+  template<typename F>
+inline void DSWITree<F>::compression_( typename ITree<F>::template ITNode<F>* root, Int count )
 {  
-  ITree::ITNode * scanner, *child;
+  typename ITree<F>::template ITNode<F> * scanner, *child;
   Int     j;
 
   scanner = root;
@@ -493,14 +513,16 @@ inline void DSWITree::compression_( ITree::ITNode* root, Int count )
 
 // Code added by Tim Rolfe:  Expands on Warren & Stout's
 // notation involving powers, floors, and base-2 logs
-inline Int DSWITree::fullSize_( Int size )    // Full portion complete tree
+  template<typename F>
+inline Int DSWITree<F>::fullSize_( Int size )    // Full portion complete tree
 {  Int Rtn = 1;
   while ( Rtn <= size )      // Drive one step PAST FULL
     Rtn = Rtn + Rtn + 1;   // next pow(2,k)-1
   return Rtn/2;
 }
 
-inline void DSWITree::vine_to_tree_ ( ITree::ITNode * root, Int size )
+  template<typename F>
+inline void DSWITree<F>::vine_to_tree_ ( typename ITree<F>::template ITNode<F> * root, Int size )
 {
   Int full_count = fullSize_(size);
   compression_(root, size - full_count);
@@ -509,7 +531,8 @@ inline void DSWITree::vine_to_tree_ ( ITree::ITNode * root, Int size )
 }
 
 // Traverse entire tree, correcting heights and parents
-  inline void DSWITree::correctTree_( ITree::ITNode* node )
+  template<typename F>
+  inline void DSWITree<F>::correctTree_( typename ITree<F>::template ITNode<F>* node )
 {  if ( node != NULL )
   {  Int LtHt, RtHt;
 
@@ -521,7 +544,8 @@ inline void DSWITree::vine_to_tree_ ( ITree::ITNode * root, Int size )
   }
 }
 
-inline void DSWITree::Rebalance()
+  template<typename F>
+inline void DSWITree<F>::Rebalance()
   // Public member function:  Do the DSW algorithm to balance the tree
 {//Declare as automatic variable; remember to pass as pointer
   SYMPACK_TIMER_START(ITREE_BALANCE_DSW);
@@ -530,13 +554,13 @@ inline void DSWITree::Rebalance()
   Int size;
 
   // Stout/Warren transformation of tree to vine
-  tree_to_vine_ (root_, size);
+  this->tree_to_vine_ (this->root_, size);
 
-  vine_to_tree_ (root_, size);
+  this->vine_to_tree_ (this->root_, size);
 
-  correctTree_ (root_->right);
+  this->correctTree_ (this->root_->right);
   //recomputeMax_(root_);
-  recomputeMinMax_(root_);
+  this->recomputeMinMax_(this->root_);
   SYMPACK_TIMER_STOP(ITREE_BALANCE_DSW);
 }
 

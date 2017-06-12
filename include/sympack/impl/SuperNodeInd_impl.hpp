@@ -83,13 +83,15 @@ namespace symPACK{
         num_blocks=aiNZBlkCnt;
       }
 
-      this->storage_size_ = sizeof(T)*size*ai_num_rows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+      this->storage_size_  = sizeof(T)*size*ai_num_rows; //size of nzvals
+      this->storage_size_ += num_blocks*sizeof(NZBlockDesc); //size of block desc
+      this->storage_size_ += sizeof(SuperNodeDesc); //size of the supernode metadata
       this->storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
 
       Int num_updrows = 0;
       if (aiFr == aiFc){
         num_updrows = num_blocks;
-        this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
+        //this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
       }
 
 
@@ -226,7 +228,7 @@ namespace symPACK{
       Int num_updrows = 0;
       if (aiFr == aiFc){
         num_updrows = num_blocks;
-        this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
+        //this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
       }
 
 
@@ -319,7 +321,10 @@ namespace symPACK{
 #ifndef ITREE
         std::fill(&(*globalToLocal_)[cur_fr],&(*globalToLocal_)[cur_lr]+1,this->meta_->blocks_cnt_); 
 #else
-        ITree::Interval cur_interv = { cur_fr, cur_lr, this->meta_->blocks_cnt_};
+        ITree<Int>::Interval<Int> cur_interv;
+        cur_interv.low = cur_fr;
+        cur_interv.high = cur_lr;
+        cur_interv.data = this->meta_->blocks_cnt_;
         this->idxToBlk_->Insert(cur_interv);
 #endif
 
@@ -577,47 +582,6 @@ namespace symPACK{
 #endif
       return 0;
     }
-
-  template<typename T, class Allocator>
-    inline Int SuperNodeInd<T,Allocator>::Factorize_diag(TempUpdateBuffers<T> & tmpBuffers){
-#if defined(_NO_COMPUTATION_)
-      return 0;
-#endif
-      Int snodeSize = this->Size();
-      NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
-      T * diag_nzval = this->GetNZval(diag_desc.Offset);
-
-      Int INFO = 0;
-      lapack::Potrf_LDL( "U", snodeSize, diag_nzval, snodeSize, tmpBuffers, INFO);
-      //copy the diagonal entries into the diag portion of the supernode
-#pragma unroll
-      for(Int col = 0; col< snodeSize;col++){ this->diag_[col] = diag_nzval[col+ (col)*snodeSize]; }
-
-      return 0;
-    }
-
-  template<typename T, class Allocator>
-    inline Int SuperNodeInd<T,Allocator>::Factorize_TRSM(SuperNode<T,Allocator> * diag_snode, Int blkidx){
-#if defined(_NO_COMPUTATION_)
-      return 0;
-#endif
-      Int snodeSize = this->Size();
-      NZBlockDesc & diag_desc = diag_snode->GetNZBlockDesc(0);
-      T * diag_nzval = diag_snode->GetNZval(diag_desc.Offset);
-
-      Idx nRows = this->NRows(blkidx);
-
-      NZBlockDesc & cur_desc = this->GetNZBlockDesc(blkidx);
-      T * nzblk_nzval = this->GetNZval(cur_desc.Offset);
-      blas::Trsm('L','U','T','U',snodeSize, nRows, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
-
-      //scale column I
-      for ( Idx I = 1; I<=snodeSize;I++) {
-        blas::Scal( nRows, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
-      }
-      return 0;
-    }
-
 
   template<typename T, class Allocator>
     inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 

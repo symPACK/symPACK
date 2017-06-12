@@ -63,26 +63,29 @@
 
 namespace symPACK{
 
+  template<typename F = Int>
   class ITree{
     public:
       // Structure to represent an interval
+      template<typename T = F>
       struct Interval
       {
         Int low, high;
-        Int block_idx;
+        T data;
       };
 
 
     protected:
       // Structure to represent a node in Interval Search Tree
+      template<typename T = F>
       class ITNode
       {
         public:
-          Interval *i;  // 'i' could also be a normal variable
+          Interval<T> *i;  // 'i' could also be a normal variable
           Int max;
           Int min;
           Int height;
-          ITNode *left, *right;
+          ITNode<T> *left, *right;
           ~ITNode(){
             delete i;
 
@@ -95,37 +98,37 @@ namespace symPACK{
             }
           }
           void Dump(){
-            logfileptr->OFS()<< "[" << i->low << ", " << i->high << "] on "<<i->block_idx;
+            logfileptr->OFS()<< "[" << i->low << ", " << i->high << "] on "<<i->data;//block_idx;
           }
       };
 
 
-      ITNode *root_;
+      ITNode<F> *root_;
 
       // A utility function to create a new Interval Search Tree Node
-      inline ITNode * newNode_(Interval & i);
+      inline ITNode<F> * newNode_(Interval<F> & i);
 
-      inline Int height_(ITNode *N);
-      inline Int max_(ITNode *N);
-      inline Int min_(ITNode *N);
+      inline Int height_(ITNode<F> *N);
+      inline Int max_(ITNode<F> *N);
+      inline Int min_(ITNode<F> *N);
 
 
       // A utility function to insert a new Interval Search Tree Node
       // This is similar to BST Insert.  Here the low value of interval
       // is used tomaintain BST property
-      virtual inline ITNode *insert_(ITNode *root, Interval & i);
-      inline Int recomputeMax_(ITNode * root);
-      inline Int recomputeMinMax_(ITNode * root);
+      virtual inline ITNode<F> *insert_(ITNode<F> *root, Interval<F> & i);
+      inline Int recomputeMax_(ITNode<F> * root);
+      inline Int recomputeMinMax_(ITNode<F> * root);
 
       // A utility function to check if given two intervals overlap
-      inline bool doOVerlap_(const Interval &i1,const Interval &i2);
-      inline bool doOVerlap_(const ITree::Interval &i1, const Int & low, const Int & high);
-      inline Interval *intervalSearch_(ITNode *root, const Int & begin, const Int & end);
-      inline Interval *intervalSearch_(ITNode *root, const Int & begin, const Int &end, Interval * & closestR, Interval * & closestL);
+      inline bool doOVerlap_(const Interval<F> &i1,const Interval<F> &i2);
+      inline bool doOVerlap_(const ITree::Interval<F> &i1, const Int & low, const Int & high);
+      inline Interval<F> *intervalSearch_(ITNode<F> *root, const Int & begin, const Int & end);
+      inline Interval<F> *intervalSearch_(ITNode<F> *root, const Int & begin, const Int &end, Interval<F> * & closestR, Interval<F> * & closestL);
 
-      inline void inorder_(ITNode *root);
+      inline void inorder_(ITNode<F> *root);
 
-      inline Int getSize_(ITNode *root);
+      inline Int getSize_(ITNode<F> *root);
 
 
     public:
@@ -151,7 +154,7 @@ namespace symPACK{
       }
 
 
-      inline void Insert(Interval & i)
+      inline void Insert(Interval<F> & i)
       {
         SYMPACK_TIMER_START(ITREE_INSERT);
         root_ = insert_(root_,i);
@@ -160,22 +163,22 @@ namespace symPACK{
 
       inline void Insert(Int i)
       {
-        Interval it;  
+        Interval<F> it;  
         it.low = i;
         it.high = i;
         Insert(it);
       }
 
 
-      inline Interval * IntervalSearch(const Interval & i){
+      inline Interval<F> * IntervalSearch(const Interval<F> & i){
         return intervalSearch_(root_,i.low,i.high);
       }
 
-      inline Interval * IntervalSearch(const Int & low,const Int & high){
+      inline Interval<F> * IntervalSearch(const Int & low,const Int & high){
         return intervalSearch_(root_,low,high);
       }
 
-      inline Interval * IntervalSearch(const Int & low,const Int & high, Interval * & closestR, Interval * & closestL){
+      inline Interval<F> * IntervalSearch(const Int & low,const Int & high, Interval<F> * & closestR, Interval<F> * & closestL){
         return intervalSearch_(root_,low,high,closestR,closestL);
       }
 
@@ -187,28 +190,29 @@ namespace symPACK{
   };
 
 
-  class AVLITree: public ITree{
+  template<typename F = Int>
+  class AVLITree: public ITree<F>{
     public:
 
     protected:
       // A utility function to right rotate subtree rooted with y
       // See the diagram given above.
-      inline ITNode * rightRotate_(ITNode *y);
+      inline typename ITree<F>::template ITNode<F> * rightRotate_(typename ITree<F>::template ITNode<F> *y);
 
-      inline ITNode * leftRotate_(ITNode *x);
+      inline typename ITree<F>::template ITNode<F> * leftRotate_(typename ITree<F>::template ITNode<F> *x);
       // Get Balance factor of node N
-      inline Int getBalance_(ITNode *N);
+      inline Int getBalance_(typename ITree<F>::template ITNode<F> *N);
 
       // A utility function to insert a new Interval Search Tree Node
       // This is similar to BST Insert.  Here the low value of interval
       // is used tomaintain BST property
-      virtual inline ITNode *insert_(ITNode *root, Interval & i);
+      virtual inline typename ITree<F>::template ITNode<F> *insert_(typename ITree<F>::template ITNode<F> *root, typename ITree<F>::template Interval<F> & i);
 
 
     public:
 
 
-      AVLITree():ITree() {
+      AVLITree():ITree<F>() {
       }
 
 
@@ -216,21 +220,22 @@ namespace symPACK{
       }
   };
 
-  class DSWITree: public ITree{
+  template<typename F = Int>
+  class DSWITree: public ITree<F>{
     public:
 
     protected:
       inline Int fullSize_ ( Int size );
-      inline void tree_to_vine_ (ITNode * root, Int &size);
-      inline void compression_  (ITNode * root, Int count);
-      inline void vine_to_tree_ (ITNode * root, Int n);
-      inline void correctTree_  (ITNode * root);
+      inline void tree_to_vine_ (typename ITree<F>::template ITNode<F> * root, Int &size);
+      inline void compression_  (typename ITree<F>::template ITNode<F> * root, Int count);
+      inline void vine_to_tree_ (typename ITree<F>::template ITNode<F> * root, Int n);
+      inline void correctTree_  (typename ITree<F>::template ITNode<F> * root);
 
 
     public:
 
 
-      DSWITree():ITree() { }
+      DSWITree():ITree<F>() { }
 
 
       virtual ~DSWITree() {

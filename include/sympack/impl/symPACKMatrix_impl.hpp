@@ -248,202 +248,16 @@ namespace symPACK{
     {
 
 
-
-      bool is2Dmap = dynamic_cast<Mapping2D*>(Mapping_)!=nullptr;
-      Block2D * mappingB2D = dynamic_cast<Block2D*>(Mapping_);
-
       //we will need to communicate if only partial xlindx_, lindx_
       //idea: build tasklist per processor and then exchange
-      using upd_tuple_t = std::tuple<Idx,Idx,Idx,Factorization::op_type,Int,Int>;
+      //tuple is: src_snode,tgt_snode,src_first_row,op_type,
+      using upd_tuple_t = std::tuple<Idx,Idx,Idx,Factorization::op_type>;
       //using upd_:std::tuple<Idx,Idx,Idx,Factorization::op_type> ; 
       std::map<Idx, std::list< upd_tuple_t> > Updates;
       std::vector<int> marker(np,0);
 
       std::vector< std::map< Idx, std::pair<Idx,std::set<Idx> > > > updCnt(Xsuper_.size() -1 );
-      if(mappingB2D){
-        //parse the structure stored in the mapping instead
-
-
-        Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
-        Int firstSnode = XsuperDist_[iam];
-        //gdb_lock();
-        for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
-          Idx I = locsupno + firstSnode-1;
-          auto & snodeSrc = mappingB2D->block2rank_[I];
-
-
-          Int first_col = Xsuper_[I-1];
-          Int last_col = Xsuper_[I]-1;
-
-          Int diagOwner = -1;
-
-          Int prevSnode = -1;
-          auto firstFacingBlk = snodeSrc.begin();
-
-          auto blkit = snodeSrc.begin();
-          for(; blkit!= snodeSrc.end(); blkit++){
-            Int fr = blkit->first;
-            Int nr = std::get<1>(blkit->second);
-            Int owner = std::get<0>(blkit->second);
-
-            if(blkit == snodeSrc.begin()){
-              bassert(fr==first_col);
-              //Create the factor task on the owner
-              //Int local_deps = diagOwner==owner?1:0;
-              //Int remote_deps = diagOwner!=owner?1:0;
-              Int remote_deps = 0;//AggregatesToRecv[I-1];
-              Int local_deps = 0;//LocalAggregates[I-1];
-
-
-
-              local_deps += updCnt[I-1][fr].first;
-              remote_deps += updCnt[I-1][fr].second.size();
-
-//          bassert(AggregatesToRecv[I-1] == remote_deps);
-//          bassert(LocalAggregates[I-1] == local_deps);
-
-              Updates[owner].push_back(std::make_tuple(I,I,fr,Factorization::op_type::FACTOR,local_deps,remote_deps));
-              diagOwner = owner;
-            }
-            else{
-              Int local_deps = updCnt[I-1][fr].first;
-              Int remote_deps = updCnt[I-1][fr].second.size();
-
-              //Int local_deps = 0;//LocalAggregates[I-1];  //TODO this needs to contain all the local aggregates facing that block .. forall s < I, #owners of (cfr,s)
-              local_deps += diagOwner==owner?1:0;
-              //Int remote_deps = 0;//AggregatesToRecv[I-1];
-              remote_deps += diagOwner!=owner?1:0;
-
-              Updates[owner].push_back(std::make_tuple(I,I,fr,Factorization::op_type::TRSM,local_deps,remote_deps));
-
-              Int J = SupMembership_[fr-1];
-
-              if(prevSnode==-1){
-                firstFacingBlk = blkit;
-                prevSnode = J;
-              }
-
-
-              if(J!=prevSnode){
-                auto & snodeTgt = mappingB2D->block2rank_[prevSnode];
-                Int prevSnodeOwner = std::get<0>(snodeTgt.begin()->second);//mappingB2D->Map(Xsuper_[prevSnode-1],prevSnode);
-                std::set<Int> upivotOwners;
-                std::multiset<Int> pivotOwners;
-                auto lastFacingBlk = std::prev(blkit);
-                for(auto fblkit = firstFacingBlk; fblkit != blkit; fblkit++){
-                  Int cfr = fblkit->first;
-                  Int cnr = std::get<1>(fblkit->second);
-                  Int cowner = std::get<0>(fblkit->second);
-
-                  //If the block is a "facing" block
-                  bassert(cfr >= Xsuper_[prevSnode-1] && cfr+cnr-1 <= Xsuper_[prevSnode]-1);
-                  bassert(cfr >= snodeTgt.begin()->first && cfr+cnr-1 <= lastFacingBlk->first+std::get<1>(lastFacingBlk->second)-1);
-                  pivotOwners.insert(cowner);
-
-                  //TODO this is correct
-                  //increment the aggregate count
-//                  bassert(prevSnodeOwner == Mapping_->Map(Xsuper_[prevSnode-1],prevSnode));
-                  if(cowner != prevSnodeOwner){
-                    updCnt[prevSnode-1][firstFacingBlk->first].second.insert(cowner);
-                  }
-                  else{
-                    updCnt[prevSnode-1][firstFacingBlk->first].first++;
-                  }
-                }
-                upivotOwners.insert(pivotOwners.begin(),pivotOwners.end());
-
-                //now create the update tasks
-
-                Int local_deps = pivotOwners.count(prevSnodeOwner);//std::count_if(pivotOwners.begin(),pivotOwners.end(), [prevSnodeOwner](Int i){ return prevSnodeOwner==i;});
-                Int remote_deps = upivotOwners.size() - upivotOwners.count(prevSnodeOwner);
-                Updates[prevSnodeOwner].push_back(std::make_tuple(I,prevSnode,firstFacingBlk->first,Factorization::op_type::UPDATE,local_deps,remote_deps));
-
-
-                for(auto ublkit = blkit; ublkit != snodeSrc.end(); ublkit++){
-                  Int cfr = ublkit->first;
-                  Int cnr = std::get<1>(ublkit->second);
-                  Int cowner = std::get<0>(ublkit->second);
-
-                  //Find the owner of the facing block
-                  auto blit = snodeTgt.lower_bound(cfr);
-                  if(blit == snodeTgt.end()){ blit--; }
-                  if(blit->first > cfr){blit--;};
-                  bassert(blit->first <= cfr && cfr< blit->first + std::get<1>(blit->second));
-                  Int iUpdaterBlk = std::get<0>(blit->second);
-
-
-                  //increment the aggregate count
-                  if(cowner != iUpdaterBlk){
-                    updCnt[prevSnode-1][blit->first].second.insert(cowner);
-                  }
-                  else{
-                    updCnt[prevSnode-1][blit->first].first++;
-                  }
-
-//          bassert(AggregatesToRecv[prevSnode-1] >= updCnt[prevSnode-1][blit->first].second.size());
-//          bassert(LocalAggregates[prevSnode-1] >= updCnt[prevSnode-1][blit->first].first);
-//                  Int local_deps = std::count_if(pivotOwners.begin(),pivotOwners.end(), [iUpdaterBlk](Int i){ return iUpdaterBlk==i;});
-//                  Int remote_deps = std::count_if(pivotOwners.begin(),pivotOwners.end(), [iUpdaterBlk](Int i){ return iUpdaterBlk!=i;});
-                  Int local_deps = pivotOwners.count(iUpdaterBlk);//std::count_if(pivotOwners.begin(),pivotOwners.end(), [prevSnodeOwner](Int i){ return prevSnodeOwner==i;});
-                  //Int remote_deps = pivotOwners.size() - local_deps;
-                  Int remote_deps = upivotOwners.size() - upivotOwners.count(iUpdaterBlk);
-                  Updates[iUpdaterBlk].push_back(std::make_tuple(I,prevSnode,cfr,Factorization::op_type::UPDATE,local_deps,remote_deps));
-                }
-                firstFacingBlk = blkit;
-              }
-              prevSnode = J;
-            }
-
-          }
-
-          //Adding the last set of updates
-          if(snodeSrc.size()>1){
-            std::set<Int> pivotOwners;
-            for(auto fblkit = firstFacingBlk; fblkit != blkit; fblkit++){
-              Int cfr = fblkit->first;
-              Int cnr = std::get<1>(fblkit->second);
-              Int cowner = std::get<0>(fblkit->second);
-
-              //If the block is a "facing" block
-              bassert(cfr >= Xsuper_[prevSnode-1] && cfr+cnr-1 <= Xsuper_[prevSnode]-1);
-              pivotOwners.insert(cowner);
-            }
-
-            //now create the update tasks
-
-            auto & snodeTgt = mappingB2D->block2rank_[prevSnode];
-            Int prevSnodeOwner = std::get<0>(snodeTgt.begin()->second);//mappingB2D->Map(Xsuper_[prevSnode-1],prevSnode);
-            Int local_deps = std::count_if(pivotOwners.begin(),pivotOwners.end(), [prevSnodeOwner](Int i){ return prevSnodeOwner==i;});
-            Int remote_deps = pivotOwners.size() - local_deps;
-            Updates[prevSnodeOwner].push_back(std::make_tuple(I,prevSnode,firstFacingBlk->first,Factorization::op_type::UPDATE,local_deps,remote_deps));
-
-            for(auto ublkit = blkit; ublkit != snodeSrc.end(); ublkit++){
-              Int cfr = ublkit->first;
-              Int cnr = std::get<1>(ublkit->second);
-              Int cowner = std::get<0>(ublkit->second);
-
-              //Find the owner of the facing block
-              auto blit = snodeTgt.lower_bound(cfr);
-              if(blit == snodeTgt.end()){ blit--; }
-              if(blit->first > cfr){blit--;};
-              bassert(blit->first <= cfr && cfr< blit->first + std::get<1>(blit->second));
-              Int iUpdaterBlk = std::get<0>(blit->second);
-
-              Int local_deps = std::count_if(pivotOwners.begin(),pivotOwners.end(), [iUpdaterBlk](Int i){ return iUpdaterBlk==i;});
-              Int remote_deps = std::count_if(pivotOwners.begin(),pivotOwners.end(), [iUpdaterBlk](Int i){ return iUpdaterBlk!=i;});
-              Updates[iUpdaterBlk].push_back(std::make_tuple(I,prevSnode,cfr,Factorization::op_type::UPDATE,local_deps,remote_deps));
-            }
-            firstFacingBlk = blkit;
-          }
-
-
-
-        }        
-
-
-
-      }
-      else{
+      
         Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
         Int firstSnode = XsuperDist_[iam];
         for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
@@ -458,7 +272,7 @@ namespace symPACK{
 
 
           //Create the factor task on the owner
-          Updates[iOwner].push_back(std::make_tuple(I,I,first_col,Factorization::op_type::FACTOR,0,0));
+          Updates[iOwner].push_back(std::make_tuple(I,I,first_col,Factorization::op_type::FACTOR));
 
           Int J = -1; 
           Ptr lfi = locXlindx_[locsupno-1];
@@ -480,10 +294,10 @@ namespace symPACK{
               if(J>I){
                 if(marker[iUpdater]!=I){
                   //create the task on iUpdater
-                  Updates[iUpdater].push_back(std::make_tuple(I,J,row,Factorization::op_type::UPDATE,0,0));
+                  Updates[iUpdater].push_back(std::make_tuple(I,J,row,Factorization::op_type::UPDATE));
                 }
 
-#if 0
+#if 1
                 if(Multithreading::NumThread==1){
                   //create only one task if I don't own the factor
                   if(iUpdater!=iOwner){
@@ -496,7 +310,6 @@ namespace symPACK{
             prevSnode = J;
           }
         }
-      }
 
       MPI_Datatype type;
       MPI_Type_contiguous( sizeof(upd_tuple_t), MPI_BYTE, &type );
@@ -542,128 +355,6 @@ namespace symPACK{
 
 
       //now process recvbuf and add the tasks to the taskGraph
-if(mappingB2D){
-  for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
-    std::shared_ptr<GenericTask> pTask(new SparseTask);
-    SparseTask & Task = *(SparseTask*)pTask.get();
-
-    Task.meta.resize(3*sizeof(Int)+sizeof(Factorization::op_type));
-    Int * meta = reinterpret_cast<Int*>(Task.meta.data());
-    meta[0] = std::get<0>(*it); //source snode id
-    meta[1] = std::get<1>(*it); //target snode id
-    meta[2] = std::get<2>(*it); //first row of the block
-    Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[3]);
-    type = std::get<3>(*it);//(it->first==it->second)?Factorization::op_type::FACTOR:Factorization::op_type::UPDATE;
-
-    Int local_deps = std::get<4>(*it);
-    Int remote_deps = std::get<5>(*it);
-
-    Int src = meta[0];
-    Int tgt = meta[1];
-    size_t mem_req = 0;
-    switch(type){
-      case Factorization::op_type::FACTOR:
-        {
-//          bassert(AggregatesToRecv[tgt-1] == remote_deps);
-//          bassert(LocalAggregates[tgt-1] == local_deps);
-
-          Task.remote_deps = remote_deps;
-          Task.local_deps = local_deps;
-          //memory req is: aggregate to recv * mw[tgt] * mh[tgt]
-          //mem_req = Task.remote_deps * mw[tgt] * mh[tgt] * sizeof(T);
-
-          //extra work storage for potrf
-          ///if(options_.decomposition == DecompositionType::LDL){
-          ///  Int NB = lapack::Ilaenv( 1, "DPOTRF", "U", mw[src], -1, -1, -1 );
-          ///  mem_req += NB * mw[src] * sizeof(T); 
-          ///}
-        }
-        break;
-      case Factorization::op_type::TRSM:
-        {
-          assert(mappingB2D);
-          Task.remote_deps = remote_deps;
-          Task.local_deps = local_deps;
-
-          //TODO compute the memreq
-
-          //      std::stringstream sstr;
-          //      sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)type;
-          //      Task.id = hash_fn(sstr.str());
-          //      logfileptr->OFS()<<"CREATE_TRSM "<<sstr.str()<< "-> "<<Task.id<<std::endl;
-        }
-        break;
-      case Factorization::op_type::UPDATE:
-        {
-          Task.remote_deps = remote_deps;
-          Task.local_deps = local_deps;
-        }
-        break;
-    }
-
-    Task.getHash = [&](char * ameta=nullptr)->GenericTask::id_type{
-      char * pmeta = ameta;
-      //if(pmeta==nullptr){ pmeta = Task.meta.data(); } 
-      std::stringstream sstr;
-      sstr<<meta[0]<<"_"<<meta[1]<<"_"<<meta[2]<<"_"<<0<<"_"<<(Int)(*reinterpret_cast<Factorization::op_type*>(&meta[3]));
-      return hash_fn(sstr.str());
-    };
-
-
-    Task.id = Task.getHash(Task.meta.data());
-
-    pTask->init();
-
-    graph.addTask(pTask);
-
-
-  }
-
-if(0){  
-//Dump the task graph
-for(auto && item: graph.tasks_){
-  SparseTask * pTask = (SparseTask*)item.second.get();
-
-    Int * meta = reinterpret_cast<Int*>(pTask->meta.data());
-    Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[3]);
-    std::string stype;
-    Int src = meta[0];
-    switch(type){
-      case Factorization::op_type::FACTOR:
-        stype="F";
-        break;
-      case Factorization::op_type::TRSM:
-        stype="TRSM";
-        src = meta[2];//SupMembership_[meta[2]-1];
-        break;
-      case Factorization::op_type::UPDATE:
-        stype="U";
-        break;
-    }
-
-  logfileptr->OFS()<<stype<<"("<<src<<","<<meta[1]<<")_["<<meta[2]<<"]"<<"   local_deps="<<pTask->local_deps<<" remote_deps="<<pTask->remote_deps<<std::endl;
-}
-}
-
-{
-  auto mapping = ((Block2D*) Mapping_);
-  Int max_blocks = 0;
-  size_t total_size = 0;
-  for(auto && cur : mapping->block2rank_){
-    total_size+=sizeof(Idx);
-    max_blocks = std::max((Int) cur.second.size(),max_blocks);
-    for(auto && icur : cur.second ){
-      total_size+=3*sizeof(Idx);
-  //    logfileptr->OFS()<<"Block("<<icur.first<<","<<cur.first<<") on P"<<std::get<0>(icur.second)<<" has "<<std::get<1>(icur.second)<<" rows"<<std::endl;
-    }
-  }
-  logfileptr->OFS()<<"Total size of mapping is: "<<total_size<<std::endl;
-  logfileptr->OFS()<<"Upper bound on dimensions: "<<mapping->block2rank_.size() << "-by-"<<max_blocks<<std::endl;
-}
-
-gdb_lock();
-}
-      else{
       size_t max_mem_req = 0;
       for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
 
@@ -731,476 +422,26 @@ gdb_lock();
             }
             break;
         }
-#if 0
-        if (type == Factorization::op_type::TRSM){
-          //delete pTask;
-          continue;
-        }
-#endif
-
-#if 0
-        {
-
-          Int iLocalTGT = snodeLocalIndex(tgt);
-          switch(type){
-            case Factorization::op_type::FACTOR:
-              {
-                Task.execute = [&,this,src,tgt,iLocalTGT,pTask] () {
-                  scope_timer(b,FB_FACTORIZATION_TASK);
-
-
-                  Int src_snode_id = src;
-                  Int tgt_snode_id = tgt;
-                  Int I = src_snode_id;
-                  auto src_snode = LocalSupernodes_[iLocalTGT -1];
-                  Int src_first_col = src_snode->FirstCol();
-                  Int src_last_col = src_snode->LastCol();
-
-#ifdef _DEBUG_PROGRESS_
-                  logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
-#endif
-
-                  SYMPACK_TIMER_START(FACTOR_PANEL);
-#ifdef SP_THREADS
-                  std::thread::id tid = std::this_thread::get_id();
-                  auto & tmpBuf = tmpBufs_th[tid];
-                  src_snode->Factorize(tmpBuf);
-#else
-                  src_snode->Factorize(tmpBufs);
-#endif
-
-                  SYMPACK_TIMER_STOP(FACTOR_PANEL);
-
-                  //Sending factors and update local tasks
-                  //Send my factor to my ancestors. 
-                  std::vector<char> is_factor_sent(np);
-                  SetValue(is_factor_sent,false);
-
-                  SnodeUpdate curUpdate;
-                  SYMPACK_TIMER_START(FIND_UPDATED_ANCESTORS);
-                  SYMPACK_TIMER_START(FIND_UPDATED_ANCESTORS_FACTORIZATION);
-                  while(src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
-                    Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode->Id()-1);
-
-                    if(iTarget != iam){
-                      if(!is_factor_sent[iTarget]){
-                        MsgMetadata meta;
-
-                        //if(curUpdate.tgt_snode_id==29 && curUpdate.src_snode_id==28){gdb_lock(0);}
-                        //TODO Replace all this by a Serialize function
-                        NZBlockDesc & nzblk_desc = src_snode->GetNZBlockDesc(curUpdate.blkidx);
-                        Int local_first_row = curUpdate.src_first_row - nzblk_desc.GIndex;
-                        Int nzblk_cnt = src_snode->NZBlockCnt() - curUpdate.blkidx;
-                        Int nzval_cnt_ = src_snode->Size()*(src_snode->NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
-                        T* nzval_ptr = src_snode->GetNZval(nzblk_desc.Offset) + local_first_row*src_snode->Size();
-
-                        upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
-                        //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
-
-                        //Send factor 
-                        meta.src = curUpdate.src_snode_id;
-                        meta.tgt = curUpdate.tgt_snode_id;
-                        meta.GIndex = curUpdate.src_first_row;
-
-                        std::stringstream sstr;
-                        sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                        meta.id = hash_fn(sstr.str());
-
-                        char * last_byte_ptr = (char*)&nzblk_desc + sizeof(NZBlockDesc);
-                        size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
-
-                        //if(src==1100){gdb_lock();}
-                        {
-                          signal_data(sendPtr, msgSize, iTarget, meta);
-                        }
-                        is_factor_sent[iTarget] = true;
-                      }
-                    }
-                    else{
-                      //Update local tasks
-                      //find task corresponding to curUpdate
-
-                      std::stringstream sstr;
-                      sstr<<curUpdate.src_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                      auto id = hash_fn(sstr.str());
-                      auto taskit = graph.find_task(id);
-                      bassert(taskit!=graph.tasks_.end());
-                      dec_ref(taskit,1,0);
-                    }
-                  }
-                  SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS_FACTORIZATION);
-                  SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS);
-                };
-
-
-
-              }
-              break;
-            case Factorization::op_type::UPDATE:
-              {
-                Task.execute = [&,this,src,tgt,iLocalTGT,pTask,type] () {
-                  //log_task_internal(pTask);
-                  scope_timer(a,FB_UPDATE_TASK);
-                  Int src_snode_id = src;
-                  Int tgt_snode_id = tgt;
-
-                  src_snode_id = abs(src_snode_id);
-                  bool is_first_local = src <0;
-
-                  SuperNode<T> * cur_src_snode; 
-
-#ifdef SP_THREADS
-                  std::thread::id tid = std::this_thread::get_id();
-#endif
-
-                  Int iSrcOwner = this->Mapping_->Map(abs(src_snode_id)-1,abs(src_snode_id)-1);
-
-                  {
-                    IncomingMessage * structPtr = NULL;
-                    IncomingMessage * msgPtr = NULL;
-                    //Local or remote factor
-                    //we have only one local or one remote incoming aggregate
-
-
-                    SnodeUpdate curUpdate;
-                    bool found = false;
-
-                    if(pTask->data.size()==0){
-                      cur_src_snode = snodeLocal(src_snode_id);
-                    }
-                    else{
-                      auto msgit = pTask->data.begin();
-                      msgPtr = *msgit;
-                      assert(msgPtr->IsDone());
-                      char* dataPtr = msgPtr->GetLocalPtr();
-                      cur_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
-                      cur_src_snode->InitIdxToBlk();
-
-                      //TODO add the message to other local updates and update their remote dependencies
-                      //GET MY ID
-                      std::stringstream sstr;
-                      sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
-                      auto id = hash_fn(sstr.str());
-                      if(msgPtr->meta.id == id){
-                        SYMPACK_TIMER_START(UPDATE_ANCESTORS);
-                        SnodeUpdate localUpdate;
-
-                        {
-                          std::lock_guard<std::mutex> lock(factorinuse_mutex_);
-                          while(cur_src_snode->FindNextUpdate(localUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
-
-                            //skip if this update is "lower"
-                            if(localUpdate.tgt_snode_id<tgt){
-                              continue;
-                            }
-                            else{
-                              Int iUpdater = this->Mapping_->Map(localUpdate.tgt_snode_id-1,localUpdate.src_snode_id-1);
-                              if(iUpdater==iam){
-                                if(localUpdate.tgt_snode_id==tgt){
-                                  curUpdate = localUpdate;
-                                  found = true;
-                                }
-                                else{
-
-                                  std::stringstream sstr;
-                                  sstr<<localUpdate.src_snode_id<<"_"<<localUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                                  auto id = hash_fn(sstr.str());
-                                  auto taskit = graph.find_task(id);
-
-                                  bassert(taskit!=graph.tasks_.end());
-
-
-                                  factorUser[localUpdate.src_snode_id]++;
-                                  //this is where we put the msg in the list
-                                  taskit->second->data.push_back(msgPtr);
-                                  dec_ref(taskit,0,1);
-
-                                }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-
-                    //TODO UPDATE do my update here
-                    {
-
-                      SYMPACK_TIMER_START(UPDATE_ANCESTORS);
-                      if(!found){
-                        while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
-
-                          //skip if this update is "lower"
-                          if(curUpdate.tgt_snode_id<tgt){
-                            continue;
-                          }
-                          else{
-                            Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.src_snode_id-1);
-                            if(iUpdater==iam){
-                              if(curUpdate.tgt_snode_id==tgt){
-                                found = true;
-                                break;
-                              }
-                            }
-
-                            if(curUpdate.tgt_snode_id>tgt){
-                              break;
-                            }
-                          }
-                        }
-                      }
-
-                      bassert(found);
-                      Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
-                      bassert(iUpdater == iam);
-
-#ifdef _DEBUG_PROGRESS_
-                      logfileptr->OFS()<<"implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
-                      logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<std::endl;
-#endif
-
-                      SuperNode<T> * tgt_aggreg;
-
-                      Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
-                      if(iTarget == iam){
-                        //the aggregate std::vector is directly the target snode
-                        SYMPACK_TIMER_START(UPD_ANC_Agg_local);
-                        tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
-                        assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
-                        SYMPACK_TIMER_STOP(UPD_ANC_Agg_local);
-                      }
-                      else{
-                        SYMPACK_TIMER_START(UPD_ANC_Agg_tmp);
-                        //Check if src_snode_id already have an aggregate std::vector
-                        if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==NULL){
-                          SYMPACK_TIMER_START(UPD_ANC_Agg_tmp_creat);
-                          //use number of rows below factor as initializer
-
-                          //TODO do a customized version for FANIN as we have all the factors locally
-                          // the idea is the following: do a DFS and stop each exploration at the first local descendant of current node
-#ifdef FANIN_OPTIMIZATION
-                          if(options_.mappingTypeStr ==  "COL2D")
-                          {
-                            std::set<Idx> structure;
-                            std::list<Int> frontier;
-                            {
-                              scope_timer(a,MERGE_STRUCTURE_FANIN);
-                              Idx tgt_fc = Xsuper_[curUpdate.tgt_snode_id-1];
-                              dfs_traversal(chSupTree_,curUpdate.tgt_snode_id,frontier);
-                              //process frontier in decreasing order of nodes and merge their structure
-                              for(auto it = frontier.rbegin(); it!=frontier.rend(); it++){
-                                Int I = *it;
-                                SuperNode<T> * source = snodeLocal(I);
-                                for(Int blkidx=0; blkidx< source->NZBlockCnt();blkidx++){
-                                  NZBlockDesc & nzblk_desc = source->GetNZBlockDesc(blkidx);
-                                  Idx fr = nzblk_desc.GIndex;
-                                  Idx lr = source->NRows(blkidx) + fr;
-                                  for(Idx row = fr; row<lr;row++){
-                                    if(row>=tgt_fc){
-                                      structure.insert(row);
-                                    }
-                                  }
-                                }
-                              }
-                            }
-                            aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
-                          } 
-                          else
-#endif
-                          {
-                            std::set<Idx> structure;
-                            {
-                              scope_timer(a,FETCH_REMOTE_STRUCTURE);
-                              upcxx::global_ptr<SuperNodeDesc> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
-                              Int block_cnt = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1]);
-
-
-                              //allocate space to receive block descriptors
-                              char * buffer = (char*)UpcxxAllocator::allocate(sizeof(NZBlockDesc)*block_cnt+ sizeof(SuperNodeDesc));
-                              upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
-                              {
-#ifdef SP_THREADS
-                                if(Multithreading::NumThread>1){
-                                  std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-                                  upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
-                                }
-                                else
-#endif
-                                  upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
-                              }
-                              SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
-                              NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
-
-                              for(Int i =block_cnt-1;i>=0;i--){
-                                NZBlockDesc & curdesc = bufferBlocks[i];
-                                size_t end = (i>0)?bufferBlocks[i-1].Offset:pdesc->nzval_cnt_;
-                                Int numRows = (end-curdesc.Offset)/pdesc->iSize_;
-
-                                for(Idx row = 0; row<numRows;row++){
-                                  structure.insert(curdesc.GIndex+row);
-                                }
-                              }
-                              UpcxxAllocator::deallocate((char*)buffer);
-                            }
-                            aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
-                          }
-                          SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
-                        }
-                        tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
-
-                        SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp);
-                      }
-
-#ifdef _DEBUG_
-                      logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-#endif
-
-
-                      //Update the aggregate
-                      SYMPACK_TIMER_START(UPD_ANC_UPD);
-
-#ifdef SP_THREADS
-                      //scheduler->list_mutex_.lock();
-                      auto & tmpBuf = tmpBufs_th[tid];
-                      //scheduler->list_mutex_.unlock();
-                      tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,iam);
-#else
-                      tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
-#endif
-
-                      SYMPACK_TIMER_STOP(UPD_ANC_UPD);
-
-#ifdef SP_THREADS
-                      {
-                        std::lock_guard<std::mutex> lock(inuse_mutex_);
-                        superNodeInUse[tgt_aggreg->Id()] = false;
-                      }
-#endif
-
-                      --UpdatesToDo[curUpdate.tgt_snode_id-1];
-#ifdef _DEBUG_
-                      logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<std::endl;
-#endif
-                      SYMPACK_TIMER_STOP(UPDATE_ANCESTORS);
-
-
-
-
-                      //TODO if I am the last one updating that target, send it
-                      //THIS SHOULD NOT HAVE TO BE PROTECTED OR BE ATOMICAL BECAUSE NO OTHER RUNNING TASK SHOULD UPDATE THE SAME TARGET
-                      //Send the aggregate if it's the last
-                      //If this is my last update sent it to curUpdate.tgt_snode_id
-                      SYMPACK_TIMER_START(UPD_ANC_Agg_Send);
-                      if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
-                        if(iTarget != iam){
-#ifdef _DEBUG_
-                          logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
-#endif
-
-                          tgt_aggreg->Shrink();
-
-                          MsgMetadata meta;
-
-                          NZBlockDesc & nzblk_desc = tgt_aggreg->GetNZBlockDesc(0);
-                          T* nzval_ptr = tgt_aggreg->GetNZval(0);
-
-                          //this is an aggregate
-                          meta.src = curUpdate.src_snode_id;
-                          meta.tgt = curUpdate.tgt_snode_id;
-                          meta.GIndex = nzblk_desc.GIndex;
-
-                          std::stringstream sstr;
-                          sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
-                          meta.id = hash_fn(sstr.str());
-
-                          upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
-                          //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
-                          size_t msgSize = tgt_aggreg->StorageSize();
-                          {
-                            signal_data(sendPtr, msgSize, iTarget, meta);
-                          }
-                        }
-                      }
-                      SYMPACK_TIMER_STOP(UPD_ANC_Agg_Send);
-
-                      SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
-                      if(iTarget == iam)
-                      {
-                        std::stringstream sstr;
-                        sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
-                        auto id = hash_fn(sstr.str());
-                        auto taskit = graph.find_task(id);
-                        bassert(taskit!=graph.tasks_.end());
-                        dec_ref(taskit,1,0);
-
-                      }
-                      SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
-                    }
-
-
-
-                    if(msgPtr!=NULL){
-                      delete cur_src_snode;
-
-                      //TODO if I am the last one using that source factor, delete the message
-                      //THIS HAS TO BE PROTECTED OR BE ATOMICAL
-                      Int userCount =0;
-                      {
-                        std::lock_guard<std::mutex> lock(factorinuse_mutex_);
-                        userCount = --factorUser[tgt_snode_id];
-                      }
-                      if(userCount==0){
-                        delete msgPtr;
-                      }
-
-
-                    }
-
-                    if(structPtr!=NULL){
-                      delete structPtr;
-                    }
-
-                  }
-                };
-
-
-
-
-              }
-              break;
-          }
-        }
-#endif
-
-
-
-
-
-
-
-
 
 
         max_mem_req = std::max(mem_req,max_mem_req);
 
 
-        std::stringstream sstr;
-        sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)type;
-        Task.id = hash_fn(sstr.str());
 
-        pTask->init();
+        Task.getHash = [&](char * ameta=nullptr)->GenericTask::id_type{
+          char * pmeta = ameta;
+          //if(pmeta==nullptr){ pmeta = Task.meta.data(); } 
+          std::stringstream sstr;
+          sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)(*reinterpret_cast<Factorization::op_type*>(&meta[3]));
+          return hash_fn(sstr.str());
+        };
+        Task.id = Task.getHash(Task.meta.data());
 
         graph.addTask(pTask);
 
 
       }
       logfileptr->OFS()<<"Maximum single task memory requirement is: "<<max_mem_req<<std::endl;
-      }
-
-      //    for(auto & itpTask: graph.tasks_){
-      //logfileptr->OFS()<<"Before 1 "<<itpTask.second.use_count()<<std::endl;
-      //    } 
-
     }
 #endif
 
@@ -3822,9 +3063,6 @@ gdb_lock();
       else if(options_.mappingTypeStr ==  "COL2D"){
         this->Mapping_ = new Col2D(pmapping, pmapping, pmapping, 1);
       }
-      else if(options_.mappingTypeStr ==  "BLOCK2D"){
-        this->Mapping_ = new Block2D(pmapping, pmapping, pmapping, 1);
-      }
       else{
         this->Mapping_ = new Modwrap2D(pmapping, pr, pr, 1);
       }
@@ -4018,149 +3256,8 @@ gdb_lock();
         this->Balancer_ = new WorkBalancer(np,Xsuper_,cc);
       }
 
-      if(options_.load_balance_str=="BLOCKTMP"){
 
-      assert(options_.mappingTypeStr ==  "BLOCK2D");
-  auto mapping = ((Block2D*) Mapping_);
-        using procload_t = std::pair<Int,size_t>;
-        auto comp = []( const procload_t & a, const procload_t & b ) { return a.second > b.second; };
-        std::priority_queue< procload_t , vector<procload_t>, decltype( comp ) > load( comp );
-
-        for(Int p = 0; p<np; p++){ load.push(std::make_pair(p,0)); }
-
-        //TODO implement this
-      Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
-      Int firstSnode = XsuperDist_[iam];
-for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
-  Idx I = locsupno + firstSnode-1;
-
-  Idx fc = Xsuper_[I-1];
-  Idx lc = Xsuper_[I]-1;
-  Int iWidth = lc - fc + 1;
-  Ptr lfi = locXlindx_[locsupno-1];
-  Ptr lli = locXlindx_[locsupno]-1;
-
-  Idx iFirstRow = lfi<=lli?locLindx_[lfi-1]:-1;
-  Idx iPrevRow = lfi<=lli?locLindx_[lfi-1]-1:-1;
-  Int numRows =0;
-  Int iPrevSnode = I;
-  for(Ptr sidx = lfi; sidx<=lli;sidx++){
-    Idx row = locLindx_[sidx-1];
-    Int facingSnode = SupMembership_[row-1];
-
-    if(row!=iPrevRow+1 || facingSnode!=iPrevSnode){
-      auto minproc = load.top();
-      load.pop();
-      mapping->MapInsert(iFirstRow,I,minproc.first,numRows);
-      minproc.second += iWidth * numRows; 
-      bassert(numRows>0);
-      load.push(minproc);
-      numRows = 0;
-      iFirstRow = row;
-    }
-
-    iPrevRow = row;
-    iPrevSnode = facingSnode;
-    numRows++;
-  }
-
-
-  if(1){
-    auto minproc = load.top();
-    load.pop();
-    mapping->MapInsert(iFirstRow,I,minproc.first,numRows);
-    minproc.second += iWidth * numRows; 
-    bassert(numRows>0);
-    load.push(minproc);
-  }
-}
-
-
-//Now we need to "merge" the mappings
-{
-
-
-{
-  auto mapping = ((Block2D*) Mapping_);
-  Int max_blocks = 0;
-  size_t total_size = 0;
-  for(auto && cur : mapping->block2rank_){
-    total_size+=sizeof(Idx);
-    max_blocks = std::max((Int) cur.second.size(),max_blocks);
-    for(auto && icur : cur.second ){
-      total_size+=3*sizeof(Idx);
-    }
-  }
-  logfileptr->OFS()<<"1 Total size of mapping is: "<<total_size<<std::endl;
-  logfileptr->OFS()<<"1 Upper bound on dimensions: "<<mapping->block2rank_.size() << "-by-"<<max_blocks<<std::endl;
-}
-
-
-
-  std::vector<size_t> load_g(np,0);
-  while(!load.empty()){
-    auto cur = load.top();
-    load.pop();
-    load_g[cur.first] += cur.second;
-  }
-  for(auto && i: load_g){logfileptr->OFS()<<i<<" ";}logfileptr->OFS()<<std::endl;
-
-  MPI_Allreduce(MPI_IN_PLACE,load_g.data(),load_g.size(),MPI_UNSIGNED_LONG_LONG,MPI_SUM,CommEnv_->MPI_GetComm());
-
-  mapping->Merge(CommEnv_->MPI_GetComm());
-  //for(auto && cur : mapping->block2rank_){
-  //  for(auto && icur : cur.second ){
-  //    logfileptr->OFS()<<"Block("<<icur.first<<","<<cur.first<<") on P"<<std::get<0>(icur.second)<<" has "<<std::get<1>(icur.second)<<" rows"<<std::endl;
-  //  }
-  //}
-
-{
-  auto mapping = ((Block2D*) Mapping_);
-  Int max_blocks = 0;
-  size_t total_size = 0;
-  for(auto && cur : mapping->block2rank_){
-    total_size+=sizeof(Idx);
-    max_blocks = std::max((Int) cur.second.size(),max_blocks);
-    for(auto && icur : cur.second ){
-      total_size+=3*sizeof(Idx);
-    }
-  }
-  logfileptr->OFS()<<"2 Total size of mapping is: "<<total_size<<std::endl;
-  logfileptr->OFS()<<"2 Upper bound on dimensions: "<<mapping->block2rank_.size() << "-by-"<<max_blocks<<std::endl;
-}
-
-  for(auto && i: load_g){logfileptr->OFS()<<i<<" ";}logfileptr->OFS()<<std::endl;
-}
-
-//for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
-//  Idx I = locsupno + firstSnode-1;
-//
-//  Idx fc = Xsuper_[I-1];
-//  Idx lc = Xsuper_[I]-1;
-//  Int iWidth = lc - fc + 1;
-//  Ptr lfi = locXlindx_[locsupno-1];
-//  Ptr lli = locXlindx_[locsupno]-1;
-//
-//
-////Now do a simplified parse and display the mapping
-//  Idx iPrevRow = lfi<=lli?locLindx_[lfi-1]:-1;
-//  Int iPrevSnode = I;
-//  for(Ptr sidx = lfi; sidx<=lli;sidx++){
-//    Idx row = locLindx_[sidx-1];
-//    Int facingSnode = SupMembership_[row-1];
-//
-//    if(row!=iPrevRow+1 || facingSnode!=iPrevSnode){
-//      auto & iDest = this->Mapping_->Map(row-1,I-1);
-//      logfileptr->OFS()<<"Block("<<row<<","<<I<<") on P"<<iDest<<std::endl;
-//    }
-//
-//    iPrevRow = row;
-//    iPrevSnode = facingSnode;
-//  }
-//
-//}
-      }
-else if (this->Balancer_!=NULL){
+      if (this->Balancer_!=NULL){
         map = this->Balancer_->GetMap();
         TreeLoadBalancer * testBalancer = dynamic_cast<TreeLoadBalancer*>(this->Balancer_);
         if(testBalancer==NULL){
@@ -4196,12 +3293,6 @@ else if (this->Balancer_!=NULL){
     } 
 #endif
 
-    if(iam<np){
-        std::vector<Int> AggregatesToRecv;
-        std::vector<Int> LocalAggregates;
-        generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
-    }
-
 
     //starting from now, this only concerns the working processors
     SYMPACK_TIMER_START(Get_UpdateCount);
@@ -4217,7 +3308,7 @@ else if (this->Balancer_!=NULL){
 
 
         FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
-        generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
+        //generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
         generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
 
 
@@ -4254,71 +3345,7 @@ else if (this->Balancer_!=NULL){
 
     SYMPACK_TIMER_START(DISTRIBUTE_CREATE_SNODES);
 
-    if(dynamic_cast<Mapping2D*>(Mapping_)){
-      auto mapping = dynamic_cast<Block2D*>(Mapping_);
-
-      //for(auto && cur : mapping->block2rank_){
-      //  for(auto && icur : cur.second ){
-      //    logfileptr->OFS()<<"2 Block("<<icur.first<<","<<cur.first<<") on P"<<std::get<0>(icur.second)<<" has "<<std::get<1>(icur.second)<<" rows"<<std::endl;
-      //  }
-      //}
-
-
-      for(Int I=1;I<Xsuper_.size();I++){
-        Int fc = Xsuper_[I-1];
-        Int lc = Xsuper_[I]-1;
-        Int iWidth = lc-fc+1;
-
-        Ptr myRows = 0;
-        Int myBlocks = 0;
-        Idx myFr = 0;
-
-        auto && cur = mapping->block2rank_[I];
-        for(auto && block : cur ){
-          Idx fr = block.first;
-          Int iDest = std::get<0>(block.second);
-          Int numRows = std::get<1>(block.second);
-          bassert(numRows>0);
-          if(iam==iDest){
-            myRows+=numRows;
-            myBlocks++;
-            if(myFr==0){
-              myFr = fr;
-            }
-            myFr = std::min(myFr,fr);
-          }
-        }
-
-        if(myRows>0){
-          Int iHeight = myRows;
-          //Int iHeight = UpdateHeight_[I-1];
-          Int nzBlockCnt = myBlocks;
-          //Int nzBlockCnt = numBlk_[I-1];
-#ifndef ITREE2
-          globToLocSnodes_.push_back(I-1);
-#else 
-          ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
-          globToLocSnodes_.Insert(snode_inter);
-#endif
-          SuperNode<T> * newSnode = NULL;
-          try{
-            newSnode = CreateSuperNode(options_.decomposition,I,myFr,fc,lc,iHeight,iSize_,nzBlockCnt);
-          }
-          catch(const MemoryAllocationException & e){
-            std::stringstream sstr;
-            sstr<<"There is not enough memory on the system to allocate the factors. Try to increase GASNET_MAX_SEGSIZE value."<<std::endl;
-            logfileptr->OFS()<<sstr.str();
-            std::cerr<<sstr.str();
-            throw(e);
-          }
-
-          LocalSupernodes_.push_back(newSnode);
-        }
-      }
-
-
-    }
-else{
+    
     Int snodeCount = 0;
     for(Int I=1;I<Xsuper_.size();I++){
       Int iDest = this->Mapping_->Map(I-1,I-1);
@@ -4362,41 +3389,10 @@ else{
       LocalSupernodes_.push_back(newSnode);
     }
   }
-}
     SYMPACK_TIMER_STOP(DISTRIBUTE_CREATE_SNODES);
 
     //first create the structure of every supernode
-    if(options_.mappingTypeStr ==  "BLOCK2D"){
-      scope_timer(a,DISTRIBUTE_CREATE_REMOTE_NODES);
-      auto mapping = ((Block2D*) Mapping_);
-
-
-      for(auto&& sup : LocalSupernodes_){
-        Int I = sup->Id();
-        Int fc = Xsuper_[I-1];
-        Int lc = Xsuper_[I]-1;
-        Int iWidth = lc-fc+1;
-
-        auto && cur = mapping->block2rank_[I];
-        for(auto && block : cur ){
-          Idx fr = block.first;
-          Int iDest = std::get<0>(block.second);
-          Int numRows = std::get<1>(block.second);
-          if(iam==iDest){
-              sup->AddNZBlock(numRows , iWidth,fr);
-          }
-        }
-      }
-
-      for(auto&& sup : LocalSupernodes_){
-        logfileptr->OFS()<<"Snode "<<sup->Id()<<" FR="<<sup->FirstRow()<<" #blocks="<<sup->NZBlockCnt()<<std::endl; 
-        //auto meta = sup->GetMeta();
-        //for(int i =0; i< meta->updrows_cnt_; ++i){ logfileptr->OFS()<<sup->updrows_[i]<<" ";}logfileptr->OFS()<<std::endl;
-      }
-
-
-    }
-    else
+    
     {
       scope_timer(a,DISTRIBUTE_CREATE_REMOTE_NODES);
       std::vector< int > superStructure(all_np);
@@ -4719,356 +3715,6 @@ else{
 
 
 
-    if(dynamic_cast<Mapping2D*>(Mapping_)){
-      auto mapping = dynamic_cast<Block2D*>(Mapping_);
-      assert(mapping!=NULL);
-      auto & b2r = mapping->block2rank_;
-      std::vector< std::pair<size_t, Icomm *> > send_map(all_np,std::make_pair(0,nullptr));
-      //std::map<Int,std::pair<size_t,Icomm *> > send_map;
-      //for(Int p=0;p<all_np;++p){
-      //  send_map[p].first = 0;
-      //}
-      SYMPACK_TIMER_START(DISTRIBUTE_COUNTING);
-
-      Int baseval = pMat.Localg_.GetBaseval();
-      Idx FirstLocalCol = pMat.Localg_.vertexDist[iam] + (1 - baseval); //1-based
-      Idx LastLocalCol = pMat.Localg_.vertexDist[iam+1] + (1 - baseval); //1-based
-
-      for(Int I=1;I<Xsuper_.size();I++){
-        Idx fc = Xsuper_[I-1];
-        Idx lc = Xsuper_[I]-1;
-        Int iWidth = lc-fc+1;
-        Int iHeight = UpdateHeight_[I-1];
-
-        auto & snodeMap = b2r[I];
-
-        //post all the recv and sends
-        for(Idx col = fc;col<=lc;col++){
-
-          //corresponding column in the unsorted matrix A
-          Idx orig_col = Order_.perm[col-1];
-
-          if(orig_col>= FirstLocalCol && orig_col < LastLocalCol){
-            std::vector<Ptr> nrows(all_np,0);
-            Idx local_col = orig_col - FirstLocalCol+1;//1 based
-            for(Ptr rowidx = pMat.Localg_.colptr[local_col-1] + (1-baseval);
-                   rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx)
-            {
-              Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);//1-based
-              Idx row = Order_.invp[orig_row-1];
-
-              if(row<col){
-
-                //add the pair (col,row) to processor owning column row
-                Int J = SupMembership_[row-1];
-//find block
-                auto & snodeMapJ = b2r[J];
-                auto blit = snodeMapJ.lower_bound(col);
-                if(blit == snodeMapJ.end()){ blit--; }
-                if(blit->first > col){blit--;};
-                bassert(blit->first <= col && col< blit->first + std::get<1>(blit->second));
-                Int iDestJ = std::get<0>(blit->second);
-
-                send_map[iDestJ].first += sizeof(Idx)+sizeof(Ptr)+1*(sizeof(Idx)+sizeof(T));
-                //nrows[iDestJ]++;
-              }
-              else{
-                //nrows++;
-                auto blit = snodeMap.lower_bound(row);
-                if(blit == snodeMap.end()){ blit--; }
-                if(blit->first > row){blit--;};
-                bassert(blit->first <= row && row< blit->first + std::get<1>(blit->second));
-                Int iDest = std::get<0>(blit->second);
-                //send_map[iDest].first += sizeof(Idx)+sizeof(Ptr)+1*(sizeof(Idx)+sizeof(T));
-                nrows[iDest]++;
-              }
-            }
-
-            for(Int p=0;p<all_np;p++){
-              if(nrows[p]>0){
-                send_map[p].first += sizeof(Idx)+sizeof(Ptr)+nrows[p]*(sizeof(Idx)+sizeof(T));
-              }
-            }
-
-          }
-        }
-      }
-      SYMPACK_TIMER_STOP(DISTRIBUTE_COUNTING);
-
-
-      {
-        //allocate one buffer for every remote processor
-        //compute the send structures
-        size_t total_send_size = 0;
-        std::vector<size_t> stotcounts(all_np,0);
-        for(Int iCurDest=0;iCurDest<all_np;++iCurDest){
-          stotcounts[iCurDest] = send_map[iCurDest].first;
-        }
-        //compute send displacements
-        std::vector<size_t> spositions(all_np+1,0);
-        spositions[0] = 0;
-        std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
-        total_send_size = spositions.back();
-
-
-        Icomm * IsendPtr = new Icomm(total_send_size,MPI_REQUEST_NULL);
-
-
-        //Fill up the send buffer
-        SYMPACK_TIMER_SPECIAL_START(serializing);      
-        for(Int I=1;I<Xsuper_.size();I++){
-          Idx fc = Xsuper_[I-1];
-          Idx lc = Xsuper_[I]-1;
-          Int iWidth = lc-fc+1;
-          Int iHeight = cc_[fc-1];
-
-          Icomm & Isend = *IsendPtr;
-          //Int iDest = this->Mapping_->Map(I-1,I-1);
-          auto & snodeMap = b2r[I];
-
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
-#endif
-
-          //Serialize
-          for(Idx col = fc;col<=lc;col++){
-            Idx orig_col = Order_.perm[col-1];
-
-            if(orig_col>= FirstLocalCol && orig_col < LastLocalCol){
-              std::vector<Ptr> nrows(all_np,0);
-
-              Idx local_col = orig_col - FirstLocalCol+1;//1 based
-
-              for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
-                Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
-                Idx row = Order_.invp[orig_row-1];
-
-
-                if(row<col){
-                  //add the pair (col,row) to processor owning column row
-                  Int J = SupMembership_[row-1];
-
-                  auto & snodeMapJ = b2r[J];
-                  auto blit = snodeMapJ.lower_bound(col);
-                if(blit == snodeMapJ.end()){ blit--; }
-                  if(blit->first > col){blit--;};
-                bassert(blit->first <= col && col< blit->first + std::get<1>(blit->second));
-                  Int iDestJ = std::get<0>(blit->second);
-                  //                nrows[iDestJ]++;
-
-                  T val = pMat.nzvalLocal[rowidx-1];
-
-                  //we need to set head to the proper sdispls
-                  Isend.setHead(spositions[iDestJ]);
-                  Isend<<row;
-                  Isend<<(Ptr)1;
-                  Isend<<col;
-                  Isend<<val;
-                  //backup new position for processor iDestJ
-                  spositions[iDestJ] = Isend.head;
-                }
-                else{
-                  //  nrows++;
-                  auto blit = snodeMap.lower_bound(row);
-                if(blit == snodeMap.end()){ blit--; }
-                  if(blit->first > row){blit--;};
-                bassert(blit->first <= row && row< blit->first + std::get<1>(blit->second));
-                  Int iDest = std::get<0>(blit->second);
-                  nrows[iDest]++;
-                }
-              }
-
-
-              for(Int p=0;p<all_np;p++){
-                if(nrows[p]>0){
-
-                  //restore head
-                  Isend.setHead(spositions[p]);
-                  Isend<<col;
-                  Isend<<nrows[p];
-                  //backup new position for processor p
-                  spositions[p] = Isend.head;
-                }
-              }
-
-
-              for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
-                Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
-                Idx row = Order_.invp[orig_row-1];
-                if(row>=col){
-
-                  auto blit = snodeMap.lower_bound(row);
-                if(blit == snodeMap.end()){ blit--; }
-                  if(blit->first > row){blit--;};
-                bassert(blit->first <= row && row< blit->first + std::get<1>(blit->second));
-                  Int iDest = std::get<0>(blit->second);
-                  //restore head
-                  Isend.setHead(spositions[iDest]);
-
-                  Isend<<row;
-                  //backup new position for processor iDest
-                  spositions[iDest] = Isend.head;
-                }
-              }
-
-              for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
-                Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
-                Idx row = Order_.invp[orig_row-1];
-                if(row>=col){
-
-
-                  auto blit = snodeMap.lower_bound(row);
-                if(blit == snodeMap.end()){ blit--; }
-                  if(blit->first > row){blit--;};
-                bassert(blit->first <= row && row< blit->first + std::get<1>(blit->second));
-                  Int iDest = std::get<0>(blit->second);
-
-                  //restore head
-                  Isend.setHead(spositions[iDest]);
-
-                  Isend<<pMat.nzvalLocal[rowidx-1];
-                  //backup new position for processor iDest
-                  spositions[iDest] = Isend.head;
-                }
-              }
-
-              //spositions[iDest] = Isend.head;
-
-
-            }
-          }
-        }
-        SYMPACK_TIMER_SPECIAL_STOP(serializing);      
-
-
-
-
-        Icomm * IrecvPtr = new Icomm(0,MPI_REQUEST_NULL);
-        spositions[0] = 0;
-        std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
-        std::function<void(Icomm&,size_t)> resize_lambda =
-          [](Icomm & container, size_t sz){
-            container.resize(sz); 
-            container.head = 0;
-          };
-
-        IsendPtr->setHead(0);
-        mpi::Alltoallv((*IsendPtr), &stotcounts[0], &spositions[0], MPI_BYTE,
-            (*IrecvPtr),fullcomm_, resize_lambda);
-
-
-        //Need to parse the structure sent from the processor owning the first column of the supernode
-
-        SYMPACK_TIMER_SPECIAL_START(deserializing);      
-        IrecvPtr->setHead(0);
-        while(IrecvPtr->head < IrecvPtr->capacity()){ 
-
-          char * buffer = IrecvPtr->back();
-          //Deserialize
-          Idx col = *(Idx*)&buffer[0];
-          //nrows of column col sent by processor p
-          Ptr nrows = *((Ptr*)&buffer[sizeof(Idx)]);
-          Idx * rowind = (Idx*)(&buffer[sizeof(Ptr)+sizeof(Idx)]);
-          T * nzvalA = (T*)(&buffer[(1+nrows)*sizeof(Idx)+sizeof(Ptr)]);
-
-          //advance in the buffer
-          IrecvPtr->setHead(IrecvPtr->head + sizeof(Idx) +sizeof(Ptr) + nrows*(sizeof(Idx)+sizeof(T)));
-
-
-          Int I = SupMembership_[col-1];
-          //do a global to local mapping
-
-
-          //Int iDest = this->Mapping_->Map(I-1,I-1);
-          //bassert(iam==iDest);
-
-          Int fc = Xsuper_[I-1];
-          Int lc = Xsuper_[I]-1;
-          Int iWidth = lc-fc+1;
-
-          SuperNode<T> * snode = snodeLocal(I);
-
-
-          //Here, do a linear search instead for the blkidx
-
-          Ptr colbeg = 1;
-          Ptr colend = nrows;
-          //            for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
-          //              Idx row = rowind[rowidx-1];
-          //              logfileptr->OFS()<<row<<" ";
-          //            }
-          //              logfileptr->OFS()<<std::endl;
-
-          if(colbeg<=colend){
-            //sort rowind and nzvals
-
-#if 1 
-            std::vector<size_t> lperm = sort_permutation(&rowind[colbeg-1],
-                &rowind[colend-1]+1,std::less<Idx>());
-            apply_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,lperm);
-            apply_permutation(&nzvalA[colbeg-1],&nzvalA[colend-1]+1,lperm);
-            Idx firstRow = rowind[colbeg-1];
-            Int blkidx = snode->FindBlockIdx(firstRow);
-            assert(blkidx!=-1);
-            Int blk_nrows = snode->NRows(blkidx);    
-            NZBlockDesc * blk_desc = &snode->GetNZBlockDesc(blkidx);
-#else
-            Idx prevRow = 0;
-            Int blkidx = 0;
-            NZBlockDesc * blk_desc = &snode->GetNZBlockDesc(blkidx);
-            Int blk_nrows = snode->NRows(blkidx);
-#endif
-
-            for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
-              Idx row = rowind[rowidx-1];
-
-#if 1
-              while(row>blk_desc->GIndex+blk_nrows-1){
-                blkidx++;
-                blk_nrows = snode->NRows(blkidx);    
-                blk_desc = &snode->GetNZBlockDesc(blkidx);
-              }
-#else
-              if(row!=prevRow){
-                if(row>blk_desc->GIndex+blk_nrows || row<blk_desc->GIndex){
-                  blkidx = snode->FindBlockIdx(row);
-                  blk_desc = &snode->GetNZBlockDesc(blkidx);
-                  blk_nrows = snode->NRows(blkidx);
-                }
-                prevRow=row;
-              }
-#endif
-
-              Int local_row = row - blk_desc->GIndex + 1;
-              Int local_col = col - fc + 1;
-              T * nzval = snode->GetNZval(blk_desc->Offset);
-              nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
-            }
-            //for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-            //  Int row = rowind[rowidx-1];
-            //  Int blkidx = snode->FindBlockIdx(row);
-            //  assert(blkidx!=-1);
-            //  NZBlockDesc & blk_desc = snode->GetNZBlockDesc(blkidx);
-            //  Int local_row = row - blk_desc.GIndex + 1;
-            //  Int local_col = col - fc + 1;
-            //  T * nzval = snode->GetNZval(blk_desc.Offset);
-            //  nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
-            //}
-          }
-        }
-        SYMPACK_TIMER_SPECIAL_STOP(deserializing);      
-
-        //after the alltoallv, cleanup
-        delete IrecvPtr;
-        delete IsendPtr;
-
-      }
-
-gdb_lock();
-
-
-    }
-    else{
       std::map<Int,std::pair<size_t,Icomm *> > send_map;
       for(Int p=0;p<all_np;++p){
         send_map[p].first = 0;
@@ -5336,7 +3982,6 @@ gdb_lock();
         delete IrecvPtr;
         delete IsendPtr;
       }
-    }
 #endif
 
 
@@ -5357,11 +4002,26 @@ gdb_lock();
           }
         }
 
-    MPI_Datatype type;
-    MPI_Type_contiguous( sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ), MPI_BYTE, &type );
-    MPI_Type_commit(&type);
-        MPI_Allreduce( MPI_IN_PLACE, &remoteFactors_[0], remoteFactors_.size(), type, MPI_BOR, fullcomm_);
-    MPI_Type_free(&type);
+        auto bor_op = []( void *in, void *inout, int *len, MPI_Datatype *dptr ){ 
+  size_t i; 
+      using F = std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int>; 
+  char * pinout = (char*)inout;
+  char * pin = (char*)in;
+#pragma unroll
+  for (i=0; i< (*len)*sizeof(F); ++i) { 
+    pinout[i] &= pin[i];
+  } 
+};
+
+    MPI_Op MPI_SYMPACK_BOR; 
+    MPI_Op_create( bor_op, true, &MPI_SYMPACK_BOR ); 
+
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
+        MPI_Allreduce( MPI_IN_PLACE, &remoteFactors_[0], remoteFactors_.size(), type, MPI_SYMPACK_BOR, fullcomm_);
+        MPI_Type_free(&type);
+    MPI_Op_free(&MPI_SYMPACK_BOR);
       }
 #ifndef NOTRY
       catch(const std::bad_alloc& e){
