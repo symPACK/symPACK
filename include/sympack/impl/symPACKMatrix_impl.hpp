@@ -4009,7 +4009,7 @@ namespace symPACK{
   char * pin = (char*)in;
 #pragma unroll
   for (i=0; i< (*len)*sizeof(F); ++i) { 
-    pinout[i] &= pin[i];
+    pinout[i] |= pin[i];
   } 
 };
 

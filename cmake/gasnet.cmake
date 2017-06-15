@@ -1,4 +1,12 @@
+find_package(PkgConfig)
+
+STRING( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
+if(config_type STREQUAL "debug")
+  set(GASNET_DEBUG "--enable-debug")
+endif()
+
 set(GASNET_PREFIX $ENV{GASNET_DIR})
+
 if (GASNET_PREFIX)
     message("GASNET has been provided, not compiling local version.")
     set(GASNET_INCLUDE_DIR ${GASNET_PREFIX}/include)
@@ -95,21 +103,44 @@ ExternalProject_Add(${GASNET_NAME}
     #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/gasnet_install
     #INSTALL_COMMAND ""
     #CONFIGURE_COMMAND <SOURCE_DIR>/configure  --enable-aries --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
-    CONFIGURE_COMMAND <SOURCE_DIR>/configure  --enable-pshm-hugetlbfs --enable-pshm-xpmem --enable-pshm --disable-pshm-posix --enable-aries --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+
+    #CONFIGURE_COMMAND <SOURCE_DIR>/configure  --enable-pshm-hugetlbfs --enable-pshm-xpmem --enable-pshm --disable-pshm-posix --enable-aries --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+    CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure ${GASNET_DEBUG} --prefix=<INSTALL_DIR> CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
         )
+
+ExternalProject_Add_Step(${GASNET_NAME} copy_cross
+      DEPENDEES patch update patch download
+      DEPENDERS configure
+      COMMAND cp <SOURCE_DIR>/other/contrib/cross-configure-cray-aries-slurm <SOURCE_DIR>/cross-configure
+      WORKING_DIRECTORY <SOURCE_DIR>
+#ALWAYS 1
+      COMMENT "Copying cross-compiling script"
+      )
+
+#set( ENV{PKG_CONFIG_PATH} "${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}" )
+#    if(GASNET_PAR)
+#pkg_search_module(GASNET REQUIRED gasnet-aries-par)
+#    else()
+#pkg_search_module(GASNET REQUIRED gasnet-aries-seq)
+#    endif()
+#
+#set(GASNET_DEFINES ${GASNET_CFLAGS})
+#set(GASNET_LIBRARY_PATH ${GASNET_LIBRARY_DIR})
+
 
     if(GASNET_PAR)
       set(GASNET_DEFINES "")
       set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_PAR -DUSE_GASNET_FAST_SEGMENT -DONLY_MSPACES -DGASNET_ALLOW_OPTIMIZED_DEBUG -D_REENTRANT")
     else()
       set(GASNET_DEFINES "")
-      set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_SEQ -DUSE_GASNET_FAST_SEGMENT -DONLY_MSPACES -DGASNET_ALLOW_OPTIMIZED_DEBUG")
+      #set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_SEQ -DUSE_GASNET_FAST_SEGMENT -DONLY_MSPACES -DGASNET_ALLOW_OPTIMIZED_DEBUG")
+      set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_SEQ -D_GNU_SOURCE=1 -DGASNET_CONDUIT_ARIES")
     endif()
     
     if(APPLE)
-      SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lhugetlbfs -lpthread )
+      #SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lhugetlbfs -lpthread )
     else()
-      SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lhugetlbfs -lpthread -lrt )
+      #SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lhugetlbfs -lpthread -lrt )
     endif()
 
     endif()

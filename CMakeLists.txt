@@ -298,7 +298,8 @@ set_target_properties(sympack PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if(UNIX AND NOT APPLE)
     target_link_libraries(sympack rt)
 endif()
-target_link_libraries(sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
+
+target_link_libraries(sympack libupcxx libgasnet-conduit ${LIBS} ${UPCXX_LIBRARIES} ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
 
 install(TARGETS sympack LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 install(FILES 
