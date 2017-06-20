@@ -345,11 +345,11 @@ namespace symPACK{
       int iam = 0;
       MPI_Comm_rank(workcomm,&iam);
 
-      int completion = np;
-      auto sync_cb = [&completion,iam](int p){
-        completion--;
-        logfileptr->OFS()<<"P"<<iam<<" received completion from P"<<p<<std::endl;
-      };
+      //int completion = np;
+      //auto sync_cb = [&completion,iam](int p){
+      //  completion--;
+      //  logfileptr->OFS()<<"P"<<iam<<" received completion from P"<<p<<std::endl;
+      //};
 
       //put rdy tasks in rdy queue
       {
@@ -547,15 +547,15 @@ namespace symPACK{
           }
         }
 
-        //workteam.barrier();
+        workteam.barrier();
         //upcxx::async_wait();
 
         //signal completion to everyone
-        for(int p=0;p<np;p++){ upcxx::async(p)(sync_cb,iam); }
+        //for(int p=0;p<np;p++){ upcxx::async(p)(sync_cb,iam); }
         //wait until we reach completion
-        while(completion>0){ upcxx::advance(); }
+        //while(completion>0){ upcxx::advance(); }
 
-        MPI_Barrier(workcomm);
+        //MPI_Barrier(workcomm);
 
       }
     }

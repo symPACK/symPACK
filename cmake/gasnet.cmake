@@ -135,6 +135,7 @@ ExternalProject_Add_Step(${GASNET_NAME} copy_cross
       set(GASNET_DEFINES "")
       #set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_CONDUIT_ARIES -DGASNET_SEQ -DUSE_GASNET_FAST_SEGMENT -DONLY_MSPACES -DGASNET_ALLOW_OPTIMIZED_DEBUG")
       set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_SEQ -D_GNU_SOURCE=1 -DGASNET_CONDUIT_ARIES")
+      set(GASNET_LIBRARIES ${MPI_CXX_LIBRARIES} -L/opt/cray/pe/pmi/5.0.10-1.0000.11050.0.0.ari/lib64 -lpmi -L/opt/cray/ugni/6.0.15-2.2/lib64 -lugni -L/opt/cray/udreg/2.3.2-7.54/lib64 -ludreg -L/opt/cray/xpmem/2.1.1_gf9c9084-2.38/lib64 -lxpmem -lhugetlbfs -lm )
     endif()
     
     endif()
