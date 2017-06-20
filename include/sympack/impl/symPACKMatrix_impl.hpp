@@ -513,8 +513,21 @@ namespace symPACK{
 #ifndef NEW_SOLVE
       this->solve_(RHS,nrhs,Xptr);
 #else
+//      if(iam<np){
+        switch(options_.factorization){
+          case FANBOTH:
+            this->solveNew2_(RHS,nrhs,Xptr);
+            break;
+          case FANOUT:
+            this->solveNew2_(RHS,nrhs,Xptr);
+            break;
+          default:
+            this->solveNew2_(RHS,nrhs,Xptr);
+            break;
+        }
+//      }
+
       //      this->solveNew_(RHS,nrhs,Xptr);
-      this->solveNew2_(RHS,nrhs,Xptr);
 #endif
     }
 
@@ -2657,6 +2670,11 @@ namespace symPACK{
     CommEnv_ = new CommEnvironment(workcomm);
     MPI_Comm_free(&workcomm);
 
+    Int new_rank = (iam<np)?iam:iam-np;
+    upcxx::team_all.split(iam<np,new_rank, this->team_);
+
+
+
     //do another split to contain P0 and all the non working processors
     if(all_np!=np){
       non_workcomm_ = MPI_COMM_NULL;
@@ -3308,7 +3326,7 @@ namespace symPACK{
 
 
         FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
-        //generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
+        generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
         generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
 
 
@@ -4045,6 +4063,7 @@ namespace symPACK{
 
   template <typename T> inline symPACKMatrix<T>::symPACKMatrix(){
     CommEnv_=NULL;
+    team_=nullptr;
     Mapping_ = NULL;
     Balancer_ = NULL;
     scheduler_ = NULL;
@@ -4104,6 +4123,9 @@ namespace symPACK{
       delete CommEnv_;
     }
 
+    if(team_!=nullptr){
+      delete team_;
+    }
     //  if(Local_!=NULL){
     //    delete Local_;
     //  }
@@ -4403,7 +4425,6 @@ namespace symPACK{
             Int totzeros = zeros[parent_snode-1];
             Int merged_snode_size = width + parent_width;
 
-            //TODO Shift the loops to make it less obvious that this is coming from cholmod
             //TODO rename nrelax0 as maxSnodeSize
             //TODO rename nrelax1 as ???
             //TODO rename nrelax2 as ???

@@ -251,7 +251,9 @@ namespace symPACK{
 //#ifndef NDEBUG
 //      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<std::endl;
 //#endif
-      remote_delete(GetRemotePtr());
+//      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<" on P"<<GetRemotePtr().where()<<std::endl;
+//      remote_delete(GetRemotePtr());
+      upcxx::deallocate(GetRemotePtr());
       remoteDealloc=true;
     }
   }
@@ -334,7 +336,9 @@ namespace symPACK{
         //local_ptr=(char*)tmp; 
         local_ptr=std::shared_ptr<char>( (char *)upcxx::allocate<char>(upcxx::myrank(),msg_size), [=](char * ptr){
       upcxx::global_ptr<char> tmp(ptr);
-      remote_delete(tmp);
+//      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<" on P"<<tmp.where()<<std::endl;
+      upcxx::deallocate(tmp);
+//      remote_delete(tmp);
             }); 
       }
       else
@@ -344,7 +348,9 @@ namespace symPACK{
 //        local_ptr=(char*)tmp; 
         local_ptr=std::shared_ptr<char>((char*)upcxx::allocate<char>(upcxx::myrank(),msg_size), [=](char * ptr){
       upcxx::global_ptr<char> tmp(ptr);
-      remote_delete(tmp);
+//      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<" on P"<<tmp.where()<<std::endl;
+      //remote_delete(tmp);
+      upcxx::deallocate(tmp);
             }); 
       }
 #endif

@@ -1,4 +1,13 @@
 set(UPCXX_PREFIX $ENV{UPCXX_DIR})
+
+set(UPCXX_CXX_FLAGS  "${CMAKE_CXX_FLAGS}")
+set(UPCXX_C_FLAGS  "${CMAKE_C_FLAGS}")
+STRING( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
+if(config_type STREQUAL "debug")
+  set(UPCXX_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -O0 -g")
+  set(UPCXX_C_FLAGS  "${CMAKE_C_FLAGS} -O0 -g")
+endif()
+
 if (UPCXX_PREFIX)
   message("UPCXX has been provided, not compiling local version.")
 
@@ -28,7 +37,7 @@ set(UPCXX_NAME upcxx)
       #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/upcxx_prefix
       #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/upcxx_install
       #INSTALL_COMMAND ""
-      CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-upcxx-knl-only --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER} CFLAGS=${CMAKE_C_FLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+      CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-upcxx-knl-only --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER}  CFLAGS=${UPCXX_C_FLAGS} CXXFLAGS=${UPCXX_CXX_FLAGS}
       )
     else()
   ExternalProject_Add(${UPCXX_NAME}
@@ -39,7 +48,7 @@ set(UPCXX_NAME upcxx)
       #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/upcxx_prefix
       #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/upcxx_install
       #INSTALL_COMMAND ""
-      CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-upcxx --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER} CFLAGS=${CMAKE_C_FLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+      CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-upcxx --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER}  CFLAGS=${UPCXX_C_FLAGS} CXXFLAGS=${UPCXX_CXX_FLAGS}
       )
     endif()
     else()
@@ -51,7 +60,7 @@ set(UPCXX_NAME upcxx)
       #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/upcxx_prefix
       #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/upcxx_install
       #INSTALL_COMMAND ""
-      CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER} CFLAGS=${CMAKE_C_FLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+      CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR> --with-gasnet=${GASNET_CONDUIT} CC=${MPI_C_COMPILER} CXX=${MPI_CXX_COMPILER} CFLAGS=${UPCXX_C_FLAGS} CXXFLAGS=${UPCXX_CXX_FLAGS}
       )
     endif()
 
@@ -92,7 +101,7 @@ endif()
 
       ExternalProject_Add_Step(${UPCXX_NAME} set_env
       DEPENDEES install
-      COMMAND source ${CMAKE_CURRENT_BINARY_DIR}/external/upcxx_install/bin/upcxx_vars.sh COMMAND echo $ENV{UPCXX_CXXFLAGS} $ENV{UPCXX_LDFLAGS} $ENV{UPCXX_LDLIBS} 
+      COMMAND . ${CMAKE_CURRENT_BINARY_DIR}/external/upcxx_install/bin/upcxx_vars.sh COMMAND echo $ENV{UPCXX_CXXFLAGS} $ENV{UPCXX_LDFLAGS} $ENV{UPCXX_LDLIBS} 
       WORKING_DIRECTORY <SOURCE_DIR>
       COMMENT "Setting upcxx environment"
       )
@@ -107,8 +116,8 @@ set(UPCXX_INCLUDE_DIR ${UPCXX_INCLUDE_DIR} ${GASNET_INCLUDE_DIR} ${GASNET_CONDUI
 set(UPCXX_LIBRARY_PATH ${UPCXX_LIBRARY_PATH} ${GASNET_LIBRARY_PATH})
 set(UPCXX_DEFINES "$ENV{UPCXX_CXXFLAGS}")
 
-string(STRIP ${UPCXX_LIBRARIES} UPCXX_LIBRARIES)
-string(STRIP ${UPCXX_DEFINES} UPCXX_DEFINES)
+string(STRIP "${UPCXX_LIBRARIES}" UPCXX_LIBRARIES)
+string(STRIP "${UPCXX_DEFINES}" UPCXX_DEFINES)
 
 
 ExternalProject_Get_Property(${UPCXX_NAME} install_dir)

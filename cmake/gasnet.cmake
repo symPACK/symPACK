@@ -48,7 +48,7 @@ ExternalProject_Add(${GASNET_NAME}
     #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/gasnet_prefix
     #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/gasnet_install
     #INSTALL_COMMAND ""
-    CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-gasnet-knl-only --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+    CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-gasnet-knl-only ${GASNET_DEBUG} --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
         )
 
   ExternalProject_Add_Step(${GASNET_NAME} cross-compile
@@ -67,7 +67,7 @@ ExternalProject_Add(${GASNET_NAME}
     #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/gasnet_prefix
     #INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/gasnet_install
     #INSTALL_COMMAND ""
-    CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-gasnet --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+    CONFIGURE_COMMAND <SOURCE_DIR>/cross-configure-intel-knl-gasnet  ${GASNET_DEBUG} --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
         )
 
   ExternalProject_Add_Step(${GASNET_NAME} cross-compile
@@ -137,12 +137,6 @@ ExternalProject_Add_Step(${GASNET_NAME} copy_cross
       set(GASNET_DEFINES ${GASNET_DEFINES} "-DGASNET_SEQ -D_GNU_SOURCE=1 -DGASNET_CONDUIT_ARIES")
     endif()
     
-    if(APPLE)
-      #SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lhugetlbfs -lpthread )
-    else()
-      #SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lhugetlbfs -lpthread -lrt )
-    endif()
-
     endif()
   
   
@@ -168,12 +162,8 @@ ExternalProject_Add_Step(${GASNET_NAME} copy_cross
     ExternalProject_Add(${GASNET_NAME}
         URL ${GASNET_URL}/${GASNET_GZ}
         URL_MD5 ${GASNET_MD5}
-  #      URL ${PROJECT_SOURCE_DIR}/tarballs/${GASNET_GZ}
         INSTALL_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install
-    #PREFIX ${CMAKE_CURRENT_BINARY_DIR}/gasnet_prefix
-    #    INSTALL_DIR ${CMAKE_INSTALL_PREFIX}/gasnet_install
-    #    INSTALL_COMMAND ""
-        CONFIGURE_COMMAND <SOURCE_DIR>/configure --disable-aligned-segments --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
+        CONFIGURE_COMMAND <SOURCE_DIR>/configure ${GASNET_DEBUG} --disable-aligned-segments --prefix=<INSTALL_DIR> CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER} MPI_CC=${MPI_C_COMPILER} CFLAGS=${GASNET_CFLAGS} CXXFLAGS=${CMAKE_CXX_FLAGS}
         )
   
     set(GASNET_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/external/gasnet_install/include)

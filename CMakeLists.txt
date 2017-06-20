@@ -352,7 +352,7 @@ install (SCRIPT "${CMAKE_SOURCE_DIR}/cmake/gasnetPostInstall.cmake")
 install (SCRIPT "${CMAKE_SOURCE_DIR}/cmake/upcxxPostInstall.cmake")
 
 
-add_executable(run_sympack EXCLUDE_FROM_ALL driver/run_sparse_pull.cpp)
+add_executable(run_sympack EXCLUDE_FROM_ALL driver/run_sympack.cpp)
 add_executable(run_sympack_c EXCLUDE_FROM_ALL driver/run_c_interface.cpp)
 add_custom_target(examples DEPENDS run_sympack run_sympack_c)
 

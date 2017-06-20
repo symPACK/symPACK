@@ -242,6 +242,7 @@ namespace symPACK{
 
   inline void remote_delete(upcxx::global_ptr<char> pRemote_ptr){
     scope_timer(a,REMOTE_DELETE);
+    logfileptr->OFS()<<"Remote deleting on P"<<pRemote_ptr.where()<<std::endl;
 #if 0
 
 
@@ -286,6 +287,10 @@ namespace symPACK{
 
   inline void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
     SYMPACK_TIMER_START(RCV_ASYNC);
+                              
+#ifndef NDEBUG
+    logfileptr->OFS()<<"Handling message "<<meta.src<<"->"<<meta.tgt<<" from P"<<pRemote_ptr.where()<<std::endl;
+#endif
 
 #ifdef HANDLE_LOCAL_POINTER
     char * tryPtr = (char*)pRemote_ptr;

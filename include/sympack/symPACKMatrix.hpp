@@ -210,6 +210,8 @@ namespace symPACK{
       int iam, np,all_np;
       symPACKOptions options_;
       CommEnvironment * CommEnv_;
+      upcxx::team * team_;
+
       MPI_Comm non_workcomm_;
       MPI_Comm fullcomm_;
 
@@ -348,6 +350,19 @@ namespace symPACK{
 
       template<typename Task>
       void CheckIncomingMessages_Solve(supernodalTaskGraph<Task> & taskGraph, std::shared_ptr<Scheduler<Task> > scheduler);
+
+
+
+
+
+      //functions replacing lambdas
+      inline void _factorTask1D(Int src, Int tgt, const std::shared_ptr<GenericTask> & pTask, const Factorization::op_type & type, taskGraph & graph);
+      inline void _updateTask1D(Int src, Int tgt, const std::shared_ptr<GenericTask> & pTask, const Factorization::op_type & type, std::vector<Int> & UpdatesToDo,std::vector< SuperNode<T>* >& aggVectors, taskGraph & graph);
+      inline void _dec_ref_task(taskGraph & graph, taskGraph::task_iterator & taskit, Int loc, Int rem);
+
+
+
+
 
 
   };

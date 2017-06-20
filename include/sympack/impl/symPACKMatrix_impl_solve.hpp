@@ -1470,7 +1470,7 @@ logfileptr->OFS()<<"WARNING: this is suboptimal and should use the new ChainedMe
     
 
     timeSta = get_time();
-    scheduler_new_->run(CommEnv_->MPI_GetComm(),graph);
+    scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->team_,graph);
     timeStop = get_time();
         if(iam==0){
           std::cout<<"Solve task graph execution time: "<<timeStop - timeSta<<std::endl;
@@ -1479,8 +1479,8 @@ logfileptr->OFS()<<"WARNING: this is suboptimal and should use the new ChainedMe
   }
 
   upcxx::async_wait();
+  upcxx::barrier();
   MPI_Barrier(CommEnv_->MPI_GetComm());
-
 
 
 
