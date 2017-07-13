@@ -177,8 +177,10 @@ endif()
 
 
 #######   GASNET AND UPCXX OPTIONS ######
-include(cmake/gasnet.cmake)
-include(cmake/upcxx.cmake)
+
+  include(cmake/gasnet.cmake)
+  include(cmake/upcxx.cmake)
+
 
 include_directories(${UPCXX_INCLUDE_DIR})
 link_directories(${UPCXX_LIBRARY_PATH})
@@ -346,6 +348,7 @@ install(FILES
   include/sympack/impl/Environment_impl.hpp 
   include/sympack/impl/IntervalTree_impl.hpp 
   include/sympack/impl/supernodalTaskGraph_impl.hpp
+  include/sympack/impl/Scheduler_impl.hpp
   DESTINATION include/sympack/impl)
 
 install (SCRIPT "${CMAKE_SOURCE_DIR}/cmake/gasnetPostInstall.cmake")

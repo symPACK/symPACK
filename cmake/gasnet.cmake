@@ -1,4 +1,3 @@
-find_package(PkgConfig)
 
 STRING( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
 if(config_type STREQUAL "debug")

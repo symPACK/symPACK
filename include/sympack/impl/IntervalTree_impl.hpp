@@ -117,12 +117,10 @@ inline   ITree<F>::ITNode<F> * ITree<F>::insert_(ITree<F>::ITNode<F> *root, ITre
 
 
   // Update the max value of this ancestor if needed
-  if (root->max < i.high)
-    root->max = i.high;
+  root->max = std::max( root->max, i.high);
 
   // Update the min value of this ancestor if needed
-  if (root->min > i.low)
-    root->min = i.low;
+  root->min = std::min( root->min, i.low);
 
   /* 2. Update height of this ancestor node */
   root->height = std::max(height_(root->left), height_(root->right)) + 1;
@@ -137,16 +135,12 @@ inline   Int ITree<F>::recomputeMax_(ITree<F>::ITNode<F> * root)
 
   if(root->left != NULL){
     recomputeMax_(root->left);
-    if(root->max < max_(root->left)){
-      root->max = max_(root->left);
-    } 
+    root->max = std::max( root->max, max_(root->left));
   }
 
   if(root->right != NULL){
     recomputeMax_(root->right);
-    if(root->max < max_(root->right)){
-      root->max = max_(root->right);
-    } 
+    root->max = std::max( root->max, max_(root->right));
   }
   return root->max;
 }
@@ -161,28 +155,19 @@ inline   Int ITree<F>::recomputeMinMax_(ITree<F>::ITNode<F> * root)
   if(root->left != NULL){
     recomputeMinMax_(root->left);
     Int maxL = max_(root->left);
-    if(root->max < maxL){
-      root->max = maxL;
-    } 
+    root->max = std::max( root->max, maxL);
 
     Int minL = min_(root->left);
-    if(root->min > minL){
-      root->min = minL;
-    } 
+    root->min = std::min( root->min, minL);
   }
 
   if(root->right != NULL){
     recomputeMinMax_(root->right);
     Int maxL = max_(root->right);
-    if(root->max < maxL){
-      root->max = maxL;
-    } 
+    root->max = std::max( root->max, maxL);
 
     Int minL = min_(root->right);
-    if(root->min > minL){
-      root->min = minL;
-    } 
-
+    root->min = std::min( root->min, minL);
   }
   return root->max;
 }
