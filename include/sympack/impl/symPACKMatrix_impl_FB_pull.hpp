@@ -141,8 +141,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
       }
       else{
         int tgt = meta[1];
-
-
         SuperNode<T> * tgt_aggreg = nullptr;
         Int iTarget = this->Mapping_->Map(tgt-1,tgt-1);
         if(iTarget == iam){
@@ -155,8 +153,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             tgt_aggreg = aggVectors[tgt-1];
           }
         }
-
-        //assert(tgt_aggreg!=nullptr);
 
         if(!tgt_aggreg->in_use){
           tgt_aggreg->in_use = true;
@@ -174,30 +170,19 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
   auto dec_ref = [&] ( taskGraph::task_iterator taskit, Int loc, Int rem) {
             scope_timer(a,DECREF);
 #ifdef SP_THREADS
-    if(Multithreading::NumThread>1){
-      scheduler_new_->list_mutex_.lock();
-    }
+    if(Multithreading::NumThread>1){ scheduler_new_->list_mutex_.lock(); }
 #endif
     taskit->second->local_deps-= loc;
     taskit->second->remote_deps-= rem;
 
     if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
-      {
-        //SparseTask * tmp = ((SparseTask*)taskit->second.get());
-        //Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
-        //Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
-        //if(meta[0]==10 && meta[1]==10){
-        // gdb_lock();
-        //} 
-      }
+      
       scheduler_new_->push(taskit->second);
       graph.removeTask(taskit->second->id);
     }
 
 #ifdef SP_THREADS
-    if(Multithreading::NumThread>1){
-      scheduler_new_->list_mutex_.unlock();
-    }
+    if(Multithreading::NumThread>1){ scheduler_new_->list_mutex_.unlock(); }
 #endif
   };
 
@@ -377,12 +362,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             {
 #ifdef _LAMBDAS_
               Task.execute = [&,this,src,tgt,pTask] () {
-
                 //log_task_internal(pTask);
                 scope_timer(b,FB_FACTORIZATION_TASK);
 
                 Int iLocalTGT = snodeLocalIndex(tgt);
-
                 Int src_snode_id = src;
                 Int tgt_snode_id = tgt;
                 Int I = src_snode_id;
@@ -397,9 +380,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                 SYMPACK_TIMER_START(FACTOR_PANEL);
 #ifdef SP_THREADS
                 std::thread::id tid = std::this_thread::get_id();
-                //              scheduler->list_mutex_.lock();
                 auto & tmpBuf = tmpBufs_th[tid];
-                //              scheduler->list_mutex_.unlock();
                 src_snode->Factorize(tmpBuf);
 #else
                 src_snode->Factorize(tmpBufs);
@@ -790,7 +771,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
                   SuperNode<T> * cur_src_snode; 
                   std::shared_ptr<SuperNode<T> > shptr_cur_src_snode = nullptr; 
-
 #ifdef SP_THREADS
                   std::thread::id tid = std::this_thread::get_id();
 #endif
@@ -803,8 +783,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     std::shared_ptr<ChainedMessage<SuperNodeBase<T> > > newMsgPtr = nullptr;
                     //Local or remote factor
                     //we have only one local or one remote incoming aggregate
-
-
                     SnodeUpdate curUpdate;
                     bool found = false;
 
@@ -822,26 +800,17 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       std::stringstream sstr;
                       sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
                       auto id = hash_fn(sstr.str());
-
                       if(msgPtr->meta.id == id){
                         char* dataPtr = msgPtr->GetLocalPtr().get();
-
-                        //                      logfileptr->OFS()<<"2 Data for snode id "<<tgt<<" "<<msgPtr->local_ptr.use_count()<<std::endl;
-                        //                      logfileptr->OFS()<<"3 Data for snode id "<<tgt<<" "<<msgPtr->GetLocalPtr().use_count()<<std::endl;
-
                         {
                           scope_timer(c,FB_UPD_UNPACK_MSG_CREATE);
                           shptr_cur_src_snode.reset(CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex));
                           cur_src_snode = shptr_cur_src_snode.get();
                         }
                         {
-
                           scope_timer(d,FB_UPD_UNPACK_MSG_INIT_TREE);
                           cur_src_snode->InitIdxToBlk();
                         }
-
-
-
 
                         //TODO add the message to other local updates and update their remote dependencies
 
@@ -877,21 +846,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                       newMsgPtr = std::make_shared<ChainedMessage<SuperNodeBase<T> > >(  base_ptr  ,msgPtr);
                                     }
 
-
-
-                                    //                              factorUser[localUpdate.src_snode_id]++;
                                     //this is where we put the msg in the list
                                     auto base_ptr = std::static_pointer_cast<IncomingMessage>(newMsgPtr);
                                     taskit->second->addData( base_ptr );
                                     dec_ref(taskit,0,1);
-
-                                    //                                  auto tmp = new IncomingMessage();
-                                    //                                  *tmp = *msgPtr;
-                                    //                                  tmp->meta = msgPtr->meta;
-                                    //                                  tmp->local_ptr = msgPtr->GetLocalPtr();
-                                    //                                  tmp->msg_size = msgPtr->msg_size;
-                                    //                      logfileptr->OFS()<<"4 Chained Data for snode id "<<tgt<<" "<<tmp->GetLocalPtr().use_count()<<std::endl;
-                                    //                                  delete tmp;
                                   }
                                 }
                               }
@@ -904,11 +862,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       else{
                         newMsgPtr = std::dynamic_pointer_cast<ChainedMessage<SuperNodeBase<T> > >(msgPtr);
                         cur_src_snode = dynamic_cast<SuperNode<T> *>(newMsgPtr->data.get());
-                        //                      logfileptr->OFS()<<"Chained message for snode id "<<cur_src_snode->Id()<<" "<<newMsgPtr->data.use_count()<<std::endl;
-                        //                      logfileptr->OFS()<<"Chained Data for snode id "<<cur_src_snode->Id()<<" "<<newMsgPtr->GetLocalPtr().use_count()<<std::endl;
                       }
-
-
                     }
 
                     //TODO UPDATE do my update here
