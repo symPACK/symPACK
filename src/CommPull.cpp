@@ -45,14 +45,55 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include "sympack/CommTypes.hpp"
 //#include "sympack/SupernodalMatrixBase.hpp"
 #include "sympack/timer.hpp"
+#include <map>
 
 #define USE_LOCAL_ALLOCATE
 
 
 namespace symPACK{
 
-#ifdef SP_THREADS
-  upcxx_mutex_type upcxx_mutex;
+  int last_key = 0;
+  std::map<int,int> async_barriers;
+
+  bool barrier_done(int id){
+    return async_barriers[id]==0;
+  }
+
+  int get_barrier_id(int np){
+    int id = last_key++;
+    auto it = async_barriers.find(id);
+    if(it ==async_barriers.end()){
+      async_barriers[id] = np;
+    }
+    return id;
+  }
+
+  void signal_exit_am(int barrier_id,int np)
+  {
+    auto it = async_barriers.find(barrier_id);
+    if(it ==async_barriers.end()){
+      async_barriers[barrier_id] = np;
+    }
+    async_barriers[barrier_id]--;
+    //upcxx::barrier();
+  }
+
+  void signal_exit(int barrier_id, int np)
+  {
+
+    for (int i = 0; i < np; i++) {
+      upcxx::async(i)(signal_exit_am,barrier_id,np);
+    }    
+  }
+
+    
+    
+    
+    
+    
+    
+    #ifdef SP_THREADS
+      upcxx_mutex_type upcxx_mutex;
 #endif
 
   std::list< IncomingMessage * > gIncomingRecv;

@@ -297,7 +297,7 @@ namespace symPACK{
                   Updates[iUpdater].push_back(std::make_tuple(I,J,row,Factorization::op_type::UPDATE));
                 }
 
-#if 1
+#ifdef _SEQ_SPECIAL_CASE_
                 if(Multithreading::NumThread==1){
                   //create only one task if I don't own the factor
                   if(iUpdater!=iOwner){
@@ -2670,8 +2670,8 @@ namespace symPACK{
     CommEnv_ = new CommEnvironment(workcomm);
     MPI_Comm_free(&workcomm);
 
-    Int new_rank = (iam<np)?iam:iam-np;
-    upcxx::team_all.split(iam<np,new_rank, this->team_);
+//    Int new_rank = (iam<np)?iam:iam-np;
+//    upcxx::team_all.split(iam<np,new_rank, this->team_);
 
 
 
@@ -3981,6 +3981,12 @@ namespace symPACK{
               Int local_col = col - fc + 1;
               T * nzval = snode->GetNZval(blk_desc->Offset);
               nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
+//              if(row==col){
+//                if(std::abs(nzval[(local_row-1)*iWidth+local_col-1])<std::numeric_limits<typeof(std::abs(nzval[(local_row-1)*iWidth+local_col-1])>::epsilon()){
+//                  logfileptr->OFS()<<"Replacing L("<<row<<","<<col<<")"<<std::endl;
+//                  nzval[(local_row-1)*iWidth+local_col-1] = std::numeric_limits<T>::epsilon();
+//                }
+//              }
             }
             //for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
             //  Int row = rowind[rowidx-1];

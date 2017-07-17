@@ -482,7 +482,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
           case Factorization::op_type::UPDATE:
             {
 #ifdef _LAMBDAS_
-#if 1
+#ifdef _SEQ_SPECIAL_CASE_
               if(Multithreading::NumThread==1){
                 Task.execute = [&,this,src,tgt,pTask,type] () {
                   scope_timer(a,FB_UPDATE_TASK);
@@ -1183,7 +1183,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
     std::cout<<"TaskGraph size is: "<<graph.tasks_.size()<<std::endl;
   }
   timeSta = get_time();
-  scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->team_,graph);
+  scheduler_new_->run(CommEnv_->MPI_GetComm(),/* *this->team_,*/graph);
   double timeStop = get_time();
   if(iam==0){
     std::cout<<"Factorization task graph execution time: "<<timeStop - timeSta<<std::endl;
@@ -2733,6 +2733,7 @@ template <typename T> inline void symPACKMatrix<T>::_factorTask1D(Int src, Int t
 template <typename T> inline void symPACKMatrix<T>::_updateTask1D(Int src, Int tgt, const std::shared_ptr<GenericTask> & pTask, const Factorization::op_type & type, std::vector<Int> & UpdatesToDo,std::vector< SuperNode<T>* >& aggVectors, taskGraph & graph){
     scope_timer(a,FB_UPDATE_TASK);
   std::hash<std::string> hash_fn;
+#ifdef _SEQ_SPECIAL_CASE_
   if (Multithreading::NumThread==1){
 
     Int iLocalTGT = snodeLocalIndex(tgt);
@@ -3015,7 +3016,9 @@ template <typename T> inline void symPACKMatrix<T>::_updateTask1D(Int src, Int t
 
     }
   }
-  else {
+  else
+#endif
+  {
     Int iLocalTGT = snodeLocalIndex(tgt);
     Int src_snode_id = src;
     Int tgt_snode_id = tgt;

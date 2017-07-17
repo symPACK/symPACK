@@ -70,6 +70,9 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 namespace symPACK{
 
+  bool barrier_done(int id);
+  int get_barrier_id(int np);
+  void signal_exit(int barrier_id, int np);
 
   struct SnodeUpdateFB;
   //class SupernodalMatrixBase;

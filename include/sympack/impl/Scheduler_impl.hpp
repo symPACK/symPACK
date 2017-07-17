@@ -335,11 +335,11 @@ namespace symPACK{
 
 
   template <class Task > 
-    inline void Scheduler<Task>::run(MPI_Comm & workcomm, upcxx::team & workteam, taskGraph & graph){
+    inline void Scheduler<Task>::run(MPI_Comm & workcomm, /*upcxx::team & workteam,*/ taskGraph & graph){
     }
 
   template <> 
-    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, upcxx::team & workteam , taskGraph & graph){
+    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, /*upcxx::team & workteam ,*/ taskGraph & graph){
       int np = 1;
       MPI_Comm_size(workcomm,&np);
       int iam = 0;
@@ -547,7 +547,14 @@ namespace symPACK{
           }
         }
 
-        workteam.barrier();
+        int barrier_id = get_barrier_id(np);
+        signal_exit(barrier_id,np);
+        while( !barrier_done(barrier_id) ){
+          upcxx::advance(); 
+        }
+
+
+        //workteam.barrier();
         //upcxx::async_wait();
 
         //signal completion to everyone

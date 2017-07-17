@@ -104,6 +104,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 
 
+//#define _SEQ_SPECIAL_CASE_
 //#define PREFETCH_STRUCTURE
 
 namespace symPACK{
