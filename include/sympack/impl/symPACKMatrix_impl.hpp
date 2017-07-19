@@ -70,6 +70,15 @@ namespace symPACK{
         int * nodeforw, int *  nodeback, 
         int *  setsnode, int *  supperm, int *  mark, int *  set  , int *  compset,
         int *  invp2 , int *  heap                             );
+
+    void FORTRAN(ordsup_ind_tsp_paths2)
+      (  int * nadj  , int * neqns , int * nofsub, int * nsuper, int * supsiz,
+         int * xsuper, int * xlindx, int * lindx , int * snode , int * xadj  , 
+         int * adjncy, int * etpar , int * perm  , int * invp  , int * iflag , 
+         int * xskadj, int * sklenf, int * sklenb, int * skadj , int * invp2 , 
+         int * link  , int * fstloc, int * sperm , int * fstloc2, int * dist1, 
+         int * suppar, int * iwsiz , int * iwork , int * rep             );
+
   }
 }
 
@@ -3026,7 +3035,7 @@ namespace symPACK{
 
 
     //get rid of the sequential graph
-    if(sgraph!=NULL){delete sgraph;}
+    if(sgraph!=NULL && options_.order_refinement_str != "TSPB"){delete sgraph;}
 
     { 
       double timeSta = get_time();
@@ -3182,6 +3191,164 @@ namespace symPACK{
           MPI_Bcast(Order_.perm.data(),Order_.perm.size()*sizeof(Int),MPI_BYTE,0,fullcomm_);
           MPI_Bcast(Order_.invp.data(),Order_.invp.size()*sizeof(Int),MPI_BYTE,0,fullcomm_);
         } 
+        else if(options_.order_refinement_str == "TSPB"){
+          ETree& tree = ETree_;
+          Ordering & aOrder = Order_;
+          std::vector<Int> & supMembership = SupMembership_; 
+          std::vector<Int> & xsuper = Xsuper_; 
+
+          std::vector<int> ixlindx;
+          std::vector<int> ilindx;
+
+          std::vector<int>  new_invp;
+
+          //Gather locXlindx_ and locLindx_
+          {
+            std::vector<Ptr> xlindx;
+            std::vector<Idx> lindx;
+            this->gatherLStructure(xlindx, lindx);
+
+            if(iam==0){
+              ixlindx.resize(xlindx.size());
+              for(int i = 0;i<xlindx.size();i++){
+                ixlindx[i] = xlindx[i];
+              }
+              ilindx.resize(lindx.size());
+              for(int i = 0;i<lindx.size();i++){
+                ilindx[i] = lindx[i];
+              }
+            }
+          }
+
+          if(iam==0){
+bassert(sgraph!=nullptr);
+            int neqns = iSize_;
+
+            int nofsub =ilindx.size();
+            int nsuper = xsuper.size()-1;
+
+
+            new_invp.assign(neqns,0);
+
+
+            std::vector<int>  new_perm(neqns,0);
+            std::iota(new_invp.begin(),new_invp.end(),1);
+            std::iota(new_perm.begin(),new_perm.end(),1);
+
+
+            int supsiz = 0;
+            for(Int I = 1; I <= nsuper; I++){
+              Int fc = Xsuper_[I-1];
+              Int lc = Xsuper_[I]-1;
+              supsiz = std::max(supsiz,lc-fc+1);
+          }
+
+//            //rebuild adj and xadj from lindx and xlindx
+            std::vector<int, Mallocator<int> > xadj(sgraph->colptr.size());
+            std::vector<int, Mallocator<int> > adj(sgraph->rowind.size());
+            std::copy(sgraph->colptr.begin(), sgraph->colptr.end(), xadj.begin());
+            std::copy(sgraph->rowind.begin(), sgraph->rowind.end(), adj.begin());
+int nadj = adj.size();
+    if(sgraph!=NULL){delete sgraph;}
+//            xadj.resize(neqns+1);
+//            int nadj = 0;
+//            for(Int I = 1; I <= nsuper; I++){
+//              Int fc = Xsuper_[I-1];
+//              Int lc = Xsuper_[I]-1;
+//              Int iWidth = lc-fc+1;
+//              supsiz = std::max(supsiz,iWidth);
+//
+//              int  supbeg =  ixlindx[I-1];
+//              int  supend =  ixlindx[I]-1;
+//              int nrows = supend-supbeg+1;
+//
+//              for(int col = fc; col<=lc; col++){
+//                xadj[col-1] = nadj+1;
+//                nadj+= lc-col+1 + nrows;
+//              }
+//            }
+//            xadj[neqns] = nadj+1;
+//            adj.resize(nadj);
+//            for(Int I = 1; I <= nsuper; I++){
+//              Int fc = Xsuper_[I-1];
+//              Int lc = Xsuper_[I]-1;
+//
+//              int  supbeg =  ixlindx[I-1];
+//              int  supend =  ixlindx[I]-1;
+//
+//              for(int col = fc; col<=lc; col++){
+//                int colbeg = xadj[col-1];
+//                int colend = xadj[col]-1;
+//
+//                for(int row = col; row<=lc; row++){
+//                  adj[colbeg++] = row;
+//                }
+//
+//                for(int rowptr = supbeg; rowptr<=supend; rowptr++){
+//                  adj[colbeg++] = ilindx[rowptr-1];
+//                }
+//                bassert(colbeg==colend+1);
+//              }
+//            }
+
+            std::vector<int, Mallocator<int> > etpar(neqns);
+            for(int i = 0; i<neqns; i++){ etpar[i] = tree.PostParent(i); }
+           
+
+            std::vector<int, Mallocator<int> > xskadj(neqns+1);
+            std::vector<int, Mallocator<int> > sklenf(neqns);
+            std::vector<int, Mallocator<int> > sklenb(neqns);
+            std::vector<int, Mallocator<int> > skadj(nadj);
+            std::vector<int, Mallocator<int> > invp2(neqns);
+            std::vector<int, Mallocator<int> > link(neqns);
+
+            std::vector<int, Mallocator<int> > fstloc(nsuper);
+            std::vector<int, Mallocator<int> > sperm(nsuper);
+            std::vector<int, Mallocator<int> > fstloc2(neqns);
+            std::vector<int, Mallocator<int> > dist1((supsiz+1)*(supsiz+1));
+            std::vector<int, Mallocator<int> > suppar(nsuper);
+            int iwsiz = 8*neqns+3;
+            std::vector<int, Mallocator<int> > iwork(iwsiz);
+            std::vector<int, Mallocator<int> > rep(neqns);
+
+
+
+            int iflag = 0;
+            double timeSta = get_time();
+            FORTRAN(ordsup_ind_tsp_paths2)
+              ( 
+               &nadj, &neqns , &nofsub, &nsuper, &supsiz, 
+               xsuper.data(), ixlindx.data(), ilindx.data(), supMembership.data(), 
+               xadj.data(), adj.data(), 
+               etpar.data(),
+               new_perm.data(), new_invp.data(), 
+               &iflag , 
+               xskadj.data(), sklenf.data(), sklenb.data(), 
+               skadj.data() , invp2.data() , link.data()  , 
+               fstloc.data(), sperm.data() , fstloc2.data(), dist1.data(), 
+               suppar.data(), &iwsiz , iwork.data() , rep.data()             );
+
+            double timeStop = get_time();
+            if(iam==0){
+              std::cout<<"TSPB reordering done in "<<timeStop-timeSta<<std::endl;
+            }
+
+
+            Order_.Compose(new_invp);
+
+          }
+
+
+
+
+
+          // broadcast invp
+          Int N = aOrder.invp.size();
+          MPI_Bcast(&aOrder.invp[0],N*sizeof(int),MPI_BYTE,0,fullcomm_);
+          MPI_Bcast(&aOrder.perm[0],N*sizeof(int),MPI_BYTE,0,fullcomm_);
+
+        }
+
         double timeStop = get_time();
 
         if(iam==0){

@@ -215,6 +215,13 @@ set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
   src/betree.f src/del_heap.f src/ins_heap.f src/mcssup.f
   src/move_down.f src/ordsup.f src/boxnd.f src/gridnd.f
   src/degree.F src/fnroot.F src/genrcm.F src/rcm.F src/rootls.F
+  src/TSPB/compress_skel2.f 
+  src/TSPB/fnskel2.f 
+  src/TSPB/near_ins2.f 
+  src/TSPB/ordsup_ind_tsp_paths2.f 
+  src/TSPB/ordsup_tsp_paths2.f 
+  src/TSPB/post_suptree2.f 
+  src/TSPB/sup_etpost2.f
   src/invinv.f src/mod_heap.f src/move_up.f)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
