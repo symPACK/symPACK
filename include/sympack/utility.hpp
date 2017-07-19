@@ -860,6 +860,129 @@ namespace symPACK{
 
 
 
+  template <typename T, typename Compare>
+std::vector<std::size_t> & sort_permutation(
+    const std::vector<T>& vec,
+    Compare compare,
+    std::vector<std::size_t>& p)
+{
+  p.resize(vec.size());
+  std::iota(p.begin(), p.end(), 0);
+  std::sort(p.begin(), p.end(),
+      [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
+  return p;
+}
+
+  template <typename T, typename Compare>
+std::vector<std::size_t> sort_permutation(
+    const std::vector<T>& vec,
+    Compare compare)
+{
+  std::vector<std::size_t> p(vec.size());
+  std::iota(p.begin(), p.end(), 0);
+  std::sort(p.begin(), p.end(),
+      [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
+  return p;
+}
+
+  template <typename T, typename Compare>
+std::vector<std::size_t> & sort_permutation(
+    const T*begin, const T* end,
+    Compare compare,
+    std::vector<std::size_t>& p)
+{
+  p.resize(end-begin);
+  std::iota(p.begin(), p.end(), 0);
+  std::sort(p.begin(), p.end(),
+      [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
+  return p;
+}
+
+  template <typename T, typename Compare>
+std::vector<std::size_t> sort_permutation(
+    const T*begin, const T* end,
+    Compare compare)
+{
+  std::vector<std::size_t> p(end-begin);
+  std::iota(p.begin(), p.end(), 0);
+  std::sort(p.begin(), p.end(),
+      [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
+  return p;
+}
+
+
+
+
+  template <typename T>
+std::vector<T> apply_permutation(
+    const std::vector<T>& vec,
+    const std::vector<std::size_t>& p)
+{
+  std::vector<T> sorted_vec(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return vec[i]; });
+  return sorted_vec;
+}
+
+  template <typename T>
+std::vector<T> apply_permutation(
+    const T*vec,
+    const std::vector<std::size_t>& p)
+{
+  std::vector<T> sorted_vec(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return vec[i]; });
+  return sorted_vec;
+}
+
+  template <typename T>
+void apply_permutation(
+    T*begin, T* end,
+    const std::vector<std::size_t>& p)
+{
+  std::vector<T> sorted_vec(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return begin[i]; });
+  std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
+}
+
+  template <typename T>
+std::vector<T> & apply_permutation(
+    const std::vector<T>& vec,
+    const std::vector<std::size_t>& p,
+    std::vector<T> &sorted_vec)
+{
+  sorted_vec.resize(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return vec[i]; });
+  return sorted_vec;
+}
+
+  template <typename T>
+std::vector<T> & apply_permutation(
+    const T*vec,
+    const std::vector<std::size_t>& p,
+    std::vector<T> &sorted_vec)
+{
+  sorted_vec.resize(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return vec[i]; });
+  return sorted_vec;
+}
+
+  template <typename T>
+void apply_permutation(
+    T*begin, T* end,
+    const std::vector<std::size_t>& p,
+    std::vector<T> &sorted_vec)
+{
+  sorted_vec.resize(p.size());
+  std::transform(p.begin(), p.end(), sorted_vec.begin(),
+      [&](std::size_t i){ return begin[i]; });
+  std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
+}
+
+
 
 
 
@@ -1691,8 +1814,26 @@ namespace symPACK{
       HMat.Localg_.size = HMat.size;
       HMat.Localg_.nnz = nnz;
       HMat.Localg_.bIsExpanded = false;
+
+
+      //Sort rowind + nzval accordingly
+      Idx col;
+      Ptr colbeg,colend;
+      for(col = 1; col <= nlocal; col++){
+        colbeg = HMat.Localg_.colptr[col-1];
+        colend = HMat.Localg_.colptr[col]-1;
+        std::vector<size_t> lperm = sort_permutation(&HMat.Localg_.rowind[colbeg-1],
+                                    &HMat.Localg_.rowind[colend-1]+1,std::less<Idx>());
+        apply_permutation(&HMat.Localg_.rowind[colbeg-1],&HMat.Localg_.rowind[colend-1]+1,lperm);
+        apply_permutation(&HMat.nzvalLocal[colbeg-1],&HMat.nzvalLocal[colend-1]+1,lperm);
+      }
+      //force sorted boolean
+      HMat.Localg_.sorted = 1;
+
+
+
       //sort the edges
-      HMat.Localg_.SetSorted(1);
+      //HMat.Localg_.SetSorted(1);
 
       return 0;
 }
@@ -1937,129 +2078,6 @@ void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMa
   SYMPACK_TIMER_STOP(READING_MATRIX);
   if(mpirank==0){ std::cout<<"Matrix read time: "<<tstop - tstart<<std::endl; }
   if(mpirank==0){ std::cout<<"Matrix order is "<<HMat.size<<std::endl; }
-}
-
-
-  template <typename T, typename Compare>
-std::vector<std::size_t> & sort_permutation(
-    const std::vector<T>& vec,
-    Compare compare,
-    std::vector<std::size_t>& p)
-{
-  p.resize(vec.size());
-  std::iota(p.begin(), p.end(), 0);
-  std::sort(p.begin(), p.end(),
-      [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
-  return p;
-}
-
-  template <typename T, typename Compare>
-std::vector<std::size_t> sort_permutation(
-    const std::vector<T>& vec,
-    Compare compare)
-{
-  std::vector<std::size_t> p(vec.size());
-  std::iota(p.begin(), p.end(), 0);
-  std::sort(p.begin(), p.end(),
-      [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
-  return p;
-}
-
-  template <typename T, typename Compare>
-std::vector<std::size_t> & sort_permutation(
-    const T*begin, const T* end,
-    Compare compare,
-    std::vector<std::size_t>& p)
-{
-  p.resize(end-begin);
-  std::iota(p.begin(), p.end(), 0);
-  std::sort(p.begin(), p.end(),
-      [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
-  return p;
-}
-
-  template <typename T, typename Compare>
-std::vector<std::size_t> sort_permutation(
-    const T*begin, const T* end,
-    Compare compare)
-{
-  std::vector<std::size_t> p(end-begin);
-  std::iota(p.begin(), p.end(), 0);
-  std::sort(p.begin(), p.end(),
-      [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
-  return p;
-}
-
-
-
-
-  template <typename T>
-std::vector<T> apply_permutation(
-    const std::vector<T>& vec,
-    const std::vector<std::size_t>& p)
-{
-  std::vector<T> sorted_vec(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return vec[i]; });
-  return sorted_vec;
-}
-
-  template <typename T>
-std::vector<T> apply_permutation(
-    const T*vec,
-    const std::vector<std::size_t>& p)
-{
-  std::vector<T> sorted_vec(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return vec[i]; });
-  return sorted_vec;
-}
-
-  template <typename T>
-void apply_permutation(
-    T*begin, T* end,
-    const std::vector<std::size_t>& p)
-{
-  std::vector<T> sorted_vec(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return begin[i]; });
-  std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
-}
-
-  template <typename T>
-std::vector<T> & apply_permutation(
-    const std::vector<T>& vec,
-    const std::vector<std::size_t>& p,
-    std::vector<T> &sorted_vec)
-{
-  sorted_vec.resize(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return vec[i]; });
-  return sorted_vec;
-}
-
-  template <typename T>
-std::vector<T> & apply_permutation(
-    const T*vec,
-    const std::vector<std::size_t>& p,
-    std::vector<T> &sorted_vec)
-{
-  sorted_vec.resize(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return vec[i]; });
-  return sorted_vec;
-}
-
-  template <typename T>
-void apply_permutation(
-    T*begin, T* end,
-    const std::vector<std::size_t>& p,
-    std::vector<T> &sorted_vec)
-{
-  sorted_vec.resize(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return begin[i]; });
-  std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
 }
 
 
