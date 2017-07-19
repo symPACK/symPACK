@@ -59,6 +59,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include <algorithm>
 #include <unordered_map>
 #include <unordered_set>
+#include <type_traits>
 
 namespace symPACK{
   extern "C" {
@@ -3739,6 +3740,15 @@ namespace symPACK{
       }
       SYMPACK_TIMER_START(DISTRIBUTE_COUNTING);
 
+
+      typedef std::conditional< sizeof(Idx) < sizeof(Ptr), Idx, Ptr>::type minTypeIdxPtr;
+      using minType = typename std::conditional< sizeof(minTypeIdxPtr) < sizeof(T), minTypeIdxPtr, T >::type;
+
+      size_t minSize = sizeof(minType);//std::min(sizeof(Idx),std::min(sizeof(Ptr),sizeof(T)));
+      size_t IdxToMin = sizeof(Idx) / minSize;
+      size_t PtrToMin = sizeof(Ptr) / minSize;
+      size_t TToMin = sizeof(T) / minSize;
+
       Int baseval = pMat.Localg_.GetBaseval();
       Idx FirstLocalCol = pMat.Localg_.vertexDist[iam] + (1 - baseval); //1-based
       Idx LastLocalCol = pMat.Localg_.vertexDist[iam+1] + (1 - baseval); //1-based
@@ -3768,11 +3778,13 @@ namespace symPACK{
                 //add the pair (col,row) to processor owning column row
                 Int J = SupMembership_[row-1];
                 Int iDestJ = this->Mapping_->Map(J-1,J-1);
-                send_map[iDestJ].first += sizeof(Idx)+sizeof(Ptr)+1*(sizeof(Idx)+sizeof(T));
+                //send_map[iDestJ].first += sizeof(Idx)+sizeof(Ptr)+1*(sizeof(Idx)+sizeof(T));
+                send_map[iDestJ].first += IdxToMin+PtrToMin+ (IdxToMin + TToMin);
               }
               else{nrows++;}
             }
-            send_map[iDest].first += sizeof(Idx)+sizeof(Ptr)+nrows*(sizeof(Idx)+sizeof(T));
+            //send_map[iDest].first += sizeof(Idx)+sizeof(Ptr)+nrows*(sizeof(Idx)+sizeof(T));
+            send_map[iDest].first += IdxToMin+PtrToMin+nrows*(IdxToMin + TToMin);
           }
         }
       }
@@ -3797,8 +3809,10 @@ namespace symPACK{
         std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
         total_send_size = spositions.back();
 
-
-        Icomm * IsendPtr = new Icomm(total_send_size,MPI_REQUEST_NULL);
+        //minType * sendBuffer = new minType[total_send_size];
+        std::vector<minType, Mallocator<minType> > sendBuffer(total_send_size);
+        
+        //Icomm * IsendPtr = new Icomm(total_send_size,MPI_REQUEST_NULL);
 
 
         //Fill up the send buffer
@@ -3809,7 +3823,7 @@ namespace symPACK{
           Int iWidth = lc-fc+1;
           Int iHeight = cc_[fc-1];
 
-          Icomm & Isend = *IsendPtr;
+          //Icomm & Isend = *IsendPtr;
           Int iDest = this->Mapping_->Map(I-1,I-1);
 
 #ifdef _DEBUG_
@@ -3836,14 +3850,24 @@ namespace symPACK{
 
                   T val = pMat.nzvalLocal[rowidx-1];
 
-                  //we need to set head to the proper sdispls
-                  Isend.setHead(spositions[iDestJ]);
-                  Isend<<row;
-                  Isend<<(Ptr)1;
-                  Isend<<col;
-                  Isend<<val;
-                  //backup new position for processor iDestJ
-                  spositions[iDestJ] = Isend.head;
+                  ////we need to set head to the proper sdispls
+                  //Isend.setHead(spositions[iDestJ]);
+                  //Isend<<row;
+                  //Isend<<(Ptr)1;
+                  //Isend<<col;
+                  //Isend<<val;
+                  ////backup new position for processor iDestJ
+                  //spositions[iDestJ] = Isend.head;
+
+                  *((Idx*)&sendBuffer[spositions[iDestJ]]) = row;
+                  spositions[iDestJ]+=IdxToMin;
+                  *((Ptr*)&sendBuffer[spositions[iDestJ]]) = 1;
+                  spositions[iDestJ]+=PtrToMin;
+                  *((Idx*)&sendBuffer[spositions[iDestJ]]) = col;
+                  spositions[iDestJ]+=IdxToMin;
+                  *((T*)&sendBuffer[spositions[iDestJ]]) = val;
+                  spositions[iDestJ]+=TToMin;
+
                 }
                 else{
                   nrows++;
@@ -3851,16 +3875,43 @@ namespace symPACK{
               }
 
 
-              //restore head
-              Isend.setHead(spositions[iDest]);
-              Isend<<col;
-              Isend<<nrows;
+              ////restore head
+              //Isend.setHead(spositions[iDest]);
+              //Isend<<col;
+              //Isend<<nrows;
+
+              //for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+              //  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
+              //  Idx row = Order_.invp[orig_row-1];
+              //  if(row>=col){
+              //    Isend<<row;
+              //  }
+              //}
+
+              //for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+              //  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
+              //  Idx row = Order_.invp[orig_row-1];
+              //  if(row>=col){
+              //    Isend<<pMat.nzvalLocal[rowidx-1];
+              //  }
+              //}
+
+              ////backup new position for processor iDest
+              //spositions[iDest] = Isend.head;
+
+                  *((Idx*)&sendBuffer[spositions[iDest]]) = col;
+                  spositions[iDest]+=IdxToMin;
+                  *((Ptr*)&sendBuffer[spositions[iDest]]) = nrows;
+                  spositions[iDest]+=PtrToMin;
+
+
 
               for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
                 Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
                 Idx row = Order_.invp[orig_row-1];
                 if(row>=col){
-                  Isend<<row;
+                  *((Idx*)&sendBuffer[spositions[iDest]]) = row;
+                  spositions[iDest]+=IdxToMin;
                 }
               }
 
@@ -3868,12 +3919,15 @@ namespace symPACK{
                 Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
                 Idx row = Order_.invp[orig_row-1];
                 if(row>=col){
-                  Isend<<pMat.nzvalLocal[rowidx-1];
+                  auto & val = pMat.nzvalLocal[rowidx-1];
+                  *((T*)&sendBuffer[spositions[iDest]]) = val;
+                  spositions[iDest]+=TToMin;
                 }
               }
 
-              //backup new position for processor iDest
-              spositions[iDest] = Isend.head;
+
+
+
 
 
             }
@@ -3882,36 +3936,77 @@ namespace symPACK{
         SYMPACK_TIMER_SPECIAL_STOP(serializing);      
 
 
-        Icomm * IrecvPtr = new Icomm(0,MPI_REQUEST_NULL);
+        //Icomm * IrecvPtr = new Icomm(0,MPI_REQUEST_NULL);
         spositions[0] = 0;
         std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
-        std::function<void(Icomm&,size_t)> resize_lambda =
-          [](Icomm & container, size_t sz){
-            container.resize(sz); 
-            container.head = 0;
+        //std::function<void(Icomm&,size_t)> resize_lambda =
+        //  [](Icomm & container, size_t sz){
+        //    container.resize(sz); 
+        //    container.head = 0;
+        //  };
+        //IsendPtr->setHead(0);
+        //mpi::Alltoallv((*IsendPtr), &stotcounts[0], &spositions[0], MPI_BYTE,
+        //    (*IrecvPtr),fullcomm_, resize_lambda);
+
+        size_t total_recv_size = 0;//spositions.back();
+        //minType * recvBuffer;
+        std::vector<minType, Mallocator<minType> > recvBuffer;
+        //dummy lambda
+        //std::function<void(minType*&,size_t)> resize_lambda =
+        //  [&](minType*& container, size_t sz){
+        //      total_recv_size = sz;
+        //      container = new minType[total_recv_size];
+        //  };
+        std::function<void(std::vector<minType, Mallocator<minType> >&,size_t)> resize_lambda =
+          [](std::vector<minType, Mallocator<minType> >& container, size_t sz){
+              container.resize(sz);
           };
 
-        IsendPtr->setHead(0);
-        mpi::Alltoallv((*IsendPtr), &stotcounts[0], &spositions[0], MPI_BYTE,
-            (*IrecvPtr),fullcomm_, resize_lambda);
 
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(minType), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
 
+        mpi::Alltoallv(sendBuffer, &stotcounts[0], &spositions[0], type ,
+            recvBuffer,fullcomm_, resize_lambda);
+
+        total_recv_size = recvBuffer.size();
+
+        MPI_Type_free(&type);
         //Need to parse the structure sent from the processor owning the first column of the supernode
 
         SYMPACK_TIMER_SPECIAL_START(deserializing);      
-        IrecvPtr->setHead(0);
-        while(IrecvPtr->head < IrecvPtr->capacity()){ 
+        size_t head = 0;
 
-          char * buffer = IrecvPtr->back();
+        //IrecvPtr->setHead(0);
+        //while(IrecvPtr->head < IrecvPtr->capacity())
+        while(head < total_recv_size)
+        { 
+
+          ////char * buffer = IrecvPtr->back();
+          //char * buffer = (char*)&recvBuffer[head];
+          ////Deserialize
+          //Idx col = *(Idx*)&buffer[0];
+          ////nrows of column col sent by processor p
+          //Ptr nrows = *((Ptr*)&buffer[sizeof(Idx)]);
+          //Idx * rowind = (Idx*)(&buffer[sizeof(Ptr)+sizeof(Idx)]);
+          //T * nzvalA = (T*)(&buffer[(1+nrows)*sizeof(Idx)+sizeof(Ptr)]);
+          ////advance in the buffer
+          ////IrecvPtr->setHead(IrecvPtr->head + sizeof(Idx) +sizeof(Ptr) + nrows*(sizeof(Idx)+sizeof(T)));
+          //head += IdxToMin + PtrToMin + nrows*(IdxToMin+TToMin);
+
           //Deserialize
-          Idx col = *(Idx*)&buffer[0];
+          Idx col = *((Idx*)&recvBuffer[head]);
+          head+=IdxToMin;
           //nrows of column col sent by processor p
-          Ptr nrows = *((Ptr*)&buffer[sizeof(Idx)]);
-          Idx * rowind = (Idx*)(&buffer[sizeof(Ptr)+sizeof(Idx)]);
-          T * nzvalA = (T*)(&buffer[(1+nrows)*sizeof(Idx)+sizeof(Ptr)]);
+          Ptr nrows = *((Ptr*)&recvBuffer[head]);
+          head+=PtrToMin;
+          Idx * rowind = (Idx*)(&recvBuffer[head]);
+          head+=nrows*IdxToMin;
+          T * nzvalA = (T*)(&recvBuffer[head]);
+          head+=nrows*TToMin;
 
-          //advance in the buffer
-          IrecvPtr->setHead(IrecvPtr->head + sizeof(Idx) +sizeof(Ptr) + nrows*(sizeof(Idx)+sizeof(T)));
+
 
 
           Int I = SupMembership_[col-1];
@@ -4003,8 +4098,11 @@ namespace symPACK{
         SYMPACK_TIMER_SPECIAL_STOP(deserializing);      
 
         //after the alltoallv, cleanup
-        delete IrecvPtr;
-        delete IsendPtr;
+        //delete IrecvPtr;
+        //delete IsendPtr;
+
+        //delete [] recvBuffer;
+        //delete [] sendBuffer;
       }
 #endif
 

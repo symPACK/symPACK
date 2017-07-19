@@ -59,8 +59,10 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include <stdexcept>
 #include <sstream>
 #include <mutex>
+#include <type_traits>
 
 #include  "sympack/Environment.hpp"
+#include  "sympack/Types.hpp"
 #include  "sympack/DistSparseMatrix.hpp"
 #include  "sympack/ETree.hpp"
 
@@ -855,6 +857,15 @@ namespace symPACK{
   template<typename T> bool is_complex_type<T>::value = false;
 
 
+
+
+
+
+
+
+
+
+
   template <typename SCALAR, typename INSCALAR >
     int ReadHB_PARA_MPIIO(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
       ////
@@ -1129,6 +1140,30 @@ namespace symPACK{
 
 
 
+//  template <typename S,typename I, std::complex<S>, template< typename> class INSCALAR>
+//    void ReadCSCNzval(MPI_File & fin, int offset, std::vector< std::complex<S> > & dest, int nnz, const MPI_Datatype type){
+//      MPI_Status status;
+//      using SCALAR = std::complex<S>;
+//      std::vector< INSCALAR > tmpBuf(nnz);
+//      int err = MPI_File_read_at_all(fin, offset, tmpBuf.data(), nnz, type,&status);
+//      dest.resize ( nnz );
+//      for(Ptr i = 0; i<nnz;i++){
+//        pspmat.nzvalLocal[i] = SCALAR(tmpBuf[i]);
+//      }
+//    }
+//
+//
+//  template <typename S,typename I, template <typename> class SCALAR, std::complex<I> >
+//    void ReadCSCNzval(MPI_File & fin, int offset, std::vector< SCALAR< > & dest, int nnz, const MPI_Datatype type){
+//      MPI_Status status;
+//      std::vector<std::complex<T> > tmpBuf(nnz);
+//      int err = MPI_File_read_at_all(fin, offset, tmpBuf.data(), nnz, type,&status);
+//      dest.resize ( nnz );
+//      for(Ptr i = 0; i<nnz;i++){
+//        pspmat.nzvalLocal[i] = SCALAR(std::abs(tmpBuf[i]));
+//      }
+//    }
+
 
 
   template <typename SCALAR,typename INSCALAR>
@@ -1191,7 +1226,8 @@ namespace symPACK{
       if( mpirank == 0 ){
         err = MPI_File_read_at(fin, 0,(char*)&pspmat.size, sizeof(Int), MPI_BYTE, &status);
         err = MPI_File_read_at(fin, sizeof(Int),(char*)&pspmat.nnz, sizeof(Int), MPI_BYTE, &status);
-        pspmat.nnz = (Ptr)*((Int*)&pspmat.nnz);
+        Ptr tmp = (Ptr)*((Int*)&pspmat.nnz);
+        pspmat.nnz = tmp;
       }
 
 
@@ -1211,6 +1247,9 @@ namespace symPACK{
 
       MPI_Type_free(&type);
 
+      Idx row,col;
+      Ptr colbeg,colend,ptr;
+      int p;
 
 
       //compute local number of columns
@@ -1219,7 +1258,7 @@ namespace symPACK{
       pspmat.Localg_.SetBaseval(1);
       pspmat.Localg_.vertexDist.resize(mpisize+1);
       int colPerProc = std::max(1,(int)(pspmat.size/mpisize));
-      for(int p = 1; p <mpisize;p++){
+      for(p = 1; p <mpisize;p++){
         pspmat.Localg_.vertexDist[p] = std::min(pspmat.size-1,p*colPerProc)+pspmat.Localg_.GetBaseval();
       }
       pspmat.Localg_.vertexDist.front()= pspmat.Localg_.GetBaseval();
@@ -1273,13 +1312,11 @@ namespace symPACK{
       }
 //      MPI_Type_free(&type);
 
-      {
         bassert(sizeof(Int)<=sizeof(Ptr));
-        Int * tmpColptr = (Int*)&pspmat.Localg_.colptr[0];
-        for (Idx col = pspmat.Localg_.colptr.size();col>0;col--){
+        int * tmpColptr = (int*)&pspmat.Localg_.colptr[0];
+        for (col = pspmat.Localg_.colptr.size();col>0;col--){
           pspmat.Localg_.colptr[col-1] = (Ptr)tmpColptr[col-1];
         }
-      }
 
 
       // Calculate nnz_loc on each processor
@@ -1322,56 +1359,36 @@ namespace symPACK{
       }
       //MPI_Type_free(&type);
 
-      {
         bassert(sizeof(int)<=sizeof(Idx));
         int * tmpRowind = (int*)&pspmat.Localg_.rowind[0];
-        for (Ptr ptr = pspmat.Localg_.rowind.size(); ptr>0;ptr--){
+        for (ptr = pspmat.Localg_.rowind.size(); ptr>0;ptr--){
           pspmat.Localg_.rowind[ptr-1] = (Idx)tmpRowind[ptr-1];
         }
-      }
 
       //read nzval
-      //  MPI_Offset myNzValOffset = (4 + ((mpirank==0)?0:1) )*sizeof(Int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Localg_.colptr[0]-1)*sizeof(INSCALAR);
       MPI_Offset myNzValOffset = (4+ ((mpirank==0)?0:1)  )*sizeof(Int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Localg_.colptr[0]-1)*sizeof(INSCALAR) + (mpirank==0?sizeof(Int):0);
 
-//TODO this cant work
-//      lens[0] = ((mpirank==0)?1:0);
-//      lens[1] = mynnz;
-//      MPI_Get_address(&np1, &disps[0]);
-//      MPI_Get_address(&pspmat.nzvalLocal[0], &disps[1]);
-//      types[0] = typeInt;
-//      types[1] = typeVal;
-//      MPI_Type_struct(2, lens, disps, types, &type);
-//      MPI_Type_commit(&type);
-
-
-//      lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
-//      lens[1] = mynnz*sizeof(INSCALAR);
-//      MPI_Address(&np1, &disps[0]);
-//      MPI_Address(&pspmat.nzvalLocal[0], &disps[1]);
-//      MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
-//      MPI_Type_commit(&type);
-
-      if(typeid(SCALAR)==typeid(INSCALAR)){
+      std::vector<INSCALAR, Mallocator<INSCALAR> > tmpBuf;
+      if(std::is_same<SCALAR,INSCALAR>() ){
         pspmat.nzvalLocal.resize ( mynnz );
         err = MPI_File_read_at_all(fin, myNzValOffset, &pspmat.nzvalLocal[0], mynnz, typeVal,&status);
       }
       else{
-        std::vector<INSCALAR> tmpBuf(mynnz);
+        tmpBuf.resize(mynnz);
         err = MPI_File_read_at_all(fin, myNzValOffset, &tmpBuf[0], mynnz, typeVal,&status);
         pspmat.nzvalLocal.resize ( mynnz );
-        if(typeid(SCALAR)==typeid(std::complex<float>) || typeid(SCALAR) == typeid(std::complex<double>)){
-          for(Ptr i = 0; i<mynnz;i++){
-            pspmat.nzvalLocal[i] = SCALAR( std::abs(tmpBuf[i]) );
+        if( is_complex_type<INSCALAR>::value ){
+          for(ptr = 0; ptr<mynnz;ptr++){
+            pspmat.nzvalLocal[ptr] = SCALAR( std::abs(tmpBuf[ptr]) );
           }
         }
         else{
-          for(Ptr i = 0; i<mynnz;i++){
-            pspmat.nzvalLocal[i] = SCALAR(std::real(tmpBuf[i]));
-            //SCALAR(tmpBuf[i]);
+          for(ptr = 0; ptr<mynnz;ptr++){
+            pspmat.nzvalLocal[ptr] = SCALAR(std::real(tmpBuf[ptr]));
           }
         }
       }
+
 
 
       //err = MPI_File_read_at_all(fin, myNzValOffset, MPI_BOTTOM, 1, type,&status);
@@ -1410,15 +1427,28 @@ namespace symPACK{
 
 
       //convert to local references
-      for( Idx i = 1; i < numColLocal + 1; i++ ){
-        pspmat.Localg_.colptr[i] = pspmat.Localg_.colptr[i] -  pspmat.Localg_.colptr[0] + 1;
+      for( col = 1; col < numColLocal + 1; col++ ){
+        pspmat.Localg_.colptr[col] = pspmat.Localg_.colptr[col] -  pspmat.Localg_.colptr[0] + 1;
       }
       pspmat.Localg_.colptr[0]=1;
 
       MPI_Barrier( comm );
 
       MPI_File_close(&fin);
-  
+
+
+      //Sort rowind + nzval accordingly
+      for(col = 1; col <= numColLocal; col++){
+        colbeg = pspmat.Localg_.colptr[col-1];
+        colend = pspmat.Localg_.colptr[col]-1;
+        std::vector<size_t> lperm = sort_permutation(&pspmat.Localg_.rowind[colbeg-1],
+                                    &pspmat.Localg_.rowind[colend-1]+1,std::less<Idx>());
+        apply_permutation(&pspmat.Localg_.rowind[colbeg-1],&pspmat.Localg_.rowind[colend-1]+1,lperm);
+        apply_permutation(&pspmat.nzvalLocal[colbeg-1],&pspmat.nzvalLocal[colend-1]+1,lperm);
+      }
+      //force sorted boolean
+      pspmat.Localg_.sorted = 1;
+
       pspmat.Localg_.SetSorted(1);
 
   MPI_Type_free(&typeVal);

@@ -49,6 +49,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #include <string>
 #include <type_traits>
+#include <cstdlib>
 
 namespace symPACK{
 
@@ -744,6 +745,21 @@ char * locTmpPtr = NULL;
         }
       }
   };
+
+
+
+  template <class T>
+    struct Mallocator {
+      typedef T value_type;
+      Mallocator() = default;
+      template <class U> Mallocator(const Mallocator<U>&) {}
+      T* allocate(std::size_t n) { return static_cast<T*>(std::malloc(n*sizeof(T))); }
+      void deallocate(T* p, std::size_t) { std::free(p); }
+    };
+  template <class T, class U>
+    bool operator==(const Mallocator<T>&, const Mallocator<U>&) { return true; }
+  template <class T, class U>
+    bool operator!=(const Mallocator<T>&, const Mallocator<U>&) { return false; }
 
 
 
