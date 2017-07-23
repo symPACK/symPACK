@@ -43,7 +43,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #ifndef _SYMPACK_MATRIX_IMPL_FB_PULL_HPP_
 #define _SYMPACK_MATRIX_IMPL_FB_PULL_HPP_
 
-#define FANIN_OPTIMIZATION
+#include "sympack/symPACKMatrix.hpp"
 
 template <typename T> inline void symPACKMatrix<T>::dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier){
   for(std::list<Int>::iterator it = tree[node].begin(); it!=tree[node].end(); it++){
@@ -62,7 +62,6 @@ template <typename T> inline void symPACKMatrix<T>::dfs_traversal(std::vector<st
 };
 
 
-#define _LAMBDAS_
 
 template <typename T> inline void symPACKMatrix<T>::FanBoth_New() 
 {
@@ -684,6 +683,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           //THIS SHOULD NOT HAVE TO BE PROTECTED OR BE ATOMICAL BECAUSE NO OTHER RUNNING TASK SHOULD UPDATE THE SAME TARGET
                           //Send the aggregate if it's the last
                           //If this is my last update sent it to curUpdate.tgt_snode_id
+
                           SYMPACK_TIMER_START(UPD_ANC_Agg_Send);
                           if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
                             if(iTarget != iam){

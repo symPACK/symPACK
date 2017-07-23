@@ -54,6 +54,7 @@
 #include <sstream>
 
 #include <omp.h>
+#include "sympack.hpp"
 #include "sympack/LogFile.hpp"
 #include "sympack/Environment.hpp"
 #include "sympack/timer.hpp"
@@ -490,6 +491,7 @@ namespace symPACK{
 
       char suffix[50];
       sprintf(suffix,"%d",iam);
+      gdb_lock();
       profileptr = new LogFile("sprofile",suffix);
 
       profileptr->OFS() << outstream.str();
@@ -621,8 +623,8 @@ namespace symPACK{
 
       void print( 
           MPI_Comm const comm, 
-          int64_t const      rank,
-          int64_t const      np
+          int const      rank,
+          int const      np
           ){
         int64_t i;
         if (rank == 0){
@@ -909,7 +911,7 @@ namespace symPACK{
       
       core = omp_get_thread_num();
       int64_t i, j, p, len_symbols;
-      int64_t np, rank;
+      int np, rank;
 
       np = 1;
       rank = 0;
@@ -969,8 +971,10 @@ namespace symPACK{
 
       function_timers.clear();
 
+      rank = -1;
+      symPACK_Rank(&rank);
       char suffix[50];
-      sprintf(suffix,"%d",upcxx::myrank());
+      sprintf(suffix,"%d",rank);
       profileptr = new LogFile("sprofile",suffix);
 
       profileptr->OFS() << outstream.str();

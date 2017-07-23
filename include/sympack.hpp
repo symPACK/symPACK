@@ -80,6 +80,7 @@ extern "C" {
 
   int symPACK_Init(int *argc=NULL, char ***argv=NULL);
   int symPACK_Finalize();
+  int symPACK_Rank(int * rank);
 
 
   //returns an integer corresponding to a symPACK handle

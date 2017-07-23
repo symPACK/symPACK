@@ -2746,6 +2746,14 @@ namespace symPACK{
   template <typename T> inline void symPACKMatrix<T>::SymbolicFactorization(DistSparseMatrix<T> & pMat){
     scope_timer(a,SymbolicFactorization);
 
+      //This has to be declared here to be able to debug ...
+            std::vector<int, Mallocator<int> > xadj;
+            std::vector<int, Mallocator<int> > adj;
+      Idx row;
+      int fc,lc,colbeg,colend,col;
+      Ptr supbeg,supend,rowidx;
+      Int I;
+
     if(fullcomm_!=MPI_COMM_NULL){
       MPI_Comm_free(&fullcomm_);
     }
@@ -3042,7 +3050,8 @@ namespace symPACK{
       this->findSupernodes(ETree_,Order_,cc,SupMembership_,Xsuper_,options_.relax.maxSize);
       logfileptr->OFS()<<"Supernodes found"<<std::endl;
 
-      if(options_.relax.nrelax0>0){
+      if(options_.relax.nrelax0>0)
+      {
         this->relaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
         logfileptr->OFS()<<"Relaxation done"<<std::endl;
       }
@@ -3140,7 +3149,17 @@ namespace symPACK{
       }
       logfileptr->OFS()<<"Symbfact done"<<std::endl;
 
+
       if(options_.order_refinement_str != "NO") {
+
+        //std::vector<Int> oldFcol;
+        //if(options_.relax.nrelax0==0){
+        //  oldFcol.resize(Xsuper_.size()-1);
+        //  for(int i = 0; i< oldFcol.size();i++){ oldFcol[i] = Order_.invp[Xsuper_[i]-1];}
+        //}
+
+
+
         double timeSta = get_time();
         if(options_.order_refinement_str == "SET"){ 
           this->refineSupernodes(3,1,&pMat);
@@ -3162,6 +3181,9 @@ namespace symPACK{
         }
         else if(options_.order_refinement_str == "SET31"){ 
           this->refineSupernodes(3,1,&pMat);
+
+//logfileptr->OFS()<<"Order_.perm: "; for(size_t i =0; i<Order_.perm.size(); i++){ logfileptr->OFS()<< Order_.perm[i]<<" ";}logfileptr->OFS()<<std::endl;
+//logfileptr->OFS()<<"Order_.invp: "; for(size_t i =0; i<Order_.invp.size(); i++){ logfileptr->OFS()<< Order_.invp[i]<<" ";}logfileptr->OFS()<<std::endl;
         }
         else if(options_.order_refinement_str == "TSP"){
           auto SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
@@ -3181,11 +3203,15 @@ namespace symPACK{
               std::cout<<"TSP reordering done in "<<timeStop-timeSta<<std::endl;
             }
 
+//logfileptr->OFS()<<"Order_.perm: "; for(size_t i =0; i<Order_.perm.size(); i++){ logfileptr->OFS()<< Order_.perm[i]<<" ";}logfileptr->OFS()<<std::endl;
+//logfileptr->OFS()<<"Order_.invp: "; for(size_t i =0; i<Order_.invp.size(); i++){ logfileptr->OFS()<< Order_.invp[i]<<" ";}logfileptr->OFS()<<std::endl;
             //overwrite order
             for(int i = 0; i < Order_.perm.size(); ++i){
               Order_.perm[i] = psorder->peritab[i]+1;
               Order_.invp[i] = psorder->permtab[i]+1;
             }
+//logfileptr->OFS()<<"Order_.perm: "; for(size_t i =0; i<Order_.perm.size(); i++){ logfileptr->OFS()<< Order_.perm[i]<<" ";}logfileptr->OFS()<<std::endl;
+//logfileptr->OFS()<<"Order_.invp: "; for(size_t i =0; i<Order_.invp.size(); i++){ logfileptr->OFS()<< Order_.invp[i]<<" ";}logfileptr->OFS()<<std::endl;
           }
 
           MPI_Bcast(Order_.perm.data(),Order_.perm.size()*sizeof(Int),MPI_BYTE,0,fullcomm_);
@@ -3232,64 +3258,95 @@ bassert(sgraph!=nullptr);
 
 
             std::vector<int>  new_perm(neqns,0);
-            std::iota(new_invp.begin(),new_invp.end(),1);
-            std::iota(new_perm.begin(),new_perm.end(),1);
+
+for(size_t i =0; i<new_perm.size(); i++){ new_invp[i] = Order_.invp[i];}
+for(size_t i =0; i<new_perm.size(); i++){ new_perm[i] = Order_.perm[i];}
+
+            //std::iota(new_invp.begin(),new_invp.end(),1);
+            //std::iota(new_perm.begin(),new_perm.end(),1);
 
 
             int supsiz = 0;
-            for(Int I = 1; I <= nsuper; I++){
+            for(I = 1; I <= nsuper; I++){
               Int fc = Xsuper_[I-1];
               Int lc = Xsuper_[I]-1;
               supsiz = std::max(supsiz,lc-fc+1);
           }
 
+#if 1
+    sgraph->SetKeepDiag(0);
+            xadj.resize(sgraph->colptr.size());
+            adj.resize(sgraph->rowind.size());
+            int nadj = adj.size();
+            for(size_t i = 0; i< sgraph->colptr.size(); i++){ xadj[i] = int(sgraph->colptr[i]); }
+            for(size_t i = 0; i< sgraph->rowind.size(); i++){ adj[i] = int(sgraph->rowind[i]); }
+
+#else
 //            //rebuild adj and xadj from lindx and xlindx
-            std::vector<int, Mallocator<int> > xadj(sgraph->colptr.size());
-            std::vector<int, Mallocator<int> > adj(sgraph->rowind.size());
-            std::copy(sgraph->colptr.begin(), sgraph->colptr.end(), xadj.begin());
-            std::copy(sgraph->rowind.begin(), sgraph->rowind.end(), adj.begin());
-int nadj = adj.size();
+            xadj.assign(neqns+1,0);
+            int nadj = 1;
+//            Idx row;
+//            int fc,lc,colbeg,colend,col;
+//            Ptr supbeg,supend,rowidx;
+//            Int I;
+            for(I = 1; I <= nsuper; I++){
+              fc = Xsuper_[I-1];
+              lc = Xsuper_[I]-1;
+              supbeg = ixlindx[I-1];
+              supend = ixlindx[I]-1;
+              for(col = fc; col <= lc; col++){
+                xadj[col-1] = nadj;
+                nadj += supend - supbeg +1 - (col - fc) ;
+              }
+            } 
+            xadj[neqns] = nadj;
+            nadj=nadj-1;
+logfileptr->OFS()<<"sgraph->colptr: "; for(size_t i =0; i<sgraph->colptr.size(); i++){ logfileptr->OFS()<< sgraph->colptr[i]<<" ";}logfileptr->OFS()<<std::endl;
+logfileptr->OFS()<<"xadj: "; for(size_t i =0; i<xadj.size(); i++){ logfileptr->OFS()<< xadj[i]<<" ";}logfileptr->OFS()<<std::endl;
+logfileptr->OFS()<<"ixlindx: "; for(size_t i =0; i<ixlindx.size(); i++){ logfileptr->OFS()<< ixlindx[i]<<" ";}logfileptr->OFS()<<std::endl;
+
+            adj.assign(nadj,0);
+            for(I = 1; I <= nsuper; I++){
+              fc = Xsuper_[I-1];
+              lc = Xsuper_[I]-1;
+              supbeg = ixlindx[I-1];
+              supend = ixlindx[I]-1;
+              for(col = fc; col <= lc; col++){
+                colbeg = xadj[col-1];
+                colend = xadj[col]-1;
+                for(rowidx = supbeg; rowidx<= supend; rowidx++){
+                  row = ilindx[rowidx-1];
+                  if(row>=col){
+                    adj[colbeg++-1] = row;
+                  }
+                }
+              }
+            }
+
+logfileptr->OFS()<<"sgraph->rowind: "; for(size_t i =0; i<sgraph->rowind.size(); i++){ logfileptr->OFS()<< sgraph->rowind[i]<<" ";}logfileptr->OFS()<<std::endl;
+logfileptr->OFS()<<"adj: "; for(size_t i =0; i<adj.size(); i++){ logfileptr->OFS()<< adj[i]<<" ";}logfileptr->OFS()<<std::endl;
+logfileptr->OFS()<<"ilindx: "; for(size_t i =0; i<ilindx.size(); i++){ logfileptr->OFS()<< ilindx[i]<<" ";}logfileptr->OFS()<<std::endl;
+
+SparseMatrixGraph rgraph;
+        rgraph.SetKeepDiag(1);
+rgraph.SetBaseval(1);
+rgraph.SetSorted(0);
+rgraph.colptr.resize(xadj.size());
+for(int i =0; i < xadj.size(); i++){ rgraph.colptr[i] = xadj[i];}
+rgraph.rowind.resize(adj.size());
+for(int i =0; i < adj.size(); i++){ rgraph.rowind[i] = adj[i];}
+rgraph.ExpandSymmetric();
+rgraph.SetSorted(1);
+logfileptr->OFS()<<"rgraph.colptr: "; for(size_t i =0; i<rgraph.colptr.size(); i++){ logfileptr->OFS()<< rgraph.colptr[i]<<" ";}logfileptr->OFS()<<std::endl;
+logfileptr->OFS()<<"rgraph.rowind: "; for(size_t i =0; i<rgraph.rowind.size(); i++){ logfileptr->OFS()<< rgraph.rowind[i]<<" ";}logfileptr->OFS()<<std::endl;
+nadj = rgraph.rowind.size();
+
+xadj.resize(rgraph.colptr.size());
+for(int i =0; i < xadj.size(); i++){ xadj[i] = rgraph.colptr[i];}
+adj.resize(rgraph.rowind.size());
+for(int i =0; i < adj.size(); i++){ adj[i] = rgraph.rowind[i];}
+#endif
     if(sgraph!=NULL){delete sgraph;}
-//            xadj.resize(neqns+1);
-//            int nadj = 0;
-//            for(Int I = 1; I <= nsuper; I++){
-//              Int fc = Xsuper_[I-1];
-//              Int lc = Xsuper_[I]-1;
-//              Int iWidth = lc-fc+1;
-//              supsiz = std::max(supsiz,iWidth);
-//
-//              int  supbeg =  ixlindx[I-1];
-//              int  supend =  ixlindx[I]-1;
-//              int nrows = supend-supbeg+1;
-//
-//              for(int col = fc; col<=lc; col++){
-//                xadj[col-1] = nadj+1;
-//                nadj+= lc-col+1 + nrows;
-//              }
-//            }
-//            xadj[neqns] = nadj+1;
-//            adj.resize(nadj);
-//            for(Int I = 1; I <= nsuper; I++){
-//              Int fc = Xsuper_[I-1];
-//              Int lc = Xsuper_[I]-1;
-//
-//              int  supbeg =  ixlindx[I-1];
-//              int  supend =  ixlindx[I]-1;
-//
-//              for(int col = fc; col<=lc; col++){
-//                int colbeg = xadj[col-1];
-//                int colend = xadj[col]-1;
-//
-//                for(int row = col; row<=lc; row++){
-//                  adj[colbeg++] = row;
-//                }
-//
-//                for(int rowptr = supbeg; rowptr<=supend; rowptr++){
-//                  adj[colbeg++] = ilindx[rowptr-1];
-//                }
-//                bassert(colbeg==colend+1);
-//              }
-//            }
 
             std::vector<int, Mallocator<int> > etpar(neqns);
             for(int i = 0; i<neqns; i++){ etpar[i] = tree.PostParent(i); }
@@ -3312,6 +3369,8 @@ int nadj = adj.size();
             std::vector<int, Mallocator<int> > rep(neqns);
 
 
+//logfileptr->OFS()<<"input new_perm: "; for(size_t i =0; i<new_perm.size(); i++){ logfileptr->OFS()<< new_perm[i]<<" ";}logfileptr->OFS()<<std::endl;
+//logfileptr->OFS()<<"etpar: "; for(size_t i =0; i<etpar.size(); i++){ logfileptr->OFS()<< etpar[i]<<" ";}logfileptr->OFS()<<std::endl;
 
             int iflag = 0;
             double timeSta = get_time();
@@ -3334,7 +3393,12 @@ int nadj = adj.size();
             }
 
 
-            Order_.Compose(new_invp);
+            //Order_.Compose(new_invp);
+for(size_t i =0; i<new_perm.size(); i++){ Order_.invp[i] = new_invp[i];}
+for(size_t i =0; i<new_perm.size(); i++){ Order_.perm[i] = new_perm[i];}
+//logfileptr->OFS()<<"Xsuper_: "; for(size_t i =0; i<Xsuper_.size(); i++){ logfileptr->OFS()<< Xsuper_[i]<<" ";}logfileptr->OFS()<<std::endl;
+//logfileptr->OFS()<<"new_perm: "; for(size_t i =0; i<new_perm.size(); i++){ logfileptr->OFS()<< new_perm[i]<<" ";}logfileptr->OFS()<<std::endl;
+//logfileptr->OFS()<<"new_invp: "; for(size_t i =0; i<new_invp.size(); i++){ logfileptr->OFS()<< new_invp[i]<<" ";}logfileptr->OFS()<<std::endl;
 
           }
 
@@ -3344,8 +3408,8 @@ int nadj = adj.size();
 
           // broadcast invp
           Int N = aOrder.invp.size();
-          MPI_Bcast(&aOrder.invp[0],N*sizeof(int),MPI_BYTE,0,fullcomm_);
-          MPI_Bcast(&aOrder.perm[0],N*sizeof(int),MPI_BYTE,0,fullcomm_);
+          MPI_Bcast(&aOrder.invp[0],N*sizeof(Int),MPI_BYTE,0,fullcomm_);
+          MPI_Bcast(&aOrder.perm[0],N*sizeof(Int),MPI_BYTE,0,fullcomm_);
 
         }
 
@@ -3355,26 +3419,32 @@ int nadj = adj.size();
           std::cout<<"Supernode reordering done in "<<timeStop-timeSta<<std::endl;
         }
 
-        if(options_.relax.nrelax0>0){
-          this->relaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
-          logfileptr->OFS()<<"Relaxation done"<<std::endl;
-          //Refresh XsuperDist_
-          {
-            Idx supPerProc = std::max((size_t)1,(Xsuper_.size()-1) / np);
-            XsuperDist_.resize(np+1,0);
-            XsuperDist_[np] = Xsuper_.size();
-            for(int p = 0; p<np; p++){
-              XsuperDist_[p]= std::min(XsuperDist_[np],(Int)(p*supPerProc+1));
-            }
-            for(int p = np+1; p<all_np; p++){
-              XsuperDist_[p]= XsuperDist_[p-1];
-            }
-            XsuperDist_[all_np] = Xsuper_.size();
-          }
-        }
+        //if(options_.relax.nrelax0>0)
+        //{
+        //  this->relaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
+        //  logfileptr->OFS()<<"Relaxation done"<<std::endl;
+        //  //Refresh XsuperDist_
+        //  {
+        //    Idx supPerProc = std::max((size_t)1,(Xsuper_.size()-1) / np);
+        //    XsuperDist_.resize(np+1,0);
+        //    XsuperDist_[np] = Xsuper_.size();
+        //    for(int p = 0; p<np; p++){
+        //      XsuperDist_[p]= std::min(XsuperDist_[np],(Int)(p*supPerProc+1));
+        //    }
+        //    for(int p = np+1; p<all_np; p++){
+        //      XsuperDist_[p]= XsuperDist_[p-1];
+        //    }
+        //    XsuperDist_[all_np] = Xsuper_.size();
+        //  }
+        //}
 
         {
           double timeSta = get_time();
+
+          //if(options_.relax.nrelax0==0){
+          //  for(int i = 0; i< oldFcol.size();i++){ oldFcol[i] = Order_.perm[oldFcol[i]-1];}
+          //}
+          //this->symbolicFactorizationRelaxedDist(cc, oldFcol.data());
           this->symbolicFactorizationRelaxedDist(cc);
           double timeStop = get_time();
           if(iam==0){
@@ -4706,7 +4776,7 @@ int nadj = adj.size();
 
             //Supernode is extremely small > merge it
             //TODO TRY THIS
-            if(merged_snode_size <=params.maxSize || params.maxSize==0){
+            if( (merged_snode_size <=params.maxSize || params.maxSize==0 ) && params.nrelax0>0){
               if(merged_snode_size <= params.nrelax0){
                 merge = true;
               }
@@ -5145,35 +5215,33 @@ int nadj = adj.size();
             }
           }
 
+            for(Int col = fstcol; col<=lstcol; ++col){
+              Int local_col = col - firstColumn + 1;
+              Ptr knzbeg = pGraph.colptr[local_col-1];
+              Ptr knzend = pGraph.colptr[local_col]-1;
+              for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
+                Idx newi = pGraph.rowind[kptr-1];
 
-          for(Int col = fstcol; col<=lstcol; ++col){
-            Int local_col = col - firstColumn + 1;
-            Ptr knzbeg = pGraph.colptr[local_col-1];
-            Ptr knzend = pGraph.colptr[local_col]-1;
-            for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
-              Idx newi = pGraph.rowind[kptr-1];
+                if(newi > fstcol && marker[newi-1] != ksup){
+                  //position and insert newi in list and
+                  // mark it with kcol
+                  Idx nexti = head;
+                  Idx i;
+                  do{
+                    i = nexti;
+                    nexti = rchlnk[i];
+                  }while(newi > nexti);
+                  ++knz;
+                  rchlnk[i] = newi;
+                  rchlnk[newi] = nexti;
+                  marker[newi-1] = ksup;
+                }
+              }
 
-              if(newi > fstcol && marker[newi-1] != ksup){
-                //position and insert newi in list and
-                // mark it with kcol
-                Idx nexti = head;
-                Idx i;
-                do{
-                  i = nexti;
-                  nexti = rchlnk[i];
-                }while(newi > nexti);
-                ++knz;
-                rchlnk[i] = newi;
-                rchlnk[newi] = nexti;
-                marker[newi-1] = ksup;
+              if(options_.relax.nrelax0==0 && options_.order_refinement_str == "NO") {
+                break;
               }
             }
-
-            if(options_.relax.nrelax0==0){
-              break;
-            }
-          }
-
         } 
 
         //if ksup has no children, insert fstcol into the linked list.
@@ -5184,18 +5252,18 @@ int nadj = adj.size();
         }
 
         {
-          Idx i = head;
-          for(Int col = fstcol; col<=lstcol; ++col){
-            Int local_col = col - firstColumn + 1;
-            Ptr knzbeg = pGraph.colptr[local_col-1];
-            Ptr knzend = pGraph.colptr[local_col]-1;
-            for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
-              Idx newi = pGraph.rowind[kptr-1];
+            Idx i = head;
+            for(Int col = fstcol; col<=lstcol; ++col){
+              Int local_col = col - firstColumn + 1;
+              Ptr knzbeg = pGraph.colptr[local_col-1];
+              Ptr knzend = pGraph.colptr[local_col]-1;
+              for(Ptr kptr = knzbeg; kptr<=knzend;++kptr){
+                Idx newi = pGraph.rowind[kptr-1];
+              }
+              if(options_.relax.nrelax0==0 && options_.order_refinement_str == "NO") {
+                break;
+              }
             }
-            if(options_.relax.nrelax0==0){
-              break;
-            }
-          }
         }
 
         bassert(knz == cc[fstcol-1]);

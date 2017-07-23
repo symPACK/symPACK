@@ -861,126 +861,126 @@ namespace symPACK{
 
 
   template <typename T, typename Compare>
-std::vector<std::size_t> & sort_permutation(
-    const std::vector<T>& vec,
-    Compare compare,
-    std::vector<std::size_t>& p)
-{
-  p.resize(vec.size());
-  std::iota(p.begin(), p.end(), 0);
-  std::sort(p.begin(), p.end(),
-      [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
-  return p;
-}
+    std::vector<std::size_t> & sort_permutation(
+        const std::vector<T>& vec,
+        Compare compare,
+        std::vector<std::size_t>& p)
+    {
+      p.resize(vec.size());
+      std::iota(p.begin(), p.end(), 0);
+      std::sort(p.begin(), p.end(),
+          [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
+      return p;
+    }
 
   template <typename T, typename Compare>
-std::vector<std::size_t> sort_permutation(
-    const std::vector<T>& vec,
-    Compare compare)
-{
-  std::vector<std::size_t> p(vec.size());
-  std::iota(p.begin(), p.end(), 0);
-  std::sort(p.begin(), p.end(),
-      [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
-  return p;
-}
+    std::vector<std::size_t> sort_permutation(
+        const std::vector<T>& vec,
+        Compare compare)
+    {
+      std::vector<std::size_t> p(vec.size());
+      std::iota(p.begin(), p.end(), 0);
+      std::sort(p.begin(), p.end(),
+          [&](std::size_t i, std::size_t j){ return compare(vec[i], vec[j]); });
+      return p;
+    }
 
   template <typename T, typename Compare>
-std::vector<std::size_t> & sort_permutation(
-    const T*begin, const T* end,
-    Compare compare,
-    std::vector<std::size_t>& p)
-{
-  p.resize(end-begin);
-  std::iota(p.begin(), p.end(), 0);
-  std::sort(p.begin(), p.end(),
-      [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
-  return p;
-}
+    std::vector<std::size_t> & sort_permutation(
+        const T*begin, const T* end,
+        Compare compare,
+        std::vector<std::size_t>& p)
+    {
+      p.resize(end-begin);
+      std::iota(p.begin(), p.end(), 0);
+      std::sort(p.begin(), p.end(),
+          [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
+      return p;
+    }
 
   template <typename T, typename Compare>
-std::vector<std::size_t> sort_permutation(
-    const T*begin, const T* end,
-    Compare compare)
-{
-  std::vector<std::size_t> p(end-begin);
-  std::iota(p.begin(), p.end(), 0);
-  std::sort(p.begin(), p.end(),
-      [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
-  return p;
-}
+    std::vector<std::size_t> sort_permutation(
+        const T*begin, const T* end,
+        Compare compare)
+    {
+      std::vector<std::size_t> p(end-begin);
+      std::iota(p.begin(), p.end(), 0);
+      std::sort(p.begin(), p.end(),
+          [&](std::size_t i, std::size_t j){ return compare(begin[i], begin[j]); });
+      return p;
+    }
 
 
 
 
   template <typename T>
-std::vector<T> apply_permutation(
-    const std::vector<T>& vec,
-    const std::vector<std::size_t>& p)
-{
-  std::vector<T> sorted_vec(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return vec[i]; });
-  return sorted_vec;
-}
+    std::vector<T> apply_permutation(
+        const std::vector<T>& vec,
+        const std::vector<std::size_t>& p)
+    {
+      std::vector<T> sorted_vec(p.size());
+      std::transform(p.begin(), p.end(), sorted_vec.begin(),
+          [&](std::size_t i){ return vec[i]; });
+      return sorted_vec;
+    }
 
   template <typename T>
-std::vector<T> apply_permutation(
-    const T*vec,
-    const std::vector<std::size_t>& p)
-{
-  std::vector<T> sorted_vec(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return vec[i]; });
-  return sorted_vec;
-}
+    std::vector<T> apply_permutation(
+        const T*vec,
+        const std::vector<std::size_t>& p)
+    {
+      std::vector<T> sorted_vec(p.size());
+      std::transform(p.begin(), p.end(), sorted_vec.begin(),
+          [&](std::size_t i){ return vec[i]; });
+      return sorted_vec;
+    }
 
   template <typename T>
-void apply_permutation(
-    T*begin, T* end,
-    const std::vector<std::size_t>& p)
-{
-  std::vector<T> sorted_vec(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return begin[i]; });
-  std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
-}
+    void apply_permutation(
+        T*begin, T* end,
+        const std::vector<std::size_t>& p)
+    {
+      std::vector<T> sorted_vec(p.size());
+      std::transform(p.begin(), p.end(), sorted_vec.begin(),
+          [&](std::size_t i){ return begin[i]; });
+      std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
+    }
 
   template <typename T>
-std::vector<T> & apply_permutation(
-    const std::vector<T>& vec,
-    const std::vector<std::size_t>& p,
-    std::vector<T> &sorted_vec)
-{
-  sorted_vec.resize(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return vec[i]; });
-  return sorted_vec;
-}
+    std::vector<T> & apply_permutation(
+        const std::vector<T>& vec,
+        const std::vector<std::size_t>& p,
+        std::vector<T> &sorted_vec)
+    {
+      sorted_vec.resize(p.size());
+      std::transform(p.begin(), p.end(), sorted_vec.begin(),
+          [&](std::size_t i){ return vec[i]; });
+      return sorted_vec;
+    }
 
   template <typename T>
-std::vector<T> & apply_permutation(
-    const T*vec,
-    const std::vector<std::size_t>& p,
-    std::vector<T> &sorted_vec)
-{
-  sorted_vec.resize(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return vec[i]; });
-  return sorted_vec;
-}
+    std::vector<T> & apply_permutation(
+        const T*vec,
+        const std::vector<std::size_t>& p,
+        std::vector<T> &sorted_vec)
+    {
+      sorted_vec.resize(p.size());
+      std::transform(p.begin(), p.end(), sorted_vec.begin(),
+          [&](std::size_t i){ return vec[i]; });
+      return sorted_vec;
+    }
 
   template <typename T>
-void apply_permutation(
-    T*begin, T* end,
-    const std::vector<std::size_t>& p,
-    std::vector<T> &sorted_vec)
-{
-  sorted_vec.resize(p.size());
-  std::transform(p.begin(), p.end(), sorted_vec.begin(),
-      [&](std::size_t i){ return begin[i]; });
-  std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
-}
+    void apply_permutation(
+        T*begin, T* end,
+        const std::vector<std::size_t>& p,
+        std::vector<T> &sorted_vec)
+    {
+      sorted_vec.resize(p.size());
+      std::transform(p.begin(), p.end(), sorted_vec.begin(),
+          [&](std::size_t i){ return begin[i]; });
+      std::copy(sorted_vec.begin(),sorted_vec.end(),begin);
+    }
 
 
 
@@ -1263,29 +1263,29 @@ void apply_permutation(
 
 
 
-//  template <typename S,typename I, std::complex<S>, template< typename> class INSCALAR>
-//    void ReadCSCNzval(MPI_File & fin, int offset, std::vector< std::complex<S> > & dest, int nnz, const MPI_Datatype type){
-//      MPI_Status status;
-//      using SCALAR = std::complex<S>;
-//      std::vector< INSCALAR > tmpBuf(nnz);
-//      int err = MPI_File_read_at_all(fin, offset, tmpBuf.data(), nnz, type,&status);
-//      dest.resize ( nnz );
-//      for(Ptr i = 0; i<nnz;i++){
-//        pspmat.nzvalLocal[i] = SCALAR(tmpBuf[i]);
-//      }
-//    }
-//
-//
-//  template <typename S,typename I, template <typename> class SCALAR, std::complex<I> >
-//    void ReadCSCNzval(MPI_File & fin, int offset, std::vector< SCALAR< > & dest, int nnz, const MPI_Datatype type){
-//      MPI_Status status;
-//      std::vector<std::complex<T> > tmpBuf(nnz);
-//      int err = MPI_File_read_at_all(fin, offset, tmpBuf.data(), nnz, type,&status);
-//      dest.resize ( nnz );
-//      for(Ptr i = 0; i<nnz;i++){
-//        pspmat.nzvalLocal[i] = SCALAR(std::abs(tmpBuf[i]));
-//      }
-//    }
+  //  template <typename S,typename I, std::complex<S>, template< typename> class INSCALAR>
+  //    void ReadCSCNzval(MPI_File & fin, int offset, std::vector< std::complex<S> > & dest, int nnz, const MPI_Datatype type){
+  //      MPI_Status status;
+  //      using SCALAR = std::complex<S>;
+  //      std::vector< INSCALAR > tmpBuf(nnz);
+  //      int err = MPI_File_read_at_all(fin, offset, tmpBuf.data(), nnz, type,&status);
+  //      dest.resize ( nnz );
+  //      for(Ptr i = 0; i<nnz;i++){
+  //        pspmat.nzvalLocal[i] = SCALAR(tmpBuf[i]);
+  //      }
+  //    }
+  //
+  //
+  //  template <typename S,typename I, template <typename> class SCALAR, std::complex<I> >
+  //    void ReadCSCNzval(MPI_File & fin, int offset, std::vector< SCALAR< > & dest, int nnz, const MPI_Datatype type){
+  //      MPI_Status status;
+  //      std::vector<std::complex<T> > tmpBuf(nnz);
+  //      int err = MPI_File_read_at_all(fin, offset, tmpBuf.data(), nnz, type,&status);
+  //      dest.resize ( nnz );
+  //      for(Ptr i = 0; i<nnz;i++){
+  //        pspmat.nzvalLocal[i] = SCALAR(std::abs(tmpBuf[i]));
+  //      }
+  //    }
 
 
 
@@ -1296,20 +1296,20 @@ void apply_permutation(
     void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm )
     {
 
-          MPI_Errhandler_set(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
-          MPI_Errhandler_set(comm, MPI_ERRORS_RETURN);
+      MPI_Errhandler_set(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
+      MPI_Errhandler_set(comm, MPI_ERRORS_RETURN);
 
-  MPI_Datatype typeInt;
-  MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &typeInt );
-  MPI_Type_commit(&typeInt);
+      MPI_Datatype typeInt;
+      MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &typeInt );
+      MPI_Type_commit(&typeInt);
 
-  MPI_Datatype typePtr;
-  MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &typePtr );
-  MPI_Type_commit(&typePtr);
+      MPI_Datatype typePtr;
+      MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &typePtr );
+      MPI_Type_commit(&typePtr);
 
-  MPI_Datatype typeVal;
-  MPI_Type_contiguous( sizeof(INSCALAR), MPI_BYTE, &typeVal );
-  MPI_Type_commit(&typeVal);
+      MPI_Datatype typeVal;
+      MPI_Type_contiguous( sizeof(INSCALAR), MPI_BYTE, &typeVal );
+      MPI_Type_commit(&typeVal);
 
       // Get the processor information within the current communicator
       MPI_Barrier( comm );
@@ -1320,7 +1320,7 @@ void apply_permutation(
       int lens[3];
       MPI_Aint disps[3];
       MPI_Datatype types[3];
-//if(mpirank==mpisize-1){gdb_lock();}
+      //if(mpirank==mpisize-1){gdb_lock();}
 
 
 
@@ -1405,12 +1405,12 @@ void apply_permutation(
 
       Int np1 = 0;
 
-//      lens[0] = ((mpirank==0)?1:0);
-//      lens[1] = (numColLocal + 1);
-//      types[0] = typeInt;
-//      types[1] = typeInt;
-//      MPI_Get_address(&np1, &disps[0]);
-//      MPI_Get_address(&pspmat.Localg_.colptr[0], &disps[1]);
+      //      lens[0] = ((mpirank==0)?1:0);
+      //      lens[1] = (numColLocal + 1);
+      //      types[0] = typeInt;
+      //      types[1] = typeInt;
+      //      MPI_Get_address(&np1, &disps[0]);
+      //      MPI_Get_address(&pspmat.Localg_.colptr[0], &disps[1]);
       //MPI_Type_struct(2, lens, disps, types, &type);
       //MPI_Type_commit(&type);
 
@@ -1426,20 +1426,20 @@ void apply_permutation(
 
       err= MPI_File_read_at_all(fin, myColPtrOffset, &pspmat.Localg_.colptr[0], numColLocal+1, typeInt, &status);
 
-//      err= MPI_File_read_at_all(fin, myColPtrOffset, MPI_BOTTOM, 1, type, &status);
+      //      err= MPI_File_read_at_all(fin, myColPtrOffset, MPI_BOTTOM, 1, type, &status);
       if (err != MPI_SUCCESS) {
 #ifdef USE_ABORT
         abort();
 #endif
         throw std::logic_error( "error reading colptr" );
       }
-//      MPI_Type_free(&type);
+      //      MPI_Type_free(&type);
 
-        bassert(sizeof(Int)<=sizeof(Ptr));
-        int * tmpColptr = (int*)&pspmat.Localg_.colptr[0];
-        for (col = pspmat.Localg_.colptr.size();col>0;col--){
-          pspmat.Localg_.colptr[col-1] = (Ptr)tmpColptr[col-1];
-        }
+      bassert(sizeof(Int)<=sizeof(Ptr));
+      int * tmpColptr = (int*)&pspmat.Localg_.colptr[0];
+      for (col = pspmat.Localg_.colptr.size();col>0;col--){
+        pspmat.Localg_.colptr[col-1] = (Ptr)tmpColptr[col-1];
+      }
 
 
       // Calculate nnz_loc on each processor
@@ -1453,14 +1453,14 @@ void apply_permutation(
       //  MPI_Offset myRowIdxOffset = (3 + ((mpirank==0)?0:1) )*sizeof(Int) + (pspmat.size+1 + (pspmat.Localg_.colptr[0]-1))*sizeof(Int);
       MPI_Offset myRowIdxOffset = (3+((mpirank==0)?0:1))*sizeof(Int) + (pspmat.size+1 + (pspmat.Localg_.colptr[0]-1))*sizeof(Int) + (mpirank==0?sizeof(Int):0);
 
-//      lens[0] = ((mpirank==0)?1:0);
-//      lens[1] = mynnz;
-//      types[0] = typeInt;
-//      types[1] = typeInt;
-//      MPI_Get_address(&np1, &disps[0]);
-//      MPI_Get_address(&pspmat.Localg_.rowind[0], &disps[1]);
-//      MPI_Type_struct(2, lens, disps, types, &type);
-//      MPI_Type_commit(&type);
+      //      lens[0] = ((mpirank==0)?1:0);
+      //      lens[1] = mynnz;
+      //      types[0] = typeInt;
+      //      types[1] = typeInt;
+      //      MPI_Get_address(&np1, &disps[0]);
+      //      MPI_Get_address(&pspmat.Localg_.rowind[0], &disps[1]);
+      //      MPI_Type_struct(2, lens, disps, types, &type);
+      //      MPI_Type_commit(&type);
 
       //lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
       //lens[1] = mynnz*sizeof(Int);
@@ -1482,11 +1482,11 @@ void apply_permutation(
       }
       //MPI_Type_free(&type);
 
-        bassert(sizeof(int)<=sizeof(Idx));
-        int * tmpRowind = (int*)&pspmat.Localg_.rowind[0];
-        for (ptr = pspmat.Localg_.rowind.size(); ptr>0;ptr--){
-          pspmat.Localg_.rowind[ptr-1] = (Idx)tmpRowind[ptr-1];
-        }
+      bassert(sizeof(int)<=sizeof(Idx));
+      int * tmpRowind = (int*)&pspmat.Localg_.rowind[0];
+      for (ptr = pspmat.Localg_.rowind.size(); ptr>0;ptr--){
+        pspmat.Localg_.rowind[ptr-1] = (Idx)tmpRowind[ptr-1];
+      }
 
       //read nzval
       MPI_Offset myNzValOffset = (4+ ((mpirank==0)?0:1)  )*sizeof(Int) + (pspmat.size+1 + pspmat.nnz)*sizeof(Int) + (pspmat.Localg_.colptr[0]-1)*sizeof(INSCALAR) + (mpirank==0?sizeof(Int):0);
@@ -1546,7 +1546,7 @@ void apply_permutation(
         throw std::logic_error( "error reading nzval" );
       }
 
-//      MPI_Type_free(&type);
+      //      MPI_Type_free(&type);
 
 
       //convert to local references
@@ -1565,7 +1565,7 @@ void apply_permutation(
         colbeg = pspmat.Localg_.colptr[col-1];
         colend = pspmat.Localg_.colptr[col]-1;
         std::vector<size_t> lperm = sort_permutation(&pspmat.Localg_.rowind[colbeg-1],
-                                    &pspmat.Localg_.rowind[colend-1]+1,std::less<Idx>());
+            &pspmat.Localg_.rowind[colend-1]+1,std::less<Idx>());
         apply_permutation(&pspmat.Localg_.rowind[colbeg-1],&pspmat.Localg_.rowind[colend-1]+1,lperm);
         apply_permutation(&pspmat.nzvalLocal[colbeg-1],&pspmat.nzvalLocal[colend-1]+1,lperm);
       }
@@ -1574,9 +1574,9 @@ void apply_permutation(
 
       pspmat.Localg_.SetSorted(1);
 
-  MPI_Type_free(&typeVal);
-  MPI_Type_free(&typePtr);
-  MPI_Type_free(&typeInt);
+      MPI_Type_free(&typeVal);
+      MPI_Type_free(&typePtr);
+      MPI_Type_free(&typeInt);
       return ;
 
     }		// -----  end of function ParaReadDistSparseMatrix  ----- 
@@ -1744,22 +1744,16 @@ void apply_permutation(
       HMat.nzvalLocal.resize(nnzLocal);
 
       //nzval
-      //            gdb_lock();
-      int scalarPerNzval = is_complex_type<INSCALAR>::value?2:1;//double(sizeof(INSCALAR))/double(sizeof(double));
+      int scalarPerNzval = is_complex_type<INSCALAR>::value?2:1;
       curPos = infile.tellg();
       lineLastEdge = std::ceil(( double(last_idx-1)*scalarPerNzval / double(nzvalCntPerRow)));
       lineFirstEdge = std::ceil(( double(first_idx*scalarPerNzval) / double(nzvalCntPerRow)));
       skip = (first_idx - 1)*scalarPerNzval*nzvalWidth + (lineFirstEdge - 1);
       readBytes = (last_idx - first_idx)*scalarPerNzval*nzvalWidth + (lineLastEdge - lineFirstEdge);
-      //        size_t skipAfter = (nnz*scalarPerNzval+1 - last_idx*scalarPerNzval)*nzvalWidth + (nzvalCnt*scalarPerNzval - lineLastEdge +1) ;
 
-      //            gdb_lock();
       infile.seekg(skip,std::ios_base::cur);
-
       rdStr.resize(readBytes);
-
       infile.read(&rdStr[0], readBytes);
-      //      logfileptr->OFS()<<"nzval read std::string is"<<std::endl<<rdStr<<std::endl;
 
       iss.str(rdStr);
       iss.clear(); // Clear state flags.
@@ -1780,41 +1774,11 @@ void apply_permutation(
         }
       }
 
-      //            gdb_lock();
-      //            std::stringbuf *pbuf = iss.rdbuf();
-      //            std::string nzvalBuffer;
-      //            nzvalBuffer.resize(nzvalWidth);
-      //
-      //            std::istringstream nzval_iss;
-      //            while(iss.good()){
-      //              pbuf->sgetn(&nzvalBuffer[0],nzvalWidth);
-      //              nzval_iss.str(nzvalBuffer);
-      //              nzval_iss >> j;
-      //
-      //              logfileptr->OFS()<<std::scientific<<j<<" ";
-      //              nzval_ptr[locPos++]=j;
-      //            }
-      //            gdb_lock();
-      //            logfileptr->OFS()<<std::endl;
-      //              logfileptr->OFS()<<HMat.nzvalLocal<<std::endl;
-      //}
-      //else
-      //{
-      //  INSCALAR j;
-      //  Ptr locPos = 0;
-      //  while(iss>> j){
-      //    HMat.nzvalLocal[locPos++]=(SCALAR)j;
-      //  }
-      //}
-
-
       infile.close();
-
 
       HMat.Localg_.size = HMat.size;
       HMat.Localg_.nnz = nnz;
       HMat.Localg_.bIsExpanded = false;
-
 
       //Sort rowind + nzval accordingly
       Idx col;
@@ -1823,298 +1787,293 @@ void apply_permutation(
         colbeg = HMat.Localg_.colptr[col-1];
         colend = HMat.Localg_.colptr[col]-1;
         std::vector<size_t> lperm = sort_permutation(&HMat.Localg_.rowind[colbeg-1],
-                                    &HMat.Localg_.rowind[colend-1]+1,std::less<Idx>());
+            &HMat.Localg_.rowind[colend-1]+1,std::less<Idx>());
         apply_permutation(&HMat.Localg_.rowind[colbeg-1],&HMat.Localg_.rowind[colend-1]+1,lperm);
         apply_permutation(&HMat.nzvalLocal[colbeg-1],&HMat.nzvalLocal[colend-1]+1,lperm);
       }
       //force sorted boolean
       HMat.Localg_.sorted = 1;
 
-
-
-      //sort the edges
-      //HMat.Localg_.SetSorted(1);
-
       return 0;
-}
+    }
 
-template <typename SCALAR, typename INSCALAR >
-void ReadDistSparseMatrixFormatted( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm );
   template <typename SCALAR, typename INSCALAR >
-void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm )
-{
-  // Get the processor information within the current communicator
-  MPI_Barrier( comm );
-  Int mpirank;  MPI_Comm_rank(comm, &mpirank);
-  Int mpisize;  MPI_Comm_size(comm, &mpisize);
-  MPI_Status mpistat;
-  std::ifstream fin;
+    void ReadDistSparseMatrixFormatted( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm );
+  template <typename SCALAR, typename INSCALAR >
+    void ReadDistSparseMatrixFormatted ( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm )
+    {
+      // Get the processor information within the current communicator
+      MPI_Barrier( comm );
+      Int mpirank;  MPI_Comm_rank(comm, &mpirank);
+      Int mpisize;  MPI_Comm_size(comm, &mpisize);
+      MPI_Status mpistat;
+      std::ifstream fin;
 
-  // Read basic information
-  if( mpirank == 0 ){
-    fin.open(filename);
-    if( !fin.good() ){
-      throw std::logic_error( "File cannot be openeded!" );
-    }
-    Int dummy;
-    fin >> pspmat.size >> dummy;
-    fin >> pspmat.nnz >> dummy;
-  }
-
-  MPI_Bcast(&pspmat.size, 1, MPI_INT, 0, comm);
-  MPI_Bcast(&pspmat.nnz,  1, MPI_INT, 0, comm);
-
-  Int n = pspmat.size;
-  pspmat.Localg_.size = n;
-  pspmat.Localg_.nnz = pspmat.nnz;
-  //compute local number of columns
-  pspmat.Localg_.SetComm(comm);
-  int baseval = 1;
-  pspmat.Localg_.SetBaseval(baseval);
-  pspmat.Localg_.vertexDist.resize(mpisize+1);
-  int colPerProc = std::max(1,(int)(n/mpisize));
-  for(int p = 1; p <mpisize;p++){
-    pspmat.Localg_.vertexDist[p] = std::min(n-1,p*colPerProc)+baseval;
-  }
-  pspmat.Localg_.vertexDist.front()= baseval;
-  pspmat.Localg_.vertexDist.back()= n+baseval;
-
-
-
-  //initialize an identity permutation
-  pspmat.cinvp.resize(pspmat.Localg_.LocalVertexCount());
-  std::iota(pspmat.cinvp.begin(),pspmat.cinvp.end(),pspmat.Localg_.LocalFirstVertex());
-
-  Idx firstNode = pspmat.Localg_.LocalFirstVertex();
-  Idx nlocal = pspmat.Localg_.LocalVertexCount();
-
-  pspmat.Localg_.SetKeepDiag(1);
-  pspmat.Localg_.SetSorted(0);
-
-  // Read colptr
-  std::vector<Ptr>  gcolptr;
-  if( mpirank == 0 ){
-    gcolptr.resize(pspmat.size+1);
-    Ptr* ptr = &gcolptr[0];
-    for( Int i = 0; i < pspmat.size+1; i++ )
-      fin >> *(ptr++);
-  }
-
-  std::vector<int> sizes(mpisize,0);
-  for(int p = 0; p<mpisize; p++){
-    sizes[p] = pspmat.Localg_.vertexDist[p+1] - pspmat.Localg_.vertexDist[p];
-  }
-  std::vector<int> disps(mpisize+1,0);
-  std::partial_sum(sizes.begin(),sizes.end(),disps.begin()+1);
-  //recomput the sizes to add one extra element
-  for(int p = 0; p<mpisize; p++){
-    sizes[p] +=1;
-  }
-
-
-  MPI_Datatype type;
-  MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &type );
-  MPI_Type_commit(&type);
-  //scatter colptr
-  pspmat.Localg_.colptr.resize(nlocal+1);
-  MPI_Scatterv(mpirank==0?&gcolptr[0]:NULL,&sizes[0],&disps[0],type,&pspmat.Localg_.colptr[0],nlocal+1,type,0,comm);
-  MPI_Type_free(&type);
-
-  logfileptr->OFS()<<pspmat.Localg_.colptr<<std::endl;
-  for( Int i = nlocal; i >=0; i-- ){
-    pspmat.Localg_.colptr[i] -= (pspmat.Localg_.colptr[0] - baseval);
-  }
-  logfileptr->OFS()<<pspmat.Localg_.colptr<<std::endl;
-
-  // Calculate nnz_loc on each processor
-  Ptr nnzLocal = pspmat.Localg_.colptr.back()-1;
-
-  pspmat.Localg_.rowind.resize( nnzLocal );
-  pspmat.nzvalLocal.resize ( nnzLocal );
-
-  // Read and distribute the row indices
-  bool isLowerTri = true;
-  MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &type );
-  MPI_Type_commit(&type);
-  if( mpirank == 0 ){
-    Int tmp;
-    std::vector<Idx> buf;
-    Ptr numRead;
-    for( Int ip = 0; ip < mpisize; ip++ ){
-      numRead = gcolptr[ pspmat.Localg_.vertexDist[ip+1] - baseval ] 
-        - gcolptr[ pspmat.Localg_.vertexDist[ip] - baseval ];
-      Idx * ptr = NULL;
-      if(ip>0){
-        buf.resize(numRead);
-        ptr = &buf[0];
-      }
-      else{
-        ptr = &pspmat.Localg_.rowind[0];
+      // Read basic information
+      if( mpirank == 0 ){
+        fin.open(filename);
+        if( !fin.good() ){
+          throw std::logic_error( "File cannot be openeded!" );
+        }
+        Int dummy;
+        fin >> pspmat.size >> dummy;
+        fin >> pspmat.nnz >> dummy;
       }
 
-      for(Idx col = pspmat.Localg_.vertexDist[ip];
-          col < pspmat.Localg_.vertexDist[ip+1]; col++){
-        for( Ptr rptr = gcolptr[ col  - baseval ];
-            rptr < gcolptr[ col+1 - baseval ]; rptr++){
-          Idx tmp = 0;
-          fin >> tmp;
-          if(tmp<col-baseval+1){
-            isLowerTri = false;
+      MPI_Bcast(&pspmat.size, 1, MPI_INT, 0, comm);
+      MPI_Bcast(&pspmat.nnz,  1, MPI_INT, 0, comm);
+
+      Int n = pspmat.size;
+      pspmat.Localg_.size = n;
+      pspmat.Localg_.nnz = pspmat.nnz;
+      //compute local number of columns
+      pspmat.Localg_.SetComm(comm);
+      int baseval = 1;
+      pspmat.Localg_.SetBaseval(baseval);
+      pspmat.Localg_.vertexDist.resize(mpisize+1);
+      int colPerProc = std::max(1,(int)(n/mpisize));
+      for(int p = 1; p <mpisize;p++){
+        pspmat.Localg_.vertexDist[p] = std::min(n-1,p*colPerProc)+baseval;
+      }
+      pspmat.Localg_.vertexDist.front()= baseval;
+      pspmat.Localg_.vertexDist.back()= n+baseval;
+
+
+
+      //initialize an identity permutation
+      pspmat.cinvp.resize(pspmat.Localg_.LocalVertexCount());
+      std::iota(pspmat.cinvp.begin(),pspmat.cinvp.end(),pspmat.Localg_.LocalFirstVertex());
+
+      Idx firstNode = pspmat.Localg_.LocalFirstVertex();
+      Idx nlocal = pspmat.Localg_.LocalVertexCount();
+
+      pspmat.Localg_.SetKeepDiag(1);
+      pspmat.Localg_.SetSorted(0);
+
+      // Read colptr
+      std::vector<Ptr>  gcolptr;
+      if( mpirank == 0 ){
+        gcolptr.resize(pspmat.size+1);
+        Ptr* ptr = &gcolptr[0];
+        for( Int i = 0; i < pspmat.size+1; i++ )
+          fin >> *(ptr++);
+      }
+
+      std::vector<int> sizes(mpisize,0);
+      for(int p = 0; p<mpisize; p++){
+        sizes[p] = pspmat.Localg_.vertexDist[p+1] - pspmat.Localg_.vertexDist[p];
+      }
+      std::vector<int> disps(mpisize+1,0);
+      std::partial_sum(sizes.begin(),sizes.end(),disps.begin()+1);
+      //recomput the sizes to add one extra element
+      for(int p = 0; p<mpisize; p++){
+        sizes[p] +=1;
+      }
+
+
+      MPI_Datatype type;
+      MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &type );
+      MPI_Type_commit(&type);
+      //scatter colptr
+      pspmat.Localg_.colptr.resize(nlocal+1);
+      MPI_Scatterv(mpirank==0?&gcolptr[0]:NULL,&sizes[0],&disps[0],type,&pspmat.Localg_.colptr[0],nlocal+1,type,0,comm);
+      MPI_Type_free(&type);
+
+      logfileptr->OFS()<<pspmat.Localg_.colptr<<std::endl;
+      for( Int i = nlocal; i >=0; i-- ){
+        pspmat.Localg_.colptr[i] -= (pspmat.Localg_.colptr[0] - baseval);
+      }
+      logfileptr->OFS()<<pspmat.Localg_.colptr<<std::endl;
+
+      // Calculate nnz_loc on each processor
+      Ptr nnzLocal = pspmat.Localg_.colptr.back()-1;
+
+      pspmat.Localg_.rowind.resize( nnzLocal );
+      pspmat.nzvalLocal.resize ( nnzLocal );
+
+      // Read and distribute the row indices
+      bool isLowerTri = true;
+      MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &type );
+      MPI_Type_commit(&type);
+      if( mpirank == 0 ){
+        Int tmp;
+        std::vector<Idx> buf;
+        Ptr numRead;
+        for( Int ip = 0; ip < mpisize; ip++ ){
+          numRead = gcolptr[ pspmat.Localg_.vertexDist[ip+1] - baseval ] 
+            - gcolptr[ pspmat.Localg_.vertexDist[ip] - baseval ];
+          Idx * ptr = NULL;
+          if(ip>0){
+            buf.resize(numRead);
+            ptr = &buf[0];
           }
-          *(ptr++) = tmp;
-        }
-      }
-      logfileptr->OFS()<<"Sending "<<numRead<<" to P"<<ip<<std::endl;
-      if( ip > 0 ){
-        MPI_Send(&buf[0], numRead, type, ip, 1, comm);
-      }
-    }
-  }
-  else{
-    logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
-    MPI_Recv( &pspmat.Localg_.rowind[0], nnzLocal, type, 0, 1, comm, &mpistat );
-  }
-  MPI_Type_free(&type);
+          else{
+            ptr = &pspmat.Localg_.rowind[0];
+          }
 
-  // Read and distribute the nonzero values
-  MPI_Type_contiguous( sizeof(SCALAR), MPI_BYTE, &type );
-  MPI_Type_commit(&type);
-  if( mpirank == 0 ){
-    Int tmp;
-    std::vector<SCALAR> buf;
-    Ptr numRead;
-    for( Int ip = 0; ip < mpisize; ip++ ){
-      numRead = gcolptr[ pspmat.Localg_.vertexDist[ip+1] - baseval ] 
-        - gcolptr[ pspmat.Localg_.vertexDist[ip] - baseval ];
-      SCALAR * ptr = NULL;
-      if(ip>0){
-        buf.resize(numRead);
-        ptr = &buf[0];
-      }
-      else{
-        ptr = &pspmat.nzvalLocal[0];
-      }
-
-      if(is_complex_type<INSCALAR>::value && !is_complex_type<SCALAR>::value){
-        throw std::logic_error( "Cannot convert from COMPLEX to REAL." );
-      }
-      else if(!is_complex_type<INSCALAR>::value && is_complex_type<SCALAR>::value){
-        INSCALAR * tptr = (INSCALAR*)(ptr);
-        for( Int i = 0; i < numRead; i+=2 ){
-          INSCALAR val;
-          fin >> val;
-          *(tptr++) = val;
-          fin >> val;
-          *(tptr++) = val;
+          for(Idx col = pspmat.Localg_.vertexDist[ip];
+              col < pspmat.Localg_.vertexDist[ip+1]; col++){
+            for( Ptr rptr = gcolptr[ col  - baseval ];
+                rptr < gcolptr[ col+1 - baseval ]; rptr++){
+              Idx tmp = 0;
+              fin >> tmp;
+              if(tmp<col-baseval+1){
+                isLowerTri = false;
+              }
+              *(ptr++) = tmp;
+            }
+          }
+          logfileptr->OFS()<<"Sending "<<numRead<<" to P"<<ip<<std::endl;
+          if( ip > 0 ){
+            MPI_Send(&buf[0], numRead, type, ip, 1, comm);
+          }
         }
       }
       else{
-        for( Int i = 0; i < numRead; i++ ){
-          SCALAR tmp;
-          fin >> tmp;
-          *(ptr++) = (SCALAR)tmp;
+        logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
+        MPI_Recv( &pspmat.Localg_.rowind[0], nnzLocal, type, 0, 1, comm, &mpistat );
+      }
+      MPI_Type_free(&type);
+
+      // Read and distribute the nonzero values
+      MPI_Type_contiguous( sizeof(SCALAR), MPI_BYTE, &type );
+      MPI_Type_commit(&type);
+      if( mpirank == 0 ){
+        Int tmp;
+        std::vector<SCALAR> buf;
+        Ptr numRead;
+        for( Int ip = 0; ip < mpisize; ip++ ){
+          numRead = gcolptr[ pspmat.Localg_.vertexDist[ip+1] - baseval ] 
+            - gcolptr[ pspmat.Localg_.vertexDist[ip] - baseval ];
+          SCALAR * ptr = NULL;
+          if(ip>0){
+            buf.resize(numRead);
+            ptr = &buf[0];
+          }
+          else{
+            ptr = &pspmat.nzvalLocal[0];
+          }
+
+          if(is_complex_type<INSCALAR>::value && !is_complex_type<SCALAR>::value){
+            throw std::logic_error( "Cannot convert from COMPLEX to REAL." );
+          }
+          else if(!is_complex_type<INSCALAR>::value && is_complex_type<SCALAR>::value){
+            INSCALAR * tptr = (INSCALAR*)(ptr);
+            for( Int i = 0; i < numRead; i+=2 ){
+              INSCALAR val;
+              fin >> val;
+              *(tptr++) = val;
+              fin >> val;
+              *(tptr++) = val;
+            }
+          }
+          else{
+            for( Int i = 0; i < numRead; i++ ){
+              SCALAR tmp;
+              fin >> tmp;
+              *(ptr++) = (SCALAR)tmp;
+            }
+          }
+          if( ip > 0 ){
+            MPI_Send(&buf[0], numRead, type, ip, 1, comm);
+          }
         }
       }
-      if( ip > 0 ){
-        MPI_Send(&buf[0], numRead, type, ip, 1, comm);
+      else{
+        MPI_Recv( &pspmat.nzvalLocal[0], nnzLocal, type, 0, 1, comm, &mpistat );
       }
+      MPI_Type_free(&type);
+
+      // Close the file
+      if( mpirank == 0 ){
+        fin.close();
+      }
+
+      pspmat.Localg_.SetSorted(1);
+
+      //Enforce lower triangular format
+      MPI_Bcast(&isLowerTri,sizeof(bool),MPI_BYTE,0,comm);
+      if(!isLowerTri){
+        if(mpirank==0){
+          std::cout<<"Input matrix is not in lower triangular format. symPACK is converting it."<<std::endl;
+        }
+        pspmat.Localg_.bIsExpanded = true;
+        pspmat.ToLowerTriangular();
+      }
+
+      return ;
+    }		// -----  end of function ReadDistSparseMatrixFormatted  ----- 
+
+
+
+
+
+
+  template <typename SCALAR, typename INSCALAR >
+    void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMatrix<SCALAR> & HMat){
+      MPI_Comm & workcomm = HMat.comm;
+
+      int mpirank;
+      MPI_Comm_rank(workcomm,&mpirank);
+      int mpisize;
+      MPI_Comm_size(workcomm,&mpisize);
+      if(mpirank==0){ std::cout<<"Start reading the matrix"<<std::endl; }
+      SYMPACK_TIMER_START(READING_MATRIX);
+      double tstart = get_time();
+      //Read the input matrix
+      if(informatstr == "CSC"){
+        ParaReadDistSparseMatrix<SCALAR,INSCALAR>( filename.c_str(), HMat, workcomm ); 
+      }
+      else if (informatstr == "HB" || informatstr == "RB" || informatstr == "HARWELL_BOEING"){
+        ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat);
+      }
+      else if(informatstr == "matrix"){
+        ReadDistSparseMatrixFormatted<SCALAR,INSCALAR>( filename.c_str(), HMat, workcomm );
+      }
+      else{
+        throw std::logic_error( "Unknown matrix format." );
+      }
+      double tstop = get_time();
+      SYMPACK_TIMER_STOP(READING_MATRIX);
+      if(mpirank==0){ std::cout<<"Matrix read time: "<<tstop - tstart<<std::endl; }
+      if(mpirank==0){ std::cout<<"Matrix order is "<<HMat.size<<std::endl; }
     }
-  }
-  else{
-    MPI_Recv( &pspmat.nzvalLocal[0], nnzLocal, type, 0, 1, comm, &mpistat );
-  }
-  MPI_Type_free(&type);
-
-  // Close the file
-  if( mpirank == 0 ){
-    fin.close();
-  }
-
-  pspmat.Localg_.SetSorted(1);
-
-  //Enforce lower triangular format
-  MPI_Bcast(&isLowerTri,sizeof(bool),MPI_BYTE,0,comm);
-  if(!isLowerTri){
-    if(mpirank==0){
-      std::cout<<"Input matrix is not in lower triangular format. symPACK is converting it."<<std::endl;
-    }
-    pspmat.Localg_.bIsExpanded = true;
-    pspmat.ToLowerTriangular();
-  }
-
-  return ;
-}		// -----  end of function ReadDistSparseMatrixFormatted  ----- 
 
 
 
-
-
-
-template <typename SCALAR, typename INSCALAR >
-void ReadMatrix(std::string & filename, std::string & informatstr,  DistSparseMatrix<SCALAR> & HMat){
-  MPI_Comm & workcomm = HMat.comm;
-
-  int mpirank;
-  MPI_Comm_rank(workcomm,&mpirank);
-  int mpisize;
-  MPI_Comm_size(workcomm,&mpisize);
-  if(mpirank==0){ std::cout<<"Start reading the matrix"<<std::endl; }
-  SYMPACK_TIMER_START(READING_MATRIX);
-  double tstart = get_time();
-  //Read the input matrix
-  if(informatstr == "CSC"){
-    ParaReadDistSparseMatrix<SCALAR,INSCALAR>( filename.c_str(), HMat, workcomm ); 
-  }
-  else if (informatstr == "HB" || informatstr == "RB" || informatstr == "HARWELL_BOEING"){
-    ReadHB_PARA<SCALAR,INSCALAR>(filename, HMat);
-  }
-  else if(informatstr == "matrix"){
-    ReadDistSparseMatrixFormatted<SCALAR,INSCALAR>( filename.c_str(), HMat, workcomm );
-  }
-  else{
-    throw std::logic_error( "Unknown matrix format." );
-  }
-  double tstop = get_time();
-  SYMPACK_TIMER_STOP(READING_MATRIX);
-  if(mpirank==0){ std::cout<<"Matrix read time: "<<tstop - tstart<<std::endl; }
-  if(mpirank==0){ std::cout<<"Matrix order is "<<HMat.size<<std::endl; }
-}
-
-
-
-void PtrSum( void *in, void *inout, int *len, MPI_Datatype *dptr ); 
-void PtrMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
-template<typename T> void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
+  void PtrSum( void *in, void *inout, int *len, MPI_Datatype *dptr ); 
+  void PtrMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
+  template<typename T> void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr );
 
   template<typename T>
-void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr ) 
-{ 
-  int i; 
+    void GenericMPIMax( void *in, void *inout, int *len, MPI_Datatype *dptr ) 
+    { 
+      int i; 
 
-  T * pinout = (T*)inout;
-  T * pin = (T*)in;
+      T * pinout = (T*)inout;
+      T * pin = (T*)in;
 #pragma unroll
-  for (i=0; i< *len; ++i) { 
-    pinout[i] = std::max(pinout[i], pin[i]);
-  } 
-}
+      for (i=0; i< *len; ++i) { 
+        pinout[i] = std::max(pinout[i], pin[i]);
+      } 
+    }
 
-template<typename T>
-inline std::string ToMatlabScalar( std::complex<T> val){
-  std::stringstream s;
-  s.precision(std::numeric_limits< std::complex<T> >::max_digits10);
-  s.precision(15);
-  s<<"complex("<<std::scientific<<std::real(val)<<","<<std::imag(val)<<")";
-  return s.str();
-}
+  template<typename T>
+    inline std::string ToMatlabScalar( std::complex<T> val){
+      std::stringstream s;
+      s.precision(std::numeric_limits< std::complex<T> >::max_digits10);
+      s.precision(15);
+      s<<"complex("<<std::scientific<<std::real(val)<<","<<std::imag(val)<<")";
+      return s.str();
+    }
 
-template<typename T>
-inline std::string ToMatlabScalar( T val){
-  std::stringstream s;
-  s.precision(std::numeric_limits< T >::max_digits10);
-  s<<std::scientific<<val;
-  return s.str();
-}
+  template<typename T>
+    inline std::string ToMatlabScalar( T val){
+      std::stringstream s;
+      s.precision(std::numeric_limits< T >::max_digits10);
+      s<<std::scientific<<val;
+      return s.str();
+    }
 
 
 

@@ -152,7 +152,7 @@ namespace symPACK{
     for(Idx locCol = 0 ; locCol< VertexCount(); locCol++){
       Ptr colbeg = colptr[locCol]-baseval; //now 0 based
       Ptr colend = colptr[locCol+1]-baseval; // now 0 based 
-      sort(&rowind[0]+colbeg,&rowind[0]+colend,std::less<Ptr>());
+      sort(&rowind[0]+colbeg,&rowind[0]+colend,std::less<Idx>());
     }
   }
 
@@ -206,7 +206,159 @@ namespace symPACK{
   }
 
   void SparseMatrixGraph::ExpandSymmetric(){
-    throw std::logic_error( "SparseMatrixGraph::ExpandSymmetric() not implemented\n" );
+    //throw std::logic_error( "SparseMatrixGraph::ExpandSymmetric() not implemented\n" );
+
+
+
+    SYMPACK_TIMER_START(EXPAND);
+    if(!bIsExpanded){
+      int mpisize = 1;
+      int mpirank = 0;
+
+      Idx N = size; 
+
+
+      Idx firstLocCol = LocalFirstVertex()-baseval;
+      Idx locColCnt = LocalVertexCount();
+
+      std::vector<duet > Isend,Irecv;
+      std::vector<int> ssizes(mpisize,0);
+      std::vector<int> rsizes(mpisize,0);
+      std::vector<int> sdispls(mpisize+1,0);
+      std::vector<int> rdispls(mpisize+1,0);
+
+      std::vector<Ptr> curPos;
+      std::vector<Ptr> prevPos;
+
+      //loop through my local columns and figure out the extra nonzero per col on prow
+      SYMPACK_TIMER_START(DistMat_Expand_count);
+      for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
+        Idx col = firstLocCol + locCol;  // 0 based
+        Ptr colbeg = colptr[locCol]-baseval; //now 0 based
+        Ptr colend = colptr[locCol+1]-baseval; // now 0 based
+        for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+          Idx row = rowind[rptr]-baseval; //0 based
+          if(row>col){
+            //where should it go ?
+            Idx pdest = 0;
+            ssizes[pdest]++;
+          }
+        }
+      }
+      SYMPACK_TIMER_STOP(DistMat_Expand_count);
+
+
+      sdispls[0] = 0;
+      std::partial_sum(ssizes.begin(),ssizes.end(),sdispls.begin()+1);
+      int totSend = sdispls.back();
+      Isend.resize(totSend);
+      //serialize
+      SYMPACK_TIMER_START(DistMat_Expand_pack);
+      for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
+        Idx col = firstLocCol + locCol;  // 0 based
+        Ptr colbeg = colptr[locCol]-baseval; //now 0 based
+        Ptr colend = colptr[locCol+1]-baseval; // now 0 based
+        for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+          Idx row = rowind[rptr]-baseval; //0 based
+          if(row>col){
+            Idx pdest = 0;
+            duet & trip = Isend[sdispls[pdest]++];
+            trip.row = col;
+            trip.col = row;
+          }
+        }
+      }  
+      SYMPACK_TIMER_STOP(DistMat_Expand_pack);
+
+      //for(auto it = ssizes.begin();it!=ssizes.end();it++){  (*it)*=sizeof(triplet<F>);}
+      sdispls[0] = 0;
+      std::partial_sum(ssizes.begin(),ssizes.end(),sdispls.begin()+1);
+      totSend = sdispls.back();
+
+      //        MPI_Datatype type;
+      //        MPI_Type_contiguous( sizeof(duet), MPI_BYTE, &type );
+      //        MPI_Type_commit(&type);
+
+      SYMPACK_TIMER_START(DistMat_Expand_communication);
+      //        MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
+      rsizes = ssizes;
+      rdispls = sdispls;
+
+
+      rdispls[0] = 0;
+      std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
+      int totRecv = rdispls.back();///sizeof(triplet<F>);
+      Irecv.resize(totRecv);
+
+      std::copy(&Isend[0],&Isend[0] + totRecv, &Irecv[0]);
+      SYMPACK_TIMER_STOP(DistMat_Expand_communication);
+
+      //MPI_Type_free(&type);
+      //now parse
+
+      std::vector<Ptr> newColptr(colptr.size(),0);
+      for(int col=colptr.size()-1;col>0;col--){
+        //convert to count instead
+        newColptr[col] = colptr[col] - colptr[col-1];//baseval-based
+      }
+
+      //update the column counts
+      for(auto it = Irecv.begin(); it!=Irecv.end(); it++){
+        //triplets are 0-based but everything is currently shifted by one
+        newColptr[it->col-firstLocCol+1]++;
+      }
+
+      //turn it back to colptr
+      newColptr[0]=baseval;
+      std::partial_sum(newColptr.begin(),newColptr.end(),newColptr.begin());
+
+
+      Ptr newNNZ = newColptr.back()-baseval;
+      rowind.resize(newNNZ);
+      this->nnz = newNNZ;
+
+
+      SYMPACK_TIMER_START(DistMat_Expand_shift);
+      //shift the content
+      for(int col=colptr.size()-2;col>=0;col--){
+        std::copy_backward(&rowind[colptr[col]-baseval],&rowind[colptr[col+1]-baseval],&rowind[newColptr[col+1]-baseval]);
+      }
+      SYMPACK_TIMER_STOP(DistMat_Expand_shift);
+
+      //add the new content, using colptr as a position backup
+      //turn colptr to count
+      for(int col=colptr.size()-1;col>0;col--){
+        colptr[col] = colptr[col] - colptr[col-1];//baseval-based
+      }
+
+      SYMPACK_TIMER_START(DistMat_Expand_unpack);
+      for(auto it = Irecv.begin(); it!=Irecv.end(); it++){
+        duet & trip = *it;
+        Idx locCol = trip.col-firstLocCol;//0-based
+        //colptr contains column count shifted by one
+        Ptr pos = newColptr[locCol + 1] - colptr[locCol+1]-1;//baseval-based
+        colptr[locCol+1]++;
+
+        rowind[pos-baseval] = trip.row+baseval;
+      }
+      //exchange content for the colptr array
+      colptr.swap(newColptr);
+      SYMPACK_TIMER_STOP(DistMat_Expand_unpack);
+
+      bIsExpanded =true;
+      //keepDiag = 1;
+
+      //        if(GetSorted()){
+      //          scope_timer(a,DistMat_Expand_sort);
+      //          SetSorted(false);
+      //          SortGraph(); 
+      //        }
+      if(!sorted){
+        SetSorted(1);
+      }
+
+    }
+    SYMPACK_TIMER_STOP(EXPAND);
   }
 
 
@@ -373,7 +525,7 @@ namespace symPACK{
       Ptr colbeg = colptr[locCol]-baseval; //now 0 based
       Ptr colend = colptr[locCol+1]-baseval; // now 0 based 
 bassert(colbeg<=colend);
-      sort(&rowind[0]+colbeg,&rowind[0]+colend,std::less<Ptr>());
+      sort(&rowind[0]+colbeg,&rowind[0]+colend,std::less<Idx>());
     }
   }
 

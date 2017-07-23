@@ -102,6 +102,9 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include "SuperNode.hpp"
 #include "SuperNodeInd.hpp"
 
+#define FANIN_OPTIMIZATION
+#define _SEQ_SPECIAL_CASE_
+#define _LAMBDAS_
 
 
 //#define _SEQ_SPECIAL_CASE_

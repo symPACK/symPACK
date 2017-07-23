@@ -86,6 +86,11 @@ class SparseMatrixGraph{
 
   Idx VertexCount() const { return colptr.size()==0?0:colptr.size()-1;}
   Ptr EdgeCount() const{ return rowind.size();}
+  Idx LocalFirstVertex() const {return baseval;}
+  Idx LocalVertexCount() const { return VertexCount();}
+  Ptr LocalEdgeCount() const{ return EdgeCount();}
+
+
 };
 
 class DistSparseMatrixGraph{
