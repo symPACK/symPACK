@@ -79,6 +79,15 @@ namespace symPACK{
          int * link  , int * fstloc, int * sperm , int * fstloc2, int * dist1, 
          int * suppar, int * iwsiz , int * iwork , int * rep             );
 
+    void FORTRAN(ordsup_ind_tsp_paths)
+      (  int * nadj  , int * neqns , int * nofsub, int * nsuper, int * supsiz,
+         int * xsuper, int * xlindx, int * lindx , int * snode , int * xadj  , 
+         int * adjncy, int * etpar , int * perm  , int * invp  , int * iflag , 
+         int * xskadj, int * sklenf, int * sklenb, int * skadj , int * invp2 , 
+         int * link  , int * fstloc, int * sperm , int * fstloc2, int * dist1, 
+         int * suppar, int * iwsiz , int * iwork              );
+
+
   }
 }
 
@@ -2636,8 +2645,7 @@ namespace symPACK{
 
 
   template <typename T> inline void symPACKMatrix<T>::Init(symPACKOptions & options ){
-    SYMPACK_TIMER_START(A);
-    //scope_timer_special(a,Initialization);
+    scope_timer(a,symPACKMatrix::Init);
 #ifdef _STAT_COMM_
     maxAggreg_ =0;
     sizesAggreg_ =0;
@@ -2739,8 +2747,6 @@ namespace symPACK{
       //    MPI_Barrier(CommEnv_->MPI_GetComm());
     }
 
-    SYMPACK_TIMER_STOP(A);
-    //exit(-1);
   }
 
   template <typename T> inline void symPACKMatrix<T>::SymbolicFactorization(DistSparseMatrix<T> & pMat){
@@ -3043,7 +3049,7 @@ namespace symPACK{
 
 
     //get rid of the sequential graph
-    if(sgraph!=NULL && options_.order_refinement_str != "TSPB"){delete sgraph;}
+    if(sgraph!=NULL && options_.order_refinement_str.substr(0,4) != "TSPB"){delete sgraph;}
 
     { 
       double timeSta = get_time();
@@ -3151,15 +3157,6 @@ namespace symPACK{
 
 
       if(options_.order_refinement_str != "NO") {
-
-        //std::vector<Int> oldFcol;
-        //if(options_.relax.nrelax0==0){
-        //  oldFcol.resize(Xsuper_.size()-1);
-        //  for(int i = 0; i< oldFcol.size();i++){ oldFcol[i] = Order_.invp[Xsuper_[i]-1];}
-        //}
-
-
-
         double timeSta = get_time();
         if(options_.order_refinement_str == "SET"){ 
           this->refineSupernodes(3,1,&pMat);
@@ -3181,9 +3178,6 @@ namespace symPACK{
         }
         else if(options_.order_refinement_str == "SET31"){ 
           this->refineSupernodes(3,1,&pMat);
-
-//logfileptr->OFS()<<"Order_.perm: "; for(size_t i =0; i<Order_.perm.size(); i++){ logfileptr->OFS()<< Order_.perm[i]<<" ";}logfileptr->OFS()<<std::endl;
-//logfileptr->OFS()<<"Order_.invp: "; for(size_t i =0; i<Order_.invp.size(); i++){ logfileptr->OFS()<< Order_.invp[i]<<" ";}logfileptr->OFS()<<std::endl;
         }
         else if(options_.order_refinement_str == "TSP"){
           auto SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
@@ -3203,21 +3197,17 @@ namespace symPACK{
               std::cout<<"TSP reordering done in "<<timeStop-timeSta<<std::endl;
             }
 
-//logfileptr->OFS()<<"Order_.perm: "; for(size_t i =0; i<Order_.perm.size(); i++){ logfileptr->OFS()<< Order_.perm[i]<<" ";}logfileptr->OFS()<<std::endl;
-//logfileptr->OFS()<<"Order_.invp: "; for(size_t i =0; i<Order_.invp.size(); i++){ logfileptr->OFS()<< Order_.invp[i]<<" ";}logfileptr->OFS()<<std::endl;
             //overwrite order
             for(int i = 0; i < Order_.perm.size(); ++i){
               Order_.perm[i] = psorder->peritab[i]+1;
               Order_.invp[i] = psorder->permtab[i]+1;
             }
-//logfileptr->OFS()<<"Order_.perm: "; for(size_t i =0; i<Order_.perm.size(); i++){ logfileptr->OFS()<< Order_.perm[i]<<" ";}logfileptr->OFS()<<std::endl;
-//logfileptr->OFS()<<"Order_.invp: "; for(size_t i =0; i<Order_.invp.size(); i++){ logfileptr->OFS()<< Order_.invp[i]<<" ";}logfileptr->OFS()<<std::endl;
           }
 
           MPI_Bcast(Order_.perm.data(),Order_.perm.size()*sizeof(Int),MPI_BYTE,0,fullcomm_);
           MPI_Bcast(Order_.invp.data(),Order_.invp.size()*sizeof(Int),MPI_BYTE,0,fullcomm_);
         } 
-        else if(options_.order_refinement_str == "TSPB"){
+        else if(options_.order_refinement_str.substr(0,4) == "TSPB"){
           ETree& tree = ETree_;
           Ordering & aOrder = Order_;
           std::vector<Int> & supMembership = SupMembership_; 
@@ -3247,7 +3237,7 @@ namespace symPACK{
           }
 
           if(iam==0){
-bassert(sgraph!=nullptr);
+            bassert(sgraph!=nullptr);
             int neqns = iSize_;
 
             int nofsub =ilindx.size();
@@ -3259,98 +3249,28 @@ bassert(sgraph!=nullptr);
 
             std::vector<int>  new_perm(neqns,0);
 
-for(size_t i =0; i<new_perm.size(); i++){ new_invp[i] = Order_.invp[i];}
-for(size_t i =0; i<new_perm.size(); i++){ new_perm[i] = Order_.perm[i];}
-
-            //std::iota(new_invp.begin(),new_invp.end(),1);
-            //std::iota(new_perm.begin(),new_perm.end(),1);
-
+            for(size_t i =0; i<new_perm.size(); i++){ new_invp[i] = Order_.invp[i];}
+            for(size_t i =0; i<new_perm.size(); i++){ new_perm[i] = Order_.perm[i];}
 
             int supsiz = 0;
             for(I = 1; I <= nsuper; I++){
               Int fc = Xsuper_[I-1];
               Int lc = Xsuper_[I]-1;
               supsiz = std::max(supsiz,lc-fc+1);
-          }
+            }
 
-#if 1
-    sgraph->SetKeepDiag(0);
+            sgraph->SetKeepDiag(0);
             xadj.resize(sgraph->colptr.size());
             adj.resize(sgraph->rowind.size());
             int nadj = adj.size();
             for(size_t i = 0; i< sgraph->colptr.size(); i++){ xadj[i] = int(sgraph->colptr[i]); }
             for(size_t i = 0; i< sgraph->rowind.size(); i++){ adj[i] = int(sgraph->rowind[i]); }
 
-#else
-//            //rebuild adj and xadj from lindx and xlindx
-            xadj.assign(neqns+1,0);
-            int nadj = 1;
-//            Idx row;
-//            int fc,lc,colbeg,colend,col;
-//            Ptr supbeg,supend,rowidx;
-//            Int I;
-            for(I = 1; I <= nsuper; I++){
-              fc = Xsuper_[I-1];
-              lc = Xsuper_[I]-1;
-              supbeg = ixlindx[I-1];
-              supend = ixlindx[I]-1;
-              for(col = fc; col <= lc; col++){
-                xadj[col-1] = nadj;
-                nadj += supend - supbeg +1 - (col - fc) ;
-              }
-            } 
-            xadj[neqns] = nadj;
-            nadj=nadj-1;
-logfileptr->OFS()<<"sgraph->colptr: "; for(size_t i =0; i<sgraph->colptr.size(); i++){ logfileptr->OFS()<< sgraph->colptr[i]<<" ";}logfileptr->OFS()<<std::endl;
-logfileptr->OFS()<<"xadj: "; for(size_t i =0; i<xadj.size(); i++){ logfileptr->OFS()<< xadj[i]<<" ";}logfileptr->OFS()<<std::endl;
-logfileptr->OFS()<<"ixlindx: "; for(size_t i =0; i<ixlindx.size(); i++){ logfileptr->OFS()<< ixlindx[i]<<" ";}logfileptr->OFS()<<std::endl;
-
-            adj.assign(nadj,0);
-            for(I = 1; I <= nsuper; I++){
-              fc = Xsuper_[I-1];
-              lc = Xsuper_[I]-1;
-              supbeg = ixlindx[I-1];
-              supend = ixlindx[I]-1;
-              for(col = fc; col <= lc; col++){
-                colbeg = xadj[col-1];
-                colend = xadj[col]-1;
-                for(rowidx = supbeg; rowidx<= supend; rowidx++){
-                  row = ilindx[rowidx-1];
-                  if(row>=col){
-                    adj[colbeg++-1] = row;
-                  }
-                }
-              }
-            }
-
-logfileptr->OFS()<<"sgraph->rowind: "; for(size_t i =0; i<sgraph->rowind.size(); i++){ logfileptr->OFS()<< sgraph->rowind[i]<<" ";}logfileptr->OFS()<<std::endl;
-logfileptr->OFS()<<"adj: "; for(size_t i =0; i<adj.size(); i++){ logfileptr->OFS()<< adj[i]<<" ";}logfileptr->OFS()<<std::endl;
-logfileptr->OFS()<<"ilindx: "; for(size_t i =0; i<ilindx.size(); i++){ logfileptr->OFS()<< ilindx[i]<<" ";}logfileptr->OFS()<<std::endl;
-
-SparseMatrixGraph rgraph;
-        rgraph.SetKeepDiag(1);
-rgraph.SetBaseval(1);
-rgraph.SetSorted(0);
-rgraph.colptr.resize(xadj.size());
-for(int i =0; i < xadj.size(); i++){ rgraph.colptr[i] = xadj[i];}
-rgraph.rowind.resize(adj.size());
-for(int i =0; i < adj.size(); i++){ rgraph.rowind[i] = adj[i];}
-rgraph.ExpandSymmetric();
-rgraph.SetSorted(1);
-logfileptr->OFS()<<"rgraph.colptr: "; for(size_t i =0; i<rgraph.colptr.size(); i++){ logfileptr->OFS()<< rgraph.colptr[i]<<" ";}logfileptr->OFS()<<std::endl;
-logfileptr->OFS()<<"rgraph.rowind: "; for(size_t i =0; i<rgraph.rowind.size(); i++){ logfileptr->OFS()<< rgraph.rowind[i]<<" ";}logfileptr->OFS()<<std::endl;
-nadj = rgraph.rowind.size();
-
-xadj.resize(rgraph.colptr.size());
-for(int i =0; i < xadj.size(); i++){ xadj[i] = rgraph.colptr[i];}
-adj.resize(rgraph.rowind.size());
-for(int i =0; i < adj.size(); i++){ adj[i] = rgraph.rowind[i];}
-#endif
-    if(sgraph!=NULL){delete sgraph;}
+            if(sgraph!=NULL){delete sgraph;}
 
             std::vector<int, Mallocator<int> > etpar(neqns);
             for(int i = 0; i<neqns; i++){ etpar[i] = tree.PostParent(i); }
-           
+
 
             std::vector<int, Mallocator<int> > xskadj(neqns+1);
             std::vector<int, Mallocator<int> > sklenf(neqns);
@@ -3358,7 +3278,6 @@ for(int i =0; i < adj.size(); i++){ adj[i] = rgraph.rowind[i];}
             std::vector<int, Mallocator<int> > skadj(nadj);
             std::vector<int, Mallocator<int> > invp2(neqns);
             std::vector<int, Mallocator<int> > link(neqns);
-
             std::vector<int, Mallocator<int> > fstloc(nsuper);
             std::vector<int, Mallocator<int> > sperm(nsuper);
             std::vector<int, Mallocator<int> > fstloc2(neqns);
@@ -3366,26 +3285,38 @@ for(int i =0; i < adj.size(); i++){ adj[i] = rgraph.rowind[i];}
             std::vector<int, Mallocator<int> > suppar(nsuper);
             int iwsiz = 8*neqns+3;
             std::vector<int, Mallocator<int> > iwork(iwsiz);
-            std::vector<int, Mallocator<int> > rep(neqns);
-
-
-//logfileptr->OFS()<<"input new_perm: "; for(size_t i =0; i<new_perm.size(); i++){ logfileptr->OFS()<< new_perm[i]<<" ";}logfileptr->OFS()<<std::endl;
-//logfileptr->OFS()<<"etpar: "; for(size_t i =0; i<etpar.size(); i++){ logfileptr->OFS()<< etpar[i]<<" ";}logfileptr->OFS()<<std::endl;
 
             int iflag = 0;
             double timeSta = get_time();
-            FORTRAN(ordsup_ind_tsp_paths2)
-              ( 
-               &nadj, &neqns , &nofsub, &nsuper, &supsiz, 
-               xsuper.data(), ixlindx.data(), ilindx.data(), supMembership.data(), 
-               xadj.data(), adj.data(), 
-               etpar.data(),
-               new_perm.data(), new_invp.data(), 
-               &iflag , 
-               xskadj.data(), sklenf.data(), sklenb.data(), 
-               skadj.data() , invp2.data() , link.data()  , 
-               fstloc.data(), sperm.data() , fstloc2.data(), dist1.data(), 
-               suppar.data(), &iwsiz , iwork.data() , rep.data()             );
+            if(options_.order_refinement_str == "TSPB"){
+              std::vector<int, Mallocator<int> > rep(neqns);
+              FORTRAN(ordsup_ind_tsp_paths2)
+                ( 
+                 &nadj, &neqns , &nofsub, &nsuper, &supsiz, 
+                 xsuper.data(), ixlindx.data(), ilindx.data(), supMembership.data(), 
+                 xadj.data(), adj.data(), 
+                 etpar.data(),
+                 new_perm.data(), new_invp.data(), 
+                 &iflag , 
+                 xskadj.data(), sklenf.data(), sklenb.data(), 
+                 skadj.data() , invp2.data() , link.data()  , 
+                 fstloc.data(), sperm.data() , fstloc2.data(), dist1.data(), 
+                 suppar.data(), &iwsiz , iwork.data() , rep.data()             );
+            }
+            else{
+              FORTRAN(ordsup_ind_tsp_paths)
+                ( 
+                 &nadj, &neqns , &nofsub, &nsuper, &supsiz, 
+                 xsuper.data(), ixlindx.data(), ilindx.data(), supMembership.data(), 
+                 xadj.data(), adj.data(), 
+                 etpar.data(),
+                 new_perm.data(), new_invp.data(), 
+                 &iflag , 
+                 xskadj.data(), sklenf.data(), sklenb.data(), 
+                 skadj.data() , invp2.data() , link.data()  , 
+                 fstloc.data(), sperm.data() , fstloc2.data(), dist1.data(), 
+                 suppar.data(), &iwsiz , iwork.data() );
+            }
 
             double timeStop = get_time();
             if(iam==0){
@@ -3394,17 +3325,9 @@ for(int i =0; i < adj.size(); i++){ adj[i] = rgraph.rowind[i];}
 
 
             //Order_.Compose(new_invp);
-for(size_t i =0; i<new_perm.size(); i++){ Order_.invp[i] = new_invp[i];}
-for(size_t i =0; i<new_perm.size(); i++){ Order_.perm[i] = new_perm[i];}
-//logfileptr->OFS()<<"Xsuper_: "; for(size_t i =0; i<Xsuper_.size(); i++){ logfileptr->OFS()<< Xsuper_[i]<<" ";}logfileptr->OFS()<<std::endl;
-//logfileptr->OFS()<<"new_perm: "; for(size_t i =0; i<new_perm.size(); i++){ logfileptr->OFS()<< new_perm[i]<<" ";}logfileptr->OFS()<<std::endl;
-//logfileptr->OFS()<<"new_invp: "; for(size_t i =0; i<new_invp.size(); i++){ logfileptr->OFS()<< new_invp[i]<<" ";}logfileptr->OFS()<<std::endl;
-
+            for(size_t i =0; i<new_perm.size(); i++){ Order_.invp[i] = new_invp[i];}
+            for(size_t i =0; i<new_perm.size(); i++){ Order_.perm[i] = new_perm[i];}
           }
-
-
-
-
 
           // broadcast invp
           Int N = aOrder.invp.size();
@@ -3419,32 +3342,8 @@ for(size_t i =0; i<new_perm.size(); i++){ Order_.perm[i] = new_perm[i];}
           std::cout<<"Supernode reordering done in "<<timeStop-timeSta<<std::endl;
         }
 
-        //if(options_.relax.nrelax0>0)
-        //{
-        //  this->relaxSupernodes(ETree_, cc,SupMembership_, Xsuper_, options_.relax );
-        //  logfileptr->OFS()<<"Relaxation done"<<std::endl;
-        //  //Refresh XsuperDist_
-        //  {
-        //    Idx supPerProc = std::max((size_t)1,(Xsuper_.size()-1) / np);
-        //    XsuperDist_.resize(np+1,0);
-        //    XsuperDist_[np] = Xsuper_.size();
-        //    for(int p = 0; p<np; p++){
-        //      XsuperDist_[p]= std::min(XsuperDist_[np],(Int)(p*supPerProc+1));
-        //    }
-        //    for(int p = np+1; p<all_np; p++){
-        //      XsuperDist_[p]= XsuperDist_[p-1];
-        //    }
-        //    XsuperDist_[all_np] = Xsuper_.size();
-        //  }
-        //}
-
         {
           double timeSta = get_time();
-
-          //if(options_.relax.nrelax0==0){
-          //  for(int i = 0; i< oldFcol.size();i++){ oldFcol[i] = Order_.perm[oldFcol[i]-1];}
-          //}
-          //this->symbolicFactorizationRelaxedDist(cc, oldFcol.data());
           this->symbolicFactorizationRelaxedDist(cc);
           double timeStop = get_time();
           if(iam==0){
@@ -3810,21 +3709,12 @@ for(size_t i =0; i<new_perm.size(); i++){ Order_.perm[i] = new_perm[i];}
         pMat.ToLowerTriangular();
         pMat.SortGraph();
 
-        //    logfileptr->OFS()<<"*********************************"<<std::endl;
-        //    pMat.DumpMatlab();
-        //    logfileptr->OFS()<<"*********************************"<<std::endl;
-// gdb_lock();
-
         vector<std::pair<size_t,Icomm *> > send_map(np);
 
         SYMPACK_TIMER_START(DISTRIBUTE_COUNTING);
 
         Idx FirstLocalCol = pMat.Localg_.vertexDist[iam];
         Idx LastLocalCol = pMat.Localg_.vertexDist[iam+1];
-        //        Int snodeCount = 0;
-
-
-
         if(FirstLocalCol<LastLocalCol){
           for(Int I=1;I<Xsuper_.size();I++){
             Idx fc = Xsuper_[I-1];
@@ -3968,386 +3858,240 @@ for(size_t i =0; i<new_perm.size(); i++){ Order_.perm[i] = new_perm[i];}
 
 
 #else
-
-
-
-      std::map<Int,std::pair<size_t,Icomm *> > send_map;
-      for(Int p=0;p<all_np;++p){
-        send_map[p].first = 0;
-      }
-      SYMPACK_TIMER_START(DISTRIBUTE_COUNTING);
-
-
-      typedef std::conditional< sizeof(Idx) < sizeof(Ptr), Idx, Ptr>::type minTypeIdxPtr;
-      using minType = typename std::conditional< sizeof(minTypeIdxPtr) < sizeof(T), minTypeIdxPtr, T >::type;
-
-      size_t minSize = sizeof(minType);//std::min(sizeof(Idx),std::min(sizeof(Ptr),sizeof(T)));
-      size_t IdxToMin = sizeof(Idx) / minSize;
-      size_t PtrToMin = sizeof(Ptr) / minSize;
-      size_t TToMin = sizeof(T) / minSize;
-
-      Int baseval = pMat.Localg_.GetBaseval();
-      Idx FirstLocalCol = pMat.Localg_.vertexDist[iam] + (1 - baseval); //1-based
-      Idx LastLocalCol = pMat.Localg_.vertexDist[iam+1] + (1 - baseval); //1-based
-
-      for(Int I=1;I<Xsuper_.size();I++){
-        Idx fc = Xsuper_[I-1];
-        Idx lc = Xsuper_[I]-1;
-        Int iWidth = lc-fc+1;
-        Int iHeight = UpdateHeight_[I-1];
-
-        Int iDest = this->Mapping_->Map(I-1,I-1);
-
-        //post all the recv and sends
-        for(Idx col = fc;col<=lc;col++){
-
-          //corresponding column in the unsorted matrix A
-          Idx orig_col = Order_.perm[col-1];
-
-          if(orig_col>= FirstLocalCol && orig_col < LastLocalCol){
-            Ptr nrows = 0;
-            Idx local_col = orig_col - FirstLocalCol+1;//1 based
-            for(Ptr rowidx = pMat.Localg_.colptr[local_col-1] + (1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
-              Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);//1-based
-              Idx row = Order_.invp[orig_row-1];
-
-              if(row<col){
-                //add the pair (col,row) to processor owning column row
-                Int J = SupMembership_[row-1];
-                Int iDestJ = this->Mapping_->Map(J-1,J-1);
-                //send_map[iDestJ].first += sizeof(Idx)+sizeof(Ptr)+1*(sizeof(Idx)+sizeof(T));
-                send_map[iDestJ].first += IdxToMin+PtrToMin+ (IdxToMin + TToMin);
-              }
-              else{nrows++;}
-            }
-            //send_map[iDest].first += sizeof(Idx)+sizeof(Ptr)+nrows*(sizeof(Idx)+sizeof(T));
-            send_map[iDest].first += IdxToMin+PtrToMin+nrows*(IdxToMin + TToMin);
-          }
+        std::map<Int,std::pair<size_t,Icomm *> > send_map;
+        for(Int p=0;p<all_np;++p){
+          send_map[p].first = 0;
         }
-      }
-
-      SYMPACK_TIMER_STOP(DISTRIBUTE_COUNTING);
 
 
+        typedef std::conditional< sizeof(Idx) < sizeof(Ptr), Idx, Ptr>::type minTypeIdxPtr;
+        using minType = typename std::conditional< sizeof(minTypeIdxPtr) < sizeof(T), minTypeIdxPtr, T >::type;
 
-      {
-        //allocate one buffer for every remote processor
-        //compute the send structures
-        size_t total_send_size = 0;
-        std::vector<size_t> stotcounts(all_np,0);
-        for(auto it = send_map.begin(); it!=send_map.end();it++){
-          Int iCurDest = it->first;
-          size_t & send_bytes = it->second.first;
-          stotcounts[iCurDest] = send_bytes;
-        }
-        //compute send displacements
-        std::vector<size_t> spositions(all_np+1,0);
-        spositions[0] = 0;
-        std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
-        total_send_size = spositions.back();
+        size_t minSize = sizeof(minType);
+        size_t IdxToMin = sizeof(Idx) / minSize;
+        size_t PtrToMin = sizeof(Ptr) / minSize;
+        size_t TToMin = sizeof(T) / minSize;
 
-        //minType * sendBuffer = new minType[total_send_size];
-        std::vector<minType, Mallocator<minType> > sendBuffer(total_send_size);
-        
-        //Icomm * IsendPtr = new Icomm(total_send_size,MPI_REQUEST_NULL);
+        Int baseval = pMat.Localg_.GetBaseval();
+        Idx FirstLocalCol = pMat.Localg_.vertexDist[iam] + (1 - baseval); //1-based
+        Idx LastLocalCol = pMat.Localg_.vertexDist[iam+1] + (1 - baseval); //1-based
 
-
-        //Fill up the send buffer
-        SYMPACK_TIMER_SPECIAL_START(serializing);      
+        SYMPACK_TIMER_START(DISTRIBUTE_COUNTING);
         for(Int I=1;I<Xsuper_.size();I++){
           Idx fc = Xsuper_[I-1];
           Idx lc = Xsuper_[I]-1;
           Int iWidth = lc-fc+1;
-          Int iHeight = cc_[fc-1];
+          Int iHeight = UpdateHeight_[I-1];
 
-          //Icomm & Isend = *IsendPtr;
           Int iDest = this->Mapping_->Map(I-1,I-1);
 
-#ifdef _DEBUG_
-          logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
-#endif
-
-          //Serialize
+          //post all the recv and sends
           for(Idx col = fc;col<=lc;col++){
+            //corresponding column in the unsorted matrix A
             Idx orig_col = Order_.perm[col-1];
-
             if(orig_col>= FirstLocalCol && orig_col < LastLocalCol){
               Ptr nrows = 0;
               Idx local_col = orig_col - FirstLocalCol+1;//1 based
-
-              for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
-                Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
+              for(Ptr rowidx = pMat.Localg_.colptr[local_col-1] + (1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+                Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);//1-based
                 Idx row = Order_.invp[orig_row-1];
-
 
                 if(row<col){
                   //add the pair (col,row) to processor owning column row
                   Int J = SupMembership_[row-1];
                   Int iDestJ = this->Mapping_->Map(J-1,J-1);
-
-                  T val = pMat.nzvalLocal[rowidx-1];
-
-                  ////we need to set head to the proper sdispls
-                  //Isend.setHead(spositions[iDestJ]);
-                  //Isend<<row;
-                  //Isend<<(Ptr)1;
-                  //Isend<<col;
-                  //Isend<<val;
-                  ////backup new position for processor iDestJ
-                  //spositions[iDestJ] = Isend.head;
-
-                  *((Idx*)&sendBuffer[spositions[iDestJ]]) = row;
-                  spositions[iDestJ]+=IdxToMin;
-                  *((Ptr*)&sendBuffer[spositions[iDestJ]]) = 1;
-                  spositions[iDestJ]+=PtrToMin;
-                  *((Idx*)&sendBuffer[spositions[iDestJ]]) = col;
-                  spositions[iDestJ]+=IdxToMin;
-                  *((T*)&sendBuffer[spositions[iDestJ]]) = val;
-                  spositions[iDestJ]+=TToMin;
-
+                  send_map[iDestJ].first += IdxToMin+PtrToMin+ (IdxToMin + TToMin);
                 }
-                else{
-                  nrows++;
-                }
+                else{nrows++;}
               }
-
-
-              ////restore head
-              //Isend.setHead(spositions[iDest]);
-              //Isend<<col;
-              //Isend<<nrows;
-
-              //for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
-              //  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
-              //  Idx row = Order_.invp[orig_row-1];
-              //  if(row>=col){
-              //    Isend<<row;
-              //  }
-              //}
-
-              //for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
-              //  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
-              //  Idx row = Order_.invp[orig_row-1];
-              //  if(row>=col){
-              //    Isend<<pMat.nzvalLocal[rowidx-1];
-              //  }
-              //}
-
-              ////backup new position for processor iDest
-              //spositions[iDest] = Isend.head;
-
-                  *((Idx*)&sendBuffer[spositions[iDest]]) = col;
-                  spositions[iDest]+=IdxToMin;
-                  *((Ptr*)&sendBuffer[spositions[iDest]]) = nrows;
-                  spositions[iDest]+=PtrToMin;
-
-
-
-              for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
-                Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
-                Idx row = Order_.invp[orig_row-1];
-                if(row>=col){
-                  *((Idx*)&sendBuffer[spositions[iDest]]) = row;
-                  spositions[iDest]+=IdxToMin;
-                }
-              }
-
-              for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
-                Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
-                Idx row = Order_.invp[orig_row-1];
-                if(row>=col){
-                  auto & val = pMat.nzvalLocal[rowidx-1];
-                  *((T*)&sendBuffer[spositions[iDest]]) = val;
-                  spositions[iDest]+=TToMin;
-                }
-              }
-
-
-
-
-
-
+              send_map[iDest].first += IdxToMin+PtrToMin+nrows*(IdxToMin + TToMin);
             }
           }
         }
-        SYMPACK_TIMER_SPECIAL_STOP(serializing);      
+        SYMPACK_TIMER_STOP(DISTRIBUTE_COUNTING);
 
 
-        //Icomm * IrecvPtr = new Icomm(0,MPI_REQUEST_NULL);
-        spositions[0] = 0;
-        std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
-        //std::function<void(Icomm&,size_t)> resize_lambda =
-        //  [](Icomm & container, size_t sz){
-        //    container.resize(sz); 
-        //    container.head = 0;
-        //  };
-        //IsendPtr->setHead(0);
-        //mpi::Alltoallv((*IsendPtr), &stotcounts[0], &spositions[0], MPI_BYTE,
-        //    (*IrecvPtr),fullcomm_, resize_lambda);
 
-        size_t total_recv_size = 0;//spositions.back();
-        //minType * recvBuffer;
-        std::vector<minType, Mallocator<minType> > recvBuffer;
-        //dummy lambda
-        //std::function<void(minType*&,size_t)> resize_lambda =
-        //  [&](minType*& container, size_t sz){
-        //      total_recv_size = sz;
-        //      container = new minType[total_recv_size];
-        //  };
-        std::function<void(std::vector<minType, Mallocator<minType> >&,size_t)> resize_lambda =
-          [](std::vector<minType, Mallocator<minType> >& container, size_t sz){
+        {
+          //allocate one buffer for every remote processor
+          //compute the send structures
+          size_t total_send_size = 0;
+          std::vector<size_t> stotcounts(all_np,0);
+          for(auto it = send_map.begin(); it!=send_map.end();it++){
+            Int iCurDest = it->first;
+            size_t & send_bytes = it->second.first;
+            stotcounts[iCurDest] = send_bytes;
+          }
+          //compute send displacements
+          std::vector<size_t> spositions(all_np+1,0);
+          spositions[0] = 0;
+          std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
+          total_send_size = spositions.back();
+
+          std::vector<minType, Mallocator<minType> > sendBuffer(total_send_size);
+
+          //Fill up the send buffer
+          SYMPACK_TIMER_SPECIAL_START(serializing);      
+          for(Int I=1;I<Xsuper_.size();I++){
+            Idx fc = Xsuper_[I-1];
+            Idx lc = Xsuper_[I]-1;
+            Int iWidth = lc-fc+1;
+            Int iHeight = cc_[fc-1];
+
+            Int iDest = this->Mapping_->Map(I-1,I-1);
+#ifdef _DEBUG_
+            logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
+#endif
+
+            //Serialize
+            for(Idx col = fc;col<=lc;col++){
+              Idx orig_col = Order_.perm[col-1];
+
+              if(orig_col>= FirstLocalCol && orig_col < LastLocalCol){
+                Ptr nrows = 0;
+                Idx local_col = orig_col - FirstLocalCol+1;//1 based
+
+                for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+                  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
+                  Idx row = Order_.invp[orig_row-1];
+
+                  if(row<col){
+                    //add the pair (col,row) to processor owning column row
+                    Int J = SupMembership_[row-1];
+                    Int iDestJ = this->Mapping_->Map(J-1,J-1);
+
+                    T val = pMat.nzvalLocal[rowidx-1];
+
+                    *((Idx*)&sendBuffer[spositions[iDestJ]]) = row;
+                    spositions[iDestJ]+=IdxToMin;
+                    *((Ptr*)&sendBuffer[spositions[iDestJ]]) = 1;
+                    spositions[iDestJ]+=PtrToMin;
+                    *((Idx*)&sendBuffer[spositions[iDestJ]]) = col;
+                    spositions[iDestJ]+=IdxToMin;
+                    *((T*)&sendBuffer[spositions[iDestJ]]) = val;
+                    spositions[iDestJ]+=TToMin;
+
+                  }
+                  else{
+                    nrows++;
+                  }
+                }
+
+                *((Idx*)&sendBuffer[spositions[iDest]]) = col;
+                spositions[iDest]+=IdxToMin;
+                *((Ptr*)&sendBuffer[spositions[iDest]]) = nrows;
+                spositions[iDest]+=PtrToMin;
+
+                for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+                  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
+                  Idx row = Order_.invp[orig_row-1];
+                  if(row>=col){
+                    *((Idx*)&sendBuffer[spositions[iDest]]) = row;
+                    spositions[iDest]+=IdxToMin;
+                  }
+                }
+
+                for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+                  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
+                  Idx row = Order_.invp[orig_row-1];
+                  if(row>=col){
+                    auto & val = pMat.nzvalLocal[rowidx-1];
+                    *((T*)&sendBuffer[spositions[iDest]]) = val;
+                    spositions[iDest]+=TToMin;
+                  }
+                }
+
+              }
+            }
+          }
+          SYMPACK_TIMER_SPECIAL_STOP(serializing);      
+
+
+          spositions[0] = 0;
+          std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
+
+          size_t total_recv_size = 0;
+          std::vector<minType, Mallocator<minType> > recvBuffer;
+          std::function<void(std::vector<minType, Mallocator<minType> >&,size_t)> resize_lambda =
+            [](std::vector<minType, Mallocator<minType> >& container, size_t sz){
               container.resize(sz);
-          };
+            };
 
 
-        MPI_Datatype type;
-        MPI_Type_contiguous( sizeof(minType), MPI_BYTE, &type );
-        MPI_Type_commit(&type);
+          MPI_Datatype type;
+          MPI_Type_contiguous( sizeof(minType), MPI_BYTE, &type );
+          MPI_Type_commit(&type);
 
-        mpi::Alltoallv(sendBuffer, &stotcounts[0], &spositions[0], type ,
-            recvBuffer,fullcomm_, resize_lambda);
+          mpi::Alltoallv(sendBuffer, &stotcounts[0], &spositions[0], type ,
+              recvBuffer,fullcomm_, resize_lambda);
 
-        total_recv_size = recvBuffer.size();
+          total_recv_size = recvBuffer.size();
 
-        MPI_Type_free(&type);
-        //Need to parse the structure sent from the processor owning the first column of the supernode
+          MPI_Type_free(&type);
+          //Need to parse the structure sent from the processor owning the first column of the supernode
 
-        SYMPACK_TIMER_SPECIAL_START(deserializing);      
-        size_t head = 0;
+          SYMPACK_TIMER_SPECIAL_START(deserializing);      
+          size_t head = 0;
 
-        //IrecvPtr->setHead(0);
-        //while(IrecvPtr->head < IrecvPtr->capacity())
-        while(head < total_recv_size)
-        { 
+          while(head < total_recv_size)
+          { 
+            //Deserialize
+            Idx col = *((Idx*)&recvBuffer[head]);
+            head+=IdxToMin;
+            //nrows of column col sent by processor p
+            Ptr nrows = *((Ptr*)&recvBuffer[head]);
+            head+=PtrToMin;
+            Idx * rowind = (Idx*)(&recvBuffer[head]);
+            head+=nrows*IdxToMin;
+            T * nzvalA = (T*)(&recvBuffer[head]);
+            head+=nrows*TToMin;
 
-          ////char * buffer = IrecvPtr->back();
-          //char * buffer = (char*)&recvBuffer[head];
-          ////Deserialize
-          //Idx col = *(Idx*)&buffer[0];
-          ////nrows of column col sent by processor p
-          //Ptr nrows = *((Ptr*)&buffer[sizeof(Idx)]);
-          //Idx * rowind = (Idx*)(&buffer[sizeof(Ptr)+sizeof(Idx)]);
-          //T * nzvalA = (T*)(&buffer[(1+nrows)*sizeof(Idx)+sizeof(Ptr)]);
-          ////advance in the buffer
-          ////IrecvPtr->setHead(IrecvPtr->head + sizeof(Idx) +sizeof(Ptr) + nrows*(sizeof(Idx)+sizeof(T)));
-          //head += IdxToMin + PtrToMin + nrows*(IdxToMin+TToMin);
+            Int I = SupMembership_[col-1];
+            //do a global to local mapping
 
-          //Deserialize
-          Idx col = *((Idx*)&recvBuffer[head]);
-          head+=IdxToMin;
-          //nrows of column col sent by processor p
-          Ptr nrows = *((Ptr*)&recvBuffer[head]);
-          head+=PtrToMin;
-          Idx * rowind = (Idx*)(&recvBuffer[head]);
-          head+=nrows*IdxToMin;
-          T * nzvalA = (T*)(&recvBuffer[head]);
-          head+=nrows*TToMin;
+            Int iDest = this->Mapping_->Map(I-1,I-1);
+            bassert(iam==iDest);
 
+            Int fc = Xsuper_[I-1];
+            Int lc = Xsuper_[I]-1;
+            Int iWidth = lc-fc+1;
+            SuperNode<T> * snode = snodeLocal(I);
 
+            //Here, do a linear search instead for the blkidx
+            Ptr colbeg = 1;
+            Ptr colend = nrows;
+            if(colbeg<=colend){
+              //sort rowind and nzvals
 
+              std::vector<size_t> lperm = sort_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,std::less<Idx>());
+              apply_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,lperm);
+              apply_permutation(&nzvalA[colbeg-1],&nzvalA[colend-1]+1,lperm);
+              Idx firstRow = rowind[colbeg-1];
+              Int blkidx = snode->FindBlockIdx(firstRow);
+              assert(blkidx!=-1);
+              Int blk_nrows = snode->NRows(blkidx);    
+              NZBlockDesc * blk_desc = &snode->GetNZBlockDesc(blkidx);
 
-          Int I = SupMembership_[col-1];
-          //do a global to local mapping
+              for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
+                Idx row = rowind[rowidx-1];
 
-
-          Int iDest = this->Mapping_->Map(I-1,I-1);
-          bassert(iam==iDest);
-
-          Int fc = Xsuper_[I-1];
-          Int lc = Xsuper_[I]-1;
-          Int iWidth = lc-fc+1;
-
-          SuperNode<T> * snode = snodeLocal(I);
-
-
-          //Here, do a linear search instead for the blkidx
-
-          Ptr colbeg = 1;
-          Ptr colend = nrows;
-          //            for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
-          //              Idx row = rowind[rowidx-1];
-          //              logfileptr->OFS()<<row<<" ";
-          //            }
-          //              logfileptr->OFS()<<std::endl;
-
-          if(colbeg<=colend){
-            //sort rowind and nzvals
-
-#if 1 
-            std::vector<size_t> lperm = sort_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,std::less<Idx>());
-            apply_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,lperm);
-            apply_permutation(&nzvalA[colbeg-1],&nzvalA[colend-1]+1,lperm);
-            Idx firstRow = rowind[colbeg-1];
-            Int blkidx = snode->FindBlockIdx(firstRow);
-            assert(blkidx!=-1);
-            Int blk_nrows = snode->NRows(blkidx);    
-            NZBlockDesc * blk_desc = &snode->GetNZBlockDesc(blkidx);
-#else
-            Idx prevRow = 0;
-            Int blkidx = 0;
-            NZBlockDesc * blk_desc = &snode->GetNZBlockDesc(blkidx);
-            Int blk_nrows = snode->NRows(blkidx);
-#endif
-
-            for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
-              Idx row = rowind[rowidx-1];
-
-#if 1
-              while(row>blk_desc->GIndex+blk_nrows-1){
-                blkidx++;
-                blk_nrows = snode->NRows(blkidx);    
-                blk_desc = &snode->GetNZBlockDesc(blkidx);
-              }
-#else
-              if(row!=prevRow){
-                if(row>blk_desc->GIndex+blk_nrows || row<blk_desc->GIndex){
-                  blkidx = snode->FindBlockIdx(row);
+                while(row>blk_desc->GIndex+blk_nrows-1){
+                  blkidx++;
+                  blk_nrows = snode->NRows(blkidx);    
                   blk_desc = &snode->GetNZBlockDesc(blkidx);
-                  blk_nrows = snode->NRows(blkidx);
                 }
-                prevRow=row;
+
+                Int local_row = row - blk_desc->GIndex + 1;
+                Int local_col = col - fc + 1;
+                T * nzval = snode->GetNZval(blk_desc->Offset);
+                nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
               }
-#endif
-
-              Int local_row = row - blk_desc->GIndex + 1;
-              Int local_col = col - fc + 1;
-              T * nzval = snode->GetNZval(blk_desc->Offset);
-              nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
-//              if(row==col){
-//                if(std::abs(nzval[(local_row-1)*iWidth+local_col-1])<std::numeric_limits<typeof(std::abs(nzval[(local_row-1)*iWidth+local_col-1])>::epsilon()){
-//                  logfileptr->OFS()<<"Replacing L("<<row<<","<<col<<")"<<std::endl;
-//                  nzval[(local_row-1)*iWidth+local_col-1] = std::numeric_limits<T>::epsilon();
-//                }
-//              }
             }
-            //for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-            //  Int row = rowind[rowidx-1];
-            //  Int blkidx = snode->FindBlockIdx(row);
-            //  assert(blkidx!=-1);
-            //  NZBlockDesc & blk_desc = snode->GetNZBlockDesc(blkidx);
-            //  Int local_row = row - blk_desc.GIndex + 1;
-            //  Int local_col = col - fc + 1;
-            //  T * nzval = snode->GetNZval(blk_desc.Offset);
-            //  nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
-            //}
           }
+          SYMPACK_TIMER_SPECIAL_STOP(deserializing);      
         }
-        SYMPACK_TIMER_SPECIAL_STOP(deserializing);      
-
-        //after the alltoallv, cleanup
-        //delete IrecvPtr;
-        //delete IsendPtr;
-
-        //delete [] recvBuffer;
-        //delete [] sendBuffer;
-      }
 #endif
 
-
-
-
-        //std::vector<upcxx::global_ptr<SuperNodeDesc > > localFactors;
-        //logfileptr->OFS()<<"My usable global memory size is: "<<upcxx::my_usable_global_memory_size()<<std::endl;
         remoteFactors_.resize(Xsuper_.size()-1);
         std::fill((char*)&remoteFactors_[0],(char*)&remoteFactors_[0]+remoteFactors_.size()*sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ),0);
 
@@ -4362,25 +4106,25 @@ for(size_t i =0; i<new_perm.size(); i++){ Order_.perm[i] = new_perm[i];}
         }
 
         auto bor_op = []( void *in, void *inout, int *len, MPI_Datatype *dptr ){ 
-  size_t i; 
-      using F = std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int>; 
-  char * pinout = (char*)inout;
-  char * pin = (char*)in;
+          size_t i; 
+          using F = std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int>; 
+          char * pinout = (char*)inout;
+          char * pin = (char*)in;
 #pragma unroll
-  for (i=0; i< (*len)*sizeof(F); ++i) { 
-    pinout[i] |= pin[i];
-  } 
-};
+          for (i=0; i< (*len)*sizeof(F); ++i) { 
+            pinout[i] |= pin[i];
+          } 
+        };
 
-    MPI_Op MPI_SYMPACK_BOR; 
-    MPI_Op_create( bor_op, true, &MPI_SYMPACK_BOR ); 
+        MPI_Op MPI_SYMPACK_BOR; 
+        MPI_Op_create( bor_op, true, &MPI_SYMPACK_BOR ); 
 
         MPI_Datatype type;
         MPI_Type_contiguous( sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ), MPI_BYTE, &type );
         MPI_Type_commit(&type);
         MPI_Allreduce( MPI_IN_PLACE, &remoteFactors_[0], remoteFactors_.size(), type, MPI_SYMPACK_BOR, fullcomm_);
         MPI_Type_free(&type);
-    MPI_Op_free(&MPI_SYMPACK_BOR);
+        MPI_Op_free(&MPI_SYMPACK_BOR);
       }
 #ifndef NOTRY
       catch(const std::bad_alloc& e){
@@ -4395,7 +4139,6 @@ for(size_t i =0; i<new_perm.size(); i++){ Order_.perm[i] = new_perm[i];}
         std::cout<<"Distribution time: "<<timeStop - timeSta<<std::endl;
       }
     }
-    //    MPI_Barrier(CommEnv_->MPI_GetComm());
     MPI_Barrier(pMat.comm);
   }
 

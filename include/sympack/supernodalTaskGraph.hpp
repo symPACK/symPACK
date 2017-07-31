@@ -44,7 +44,7 @@
 #include <vector>
 #include <limits>
 #include <numeric>
-
+#include <unordered_map>
 //#define SP_THREADS
 
 #ifdef SP_THREADS
@@ -88,7 +88,7 @@ namespace symPACK{
         protected:
         
         public:
-          typedef typename std::map<GenericTask::id_type, std::shared_ptr<GenericTask> > task_list; 
+          typedef typename std::unordered_map<GenericTask::id_type, std::shared_ptr<GenericTask> > task_list; 
           typedef typename task_list::iterator task_iterator; 
 
           template<typename T> friend class symPACKMatrix;

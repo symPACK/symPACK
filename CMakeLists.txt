@@ -222,6 +222,12 @@ set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
   src/TSPB/ordsup_tsp_paths2.f 
   src/TSPB/post_suptree2.f 
   src/TSPB/sup_etpost2.f
+  src/TSPB/fnskel.f 
+  src/TSPB/near_ins.f 
+  src/TSPB/ordsup_ind_tsp_paths.f 
+  src/TSPB/ordsup_tsp_paths.f 
+  src/TSPB/post_suptree.f 
+  src/TSPB/sup_etpost.f
   src/invinv.f src/mod_heap.f src/move_up.f)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)

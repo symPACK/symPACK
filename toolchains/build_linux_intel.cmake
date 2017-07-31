@@ -27,3 +27,37 @@ add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-gxx-name=g++-4.9>")
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-std=c++11>")
 
 
+option(ENABLE_VTUNE "Enable VTUNE" OFF)
+
+STRING( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
+if(ENABLE_VTUNE)
+if(NOT config_type STREQUAL "debug")
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-g>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-g>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-g>")
+add_compile_options("$<$<COMPILE_LANGUAGE:C>:-debug\ inline-debug-info>")
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-debug\ inline-debug-info>")
+add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-debug\ inline-debug-info>")
+#SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -g -dynamic" CACHE STRING "" FORCE )
+#else()
+  #SET( CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} -dynamic" CACHE STRING "" FORCE )
+endif()
+
+#add_compile_options("$<$<COMPILE_LANGUAGE:C>:-dynamic>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-dynamic>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-dynamic>")
+
+#add_compile_options("$<$<COMPILE_LANGUAGE:C>:-opt-report=5>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-opt-report=5>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-opt-report=5>")
+#
+#add_compile_options("$<$<COMPILE_LANGUAGE:C>:-opt-report-phase=vec>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-opt-report-phase=vec>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-opt-report-phase=vec>")
+#
+#add_compile_options("$<$<COMPILE_LANGUAGE:C>:-opt-report-file=stderr>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-opt-report-file=stderr>")
+#add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-opt-report-file=stderr>")
+endif()
+
+

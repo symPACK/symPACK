@@ -133,7 +133,7 @@ c       --------------------------------------------
 c       long integer version of number of equations.
 c       --------------------------------------------
         neqns8 = neqns
-
+c
 C       ******************************
 C       graph compression VIA HASHING.
 C       ******************************
@@ -159,6 +159,7 @@ C           MARK THE skeleton "back" NEIGHBORS OF INODE.
 c           (and compute its hash value.)
 C           --------------------------------------------
             hash = 0
+            if  ( sklenb(inode) .eq. 0 )  go to 200
             KSTART = xskadj(INODE+1) - 1
             KSTOP = xskadj(Inode+1) - sklenb(inode)
             DO  K = KSTART, KSTOP, -1
@@ -168,6 +169,7 @@ c               print *,'    knode:',knode
                 MARKER(KNODE) = inode
             end do
             hash2 = mod ( hash, neqns8 ) + 1
+c           print *,'hash,hash2:',hash,hash2
 C           ------------------------------------------------
 C           SCAN THE NODES JNODE already IN inode's HASH BIN
 C           FOR IDENTICAL skeleton ADJACENCY SETS.
@@ -185,8 +187,13 @@ c               print *,' '
 c               print *,'    jnode:',jnode
                 newj = invp(jnode)
                 MATCH = .FALSE.
+c               print *,'    snodej,snodei:',
+c    &                  snode(newj),snode(newi)
+c               print *,'    lenj,leni:',
+c    &                  sklenb(jnode),sklenb(inode)
                 IF  ( snode(newj) .eq. snode(newi) .and.
      &                sklenb(jnode) .eq. sklenb(inode)     )  then
+c                   print *,'YES'
 C                   ------------------
 C                   CHECK FOR A MATCH.
 C                   ------------------
@@ -209,7 +216,7 @@ C                   ----------------------------------
 C                   INODE WILL BE ABSORBED INTO JNODE.
 C                   ----------------------------------
                     rep(newi) = newj
-c                   print *,'inode ',inode,' absorbed into ',jnode
+c                   print *,'inode ',newi,' absorbed into ',newj
 c                   -------------------
 c                   inode is absorbed.
 c                   skip to next inode.

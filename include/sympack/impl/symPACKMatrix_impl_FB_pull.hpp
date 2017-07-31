@@ -321,10 +321,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                   src_snode->in_use = false;
 #endif
 
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",tgt_snode_id,tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
+          auto id = hash_fn(std::string(buf));
 
-          std::stringstream sstr;
-          sstr<<tgt_snode_id<<"_"<<tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
-          auto id = hash_fn(sstr.str());
+//          std::stringstream sstr;
+//          sstr<<tgt_snode_id<<"_"<<tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
+//          auto id = hash_fn(sstr.str());
           auto taskit = graph.find_task(id);
           //this is a particular case : we consider this as a remote dependency
           bassert(taskit!=graph.tasks_.end());
@@ -417,9 +420,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       meta.tgt = curUpdate.tgt_snode_id;
                       meta.GIndex = curUpdate.src_first_row;
 
-                      std::stringstream sstr;
-                      sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                      meta.id = hash_fn(sstr.str());
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",meta.src,meta.tgt,0,(Int)Factorization::op_type::UPDATE);
+          meta.id = hash_fn(std::string(buf));
+                      //std::stringstream sstr;
+                      //sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
+                      //meta.id = hash_fn(sstr.str());
 
                       char * last_byte_ptr = (char*)&nzblk_desc + sizeof(NZBlockDesc);
                       size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
@@ -437,9 +443,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     //Update local tasks
                     //find task corresponding to curUpdate
 
-                    std::stringstream sstr;
-                    sstr<<curUpdate.src_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                    auto id = hash_fn(sstr.str());
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::UPDATE);
+          auto id = hash_fn(std::string(buf));
+              //      std::stringstream sstr;
+              //      sstr<<curUpdate.src_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
+              //      auto id = hash_fn(sstr.str());
                     auto taskit = graph.find_task(id);
                     bassert(taskit!=graph.tasks_.end());
                     dec_ref(taskit,1,0);
@@ -502,9 +511,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
 
                     //GET MY ID
-                    std::stringstream sstr;
-                    sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
-                    auto id = hash_fn(sstr.str());
+                    //std::stringstream sstr;
+                    //sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
+                    //auto id = hash_fn(sstr.str());
+                    auto id = pTask->id;
 
                     bassert(msgPtr->meta.id == id);
 
@@ -525,7 +535,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     //Update everything owned locally src_snode_id updates with that factor
                     SYMPACK_TIMER_START(UPDATE_ANCESTORS);
                     SnodeUpdate curUpdate;
-
                     while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
 
                       //skip if this update is "lower"
@@ -677,7 +686,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifdef _DEBUG_
                           logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<std::endl;
 #endif
-                          SYMPACK_TIMER_STOP(UPDATE_ANCESTORS);
 
                           //TODO if I am the last one updating that target, send it
                           //THIS SHOULD NOT HAVE TO BE PROTECTED OR BE ATOMICAL BECAUSE NO OTHER RUNNING TASK SHOULD UPDATE THE SAME TARGET
@@ -703,9 +711,15 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                               meta.tgt = curUpdate.tgt_snode_id;
                               meta.GIndex = nzblk_desc.GIndex;
 
-                              std::stringstream sstr;
-                              sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
-                              meta.id = hash_fn(sstr.str());
+                              //std::stringstream sstr;
+                              //sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
+                              //meta.id = hash_fn(sstr.str());
+
+
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",meta.src,meta.tgt,0,(Int)Factorization::op_type::AGGREGATE);
+          meta.id = hash_fn(std::string(buf));
+
 
                               upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
                               //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
@@ -721,9 +735,14 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
                           if(iTarget == iam)
                           {
-                            std::stringstream sstr;
-                            sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
-                            auto id = hash_fn(sstr.str());
+
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
+          auto id = hash_fn(std::string(buf));
+
+          //                  std::stringstream sstr;
+          //                  sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
+          //                  auto id = hash_fn(sstr.str());
                             auto taskit = graph.find_task(id);
                             bassert(taskit!=graph.tasks_.end());
                             dec_ref(taskit,1,0);
@@ -797,9 +816,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
 
                       //GET MY ID
-                      std::stringstream sstr;
-                      sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
-                      auto id = hash_fn(sstr.str());
+                      //std::stringstream sstr;
+                      //sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
+                      //auto id = hash_fn(sstr.str());
+                      auto id = pTask->id;
+
                       if(msgPtr->meta.id == id){
                         char* dataPtr = msgPtr->GetLocalPtr().get();
                         {
@@ -835,9 +856,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                   }
                                   else{
 
-                                    std::stringstream sstr;
-                                    sstr<<localUpdate.src_snode_id<<"_"<<localUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                                    auto id = hash_fn(sstr.str());
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",localUpdate.src_snode_id,localUpdate.tgt_snode_id,0,(Int)Factorization::op_type::UPDATE);
+          auto id = hash_fn(std::string(buf));
+                                  //  std::stringstream sstr;
+                                  //  sstr<<localUpdate.src_snode_id<<"_"<<localUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
+                                  //  auto id = hash_fn(sstr.str());
                                     auto taskit = graph.find_task(id);
 
                                     bassert(taskit!=graph.tasks_.end());
@@ -1072,9 +1096,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           meta.tgt = curUpdate.tgt_snode_id;
                           meta.GIndex = nzblk_desc.GIndex;
 
-                          std::stringstream sstr;
-                          sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
-                          meta.id = hash_fn(sstr.str());
+          //                std::stringstream sstr;
+          //                sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
+          //                meta.id = hash_fn(sstr.str());
+
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",meta.src,meta.tgt,0,(Int)Factorization::op_type::AGGREGATE);
+          meta.id = hash_fn(std::string(buf));
 
                           upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
                           //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
@@ -1092,9 +1120,14 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
                       if(iTarget == iam)
                       {
-                        std::stringstream sstr;
-                        sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
-                        auto id = hash_fn(sstr.str());
+                        //std::stringstream sstr;
+                        //sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
+                        //auto id = hash_fn(sstr.str());
+
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
+          auto id = hash_fn(std::string(buf));
+
                         auto taskit = graph.find_task(id);
                         bassert(taskit!=graph.tasks_.end());
                         dec_ref(taskit,1,0);
@@ -2651,9 +2684,12 @@ template <typename T> inline void symPACKMatrix<T>::_factorTask1D(Int src, Int t
                       meta.tgt = curUpdate.tgt_snode_id;
                       meta.GIndex = curUpdate.src_first_row;
 
-                      std::stringstream sstr;
-                      sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                      meta.id = hash_fn(sstr.str());
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",meta.src,meta.tgt,0,(Int)Factorization::op_type::UPDATE);
+          meta.id = hash_fn(std::string(buf));
+                    //  std::stringstream sstr;
+                    //  sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
+                    //  meta.id = hash_fn(sstr.str());
 
                       char * last_byte_ptr = (char*)&nzblk_desc + sizeof(NZBlockDesc);
                       size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
@@ -2671,9 +2707,14 @@ template <typename T> inline void symPACKMatrix<T>::_factorTask1D(Int src, Int t
                     //Update local tasks
                     //find task corresponding to curUpdate
 
-                    std::stringstream sstr;
-                    sstr<<curUpdate.src_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                    auto id = hash_fn(sstr.str());
+                  //  std::stringstream sstr;
+                  //  sstr<<curUpdate.src_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
+                  //  auto id = hash_fn(sstr.str());
+
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::UPDATE);
+          auto id = hash_fn(std::string(buf));
+
                     auto taskit = graph.find_task(id);
                     bassert(taskit!=graph.tasks_.end());
                     _dec_ref_task(graph,taskit,1,0);
@@ -2725,9 +2766,10 @@ template <typename T> inline void symPACKMatrix<T>::_updateTask1D(Int src, Int t
 
 
       //GET MY ID
-      std::stringstream sstr;
-      sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
-      auto id = hash_fn(sstr.str());
+      //std::stringstream sstr;
+      //sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
+      //auto id = hash_fn(sstr.str());
+      auto id = pTask->id;
 
       bassert(msgPtr->meta.id == id);
 
@@ -2925,9 +2967,12 @@ template <typename T> inline void symPACKMatrix<T>::_updateTask1D(Int src, Int t
                 meta.tgt = curUpdate.tgt_snode_id;
                 meta.GIndex = nzblk_desc.GIndex;
 
-                std::stringstream sstr;
-                sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
-                meta.id = hash_fn(sstr.str());
+                //std::stringstream sstr;
+                //sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
+                //meta.id = hash_fn(sstr.str());
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",meta.src,meta.tgt,0,(Int)Factorization::op_type::AGGREGATE);
+          meta.id = hash_fn(std::string(buf));
 
                 upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
                 //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
@@ -2943,9 +2988,13 @@ template <typename T> inline void symPACKMatrix<T>::_updateTask1D(Int src, Int t
             SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
             if(iTarget == iam)
             {
-              std::stringstream sstr;
-              sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
-              auto id = hash_fn(sstr.str());
+              //std::stringstream sstr;
+              //sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
+              //auto id = hash_fn(sstr.str());
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
+          auto id = hash_fn(std::string(buf));
+
               auto taskit = graph.find_task(id);
               bassert(taskit!=graph.tasks_.end());
               _dec_ref_task(graph,taskit,1,0);
@@ -3057,10 +3106,13 @@ template <typename T> inline void symPACKMatrix<T>::_updateTask1D(Int src, Int t
                       found = true;
                     }
                     else{
+                      //std::stringstream sstr;
+                      //sstr<<localUpdate.src_snode_id<<"_"<<localUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
+                      //auto id = hash_fn(sstr.str());
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",localUpdate.src_snode_id,localUpdate.tgt_snode_id,0,(Int)Factorization::op_type::UPDATE);
+          auto id = hash_fn(std::string(buf));
 
-                      std::stringstream sstr;
-                      sstr<<localUpdate.src_snode_id<<"_"<<localUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                      auto id = hash_fn(sstr.str());
                       auto taskit = graph.find_task(id);
 
                       bassert(taskit!=graph.tasks_.end());
@@ -3310,9 +3362,12 @@ template <typename T> inline void symPACKMatrix<T>::_updateTask1D(Int src, Int t
             meta.tgt = curUpdate.tgt_snode_id;
             meta.GIndex = nzblk_desc.GIndex;
 
-            std::stringstream sstr;
-            sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
-            meta.id = hash_fn(sstr.str());
+          //  std::stringstream sstr;
+          //  sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
+          //  meta.id = hash_fn(sstr.str());
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",meta.src,meta.tgt,0,(Int)Factorization::op_type::AGGREGATE);
+          meta.id = hash_fn(std::string(buf));
 
             upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
             //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
@@ -3330,9 +3385,14 @@ template <typename T> inline void symPACKMatrix<T>::_updateTask1D(Int src, Int t
         SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
         if(iTarget == iam)
         {
-          std::stringstream sstr;
-          sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
-          auto id = hash_fn(sstr.str());
+          //std::stringstream sstr;
+          //sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
+          //auto id = hash_fn(sstr.str());
+
+          char buf[100];
+          sprintf(buf,"%d_%d_%d_%d",curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
+          auto id = hash_fn(std::string(buf));
+
           auto taskit = graph.find_task(id);
           bassert(taskit!=graph.tasks_.end());
           _dec_ref_task(graph,taskit,1,0);
