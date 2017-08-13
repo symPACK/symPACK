@@ -54,9 +54,9 @@ else()
     set_property(TARGET libgasnet-conduit PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libgasnet-aries-seq.a)
     
     if(APPLE)
-      SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lhugetlbfs -lpthread )
+      SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lpthread )
     else()
-      SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lhugetlbfs -lpthread -lrt )
+      SET(GASNET_LIBRARIES -lammpi ${MPI_CXX_LIBRARIES} -lpthread -lrt )
     endif()
     
     add_dependencies(libgasnet-conduit ${GASNET_NAME})
