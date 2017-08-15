@@ -1,8 +1,8 @@
 
-STRING( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
-if(config_type STREQUAL "debug")
-  set(GASNET_DEBUG "--enable-debug")
-endif()
+#STRING( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
+#if(config_type STREQUAL "debug")
+#  set(GASNET_DEBUG "--enable-debug")
+#endif()
 
 set(GASNET_PREFIX $ENV{GASNET_DIR})
 

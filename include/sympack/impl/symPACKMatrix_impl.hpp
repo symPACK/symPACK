@@ -487,28 +487,29 @@ namespace symPACK{
           FanBoth();
           break;
       }
-    }
-    SYMPACK_TIMER_STOP(NUMERICAL_FACT);
+      SYMPACK_TIMER_STOP(NUMERICAL_FACT);
 
-#ifdef PROFILE_COMM
-    if(iam<np){
-      logfileptr->OFS()<<"Local volume of communication: "<<gVolComm<<std::endl;
-      logfileptr->OFS()<<"Local number of messages: "<<gNumMsg<<std::endl;
+#ifdef _SYMPACK_PROFILE_COMM_
+      //TODO this needs debugging
+      if(iam<np){
+        logfileptr->OFS()<<"Local volume of communication: "<<gVolComm<<std::endl;
+        logfileptr->OFS()<<"Local number of messages: "<<gNumMsg<<std::endl;
 
-      size_t totalVolComm = 0;
-      MPI_Reduce(&gVolComm,&totalVolComm,1,MPI_UINT64_T,MPI_SUM,0,CommEnv_->MPI_GetComm());
-      size_t totalNumMsg = 0;
-      MPI_Reduce(&gNumMsg,&totalNumMsg,1,MPI_UINT64_T,MPI_SUM,0,CommEnv_->MPI_GetComm());
+        size_t totalVolComm = 0;
+        MPI_Reduce(&gVolComm,&totalVolComm,1,MPI_UINT64_T,MPI_SUM,0,CommEnv_->MPI_GetComm());
+        size_t totalNumMsg = 0;
+        MPI_Reduce(&gNumMsg,&totalNumMsg,1,MPI_UINT64_T,MPI_SUM,0,CommEnv_->MPI_GetComm());
 
-      if(iam==0){
-        std::cout<<"Total volume of communication: "<<totalVolComm<<std::endl;
-        std::cout<<"Total number of messages: "<<totalNumMsg<<std::endl;
+        if(iam==0){
+          std::cout<<"Total volume of communication: "<<totalVolComm<<std::endl;
+          std::cout<<"Total number of messages: "<<totalNumMsg<<std::endl;
+        }
+
+        gVolComm=0;
+        gNumMsg=0;
       }
-
-      gVolComm=0;
-      gNumMsg=0;
-    }
 #endif
+    }
   }
 
 

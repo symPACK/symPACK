@@ -360,9 +360,9 @@ namespace symPACK{
 
 
       //functions replacing lambdas
-      inline void _factorTask1D(Int src, Int tgt, const std::shared_ptr<GenericTask> & pTask, const Factorization::op_type & type, taskGraph & graph);
-      inline void _updateTask1D(Int src, Int tgt, const std::shared_ptr<GenericTask> & pTask, const Factorization::op_type & type, std::vector<Int> & UpdatesToDo,std::vector< SuperNode<T>* >& aggVectors, taskGraph & graph);
-      inline void _dec_ref_task(taskGraph & graph, taskGraph::task_iterator & taskit, Int loc, Int rem);
+      //inline void _factorTask1D(Int src, Int tgt, const std::shared_ptr<GenericTask> & pTask, const Factorization::op_type & type, taskGraph & graph);
+      //inline void _updateTask1D(Int src, Int tgt, const std::shared_ptr<GenericTask> & pTask, const Factorization::op_type & type, std::vector<Int> & UpdatesToDo,std::vector< SuperNode<T>* >& aggVectors, taskGraph & graph);
+      //inline void _dec_ref_task(taskGraph & graph, taskGraph::task_iterator & taskit, Int loc, Int rem);
 
 
 

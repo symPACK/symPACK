@@ -65,62 +65,12 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include <upcxx.h>
 
 
+extern "C"
 bool libMPIInit = false;
+
+extern "C"
 bool libUPCXXInit = false;
 
-extern "C"
-int symPACK_Init(int *argc=NULL, char ***argv=NULL){
-  int retval = 0;
-  MPI_Initialized(&retval);
-  if(retval==0){
-    retval = MPI_Init(argc,argv)==MPI_SUCCESS;
-    if(retval){
-      libMPIInit = true;
-    }
-    else{
-      abort();
-    }
-  }
-
-  char *orig_pmi_gni_cookie = getenv("PMI_GNI_COOKIE");
-  if (orig_pmi_gni_cookie) {
-    char *new_pmi_gni_cookie = (char *)malloc(32);
-    sprintf(new_pmi_gni_cookie, "PMI_GNI_COOKIE=%d",
-        1+atoi(orig_pmi_gni_cookie));
-    putenv(new_pmi_gni_cookie);
-  }
-
-
-  if(!upcxx::is_init()){
-    retval = retval && upcxx::init(NULL,NULL);
-    assert(upcxx::is_init());
-    libUPCXXInit = true;
-  }
-
-  //    retval = upcxx::init(argc, argv);
-  //
-  //char *orig_pmi_gni_cookie = getenv("PMI_GNI_COOKIE");
-  //if (orig_pmi_gni_cookie) {
-  //     char *new_pmi_gni_cookie = (char *)malloc(32);
-  //     sprintf(new_pmi_gni_cookie, "PMI_GNI_COOKIE=%d",
-  //                 1+atoi(orig_pmi_gni_cookie));
-  //     putenv(new_pmi_gni_cookie);
-  //}
-  //
-  //
-  //    retval = retval && MPI_Init(argc,argv);
-  return retval;
-}
-
-extern "C"
-int symPACK_Finalize(){
-  if(libUPCXXInit){
-    return upcxx::finalize();
-  }
-  else{
-    return 0;
-  }
-}
 
 
 extern "C"
@@ -140,6 +90,98 @@ int symPACK_Rank(int * rank){
     }
   }
   return 0;
+}
+
+
+
+
+extern "C"
+int symPACK_Init(int *argc, char ***argv){
+  int retval = 1;
+
+//    upcxx::init(argc,argv);
+//
+//    int mpiinit = 0;
+//    MPI_Initialized(&mpiinit);
+//    if(mpiinit==0){
+//      if(MPI_Init(argc,argv)!=MPI_SUCCESS){
+//        symPACK::gdb_lock();
+//      }
+//    }
+//  return 1;
+
+  if(!libUPCXXInit){
+    //char *orig_pmi_gni_cookie = getenv("PMI_GNI_COOKIE");
+    //if (orig_pmi_gni_cookie) {
+    //  char *new_pmi_gni_cookie = (char *)malloc(32);
+    //  sprintf(new_pmi_gni_cookie, "PMI_GNI_COOKIE=%d",
+    //      1+atoi(orig_pmi_gni_cookie));
+    //  putenv(new_pmi_gni_cookie);
+    //}
+
+
+    if(!upcxx::is_init()){
+//std::cerr<<"upcxx init"<<std::endl;
+      upcxx::init(argc,argv);
+//std::cerr<<"past upcxx init"<<std::endl;
+      libUPCXXInit = true;
+    }
+  }
+
+  if(!libMPIInit){
+    int mpiinit = 0;
+    MPI_Initialized(&mpiinit);
+    if(mpiinit==0){
+      if(MPI_Init(argc,argv)==MPI_SUCCESS){
+        libMPIInit = true;
+        retval = retval && 1;
+      }
+//std::cerr<<"past MPI_Initialize"<<std::endl;
+    }
+  }
+
+    int mpiinit = 0;
+    MPI_Initialized(&mpiinit);
+    assert(mpiinit==1);
+    assert(upcxx::is_init());
+
+  return retval;
+}
+
+
+extern "C"
+int symPACK_Finalize(){
+  int retval = 1;
+  int rank = 0;
+  symPACK_Rank(&rank);
+ 
+  if(libUPCXXInit){
+    //if(rank==0){std::cerr<<"upcxx finalize"<<std::endl;}
+    upcxx::finalize();
+    //if(rank==0){std::cerr<<"past upcxx finalize"<<std::endl;}
+    libUPCXXInit = false;
+    libMPIInit = false;
+  }
+
+  
+  ////if(libMPIInit)
+  ////{
+  ////  int mpiflag = 0;
+  ////  if(rank==0){std::cerr<<"MPI_Finalized"<<std::endl;};
+  ////  MPI_Finalized(&mpiflag);
+  ////  if(mpiflag==0){
+  ////    if(rank==0){std::cerr<<"MPI_Finalize"<<std::endl;};
+  ////    retval = retval && MPI_SUCCESS == MPI_Finalize();
+  ////    if(rank==0){std::cerr<<"past MPI_Finalize"<<std::endl;};
+  ////    libMPIInit = false;
+  ////  }
+  ////}
+
+  ////int mpiinit = 0;
+  ////MPI_Finalized(&mpiinit);
+  ////assert(mpiinit==1);
+  assert(!upcxx::is_init());
+  return retval;
 }
 
 

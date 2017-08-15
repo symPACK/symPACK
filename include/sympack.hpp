@@ -43,6 +43,8 @@
 #ifndef _SYMPACK_HEADER_
 #define _SYMPACK_HEADER_
 
+#define SP_THREADS
+
 #ifdef __cplusplus
 #include  "sympack/Environment.hpp"
 #include  "sympack/utility.hpp"
@@ -77,10 +79,13 @@
 extern "C" {
 #endif
 
+extern bool libMPIInit;
+extern bool libUPCXXInit;
 
   int symPACK_Init(int *argc=NULL, char ***argv=NULL);
   int symPACK_Finalize();
   int symPACK_Rank(int * rank);
+
 
 
   //returns an integer corresponding to a symPACK handle

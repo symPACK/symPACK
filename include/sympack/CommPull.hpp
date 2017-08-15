@@ -73,6 +73,55 @@ namespace symPACK{
   bool barrier_done(int id);
   int get_barrier_id(int np);
   void signal_exit(int barrier_id, int np);
+  void barrier_wait(int barrier_id);
+
+  extern int last_key;
+  extern std::map<int,int> async_barriers;
+
+  inline bool barrier_done(int id){
+    return async_barriers[id]==0;
+  }
+
+  inline int get_barrier_id(int np){
+    int id = last_key++;
+    auto it = async_barriers.find(id);
+    if(it ==async_barriers.end()){
+      async_barriers[id] = np;
+    }
+    return id;
+  }
+
+  inline void signal_exit_am(int barrier_id,int np)
+  {
+    auto it = async_barriers.find(barrier_id);
+    if(it ==async_barriers.end()){
+      async_barriers[barrier_id] = np;
+    }
+    async_barriers[barrier_id]--;
+    //upcxx::barrier();
+  }
+
+  inline void signal_exit(int barrier_id, int np)
+  {
+
+    for (int i = 0; i < np; i++) {
+      upcxx::async(i)(signal_exit_am,barrier_id,np);
+    }
+
+    //make sure we don't have anything outgoing in flight anymore 
+    upcxx::async_wait();
+  }
+
+    
+  inline void barrier_wait(int barrier_id){
+    while( !barrier_done(barrier_id) ){
+      upcxx::advance(); 
+    }
+  }
+
+
+
+
 
   struct SnodeUpdateFB;
   //class SupernodalMatrixBase;
@@ -292,7 +341,7 @@ namespace symPACK{
     SYMPACK_TIMER_START(RCV_ASYNC);
                               
 #ifndef NDEBUG
-    logfileptr->OFS()<<"Handling message "<<meta.src<<"->"<<meta.tgt<<" from P"<<pRemote_ptr.where()<<std::endl;
+    //logfileptr->OFS()<<"Handling message "<<meta.src<<"->"<<meta.tgt<<" from P"<<pRemote_ptr.where()<<std::endl;
 #endif
 
 #ifdef HANDLE_LOCAL_POINTER

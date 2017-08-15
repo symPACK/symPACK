@@ -548,10 +548,8 @@ namespace symPACK{
         }
 
         int barrier_id = get_barrier_id(np);
-        signal_exit(barrier_id,np);
-        while( !barrier_done(barrier_id) ){
-          upcxx::advance(); 
-        }
+        signal_exit(barrier_id,np); 
+        barrier_wait(barrier_id);
 
 
         //workteam.barrier();

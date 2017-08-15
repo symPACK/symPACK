@@ -196,7 +196,7 @@ namespace symPACK{
         scheduler = DL;
         maxIsend = 0;
         maxIrecv=0;
-        relax = RelaxationParameters(0);
+        relax = RelaxationParameters(150);
         relax.SetMaxSize(150);
 
         commEnv = NULL;

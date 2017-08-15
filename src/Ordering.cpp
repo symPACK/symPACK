@@ -1123,9 +1123,9 @@ namespace symPACK{
     MPI_Comm_rank(g.comm,&iam);
     MPI_Comm_size(g.comm,&np);
 
-        MPI_Datatype type;
-        MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
-        MPI_Type_commit(&type);
+    MPI_Datatype type;
+    MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
+    MPI_Type_commit(&type);
     logfileptr->OFS()<<"PTSCOTCH used"<<std::endl;
     if(iam==0){std::cout<<"PTSCOTCH used"<<std::endl;}
 
@@ -1148,16 +1148,18 @@ namespace symPACK{
     //      MPI_Comm_split(g.comm,color,iam,&ndcomm);
 
 
-    SCOTCH_Num ndomains = np;
+
+    NpOrdering = std::min(std::max(0,NpOrdering),np);
+    SCOTCH_Num ndomains = NpOrdering;
     MPI_Comm ndcomm;
-    MPI_Comm_dup(g.comm,&ndcomm);
-    //      while(((double)N/(double)ndomains)<1.0){ndomains--;}
+    int color = iam < ndomains;
+    MPI_Comm_split(g.comm,color,iam,&ndcomm);
+    //SCOTCH_Num ndomains = np;
+    //MPI_Comm_dup(g.comm,&ndcomm);
 
     MPI_Comm_rank(ndcomm,&mpirank);
     std::vector<SCOTCH_Num> vtxdist;
     SCOTCH_Num localN;
-    if(iam<ndomains){
-      assert(mpirank==iam);
       //vtxdist.resize(ndomains+1);
 
       //localN = g.LocalVertexCount();
@@ -1167,38 +1169,77 @@ namespace symPACK{
       //} 
       //vtxdist[ndomains] = N+baseval;
 
-      vtxdist.resize(g.vertexDist.size());
-      for(int i = 0 ; i < g.vertexDist.size(); i++){
-        vtxdist[i] = (SCOTCH_Num)g.vertexDist[i];
-      }
-
-
-      //            logfileptr->OFS()<<"vtxdist: "<<vtxdist<<std::endl;
-
-      //        if(iam==ndomains-1){
-      //          localN = N - (ndomains-1)*localN;
-      //        }
-
-
       SCOTCH_Num * prowind = NULL;
-      if(typeid(SCOTCH_Num) != typeid(Idx)){
-        prowind = new SCOTCH_Num[g.LocalEdgeCount()];
-        for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (SCOTCH_Num)g.rowind[i];}
-      }
-      else{
-        prowind = (SCOTCH_Num*)&g.rowind[0];
-      }
-
       SCOTCH_Num * pcolptr = NULL;
-      if(typeid(SCOTCH_Num) != typeid(Ptr)){
-        pcolptr = new SCOTCH_Num[g.LocalVertexCount()+1];
-        for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (SCOTCH_Num)g.colptr[i];}
+      SCOTCH_Num          vertlocnbr;
+      SCOTCH_Num          edgelocnbr;
+      DistSparseMatrixGraph ng;
+      if(ndomains!=np){
+        //make a copy
+        ng = g;
+        //create a new vertexDist, this is the important stuff
+        Idx colPerProc = g.size / ndomains;
+        std::vector<Idx> newVertexDist(np+1,colPerProc);
+        newVertexDist[0]=1;
+        std::partial_sum(newVertexDist.begin(),newVertexDist.end(),newVertexDist.begin());
+        for(int i = ndomains;i<np+1;i++){ newVertexDist[i] = g.size+newVertexDist[0];}
+
+        //redistribute ng
+        ng.Redistribute(&newVertexDist[0]);
+
+        vtxdist.resize(ng.vertexDist.size());
+        for(int i = 0 ; i < ng.vertexDist.size(); i++){
+          vtxdist[i] = (SCOTCH_Num)ng.vertexDist[i];
+        }
+
+        if(typeid(SCOTCH_Num) != typeid(Idx)){
+          prowind = new SCOTCH_Num[ng.LocalEdgeCount()];
+          for(Ptr i = 0; i<ng.rowind.size();i++){ prowind[i] = (SCOTCH_Num)ng.rowind[i];}
+        }
+        else{
+          prowind = (SCOTCH_Num*)&ng.rowind[0];
+        }
+
+        if(typeid(SCOTCH_Num) != typeid(Ptr)){
+          pcolptr = new SCOTCH_Num[ng.LocalVertexCount()+1];
+          for(Ptr i = 0; i<ng.colptr.size();i++){ pcolptr[i] = (SCOTCH_Num)ng.colptr[i];}
+        }
+        else{
+          pcolptr = (SCOTCH_Num*)&ng.colptr[0];
+        }
+
+        vertlocnbr = ng.LocalVertexCount();
+        edgelocnbr = ng.LocalEdgeCount();
+
       }
       else{
-        pcolptr = (SCOTCH_Num*)&g.colptr[0];
+        vtxdist.resize(g.vertexDist.size());
+        for(int i = 0 ; i < g.vertexDist.size(); i++){
+          vtxdist[i] = (SCOTCH_Num)g.vertexDist[i];
+        }
+
+        if(typeid(SCOTCH_Num) != typeid(Idx)){
+          prowind = new SCOTCH_Num[g.LocalEdgeCount()];
+          for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (SCOTCH_Num)g.rowind[i];}
+        }
+        else{
+          prowind = (SCOTCH_Num*)&g.rowind[0];
+        }
+
+        if(typeid(SCOTCH_Num) != typeid(Ptr)){
+          pcolptr = new SCOTCH_Num[g.LocalVertexCount()+1];
+          for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (SCOTCH_Num)g.colptr[i];}
+        }
+        else{
+          pcolptr = (SCOTCH_Num*)&g.colptr[0];
+        }
+
+        vertlocnbr = g.LocalVertexCount();
+        edgelocnbr = g.LocalEdgeCount();
       }
 
-
+    if(iam<ndomains){
+      assert(mpirank==iam);
       SCOTCH_Num options[3];
       options[0] = 0;
       SCOTCH_Num numflag = baseval;
@@ -1209,16 +1250,14 @@ namespace symPACK{
       SCOTCH_Dgraph       grafdat;                    /* Scotch distributed graph object to SCOTCH_Numerface with libScotch    */
       SCOTCH_Dordering    ordedat;                    /* Scotch distributed ordering object to SCOTCH_Numerface with libScotch */
       SCOTCH_Strat        stradat;
-      SCOTCH_Num          vertlocnbr;
-      SCOTCH_Num          edgelocnbr;
 
-      vertlocnbr = g.LocalVertexCount();
-      edgelocnbr = g.LocalEdgeCount();
 
+      logfileptr->OFS()<<"SCOTCH_dgraphInit"<<std::endl;
       if(SCOTCH_dgraphInit (&grafdat, ndcomm) != 0){
         throw std::logic_error( "Error in SCOTCH_dgraphInit\n" );
       }
 
+      logfileptr->OFS()<<"SCOTCH_dgraphBuild"<<std::endl;
       if (SCOTCH_dgraphBuild (&grafdat, 
             baseval,
             vertlocnbr, 
@@ -1242,6 +1281,7 @@ namespace symPACK{
       }
 #endif
 
+      logfileptr->OFS()<<"SCOTCH_stratInit"<<std::endl;
       if(SCOTCH_stratInit (&stradat)!= 0){
         throw std::logic_error( "Error in SCOTCH_stratInit\n" );
       }
@@ -1252,10 +1292,12 @@ namespace symPACK{
       //  throw std::logic_error( "Error in SCOTCH_stratDgraphOrder\n" );
       //} 
 
+      logfileptr->OFS()<<"SCOTCH_orderInit"<<std::endl;
       if (SCOTCH_dgraphOrderInit (&grafdat, &ordedat) != 0) {
         throw std::logic_error( "Error in SCOTCH_dgraphOrderInit\n" );
       }
 
+      logfileptr->OFS()<<"SCOTCH_orderCompute"<<std::endl;
       if(SCOTCH_dgraphOrderCompute (&grafdat, &ordedat, &stradat)!=0){
         throw std::logic_error( "Error in SCOTCH_dgraphOrderCompute\n" );
       }
@@ -1268,6 +1310,7 @@ namespace symPACK{
       SCOTCH_stratExit (&stradat);
       SCOTCH_Ordering  ordering;
 
+      logfileptr->OFS()<<"SCOTCH_dgraphCorderInit"<<std::endl;
       SCOTCH_dgraphCorderInit (&grafdat,
           &ordering,
           &sc_permtab[0],
@@ -1279,6 +1322,7 @@ namespace symPACK{
 
 
       //if (iam == 0) {
+      logfileptr->OFS()<<"SCOTCH_dgraphOrderGather"<<std::endl;
       SCOTCH_dgraphOrderGather (&grafdat, &ordedat, (iam==0?&ordering:NULL));
       //}
       //else {     
@@ -1290,8 +1334,11 @@ namespace symPACK{
       //            logfileptr->OFS()<<"peritab: "<<sc_peritab<<std::endl;
 
 
+      logfileptr->OFS()<<"SCOTCH_dgraphCorderExit"<<std::endl;
       SCOTCH_dgraphCorderExit( &grafdat, &ordering );
+      logfileptr->OFS()<<"SCOTCH_dgraphOrderExit"<<std::endl;
       SCOTCH_dgraphOrderExit (&grafdat, &ordedat);
+      logfileptr->OFS()<<"SCOTCH_dgraphExit"<<std::endl;
       SCOTCH_dgraphExit (&grafdat);
 
 
