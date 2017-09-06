@@ -104,7 +104,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #define FANIN_OPTIMIZATION
 #define _SEQ_SPECIAL_CASE_
-#define _LAMBDAS_
+//#define _LAMBDAS_
 
 
 //#define _SEQ_SPECIAL_CASE_
@@ -216,6 +216,7 @@ namespace symPACK{
       CommEnvironment * CommEnv_;
       upcxx::team * team_;
 
+      SharedNode shmNode_;
       MPI_Comm non_workcomm_;
       MPI_Comm fullcomm_;
 
@@ -323,6 +324,7 @@ namespace symPACK{
       void refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T>* pMat = NULL);
 
       void getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc);
+      void getLColRowCount(DistSparseMatrixGraph & dgraph, std::vector<Int> & cc, std::vector<Int> & rc);
 
 
     protected:

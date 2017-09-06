@@ -584,28 +584,13 @@ namespace symPACK{
     }
 
   template<typename T, class Allocator>
-    inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, 
-        //#ifdef SP_THREADS
-        //        TempUpdateBuffers<T> & tmpBuffers_disabled,
-        //#else
-        TempUpdateBuffers<T> & tmpBuffers,
-        //#endif
-        Int iTarget, Int iam ){
+    inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, TempUpdateBuffers<T> & tmpBuffers, Int iTarget, Int iam ){
       bassert(this->meta_!=nullptr);
       scope_timer(a,UPDATE_AGGREGATE_SNODE);
 
 #if defined(_NO_COMPUTATION_)
       return 0;
 #endif
-
-      ///#ifdef SP_THREADS
-      ///      //hide the parameter
-      ///        TempUpdateBuffers<T> tmpBuffers;
-      ///        tmpBuffers.tmpBuf.resize(tmpBuffers_disabled.tmpBuf.size());
-      ///        tmpBuffers.src_colindx.resize(tmpBuffers_disabled.src_colindx.size());
-      ///        tmpBuffers.src_to_tgt_offset.resize(tmpBuffers_disabled.src_to_tgt_offset.size());
-      ///#endif
-
       if(iTarget != iam){
         this->Merge(src_snode, update);
 

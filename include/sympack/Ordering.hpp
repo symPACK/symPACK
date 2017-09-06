@@ -115,6 +115,8 @@ class Ordering{
 #ifdef USE_SCOTCH
     void SCOTCH(const SparseMatrixGraph & g, MPI_Comm comm);
 #endif
+
+    void GetRelativeInvp(const std::vector<Int> & frominvp, std::vector<Int> & relinvp);
     void Compose(std::vector<Int> & invp2);
 };
 

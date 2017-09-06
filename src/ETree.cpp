@@ -103,7 +103,7 @@ namespace symPACK{
   }
 
 
-  void ETree::PostOrderTree(Ordering & aOrder){
+  void ETree::PostOrderTree(Ordering & aOrder,Int * relinvp){
     if(n_>0 && !bIsPostOrdered_){
 
       SYMPACK_TIMER_START(PostOrder);
@@ -149,7 +149,9 @@ namespace symPACK{
       //we need to compose aOrder.invp and invpos
       aOrder.Compose(invpos);
 
-
+      if(relinvp!=nullptr){
+        std::copy(invpos.begin(),invpos.end(),relinvp);
+      }
 
       bIsPostOrdered_ = true;
 
@@ -273,10 +275,102 @@ namespace symPACK{
   }
 
   void ETree::ConstructETree(DistSparseMatrixGraph & aDistExp, Ordering & aOrder){
-    throw std::logic_error( "ETree::ConstructETree(DistSparseMatrixGraph & , Ordering & ) not implemented\n" );
     bIsPostOrdered_=false;
     n_ = aDistExp.size;
 
+    int mpisize;
+    MPI_Comm_size(aDistExp.GetComm(),&mpisize);
+
+    int mpirank;
+    MPI_Comm_rank(aDistExp.GetComm(),&mpirank);
+
+#if 1
+    int expandedGraph = aDistExp.expanded;
+    
+    if ( !expandedGraph ){
+      throw std::logic_error( "DistSparseMatrixGraph must be expanded and permuted\n" );
+    }
+
+    parent_.assign(n_,0);
+    std::vector<Int> ancstr(n_,0);
+
+    Idx fc = aDistExp.LocalFirstVertex(); //1 - based
+
+    MPI_Datatype Inttype;
+    MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &Inttype );
+    MPI_Type_commit(&Inttype);
+
+    if(mpirank>0){
+      MPI_Recv(&parent_[0],n_,Inttype,mpirank-1,mpirank-1,aDistExp.GetComm(),MPI_STATUS_IGNORE);
+      MPI_Recv(&ancstr[0],n_,Inttype,mpirank-1,mpirank-1,aDistExp.GetComm(),MPI_STATUS_IGNORE);
+    }
+    for(Idx locCol = 0; locCol< aDistExp.LocalVertexCount(); locCol++){
+      Idx i = fc + locCol; // 1 - based;
+      parent_[i-1] = 0;
+      ancstr[i-1] = 0;
+
+      //logfileptr->OFS()<<i<<" parent_ "<<parent_<<std::endl;
+      //logfileptr->OFS()<<i<<" ancstr "<<ancstr<<std::endl;
+      //logfileptr->OFS()<<"i = "<<i<<std::endl;
+
+      Ptr jstrt = aDistExp.colptr[locCol]; //1-based
+      Ptr jstop = aDistExp.colptr[locCol+1] -1;//1-based
+      if (jstrt<jstop){
+        for(Ptr j = jstrt; j<=jstop; ++j){
+          Idx nbr = aDistExp.rowind[j-1]; //1-based
+//            logfileptr->OFS()<<"   nbr = "<<nbr<<std::endl;
+          if  ( nbr < i ){
+            //                       -------------------------------------------
+            //                       for each nbr, find the root of its current
+            //                       elimination tree.  perform path compression
+            //                       as the subtree is traversed.
+            //                       -------------------------------------------
+            Int break_loop = 0;
+            if  ( ancstr[nbr-1] == i ){
+              break_loop = 1;
+            }
+            else{
+
+              while(ancstr[nbr-1] >0){
+                if  ( ancstr[nbr-1] == i ){
+                  break_loop = 1;
+                  break;
+                }
+                Int next = ancstr[nbr-1];
+                ancstr[nbr-1] = i;
+                nbr = next;
+              }
+              //              logfileptr->OFS()<<std::endl;
+              //                       --------------------------------------------
+              //                       now, nbr is the root of the subtree.  make i
+              //                       the parent node of this root.
+              //                       --------------------------------------------
+              if(!break_loop){
+                parent_[nbr-1] = i;
+                ancstr[nbr-1] = i;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if(mpirank<mpisize-1){
+      //        logfileptr->OFS()<<"my parent now is: "<<myParent<<std::endl;
+      //        logfileptr->OFS()<<"my ancstr now is: "<<myAncstr<<std::endl;
+      //logfileptr->OFS()<<"parent now is: "<<parent_<<std::endl;
+      //logfileptr->OFS()<<"ancstr now is: "<<ancstr<<std::endl;
+      MPI_Send(&parent_[0],n_,Inttype,mpirank+1,mpirank,aDistExp.GetComm());
+      MPI_Send(&ancstr[0],n_ ,Inttype,mpirank+1,mpirank,aDistExp.GetComm());
+    }
+
+    //Now proc mpisize-1 bcast the parent_ array
+    MPI_Bcast(&parent_[0],n_,Inttype,mpisize-1,aDistExp.GetComm());
+
+
+    MPI_Type_free( &Inttype );
+#else
+    throw std::logic_error( "ETree::ConstructETree(DistSparseMatrixGraph & , Ordering & ) not implemented\n" );
     DistSparseMatrixGraph tmpGraph = aDistExp;
 
     //Expand to unsymmetric storage
@@ -286,13 +380,8 @@ namespace symPACK{
     //std::fill(parent_.begin(),parent_.end(),0);
 
 
-    int mpisize;
-    MPI_Comm_size(tmpGraph.GetComm(),&mpisize);
-
 
 #if 1 
-    int mpirank;
-    MPI_Comm_rank(tmpGraph.GetComm(),&mpirank);
     //first permute locally then redistribute with alltoallv then do the etree
     tmpGraph.Permute(&aOrder.invp[0]);
 
@@ -371,6 +460,7 @@ namespace symPACK{
 
 #else
 #endif
+#endif
 
     SYMPACK_TIMER_STOP(Construct_Etree);
 
@@ -392,16 +482,17 @@ namespace symPACK{
     }
 
     SYMPACK_TIMER_START(Construct_Etree_Classic);
-    parent_.resize(n_,0);
+    parent_.assign(n_,0);
 
     if(iam==0){
       std::vector<Int> ancstr(n_);
 
-
-
       for(Int i = 1; i<=n_; ++i){
         parent_[i-1] = 0;
         ancstr[i-1] = 0;
+      //logfileptr->OFS()<<i<<" parent_ "<<parent_<<std::endl;
+      //logfileptr->OFS()<<i<<" ancstr "<<ancstr<<std::endl;
+
         Int node = aOrder.perm[i-1];
         //          logfileptr->OFS()<<"i = "<<node<<std::endl;
         Ptr jstrt = sgraph.colptr[node-1];
@@ -409,9 +500,9 @@ namespace symPACK{
         if  ( jstrt < jstop ){
           for(Ptr j = jstrt; j<=jstop; ++j){
             Idx nbr = sgraph.rowind[j-1];
+//            logfileptr->OFS()<<"   nbr = "<<nbr<<std::endl;
             //logfileptr->OFS()<<"   nbr = "<<nbr<<"  ";
             nbr = aOrder.invp[nbr-1];
-            //          logfileptr->OFS()<<"   nbr = "<<nbr<<std::endl;
             //logfileptr->OFS()<<"|  nbr = "<<nbr<<std::endl;
             if  ( nbr < i ){
               //                       -------------------------------------------

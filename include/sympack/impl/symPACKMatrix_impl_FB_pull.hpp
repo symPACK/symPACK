@@ -153,8 +153,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
           }
         }
 
-        if(!tgt_aggreg->in_use){
-          tgt_aggreg->in_use = true;
+
+        bool exp = false;
+        if(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true )){
+          //if(!tgt_aggreg->in_use)
+          //tgt_aggreg->in_use = true;
           return false;
         }
         else{
@@ -318,7 +321,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
           }
 
 #ifdef SP_THREADS
-                  src_snode->in_use = false;
+          if(Multithreading::NumThread>1){
+            src_snode->in_use = false;
+          }
 #endif
 
           char buf[100];
@@ -665,9 +670,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           SYMPACK_TIMER_START(UPD_ANC_UPD);
 #ifdef SP_THREADS
                           if(Multithreading::NumThread>1){
-                            scheduler_new_->list_mutex_.lock();
+                            //scheduler_new_->list_mutex_.lock();
                             auto & tmpBuf = tmpBufs_th[tid];
-                            scheduler_new_->list_mutex_.unlock();
+                            //scheduler_new_->list_mutex_.unlock();
                             tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,iam);
                           }
                           else
@@ -1047,9 +1052,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       SYMPACK_TIMER_START(UPD_ANC_UPD);
 #ifdef SP_THREADS
                       if(Multithreading::NumThread>1){
-                        scheduler_new_->list_mutex_.lock();
+                        //scheduler_new_->list_mutex_.lock();
                         auto & tmpBuf = tmpBufs_th[tid];
-                        scheduler_new_->list_mutex_.unlock();
+                        //scheduler_new_->list_mutex_.unlock();
                         tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,iam);
                       }
                       else

@@ -180,20 +180,14 @@ namespace symPACK{
         MPI_Comm_size(comm,&mpisize);
         MPI_Comm_rank(comm,&mpirank);
 
-        //vector<Ptr> tnewVertexDist;
         if(newVertexDist==NULL){
-          //tnewVertexDist.resize(Localg_.vertexDist.size());
-          //for(Int i =0; i<Localg_.vertexDist.size(); i++){
-          //  tnewVertexDist[i] = Localg_.vertexDist[i];
-          //}
-          //newVertexDist=&tnewVertexDist[0];
           newVertexDist = &Localg_.vertexDist[0];
         }
 
         auto baseval = Localg_.baseval;
 
         auto & keepDiag = Localg_.keepDiag;
-        auto & bIsExpanded = Localg_.bIsExpanded;
+        auto & expanded = Localg_.expanded;
         auto & colptr = Localg_.colptr;
         auto & rowind = Localg_.rowind;
 
@@ -218,11 +212,11 @@ namespace symPACK{
           for(Ptr jptr = colbeg; jptr<colend; jptr++){
             Idx row = rowind[jptr] - baseval; //0 based
             Idx permRow = invp[row] - invpbaseval; // 0 based
-            if(permRow<permCol && !bIsExpanded){
+            if(permRow<permCol && !expanded){
               Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
               sizes[pdestR]++;
             }
-            else if(permRow>permCol || (permRow==permCol && keepDiag) || bIsExpanded){
+            else if(permRow>permCol || (permRow==permCol && keepDiag) || expanded){
               sizes[pdest]++;
             }
           }
@@ -249,14 +243,14 @@ namespace symPACK{
           for(Ptr jptr = colbeg; jptr<colend; jptr++){
             Idx row = rowind[jptr] - baseval; //0 based
             Idx permRow = invp[row] - invpbaseval; // 0 based
-            if(permRow<permCol && !bIsExpanded){
+            if(permRow<permCol && !expanded){
               Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
               auto & trip = sbuf[displs[pdestR]++];
               trip.val = nzvalLocal[jptr];
               trip.row = permCol;
               trip.col = permRow;
             }
-            else if(permRow>permCol || (permRow==permCol && keepDiag) || bIsExpanded){
+            else if(permRow>permCol || (permRow==permCol && keepDiag) || expanded){
               auto & trip = sbuf[displs[pdest]++];
               trip.val = nzvalLocal[jptr];
               trip.row = permRow;
@@ -371,12 +365,35 @@ namespace symPACK{
 
   template< typename F>
     void DistSparseMatrix<F>::ToLowerTriangular(){
-      auto & bIsExpanded = Localg_.bIsExpanded;
-      if(bIsExpanded)
+      auto & expanded = Localg_.expanded;
+      if(expanded)
       {
-        Ptr localNNZ = 0;
         Int baseval = Localg_.GetBaseval();
         Idx FirstLocalCol = Localg_.LocalFirstVertex() - baseval;
+#if 1
+        std::vector<Ptr> oldColptr = Localg_.colptr;
+        std::vector<Idx> oldRowind = Localg_.rowind;
+        Localg_.ToSymmetric();
+
+        std::vector<F> newNzvalLocal;
+        newNzvalLocal.reserve(Localg_.LocalEdgeCount());
+        for(Idx locCol = 0 ; locCol< Localg_.LocalVertexCount(); locCol++){
+          Idx col = FirstLocalCol + locCol;  // 0 based
+          Ptr colbeg = oldColptr[locCol]-baseval; //now 0 based
+          Ptr colend = oldColptr[locCol+1]-baseval; // now 0 based
+          for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+            Idx row = oldRowind[rptr]-baseval; //0 based
+            if(row>col || (row==col && Localg_.GetKeepDiag())){
+              F & val = nzvalLocal[rptr];
+              newNzvalLocal.push_back(val);
+            }
+          }
+        }
+
+        nzvalLocal.swap(newNzvalLocal);
+        nnz = (nnz - size)/2 + size;
+#else
+        Ptr localNNZ = 0;
 
         std::vector<Ptr> newColptr(Localg_.colptr.size());
         for(Idx locCol = 0 ; locCol< Localg_.LocalVertexCount(); locCol++){
@@ -417,24 +434,22 @@ namespace symPACK{
         Localg_.rowind.swap(newRowind);
         nzvalLocal.swap(newNzvalLocal);
         nnz = (nnz - size)/2 + size;
-        //TODO this has been commented because nnz contains the global nnz
-        //Localg_.nnz = localNNZ;
         Localg_.nnz = nnz;
 
         //if(Localg_.GetSorted()){
         //  Localg_.SetSorted(false);
         //  SortGraph(); 
         //}
+#endif
 
-
-        bIsExpanded = false;
+        expanded = 0;
       }
     }
 
   template< typename F>
     void DistSparseMatrix<F>::ExpandSymmetric(){
-      auto & bIsExpanded = Localg_.bIsExpanded;
-      if(!bIsExpanded)
+      auto & expanded = Localg_.expanded;
+      if(!expanded)
       {
         scope_timer(a,DistMat_Expand);
         int ismpi=0;
@@ -590,7 +605,7 @@ namespace symPACK{
         colptr.swap(newColptr);
         SYMPACK_TIMER_STOP(DistMat_Expand_unpack);
 
-        bIsExpanded =true;
+        expanded = 1;
         //keepDiag = 1;
 
         if(Localg_.GetSorted()){
@@ -605,11 +620,6 @@ namespace symPACK{
 
   template< typename F>
   bool DistSparseMatrix<F>::isPermuted(Int * ainvp,Idx * avertexDist){
-//    //if the current invp is empty, then matrix is unpermuted
-//    if(cinvp.empty()){
-//      return false;
-//    }
-  
     //if it is not the same permutation, consider that it is unpermuted
     int mpisize,mpirank;
     MPI_Comm_size(comm,&mpisize);

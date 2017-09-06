@@ -70,6 +70,27 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include <atomic>
 
 namespace symPACK{
+
+  class SharedNode{
+    public:
+      MPI_Comm shmcomm;
+      int shmrank;
+      int shmsize;
+      SharedNode(){
+        shmrank=0;
+        shmsize=1;
+        MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &shmcomm);
+        MPI_Comm_rank(shmcomm, &shmrank);
+        MPI_Comm_size(shmcomm, &shmsize);
+        if(shmsize>1){
+          shmsize--;
+        }
+      }
+      ~SharedNode(){
+        MPI_Comm_free(&shmcomm);
+      }
+  };
+
   namespace Multithreading{
 
     class SpinLock
@@ -1778,7 +1799,7 @@ namespace symPACK{
 
       HMat.Localg_.size = HMat.size;
       HMat.Localg_.nnz = nnz;
-      HMat.Localg_.bIsExpanded = false;
+      HMat.Localg_.expanded = 0;
 
       //Sort rowind + nzval accordingly
       Idx col;
@@ -1997,7 +2018,7 @@ namespace symPACK{
         if(mpirank==0){
           std::cout<<"Input matrix is not in lower triangular format. symPACK is converting it."<<std::endl;
         }
-        pspmat.Localg_.bIsExpanded = true;
+        pspmat.Localg_.expanded = 1;
         pspmat.ToLowerTriangular();
       }
 

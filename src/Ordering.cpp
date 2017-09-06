@@ -728,7 +728,10 @@ namespace symPACK{
 
     NpOrdering = std::min(std::max(0,NpOrdering),np);
     if(NpOrdering!=0){
+
       ndomains = NpOrdering;
+
+    if(iam==0){std::cout<<"PARMETIS using "<<ndomains<< " / "<< np<<std::endl;}
       //make a copy
       DistSparseMatrixGraph ng = g;
       //create a new vertexDist, this is the important stuff
@@ -742,7 +745,9 @@ namespace symPACK{
       ng.Redistribute(&newVertexDist[0]);
 
       MPI_Comm ndcomm;
-      MPI_Comm_split(g.comm,iam<ndomains,iam,&ndcomm);
+      //TODO this needs to be experimented to distributed the load across multiple nodes
+      int color = iam<ndomains;
+      MPI_Comm_split(g.comm,color,iam,&ndcomm);
 
       MPI_Comm_rank(ndcomm,&mpirank);
       std::vector<idx_t> vtxdist;
@@ -801,6 +806,7 @@ namespace symPACK{
 
         int npnd;
         MPI_Comm_size (ndcomm, &npnd);
+#if 1
         ParMETIS_V3_NodeND( &vtxdist[0], pcolptr , prowind, &numflag, &options[0], pperm, &sizes[0], &ndcomm );
 
         //compute displs
@@ -818,6 +824,14 @@ namespace symPACK{
           //switch everything to 1 based
           for(int col=0; col<N;++col){ invp[col] = iperm[col] + (1-baseval);}
         }
+#else
+        if(iam==0 ){
+          //switch everything to 1 based
+          for(int col=0; col<N;++col){ invp[col] = col + 1;}
+        }
+#endif
+
+
 
         if(typeid(idx_t) != typeid(Int)){
           delete [] pperm;
@@ -845,7 +859,9 @@ namespace symPACK{
     }
     else{
       MPI_Comm ndcomm;
-      MPI_Comm_split(g.comm,iam<ndomains,iam,&ndcomm);
+      //MPI_Comm_split(g.comm,iam<ndomains,iam,&ndcomm);
+      int color = iam<ndomains;
+      MPI_Comm_split(g.comm,color,iam,&ndcomm);
 
       MPI_Comm_rank(ndcomm,&mpirank);
       std::vector<idx_t> vtxdist;
@@ -897,6 +913,10 @@ namespace symPACK{
           pcolptr = (idx_t*)&g.colptr[0];
         }
 
+
+//        MPI_Barrier(ndcomm);
+//MPI_Abort(MPI_COMM_WORLD, 0);
+  
 
         idx_t options[3];
         options[0] = 0;
@@ -1379,7 +1399,17 @@ namespace symPACK{
 
 #endif
 
-
+  void Ordering::GetRelativeInvp(const std::vector<Int> & frominvp, std::vector<Int> & relinvp){
+    assert(frominvp.size()==invp.size());
+    relinvp.resize(invp.size());
+    Int n = invp.size();
+    #pragma ivdep
+    for(Int node = 1; node <= n; ++node){
+      Int i = perm[node-1];
+      Int interm = frominvp[i-1];
+      relinvp[interm-1] = node;
+    }
+  }
 
   void Ordering::Compose(std::vector<Int> & invp2){
     //Compose the two permutations

@@ -152,6 +152,7 @@ namespace symPACK{
     for(Idx locCol = 0 ; locCol< VertexCount(); locCol++){
       Ptr colbeg = colptr[locCol]-baseval; //now 0 based
       Ptr colend = colptr[locCol+1]-baseval; // now 0 based 
+bassert(colbeg<=colend);
       sort(&rowind[0]+colbeg,&rowind[0]+colend,std::less<Idx>());
     }
   }
@@ -181,7 +182,7 @@ namespace symPACK{
     blocklen[2] = sizeof(baseval);
     blocklen[3] = sizeof(keepDiag);
     blocklen[4] = sizeof(sorted);
-    blocklen[5] = sizeof(bIsExpanded);
+    blocklen[5] = sizeof(expanded);
     blocklen[6] = colptr.size();
     blocklen[7] = rowind.size();
 
@@ -190,7 +191,7 @@ namespace symPACK{
     MPI_Address( (void *)&baseval,  &disps[2]);
     MPI_Address( (void *)&keepDiag,  &disps[3]);
     MPI_Address( (void *)&sorted,  &disps[4]);
-    MPI_Address( (void *)&bIsExpanded,  &disps[5]);
+    MPI_Address( (void *)&expanded,  &disps[5]);
     MPI_Address( (void *)&colptr[0],  &disps[6]);
     MPI_Address( (void *)&rowind[0],  &disps[7]);
 
@@ -211,7 +212,7 @@ namespace symPACK{
 
 
     SYMPACK_TIMER_START(EXPAND);
-    if(!bIsExpanded){
+    if(!expanded){
       int mpisize = 1;
       int mpirank = 0;
 
@@ -315,7 +316,7 @@ namespace symPACK{
 
       Ptr newNNZ = newColptr.back()-baseval;
       rowind.resize(newNNZ);
-      this->nnz = newNNZ;
+      this->nnz = nnz*2-size;// newNNZ;
 
 
       SYMPACK_TIMER_START(DistMat_Expand_shift);
@@ -345,7 +346,7 @@ namespace symPACK{
       colptr.swap(newColptr);
       SYMPACK_TIMER_STOP(DistMat_Expand_unpack);
 
-      bIsExpanded =true;
+      expanded = 1;
       //keepDiag = 1;
 
       //        if(GetSorted()){
@@ -369,7 +370,7 @@ namespace symPACK{
 
 
   DistSparseMatrixGraph::DistSparseMatrixGraph(){
-    bIsExpanded = false;
+    expanded = 0;
     baseval = 1;
     keepDiag = 1;
     sorted = 1;
@@ -388,7 +389,7 @@ namespace symPACK{
   }
 
   DistSparseMatrixGraph& DistSparseMatrixGraph::operator=( const DistSparseMatrixGraph& g ) {
-    bIsExpanded = g.bIsExpanded;
+    expanded = g.expanded;
     size = g.size;
     nnz = g.nnz;
     colptr = g.colptr;
@@ -447,6 +448,21 @@ namespace symPACK{
     }
     baseval = aBaseval; 
   }
+
+  void DistSparseMatrixGraph::SetExpanded(int aExpanded) {
+    if(expanded != aExpanded){
+      if(aExpanded){
+        //expand to unsymmetric storage
+        ExpandSymmetric();
+      }
+      else{
+        //restrict to symmetric storage
+        ToSymmetric();
+      }
+    }
+  }
+
+
 
   void DistSparseMatrixGraph::SetKeepDiag(int aKeepDiag){
     if(aKeepDiag != keepDiag){
@@ -549,7 +565,294 @@ bassert(colbeg<=colend);
   }
 
   void DistSparseMatrixGraph::permute_(Int * invp, Idx * newVertexDist, Int invpbaseval){
-    assert(sizeof(Ptr)>=sizeof(Idx));
+#if 1
+    SYMPACK_TIMER_START(PERMUTE);
+
+    //handle default parameter values
+    if(newVertexDist==NULL){
+      newVertexDist = &vertexDist[0];
+    }
+
+    //Idx colPerProc = size / mpisize;
+    Int firstCol = LocalFirstVertex()-baseval; //0 based
+    Int newFirstCol = newVertexDist[mpirank]-baseval; //0 based
+    Ptr newVtxCount = newVertexDist[mpirank+1] - newVertexDist[mpirank];
+
+    //MPI_Datatype type;
+    //MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &type );
+    //MPI_Type_commit(&type);
+
+    //express Ptr in terms of Idx
+    //size_t PtrIdx_sz = std::ceil(sizeof(Ptr)/sizeof(Idx));
+
+    std::vector<int> sizes(mpisize,0);
+
+    for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
+      Idx col = firstCol + locCol; //0-based
+      Ptr colbeg = colptr[locCol] - baseval;
+      Ptr colend = colptr[locCol+1] - baseval;
+      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // 0 based;
+      //find destination processors
+      Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
+      //sizes[pdest] += (colend - colbeg) + PtrIdx_sz + 1; //extra 2 are for the count of elements and the permuted columns
+
+      //now permute rows
+      for(Ptr jptr = colbeg; jptr<colend; jptr++){
+        Idx row = rowind[jptr] - baseval; //0 based
+        Idx permRow = invp!=NULL?invp[row] - invpbaseval:row; // 0 based
+
+        if(permRow<permCol && !expanded){
+          Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
+          sizes[pdestR]++;
+        }
+        else if(permRow>permCol || (permRow==permCol && keepDiag) || expanded){
+          sizes[pdest]++;
+        }
+
+        //rowind[jptr] = permRow + baseval;
+        //rowind.at(jptr) = permRow + baseval;
+      }
+    }
+
+
+
+    //First allgatherv to get the receive sizes
+    std::vector<int> displs(mpisize+1,0);
+    displs[0] = 0;
+    std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
+    Int totSend = displs.back();
+    std::vector< std::pair<Idx,Idx> > sbuf(totSend);
+
+    //pack
+    for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
+      Idx col = firstCol + locCol; 
+      Ptr colbeg = colptr[locCol]-baseval;
+      Ptr colend = colptr[locCol+1]-baseval;
+      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // 0 based;
+      //find destination processors
+      Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
+
+      for(Ptr jptr = colbeg; jptr<colend; jptr++){
+        Idx row = rowind[jptr] - baseval; //0 based
+        Idx permRow = invp!=NULL?invp[row] - invpbaseval:row; // 0 based
+        if(permRow<permCol && !expanded){
+          Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
+          sbuf[displs[pdestR]++] = std::make_pair(permRow,permCol);
+        }
+        else if(permRow>permCol || (permRow==permCol && keepDiag) || expanded){
+          sbuf[displs[pdest]++] = std::make_pair(permCol,permRow);
+        }
+      }
+    }
+
+    MPI_Datatype type;
+    MPI_Type_contiguous( sizeof( std::pair<Idx,Idx> ), MPI_BYTE, &type );
+    MPI_Type_commit(&type);
+
+
+
+
+    //re compute send displs in bytes
+    //for(auto it = sizes.begin();it!=sizes.end();it++){ (*it)*=sizeof(triplet<F>);}
+    displs[0] = 0;
+    std::partial_sum(sizes.begin(),sizes.end(),&displs[1]);
+
+
+    std::vector<int> rsizes(mpisize,0);
+    std::vector<int> rdispls(mpisize+1,0);
+    MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
+
+    //now compute receiv displs with actual sizes 
+    rdispls[0] = 0;
+    std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+    Ptr totRecv = rdispls.back();
+    std::vector< std::pair<Idx,Idx> > rbuf(totRecv);
+    MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],type,&rbuf[0],&rsizes[0],&rdispls[0],type,comm);
+
+    MPI_Type_free(&type);
+
+    std::vector<Ptr> newColptr(newVtxCount+1,0);
+    //compute column counts
+    for(auto it = rbuf.begin(); it!=rbuf.end(); it++){
+      //pairs are 0-based but everything is currently shifted by one
+      newColptr[it->first-newFirstCol+1]++;
+    }
+    //turn it back to colptr
+    newColptr[0]=baseval;
+    std::partial_sum(newColptr.begin(),newColptr.end(),newColptr.begin());
+
+    Ptr newNNZ = newColptr.back()-baseval;
+    rowind.resize(newNNZ);
+
+    colptr = newColptr;
+
+    //now use newColptr as a position backup
+    for(auto it = rbuf.begin(); it!=rbuf.end(); it++){
+      Idx locCol = it->first-newFirstCol;//0-based
+      //colptr contains column count shifted by one
+      Ptr pos = newColptr[locCol]++;//baseval-based
+      rowind[pos-baseval] = it->second+baseval;
+    }
+
+
+
+
+
+
+
+
+
+
+
+    ////    //First allgatherv to get the receive sizes
+    ////    std::vector<int> displs(mpisize+1,0);
+    ////    std::vector<int> rsizes(mpisize,0);
+    ////    std::vector<int> rdispls(mpisize+1,0);
+    ////
+    ////    MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
+    ////    //logfileptr->OFS()<<rsizes<<std::endl;
+    ////    //    MPI_Alltoallv(&sizes[0],&displs[0],&rdispls[0],MPI_BYTE,&rsizes[0],&displs[0],&rdispls[0],MPI_BYTE,comm);
+    ////    //logfileptr->OFS()<<rsizes<<std::endl;
+    ////
+    ////
+    ////
+    ////    displs[0] = 0;
+    ////    std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
+    ////    Int totSend = displs.back();//std::accumulate(sizes.begin(),sizes.end(),0);
+    ////    //std::vector<char> sbuf(totSend);
+    ////    std::vector<Idx> sbuf(totSend);
+    ////
+    ////    //pack
+    ////    for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
+    ////      Idx col = firstCol + locCol; 
+    ////      Ptr colbeg = colptr[locCol]-baseval;
+    ////      Ptr colend = colptr[locCol+1]-baseval;
+    ////      //Ptr colbeg = colptr.at(locCol) - baseval;
+    ////      //Ptr colend = colptr.at(locCol+1) - baseval;
+    ////      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // perm is 1 based;
+    ////      //find destination processors
+    ////      Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
+    ////      //Idx pdest = min((Idx)mpisize-1, permCol / colPerProc);
+    ////
+    ////      int & pos = displs[pdest];
+    ////      //Idx * pPermCol = (Idx*)&sbuf[pos];
+    ////      //pos+=sizeof(Idx);
+    ////      //Ptr * pRowsCnt = (Ptr*)&sbuf[pos];
+    ////      //pos+=sizeof(Ptr);
+    ////      //Idx * pPermRows = (Idx*)&sbuf[pos];
+    ////      //pos+=(colend-colbeg)*sizeof(Idx);
+    ////      Idx * pPermCol = (Idx*)&sbuf[pos];
+    ////      pos++;
+    ////      Ptr * pRowsCnt = (Ptr*)&sbuf[pos];
+    ////      pos+=PtrIdx_sz;
+    ////      Idx * pPermRows = (Idx*)&sbuf[pos];
+    ////      pos+=(colend-colbeg);
+    ////
+    ////
+    ////      *pPermCol = permCol;
+    ////      *pRowsCnt = (colend - colbeg);
+    ////      std::copy(&rowind[0]+colbeg ,&rowind[0]+colend, pPermRows );
+    ////      //std::copy(&rowind.at(colbeg) ,&rowind.at(colend-1)+1, pPermRows );
+    ////
+    ////
+    ////      //      logfileptr->OFS()<<*pPermCol<<" ("<<locCol<<"): ";
+    ////      //      for(Ptr jptr = 0; jptr<*pRowsCnt; jptr++){
+    ////      //        logfileptr->OFS()<<pPermRows[jptr]<<" ";
+    ////      //      }
+    ////      //      logfileptr->OFS()<<std::endl;
+    ////
+    ////
+    ////    }
+    ////
+    ////
+    ////    //re compute send displs
+    ////    displs[0] = 0;
+    ////    std::partial_sum(sizes.begin(),sizes.end(),&displs[1]);
+    ////
+    ////    //now recompute receiv displs with actual sizes 
+    ////    rdispls[0] = 0;
+    ////    std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+    ////    Ptr totRecv = rdispls.back();//std::accumulate(rsizes.begin(),rsizes.end(),0);
+    ////    //std::vector<char> rbuf(totRecv);
+    ////    std::vector<Idx> rbuf(totRecv);
+    ////
+    ////    //MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],MPI_BYTE,&rbuf[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
+    ////    MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],type,&rbuf[0],&rsizes[0],&rdispls[0],type,comm);
+    ////
+    ////    sbuf.clear();
+    ////    sizes.clear(); 
+    ////    displs.clear();
+    ////    rdispls.clear();
+    ////
+    ////
+    ////    colptr.resize(newVtxCount+1);
+    ////    //unpack first by overwriting colptr and then rowind
+    ////    Ptr rpos = 0; 
+    ////    colptr[0]=baseval;
+    ////    while(rpos<totRecv){
+    ////      //Idx * permCol = (Idx*)&rbuf[rpos];
+    ////      //rpos+=sizeof(Idx);
+    ////      //Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
+    ////      //rpos+=sizeof(Ptr);
+    ////      //Idx * permRows = (Idx*)&rbuf[rpos];
+    ////      //rpos += (*rowsCnt)*sizeof(Idx);
+    ////      Idx * permCol = (Idx*)&rbuf[rpos];
+    ////      rpos++;
+    ////      Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
+    ////      rpos+=PtrIdx_sz;
+    ////      Idx * permRows = (Idx*)&rbuf[rpos];
+    ////      rpos += (*rowsCnt);
+    ////
+    ////      Idx locCol = *permCol - newFirstCol;
+    ////      colptr[locCol+1] = *rowsCnt; 
+    ////      //colptr.at(locCol+1) = *rowsCnt; 
+    ////    }
+    ////    std::partial_sum(colptr.begin(),colptr.end(),colptr.begin());
+    ////
+    ////    //now fill rowind
+    ////    Ptr nnzLoc = colptr.back()-baseval;
+    ////    rowind.resize(nnzLoc);
+    ////    std::vector<Ptr> colpos = colptr;
+    ////    rpos = 0;
+    ////    while(rpos<totRecv){
+    ////      //Idx * permCol = (Idx*)&rbuf[rpos];
+    ////      //rpos+=sizeof(Idx);
+    ////      //Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
+    ////      //rpos+=sizeof(Ptr);
+    ////      //Idx * permRows = (Idx*)&rbuf[rpos];
+    ////      //rpos += (*rowsCnt)*sizeof(Idx);
+    ////      Idx * permCol = (Idx*)&rbuf[rpos];
+    ////      rpos++;
+    ////      Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
+    ////      rpos+=PtrIdx_sz;
+    ////      Idx * permRows = (Idx*)&rbuf[rpos];
+    ////      rpos += (*rowsCnt);
+    ////
+    ////      Idx locCol = *permCol - newFirstCol;
+    ////
+    ////      //logfileptr->OFS()<<*permCol<<" ("<<locCol<<"): ";
+    ////      //for(Ptr jptr = 0; jptr<*rowsCnt; jptr++){
+    ////      //  logfileptr->OFS()<<permRows[jptr]<<" ";
+    ////      //}
+    ////      //logfileptr->OFS()<<std::endl;
+    ////
+    ////      std::copy(permRows,permRows + *rowsCnt, &rowind[colpos[locCol]-baseval]);
+    ////      colpos[locCol] += *rowsCnt;
+    ////      //colpos.at(locCol) += *rowsCnt;
+    ////    }
+    ///     MPI_Type_free(&type);
+
+    //copy newVertexDist into vertexDist
+    std::copy(newVertexDist,newVertexDist+mpisize+1,&vertexDist[0]);
+
+
+    if(sorted){
+      SortEdges();
+    }
+
+    SYMPACK_TIMER_STOP(PERMUTE);
+#else
+assert(sizeof(Ptr)>=sizeof(Idx));
 
     SYMPACK_TIMER_START(PERMUTE);
 
@@ -742,6 +1045,8 @@ bassert(colbeg<=colend);
     }
 
     SYMPACK_TIMER_STOP(PERMUTE);
+
+#endif
   }
 
 
@@ -1118,7 +1423,7 @@ bassert(colbeg<=colend);
 
   void DistSparseMatrixGraph::ExpandSymmetric(){
     SYMPACK_TIMER_START(EXPAND);
-    if(!bIsExpanded){
+    if(!expanded){
 
       int ismpi=0;
       MPI_Initialized( &ismpi);
@@ -1264,7 +1569,7 @@ bassert(colbeg<=colend);
         colptr.swap(newColptr);
         SYMPACK_TIMER_STOP(DistMat_Expand_unpack);
 
-        bIsExpanded =true;
+        expanded = 1;
         //keepDiag = 1;
 
 //        if(GetSorted()){
@@ -1275,266 +1580,66 @@ bassert(colbeg<=colend);
       if(!sorted){
         SetSorted(1);
       }
-
-
-
-/////      if(!sorted){
-/////        SetSorted(1);
-/////      }
-/////
-/////      MPI_Op MPI_SYMPACK_PTR_SUM; 
-/////      MPI_Op MPI_SYMPACK_PTR_MAX; 
-/////      MPI_Datatype MPI_SYMPACK_PTR; 
-/////      MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &MPI_SYMPACK_PTR ); 
-/////      MPI_Type_commit( &MPI_SYMPACK_PTR ); 
-/////      MPI_Op_create( PtrSum, true, &MPI_SYMPACK_PTR_SUM ); 
-/////      MPI_Op_create( PtrMax, true, &MPI_SYMPACK_PTR_MAX ); 
-/////
-/////      Idx N = size; 
-/////
-/////      Idx locColCnt = LocalVertexCount();
-/////      //make copies first
-/////      std::vector<Ptr> prevColptr;
-/////      std::vector<Idx> prevRowind;
-/////      prevColptr.swap(colptr);
-/////      prevRowind.swap(rowind);
-/////
-/////      Ptr * pcolptr = &prevColptr[0];
-/////      Idx * prowind = &prevRowind[0];
-/////      Ptr locNNZ = prevRowind.size();
-/////
-/////      //first generate the expanded distributed structure
-/////      //            Int firstLocCol = (mpirank)*colPerProc; //0 based
-/////      Idx firstLocCol = LocalFirstVertex()-baseval; //0 based
-/////      Idx maxLocN = 0;
-/////      for(int p = 0; p<mpisize;p++){maxLocN = max(maxLocN, vertexDist[p+1]-vertexDist[p]);}
-/////      //               max(locColCnt,N-(mpisize-1)*colPerProc); // can be 0
-/////      std::vector<Ptr> remote_colptr(maxLocN+1);
-/////      std::vector<Idx> remote_rowind;
-/////      std::vector<Ptr> remote_rowindPos(maxLocN+1);
-/////      std::vector<Ptr> curPos(locColCnt);
-/////      std::vector<Ptr> prevPos(locColCnt);
-/////
-/////      std::copy(pcolptr,pcolptr+locColCnt,curPos.begin());
-/////      for(Int prow = 0; prow<mpisize; prow++){
-/////        Int firstRemoteCol = vertexDist[prow]-baseval;//(prow)*colPerProc; // 0 based
-/////        Int pastLastRemoteCol = vertexDist[prow+1]-baseval;//prow==mpisize-1?N:(prow+1)*colPerProc; // 0 based
-/////        Ptr remColCnt = pastLastRemoteCol - firstRemoteCol;
-/////        Ptr maxExtraNNZ = 0; 
-/////        Ptr extraNNZ = 0;
-/////        //receive from all the previous processor
-/////        //receive extra nnzcnt...
-/////
-/////        std::fill(remote_colptr.begin(),remote_colptr.end(),0);
-/////        if(mpirank<=prow){
-/////          //backup the position in each column
-/////          std::copy(curPos.begin(),curPos.end(),prevPos.begin());
-/////          //use remote_colptr to store the number of nnz per col first
-/////          //loop through my local columns and figure out the extra nonzero per col on prow
-/////          for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
-/////            Idx col = firstLocCol + locCol;  // 0 based
-/////            Ptr colbeg = curPos[locCol]-baseval; //now 0 based
-/////            Ptr colend = pcolptr[locCol+1]-baseval; // now 0 based
-/////            for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-/////              Idx row = prowind[rptr]-baseval; //0 based
-/////              assert(row>=firstRemoteCol);
-/////              if(row>col){
-/////                //this goes onto prow
-/////                if(row<pastLastRemoteCol){
-/////                  //this is shifted by one to compute the prefix sum without copying afterwards
-/////                  remote_colptr[row-firstRemoteCol+1]++;
-/////                  extraNNZ++;
-/////                }
-/////                else{
-/////                  break;
-/////                }
-/////              }
-/////              curPos[locCol]++; // baseval based
-/////            }
-/////          }
-/////
-/////          //put the local sum into the first element of the array
-/////          remote_colptr[0] = 0;
-/////          for(Idx p = 1; p<remColCnt+1;p++){ remote_colptr[0] += remote_colptr[p];}
-/////
-/////
-/////          if(mpirank==prow){
-/////            //we can now receive the number of NZ per col into the expanded pcolptr
-/////            assert(locColCnt == remColCnt);
-/////            colptr.assign(remColCnt+1,0);
-/////            //this array will contain the max element in our custom reduce
-/////            colptr[0] = 0;
-/////            SYMPACK_TIMER_START(REDUCE);
-/////            MPI_Reduce(&remote_colptr[1],&colptr[1],remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
-/////            MPI_Reduce(&remote_colptr[0],&colptr[0],1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
-/////            SYMPACK_TIMER_STOP(REDUCE);
-/////
-/////            maxExtraNNZ = colptr[0];
-/////            remote_rowind.resize(maxExtraNNZ);
-/////
-/////            for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
-/////              Ptr colbeg = pcolptr[locCol]-baseval; //now 0 based
-/////              Ptr colend = pcolptr[locCol+1]-baseval; // now 0 based
-/////              colptr[locCol+1] += colend - colbeg; //- 1+ keepDiag;
-/////              //At this point expColptr[locCol+1] contains the total number of NNZ of locCol 
-/////              //we can now compute the expanded pcolptr
-/////            }
-/////
-/////            colptr[0] = baseval;
-/////            for(Idx col = 1;col<remColCnt+1;col++){ colptr[col]+=colptr[col-1]; }
-/////          }
-/////          else{
-/////            SYMPACK_TIMER_START(REDUCE);
-/////            MPI_Reduce(&remote_colptr[1],NULL,remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
-/////            MPI_Reduce(&remote_colptr[0],NULL,1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
-/////            SYMPACK_TIMER_STOP(REDUCE);
-/////            remote_rowind.resize(extraNNZ);
-/////          }
-/////
-/////
-/////
-/////
-////////TODO
-/////
-/////
-/////          /**************     Compute remote_colptr from the local nnz per col ***********/
-/////          //compute a prefix sum of the nnz per column to get the new pcolptr
-/////          remote_colptr[0] = baseval;
-/////          for(Idx col = 1;col<=remColCnt;col++){ remote_colptr[col]+=remote_colptr[col-1]; }
-/////
-/////          /**************     Fill remote_rowind now ****************/
-/////          //make a copy of pcolptr in order to track the current position in each column
-/////          std::copy(&remote_colptr[0],&remote_colptr[0]+remColCnt+1,remote_rowindPos.begin());
-/////          //loop through my local columns and figure out the extra nonzero per col on remote processors
-/////          for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
-/////            Idx col = firstLocCol + locCol;  // 0 based
-/////            Ptr colbeg = prevPos[locCol]-baseval; //now 0 based
-/////            Ptr colend = curPos[locCol]-baseval; // now 0 based
-/////
-/////            for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-/////              Idx row = prowind[rptr]-baseval; //0 based
-/////              if(row>col){
-/////                //this goes onto prow
-/////                Idx locRow = row - firstRemoteCol;      
-/////                remote_rowind[ remote_rowindPos[locRow]++ - baseval ] = col + baseval;
-/////              }
-/////            }
-/////          }
-/////
-/////#ifdef DEBUG
-/////          logfileptr->OFS()<<"remote_colptr ";
-/////          for(Idx col = 0;col<=remColCnt;col++){
-/////            logfileptr->OFS()<<remote_colptr[col]<<" ";
-/////          }
-/////          logfileptr->OFS()<<std::endl;
-/////
-/////          logfileptr->OFS()<<"remote_rowind ";
-/////          for(Ptr col = 0;col<extraNNZ;col++){
-/////            logfileptr->OFS()<<remote_rowind[col]<<" ";
-/////          }
-/////          logfileptr->OFS()<<std::endl;
-/////#endif
-/////
-/////          if(prow==mpirank){
-/////#ifdef DEBUG
-/////            logfileptr->OFS()<<"expColptr "<<colptr<<std::endl;
-/////#endif
-/////            if(colptr.size()>0){
-/////              rowind.resize(colptr.back()-baseval);
-/////            }
-/////            std::copy(colptr.begin(),colptr.end(),remote_rowindPos.begin()); 
-/////            for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
-/////              Idx col = firstLocCol + locCol;  // 0 based
-/////              Ptr colbeg = pcolptr[locCol]-baseval; //now 0 based
-/////              Ptr colend = pcolptr[locCol+1]-baseval; // now 0 based
-/////              Ptr & pos = remote_rowindPos[locCol];
-/////
-/////              //copy the local lower triangular part into the expanded structure
-/////              for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-/////                Idx row = prowind[rptr]-baseval; //0 based
-/////                if(col!=row || keepDiag){
-/////                  rowind[pos++ - baseval] = row + baseval;  
-/////                }
-/////              }
-/////
-/////              //copy the local extra NNZ into the expanded structure
-/////              colbeg = remote_colptr[locCol]-baseval; //now 0 based
-/////              colend = remote_colptr[locCol+1]-baseval; // now 0 based 
-/////              for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-/////                Idx row = remote_rowind[rptr]-baseval; //0 based
-/////                rowind[pos++ - baseval] = row + baseval;  
-/////              }
-/////            }
-/////
-/////            SYMPACK_TIMER_START(RECV);
-/////            for(Int pcol = 0; pcol<prow; pcol++){
-/////              //Use an MPI_Gatherv instead ? >> memory usage : p * n/p
-/////              //Do mpi_recv from any, anytag for pcolptr and then do the matching rowind ?
-/////
-/////              //logfileptr->OFS()<<"P"<<mpirank<<" receives pcolptr from P"<<pcol<<std::endl;
-/////              //receive colptrs...
-/////              MPI_Status status;
-/////              MPI_Recv(&remote_colptr[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,MPI_ANY_SOURCE,prow,comm,&status);
-/////
-/////              //logfileptr->OFS()<<"P"<<mpirank<<" receives rowind from P"<<pcol<<std::endl;
-/////              //receive rowinds...
-/////              MPI_Recv(&remote_rowind[0],maxExtraNNZ*sizeof(Idx),MPI_BYTE,status.MPI_SOURCE,prow,comm,MPI_STATUS_IGNORE);
-/////
-/////              SYMPACK_TIMER_START(PROCESSING_RECV_DATA);
-/////              //logfileptr->OFS()<<"P"<<mpirank<<" done receiving from P"<<pcol<<std::endl;
-/////              for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
-/////                Idx col = firstLocCol + locCol;  // 0 based
-/////                //copy the extra NNZ into the expanded structure
-/////                Ptr colbeg = remote_colptr[locCol]-baseval; //now 0 based
-/////                Ptr colend = remote_colptr[locCol+1]-baseval; // now 0 based 
-/////                Ptr & pos = remote_rowindPos[locCol];
-/////                for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-/////                  Idx row = remote_rowind[rptr]-baseval; //0 based
-/////                  rowind[pos++ - baseval] = row + baseval;  
-/////                }
-/////              }
-/////              SYMPACK_TIMER_STOP(PROCESSING_RECV_DATA);
-/////            }
-/////            SYMPACK_TIMER_STOP(RECV);
-/////
-/////            if(sorted){ 
-/////              SortEdges();
-/////            }
-/////
-/////#ifdef DEBUG
-/////            logfileptr->OFS()<<"expRowind "<<rowind<<std::endl;
-/////            //logfileptr->OFS()<<"true expRowind "<<Global.expRowind<<std::endl;
-/////#endif
-/////
-/////          }
-/////          else{
-/////            SYMPACK_TIMER_START(SEND);
-/////            MPI_Send(&remote_colptr[0],(remColCnt+1)*sizeof(Ptr),MPI_BYTE,prow,prow,comm);
-/////            MPI_Send(&remote_rowind[0],extraNNZ*sizeof(Idx),MPI_BYTE,prow,prow,comm);
-/////            SYMPACK_TIMER_STOP(SEND);
-/////          }
-/////
-/////        }
-/////        else{
-/////          SYMPACK_TIMER_START(REDUCE);
-/////            MPI_Reduce(&remote_colptr[1],NULL,remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
-/////            MPI_Reduce(&remote_colptr[0],NULL,1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
-/////          SYMPACK_TIMER_STOP(REDUCE);
-/////        }
-/////
-/////      }
-/////
-/////      MPI_Op_free(&MPI_SYMPACK_PTR_MAX);
-/////      MPI_Op_free(&MPI_SYMPACK_PTR_SUM);
-/////      MPI_Type_free(&MPI_SYMPACK_PTR);
-/////
-/////      MPI_Barrier(comm);
-/////
-/////      //nnz = LocalEdgeCount();
-/////      bIsExpanded =true;
     }
     SYMPACK_TIMER_STOP(EXPAND);
   }
+
+
+
+  void DistSparseMatrixGraph::ToSymmetric(){
+    scope_timer(a,DistSparseMatrixGraph::ToSymmetric);
+    if(expanded){
+        Idx N = size; 
+        Idx firstLocCol = LocalFirstVertex()-baseval;
+        Idx locColCnt = LocalVertexCount();
+
+        std::vector<Ptr> nnzcnt(locColCnt+1,0);
+        //Loop through local columns and count new nnz per col
+        //loop through my local columns and figure out the extra nonzero per col on prow
+        SYMPACK_TIMER_START(DistMat_ToSymm_count);
+        for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
+          Idx col = firstLocCol + locCol;  // 0 based
+          Ptr colbeg = colptr[locCol]-baseval; //now 0 based
+          Ptr colend = colptr[locCol+1]-baseval; // now 0 based
+          for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+            Idx row = rowind[rptr]-baseval; //0 based
+            if(row>col || (keepDiag && row == col)){
+              nnzcnt[locCol+1]++;
+            }
+          }
+        }
+        SYMPACK_TIMER_STOP(DistMat_ToSymm_count);
+        
+        //turn nnzcnt into the future colptr
+        nnzcnt.front() = baseval;
+        std::partial_sum(nnzcnt.begin(),nnzcnt.end(),nnzcnt.begin());
+
+        std::vector<Idx> newRowind;
+        newRowind.reserve(nnzcnt.back());
+
+        for(Idx locCol = 0 ; locCol< locColCnt; locCol++){
+          Idx col = firstLocCol + locCol;  // 0 based
+          Ptr colbeg = colptr[locCol]-baseval; //now 0 based
+          Ptr colend = colptr[locCol+1]-baseval; // now 0 based
+          for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
+            Idx row = rowind[rptr]-baseval; //0 based
+            if(row>=col || (keepDiag && row == col)){
+              newRowind.push_back(row+baseval);
+            }
+          }
+        }
+
+        colptr.swap(nnzcnt);
+        rowind.swap(newRowind);
+        nnz = (nnz - size)/2 + size;
+        expanded = 0;
+    }
+  }
+
+
+
+
+
 
   void DistSparseMatrixGraph::AllGatherStructure(SparseMatrixGraph & g){
     int ismpi=0;
@@ -1551,7 +1656,7 @@ bassert(colbeg<=colend);
     g.SetBaseval(baseval);  
     g.SetSorted(sorted);
     g.SetKeepDiag(keepDiag);
-    g.bIsExpanded = bIsExpanded;
+    g.expanded = expanded;
 
     //get other proc vertex counts
     Idx localVertexCnt = LocalVertexCount();
@@ -1631,7 +1736,7 @@ bassert(colbeg<=colend);
     if(iam==proot){
     g.SetSorted(sorted);
     g.SetKeepDiag(keepDiag);
-    g.bIsExpanded = bIsExpanded;
+    g.expanded = expanded;
     }
 
     //get other proc vertex counts

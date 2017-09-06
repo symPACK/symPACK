@@ -465,6 +465,14 @@ namespace symPACK{
             if(extraTaskHandle_!=nullptr)
             {
               auto taskit = delayedTasks_.begin();
+
+for(auto && toto: delayedTasks_){
+                  std::stringstream sstr;
+                  sstr<<"delayed";
+                  log_task(curTask,sstr);
+                  logfileptr->OFS()<<sstr.str();
+}
+
               while(taskit!=delayedTasks_.end()){
                 bool delay = extraTaskHandle_(*taskit);
                 if(!delay){
@@ -493,12 +501,13 @@ namespace symPACK{
               if(extraTaskHandle_!=nullptr){
                 delay = extraTaskHandle_(curTask);
                 if(delay){
-#ifdef THREAD_VERBOSE
+//gdb_lock();
+//#ifdef THREAD_VERBOSE
                   std::stringstream sstr;
                   sstr<<"Delaying";
                   log_task(curTask,sstr);
                   logfileptr->OFS()<<sstr.str();
-#endif
+//#endif
                   delayedTasks_.push_back(curTask);
                 }
               }

@@ -85,7 +85,7 @@ public:
   void ConstructETree(DistSparseMatrixGraph & aDistExp, Ordering & aOrder);
   
   void ConstructETree(SparseMatrixGraph & sgraph, Ordering & aOrder, MPI_Comm & aComm);
-  void PostOrderTree(Ordering & aOrder);
+  void PostOrderTree(Ordering & aOrder,Int * relinvp = nullptr);
   void DeepestFirst(Ordering & aOrder);
 
   ETree ToSupernodalETree(std::vector<Int> & aXsuper,std::vector<Int> & aSupMembership,Ordering & aOrder) const;

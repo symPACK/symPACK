@@ -21,7 +21,7 @@
 
 /******* TYPE used in the computations ********/
 #define SCALAR double
-#define SCALAR std::complex<double>
+//#define SCALAR std::complex<double>
 
 /******* TYPE in the input matrix ********/
 #define RSCALAR double
@@ -112,6 +112,15 @@ int main(int argc, char **argv)
   if( options.find("-npord") != options.end() ){
     optionsFact.NpOrdering= atoi(options["-npord"].front().c_str());
   }
+
+
+  bool nofact = false;
+  if( options.find("-nofact") != options.end() ){
+    nofact = true;
+    if(iam==0){std::cout<<"NO FACTORIZATION"<<std::endl;}
+  }
+
+
 
   if( options.find("-refine") != options.end() ){
     optionsFact.order_refinement_str = options["-refine"].front();
@@ -365,7 +374,9 @@ int main(int argc, char **argv)
       SMat = new symPACKMatrix<SCALAR>();
       SMat->Init(optionsFact);
       SMat->SymbolicFactorization(HMat);
+if(!nofact){
       SMat->DistributeMatrix(HMat);
+}
       timeEnd = get_time();
 #ifdef EXPLICIT_PERMUTE
       perm = SMat->GetOrdering().perm;
@@ -396,112 +407,113 @@ int main(int argc, char **argv)
 #endif
 
 
-    /************* NUMERICAL FACTORIZATION PHASE ***********/
-    if(iam==0){
-      std::cout<<"Starting Factorization"<<std::endl;
-    }
-    timeSta = get_time();
-    SYMPACK_TIMER_START(FACTORIZATION);
-    SMat->Factorize();
-    SYMPACK_TIMER_STOP(FACTORIZATION);
-    timeEnd = get_time();
-
-    if(iam==0){
-      std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
-    }
-    logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
-
-#ifdef DUMP_MATLAB
-    if(iam==0){
-      logfileptr->OFS()<<"L= ";
-    }
-    SMat->DumpMatlab();
-#endif
-
-    if(nrhs>0){
-      /**************** SOLVE PHASE ***********/
+    if(!nofact){
+      /************* NUMERICAL FACTORIZATION PHASE ***********/
       if(iam==0){
-        std::cout<<"Starting solve"<<std::endl;
+        std::cout<<"Starting Factorization"<<std::endl;
       }
-      XFinal = RHS;
-
       timeSta = get_time();
-      SMat->Solve(&XFinal[0],nrhs);
+      SYMPACK_TIMER_START(FACTORIZATION);
+      SMat->Factorize();
+      SYMPACK_TIMER_STOP(FACTORIZATION);
       timeEnd = get_time();
 
       if(iam==0){
-        std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
       }
+      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
 
-      SMat->GetSolution(&XFinal[0],nrhs);
+#ifdef DUMP_MATLAB
+      if(iam==0){
+        logfileptr->OFS()<<"L= ";
+      }
+      SMat->DumpMatlab();
+#endif
+
+      if(nrhs>0){
+        /**************** SOLVE PHASE ***********/
+        if(iam==0){
+          std::cout<<"Starting solve"<<std::endl;
+        }
+        XFinal = RHS;
+
+        timeSta = get_time();
+        SMat->Solve(&XFinal[0],nrhs);
+        timeEnd = get_time();
+
+        if(iam==0){
+          std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
+        }
+
+        SMat->GetSolution(&XFinal[0],nrhs);
 
 #if defined(DUMP_MATLAB) || defined(DUMP_MATLAB_SOL)
-      if(nrhs>0 && XFinal.size()>0) {
-        {
-          std::size_t N = XFinal.size();
-          logfileptr->OFS()<<"XFinal = [ ";
-          for(std::size_t i = 0; i<N;i++){
-            logfileptr->OFS()<<ToMatlabScalar(XFinal[i])<<" ";
+        if(nrhs>0 && XFinal.size()>0) {
+          {
+            std::size_t N = XFinal.size();
+            logfileptr->OFS()<<"XFinal = [ ";
+            for(std::size_t i = 0; i<N;i++){
+              logfileptr->OFS()<<ToMatlabScalar(XFinal[i])<<" ";
+            }
+            logfileptr->OFS()<<"];"<<std::endl;
           }
-          logfileptr->OFS()<<"];"<<std::endl;
         }
-      }
 #endif
 
+
+      }
+    }
+      delete SMat;
 
     }
-    delete SMat;
 
-  }
+    if(!nofact && nrhs>0 && XFinal.size()>0) {
+      const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
+      Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
+      Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
 
-  if(nrhs>0 && XFinal.size()>0) {
-    const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
-    Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
-    Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
+      std::vector<SCALAR> AX(n*nrhs,SCALAR(0.0));
 
-    std::vector<SCALAR> AX(n*nrhs,SCALAR(0.0));
-
-    for(Int k = 0; k<nrhs; ++k){
-      for(Int j = 1; j<=n; ++j){
-        //do I own the column ?
-        if(j>=firstCol && j<lastCol){
-          Int iLocal = j-firstCol;//0-based
+      for(Int k = 0; k<nrhs; ++k){
+        for(Int j = 1; j<=n; ++j){
+          //do I own the column ?
+          if(j>=firstCol && j<lastCol){
+            Int iLocal = j-firstCol;//0-based
 #ifdef EXPLICIT_PERMUTE
-          Int tgtCol = perm[j-1];
+            Int tgtCol = perm[j-1];
 #else
-          Int tgtCol = j;
+            Int tgtCol = j;
 #endif
-          SCALAR t = XFinal[tgtCol-1+k*n];
-          Ptr colbeg = Local.colptr[iLocal]-(1-Local.GetBaseval());//1-based
-          Ptr colend = Local.colptr[iLocal+1]-(1-Local.GetBaseval());//1-based
-          //do a dense mat mat mul ?
-          for(Ptr ii = colbeg; ii< colend;++ii){
-            Int row = Local.rowind[ii-1]-(1-Local.GetBaseval());
+            SCALAR t = XFinal[tgtCol-1+k*n];
+            Ptr colbeg = Local.colptr[iLocal]-(1-Local.GetBaseval());//1-based
+            Ptr colend = Local.colptr[iLocal+1]-(1-Local.GetBaseval());//1-based
+            //do a dense mat mat mul ?
+            for(Ptr ii = colbeg; ii< colend;++ii){
+              Int row = Local.rowind[ii-1]-(1-Local.GetBaseval());
 #ifdef EXPLICIT_PERMUTE
-            Int tgtRow = perm[row-1];
+              Int tgtRow = perm[row-1];
 #else
-            Int tgtRow = row;
+              Int tgtRow = row;
 #endif
-            AX[tgtRow-1+k*n] += t*HMat.nzvalLocal[ii-1];
-            if(row>j){
-              AX[tgtCol-1+k*n] += XFinal[tgtRow-1+k*n]*HMat.nzvalLocal[ii-1];
+              AX[tgtRow-1+k*n] += t*HMat.nzvalLocal[ii-1];
+              if(row>j){
+                AX[tgtCol-1+k*n] += XFinal[tgtRow-1+k*n]*HMat.nzvalLocal[ii-1];
+              }
             }
           }
         }
       }
+
+      //Do a reduce of RHS
+      mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,worldcomm);
+
+      if(iam==0){
+        blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
+        double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
+        double normRHS = lapack::Lange('F',n,nrhs,&RHS[0],n);
+        std::cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
+      }
     }
-
-    //Do a reduce of RHS
-    mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,worldcomm);
-
-    if(iam==0){
-      blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
-      double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
-      double normRHS = lapack::Lange('F',n,nrhs,&RHS[0],n);
-      std::cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
-    }
-  }
-
 
 
 #ifdef _TRACK_MEMORY_

@@ -62,18 +62,19 @@ class SparseMatrixGraph{
   Ptr          nnz;                             // Number of nonzeros (global)
   std::vector<Ptr>  colptr;                 // Column index pointer
   std::vector<Idx>  rowind;                 // Starting row index pointer
-  protected:
+  public:
   int baseval;
   int keepDiag;
   int sorted;
-  bool bIsExpanded;
+  int expanded;
+  //bool bIsExpanded;
 
   public:
   void SetBaseval(int aBaseval);
   void SetKeepDiag(int aKeepDiag);
   void SetSorted(int aSorted);
 
-  bool IsExpanded() const {return bIsExpanded;}
+  int IsExpanded() const {return expanded;}
   int GetBaseval() const {return baseval;}
   int GetKeepDiag()const {return keepDiag;}
   int GetSorted() const {return sorted;}
@@ -100,7 +101,7 @@ class DistSparseMatrixGraph{
 
   protected:
   public:
-  bool bIsExpanded;
+  //bool bIsExpanded;
   
 
   public:
@@ -118,6 +119,7 @@ class DistSparseMatrixGraph{
   int baseval;
   int keepDiag;
   int sorted;
+  int expanded;
 
 
   public:
@@ -125,6 +127,8 @@ class DistSparseMatrixGraph{
     void SetBaseval(int aBaseval);
     void SetKeepDiag(int aKeepDiag);
     void SetSorted(int aSorted);
+    void SetExpanded(int aExpanded);
+
 
     MPI_Comm const & GetComm() const {return comm;}
     int GetBaseval() const {return baseval;}
@@ -139,16 +143,17 @@ class DistSparseMatrixGraph{
 
   DistSparseMatrixGraph& operator=( const DistSparseMatrixGraph& g );
   //accessors
-  bool IsExpanded() const {return bIsExpanded;}
+  bool IsExpanded() const {return expanded;}
   Idx LocalFirstVertex() const {return vertexDist[mpirank];}
   Idx LocalVertexCount() const { Idx count = vertexDist[mpirank+1] - vertexDist[mpirank]; bassert(colptr.size()==count+1 || colptr.empty() ); return count; }
   Ptr LocalEdgeCount() const{ return rowind.size();}
 
   //utility
 
-  void SetExpanded(bool aExpanded) {bIsExpanded = aExpanded;}
   void SortEdges();
   void ExpandSymmetric();
+  void ToSymmetric();
+
   void Permute(Int * invp);
   void Permute(Int * invp, Idx * newVertexDist);
   void Permute(Int * invp, Int invpbaseval);

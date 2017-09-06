@@ -982,6 +982,9 @@ namespace symPACK{
         T * buf = NULL;
         T beta = ZERO<T>();
 
+#ifdef SP_THREADS
+        tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+#endif
         buf = &tmpBuffers.tmpBuf[0];
 
         //everything is in row-major
@@ -1193,6 +1196,9 @@ namespace symPACK{
       //Pointer to the output buffer of the GEMM
       T * buf = NULL;
       T beta = ZERO<T>();
+#ifdef SP_THREADS
+        tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+#endif
       //If the target supernode has the same structure,
       //The GEMM is directly done in place
       if(src_nrows == tgt_nrows){
