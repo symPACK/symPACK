@@ -432,7 +432,7 @@ namespace symPACK{
 
   template<typename T, class Allocator>
     inline Int SuperNode<T,Allocator>::FindBlockIdx(Int aiGIndex){
-      scope_timer_special(a,FindBlockIdx);
+      scope_timer(a,FindBlockIdx);
 
 
       Int rval = -1;
@@ -458,7 +458,7 @@ namespace symPACK{
 
   template<typename T, class Allocator>
     inline Int SuperNode<T,Allocator>::FindBlockIdx(Int aiGIndex,Int & closestR, Int & closestL){
-      scope_timer_special(a,FindBlockIdxRL);
+      scope_timer(a,FindBlockIdxRL);
       Int rval = -1;
       ITree<Int>::Interval<Int> * L = NULL;
       ITree<Int>::Interval<Int> * R = NULL;
@@ -479,7 +479,7 @@ namespace symPACK{
 
   template<typename T, class Allocator>
     inline Int SuperNode<T,Allocator>::FindBlockIdx(Int fr, Int lr, ITree<Int>::Interval<Int> & overlap){
-      scope_timer_special(a,FindBlockIdxOverlap);
+      scope_timer(a,FindBlockIdxOverlap);
 
       Int rval = -1;
 
@@ -770,7 +770,7 @@ namespace symPACK{
   //#ifdef COMPACT_AGGREGATES
   template<typename T, class Allocator>
     inline Int SuperNode<T,Allocator>::Merge(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update){
-      scope_timer_special(a,MERGE_SNODE);
+      scope_timer(a,MERGE_SNODE);
 
       bassert(meta_->b_own_storage_);
 
@@ -858,6 +858,15 @@ namespace symPACK{
       Int tgt_fc = FirstCol();
 
 #if 1
+
+      assert(src_snode->NRowsBelowBlock(0) == NRowsBelowBlock(0) && src_snode->Size() == Size());
+      if(src_snode->NRowsBelowBlock(0) == NRowsBelowBlock(0) && src_snode->Size() == Size()){
+            T * src = src_snode->nzval_;
+            T * tgt = nzval_;
+#pragma loop unroll
+            for(Int i = 0; i< meta_->nzval_cnt_ ;i++){ tgt[i] += src[i]; }
+      }
+      else{
       for(Int blkidx = first_pivot_idx; blkidx<src_snode->NZBlockCnt(); ++blkidx){
         NZBlockDesc & blk_desc = src_snode->GetNZBlockDesc(blkidx);
         Int nrows = src_snode->NRows(blkidx);
@@ -880,10 +889,12 @@ namespace symPACK{
 
             //blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
             //#pragma omp simd
+#pragma loop unroll
             for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
 
           }
         }
+      }
       }
 #else
       Int tgt_blkcnt = NZBlockCnt();
@@ -1414,7 +1425,7 @@ namespace symPACK{
 
   template<typename T, class Allocator>
     bool SuperNode<T,Allocator>::FindNextUpdate(SnodeUpdate & nextUpdate, const std::vector<Int> & Xsuper,  const std::vector<Int> & SupMembership, bool isLocal){
-      scope_timer_special(a,FIND_NEXT_UPDATE);
+      scope_timer(a,FIND_NEXT_UPDATE);
       Int & tgt_snode_id = nextUpdate.tgt_snode_id;
       Int & f_ur = nextUpdate.src_first_row;
       Int & f_ub = nextUpdate.blkidx;

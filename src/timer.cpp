@@ -526,7 +526,6 @@ namespace symPACK{
 
 namespace symPACK{
   using Clock = std::chrono::high_resolution_clock;
-  //using Duration = std::chrono::duration<double, std::ratio<1,1> >;
   using Duration = Clock::duration;
   using SecondDuration = std::chrono::duration<double, std::ratio<1,1> >;
   using Tick = Clock::time_point;
@@ -534,7 +533,6 @@ namespace symPACK{
   int64_t main_argc = 0;
   char * const * main_argv;
   MPI_Comm comm;
-  //double excl_time;
   SecondDuration complete_time;
   int64_t set_contxt = 0;
   int64_t output_file_counter = 0;
@@ -543,7 +541,6 @@ namespace symPACK{
 
   std::vector< Tick > arr_start_excl_tick;
   std::vector< Tick > arr_start_tick;
-
   std::vector< Tick > arr_excl_tick;
   std::vector< Duration > arr_complete_time;
 
@@ -562,8 +559,8 @@ namespace symPACK{
 
       std::vector<Tick> arr_start_tick;
       std::vector<Tick> arr_start_excl_tick;
-      std::vector<Duration> arr_acc_time;
-      std::vector<Duration> arr_acc_excl_time;
+      std::vector<std::vector<Duration> > arr_acc_time;
+      std::vector<std::vector<Duration> > arr_acc_excl_time;
       std::vector<uint64_t> arr_calls;
 
 
@@ -583,8 +580,8 @@ namespace symPACK{
 
         arr_start_tick.assign(numcore,start_tick_); 
         arr_start_excl_tick.assign(numcore,start_excl_tick_); 
-        arr_acc_time.resize(numcore,Duration(0)); 
-        arr_acc_excl_time.resize(numcore,Duration(0)); 
+        arr_acc_time.resize(numcore); 
+        arr_acc_excl_time.resize(numcore); 
         arr_calls.resize(numcore,0); 
 
         if (strlen(name) > MAX_NAME_LENGTH) {
@@ -610,12 +607,14 @@ namespace symPACK{
           total_excl_time=Duration(0);
           total_calls=0;
           for(int64_t i =0;i<arr_acc_time.size();i++){
-            total_time += arr_acc_time[i];
-            total_excl_time += arr_acc_excl_time[i];
+            total_time += std::accumulate(arr_acc_time[i].begin(),arr_acc_time[i].end(),Duration(0));
+            total_excl_time += std::accumulate(arr_acc_excl_time[i].begin(),arr_acc_excl_time[i].end(),Duration(0));
             total_calls += arr_calls[i];
           }
         }
       }
+
+
 
       bool operator<(function_timer const & w) const {
         return total_time > w.total_time;
@@ -643,22 +642,44 @@ namespace symPACK{
   //        std::chrono::duration<double, std::milli> fp_ms = t2 - t1;
 
 
-//          logfileptr->OFS()<<ttotal<<" "<< (double)(ttotal)/(np*numcore)<<" ";
-//          logfileptr->OFS()<<texcl<<" "<< (double)(texcl)/(np*numcore)<<std::endl;
           SecondDuration ttotal_time(total_time);
           SecondDuration ttotal_excl_time(total_excl_time);
-          sprintf(outstr,"%5d    %lg  %3lu.%02lu  %lg  %3lu.%02lu\n",
+////          sprintf(outstr,"%5d    %lg  %3lu.%02lu  %lg  %3lu.%02lu\n",
+////              total_calls/(np*numcore),
+////              (double)ttotal_time.count()/(np*numcore),
+////              (uint64_t)((100.*ttotal_time.count())/complete_time.count()),
+////              (uint64_t)((10000.*ttotal_time.count())/complete_time.count())%100,
+////              (double)(ttotal_excl_time.count())/(np*numcore),
+////              (uint64_t)((100.*ttotal_excl_time.count())/complete_time.count()),
+////              (uint64_t)((10000.*ttotal_excl_time.count())/complete_time.count())%100);
+
+          size_t num_samples = arr_acc_time.front().size();
+          auto max_duration = [](std::vector<Duration> & vec)->Duration{ auto it = std::max_element(vec.begin(),vec.end()); return (it==vec.end())?Duration(0):*it; };
+          auto it_max_acc_times = std::max_element(arr_acc_time.begin(),arr_acc_time.end(), [&](std::vector<Duration> & veca, std::vector<Duration> & vecb){ return max_duration(veca) > max_duration(vecb);});
+          auto max_acc_time = it_max_acc_times!=arr_acc_time.end()?max_duration(*it_max_acc_times):Duration(0);
+
+          sprintf(outstr,"%5d    %lg  %3lu.%02lu  %lg  %3lu.%02lu %lg %lg %lg\n",
               total_calls/(np*numcore),
               (double)ttotal_time.count()/(np*numcore),
               (uint64_t)((100.*ttotal_time.count())/complete_time.count()),
               (uint64_t)((10000.*ttotal_time.count())/complete_time.count())%100,
               (double)(ttotal_excl_time.count())/(np*numcore),
               (uint64_t)((100.*ttotal_excl_time.count())/complete_time.count()),
-              (uint64_t)((10000.*ttotal_excl_time.count())/complete_time.count())%100);
+              (uint64_t)((10000.*ttotal_excl_time.count())/complete_time.count())%100,
+              (double)ttotal_time.count()/(num_samples*np*numcore),
+              (double)(SecondDuration(max_acc_time).count()),
+              (double)(ttotal_excl_time.count())/(num_samples*np*numcore));
+
+
+
+
 
           outstream.write(outstr,(strlen(outstr))*sizeof(char));
 
           free(space);
+
+
+
         } 
       }
   };
@@ -765,8 +786,8 @@ namespace symPACK{
 
       Duration delta = cur_tick - function_timers[index].arr_start_tick[core];
 
-      function_timers[index].arr_acc_time[core] += delta;
-      function_timers[index].arr_acc_excl_time[core] += delta - (arr_excl_tick[core]- function_timers[index].arr_start_excl_tick[core]); 
+      function_timers[index].arr_acc_time[core].push_back(delta);
+      function_timers[index].arr_acc_excl_time[core].push_back(delta - (arr_excl_tick[core]- function_timers[index].arr_start_excl_tick[core])); 
 
       arr_excl_tick[core] = function_timers[index].arr_start_excl_tick[core];
       arr_excl_tick[core] = arr_excl_tick[core] + Clock::duration(delta);
@@ -926,7 +947,7 @@ namespace symPACK{
       }
       part[i] = '\0';
       sprintf(heading,"%s",part);
-      sprintf(part,"       inclusive         exclusive\n");
+      sprintf(part,"       inclusive         exclusive        avg(incl)    max(incl)     avg(excl)\n");
       strcat(heading,part);
       outstream.write(heading,(strlen(heading))*sizeof(char));
 

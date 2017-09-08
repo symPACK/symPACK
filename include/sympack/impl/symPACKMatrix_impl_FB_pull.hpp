@@ -247,6 +247,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
   {
 
     scheduler_new_->msgHandle = [&,this](std::shared_ptr<IncomingMessage> msg) {
+            scope_timer(a,MSGHANDLE);
       Int iOwner = Mapping_->Map(msg->meta.tgt-1,msg->meta.tgt-1);
       Int iUpdater = Mapping_->Map(msg->meta.tgt-1,msg->meta.src-1);
       //this is an aggregate
