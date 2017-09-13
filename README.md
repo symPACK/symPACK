@@ -8,7 +8,7 @@ First, download **symPACK** as follows:
 
 
 ```
-git clone git@github.com:symPACK/symPACK.git  /path/to/sympack
+git clone https://github.com/symPACK/symPACK.git  /path/to/sympack
 ```
 
 Several environment variables can be optionally set before configuring the build:
