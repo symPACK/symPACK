@@ -2010,8 +2010,8 @@ logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
     { 
       int i; 
 
-      T * pinout = (Ptr*)inout;
-      T * pin = (Ptr*)in;
+      T * pinout = (T*)inout;
+      T * pin = (T*)in;
 #pragma unroll
       for (i=0; i< *len; ++i) { 
         pinout[i] = std::max(pinout[i], pin[i]);

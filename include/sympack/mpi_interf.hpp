@@ -158,7 +158,7 @@ int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size *stotdi
     max_sr_size = std::max(max_sr_size,globalMax);
 
     if(is_signed){
-        for(int i = 0; i<mpisize;i++){ rtotcounts[i] = std::abs(rtotcounts[i]); }
+        for(int i = 0; i<mpisize;i++){ rtotcounts[i] = rtotcounts[i]>0?rtotcounts[i]:-rtotcounts[i]; }
     }
     else{
       //redo the alltoall to get rid of the error flags
