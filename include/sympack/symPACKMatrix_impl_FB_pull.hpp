@@ -1077,6 +1077,10 @@ template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph & 
                   }
                 }
               }
+
+              if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
+                aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
+              }
               aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
             } 
             else
@@ -1085,24 +1089,6 @@ template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph & 
               std::set<Idx> structure;
               {
                 scope_timer(a,FETCH_REMOTE_STRUCTURE);
-#ifdef PREFETCH_STRUCTURE
-                char* buffer = structPtr->GetLocalPtr();
-                SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
-                NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
-                Int block_cnt = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1]);
-logfileptr->OFS()<<*pdesc<<std::endl<<block_cnt<<std::endl;
-assert(pdesc->blocks_cnt_==block_cnt);
-
-                for(Int i =block_cnt-1;i>=0;i--){
-                  NZBlockDesc & curdesc = bufferBlocks[i];
-                  size_t end = (i>0)?bufferBlocks[i-1].Offset:pdesc->nzval_cnt_;
-                  Int numRows = (end-curdesc.Offset)/pdesc->iSize_;
-
-                  for(Idx row = 0; row<numRows;row++){
-                    structure.insert(curdesc.GIndex+row);
-                  }
-                }
-#else
                 upcxx::global_ptr<SuperNodeDesc> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
                 Int block_cnt = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1]);
 
@@ -1124,7 +1110,9 @@ assert(pdesc->blocks_cnt_==block_cnt);
                   }
                 }
                 UpcxxAllocator::deallocate((char*)buffer);
-#endif
+              }
+              if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
+                aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
               }
               aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
             }

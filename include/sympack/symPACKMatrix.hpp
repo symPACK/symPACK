@@ -1,44 +1,44 @@
 /*
-	 Copyright (c) 2016 The Regents of the University of California,
-	 through Lawrence Berkeley National Laboratory.  
+   Copyright (c) 2016 The Regents of the University of California,
+   through Lawrence Berkeley National Laboratory.  
 
-   Author: Mathias Jacquelin
-	 
-   This file is part of symPACK. All rights reserved.
+Author: Mathias Jacquelin
 
-	 Redistribution and use in source and binary forms, with or without
-	 modification, are permitted provided that the following conditions are met:
+This file is part of symPACK. All rights reserved.
 
-	 (1) Redistributions of source code must retain the above copyright notice, this
-	 list of conditions and the following disclaimer.
-	 (2) Redistributions in binary form must reproduce the above copyright notice,
-	 this list of conditions and the following disclaimer in the documentation
-	 and/or other materials provided with the distribution.
-	 (3) Neither the name of the University of California, Lawrence Berkeley
-	 National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
-	 be used to endorse or promote products derived from this software without
-	 specific prior written permission.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
 
-	 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
-	 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-	 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-	 DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
-	 ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-	 (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-	 LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-	 ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-	 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-	 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+(1) Redistributions of source code must retain the above copyright notice, this
+list of conditions and the following disclaimer.
+(2) Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+(3) Neither the name of the University of California, Lawrence Berkeley
+National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
+be used to endorse or promote products derived from this software without
+specific prior written permission.
 
-	 You are under no obligation whatsoever to provide any bug fixes, patches, or
-	 upgrades to the features, functionality or performance of the source code
-	 ("Enhancements") to anyone; however, if you choose to make your Enhancements
-	 available either publicly, or directly to Lawrence Berkeley National
-	 Laboratory, without imposing a separate written license agreement for such
-	 Enhancements, then you hereby grant the following license: a non-exclusive,
-	 royalty-free perpetual license to install, use, modify, prepare derivative
-	 works, incorporate into other computer software, distribute, and sublicense
-	 such enhancements or derivative works thereof, in binary and source code form.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+You are under no obligation whatsoever to provide any bug fixes, patches, or
+upgrades to the features, functionality or performance of the source code
+("Enhancements") to anyone; however, if you choose to make your Enhancements
+available either publicly, or directly to Lawrence Berkeley National
+Laboratory, without imposing a separate written license agreement for such
+Enhancements, then you hereby grant the following license: a non-exclusive,
+royalty-free perpetual license to install, use, modify, prepare derivative
+works, incorporate into other computer software, distribute, and sublicense
+such enhancements or derivative works thereof, in binary and source code form.
 */
 #ifndef _SYMPACK_MATRIX_DECL_HPP_
 #define _SYMPACK_MATRIX_DECL_HPP_
@@ -74,29 +74,29 @@
 //#define PREFETCH_STRUCTURE
 
 namespace symPACK{
-      template<typename T> class symPACKMatrix;
+  template<typename T> class symPACKMatrix;
 
-      class supernodalTaskGraph{
-        template<typename T> friend class symPACKMatrix;
-        protected:
-        std::vector<std::list<FBTask> * > taskLists_;
-        Int localTaskCount_;
-        
-        public:
+  class supernodalTaskGraph{
+    template<typename T> friend class symPACKMatrix;
+    protected:
+    std::vector<std::list<FBTask> * > taskLists_;
+    Int localTaskCount_;
 
-        supernodalTaskGraph( );
-        supernodalTaskGraph( const supernodalTaskGraph& g );
-        supernodalTaskGraph& operator=( const supernodalTaskGraph& g );
-        ~supernodalTaskGraph();
+    public:
 
-        void removeTask(std::list<FBTask>::iterator & taskit); 
-        std::list<FBTask>::iterator addTask(FBTask & task);
-        Int getTaskCount();
-        Int setTaskCount(Int value);
-        Int increaseTaskCount();
-        Int decreaseTaskCount();
-        std::list<FBTask>::iterator find_task(Int src, Int tgt, TaskType type );
-      };
+    supernodalTaskGraph( );
+    supernodalTaskGraph( const supernodalTaskGraph& g );
+    supernodalTaskGraph& operator=( const supernodalTaskGraph& g );
+    ~supernodalTaskGraph();
+
+    void removeTask(std::list<FBTask>::iterator & taskit); 
+    std::list<FBTask>::iterator addTask(FBTask & task);
+    Int getTaskCount();
+    Int setTaskCount(Int value);
+    Int increaseTaskCount();
+    Int decreaseTaskCount();
+    std::list<FBTask>::iterator find_task(Int src, Int tgt, TaskType type );
+  };
 
 
 
@@ -169,15 +169,16 @@ namespace symPACK{
       //returns a reference to  a local supernode with id global
       SuperNode<T> * snodeLocal(Int global);
       template< class Alloc>
-      SuperNode<T,Alloc> * snodeLocal(Int global, std::vector<SuperNode<T,Alloc> *> & snodeColl);
+        SuperNode<T,Alloc> * snodeLocal(Int global, std::vector<SuperNode<T,Alloc> *> & snodeColl);
 
-
-template <class Allocator = UpcxxAllocator>
-      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
-template <class Allocator = UpcxxAllocator>
-      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Int firstRow = -1);
-template <class Allocator = UpcxxAllocator>
-      SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
+      template <class Allocator = UpcxxAllocator>
+        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type);
+      template <class Allocator = UpcxxAllocator>
+        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
+      template <class Allocator = UpcxxAllocator>
+        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Int firstRow = -1);
+      template <class Allocator = UpcxxAllocator>
+        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
 
 
     protected:
@@ -202,8 +203,8 @@ template <class Allocator = UpcxxAllocator>
       DistSparseMatrixGraph graph_;
 
       //CSC structure of L factor
-//      PtrVec xlindx_;
-//      IdxVec lindx_;
+      //      PtrVec xlindx_;
+      //      IdxVec lindx_;
       PtrVec locXlindx_;
       IdxVec locLindx_;
 
@@ -273,18 +274,18 @@ template <class Allocator = UpcxxAllocator>
 
       TempUpdateBuffers<T> tmpBufs;
 
-  void findSupernodes(ETree& tree, Ordering & aOrder, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, Int maxSize = -1);
-  void relaxSupernodes(ETree& tree, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, RelaxationParameters & params  );
+      void findSupernodes(ETree& tree, Ordering & aOrder, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, Int maxSize = -1);
+      void relaxSupernodes(ETree& tree, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, RelaxationParameters & params  );
 
-  void symbolicFactorizationRelaxedDist(std::vector<Int> & cc);
+      void symbolicFactorizationRelaxedDist(std::vector<Int> & cc);
 
-  void refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T>* pMat = NULL);
+      void refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T>* pMat = NULL);
 
-  void getLColRowCount(std::vector<Int> & cc, std::vector<Int> & rc);
-  void getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc);
+      void getLColRowCount(std::vector<Int> & cc, std::vector<Int> & rc);
+      void getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc);
 
 
-      protected:
+    protected:
 
 
       //FanBoth related routines
@@ -301,11 +302,11 @@ template <class Allocator = UpcxxAllocator>
       void AddOutgoingComm(AsyncComms & outgoingSend, Icomm * send_buffer);
       void AdvanceOutgoing(AsyncComms & outgoingSend);
       template< class Alloc>
-      void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl);
+        void SendDelayedMessagesUp(Int cur_snode_id, CommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl);
       template< class Alloc>
-      void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl);
+        void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl);
       template< class Alloc>
-      void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl);
+        void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl);
 
       void CheckIncomingMessages(supernodalTaskGraph & taskGraph, std::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
 

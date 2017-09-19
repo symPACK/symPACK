@@ -4,6 +4,14 @@ set(LAPACK_DIR /opt/intel/mkl)
 set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} ${BLAS_DIR}/lib/intel64)
 set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} ${LAPACK_DIR}/lib/intel64)
 
+
+
+#set(BLAS_DIR /usr/lib/)
+#set(LAPACK_DIR /usr/lib)
+#set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${BLAS_DIR})
+#set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${LAPACK_DIR})
+
+
 #set(BLAS_DIR /home/mjacquel/software/gnu/release/OpenBLAS/install)
 #set(LAPACK_DIR /home/mjacquel/software/gnu/release/OpenBLAS/install)
 set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${BLAS_DIR})
