@@ -49,6 +49,11 @@
 
 
 namespace symPACK{
+
+  int last_key = 0;
+  std::map<int,int> async_barriers;
+
+
   std::list< IncomingMessage * > gIncomingRecv;
   //std::priority_queue< IncomingMessage *, std::vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
   std::list< IncomingMessage * > gIncomingRecvAsync;

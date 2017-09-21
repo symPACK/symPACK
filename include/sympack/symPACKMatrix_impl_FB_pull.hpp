@@ -377,7 +377,10 @@ defaut:
   }
 
   SYMPACK_TIMER_START(BARRIER);
-  upcxx::async_wait();
+
+        int barrier_id = get_barrier_id(np);
+        signal_exit(barrier_id,np); 
+        barrier_wait(barrier_id);
   MPI_Barrier(CommEnv_->MPI_GetComm());
 
   SYMPACK_TIMER_STOP(BARRIER);
