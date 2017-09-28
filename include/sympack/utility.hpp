@@ -1631,7 +1631,7 @@ iss.clear(); // Clear state flags.
 
       HMat.Localg_.size = HMat.size;
       HMat.Localg_.nnz = nnz;
-      HMat.Localg_.bIsExpanded = false;
+      HMat.Localg_.expanded = false;
 
       return 0;
     }
@@ -1834,7 +1834,7 @@ logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
     if(mpirank==0){
         std::cout<<"Input matrix is not in lower triangular format. symPACK is converting it."<<std::endl;
     }
-    pspmat.Localg_.bIsExpanded = true;
+    pspmat.Localg_.expanded = true;
     pspmat.ToLowerTriangular();
   }
 

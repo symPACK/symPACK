@@ -67,6 +67,38 @@
 #endif
 
 namespace symPACK{
+  class RankGroup{
+    public:
+    RankGroup(MPI_Comm & comm){
+      int size = 0;
+      MPI_Comm_size(comm,&size);
+
+      //resize our translation arrays
+      l2g.resize(size);
+
+      //get the MPI_Group from the communicator amd MPI_COMM_WORLD
+      MPI_Group group, Wgroup;
+      MPI_Comm_group(comm, &group);
+      MPI_Comm_group(MPI_COMM_WORLD, &Wgroup);
+
+      std::vector<int> tmp(size);
+      std::iota(tmp.begin(),tmp.end(),0);
+      //Get the corresponding ranks in MPI_COMM_WORLD
+      MPI_Group_translate_ranks(group, size, tmp.data(), Wgroup, l2g.data());
+
+      for(int i = 0; i < size; i++ ){
+        g2l[ l2g[i] ] = i;
+      } 
+
+    };
+
+    int L2G(int rank){ return l2g[rank];}
+    int G2L(int rank){ return g2l[rank];}
+
+    std::vector<int> l2g;
+    std::map<int,int> g2l;
+  };
+
 
   bool barrier_done(int id);
   int get_barrier_id(int np);
@@ -241,10 +273,10 @@ struct MSGCompare{
   void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
   void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta);
 
+  //signal_data is used to send a global_ptr to a remote rank "dest". dest is expressed in the global world
   inline void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
-      SYMPACK_TIMER_START(SIGNAL_DATA);
+      scope_timer(a,SIGNAL_DATA);
       upcxx::async(dest)(rcv_async,local_ptr,pMsg_size,meta);
-      SYMPACK_TIMER_STOP(SIGNAL_DATA);
   }
 
 

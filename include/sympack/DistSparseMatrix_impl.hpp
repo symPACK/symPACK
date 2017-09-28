@@ -193,7 +193,7 @@ namespace symPACK{
         auto baseval = Localg_.baseval;
 
         auto & keepDiag = Localg_.keepDiag;
-        auto & bIsExpanded = Localg_.bIsExpanded;
+        auto & expanded = Localg_.expanded;
         auto & colptr = Localg_.colptr;
         auto & rowind = Localg_.rowind;
 
@@ -218,11 +218,11 @@ namespace symPACK{
           for(Ptr jptr = colbeg; jptr<colend; jptr++){
             Idx row = rowind[jptr] - baseval; //0 based
             Idx permRow = invp[row] - invpbaseval; // 0 based
-            if(permRow<permCol && !bIsExpanded){
+            if(permRow<permCol && !expanded){
               Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
               sizes[pdestR]++;
             }
-            else if(permRow>permCol || (permRow==permCol && keepDiag) || bIsExpanded){
+            else if(permRow>permCol || (permRow==permCol && keepDiag) || expanded){
               sizes[pdest]++;
             }
           }
@@ -249,14 +249,14 @@ namespace symPACK{
           for(Ptr jptr = colbeg; jptr<colend; jptr++){
             Idx row = rowind[jptr] - baseval; //0 based
             Idx permRow = invp[row] - invpbaseval; // 0 based
-            if(permRow<permCol && !bIsExpanded){
+            if(permRow<permCol && !expanded){
               Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
               auto & trip = sbuf[displs[pdestR]++];
               trip.val = nzvalLocal[jptr];
               trip.row = permCol;
               trip.col = permRow;
             }
-            else if(permRow>permCol || (permRow==permCol && keepDiag) || bIsExpanded){
+            else if(permRow>permCol || (permRow==permCol && keepDiag) || expanded){
               auto & trip = sbuf[displs[pdest]++];
               trip.val = nzvalLocal[jptr];
               trip.row = permRow;
@@ -371,8 +371,8 @@ namespace symPACK{
 
   template< typename F>
     void DistSparseMatrix<F>::ToLowerTriangular(){
-      auto & bIsExpanded = Localg_.bIsExpanded;
-      if(bIsExpanded)
+      auto & expanded = Localg_.expanded;
+      if(expanded)
       {
         Ptr localNNZ = 0;
         Int baseval = Localg_.GetBaseval();
@@ -427,14 +427,14 @@ namespace symPACK{
         //}
 
 
-        bIsExpanded = false;
+        expanded = false;
       }
     }
 
   template< typename F>
     void DistSparseMatrix<F>::ExpandSymmetric(){
-      auto & bIsExpanded = Localg_.bIsExpanded;
-      if(!bIsExpanded)
+      auto & expanded = Localg_.expanded;
+      if(!expanded)
       {
         scope_timer(a,DistMat_Expand);
         int ismpi=0;
@@ -590,7 +590,7 @@ namespace symPACK{
         colptr.swap(newColptr);
         SYMPACK_TIMER_STOP(DistMat_Expand_unpack);
 
-        bIsExpanded =true;
+        expanded =true;
         //keepDiag = 1;
 
         if(Localg_.GetSorted()){

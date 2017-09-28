@@ -66,14 +66,14 @@ class SparseMatrixGraph{
   int baseval;
   int keepDiag;
   int sorted;
-  bool bIsExpanded;
+  int expanded;
 
   public:
   void SetBaseval(int aBaseval);
   void SetKeepDiag(int aKeepDiag);
   void SetSorted(int aSorted);
 
-  bool IsExpanded() const {return bIsExpanded;}
+  int IsExpanded() const {return expanded;}
   int GetBaseval() const {return baseval;}
   int GetKeepDiag()const {return keepDiag;}
   int GetSorted() const {return sorted;}
@@ -95,7 +95,7 @@ class DistSparseMatrixGraph{
 
   protected:
   public:
-  bool bIsExpanded;
+  int expanded;
   
 
   public:
@@ -134,14 +134,14 @@ class DistSparseMatrixGraph{
 
   DistSparseMatrixGraph& operator=( const DistSparseMatrixGraph& g );
   //accessors
-  bool IsExpanded() const {return bIsExpanded;}
+  int IsExpanded() const {return expanded;}
   Idx LocalFirstVertex() const {return vertexDist[mpirank];}
   Idx LocalVertexCount() const { Idx count = vertexDist[mpirank+1] - vertexDist[mpirank]; bassert(colptr.size()==count+1 || colptr.empty() ); return count; }
   Ptr LocalEdgeCount() const{ return rowind.size();}
 
   //utility
 
-  void SetExpanded(bool aExpanded) {bIsExpanded = aExpanded;}
+  void SetExpanded(int aExpanded) {expanded = aExpanded;}
   void SortEdges();
   void ExpandSymmetric();
   void Permute(Int * invp);

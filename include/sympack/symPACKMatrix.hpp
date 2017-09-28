@@ -65,6 +65,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include <limits>
 #include <numeric>
 #include <tuple>
+#include <memory>
 
 #include "SuperNode.hpp"
 #include "SuperNodeInd.hpp"
@@ -184,6 +185,8 @@ namespace symPACK{
     protected:
       //MPI/UPCXX ranks and sizes
       int iam, np,all_np;
+      std::shared_ptr<RankGroup> group_;
+
       symPACKOptions options_;
       CommEnvironment * CommEnv_;
       MPI_Comm non_workcomm_;

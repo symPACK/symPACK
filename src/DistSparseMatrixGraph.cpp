@@ -174,7 +174,7 @@ namespace symPACK{
     blocklen[2] = sizeof(baseval);
     blocklen[3] = sizeof(keepDiag);
     blocklen[4] = sizeof(sorted);
-    blocklen[5] = sizeof(bIsExpanded);
+    blocklen[5] = sizeof(expanded);
     blocklen[6] = colptr.size()*sizeof(Ptr);
     blocklen[7] = rowind.size()*sizeof(Idx);
 
@@ -183,7 +183,7 @@ namespace symPACK{
     MPI_Address( (void *)&baseval,  &disps[2]);
     MPI_Address( (void *)&keepDiag,  &disps[3]);
     MPI_Address( (void *)&sorted,  &disps[4]);
-    MPI_Address( (void *)&bIsExpanded,  &disps[5]);
+    MPI_Address( (void *)&expanded,  &disps[5]);
     MPI_Address( (void *)&colptr[0],  &disps[6]);
     MPI_Address( (void *)&rowind[0],  &disps[7]);
 
@@ -208,7 +208,7 @@ namespace symPACK{
 
 
   DistSparseMatrixGraph::DistSparseMatrixGraph(){
-    bIsExpanded = false;
+    expanded = false;
     baseval = 1;
     keepDiag = 1;
     sorted = 1;
@@ -227,7 +227,7 @@ namespace symPACK{
   }
 
   DistSparseMatrixGraph& DistSparseMatrixGraph::operator=( const DistSparseMatrixGraph& g ) {
-    bIsExpanded = g.bIsExpanded;
+    expanded = g.expanded;
     size = g.size;
     nnz = g.nnz;
     colptr = g.colptr;
@@ -926,7 +926,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
 
   void DistSparseMatrixGraph::ExpandSymmetric(){
     SYMPACK_TIMER_START(EXPAND);
-    if(!bIsExpanded){
+    if(!expanded){
 
       int ismpi=0;
       MPI_Initialized( &ismpi);
@@ -1072,7 +1072,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
         colptr.swap(newColptr);
         SYMPACK_TIMER_STOP(DistMat_Expand_unpack);
 
-        bIsExpanded =true;
+        expanded =true;
         //keepDiag = 1;
 
 //        if(GetSorted()){
@@ -1339,7 +1339,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
 /////      MPI_Barrier(comm);
 /////
 /////      //nnz = LocalEdgeCount();
-/////      bIsExpanded =true;
+/////      expanded =true;
     }
     SYMPACK_TIMER_STOP(EXPAND);
   }
@@ -1359,7 +1359,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     g.SetBaseval(baseval);  
     g.SetSorted(sorted);
     g.SetKeepDiag(keepDiag);
-    g.bIsExpanded = bIsExpanded;
+    g.expanded = expanded;
 
     //get other proc vertex counts
     Idx localVertexCnt = LocalVertexCount();
@@ -1430,7 +1430,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     if(iam==proot){
     g.SetSorted(sorted);
     g.SetKeepDiag(keepDiag);
-    g.bIsExpanded = bIsExpanded;
+    g.expanded = expanded;
     }
 
     //get other proc vertex counts

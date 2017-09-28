@@ -859,6 +859,7 @@ template <typename T> void symPACKMatrix<T>::FBFactorizationTask(supernodalTaskG
 
         char * last_byte_ptr = (char*)&nzblk_desc + sizeof(NZBlockDesc);
         size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
+        iTarget = group_->L2G(iTarget);
         signal_data(sendPtr, msgSize, iTarget, meta);
         is_factor_sent[iTarget] = true;
       }
@@ -1165,6 +1166,7 @@ template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph & 
             upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
             //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
             size_t msgSize = tgt_aggreg->StorageSize();
+            iTarget = group_->L2G(iTarget);
             signal_data(sendPtr, msgSize, iTarget, meta);
 
           }

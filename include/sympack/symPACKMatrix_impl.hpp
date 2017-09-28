@@ -2457,7 +2457,10 @@ namespace symPACK{
     MPI_Comm workcomm = MPI_COMM_NULL;
     MPI_Comm_split(options_.MPIcomm,iam<np,iam,&workcomm);
     CommEnv_ = new CommEnvironment(workcomm);
+    group_.reset( new RankGroup( workcomm ) ); 
     MPI_Comm_free(&workcomm);
+
+
 
     //do another split to contain P0 and all the non working processors
     if(all_np!=np){
