@@ -81,6 +81,17 @@ class SuperNodeInd: public SuperNode<T,Allocator>{
   public:
   inline T* GetDiag(){ return diag_;}
 
+  virtual inline void clear(){ 
+    if(this->NNZ()>0){
+      std::fill(this->nzval_,this->nzval_+this->NNZ(),T(0));
+    }
+
+    if(this->Size()>0){
+      std::fill(this->diag_,this->diag_+this->Size(),T(0));
+    }
+  }
+
+
   SuperNodeInd();
   SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
   SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);

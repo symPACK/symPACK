@@ -229,9 +229,9 @@ namespace symPACK{
 
       //backup for factorization
       std::vector<Int> UpdatesToDo_;
-      std::vector<std::list<FBTask> * > origTaskLists_;
-      Int localTaskCount_;
-      void generateTaskGraph(Int & localTaskCount, std::vector<std::list<FBTask> * > & taskLists);
+      //std::vector<std::list<FBTask> * > origTaskLists_;
+      //Int localTaskCount_;
+      //void generateTaskGraph(Int & localTaskCount, std::vector<std::list<FBTask> * > & taskLists);
       std::list<FBTask>::iterator find_task(std::vector<std::list<FBTask> * > & taskLists, Int src, Int tgt, TaskType type );
 
       supernodalTaskGraph taskGraph_;

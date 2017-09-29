@@ -244,6 +244,12 @@ class SuperNode{
     //TODO fix this
     return loc_storage_container_;
   }
+  
+  virtual inline void clear(){ 
+    if(NNZ()>0){
+      std::fill(nzval_,nzval_+NNZ(),T(0));
+    }
+  }
 
   SuperNode();
   SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);

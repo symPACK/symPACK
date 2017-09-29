@@ -184,6 +184,13 @@ namespace symPACK{
         size = getSize_(root_);
         return size;
       }
+
+
+      inline void clear(){
+        if(root_!=NULL){
+          delete root_;
+        }
+      }
   };
 
 

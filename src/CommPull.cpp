@@ -182,7 +182,7 @@ namespace symPACK{
           isDone = true;
         }
       }
-#ifdef PROFILE_COMM
+#ifdef _SYMPACK_PROFILE_COMM_
       if(success){
         gVolComm+= msg_size;
         gNumMsg++;

@@ -93,7 +93,6 @@ namespace symPACK{
         taskLists_[i]->insert(taskLists_[i]->end(),g.taskLists_[i]->begin(),g.taskLists_[i]->end());
       }
     }
-
   }
 
   supernodalTaskGraph::~supernodalTaskGraph(){
@@ -335,7 +334,7 @@ namespace symPACK{
     }
     SYMPACK_TIMER_STOP(NUMERICAL_FACT);
 
-#ifdef PROFILE_COMM
+#ifdef _SYMPACK_PROFILE_COMM_
     if(iam<np){
       logfileptr->OFS()<<"Local volume of communication: "<<gVolComm<<std::endl;
       logfileptr->OFS()<<"Local number of messages: "<<gNumMsg<<std::endl;
@@ -360,6 +359,9 @@ namespace symPACK{
   //Solve related routines
   template <typename T> void symPACKMatrix<T>::Solve(T * RHS, int nrhs,  T * Xptr) {
     SYMPACK_TIMER_START(SPARSE_SOLVE);
+
+    for(auto ptr: Contributions_){ delete ptr; }
+    Contributions_.clear();
 
     Int n = iSize_;
     //Int iam = CommEnv_->MPI_Rank();
@@ -3080,7 +3082,7 @@ namespace symPACK{
 
       {
         double timeSta = get_time();
-        origTaskLists_.resize(Xsuper_.size(),NULL);
+        //origTaskLists_.resize(Xsuper_.size(),NULL);
         std::vector<Int> AggregatesToRecv;
         std::vector<Int> LocalAggregates;
         FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
@@ -3143,6 +3145,10 @@ namespace symPACK{
     }
 
     //Resize the local supernodes array
+    for(auto ptr : LocalSupernodes_){ delete ptr; }
+    LocalSupernodes_.clear();
+
+    globToLocSnodes_.clear();
     LocalSupernodes_.reserve(snodeCount);
 
     //        std::vector<upcxx::global_ptr<SuperNodeDesc > > localFactors;
@@ -3618,14 +3624,6 @@ namespace symPACK{
 
 
 #else
-
-
-
-
-
-
-
-
         std::map<Int,std::pair<size_t,Icomm *> > send_map;
         for(Int p=0;p<all_np;++p){
           send_map[p].first = 0;
@@ -3788,9 +3786,12 @@ namespace symPACK{
           mpi::Alltoallv((*IsendPtr), &stotcounts[0], &spositions[0], MPI_BYTE,
               (*IrecvPtr),fullcomm_, resize_lambda);
 
+          //restore zero values in the LocalSupernodes_
+          for(auto snode : LocalSupernodes_){
+             snode->clear();
+          }
 
           //Need to parse the structure sent from the processor owning the first column of the supernode
-
           SYMPACK_TIMER_SPECIAL_START(deserializing);      
           IrecvPtr->setHead(0);
           while(IrecvPtr->head < IrecvPtr->capacity()){ 
@@ -3822,19 +3823,12 @@ namespace symPACK{
 
 
             //Here, do a linear search instead for the blkidx
-
             Ptr colbeg = 1;
             Ptr colend = nrows;
-            //            for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
-            //              Idx row = rowind[rowidx-1];
-            //              logfileptr->OFS()<<row<<" ";
-            //            }
-            //              logfileptr->OFS()<<std::endl;
 
             if(colbeg<=colend){
               //sort rowind and nzvals
 
-#if 1 
               std::vector<size_t> lperm = sort_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,std::less<Idx>());
               apply_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,lperm);
               apply_permutation(&nzvalA[colbeg-1],&nzvalA[colend-1]+1,lperm);
@@ -3843,48 +3837,20 @@ namespace symPACK{
               assert(blkidx!=-1);
               Int blk_nrows = snode->NRows(blkidx);    
               NZBlockDesc * blk_desc = &snode->GetNZBlockDesc(blkidx);
-#else
-              Idx prevRow = 0;
-              Int blkidx = 0;
-              NZBlockDesc * blk_desc = &snode->GetNZBlockDesc(blkidx);
-              Int blk_nrows = snode->NRows(blkidx);
-#endif
-
               for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
                 Idx row = rowind[rowidx-1];
 
-#if 1
                 while(row>blk_desc->GIndex+blk_nrows-1){
                   blkidx++;
                   blk_nrows = snode->NRows(blkidx);    
                   blk_desc = &snode->GetNZBlockDesc(blkidx);
                 }
-#else
-                if(row!=prevRow){
-                  if(row>blk_desc->GIndex+blk_nrows || row<blk_desc->GIndex){
-                    blkidx = snode->FindBlockIdx(row);
-                    blk_desc = &snode->GetNZBlockDesc(blkidx);
-                    blk_nrows = snode->NRows(blkidx);
-                  }
-                  prevRow=row;
-                }
-#endif
 
                 Int local_row = row - blk_desc->GIndex + 1;
                 Int local_col = col - fc + 1;
                 T * nzval = snode->GetNZval(blk_desc->Offset);
                 nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
               }
-              //for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-              //  Int row = rowind[rowidx-1];
-              //  Int blkidx = snode->FindBlockIdx(row);
-              //  assert(blkidx!=-1);
-              //  NZBlockDesc & blk_desc = snode->GetNZBlockDesc(blkidx);
-              //  Int local_row = row - blk_desc.GIndex + 1;
-              //  Int local_col = col - fc + 1;
-              //  T * nzval = snode->GetNZval(blk_desc.Offset);
-              //  nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
-              //}
             }
           }
           SYMPACK_TIMER_SPECIAL_STOP(deserializing);      
@@ -3898,13 +3864,8 @@ namespace symPACK{
 
 
 
-        //std::vector<upcxx::global_ptr<SuperNodeDesc > > localFactors;
         remoteFactors_.resize(Xsuper_.size()-1);
         std::fill((char*)&remoteFactors_[0],(char*)&remoteFactors_[0]+remoteFactors_.size()*sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ),0);
-        //logfileptr->OFS()<<"My usable global memory size is: "<<upcxx::my_usable_global_memory_size()<<std::endl;
-
-        //      if(iam<np){
-
 
 
         for(Int I=1;I<Xsuper_.size();I++){
@@ -3916,8 +3877,6 @@ namespace symPACK{
             remoteFactors_[I-1] = std::make_tuple( upcxx::global_ptr<SuperNodeDesc>( meta ), meta->blocks_cnt_) ;
           }
         }
-
-
 
         auto bor_op = []( void *in, void *inout, int *len, MPI_Datatype *dptr ){ 
           size_t i; 
