@@ -379,7 +379,7 @@ defaut:
   SYMPACK_TIMER_START(BARRIER);
 
         int barrier_id = get_barrier_id(np);
-        signal_exit(barrier_id,np); 
+        signal_exit(barrier_id,*group_); 
         barrier_wait(barrier_id);
   MPI_Barrier(CommEnv_->MPI_GetComm());
 

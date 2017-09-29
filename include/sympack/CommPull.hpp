@@ -92,9 +92,10 @@ namespace symPACK{
 
     };
 
-    int L2G(int rank){ return l2g[rank];}
-    int G2L(int rank){ return g2l[rank];}
+    int L2G(int rank) const { return l2g[rank];}
+    int G2L(int rank) { return g2l[rank];}
 
+    int size() const { return l2g.size(); }
     std::vector<int> l2g;
     std::map<int,int> g2l;
   };
@@ -102,7 +103,7 @@ namespace symPACK{
 
   bool barrier_done(int id);
   int get_barrier_id(int np);
-  void signal_exit(int barrier_id, int np);
+  void signal_exit(int barrier_id, const RankGroup & group);
   void barrier_wait(int barrier_id);
 
   extern int last_key;
@@ -131,11 +132,12 @@ namespace symPACK{
     //upcxx::barrier();
   }
 
-  inline void signal_exit(int barrier_id, int np)
+  inline void signal_exit(int barrier_id, const RankGroup & group)
   {
 
-    for (int i = 0; i < np; i++) {
-      upcxx::async(i)(signal_exit_am,barrier_id,np);
+    for (int i = 0; i < group.size(); i++) {
+      int dest = group.L2G(i);
+      upcxx::async(dest)(signal_exit_am,barrier_id,group.size());
     }
 
     //make sure we don't have anything outgoing in flight anymore 

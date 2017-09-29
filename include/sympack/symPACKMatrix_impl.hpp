@@ -2593,7 +2593,7 @@ namespace symPACK{
         else{
               std::stringstream sstr;
               sstr<<"This ordering method is not supported by symPACK. Valid options are:";
-              sstr<<"MMD AMD RCM NDBOX NDGRID USER ";
+              sstr<<"MMD AMD RCM NDBOX NDGRID NATURAL USER ";
 #ifdef USE_SCOTCH
               sstr<<"SCOTCH ";
 #endif
@@ -2706,11 +2706,12 @@ namespace symPACK{
             Order_.perm.resize(iSize_);
             for(int i=0;i<Order_.perm.size();i++){Order_.perm[i]=i+1;} 
             Order_.invp = Order_.perm;
+            break;
           default:
             {
               std::stringstream sstr;
               sstr<<"This ordering method is not supported by symPACK. Valid options are:";
-              sstr<<"MMD AMD RCM NDBOX NDGRID USER ";
+              sstr<<"MMD AMD RCM NDBOX NDGRID NATURAL  USER ";
 #ifdef USE_SCOTCH
               sstr<<"SCOTCH ";
 #endif
