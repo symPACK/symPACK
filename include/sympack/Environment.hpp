@@ -237,23 +237,6 @@ struct NullStream : std::ostream
 
 /////////////////////////////////////////////
 
-class ExceptionTracer
-{
-public:
-	ExceptionTracer()
-	{
-		void * array[25];
-		int nSize = backtrace(array, 25);
-		char ** symbols = backtrace_symbols(array, nSize);
-
-		for (int i = 0; i < nSize; i++)
-		{
-			std::cout << symbols[i] << std::endl;
-		}
-
-		free(symbols);
-	}
-};
 
 // *********************************************************************
 // Global utility functions 

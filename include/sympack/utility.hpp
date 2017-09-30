@@ -1832,7 +1832,7 @@ logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
   MPI_Bcast(&isLowerTri,sizeof(bool),MPI_BYTE,0,comm);
   if(!isLowerTri){
     if(mpirank==0){
-        std::cout<<"Input matrix is not in lower triangular format. symPACK is converting it."<<std::endl;
+        symPACKOS<<"Input matrix is not in lower triangular format. symPACK is converting it."<<std::endl;
     }
     pspmat.Localg_.expanded = true;
     pspmat.ToLowerTriangular();
@@ -1854,7 +1854,7 @@ logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
       MPI_Comm_rank(workcomm,&mpirank);
       int mpisize;
       MPI_Comm_size(workcomm,&mpisize);
-      if(mpirank==0){ std::cout<<"Start reading the matrix"<<std::endl; }
+      if(mpirank==0){ symPACKOS<<"Start reading the matrix"<<std::endl; }
       SYMPACK_TIMER_START(READING_MATRIX);
       double tstart = get_time();
       //Read the input matrix
@@ -1872,8 +1872,8 @@ logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
       }
       double tstop = get_time();
       SYMPACK_TIMER_STOP(READING_MATRIX);
-      if(mpirank==0){ std::cout<<"Matrix read time: "<<tstop - tstart<<std::endl; }
-      if(mpirank==0){ std::cout<<"Matrix order is "<<HMat.size<<std::endl; }
+      if(mpirank==0){ symPACKOS<<"Matrix read time: "<<tstop - tstart<<std::endl; }
+      if(mpirank==0){ symPACKOS<<"Matrix order is "<<HMat.size<<std::endl; }
     }
 
 

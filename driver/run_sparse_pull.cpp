@@ -172,6 +172,9 @@ int main(int argc, char **argv)
   //should be worldcomm at some point
   optionsFact.MPIcomm = worldcomm;
 
+  optionsFact.verbose = 0;
+
+
     DistSparseMatrix<SCALAR> HMat(worldcomm);
     if(complextype){
       ReadMatrix<SCALAR,CSCALAR>(filename , informatstr,  HMat);

@@ -45,7 +45,6 @@
 
 #define FANIN_OPTIMIZATION
 
-#define DEBUG_TOTO    
 ////template<typename T> void symPACKMatrix<T>::generateTaskGraph(Int & localTaskCount, std::vector<std::list<FBTask> * > & taskLists)
 ////{
 ////  //we will need to communicate if only partial xlindx_, lindx_
@@ -669,9 +668,7 @@ template <typename T> void symPACKMatrix<T>::FBAggregationTask(supernodalTaskGra
 
     dist_src_snode->InitIdxToBlk();
 
-//#ifndef DEBUG_TOTO    
     src_snode->Aggregate(dist_src_snode);
-//#endif
 
     delete dist_src_snode;
     delete msgPtr;
@@ -1000,11 +997,8 @@ template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph & 
         logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
 #endif
 
-
-//#ifndef DEBUG_TOTO    
         //Update the aggregate
         tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
-//#endif
 
         --UpdatesToDo[curUpdate.tgt_snode_id-1];
 #ifdef _DEBUG_

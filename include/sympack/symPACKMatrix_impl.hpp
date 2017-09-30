@@ -345,8 +345,8 @@ namespace symPACK{
       MPI_Reduce(&gNumMsg,&totalNumMsg,1,MPI_UINT64_T,MPI_SUM,0,CommEnv_->MPI_GetComm());
 
       if(iam==0){
-        std::cout<<"Total volume of communication: "<<totalVolComm<<std::endl;
-        std::cout<<"Total number of messages: "<<totalNumMsg<<std::endl;
+        symPACKOS<<"Total volume of communication: "<<totalVolComm<<std::endl;
+        symPACKOS<<"Total number of messages: "<<totalNumMsg<<std::endl;
       }
 
       gVolComm=0;
@@ -530,7 +530,7 @@ namespace symPACK{
                   //need to push the prev src_last_row
                   ContribsToSend.push(DelayedComm(contrib->Id(),parent_snode_id,1,src_first_row));
 #ifdef _DEBUG_DELAY_
-                  std::cout<<"P"<<iam<<" has delayed update from Contrib "<<I<<" to "<<parent_snode_id<<" from row "<<src_first_row<<std::endl;
+                  symPACKOS<<"P"<<iam<<" has delayed update from Contrib "<<I<<" to "<<parent_snode_id<<" from row "<<src_first_row<<std::endl;
 #endif
                   isSkipped= true;
                 }
@@ -670,7 +670,7 @@ namespace symPACK{
                       Int src_first_row = pivot_desc.GIndex;
                       ContribsToSendDown.push(DelayedComm(contrib->Id(),child_snode_id,0,src_first_row));
 #ifdef _DEBUG_DELAY_
-                      std::cout<<"P"<<iam<<" has delayed update from Contrib "<<I<<" to "<<child_snode_id<<" from row "<<src_first_row<<std::endl;
+                      symPACKOS<<"P"<<iam<<" has delayed update from Contrib "<<I<<" to "<<child_snode_id<<" from row "<<src_first_row<<std::endl;
 #endif
                       isSkipped= true;
                     }
@@ -864,7 +864,7 @@ namespace symPACK{
           if(iTarget != iam){
 #ifdef _DEBUG_DELAY_
             logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
-            std::cout<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
+            symPACKOS<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
 #endif
 
 #ifdef _DEBUG_
@@ -914,7 +914,7 @@ namespace symPACK{
       if(iTarget != iam){
 #ifdef _DEBUG_DELAY_
         logfileptr->OFS()<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
-        std::cout<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
+        symPACKOS<<"P"<<iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
 #endif
 
 #ifdef _DEBUG_
@@ -2450,6 +2450,10 @@ namespace symPACK{
 
     logfileptr->verbose = options_.verbose>0;
 
+    if(options_.verbose==0){
+      symPACKOS.rdbuf(nullptr);
+    }
+
     all_np = 0;
     MPI_Comm_size(options_.MPIcomm,&all_np);
     MPI_Comm_rank(options_.MPIcomm,&iam);
@@ -2737,7 +2741,7 @@ namespace symPACK{
         //The ordering is available on every processor of the full communicator
         double timeStop = get_time();
         if(iam==0){
-          std::cout<<"Ordering time: "<<timeStop - timeSta<<std::endl;
+          symPACKOS<<"Ordering time: "<<timeStop - timeSta<<std::endl;
         }
         logfileptr->OFS()<<"Ordering done"<<std::endl;
       }
@@ -2774,7 +2778,7 @@ namespace symPACK{
         this->getLColRowCount(*sgraph,cc,rc);
         double timeStop = get_time();
         if(iam==0){
-          std::cout<<"Column count (gather + serial + bcast) construction time: "<<timeStop - timeStart<<std::endl;
+          symPACKOS<<"Column count (gather + serial + bcast) construction time: "<<timeStop - timeStart<<std::endl;
         }
       }
 
@@ -2794,7 +2798,7 @@ namespace symPACK{
 
       double timeStop = get_time();
       if(iam==0){
-        std::cout<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
+        symPACKOS<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
       }
     }
 
@@ -2806,8 +2810,8 @@ namespace symPACK{
         flops+= (double)pow((double)cc[i],2.0);
         NNZ+=cc[i];
       }
-      std::cout<<"Flops: "<<flops<<std::endl;
-      std::cout<<"NNZ in L factor: "<<NNZ<<std::endl;
+      symPACKOS<<"Flops: "<<flops<<std::endl;
+      symPACKOS<<"NNZ in L factor: "<<NNZ<<std::endl;
     }
     //      }
 
@@ -2918,7 +2922,7 @@ namespace symPACK{
 
       double timeStopSymb = get_time();
       if(iam==0){
-        std::cout<<"Symbolic factorization time: "<<timeStopSymb - timeStaSymb<<std::endl;
+        symPACKOS<<"Symbolic factorization time: "<<timeStopSymb - timeStaSymb<<std::endl;
       }
       logfileptr->OFS()<<"Symbfact done"<<std::endl;
       //}
@@ -2929,7 +2933,7 @@ namespace symPACK{
         this->refineSupernodes(2,1,&pMat);
 
         if(iam==0){
-          std::cout<<"Supernode reodering done"<<std::endl;
+          symPACKOS<<"Supernode reodering done"<<std::endl;
         }
         //          }
 
@@ -2971,7 +2975,7 @@ namespace symPACK{
           this->symbolicFactorizationRelaxedDist(cc);
           double timeStop = get_time();
           if(iam==0){
-            std::cout<<"Symbolic factorization time: "<<timeStop - timeSta<<std::endl;
+            symPACKOS<<"Symbolic factorization time: "<<timeStop - timeSta<<std::endl;
           }
           logfileptr->OFS()<<"Symbfact done"<<std::endl;
         }
@@ -2980,7 +2984,7 @@ namespace symPACK{
 
       double timeStop = get_time();
       if(iam==0){
-        std::cout<<"Total symbolic factorization time: "<<timeStop - timeSta<<std::endl;
+        symPACKOS<<"Total symbolic factorization time: "<<timeStop - timeSta<<std::endl;
       }
     }
 
@@ -3002,31 +3006,31 @@ namespace symPACK{
 
       std::vector<Int> map;
       if(options_.load_balance_str=="SUBCUBE-FI"){
-        if(iam==0){ std::cout<<"Subtree to subcube FI mapping used"<<std::endl;}
+        if(iam==0){ symPACKOS<<"Subtree to subcube FI mapping used"<<std::endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
         this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,true);
       }
       else if(options_.load_balance_str=="SUBCUBE-FO"){
-        if(iam==0){ std::cout<<"Subtree to subcube FO mapping used"<<std::endl;}
+        if(iam==0){ symPACKOS<<"Subtree to subcube FO mapping used"<<std::endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
         this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,false);
       }
       else if(options_.load_balance_str=="SUBCUBE-VOLUME-FI"){
-        if(iam==0){ std::cout<<"Subtree to subcube volume FI mapping used"<<std::endl;}
+        if(iam==0){ symPACKOS<<"Subtree to subcube volume FI mapping used"<<std::endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
         this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,true);
       }
       else if(options_.load_balance_str=="SUBCUBE-VOLUME-FO"){
-        if(iam==0){ std::cout<<"Subtree to subcube volume FO mapping used"<<std::endl;}
+        if(iam==0){ symPACKOS<<"Subtree to subcube volume FO mapping used"<<std::endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
         this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,false);
       }
       else if(options_.load_balance_str=="NNZ"){
-        if(iam==0){ std::cout<<"Load Balancing on NNZ used"<<std::endl;}
+        if(iam==0){ symPACKOS<<"Load Balancing on NNZ used"<<std::endl;}
         this->Balancer_ = new NNZBalancer(np,Xsuper_,cc);
       }
       else if(options_.load_balance_str=="WORK"){
-        if(iam==0){ std::cout<<"Load Balancing on WORK used"<<std::endl;}
+        if(iam==0){ symPACKOS<<"Load Balancing on WORK used"<<std::endl;}
         this->Balancer_ = new WorkBalancer(np,Xsuper_,cc);
       }
 
@@ -3052,7 +3056,7 @@ namespace symPACK{
       }
       double timeStop = get_time();
       if(iam==0){
-        std::cout<<"Load balancing time: "<<timeStop - timeSta<<std::endl;
+        symPACKOS<<"Load balancing time: "<<timeStop - timeSta<<std::endl;
       }
     }
 
@@ -3117,7 +3121,7 @@ namespace symPACK{
 
         double timeStop = get_time();
         if(iam==0){
-          std::cout<<"Task graph generation time: "<<timeStop - timeSta<<std::endl;
+          symPACKOS<<"Task graph generation time: "<<timeStop - timeSta<<std::endl;
         }
       }
       MPI_Barrier(CommEnv_->MPI_GetComm());
@@ -3903,7 +3907,7 @@ namespace symPACK{
       }
 #ifndef NOTRY
       catch(const std::bad_alloc& e){
-        std::cout << "Allocation failed: " << e.what() << '\n';
+        symPACKOS << "Allocation failed: " << e.what() << '\n';
         abort();
       }
 #endif
@@ -3911,7 +3915,7 @@ namespace symPACK{
 
       double timeStop = get_time();
       if(iam==0){
-        std::cout<<"Distribution time: "<<timeStop - timeSta<<std::endl;
+        symPACKOS<<"Distribution time: "<<timeStop - timeSta<<std::endl;
       }
     }
     //    MPI_Barrier(CommEnv_->MPI_GetComm());

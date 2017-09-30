@@ -49,52 +49,47 @@
 namespace symPACK{
 
 class LogFile{
-protected:
-
-  void init_(const char * prefix, const char * suffix){
+public:
+  void init(const char * prefix, const char * suffix, bool averbose = true){
     std::stringstream  ss;
+
+    verbose = averbose;
     ss << prefix << suffix;
     if(verbose){
       myOFS_.open( ss.str().c_str() );
     }
   }
-public:
+
+
+  void init(int iam,bool averbose = true){
+    std::stringstream ss;
+    ss<<iam;
+    init("logTest",ss.str().c_str(),averbose);
+  }
+
   bool verbose;
   std::ofstream myOFS_;
 
   LogFile(const char * prefix, const char * suffix,bool averbose = true){
     verbose = averbose;
-    init_(prefix,suffix);
+    init(prefix,suffix);
   }
 
   LogFile(int iam,bool averbose = true){
     verbose = averbose;
     std::stringstream ss;
     ss<<iam;
-    init_("logTest",ss.str().c_str());
+    init("logTest",ss.str().c_str());
   }
-
 
   LogFile(){
   }
-
-
-
 
   ~LogFile(){
     if(myOFS_.is_open()){
       myOFS_.close();
     }
   }
-
-//  template <typename T>
-//  const LogFile& operator<<(const T& obj) 
-//  {
-//    // write obj to stream
-//    mySS_<<obj;
-//    myOFS_<<mySS_.str();
-//    return *this;
-//  }
 
   template <typename T>
   const std::ofstream& operator<<(const T& obj) 
@@ -116,6 +111,8 @@ extern LogFile * logfileptr;
 extern LogFile * profileptr;
 extern LogFile * progressptr;
 extern std::stringstream * progstr;
+
+extern std::ostream symPACKOS;
 
 }
 

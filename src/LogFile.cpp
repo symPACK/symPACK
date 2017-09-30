@@ -43,12 +43,16 @@
 
 #include "sympack/LogFile.hpp"
 
+#include <iostream>
+
 namespace symPACK{
 
 LogFile * logfileptr = NULL;
 LogFile * profileptr = NULL;
 LogFile * progressptr = NULL;
 std::stringstream * progstr = NULL;
+
+std::ostream symPACKOS( std::cout.rdbuf() );
 
 }
 
