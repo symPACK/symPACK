@@ -199,15 +199,6 @@ namespace symPACK{
   size_t MemoryAllocator::hwm_=0;
 #endif
 
-
-
-  // *********************************************************************
-  // IO
-  // *********************************************************************
-  std::ofstream  statusOFS;
-
-  std::vector<std::ofstream>  statusOFSs;
-
 } // namespace SYMPACK
 
 
@@ -216,11 +207,6 @@ namespace symPACK{
   namespace Multithreading{ 
     int NumThread = 1;
   } // namespace Multithreading
-
-
-
-
-
 } // namespace SYMPACK
 
 

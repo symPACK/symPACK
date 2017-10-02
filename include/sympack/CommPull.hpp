@@ -69,6 +69,39 @@ such enhancements or derivative works thereof, in binary and source code form.
 #endif
 
 namespace symPACK{
+  class RankGroup{
+    public:
+    RankGroup(MPI_Comm & comm){
+      int size = 0;
+      MPI_Comm_size(comm,&size);
+
+      //resize our translation arrays
+      l2g.resize(size);
+
+      //get the MPI_Group from the communicator amd MPI_COMM_WORLD
+      MPI_Group group, Wgroup;
+      MPI_Comm_group(comm, &group);
+      MPI_Comm_group(MPI_COMM_WORLD, &Wgroup);
+
+      std::vector<int> tmp(size);
+      std::iota(tmp.begin(),tmp.end(),0);
+      //Get the corresponding ranks in MPI_COMM_WORLD
+      MPI_Group_translate_ranks(group, size, tmp.data(), Wgroup, l2g.data());
+
+      for(int i = 0; i < size; i++ ){
+        g2l[ l2g[i] ] = i;
+      } 
+
+    };
+
+    int L2G(int rank) const { return l2g[rank];}
+    int G2L(int rank) { return g2l[rank];}
+
+    int size() const { return l2g.size(); }
+    std::vector<int> l2g;
+    std::map<int,int> g2l;
+  };
+
 
   bool barrier_done(int id);
   int get_barrier_id(int np);
@@ -112,7 +145,18 @@ namespace symPACK{
     upcxx::async_wait();
   }
 
-    
+  inline void signal_exit(int barrier_id, const RankGroup & group)
+  {
+
+    for (int i = 0; i < group.size(); i++) {
+      int dest = group.L2G(i);
+      upcxx::async(dest)(signal_exit_am,barrier_id,group.size());
+    }
+
+    //make sure we don't have anything outgoing in flight anymore
+    upcxx::async_wait();
+  }
+
   inline void barrier_wait(int barrier_id){
     while( !barrier_done(barrier_id) ){
       upcxx::advance(); 

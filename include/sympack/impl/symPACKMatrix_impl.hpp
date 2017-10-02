@@ -530,6 +530,10 @@ namespace symPACK{
     }
     else{
 
+      for(auto ptr: Contributions_){ delete ptr; }
+      Contributions_.clear();
+      Contributions2_.clear();
+
 #ifndef NEW_SOLVE
       this->solve_(RHS,nrhs,Xptr);
 #else
@@ -2976,7 +2980,7 @@ namespace symPACK{
 
         //The ordering is available on every processor of the full communicator
         double timeStop = get_time();
-        if(iam==0){
+        if(iam==0 && options_.verbose){
           std::cout<<"Ordering time: "<<timeStop - timeSta<<std::endl;
         }
         logfileptr->OFS()<<"Ordering done"<<std::endl;
@@ -3075,7 +3079,7 @@ namespace symPACK{
         double timeStart = get_time();
         this->getLColRowCount(graph,cc,rc);
         double timeStop = get_time();
-        if(iam==0){
+        if(iam==0 && options_.verbose){
           std::cout<<"Column count (distributed) construction time: "<<timeStop - timeStart<<std::endl;
         }
       }
@@ -3100,7 +3104,7 @@ namespace symPACK{
       }
 
       double timeStop = get_time();
-      if(iam==0){
+      if(iam==0 && options_.verbose){
         std::cout<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
       }
 
@@ -3158,7 +3162,7 @@ namespace symPACK{
           double timeStart = get_time();
           this->getLColRowCount(*sgraph,cc,rc);
           double timeStop = get_time();
-          if(iam==0){
+          if(iam==0 && options_.verbose){
             std::cout<<"Column count (gather + serial + bcast) construction time: "<<timeStop - timeStart<<std::endl;
           }
         }
@@ -3175,7 +3179,7 @@ namespace symPACK{
         }
 
         double timeStop = get_time();
-        if(iam==0){
+        if(iam==0 && options_.verbose){
           std::cout<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
         }
       }
@@ -3188,7 +3192,7 @@ namespace symPACK{
     }
 
     //compute some statistics
-    if(iam==0){
+    if(iam==0 && options_.verbose){
       double flops = 0.0;
       int64_t NNZ = 0;
       for(Int i = 0; i<cc.size();++i){
@@ -3222,6 +3226,7 @@ namespace symPACK{
       bassert(CommEnv_!=NULL);
       delete CommEnv_;
       CommEnv_ = new CommEnvironment(workcomm);
+      group_.reset( new RankGroup( workcomm ) ); 
       MPI_Comm_free(&workcomm);
 
       //do another split to contain P0 and all the non working processors
@@ -3302,7 +3307,7 @@ namespace symPACK{
       this->symbolicFactorizationRelaxedDist(cc);
 
       double timeStopSymb = get_time();
-      if(iam==0){
+      if(iam==0 && options_.verbose){
         std::cout<<"Symbolic factorization time: "<<timeStopSymb - timeStaSymb<<std::endl;
       }
       logfileptr->OFS()<<"Symbfact done"<<std::endl;
@@ -3345,7 +3350,7 @@ namespace symPACK{
             double timeSta = get_time();
             TSP::symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
             double timeStop = get_time();
-            if(iam==0){
+            if(iam==0 && options_.verbose){
               std::cout<<"TSP reordering done in "<<timeStop-timeSta<<std::endl;
             }
 
@@ -3477,7 +3482,7 @@ namespace symPACK{
             }
 
             double timeStop = get_time();
-            if(iam==0){
+            if(iam==0 && options_.verbose){
               std::cout<<"TSPB reordering done in "<<timeStop-timeSta<<std::endl;
             }
 
@@ -3496,7 +3501,7 @@ namespace symPACK{
 
         double timeStop = get_time();
 
-        if(iam==0){
+        if(iam==0 && options_.verbose){
           std::cout<<"Supernode reordering done in "<<timeStop-timeSta<<std::endl;
         }
 
@@ -3504,7 +3509,7 @@ namespace symPACK{
           double timeSta = get_time();
           this->symbolicFactorizationRelaxedDist(cc);
           double timeStop = get_time();
-          if(iam==0){
+          if(iam==0 && options_.verbose){
             std::cout<<"Symbolic factorization time: "<<timeStop - timeSta<<std::endl;
           }
           logfileptr->OFS()<<"Symbfact done"<<std::endl;
@@ -3512,7 +3517,7 @@ namespace symPACK{
       }
 
       double timeStop = get_time();
-      if(iam==0){
+      if(iam==0 && options_.verbose){
         std::cout<<"Total symbolic factorization time: "<<timeStop - timeSta<<std::endl;
       }
 
@@ -3541,31 +3546,31 @@ namespace symPACK{
 
       std::vector<Int> map;
       if(options_.load_balance_str=="SUBCUBE-FI"){
-        if(iam==0){ std::cout<<"Subtree to subcube FI mapping used"<<std::endl;}
+        if(iam==0 && options_.verbose){ std::cout<<"Subtree to subcube FI mapping used"<<std::endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
         this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,true);
       }
       else if(options_.load_balance_str=="SUBCUBE-FO"){
-        if(iam==0){ std::cout<<"Subtree to subcube FO mapping used"<<std::endl;}
+        if(iam==0 && options_.verbose){ std::cout<<"Subtree to subcube FO mapping used"<<std::endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
         this->Balancer_ = new SubtreeToSubcube(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,false);
       }
       else if(options_.load_balance_str=="SUBCUBE-VOLUME-FI"){
-        if(iam==0){ std::cout<<"Subtree to subcube volume FI mapping used"<<std::endl;}
+        if(iam==0 && options_.verbose){ std::cout<<"Subtree to subcube volume FI mapping used"<<std::endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
         this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,true);
       }
       else if(options_.load_balance_str=="SUBCUBE-VOLUME-FO"){
-        if(iam==0){ std::cout<<"Subtree to subcube volume FO mapping used"<<std::endl;}
+        if(iam==0 && options_.verbose){ std::cout<<"Subtree to subcube volume FO mapping used"<<std::endl;}
         ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
         this->Balancer_ = new SubtreeToSubcubeVolume(np,SupETree,Xsuper_,XsuperDist_,SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,false);
       }
       else if(options_.load_balance_str=="NNZ"){
-        if(iam==0){ std::cout<<"Load Balancing on NNZ used"<<std::endl;}
+        if(iam==0 && options_.verbose){ std::cout<<"Load Balancing on NNZ used"<<std::endl;}
         this->Balancer_ = new NNZBalancer(np,Xsuper_,cc);
       }
       else if(options_.load_balance_str=="WORK"){
-        if(iam==0){ std::cout<<"Load Balancing on WORK used"<<std::endl;}
+        if(iam==0 && options_.verbose){ std::cout<<"Load Balancing on WORK used"<<std::endl;}
         this->Balancer_ = new WorkBalancer(np,Xsuper_,cc);
       }
 
@@ -3588,7 +3593,7 @@ namespace symPACK{
         }
       }
       double timeStop = get_time();
-      if(iam==0){
+      if(iam==0 && options_.verbose){
         std::cout<<"Load balancing time: "<<timeStop - timeSta<<std::endl;
       }
     }
@@ -3649,7 +3654,7 @@ namespace symPACK{
 #endif
 
         double timeStop = get_time();
-        if(iam==0){
+        if(iam==0 && options_.verbose){
           std::cout<<"Task graph generation time: "<<timeStop - timeSta<<std::endl;
         }
       }
@@ -3667,8 +3672,10 @@ namespace symPACK{
       }
     }
     //Resize the local supernodes array
+    for(auto ptr : LocalSupernodes_){ delete ptr; }
+    LocalSupernodes_.clear();
+    globToLocSnodes_.clear();
     LocalSupernodes_.reserve(snodeCount);
-
 
     for(Int I=1;I<Xsuper_.size();I++){
 
@@ -3952,7 +3959,11 @@ namespace symPACK{
         IsendPtr->setHead(0);
         mpi::Alltoallv((*IsendPtr), &stotcounts[0], &spositions[0], MPI_BYTE,
             (*IrecvPtr),fullcomm_, resize_lambda);
-        //(*IrecvPtr),CommEnv_->MPI_GetComm(), resize_lambda);
+
+        //restore zero values in the LocalSupernodes_
+        for(auto snode : LocalSupernodes_){
+          snode->clear();
+        }
 
         SYMPACK_TIMER_SPECIAL_START(deserializing);      
         IrecvPtr->setHead(0);
@@ -4293,7 +4304,7 @@ namespace symPACK{
       logfileptr->OFS()<<"Send Done"<<std::endl;
 
       double timeStop = get_time();
-      if(iam==0){
+      if(iam==0 && options_.verbose){
         std::cout<<"Distribution time: "<<timeStop - timeSta<<std::endl;
       }
     }

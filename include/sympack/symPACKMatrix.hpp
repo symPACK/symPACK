@@ -212,6 +212,8 @@ namespace symPACK{
     protected:
       //MPI/UPCXX ranks and sizes
       int iam, np,all_np;
+      std::shared_ptr<RankGroup> group_;
+
       symPACKOptions options_;
       CommEnvironment * CommEnv_;
       upcxx::team * team_;

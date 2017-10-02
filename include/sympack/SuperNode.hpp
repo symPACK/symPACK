@@ -169,6 +169,13 @@ namespace symPACK{
           Int nRows = (end-desc.Offset)/Size();
           return nRows;
         }
+ 
+        virtual inline void clear(){ 
+          if(NNZ()>0){
+            std::fill(nzval_,nzval_+NNZ(),T(0));
+          }
+        }
+
 
 
         inline Int StorageSize(){ return storage_size_;}

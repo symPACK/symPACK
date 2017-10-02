@@ -110,6 +110,18 @@ class SuperNodeInd: public SuperNode<T,Allocator>{
   virtual inline void forward_update_contrib( SuperNode<T> * cur_snode, Int nrhsOffset = 0,Int pnrhs=-1);
   virtual inline void back_update_contrib(SuperNode<T> * cur_snode, Int nrhsOffset = 0,Int pnrhs=-1);
 
+  //clear function to reset the supernode (when redistributing another matrix for instance
+  virtual inline void clear(){ 
+    if(this->NNZ()>0){
+      std::fill(this->nzval_,this->nzval_+this->NNZ(),T(0));
+    }
+
+    if(this->Size()>0){
+      std::fill(this->diag_,this->diag_+this->Size(),T(0));
+    }
+  }
+
+
 };
 
 

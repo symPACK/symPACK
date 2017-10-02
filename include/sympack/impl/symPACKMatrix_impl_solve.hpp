@@ -429,6 +429,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
                   char * last_byte_ptr = (char*)&pivot_desc + sizeof(NZBlockDesc);
                   size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
 
+        parentOwner = group_->L2G(parentOwner);
                   signal_data(sendPtr, msgSize, parentOwner, meta);
 
                 }
@@ -479,6 +480,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
                       char * last_byte_ptr = (char*)&pivot_desc + sizeof(NZBlockDesc);
                       size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
 
+        iTarget = group_->L2G(iTarget);
                       signal_data(sendPtr, msgSize, iTarget, meta);
 
                       is_sent[iTarget] = true;
@@ -639,7 +641,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
       }
     }
     double timeStop = get_time();
-        if(iam==0){
+        if(iam==0 && options_.verbose){
           std::cout<<"Solve getting children count time: "<<timeStop - timeSta<<std::endl;
         }
 
@@ -693,7 +695,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
         }
     }
     timeStop = get_time();
-        if(iam==0){
+        if(iam==0 && options_.verbose){
           std::cout<<"Solve allocating contributions time / alloc / copy: "<<timeStop - timeSta<<" / "<<timeAlloc<<" / "<<timeCopy<<std::endl;
         }
   }
@@ -927,6 +929,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                       size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
 
                       {
+        parentOwner = group_->L2G(parentOwner);
                         signal_data(sendPtr, msgSize, parentOwner, meta);
                       }
                     }
@@ -1138,6 +1141,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
                           //log_msg(src,child_snode_id,Solve::op_type::BU);
                           {
+        iTarget = group_->L2G(iTarget);
                             signal_data(sendPtr, msgSize, iTarget, meta);
                           }
                           is_sent[iTarget] = true;
@@ -1464,7 +1468,7 @@ logfileptr->OFS()<<"WARNING: this is suboptimal and should use the new ChainedMe
     }
 
     timeStop = get_time();
-        if(iam==0){
+        if(iam==0 && options_.verbose){
           std::cout<<"Solve task graph generation time: "<<timeStop - timeSta<<std::endl;
         }
     
@@ -1472,7 +1476,7 @@ logfileptr->OFS()<<"WARNING: this is suboptimal and should use the new ChainedMe
     timeSta = get_time();
     scheduler_new_->run(CommEnv_->MPI_GetComm(),/* *this->team_,*/graph);
     timeStop = get_time();
-        if(iam==0){
+        if(iam==0 && options_.verbose){
           std::cout<<"Solve task graph execution time: "<<timeStop - timeSta<<std::endl;
         }
 

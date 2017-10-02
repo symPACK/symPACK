@@ -440,6 +440,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifndef NDEBUG
                         //logfileptr->OFS()<<"Signaling FACTOR "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
+                        iTarget = group_->L2G(iTarget);
                         signal_data(sendPtr, msgSize, iTarget, meta);
                       }
                       is_factor_sent[iTarget] = true;
@@ -733,6 +734,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifndef NDEBUG
                               //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
+                              iTarget = group_->L2G(iTarget);
                               signal_data(sendPtr, msgSize, iTarget, meta);
                             }
                           }
@@ -983,7 +985,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                 }
                               }
                             }
-                            //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
 
                             if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
                               aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
@@ -1028,11 +1029,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                               }
                               UpcxxAllocator::deallocate((char*)buffer);
                             }
-                            //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
                             if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
                               aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
                             }
-                            //                        bassert(aggVectors[curUpdate.tgt_snode_id-1]!=nullptr);
                             aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1],
                                 Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
 
@@ -1117,6 +1116,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifndef NDEBUG
                         //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
+                            iTarget = group_->L2G(iTarget);
                             signal_data(sendPtr, msgSize, iTarget, meta);
                           }
                         }
@@ -1172,13 +1172,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
 
 
-  if(iam==0){
+  if(iam==0 && options_.verbose){
     std::cout<<"TaskGraph size is: "<<graph.tasks_.size()<<std::endl;
   }
   timeSta = get_time();
   scheduler_new_->run(CommEnv_->MPI_GetComm(),/* *this->team_,*/graph);
   double timeStop = get_time();
-  if(iam==0){
+  if(iam==0 && options_.verbose){
     std::cout<<"Factorization task graph execution time: "<<timeStop - timeSta<<std::endl;
   }
 
@@ -1920,6 +1920,7 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
 #ifndef NDEBUG
                         //logfileptr->OFS()<<"Signaling FACTOR "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
+        iTarget = group_->L2G(iTarget);
         signal_data(sendPtr, msgSize, iTarget, meta);
         is_factor_sent[iTarget] = true;
       }
@@ -2235,6 +2236,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
 #ifndef NDEBUG
                         //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
+            iTarget = group_->L2G(iTarget);
             signal_data(sendPtr, msgSize, iTarget, meta);
 
           }
