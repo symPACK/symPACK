@@ -1694,8 +1694,6 @@ assert(sizeof(Ptr)>=sizeof(Idx));
         MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &Idxtype );
         MPI_Type_commit(&Idxtype);
     MPI_Allgatherv(&rowind[0],localEdgeCnt,Idxtype,&g.rowind[0],&rsizes[0],&rdispls[0],Idxtype,comm);
-
-
         MPI_Type_free(&Idxtype);
 
 
