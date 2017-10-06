@@ -64,7 +64,7 @@ public:
   void init(int iam,bool averbose = true){
     std::stringstream ss;
     ss<<iam;
-    init("logTest",ss.str().c_str(),averbose);
+    init("status",ss.str().c_str(),averbose);
   }
 
   bool verbose;
@@ -79,7 +79,7 @@ public:
     verbose = averbose;
     std::stringstream ss;
     ss<<iam;
-    init("logTest",ss.str().c_str());
+    init("status",ss.str().c_str());
   }
 
   LogFile(){

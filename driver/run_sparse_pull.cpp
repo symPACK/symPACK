@@ -18,7 +18,7 @@
 
 /******* TYPE used in the computations ********/
 #define SCALAR double
-#define SCALAR std::complex<double>
+//#define SCALAR std::complex<double>
 
 /******* TYPE in the input matrix ********/
 #define RSCALAR double
@@ -324,18 +324,17 @@ int main(int argc, char **argv)
         std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
       }
 
-      int numFact =2;
+      int numFact =1;
       for(int i = 0; i< numFact; i++){
 
-        for(int j = 0; j< numFact; j++){
+        int numDist = 1;
+        for(int j = 0; j< numDist; j++){
           if(complextype){
             ReadMatrix<SCALAR,CSCALAR>(filename , informatstr,  HMat);
           }
           else{
             ReadMatrix<SCALAR,RSCALAR>(filename , informatstr,  HMat);
           }
-
-
           SMat->DistributeMatrix(HMat);
         }
 #ifdef EXPLICIT_PERMUTE
@@ -375,7 +374,6 @@ int main(int argc, char **argv)
         }
         SMat->DumpMatlab();
 #endif
-        SMat->Dump();
 
         if(nrhs>0){
           /**************** SOLVE PHASE ***********/

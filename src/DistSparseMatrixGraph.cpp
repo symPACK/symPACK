@@ -400,6 +400,12 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     Int newFirstCol = newVertexDist[mpirank]-baseval; //0 based
     Ptr newVtxCount = newVertexDist[mpirank+1] - newVertexDist[mpirank];
 
+    //MPI_Datatype type;
+    //MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &type );
+    //MPI_Type_commit(&type);
+
+    //express Ptr in terms of Idx
+    //size_t PtrIdx_sz = std::ceil(sizeof(Ptr)/sizeof(Idx));
 
     std::vector<int> sizes(mpisize,0);
 
@@ -407,143 +413,260 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       Idx col = firstCol + locCol; //0-based
       Ptr colbeg = colptr[locCol] - baseval;
       Ptr colend = colptr[locCol+1] - baseval;
-      //Ptr colbeg = colptr.at(locCol) - baseval;
-      //Ptr colend = colptr.at(locCol+1) - baseval;
       Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // 0 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
-      //Idx pdest = min( (Idx)mpisize-1, permCol / colPerProc);
-      sizes[pdest] += (colend - colbeg)*sizeof(Idx) + sizeof(Ptr) + sizeof(Idx); //extra 2 are for the count of elements and the permuted columns
+      //sizes[pdest] += (colend - colbeg) + PtrIdx_sz + 1; //extra 2 are for the count of elements and the permuted columns
 
       //now permute rows
       for(Ptr jptr = colbeg; jptr<colend; jptr++){
         Idx row = rowind[jptr] - baseval; //0 based
-        //Idx row = rowind.at(jptr) - baseval; //0 based
         Idx permRow = invp!=NULL?invp[row] - invpbaseval:row; // 0 based
-        rowind[jptr] = permRow + baseval;
+
+        if(permRow<permCol && !expanded){
+          Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
+          sizes[pdestR]++;
+        }
+        else if(permRow>permCol || (permRow==permCol && keepDiag) || expanded){
+          sizes[pdest]++;
+        }
+
+        //rowind[jptr] = permRow + baseval;
         //rowind.at(jptr) = permRow + baseval;
       }
     }
 
 
+
     //First allgatherv to get the receive sizes
     std::vector<int> displs(mpisize+1,0);
-    std::vector<int> rsizes(mpisize,0);
-    std::vector<int> rdispls(mpisize+1,0);
-
-    MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
-    //logfileptr->OFS()<<rsizes<<std::endl;
-    //    MPI_Alltoallv(&sizes[0],&displs[0],&rdispls[0],MPI_BYTE,&rsizes[0],&displs[0],&rdispls[0],MPI_BYTE,comm);
-    //logfileptr->OFS()<<rsizes<<std::endl;
-
-
-
     displs[0] = 0;
     std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
-    Int totSend = displs.back();//std::accumulate(sizes.begin(),sizes.end(),0);
-    std::vector<char> sbuf(totSend);
+    Int totSend = displs.back();
+    std::vector< std::pair<Idx,Idx> > sbuf(totSend);
 
     //pack
     for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
       Idx col = firstCol + locCol; 
       Ptr colbeg = colptr[locCol]-baseval;
       Ptr colend = colptr[locCol+1]-baseval;
-      //Ptr colbeg = colptr.at(locCol) - baseval;
-      //Ptr colend = colptr.at(locCol+1) - baseval;
-      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // perm is 1 based;
+      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // 0 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
-      //Idx pdest = min((Idx)mpisize-1, permCol / colPerProc);
 
-      int & pos = displs[pdest];
-      Idx * pPermCol = (Idx*)&sbuf[pos];
-      pos+=sizeof(Idx);
-      Ptr * pRowsCnt = (Ptr*)&sbuf[pos];
-      pos+=sizeof(Ptr);
-      Idx * pPermRows = (Idx*)&sbuf[pos];
-      pos+=(colend-colbeg)*sizeof(Idx);
-
-
-      *pPermCol = permCol;
-      *pRowsCnt = (colend - colbeg);
-      std::copy(&rowind[0]+colbeg ,&rowind[0]+colend, pPermRows );
-      //std::copy(&rowind.at(colbeg) ,&rowind.at(colend-1)+1, pPermRows );
-
-
-      //      logfileptr->OFS()<<*pPermCol<<" ("<<locCol<<"): ";
-      //      for(Ptr jptr = 0; jptr<*pRowsCnt; jptr++){
-      //        logfileptr->OFS()<<pPermRows[jptr]<<" ";
-      //      }
-      //      logfileptr->OFS()<<std::endl;
-
-
+      for(Ptr jptr = colbeg; jptr<colend; jptr++){
+        Idx row = rowind[jptr] - baseval; //0 based
+        Idx permRow = invp!=NULL?invp[row] - invpbaseval:row; // 0 based
+        if(permRow<permCol && !expanded){
+          Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
+          sbuf[displs[pdestR]++] = std::make_pair(permRow,permCol);
+        }
+        else if(permRow>permCol || (permRow==permCol && keepDiag) || expanded){
+          sbuf[displs[pdest]++] = std::make_pair(permCol,permRow);
+        }
+      }
     }
 
+    MPI_Datatype type;
+    MPI_Type_contiguous( sizeof( std::pair<Idx,Idx> ), MPI_BYTE, &type );
+    MPI_Type_commit(&type);
 
-    //re compute send displs
+
+
+
+    //re compute send displs in bytes
+    //for(auto it = sizes.begin();it!=sizes.end();it++){ (*it)*=sizeof(triplet<F>);}
     displs[0] = 0;
     std::partial_sum(sizes.begin(),sizes.end(),&displs[1]);
 
-    //now recompute receiv displs with actual sizes 
+
+    std::vector<int> rsizes(mpisize,0);
+    std::vector<int> rdispls(mpisize+1,0);
+    MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
+
+    //now compute receiv displs with actual sizes 
     rdispls[0] = 0;
     std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
-    Ptr totRecv = rdispls.back();//std::accumulate(rsizes.begin(),rsizes.end(),0);
-    std::vector<char> rbuf(totRecv);
+    Ptr totRecv = rdispls.back();
+    std::vector< std::pair<Idx,Idx> > rbuf(totRecv);
+    MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],type,&rbuf[0],&rsizes[0],&rdispls[0],type,comm);
 
-    MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],MPI_BYTE,&rbuf[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
+    MPI_Type_free(&type);
 
-    sbuf.clear();
-    sizes.clear(); 
-    displs.clear();
-    rdispls.clear();
-
-
-    colptr.resize(newVtxCount+1);
-    //unpack first by overwriting colptr and then rowind
-    Ptr rpos = 0; 
-    colptr[0]=baseval;
-    while(rpos<totRecv){
-      Idx * permCol = (Idx*)&rbuf[rpos];
-      rpos+=sizeof(Idx);
-      Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
-      rpos+=sizeof(Ptr);
-      Idx * permRows = (Idx*)&rbuf[rpos];
-      rpos += (*rowsCnt)*sizeof(Idx);
-
-      Idx locCol = *permCol - newFirstCol;
-      colptr[locCol+1] = *rowsCnt; 
-      //colptr.at(locCol+1) = *rowsCnt; 
+    std::vector<Ptr> newColptr(newVtxCount+1,0);
+    //compute column counts
+    for(auto it = rbuf.begin(); it!=rbuf.end(); it++){
+      //pairs are 0-based but everything is currently shifted by one
+      newColptr[it->first-newFirstCol+1]++;
     }
-    std::partial_sum(colptr.begin(),colptr.end(),colptr.begin());
+    //turn it back to colptr
+    newColptr[0]=baseval;
+    std::partial_sum(newColptr.begin(),newColptr.end(),newColptr.begin());
 
-    //now fill rowind
-    Ptr nnzLoc = colptr.back()-baseval;
-    rowind.resize(nnzLoc);
-    std::vector<Ptr> colpos = colptr;
-    rpos = 0;
-    while(rpos<totRecv){
-      Idx * permCol = (Idx*)&rbuf[rpos];
-      rpos+=sizeof(Idx);
-      Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
-      rpos+=sizeof(Ptr);
-      Idx * permRows = (Idx*)&rbuf[rpos];
-      rpos += (*rowsCnt)*sizeof(Idx);
+    Ptr newNNZ = newColptr.back()-baseval;
+    rowind.resize(newNNZ);
 
-      Idx locCol = *permCol - newFirstCol;
+    colptr = newColptr;
 
-      //logfileptr->OFS()<<*permCol<<" ("<<locCol<<"): ";
-      //for(Ptr jptr = 0; jptr<*rowsCnt; jptr++){
-      //  logfileptr->OFS()<<permRows[jptr]<<" ";
-      //}
-      //logfileptr->OFS()<<std::endl;
-
-      std::copy(permRows,permRows + *rowsCnt, &rowind[colpos[locCol]-baseval]);
-      colpos[locCol] += *rowsCnt;
-      //colpos.at(locCol) += *rowsCnt;
+    //now use newColptr as a position backup
+    for(auto it = rbuf.begin(); it!=rbuf.end(); it++){
+      Idx locCol = it->first-newFirstCol;//0-based
+      //colptr contains column count shifted by one
+      Ptr pos = newColptr[locCol]++;//baseval-based
+      rowind[pos-baseval] = it->second+baseval;
     }
+
+
+
+
+
+
+
+
+
+
+
+    ////    //First allgatherv to get the receive sizes
+    ////    std::vector<int> displs(mpisize+1,0);
+    ////    std::vector<int> rsizes(mpisize,0);
+    ////    std::vector<int> rdispls(mpisize+1,0);
+    ////
+    ////    MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
+    ////    //logfileptr->OFS()<<rsizes<<std::endl;
+    ////    //    MPI_Alltoallv(&sizes[0],&displs[0],&rdispls[0],MPI_BYTE,&rsizes[0],&displs[0],&rdispls[0],MPI_BYTE,comm);
+    ////    //logfileptr->OFS()<<rsizes<<std::endl;
+    ////
+    ////
+    ////
+    ////    displs[0] = 0;
+    ////    std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
+    ////    Int totSend = displs.back();//std::accumulate(sizes.begin(),sizes.end(),0);
+    ////    //std::vector<char> sbuf(totSend);
+    ////    std::vector<Idx> sbuf(totSend);
+    ////
+    ////    //pack
+    ////    for(Idx locCol = 0; locCol<LocalVertexCount(); locCol++){
+    ////      Idx col = firstCol + locCol; 
+    ////      Ptr colbeg = colptr[locCol]-baseval;
+    ////      Ptr colend = colptr[locCol+1]-baseval;
+    ////      //Ptr colbeg = colptr.at(locCol) - baseval;
+    ////      //Ptr colend = colptr.at(locCol+1) - baseval;
+    ////      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // perm is 1 based;
+    ////      //find destination processors
+    ////      Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
+    ////      //Idx pdest = min((Idx)mpisize-1, permCol / colPerProc);
+    ////
+    ////      int & pos = displs[pdest];
+    ////      //Idx * pPermCol = (Idx*)&sbuf[pos];
+    ////      //pos+=sizeof(Idx);
+    ////      //Ptr * pRowsCnt = (Ptr*)&sbuf[pos];
+    ////      //pos+=sizeof(Ptr);
+    ////      //Idx * pPermRows = (Idx*)&sbuf[pos];
+    ////      //pos+=(colend-colbeg)*sizeof(Idx);
+    ////      Idx * pPermCol = (Idx*)&sbuf[pos];
+    ////      pos++;
+    ////      Ptr * pRowsCnt = (Ptr*)&sbuf[pos];
+    ////      pos+=PtrIdx_sz;
+    ////      Idx * pPermRows = (Idx*)&sbuf[pos];
+    ////      pos+=(colend-colbeg);
+    ////
+    ////
+    ////      *pPermCol = permCol;
+    ////      *pRowsCnt = (colend - colbeg);
+    ////      std::copy(&rowind[0]+colbeg ,&rowind[0]+colend, pPermRows );
+    ////      //std::copy(&rowind.at(colbeg) ,&rowind.at(colend-1)+1, pPermRows );
+    ////
+    ////
+    ////      //      logfileptr->OFS()<<*pPermCol<<" ("<<locCol<<"): ";
+    ////      //      for(Ptr jptr = 0; jptr<*pRowsCnt; jptr++){
+    ////      //        logfileptr->OFS()<<pPermRows[jptr]<<" ";
+    ////      //      }
+    ////      //      logfileptr->OFS()<<std::endl;
+    ////
+    ////
+    ////    }
+    ////
+    ////
+    ////    //re compute send displs
+    ////    displs[0] = 0;
+    ////    std::partial_sum(sizes.begin(),sizes.end(),&displs[1]);
+    ////
+    ////    //now recompute receiv displs with actual sizes 
+    ////    rdispls[0] = 0;
+    ////    std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+    ////    Ptr totRecv = rdispls.back();//std::accumulate(rsizes.begin(),rsizes.end(),0);
+    ////    //std::vector<char> rbuf(totRecv);
+    ////    std::vector<Idx> rbuf(totRecv);
+    ////
+    ////    //MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],MPI_BYTE,&rbuf[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
+    ////    MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],type,&rbuf[0],&rsizes[0],&rdispls[0],type,comm);
+    ////
+    ////    sbuf.clear();
+    ////    sizes.clear(); 
+    ////    displs.clear();
+    ////    rdispls.clear();
+    ////
+    ////
+    ////    colptr.resize(newVtxCount+1);
+    ////    //unpack first by overwriting colptr and then rowind
+    ////    Ptr rpos = 0; 
+    ////    colptr[0]=baseval;
+    ////    while(rpos<totRecv){
+    ////      //Idx * permCol = (Idx*)&rbuf[rpos];
+    ////      //rpos+=sizeof(Idx);
+    ////      //Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
+    ////      //rpos+=sizeof(Ptr);
+    ////      //Idx * permRows = (Idx*)&rbuf[rpos];
+    ////      //rpos += (*rowsCnt)*sizeof(Idx);
+    ////      Idx * permCol = (Idx*)&rbuf[rpos];
+    ////      rpos++;
+    ////      Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
+    ////      rpos+=PtrIdx_sz;
+    ////      Idx * permRows = (Idx*)&rbuf[rpos];
+    ////      rpos += (*rowsCnt);
+    ////
+    ////      Idx locCol = *permCol - newFirstCol;
+    ////      colptr[locCol+1] = *rowsCnt; 
+    ////      //colptr.at(locCol+1) = *rowsCnt; 
+    ////    }
+    ////    std::partial_sum(colptr.begin(),colptr.end(),colptr.begin());
+    ////
+    ////    //now fill rowind
+    ////    Ptr nnzLoc = colptr.back()-baseval;
+    ////    rowind.resize(nnzLoc);
+    ////    std::vector<Ptr> colpos = colptr;
+    ////    rpos = 0;
+    ////    while(rpos<totRecv){
+    ////      //Idx * permCol = (Idx*)&rbuf[rpos];
+    ////      //rpos+=sizeof(Idx);
+    ////      //Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
+    ////      //rpos+=sizeof(Ptr);
+    ////      //Idx * permRows = (Idx*)&rbuf[rpos];
+    ////      //rpos += (*rowsCnt)*sizeof(Idx);
+    ////      Idx * permCol = (Idx*)&rbuf[rpos];
+    ////      rpos++;
+    ////      Ptr * rowsCnt = (Ptr*)&rbuf[rpos];
+    ////      rpos+=PtrIdx_sz;
+    ////      Idx * permRows = (Idx*)&rbuf[rpos];
+    ////      rpos += (*rowsCnt);
+    ////
+    ////      Idx locCol = *permCol - newFirstCol;
+    ////
+    ////      //logfileptr->OFS()<<*permCol<<" ("<<locCol<<"): ";
+    ////      //for(Ptr jptr = 0; jptr<*rowsCnt; jptr++){
+    ////      //  logfileptr->OFS()<<permRows[jptr]<<" ";
+    ////      //}
+    ////      //logfileptr->OFS()<<std::endl;
+    ////
+    ////      std::copy(permRows,permRows + *rowsCnt, &rowind[colpos[locCol]-baseval]);
+    ////      colpos[locCol] += *rowsCnt;
+    ////      //colpos.at(locCol) += *rowsCnt;
+    ////    }
+    ///     MPI_Type_free(&type);
 
     //copy newVertexDist into vertexDist
     std::copy(newVertexDist,newVertexDist+mpisize+1,&vertexDist[0]);
+
 
     if(sorted){
       SortEdges();
@@ -1369,11 +1492,18 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     g.colptr.resize(totalVertexCnt+1);
     //compute receive displacements
     std::vector<int> rsizes(mpisize,0);
-    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
+    //for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
+    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p];}
     std::vector<int> rdispls(mpisize+1,0);
     rdispls[0]=0;
     std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-    MPI_Allgatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&g.colptr[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
+
+        MPI_Datatype Ptrtype;
+        MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &Ptrtype );
+        MPI_Type_commit(&Ptrtype);
+    //MPI_Allgatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&g.colptr[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
+    MPI_Allgatherv(&colptr[0],localVertexCnt,Ptrtype,&g.colptr[0],&rsizes[0],&rdispls[0],Ptrtype,comm);
+        MPI_Type_free(&Ptrtype);
 
 
     Ptr localEdgeCnt = LocalEdgeCount();
@@ -1385,10 +1515,16 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
 
     //compute receive displacements
     rsizes.assign(mpisize,0);
-    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p]*sizeof(Idx);}
+    //for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p]*sizeof(Idx);}
+    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p];}
     rdispls[0]=0;
     std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-    MPI_Allgatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,&g.rowind[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
+    //MPI_Allgatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,&g.rowind[0],&rsizes[0],&rdispls[0],MPI_BYTE,comm);
+        MPI_Datatype Idxtype;
+        MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &Idxtype );
+        MPI_Type_commit(&Idxtype);
+    MPI_Allgatherv(&rowind[0],localEdgeCnt,Idxtype,&g.rowind[0],&rsizes[0],&rdispls[0],Idxtype,comm);
+        MPI_Type_free(&Idxtype);
 
 
 
@@ -1437,6 +1573,12 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     Idx localVertexCnt = LocalVertexCount();
     std::vector<Idx> remoteVertexCnt(mpisize,0);
     MPI_Allgather(&localVertexCnt,sizeof(localVertexCnt),MPI_BYTE,&remoteVertexCnt[0],sizeof(localVertexCnt),MPI_BYTE,comm);
+
+
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(Ptr), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
+
     if(iam==proot){
       Idx totalVertexCnt = std::accumulate(remoteVertexCnt.begin(),remoteVertexCnt.end(),0,std::plus<Idx>());
       g.colptr.resize(totalVertexCnt+1);
@@ -1444,36 +1586,46 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
 
       //compute receive displacements
       std::vector<int> rsizes(mpisize,0);
-      for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
+      //for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p]*sizeof(Ptr);}
+      for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteVertexCnt[p];}
       std::vector<int> rdispls(mpisize+1,0);
       rdispls[0]=0;
       std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-      MPI_Gatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&g.colptr[0],&rsizes[0],&rdispls[0],MPI_BYTE,proot,comm);
+      //MPI_Gatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,&g.colptr[0],&rsizes[0],&rdispls[0],MPI_BYTE,proot,comm);
+      MPI_Gatherv(&colptr[0],localVertexCnt,type,&g.colptr[0],&rsizes[0],&rdispls[0],type,proot,comm);
     }
     else{
-    MPI_Gatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,NULL,NULL,NULL,MPI_BYTE,proot,comm);
+    //MPI_Gatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,NULL,NULL,NULL,MPI_BYTE,proot,comm);
+    MPI_Gatherv(&colptr[0],localVertexCnt,type,NULL,NULL,NULL,type,proot,comm);
     }
 
+        MPI_Type_free(&type);
 
     Ptr localEdgeCnt = LocalEdgeCount();
     std::vector<Ptr> remoteEdgeCnt(mpisize,0);
     MPI_Gather(&localEdgeCnt,sizeof(localEdgeCnt),MPI_BYTE,&remoteEdgeCnt[0],sizeof(localEdgeCnt),MPI_BYTE,proot,comm);
     Ptr totalEdgeCnt = std::accumulate(remoteEdgeCnt.begin(),remoteEdgeCnt.end(),0,std::plus<Ptr>());
 
+        MPI_Type_contiguous( sizeof(Idx), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
 
     if(iam==proot){
     g.rowind.resize(totalEdgeCnt);
     //compute receive displacements
       std::vector<int> rsizes(mpisize,0);
       std::vector<int> rdispls(mpisize+1,0);
-    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p]*sizeof(Idx);}
+    //for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p]*sizeof(Idx);}
+    for(int p = 0; p<mpisize;p++){rsizes[p] = (int)remoteEdgeCnt[p];}
     rdispls[0]=0;
     std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-    MPI_Gatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,&g.rowind[0],&rsizes[0],&rdispls[0],MPI_BYTE,proot,comm);
+    //MPI_Gatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,&g.rowind[0],&rsizes[0],&rdispls[0],MPI_BYTE,proot,comm);
+    MPI_Gatherv(&rowind[0],localEdgeCnt,type,&g.rowind[0],&rsizes[0],&rdispls[0],type,proot,comm);
     }
     else{
-    MPI_Gatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,NULL,NULL,NULL,MPI_BYTE,proot,comm);
+    //MPI_Gatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,NULL,NULL,NULL,MPI_BYTE,proot,comm);
+    MPI_Gatherv(&rowind[0],localEdgeCnt,type,NULL,NULL,NULL,type,proot,comm);
     }
+        MPI_Type_free(&type);
 
     if(iam==proot){
       //fix colptr
