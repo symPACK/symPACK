@@ -62,7 +62,6 @@
 #define MAX_NAME_LENGTH 38
 
 #if 0
-//#include <upcxx.h>
 //upcxx timers
 #include <gasnet.h>
 #include <gasnet_tools.h>

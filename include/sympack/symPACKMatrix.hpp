@@ -88,8 +88,6 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include "sympack/Task.hpp"
 #include "sympack/Scheduler.hpp"
 
-#include <upcxx.h>
-
 #include <list>
 #include <tuple>
 #include <deque>
@@ -216,7 +214,7 @@ namespace symPACK{
 
       symPACKOptions options_;
       CommEnvironment * CommEnv_;
-      upcxx::team * team_;
+      //upcxx::team * team_;
 
       SharedNode shmNode_;
       MPI_Comm non_workcomm_;
@@ -296,8 +294,11 @@ namespace symPACK{
       //Vector holding pointers to local SuperNode2 objects (L factor)
       std::vector<SuperNode<T> * > LocalSupernodes_;
       //std::vector<upcxx::global_ptr<SuperNodeDesc > > remoteFactors_;
+#ifdef NEW_UPCXX
+      std::vector< std::tuple< upcxx::global_ptr<char>,Int> > remoteFactors_;
+#else
       std::vector< std::tuple< upcxx::global_ptr<SuperNodeDesc >,Int> > remoteFactors_;
-
+#endif
 
 
       //Vector holding pointers to local contributions

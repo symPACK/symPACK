@@ -5,7 +5,6 @@
 //#include  "sympack/utility.hpp"
 //#include  "sympack/SuperNode.hpp"
 //
-//#include <upcxx.h>
 
     using namespace symPACK;
 

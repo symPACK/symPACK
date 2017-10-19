@@ -699,8 +699,21 @@ char * locTmpPtr = NULL;
     public:
       static char * allocate(size_t count){
         upcxx::global_ptr<char> tmpPtr;
+#ifdef NEW_UPCXX
 #ifdef SP_THREADS
+        if(Multithreading::NumThread>1){
+//          std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+//          tmpPtr = upcxx::allocate<char>(upcxx::myrank(),count);
+        }
+        else
+#endif
+        {
+          tmpPtr = upcxx::allocate<char>(count);
+        }
+        char * locTmpPtr = (char*)tmpPtr.local();
 
+#else
+#ifdef SP_THREADS
         if(Multithreading::NumThread>1){
           std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
           tmpPtr = upcxx::allocate<char>(upcxx::myrank(),count);
@@ -709,6 +722,7 @@ char * locTmpPtr = NULL;
 #endif
           tmpPtr = upcxx::allocate<char>(upcxx::myrank(),count);
         char * locTmpPtr = (char*)tmpPtr;
+#endif
 
         if(locTmpPtr == NULL){
           throw MemoryAllocationException(count);

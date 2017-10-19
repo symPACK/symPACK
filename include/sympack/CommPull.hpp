@@ -48,11 +48,11 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include <vector>
 #include <queue>
 
-#include <upcxx.h>
 
 #include <mutex>
 #include <thread>
 #include <atomic>
+#include <numeric>
 
 #include "sympack/Environment.hpp"
 //#include "sympack/CommTypes.hpp"
@@ -69,6 +69,12 @@ such enhancements or derivative works thereof, in binary and source code form.
 #endif
 
 namespace symPACK{
+
+#ifdef NEW_UPCXX
+  extern std::list< upcxx::future<> > gFutures;
+#endif
+
+
   class RankGroup{
     public:
     RankGroup(MPI_Comm & comm){
@@ -131,23 +137,50 @@ namespace symPACK{
       async_barriers[barrier_id] = np;
     }
     async_barriers[barrier_id]--;
-    //upcxx::barrier();
   }
 
   inline void signal_exit(int barrier_id, int np)
   {
-
+#ifdef NEW_UPCXX
+    upcxx::future<> f;
+    for (int i = 0; i < np; i++) {
+      f = upcxx::when_all(f, upcxx::rpc(i,[](int barrier_id,int np)
+            {
+            auto it = async_barriers.find(barrier_id);
+            if(it ==async_barriers.end()){
+            async_barriers[barrier_id] = np;
+            }
+            async_barriers[barrier_id]--;
+            },barrier_id,np) );
+    }
+    f.wait();
+#else
     for (int i = 0; i < np; i++) {
       upcxx::async(i)(signal_exit_am,barrier_id,np);
     }
 
     //make sure we don't have anything outgoing in flight anymore 
     upcxx::async_wait();
+#endif
   }
 
   inline void signal_exit(int barrier_id, const RankGroup & group)
   {
-
+#ifdef NEW_UPCXX
+    upcxx::future<> f;
+    for (int i = 0; i < group.size(); i++) {
+      int dest = group.L2G(i);
+      f = upcxx::when_all(f, upcxx::rpc(dest,[](int barrier_id,int np)
+            {
+            auto it = async_barriers.find(barrier_id);
+            if(it ==async_barriers.end()){
+            async_barriers[barrier_id] = np;
+            }
+            async_barriers[barrier_id]--;
+            },barrier_id,group.size()) );
+    }
+    f.wait();
+#else
     for (int i = 0; i < group.size(); i++) {
       int dest = group.L2G(i);
       upcxx::async(dest)(signal_exit_am,barrier_id,group.size());
@@ -155,12 +188,19 @@ namespace symPACK{
 
     //make sure we don't have anything outgoing in flight anymore
     upcxx::async_wait();
+#endif
   }
 
   inline void barrier_wait(int barrier_id){
+#ifdef NEW_UPCXX
+    while( !barrier_done(barrier_id) ){
+      upcxx::progress(); 
+    }
+#else
     while( !barrier_done(barrier_id) ){
       upcxx::advance(); 
     }
+#endif
   }
 
 
@@ -204,8 +244,12 @@ namespace symPACK{
       upcxx::global_ptr<char> remote_ptr;
       size_t msg_size;
       MsgMetadata meta;
+#ifdef NEW_UPCXX
+      upcxx::future<> f_get; 
+      bool async_get;
+#else
       upcxx::event * event_ptr;
-
+#endif
       //char * local_ptr;
       std::shared_ptr<char> local_ptr;
 
@@ -319,10 +363,142 @@ namespace symPACK{
   extern int gMaxIrecv;
   //extern SupernodalMatrixBase * gSuperMatrixPtr;
 
+#ifdef NEW_UPCXX
+  upcxx::future<> signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
+  upcxx::future<> remote_delete(upcxx::global_ptr<char> pRemote_ptr);
+#else
   void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
+  void remote_delete(upcxx::global_ptr<char> pRemote_ptr);
+#endif
+
   void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta);
   void dealloc_async(upcxx::global_ptr<char> ptr);
 
+  inline void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
+    scope_timer(a,RCV_ASYNC);
+
+#ifndef NDEBUG
+    //logfileptr->OFS()<<"Handling message "<<meta.src<<"->"<<meta.tgt<<" from P"<<pRemote_ptr.where()<<std::endl;
+#endif
+    {
+      //if we still have async buffers
+      bool asyncComm = false;
+      if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
+
+        IncomingMessage * msg_ptr = new IncomingMessage();
+        msg_ptr->meta = meta;
+        msg_ptr->remote_ptr = pRemote_ptr;
+        msg_ptr->msg_size = pMsg_size;
+
+
+        //allocate receive buffer
+        bool success = msg_ptr->AllocLocal();
+        if(success){
+          gIncomingRecvAsync.push_back( msg_ptr );
+          msg_ptr->AsyncGet();
+          asyncComm = true;
+        }
+        else{
+          delete msg_ptr;
+        }
+      }
+
+      if(!asyncComm){
+        IncomingMessage * msg_ptr = new IncomingMessage() ;
+        msg_ptr->remote_ptr = pRemote_ptr;
+        msg_ptr->msg_size = pMsg_size;
+        msg_ptr->meta = meta;
+        gIncomingRecv.push_back(msg_ptr);
+      }
+    }
+  }
+
+
+
+
+
+
+#ifdef NEW_UPCXX
+  inline upcxx::future<> signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
+    scope_timer(a,SIGNAL_DATA);
+    upcxx::future<> f_signal;
+#ifdef SP_THREADS
+    if(Multithreading::NumThread>1){
+      throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+      //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+      //upcxx::async(dest)(rcv_async,local_ptr,pMsg_size,meta);
+    }
+    else
+#endif
+    {
+      f_signal = upcxx::rpc(dest,   
+          [](upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
+          scope_timer(a,RCV_ASYNC);
+
+#ifndef NDEBUG
+          //logfileptr->OFS()<<"Handling message "<<meta.src<<"->"<<meta.tgt<<" from P"<<pRemote_ptr.where()<<std::endl;
+#endif
+          {
+          //if we still have async buffers
+          bool asyncComm = false;
+          if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
+
+          IncomingMessage * msg_ptr = new IncomingMessage();
+          msg_ptr->meta = meta;
+          msg_ptr->remote_ptr = pRemote_ptr;
+          msg_ptr->msg_size = pMsg_size;
+
+
+          //allocate receive buffer
+          bool success = msg_ptr->AllocLocal();
+          if(success){
+            gIncomingRecvAsync.push_back( msg_ptr );
+            msg_ptr->AsyncGet();
+            asyncComm = true;
+          }
+          else{
+            delete msg_ptr;
+          }
+          }
+
+          if(!asyncComm){
+            IncomingMessage * msg_ptr = new IncomingMessage() ;
+            msg_ptr->remote_ptr = pRemote_ptr;
+            msg_ptr->msg_size = pMsg_size;
+            msg_ptr->meta = meta;
+            gIncomingRecv.push_back(msg_ptr);
+          }
+          }
+          }
+      ,local_ptr,pMsg_size,meta);
+    }
+    return f_signal;
+  }
+
+
+  inline upcxx::future<> remote_delete(upcxx::global_ptr<char> pRemote_ptr){
+    scope_timer(a,REMOTE_DELETE);
+    upcxx::future<> f_delete;
+    auto dest = pRemote_ptr.where();
+#ifdef SP_THREADS
+    if(Multithreading::NumThread>1){
+      throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+      //throw an exception as multithreading is not supported yet in upcxx
+      //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+      //upcxx::async(dest)(dealloc_async,pRemote_ptr);
+    }
+    else
+#endif
+    {
+      f_delete = upcxx::rpc(dest,
+          [](upcxx::global_ptr<char> ptr){
+        upcxx::deallocate(ptr);
+  }
+          ,pRemote_ptr);
+    }
+    return f_delete;
+  }
+#else
   inline void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
     scope_timer(a,SIGNAL_DATA);
 #ifdef SP_THREADS
@@ -332,33 +508,15 @@ namespace symPACK{
     }
     else
 #endif
+    {
       upcxx::async(dest)(rcv_async,local_ptr,pMsg_size,meta);
+    }
   }
 
 
   inline void remote_delete(upcxx::global_ptr<char> pRemote_ptr){
     scope_timer(a,REMOTE_DELETE);
-    logfileptr->OFS()<<"Remote deleting on P"<<pRemote_ptr.where()<<std::endl;
-#if 0
-
-
-#ifdef SP_THREADS
-    if(Multithreading::NumThread>1){
-      std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-      upcxx::deallocate(pRemote_ptr);
-    }
-    else
-#endif
-    {
-      if(upcxx::myrank()!=pRemote_ptr.where()){
-        upcxx::deallocate(pRemote_ptr);
-      }
-      else{
-        upcxx::deallocate(pRemote_ptr);
-      }
-    }
-#else
-
+//    logfileptr->OFS()<<"Remote deleting on P"<<pRemote_ptr.where()<<std::endl;
     int dest = pRemote_ptr.where();
 #ifdef SP_THREADS
     if(Multithreading::NumThread>1){
@@ -371,85 +529,13 @@ namespace symPACK{
       //upcxx::async(dest)(upcxx::deallocate,pRemote_ptr);
       upcxx::async(dest)(dealloc_async,pRemote_ptr);
     }
-
-#endif
-
   }
+#endif
 
   inline void dealloc_async(upcxx::global_ptr<char> ptr){
         upcxx::deallocate(ptr);
   }
 
-
-  inline void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
-    SYMPACK_TIMER_START(RCV_ASYNC);
-                              
-#ifndef NDEBUG
-    //logfileptr->OFS()<<"Handling message "<<meta.src<<"->"<<meta.tgt<<" from P"<<pRemote_ptr.where()<<std::endl;
-#endif
-
-#ifdef HANDLE_LOCAL_POINTER
-    char * tryPtr = (char*)pRemote_ptr;
-    if(tryPtr!=NULL){
-      //         logfileptr->OFS()<<"LOCAL POINTER"<<std::endl;
-      gIncomingRecvLocal.push_back(new IncomingMessage() );
-      IncomingMessage * msg_ptr = gIncomingRecvLocal.back();
-      msg_ptr->meta = meta;
-      msg_ptr->remote_ptr = pRemote_ptr;
-      msg_ptr->local_ptr = tryPtr;
-      msg_ptr->msg_size = pMsg_size;
-      msg_ptr->isLocal = true;
-    }
-    else
-#endif
-    {
-
-      //if we still have async buffers
-
-
-
-      bool asyncComm = false;
-      //    std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-      if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
-
-        IncomingMessage * msg_ptr = new IncomingMessage();
-        //            IncomingMessage * msg_ptr = gIncomingRecvAsync.back();
-        msg_ptr->meta = meta;
-        msg_ptr->remote_ptr = pRemote_ptr;
-        msg_ptr->msg_size = pMsg_size;
-
-
-        //allocate receive buffer
-        bool success = msg_ptr->AllocLocal();
-        if(success){
-          gIncomingRecvAsync.push_back( msg_ptr );
-
-          msg_ptr->AsyncGet();
-          //      logfileptr->OFS()<<gIncomingRecvAsync.size()<<" vs "<<gMaxIrecv<<std::endl;
-          //add the function to the async queue
-          //      upcxx::async(A.iam)(Aggregate_Compute_Async,Aptr,j,RemoteAggregate, async_copy_event,tstart);
-          asyncComm = true;
-        }
-        else{
-          delete msg_ptr;
-        }
-      }
-
-      if(!asyncComm){
-        IncomingMessage * msg_ptr = new IncomingMessage() ;
-        //gIncomingRecv.push_back(new IncomingMessage() );
-        //IncomingMessage * msg_ptr = gIncomingRecv.back();
-        msg_ptr->remote_ptr = pRemote_ptr;
-        msg_ptr->msg_size = pMsg_size;
-        msg_ptr->meta = meta;
-        //gIncomingRecv.push(msg_ptr);
-        gIncomingRecv.push_back(msg_ptr);
-      }
-
-    }
-    SYMPACK_TIMER_STOP(RCV_ASYNC);
-
-  }
 
   inline std::list< IncomingMessage * >::iterator TestAsyncIncomingMessage(){
     //scope_timer(a,TEST_ASYNC);

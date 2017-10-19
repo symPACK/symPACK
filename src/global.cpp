@@ -62,7 +62,6 @@ such enhancements or derivative works thereof, in binary and source code form.
 //extern template class symPACKMatrix<std::complex<double> >;
 //}
 
-#include <upcxx.h>
 
 
 extern "C"
@@ -76,19 +75,29 @@ bool libUPCXXInit = false;
 extern "C"
 int symPACK_Rank(int * rank){
   int retval = 0;
+#ifdef NEW_UPCXX
+  *rank = upcxx::rank_me();
+#else
   MPI_Initialized(&retval);
   if(retval!=0 || libMPIInit){
     MPI_Comm_rank(MPI_COMM_WORLD,rank);
   }
   else{
+#ifdef NEW_UPCXX
+    if( libUPCXXInit){
+      *rank = upcxx::rank_me();
+    }
+#else
     if(upcxx::is_init() || libUPCXXInit){
       *rank = upcxx::myrank();
     }
+#endif
     else{
       *rank = -1;
       return -1;
     }
   }
+#endif
   return 0;
 }
 
@@ -120,12 +129,18 @@ int symPACK_Init(int *argc, char ***argv){
     //}
 
 
+#ifdef NEW_UPCXX
+      upcxx::init();
+      libUPCXXInit = true;
+
+#else
     if(!upcxx::is_init()){
 //std::cerr<<"upcxx init"<<std::endl;
       upcxx::init(argc,argv);
 //std::cerr<<"past upcxx init"<<std::endl;
       libUPCXXInit = true;
     }
+#endif
   }
 
   if(!libMPIInit){
@@ -143,7 +158,7 @@ int symPACK_Init(int *argc, char ***argv){
     int mpiinit = 0;
     MPI_Initialized(&mpiinit);
     assert(mpiinit==1);
-    assert(upcxx::is_init());
+//    assert(upcxx::is_init());
 
   return retval;
 }
@@ -180,7 +195,7 @@ int symPACK_Finalize(){
   ////int mpiinit = 0;
   ////MPI_Finalized(&mpiinit);
   ////assert(mpiinit==1);
-  assert(!upcxx::is_init());
+ // assert(!upcxx::is_init());
   return retval;
 }
 

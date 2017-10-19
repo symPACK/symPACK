@@ -47,7 +47,6 @@
 #include "sympack/ETree.hpp"
 #include "sympack/utility.hpp"
 
-#include <upcxx.h>
 
 namespace symPACK{
 

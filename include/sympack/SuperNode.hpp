@@ -54,7 +54,6 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include "sympack/IntervalTree.hpp"
 #include "sympack/CommTypes.hpp"
 
-#include <upcxx.h>
 #include <list>
 #include <mutex>
 #include <atomic>

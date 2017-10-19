@@ -58,7 +58,11 @@ template< typename Task> inline void symPACKMatrix<T>::CheckIncomingMessages_Sol
   scope_timer(a,CHECK_MESSAGE);
 
   SYMPACK_TIMER_START(UPCXX_ADVANCE);
+#ifdef NEW_UPCXX
+  upcxx::progress();
+#else
   upcxx::advance();
+#endif
   SYMPACK_TIMER_STOP(UPCXX_ADVANCE);
 
   bool comm_found = false;
@@ -430,7 +434,13 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
                   size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
 
         parentOwner = group_->L2G(parentOwner);
+#ifdef NEW_UPCXX
+                              auto f = signal_data(sendPtr, msgSize, parentOwner, meta);
+                              //enqueue the future somewhere
+                              gFutures.push_back(f);
+#else
                   signal_data(sendPtr, msgSize, parentOwner, meta);
+#endif
 
                 }
               }
@@ -481,8 +491,13 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
                       size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
 
         iTarget = group_->L2G(iTarget);
+#ifdef NEW_UPCXX
+                              auto f = signal_data(sendPtr, msgSize, iTarget, meta);
+                              //enqueue the future somewhere
+                              gFutures.push_back(f);
+#else
                       signal_data(sendPtr, msgSize, iTarget, meta);
-
+#endif
                       is_sent[iTarget] = true;
                     }
                   }
@@ -601,7 +616,8 @@ abort();
     }
   }
 
-  upcxx::async_wait();
+  abort();
+  //upcxx::async_wait();
   MPI_Barrier(CommEnv_->MPI_GetComm());
 
 
@@ -930,7 +946,13 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
                       {
         parentOwner = group_->L2G(parentOwner);
+#ifdef NEW_UPCXX
+                              auto f = signal_data(sendPtr, msgSize, parentOwner, meta);
+                              //enqueue the future somewhere
+                              gFutures.push_back(f);
+#else
                         signal_data(sendPtr, msgSize, parentOwner, meta);
+#endif
                       }
                     }
                   }
@@ -1142,7 +1164,13 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                           //log_msg(src,child_snode_id,Solve::op_type::BU);
                           {
         iTarget = group_->L2G(iTarget);
+#ifdef NEW_UPCXX
+                              auto f = signal_data(sendPtr, msgSize, iTarget, meta);
+                              //enqueue the future somewhere
+                              gFutures.push_back(f);
+#else
                             signal_data(sendPtr, msgSize, iTarget, meta);
+#endif
                           }
                           is_sent[iTarget] = true;
                         }
@@ -1482,8 +1510,9 @@ logfileptr->OFS()<<"WARNING: this is suboptimal and should use the new ChainedMe
 
   }
 
-  upcxx::async_wait();
-  upcxx::barrier();
+  //abort();
+  //upcxx::async_wait();
+  //upcxx::barrier();
   MPI_Barrier(CommEnv_->MPI_GetComm());
 
 

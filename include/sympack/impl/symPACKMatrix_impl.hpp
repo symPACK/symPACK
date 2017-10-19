@@ -2685,6 +2685,12 @@ namespace symPACK{
     all_np = 0;
     MPI_Comm_size(options_.MPIcomm,&all_np);
     MPI_Comm_rank(options_.MPIcomm,&iam);
+
+#ifdef NEW_UPCXX
+    iam = upcxx::rank_me();
+    all_np = upcxx::rank_n();
+#endif
+
     np = options_.used_procs(all_np);
 
 
@@ -4262,7 +4268,11 @@ namespace symPACK{
 #endif
 
         remoteFactors_.resize(Xsuper_.size()-1);
+#ifdef NEW_UPCXX
+        std::fill((char*)&remoteFactors_[0],(char*)&remoteFactors_[0]+remoteFactors_.size()*sizeof(std::tuple<upcxx::global_ptr<char>,Int> ),0);
+#else
         std::fill((char*)&remoteFactors_[0],(char*)&remoteFactors_[0]+remoteFactors_.size()*sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ),0);
+#endif
 
         for(Int I=1;I<Xsuper_.size();I++){
           Int iDest = this->Mapping_->Map(I-1,I-1);
@@ -4270,7 +4280,11 @@ namespace symPACK{
           if(iam==iDest){
             SuperNode<T> * newSnode = snodeLocal(I);
             SuperNodeDesc * meta = newSnode->GetMeta();
+#ifdef NEW_UPCXX
+            remoteFactors_[I-1] = std::make_tuple( upcxx::global_ptr<char>( (char*)meta ), meta->blocks_cnt_) ;
+#else
             remoteFactors_[I-1] = std::make_tuple( upcxx::global_ptr<SuperNodeDesc>( meta ), meta->blocks_cnt_) ;
+#endif
           }
         }
 
@@ -4316,7 +4330,7 @@ namespace symPACK{
 
   template <typename T> inline symPACKMatrix<T>::symPACKMatrix(){
     CommEnv_=NULL;
-    team_=nullptr;
+    //team_=nullptr;
     Mapping_ = NULL;
     Balancer_ = NULL;
     scheduler_ = NULL;
@@ -4326,13 +4340,18 @@ namespace symPACK{
     //isGlobStructAllocated_ = false;
     non_workcomm_ = MPI_COMM_NULL;
     fullcomm_ = MPI_COMM_NULL;
-    if(!upcxx::is_init()){
-      upcxx::init(NULL,NULL);
-    }
+//    if(!upcxx::is_init()){
+//      upcxx::init(NULL,NULL);
+//    }
 
     if(logfileptr==NULL){
+#ifdef NEW_UPCXX
+      logfileptr = new LogFile(upcxx::rank_me(),false);
+      logfileptr->OFS()<<"********* LOGFILE OF P"<<upcxx::rank_me()<<" *********"<<std::endl;
+#else
       logfileptr = new LogFile(upcxx::myrank(),false);
       logfileptr->OFS()<<"********* LOGFILE OF P"<<upcxx::myrank()<<" *********"<<std::endl;
+#endif
       logfileptr->OFS()<<"**********************************"<<std::endl;
     }
 
@@ -4380,9 +4399,9 @@ namespace symPACK{
       delete CommEnv_;
     }
 
-    if(team_!=nullptr){
-      delete team_;
-    }
+    //if(team_!=nullptr){
+    //  delete team_;
+    //}
     //  if(Local_!=NULL){
     //    delete Local_;
     //  }
@@ -4917,8 +4936,6 @@ namespace symPACK{
       //Broadcast to everyone 
       MPI_Bcast(&cc[0],size,Inttype,0,fullcomm_);
       MPI_Bcast(&rc[0],size,Inttype,0,fullcomm_);
-      //upcxx::bcast(&cc[0],&cc[0],size*sizeof(Int),0);
-      //upcxx::bcast(&rc[0],&rc[0],size*sizeof(Int),0);
 
       MPI_Type_free(&Inttype);
     }

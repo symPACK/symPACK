@@ -177,13 +177,21 @@ namespace symPACK{
       if(Multithreading::NumThread>1){
         scope_timer(a,UPCXX_ADVANCE);
         std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+#ifdef NEW_UPCXX
+        upcxx::progress();
+#else
         upcxx::advance();
+#endif
       }
       else
 #endif
       {
         scope_timer(a,UPCXX_ADVANCE);
+#ifdef NEW_UPCXX
+        upcxx::progress();
+#else
         upcxx::advance();
+#endif
       }
 
       bool comm_found = false;
@@ -558,14 +566,25 @@ for(auto && toto: delayedTasks_){
               curTask->execute();
               //clear resources
               curTask->reset();
+#ifdef NEW_UPCXX
+        upcxx::progress();
+#else
               upcxx::advance();
+#endif
             }
           }
         }
 
+#ifdef NEW_UPCXX
+  for(auto f: gFutures){
+    f.wait();
+  }
+  gFutures.clear();
+#else
         int barrier_id = get_barrier_id(np);
         signal_exit(barrier_id,np); 
         barrier_wait(barrier_id);
+#endif
 
 
         //workteam.barrier();

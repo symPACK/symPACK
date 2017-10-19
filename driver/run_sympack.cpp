@@ -58,7 +58,7 @@ int main(int argc, char **argv)
   MPI_Comm worldcomm;
   MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
   MPI_Comm_size(worldcomm,&np);
-  MPI_Comm_rank(worldcomm,&iam);
+  symPACK_Rank(&iam);
 
 
 #if defined(SPROFILE) || defined(PMPI)

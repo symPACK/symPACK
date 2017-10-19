@@ -38,8 +38,6 @@
 #include "sympack/Types.hpp"
 #include "sympack/Task.hpp"
 
-#include <upcxx.h>
-
 #include <list>
 #include <vector>
 #include <limits>

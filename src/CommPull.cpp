@@ -52,6 +52,10 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 namespace symPACK{
 
+#ifdef NEW_UPCXX
+  std::list< upcxx::future<> > gFutures;
+#endif
+
   int last_key = 0;
   std::map<int,int> async_barriers;
 
@@ -129,8 +133,13 @@ namespace symPACK{
       local_ptr = (char *)malloc(psize);
 #else
       //TODO replace this by a upcxx::allocate
+#ifdef NEW_UPCXX
+      upcxx::global_ptr<char> tmp = upcxx::allocate<char>(psize);
+      local_ptr=(char*)tmp.local(); 
+#else
       upcxx::global_ptr<char> tmp = upcxx::allocate<char>(upcxx::myrank(),psize);
       local_ptr=(char*)tmp; 
+#endif
 #endif
       if(local_ptr!=NULL){
         size = psize;
@@ -175,7 +184,12 @@ namespace symPACK{
 
 
   IncomingMessage::IncomingMessage(){
+
+#ifdef NEW_UPCXX
+    async_get = false;
+#else
     event_ptr=NULL;
+#endif
     task_ptr =NULL;
     local_ptr=nullptr;
     isDone = false;
@@ -192,6 +206,18 @@ namespace symPACK{
 
   IncomingMessage::~IncomingMessage(){
     //assert(IsDone());
+#ifdef NEW_UPCXX
+    if(async_get){
+#ifdef SP_THREADS
+      if(Multithreading::NumThread>1){
+      }
+      else
+#endif
+      {
+        f_get.wait();
+      }
+    }
+#else
     if(event_ptr!=NULL){
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
@@ -202,6 +228,7 @@ namespace symPACK{
 #endif
         delete event_ptr;
     }
+#endif
     if(task_ptr!=NULL){
       delete task_ptr;
     }
@@ -210,6 +237,22 @@ namespace symPACK{
   }
 
   void IncomingMessage::AsyncGet(){
+#ifdef NEW_UPCXX
+#ifdef SP_THREADS
+    if(Multithreading::NumThread>1){
+//      std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+//      assert(event_ptr==NULL);
+//      event_ptr = new upcxx::event;
+//      upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size,event_ptr);
+    }
+    else
+#endif
+    {
+      f_get = upcxx::rget(remote_ptr,GetLocalPtr().get(),msg_size);
+      async_get = true;
+    }
+
+#else
 #ifdef SP_THREADS
     if(Multithreading::NumThread>1){
       std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
@@ -224,6 +267,7 @@ namespace symPACK{
       event_ptr = new upcxx::event;
       upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size,event_ptr);
     }
+#endif
   }
 
   int IncomingMessage::Sender(){
@@ -232,6 +276,55 @@ namespace symPACK{
 
   bool IncomingMessage::Wait(){
     scope_timer(a,IN_MSG_WAIT);
+#ifdef NEW_UPCXX
+    bool success = false;
+    if(isLocal){
+      isDone = true;
+      success = true;
+    }
+    else if(async_get){
+#ifdef SP_THREADS
+      if(Multithreading::NumThread>1){
+//        std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+//        f_get.wait();
+//        async_get = false;
+//        isDone = true;
+//        success = true;
+      }
+      else
+#endif
+      {
+        f_get.wait();
+        async_get = false;
+        isDone = true;
+        success = true;
+      }
+    }
+    else{
+      //allocate receive buffer
+      success = AllocLocal();
+      if(success){
+#ifdef SP_THREADS
+        if(Multithreading::NumThread>1){
+          //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+          //upcxx::copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size);
+          //isDone = true;
+        }
+        else
+#endif
+        {
+          upcxx::rget(remote_ptr,GetLocalPtr().get(),msg_size).wait();
+          isDone = true;
+        }
+      }
+    }
+#ifdef PROFILE_COMM
+    if(success){
+      gVolComm+= msg_size;
+      gNumMsg++;
+    }
+#endif
+#else
     bool success = false;
     if(isLocal){
       isDone = true;
@@ -284,6 +377,7 @@ namespace symPACK{
       gVolComm+= msg_size;
       gNumMsg++;
     }
+#endif
 #endif
     return success;
   }
@@ -344,6 +438,33 @@ namespace symPACK{
 
   bool IncomingMessage::IsDone(){
     scope_timer(a,IN_MSG_ISDONE);
+#ifdef NEW_UPCXX
+    if(async_get){
+#ifdef SP_THREADS
+      if(Multithreading::NumThread>1){
+//        std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+//        isDone = f_get.ready();
+//        if(!isDone){
+//          upcxx::progress();
+//          isDone = f_get.ready();
+//        }
+        return isDone; 
+      }
+      else
+#endif
+      {
+        isDone = f_get.ready();
+        if(!isDone){
+          upcxx::progress();
+          isDone = f_get.ready();
+        }
+        return isDone; 
+      }
+    }
+    else{
+      return isDone;
+    }
+#else
     if(event_ptr!=NULL){
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
@@ -361,10 +482,15 @@ namespace symPACK{
     else{
       return isDone;
     } 
+#endif
   }
 
   bool IncomingMessage::IsAsync(){
+#ifdef NEW_UPCXX
+    return (async_get);
+#else
     return (event_ptr==NULL);
+#endif
   }
 
   bool IncomingMessage::AllocLocal(){
@@ -377,6 +503,8 @@ namespace symPACK{
       upcxx::global_ptr<char> tmp;
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
+#ifdef NEW_UPCXX
+#else
         std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
         //tmp = upcxx::allocate<char>(upcxx::myrank(),msg_size);
         //local_ptr=(char*)tmp; 
@@ -386,18 +514,22 @@ namespace symPACK{
       upcxx::deallocate(tmp);
 //      remote_delete(tmp);
             }); 
+#endif
       }
       else
 #endif
       {
-//        tmp = upcxx::allocate<char>(upcxx::myrank(),msg_size);
-//        local_ptr=(char*)tmp; 
-        local_ptr=std::shared_ptr<char>((char*)upcxx::allocate<char>(upcxx::myrank(),msg_size), [=](char * ptr){
+#ifdef NEW_UPCXX
+        local_ptr=std::shared_ptr<char>((char*)upcxx::allocate<char>(msg_size).local(), [=](char * ptr){
       upcxx::global_ptr<char> tmp(ptr);
-//      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<" on P"<<tmp.where()<<std::endl;
-      //remote_delete(tmp);
       upcxx::deallocate(tmp);
             }); 
+#else
+        local_ptr=std::shared_ptr<char>((char*)upcxx::allocate<char>(upcxx::myrank(),msg_size), [=](char * ptr){
+      upcxx::global_ptr<char> tmp(ptr);
+      upcxx::deallocate(tmp);
+            }); 
+#endif
       }
 #endif
 
