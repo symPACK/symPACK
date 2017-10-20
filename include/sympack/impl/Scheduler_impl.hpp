@@ -123,7 +123,6 @@ namespace symPACK{
               }
 
               lock.lock();
-              //gdb_lock();
               //wait for a task to be completed before retrying
               //sync.wait(lock);
               sync.wait_for(lock,std::chrono::milliseconds(10));
@@ -350,11 +349,11 @@ namespace symPACK{
 
 
   template <class Task > 
-    inline void Scheduler<Task>::run(MPI_Comm & workcomm, /*upcxx::team & workteam,*/ taskGraph & graph){
+    inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group, taskGraph & graph){
     }
 
   template <> 
-    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, /*upcxx::team & workteam ,*/ taskGraph & graph){
+    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph){
       int np = 1;
       MPI_Comm_size(workcomm,&np);
       int iam = 0;
@@ -580,6 +579,9 @@ for(auto && toto: delayedTasks_){
     f.wait();
   }
   gFutures.clear();
+        int barrier_id = get_barrier_id(np);
+        signal_exit(barrier_id,group); 
+        barrier_wait(barrier_id);
 #else
         int barrier_id = get_barrier_id(np);
         signal_exit(barrier_id,np); 

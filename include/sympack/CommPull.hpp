@@ -167,19 +167,41 @@ namespace symPACK{
   inline void signal_exit(int barrier_id, const RankGroup & group)
   {
 #ifdef NEW_UPCXX
-    upcxx::future<> f;
-    for (int i = 0; i < group.size(); i++) {
-      int dest = group.L2G(i);
-      f = upcxx::when_all(f, upcxx::rpc(dest,[](int barrier_id,int np)
+//    upcxx::future<> f;
+    auto iam = upcxx::rank_me();
+    auto giam = group.L2G(iam);
+    auto rpc_signal = [](int barrier_id,int np)
             {
             auto it = async_barriers.find(barrier_id);
             if(it ==async_barriers.end()){
             async_barriers[barrier_id] = np;
             }
             async_barriers[barrier_id]--;
-            },barrier_id,group.size()) );
+            };
+
+    rpc_signal(barrier_id, group.size());
+
+    std::list< upcxx::future<> > fut;
+    for (int i = 0; i < group.size(); i++) {
+      int dest = group.L2G(i);
+      if(dest!=giam){
+//      f = upcxx::when_all(f, upcxx::rpc(dest, rpc_signal,barrier_id,group.size()) );
+      fut.push_back(upcxx::rpc(dest, rpc_signal,barrier_id,group.size()));
+      }
     }
-    f.wait();
+//    f.wait();
+    while(!fut.empty()){
+      for(auto it = fut.begin(); it!=fut.end(); it++){
+        if(!it->ready()){
+          upcxx::progress();
+        }
+        else{
+          fut.erase(it);
+          break;
+        }
+      }
+    }
+
 #else
     for (int i = 0; i < group.size(); i++) {
       int dest = group.L2G(i);
@@ -431,35 +453,35 @@ namespace symPACK{
     else
 #endif
     {
+
       f_signal = upcxx::rpc(dest,   
           [](upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
           scope_timer(a,RCV_ASYNC);
-
 #ifndef NDEBUG
           //logfileptr->OFS()<<"Handling message "<<meta.src<<"->"<<meta.tgt<<" from P"<<pRemote_ptr.where()<<std::endl;
 #endif
           {
           //if we still have async buffers
           bool asyncComm = false;
-          if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
-
-          IncomingMessage * msg_ptr = new IncomingMessage();
-          msg_ptr->meta = meta;
-          msg_ptr->remote_ptr = pRemote_ptr;
-          msg_ptr->msg_size = pMsg_size;
-
-
-          //allocate receive buffer
-          bool success = msg_ptr->AllocLocal();
-          if(success){
-            gIncomingRecvAsync.push_back( msg_ptr );
-            msg_ptr->AsyncGet();
-            asyncComm = true;
-          }
-          else{
-            delete msg_ptr;
-          }
-          }
+//          if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
+//
+//          IncomingMessage * msg_ptr = new IncomingMessage();
+//          msg_ptr->meta = meta;
+//          msg_ptr->remote_ptr = pRemote_ptr;
+//          msg_ptr->msg_size = pMsg_size;
+//
+//
+//          //allocate receive buffer
+//          bool success = msg_ptr->AllocLocal();
+//          if(success){
+//            gIncomingRecvAsync.push_back( msg_ptr );
+//            msg_ptr->AsyncGet();
+//            asyncComm = true;
+//          }
+//          else{
+//            delete msg_ptr;
+//          }
+//          }
 
           if(!asyncComm){
             IncomingMessage * msg_ptr = new IncomingMessage() ;

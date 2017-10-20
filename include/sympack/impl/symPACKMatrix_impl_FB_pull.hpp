@@ -436,13 +436,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifndef NDEBUG
                         //logfileptr->OFS()<<"Signaling FACTOR "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
-                        iTarget = group_->L2G(iTarget);
+                        Int liTarget = group_->L2G(iTarget);
 #ifdef NEW_UPCXX
-                              auto f = signal_data(sendPtr, msgSize, iTarget, meta);
+                              auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                               //enqueue the future somewhere
                               gFutures.push_back(f);
 #else
-                        signal_data(sendPtr, msgSize, iTarget, meta);
+                        signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
                       }
                       is_factor_sent[iTarget] = true;
@@ -751,14 +751,14 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifndef NDEBUG
                               //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
-                              iTarget = group_->L2G(iTarget);
+                              Int liTarget = group_->L2G(iTarget);
 
 #ifdef NEW_UPCXX
-                              auto f = signal_data(sendPtr, msgSize, iTarget, meta);
+                              auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                               //enqueue the future somewhere
                               gFutures.push_back(f);
 #else
-                              signal_data(sendPtr, msgSize, iTarget, meta);
+                              signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
                             }
                           }
@@ -1160,14 +1160,14 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifndef NDEBUG
                         //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
-                            iTarget = group_->L2G(iTarget);
+                            Int liTarget = group_->L2G(iTarget);
 
 #ifdef NEW_UPCXX
-                              auto f = signal_data(sendPtr, msgSize, iTarget, meta);
+                              auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                               //enqueue the future somewhere
                               gFutures.push_back(f);
 #else
-                            signal_data(sendPtr, msgSize, iTarget, meta);
+                            signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
                           }
                         }
@@ -1227,7 +1227,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
     std::cout<<"TaskGraph size is: "<<graph.tasks_.size()<<std::endl;
   }
   timeSta = get_time();
-  scheduler_new_->run(CommEnv_->MPI_GetComm(),/* *this->team_,*/graph);
+  scheduler_new_->run(CommEnv_->MPI_GetComm(),*group_,graph);
   double timeStop = get_time();
   if(iam==0 && options_.verbose){
     std::cout<<"Factorization task graph execution time: "<<timeStop - timeSta<<std::endl;
@@ -1875,13 +1875,13 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
 #ifndef NDEBUG
                         //logfileptr->OFS()<<"Signaling FACTOR "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
-        iTarget = group_->L2G(iTarget);
+        Int liTarget = group_->L2G(iTarget);
 #ifdef NEW_UPCXX
-                              auto f = signal_data(sendPtr, msgSize, iTarget, meta);
+                              auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                               //enqueue the future somewhere
                               gFutures.push_back(f);
 #else
-        signal_data(sendPtr, msgSize, iTarget, meta);
+        signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
         is_factor_sent[iTarget] = true;
       }
@@ -2113,13 +2113,13 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
 #ifndef NDEBUG
                         //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
-            iTarget = group_->L2G(iTarget);
+            Int liTarget = group_->L2G(iTarget);
 #ifdef NEW_UPCXX
-                              auto f = signal_data(sendPtr, msgSize, iTarget, meta);
+                              auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                               //enqueue the future somewhere
                               gFutures.push_back(f);
 #else
-            signal_data(sendPtr, msgSize, iTarget, meta);
+            signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
 
           }
