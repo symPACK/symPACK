@@ -50,6 +50,14 @@
 #include "sympack_config.hpp"
 
 //#define EXPLICIT_PERMUTE
+#include <sys/time.h>
+inline double get_time()
+  {
+    struct timeval tv;
+    gettimeofday(&tv, 0);
+    return tv.tv_sec + ((double) tv.tv_usec / 1000000);
+  }
+
 
 
 #ifdef NEW_UPCXX
@@ -304,18 +312,6 @@ void OptionsCreate(Int argc, char** argv,
 // *********************************************************************
 // Profiling functions 
 // *********************************************************************
-#include <sys/time.h>
-
-
-
-
-inline double get_time()
-  {
-    struct timeval tv;
-    gettimeofday(&tv, 0);
-    return tv.tv_sec + ((double) tv.tv_usec / 1000000);
-  }
-
 #include "sympack/timer.hpp"
 
 #define VAL(str) #str

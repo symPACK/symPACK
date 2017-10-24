@@ -1235,24 +1235,24 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
 
 
-  SYMPACK_TIMER_START(BARRIER);
+//  SYMPACK_TIMER_START(BARRIER);
 
-#ifdef NEW_UPCXX
-  for(auto f: gFutures){
-    f.wait();
-  }
-  gFutures.clear();
-#else
-        int barrier_id = get_barrier_id(np);
-        signal_exit(barrier_id,np); 
-        barrier_wait(barrier_id);
-#endif
+//#ifdef NEW_UPCXX
+//  for(auto f: gFutures){
+//    f.wait();
+//  }
+//  gFutures.clear();
+//#else
+//        int barrier_id = get_barrier_id(np);
+//        signal_exit(barrier_id,np); 
+//        barrier_wait(barrier_id);
+//#endif
 
 
 //  upcxx::async_wait();
 //  MPI_Barrier(CommEnv_->MPI_GetComm());
 
-  SYMPACK_TIMER_STOP(BARRIER);
+//  SYMPACK_TIMER_STOP(BARRIER);
 
   tmpBufs.Clear();
 }
@@ -1304,24 +1304,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
   size_t gTaskCnt = taskGraph.taskLists_.size();
 
   Int localTaskCount = localTaskCount_;
-  //std::vector<std::list<FBTask> * > taskLists;
-  //taskLists.resize(origTaskLists_.size(),NULL);
-  //size_t taskCnt = taskLists.size();
-  //for(int i = 0; i<taskCnt; ++i){
-  //  if(origTaskLists_[i] != NULL){
-  //    taskLists[i] = new std::list<FBTask>(); 
-  //    taskLists[i]->insert(taskLists[i]->end(),origTaskLists_[i]->begin(),origTaskLists_[i]->end());
-  //  }
-  //}
 
   for(int i = 0; i<gTaskCnt; ++i){
     if(taskGraph.taskLists_[i] != NULL){
       auto taskit = taskGraph.taskLists_[i]->begin();
       while (taskit != taskGraph.taskLists_[i]->end())
       {
-
-
-
         if(taskit->remote_deps==0 && taskit->local_deps==0){
           scheduler2_->push(*taskit);
           auto it = taskit++;
@@ -1375,18 +1363,15 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
     if(!scheduler2_->done())
     {
       //Pick a ready task
-      //auto taskit = scheduler_->top();
-      //scheduler_->pop();
-      //FBTask & curTask = *taskit;
       FBTask curTask = scheduler2_->top();
       scheduler2_->pop();
 
 
-      //    assert(find(taskLists_[curTask.tgt_snode_id-1]->begin(),taskLists_[curTask.tgt_snode_id-1]->end(),curTask)!=taskLists_[curTask.tgt_snode_id-1]->end());
 #ifdef _DEBUG_PROGRESS_
       logfileptr->OFS()<<"Processing T("<<curTask.src_snode_id<<","<<curTask.tgt_snode_id<<") "<<std::endl;
 #endif
       Int iLocalTGT = snodeLocalIndex(curTask.tgt_snode_id);
+
       switch(curTask.type){
         case FACTOR:
           {
@@ -1427,14 +1412,38 @@ defaut:
   SYMPACK_TIMER_START(BARRIER);
 
 #ifdef NEW_UPCXX
+  double tstart = get_time();
+
   for(auto f: gFutures){
     f.wait();
   }
   gFutures.clear();
+
+   double tstop = get_time();
+   logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
+
+
+   tstart = get_time();
+        int barrier_id = get_barrier_id(np);
+        signal_exit(barrier_id,*group_); 
+   tstop = get_time();
+   logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
+
+   tstart = get_time();
+        barrier_wait(barrier_id);
+   tstop = get_time();
+   logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
 #else
+   double tstart = get_time();
         int barrier_id = get_barrier_id(np);
         signal_exit(barrier_id,np); 
+   double tstop = get_time();
+   logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
+   tstart = get_time();
         barrier_wait(barrier_id);
+   tstop = get_time();
+   logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
+
 #endif
 
 //  upcxx::async_wait();
@@ -1820,6 +1829,9 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
 {
   SYMPACK_TIMER_START(FB_FACTORIZATION_TASK);
 
+#ifdef _DEBUG_PROGRESS_
+  logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
+#endif
   Int src_snode_id = curTask.src_snode_id;
   Int tgt_snode_id = curTask.tgt_snode_id;
   Int I = src_snode_id;
@@ -1827,9 +1839,6 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
   Int src_first_col = src_snode->FirstCol();
   Int src_last_col = src_snode->LastCol();
 
-#ifdef _DEBUG_PROGRESS_
-  logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
-#endif
 
 #ifdef _DEBUG_PROGRESS_
   logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
@@ -1915,6 +1924,8 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
 
 template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector< SuperNode<T> * > & aggVectors, bool is_static)
 {
+
+
   SYMPACK_TIMER_START(FB_UPDATE_TASK);
   Int src_snode_id = curTask.src_snode_id;
   Int tgt_snode_id = curTask.tgt_snode_id;
@@ -2023,7 +2034,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
                 scope_timer(a,FETCH_REMOTE_STRUCTURE);
 
 #ifdef NEW_UPCXX
-                                  upcxx::global_ptr<char> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
+                upcxx::global_ptr<char> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
 #else
                 upcxx::global_ptr<SuperNodeDesc> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
 #endif

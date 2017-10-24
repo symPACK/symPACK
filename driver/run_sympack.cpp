@@ -127,6 +127,11 @@ int main(int argc, char **argv)
   }
 
   //-----------------------------------------------------------------
+  Int verbose = 0;
+  if( options.find("-v") != options.end() ){
+      verbose= atoi(options["-v"].front().c_str());
+  }
+  optionsFact.verbose = verbose;
 
   Int maxSnode = 0;
   if( options.find("-b") != options.end() ){

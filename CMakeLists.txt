@@ -179,7 +179,8 @@ endif()
 
 
 if(NEW_UPCXX)
-  set(upcxx-meta "/home/mjacquel/Work/lbl/pagoda/upcxx_dev/upcxx_install/bin/upcxx-meta") 
+  #set(upcxx-meta "/home/mjacquel/Work/lbl/pagoda/upcxx_dev/upcxx_install/bin/upcxx-meta") 
+  set(upcxx-meta "upcxx-meta") 
   execute_process( COMMAND ${upcxx-meta} PPFLAGS OUTPUT_VARIABLE UPCXX_PPFLAGS)
   message( STATUS "UPCXX_PPFLAGS: " ${UPCXX_PPFLAGS} )
   execute_process( COMMAND ${upcxx-meta} LDFLAGS OUTPUT_VARIABLE UPCXX_LDFLAGS)

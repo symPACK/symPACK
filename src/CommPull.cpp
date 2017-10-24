@@ -494,6 +494,23 @@ namespace symPACK{
   }
 
   bool IncomingMessage::AllocLocal(){
+#ifdef NEW_UPCXX
+    if(!allocated){
+      local_ptr=nullptr;
+      local_ptr=std::shared_ptr<char>( new char[msg_size], [=](char * ptr){ delete [] ptr; });
+
+      allocated = local_ptr!=nullptr;
+      ownLocalStorage = allocated;
+
+      if(local_ptr==nullptr){
+        throw MemoryAllocationException(msg_size);
+      }
+      return local_ptr!=nullptr;
+    }
+    else{
+      return true;
+    }
+#else
     if(!allocated){
       local_ptr=nullptr;
 #ifndef USE_LOCAL_ALLOCATE
@@ -544,6 +561,7 @@ namespace symPACK{
     else{
       return true;
     }
+#endif
   }
 
 

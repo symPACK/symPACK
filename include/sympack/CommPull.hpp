@@ -179,6 +179,7 @@ namespace symPACK{
             async_barriers[barrier_id]--;
             };
 
+double tstart = get_time();
     rpc_signal(barrier_id, group.size());
 
     std::list< upcxx::future<> > fut;
@@ -190,17 +191,35 @@ namespace symPACK{
       }
     }
 //    f.wait();
+double tstop = get_time();
+logfileptr->OFS()<<"launching rpcs time: "<<tstop-tstart<<std::endl;
+
+tstart = get_time();
     while(!fut.empty()){
-      for(auto it = fut.begin(); it!=fut.end(); it++){
-        if(!it->ready()){
-          upcxx::progress();
-        }
-        else{
-          fut.erase(it);
-          break;
-        }
+      auto it = fut.begin();
+      while(it!=fut.end()){
+        if(!it->ready()){ break; }
+        it++;
       }
+      fut.erase(fut.begin(),it);
+      
+      if(!fut.empty()){ upcxx::progress();}
     }
+tstop = get_time();
+logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
+
+
+    //while(!fut.empty()){
+    //  for(auto it = fut.begin(); it!=fut.end(); it++){
+    //    if(!it->ready()){
+    //      upcxx::progress();
+    //    }
+    //    else{
+    //      fut.erase(it);
+    //      break;
+    //    }
+    //  }
+    //}
 
 #else
     for (int i = 0; i < group.size(); i++) {
