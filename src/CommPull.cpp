@@ -52,6 +52,9 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 namespace symPACK{
 
+  double maxWaitT = 0.0;
+  double maxAWaitT = 0.0;
+
 #ifdef NEW_UPCXX
   std::list< upcxx::future<> > gFutures;
 #endif
@@ -59,47 +62,7 @@ namespace symPACK{
   int last_key = 0;
   std::map<int,int> async_barriers;
 
-//  bool barrier_done(int id){
-//    return async_barriers[id]==0;
-//  }
-//
-//  int get_barrier_id(int np){
-//    int id = last_key++;
-//    auto it = async_barriers.find(id);
-//    if(it ==async_barriers.end()){
-//      async_barriers[id] = np;
-//    }
-//    return id;
-//  }
-//
-//  void signal_exit_am(int barrier_id,int np)
-//  {
-//    auto it = async_barriers.find(barrier_id);
-//    if(it ==async_barriers.end()){
-//      async_barriers[barrier_id] = np;
-//    }
-//    async_barriers[barrier_id]--;
-//    //upcxx::barrier();
-//  }
-//
-//  void signal_exit(int barrier_id, int np)
-//  {
-//
-//    for (int i = 0; i < np; i++) {
-//      upcxx::async(i)(signal_exit_am,barrier_id,np);
-//    }    
-//  }
-//
-//    
-//  void barrier_wait(int barrier_id){
-//    while( !barrier_done(barrier_id) ){
-//      upcxx::advance(); 
-//    }
-//  }
-
-    
-    
-    
+   
     
     #ifdef SP_THREADS
       upcxx_mutex_type upcxx_mutex;
@@ -198,10 +161,6 @@ namespace symPACK{
 
     allocated = false;
     ownLocalStorage = false;
-
-#ifdef SP_THREADS
-//    references=0;
-#endif
   }
 
   IncomingMessage::~IncomingMessage(){
@@ -210,6 +169,7 @@ namespace symPACK{
     if(async_get){
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
+        throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
       }
       else
 #endif
@@ -240,10 +200,7 @@ namespace symPACK{
 #ifdef NEW_UPCXX
 #ifdef SP_THREADS
     if(Multithreading::NumThread>1){
-//      std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-//      assert(event_ptr==NULL);
-//      event_ptr = new upcxx::event;
-//      upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size,event_ptr);
+      throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
     }
     else
 #endif
@@ -285,16 +242,15 @@ namespace symPACK{
     else if(async_get){
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
-//        std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-//        f_get.wait();
-//        async_get = false;
-//        isDone = true;
-//        success = true;
+        throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
       }
       else
 #endif
       {
+double tstart = get_time();
         f_get.wait();
+double tstop = get_time();
+maxAWaitT = std::max(maxAWaitT, tstop-tstart);
         async_get = false;
         isDone = true;
         success = true;
@@ -306,14 +262,17 @@ namespace symPACK{
       if(success){
 #ifdef SP_THREADS
         if(Multithreading::NumThread>1){
-          //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-          //upcxx::copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size);
-          //isDone = true;
+          throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
         }
         else
 #endif
         {
+
+double tstart = get_time();
           upcxx::rget(remote_ptr,GetLocalPtr().get(),msg_size).wait();
+double tstop = get_time();
+maxWaitT = std::max(maxWaitT, tstop-tstart);
+
           isDone = true;
         }
       }
@@ -335,7 +294,10 @@ namespace symPACK{
       if(Multithreading::NumThread>1){
         std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
         //TODO wait is not necessary if calling async_try/isdone
+double tstart = get_time();
         event_ptr->wait();
+double tstop = get_time();
+maxAWaitT = std::max(maxAWaitT, tstop-tstart);
         assert(event_ptr->isdone());
         delete event_ptr;
         event_ptr = NULL;
@@ -346,7 +308,10 @@ namespace symPACK{
 #endif
       {
         //TODO wait is not necessary if calling async_try/isdone
+double tstart = get_time();
         event_ptr->wait();
+double tstop = get_time();
+maxAWaitT = std::max(maxAWaitT, tstop-tstart);
         assert(event_ptr->isdone());
         delete event_ptr;
         event_ptr = NULL;
@@ -367,7 +332,11 @@ namespace symPACK{
         else
 #endif
         {
+
+double tstart = get_time();
           upcxx::copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size);
+double tstop = get_time();
+maxWaitT = std::max(maxWaitT, tstop-tstart);
           isDone = true;
         }
       }
@@ -388,11 +357,6 @@ namespace symPACK{
 
   void IncomingMessage::DeallocRemote(){
     if(!remoteDealloc){
-//#ifndef NDEBUG
-//      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<std::endl;
-//#endif
-//      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<" on P"<<GetRemotePtr().where()<<std::endl;
-//      remote_delete(GetRemotePtr());
       upcxx::deallocate(GetRemotePtr());
       remoteDealloc=true;
     }
@@ -400,37 +364,7 @@ namespace symPACK{
   void IncomingMessage::DeallocLocal(){
     if(allocated && ownLocalStorage){
       if(!isLocal && local_ptr!=nullptr){
-#ifndef USE_LOCAL_ALLOCATE
-//        delete local_ptr;
-#else
-
-#if 1
-
-//#ifndef NDEBUG
-//      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<std::endl;
-//#endif
-      //upcxx::global_ptr<char> tmp(local_ptr);
-//      upcxx::global_ptr<char> tmp(local_ptr.get());
-//      remote_delete(tmp);
       local_ptr = nullptr;
-
-#else
-#ifdef SP_THREADS
-        if(Multithreading::NumThread>1){
-          std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-          //TODO use upcxx::deallocate
-          upcxx::global_ptr<char> tmp(local_ptr);
-          upcxx::deallocate(tmp);
-        }
-        else
-#endif
-        {
-          //TODO use upcxx::deallocate
-          upcxx::global_ptr<char> tmp(local_ptr);
-          upcxx::deallocate(tmp);
-        }
-#endif
-#endif
       }
     }
   }
@@ -442,12 +376,7 @@ namespace symPACK{
     if(async_get){
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
-//        std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-//        isDone = f_get.ready();
-//        if(!isDone){
-//          upcxx::progress();
-//          isDone = f_get.ready();
-//        }
+        throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
         return isDone; 
       }
       else
@@ -514,39 +443,24 @@ namespace symPACK{
     if(!allocated){
       local_ptr=nullptr;
 #ifndef USE_LOCAL_ALLOCATE
-      //local_ptr = (char *)malloc(msg_size);
-      local_ptr=std::shared_ptr<char>((char *)malloc(msg_size)); 
+      local_ptr=std::shared_ptr<char>( new char[msg_size], [=](char * ptr){ delete [] ptr; });
 #else
       upcxx::global_ptr<char> tmp;
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
-#ifdef NEW_UPCXX
-#else
         std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-        //tmp = upcxx::allocate<char>(upcxx::myrank(),msg_size);
-        //local_ptr=(char*)tmp; 
         local_ptr=std::shared_ptr<char>( (char *)upcxx::allocate<char>(upcxx::myrank(),msg_size), [=](char * ptr){
-      upcxx::global_ptr<char> tmp(ptr);
-//      logfileptr->OFS()<<"Deleting message from "<<meta.src<<" to "<<meta.tgt<<" on P"<<tmp.where()<<std::endl;
-      upcxx::deallocate(tmp);
-//      remote_delete(tmp);
+            upcxx::global_ptr<char> tmp(ptr);
+            upcxx::deallocate(tmp);
             }); 
-#endif
       }
       else
 #endif
       {
-#ifdef NEW_UPCXX
-        local_ptr=std::shared_ptr<char>((char*)upcxx::allocate<char>(msg_size).local(), [=](char * ptr){
-      upcxx::global_ptr<char> tmp(ptr);
-      upcxx::deallocate(tmp);
-            }); 
-#else
         local_ptr=std::shared_ptr<char>((char*)upcxx::allocate<char>(upcxx::myrank(),msg_size), [=](char * ptr){
-      upcxx::global_ptr<char> tmp(ptr);
-      upcxx::deallocate(tmp);
+            upcxx::global_ptr<char> tmp(ptr);
+            upcxx::deallocate(tmp);
             }); 
-#endif
       }
 #endif
 
@@ -564,21 +478,9 @@ namespace symPACK{
 #endif
   }
 
-
-  //char * IncomingMessage::GetLocalPtr(){
-  //  return (char*)local_ptr;
-  //}
-
   std::shared_ptr<char> & IncomingMessage::GetLocalPtr(){
     return std::ref(local_ptr);
   }
-
-//  void IncomingMessage::SetLocalPtr(char * ptr,bool ownStorage){
-//    local_ptr = ptr;
-//    allocated = true;
-//    ownLocalStorage = ownStorage;
-//  }
-
 
   void IncomingMessage::SetLocalPtr(std::shared_ptr<char> & ptr,bool ownStorage){
     local_ptr = ptr;

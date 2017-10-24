@@ -69,7 +69,8 @@ such enhancements or derivative works thereof, in binary and source code form.
 #endif
 
 namespace symPACK{
-
+  extern double maxWaitT;
+  extern double maxAWaitT;
 #ifdef NEW_UPCXX
   extern std::list< upcxx::future<> > gFutures;
 #endif
@@ -109,13 +110,14 @@ namespace symPACK{
   };
 
 
+  extern int last_key;
+  extern std::map<int,int> async_barriers;
+
   bool barrier_done(int id);
   int get_barrier_id(int np);
   void signal_exit(int barrier_id, int np);
   void barrier_wait(int barrier_id);
 
-  extern int last_key;
-  extern std::map<int,int> async_barriers;
 
   inline bool barrier_done(int id){
     return async_barriers[id]==0;
@@ -168,16 +170,21 @@ namespace symPACK{
   {
 #ifdef NEW_UPCXX
 //    upcxx::future<> f;
+//    for (int i = 0; i < group.size(); i++) {
+//      int dest = group.L2G(i);
+//      f = upcxx::when_all(f, upcxx::rpc(dest, rpc_signal,barrier_id,group.size()) );
+//    }
+//    f.wait();
+
     auto iam = upcxx::rank_me();
     auto giam = group.L2G(iam);
-    auto rpc_signal = [](int barrier_id,int np)
-            {
-            auto it = async_barriers.find(barrier_id);
-            if(it ==async_barriers.end()){
-            async_barriers[barrier_id] = np;
-            }
-            async_barriers[barrier_id]--;
-            };
+    auto rpc_signal = [](int barrier_id,int np) {
+      auto it = async_barriers.find(barrier_id);
+      if(it ==async_barriers.end()){
+        async_barriers[barrier_id] = np;
+      }
+      async_barriers[barrier_id]--;
+    };
 
 double tstart = get_time();
     rpc_signal(barrier_id, group.size());
@@ -186,11 +193,9 @@ double tstart = get_time();
     for (int i = 0; i < group.size(); i++) {
       int dest = group.L2G(i);
       if(dest!=giam){
-//      f = upcxx::when_all(f, upcxx::rpc(dest, rpc_signal,barrier_id,group.size()) );
       fut.push_back(upcxx::rpc(dest, rpc_signal,barrier_id,group.size()));
       }
     }
-//    f.wait();
 double tstop = get_time();
 logfileptr->OFS()<<"launching rpcs time: "<<tstop-tstart<<std::endl;
 
@@ -207,28 +212,19 @@ tstart = get_time();
     }
 tstop = get_time();
 logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
-
-
-    //while(!fut.empty()){
-    //  for(auto it = fut.begin(); it!=fut.end(); it++){
-    //    if(!it->ready()){
-    //      upcxx::progress();
-    //    }
-    //    else{
-    //      fut.erase(it);
-    //      break;
-    //    }
-    //  }
-    //}
-
 #else
+double tstart = get_time();
     for (int i = 0; i < group.size(); i++) {
       int dest = group.L2G(i);
       upcxx::async(dest)(signal_exit_am,barrier_id,group.size());
     }
-
+double tstop = get_time();
+logfileptr->OFS()<<"launching rpcs time: "<<tstop-tstart<<std::endl;
     //make sure we don't have anything outgoing in flight anymore
+tstart = get_time();
     upcxx::async_wait();
+tstop = get_time();
+logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
 #endif
   }
 
@@ -418,9 +414,6 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
   inline void rcv_async(upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
     scope_timer(a,RCV_ASYNC);
 
-#ifndef NDEBUG
-    //logfileptr->OFS()<<"Handling message "<<meta.src<<"->"<<meta.tgt<<" from P"<<pRemote_ptr.where()<<std::endl;
-#endif
     {
       //if we still have async buffers
       bool asyncComm = false;
@@ -455,10 +448,6 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
   }
 
 
-
-
-
-
 #ifdef NEW_UPCXX
   inline upcxx::future<> signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
     scope_timer(a,SIGNAL_DATA);
@@ -476,31 +465,27 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
       f_signal = upcxx::rpc(dest,   
           [](upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
           scope_timer(a,RCV_ASYNC);
-#ifndef NDEBUG
-          //logfileptr->OFS()<<"Handling message "<<meta.src<<"->"<<meta.tgt<<" from P"<<pRemote_ptr.where()<<std::endl;
-#endif
-          {
           //if we still have async buffers
           bool asyncComm = false;
-//          if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
-//
-//          IncomingMessage * msg_ptr = new IncomingMessage();
-//          msg_ptr->meta = meta;
-//          msg_ptr->remote_ptr = pRemote_ptr;
-//          msg_ptr->msg_size = pMsg_size;
-//
-//
-//          //allocate receive buffer
-//          bool success = msg_ptr->AllocLocal();
-//          if(success){
-//            gIncomingRecvAsync.push_back( msg_ptr );
-//            msg_ptr->AsyncGet();
-//            asyncComm = true;
-//          }
-//          else{
-//            delete msg_ptr;
-//          }
-//          }
+          if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
+
+          IncomingMessage * msg_ptr = new IncomingMessage();
+          msg_ptr->meta = meta;
+          msg_ptr->remote_ptr = pRemote_ptr;
+          msg_ptr->msg_size = pMsg_size;
+
+
+          //allocate receive buffer
+          bool success = msg_ptr->AllocLocal();
+          if(success){
+          gIncomingRecvAsync.push_back( msg_ptr );
+          msg_ptr->AsyncGet();
+          asyncComm = true;
+          }
+          else{
+            delete msg_ptr;
+          }
+          }
 
           if(!asyncComm){
             IncomingMessage * msg_ptr = new IncomingMessage() ;
@@ -508,7 +493,6 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
             msg_ptr->msg_size = pMsg_size;
             msg_ptr->meta = meta;
             gIncomingRecv.push_back(msg_ptr);
-          }
           }
           }
       ,local_ptr,pMsg_size,meta);
@@ -533,12 +517,13 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
     {
       f_delete = upcxx::rpc(dest,
           [](upcxx::global_ptr<char> ptr){
-        upcxx::deallocate(ptr);
-  }
+          upcxx::deallocate(ptr);
+          }
           ,pRemote_ptr);
     }
     return f_delete;
   }
+
 #else
   inline void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
     scope_timer(a,SIGNAL_DATA);
@@ -557,7 +542,6 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
 
   inline void remote_delete(upcxx::global_ptr<char> pRemote_ptr){
     scope_timer(a,REMOTE_DELETE);
-//    logfileptr->OFS()<<"Remote deleting on P"<<pRemote_ptr.where()<<std::endl;
     int dest = pRemote_ptr.where();
 #ifdef SP_THREADS
     if(Multithreading::NumThread>1){
@@ -567,7 +551,6 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
     else
 #endif
     {
-      //upcxx::async(dest)(upcxx::deallocate,pRemote_ptr);
       upcxx::async(dest)(dealloc_async,pRemote_ptr);
     }
   }
@@ -596,51 +579,6 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
 
 
 }
-
-//namespace symPACK{
-//  class RemoteMessage{
-//    public:
-//      //data related information
-//      upcxx::global_ptr<char> remote_ptr;
-//      char * local_ptr;
-//      size_t msg_size;
-//
-//
-//      MsgMetadata meta;
-//      upcxx::event * event_ptr;
-//      SnodeUpdateFB * task_ptr;
-//
-//
-//      bool allocated;
-//      bool ownLocalStorage;
-//      bool isDone; 
-//      bool remoteDealloc; 
-//      bool isLocal;
-//
-//      RemoteMessage();
-//      ~RemoteMessage();
-//
-//
-//      int Sender();
-//      bool Wait();
-//      virtual bool IsDone();
-//      bool IsLocal();
-//      bool IsAsync();
-//
-//      upcxx::global_ptr<char> GetRemotePtr();
-//      char * GetLocalPtr();
-//
-//      void SetLocalPtr(char * ptr,bool ownStorage = true);
-//      virtual size_t Size(){return msg_size;}
-//      void AsyncGet();
-//
-//      bool AllocLocal();
-//      void DeallocRemote();
-//      void DeallocLocal();
-//  };
-//
-//
-//}
 
 #ifdef NO_INTRA_PROFILE
 #if defined (SPROFILE)

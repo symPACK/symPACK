@@ -251,7 +251,10 @@ namespace symPACK{
 
           bool success = false;
 //          try{
+        {
+          scope_timer(a,MSG_WAIT_ONLY);
             success = msg->Wait(); 
+        }
 //          }
 //          catch(const MemoryAllocationException & e){
 //            //put the message back in the blocking message queue
@@ -354,6 +357,9 @@ namespace symPACK{
 
   template <> 
     inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph){
+      maxWaitT = 0.0;
+      maxAWaitT = 0.0;
+
       int np = 1;
       MPI_Comm_size(workcomm,&np);
       int iam = 0;
@@ -609,6 +615,8 @@ for(auto && toto: delayedTasks_){
    logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
 #endif
 
+   logfileptr->OFS()<<"maxWaitT: "<<maxWaitT<<std::endl;
+   logfileptr->OFS()<<"maxAWaitT: "<<maxAWaitT<<std::endl;
 
         //workteam.barrier();
         //upcxx::async_wait();
