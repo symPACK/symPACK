@@ -3151,7 +3151,6 @@ namespace symPACK{
     //Resize the local supernodes array
     for(auto ptr : LocalSupernodes_){ delete ptr; }
     LocalSupernodes_.clear();
-
     globToLocSnodes_.clear();
     LocalSupernodes_.reserve(snodeCount);
 

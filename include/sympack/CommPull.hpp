@@ -47,6 +47,7 @@
 #include <list>
 #include <vector>
 #include <queue>
+#include <numeric>
 
 #include <upcxx.h>
 
