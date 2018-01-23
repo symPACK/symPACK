@@ -391,6 +391,7 @@ install(FILES
   include/sympack/CommTypes.hpp
   include/sympack/DistSparseMatrix.hpp
   include/sympack/symPACKMatrix.hpp
+  include/sympack/symPACKMatrix2D.hpp
   include/sympack/DistSparseMatrixGraph.hpp
   include/sympack/ETree.hpp
   include/sympack/Environment.hpp

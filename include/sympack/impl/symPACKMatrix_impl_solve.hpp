@@ -173,12 +173,12 @@ template< typename Task> inline void symPACKMatrix<T>::CheckIncomingMessages_Sol
 
 template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,  T * Xptr) {
   scope_timer(a,SPARSE_SOLVE_INTERNAL);
-  Int n = iSize_;
+  Int n = this->iSize_;
 
-  if(iam<np){
+  if(this->iam<this->np){
 
-    Int nsuper = TotalSupernodeCnt();
-    auto SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+    Int nsuper = this->TotalSupernodeCnt();
+    auto SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
 
     //compute children size
     std::vector<Int> rem_children(nsuper,0);
@@ -202,13 +202,13 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
     for(Int I=1;I<=nsuper;I++){
       Int iOwner = this->Mapping_->Map(I-1,I-1);
       //If I own the column, factor it
-      if( iOwner == iam ){
+      if( iOwner == this->iam ){
         //Create the blocks of my contrib with the same nz structure as L
         //and the same width as the final solution
         //MEMORY CONSUMPTION TOO HIGH ?
         Int iLocalI = snodeLocalIndex(I);
         SuperNode<T> * cur_snode = this->LocalSupernodes_[iLocalI-1];
-        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(options_.decomposition,I,cur_snode->FirstRow(),1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_));
+        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(this->options_.decomposition,I,cur_snode->FirstRow(),1,nrhs, cur_snode->NRowsBelowBlock(0) ,this->iSize_));
         auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[iLocalI-1]);
 
         for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
@@ -253,7 +253,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
       //Add the FUC task
       {
         Int iOwner = Mapping_->Map(I-1,I-1);
-        if(iam==iOwner){
+        if(this->iam==iOwner){
           CompTask FUCtask;
           FUCtask.meta.resize(2*sizeof(Int)+sizeof(Solve::op_type));
           Int * meta = reinterpret_cast<Int*>(FUCtask.meta.data());
@@ -271,7 +271,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
       //Add the BUC task
       {
         Int iOwner = Mapping_->Map(I-1,I-1);
-        if(iam==iOwner){
+        if(this->iam==iOwner){
           CompTask BUCtask;
           BUCtask.meta.resize(2*sizeof(Int)+sizeof(Solve::op_type));
           Int * meta = reinterpret_cast<Int*>(BUCtask.meta.data());
@@ -291,7 +291,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
         //Add the FU task
         {
           Int iOwner = Mapping_->Map(parent-1,parent-1);
-          if(iam==iOwner){
+          if(this->iam==iOwner){
 
             CompTask FUtask;
             FUtask.meta.resize(2*sizeof(Int)+sizeof(Solve::op_type));
@@ -302,7 +302,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
             type = Solve::op_type::FU;
 
             Int childOwner = this->Mapping_->Map(I-1,I-1);
-            if(childOwner==iam){
+            if(childOwner==this->iam){
               FUtask.local_deps = 1;
             }
             else{
@@ -315,7 +315,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
         //Add the BU task
         {
           Int iOwner = Mapping_->Map(I-1,I-1);
-          if(iam==iOwner){
+          if(this->iam==iOwner){
 
             CompTask BUtask;
             BUtask.meta.resize(2*sizeof(Int)+sizeof(Solve::op_type));
@@ -326,7 +326,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
             type = Solve::op_type::BU;
 
             Int parentOwner = this->Mapping_->Map(parent-1,parent-1);
-            if(parentOwner==iam){
+            if(parentOwner==this->iam){
               BUtask.local_deps = 1;
             }
             else{
@@ -415,7 +415,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
             Int parent = SupETree.PostParent(src-1);
             if(parent!=0){
               Int parentOwner = this->Mapping_->Map(parent-1,parent-1);
-              if(parentOwner!=iam){
+              if(parentOwner!=this->iam){
                 //Send to the parent
                 {
 
@@ -433,7 +433,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
                   char * last_byte_ptr = (char*)&pivot_desc + sizeof(NZBlockDesc);
                   size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
 
-        Int lparentOwner = group_->L2G(parentOwner);
+        Int lparentOwner = this->group_->L2G(parentOwner);
 #ifdef NEW_UPCXX
                               auto f = signal_data(sendPtr, msgSize, lparentOwner, meta);
                               //enqueue the future somewhere
@@ -465,7 +465,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
             contrib->back_update_contrib(cur_snode);
 
             //send to my children
-            std::vector<char> is_sent(np,false);
+            std::vector<char> is_sent(this->np,false);
             Int child_snode_id = src - 1;
             if(child_snode_id>0){
               Int children_found = 0;
@@ -473,7 +473,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
                 Int parent = SupETree.PostParent(child_snode_id-1);
                 if(parent==src){
                   Int iTarget = this->Mapping_->Map(child_snode_id-1,child_snode_id-1);
-                  if(iTarget!=iam){
+                  if(iTarget!=this->iam){
                     if(!is_sent[iTarget]){
 
                       Int src_nzblk_idx = 0;
@@ -490,7 +490,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
                       char * last_byte_ptr = (char*)&pivot_desc + sizeof(NZBlockDesc);
                       size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
 
-        Int liTarget = group_->L2G(iTarget);
+        Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
                               auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                               //enqueue the future somewhere
@@ -525,11 +525,11 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
             auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[tgt_local-1]);
 
             Int iOwner = this->Mapping_->Map(src-1,src-1);
-            if(iOwner==iam){
+            if(iOwner==this->iam){
               //local
               Int src_local = snodeLocalIndex(src); 
               auto dist_contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[src_local-1]);
-              contrib->forward_update(&*dist_contrib,iOwner,iam);
+              contrib->forward_update(&*dist_contrib,iOwner,this->iam);
             }
             else{
               //remote
@@ -537,9 +537,9 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
               auto msgPtr = *curTask.data.begin();
               assert(msgPtr->IsDone());
               char* dataPtr = msgPtr->GetLocalPtr().get();
-              auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
+              auto dist_contrib = CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size());
               dist_contrib->InitIdxToBlk();
-              contrib->forward_update(&*dist_contrib,iOwner,iam);
+              contrib->forward_update(&*dist_contrib,iOwner,this->iam);
               delete dist_contrib;
               //delete msgPtr;
             }
@@ -554,7 +554,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
             auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[tgt_local-1]);
 
             Int iOwner = this->Mapping_->Map(src-1,src-1);
-            if(iOwner==iam){
+            if(iOwner==this->iam){
               //local
               Int src_local = snodeLocalIndex(src); 
               auto dist_contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[src_local-1]);
@@ -566,7 +566,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
               auto msgPtr = *curTask.data.begin();
               assert(msgPtr->IsDone());
               char* dataPtr = msgPtr->GetLocalPtr().get();
-              auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
+              auto dist_contrib = CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size());
               dist_contrib->InitIdxToBlk();
               contrib->back_update(&*dist_contrib);
               delete dist_contrib;
@@ -580,7 +580,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
                 while(children_count>0 && child<parent){
                   if(SupETree.PostParent(child-1)==src){
                     Int iTarget = this->Mapping_->Map(child-1,child-1);
-                    if(iTarget==iam){
+                    if(iTarget==this->iam){
                       children_count--;
                       auto taskit = taskGraph.find_task(src,child,Solve::op_type::BU);
                       if(taskit!=taskGraph.taskLists_[child-1]->end()){
@@ -629,12 +629,12 @@ abort();
 
 template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs,  T * Xptr) {
   scope_timer(a,SPARSE_SOLVE_INTERNAL);
-  Int n = iSize_;
+  Int n = this->iSize_;
 
-  if(iam<np){
+  if(this->iam<this->np){
 
-    Int nsuper = TotalSupernodeCnt();
-    auto SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+    Int nsuper = this->TotalSupernodeCnt();
+    auto SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
 
     double timeSta = get_time();
     //compute children size
@@ -657,7 +657,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
       }
     }
     double timeStop = get_time();
-        if(iam==0 && options_.verbose){
+        if(this->iam==0 && this->options_.verbose){
           std::cout<<"Solve getting children count time: "<<timeStop - timeSta<<std::endl;
         }
 
@@ -677,7 +677,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
         //and the same width as the final solution
         //MEMORY CONSUMPTION TOO HIGH ?
         timeAlloc -= get_time();
-        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(options_.decomposition,I,0/*cur_snode->FirstRow()*/,1,nrhs, cur_snode->NRowsBelowBlock(0) ,iSize_, cur_snode->NZBlockCnt() ));
+        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(this->options_.decomposition,I,0/*cur_snode->FirstRow()*/,1,nrhs, cur_snode->NRowsBelowBlock(0) ,this->iSize_, cur_snode->NZBlockCnt() ));
         auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[iLocalI-1]);
         timeAlloc += get_time();
 
@@ -711,7 +711,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
         }
     }
     timeStop = get_time();
-        if(iam==0 && options_.verbose){
+        if(this->iam==0 && this->options_.verbose){
           std::cout<<"Solve allocating contributions time / alloc / copy: "<<timeStop - timeSta<<" / "<<timeAlloc<<" / "<<timeCopy<<std::endl;
         }
   }
@@ -800,7 +800,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
       //Add the FUC task
       {
         Int iOwner = Mapping_->Map(I-1,I-1);
-        if(iam==iOwner){
+        if(this->iam==iOwner){
           for(Int task = 0; task < numSubTasks; task++){
             Int taskNrhs = (task==numSubTasks-1)?nrhs-(numSubTasks-1)*maxNrhsPerTask:maxNrhsPerTask;
             std::shared_ptr<GenericTask> pFUCtask(new SparseTask);
@@ -820,7 +820,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
             Int parent = SupETree.PostParent(I-1);
             if(parent!=0){
               Int parentOwner = this->Mapping_->Map(parent-1,parent-1);
-              if(parentOwner!=iam){
+              if(parentOwner!=this->iam){
                 if(numSubTasks>1 && task==numSubTasks-1){
                   FUCtask.local_deps += numSubTasks-1;
                 }
@@ -848,10 +848,10 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               for(auto && msgPtr : FUCtask.getData() ){
                   assert(msgPtr->IsDone());
                   char* dataPtr = msgPtr->GetLocalPtr().get();
-                  auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
+                  auto dist_contrib = CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size());
                   Int iOwner = this->Mapping_->Map(dist_contrib->Id()-1,dist_contrib->Id()-1);
                   dist_contrib->InitIdxToBlk();
-                  contrib->forward_update(&*dist_contrib,iOwner,iam,nrhsOffset,taskNrhs);
+                  contrib->forward_update(&*dist_contrib,iOwner,this->iam,nrhsOffset,taskNrhs);
                   delete dist_contrib;
 
                   if(task==0){
@@ -899,11 +899,11 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                   Int parent = SupETree.PostParent(child_snode_id-1);
                   if(parent==src){
                     Int iTarget = this->Mapping_->Map(child_snode_id-1,child_snode_id-1);
-                    if(iTarget==iam){
+                    if(iTarget==this->iam){
                       //do the local thing
                       Int src_local = snodeLocalIndex(child_snode_id); 
                       auto dist_contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[src_local-1]);
-                      contrib->forward_update(&*dist_contrib,iTarget,iam,nrhsOffset,taskNrhs);
+                      contrib->forward_update(&*dist_contrib,iTarget,this->iam,nrhsOffset,taskNrhs);
                     }
                     children_found++;
                   }
@@ -922,7 +922,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               Int parent = SupETree.PostParent(src-1);
               if(parent!=0){
                 Int parentOwner = this->Mapping_->Map(parent-1,parent-1);
-                if(parentOwner!=iam){
+                if(parentOwner!=this->iam){
                   if(task==numSubTasks-1){
                     //Send to the parent if all subtasks are done // TODO
                     {
@@ -945,7 +945,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                       size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
 
                       {
-        Int lparentOwner = group_->L2G(parentOwner);
+        Int lparentOwner = this->group_->L2G(parentOwner);
 #ifdef NEW_UPCXX
                               auto f = signal_data(sendPtr, msgSize, lparentOwner, meta);
                               //enqueue the future somewhere
@@ -1014,7 +1014,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 //              Int parent = SupETree.PostParent(src-1);
 //              if(parent!=0){
 //                Int parentOwner = this->Mapping_->Map(parent-1,parent-1);
-//                if(parentOwner!=iam){
+//                if(parentOwner!=this->iam){
 //                  if(task==numSubTasks-1){
 //                    //Send to the parent if all subtasks are done // TODO
 //                    {
@@ -1092,7 +1092,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
       //Add the BUC task
       {
         Int iOwner = Mapping_->Map(I-1,I-1);
-        if(iam==iOwner){
+        if(this->iam==iOwner){
           for(Int task = 0; task < numSubTasks; task++){
             Int taskNrhs = (task==numSubTasks-1)?nrhs-(numSubTasks-1)*maxNrhsPerTask:maxNrhsPerTask;
             std::shared_ptr<GenericTask> pBUCtask(new SparseTask);
@@ -1131,7 +1131,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               contrib->back_update_contrib(cur_snode,nrhsOffset,taskNrhs);
 
               //send to my children
-              std::vector<char> is_sent(np,false);
+              std::vector<char> is_sent(this->np,false);
               Int child_snode_id = src - 1;
               if(child_snode_id>0){
                 Int children_found = 0;
@@ -1139,7 +1139,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                   Int parent = SupETree.PostParent(child_snode_id-1);
                   if(parent==src){
                     Int iTarget = this->Mapping_->Map(child_snode_id-1,child_snode_id-1);
-                    if(iTarget!=iam){
+                    if(iTarget!=this->iam){
                       if(task == numSubTasks-1){
                         if(!is_sent[iTarget]){
 
@@ -1163,7 +1163,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
                           //log_msg(src,child_snode_id,Solve::op_type::BU);
                           {
-        Int liTarget = group_->L2G(iTarget);
+        Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
                               auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                               //enqueue the future somewhere
@@ -1219,7 +1219,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
         //Add the FU task
         {
           Int iOwner = Mapping_->Map(parent-1,parent-1);
-          if(iam==iOwner){
+          if(this->iam==iOwner){
             for(Int task = 0; task < numSubTasks; task++){
               Int taskNrhs = (task==numSubTasks-1)?nrhs-(numSubTasks-1)*maxNrhsPerTask:maxNrhsPerTask;
               std::shared_ptr<GenericTask> pFUtask(new SparseTask);
@@ -1234,7 +1234,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               type = Solve::op_type::FU;
 
               Int childOwner = this->Mapping_->Map(I-1,I-1);
-              if(childOwner==iam){
+              if(childOwner==this->iam){
                 FUtask.local_deps = 1;
               }
               else{
@@ -1258,11 +1258,11 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                 auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[tgt_local-1]);
 
                 Int iOwner = this->Mapping_->Map(src-1,src-1);
-                if(iOwner==iam){
+                if(iOwner==this->iam){
                   //local
                   Int src_local = snodeLocalIndex(src); 
                   auto dist_contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[src_local-1]);
-                  contrib->forward_update(&*dist_contrib,iOwner,iam,nrhsOffset,taskNrhs);
+                  contrib->forward_update(&*dist_contrib,iOwner,this->iam,nrhsOffset,taskNrhs);
                 }
                 else{
                   //remote
@@ -1275,9 +1275,9 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
                   assert(msgPtr->IsDone());
                   char* dataPtr = msgPtr->GetLocalPtr();
-                  auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
+                  auto dist_contrib = CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size());
                   dist_contrib->InitIdxToBlk();
-                  contrib->forward_update(&*dist_contrib,iOwner,iam,nrhsOffset,taskNrhs);
+                  contrib->forward_update(&*dist_contrib,iOwner,this->iam,nrhsOffset,taskNrhs);
                   delete dist_contrib;
 
                   if(task==0){
@@ -1337,7 +1337,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
         //Add the BU task
         {
           Int iOwner = Mapping_->Map(I-1,I-1);
-          if(iam==iOwner){
+          if(this->iam==iOwner){
             for(Int task = 0; task < numSubTasks; task++){
               Int taskNrhs = (task==numSubTasks-1)?nrhs-(numSubTasks-1)*maxNrhsPerTask:maxNrhsPerTask;
               std::shared_ptr<GenericTask> pBUtask(new SparseTask);
@@ -1352,7 +1352,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               type = Solve::op_type::BU;
 
               Int parentOwner = this->Mapping_->Map(parent-1,parent-1);
-              if(parentOwner==iam){
+              if(parentOwner==this->iam){
                 BUtask.local_deps = 1;
               }
               else{
@@ -1376,7 +1376,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                 auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[tgt_local-1]);
 
                 Int iOwner = this->Mapping_->Map(src-1,src-1);
-                if(iOwner==iam){
+                if(iOwner==this->iam){
                   //local
                   Int src_local = snodeLocalIndex(src); 
                   auto dist_contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[src_local-1]);
@@ -1388,7 +1388,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                   auto msgPtr = *BUtask.getData().begin();
                   assert(msgPtr->IsDone());
                   char* dataPtr = msgPtr->GetLocalPtr().get();
-                  auto dist_contrib = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
+                  auto dist_contrib = CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size());
                   dist_contrib->InitIdxToBlk();
                   contrib->back_update(&*dist_contrib,nrhsOffset,taskNrhs);
                   delete dist_contrib;
@@ -1425,7 +1425,7 @@ abort();
                       while(children_count>0 && child>0){
                         if(SupETree.PostParent(child-1)==src){
                           Int iTarget = this->Mapping_->Map(child-1,child-1);
-                          if(iTarget==iam){
+                          if(iTarget==this->iam){
                             children_count--;
 
                             std::stringstream sstr;
@@ -1496,15 +1496,15 @@ logfileptr->OFS()<<"WARNING: this is suboptimal and should use the new ChainedMe
     }
 
     timeStop = get_time();
-        if(iam==0 && options_.verbose){
+        if(this->iam==0 && this->options_.verbose){
           std::cout<<"Solve task graph generation time: "<<timeStop - timeSta<<std::endl;
         }
     
 
     timeSta = get_time();
-    scheduler_new_->run(CommEnv_->MPI_GetComm(),*group_,graph);
+    scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph);
     timeStop = get_time();
-        if(iam==0 && options_.verbose){
+        if(this->iam==0 && this->options_.verbose){
           std::cout<<"Solve task graph execution time: "<<timeStop - timeSta<<std::endl;
         }
 

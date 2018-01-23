@@ -120,9 +120,40 @@ namespace symPACK{
 
 
 
+  template <typename T> class symPACKMatrixMeta: public symPACKMatrixBase{
+    public:
+      //Accessors
+      Int Size(){return iSize_;}
+      const ETree & GetETree(){return ETree_;}
+      const Ordering & GetOrdering(){return Order_;}
+      symPACKOptions GetOptions(){ return options_;}
+      std::vector<Int> & GetSupernodalPartition(){ return Xsuper_;}
+      const std::vector<Int> & GetSupMembership(){return SupMembership_;}
+
+      Idx TotalSupernodeCnt() { return Xsuper_.empty()?0:Xsuper_.size()-1;}
+    protected:
+      //MPI/UPCXX ranks and sizes
+      int iam, np,all_np;
+      std::shared_ptr<RankGroup> group_;
+
+      symPACKOptions options_;
+
+      //Order of the matrix
+      Int iSize_;
+      //Column-based elimination tree
+      ETree ETree_;
+      //Column permutation
+      Ordering Order_;
+
+      //Supernodal partition array: supernode I ranges from column Xsuper_[I-1] to Xsuper_[I]-1
+      std::vector<Int> Xsuper_;
+      std::vector<Int> XsuperDist_;
+      //Supernode membership array: column i belongs to supernode SupMembership_[i-1]
+      std::vector<Int> SupMembership_;
+  };
 
 
-  template <typename T> class symPACKMatrix: public symPACKMatrixBase{
+  template <typename T> class symPACKMatrix: public symPACKMatrixMeta<T>{
     public:
 
       //Constructors
@@ -145,14 +176,8 @@ namespace symPACK{
       void DistributeMatrix(DistSparseMatrix<T> & pMat);
 
       //Accessors
-      Int Size(){return iSize_;}
       Int LocalSupernodeCnt(){ return LocalSupernodes_.size(); } 
-      std::vector<Int> & GetSupernodalPartition(){ return Xsuper_;}
-      const ETree & GetETree(){return ETree_;}
-      const Ordering & GetOrdering(){return Order_;}
       const Mapping * GetMapping(){return Mapping_;}
-      symPACKOptions GetOptions(){ return options_;}
-      const std::vector<Int> & GetSupMembership(){return SupMembership_;}
       std::vector<SuperNode<T> *  > & GetLocalSupernodes(){ return LocalSupernodes_; }
       //TODO Check if that's useful
       SuperNode<T> & GetLocalSupernode(Int i){ return *LocalSupernodes_[i]; } 
@@ -175,7 +200,6 @@ namespace symPACK{
       void Dump();
       void DumpContrib();
 
-      Idx TotalSupernodeCnt() { return Xsuper_.empty()?0:Xsuper_.size()-1;}
 
 
 
@@ -208,11 +232,6 @@ namespace symPACK{
 
 
     protected:
-      //MPI/UPCXX ranks and sizes
-      int iam, np,all_np;
-      std::shared_ptr<RankGroup> group_;
-
-      symPACKOptions options_;
       CommEnvironment * CommEnv_;
       //upcxx::team * team_;
 
@@ -220,12 +239,6 @@ namespace symPACK{
       MPI_Comm non_workcomm_;
       MPI_Comm fullcomm_;
 
-      //Order of the matrix
-      Int iSize_;
-      //Column-based elimination tree
-      ETree ETree_;
-      //Column permutation
-      Ordering Order_;
       //MAPCLASS describing the Mapping of the computations
       Mapping * Mapping_;
       LoadBalancer * Balancer_;
@@ -245,11 +258,6 @@ namespace symPACK{
 
       BackupBuffer backupBuffer_;
 
-      //Supernodal partition array: supernode I ranges from column Xsuper_[I-1] to Xsuper_[I]-1
-      std::vector<Int> Xsuper_;
-      std::vector<Int> XsuperDist_;
-      //Supernode membership array: column i belongs to supernode SupMembership_[i-1]
-      std::vector<Int> SupMembership_;
 
       //TODO Task lists
       Scheduler<std::list<FBTask>::iterator> * scheduler_;

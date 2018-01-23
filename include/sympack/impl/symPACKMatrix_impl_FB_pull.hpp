@@ -50,7 +50,7 @@ template <typename T> inline void symPACKMatrix<T>::dfs_traversal(std::vector<st
     Int I = *it;
 
     Int iOwner = Mapping_->Map(I-1,I-1);
-    if(iOwner == iam){
+    if(iOwner == this->iam){
       frontier.push_back(I);
     }
     else{
@@ -80,8 +80,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
   Int maxheight = 0;
   Int maxwidth = 0;
-  for(Int i = 1; i<Xsuper_.size(); ++i){
-    Int width =Xsuper_[i] - Xsuper_[i-1];
+  for(Int i = 1; i<this->Xsuper_.size(); ++i){
+    Int width =this->Xsuper_[i] - this->Xsuper_[i-1];
     if(width>=maxwidth){
       maxwidth = width;
     }
@@ -92,7 +92,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
   //maxwidth for indefinite matrices
   tmpBufs.Resize(maxwidth + maxheight,maxwidth);
-  std::vector< SuperNode<T>* > aggVectors(Xsuper_.size()-1,NULL);
+  std::vector< SuperNode<T>* > aggVectors(this->Xsuper_.size()-1,NULL);
 
   timeSta =  get_time( );
   SYMPACK_TIMER_START(BUILD_TASK_LIST);
@@ -138,13 +138,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
         int tgt = meta[1];
         SuperNode<T> * tgt_aggreg = nullptr;
         Int iTarget = this->Mapping_->Map(tgt-1,tgt-1);
-        if(iTarget == iam){
+        if(iTarget == this->iam){
           tgt_aggreg = snodeLocal(tgt);
         }
         else{
           tgt_aggreg = aggVectors[tgt-1];
           if(tgt_aggreg == nullptr){
-            aggVectors[tgt-1] = CreateSuperNode(options_.decomposition);
+            aggVectors[tgt-1] = CreateSuperNode(this->options_.decomposition);
             tgt_aggreg = aggVectors[tgt-1];
           }
         }
@@ -227,10 +227,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
   };
 
 #ifdef FANIN_OPTIMIZATION
-  if(options_.mappingTypeStr ==  "COL2D")
+  if(this->options_.mappingTypeStr ==  "COL2D")
   {
     scope_timer(a,BUILD_SUPETREE);
-    ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+    ETree SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
     chSupTree_.resize(SupETree.Size()+1);
     for(Int I = 1; I<=SupETree.Size(); I++){
       Int parent = SupETree.PostParent(I-1);
@@ -247,7 +247,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
       Int iOwner = Mapping_->Map(msg->meta.tgt-1,msg->meta.tgt-1);
       Int iUpdater = Mapping_->Map(msg->meta.tgt-1,msg->meta.src-1);
       //this is an aggregate
-      if(iOwner==iam && iUpdater!=iam){
+      if(iOwner==this->iam && iUpdater!=this->iam){
 #ifdef _DEBUG_PROGRESS_
         logfileptr->OFS()<<"COMM: FETCHED AGGREG MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<iUpdater<<std::endl;
 #endif
@@ -306,7 +306,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
               }
               char* dataPtr = msgPtr->GetLocalPtr().get();
 
-              auto dist_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
+              auto dist_src_snode = CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size());
 
               dist_src_snode->InitIdxToBlk();
 
@@ -394,16 +394,16 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
               //Sending factors and update local tasks
               //Send my factor to my ancestors. 
-              std::vector<char> is_factor_sent(np);
+              std::vector<char> is_factor_sent(this->np);
               SetValue(is_factor_sent,false);
 
               SnodeUpdate curUpdate;
               SYMPACK_TIMER_START(FIND_UPDATED_ANCESTORS);
               SYMPACK_TIMER_START(FIND_UPDATED_ANCESTORS_FACTORIZATION);
-              while(src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
+              while(src_snode->FindNextUpdate(curUpdate,this->Xsuper_,this->SupMembership_)){ 
                 Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode->Id()-1);
 
-                if(iTarget != iam){
+                if(iTarget != this->iam){
                   if(!is_factor_sent[iTarget]){
                     MsgMetadata meta;
 
@@ -436,7 +436,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifndef NDEBUG
                       //logfileptr->OFS()<<"Signaling FACTOR "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
-                      Int liTarget = group_->L2G(iTarget);
+                      Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
                       auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                       //enqueue the future somewhere
@@ -530,7 +530,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                   char* dataPtr = msgPtr->GetLocalPtr().get();
                   {
                     scope_timer(c,FB_UPD_UNPACK_MSG_CREATE);
-                    shptr_cur_src_snode.reset(CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex));
+                    shptr_cur_src_snode.reset(CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex));
                     cur_src_snode = shptr_cur_src_snode.get();
                   }
                   {
@@ -544,7 +544,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                   //Update everything owned locally src_snode_id updates with that factor
                   SYMPACK_TIMER_START(UPDATE_ANCESTORS);
                   SnodeUpdate curUpdate;
-                  while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+                  while(cur_src_snode->FindNextUpdate(curUpdate,this->Xsuper_,this->SupMembership_,this->iam==iSrcOwner)){
 
                     //skip if this update is "lower"
                     if(curUpdate.tgt_snode_id<tgt){
@@ -552,10 +552,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     }
                     else{
                       Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.src_snode_id-1);
-                      if(iUpdater==iam){
+                      if(iUpdater==this->iam){
                         SuperNode<T> * tgt_aggreg;
                         Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
-                        if(iTarget == iam){
+                        if(iTarget == this->iam){
                           //the aggregate std::vector is directly the target snode
                           scope_timer(a,UPD_ANC_Agg_local);
                           tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
@@ -579,13 +579,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                             //TODO do a customized version for FANIN as we have all the factors locally
                             // the idea is the following: do a DFS and stop each exploration at the first local descendant of current node
 #ifdef FANIN_OPTIMIZION
-                            if(options_.mappingTypeStr ==  "COL2D")
+                            if(this->options_.mappingTypeStr ==  "COL2D")
                             {
                               std::set<Idx> structure;
                               std::list<Int> frontier;
                               {
                                 scope_timer(a,MERGE_STRUCTURE_FANIN);
-                                Idx tgt_fc = Xsuper_[curUpdate.tgt_snode_id-1];
+                                Idx tgt_fc = this->Xsuper_[curUpdate.tgt_snode_id-1];
                                 dfs_traversal(chSupTree_,curUpdate.tgt_snode_id,frontier);
                                 //process frontier in decreasing order of nodes and merge their structure
                                 for(auto it = frontier.rbegin(); it!=frontier.rend(); it++){
@@ -603,12 +603,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                   }
                                 }
                               }
-                              //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                              //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
 
                               if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
-                                aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
+                                aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition);
                               }
-                              aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                              aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
                             } 
                             else
 #endif
@@ -664,13 +664,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                 }
                                 UpcxxAllocator::deallocate((char*)buffer);
                               }
-                              //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                              //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
 #endif
                               if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
-                                aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
+                                aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition);
                               }
-                              aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
-                              //                                aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_);
+                              aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
+                              //                                aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_);
 
                             }
                             SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
@@ -692,11 +692,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           //scheduler_new_->list_mutex_.lock();
                           auto & tmpBuf = tmpBufs_th[tid];
                           //scheduler_new_->list_mutex_.unlock();
-                          tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,iam);
+                          tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,this->iam);
                         }
                         else
 #endif
-                          tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
+                          tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
 
                         SYMPACK_TIMER_STOP(UPD_ANC_UPD);
 
@@ -718,7 +718,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
                         SYMPACK_TIMER_START(UPD_ANC_Agg_Send);
                         if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
-                          if(iTarget != iam){
+                          if(iTarget != this->iam){
 #ifdef _DEBUG_
                             logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
 #endif
@@ -751,7 +751,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifndef NDEBUG
                             //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
-                            Int liTarget = group_->L2G(iTarget);
+                            Int liTarget = this->group_->L2G(iTarget);
 
 #ifdef NEW_UPCXX
                             auto f = signal_data(sendPtr, msgSize, liTarget, meta);
@@ -765,7 +765,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                         SYMPACK_TIMER_STOP(UPD_ANC_Agg_Send);
 
                         SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
-                        if(iTarget == iam)
+                        if(iTarget == this->iam)
                         {
 
                           char buf[100];
@@ -783,7 +783,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                         SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
 
                         //if local update, push a new task in the queue and stop the while loop
-                        if(iam==iSrcOwner ){
+                        if(this->iam==iSrcOwner ){
                           break;
                         }
 
@@ -857,7 +857,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       char* dataPtr = msgPtr->GetLocalPtr().get();
                       {
                         scope_timer(c,FB_UPD_UNPACK_MSG_CREATE);
-                        shptr_cur_src_snode.reset(CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex));
+                        shptr_cur_src_snode.reset(CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex));
                         cur_src_snode = shptr_cur_src_snode.get();
                       }
                       {
@@ -873,7 +873,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
                         {
                           //std::lock_guard<std::mutex> lock(factorinuse_mutex_);
-                          while(cur_src_snode->FindNextUpdate(localUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+                          while(cur_src_snode->FindNextUpdate(localUpdate,this->Xsuper_,this->SupMembership_,this->iam==iSrcOwner)){
 
                             //skip if this update is "lower"
                             if(localUpdate.tgt_snode_id<tgt){
@@ -881,7 +881,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                             }
                             else{
                               Int iUpdater = this->Mapping_->Map(localUpdate.tgt_snode_id-1,localUpdate.src_snode_id-1);
-                              if(iUpdater==iam){
+                              if(iUpdater==this->iam){
                                 if(localUpdate.tgt_snode_id==tgt){
                                   curUpdate = localUpdate;
                                   found = true;
@@ -926,7 +926,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
                     SYMPACK_TIMER_START(UPDATE_ANCESTORS);
                     if(!found){
-                      while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+                      while(cur_src_snode->FindNextUpdate(curUpdate,this->Xsuper_,this->SupMembership_,this->iam==iSrcOwner)){
 
                         //skip if this update is "lower"
                         if(curUpdate.tgt_snode_id<tgt){
@@ -934,7 +934,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                         }
                         else{
                           Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.src_snode_id-1);
-                          if(iUpdater==iam){
+                          if(iUpdater==this->iam){
                             if(curUpdate.tgt_snode_id==tgt){
                               found = true;
                               break;
@@ -950,7 +950,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
                     bassert(found);
                     Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
-                    bassert(iUpdater == iam);
+                    bassert(iUpdater == this->iam);
 
 #ifdef _DEBUG_PROGRESS_
                     logfileptr->OFS()<<"implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
@@ -960,7 +960,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
                     SuperNode<T> * tgt_aggreg;
                     Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
-                    if(iTarget == iam){
+                    if(iTarget == this->iam){
                       //the aggregate std::vector is directly the target snode
                       SYMPACK_TIMER_START(UPD_ANC_Agg_local);
                       tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
@@ -985,13 +985,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                         //TODO do a customized version for FANIN as we have all the factors locally
                         // the idea is the following: do a DFS and stop each exploration at the first local descendant of current node
 #ifdef FANIN_OPTIMIZATION
-                        if(options_.mappingTypeStr ==  "COL2D")
+                        if(this->options_.mappingTypeStr ==  "COL2D")
                         {
                           std::set<Idx> structure;
                           std::list<Int> frontier;
                           {
                             scope_timer(a,MERGE_STRUCTURE_FANIN);
-                            Idx tgt_fc = Xsuper_[curUpdate.tgt_snode_id-1];
+                            Idx tgt_fc = this->Xsuper_[curUpdate.tgt_snode_id-1];
                             dfs_traversal(chSupTree_,curUpdate.tgt_snode_id,frontier);
                             //process frontier in decreasing order of nodes and merge their structure
                             for(auto it = frontier.rbegin(); it!=frontier.rend(); it++){
@@ -1011,10 +1011,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           }
 
                           if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
-                            aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
+                            aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition);
                           }
-                          aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id,Xsuper_[curUpdate.tgt_snode_id-1],
-                              Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                          aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id,this->Xsuper_[curUpdate.tgt_snode_id-1],
+                              this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
                         } 
                         else
 #endif
@@ -1074,10 +1074,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                             UpcxxAllocator::deallocate((char*)buffer);
                           }
                           if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
-                            aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition);
+                            aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition);
                           }
-                          aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1],
-                              Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+                          aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1],
+                              this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
 
                         }
                         SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
@@ -1099,11 +1099,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       //scheduler_new_->list_mutex_.lock();
                       auto & tmpBuf = tmpBufs_th[tid];
                       //scheduler_new_->list_mutex_.unlock();
-                      tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,iam);
+                      tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,this->iam);
                     }
                     else
 #endif
-                      tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
+                      tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
 
                     SYMPACK_TIMER_STOP(UPD_ANC_UPD);
 
@@ -1128,7 +1128,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     //If this is my last update sent it to curUpdate.tgt_snode_id
                     SYMPACK_TIMER_START(UPD_ANC_Agg_Send);
                     if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
-                      if(iTarget != iam){
+                      if(iTarget != this->iam){
 #ifdef _DEBUG_
                         logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
 #endif
@@ -1160,7 +1160,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifndef NDEBUG
                           //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
-                          Int liTarget = group_->L2G(iTarget);
+                          Int liTarget = this->group_->L2G(iTarget);
 
 #ifdef NEW_UPCXX
                           auto f = signal_data(sendPtr, msgSize, liTarget, meta);
@@ -1175,7 +1175,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     SYMPACK_TIMER_STOP(UPD_ANC_Agg_Send);
 
                     SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
-                    if(iTarget == iam)
+                    if(iTarget == this->iam)
                     {
                       //std::stringstream sstr;
                       //sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
@@ -1223,13 +1223,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
 
 
-  if(iam==0 && options_.verbose){
+  if(this->iam==0 && this->options_.verbose){
     std::cout<<"TaskGraph size is: "<<graph.tasks_.size()<<std::endl;
   }
   timeSta = get_time();
-  scheduler_new_->run(CommEnv_->MPI_GetComm(),*group_,graph);
+  scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph);
   double timeStop = get_time();
-  if(iam==0 && options_.verbose){
+  if(this->iam==0 && this->options_.verbose){
     std::cout<<"Factorization task graph execution time: "<<timeStop - timeSta<<std::endl;
   }
 
@@ -1243,8 +1243,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
   //  }
   //  gFutures.clear();
   //#else
-  //        int barrier_id = get_barrier_id(np);
-  //        signal_exit(barrier_id,np); 
+  //        int barrier_id = get_barrier_id(this->np);
+  //        signal_exit(barrier_id,this->np); 
   //        barrier_wait(barrier_id);
   //#endif
 
@@ -1268,8 +1268,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
   double timeSta, timeEnd;
 
 
-  //  Int iam = CommEnv_->MPI_Rank();
-  //  Int np  = CommEnv_->MPI_Size();
+  //  Int this->iam = CommEnv_->MPI_Rank();
+  //  Int this->np  = CommEnv_->MPI_Size();
 
   std::vector<Int> UpdatesToDo = UpdatesToDo_;
 
@@ -1280,8 +1280,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
 
   Int maxheight = 0;
   Int maxwidth = 0;
-  for(Int i = 1; i<Xsuper_.size(); ++i){
-    Int width =Xsuper_[i] - Xsuper_[i-1];
+  for(Int i = 1; i<this->Xsuper_.size(); ++i){
+    Int width =this->Xsuper_[i] - this->Xsuper_[i-1];
     if(width>=maxwidth){
       maxwidth = width;
     }
@@ -1291,9 +1291,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
   }
 
   //maxwidth for indefinite matrices
-  tmpBufs.Resize(maxwidth + maxheight/*Size()*/,maxwidth);
+  tmpBufs.Resize(maxwidth + maxheight/*this->Size()*/,maxwidth);
 
-  std::vector< SuperNode<T> * > aggVectors(Xsuper_.size()-1,NULL);
+  std::vector< SuperNode<T> * > aggVectors(this->Xsuper_.size()-1,NULL);
 
 
   timeSta =  get_time( );
@@ -1331,10 +1331,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
 
 
 #ifdef FANIN_OPTIMIZATION
-  if(options_.mappingTypeStr ==  "COL2D")
+  if(this->options_.mappingTypeStr ==  "COL2D")
   {
     scope_timer(a,BUILD_SUPETREE);
-    ETree SupETree = ETree_.ToSupernodalETree(Xsuper_,SupMembership_,Order_);
+    ETree SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
     //logfileptr->OFS()<<"SupETree:"<<SupETree<<std::endl;
     chSupTree_.resize(SupETree.Size()+1);
     for(Int I = 1; I<=SupETree.Size(); I++){
@@ -1424,8 +1424,8 @@ defaut:
 
 
   tstart = get_time();
-  int barrier_id = get_barrier_id(np);
-  signal_exit(barrier_id,*group_); 
+  int barrier_id = get_barrier_id(this->np);
+  signal_exit(barrier_id,*this->group_); 
   tstop = get_time();
   logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
 
@@ -1435,8 +1435,8 @@ defaut:
   logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
 #else
   double tstart = get_time();
-  int barrier_id = get_barrier_id(np);
-  signal_exit(barrier_id,np); 
+  int barrier_id = get_barrier_id(this->np);
+  signal_exit(barrier_id,this->np); 
   double tstop = get_time();
   logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
   tstart = get_time();
@@ -1460,35 +1460,35 @@ defaut:
 template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv,std::vector<Int> & LocalAggregates)
 {
   SYMPACK_TIMER_START(FB_GET_UPDATE_COUNT);
-  UpdatesToDo.resize(Xsuper_.size(),I_ZERO);
-  AggregatesToRecv.resize(Xsuper_.size(),I_ZERO);
-  LocalAggregates.resize(Xsuper_.size(),I_ZERO);
-  std::vector<Int> marker(Xsuper_.size(),I_ZERO);
+  UpdatesToDo.resize(this->Xsuper_.size(),I_ZERO);
+  AggregatesToRecv.resize(this->Xsuper_.size(),I_ZERO);
+  LocalAggregates.resize(this->Xsuper_.size(),I_ZERO);
+  std::vector<Int> marker(this->Xsuper_.size(),I_ZERO);
 
   //map of map of pairs (supno, count)
   std::map<Idx, std::map<Idx, Idx>  > Updates;
   std::map<Idx, std::map<Idx, Idx>  > sendAfter;
 
-  //  std::vector<bool>isSent(Xsuper_.size()*np,false);
-  //Int numLocSnode = ( (Xsuper_.size()-1) / np);
-  //Int firstSnode = iam*numLocSnode + 1;
+  //  std::vector<bool>isSent(this->Xsuper_.size()*this->np,false);
+  //Int numLocSnode = ( (this->Xsuper_.size()-1) / this->np);
+  //Int firstSnode = this->iam*numLocSnode + 1;
 
-  Int numLocSnode = XsuperDist_[iam+1]-XsuperDist_[iam];
-  Int firstSnode = XsuperDist_[iam];
+  Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
+  Int firstSnode = this->XsuperDist_[this->iam];
   Int lastSnode = firstSnode + numLocSnode-1;
 
   for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
     Idx s = locsupno + firstSnode-1;
 
-    Int first_col = Xsuper_[s-1];
-    Int last_col = Xsuper_[s]-1;
+    Int first_col = this->Xsuper_[s-1];
+    Int last_col = this->Xsuper_[s]-1;
 
     Ptr lfi = locXlindx_[locsupno-1];
     Ptr lli = locXlindx_[locsupno]-1;
     Idx prevSnode = -1;
     for(Ptr sidx = lfi; sidx<=lli;sidx++){
       Idx row = locLindx_[sidx-1];
-      Int supno = SupMembership_[row-1];
+      Int supno = this->SupMembership_[row-1];
       if(supno!=prevSnode){
         //Idx supno = locSupLindx_[sidx-1];
         if(marker[supno-1]!=s && supno!=s){
@@ -1508,9 +1508,9 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
             if(it==procSendAfter.end()){
               procSendAfter[supno]=s;
             }
-            //            if(!isSent[(supno-1)*np+iUpdater]){
+            //            if(!isSent[(supno-1)*this->np+iUpdater]){
             //              AggregatesToRecv[supno-1]++;
-            //              isSent[(supno-1)*np+iUpdater]=true;
+            //              isSent[(supno-1)*this->np+iUpdater]=true;
             //            }
           }
 
@@ -1546,7 +1546,7 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
     MPI_Type_commit(&type);
 
     //compute send sizes
-    vector<int> ssizes(np,0);
+    vector<int> ssizes(this->np,0);
     int numPairs = 0;
     for(auto itp = Updates.begin();itp!=Updates.end();itp++){
       ssizes[itp->first] = itp->second.size();
@@ -1554,7 +1554,7 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
     }
 
     //compute send displacements
-    vector<int> sdispls(np+1,0);
+    vector<int> sdispls(this->np+1,0);
     sdispls[0] = 0;
     std::partial_sum(&ssizes.front(),&ssizes.back(),&sdispls[1]);
 
@@ -1574,14 +1574,14 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
     //logfileptr->OFS()<<std::endl;
 
     //gather receive sizes
-    vector<int> rsizes(np,0);
+    vector<int> rsizes(this->np,0);
     MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,CommEnv_->MPI_GetComm());
-    //for(int p = 0; p<np;p++){
+    //for(int p = 0; p<this->np;p++){
     //  MPI_Gather(&ssizes[p],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,p,CommEnv_->MPI_GetComm());
     //}
 
     //compute receive displacements
-    vector<int> rdispls(np+1,0);
+    vector<int> rdispls(this->np+1,0);
     rdispls[0] = 0;
     std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
 
@@ -1629,7 +1629,7 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
     MPI_Type_contiguous( sizeof(std::pair<Idx,Idx>), MPI_BYTE, &type );
     MPI_Type_commit(&type);
     //compute send sizes
-    vector<int> ssizes(np,0);
+    vector<int> ssizes(this->np,0);
     int numPairs = 0;
     for(auto itp = sendAfter.begin();itp!=sendAfter.end();itp++){
       ssizes[itp->first] = itp->second.size();
@@ -1637,7 +1637,7 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
     }
 
     //compute send displacements
-    vector<int> sdispls(np+1,0);
+    vector<int> sdispls(this->np+1,0);
     sdispls[0] = 0;
     std::partial_sum(&ssizes.front(),&ssizes.back(),&sdispls[1]);
 
@@ -1657,14 +1657,14 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
     //logfileptr->OFS()<<std::endl;
 
     //gather receive sizes
-    vector<int> rsizes(np,0);
+    vector<int> rsizes(this->np,0);
     MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,CommEnv_->MPI_GetComm());
-    //for(int p = 0; p<np;p++){
+    //for(int p = 0; p<this->np;p++){
     //  MPI_Gather(&ssizes[p],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,p,CommEnv_->MPI_GetComm());
     //}
 
     //compute receive displacements
-    vector<int> rdispls(np+1,0);
+    vector<int> rdispls(this->np+1,0);
     rdispls[0] = 0;
     std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
 
@@ -1709,7 +1709,7 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
 
     //rebuild a map structure
     sendAfter.clear();
-    for(int p=0;p<np;p++){
+    for(int p=0;p<this->np;p++){
       int start = rdispls[p];
       int end = rdispls[p+1];
 
@@ -1722,15 +1722,15 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
     for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
       Idx s = locsupno + firstSnode-1;
 
-      Int first_col = Xsuper_[s-1];
-      Int last_col = Xsuper_[s]-1;
+      Int first_col = this->Xsuper_[s-1];
+      Int last_col = this->Xsuper_[s]-1;
 
       Ptr lfi = locXlindx_[locsupno-1];
       Ptr lli = locXlindx_[locsupno]-1;
       Idx prevSnode  =-1;
       for(Ptr sidx = lfi; sidx<=lli;sidx++){
         Idx row = locLindx_[sidx-1];
-        Int supno = SupMembership_[row-1];
+        Int supno = this->SupMembership_[row-1];
         //Idx supno = locSupLindx_[sidx-1];
 
         if(supno!=prevSnode){
@@ -1798,7 +1798,7 @@ template <typename T> inline void symPACKMatrix<T>::FBAggregationTask(supernodal
     }
     char* dataPtr = msgPtr->GetLocalPtr().get();
 
-    SuperNode<T> * dist_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size());
+    SuperNode<T> * dist_src_snode = CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size());
 
     dist_src_snode->InitIdxToBlk();
 
@@ -1850,16 +1850,16 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
 
   //Sending factors and update local tasks
   //Send my factor to my ancestors. 
-  std::vector<char> is_factor_sent(np);
+  std::vector<char> is_factor_sent(this->np);
   SetValue(is_factor_sent,false);
 
   SnodeUpdate curUpdate;
   SYMPACK_TIMER_START(FIND_UPDATED_ANCESTORS);
   SYMPACK_TIMER_START(FIND_UPDATED_ANCESTORS_FACTORIZATION);
-  while(src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_)){ 
+  while(src_snode->FindNextUpdate(curUpdate,this->Xsuper_,this->SupMembership_)){ 
     Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode->Id()-1);
 
-    if(iTarget != iam){
+    if(iTarget != this->iam){
       if(!is_factor_sent[iTarget]){
         MsgMetadata meta;
 
@@ -1884,7 +1884,7 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
 #ifndef NDEBUG
         //logfileptr->OFS()<<"Signaling FACTOR "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
-        Int liTarget = group_->L2G(iTarget);
+        Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
         auto f = signal_data(sendPtr, msgSize, liTarget, meta);
         //enqueue the future somewhere
@@ -1938,7 +1938,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
 
 
   Int iSrcOwner = this->Mapping_->Map(abs(curTask.src_snode_id)-1,abs(curTask.src_snode_id)-1);
-  //if(iSrcOwner!=iam){gdb_lock();}
+  //if(iSrcOwner!=this->iam){gdb_lock();}
 
   {
     //AsyncComms::iterator it;
@@ -1958,7 +1958,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
       msgPtr = *msgit;
       assert(msgPtr->IsDone());
       char* dataPtr = msgPtr->GetLocalPtr().get();
-      cur_src_snode = CreateSuperNode(options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
+      cur_src_snode = CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
       cur_src_snode->InitIdxToBlk();
     }
 
@@ -1967,14 +1967,14 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
     //Update the ancestors
     SnodeUpdate curUpdate;
     SYMPACK_TIMER_START(UPDATE_ANCESTORS);
-    while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
+    while(cur_src_snode->FindNextUpdate(curUpdate,this->Xsuper_,this->SupMembership_,this->iam==iSrcOwner)){
 
       //skip if this update is "lower"
       if(curUpdate.tgt_snode_id<curTask.tgt_snode_id){continue;}
 
       Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
 
-      if(iUpdater == iam){
+      if(iUpdater == this->iam){
 #ifdef _DEBUG_PROGRESS_
         logfileptr->OFS()<<"implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
         logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<std::endl;
@@ -1983,7 +1983,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
         SuperNode<T> * tgt_aggreg;
 
         Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
-        if(iTarget == iam){
+        if(iTarget == this->iam){
           //the aggregate std::vector is directly the target snode
           SYMPACK_TIMER_START(UPD_ANC_Agg_local);
           tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
@@ -2000,13 +2000,13 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
             //TODO do a customized version for FANIN as we have all the factors locally
             // the idea is the following: do a DFS and stop each exploration at the first local descendant of current node
 #ifdef FANIN_OPTIMIZATION
-            if(options_.mappingTypeStr ==  "COL2D")
+            if(this->options_.mappingTypeStr ==  "COL2D")
             {
               std::set<Idx> structure;
               std::list<Int> frontier;
               {
                 scope_timer(a,MERGE_STRUCTURE_FANIN);
-                Idx tgt_fc = Xsuper_[curUpdate.tgt_snode_id-1];
+                Idx tgt_fc = this->Xsuper_[curUpdate.tgt_snode_id-1];
                 dfs_traversal(chSupTree_,curUpdate.tgt_snode_id,frontier);
                 //process frontier in decreasing order of nodes and merge their structure
                 for(auto it = frontier.rbegin(); it!=frontier.rend(); it++){
@@ -2024,7 +2024,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
                   }
                 }
               }
-              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
             } 
             else
 #endif
@@ -2067,7 +2067,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
                 }
                 UpcxxAllocator::deallocate((char*)buffer);
               }
-              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(options_.decomposition,curUpdate.tgt_snode_id, Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id-1], Xsuper_[curUpdate.tgt_snode_id]-1, iSize_,structure);
+              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
             }
             SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
           }
@@ -2083,7 +2083,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
 
         //Update the aggregate
         SYMPACK_TIMER_START(UPD_ANC_UPD);
-        tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,iam);
+        tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
         SYMPACK_TIMER_STOP(UPD_ANC_UPD);
 
 
@@ -2096,7 +2096,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
         //If this is my last update sent it to curUpdate.tgt_snode_id
         SYMPACK_TIMER_START(UPD_ANC_Agg_Send);
         if(UpdatesToDo[curUpdate.tgt_snode_id-1]==0){
-          if(iTarget != iam){
+          if(iTarget != this->iam){
 #ifdef _DEBUG_
             logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
 #endif
@@ -2124,7 +2124,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
 #ifndef NDEBUG
             //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
-            Int liTarget = group_->L2G(iTarget);
+            Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
             auto f = signal_data(sendPtr, msgSize, liTarget, meta);
             //enqueue the future somewhere
@@ -2138,7 +2138,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
         SYMPACK_TIMER_STOP(UPD_ANC_Agg_Send);
 
         SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
-        if(iTarget == iam)
+        if(iTarget == this->iam)
         {
           //update the dependency of the factorization
           //auto taskit = find_task(taskLists,curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,FACTOR);
@@ -2157,7 +2157,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
         SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
 
         //if local update, push a new task in the queue and stop the while loop
-        if(iam==iSrcOwner ){
+        if(this->iam==iSrcOwner ){
           break;
         }
 
@@ -2381,7 +2381,7 @@ template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supern
       Int iUpdater = Mapping_->Map(msg->meta.tgt-1,msg->meta.src-1);
       //this is an aggregate
       std::list<FBTask>::iterator taskit;
-      if(iOwner==iam && iUpdater!=iam){
+      if(iOwner==this->iam && iUpdater!=this->iam){
 #ifdef _DEBUG_PROGRESS_
         logfileptr->OFS()<<"COMM: FETCHED AGGREG MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<iUpdater<<std::endl;
 #endif
@@ -2446,12 +2446,12 @@ template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supern
             dist_src_snode->InitIdxToBlk();
             SnodeUpdate curUpdate;
             taskit->rank = 0.0;
-            while(dist_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,false)){
+            while(dist_src_snode->FindNextUpdate(curUpdate,this->Xsuper_,this->SupMembership_,false)){
               //skip if this update is "lower"
               if(curUpdate.tgt_snode_id<curTask.tgt_snode_id){continue;}
               Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curTask.src_snode_id-1);
-              if(iUpdater == iam){
-                Int tgt_snode_width = Xsuper_[curUpdate.tgt_snode_id] - Xsuper_[curUpdate.tgt_snode_id-1];
+              if(iUpdater == this->iam){
+                Int tgt_snode_width = this->Xsuper_[curUpdate.tgt_snode_id] - this->Xsuper_[curUpdate.tgt_snode_id-1];
                 taskit->rank += dist_src_snode->NRowsBelowBlock(0)*pow(tgt_snode_width,2.0);
               }
             }
