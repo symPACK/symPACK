@@ -472,14 +472,22 @@ namespace symPACK{
   // std::vector
   template <class F> inline std::ostream& operator<<( std::ostream& os, const std::vector<F>& vec)
   {
-    os<<vec.size()<<"| ";
+    os<<vec.size()<<"| [";
     os.setf(std::ios_base::scientific, std::ios_base::floatfield);
     for(Int i=0; i<vec.size(); i++)	 
       os<<" "<<vec[i];
-    os<<std::endl;
+    os<<"]";
     return os;
   }
 
+  template <> inline std::ostream& operator<<( std::ostream& os, const std::vector<Int>& vec)
+  {
+    os<<vec.size()<<"| [";
+    for(Int i=0; i<vec.size(); i++)	 
+      os<<" "<<vec[i];
+    os<<"]";
+    return os;
+  }
   // Etree
   inline std::ostream& operator<<( std::ostream& os, const ETree& tree) 
   {

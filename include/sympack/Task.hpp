@@ -189,6 +189,17 @@ namespace symPACK{
       SparseTask( ):GenericTask(){}
   };
 
+  class SparseTask2D: public SparseTask{
+    public:
+      //cell description
+      using depend_task_t = std::tuple<Int,Int>;
+      //byte storage for tasks 
+      std::list< depend_task_t > out_dependencies;
+      std::list< depend_task_t > in_dependencies;
+
+      SparseTask2D( ):SparseTask(){}
+  };
+
 
 
 

@@ -122,6 +122,30 @@ namespace symPACK{
 
   template <typename T> class symPACKMatrixMeta: public symPACKMatrixBase{
     public:
+      symPACKMatrixMeta():symPACKMatrixBase(){
+#ifndef NO_MPI
+        fullcomm_ = MPI_COMM_NULL;
+        non_workcomm_ = MPI_COMM_NULL;
+        workcomm_ = MPI_COMM_NULL;
+#endif
+      }
+
+      ~symPACKMatrixMeta(){
+#ifndef NO_MPI
+        if(this->non_workcomm_ != MPI_COMM_NULL){
+          MPI_Comm_free(&non_workcomm_);
+        }
+
+        if(this->workcomm_ != MPI_COMM_NULL){
+          MPI_Comm_free(&this->workcomm_);
+        }
+
+        if(this->fullcomm_ != MPI_COMM_NULL){
+          MPI_Comm_free(&this->fullcomm_);
+        }
+#endif
+      }
+
       //Accessors
       Int Size(){return iSize_;}
       const ETree & GetETree(){return ETree_;}
@@ -145,11 +169,42 @@ namespace symPACK{
       //Column permutation
       Ordering Order_;
 
+      //Local and Global structure of the matrix (CSC format)
+      DistSparseMatrixGraph graph_;
+
       //Supernodal partition array: supernode I ranges from column Xsuper_[I-1] to Xsuper_[I]-1
       std::vector<Int> Xsuper_;
       std::vector<Int> XsuperDist_;
       //Supernode membership array: column i belongs to supernode SupMembership_[i-1]
       std::vector<Int> SupMembership_;
+
+#ifndef NO_MPI
+      MPI_Comm fullcomm_;
+      MPI_Comm non_workcomm_;
+      MPI_Comm workcomm_;
+#endif
+
+      //CSC structure of L factor
+      //      PtrVec xlindx_;
+      //      IdxVec lindx_;
+      PtrVec locXlindx_;
+      IdxVec locLindx_;
+
+    protected:
+      void getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc);
+      void getLColRowCount(DistSparseMatrixGraph & dgraph, std::vector<Int> & cc, std::vector<Int> & rc);
+      void findSupernodes(ETree& tree, Ordering & aOrder, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, Int maxSize = -1);
+      void relaxSupernodes(ETree& tree, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, RelaxationParameters & params  );
+
+      void symbolicFactorizationRelaxedDist(std::vector<Int> & cc);
+
+      void refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T>* pMat = NULL);
+
+
+
+      void gatherLStructure(std::vector<Ptr>& xlindx, std::vector<Idx> & lindx);
+
+
   };
 
 
@@ -236,21 +291,12 @@ namespace symPACK{
       //upcxx::team * team_;
 
       SharedNode shmNode_;
-      MPI_Comm non_workcomm_;
-      MPI_Comm fullcomm_;
 
       //MAPCLASS describing the Mapping of the computations
       Mapping * Mapping_;
       LoadBalancer * Balancer_;
 
-      //Local and Global structure of the matrix (CSC format)
-      DistSparseMatrixGraph graph_;
 
-      //CSC structure of L factor
-      //      PtrVec xlindx_;
-      //      IdxVec lindx_;
-      PtrVec locXlindx_;
-      IdxVec locLindx_;
 
       std::vector<Int> numBlk_;
       std::vector<Int> cc_,rc_;
@@ -277,9 +323,6 @@ namespace symPACK{
 
       std::vector<std::list<Int> > chSupTree_;
       void dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier);
-
-      void gatherLStructure(std::vector<Ptr>& xlindx, std::vector<Idx> & lindx);
-
       void solve_(T * RHS, int nrhs,  T * Xptr=NULL);
       void solveNew_(T * RHS, int nrhs,  T * Xptr=NULL);
       void solveNew2_(T * RHS, int nrhs,  T * Xptr=NULL);
@@ -326,16 +369,6 @@ namespace symPACK{
 #ifdef SP_THREADS
       std::map<std::thread::id,TempUpdateBuffers<T> > tmpBufs_th;
 #endif
-
-      void findSupernodes(ETree& tree, Ordering & aOrder, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, Int maxSize = -1);
-      void relaxSupernodes(ETree& tree, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, RelaxationParameters & params  );
-
-      void symbolicFactorizationRelaxedDist(std::vector<Int> & cc);
-
-      void refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T>* pMat = NULL);
-
-      void getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc);
-      void getLColRowCount(DistSparseMatrixGraph & dgraph, std::vector<Int> & cc, std::vector<Int> & rc);
 
 
     protected:

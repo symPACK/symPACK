@@ -109,7 +109,7 @@ namespace symPACK{
     std::vector<int> marker(this->np,0);
     Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
     Int firstSnode = this->XsuperDist_[this->iam];
-    for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
+    for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
       Idx I = locsupno + firstSnode-1;
       Int iOwner = Mapping_->Map(I-1,I-1);
 
@@ -120,11 +120,11 @@ namespace symPACK{
       Updates[iOwner].push_back(std::make_pair(I,I));
 
       Int J = -1; 
-      Ptr lfi = locXlindx_[locsupno-1];
-      Ptr lli = locXlindx_[locsupno]-1;
+      Ptr lfi = this->locXlindx_[locsupno-1];
+      Ptr lli = this->locXlindx_[locsupno]-1;
       Idx prevSnode = -1;
       for(Ptr sidx = lfi; sidx<=lli;sidx++){
-        Idx row = locLindx_[sidx-1];
+        Idx row = this->locLindx_[sidx-1];
         J = this->SupMembership_[row-1];
         if(J!=prevSnode){
           //J = locSupLindx_[sidx-1];
@@ -279,30 +279,25 @@ namespace symPACK{
       
         Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
         Int firstSnode = this->XsuperDist_[this->iam];
-        for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
+        for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
           Idx I = locsupno + firstSnode-1;
-
-
           Int first_col = this->Xsuper_[I-1];
           Int last_col = this->Xsuper_[I]-1;
-
-
           Int iOwner = Mapping_->Map(I-1,I-1);
-
 
           //Create the factor task on the owner
           Updates[iOwner].push_back(std::make_tuple(I,I,first_col,Factorization::op_type::FACTOR));
 
           Int J = -1; 
-          Ptr lfi = locXlindx_[locsupno-1];
-          Ptr lli = locXlindx_[locsupno]-1;
+          Ptr lfi = this->locXlindx_[locsupno-1];
+          Ptr lli = this->locXlindx_[locsupno]-1;
 
           Idx blockIdx = -1;
           Idx prevRow = -1;
           Idx prevSnode = -1;
 
           for(Ptr sidx = lfi; sidx<=lli;sidx++){
-            Idx row = locLindx_[sidx-1];
+            Idx row = this->locLindx_[sidx-1];
             J = this->SupMembership_[row-1];
 
             //Split at boundary or after diagonal block
@@ -376,9 +371,6 @@ namespace symPACK{
       //now process recvbuf and add the tasks to the taskGraph
       size_t max_mem_req = 0;
       for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
-
-
-
         std::shared_ptr<GenericTask> pTask(new SparseTask);
         SparseTask & Task = *(SparseTask*)pTask.get();
 
@@ -981,7 +973,7 @@ namespace symPACK{
         }
       }
 
-      mpi::Allreduce((T*)MPI_IN_PLACE,&B[0],n*nrhs,MPI_SUM,fullcomm_);
+      mpi::Allreduce((T*)MPI_IN_PLACE,&B[0],n*nrhs,MPI_SUM,this->fullcomm_);
       MPI_Barrier(CommEnv_->MPI_GetComm());
     }
   }
@@ -1186,21 +1178,21 @@ namespace symPACK{
     Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
     Int firstSnode = this->XsuperDist_[this->iam];
 
-    for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
+    for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
       Idx s = locsupno + firstSnode-1;
 
       Int first_col = this->Xsuper_[s-1];
       Int last_col = this->Xsuper_[s]-1;
 
-      Ptr lfi = locXlindx_[locsupno-1];
-      Ptr lli = locXlindx_[locsupno]-1;
+      Ptr lfi = this->locXlindx_[locsupno-1];
+      Ptr lli = this->locXlindx_[locsupno]-1;
       mh[s-1] = lli-lfi+1;
 
 
 
       //count number of contiguous blocks (at least one diagonal block)
-      Idx iPrevRow = locLindx_[lfi-1]-1;
-      Idx iFirstRow = locLindx_[lfi-1];
+      Idx iPrevRow = this->locLindx_[lfi-1]-1;
+      Idx iFirstRow = this->locLindx_[lfi-1];
 
       Idx width = mh[s-1]; 
 
@@ -1214,7 +1206,7 @@ namespace symPACK{
       Idx prevSnode = -1;
       for(Ptr sidx = lfi; sidx<=lli;sidx++){
 
-        Idx row = locLindx_[sidx-1];
+        Idx row = this->locLindx_[sidx-1];
 
 
         //enforce the first block to be a square diagonal block
@@ -1271,10 +1263,10 @@ namespace symPACK{
     }
 
     //do an allreduce on sc, mw and mh
-    MPI_Allreduce(MPI_IN_PLACE,&sc[0],sc.size(),MPI_INT,MPI_SUM,fullcomm_);
-    MPI_Allreduce(MPI_IN_PLACE,&mw[0],mw.size(),MPI_INT,MPI_MAX,fullcomm_);
-    MPI_Allreduce(MPI_IN_PLACE,&mh[0],mh.size(),MPI_INT,MPI_MAX,fullcomm_);
-    MPI_Allreduce(MPI_IN_PLACE,&numBlk[0],numBlk.size(),MPI_INT,MPI_SUM,fullcomm_);
+    MPI_Allreduce(MPI_IN_PLACE,&sc[0],sc.size(),MPI_INT,MPI_SUM,this->fullcomm_);
+    MPI_Allreduce(MPI_IN_PLACE,&mw[0],mw.size(),MPI_INT,MPI_MAX,this->fullcomm_);
+    MPI_Allreduce(MPI_IN_PLACE,&mh[0],mh.size(),MPI_INT,MPI_MAX,this->fullcomm_);
+    MPI_Allreduce(MPI_IN_PLACE,&numBlk[0],numBlk.size(),MPI_INT,MPI_SUM,this->fullcomm_);
   }
 
   template<typename T>
@@ -1608,7 +1600,7 @@ namespace symPACK{
   //          Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
   //          Int firstSnode = this->XsuperDist_[this->iam];
   //
-  //          for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
+  //          for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
   //            Idx I = locsupno + firstSnode-1;
   //            Int iDest = this->Mapping_->Map(I-1,I-1);
   //            ssizes[iDest] += 1 + 2*numBlk_[I-1]; //1 for supno index + numBlk startrows + numBlk number of rows
@@ -1619,7 +1611,7 @@ namespace symPACK{
   //
   //          rdisplsStructure = sdispls;
   //          sSuperStructure.resize(sdispls.back());
-  //          for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
+  //          for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
   //            Idx I = locsupno + firstSnode-1;
   //            Int iDest = this->Mapping_->Map(I-1,I-1);
   //
@@ -1629,18 +1621,18 @@ namespace symPACK{
   //            Int fc = this->Xsuper_[I-1];
   //            Int lc = this->Xsuper_[I]-1;
   //            Int iWidth = lc - fc + 1;
-  //            Ptr lfi = locXlindx_[locsupno-1];
-  //            Ptr lli = locXlindx_[locsupno]-1;
+  //            Ptr lfi = this->locXlindx_[locsupno-1];
+  //            Ptr lli = this->locXlindx_[locsupno]-1;
   //
   //            sSuperStructure[tail++] = I;
   //            //count number of contiguous rows
   //            for(Ptr sidx = lfi; sidx<=lli;sidx++){
-  //              Idx iStartRow = locLindx_[sidx-1];
+  //              Idx iStartRow = this->locLindx_[sidx-1];
   //              Idx iPrevRow = iStartRow;
   //              Int iContiguousRows = 1;
   //              for(Int idx2 = sidx+1; idx2<=lli;idx2++){
-  //                Idx iCurRow = locLindx_[idx2-1];
-  //                if(iStartRow == locLindx_[lfi-1]){
+  //                Idx iCurRow = this->locLindx_[idx2-1];
+  //                if(iStartRow == this->locLindx_[lfi-1]){
   //                  if(iCurRow>iStartRow+iWidth-1){
   //                    //enforce the first block to be a square diagonal block
   //                    break;
@@ -2667,7 +2659,6 @@ namespace symPACK{
     countFactorsRecv_=0;
 #endif
 
-    scope_timer(b,ADVANCE_OUTGOING_COMM);
     //Create the CommEnvironment object if necessary
     if(CommEnv_!=NULL){
       delete CommEnv_;
@@ -2679,7 +2670,6 @@ namespace symPACK{
 
 
     this->options_ = options;
-
     logfileptr->verbose = this->options_.verbose>0;
 
     this->all_np = 0;
@@ -2694,10 +2684,8 @@ namespace symPACK{
     this->np = this->options_.used_procs(this->all_np);
 
 
-    MPI_Comm workcomm = MPI_COMM_NULL;
-    MPI_Comm_split(this->options_.MPIcomm,this->iam<this->np,this->iam,&workcomm);
-    CommEnv_ = new CommEnvironment(workcomm);
-    MPI_Comm_free(&workcomm);
+    MPI_Comm_split(this->options_.MPIcomm,this->iam<this->np,this->iam,&this->workcomm_);
+    CommEnv_ = new CommEnvironment(this->workcomm_);
 
 //    Int new_rank = (this->iam<this->np)?this->iam:this->iam-this->np;
 //    upcxx::team_all.split(this->iam<this->np,new_rank, this->team_);
@@ -2706,8 +2694,8 @@ namespace symPACK{
 
     //do another split to contain P0 and all the non working processors
     if(this->all_np!=this->np){
-      non_workcomm_ = MPI_COMM_NULL;
-      MPI_Comm_split(this->options_.MPIcomm,this->iam==0||this->iam>=this->np,this->iam==0?0:this->iam-this->np+1,&non_workcomm_);
+      this->non_workcomm_ = MPI_COMM_NULL;
+      MPI_Comm_split(this->options_.MPIcomm,this->iam==0||this->iam>=this->np,this->iam==0?0:this->iam-this->np+1,&this->non_workcomm_);
     }
 
     //SYMPACK_TIMER_START(MAPPING);
@@ -2771,11 +2759,12 @@ namespace symPACK{
     Ptr supbeg,supend,rowidx;
     Int I;
 
-    if(fullcomm_!=MPI_COMM_NULL){
-      MPI_Comm_free(&fullcomm_);
+#ifndef NO_MPI
+    if(this->fullcomm_!=MPI_COMM_NULL){
+      MPI_Comm_free(&this->fullcomm_);
     }
-
-    MPI_Comm_dup(pMat.comm,&fullcomm_);
+    MPI_Comm_dup(pMat.comm,&this->fullcomm_);
+#endif
 
     this->iSize_ = pMat.size;
 #ifdef EXPLICIT_PERMUTE
@@ -2783,15 +2772,15 @@ namespace symPACK{
     //this is done on the full communicator
     pMat.ExpandSymmetric();
 
-    graph_ = pMat.GetLocalGraph();
-    graph_.SetBaseval(1);
-    graph_.SetKeepDiag(0);
-    graph_.SetSorted(1);
+    this->graph_ = pMat.GetLocalGraph();
+    this->graph_.SetBaseval(1);
+    this->graph_.SetKeepDiag(0);
+    this->graph_.SetSorted(1);
 #else
-    graph_ = pMat.GetLocalGraph();
-    graph_.SetBaseval(1);
-    graph_.SetSorted(1);
-    graph_.ExpandSymmetric();
+    this->graph_ = pMat.GetLocalGraph();
+    this->graph_.SetBaseval(1);
+    this->graph_.SetSorted(1);
+    this->graph_.ExpandSymmetric();
 #endif    
 
 
@@ -2870,30 +2859,30 @@ namespace symPACK{
           case MMD:
             {
               sgraph = new SparseMatrixGraph();
-              graph_.GatherStructure(*sgraph,0);
+              this->graph_.GatherStructure(*sgraph,0);
               sgraph->SetBaseval(1);
               sgraph->SetKeepDiag(0);
-              this->Order_.MMD(*sgraph, graph_.comm);
+              this->Order_.MMD(*sgraph, this->graph_.comm);
             }
             break;
 
           case RCM:
             {
               sgraph = new SparseMatrixGraph();
-              graph_.GatherStructure(*sgraph,0);
+              this->graph_.GatherStructure(*sgraph,0);
               sgraph->SetBaseval(1);
               sgraph->SetKeepDiag(0);
-              this->Order_.RCM(*sgraph, graph_.comm);
+              this->Order_.RCM(*sgraph, this->graph_.comm);
             }
             break;
 
           case AMD:
             {
               sgraph = new SparseMatrixGraph();
-              graph_.GatherStructure(*sgraph,0);
+              this->graph_.GatherStructure(*sgraph,0);
               sgraph->SetBaseval(1);
               sgraph->SetKeepDiag(0);
-              this->Order_.AMD(*sgraph, graph_.comm);
+              this->Order_.AMD(*sgraph, this->graph_.comm);
             }
             break;
 
@@ -2910,11 +2899,11 @@ namespace symPACK{
             break;
 
           case NDBOX:
-            this->Order_.NDBOX(this->Size(), graph_.comm);
+            this->Order_.NDBOX(this->Size(), this->graph_.comm);
             break;
 
           case NDGRID:
-            this->Order_.NDGRID(this->Size(), graph_.comm);
+            this->Order_.NDGRID(this->Size(), this->graph_.comm);
             break;
 
 #ifdef USE_SCOTCH
@@ -2922,9 +2911,9 @@ namespace symPACK{
             {
 
               sgraph = new SparseMatrixGraph();
-              graph_.GatherStructure(*sgraph,0);
+              this->graph_.GatherStructure(*sgraph,0);
               sgraph->SetKeepDiag(0);
-              this->Order_.SCOTCH(*sgraph, graph_.comm);
+              this->Order_.SCOTCH(*sgraph, this->graph_.comm);
             }
             break;
 #endif
@@ -2932,25 +2921,25 @@ namespace symPACK{
           case METIS:
             {
               sgraph = new SparseMatrixGraph();
-              graph_.GatherStructure(*sgraph,0);
+              this->graph_.GatherStructure(*sgraph,0);
               sgraph->SetKeepDiag(0);
-              this->Order_.METIS(*sgraph, graph_.comm);
+              this->Order_.METIS(*sgraph, this->graph_.comm);
             }
             break;
 #endif
 #ifdef USE_PARMETIS
           case PARMETIS:
             {
-              graph_.SetKeepDiag(0);
-              this->Order_.PARMETIS(graph_);
+              this->graph_.SetKeepDiag(0);
+              this->Order_.PARMETIS(this->graph_);
             }
             break;
 #endif
 #ifdef USE_PTSCOTCH
           case PTSCOTCH:
             {
-              graph_.SetKeepDiag(0);
-              this->Order_.PTSCOTCH(graph_);
+              this->graph_.SetKeepDiag(0);
+              this->Order_.PTSCOTCH(this->graph_);
             }
             break;
 #endif
@@ -3006,7 +2995,7 @@ namespace symPACK{
 
     if(sgraph==NULL){ 
       logfileptr->OFS()<<"copying graph"<<std::endl;
-      DistSparseMatrixGraph graph = graph_;
+      DistSparseMatrixGraph graph = this->graph_;
       double timeSta = get_time();
 
       graph.SetKeepDiag(1);
@@ -3130,9 +3119,9 @@ namespace symPACK{
       //gather the graph if necessary to build the elimination tree
       if(sgraph==NULL){ 
         sgraph = new SparseMatrixGraph();
-        graph_.GatherStructure(*sgraph,0);
+        this->graph_.GatherStructure(*sgraph,0);
       }
-      graph_.SetKeepDiag(1);
+      this->graph_.SetKeepDiag(1);
       sgraph->SetBaseval(1);
       sgraph->SetKeepDiag(1);
 
@@ -3141,7 +3130,7 @@ namespace symPACK{
       {
 
         double timeSta = get_time();
-        this->ETree_.ConstructETree(*sgraph,this->Order_,fullcomm_);
+        this->ETree_.ConstructETree(*sgraph,this->Order_,this->fullcomm_);
         this->ETree_.PostOrderTree(this->Order_);
 
       //for(Idx i = 1; i<=sgraph->LocalVertexCount(); ++i){
@@ -3227,21 +3216,22 @@ namespace symPACK{
       //modify this->np since it cannot be greater than the number of supernodes
       this->np = std::min(this->np,this->options_.used_procs(this->Xsuper_.size()-1)); 
 
-      MPI_Comm workcomm = MPI_COMM_NULL;
-      MPI_Comm_split(this->options_.MPIcomm,this->iam<this->np,this->iam,&workcomm);
+      if(this->workcomm_!=MPI_COMM_NULL){
+        MPI_Comm_free(&this->workcomm_);
+      }
+      MPI_Comm_split(this->options_.MPIcomm,this->iam<this->np,this->iam,&this->workcomm_);
       bassert(CommEnv_!=NULL);
       delete CommEnv_;
-      CommEnv_ = new CommEnvironment(workcomm);
-      this->group_.reset( new RankGroup( workcomm ) ); 
-      MPI_Comm_free(&workcomm);
+      CommEnv_ = new CommEnvironment(this->workcomm_);
+      this->group_.reset( new RankGroup( this->workcomm_ ) ); 
 
       //do another split to contain P0 and all the non working processors
       if(this->all_np!=this->np){
-        if(non_workcomm_!=MPI_COMM_NULL){
-          MPI_Comm_free(&non_workcomm_);
+        if(this->non_workcomm_!=MPI_COMM_NULL){
+          MPI_Comm_free(&this->non_workcomm_);
         }
-        non_workcomm_ = MPI_COMM_NULL;
-        MPI_Comm_split(this->options_.MPIcomm,this->iam==0||this->iam>=this->np,this->iam==0?0:this->iam-this->np+1,&non_workcomm_);
+        this->non_workcomm_ = MPI_COMM_NULL;
+        MPI_Comm_split(this->options_.MPIcomm,this->iam==0||this->iam>=this->np,this->iam==0?0:this->iam-this->np+1,&this->non_workcomm_);
       }
 
       //now create the mapping
@@ -3302,10 +3292,10 @@ namespace symPACK{
         //This should permute the matrix A and move it
         //onto this->np processor instead of this->all_np processors
         pMat.Permute(&this->Order_.invp[0],&newVertexDist[0]);
-        graph_ = pMat.GetLocalGraph();
-        graph_.SetBaseval(1);
-        graph_.SetKeepDiag(1);
-        graph_.SetSorted(1);
+        this->graph_ = pMat.GetLocalGraph();
+        this->graph_.SetBaseval(1);
+        this->graph_.SetKeepDiag(1);
+        this->graph_.SetSorted(1);
       }
 #endif
 
@@ -3367,14 +3357,14 @@ namespace symPACK{
             }
           }
 
-          MPI_Bcast(this->Order_.perm.data(),this->Order_.perm.size()*sizeof(Int),MPI_BYTE,0,fullcomm_);
-          MPI_Bcast(this->Order_.invp.data(),this->Order_.invp.size()*sizeof(Int),MPI_BYTE,0,fullcomm_);
+          MPI_Bcast(this->Order_.perm.data(),this->Order_.perm.size()*sizeof(Int),MPI_BYTE,0,this->fullcomm_);
+          MPI_Bcast(this->Order_.invp.data(),this->Order_.invp.size()*sizeof(Int),MPI_BYTE,0,this->fullcomm_);
         } 
         else if(this->options_.order_refinement_str.substr(0,4) == "TSPB"){
 
           if(sgraph==NULL){ 
             sgraph = new SparseMatrixGraph();
-            graph_.GatherStructure(*sgraph,0);
+            this->graph_.GatherStructure(*sgraph,0);
           }
 
           ETree& tree = this->ETree_;
@@ -3387,7 +3377,7 @@ namespace symPACK{
 
           std::vector<int>  new_invp;
 
-          //Gather locXlindx_ and locLindx_
+          //Gather this->locXlindx_ and this->locLindx_
           {
             std::vector<Ptr> xlindx;
             std::vector<Idx> lindx;
@@ -3500,8 +3490,8 @@ namespace symPACK{
 
           // broadcast invp
           Int N = aOrder.invp.size();
-          MPI_Bcast(&aOrder.invp[0],N*sizeof(Int),MPI_BYTE,0,fullcomm_);
-          MPI_Bcast(&aOrder.perm[0],N*sizeof(Int),MPI_BYTE,0,fullcomm_);
+          MPI_Bcast(&aOrder.invp[0],N*sizeof(Int),MPI_BYTE,0,this->fullcomm_);
+          MPI_Bcast(&aOrder.perm[0],N*sizeof(Int),MPI_BYTE,0,this->fullcomm_);
 
         }
 
@@ -3530,7 +3520,7 @@ namespace symPACK{
       //Print statistics
       if(this->options_.print_stats){
         OrderStats stats;
-        stats.get(this->Xsuper_, this->XsuperDist_, locXlindx_, locLindx_, fullcomm_);
+        stats.get(this->Xsuper_, this->XsuperDist_, this->locXlindx_, this->locLindx_, this->fullcomm_);
         if (this->iam==0){
           stats.print();
         }
@@ -3554,22 +3544,22 @@ namespace symPACK{
       if(this->options_.load_balance_str=="SUBCUBE-FI"){
         if(this->iam==0 && this->options_.verbose){ std::cout<<"Subtree to subcube FI mapping used"<<std::endl;}
         ETree SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
-        this->Balancer_ = new SubtreeToSubcube(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,true);
+        this->Balancer_ = new SubtreeToSubcube(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,this->locXlindx_,this->locLindx_,cc,this->fullcomm_,true);
       }
       else if(this->options_.load_balance_str=="SUBCUBE-FO"){
         if(this->iam==0 && this->options_.verbose){ std::cout<<"Subtree to subcube FO mapping used"<<std::endl;}
         ETree SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
-        this->Balancer_ = new SubtreeToSubcube(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,false);
+        this->Balancer_ = new SubtreeToSubcube(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,this->locXlindx_,this->locLindx_,cc,this->fullcomm_,false);
       }
       else if(this->options_.load_balance_str=="SUBCUBE-VOLUME-FI"){
         if(this->iam==0 && this->options_.verbose){ std::cout<<"Subtree to subcube volume FI mapping used"<<std::endl;}
         ETree SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
-        this->Balancer_ = new SubtreeToSubcubeVolume(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,true);
+        this->Balancer_ = new SubtreeToSubcubeVolume(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,this->locXlindx_,this->locLindx_,cc,this->fullcomm_,true);
       }
       else if(this->options_.load_balance_str=="SUBCUBE-VOLUME-FO"){
         if(this->iam==0 && this->options_.verbose){ std::cout<<"Subtree to subcube volume FO mapping used"<<std::endl;}
         ETree SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
-        this->Balancer_ = new SubtreeToSubcubeVolume(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,locXlindx_,locLindx_,cc,fullcomm_,false);
+        this->Balancer_ = new SubtreeToSubcubeVolume(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,this->locXlindx_,this->locLindx_,cc,this->fullcomm_,false);
       }
       else if(this->options_.load_balance_str=="NNZ"){
         if(this->iam==0 && this->options_.verbose){ std::cout<<"Load Balancing on NNZ used"<<std::endl;}
@@ -3731,7 +3721,7 @@ namespace symPACK{
       Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
       Int firstSnode = this->XsuperDist_[this->iam];
 
-      for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
+      for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
         Idx I = locsupno + firstSnode-1;
         Int iDest = this->Mapping_->Map(I-1,I-1);
         ssizes[iDest] += 1 + 2*numBlk_[I-1]; //1 for supno index + numBlk startrows + numBlk number of rows
@@ -3742,7 +3732,7 @@ namespace symPACK{
 
       rdisplsStructure = sdispls;
       sSuperStructure.resize(sdispls.back());
-      for(Int locsupno = 1; locsupno<locXlindx_.size(); ++locsupno){
+      for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
         Idx I = locsupno + firstSnode-1;
         Int iDest = this->Mapping_->Map(I-1,I-1);
         int & tail = rdisplsStructure[iDest];
@@ -3750,8 +3740,8 @@ namespace symPACK{
         Idx fc = this->Xsuper_[I-1];
         Idx lc = this->Xsuper_[I]-1;
         Int iWidth = lc - fc + 1;
-        Ptr lfi = locXlindx_[locsupno-1];
-        Ptr lli = locXlindx_[locsupno]-1;
+        Ptr lfi = this->locXlindx_[locsupno-1];
+        Ptr lli = this->locXlindx_[locsupno]-1;
 
 #ifdef SPLIT_AT_BOUNDARY
         Int nextSup = I+1;
@@ -3762,12 +3752,12 @@ namespace symPACK{
         sSuperStructure[tail++] = I;
         //count number of contiguous rows
         for(Ptr sidx = lfi; sidx<=lli;sidx++){
-          Idx iStartRow = locLindx_[sidx-1];
+          Idx iStartRow = this->locLindx_[sidx-1];
           Idx iPrevRow = iStartRow;
           Int iContiguousRows = 1;
           for(Int idx2 = sidx+1; idx2<=lli;idx2++){
-            Idx iCurRow = locLindx_[idx2-1];
-            if(iStartRow == locLindx_[lfi-1]){
+            Idx iCurRow = this->locLindx_[idx2-1];
+            if(iStartRow == this->locLindx_[lfi-1]){
               if(iCurRow>iStartRow+iWidth-1){
                 //enforce the first block to be a square diagonal block
                 break;
@@ -3849,7 +3839,7 @@ namespace symPACK{
       MPI_Type_free(&type);
     }
 #endif
-    MPI_Barrier(fullcomm_);
+    MPI_Barrier(this->fullcomm_);
   }
 
   template <typename T> inline void symPACKMatrix<T>::DistributeMatrix(DistSparseMatrix<T> & pMat){
@@ -3964,7 +3954,7 @@ namespace symPACK{
 
         IsendPtr->setHead(0);
         mpi::Alltoallv((*IsendPtr), &stotcounts[0], &spositions[0], MPI_BYTE,
-            (*IrecvPtr),fullcomm_, resize_lambda);
+            (*IrecvPtr),this->fullcomm_, resize_lambda);
 
         //restore zero values in the LocalSupernodes_
         for(auto snode : LocalSupernodes_){
@@ -4198,7 +4188,7 @@ namespace symPACK{
           MPI_Type_commit(&type);
 
           mpi::Alltoallv(sendBuffer, &stotcounts[0], &spositions[0], type ,
-              recvBuffer,fullcomm_, resize_lambda);
+              recvBuffer,this->fullcomm_, resize_lambda);
 
           total_recv_size = recvBuffer.size();
 
@@ -4305,7 +4295,7 @@ namespace symPACK{
         MPI_Datatype type;
         MPI_Type_contiguous( sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ), MPI_BYTE, &type );
         MPI_Type_commit(&type);
-        MPI_Allreduce( MPI_IN_PLACE, &remoteFactors_[0], remoteFactors_.size(), type, MPI_SYMPACK_BOR, fullcomm_);
+        MPI_Allreduce( MPI_IN_PLACE, &remoteFactors_[0], remoteFactors_.size(), type, MPI_SYMPACK_BOR, this->fullcomm_);
         MPI_Type_free(&type);
         MPI_Op_free(&MPI_SYMPACK_BOR);
       }
@@ -4328,7 +4318,8 @@ namespace symPACK{
 
 
 
-  template <typename T> inline symPACKMatrix<T>::symPACKMatrix(){
+  template <typename T> inline symPACKMatrix<T>::symPACKMatrix():
+    symPACKMatrixMeta<T>(){
     CommEnv_=NULL;
     //team_=nullptr;
     Mapping_ = NULL;
@@ -4338,8 +4329,6 @@ namespace symPACK{
     //Local_=NULL;
     //Global_=NULL;
     //isGlobStructAllocated_ = false;
-    non_workcomm_ = MPI_COMM_NULL;
-    fullcomm_ = MPI_COMM_NULL;
 //    if(!upcxx::is_init()){
 //      upcxx::init(NULL,NULL);
 //    }
@@ -4411,13 +4400,6 @@ namespace symPACK{
     //  }
 
 
-    if(this->non_workcomm_ != MPI_COMM_NULL){
-      MPI_Comm_free(&non_workcomm_);
-    }
-
-    if(this->fullcomm_ != MPI_COMM_NULL){
-      MPI_Comm_free(&fullcomm_);
-    }
 
   }
 
@@ -4449,7 +4431,7 @@ namespace symPACK{
 
 
   template <typename T> 
-    inline void symPACKMatrix<T>::findSupernodes(ETree& tree, Ordering & aOrder, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, Int maxSize ){
+    inline void symPACKMatrixMeta<T>::findSupernodes(ETree& tree, Ordering & aOrder, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, Int maxSize ){
       SYMPACK_TIMER_START(FindSupernodes);
       Int size = this->iSize_;
       //TODO: tree order cc supmembership xsuper are all members of the class. no need for argument
@@ -4490,7 +4472,7 @@ namespace symPACK{
     }
 
   template <typename T> 
-    inline void symPACKMatrix<T>::getLColRowCount(DistSparseMatrixGraph & dgraph, std::vector<Int> & cc, std::vector<Int> & rc){
+    inline void symPACKMatrixMeta<T>::getLColRowCount(DistSparseMatrixGraph & dgraph, std::vector<Int> & cc, std::vector<Int> & rc){
       scope_timer(q,GetColRowCount_Classic);
 
       //The tree need to be postordered
@@ -4585,7 +4567,7 @@ namespace symPACK{
 
         if(mpirank>0){
           //If something is coming, we can resize          
-          MPI_Probe(mpirank-1,mpirank-1,graph_.GetComm(),MPI_STATUS_IGNORE);
+          MPI_Probe(mpirank-1,mpirank-1,this->graph_.GetComm(),MPI_STATUS_IGNORE);
 
           storage.resize(5*size+1+1);
           weight = (Int*)&storage[0];
@@ -4594,7 +4576,7 @@ namespace symPACK{
           prvnbr = &storage[3*size+1];
           drc = (Int*)&storage[4*size+1];
           pxsup = &storage[5*size+1];
-          MPI_Recv(storage.data(),storage.size(),Idxtype,mpirank-1,mpirank-1,graph_.GetComm(),MPI_STATUS_IGNORE);
+          MPI_Recv(storage.data(),storage.size(),Idxtype,mpirank-1,mpirank-1,this->graph_.GetComm(),MPI_STATUS_IGNORE);
         }
 
         //logfileptr->OFS()<<"weight: "; for(Int k = 0; k<=size; ++k){ logfileptr->OFS()<<weight[k]<<" "; } logfileptr->OFS()<<std::endl;
@@ -4704,7 +4686,7 @@ namespace symPACK{
         }
 
         if(mpirank<mpisize-1){
-          MPI_Send(storage.data(),storage.size(),Idxtype,mpirank+1,mpirank,graph_.GetComm());
+          MPI_Send(storage.data(),storage.size(),Idxtype,mpirank+1,mpirank,this->graph_.GetComm());
         }
         else{
           //logfileptr->OFS()<<"weight: "; for(Int k = 0; k<=size; ++k){ logfileptr->OFS()<<weight[k]<<" "; } logfileptr->OFS()<<std::endl;
@@ -4730,10 +4712,10 @@ namespace symPACK{
         cc.resize(size);
       }
 
-      MPI_Bcast(&cc[0],size,Inttype,mpisize-1,fullcomm_);
+      MPI_Bcast(&cc[0],size,Inttype,mpisize-1,this->fullcomm_);
 
       rc.resize(size);
-      MPI_Bcast(&rc[0],size,Inttype,mpisize-1,fullcomm_);
+      MPI_Bcast(&rc[0],size,Inttype,mpisize-1,this->fullcomm_);
 
 
 
@@ -4746,7 +4728,7 @@ namespace symPACK{
 
 
   template <typename T> 
-    inline void symPACKMatrix<T>::getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc){
+    inline void symPACKMatrixMeta<T>::getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc){
       scope_timer(q,GetColRowCount_Classic);
       //The tree need to be postordered
       if(!this->ETree_.IsPostOrdered()){
@@ -4934,8 +4916,8 @@ namespace symPACK{
         rc.resize(size);
       }
       //Broadcast to everyone 
-      MPI_Bcast(&cc[0],size,Inttype,0,fullcomm_);
-      MPI_Bcast(&rc[0],size,Inttype,0,fullcomm_);
+      MPI_Bcast(&cc[0],size,Inttype,0,this->fullcomm_);
+      MPI_Bcast(&rc[0],size,Inttype,0,this->fullcomm_);
 
       MPI_Type_free(&Inttype);
     }
@@ -4945,7 +4927,7 @@ namespace symPACK{
 
 
   template <typename T> 
-    inline void symPACKMatrix<T>::relaxSupernodes(ETree& tree, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, RelaxationParameters & params ){
+    inline void symPACKMatrixMeta<T>::relaxSupernodes(ETree& tree, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, RelaxationParameters & params ){
       //todo tree cc supmembership xsuper and relax params are members, no need for arguments
       Int nsuper = xsuper.size()-1;
 
@@ -5094,17 +5076,17 @@ namespace symPACK{
 
 
   template <typename T> 
-    inline void symPACKMatrix<T>::symbolicFactorizationRelaxedDist(std::vector<Int> & cc){
+    inline void symPACKMatrixMeta<T>::symbolicFactorizationRelaxedDist(std::vector<Int> & cc){
       scope_timer(a,SymbolicFactorization);
       Int size = this->iSize_;
       ETree& tree = this->ETree_;
       Ordering & aOrder = this->Order_;
-      DistSparseMatrixGraph & graph = graph_;
+      DistSparseMatrixGraph & graph = this->graph_;
       std::vector<Int> & xsuper = this->Xsuper_;
       std::vector<Int> & SupMembership = this->SupMembership_;
-      PtrVec & xlindx = locXlindx_;
-      IdxVec & lindx = locLindx_;
-      MPI_Comm & comm = graph_.comm;//CommEnv_->MPI_GetComm();
+      PtrVec & xlindx = this->locXlindx_;
+      IdxVec & lindx = this->locLindx_;
+      MPI_Comm & comm = this->graph_.comm;//CommEnv_->MPI_GetComm();
 
 
       //permute the graph
@@ -5533,12 +5515,12 @@ namespace symPACK{
 
 
   template <typename T> 
-    inline void symPACKMatrix<T>::gatherLStructure(std::vector<Ptr>& xlindx, std::vector<Idx> & lindx){
-      //Gather locXlindx_ and locLindx_
+    inline void symPACKMatrixMeta<T>::gatherLStructure(std::vector<Ptr>& xlindx, std::vector<Idx> & lindx){
+      //Gather this->locXlindx_ and this->locLindx_
       //get other proc vertex counts
-      Idx localVertexCnt = locXlindx_.size()-1;
+      Idx localVertexCnt = this->locXlindx_.size()-1;
       std::vector<Idx> remoteVertexCnt(this->np,0);
-      MPI_Gather(&localVertexCnt,sizeof(localVertexCnt),MPI_BYTE,&remoteVertexCnt[0],sizeof(localVertexCnt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Gather(&localVertexCnt,sizeof(localVertexCnt),MPI_BYTE,&remoteVertexCnt[0],sizeof(localVertexCnt),MPI_BYTE,0,this->workcomm_);
       Idx totalVertexCnt = std::accumulate(remoteVertexCnt.begin(),remoteVertexCnt.end(),0,std::plus<Idx>());
       if(this->iam==0){
         xlindx.resize(totalVertexCnt+1);
@@ -5557,12 +5539,12 @@ namespace symPACK{
       std::vector<int> rdispls(this->np+1,0);
       rdispls[0]=0;
       std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-      MPI_Gatherv(&locXlindx_[0],localVertexCnt,type,&xlindx[0],&rsizes[0],&rdispls[0],type,0,CommEnv_->MPI_GetComm());
+      MPI_Gatherv(&this->locXlindx_[0],localVertexCnt,type,&xlindx[0],&rsizes[0],&rdispls[0],type,0,this->workcomm_);
 
 
-      Ptr localEdgeCnt = locLindx_.size();
+      Ptr localEdgeCnt = this->locLindx_.size();
       std::vector<Ptr> remoteEdgeCnt(this->np,0);
-      MPI_Gather(&localEdgeCnt,sizeof(localEdgeCnt),MPI_BYTE,&remoteEdgeCnt[0],sizeof(localEdgeCnt),MPI_BYTE,0,CommEnv_->MPI_GetComm());
+      MPI_Gather(&localEdgeCnt,sizeof(localEdgeCnt),MPI_BYTE,&remoteEdgeCnt[0],sizeof(localEdgeCnt),MPI_BYTE,0,this->workcomm_);
       Ptr totalEdgeCnt = std::accumulate(remoteEdgeCnt.begin(),remoteEdgeCnt.end(),0,std::plus<Ptr>());
 
       //fix xlindx
@@ -5586,7 +5568,7 @@ namespace symPACK{
       for(int p = 0; p<this->np;p++){rsizes[p] = (int)remoteEdgeCnt[p];}
       rdispls[0]=0;
       std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-      MPI_Gatherv(&locLindx_[0],localEdgeCnt,typeIdx,&lindx[0],&rsizes[0],&rdispls[0],typeIdx,0,CommEnv_->MPI_GetComm());
+      MPI_Gatherv(&this->locLindx_[0],localEdgeCnt,typeIdx,&lindx[0],&rsizes[0],&rdispls[0],typeIdx,0,this->workcomm_);
     MPI_Type_free(&typeIdx);
     MPI_Type_free(&type);
     }
@@ -5595,7 +5577,7 @@ namespace symPACK{
 
 
   template <typename T> 
-    inline void symPACKMatrix<T>::refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T> * pMat){
+    inline void symPACKMatrixMeta<T>::refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T> * pMat){
       ETree& tree = this->ETree_;
       Ordering & aOrder = this->Order_;
       std::vector<Int> & supMembership = this->SupMembership_; 
@@ -5606,7 +5588,7 @@ namespace symPACK{
 
       std::vector<int>  new_invp;
 
-      //Gather locXlindx_ and locLindx_
+      //Gather this->locXlindx_ and this->locLindx_
       {
         std::vector<Ptr> xlindx;
         std::vector<Idx> lindx;
@@ -5680,19 +5662,19 @@ namespace symPACK{
 
       //Bcast the individual permutation
       new_invp.resize(this->iSize_);
-      MPI_Bcast(&new_invp[0],this->iSize_*sizeof(int),MPI_BYTE,0,fullcomm_);
+      MPI_Bcast(&new_invp[0],this->iSize_*sizeof(int),MPI_BYTE,0,this->fullcomm_);
 
       //re permute the matrix
       pMat->Permute(&new_invp[0]);
-      graph_ = pMat->GetLocalGraph();
-      graph_.SetBaseval(1);
-      graph_.SetKeepDiag(1);
-      graph_.SetSorted(1);
+      this->graph_ = pMat->GetLocalGraph();
+      this->graph_.SetBaseval(1);
+      this->graph_.SetKeepDiag(1);
+      this->graph_.SetSorted(1);
 #endif
       // broadcast invp
       Int N = aOrder.invp.size();
-      MPI_Bcast(&aOrder.invp[0],N*sizeof(int),MPI_BYTE,0,fullcomm_);
-      MPI_Bcast(&aOrder.perm[0],N*sizeof(int),MPI_BYTE,0,fullcomm_);
+      MPI_Bcast(&aOrder.invp[0],N*sizeof(int),MPI_BYTE,0,this->fullcomm_);
+      MPI_Bcast(&aOrder.perm[0],N*sizeof(int),MPI_BYTE,0,this->fullcomm_);
     }
 
 
