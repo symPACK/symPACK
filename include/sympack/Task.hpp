@@ -45,12 +45,24 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #include "sympack/CommPull.hpp"
 #include "sympack/Environment.hpp"
+#include "sympack/Types.hpp"
 
 #include <memory>
 #include <functional>
 #include <vector>
 
 namespace symPACK{
+
+
+namespace Factorization{
+  enum class op_type {UPDATE,AGGREGATE,FACTOR,TRSM,COMM,TRSM_SEND,UPDATE2D_COMP,UPDATE2D_SEND,AGGREGATE2D_SEND,TRSM_RECV,UPDATE2D_RECV,AGGREGATE2D_RECV,UPDATE2D_SEND_OD,UPDATE2D_RECV_OD};
+}
+
+namespace Solve{
+  enum class op_type {FUC,FU,BUC,BU};
+}
+
+
 
   class IncomingMessage;
 
@@ -189,17 +201,37 @@ namespace symPACK{
       SparseTask( ):GenericTask(){}
   };
 
+#ifdef NEW_UPCXX
+  //template <typename colptr_t, typename rowind_t, typename T> class symPACKMatrix2D;
+
+  class blockCellBase_t;
   class SparseTask2D: public SparseTask{
     public:
       //cell description
       using depend_task_t = std::tuple<Int,Int>;
+      using meta_t = std::tuple<Idx,Idx,Factorization::op_type,Idx,Idx>;
+
+      //struct remote_task{
+      //  meta_t _meta;
+      //  T * _nzval;
+      //}
+      
+      //backup for convenience
+      meta_t * _meta;
+
       //byte storage for tasks 
       std::list< depend_task_t > out_dependencies;
       std::list< depend_task_t > in_dependencies;
 
-      SparseTask2D( ):SparseTask(){}
-  };
+      //promise to sync all outgoing RPCs
+      upcxx::promise<> out_prom;
 
+      SparseTask2D( ):SparseTask(){}
+
+      //need counter here as same REMOTE cell can be input to many tasks.
+      std::list< std::shared_ptr< blockCellBase_t > > input_data;
+  };
+#endif
 
 
 

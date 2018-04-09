@@ -604,14 +604,6 @@ namespace symPACK{
   };
 
 
-namespace Factorization{
-  enum class op_type {UPDATE,AGGREGATE,FACTOR,TRSM,COMM,TRSM_SEND,UPDATE2D_COMP,UPDATE2D_SEND,AGGREGATE2D_SEND,TRSM_RECV,UPDATE2D_RECV,AGGREGATE2D_RECV,UPDATE2D_SEND_OD,UPDATE2D_RECV_OD};
-}
-
-namespace Solve{
-  enum class op_type {FUC,FU,BUC,BU};
-}
-
 }
 
 
