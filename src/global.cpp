@@ -44,6 +44,10 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include  "sympack/utility.hpp"
 #include  "sympack/SuperNode.hpp"
 
+#ifdef NEW_UPCXX
+   #include  "sympack/symPACKMatrix2D.hpp"
+#endif
+
 //#include  "sympack/symPACKMatrix.hpp"
 
 //namespace symPACK{
@@ -206,7 +210,11 @@ int symPACK_Finalize(){
 
 namespace symPACK{
 
+  int symPACKMatrixBase::last_id = 0;
 
+#ifdef NEW_UPCXX
+  std::map<int, std::list<incoming_data_t>  > g_sp_handle_incoming;
+#endif
 
 #ifdef _TRACK_MEMORY_
   std::map<char*,size_t> MemoryAllocator::cnt_;

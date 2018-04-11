@@ -79,7 +79,6 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include "sympack/symPACKMatrix.hpp"
 
 
-#define CELL(a,b) *std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))])
 
 
 namespace symPACK{
@@ -88,6 +87,18 @@ namespace symPACK{
 #ifdef NEW_UPCXX
 
    
+#define CELL(a,b) *std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))])
+
+  class incoming_data_t {
+    public:
+      std::list<SparseTask2D::depend_task_t> target_cells;
+      upcxx::global_ptr<char> cell_ptr;
+      SparseTask2D::meta_t meta;
+      bool transfered;
+      incoming_data_t():transfered(false){};
+  };
+
+  extern std::map<int, std::list<incoming_data_t>  > g_sp_handle_incoming;
 
   class blockCellBase_t {
     protected:
@@ -344,7 +355,7 @@ namespace symPACK{
         return 0;
       }
 
-      int update( const blockCell_t & pivot, const blockCell_t & facing, TempUpdateBuffers<T> & tmpBuffers){
+      int update( /*const*/ blockCell_t & pivot, /*const*/ blockCell_t & facing, TempUpdateBuffers<T> & tmpBuffers){
         scope_timer(a,blockCell_t::update);
 #if defined(_NO_COMPUTATION_)
         return 0;
@@ -475,7 +486,7 @@ namespace symPACK{
                   bassert( tgt_ptr < _blocks+nblocks() );
 
                   int_t lr = std::min(cur_src_lr,tgt_ptr->first_row + tgt_ptr->nrows-1);
-                  int_t tgtOffset = tgt_ptr->offset + (row - tgt_ptr->first_row)*tgt_snode_size;
+                  int_t tgtOffset = tgt_ptr->_offset + (row - tgt_ptr->first_row)*tgt_snode_size;
 
                   for(int_t cr = row ;cr<=lr;++cr){
                     if(cr<=tgt_lc){
@@ -1892,11 +1903,18 @@ for(auto it = task_graph.begin(); it != task_graph.end(); it++){
                 if ( pdest != this->iam ) {
                   auto cxs = upcxx::source_cx::as_buffered() | upcxx::source_cx::as_promise(ptask->out_prom);
                   upcxx::rpc_ff( pdest, cxs, 
-                      [] (upcxx::global_ptr<char> & gptr, SparseTask2D::meta_t & meta, std::list<SparseTask2D::depend_task_t> & target_cells ) { 
+                      [] (int sp_handle, upcxx::global_ptr<char> gptr, SparseTask2D::meta_t meta, upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
                         //store pointer & associated metadata somewhere
                       int i = 0; 
+                        auto & queue = g_sp_handle_incoming[sp_handle];
+                        queue.push_back(incoming_data_t());
+                        auto & data = queue.back();
+                        data.target_cells.insert(data.target_cells.begin(),
+                                        target_cells.begin(),target_cells.end());
+                        data.meta = meta;
+                        data.cell_ptr = gptr;
 
-                      }, diagcell._gstorage,*ptask->_meta, tgt_cells); 
+                      }, this->sp_handle, diagcell._gstorage,*ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                 }
                 else {
                   for ( auto & tgt_cell: tgt_cells ) {
@@ -1971,11 +1989,18 @@ for(auto it = task_graph.begin(); it != task_graph.end(); it++){
                 if ( pdest != this->iam ) {
                   auto cxs = upcxx::source_cx::as_buffered() | upcxx::source_cx::as_promise(ptask->out_prom);
                   upcxx::rpc_ff( pdest, cxs, 
-                      [] (upcxx::global_ptr<char> & gptr, SparseTask2D::meta_t & meta, std::list<SparseTask2D::depend_task_t> & target_cells ) { 
+                      [] (int sp_handle, upcxx::global_ptr<char> gptr, SparseTask2D::meta_t meta, upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
                         //store pointer & associated metadata somewhere
                       int i = 0; 
+                        auto & queue = g_sp_handle_incoming[sp_handle];
+                        queue.push_back(incoming_data_t());
+                        auto & data = queue.back();
+                        data.target_cells.insert(data.target_cells.begin(),
+                                        target_cells.begin(),target_cells.end());
+                        data.meta = meta;
+                        data.cell_ptr = gptr;
 
-                      }, od_cell._gstorage,*ptask->_meta, tgt_cells); 
+                      }, this->sp_handle, od_cell._gstorage,*ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                 }
                 else {
                   for ( auto & tgt_cell: tgt_cells ) {
@@ -2000,22 +2025,40 @@ for(auto it = task_graph.begin(); it != task_graph.end(); it++){
         break;
       case Factorization::op_type::UPDATE2D_COMP:
         {
-              scope_timer(b,FB_UPDATE2D_TASK);
           logfileptr->OFS()<<"UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
 
+          ptask->execute = [this,task_lookup,coord2supidx,src_snode,ptask,I,J,K] () {
+              scope_timer(b,FB_UPDATE2D_TASK);
 
               auto & upd_cell = CELL(K-1,J-1);
 
+#ifdef SP_THREADS
+              std::thread::id tid = std::this_thread::get_id();
+              auto & tmpBuf = tmpBufs_th[tid];
+#else
+              auto & tmpBuf = tmpBufs;
+#endif
+
+
 
               //TODO do something
+              //input data should be two
+              bassert(ptask->input_data.size()==2);
+              auto & sptr_odData = *ptask->input_data.begin();
+              auto ptr_odCell = std::static_pointer_cast<snodeBlock_t>(sptr_odData);
+              bassert(ptr_odCell!=NULL);
+              auto & sptr_facingData = *ptask->input_data.rbegin();
+              auto ptr_facingCell = std::static_pointer_cast<snodeBlock_t>(sptr_facingData);
+              bassert(ptr_facingCell!=NULL);
 
+              upd_cell.update(*ptr_odCell,*ptr_facingCell,tmpBuf);
 
               //send this to the all facing blocks (tgt_snode-1,*) and off diagonal blocks (*,tgt_snode-1)
               std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
               for (auto &tpl : ptask->out_dependencies) {
                 auto tgt_i = std::get<0>(tpl);
                 auto tgt_j = std::get<1>(tpl);
-                auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(tgt_i-1,tgt_j-1)]);
+                auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);
                 data_to_send[tgt_cell.owner].push_back(tpl);
               }
 
@@ -2028,12 +2071,24 @@ for(auto it = task_graph.begin(); it != task_graph.end(); it++){
                 //factor is output data so it will not be deleted
                 if ( pdest != this->iam ) {
                   auto cxs = upcxx::source_cx::as_buffered() | upcxx::source_cx::as_promise(ptask->out_prom);
+                 //   upcxx::rpc_ff( pdest, cxs, 
+                 //     [] (int handle, upcxx::global_ptr<char>  gptr, SparseTask2D::meta_t  meta) { 
+                 //     }, int(0) , upd_cell._gstorage,*ptask->_meta);
                   upcxx::rpc_ff( pdest, cxs, 
-                      [] (upcxx::global_ptr<char> & gptr, SparseTask2D::meta_t & meta, std::list<SparseTask2D::depend_task_t> & target_cells ) { 
+                      [] (int sp_handle, upcxx::global_ptr<char>  gptr, SparseTask2D::meta_t  meta, upcxx::view<SparseTask2D::depend_task_t>  target_cells ) { 
                         //store pointer & associated metadata somewhere
                       int i = 0; 
 
-                      }, upd_cell._gstorage,*ptask->_meta, tgt_cells); 
+                        auto & queue = g_sp_handle_incoming[sp_handle];
+                        queue.push_back(incoming_data_t());
+                        auto & data = queue.back();
+                        data.target_cells.insert(data.target_cells.begin(),
+                                        target_cells.begin(),target_cells.end());
+                        data.meta = meta;
+                        data.cell_ptr = gptr;
+
+
+                      }, this->sp_handle, upd_cell._gstorage,*ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                 }
                 else {
                   for ( auto & tgt_cell: tgt_cells ) {
@@ -2054,7 +2109,7 @@ for(auto it = task_graph.begin(); it != task_graph.end(); it++){
               auto fut = ptask->out_prom.finalize();
               fut.wait();
 
-
+          };
 
 
 

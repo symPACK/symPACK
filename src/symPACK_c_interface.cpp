@@ -211,7 +211,7 @@ extern "C"
 
 extern "C" 
   int symPACK_C_InitInstanceDouble(MPI_Comm ccomm){
-    static int last_id = 0;
+    //static int last_id = 0;
     symPACK_Init(nullptr,nullptr);
 
     symPACKOptions optionsFact;
@@ -222,7 +222,10 @@ extern "C"
     symPACK_handle handle;
     handle.factorMat = std::unique_ptr< symPACKMatrixBase > ( new symPACKMatrix<double>() );//std::static_pointer_cast<symPACKMatrixBase >(SMat);
     handle.inputMat = std::unique_ptr< DistSparseMatrixBase>( new DistSparseMatrix<double>(optionsFact.MPIcomm) );
-    int handle_id = last_id++;
+    //int handle_id = last_id++;
+    //store the handle id in the matrix as well
+    int handle_id =handle.factorMat->sp_handle;
+
     symPACK_handles[handle_id] = std::move(handle);
     //TODO restore this
     static_cast<symPACKMatrix<double> *>(symPACK_handles[handle_id].factorMat.get())->Init(optionsFact);

@@ -114,8 +114,13 @@ namespace symPACK{
   template<typename Task> class supernodalTaskGraph;
 
   class symPACKMatrixBase{
+    protected:
+      static int last_id;
     public:
-      virtual ~symPACKMatrixBase(){ }
+      int sp_handle; 
+      virtual ~symPACKMatrixBase(){
+        sp_handle = last_id++;
+      }
   };
 
 

@@ -193,7 +193,17 @@ double tstart = get_time();
     for (int i = 0; i < group.size(); i++) {
       int dest = group.L2G(i);
       if(dest!=giam){
-      fut.push_back(upcxx::rpc(dest, rpc_signal,barrier_id,group.size()));
+//      fut.push_back(upcxx::rpc(dest, rpc_signal,barrier_id,group.size()));
+
+      fut.push_back(upcxx::rpc(dest, [](int barrier_id,int np) {
+      auto it = async_barriers.find(barrier_id);
+      if(it ==async_barriers.end()){
+        async_barriers[barrier_id] = np;
+      }
+      async_barriers[barrier_id]--;
+    },barrier_id,group.size()));
+
+
       }
     }
 double tstop = get_time();
