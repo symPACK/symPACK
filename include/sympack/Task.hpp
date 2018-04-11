@@ -226,7 +226,10 @@ namespace Solve{
       //promise to sync all outgoing RPCs
       upcxx::promise<> out_prom;
 
-      SparseTask2D( ):SparseTask(){}
+      int dep_count;
+      bool executed;
+
+      SparseTask2D( ):SparseTask(),dep_count(0),executed(false){}
 
       //need counter here as same REMOTE cell can be input to many tasks.
       std::list< std::shared_ptr< blockCellBase_t > > input_data;

@@ -376,6 +376,7 @@ int main(int argc, char **argv)
       auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
       SMat2D->Init(optionsFact);
       SMat2D->SymbolicFactorization(HMat);
+      SMat2D->Factorize();
     }
     catch(const std::bad_alloc& e){
       std::cout << "Allocation failed: " << e.what() << '\n';
