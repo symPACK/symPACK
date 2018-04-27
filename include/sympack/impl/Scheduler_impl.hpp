@@ -17,6 +17,8 @@ namespace symPACK{
       for (Int count {0}; count < nthreads; count += 1){
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
       }
+
+#if 0      
       for(int i = 0; i<threads.size(); i++){
         auto & thread = threads[i];
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
@@ -29,6 +31,7 @@ namespace symPACK{
           std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
         }
       }
+#endif
     }
 
 
@@ -41,6 +44,7 @@ namespace symPACK{
       for (Int count {0}; count < nthreads; count += 1){
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
       }
+#if 0
       for(int i = 0; i<threads.size(); i++){
         auto & thread = threads[i];
         // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
@@ -53,6 +57,7 @@ namespace symPACK{
           std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
         }
       }
+#endif
     }
 
   template<typename T, typename Queue >
@@ -85,8 +90,11 @@ namespace symPACK{
       logfileptr->OFS()<<sstr.str();
 #endif
 
+      
       std::stringstream sstr2;
+#if 0
       sstr2 << "Thread #" << tid << ": on CPU " << sched_getcpu() << "\n";
+#endif
       logfileptr->OFS()<<sstr2.str();
 
       if(threadInitHandle_!=nullptr){

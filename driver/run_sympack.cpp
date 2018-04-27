@@ -56,7 +56,12 @@ int main(int argc, char **argv)
   int iam = 0;
   int np = 1;
   MPI_Comm worldcomm;
-  MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
+//  MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
+  MPI_Comm_size(MPI_COMM_WORLD,&np);
+  assert(np==upcxx::rank_n());
+  symPACK_Rank(&iam);
+  MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &worldcomm);
+
   MPI_Comm_size(worldcomm,&np);
   symPACK_Rank(&iam);
 
@@ -349,7 +354,6 @@ int main(int argc, char **argv)
 
 
 
-
   if(iam==0){
     std::cout<<"Starting allocation"<<std::endl;
   }
@@ -379,9 +383,9 @@ int main(int argc, char **argv)
       SMat = new symPACKMatrix<SCALAR>();
       SMat->Init(optionsFact);
       SMat->SymbolicFactorization(HMat);
-if(!nofact){
-      SMat->DistributeMatrix(HMat);
-}
+     if(!nofact){
+        SMat->DistributeMatrix(HMat);
+     }
       timeEnd = get_time();
 #ifdef EXPLICIT_PERMUTE
       perm = SMat->GetOrdering().perm;
@@ -411,7 +415,7 @@ if(!nofact){
     }
 #endif
 
-
+#if 1
     if(!nofact){
       /************* NUMERICAL FACTORIZATION PHASE ***********/
       if(iam==0){
@@ -468,10 +472,12 @@ if(!nofact){
 
       }
     }
+#endif
       delete SMat;
 
     }
 
+#if 1
     if(!nofact && nrhs>0 && XFinal.size()>0) {
       const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
       Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
@@ -525,7 +531,7 @@ if(!nofact){
   MemoryAllocator::printStats();
 #endif
 
-
+#endif
 
   MPI_Barrier(worldcomm);
   MPI_Comm_free(&worldcomm);

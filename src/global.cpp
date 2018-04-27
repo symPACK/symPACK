@@ -74,6 +74,7 @@ bool libMPIInit = false;
 extern "C"
 bool libUPCXXInit = false;
 
+int mpi_already_init = 0;
 
 
 extern "C"
@@ -148,9 +149,9 @@ int symPACK_Init(int *argc, char ***argv){
   }
 
   if(!libMPIInit){
-    int mpiinit = 0;
-    MPI_Initialized(&mpiinit);
-    if(mpiinit==0){
+    mpi_already_init = 0;
+    MPI_Initialized(&mpi_already_init);
+    if(mpi_already_init==0){
       if(MPI_Init(argc,argv)==MPI_SUCCESS){
         libMPIInit = true;
         retval = retval && 1;
@@ -173,7 +174,9 @@ int symPACK_Finalize(){
   int retval = 1;
   int rank = 0;
   symPACK_Rank(&rank);
- 
+
+  if (!mpi_already_init) MPI_Finalize();
+
   if(libUPCXXInit){
     //if(rank==0){std::cerr<<"upcxx finalize"<<std::endl;}
     upcxx::finalize();
@@ -213,7 +216,9 @@ namespace symPACK{
   int symPACKMatrixBase::last_id = 0;
 
 #ifdef NEW_UPCXX
-  std::map<int, std::list<incoming_data_t>  > g_sp_handle_incoming;
+  //std::map<int, std::deque<incoming_data_t>  > g_sp_handle_incoming;
+
+  std::map<int, symPACKMatrixBase *  > g_sp_handle_to_matrix;
 #endif
 
 #ifdef _TRACK_MEMORY_

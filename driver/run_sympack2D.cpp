@@ -34,30 +34,16 @@ using namespace symPACK;
 
 int main(int argc, char **argv) 
 {
-  if(0){
-    std::vector<SCALAR,AlignedAllocator<SCALAR> > tmp(5);
-    tmp[0]=1.0;
-    tmp[1]=2.0;
-    tmp[2]=3.0;
-    tmp[3]=4.0;
-    tmp[4]=5.0;
-
-    for(auto && val: tmp){
-      std::cout<<val<<" ";
-    }
-    std::cout<<std::endl;
-
-    tmp.resize(0);
-  }
-
   symPACK_Init(&argc,&argv);
 
+  {
   symPACKOptions optionsFact;
 
   int iam = 0;
   int np = 1;
   MPI_Comm worldcomm;
-  MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
+  //MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
+  MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &worldcomm);
   MPI_Comm_size(worldcomm,&np);
   symPACK_Rank(&iam);
 
@@ -384,162 +370,155 @@ int main(int argc, char **argv)
       abort();
     }
 
-  MPI_Barrier(worldcomm);
-  MPI_Comm_free(&worldcomm);
-  delete logfileptr;
-  //This will also finalize MPI
-  symPACK_Finalize();
-  return 0;
 
-
-#ifndef NOTRY
-    try
-#endif
-    {
-      timeSta = get_time();
-      SMat = new symPACKMatrix<SCALAR>();
-      SMat->Init(optionsFact);
-      SMat->SymbolicFactorization(HMat);
-if(!nofact){
-      SMat->DistributeMatrix(HMat);
-}
-      timeEnd = get_time();
-#ifdef EXPLICIT_PERMUTE
-      perm = SMat->GetOrdering().perm;
-#endif
+////#ifndef NOTRY
+////    try
+////#endif
+////    {
+////      timeSta = get_time();
+////      SMat = new symPACKMatrix<SCALAR>();
+////      SMat->Init(optionsFact);
+////      SMat->SymbolicFactorization(HMat);
+////if(!nofact){
+////      SMat->DistributeMatrix(HMat);
+////}
+////      timeEnd = get_time();
+////#ifdef EXPLICIT_PERMUTE
+////      perm = SMat->GetOrdering().perm;
+////#endif
+////    }
+////#ifndef NOTRY
+////    catch(const std::bad_alloc& e){
+////      std::cout << "Allocation failed: " << e.what() << '\n';
+////      SMat = NULL;
+////      abort();
+////    }
+////#endif
+////
+////    if(iam==0){
+////      std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
+////    }
+////
+////#ifdef DUMP_MATLAB
+////    if(iam==0){
+////      logfileptr->OFS()<<"A= ";
+////    }
+////    SMat->DumpMatlab();
+////#endif
+////#if 0
+////    {
+////      logfileptr->OFS()<<"Supernode partition"<<SMat->GetSupernodalPartition()<<std::endl;
+////    }
+////#endif
+////
+////
+////    if(!nofact){
+////      /************* NUMERICAL FACTORIZATION PHASE ***********/
+////      if(iam==0){
+////        std::cout<<"Starting Factorization"<<std::endl;
+////      }
+////      timeSta = get_time();
+////      SYMPACK_TIMER_START(FACTORIZATION);
+////      SMat->Factorize();
+////      SYMPACK_TIMER_STOP(FACTORIZATION);
+////      timeEnd = get_time();
+////
+////      if(iam==0){
+////        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+////      }
+////      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+////
+////#ifdef DUMP_MATLAB
+////      if(iam==0){
+////        logfileptr->OFS()<<"L= ";
+////      }
+////      SMat->DumpMatlab();
+////#endif
+////
+////      if(nrhs>0){
+////        /**************** SOLVE PHASE ***********/
+////        if(iam==0){
+////          std::cout<<"Starting solve"<<std::endl;
+////        }
+////        XFinal = RHS;
+////
+////        timeSta = get_time();
+////        SMat->Solve(&XFinal[0],nrhs);
+////        timeEnd = get_time();
+////
+////        if(iam==0){
+////          std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
+////        }
+////
+////        SMat->GetSolution(&XFinal[0],nrhs);
+////
+////#if defined(DUMP_MATLAB) || defined(DUMP_MATLAB_SOL)
+////        if(nrhs>0 && XFinal.size()>0) {
+////          {
+////            std::size_t N = XFinal.size();
+////            logfileptr->OFS()<<"XFinal = [ ";
+////            for(std::size_t i = 0; i<N;i++){
+////              logfileptr->OFS()<<ToMatlabScalar(XFinal[i])<<" ";
+////            }
+////            logfileptr->OFS()<<"];"<<std::endl;
+////          }
+////        }
+////#endif
+////
+////
+////      }
+////    }
+////      delete SMat;
+////
     }
-#ifndef NOTRY
-    catch(const std::bad_alloc& e){
-      std::cout << "Allocation failed: " << e.what() << '\n';
-      SMat = NULL;
-      abort();
-    }
-#endif
-
-    if(iam==0){
-      std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
-    }
-
-#ifdef DUMP_MATLAB
-    if(iam==0){
-      logfileptr->OFS()<<"A= ";
-    }
-    SMat->DumpMatlab();
-#endif
-#if 0
-    {
-      logfileptr->OFS()<<"Supernode partition"<<SMat->GetSupernodalPartition()<<std::endl;
-    }
-#endif
-
-
-    if(!nofact){
-      /************* NUMERICAL FACTORIZATION PHASE ***********/
-      if(iam==0){
-        std::cout<<"Starting Factorization"<<std::endl;
-      }
-      timeSta = get_time();
-      SYMPACK_TIMER_START(FACTORIZATION);
-      SMat->Factorize();
-      SYMPACK_TIMER_STOP(FACTORIZATION);
-      timeEnd = get_time();
-
-      if(iam==0){
-        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
-      }
-      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
-
-#ifdef DUMP_MATLAB
-      if(iam==0){
-        logfileptr->OFS()<<"L= ";
-      }
-      SMat->DumpMatlab();
-#endif
-
-      if(nrhs>0){
-        /**************** SOLVE PHASE ***********/
-        if(iam==0){
-          std::cout<<"Starting solve"<<std::endl;
-        }
-        XFinal = RHS;
-
-        timeSta = get_time();
-        SMat->Solve(&XFinal[0],nrhs);
-        timeEnd = get_time();
-
-        if(iam==0){
-          std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
-        }
-
-        SMat->GetSolution(&XFinal[0],nrhs);
-
-#if defined(DUMP_MATLAB) || defined(DUMP_MATLAB_SOL)
-        if(nrhs>0 && XFinal.size()>0) {
-          {
-            std::size_t N = XFinal.size();
-            logfileptr->OFS()<<"XFinal = [ ";
-            for(std::size_t i = 0; i<N;i++){
-              logfileptr->OFS()<<ToMatlabScalar(XFinal[i])<<" ";
-            }
-            logfileptr->OFS()<<"];"<<std::endl;
-          }
-        }
-#endif
-
-
-      }
-    }
-      delete SMat;
-
-    }
-
-    if(!nofact && nrhs>0 && XFinal.size()>0) {
-      const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
-      Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
-      Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
-
-      std::vector<SCALAR> AX(n*nrhs,SCALAR(0.0));
-
-      for(Int k = 0; k<nrhs; ++k){
-        for(Int j = 1; j<=n; ++j){
-          //do I own the column ?
-          if(j>=firstCol && j<lastCol){
-            Int iLocal = j-firstCol;//0-based
-#ifdef EXPLICIT_PERMUTE
-            Int tgtCol = perm[j-1];
-#else
-            Int tgtCol = j;
-#endif
-            SCALAR t = XFinal[tgtCol-1+k*n];
-            Ptr colbeg = Local.colptr[iLocal]-(1-Local.GetBaseval());//1-based
-            Ptr colend = Local.colptr[iLocal+1]-(1-Local.GetBaseval());//1-based
-            //do a dense mat mat mul ?
-            for(Ptr ii = colbeg; ii< colend;++ii){
-              Int row = Local.rowind[ii-1]-(1-Local.GetBaseval());
-#ifdef EXPLICIT_PERMUTE
-              Int tgtRow = perm[row-1];
-#else
-              Int tgtRow = row;
-#endif
-              AX[tgtRow-1+k*n] += t*HMat.nzvalLocal[ii-1];
-              if(row>j){
-                AX[tgtCol-1+k*n] += XFinal[tgtRow-1+k*n]*HMat.nzvalLocal[ii-1];
-              }
-            }
-          }
-        }
-      }
-
-      //Do a reduce of RHS
-      mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,worldcomm);
-
-      if(iam==0){
-        blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
-        double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
-        double normRHS = lapack::Lange('F',n,nrhs,&RHS[0],n);
-        std::cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
-      }
-    }
+////
+////    if(!nofact && nrhs>0 && XFinal.size()>0) {
+////      const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
+////      Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
+////      Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
+////
+////      std::vector<SCALAR> AX(n*nrhs,SCALAR(0.0));
+////
+////      for(Int k = 0; k<nrhs; ++k){
+////        for(Int j = 1; j<=n; ++j){
+////          //do I own the column ?
+////          if(j>=firstCol && j<lastCol){
+////            Int iLocal = j-firstCol;//0-based
+////#ifdef EXPLICIT_PERMUTE
+////            Int tgtCol = perm[j-1];
+////#else
+////            Int tgtCol = j;
+////#endif
+////            SCALAR t = XFinal[tgtCol-1+k*n];
+////            Ptr colbeg = Local.colptr[iLocal]-(1-Local.GetBaseval());//1-based
+////            Ptr colend = Local.colptr[iLocal+1]-(1-Local.GetBaseval());//1-based
+////            //do a dense mat mat mul ?
+////            for(Ptr ii = colbeg; ii< colend;++ii){
+////              Int row = Local.rowind[ii-1]-(1-Local.GetBaseval());
+////#ifdef EXPLICIT_PERMUTE
+////              Int tgtRow = perm[row-1];
+////#else
+////              Int tgtRow = row;
+////#endif
+////              AX[tgtRow-1+k*n] += t*HMat.nzvalLocal[ii-1];
+////              if(row>j){
+////                AX[tgtCol-1+k*n] += XFinal[tgtRow-1+k*n]*HMat.nzvalLocal[ii-1];
+////              }
+////            }
+////          }
+////        }
+////      }
+////
+////      //Do a reduce of RHS
+////      mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,worldcomm);
+////
+////      if(iam==0){
+////        blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
+////        double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
+////        double normRHS = lapack::Lange('F',n,nrhs,&RHS[0],n);
+////        std::cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
+////      }
+////    }
 
 
 #ifdef _TRACK_MEMORY_
@@ -550,9 +529,8 @@ if(!nofact){
 
   MPI_Barrier(worldcomm);
   MPI_Comm_free(&worldcomm);
-
-
   delete logfileptr;
+  }
 
   //This will also finalize MPI
   symPACK_Finalize();

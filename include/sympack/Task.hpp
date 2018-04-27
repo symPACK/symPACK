@@ -201,9 +201,11 @@ namespace Solve{
       SparseTask( ):GenericTask(){}
   };
 
+#if 0
 #ifdef NEW_UPCXX
   //template <typename colptr_t, typename rowind_t, typename T> class symPACKMatrix2D;
 
+  class incoming_data_t; 
   class blockCellBase_t;
   class SparseTask2D: public SparseTask{
     public:
@@ -220,20 +222,51 @@ namespace Solve{
       meta_t * _meta;
 
       //byte storage for tasks 
-      std::list< depend_task_t > out_dependencies;
-      std::list< depend_task_t > in_dependencies;
+      std::deque< depend_task_t > out_dependencies;
+      std::deque< depend_task_t > in_dependencies;
+
+      std::deque< upcxx::global_ptr<char> > in_ptr;
 
       //promise to sync all outgoing RPCs
-      upcxx::promise<> out_prom;
+      upcxx::promise<> * out_prom;
+      upcxx::promise<> * in_prom;
+      upcxx::promise<> * in_avail_prom;
 
       int dep_count;
       bool executed;
 
-      SparseTask2D( ):SparseTask(),dep_count(0),executed(false){}
+      SparseTask2D( ):SparseTask(),dep_count(0),executed(false){
+        out_prom = new upcxx::promise<>();
+        in_prom = new upcxx::promise<>();
+        in_avail_prom = new upcxx::promise<>();
+      }
+
+      ~SparseTask2D(){
+        bassert(out_prom->get_future().ready());
+        bassert(in_prom->get_future().ready());
+        bassert(in_avail_prom->get_future().ready());
+        delete out_prom;
+        delete in_prom;
+        delete in_avail_prom;
+      }
+
+      void reset(){
+        bassert(out_prom->get_future().ready());
+        bassert(in_prom->get_future().ready());
+        bassert(in_avail_prom->get_future().ready());
+        delete out_prom;
+        delete in_prom;
+        delete in_avail_prom;
+        out_prom = new upcxx::promise<>();
+        in_prom = new upcxx::promise<>();
+        in_avail_prom = new upcxx::promise<>();
+      }
 
       //need counter here as same REMOTE cell can be input to many tasks.
-      std::list< std::shared_ptr< blockCellBase_t > > input_data;
+      //std::deque< std::shared_ptr< blockCellBase_t > > input_data;
+      std::deque< std::shared_ptr< incoming_data_t > > input_msg;
   };
+#endif
 #endif
 
 

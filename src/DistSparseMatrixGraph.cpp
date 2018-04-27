@@ -637,9 +637,11 @@ bassert(colbeg<=colend);
         Idx permRow = invp!=NULL?invp[row] - invpbaseval:row; // 0 based
         if(permRow<permCol && !expanded){
           Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
+          assert(displs[pdestR]<sbuf.size());
           sbuf[displs[pdestR]++] = std::make_pair(permRow,permCol);
         }
         else if(permRow>permCol || (permRow==permCol && keepDiag) || expanded){
+          assert(displs[pdest]<sbuf.size());
           sbuf[displs[pdest]++] = std::make_pair(permCol,permRow);
         }
       }
@@ -660,7 +662,7 @@ bassert(colbeg<=colend);
 
     std::vector<int> rsizes(mpisize,0);
     std::vector<int> rdispls(mpisize+1,0);
-    MPI_Alltoall(&sizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,comm);
+    MPI_Alltoall(sizes.data(),sizeof(int),MPI_BYTE,rsizes.data(),sizeof(int),MPI_BYTE,comm);
 
     //now compute receiv displs with actual sizes 
     rdispls[0] = 0;
