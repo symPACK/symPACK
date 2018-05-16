@@ -78,8 +78,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include "sympack/Environment.hpp"
 #include "sympack/symPACKMatrix.hpp"
 
-
-
+//#define LOCK_SRC 2
 
 namespace symPACK{
 
@@ -175,7 +174,6 @@ namespace scheduling {
   template <typename ttask_t = task_t<meta_t, depend_t> , typename tmeta_t = task_t<meta_t, depend_t>::meta_t>
   class incoming_data_t {
     public:
-      upcxx::promise<> on_delete;
       upcxx::promise<incoming_data_t *> on_fetch;
 
       using task_t = ttask_t;
@@ -184,15 +182,14 @@ namespace scheduling {
       std::deque< task_t *> target_tasks;
       meta_t in_meta;
       //a pointer to be used by the user if he wants to attach some data
-      void * extra_data;
+      //void * extra_data;
+      std::unique_ptr<blockCellBase_t> extra_data;
 
       incoming_data_t():transfered(false),size(0),extra_data(nullptr)/*,cell(nullptr)*/,landing_zone(nullptr){};
       bool transfered;
       upcxx::global_ptr<char> remote_gptr;
       size_t size;
       char * landing_zone;
-      //this has to be made generic...
-      //blockCellBase_t * cell;
 
       void allocate(){
           if(landing_zone == nullptr)
@@ -203,7 +200,6 @@ namespace scheduling {
         if(!transfered){
           transfered=true;
           upcxx::rget(remote_gptr,landing_zone,size).then([this](){
-              //gdb_lock();
               on_fetch.fulfill_result(this);
               return;});
         }
@@ -211,13 +207,6 @@ namespace scheduling {
       }
 
       ~incoming_data_t(){
-        //wait on callbacks
-        on_delete.finalize().wait();
-
-        //this has to be made generic
-        //if (cell) {
-        //  delete cell;
-        //}
         if (landing_zone) {
           delete [] landing_zone;
         }
@@ -261,7 +250,7 @@ namespace scheduling {
         class block_t {
           public:
             //this is just an offset from the begining of the cell;
-            size_t _offset;
+            size_t offset;
             rowind_t first_row;
             rowind_t nrows;
         };
@@ -273,9 +262,7 @@ namespace scheduling {
         std::tuple<rowind_t> _dims;
         upcxx::global_ptr< char > _gstorage;
         char * _storage;
-        block_t * _blocks;
         size_t _cblocks; //capacity
-        size_t _nblocks;
         T* _nzval;
         size_t _cnz; //capacity
         size_t _nnz;
@@ -283,13 +270,110 @@ namespace scheduling {
         rowind_t _total_rows;
 
 
+        class block_container_t {
+          public:
+            block_t * _blocks;
+            size_t _nblocks;
+
+            block_container_t():_blocks(nullptr),_nblocks(0){};
+
+            size_t size() const{
+              return _nblocks;
+            }
+
+            block_t * data(){
+              return _blocks;
+            }
+
+          class iterator
+          {
+            public:
+              typedef iterator self_type;
+              typedef block_t value_type;
+              typedef block_t& reference;
+              typedef block_t* pointer;
+              typedef std::forward_iterator_tag iterator_category;
+              typedef int difference_type;
+              iterator(pointer ptr) : ptr_(ptr) { }
+              self_type operator++() { self_type i = *this; ptr_++; return i; }
+              self_type operator++(int junk) { ptr_++; return *this; }
+              reference operator*() { return *ptr_; }
+              pointer operator->() { return ptr_; }
+              bool operator==(const self_type& rhs) { return ptr_ == rhs.ptr_; }
+              bool operator!=(const self_type& rhs) { return ptr_ != rhs.ptr_; }
+            private:
+              pointer ptr_;
+          };
+
+          class const_iterator
+          {
+            public:
+              typedef const_iterator self_type;
+              typedef block_t value_type;
+              typedef block_t& reference;
+              typedef block_t* pointer;
+              typedef int difference_type;
+              typedef std::forward_iterator_tag iterator_category;
+              const_iterator(pointer ptr) : ptr_(ptr) { }
+              self_type operator++() { self_type i = *this; ptr_++; return i; }
+              self_type operator++(int junk) { ptr_++; return *this; }
+              const reference operator*() { return *ptr_; }
+              const pointer operator->() { return ptr_; }
+              bool operator==(const self_type& rhs) { return ptr_ == rhs.ptr_; }
+              bool operator!=(const self_type& rhs) { return ptr_ != rhs.ptr_; }
+            private:
+              pointer ptr_;
+          };
+
+
+          iterator begin()
+          {
+            return iterator(_blocks);
+          }
+
+          iterator end()
+          {
+            return iterator(_blocks+_nblocks);
+          }
+
+          const_iterator begin() const
+          {
+            return const_iterator(_blocks);
+          }
+
+          const_iterator end() const
+          {
+            return const_iterator(_blocks+_nblocks);
+          }
+
+          block_t& operator[](size_t index)
+          {
+            bassert(index < _nblocks);
+            return _blocks[index];
+          }
+
+          const block_t& operator[](size_t index) const
+          {
+            bassert(index < _nblocks);
+            return _blocks[index];
+          }
+
+
+
+        };
+
+        block_container_t _block_container;
+
+
+
+
         blockCell_t():i(0),j(0),owner(0),
         first_col(0),_dims(std::make_tuple(0)),_total_rows(0),
-        _storage(nullptr),_nzval(nullptr),_blocks(nullptr),
-        _gstorage(nullptr),_nnz(0),_storage_size(0),_nblocks(0){}
+        _storage(nullptr),_nzval(nullptr),//_blocks(nullptr),_nblocks(0),
+        _gstorage(nullptr),_nnz(0),_storage_size(0){}
 
         ~blockCell_t() {
-          if ( _gstorage.is_null() ) {
+          if ( !_gstorage.is_null() ) {
             bassert(_storage == _gstorage.local());
             upcxx::deallocate( _gstorage );
           }
@@ -299,34 +383,37 @@ namespace scheduling {
         }
 
         rowind_t total_rows(){
-          if(this->_nblocks>0 && _total_rows==0){
-            for( int i = 0; i< _nblocks; i++){ _total_rows += _blocks[i].nrows;}
+          if(this->_block_container.size()>0 && _total_rows==0){
+            for( auto & block: this->_block_container){ _total_rows += block.nrows;}
           }
           return _total_rows;
         }
 
-        blockCell_t ( rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true  ): blockCell_t() {
+        blockCell_t ( rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true  ): blockCell_t() {
           _dims = std::make_tuple(width);
+          first_col = firstcol;
           allocate(nzval_cnt,block_cnt, shared_segment);
           initialize(nzval_cnt,block_cnt);
         }
 
-        blockCell_t ( char * ext_storage, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
+        blockCell_t ( char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
           _gstorage = nullptr;
           _storage = ext_storage;
           _dims = std::make_tuple(width);
+          first_col = firstcol;
           initialize(nzval_cnt,block_cnt);
           _nnz = nzval_cnt;
-          _nblocks = block_cnt;
+          _block_container._nblocks = block_cnt;
         }
 
-        blockCell_t ( upcxx::global_ptr<char> ext_gstorage, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
+        blockCell_t ( upcxx::global_ptr<char> ext_gstorage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
           _gstorage = ext_gstorage;
           _storage = _gstorage.local();
           _dims = std::make_tuple(width);
+          first_col = firstcol;
           initialize(nzval_cnt,block_cnt);
           _nnz = nzval_cnt;
-          _nblocks = block_cnt;
+          _block_container._nblocks = block_cnt;
         }
 
         // Copy constructor.  
@@ -341,7 +428,7 @@ namespace scheduling {
           allocate( other.nz_capacity(), other.block_capacity , !other._gstorage.is_null() );
           //now copy the data
           std::copy( other._storage, other._storage + other._storage_size, _storage );
-          _nblocks = other._nblocks;
+          _block_container._nblocks = other._block_container._nblocks;
           _nnz = other._nnz;
         }
 
@@ -364,10 +451,10 @@ namespace scheduling {
           other._storage_size = 0;
           other._cblocks = 0;
           other._cnz = 0;
-          other._nblocks = 0;
           other._nnz = 0;
-          other._blocks = nullptr;
           other._nzval = nullptr;
+            other._block_container._nblocks = 0;
+            other._block_container._blocks = nullptr;
         }
 
 
@@ -395,7 +482,7 @@ namespace scheduling {
             allocate( other._cnz, other._cblocks , !other._gstorage.is_null() );
             //now copy the data
             std::copy( other._storage, other._storage + other._storage_size, _storage );
-            _nblocks = other._nblocks;
+            _block_container._nblocks = other._block_container._nblocks;
             _nnz = other._nnz;
 
           } 
@@ -431,10 +518,10 @@ namespace scheduling {
             other._storage_size = 0;
             other._cblocks = 0;
             other._cnz = 0;
-            other._nblocks = 0;
             other._nnz = 0;
-            other._blocks = nullptr;
             other._nzval = nullptr;        
+            other._block_container._nblocks = 0;
+            other._block_container._blocks = nullptr;
           } 
           return *this;  
         }  
@@ -443,14 +530,16 @@ namespace scheduling {
 
 
         inline int_t block_capacity() const { return _cblocks; }
-        inline int_t nblocks() const { return _nblocks; }
+        inline int_t nblocks() const { return _block_container.size(); }
+        inline block_container_t blocks() const { return _block_container; }
         inline int_t nz_capacity() const { return _cnz; }
         inline int_t nnz() const { return _nnz; }
+        inline int_t width() const { return std::get<0>(_dims); }
 
         void add_block( rowind_t first_row, rowind_t nrows ){
-          bassert( nblocks() + 1 <= block_capacity() );
+          bassert( this->_block_container.size() + 1 <= block_capacity() );
           bassert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
-          auto & new_block = _blocks[_nblocks++];
+          auto & new_block = _block_container[_block_container._nblocks++];
           new_block.first_row = first_row;
           new_block.nrows = nrows;
           new_block.offset = _nnz;
@@ -462,12 +551,13 @@ namespace scheduling {
           _cnz = nzval_cnt;
           _cblocks = block_cnt;
           _nnz = 0;
-          _nblocks = 0;
-          _blocks = reinterpret_cast<block_t*>( _storage );
-          _nzval = reinterpret_cast<T*>( _blocks + _cblocks );
+          _block_container._nblocks = 0;
+          _block_container._blocks = reinterpret_cast<block_t*>( _storage );
+          _nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
         }
 
         void allocate ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
+          bassert(nzval_cnt!=0 && block_cnt!=0);
           if ( shared_segment ) {
             _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
             _storage = _gstorage.local();
@@ -479,6 +569,29 @@ namespace scheduling {
           initialize( nzval_cnt, block_cnt );
         }
 
+
+        void print_block(const blockCell_t & block, std::string prefix) const{  
+          logfileptr->OFS()<<prefix<<" ("<<block.i<<","<<block.j<<")"<<std::endl;
+          logfileptr->OFS()<<prefix<<" nzval:"<<std::endl;
+          for(auto & nzblock: block.blocks() ){
+            logfileptr->OFS()<<nzblock.first_row<<"-|"<<block.first_col<<"---------------------"<<block.first_col+block.width()-1<<std::endl;
+            for(int vrow = 0; vrow< nzblock.nrows; vrow++){
+              //logfileptr->OFS()<<nzblock.first_row+vrow<<" | ";
+              std::streamsize p = logfileptr->OFS().precision();
+      logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
+              for(int vcol = 0; vcol< block.width() ; vcol++){
+                logfileptr->OFS()<<std::scientific<<ToMatlabScalar(block._nzval[nzblock.offset+vrow*block.width()+vcol])<<" ";
+              }
+logfileptr->OFS().precision(p);
+              logfileptr->OFS()<<std::endl;
+            }
+            logfileptr->OFS()<<nzblock.first_row+nzblock.nrows-1<<"-|"<<block.first_col<<"---------------------"<<block.first_col+block.width()-1<<std::endl;
+          }
+        }  
+
+
+
+
         int factorize( TempUpdateBuffers<T> & tmpBuffers){
           scope_timer(a,blockCell_t::factorize);
 #if defined(_NO_COMPUTATION_)
@@ -486,7 +599,17 @@ namespace scheduling {
 #endif
           auto snode_size = std::get<0>(_dims);
           auto diag_nzval = _nzval;
+
+          print_block(*this,"diag before Potrf");
+    try{
           lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
+    }
+    catch(const std::runtime_error& e){
+      std::cerr << "Runtime error: " << e.what() << '\n';
+      gdb_lock();
+    }
+
+          print_block(*this,"diag after Potrf");
           return 0;
         }
 
@@ -501,7 +624,10 @@ namespace scheduling {
 
           auto snode_size = std::get<0>(_dims);
           auto nzblk_nzval = _nzval;
+          print_block(diag,"diag");
+          print_block(*this,"offdiag before Trsm");
           blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+          print_block(*this,"offdiag after Trsm");
           return 0;
         }
 
@@ -512,25 +638,36 @@ namespace scheduling {
 #endif
           //do the owner compute update first
 
-
+//          if(this->i==26 && this->j==26){gdb_lock();}
 
           {
             bassert(nblocks()>0);
-            auto & first_block = _blocks[0];
+            auto & first_block = _block_container[0];
 
             bassert(pivot.nblocks()>0);
-            auto pivot_fr = pivot._blocks[0].first_row;
+            auto pivot_fr = pivot._block_container[0].first_row;
 
             bassert(facing.nblocks()>0);
-            auto facing_fr = facing._blocks[0].first_row;
+            auto facing_fr = facing._block_container[0].first_row;
+            auto facing_lr = facing._block_container[facing.nblocks()-1].first_row+facing._block_container[facing.nblocks()-1].nrows-1;
 
             auto src_snode_size = std::get<0>(pivot._dims);
             auto tgt_snode_size = std::get<0>(_dims);
 
+
+         // {
+         //   int fr = this->_block_container[0].first_row;
+         //   auto & lb = this->_block_container[this->_block_container.size()-1];
+         //   int lr = lb.first_row + lb.nrows -1;
+         //   if(fr<=46 && lr>=46 && this->first_col<=2 && this->first_col+tgt_snode_size>2 ){gdb_lock();}
+         // }
+
+
             //find the first row updated by src_snode
             auto tgt_fc = pivot_fr;
-            auto tgt_lc = pivot_fr+pivot._blocks[0].nrows-1;;
-
+            auto tgt_lc = pivot._block_container[pivot._block_container._nblocks-1].first_row
+              + pivot._block_container[pivot._block_container._nblocks-1].nrows -1;
+            
             int_t first_pivot_idx = 0;
             int_t last_pivot_idx = pivot.nblocks()-1;
 
@@ -541,7 +678,7 @@ namespace scheduling {
             rowind_t pivot_nrows = pivot.total_rows();
             rowind_t tgt_nrows = this->total_rows();
             rowind_t src_nrows = facing.total_rows();
-            rowind_t src_lr = facing_fr + src_nrows-1;
+//            rowind_t src_lr = facing_fr + src_nrows-1;
 
             //condensed update width is the number of rows in the pivot block
             int_t tgt_width = pivot_nrows;
@@ -553,60 +690,114 @@ namespace scheduling {
             //Pointer to the output buffer of the GEMM
             T * buf = NULL;
             T beta = T(0);
-#ifdef SP_THREADS
-            tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
-#endif
 
             //If the target supernode has the same structure,
             //The GEMM is directly done in place
-            if(src_nrows == tgt_nrows){
-              buf = &tgt[tgt_local_fc];
+
+//            if ( this->i==13 && this->j==4 ) {
+//              if ( pivot.j == LOCK_SRC ) { gdb_lock(); } 
+////              bool lock = false;
+////              for (auto & block: pivot.blocks() ) {
+////                if ( block.first_row - this->first_col <= 10 &&
+////                   block.first_row + block.nrows - this->first_col > 10 ) {
+////                 lock = true;
+////                 break;
+////                } 
+////              }
+////
+////              if ( lock ) {
+////                lock = false;
+////                for ( auto & block : facing.blocks() ) {
+////                  if ( block.first_row - this->first_col <= 16 &&
+////                      block.first_row + block.nrows - this->first_col > 16 ) {
+////                    lock = true;
+////                    break;
+////                  }
+////                }
+////              }
+////
+////              if ( lock ) {
+////                gdb_lock();
+////              }
+//            }
+//if(this->i==5 && this->j==4 && facing.i==5 && facing.j==3){gdb_lock();}
+            size_t tgt_offset = 0;
+            bool in_place = ( first_pivot_idx == last_pivot_idx );
+            
+            int tgt_first_upd_blk_idx  = 0;
+            for ( ; tgt_first_upd_blk_idx < this->_block_container.size(); tgt_first_upd_blk_idx++ ){
+              auto & block = this->_block_container[tgt_first_upd_blk_idx];
+              if(facing_fr >= block.first_row && facing_fr <= block.first_row + block.nrows -1)
+                break;
+            }
+
+            tgt_offset = this->_block_container[tgt_first_upd_blk_idx].offset
+                            + (facing_fr - this->_block_container[tgt_first_upd_blk_idx].first_row) * this->width() 
+                            + tgt_local_fc; 
+
+            //find the last block updated
+            int tgt_last_upd_blk_idx  = this->_block_container.size()-1;
+            for ( ; tgt_last_upd_blk_idx > tgt_first_upd_blk_idx; tgt_last_upd_blk_idx-- ){
+              auto & block = this->_block_container[tgt_last_upd_blk_idx];
+              if(facing_lr >= block.first_row && facing_lr <= block.first_row + block.nrows -1)
+                break;
+            }
+            //make sure that in between these two blocks, everything matches
+            int upd_blk_cnt = tgt_last_upd_blk_idx - tgt_first_upd_blk_idx +1;
+            if ( in_place && upd_blk_cnt == facing.nblocks() && upd_blk_cnt>=1) {
+//              if(this->i==86 && this->j==86 && in_place){gdb_lock();}
+              for ( int blkidx = tgt_first_upd_blk_idx; blkidx <= tgt_last_upd_blk_idx; blkidx++) {
+                int facingidx = blkidx - tgt_first_upd_blk_idx;
+                int f_fr = facing._block_container[facingidx].first_row; 
+                int f_lr = facing._block_container[facingidx].nrows + f_fr -1;
+                int t_fr = std::max(facing_fr, this->_block_container[blkidx].first_row); 
+                int t_lr = std::min(facing_lr, this->_block_container[blkidx].first_row+this->_block_container[blkidx].nrows-1); 
+                if (f_fr != t_fr || f_lr != t_lr) {
+ //                 gdb_lock();
+                  in_place = false;
+                  break;
+                }
+              }
+            }
+            else {
+              in_place = false;
+            }
+
+//in_place= false;
+
+            int ldbuf = tgt_width;
+//            if(src_nrows == tgt_nrows )
+            if(in_place)
+            {
+
+              buf = tgt + tgt_offset;
               beta = T(1);
+              ldbuf = tgt_snode_size;
             }
             else{
               //Compute the update in a temporary buffer
+#ifdef SP_THREADS
+            tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+#endif
               buf = &tmpBuffers.tmpBuf[0];
             }
+
+                print_block(pivot,"pivot");
+                print_block(facing,"facing");
+                print_block(*this,"tgt before update");
 
             //everything is in row-major
             SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
             blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
                 T(-1.0),pivot_nzval,src_snode_size,
-                facing_nzval,src_snode_size,beta,buf,tgt_width);
+                facing_nzval,src_snode_size,beta,buf,ldbuf);
             SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_GEMM);
 
             //If the GEMM wasn't done in place we need to aggregate the update
             //This is the assembly phase
-            if(src_nrows != tgt_nrows){
-              //now add the update to the target supernode
-              //              if(tgt_snode_size==1){
-              //                int_t rowidx = 0;
-              //                int_t src_blkcnt = src_snode->NZBlockCnt();
-              //                for(int_t blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
-              //                  NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
-              //                  int_t cur_src_nrows = src_snode->NRows(blkidx);
-              //                  int_t cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
-              //                  int_t cur_src_fr = std::max(tgt_fc, cur_block_desc.GIndex);
-              //
-              //                  int_t row = cur_src_fr;
-              //                  while(row<=cur_src_lr){
-              //                    int_t tgt_blk_idx = FindBlockrowind_t(row);
-              //                    assert(tgt_blk_idx>=0);
-              //                    NZBlockDesc & cur_tgt_desc = GetNZBlockDesc(tgt_blk_idx);
-              //                    int_t lr = std::min(cur_src_lr,cur_tgt_desc.GIndex + NRows(tgt_blk_idx)-1);
-              //                    int_t tgtOffset = cur_tgt_desc.Offset 
-              //                      + (row - cur_tgt_desc.GIndex)*tgt_snode_size;
-              //                    SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_ADD_SINGLE);
-              //                    for(int_t cr = row ;cr<=lr;++cr){
-              //                      tgt[tgtOffset + (cr - row)*tgt_snode_size] += buf[rowidx]; 
-              //                      rowidx++;
-              //                    }
-              //                    SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD_SINGLE);
-              //                    row += (lr-row+1);
-              //                  }
-              //                }
-              //              }
-              //              else
+//            if(src_nrows != tgt_nrows)
+            if(!in_place)
+            {
               {
                 SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_INDEX_MAP);
                 tmpBuffers.src_colindx.resize(tgt_width);
@@ -615,10 +806,11 @@ namespace scheduling {
                 colptr_t rowidx = 0;
                 size_t offset = 0;
 
-                block_t * tgt_ptr = _blocks;
+                block_t * tgt_ptr = _block_container._blocks;
 
-                for ( int block_idx = 0; block_idx < facing.nblocks() ; block_idx++ ) {
-                  auto & cur_block = facing._blocks[block_idx];
+                for ( auto & cur_block: facing.blocks() ) {
+                  //int block_idx = 0; block_idx < facing.nblocks() ; block_idx++ ) {
+                  //auto & cur_block = facing._blocks[block_idx];
                   rowind_t cur_src_nrows = cur_block.nrows;
                   rowind_t cur_src_lr = cur_block.first_row + cur_src_nrows -1;
                   rowind_t cur_src_fr = cur_block.first_row;
@@ -631,17 +823,15 @@ namespace scheduling {
                           && row< tgt_ptr->first_row + tgt_ptr->nrows ) {
                         break;
                       }
-                    } while( ++tgt_ptr<_blocks+nblocks() ); 
-
-                    bassert( tgt_ptr < _blocks+nblocks() );
+                    } while( ++tgt_ptr<_block_container._blocks + _block_container._nblocks ); 
 
                     int_t lr = std::min(cur_src_lr,tgt_ptr->first_row + tgt_ptr->nrows-1);
-                    int_t tgtOffset = tgt_ptr->_offset + (row - tgt_ptr->first_row)*tgt_snode_size;
+                    int_t tgtOffset = tgt_ptr->offset + (row - tgt_ptr->first_row)*tgt_snode_size;
 
                     for(int_t cr = row ;cr<=lr;++cr){
-                      if(cr<=tgt_lc){
-                        tmpBuffers.src_colindx[colidx++] = cr;
-                      }
+                      //if(cr<=tgt_lc){
+                      //  tmpBuffers.src_colindx[colidx++] = cr;
+                      //}
                       offset+=tgt_width;
                       tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
                       rowidx++;
@@ -649,10 +839,36 @@ namespace scheduling {
                     row += (lr-row+1);
                   }
                 }
+
+                for ( auto & cur_block: pivot.blocks() ) {
+                  rowind_t cur_src_ncols = cur_block.nrows;
+                  rowind_t cur_src_lc = std::min(cur_block.first_row + cur_src_ncols -1, this->first_col+this->width()-1);
+                  rowind_t cur_src_fc = std::max(cur_block.first_row,this->first_col);
+
+                  for (rowind_t col = cur_src_fc ;col<=cur_src_lc;++col) {
+                    bassert(this->first_col <= col && col< this->first_col+this->width() );
+                      tmpBuffers.src_colindx[colidx++] = col;
+                  }
+                }
+
+
+
+
+
+
                 //Multiple cases to consider
                 SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_INDEX_MAP);
 
                 SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_ADD);
+
+
+logfileptr->OFS()<<"tmpBuffers.src_colindx:";
+for(auto i: tmpBuffers.src_colindx){ logfileptr->OFS()<<i<<" ";}
+logfileptr->OFS()<<std::endl;
+logfileptr->OFS()<<"tmpBuffers.src_to_tgt_offset:";
+for(auto i: tmpBuffers.src_to_tgt_offset){ logfileptr->OFS()<<i<<" ";}
+logfileptr->OFS()<<std::endl;
+
                 if(first_pivot_idx==last_pivot_idx){
                   // Updating contiguous columns
                   rowind_t tgt_offset = (tgt_fc - this->first_col);
@@ -674,9 +890,13 @@ namespace scheduling {
                     }
                   }
                 }
+
+
                 SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD);
               }
             }
+            
+              print_block(*this,"tgt after update");
           }
 
           return 0;
@@ -775,6 +995,7 @@ namespace scheduling {
         ~symPACKMatrix2D();
 
 
+        void DumpMatlab();
 
         void Init(symPACKOptions & options );
         void Init(DistSparseMatrix<T> & pMat, symPACKOptions & options );
@@ -1497,15 +1718,20 @@ namespace scheduling {
       auto np = this->np;
       Int npcol = std::floor(std::sqrt(np));
       Int nprow = std::floor(np / npcol);
+      //npcol = 1;//std::floor(std::sqrt(np));
+      //nprow = np;//std::floor(np / npcol);
 
 
 #if 1    
       {
-        using cell_tuple_t = std::tuple<Idx,Idx>;
+        using cell_tuple_t = std::tuple<Idx,Idx,Int,Int>;
         std::list< cell_tuple_t> cellsToSend;
 
         Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
         Int firstSnode = this->XsuperDist_[this->iam];
+
+            //gdb_lock();
+        //now create cell structures
         for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
           Idx I = locsupno + firstSnode-1;
           Int first_col = this->Xsuper_[I-1];
@@ -1514,8 +1740,18 @@ namespace scheduling {
           Ptr lfi = this->locXlindx_[locsupno-1];
           Ptr lli = this->locXlindx_[locsupno]-1;
 
-          Int K = -1; 
-          Idx K_prevSnode = -1;
+          Int iWidth = last_col - first_col + 1;
+
+          Int * pNrows = nullptr;
+          Int * pNblock = nullptr;
+
+            Idx iStartRow = this->locLindx_[lfi-1];
+            Idx iPrevRow = iStartRow;
+            Int iContiguousRows = 0;
+
+
+          Int K = -1;
+          Int K_prevSnode = -1;
           for(Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++){
             Idx K_row = this->locLindx_[K_sidx-1];
             K = this->SupMembership_[K_row-1];
@@ -1523,11 +1759,55 @@ namespace scheduling {
             //Split at boundary or after diagonal block
             if(K!=K_prevSnode){
               if(K>=I){
-                cellsToSend.push_back(std::make_tuple(K,I));
+                //add last block from previous cell
+                if (pNblock) {
+                  bassert(K>I);
+                  bassert(iContiguousRows>0);
+                  //now we are at the end of a block
+                  (*pNblock)++;
+                  //add a fake cell to describe the block
+                  cellsToSend.push_back(std::make_tuple(-1,-1,iStartRow,iContiguousRows));
+                  iContiguousRows = 0;
+                }
+
+                iContiguousRows = 0;
+                iStartRow = K_row;
+                iPrevRow = iStartRow;
+                cellsToSend.push_back(std::make_tuple(K,I,0,0));
+                pNblock = &std::get<2>(cellsToSend.back());
+                pNrows = &std::get<3>(cellsToSend.back());
               }
             }
             K_prevSnode = K;
+
+
+            //counting contiguous rows
+            if(K_row==iPrevRow+1 || K_row==iStartRow ){
+              ++iContiguousRows;
+            }
+            //add previous block from current cell
+            else{
+              bassert(iContiguousRows>0);
+              //now we are at the end of a block
+              (*pNblock)++;
+              //add a fake cell to describe the block
+              cellsToSend.push_back(std::make_tuple(-1,-1,iStartRow,iContiguousRows));
+              iContiguousRows = 1;
+              iStartRow = K_row;
+            }
+            iPrevRow=K_row;
+            (*pNrows)++;
           }
+
+          if (pNblock) {
+            //now we are at the end of a block
+            (*pNblock)++;
+            //add a fake cell to describe the block
+            bassert(iContiguousRows>0);
+            cellsToSend.push_back(std::make_tuple(-1,-1,iStartRow,iContiguousRows));
+            iContiguousRows = 0;
+          }
+
         }
 
         MPI_Datatype type;
@@ -1558,25 +1838,49 @@ namespace scheduling {
         MPI_Allgatherv(&sendbuf[0],ssize,type,&recvbuf[0],&rsizes[0],&rdispls[0],type,this->workcomm_);
         MPI_Type_free(&type);
 
+        //gdb_lock();
+
+        std::shared_ptr<snodeBlock_t> pLast_cell = nullptr;
         for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
           auto & cur_cell = (*it);
           Int i = std::get<0>(cur_cell);
           Int j = std::get<1>(cur_cell);
-          auto pcol = j % npcol;
-          //auto idx = coord2supidx(i,j);
-          auto idx = coord2supidx(i-1,j-1);
-          auto prow = i % nprow;
-          auto p = pcol*nprow+prow;
-          //cells_[idx].owner = p;
-          //cells_[idx].i = i;
-          //cells_[idx].j = j;
-          auto sptr = std::make_shared<snodeBlock_t>();
-          cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
-          //logfileptr->OFS()<<idx<<" "<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
-          //logfileptr->OFS()<<i<<" "<<j<<" = "<<sptr<<" "<<std::static_pointer_cast<blockCellBase_t>(sptr)<<" "<<cells_[idx]<<std::endl;
-          sptr->owner = p;
-          sptr->i = i;
-          sptr->j = j;
+
+          if (i==-1 && j==-1) {
+            bassert(pLast_cell!=nullptr);
+            Int first_row = std::get<2>(cur_cell);
+            Int nrows = std::get<3>(cur_cell);
+            pLast_cell->add_block(first_row,nrows);
+
+          }
+          else{
+            Int nBlock = std::get<2>(cur_cell);
+            Int nRows = std::get<3>(cur_cell);
+            auto pcol = j % npcol;
+            //auto idx = coord2supidx(i,j);
+            auto idx = coord2supidx(i-1,j-1);
+            auto prow = i % nprow;
+            auto p = pcol*nprow+prow;
+            //cells_[idx].owner = p;
+            //cells_[idx].i = i;
+            //cells_[idx].j = j;
+
+            Idx fc = this->Xsuper_[j-1];
+            Idx lc = this->Xsuper_[j]-1;
+            Int iWidth = lc-fc+1;
+            size_t block_cnt = nBlock;
+            size_t nnz = nRows * iWidth;
+
+            auto sptr = std::make_shared<snodeBlock_t>(fc,iWidth,nnz,block_cnt);
+            pLast_cell = sptr;
+            //auto sptr = std::make_shared<snodeBlock_t>();
+            cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
+            //logfileptr->OFS()<<idx<<" "<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
+            //logfileptr->OFS()<<i<<" "<<j<<" = "<<sptr<<" "<<std::static_pointer_cast<blockCellBase_t>(sptr)<<" "<<cells_[idx]<<std::endl;
+            sptr->owner = p;
+            sptr->i = i;
+            sptr->j = j;
+          }
         }
         //logfileptr->OFS()<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
       }
@@ -1595,7 +1899,13 @@ namespace scheduling {
           //cells_[idx].owner = p;
           //cells_[idx].i = i;
           //cells_[idx].j = j;
-          auto sptr = std::make_shared<snodeBlock_t>();
+          Idx fc = this->Xsuper_[j-1];
+          Idx lc = this->Xsuper_[j]-1;
+          Int iWidth = lc-fc+1;
+          size_t block_cnt = nBlock;
+          size_t nnz = nRows * iWidth;
+
+          auto sptr = std::make_shared<snodeBlock_t>(iWidth,nnz,block_cnt);
           cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
           sptr->owner = p;
           sptr->i = i;
@@ -1611,6 +1921,8 @@ namespace scheduling {
 
       //generate task graph
       {
+
+
         auto supETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
 
         //we will need to communicate if only partial xlindx_, lindx_
@@ -2036,6 +2348,7 @@ namespace scheduling {
             auto J = tgt_snode;
             auto K = this->SupMembership_[facing_row-1];
 
+#if 0
             switch(type){
               case Factorization::op_type::TRSM:
                 {
@@ -2072,6 +2385,7 @@ namespace scheduling {
               logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<") ";
             }
             logfileptr->OFS()<<std::endl;
+#endif
 
 //            ptask->dep_count = ptask->in_dependencies.size();      
 
@@ -2084,19 +2398,15 @@ namespace scheduling {
             if (remote_deps >0 ) {
               auto fut_comm = ptask->in_avail_prom->get_future();
               fut_comm.then([this,ptask](){
-                  //TODO enqueue ptask somewhere
-                  //gdb_lock();
                   this->scheduler.avail_tasks.push_back(ptask);
                   });
             }
-            //fulfill the promise by one to "unlock" that promis
+            //fulfill the promise by one to "unlock" that promise
             ptask->in_avail_prom->fulfill_anonymous(1);
 
             //do not fulfill it to lock the tasks
             auto fut = ptask->in_prom->get_future();
             fut.then([this,ptask](){
-                //TODO enqueue ptask somewhere
-                //gdb_lock();
                 this->scheduler.ready_tasks.push_back(ptask);
                      });
           }
@@ -2136,7 +2446,7 @@ namespace scheduling {
 #else
                     auto & tmpBuf = tmpBufs;
 #endif
-                    //diagcell.factorize(tmpBuf);
+                    diagcell.factorize(tmpBuf);
 
                     std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
                     for (auto &tpl : ptask->out_dependencies) {
@@ -2168,6 +2478,7 @@ namespace scheduling {
 
                             //there is a map between sp_handle and task_graphs
                             auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
+
                             for ( auto & tgt_cell: target_cells) {
                               auto tgt_i = std::get<0>(tgt_cell);
                               auto tgt_j = std::get<1>(tgt_cell);
@@ -2183,25 +2494,21 @@ namespace scheduling {
                               }
 #endif
 
-
                             }
 
+                            auto I = std::get<1>(meta);
+                            rowind_t fc = matptr->Xsuper_[I-1];
 
                             data->on_fetch.get_future().then(
-                                [width,nnz,nblocks](SparseTask2D::data_t * pdata){
+                                [fc,width,nnz,nblocks,I](SparseTask2D::data_t * pdata){
                                   //create snodeBlock_t and store it in the extra_data
-                                  pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
-                                }
-                                );
-
-                            data->on_delete.get_future().then(
-                                [data](){
-                                  delete (snodeBlock_t*)data->extra_data;
-                                }
-                                );
-
-
-
+                                  //pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
+                      //gdb_lock();
+                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  auto pcell = (snodeBlock_t*)pdata->extra_data.get();
+                                  pcell->i = I;
+                                  pcell->j = I;
+                                });
 
                             }, this->sp_handle, diagcell._gstorage, diagcell._storage_size, diagcell.nnz(), diagcell.nblocks(), std::get<0>(diagcell._dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
@@ -2263,18 +2570,21 @@ namespace scheduling {
 
                     //input data is one or 0 (local diagonal block)
                     bassert(ptask->input_msg.size()<=1);
-
                     auto ptr_diagCell = pCELL(I-1,I-1).get(); 
                     if ( ptr_diagCell->owner != this->iam ){
-                      ptr_diagCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data);
+                      //gdb_lock();
+                      ptr_diagCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
                     }
                     bassert(ptr_diagCell!=NULL);
 
 
-                    //od_cell.trsm(*ptr_diagCell,tmpBuf);
+                    od_cell.trsm(*ptr_diagCell,tmpBuf);
+
+//          if(od_cell.i==4 && od_cell.j==3){gdb_lock();}
 
                     //get rid of the shared_ptr
                     ptask->input_msg.clear();
+
 
                     //send this to the all facing blocks (tgt_snode-1,*) and off diagonal blocks (*,tgt_snode-1)
                     std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
@@ -2284,6 +2594,8 @@ namespace scheduling {
                       auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(tgt_i-1,tgt_j-1)]);
                       data_to_send[tgt_cell.owner].push_back(tpl);
                     }
+
+                    //if ( (od_cell.i==5 || od_cell.i==6) && od_cell.j==2){gdb_lock();}
 
                     //send factor and update local tasks
 //                    ptask->out_prom->require_anonymous(data_to_send.size());
@@ -2296,7 +2608,7 @@ namespace scheduling {
                         auto cxs = upcxx::source_cx::as_buffered() | upcxx::source_cx::as_promise(*ptask->out_prom);
 #if 1
                         upcxx::rpc_ff( pdest, //cxs, 
-                            [I] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
+                            [K,I] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
 //                            gdb_lock();
                             //store pointer & associated metadata somewhere
                             auto data = std::make_shared<SparseTask2D::data_t >();
@@ -2323,21 +2635,23 @@ namespace scheduling {
 
                             }
 
+                            //auto I = std::get<1>(meta);
+                            rowind_t fc = matptr->Xsuper_[I-1];
                             data->on_fetch.get_future().then(
-                                [width,nnz,nblocks](SparseTask2D::data_t * pdata){
+                                [fc,width,nnz,nblocks,K,I](SparseTask2D::data_t * pdata){
+
+//auto tpl = std::make_tuple(3,3,symPACK::Factorization::op_type::TRSM, 20, 20);
+//if(pdata->in_meta==tpl){gdb_lock();}
+
                                   //create snodeBlock_t and store it in the extra_data
-                                  pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
+                                  //pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
+                      //gdb_lock();
+                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  auto pcell = (snodeBlock_t*)pdata->extra_data.get();
+                                  pcell->i = K;
+                                  pcell->j = I;
                                 }
                                 );
-
-                            data->on_delete.get_future().then(
-                                [data](){
-                                  delete (snodeBlock_t*)data->extra_data;
-                                }
-                                );
-
-
-
 
                             }, this->sp_handle, od_cell._gstorage,od_cell._storage_size, od_cell.nnz(),od_cell.nblocks(), std::get<0>(od_cell._dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
@@ -2391,6 +2705,7 @@ namespace scheduling {
                   ptask->execute = [this,src_snode,ptask,I,J,K] () {
                     scope_timer(b,FB_UPDATE2D_TASK);
 
+//          if(K==4 && I==3){gdb_lock();}
                     logfileptr->OFS()<<"Exec UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
                     auto & upd_cell = CELL(K-1,J-1);
 
@@ -2408,17 +2723,26 @@ namespace scheduling {
 
                     auto ptr_odCell = pCELL(J-1,I-1).get(); 
                     if ( ptr_odCell->owner != this->iam ){
-                      ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data);
+                      //gdb_lock();
+                      ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
                     }
                     bassert(ptr_odCell!=NULL);
 
                     auto ptr_facingCell = pCELL(K-1,I-1).get(); 
                     if ( ptr_facingCell->owner != this->iam ){
-                      ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data);
+                      //gdb_lock();
+                      ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data.get());
                     }
                     bassert(ptr_facingCell!=NULL);
 
-                    //upd_cell.update(*ptr_odCell,*ptr_facingCell,tmpBuf);
+                    //check that they don't need to be swapped
+                    if ( ptr_facingCell->i < ptr_odCell->i ) {
+                      std::swap(ptr_facingCell, ptr_odCell);
+                    }
+
+//if ( upd_cell.j != 4 || ( ptr_odCell->j==LOCK_SRC && upd_cell.j == 4 ) ) {
+                    upd_cell.update(*ptr_odCell,*ptr_facingCell,tmpBuf);
+//}
 
                     //get rid of the shared_ptr
                     ptask->input_msg.clear();
@@ -2443,7 +2767,7 @@ namespace scheduling {
                         auto cxs = upcxx::source_cx::as_buffered() | upcxx::source_cx::as_promise(*ptask->out_prom);
 #if 1
                         upcxx::rpc_ff( pdest, //cxs, 
-                            [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
+                            [K,J] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
 //                            gdb_lock();
                             //store pointer & associated metadata somewhere
                             auto data = std::make_shared<SparseTask2D::data_t >();
@@ -2477,21 +2801,20 @@ namespace scheduling {
                             }
 
 
+                            auto I = std::get<1>(meta);
+                            rowind_t fc = matptr->Xsuper_[I-1];
                             data->on_fetch.get_future().then(
-                                [width,nnz,nblocks](SparseTask2D::data_t * pdata){
+                                [fc,width,nnz,nblocks,K,J](SparseTask2D::data_t * pdata){
                                   //create snodeBlock_t and store it in the extra_data
-                                  pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
+                                  //pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
+                      //gdb_lock();
+                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(pdata->landing_zone,fc,width,nnz,nblocks) );
+
+                                  auto pcell = (snodeBlock_t*)pdata->extra_data.get();
+                                  pcell->i = K;
+                                  pcell->j = J;
                                 }
                                 );
-
-                            data->on_delete.get_future().then(
-                                [data](){
-                                  delete (snodeBlock_t*)data->extra_data;
-                                }
-                                );
-
-
-
 
                             }, this->sp_handle, upd_cell._gstorage, upd_cell._storage_size,upd_cell.nnz(),upd_cell.nblocks(), std::get<0>(upd_cell._dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
@@ -2549,18 +2872,256 @@ namespace scheduling {
 
       }
 
-
-
-      //redistribute the matrix
-
     } 
 
   template <typename colptr_t, typename rowind_t, typename T>
     void symPACKMatrix2D<colptr_t,rowind_t,T>::DistributeMatrix(DistSparseMatrix<T> & pMat ){
+
+        std::map<Int,size_t > send_map;
+
+        typedef std::conditional< sizeof(Idx) < sizeof(Ptr), Idx, Ptr>::type minTypeIdxPtr;
+        using minType = typename std::conditional< sizeof(minTypeIdxPtr) < sizeof(T), minTypeIdxPtr, T >::type;
+
+        size_t minSize = sizeof(minType);
+        size_t IdxToMin = sizeof(Idx) / minSize;
+        size_t PtrToMin = sizeof(Ptr) / minSize;
+        size_t TToMin = sizeof(T) / minSize;
+
+        Int baseval = pMat.Localg_.GetBaseval();
+        Idx FirstLocalCol = pMat.Localg_.vertexDist[this->iam] + (1 - baseval); //1-based
+        Idx LastLocalCol = pMat.Localg_.vertexDist[this->iam+1] + (1 - baseval); //1-based
+
+        {
+          scope_timer(a,symPACKMatrix2D::DistributeMatrix::Counting);
+          for(Int I=1;I<this->Xsuper_.size();I++){
+            Idx fc = this->Xsuper_[I-1];
+            Idx lc = this->Xsuper_[I]-1;
+            Int iWidth = lc-fc+1;
+
+            //post all the recv and sends
+            for(Idx col = fc;col<=lc;col++){
+              //corresponding column in the unsorted matrix A
+              Idx orig_col = this->Order_.perm[col-1];
+              if(orig_col>= FirstLocalCol && orig_col < LastLocalCol){
+                Ptr nrows = 0;
+                Idx local_col = orig_col - FirstLocalCol+1;//1 based
+                for(Ptr rowidx = pMat.Localg_.colptr[local_col-1] + (1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+                  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);//1-based
+                  Idx row = this->Order_.invp[orig_row-1];
+                    
+                  Int J = this->SupMembership_[row-1];
+
+                  if(row>=col){
+                    //this has to go in cell(J,I)
+                    auto & tgt_cell = CELL(J-1,I-1);
+                    Int iDest = tgt_cell.owner;
+                    send_map[iDest] += IdxToMin+PtrToMin+ (IdxToMin + TToMin);
+                  }
+                  else{
+                    //this has to go in cell(I,J)
+                    auto & tgt_cell = CELL(I-1,J-1);
+                    Int iDestJ = tgt_cell.owner;
+                    //add the pair (col,row) to processor owning column row
+                    send_map[iDestJ] += IdxToMin+PtrToMin+ (IdxToMin + TToMin);
+                  }
+                }
+              }
+            }
+          }
+        }
+
+
+
+        {
+          //allocate one buffer for every remote processor
+          //compute the send structures
+          size_t total_send_size = 0;
+          std::vector<size_t> stotcounts(this->all_np,0);
+          for(auto it = send_map.begin(); it!=send_map.end();it++){
+            Int iCurDest = it->first;
+            size_t & send_bytes = it->second;
+            stotcounts[iCurDest] = send_bytes;
+          }
+          //compute send displacements
+          std::vector<size_t> spositions(this->all_np+1,0);
+          spositions[0] = 0;
+          std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
+          total_send_size = spositions.back();
+
+          std::vector<minType, Mallocator<minType> > sendBuffer(total_send_size);
+
+          {
+            scope_timer(a,symPACKMatrix2D::DistributeMatrix::Serializing);
+
+            for(Int I=1;I<this->Xsuper_.size();I++){
+              Idx fc = this->Xsuper_[I-1];
+              Idx lc = this->Xsuper_[I]-1;
+              Int iWidth = lc-fc+1;
+
+              //Serialize
+              for(Idx col = fc;col<=lc;col++){
+                Idx orig_col = this->Order_.perm[col-1];
+
+                if(orig_col>= FirstLocalCol && orig_col < LastLocalCol){
+                  Ptr nrows = 0;
+                  Idx local_col = orig_col - FirstLocalCol+1;//1 based
+
+                  for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
+                    Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
+                    Idx row = this->Order_.invp[orig_row-1];
+
+                    Int J = this->SupMembership_[row-1];
+
+                    if(row>=col){
+                      //this has to go in cell(J,I)
+                      auto & tgt_cell = CELL(J-1,I-1);
+                      Int iDest = tgt_cell.owner;
+
+                      T val = pMat.nzvalLocal[rowidx-1];
+
+                      *((Idx*)&sendBuffer[spositions[iDest]]) = col;
+                      spositions[iDest]+=IdxToMin;
+                      *((Ptr*)&sendBuffer[spositions[iDest]]) = 1;
+                      spositions[iDest]+=PtrToMin;
+                      *((Idx*)&sendBuffer[spositions[iDest]]) = row;
+                      spositions[iDest]+=IdxToMin;
+                      *((T*)&sendBuffer[spositions[iDest]]) = val;
+                      spositions[iDest]+=TToMin;
+                    }
+                    else{
+                      //this has to go in cell(I,J)
+                      auto & tgt_cell = CELL(I-1,J-1);
+                      Int iDestJ = tgt_cell.owner;
+                      //add the pair (col,row) to processor owning column row
+
+                      T val = pMat.nzvalLocal[rowidx-1];
+
+                      *((Idx*)&sendBuffer[spositions[iDestJ]]) = row;
+                      spositions[iDestJ]+=IdxToMin;
+                      *((Ptr*)&sendBuffer[spositions[iDestJ]]) = 1;
+                      spositions[iDestJ]+=PtrToMin;
+                      *((Idx*)&sendBuffer[spositions[iDestJ]]) = col;
+                      spositions[iDestJ]+=IdxToMin;
+                      *((T*)&sendBuffer[spositions[iDestJ]]) = val;
+                      spositions[iDestJ]+=TToMin;
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          spositions[0] = 0;
+          std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
+
+          size_t total_recv_size = 0;
+          std::vector<minType, Mallocator<minType> > recvBuffer;
+          std::function<void(std::vector<minType, Mallocator<minType> >&,size_t)> resize_lambda =
+            [](std::vector<minType, Mallocator<minType> >& container, size_t sz){
+              container.resize(sz);
+            };
+
+
+          MPI_Datatype type;
+          MPI_Type_contiguous( sizeof(minType), MPI_BYTE, &type );
+          MPI_Type_commit(&type);
+
+          mpi::Alltoallv(sendBuffer, &stotcounts[0], &spositions[0], type ,
+              recvBuffer,this->fullcomm_, resize_lambda);
+
+          total_recv_size = recvBuffer.size();
+
+          MPI_Type_free(&type);
+          //Need to parse the structure sent from the processor owning the first column of the supernode
+
+
+          {
+            scope_timer(a,symPACKMatrix2D::DistributeMatrix::Deserializing);
+            size_t head = 0;
+
+            while(head < total_recv_size)
+            { 
+              //Deserialize
+              Idx col = *((Idx*)&recvBuffer[head]);
+              head+=IdxToMin;
+              //nrows of column col sent by processor p
+              Ptr nrows = *((Ptr*)&recvBuffer[head]);
+              head+=PtrToMin;
+              Idx * rowind = (Idx*)(&recvBuffer[head]);
+              head+=nrows*IdxToMin;
+              T * nzvalA = (T*)(&recvBuffer[head]);
+              head+=nrows*TToMin;
+
+              Int I = this->SupMembership_[col-1];
+
+              Int fc = this->Xsuper_[I-1];
+              Int lc = this->Xsuper_[I]-1;
+              Int iWidth = lc-fc+1;
+//              SuperNode<T> * snode = snodeLocal(I);
+
+              //Here, do a linear search instead for the blkidx
+              Ptr colbeg = 1;
+              Ptr colend = nrows;
+              if(colbeg<=colend){
+                //sort rowind and nzvals
+                std::vector<size_t> lperm = sort_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,std::less<Idx>());
+                apply_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,lperm);
+                apply_permutation(&nzvalA[colbeg-1],&nzvalA[colend-1]+1,lperm);
+                Idx firstRow = rowind[colbeg-1];
+
+                for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
+                  Idx row = rowind[rowidx-1];
+
+                  Int J = this->SupMembership_[row-1];
+
+                  auto & tgt_cell = CELL(J-1,I-1);
+                  bassert(this->iam == tgt_cell.owner);
+
+                  bool found = false;
+                  for(auto block: tgt_cell.blocks()){
+                    if ( block.first_row <= row && row < block.first_row + block.nrows ){
+                      auto offset = block.offset + (row - block.first_row)*tgt_cell.width() + (col-fc);
+                      tgt_cell._nzval[offset] = nzvalA[rowidx-1];
+                      found = true;
+                      break;
+
+                    }  
+                  } 
+  
+                  bassert(found);
+
+                  //there is a single row, the block should be already created, then it is easy to find where to put the row
+                  //TODO keep going here
+
+//                  while(row>blk_desc->GIndex+blk_nrows-1){
+//                    blkidx++;
+//                    blk_nrows = snode->NRows(blkidx);    
+//                    blk_desc = &snode->GetNZBlockDesc(blkidx);
+//                  }
+//
+//                  Int local_row = row - blk_desc->GIndex + 1;
+//                  Int local_col = col - fc + 1;
+//                  T * nzval = snode->GetNZval(blk_desc->Offset);
+//                  nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
+                }
+              }
+            }
+
+          }
+
+        }
+
+
+
+
+
+
+
     } 
 
   template <typename colptr_t, typename rowind_t, typename T>
     void symPACKMatrix2D<colptr_t,rowind_t,T>::Factorize( ){
+      //gdb_lock();
       //bool finished = false;
       //while (!finished) {
       //  finished = true;
@@ -2588,6 +3149,106 @@ namespace scheduling {
     } 
 
 
+
+
+
+  template <typename colptr_t, typename rowind_t, typename T>
+ inline void symPACKMatrix2D<colptr_t,rowind_t,T>::DumpMatlab(){
+      logfileptr->OFS()<<"+sparse([";
+      for(Int I=1;I<this->Xsuper_.size();I++){
+        Int src_first_col = this->Xsuper_[I-1];
+        Int src_last_col = this->Xsuper_[I]-1;
+     
+//       gdb_lock(); 
+        for(Int J=I;J<this->Xsuper_.size();J++){
+          auto idx = coord2supidx(J-1,I-1);
+          if (this->cells_.find(idx)!= this->cells_.end()){
+            auto & tgt_cell = CELL(J-1,I-1);
+            Int iOwner = tgt_cell.owner;
+            if( iOwner == this->iam ){
+              for(auto & block: tgt_cell.blocks()){
+                T * val = &tgt_cell._nzval[block.offset];
+                Int nRows = block.nrows;
+
+                Int row = block.first_row;
+                for(Int i = 0; i< nRows; ++i){
+                  for(Int j = 0; j< tgt_cell.width(); ++j){
+                    logfileptr->OFS()<<row+i<<" ";
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      logfileptr->OFS()<<"],[";
+      for(Int I=1;I<this->Xsuper_.size();I++){
+        Int src_first_col = this->Xsuper_[I-1];
+        Int src_last_col = this->Xsuper_[I]-1;
+      
+        for(Int J=I;J<this->Xsuper_.size();J++){
+          auto idx = coord2supidx(J-1,I-1);
+          if (this->cells_.find(idx)!= this->cells_.end()){
+            auto & tgt_cell = CELL(J-1,I-1);
+            Int iOwner = tgt_cell.owner;
+            if( iOwner == this->iam ){
+              for(auto & block: tgt_cell.blocks()){
+                T * val = &tgt_cell._nzval[block.offset];
+                Int nRows = block.nrows;
+
+                Int row = block.first_row;
+                for(Int i = 0; i< nRows; ++i){
+                  for(Int j = 0; j< tgt_cell.width(); ++j){
+                    logfileptr->OFS()<<src_first_col+j<<" ";
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      logfileptr->OFS()<<"],[";
+      logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
+      for(Int I=1;I<this->Xsuper_.size();I++){
+        Int src_first_col = this->Xsuper_[I-1];
+        Int src_last_col = this->Xsuper_[I]-1;
+      
+        for(Int J=I;J<this->Xsuper_.size();J++){
+          auto idx = coord2supidx(J-1,I-1);
+          if (this->cells_.find(idx)!= this->cells_.end()){
+            auto & tgt_cell = CELL(J-1,I-1);
+            Int iOwner = tgt_cell.owner;
+            if( iOwner == this->iam ){
+              for(auto & block: tgt_cell.blocks()){
+                T * val = &tgt_cell._nzval[block.offset];
+                Int nRows = block.nrows;
+
+                Int row = block.first_row;
+                for(Int i = 0; i< nRows; ++i){
+                  for(Int j = 0; j< tgt_cell.width(); ++j){
+                    logfileptr->OFS()<<std::scientific<<ToMatlabScalar(val[i*tgt_cell.width()+j])<<" ";
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      logfileptr->OFS()<<"],"<<this->iSize_<<","<<this->iSize_<<")"<<std::endl;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
 namespace scheduling {
 
   template <typename ttask_t , typename ttaskgraph_t >
@@ -2597,144 +3258,113 @@ namespace scheduling {
   inline void Scheduler2D<ttask_t,ttaskgraph_t>::execute(ttaskgraph_t & task_graph )
 #endif
   {
-//    if(upcxx::rank_me()==0){gdb_lock();}
-    //fulfill_anonymous each in_prom to launch the computations
-    int64_t local_task_cnt = 0;
-    for (auto it = task_graph.begin(); it != task_graph.end(); it++) {
-      auto idx = it->first;
-      auto tasklist = it->second;
-      for ( auto && ptask: tasklist) {
-        local_task_cnt++;
-        //this finalize the in_prom promise, trigering tasks without input dependencies 
-        ptask->in_prom->fulfill_anonymous(1);
-      }
-    }
-
-    while(local_task_cnt>0){
-      if (!ready_tasks.empty()) {
-        auto ptask = ready_tasks.front();
-        ready_tasks.pop_front();
-//        bassert(ptask->dep_count==0 && ptask->executed==false);
-        ptask->execute(); 
-        local_task_cnt--;
+    try{
+      //fulfill_anonymous each in_prom to launch the computations
+      int64_t local_task_cnt = 0;
+      for (auto it = task_graph.begin(); it != task_graph.end(); it++) {
+        auto idx = it->first;
+        auto tasklist = it->second;
+        for ( auto && ptask: tasklist) {
+          local_task_cnt++;
+          //this finalize the in_prom promise, trigering tasks without input dependencies 
+          ptask->in_prom->fulfill_anonymous(1);
+        }
       }
 
-      //handle communications
-      if (!avail_tasks.empty()) {
-        //get all comms from a task
-        auto ptask = avail_tasks.front();
-        avail_tasks.pop_front();
-        for(auto & msg : ptask->input_msg){
-          msg->allocate();
+      bool progress = false;
+      while(local_task_cnt>0){
+        if (!ready_tasks.empty()) {
+          auto ptask = ready_tasks.front();
+          ready_tasks.pop_front();
+          ptask->execute(); 
+          local_task_cnt--;
+          progress = false;
+        }
 
-
-          msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
-              //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-              ptask->in_prom->fulfill_anonymous(1);
-
-              //for(auto ptask: pmsg->target_tasks){
+        //handle communications
+        if (!avail_tasks.empty()) {
+          //get all comms from a task
+          auto ptask = avail_tasks.front();
+          avail_tasks.pop_front();
+          for(auto & msg : ptask->input_msg){
+            msg->allocate();
+            msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
                 //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-              //  ptask->in_prom->fulfill_anonymous(1);
-              //}
+                ptask->in_prom->fulfill_anonymous(1);
+                });
+          } 
+          progress = false;
+        }
 
-              });
-        } 
-        //fulfill by 1 to finalize the promise 
-        //ptask->in_prom->fulfill_anonymous(1);
-      }
-      
-      
-      upcxx::progress();
+        upcxx::progress();
 
+        if(!progress){
+          progress = true;
 #ifdef _DEBUG_DEPENDENCIES_
-        for(auto it = task_graph.begin(); it != task_graph.end(); it++){
-          auto idx = it->first;
-          auto tasklist = it->second;
+          for(auto it = task_graph.begin(); it != task_graph.end(); it++){
+            auto idx = it->first;
+            auto tasklist = it->second;
 
-          for( auto && ptask: tasklist){
-            if (!ptask->executed){
+            for( auto && ptask: tasklist){
+              if (!ptask->executed){
 
-              auto meta = &ptask->_meta;
-              auto & src_snode = std::get<0>(meta[0]);
-              auto & tgt_snode = std::get<1>(meta[0]);
-              auto & lt_first_row = std::get<3>(meta[0]);
-              auto & facing_row = std::get<4>(meta[0]);
-              auto & type = std::get<2>(meta[0]);
+                auto meta = &ptask->_meta;
+                auto & src_snode = std::get<0>(meta[0]);
+                auto & tgt_snode = std::get<1>(meta[0]);
+                auto & lt_first_row = std::get<3>(meta[0]);
+                auto & facing_row = std::get<4>(meta[0]);
+                auto & type = std::get<2>(meta[0]);
 
-              auto I = src_snode;
-              auto J = tgt_snode;
-              auto K = SupMembership[facing_row-1];
+                auto I = src_snode;
+                auto J = tgt_snode;
+                auto K = SupMembership[facing_row-1];
 
-              switch(type){
-                case Factorization::op_type::TRSM:
-                  {
-                    logfileptr->OFS()<<"TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
-                  }
-                  break;
-                case Factorization::op_type::FACTOR:
-                  {
-                    logfileptr->OFS()<<"FACTOR"<<" cell ("<<I<<","<<I<<")"<<std::endl;
-                  }
-                  break;
-                case Factorization::op_type::UPDATE2D_COMP:
-                  {
-                    logfileptr->OFS()<<"UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
-                  }
-                  break;
-                default:
-                  delete ptask;
-                  break;
-              }
-
-
+                switch(type){
+                  case Factorization::op_type::TRSM:
+                    {
+                      logfileptr->OFS()<<"TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
+                    }
+                    break;
+                  case Factorization::op_type::FACTOR:
+                    {
+                      logfileptr->OFS()<<"FACTOR"<<" cell ("<<I<<","<<I<<")"<<std::endl;
+                    }
+                    break;
+                  case Factorization::op_type::UPDATE2D_COMP:
+                    {
+                      logfileptr->OFS()<<"UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
+                    }
+                    break;
+                  default:
+                    delete ptask;
+                    break;
+                }
 
 
-              logfileptr->OFS()<<"      local input dependencies: ";
-              for(auto &&tpl : ptask->in_local_dependencies){
-                logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<","<<(std::get<2>(tpl)?"yes":"no")<<") ";
-              }
-              logfileptr->OFS()<<std::endl;
-              logfileptr->OFS()<<"      remote input dependencies: ";
-              for(auto &&tpl : ptask->in_remote_dependencies){
-                logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<","<<(std::get<2>(tpl)?"yes":"no")<<") ";
+
+
+                logfileptr->OFS()<<"      local input dependencies: ";
+                for(auto &&tpl : ptask->in_local_dependencies){
+                  logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<","<<(std::get<2>(tpl)?"yes":"no")<<") ";
+                }
+                logfileptr->OFS()<<std::endl;
+                logfileptr->OFS()<<"      remote input dependencies: ";
+                for(auto &&tpl : ptask->in_remote_dependencies){
+                  logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<","<<(std::get<2>(tpl)?"yes":"no")<<") ";
+                }
+                logfileptr->OFS()<<std::endl;
               }
             }
+
           }
-
-        }
 #endif
-
+        }
+      }
     }
-
-//    //fulfill_anonymous each in_prom to launch the computations
-//    int64_t local_task_cnt = 0;
-//    for (auto it = task_graph.begin(); it != task_graph.end(); it++) {
-//      auto idx = it->first;
-//      auto tasklist = it->second;
-//      for ( auto && ptask: tasklist) {
-//        local_task_cnt++;
-//        ptask->in_prom->fulfill_anonymous(1);
-//      }
-//    }
-//   
-//    std::deque<incoming_data_t> & comm_queue = g_sp_handle_incoming[this->sp_handle];
-//
-//    while(local_task_cnt>0){
-//      if (!ready_tasks.empty()) {
-//        auto ptask = ready_tasks.front();
-//        ready_tasks.pop_front();
-//        bassert(ptask->dep_count==0 && ptask->executed==false);
-//        ptask->execute(); 
-//      }
-//
-//      //handle communications
-//      if (!avail_tasks.empty()) {
-//        //get all comms from a task
-//        auto ptask = avail_tasks.front();
-//        avail_tasks.pop_front();
-//        
-//      }
-//    }
+    catch(const std::runtime_error& e){
+      std::cerr << "Runtime error: " << e.what() << '\n';
+    }
+    upcxx::barrier();
   }
 
 

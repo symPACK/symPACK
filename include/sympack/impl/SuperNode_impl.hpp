@@ -2005,12 +2005,15 @@ namespace symPACK{
       NZBlockDesc & nzblk_desc = snode.GetNZBlockDesc(blkidx);
       T * nzblk_nzval = snode.GetNZval(nzblk_desc.Offset);
       os<<"--- NZBlock "<<nzblk_desc.GIndex<<" ---"<<std::endl;
+              std::streamsize p = logfileptr->OFS().precision();
+      logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
       for(Int i = 0; i<snode.NRows(blkidx);++i){
         for(Int j = 0; j<snode.Size();++j){
-          os<<nzblk_nzval[i*snode.Size()+j]<<" ";
+          os<<std::scientific<<ToMatlabScalar(nzblk_nzval[i*snode.Size()+j])<<" ";
         }
         os<<std::endl;
       }
+logfileptr->OFS().precision(p);
     }
     os<<"oooooooooooooooooooooooooooooooooooooooo"<<std::endl;
     return os;

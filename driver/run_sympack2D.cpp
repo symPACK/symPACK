@@ -17,7 +17,7 @@
 #include  "sympack/Ordering.hpp"
 #include <memory>
 
-//#define DUMP_MATLAB
+#define DUMP_MATLAB
 //#define DUMP_MATLAB_SOL
 
 /******* TYPE used in the computations ********/
@@ -358,42 +358,101 @@ int main(int argc, char **argv)
     symPACKMatrix<SCALAR>*  SMat;
 
     /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
+
+/////#ifndef NOTRY
+/////    try
+/////#endif
+/////    {
+/////      timeSta = get_time();
+/////      SMat = new symPACKMatrix<SCALAR>();
+/////      SMat->Init(optionsFact);
+/////      SMat->SymbolicFactorization(HMat);
+/////if(!nofact){
+/////      SMat->DistributeMatrix(HMat);
+/////}
+/////      timeEnd = get_time();
+/////#ifdef EXPLICIT_PERMUTE
+/////      perm = SMat->GetOrdering().perm;
+/////#endif
+/////    }
+/////#ifndef NOTRY
+/////    catch(const std::bad_alloc& e){
+/////      std::cout << "Allocation failed: " << e.what() << '\n';
+/////      SMat = NULL;
+/////      abort();
+/////    }
+/////#endif
+/////
+/////
+/////
+/////#ifdef DUMP_MATLAB
+/////    if(iam==0){
+/////      logfileptr->OFS()<<"A= ";
+/////    }
+/////    SMat->DumpMatlab();
+/////#endif
+/////
+/////
+/////      /************* NUMERICAL FACTORIZATION PHASE ***********/
+/////      if(iam==0){
+/////        std::cout<<"Starting Factorization"<<std::endl;
+/////      }
+/////      timeSta = get_time();
+/////      SYMPACK_TIMER_START(FACTORIZATION);
+/////      SMat->Factorize();
+/////      SYMPACK_TIMER_STOP(FACTORIZATION);
+/////      timeEnd = get_time();
+/////
+/////      if(iam==0){
+/////        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+/////      }
+/////      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+/////
+/////#ifdef DUMP_MATLAB
+/////      if(iam==0){
+/////        logfileptr->OFS()<<"L= ";
+/////      }
+/////      SMat->DumpMatlab();
+/////#endif
+
+
+
+
+
+    auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
     try{
-      auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
       SMat2D->Init(optionsFact);
       SMat2D->SymbolicFactorization(HMat);
+      SMat2D->DistributeMatrix(HMat);
+#ifdef DUMP_MATLAB
+    if(iam==0){
+      logfileptr->OFS()<<"A2= ";
+    }
+    SMat2D->DumpMatlab();
+#endif
+
+
       SMat2D->Factorize();
+
     }
     catch(const std::bad_alloc& e){
       std::cout << "Allocation failed: " << e.what() << '\n';
       SMat = NULL;
       abort();
     }
+catch(const std::runtime_error& e){
+      std::cerr << "Runtime error: " << e.what() << '\n';
+}
+
+#ifdef DUMP_MATLAB
+    if(iam==0){
+      logfileptr->OFS()<<"L2= ";
+    }
+    SMat2D->DumpMatlab();
+#endif
 
 
-////#ifndef NOTRY
-////    try
-////#endif
-////    {
-////      timeSta = get_time();
-////      SMat = new symPACKMatrix<SCALAR>();
-////      SMat->Init(optionsFact);
-////      SMat->SymbolicFactorization(HMat);
-////if(!nofact){
-////      SMat->DistributeMatrix(HMat);
-////}
-////      timeEnd = get_time();
-////#ifdef EXPLICIT_PERMUTE
-////      perm = SMat->GetOrdering().perm;
-////#endif
-////    }
-////#ifndef NOTRY
-////    catch(const std::bad_alloc& e){
-////      std::cout << "Allocation failed: " << e.what() << '\n';
-////      SMat = NULL;
-////      abort();
-////    }
-////#endif
+
 ////
 ////    if(iam==0){
 ////      std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;

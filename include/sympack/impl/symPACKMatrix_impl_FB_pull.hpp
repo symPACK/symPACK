@@ -381,6 +381,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
               logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
 #endif
 
+  logfileptr->OFS()<<"Before factoring Supernode "<<I<<std::endl;
+  logfileptr->OFS()<<*src_snode<<std::endl;
+
               SYMPACK_TIMER_START(FACTOR_PANEL);
 #ifdef SP_THREADS
               std::thread::id tid = std::this_thread::get_id();
@@ -391,6 +394,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
 
               SYMPACK_TIMER_STOP(FACTOR_PANEL);
+
+  logfileptr->OFS()<<"After factoring Supernode "<<I<<std::endl;
+  logfileptr->OFS()<<*src_snode<<std::endl;
 
               //Sending factors and update local tasks
               //Send my factor to my ancestors. 
@@ -685,6 +691,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
 
 
+//if ( tgt != 4 || ( src==2 && tgt == 4 ) ) {
+//if( tgt==4 ){logfileptr->OFS()<<"Before update from "<<src<<" to "<<tgt<<std::endl<<*tgt_aggreg<<std::endl;}
                         //Update the aggregate
                         SYMPACK_TIMER_START(UPD_ANC_UPD);
 #ifdef SP_THREADS
@@ -699,7 +707,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
 
                         SYMPACK_TIMER_STOP(UPD_ANC_UPD);
-
+//if( tgt==4 ){logfileptr->OFS()<<"After update from "<<src<<" to "<<tgt<<std::endl<<*tgt_aggreg<<std::endl;}
+//}
 #ifdef SP_THREADS
                         if(Multithreading::NumThread>1){
                           tgt_aggreg->in_use = false;
@@ -1844,9 +1853,11 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
   logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
 #endif
 
+
   SYMPACK_TIMER_START(FACTOR_PANEL);
   src_snode->Factorize(tmpBufs);
   SYMPACK_TIMER_STOP(FACTOR_PANEL);
+
 
   //Sending factors and update local tasks
   //Send my factor to my ancestors. 
