@@ -85,7 +85,7 @@ namespace symPACK{
 
 #ifdef NEW_UPCXX
 
-#define _DEBUG_DEPENDENCIES_
+//#define _DEBUG_DEPENDENCIES_
 
 #define pCELL(a,b) (std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))]))
 #define CELL(a,b) (*pCELL((a),(b)))
@@ -600,7 +600,7 @@ logfileptr->OFS().precision(p);
           auto snode_size = std::get<0>(_dims);
           auto diag_nzval = _nzval;
 
-          print_block(*this,"diag before Potrf");
+//          print_block(*this,"diag before Potrf");
     try{
           lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
     }
@@ -609,7 +609,7 @@ logfileptr->OFS().precision(p);
       gdb_lock();
     }
 
-          print_block(*this,"diag after Potrf");
+//          print_block(*this,"diag after Potrf");
           return 0;
         }
 
@@ -624,10 +624,10 @@ logfileptr->OFS().precision(p);
 
           auto snode_size = std::get<0>(_dims);
           auto nzblk_nzval = _nzval;
-          print_block(diag,"diag");
-          print_block(*this,"offdiag before Trsm");
+//          print_block(diag,"diag");
+//          print_block(*this,"offdiag before Trsm");
           blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
-          print_block(*this,"offdiag after Trsm");
+//          print_block(*this,"offdiag after Trsm");
           return 0;
         }
 
@@ -638,11 +638,9 @@ logfileptr->OFS().precision(p);
 #endif
           //do the owner compute update first
 
-//          if(this->i==26 && this->j==26){gdb_lock();}
-
+#if 1
           {
             bassert(nblocks()>0);
-            auto & first_block = _block_container[0];
 
             bassert(pivot.nblocks()>0);
             auto pivot_fr = pivot._block_container[0].first_row;
@@ -653,14 +651,6 @@ logfileptr->OFS().precision(p);
 
             auto src_snode_size = std::get<0>(pivot._dims);
             auto tgt_snode_size = std::get<0>(_dims);
-
-
-         // {
-         //   int fr = this->_block_container[0].first_row;
-         //   auto & lb = this->_block_container[this->_block_container.size()-1];
-         //   int lr = lb.first_row + lb.nrows -1;
-         //   if(fr<=46 && lr>=46 && this->first_col<=2 && this->first_col+tgt_snode_size>2 ){gdb_lock();}
-         // }
 
 
             //find the first row updated by src_snode
@@ -723,46 +713,47 @@ logfileptr->OFS().precision(p);
 //if(this->i==5 && this->j==4 && facing.i==5 && facing.j==3){gdb_lock();}
             size_t tgt_offset = 0;
             bool in_place = ( first_pivot_idx == last_pivot_idx );
-            
-            int tgt_first_upd_blk_idx  = 0;
-            for ( ; tgt_first_upd_blk_idx < this->_block_container.size(); tgt_first_upd_blk_idx++ ){
-              auto & block = this->_block_container[tgt_first_upd_blk_idx];
-              if(facing_fr >= block.first_row && facing_fr <= block.first_row + block.nrows -1)
-                break;
-            }
-
-            tgt_offset = this->_block_container[tgt_first_upd_blk_idx].offset
-                            + (facing_fr - this->_block_container[tgt_first_upd_blk_idx].first_row) * this->width() 
-                            + tgt_local_fc; 
-
-            //find the last block updated
-            int tgt_last_upd_blk_idx  = this->_block_container.size()-1;
-            for ( ; tgt_last_upd_blk_idx > tgt_first_upd_blk_idx; tgt_last_upd_blk_idx-- ){
-              auto & block = this->_block_container[tgt_last_upd_blk_idx];
-              if(facing_lr >= block.first_row && facing_lr <= block.first_row + block.nrows -1)
-                break;
-            }
-            //make sure that in between these two blocks, everything matches
-            int upd_blk_cnt = tgt_last_upd_blk_idx - tgt_first_upd_blk_idx +1;
-            if ( in_place && upd_blk_cnt == facing.nblocks() && upd_blk_cnt>=1) {
-//              if(this->i==86 && this->j==86 && in_place){gdb_lock();}
-              for ( int blkidx = tgt_first_upd_blk_idx; blkidx <= tgt_last_upd_blk_idx; blkidx++) {
-                int facingidx = blkidx - tgt_first_upd_blk_idx;
-                int f_fr = facing._block_container[facingidx].first_row; 
-                int f_lr = facing._block_container[facingidx].nrows + f_fr -1;
-                int t_fr = std::max(facing_fr, this->_block_container[blkidx].first_row); 
-                int t_lr = std::min(facing_lr, this->_block_container[blkidx].first_row+this->_block_container[blkidx].nrows-1); 
-                if (f_fr != t_fr || f_lr != t_lr) {
- //                 gdb_lock();
-                  in_place = false;
+           
+            if (in_place){ 
+              int tgt_first_upd_blk_idx  = 0;
+              for ( ; tgt_first_upd_blk_idx < this->_block_container.size(); tgt_first_upd_blk_idx++ ){
+                auto & block = this->_block_container[tgt_first_upd_blk_idx];
+                if(facing_fr >= block.first_row && facing_fr <= block.first_row + block.nrows -1)
                   break;
+              }
+
+              tgt_offset = this->_block_container[tgt_first_upd_blk_idx].offset
+                + (facing_fr - this->_block_container[tgt_first_upd_blk_idx].first_row) * this->width() 
+                + tgt_local_fc; 
+
+              //find the last block updated
+              int tgt_last_upd_blk_idx  = this->_block_container.size()-1;
+              for ( ; tgt_last_upd_blk_idx > tgt_first_upd_blk_idx; tgt_last_upd_blk_idx-- ){
+                auto & block = this->_block_container[tgt_last_upd_blk_idx];
+                if(facing_lr >= block.first_row && facing_lr <= block.first_row + block.nrows -1)
+                  break;
+              }
+              //make sure that in between these two blocks, everything matches
+              int upd_blk_cnt = tgt_last_upd_blk_idx - tgt_first_upd_blk_idx +1;
+              if ( in_place && upd_blk_cnt == facing.nblocks() && upd_blk_cnt>=1) {
+                //              if(this->i==86 && this->j==86 && in_place){gdb_lock();}
+                for ( int blkidx = tgt_first_upd_blk_idx; blkidx <= tgt_last_upd_blk_idx; blkidx++) {
+                  int facingidx = blkidx - tgt_first_upd_blk_idx;
+                  int f_fr = facing._block_container[facingidx].first_row; 
+                  int f_lr = facing._block_container[facingidx].nrows + f_fr -1;
+                  int t_fr = std::max(facing_fr, this->_block_container[blkidx].first_row); 
+                  int t_lr = std::min(facing_lr, this->_block_container[blkidx].first_row+this->_block_container[blkidx].nrows-1); 
+                  if (f_fr != t_fr || f_lr != t_lr) {
+                    //                 gdb_lock();
+                    in_place = false;
+                    break;
+                  }
                 }
               }
+              else {
+                in_place = false;
+              }
             }
-            else {
-              in_place = false;
-            }
-
 //in_place= false;
 
             int ldbuf = tgt_width;
@@ -782,9 +773,9 @@ logfileptr->OFS().precision(p);
               buf = &tmpBuffers.tmpBuf[0];
             }
 
-                print_block(pivot,"pivot");
-                print_block(facing,"facing");
-                print_block(*this,"tgt before update");
+///                print_block(pivot,"pivot");
+///                print_block(facing,"facing");
+///                print_block(*this,"tgt before update");
 
             //everything is in row-major
             SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
@@ -862,12 +853,12 @@ logfileptr->OFS().precision(p);
                 SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_ADD);
 
 
-logfileptr->OFS()<<"tmpBuffers.src_colindx:";
-for(auto i: tmpBuffers.src_colindx){ logfileptr->OFS()<<i<<" ";}
-logfileptr->OFS()<<std::endl;
-logfileptr->OFS()<<"tmpBuffers.src_to_tgt_offset:";
-for(auto i: tmpBuffers.src_to_tgt_offset){ logfileptr->OFS()<<i<<" ";}
-logfileptr->OFS()<<std::endl;
+//logfileptr->OFS()<<"tmpBuffers.src_colindx:";
+//for(auto i: tmpBuffers.src_colindx){ logfileptr->OFS()<<i<<" ";}
+//logfileptr->OFS()<<std::endl;
+//logfileptr->OFS()<<"tmpBuffers.src_to_tgt_offset:";
+//for(auto i: tmpBuffers.src_to_tgt_offset){ logfileptr->OFS()<<i<<" ";}
+//logfileptr->OFS()<<std::endl;
 
                 if(first_pivot_idx==last_pivot_idx){
                   // Updating contiguous columns
@@ -896,8 +887,157 @@ logfileptr->OFS()<<std::endl;
               }
             }
             
-              print_block(*this,"tgt after update");
+//              print_block(*this,"tgt after update");
           }
+#else
+
+
+            bassert(nblocks()>0);
+            bassert(pivot.nblocks()>0);
+            bassert(facing.nblocks()>0);
+
+            auto facing_fr = facing._block_container[0].first_row;
+            auto facing_lr = facing._block_container[facing.nblocks()-1].first_row+facing._block_container[facing.nblocks()-1].nrows-1;
+
+            auto src_snode_size = pivot.width();
+            auto tgt_snode_size = this->width();
+
+            bool in_place = pivot.nblocks()==1;
+
+            //find the first row updated by src_snode
+            auto tgt_fc = pivot._block_container[0].first_row;
+            auto tgt_lc = pivot._block_container[pivot._block_container._nblocks-1].first_row
+              + pivot._block_container[pivot._block_container._nblocks-1].nrows -1;
+            //determine the first column that will be updated in the target supernode
+            rowind_t tgt_local_fc =  tgt_fc - this->first_col;
+            rowind_t tgt_local_lc =  tgt_lc - this->first_col;
+
+            rowind_t pivot_nrows = pivot.total_rows();
+            rowind_t src_nrows = facing.total_rows();
+
+            //condensed update width is the number of rows in the pivot block
+            int_t tgt_width = pivot_nrows;
+
+            T * pivot_nzval = pivot._nzval;
+            T * facing_nzval = facing._nzval;
+            T * tgt = this->_nzval;
+
+            //Pointer to the output buffer of the GEMM
+            T * buf = NULL;
+            T beta = T(0);
+
+           
+            int tgt_first_upd_blk_idx  = 0;
+            for ( ; tgt_first_upd_blk_idx < this->_block_container.size(); tgt_first_upd_blk_idx++ ){
+              auto & block = this->_block_container[tgt_first_upd_blk_idx];
+              if(facing_fr >= block.first_row && facing_fr <= block.first_row + block.nrows -1)
+                break;
+            }
+
+            //find the last block updated
+            int tgt_last_upd_blk_idx  = this->_block_container.size()-1;
+            for ( ; tgt_last_upd_blk_idx > tgt_first_upd_blk_idx; tgt_last_upd_blk_idx-- ){
+              auto & block = this->_block_container[tgt_last_upd_blk_idx];
+              if(facing_lr >= block.first_row && facing_lr <= block.first_row + block.nrows -1)
+                break;
+            }
+
+            //offset to the first updated element in the target nzval array
+            size_t tgt_offset = this->_block_container[tgt_first_upd_blk_idx].offset
+              + (facing_fr - this->_block_container[tgt_first_upd_blk_idx].first_row) * this->width() 
+              + tgt_local_fc; 
+            
+            //If the target supernode has the same structure,
+            //The GEMM is directly done in place
+            if (in_place){ 
+              //make sure that in between these two blocks, everything matches
+              int upd_blk_cnt = tgt_last_upd_blk_idx - tgt_first_upd_blk_idx +1;
+              in_place = upd_blk_cnt == facing.nblocks();
+              if ( in_place ) {
+                for ( int blkidx = tgt_first_upd_blk_idx; blkidx <= tgt_last_upd_blk_idx; blkidx++) {
+                  int facingidx = blkidx - tgt_first_upd_blk_idx;
+                  int f_fr = facing._block_container[facingidx].first_row; 
+                  int f_lr = facing._block_container[facingidx].nrows + f_fr -1;
+                  int t_fr = std::max(facing_fr, this->_block_container[blkidx].first_row); 
+                  int t_lr = std::min(facing_lr, this->_block_container[blkidx].first_row+this->_block_container[blkidx].nrows-1); 
+                  if (f_fr != t_fr || f_lr != t_lr) {
+                    in_place = false;
+                    break;
+                  }
+                }
+              }
+            }
+
+            int ldbuf = tgt_width;
+            if(in_place)
+            {
+              buf = tgt + tgt_offset;
+              beta = T(1);
+              ldbuf = tgt_snode_size;
+            }
+            else{
+              //Compute the update in a temporary buffer
+#ifdef SP_THREADS
+            tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+#endif
+              buf = &tmpBuffers.tmpBuf[0];
+            }
+
+            //everything is in row-major
+            SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
+            blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+                T(-1.0),pivot_nzval,src_snode_size,
+                facing_nzval,src_snode_size,beta,buf,ldbuf);
+            SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_GEMM);
+
+            if (!in_place) {
+              for ( int facingidx = 0; facingidx < facing.nblocks(); facingidx++){
+                auto & facing_blk = facing._block_container[facingidx];
+
+                int blkidx = 0;
+                for ( blkidx = tgt_first_upd_blk_idx; blkidx<= tgt_last_upd_blk_idx; blkidx++){
+                  if ( this->_block_container[blkidx].first_row <= facing_blk.first_row &&
+                      this->_block_container[blkidx].first_row + this->_block_container[blkidx].nrows >=
+                      facing_blk.first_row + facing_blk.nrows)
+                    break;
+                }
+
+
+//                auto blkidx = tgt_first_upd_blk_idx;
+//                while ( this->_block_container[blkidx].first_row 
+//                      + this->_block_container[blkidx].nrows -1 < facing_blk.first_row) { blkidx++;}
+
+
+                auto & tgt_blk = this->_block_container[blkidx];
+                bassert( tgt_blk.first_row <= facing_blk.first_row && facing_blk.first_row + facing_blk.nrows <= tgt_blk.first_row + tgt_blk.nrows);
+
+                int f_fr = facing_blk.first_row; 
+                int f_lr = facing_blk.nrows + f_fr -1;
+                int t_fr = std::max(facing_fr, tgt_blk.first_row); 
+
+                size_t row_offset = (f_fr - t_fr)*tgt_snode_size;
+
+                int local_src_row = (facing_blk.offset - facing._block_container[0].offset)/src_snode_size;
+
+                for ( auto row = 0; row < facing_blk.nrows ; row++ ) {
+                
+                  for ( auto & pivot_blk: pivot.blocks() ) {
+                    size_t col_offset = pivot_blk.first_row - this->first_col;
+                    size_t t_offset = row_offset+ row*tgt_snode_size + col_offset;
+                    
+                    int local_src_col = (pivot_blk.offset - pivot._block_container[0].offset)/src_snode_size;
+                    size_t s_offset = (local_src_row+row)*ldbuf + local_src_col;
+
+                    blas::Axpy(pivot_blk.nrows,1.0,buf+s_offset, ldbuf,tgt+t_offset,tgt_snode_size);
+                  }
+                }
+              }
+ 
+            }
+
+
+
+#endif
 
           return 0;
         }
@@ -1724,6 +1864,9 @@ logfileptr->OFS()<<std::endl;
 
 #if 1    
       {
+
+//if(this->iam==0){gdb_lock();}
+
         using cell_tuple_t = std::tuple<Idx,Idx,Int,Int>;
         std::list< cell_tuple_t> cellsToSend;
 
@@ -2120,20 +2263,26 @@ logfileptr->OFS()<<std::endl;
             case Factorization::op_type::TRSM:
               {
                 auto J = this->SupMembership_[facing_first_row-1];
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<J<<","<<I<<")"<<std::endl;
+#endif
                 this->task_graph[coord2supidx(J-1,I-1)].push_back(ptask);
               }
               break;
             case Factorization::op_type::FACTOR:
               {
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"FACTOR"<<" cell ("<<J<<","<<I<<")"<<std::endl;
+#endif
                 this->task_graph[coord2supidx(I-1,I-1)].push_back(ptask);
               }
               break;
             case Factorization::op_type::UPDATE2D_COMP:
               {
                 auto K = this->SupMembership_[facing_first_row-1];
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
+#endif
                 this->task_graph[coord2supidx(K-1,J-1)].push_back(ptask);
               }
               break;
@@ -2163,13 +2312,17 @@ logfileptr->OFS()<<std::endl;
 
                 auto taskptr = task_lookup(I,I,I,I,I,Factorization::op_type::FACTOR);
                 bassert(taskptr!=nullptr); 
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"TRSM_SEND"<<" from "<<I<<" to "<<I<<" cell ("<<J<<","<<I<<")"<<std::endl;
+#endif
 #ifdef _DEBUG_DEPENDENCIES_
                 taskptr->out_dependencies.push_back( std::make_tuple(J,I,false) );
 #else
                 taskptr->out_dependencies.push_back( std::make_tuple(J,I) );
 #endif
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep added to FACTOR"<<" from "<<I<<" to "<<I<<std::endl;
+#endif
               }
               break;
             case Factorization::op_type::TRSM_RECV:
@@ -2179,7 +2332,9 @@ logfileptr->OFS()<<std::endl;
                 //find the TRSM and add cell I,I as incoming dependency
                 auto taskptr = task_lookup(J,I,I,I,J,Factorization::op_type::TRSM);
                 bassert(taskptr!=nullptr); 
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"TRSM_RECV"<<" from "<<I<<" to "<<I<<" cell ("<<J<<","<<I<<")"<<std::endl;
+#endif
 #ifdef _DEBUG_DEPENDENCIES_
                 if (  CELL(J-1,I-1).owner != CELL(I-1,I-1).owner )
                   taskptr->in_remote_dependencies.push_back( std::make_tuple(I,I,false) );
@@ -2191,14 +2346,18 @@ logfileptr->OFS()<<std::endl;
                 else
                   taskptr->in_local_dependencies.push_back( std::make_tuple(I,I) );
 #endif
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"        in dep added to TRSM"<<" from "<<I<<" to "<<I<<std::endl;
+#endif
               }
               break;
             case Factorization::op_type::AGGREGATE2D_RECV:
               {
                 auto K = this->SupMembership_[facing_first_row-1];
 
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"AGGREGATE2D_RECV"<<" from "<<I<<" to "<<J<<" cell ("<<K<<","<<J<<") to cell("<<K<<","<<J<<")"<<std::endl;
+#endif
                 //find the FACTOR or TRSM and add cell K,J as incoming dependency
                 if(K==J){
                   auto taskptr = task_lookup(K,J,J,J,J,Factorization::op_type::FACTOR);
@@ -2209,7 +2368,9 @@ logfileptr->OFS()<<std::endl;
 #else
                   taskptr->in_local_dependencies.push_back( std::make_tuple(K,J) );
 #endif
+#ifdef _VERBOSE_
                   logfileptr->OFS()<<"        in dep added to FACTOR"<<" from "<<J<<" to "<<J<<std::endl;
+#endif
                 }
                 else{
                   auto taskptr = task_lookup(K,J,J,J,K,Factorization::op_type::TRSM);
@@ -2219,7 +2380,9 @@ logfileptr->OFS()<<std::endl;
 #else
                   taskptr->in_local_dependencies.push_back( std::make_tuple(K,J) );
 #endif
+#ifdef _VERBOSE_
                   logfileptr->OFS()<<"        in dep added to TRSM"<<" from "<<J<<" to "<<J<<std::endl;
+#endif
                 }
               }
               break;
@@ -2228,7 +2391,9 @@ logfileptr->OFS()<<std::endl;
                 //TODO this might be useless
                 auto K = this->SupMembership_[facing_first_row-1];
 
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"AGGREGATE2D_SEND"<<" from "<<I<<" to "<<J<<" cell ("<<K<<","<<J<<") to cell("<<K<<","<<J<<")"<<std::endl;
+#endif
                 //find the UPDATE2D_COMP and add cell K,J as outgoing dependency
                 auto taskptr = task_lookup(K,J,I,J,K,Factorization::op_type::UPDATE2D_COMP);
                 bassert(taskptr!=nullptr); 
@@ -2238,7 +2403,9 @@ logfileptr->OFS()<<std::endl;
 #else
                 taskptr->out_dependencies.push_back( std::make_tuple(K,J) );
 #endif
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep added to UPDATE_COMP"<<" from "<<I<<" to "<<J<<std::endl;
+#endif
               }
               break;
 
@@ -2247,7 +2414,9 @@ logfileptr->OFS()<<std::endl;
                 //TODO this might be useless
                 Idx K = this->SupMembership_[facing_first_row-1];
                 std::swap(K,J);
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"UPDATE_RECV"<<" from "<<I<<" to "<<K<<" cell ("<<J<<","<<I<<") to cell ("<<J<<","<<K<<")"<<std::endl;
+#endif
                 //find the UPDATE2D_COMP and add cell J,I as incoming dependency
                 auto taskptr = task_lookup(J,K,I,K,J,Factorization::op_type::UPDATE2D_COMP);
                 bassert(taskptr!=nullptr);
@@ -2263,14 +2432,18 @@ logfileptr->OFS()<<std::endl;
                   taskptr->in_local_dependencies.push_back( std::make_tuple(J,I) );
 #endif
 
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"        in dep added to UPDATE_COMP"<<" from "<<I<<" to "<<K<<std::endl;
+#endif
               }
               break;
             case Factorization::op_type::UPDATE2D_SEND:
               {
                 Idx K = this->SupMembership_[facing_first_row-1];
                 std::swap(K,J);
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"UPDATE_SEND"<<" from "<<I<<" to "<<K<<" cell ("<<J<<","<<I<<") to cell ("<<J<<","<<K<<")"<<std::endl;
+#endif
                 //find the TRSM and add cell J,K as outgoing dependency
                 auto taskptr = task_lookup(J,I,I,I,J,Factorization::op_type::TRSM);
                 bassert(taskptr!=nullptr); 
@@ -2279,13 +2452,17 @@ logfileptr->OFS()<<std::endl;
 #else
                 taskptr->out_dependencies.push_back( std::make_tuple(J,K) );
 #endif
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep added to TRSM"<<" from "<<I<<" to "<<I<<std::endl;
+#endif
               }
               break;
             case Factorization::op_type::UPDATE2D_SEND_OD:
               {
                 auto K = this->SupMembership_[lt_first_row-1];
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"UPDATE_SEND OD"<<" from "<<I<<" to "<<J<<" cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
+#endif
 
                 //find the TRSM and add cell K,J as outgoing dependency
                 auto taskptr = task_lookup(J,I,I,I,J,Factorization::op_type::TRSM);
@@ -2295,13 +2472,17 @@ logfileptr->OFS()<<std::endl;
 #else
                 taskptr->out_dependencies.push_back( std::make_tuple(K,J) );
 #endif
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep DOWN added to TRSM"<<" from "<<I<<" to "<<I<<std::endl;
+#endif
               }
               break;
             case Factorization::op_type::UPDATE2D_RECV_OD:
               {
                 auto K = this->SupMembership_[lt_first_row-1];
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"UPDATE_RECV OD"<<" from "<<I<<" to "<<J<<" cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
+#endif
 
                 //find the UPDATE2D_COMP and add cell J,I as incoming dependency
                 auto taskptr = task_lookup(K,J,I,J,K,Factorization::op_type::UPDATE2D_COMP);
@@ -2318,7 +2499,9 @@ logfileptr->OFS()<<std::endl;
                   taskptr->in_local_dependencies.push_back( std::make_tuple(J,I) );
 #endif
 
+#ifdef _VERBOSE_
                 logfileptr->OFS()<<"        in dep DOWN added to UPDATE2D_COMP"<<" from "<<I<<" to "<<J<<std::endl;
+#endif
               }
               break;
             default:
@@ -2435,7 +2618,7 @@ logfileptr->OFS()<<std::endl;
 
                   ptask->execute = [this,src_snode,ptask,I,J,K] () {
                     scope_timer(b,FB_FACTOR_DIAG_TASK);
-                    logfileptr->OFS()<<"Exec FACTOR"<<" cell ("<<I<<","<<I<<")"<<std::endl;
+                    //logfileptr->OFS()<<"Exec FACTOR"<<" cell ("<<I<<","<<I<<")"<<std::endl;
 
                     auto & diagcell = CELL(I-1,I-1);
                     bassert( diagcell.owner == this->iam);
@@ -2555,7 +2738,7 @@ logfileptr->OFS()<<std::endl;
                   ptask->execute = [this,src_snode,tgt_snode,ptask,I,J,K] () {
                     scope_timer(b,FB_TRSM_TASK);
 
-                    logfileptr->OFS()<<"Exec TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
+                    //logfileptr->OFS()<<"Exec TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
 
                     auto & od_cell = CELL(K-1,I-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(tgt_snode-1,src_snode-1)]);
                     //auto & od_cell = cells_[coord2supidx(tgt_snode-1,src_snode-1)];
@@ -2666,7 +2849,7 @@ logfileptr->OFS()<<std::endl;
                           auto taskptr = task_lookup(tgt_i,tgt_j,I,tgt_j,tgt_i,Factorization::op_type::UPDATE2D_COMP);
                           bassert(taskptr!=nullptr); 
                           //mark the dependency as satisfied
-                          logfileptr->OFS()<<"UPDATE"<<" from "<<I<<" to "<<tgt_j<<" facing cell ("<<K<<","<<I<<") and cell ("<<tgt_j<<","<<I<<") to cell ("<<K<<","<<tgt_j<<")"<<std::endl;
+                          //logfileptr->OFS()<<"UPDATE"<<" from "<<I<<" to "<<tgt_j<<" facing cell ("<<K<<","<<I<<") and cell ("<<tgt_j<<","<<I<<") to cell ("<<K<<","<<tgt_j<<")"<<std::endl;
                           //logfileptr->OFS()<<"      input dependencies: ";
                           //for(auto &&tpl : taskptr->in_dependencies){
                           //  logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<") ";
@@ -2706,7 +2889,7 @@ logfileptr->OFS()<<std::endl;
                     scope_timer(b,FB_UPDATE2D_TASK);
 
 //          if(K==4 && I==3){gdb_lock();}
-                    logfileptr->OFS()<<"Exec UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
+//                    logfileptr->OFS()<<"Exec UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
                     auto & upd_cell = CELL(K-1,J-1);
 
 #ifdef SP_THREADS
@@ -3273,14 +3456,6 @@ namespace scheduling {
 
       bool progress = false;
       while(local_task_cnt>0){
-        if (!ready_tasks.empty()) {
-          auto ptask = ready_tasks.front();
-          ready_tasks.pop_front();
-          ptask->execute(); 
-          local_task_cnt--;
-          progress = false;
-        }
-
         //handle communications
         if (!avail_tasks.empty()) {
           //get all comms from a task
@@ -3295,6 +3470,15 @@ namespace scheduling {
           } 
           progress = false;
         }
+
+        if (!ready_tasks.empty()) {
+          auto ptask = ready_tasks.front();
+          ready_tasks.pop_front();
+          ptask->execute(); 
+          local_task_cnt--;
+          progress = true;
+        }
+
 
         upcxx::progress();
 
