@@ -20,8 +20,8 @@
 //#define DUMP_MATLAB_SOL
 
 /******* TYPE used in the computations ********/
-//#define SCALAR double
-#define SCALAR std::complex<double>
+#define SCALAR double
+//#define SCALAR std::complex<double>
 
 /******* TYPE in the input matrix ********/
 #define RSCALAR double
@@ -232,6 +232,9 @@ int main(int argc, char **argv)
   }
 
   //-----------------------------------------------------------------
+
+{
+
 
   Real timeSta, timeEnd;
 
@@ -532,6 +535,8 @@ int main(int argc, char **argv)
 #endif
 
 #endif
+
+}
 
   MPI_Barrier(worldcomm);
   MPI_Comm_free(&worldcomm);

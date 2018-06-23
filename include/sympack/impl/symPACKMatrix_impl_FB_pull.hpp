@@ -381,8 +381,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
               logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
 #endif
 
-  logfileptr->OFS()<<"Before factoring Supernode "<<I<<std::endl;
-  logfileptr->OFS()<<*src_snode<<std::endl;
+//  logfileptr->OFS()<<"Before factoring Supernode "<<I<<std::endl;
+//  logfileptr->OFS()<<*src_snode<<std::endl;
 
               SYMPACK_TIMER_START(FACTOR_PANEL);
 #ifdef SP_THREADS
@@ -395,8 +395,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
               SYMPACK_TIMER_STOP(FACTOR_PANEL);
 
-  logfileptr->OFS()<<"After factoring Supernode "<<I<<std::endl;
-  logfileptr->OFS()<<*src_snode<<std::endl;
+//  logfileptr->OFS()<<"After factoring Supernode "<<I<<std::endl;
+//  logfileptr->OFS()<<*src_snode<<std::endl;
 
               //Sending factors and update local tasks
               //Send my factor to my ancestors. 
@@ -1421,27 +1421,23 @@ defaut:
   SYMPACK_TIMER_START(BARRIER);
 
 #ifdef NEW_UPCXX
-  double tstart = get_time();
-
-  for(auto f: gFutures){
-    f.wait();
-  }
+  double tstart,tstop;
+  //tstart = get_time();
+  for(auto f: gFutures) f.wait();
   gFutures.clear();
+  //tstop = get_time();
+  //logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
 
-  double tstop = get_time();
-  logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
-
-
-  tstart = get_time();
+  //tstart = get_time();
   int barrier_id = get_barrier_id(this->np);
   signal_exit(barrier_id,*this->group_); 
-  tstop = get_time();
-  logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
+  //tstop = get_time();
+  //logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
 
-  tstart = get_time();
+  //tstart = get_time();
   barrier_wait(barrier_id);
-  tstop = get_time();
-  logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
+  //tstop = get_time();
+  //logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
 #else
   double tstart = get_time();
   int barrier_id = get_barrier_id(this->np);

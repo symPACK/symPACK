@@ -423,6 +423,7 @@ int main(int argc, char **argv)
     try{
       SMat2D->Init(optionsFact);
       SMat2D->SymbolicFactorization(HMat);
+#if 1
       SMat2D->DistributeMatrix(HMat);
 #ifdef DUMP_MATLAB
     if(iam==0){
@@ -431,9 +432,14 @@ int main(int argc, char **argv)
     SMat2D->DumpMatlab();
 #endif
 
-
+      timeSta = get_time();
       SMat2D->Factorize();
-
+      timeEnd = get_time();
+      if(iam==0){
+        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+      }
+      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+#endif
     }
     catch(const std::bad_alloc& e){
       std::cout << "Allocation failed: " << e.what() << '\n';

@@ -726,7 +726,9 @@ namespace symPACK{
     ////make sure every one have an element
     //while(((double)N/(double)ndomains)<1.0){ndomains /= 2;}
 
-    NpOrdering = std::min(std::max(0,NpOrdering),np);
+    //NpOrdering = std::min(std::max(0,NpOrdering),np);
+    //NpOrdering = std::max(std::min(np,NpOrdering),0);
+    NpOrdering = std::max(std::min(np,NpOrdering>0?NpOrdering:np),0);
     if(NpOrdering!=0){
 
       ndomains = NpOrdering;
@@ -1169,7 +1171,8 @@ namespace symPACK{
 
 
 
-    NpOrdering = std::min(std::max(0,NpOrdering),np);
+    //NpOrdering = std::min(std::max(0,NpOrdering),np);
+    NpOrdering = std::max(std::min(np,NpOrdering>0?NpOrdering:np),0);
     SCOTCH_Num ndomains = NpOrdering;
     MPI_Comm ndcomm;
     int color = iam < ndomains;

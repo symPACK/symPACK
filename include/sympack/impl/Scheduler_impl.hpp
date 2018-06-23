@@ -589,28 +589,24 @@ for(auto && toto: delayedTasks_){
         }
 
 #ifdef NEW_UPCXX
+   double tstop, tstart;
 
-   double tstart = get_time();
-
-  for(auto f: gFutures){
-    f.wait();
-  }
+   //tstart = get_time();
+  for(auto f: gFutures) f.wait();
   gFutures.clear();
+   //tstop = get_time();
+   //logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
 
-   double tstop = get_time();
-   logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
-
-
-   tstart = get_time();
+   //tstart = get_time();
         int barrier_id = get_barrier_id(np);
         signal_exit(barrier_id,group); 
-   tstop = get_time();
-   logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
+   //tstop = get_time();
+   //logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
 
-   tstart = get_time();
+   //tstart = get_time();
         barrier_wait(barrier_id);
-   tstop = get_time();
-   logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
+   //tstop = get_time();
+   //logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
 #else
    double tstart = get_time();
         int barrier_id = get_barrier_id(np);
