@@ -66,8 +66,19 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include  "sympack/DistSparseMatrix.hpp"
 #include  "sympack/ETree.hpp"
 
-
 #include <atomic>
+
+
+#include <sys/types.h>  /* Primitive System Data Types */ 
+#include <stdio.h>      /* Input/Output */
+#include <stdlib.h>     /* General Utilities */
+#include <time.h>	/* time and difftime */
+#include <string.h>	/* string stuff */
+
+#include <sys/resource.h> /* getrusage */
+
+
+
 
 namespace symPACK{
 
@@ -2113,5 +2124,73 @@ namespace symPACK{
 
 #endif
 
+
+namespace symPACK{
+namespace utility{
+
+class scope_memprofiler{
+ public:  
+  std::string name;
+	struct rusage bus, bous;	/* resource us struct */
+	struct rusage eus, eous;	/* resource us struct */
+	//int error, signal, rank, poolsize;
+  int rank, poolsize;
+  
+  scope_memprofiler(std::string aname){
+      name = aname;
+
+      rank = upcxx::rank_me();
+      poolsize = upcxx::rank_n();
+
+//      char *value_child_mp, *value_procs_mp, *value_rank_pmi, *value_ncpus;
+//      value_child_mp = getenv ("MP_CHILD");
+//      value_rank_pmi = getenv ("PMI_RANK");
+//
+//      value_procs_mp = getenv ("MP_PROCS");
+//      value_ncpus    = getenv ("NCPUS");
+//
+//      if (  ((! value_child_mp) && (! value_rank_pmi))
+//          || ((! value_procs_mp) && (! value_ncpus))
+//         ) {
+//        rank = 0;
+//        poolsize = 1;
+//      } else {
+//        if (value_child_mp) {
+//          rank = atoi(value_child_mp);
+//        } else {
+//          rank = atoi(value_rank_pmi);
+//        }
+//        if (value_procs_mp) {
+//          poolsize = atoi(value_procs_mp);
+//        } else {
+//          poolsize = atoi(value_ncpus);
+//        }
+//      }
+
+		  if ( getrusage(RUSAGE_CHILDREN, &bus) || getrusage(RUSAGE_SELF, &bous) ) {
+        gdb_lock();
+		  }
+  }
+
+  ~scope_memprofiler(){
+		  if ( getrusage(RUSAGE_CHILDREN, &eus) || getrusage(RUSAGE_SELF, &eous) ) {
+        gdb_lock();
+		  }
+      else {
+        size_t used_mb = (eus.ru_maxrss - bus.ru_maxrss)/1024;
+        size_t overhead_mb = (eous.ru_maxrss - bous.ru_maxrss)/1024;
+        //logfileptr->OFS()<<"memory "<<name<<": "<<used_mb<<" MiB"/*<<" ("<<std::ctime(&start_time)<<" - "<<std::ctime(&stop_time)<<")"*/<<std::endl;
+        std::stringstream sstr;
+        sstr<<"P"<<rank<<"/"<<poolsize<<" memory "<<name<<": "<<overhead_mb<<" MiB"<<std::endl;
+        std::cout<<sstr.str();
+		  }
+
+
+  }
+};
+
+
+}
+}
 
 #endif // _UTILITY_HPP_

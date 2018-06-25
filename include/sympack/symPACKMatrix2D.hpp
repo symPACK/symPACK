@@ -78,7 +78,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include "sympack/Environment.hpp"
 #include "sympack/symPACKMatrix.hpp"
 
-#define NEW_GRAPH
+//#define NEW_GRAPH
 //#define LOCK_SRC 2
 
 #ifdef NEW_GRAPH
@@ -108,7 +108,7 @@ namespace std
 {
   inline bool operator==(const symPACK::scheduling::key_t& lhs, const symPACK::scheduling::key_t& rhs)
   {
-    return lhs.cell_J==rhs.cell_J && lhs.cell_I == lhs.cell_I && lhs.src == rhs.src && lhs.type == rhs.type;
+    return lhs.cell_J==rhs.cell_J && lhs.cell_I == rhs.cell_I && lhs.src == rhs.src && lhs.type == rhs.type;
   }
 
   template<> struct hash<symPACK::scheduling::key_t>
@@ -586,14 +586,17 @@ namespace symPACK{
         inline int_t width() const { return std::get<0>(_dims); }
 
 
+        //THIS IS VERY DANGEROUS
         inline rowind_t block_nrows(const block_t & block) const{
           auto blkidx = &block - _block_container._blocks;
+          bassert(blkidx<nblocks());
           size_t end = (blkidx<nblocks()-1)?_block_container[blkidx+1].offset:_nnz;
           rowind_t nRows = (end-block.offset)/width();
           return nRows;
         }
 
         inline rowind_t block_nrows(const int_t blkidx) const{
+          bassert(blkidx<nblocks());
           size_t end = (blkidx<nblocks()-1)?_block_container[blkidx+1].offset:_nnz;
           rowind_t nRows = (end-_block_container[blkidx].offset)/width();
           return nRows;
@@ -642,7 +645,7 @@ namespace symPACK{
           logfileptr->OFS()<<prefix<<" nzval:"<<std::endl;
           for(auto & nzblock: block.blocks() ){
             logfileptr->OFS()<<nzblock.first_row<<"-|"<<block.first_col<<"---------------------"<<block.first_col+block.width()-1<<std::endl;
-            for(int vrow = 0; vrow< block_nrows(nzblock); vrow++){
+            for(int vrow = 0; vrow< block.block_nrows(nzblock); vrow++){
               //logfileptr->OFS()<<nzblock.first_row+vrow<<" | ";
               std::streamsize p = logfileptr->OFS().precision();
               logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
@@ -652,7 +655,7 @@ namespace symPACK{
               logfileptr->OFS().precision(p);
               logfileptr->OFS()<<std::endl;
             }
-            logfileptr->OFS()<<nzblock.first_row+block_nrows(nzblock)-1<<"-|"<<block.first_col<<"---------------------"<<block.first_col+block.width()-1<<std::endl;
+            logfileptr->OFS()<<nzblock.first_row+block.block_nrows(nzblock)-1<<"-|"<<block.first_col<<"---------------------"<<block.first_col+block.width()-1<<std::endl;
           }
         }  
 
@@ -2291,8 +2294,39 @@ namespace symPACK{
               break;
           }
 #else
-          scheduling::key_t key(this->SupMembership_[std::get<4>(cur_op)-1], std::get<1>(cur_op), std::get<0>(cur_op), std::get<2>(cur_op));
-          this->task_graph[key].reset(ptask);
+          if(ptask!=nullptr){
+            scheduling::key_t key(this->SupMembership_[std::get<4>(cur_op)-1], std::get<1>(cur_op), std::get<0>(cur_op), std::get<2>(cur_op));
+
+            auto it3 = this->task_graph.find(key);
+            if(it3!=this->task_graph.end()){
+              auto key2=it3->first;
+              SparseTask2D * ptask2 = it3->second.get();
+              if(ptask2==nullptr){gdb_lock();}
+              //do a top down traversal of my local task list
+              for(auto it2 = recvbuf.begin();it2!=recvbuf.end();it2++){
+                auto & cur_op = (*it2);
+
+                auto & src_snode = std::get<0>(cur_op);
+                auto & tgt_snode = std::get<1>(cur_op);
+                auto & type = std::get<2>(cur_op);
+                auto & lt_first_row = std::get<3>(cur_op);
+                auto & facing_first_row = std::get<4>(cur_op);
+
+                if(ptask2!=nullptr){
+                  if(ptask2->_meta == cur_op){
+                    gdb_lock();
+                  }
+                }
+              }
+            }
+
+
+            bassert(this->task_graph.find(key)==this->task_graph.end());
+
+
+
+            this->task_graph[key] = std::unique_ptr<SparseTask2D>(ptask);
+          }
 #ifdef _VERBOSE_
           switch(type){
             case Factorization::op_type::TRSM:
@@ -3752,7 +3786,7 @@ namespace symPACK{
                 bassert(this->iam == tgt_cell.owner);
 
                 bool found = false;
-                for(auto block: tgt_cell.blocks()){
+                for(auto & block: tgt_cell.blocks()){
                   if ( block.first_row <= row && row < block.first_row + tgt_cell.block_nrows(block) ){
                     auto offset = block.offset + (row - block.first_row)*tgt_cell.width() + (col-fc);
                     tgt_cell._nzval[offset] = nzvalA[rowidx-1];

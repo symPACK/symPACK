@@ -49,12 +49,14 @@
 
 #include <typeinfo>
 
+
+
+
 using namespace std;
 using std::ifstream;
 using std::ofstream;
 using std::vector;
 using std::cerr;
-
 namespace symPACK{
 
 

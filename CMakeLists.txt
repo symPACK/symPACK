@@ -355,7 +355,7 @@ add_library(sympack ${SYMPACKSRC})
 
 
 if(NEW_UPCXX) 
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${UPCXX_DEFINES}")
+      set(CMAKE_CXX_FLAGS "${UPCXX_DEFINES} ${CMAKE_CXX_FLAGS}")
       #      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${UPCXX_LIBFLAGS}")
 else()
 add_dependencies(sympack gasnet upcxx)
