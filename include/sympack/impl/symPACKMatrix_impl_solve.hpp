@@ -437,7 +437,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
 #ifdef NEW_UPCXX
                               auto f = signal_data(sendPtr, msgSize, lparentOwner, meta);
                               //enqueue the future somewhere
-                              gFutures.push_back(f);
+                              this->gFutures.push_back(f);
 #else
                   signal_data(sendPtr, msgSize, lparentOwner, meta);
 #endif
@@ -494,7 +494,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
 #ifdef NEW_UPCXX
                               auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                               //enqueue the future somewhere
-                              gFutures.push_back(f);
+                              this->gFutures.push_back(f);
 #else
                       signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -949,7 +949,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 #ifdef NEW_UPCXX
                               auto f = signal_data(sendPtr, msgSize, lparentOwner, meta);
                               //enqueue the future somewhere
-                              gFutures.push_back(f);
+                              this->gFutures.push_back(f);
 #else
                         signal_data(sendPtr, msgSize, lparentOwner, meta);
 #endif
@@ -1167,7 +1167,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 #ifdef NEW_UPCXX
                               auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                               //enqueue the future somewhere
-                              gFutures.push_back(f);
+                              this->gFutures.push_back(f);
 #else
                             signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -1348,6 +1348,9 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               meta[0] = parent;
               meta[1] = I;
               meta[2] = task;
+
+
+
               Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[3]);
               type = Solve::op_type::BU;
 
@@ -1502,7 +1505,11 @@ logfileptr->OFS()<<"WARNING: this is suboptimal and should use the new ChainedMe
     
 
     timeSta = get_time();
+#ifdef NEW_UPCXX
+    scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph,this->gFutures);
+#else
     scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph);
+#endif
     timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
           std::cout<<"Solve task graph execution time: "<<timeStop - timeSta<<std::endl;

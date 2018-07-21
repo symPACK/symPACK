@@ -309,6 +309,9 @@ namespace symPACK{
 
       BackupBuffer backupBuffer_;
 
+#ifdef NEW_UPCXX
+      std::list< upcxx::future<> > gFutures;
+#endif
 
       //TODO Task lists
       Scheduler<std::list<FBTask>::iterator> * scheduler_;

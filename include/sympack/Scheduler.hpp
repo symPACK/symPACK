@@ -108,7 +108,11 @@ namespace symPACK{
         std::function<bool(T&)> extraTaskHandle_;
         std::function<void( std::shared_ptr<IncomingMessage> )> msgHandle;
         Int checkIncomingMessages_(taskGraph & graph);
+#ifdef NEW_UPCXX
+        void run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, std::list< upcxx::future<> > & pFutures);
+#else
         void run(MPI_Comm & workcomm, RankGroup & group, taskGraph & graph);
+#endif
 
 #ifdef SP_THREADS
         std::mutex list_mutex_;

@@ -306,6 +306,10 @@ namespace symPACK{
               Int iUpdater = Mapping_->Map(J-1,I-1);
 
               if(J>I){
+
+
+            //if(J==26){gdb_lock();}
+
                 if(marker[iUpdater]!=I){
                   //create the task on iUpdater
                   Updates[iUpdater].push_back(std::make_tuple(I,J,row,Factorization::op_type::UPDATE));

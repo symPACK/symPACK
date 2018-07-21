@@ -355,12 +355,23 @@ maxWaitT = std::max(maxWaitT, tstop-tstart);
     return isLocal;
   }
 
+#ifdef NEW_UPCXX
+  void IncomingMessage::DeallocRemote( std::list< upcxx::future<> > & pFutures){
+    if(!remoteDealloc){
+      auto ptr = GetRemotePtr();
+      auto pdest = ptr.where();
+      auto fut = upcxx::rpc(pdest,[ptr](){upcxx::deallocate(ptr);});
+      pFutures.push_back(fut);
+    }
+  }
+#else
   void IncomingMessage::DeallocRemote(){
     if(!remoteDealloc){
       upcxx::deallocate(GetRemotePtr());
       remoteDealloc=true;
     }
   }
+#endif
   void IncomingMessage::DeallocLocal(){
     if(allocated && ownLocalStorage){
       if(!isLocal && local_ptr!=nullptr){

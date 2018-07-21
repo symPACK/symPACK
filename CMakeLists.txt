@@ -440,6 +440,10 @@ add_dependencies(run_sympack sympack)# gasnet upcxx)
 add_dependencies(run_sympack2D sympack)# gasnet upcxx) 
 add_dependencies(run_sympack_c sympack)# gasnet upcxx) 
 #target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
+
+
+
+
 if(NEW_UPCXX)
   target_link_libraries(run_sympack sympack ${UPCXX_LIBFLAGS})
   target_link_libraries(run_sympack2D sympack ${UPCXX_LIBFLAGS})
@@ -451,6 +455,10 @@ target_link_libraries(run_sympack_c sympack libupcxx libgasnet-conduit)
 endif()
 
 
+find_package( Threads )
+target_link_libraries( run_sympack ${CMAKE_THREAD_LIBS_INIT} )
+target_link_libraries( run_sympack2D ${CMAKE_THREAD_LIBS_INIT} )
+target_link_libraries( run_sympack_c ${CMAKE_THREAD_LIBS_INIT} )
 
 #install(TARGETS run_sympack RUNTIME DESTINATION bin)
 

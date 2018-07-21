@@ -33,24 +33,10 @@ using namespace symPACK;
 
 int main(int argc, char **argv) 
 {
-  if(0){
-    std::vector<SCALAR,AlignedAllocator<SCALAR> > tmp(5);
-    tmp[0]=1.0;
-    tmp[1]=2.0;
-    tmp[2]=3.0;
-    tmp[3]=4.0;
-    tmp[4]=5.0;
-
-    for(auto && val: tmp){
-      std::cout<<val<<" ";
-    }
-    std::cout<<std::endl;
-
-    tmp.resize(0);
-  }
-
   symPACK_Init(&argc,&argv);
 
+  {
+  utility::scope_memprofiler m("run_symPACK");
   symPACKOptions optionsFact;
 
   int iam = 0;
@@ -377,71 +363,77 @@ int main(int argc, char **argv)
 
     symPACKMatrix<SCALAR>*  SMat;
 
-    /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
-#ifndef NOTRY
-    try
-#endif
     {
-      timeSta = get_time();
-      SMat = new symPACKMatrix<SCALAR>();
-      SMat->Init(optionsFact);
-      SMat->SymbolicFactorization(HMat);
-     if(!nofact){
-        SMat->DistributeMatrix(HMat);
-     }
-      timeEnd = get_time();
+      utility::scope_memprofiler m("symPACK1D");
+      /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
+#ifndef NOTRY
+      try
+#endif
+      {
+        timeSta = get_time();
+        SMat = new symPACKMatrix<SCALAR>();
+        SMat->Init(optionsFact);
+        SMat->SymbolicFactorization(HMat);
+        if(!nofact){
+          SMat->DistributeMatrix(HMat);
+        }
+        timeEnd = get_time();
 #ifdef EXPLICIT_PERMUTE
-      perm = SMat->GetOrdering().perm;
+        perm = SMat->GetOrdering().perm;
 #endif
-    }
+      }
 #ifndef NOTRY
-    catch(const std::bad_alloc& e){
-      std::cout << "Allocation failed: " << e.what() << '\n';
-      SMat = NULL;
-      abort();
-    }
-#endif
-
-    if(iam==0){
-      std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
-    }
-
-#ifdef DUMP_MATLAB
-    if(iam==0){
-      logfileptr->OFS()<<"A= ";
-    }
-    SMat->DumpMatlab();
-#endif
-#if 0
-    {
-      logfileptr->OFS()<<"Supernode partition"<<SMat->GetSupernodalPartition()<<std::endl;
-    }
-#endif
-
-#if 1
-    if(!nofact){
-      /************* NUMERICAL FACTORIZATION PHASE ***********/
-      if(iam==0){
-        std::cout<<"Starting Factorization"<<std::endl;
+      catch(const std::bad_alloc& e){
+        std::cout << "Allocation failed: " << e.what() << '\n';
+        SMat = NULL;
+        abort();
       }
-      timeSta = get_time();
-      SYMPACK_TIMER_START(FACTORIZATION);
-      SMat->Factorize();
-      SYMPACK_TIMER_STOP(FACTORIZATION);
-      timeEnd = get_time();
+#endif
 
       if(iam==0){
-        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
       }
-      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
 
 #ifdef DUMP_MATLAB
       if(iam==0){
-        logfileptr->OFS()<<"L= ";
+        logfileptr->OFS()<<"A= ";
       }
       SMat->DumpMatlab();
 #endif
+#if 0
+      {
+        logfileptr->OFS()<<"Supernode partition"<<SMat->GetSupernodalPartition()<<std::endl;
+      }
+#endif
 
+#if 1
+      if(!nofact){
+        /************* NUMERICAL FACTORIZATION PHASE ***********/
+        if(iam==0){
+          std::cout<<"Starting Factorization"<<std::endl;
+        }
+        timeSta = get_time();
+        SYMPACK_TIMER_START(FACTORIZATION);
+        SMat->Factorize();
+        SYMPACK_TIMER_STOP(FACTORIZATION);
+        timeEnd = get_time();
+
+        if(iam==0){
+          std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+        }
+        logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+
+#ifdef DUMP_MATLAB
+        if(iam==0){
+          logfileptr->OFS()<<"L= ";
+        }
+        SMat->DumpMatlab();
+#endif
+      }
+    }
+
+
+    if(!nofact){
       if(nrhs>0){
         /**************** SOLVE PHASE ***********/
         if(iam==0){
@@ -543,7 +535,7 @@ int main(int argc, char **argv)
 
 
   delete logfileptr;
-
+  }
   //This will also finalize MPI
   symPACK_Finalize();
   return 0;

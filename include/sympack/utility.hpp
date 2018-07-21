@@ -1336,7 +1336,8 @@ namespace symPACK{
     void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm )
     {
 
-      MPI_Errhandler_set(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
+      //MPI_Errhandler_set(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
+      MPI_Errhandler_set(symPACK::world_comm, MPI_ERRORS_RETURN);
       MPI_Errhandler_set(comm, MPI_ERRORS_RETURN);
 
       MPI_Datatype typeInt;

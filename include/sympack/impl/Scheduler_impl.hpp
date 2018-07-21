@@ -360,11 +360,21 @@ namespace symPACK{
 
 
   template <class Task > 
-    inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group, taskGraph & graph){
+#ifdef NEW_UPCXX
+    inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, std::list< upcxx::future<> > & pFutures)
+#else
+    inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group, taskGraph & graph)
+#endif
+    {
     }
 
   template <> 
-    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph){
+#ifdef NEW_UPCXX
+    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, std::list< upcxx::future<> > & pFutures)
+#else
+    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph)
+#endif
+    {
       maxWaitT = 0.0;
       maxAWaitT = 0.0;
 
@@ -591,9 +601,11 @@ for(auto && toto: delayedTasks_){
 #ifdef NEW_UPCXX
    double tstop, tstart;
 
+  upcxx::progress();
+  upcxx::discharge();
    //tstart = get_time();
-  for(auto f: gFutures) f.wait();
-  gFutures.clear();
+  for(auto f: pFutures) f.wait();
+  pFutures.clear();
    //tstop = get_time();
    //logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
 
@@ -604,7 +616,7 @@ for(auto && toto: delayedTasks_){
    //logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
 
    //tstart = get_time();
-        barrier_wait(barrier_id);
+        barrier_wait(barrier_id,group);
    //tstop = get_time();
    //logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
 #else

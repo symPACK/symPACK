@@ -107,7 +107,7 @@ class symPACK_scope_timer{
   symPACK::symPACK_set_main_args(argc, argv);
 
 #define SYMPACK_PROFILE_SET_CONTEXT(ARG)                              \
-  if (ARG==0) symPACK::symPACK_set_context(MPI_COMM_WORLD);                    \
+  if (ARG==0) symPACK::symPACK_set_context(symPACK::world_comm);                    \
   else symPACK::symPACK_set_context((MPI_Comm)ARG);
 
 #define SYMPACK_TIMER_START(a) SYMPACK_FSTART(a);

@@ -255,6 +255,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
         //insert an aggregation task
         Int I = msg->meta.src;
         Int J = msg->meta.tgt;
+
+
         std::shared_ptr<GenericTask> pTask(new SparseTask);
         SparseTask & Task = *(SparseTask*)pTask.get();
         Task.meta.resize(3*sizeof(Int)+sizeof(Factorization::op_type));
@@ -302,7 +304,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
               assert(msgPtr->IsDone());
 
               if(!msgPtr->IsLocal()){
-                msgPtr->DeallocRemote();
+#ifdef NEW_UPCXX
+      msgPtr->DeallocRemote(this->gFutures);
+#else
+      msgPtr->DeallocRemote();
+#endif
+
               }
               char* dataPtr = msgPtr->GetLocalPtr().get();
 
@@ -446,7 +453,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifdef NEW_UPCXX
                       auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                       //enqueue the future somewhere
-                      gFutures.push_back(f);
+                      this->gFutures.push_back(f);
 #else
                       signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -494,6 +501,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                 Int iLocalTGT = snodeLocalIndex(tgt);
                 Int src_snode_id = src;
                 Int tgt_snode_id = tgt;
+
                 src_snode_id = abs(src_snode_id);
                 bool is_first_local = src <0;
 
@@ -761,11 +769,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                             //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
                             Int liTarget = this->group_->L2G(iTarget);
-
 #ifdef NEW_UPCXX
                             auto f = signal_data(sendPtr, msgSize, liTarget, meta);
+//if ( meta.tgt == 26 ) { f.wait(); upcxx::discharge(); gdb_lock(); }
                             //enqueue the future somewhere
-                            gFutures.push_back(f);
+                            this->gFutures.push_back(f);
 #else
                             signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -1170,11 +1178,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
 #endif
                           Int liTarget = this->group_->L2G(iTarget);
-
 #ifdef NEW_UPCXX
                           auto f = signal_data(sendPtr, msgSize, liTarget, meta);
                           //enqueue the future somewhere
-                          gFutures.push_back(f);
+                          this->gFutures.push_back(f);
 #else
                           signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -1236,7 +1243,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
     std::cout<<"TaskGraph size is: "<<graph.tasks_.size()<<std::endl;
   }
   timeSta = get_time();
+#ifdef NEW_UPCXX
+  scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph,this->gFutures);
+#else
   scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph);
+#endif
   double timeStop = get_time();
   if(this->iam==0 && this->options_.verbose){
     std::cout<<"Factorization task graph execution time: "<<timeStop - timeSta<<std::endl;
@@ -1423,8 +1434,10 @@ defaut:
 #ifdef NEW_UPCXX
   double tstart,tstop;
   //tstart = get_time();
-  for(auto f: gFutures) f.wait();
-  gFutures.clear();
+  upcxx::progress();
+  upcxx::discharge();
+  for(auto f: this->gFutures) f.wait();
+  this->gFutures.clear();
   //tstop = get_time();
   //logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
 
@@ -1435,7 +1448,7 @@ defaut:
   //logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
 
   //tstart = get_time();
-  barrier_wait(barrier_id);
+  barrier_wait(barrier_id,*this->group_);
   //tstop = get_time();
   //logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
 #else
@@ -1799,7 +1812,11 @@ template <typename T> inline void symPACKMatrix<T>::FBAggregationTask(supernodal
     assert(msgPtr->IsDone());
 
     if(!msgPtr->IsLocal()){
+#ifdef NEW_UPCXX
+      msgPtr->DeallocRemote(this->gFutures);
+#else
       msgPtr->DeallocRemote();
+#endif
     }
     char* dataPtr = msgPtr->GetLocalPtr().get();
 
@@ -1895,7 +1912,7 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
 #ifdef NEW_UPCXX
         auto f = signal_data(sendPtr, msgSize, liTarget, meta);
         //enqueue the future somewhere
-        gFutures.push_back(f);
+        this->gFutures.push_back(f);
 #else
         signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -2135,7 +2152,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
 #ifdef NEW_UPCXX
             auto f = signal_data(sendPtr, msgSize, liTarget, meta);
             //enqueue the future somewhere
-            gFutures.push_back(f);
+            this->gFutures.push_back(f);
 #else
             signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -2484,7 +2501,12 @@ template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supern
       //if this is a factor task, then we should delete the aggregate
       if(!msg->IsLocal()){
         if( taskit->type==FACTOR || taskit->type==AGGREGATE){
-          msg->DeallocRemote();
+#ifdef NEW_UPCXX
+      msg->DeallocRemote(this->gFutures);
+#else
+      msg->DeallocRemote();
+#endif
+
         }
       }
 

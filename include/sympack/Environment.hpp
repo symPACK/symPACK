@@ -98,6 +98,11 @@ inline double get_time()
 // MPI
 #include <mpi.h>
 
+
+namespace symPACK{
+  extern MPI_Comm world_comm;
+}
+
 namespace symPACK{
 #ifdef SP_THREADS
   using upcxx_mutex_type = std::recursive_mutex;

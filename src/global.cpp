@@ -74,8 +74,11 @@ bool libMPIInit = false;
 extern "C"
 bool libUPCXXInit = false;
 
-int mpi_already_init = 0;
 
+namespace symPACK{
+  int mpi_already_init = 0;
+  MPI_Comm world_comm = MPI_COMM_NULL;
+}
 
 extern "C"
 int symPACK_Rank(int * rank){
@@ -111,6 +114,37 @@ int symPACK_Rank(int * rank){
 
 extern "C"
 int symPACK_Init(int *argc, char ***argv){
+#ifdef NEW_UPCXX
+  int retval = 1;
+  // init UPC++
+  upcxx::init();
+  libUPCXXInit = true;
+  
+  // init MPI, if necessary
+  //int mpi_already_init;
+  MPI_Initialized(&symPACK::mpi_already_init);
+  if (!symPACK::mpi_already_init) MPI_Init(argc, argv);
+  //libMPIInit = !mpi_already_init;
+
+  MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &symPACK::world_comm);
+
+  /* program goes here */
+  //int mpi_rankme, mpi_rankn;
+  //MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rankme);
+  //MPI_Comm_size(MPI_COMM_WORLD, &mpi_rankn);
+  
+  //char hostname[MPI_MAX_PROCESSOR_NAME];
+  //int junk;
+  //MPI_Get_processor_name(hostname, &junk);
+  //std::cout << "Hello world from UPC++ rank " << upcxx::rank_me() << "/" << upcxx::rank_n()
+  //  << ", MPI rank " << mpi_rankme << "/" << mpi_rankn << " : "
+  //  << hostname << std::endl;
+ 
+    //
+    //
+    //
+
+#else
   int retval = 1;
 
 //    upcxx::init(argc,argv);
@@ -149,9 +183,9 @@ int symPACK_Init(int *argc, char ***argv){
   }
 
   if(!libMPIInit){
-    mpi_already_init = 0;
-    MPI_Initialized(&mpi_already_init);
-    if(mpi_already_init==0){
+    symPACK::mpi_already_init = 0;
+    MPI_Initialized(&symPACK::mpi_already_init);
+    if(symPACK::mpi_already_init==0){
       if(MPI_Init(argc,argv)==MPI_SUCCESS){
         libMPIInit = true;
         retval = retval && 1;
@@ -166,6 +200,7 @@ int symPACK_Init(int *argc, char ***argv){
 //    assert(upcxx::is_init());
 
   return retval;
+#endif
 }
 
 
@@ -175,7 +210,8 @@ int symPACK_Finalize(){
   int rank = 0;
   symPACK_Rank(&rank);
 
-  if (!mpi_already_init) MPI_Finalize();
+
+  if (!symPACK::mpi_already_init) MPI_Finalize();
 
   if(libUPCXXInit){
     //if(rank==0){std::cerr<<"upcxx finalize"<<std::endl;}

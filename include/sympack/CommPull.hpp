@@ -88,8 +88,11 @@ namespace symPACK{
       //get the MPI_Group from the communicator amd MPI_COMM_WORLD
       MPI_Group group, Wgroup;
       MPI_Comm_group(comm, &group);
-      MPI_Comm_group(MPI_COMM_WORLD, &Wgroup);
-
+      MPI_Comm_group(symPACK::world_comm, &Wgroup);
+//      int toto = upcxx::rank_me();
+//      int titi = 0;
+//      MPI_Comm_rank(symPACK::world_comm,&titi);
+//gdb_lock();
       std::vector<int> tmp(size);
       std::iota(tmp.begin(),tmp.end(),0);
       //Get the corresponding ranks in MPI_COMM_WORLD
@@ -101,8 +104,8 @@ namespace symPACK{
 
     };
 
-    int L2G(int rank) const { return l2g[rank];}
-    int G2L(int rank) { return g2l[rank];}
+    int L2G(const int rank) const { return l2g[rank];}
+    int G2L(const int rank) const { return g2l.at(rank);}
 
     int size() const { return l2g.size(); }
     std::vector<int> l2g;
@@ -116,8 +119,11 @@ namespace symPACK{
   bool barrier_done(int id);
   int get_barrier_id(int np);
   void signal_exit(int barrier_id, int np);
+#ifdef NEW_UPCXX
+   void barrier_wait(int barrier_id, const RankGroup & group);
+#else
   void barrier_wait(int barrier_id);
-
+#endif
 
   inline bool barrier_done(int id){
     return async_barriers[id]==0;
@@ -169,59 +175,59 @@ namespace symPACK{
   inline void signal_exit(int barrier_id, const RankGroup & group)
   {
 #ifdef NEW_UPCXX
-//    upcxx::future<> f;
-//    for (int i = 0; i < group.size(); i++) {
-//      int dest = group.L2G(i);
-//      f = upcxx::when_all(f, upcxx::rpc(dest, rpc_signal,barrier_id,group.size()) );
-//    }
-//    f.wait();
-
-    auto iam = upcxx::rank_me();
-    auto giam = group.L2G(iam);
-    auto rpc_signal = [](int barrier_id,int np) {
-      auto it = async_barriers.find(barrier_id);
-      if(it ==async_barriers.end()){
-        async_barriers[barrier_id] = np;
-      }
-      async_barriers[barrier_id]--;
-    };
-
-double tstart = get_time();
-    rpc_signal(barrier_id, group.size());
-
-    std::list< upcxx::future<> > fut;
-    for (int i = 0; i < group.size(); i++) {
-      int dest = group.L2G(i);
-      if(dest!=giam){
-//      fut.push_back(upcxx::rpc(dest, rpc_signal,barrier_id,group.size()));
-
-      fut.push_back(upcxx::rpc(dest, [](int barrier_id,int np) {
-      auto it = async_barriers.find(barrier_id);
-      if(it ==async_barriers.end()){
-        async_barriers[barrier_id] = np;
-      }
-      async_barriers[barrier_id]--;
-    },barrier_id,group.size()));
-
-
-      }
-    }
-double tstop = get_time();
-logfileptr->OFS()<<"launching rpcs time: "<<tstop-tstart<<std::endl;
-
-tstart = get_time();
-    while(!fut.empty()){
-      auto it = fut.begin();
-      while(it!=fut.end()){
-        if(!it->ready()){ break; }
-        it++;
-      }
-      fut.erase(fut.begin(),it);
-      
-      if(!fut.empty()){ upcxx::progress();}
-    }
-tstop = get_time();
-logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
+//////    upcxx::future<> f;
+//////    for (int i = 0; i < group.size(); i++) {
+//////      int dest = group.L2G(i);
+//////      f = upcxx::when_all(f, upcxx::rpc(dest, rpc_signal,barrier_id,group.size()) );
+//////    }
+//////    f.wait();
+////
+////    auto iam = upcxx::rank_me();
+////    auto giam = group.L2G(iam);
+////    auto rpc_signal = [](int barrier_id,int np) {
+////      auto it = async_barriers.find(barrier_id);
+////      if(it ==async_barriers.end()){
+////        async_barriers[barrier_id] = np;
+////      }
+////      async_barriers[barrier_id]--;
+////    };
+////
+////double tstart = get_time();
+////    rpc_signal(barrier_id, group.size());
+////
+////    std::list< upcxx::future<> > fut;
+////    for (int i = 0; i < group.size(); i++) {
+////      int dest = group.L2G(i);
+////      if(dest!=giam){
+//////      fut.push_back(upcxx::rpc(dest, rpc_signal,barrier_id,group.size()));
+////
+////      fut.push_back(upcxx::rpc(dest, [](int barrier_id,int np) {
+////      auto it = async_barriers.find(barrier_id);
+////      if(it ==async_barriers.end()){
+////        async_barriers[barrier_id] = np;
+////      }
+////      async_barriers[barrier_id]--;
+////    },barrier_id,group.size()));
+////
+////
+////      }
+////    }
+////double tstop = get_time();
+////logfileptr->OFS()<<"launching rpcs time: "<<tstop-tstart<<std::endl;
+////
+////tstart = get_time();
+////    while(!fut.empty()){
+////      auto it = fut.begin();
+////      while(it!=fut.end()){
+////        if(!it->ready()){ break; }
+////        it++;
+////      }
+////      fut.erase(fut.begin(),it);
+////      
+////      if(!fut.empty()){ upcxx::progress();}
+////    }
+////tstop = get_time();
+////logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
 #else
 double tstart = get_time();
     for (int i = 0; i < group.size(); i++) {
@@ -238,17 +244,52 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
 #endif
   }
 
-  inline void barrier_wait(int barrier_id){
 #ifdef NEW_UPCXX
-    while( !barrier_done(barrier_id) ){
-      upcxx::progress(); 
+    struct prom_handle{
+      upcxx::promise<> prom;
+      prom_handle(int np){
+        prom.require_anonymous(np);
+      }
+    };
+   inline void barrier_wait(int barrier_id, const RankGroup & group){
+#if 0
+    //upcxx::discharge();
+    int np = async_barriers[barrier_id];
+    upcxx::promise<> count;
+    count.require_anonymous(np);
+    upcxx::dist_object<int> dbarrier_id(barrier_id);
+    int me = group.G2L(upcxx::rank_me());
+    for ( int p = 0; p < np; p++ ){
+      int dest = (me+1+p)%np;
+      int pdest= group.L2G(dest);
+      dbarrier_id.fetch(pdest).then( [&count,barrier_id](int val){bassert(val==barrier_id); count.fulfill_anonymous(1);});
     }
+    count.finalize().wait();
 #else
+    int np = async_barriers[barrier_id];
+    upcxx::promise<> * prom_ptr = new upcxx::promise<>();
+    prom_ptr->require_anonymous(np);
+    upcxx::dist_object<upcxx::promise<> * > dprom( prom_ptr );
+
+    int me = group.G2L(upcxx::rank_me());
+    upcxx::future<> fut = upcxx::make_future();
+    for ( int p = 0; p < np; p++ ){
+      int dest = (me+1+p)%np;
+      int pdest= group.L2G(dest);
+      fut = upcxx::when_all(fut,upcxx::rpc(pdest,[](upcxx::dist_object<upcxx::promise<> * > & pprom){(*pprom)->fulfill_anonymous(1);},dprom));
+    }
+    fut = upcxx::when_all(fut, prom_ptr->finalize() );
+    fut.wait();
+    delete ( prom_ptr );
+#endif
+   }
+#else
+   inline void barrier_wait(int barrier_id){
     while( !barrier_done(barrier_id) ){
       upcxx::advance(); 
     }
-#endif
   }
+#endif
 
 
 
@@ -323,7 +364,11 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
       void SetLocalPtr(std::shared_ptr<char> & ptr,bool ownStorage = true);
       virtual size_t Size(){return msg_size;}
       void AsyncGet();
+#ifdef NEW_UPCXX
+      void DeallocRemote(std::list< upcxx::future<> > & pFutures);
+#else
       void DeallocRemote();
+#endif
       void DeallocLocal();
   };
 
