@@ -2136,8 +2136,9 @@ class scope_memprofiler{
 	struct rusage eus, eous;	/* resource us struct */
 	//int error, signal, rank, poolsize;
   int rank, poolsize;
+  double divider;
   
-  scope_memprofiler(std::string aname){
+  scope_memprofiler(std::string aname):divider(1024){
       name = aname;
 
       rank = upcxx::rank_me();
@@ -2173,16 +2174,57 @@ class scope_memprofiler{
 		  }
   }
 
+
+
+  scope_memprofiler(std::string aname,double pdivider):divider(pdivider){
+      name = aname;
+
+      rank = upcxx::rank_me();
+      poolsize = upcxx::rank_n();
+
+//      char *value_child_mp, *value_procs_mp, *value_rank_pmi, *value_ncpus;
+//      value_child_mp = getenv ("MP_CHILD");
+//      value_rank_pmi = getenv ("PMI_RANK");
+//
+//      value_procs_mp = getenv ("MP_PROCS");
+//      value_ncpus    = getenv ("NCPUS");
+//
+//      if (  ((! value_child_mp) && (! value_rank_pmi))
+//          || ((! value_procs_mp) && (! value_ncpus))
+//         ) {
+//        rank = 0;
+//        poolsize = 1;
+//      } else {
+//        if (value_child_mp) {
+//          rank = atoi(value_child_mp);
+//        } else {
+//          rank = atoi(value_rank_pmi);
+//        }
+//        if (value_procs_mp) {
+//          poolsize = atoi(value_procs_mp);
+//        } else {
+//          poolsize = atoi(value_ncpus);
+//        }
+//      }
+
+		  if ( getrusage(RUSAGE_CHILDREN, &bus) || getrusage(RUSAGE_SELF, &bous) ) {
+        gdb_lock();
+		  }
+  }
+
+
+
+
   ~scope_memprofiler(){
 		  if ( getrusage(RUSAGE_CHILDREN, &eus) || getrusage(RUSAGE_SELF, &eous) ) {
         gdb_lock();
 		  }
       else {
-        size_t used_mb = (eus.ru_maxrss - bus.ru_maxrss)/1024;
-        size_t overhead_mb = (eous.ru_maxrss - bous.ru_maxrss)/1024;
+        size_t used_mb = (eus.ru_maxrss - bus.ru_maxrss)/divider;
+        size_t overhead_mb = (eous.ru_maxrss - bous.ru_maxrss)/divider;
         //logfileptr->OFS()<<"memory "<<name<<": "<<used_mb<<" MiB"/*<<" ("<<std::ctime(&start_time)<<" - "<<std::ctime(&stop_time)<<")"*/<<std::endl;
         std::stringstream sstr;
-        sstr<<"P"<<rank<<"/"<<poolsize<<" memory "<<name<<": "<<overhead_mb<<" MiB"<<std::endl;
+        sstr<<"P"<<rank<<"/"<<poolsize<<" memory "<<name<<": "<<overhead_mb<<" MiB ; total "<<eous.ru_maxrss/divider<<" MiB"<<std::endl;
         std::cout<<sstr.str();
 		  }
 

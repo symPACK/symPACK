@@ -423,6 +423,8 @@ int main(int argc, char **argv)
     auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
     try{
       utility::scope_memprofiler m("symPACK2D");
+      {
+      utility::scope_memprofiler m("symPACK2D_symbolic");
       SMat2D->Init(optionsFact);
       SMat2D->SymbolicFactorization(HMat);
 #if 1
@@ -433,6 +435,7 @@ int main(int argc, char **argv)
     }
     SMat2D->DumpMatlab();
 #endif
+      }
 
       timeSta = get_time();
       SMat2D->Factorize();

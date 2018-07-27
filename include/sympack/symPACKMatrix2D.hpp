@@ -1247,6 +1247,8 @@ namespace symPACK{
   template <typename colptr_t, typename rowind_t, typename T>
     void symPACKMatrix2D<colptr_t,rowind_t,T>::SymbolicFactorization(DistSparseMatrix<T> & pMat ){
       scope_timer(a,symPACKMatrix2D::SymbolicFactorization);
+      {
+        utility::scope_memprofiler m("symPACK2D_symbolic_before_mapping");
 
       //This has to be declared here to be able to debug ...
       std::vector<int, Mallocator<int> > xadj;
@@ -1863,8 +1865,10 @@ namespace symPACK{
         logfileptr->OFS()<<"Xsuper is "<<this->Xsuper_<<std::endl;
       } 
 #endif
+      }
 
-
+      {
+        utility::scope_memprofiler m("symPACK2D_symbolic_mapping");
       //compute a mapping
       // Do a 2D cell-cyclic distribution for now.
       nsuper = this->Xsuper_.size()-1;
@@ -2068,16 +2072,18 @@ namespace symPACK{
         }
       }
 #endif
+      }
 
       logfileptr->OFS()<<"#supernodes = "<<nsuper<<" #cells = "<<cells_.size()<< " which is "<<cells_.size()*sizeof(snodeBlock_t)<<" bytes"<<std::endl;
 
 
-      if(iam==0){
+      if(this->iam==0){
         std::cout<<"#supernodes = "<<nsuper<<" #cells = "<<cells_.size()<< " which is "<<cells_.size()*sizeof(snodeBlock_t)<<" bytes"<<std::endl;
       }
 
       //generate task graph
       {
+        utility::scope_memprofiler m("symPACK2D_symbolic_task_graph");
 
         MPI_Datatype type;
         MPI_Type_contiguous( sizeof(SparseTask2D::meta_t), MPI_BYTE, &type );
@@ -2868,9 +2874,14 @@ namespace symPACK{
 
                     od_cell.trsm(*ptr_diagCell,tmpBuf);
 
+          {
+            volatile utility::scope_memprofiler m("symPACKMatrix_clear1",1);
+          }
                     //get rid of the shared_ptr
                     ptask->input_msg.clear();
-
+          {
+            volatile utility::scope_memprofiler m("symPACKMatrix_clear2",1);
+          }
 
                     //send this to the all facing blocks (tgt_snode-1,*) and off diagonal blocks (*,tgt_snode-1)
                     std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
@@ -3313,7 +3324,6 @@ namespace symPACK{
                   //get rid of the shared_ptr
                   ptask->input_msg.clear();
 
-
                   //send this to the all facing blocks (tgt_snode-1,*) and off diagonal blocks (*,tgt_snode-1)
                   std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
                   for (auto &tpl : ptask->out_dependencies) {
@@ -3617,6 +3627,7 @@ namespace symPACK{
       Idx LastLocalCol = pMat.Localg_.vertexDist[this->iam+1] + (1 - baseval); //1-based
 
       {
+        utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Counting");
         scope_timer(a,symPACKMatrix2D::DistributeMatrix::Counting);
         for(Int I=1;I<this->Xsuper_.size();I++){
           Idx fc = this->Xsuper_[I-1];
@@ -3676,6 +3687,7 @@ namespace symPACK{
         std::vector<minType, Mallocator<minType> > sendBuffer(total_send_size);
 
         {
+          utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Serializing");
           scope_timer(a,symPACKMatrix2D::DistributeMatrix::Serializing);
 
           for(Int I=1;I<this->Xsuper_.size();I++){
@@ -3761,6 +3773,7 @@ namespace symPACK{
 
 
         {
+          utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Deserializing");
           scope_timer(a,symPACKMatrix2D::DistributeMatrix::Deserializing);
           size_t head = 0;
 
@@ -3951,117 +3964,123 @@ namespace symPACK{
 #endif
       {
         try{
-
+int64_t local_task_cnt;
+          {
+          utility::scope_memprofiler m("symPACKMatrix_execute_1");
 #ifndef NEW_GRAPH
-          int64_t local_task_cnt = 0;
+          local_task_cnt = 0;
           for (auto it = task_graph.begin(); it != task_graph.end(); it++) {
             auto idx = it->first;
             auto tasklist = it->second;
             local_task_cnt += tasklist.size();
           }
 #else
-          int64_t local_task_cnt = task_graph.size();
+          local_task_cnt = task_graph.size();
 #endif
+          }
 
-          bool progress = false;
-          while(local_task_cnt>0){
-            if (!ready_tasks.empty()) {
-              auto ptask = ready_tasks.front();
-              ready_tasks.pop_front();
-              ptask->execute(); 
-              local_task_cnt--;
+          {
+            utility::scope_memprofiler m("symPACKMatrix_execute_2");
+            bool progress = false;
+            while(local_task_cnt>0){
+              if (!ready_tasks.empty()) {
+                auto ptask = ready_tasks.front();
+                ready_tasks.pop_front();
+                ptask->execute(); 
+                local_task_cnt--;
 #ifndef NEW_GRAPH
 #ifdef _DEBUG_DEPENDENCIES_
-              progress = true;
+                progress = true;
 #endif
 #endif
-            }
-
-            upcxx::progress();
-
-            //handle communications
-            if (!avail_tasks.empty()) {
-              //get all comms from a task
-              auto ptask = avail_tasks.front();
-              avail_tasks.pop_front();
-              for(auto & msg : ptask->input_msg){
-                msg->allocate();
-                msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
-                    //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                    ptask->in_prom.fulfill_anonymous(1);
-                    });
-              } 
-#ifndef NEW_GRAPH
-#ifdef _DEBUG_DEPENDENCIES_
-              progress = false;
-#endif
-#endif
-            }
-
-
-#ifndef NEW_GRAPH
-#ifdef _DEBUG_DEPENDENCIES_
-            if(!progress){
-              progress = true;
-              for(auto it = task_graph.begin(); it != task_graph.end(); it++){
-                auto idx = it->first;
-                auto tasklist = it->second;
-
-                for( auto && ptask: tasklist){
-                  if (!ptask->executed){
-
-                    auto meta = &ptask->_meta;
-                    auto & src_snode = std::get<0>(meta[0]);
-                    auto & tgt_snode = std::get<1>(meta[0]);
-                    auto & lt_first_row = std::get<3>(meta[0]);
-                    auto & facing_row = std::get<4>(meta[0]);
-                    auto & type = std::get<2>(meta[0]);
-
-                    auto I = src_snode;
-                    auto J = tgt_snode;
-                    auto K = SupMembership[facing_row-1];
-
-                    switch(type){
-                      case Factorization::op_type::TRSM:
-                        {
-                          logfileptr->OFS()<<"TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
-                        }
-                        break;
-                      case Factorization::op_type::FACTOR:
-                        {
-                          logfileptr->OFS()<<"FACTOR"<<" cell ("<<I<<","<<I<<")"<<std::endl;
-                        }
-                        break;
-                      case Factorization::op_type::UPDATE2D_COMP:
-                        {
-                          logfileptr->OFS()<<"UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
-                        }
-                        break;
-                      default:
-                        delete ptask;
-                        break;
-                    }
-
-
-
-
-                    logfileptr->OFS()<<"      local input dependencies: ";
-                    for(auto &&tpl : ptask->in_local_dependencies){
-                      logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<","<<(std::get<2>(tpl)?"yes":"no")<<") ";
-                    }
-                    logfileptr->OFS()<<std::endl;
-                    logfileptr->OFS()<<"      remote input dependencies: ";
-                    for(auto &&tpl : ptask->in_remote_dependencies){
-                      logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<","<<(std::get<2>(tpl)?"yes":"no")<<") ";
-                    }
-                    logfileptr->OFS()<<std::endl;
-                  }
-                }
-
               }
+
+              upcxx::progress();
+
+              //handle communications
+              if (!avail_tasks.empty()) {
+                //get all comms from a task
+                auto ptask = avail_tasks.front();
+                avail_tasks.pop_front();
+                for(auto & msg : ptask->input_msg){
+                  msg->allocate();
+                  msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
+                      //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
+                      ptask->in_prom.fulfill_anonymous(1);
+                      });
+                } 
+#ifndef NEW_GRAPH
+#ifdef _DEBUG_DEPENDENCIES_
+                progress = false;
+#endif
+#endif
+              }
+
+
+#ifndef NEW_GRAPH
+#ifdef _DEBUG_DEPENDENCIES_
+              if(!progress){
+                progress = true;
+                for(auto it = task_graph.begin(); it != task_graph.end(); it++){
+                  auto idx = it->first;
+                  auto tasklist = it->second;
+
+                  for( auto && ptask: tasklist){
+                    if (!ptask->executed){
+
+                      auto meta = &ptask->_meta;
+                      auto & src_snode = std::get<0>(meta[0]);
+                      auto & tgt_snode = std::get<1>(meta[0]);
+                      auto & lt_first_row = std::get<3>(meta[0]);
+                      auto & facing_row = std::get<4>(meta[0]);
+                      auto & type = std::get<2>(meta[0]);
+
+                      auto I = src_snode;
+                      auto J = tgt_snode;
+                      auto K = SupMembership[facing_row-1];
+
+                      switch(type){
+                        case Factorization::op_type::TRSM:
+                          {
+                            logfileptr->OFS()<<"TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
+                          }
+                          break;
+                        case Factorization::op_type::FACTOR:
+                          {
+                            logfileptr->OFS()<<"FACTOR"<<" cell ("<<I<<","<<I<<")"<<std::endl;
+                          }
+                          break;
+                        case Factorization::op_type::UPDATE2D_COMP:
+                          {
+                            logfileptr->OFS()<<"UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
+                          }
+                          break;
+                        default:
+                          delete ptask;
+                          break;
+                      }
+
+
+
+
+                      logfileptr->OFS()<<"      local input dependencies: ";
+                      for(auto &&tpl : ptask->in_local_dependencies){
+                        logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<","<<(std::get<2>(tpl)?"yes":"no")<<") ";
+                      }
+                      logfileptr->OFS()<<std::endl;
+                      logfileptr->OFS()<<"      remote input dependencies: ";
+                      for(auto &&tpl : ptask->in_remote_dependencies){
+                        logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<","<<(std::get<2>(tpl)?"yes":"no")<<") ";
+                      }
+                      logfileptr->OFS()<<std::endl;
+                    }
+                  }
+
+                }
+              }
+#endif
+#endif
             }
-#endif
-#endif
           }
         }
         catch(const std::runtime_error& e){

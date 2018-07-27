@@ -3627,7 +3627,10 @@ namespace symPACK{
 
         FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
         generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
+          {
+          utility::scope_memprofiler m("symPACKMatrix_task_graph");
         generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
+          }
 
 
         //#define _OUTPUT_TASK_GRAPH_
@@ -4100,6 +4103,8 @@ namespace symPACK{
           std::vector<minType, Mallocator<minType> > sendBuffer(total_send_size);
 
           //Fill up the send buffer
+          {
+          utility::scope_memprofiler m("symPACKMatrix::DistributeMatrix::Serializing");
           SYMPACK_TIMER_SPECIAL_START(serializing);      
           for(Int I=1;I<this->Xsuper_.size();I++){
             Idx fc = this->Xsuper_[I-1];
@@ -4174,6 +4179,7 @@ namespace symPACK{
             }
           }
           SYMPACK_TIMER_SPECIAL_STOP(serializing);      
+          }
 
 
           spositions[0] = 0;
@@ -4199,6 +4205,8 @@ namespace symPACK{
           MPI_Type_free(&type);
           //Need to parse the structure sent from the processor owning the first column of the supernode
 
+          {
+          utility::scope_memprofiler m("symPACKMatrix::DistributeMatrix::Deserializing");
           SYMPACK_TIMER_SPECIAL_START(deserializing);      
           size_t head = 0;
 
@@ -4258,6 +4266,7 @@ namespace symPACK{
             }
           }
           SYMPACK_TIMER_SPECIAL_STOP(deserializing);      
+          }
         }
 #endif
 
