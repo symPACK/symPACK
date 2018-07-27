@@ -78,7 +78,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include "sympack/Environment.hpp"
 #include "sympack/symPACKMatrix.hpp"
 
-//#define NEW_GRAPH
+#define NEW_GRAPH
 //#define LOCK_SRC 2
 
 #ifdef NEW_GRAPH
@@ -178,10 +178,17 @@ namespace symPACK{
 
             //byte storage for tasks 
             std::deque< depend_task_t > out_dependencies;
+
+            //in fact we only need the SIZE, the counts
+            //TODO REMOVE THIS
+#ifdef _DEBUG_DEPENDENCIES_
             std::deque< depend_task_t > in_remote_dependencies;
             std::deque< depend_task_t > in_local_dependencies;
+#endif
+            int in_remote_dependencies_cnt;
+            int in_local_dependencies_cnt;
 
-            std::deque< upcxx::global_ptr<char> > in_ptr;
+            //std::deque< upcxx::global_ptr<char> > in_ptr;
 
             //promise to sync all outgoing RPCs
             upcxx::promise<> out_prom;
@@ -192,7 +199,9 @@ namespace symPACK{
 
             bool executed;
 
-            task_t( ):executed(false){ }
+            task_t( ):executed(false),
+            in_remote_dependencies_cnt(0),
+            in_local_dependencies_cnt(0){ }
 
             ~task_t(){
               bassert(out_prom.get_future().ready());
@@ -2413,9 +2422,11 @@ namespace symPACK{
                   taskptr->in_local_dependencies.push_back( std::make_tuple(I,I,false) );
 #else
                 if (  CELL(J-1,I-1).owner != CELL(I-1,I-1).owner )
-                  taskptr->in_remote_dependencies.push_back( std::make_tuple(I,I) );
+//                  taskptr->in_remote_dependencies.push_back( std::make_tuple(I,I) );
+                  taskptr->in_remote_dependencies_cnt++;
                 else
-                  taskptr->in_local_dependencies.push_back( std::make_tuple(I,I) );
+//                  taskptr->in_local_dependencies.push_back( std::make_tuple(I,I) );
+                  taskptr->in_local_dependencies_cnt++;
 #endif
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        in dep added to TRSM"<<" from "<<I<<" to "<<I<<std::endl;
@@ -2441,7 +2452,8 @@ namespace symPACK{
 #ifdef _DEBUG_DEPENDENCIES_
                   taskptr->in_local_dependencies.push_back( std::make_tuple(K,J,false) );
 #else
-                  taskptr->in_local_dependencies.push_back( std::make_tuple(K,J) );
+                  //taskptr->in_local_dependencies.push_back( std::make_tuple(K,J) );
+                  taskptr->in_local_dependencies_cnt++;
 #endif
 #ifdef _VERBOSE_
                   logfileptr->OFS()<<"        in dep added to FACTOR"<<" from "<<J<<" to "<<J<<std::endl;
@@ -2457,7 +2469,8 @@ namespace symPACK{
 #ifdef _DEBUG_DEPENDENCIES_
                   taskptr->in_local_dependencies.push_back( std::make_tuple(K,J,false) );
 #else
-                  taskptr->in_local_dependencies.push_back( std::make_tuple(K,J) );
+                  //taskptr->in_local_dependencies.push_back( std::make_tuple(K,J) );
+                  taskptr->in_local_dependencies_cnt++;
 #endif
 #ifdef _VERBOSE_
                   logfileptr->OFS()<<"        in dep added to TRSM"<<" from "<<J<<" to "<<J<<std::endl;
@@ -2514,9 +2527,11 @@ namespace symPACK{
                   taskptr->in_local_dependencies.push_back( std::make_tuple(J,I,false) );
 #else
                 if (  CELL(J-1,I-1).owner != CELL(J-1,K-1).owner )
-                  taskptr->in_remote_dependencies.push_back( std::make_tuple(J,I) );
+//                  taskptr->in_remote_dependencies.push_back( std::make_tuple(J,I) );
+                  taskptr->in_remote_dependencies_cnt++;
                 else
-                  taskptr->in_local_dependencies.push_back( std::make_tuple(J,I) );
+//                  taskptr->in_local_dependencies.push_back( std::make_tuple(J,I) );
+                  taskptr->in_local_dependencies_cnt++;
 #endif
 
 #ifdef _VERBOSE_
@@ -2595,9 +2610,11 @@ namespace symPACK{
                   taskptr->in_local_dependencies.push_back( std::make_tuple(J,I,false) );
 #else
                 if (  CELL(J-1,I-1).owner != CELL(K-1,J-1).owner )
-                  taskptr->in_remote_dependencies.push_back( std::make_tuple(J,I) );
+//                  taskptr->in_remote_dependencies.push_back( std::make_tuple(J,I) );
+                  taskptr->in_remote_dependencies_cnt++;
                 else
-                  taskptr->in_local_dependencies.push_back( std::make_tuple(J,I) );
+//                  taskptr->in_local_dependencies.push_back( std::make_tuple(J,I) );
+                  taskptr->in_local_dependencies_cnt++;
 #endif
 
 #ifdef _VERBOSE_
@@ -2673,8 +2690,8 @@ namespace symPACK{
 
             //            ptask->dep_count = ptask->in_dependencies.size();      
 
-            auto remote_deps = ptask->in_remote_dependencies.size();
-            auto local_deps = ptask->in_local_dependencies.size();
+            auto remote_deps = ptask->in_remote_dependencies_cnt;
+            auto local_deps = ptask->in_local_dependencies_cnt;
 
             ptask->in_prom.require_anonymous(local_deps + remote_deps);
             ptask->in_avail_prom.require_anonymous(remote_deps);
@@ -3109,8 +3126,8 @@ namespace symPACK{
           auto J = tgt_snode;
           auto K = this->SupMembership_[facing_row-1];
 
-          auto remote_deps = ptask->in_remote_dependencies.size();
-          auto local_deps = ptask->in_local_dependencies.size();
+          auto remote_deps = ptask->in_remote_dependencies_cnt;
+          auto local_deps = ptask->in_local_dependencies_cnt;
 
           ptask->in_prom.require_anonymous(local_deps + remote_deps);
           ptask->in_avail_prom.require_anonymous(remote_deps);
