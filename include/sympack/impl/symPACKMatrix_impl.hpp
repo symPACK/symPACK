@@ -597,14 +597,14 @@ namespace symPACK{
           //MEMORY CONSUMPTION TOO HIGH ?
           Int iLocalI = snodeLocalIndex(I);
           SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-          SuperNode<T,MallocAllocator> * contrib = CreateSuperNode<MallocAllocator>(this->options_.decomposition,I,cur_snode->FirstRow(),1,nrhs, cur_snode->NRowsBelowBlock(0) ,this->iSize_);
+          SuperNode<T,MallocAllocator> * contrib = CreateSuperNode<MallocAllocator>(this->options_.decomposition,I,cur_snode->FirstRow(),1,nrhs, cur_snode->NRowsBelowBlock(0) ,this->iSize_,this->options_.panel);
 
           Contributions_[iLocalI-1] = contrib;
 
 
           for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
             NZBlockDesc & cur_desc = cur_snode->GetNZBlockDesc(blkidx);
-            contrib->AddNZBlock(cur_snode->NRows(blkidx),nrhs,cur_desc.GIndex);
+            contrib->AddNZBlock(cur_snode->NRows(blkidx), cur_desc.GIndex);
           }
           Int nRows = contrib->NRowsBelowBlock(0);
           std::fill(contrib->GetNZval(0),contrib->GetNZval(0)+nRows*nrhs,ZERO<T>());
@@ -3699,7 +3699,7 @@ namespace symPACK{
 #endif
         SuperNode<T> * newSnode = NULL;
         try{
-          newSnode = CreateSuperNode(this->options_.decomposition,I,fc,fc,lc,iHeight,this->iSize_,nzBlockCnt);
+          newSnode = CreateSuperNode(this->options_.decomposition,I,fc,fc,lc,iHeight,this->iSize_,nzBlockCnt,this->options_.panel);
         }
         catch(const MemoryAllocationException & e){
           std::stringstream sstr;
@@ -3837,7 +3837,7 @@ namespace symPACK{
             for(Int i = 0; i<nzBlockCnt;i++){
               Int iStartRow = superStructure[pos++];
               Int iContiguousRows = superStructure[pos++];
-              snode->AddNZBlock(iContiguousRows , iWidth,iStartRow);
+              snode->AddNZBlock(iContiguousRows , iStartRow);
             }
             snode->Shrink();
           }
@@ -5693,18 +5693,18 @@ namespace symPACK{
 
   template <typename T> 
     template <class Allocator>
-    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt){
+    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt, Int panel){
       SuperNode<T,Allocator> * retval = NULL;
         try{
       switch(type){
         case DecompositionType::LDL:
-          retval = new SuperNodeInd<T,Allocator>( aiId,  aiFr, aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
+          retval = new SuperNodeInd<T,Allocator>( aiId,  aiFr, aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt, panel);
           break;
         case DecompositionType::LL:
-          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
+          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt, panel);
           break;
         default:
-          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt);
+          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  ai_num_rows,  aiN,  aiNZBlkCnt, panel);
           break;
       }
         }
@@ -5716,17 +5716,17 @@ namespace symPACK{
 
   template <typename T> 
     template <class Allocator>
-    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices){
+    inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel){
       SuperNode<T,Allocator> * retval = NULL;
       switch(type){
         case DecompositionType::LDL:
-          retval = new SuperNodeInd<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  aiN,  rowIndices);
+          retval = new SuperNodeInd<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  aiN,  rowIndices, panel);
           break;
         case DecompositionType::LL:
-          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  aiN,  rowIndices);
+          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  aiN,  rowIndices, panel);
           break;
         default:
-          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  aiN,  rowIndices);
+          retval = new SuperNode<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  aiN,  rowIndices, panel);
           break;
       }
       return retval;

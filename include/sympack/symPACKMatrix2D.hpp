@@ -299,7 +299,7 @@ namespace symPACK{
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t = int> 
     class blockCell_t: public blockCellBase_t {
-      private:
+      protected:
         using intrank_t = upcxx::intrank_t;
 
       public:
@@ -610,8 +610,6 @@ namespace symPACK{
           rowind_t nRows = (end-_block_container[blkidx].offset)/width();
           return nRows;
         }
-
-
 
         void add_block( rowind_t first_row, rowind_t nrows ){
           bassert( this->_block_container.size() + 1 <= block_capacity() );
@@ -1080,6 +1078,501 @@ namespace symPACK{
     };
 
 
+#if 1
+  template <typename colptr_t, typename rowind_t, typename T, typename int_t = int> 
+    class blockCellLDL_t: public blockCell_t<colptr_t,rowind_t,T,int_t> {
+      protected:
+        T * _diag;
+        rowind_t first_row;
+
+      public:
+        using block_t = typename blockCell_t<colptr_t,rowind_t, T>::block_t;
+
+        blockCellLDL_t():blockCell_t<colptr_t,rowind_t, T>(),_diag(nullptr) {
+        }
+
+        ~blockCellLDL_t() {
+        }
+
+        blockCellLDL_t ( rowind_t firstrow, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true  ): blockCell_t<colptr_t,rowind_t, T>() {
+          this->_dims = std::make_tuple(width);
+          this->first_col = firstcol;
+          this->first_row = firstrow;
+          this->allocate(nzval_cnt,block_cnt, shared_segment);
+          this->initialize(nzval_cnt,block_cnt);
+        }
+
+        blockCellLDL_t ( char * ext_storage, rowind_t firstrow, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t<colptr_t,rowind_t, T>() {
+          this->_gstorage = nullptr;
+          this->_storage = ext_storage;
+          this->_dims = std::make_tuple(width);
+          this->first_col = firstcol;
+          this->first_row = firstrow;
+          this->initialize(nzval_cnt,block_cnt);
+          this->_nnz = nzval_cnt;
+          this->_block_container._nblocks = block_cnt;
+        }
+
+        blockCellLDL_t ( upcxx::global_ptr<char> ext_gstorage, rowind_t firstrow, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t<colptr_t,rowind_t, T>() {
+          this->_gstorage = ext_gstorage;
+          this->_storage = this->_gstorage.local();
+          this->_dims = std::make_tuple(width);
+          this->first_col = firstcol;
+          this->first_row = firstrow;
+          this->initialize(nzval_cnt,block_cnt);
+          this->_nnz = nzval_cnt;
+          this->_block_container._nblocks = block_cnt;
+        }
+
+        // Copy constructor.  
+        blockCellLDL_t ( const blockCellLDL_t & other ): blockCellLDL_t() {
+          this->i           = other.i;
+          this->j           = other.j;
+          this->owner       = other.owner;
+          this->first_col   = other.first_col;
+          this->_dims       = other._dims;
+          this->_total_rows = other._total_rows;
+          this->first_row   = other.first_row;
+
+          allocate( other.nz_capacity(), other.block_capacity , !other._gstorage.is_null() );
+          //now copy the data
+          std::copy( other._storage, other._storage + other._storage_size, this->_storage );
+          this->_block_container._nblocks = other._block_container._nblocks;
+          this->_nnz = other._nnz;
+
+        }
+
+        // Move constructor.  
+        blockCellLDL_t ( const blockCellLDL_t && other ): blockCellLDL_t() {
+          this->i           = other.i;
+          this->j           = other.j;
+          this->owner       = other.owner;
+          this->first_col   = other.first_col;
+          this->_dims       = other._dims;
+          this->_total_rows = other._total_rows;
+          this->first_row   = other.first_row;
+
+          this->_gstorage = other._gstorage;
+          this->_storage = other._storage;
+          initialize( other._cnz , other._cblocks );
+
+          //invalidate other
+          other._gstorage = nullptr;
+          other._storage = nullptr;
+          other._storage_size = 0;
+          other._cblocks = 0;
+          other._cnz = 0;
+          other._nnz = 0;
+          other._nzval = nullptr;
+          other._diag = nullptr;        
+          other._block_container._nblocks = 0;
+          other._block_container._blocks = nullptr;
+        }
+
+        // Copy assignment operator.  
+        blockCellLDL_t& operator=(const blockCellLDL_t& other)  {  
+          if (this != &other)  
+          {  
+            // Free the existing resource.  
+            if ( ! this->_gstorage.is_null() ) {
+              upcxx::deallocate( this->_gstorage );
+            }
+            else {
+              delete [] this->_storage;
+            }
+
+            this->i           = other.i;
+            this->j           = other.j;
+            this->owner       = other.owner;
+            this->first_col   = other.first_col;
+            this->first_row   = other.first_row;
+            this->_dims       = other._dims;
+            this->_total_rows = other._total_rows;
+
+            allocate( other._cnz, other._cblocks , !other._gstorage.is_null() );
+            //now copy the data
+            std::copy( other._storage, other._storage + other._storage_size, this->_storage );
+            this->_block_container._nblocks = other._block_container._nblocks;
+            this->_nnz = other._nnz;
+          } 
+          return *this;  
+        }  
+
+        // Move assignment operator.  
+        blockCellLDL_t& operator=(const blockCellLDL_t&& other)  {  
+          if (this != &other)  
+          {  
+            // Free the existing resource.  
+            if ( !this->_gstorage.is_null() ) {
+              upcxx::deallocate( this->_gstorage );
+            }
+            else {
+              delete [] this->_storage;
+            }
+
+            this->i           = other.i;
+            this->j           = other.j;
+            this->owner       = other.owner;
+            this->first_col   = other.first_col;
+            this->first_row   = other.first_row;
+            this->_dims       = other._dims;
+            this->_total_rows = other._total_rows;
+
+            this->_gstorage = other._gstorage;
+            this->_storage = other._storage;
+            initialize( other._cnz , other._cblocks );
+
+            //invalidate other
+            other._gstorage = nullptr;
+            other._storage = nullptr;
+            other._storage_size = 0;
+            other._cblocks = 0;
+            other._cnz = 0;
+            other._nnz = 0;
+            other._nzval = nullptr;        
+            other._diag = nullptr;        
+            other._block_container._nblocks = 0;
+            other._block_container._blocks = nullptr;
+
+          } 
+          return *this;  
+        }  
+
+        void initialize ( size_t nzval_cnt, size_t block_cnt ) {
+          ((blockCell_t<colptr_t,rowind_t, T>*)this)->initialize(nzval_cnt, block_cnt);
+
+          if ( this->first_row == this->first_col ) {
+            this->_storage_size += this->width()*sizeof(T);
+          }
+
+          this->_diag = reinterpret_cast<T*>( this->_nzval + nzval_cnt );
+        }
+
+        void allocate ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
+          bassert(nzval_cnt!=0 && block_cnt!=0);
+          if ( shared_segment ) {
+            if ( first_row == this->first_col ) {
+              this->_gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) + this->width()*sizeof(T) );
+            }
+            else{
+              this->_gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
+            }
+            this->_storage = this->_gstorage.local();
+          }
+          else {
+            this->_gstorage = nullptr;
+            if ( first_row == this->first_col ) {
+              this->_storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) + this->width()*sizeof(T)];
+            }
+            else {
+              this->_storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
+            }
+          }
+          initialize( nzval_cnt, block_cnt );
+        }
+
+
+        void print_block(const blockCellLDL_t & block, std::string prefix) const{  
+          logfileptr->OFS()<<prefix<<" ("<<block.i<<","<<block.j<<")"<<std::endl;
+          logfileptr->OFS()<<prefix<<" nzval:"<<std::endl;
+          for(auto & nzblock: block.blocks() ){
+            logfileptr->OFS()<<nzblock.first_row<<"-|"<<block.first_col<<"---------------------"<<block.first_col+block.width()-1<<std::endl;
+            for(int vrow = 0; vrow< block.block_nrows(nzblock); vrow++){
+              //logfileptr->OFS()<<nzblock.first_row+vrow<<" | ";
+              std::streamsize p = logfileptr->OFS().precision();
+              logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
+              for(int vcol = 0; vcol< block.width() ; vcol++){
+                logfileptr->OFS()<<std::scientific<<ToMatlabScalar(block._nzval[nzblock.offset+vrow*block.width()+vcol])<<" ";
+              }
+              logfileptr->OFS().precision(p);
+              logfileptr->OFS()<<std::endl;
+            }
+            logfileptr->OFS()<<nzblock.first_row+block.block_nrows(nzblock)-1<<"-|"<<block.first_col<<"---------------------"<<block.first_col+block.width()-1<<std::endl;
+          }
+        }  
+
+
+
+
+        int factorize( TempUpdateBuffers<T> & tmpBuffers){
+          scope_timer(a,blockCellLDL_t::factorize);
+#if defined(_NO_COMPUTATION_)
+          return 0;
+#endif
+          auto snode_size = std::get<0>(this->_dims);
+          auto diag_nzval = this->_nzval;
+
+          //          print_block(*this,"diag before Potrf");
+          int_t INFO = 0;
+          try{
+            lapack::Potrf_LDL( "U", snode_size, diag_nzval, snode_size, tmpBuffers, INFO);
+            //copy the diagonal entries into the diag portion of the supernode
+#pragma unroll
+            for(int_t col = 0; col< snode_size; col++){ this->_diag[col] = diag_nzval[col+ (col)*snode_size]; }
+          }
+          catch(const std::runtime_error& e){
+            std::cerr << "Runtime error: " << e.what() << '\n';
+            gdb_lock();
+          }
+          //          print_block(*this,"diag after Potrf");
+          return 0;
+        }
+
+        int trsm( const blockCellLDL_t & diag, TempUpdateBuffers<T> & tmpBuffers){
+          scope_timer(a,blockCellLDL_t::trsm);
+#if defined(_NO_COMPUTATION_)
+          return 0;
+#endif
+
+          bassert(diag.nblocks()>0);
+          auto diag_nzval = diag._nzval;
+
+          auto snode_size = std::get<0>(this->_dims);
+          auto nzblk_nzval = this->_nzval;
+          //          print_block(diag,"diag");
+          //          print_block(*this,"offdiag before Trsm");
+          blas::Trsm('L','U','T','U',snode_size, this->total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+
+          //scale column I
+          for ( int_t I = 1; I<=snode_size; I++) {
+            blas::Scal( this->total_rows(), T(1.0)/this->_diag[I-1], &nzblk_nzval[I-1], snode_size );
+          }
+          //          print_block(*this,"offdiag after Trsm");
+          return 0;
+        }
+
+        int update( T* diag, /*const*/ blockCellLDL_t & pivot, /*const*/ blockCellLDL_t & facing, TempUpdateBuffers<T> & tmpBuffers){
+          scope_timer(a,blockCellLDL_t::update);
+#if defined(_NO_COMPUTATION_)
+          return 0;
+#endif
+          //do the owner compute update first
+
+          {
+            bassert(this->nblocks()>0);
+
+            bassert(pivot.nblocks()>0);
+            auto pivot_fr = pivot._block_container[0].first_row;
+
+            bassert(facing.nblocks()>0);
+            auto facing_fr = facing._block_container[0].first_row;
+            auto facing_lr = facing._block_container[facing.nblocks()-1].first_row+facing.block_nrows(facing.nblocks()-1)-1;
+
+            auto src_snode_size = std::get<0>(pivot._dims);
+            auto tgt_snode_size = std::get<0>(this->_dims);
+
+
+            //find the first row updated by src_snode
+            auto tgt_fc = pivot_fr;
+            auto tgt_lc = pivot._block_container[pivot._block_container._nblocks-1].first_row
+              + pivot.block_nrows(pivot._block_container._nblocks-1) -1;
+
+            int_t first_pivot_idx = 0;
+            int_t last_pivot_idx = pivot.nblocks()-1;
+
+            //determine the first column that will be updated in the target supernode
+            rowind_t tgt_local_fc =  tgt_fc - this->first_col;
+            rowind_t tgt_local_lc =  tgt_lc - this->first_col;
+
+            rowind_t pivot_nrows = pivot.total_rows();
+            rowind_t tgt_nrows = this->total_rows();
+            rowind_t src_nrows = facing.total_rows();
+            //            rowind_t src_lr = facing_fr + src_nrows-1;
+
+            //condensed update width is the number of rows in the pivot block
+            int_t tgt_width = pivot_nrows;
+
+            T * pivot_nzval = pivot._nzval;
+            T * facing_nzval = facing._nzval;
+            T * tgt = this->_nzval;
+
+            //Pointer to the output buffer of the GEMM
+            T * buf = NULL;
+            T beta = T(0);
+            T * bufLDL = NULL;
+            //If the target supernode has the same structure,
+            //The GEMM is directly done in place
+            size_t tgt_offset = 0;
+            bool in_place = ( first_pivot_idx == last_pivot_idx );
+
+            if (in_place){ 
+              int tgt_first_upd_blk_idx  = 0;
+              for ( ; tgt_first_upd_blk_idx < this->_block_container.size(); tgt_first_upd_blk_idx++ ){
+                auto & block = this->_block_container[tgt_first_upd_blk_idx];
+                if(facing_fr >= block.first_row && facing_fr <= block.first_row + this->block_nrows(block) -1)
+                  break;
+              }
+
+              tgt_offset = this->_block_container[tgt_first_upd_blk_idx].offset
+                + (facing_fr - this->_block_container[tgt_first_upd_blk_idx].first_row) * this->width() 
+                + tgt_local_fc; 
+
+              //find the last block updated
+              int tgt_last_upd_blk_idx  = this->_block_container.size()-1;
+              for ( ; tgt_last_upd_blk_idx > tgt_first_upd_blk_idx; tgt_last_upd_blk_idx-- ){
+                auto & block = this->_block_container[tgt_last_upd_blk_idx];
+                if(facing_lr >= block.first_row && facing_lr <= block.first_row + this->block_nrows(block) -1)
+                  break;
+              }
+              //make sure that in between these two blocks, everything matches
+              int upd_blk_cnt = tgt_last_upd_blk_idx - tgt_first_upd_blk_idx +1;
+              if ( in_place && upd_blk_cnt == facing.nblocks() && upd_blk_cnt>=1) {
+                //              if(this->i==86 && this->j==86 && in_place){gdb_lock();}
+                for ( int blkidx = tgt_first_upd_blk_idx; blkidx <= tgt_last_upd_blk_idx; blkidx++) {
+                  int facingidx = blkidx - tgt_first_upd_blk_idx;
+                  int f_fr = facing._block_container[facingidx].first_row; 
+                  int f_lr = facing.block_nrows(facingidx) + f_fr -1;
+                  int t_fr = std::max(facing_fr, this->_block_container[blkidx].first_row); 
+                  int t_lr = std::min(facing_lr, this->_block_container[blkidx].first_row+this->block_nrows(blkidx)-1); 
+                  if (f_fr != t_fr || f_lr != t_lr) {
+                    //                 gdb_lock();
+                    in_place = false;
+                    break;
+                  }
+                }
+              }
+              else {
+                in_place = false;
+              }
+            }
+            //in_place= false;
+
+            int ldbuf = tgt_width;
+            //            if(src_nrows == tgt_nrows )
+            if(in_place)
+            {
+              //TODO
+              buf = tgt + tgt_offset;
+              beta = T(1);
+              ldbuf = tgt_snode_size;
+#ifdef SP_THREADS
+              tmpBuffers.tmpBuf.resize(src_snode_size*tgt_width);
+#endif
+              bufLDL = &tmpBuffers.tmpBuf[0];
+            }
+            else{
+              //Compute the update in a temporary buffer
+#ifdef SP_THREADS
+              tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+#endif
+              bufLDL = &tmpBuffers.tmpBuf[0];
+              buf = bufLDL + src_snode_size*tgt_width;
+            }
+
+            ///                print_block(pivot,"pivot");
+            ///                print_block(facing,"facing");
+            ///                print_block(*this,"tgt before update");
+
+            //everything is in row-major
+            SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
+            blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+                T(-1.0),pivot_nzval,src_snode_size,
+                facing_nzval,src_snode_size,beta,buf,ldbuf);
+
+            //First do W = DLT 
+            //T * diag = src_snode->_diag;//static_cast<SuperNodeInd<T,Allocator> * >(src_snode)->GetDiag();
+            for(int_t row = 0; row<src_snode_size; row++){
+              for(int_t col = 0; col<tgt_width; col++){
+                bufLDL[col+row*tgt_width] = diag[row]*(pivot[row+col*src_snode_size]);
+              }
+            }
+
+            //Then do -L*W (gemm)
+            blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
+              T(-1.0),bufLDL,tgt_width,facing_nzval,src_snode_size,beta,buf,ldbuf);
+
+
+            SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_GEMM);
+
+            //If the GEMM wasn't done in place we need to aggregate the update
+            //This is the assembly phase
+            //            if(src_nrows != tgt_nrows)
+            if(!in_place)
+            {
+              {
+                SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_INDEX_MAP);
+                tmpBuffers.src_colindx.resize(tgt_width);
+                tmpBuffers.src_to_tgt_offset.resize(src_nrows);
+                colptr_t colidx = 0;
+                colptr_t rowidx = 0;
+                size_t offset = 0;
+
+                block_t * tgt_ptr = this->_block_container._blocks;
+
+                for ( auto & cur_block: facing.blocks() ) {
+                  rowind_t cur_src_nrows = facing.block_nrows(cur_block);
+                  rowind_t cur_src_lr = cur_block.first_row + cur_src_nrows -1;
+                  rowind_t cur_src_fr = cur_block.first_row;
+
+                  //The other one MUST reside into a single block in the target
+                  rowind_t row = cur_src_fr;
+                  while(row<=cur_src_lr){
+                    do {
+                      if (tgt_ptr->first_row <= row 
+                          && row< tgt_ptr->first_row + block_nrows(*tgt_ptr) ) {
+                        break;
+                      }
+                    } while( ++tgt_ptr<this->_block_container._blocks + this->_block_container._nblocks ); 
+
+                    int_t lr = std::min(cur_src_lr,tgt_ptr->first_row + block_nrows(*tgt_ptr)-1);
+                    int_t tgtOffset = tgt_ptr->offset + (row - tgt_ptr->first_row)*tgt_snode_size;
+
+                    for(int_t cr = row ;cr<=lr;++cr){
+                      offset+=tgt_width;
+                      tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
+                      rowidx++;
+                    }
+                    row += (lr-row+1);
+                  }
+                }
+
+                for ( auto & cur_block: pivot.blocks() ) {
+                  rowind_t cur_src_ncols = pivot.block_nrows(cur_block);
+                  rowind_t cur_src_lc = std::min(cur_block.first_row + cur_src_ncols -1, this->first_col+this->width()-1);
+                  rowind_t cur_src_fc = std::max(cur_block.first_row,this->first_col);
+
+                  for (rowind_t col = cur_src_fc ;col<=cur_src_lc;++col) {
+                    bassert(this->first_col <= col && col< this->first_col+this->width() );
+                    tmpBuffers.src_colindx[colidx++] = col;
+                  }
+                }
+
+                //Multiple cases to consider
+                SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_INDEX_MAP);
+                SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_ADD);
+                if(first_pivot_idx==last_pivot_idx){
+                  // Updating contiguous columns
+                  rowind_t tgt_offset = (tgt_fc - this->first_col);
+                  for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
+                    T * A = &buf[rowidx*tgt_width];
+                    T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
+#pragma unroll
+                    for(rowind_t i = 0; i < tgt_width; ++i){ B[i] += A[i]; }
+                  }
+                }
+                else{
+                  // full sparse case
+                  for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
+                    for (colptr_t colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx) {
+                      rowind_t col = tmpBuffers.src_colindx[colidx];
+                      rowind_t tgt_colidx = col - this->first_col;
+                      tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
+                        += buf[rowidx*tgt_width+colidx]; 
+                    }
+                  }
+                }
+
+                SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD);
+              }
+            }
+
+            //              print_block(*this,"tgt after update");
+          }
+          return 0;
+        }
+    };
+#endif
+
 
   template <typename colptr_t, typename rowind_t, typename T> 
     class symPACKMatrix2D: public symPACKMatrixMeta<T>{
@@ -1169,7 +1662,7 @@ namespace symPACK{
 #ifndef NEW_GRAPH
       using TaskGraph2D = scheduling::task_graph_t<Int,SparseTask2D>; 
 #else
-      using TaskGraph2D = scheduling::task_graph_t2<scheduling::key_t,SparseTask2D>; 
+      using TaskGraph2D = scheduling::task_graph_t2<scheduling::key_t,SparseTask2D >; 
 #endif
       TaskGraph2D task_graph;
       scheduling::Scheduler2D<SparseTask2D,TaskGraph2D> scheduler;
@@ -1204,6 +1697,7 @@ namespace symPACK{
 
   template <typename colptr_t, typename rowind_t, typename T>
     symPACKMatrix2D<colptr_t,rowind_t,T>::~symPACKMatrix2D(){
+     
     }
 
   template <typename colptr_t, typename rowind_t, typename T>

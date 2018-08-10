@@ -74,7 +74,7 @@ namespace symPACK{
     SuperNodeInd<T,Allocator>::SuperNodeInd() :SuperNode<T,Allocator>(), diag_(NULL){ }
 
   template<typename T, class Allocator>
-    SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {
+    SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt, Int panel) {
       //compute supernode size / width
       Int size = aiLc - aiFc +1;
       //compute maximum number of blocks, number of off-diagonal rows + 1
@@ -83,7 +83,21 @@ namespace symPACK{
         num_blocks=aiNZBlkCnt;
       }
 
-      this->storage_size_  = sizeof(T)*size*ai_num_rows; //size of nzvals
+
+      if ( panel > 0 ) {
+        Int numPanels = std::ceil((double)size/(double)panel);
+        Int lastPanel = std::max(size - (numPanels-1)*panel,0);
+        this->storage_size_ = sizeof(T)*((numPanels-1)*ai_num_rows*panel - 
+                            - (numPanels-1)*(numPanels-2)*panel/2 
+                                + (ai_num_rows-(numPanels-1)*panel)*lastPanel);
+      }
+      else {
+        this->storage_size_  = sizeof(T)*size*ai_num_rows; //size of nzvals
+      }
+
+
+
+
       this->storage_size_ += num_blocks*sizeof(NZBlockDesc); //size of block desc
       this->storage_size_ += sizeof(SuperNodeDesc); //size of the supernode metadata
       this->storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
@@ -113,6 +127,7 @@ namespace symPACK{
       char * last = this->loc_storage_container_+this->storage_size_-1 - (sizeof(NZBlockDesc) -1);
       this->blocks_ = (NZBlockDesc*) last;
 
+      this->meta_->panel_sz_ = panel;
       this->meta_->iId_ = aiId;
       this->meta_->iFirstRow_ = aiFr;
       this->meta_->iFirstCol_ = aiFc;
@@ -132,8 +147,8 @@ namespace symPACK{
     }; 
 
   template<typename T, class Allocator>
-    SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
-      Init(aiId,aiFr,aiFc,aiLc,aiN,rowIndices);
+    SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel) {
+      Init(aiId,aiFr,aiFc,aiLc,aiN,rowIndices,panel);
     }; 
 
   template<typename T, class Allocator>
@@ -198,7 +213,7 @@ namespace symPACK{
 
 
   template<typename T, class Allocator>
-    void SuperNodeInd<T,Allocator>::Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices){
+    void SuperNodeInd<T,Allocator>::Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel){
       //compute supernode size / width
       Int size = aiLc - aiFc +1;
 
@@ -222,7 +237,18 @@ namespace symPACK{
       assert(num_blocks>0);
 
       Int numRows = rowIndices.size();
-      this->storage_size_ = sizeof(T)*size*numRows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+      if ( panel > 0 ) {
+        Int numPanels = std::ceil((double)size/(double)panel);
+        Int lastPanel = std::max(size - (numPanels-1)*panel,0);
+        this->storage_size_ = sizeof(T)*((numPanels-1)*numRows*panel - 
+                            - (numPanels-1)*(numPanels-2)*panel/2 
+                                + (numRows-(numPanels-1)*panel)*lastPanel);
+        this->storage_size_ += num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+      }
+      else {
+        this->storage_size_ = sizeof(T)*size*numRows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+      }
+
       this->storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
 
       Int num_updrows = 0;
@@ -249,6 +275,7 @@ namespace symPACK{
       char * last = this->loc_storage_container_+this->storage_size_-1 - (sizeof(NZBlockDesc) -1);
       this->blocks_ = (NZBlockDesc*) last;
 
+      this->meta_->panel_sz_ = panel;
       this->meta_->iId_ = aiId;
       this->meta_->iFirstRow_ = aiFr;
       this->meta_->iFirstCol_ = aiFc;
@@ -267,8 +294,6 @@ namespace symPACK{
       this->idxToBlk_ = this->CreateITree();
 #endif
 
-
-
       //now add the blocks 
       if(rowIndices.size()>0){
         //go through the set and count the number of nz blocks
@@ -278,36 +303,17 @@ namespace symPACK{
           Idx row = *it;
 
           if(row>prevRow+1){
-            this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
+            this->AddNZBlock( prevRow - firstRow + 1, firstRow);
             firstRow = row;
           }
           prevRow = row;
         }
-        this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
+        this->AddNZBlock( prevRow - firstRow + 1, firstRow);
       }
-
-
-
-
-
-
-
-
-
-
     }; 
 
-
-
-
-
-
-
-
-
-
   template<typename T, class Allocator>
-    inline void SuperNodeInd<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex){
+    inline void SuperNodeInd<T,Allocator>::AddNZBlock(Int aiNRows, Int aiGIndex){
 
       //Resize the container if I own the storage
       if(this->meta_->b_own_storage_){
@@ -316,6 +322,15 @@ namespace symPACK{
         Int cur_fr = aiGIndex;
         Int cur_lr = cur_fr + aiNRows -1;
         Int cur_nzval_cnt = aiNRows*this->meta_->iSize_;
+        if ( cur_fr == this->FirstCol() && this->meta_->panel_sz_ > 0 ) {
+          Int panel = this->meta_->panel_sz_;
+          Int numPanels = std::ceil((double)this->meta_->iSize_/(double)panel);
+          Int lastPanel = std::max(this->meta_->iSize_ - (numPanels-1)*panel,0);
+          cur_nzval_cnt = (numPanels-1)*aiNRows*panel - 
+                            - (numPanels-1)*(numPanels-2)*panel/2 
+                                + (aiNRows-(numPanels-1)*panel)*lastPanel;
+        }
+
 
 
 #ifndef ITREE
@@ -409,7 +424,6 @@ namespace symPACK{
         //  this->updrows_[this->meta_->updrows_cnt_] = aiGIndex;
         //  this->meta_->updrows_cnt_++;
         //}
-        this->trsm_count++;
 
         //fill the new block with zeros
         std::fill(this->nzval_+this->meta_->nzval_cnt_,this->nzval_+this->meta_->nzval_cnt_+cur_nzval_cnt,ZERO<T>());

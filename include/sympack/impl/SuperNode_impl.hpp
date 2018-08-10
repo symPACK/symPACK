@@ -72,7 +72,6 @@ namespace symPACK{
   template<typename T, class Allocator>
     SuperNode<T,Allocator>::SuperNode() : meta_(nullptr), blocks_(nullptr), nzval_(nullptr), storage_size_(0),
     loc_storage_container_(nullptr), storage_container_(nullptr),in_use(false){
-      trsm_count = 0;
 #ifndef ITREE
       globalToLocal_=nullptr;
 #else
@@ -82,7 +81,7 @@ namespace symPACK{
 
   //this allocate the supernode with the number of rows and number of nzblocks known a priori
   template<typename T, class Allocator>
-    SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {
+    SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt, Int panel) {
       assert(ai_num_rows>=0);
 
       //compute supernode size / width
@@ -93,9 +92,19 @@ namespace symPACK{
         num_blocks=aiNZBlkCnt;
       }
 
-      storage_size_ = sizeof(T)*size*ai_num_rows 
-        + num_blocks*sizeof(NZBlockDesc) 
-        + sizeof(SuperNodeDesc);
+      if ( panel > 0 ) {
+        Int numPanels = std::ceil((double)size/(double)panel);
+        Int lastPanel = std::max(size - (numPanels-1)*panel,0);
+        storage_size_ = sizeof(T)*((numPanels-1)*ai_num_rows*panel - 
+                            - (numPanels-1)*(numPanels-2)*panel/2 
+                                + (ai_num_rows-(numPanels-1)*panel)*lastPanel);
+        storage_size_ += num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+      }
+      else {
+        storage_size_ = sizeof(T)*size*ai_num_rows 
+          + num_blocks*sizeof(NZBlockDesc) 
+          + sizeof(SuperNodeDesc);
+      }
 
       Int num_updrows = 0;
       if (aiFr == aiFc){
@@ -119,6 +128,7 @@ namespace symPACK{
       char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
       blocks_ = (NZBlockDesc*) last;
 
+      meta_->panel_sz_ = panel;
       meta_->iId_ = aiId;
       meta_->iFirstRow_ = aiFr;
       meta_->iFirstCol_ = aiFc;
@@ -138,8 +148,8 @@ namespace symPACK{
     }; 
 
   template<typename T, class Allocator>
-    SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
-      Init(aiId,aiFr,aiFc,aiLc,aiN,rowIndices);
+    SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel) {
+      Init(aiId,aiFr,aiFc,aiLc,aiN,rowIndices,panel);
     }; 
 
   template<typename T, class Allocator>
@@ -170,11 +180,9 @@ namespace symPACK{
   //CHECKED ON 11-18-2014
   //
   template<typename T, class Allocator>
-    void SuperNode<T,Allocator>::Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices) {
+    void SuperNode<T,Allocator>::Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel) {
       //compute supernode size / width
       Int size = aiLc - aiFc +1;
-
-
 
       Int num_blocks = 0;
       if(rowIndices.size()>0){
@@ -196,17 +204,23 @@ namespace symPACK{
       assert(num_blocks>0);
 
       Int numRows = rowIndices.size();
-      storage_size_ = sizeof(T)*size*numRows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+      //TODO revise this to handle panel size
+      if ( panel > 0 ) {
+        Int numPanels = std::ceil((double)size/(double)panel);
+        Int lastPanel = std::max(size - (numPanels-1)*panel,0);
+        storage_size_ = sizeof(T)*((numPanels-1)*numRows*panel - 
+                            - (numPanels-1)*(numPanels-2)*panel/2 
+                                + (numRows-(numPanels-1)*panel)*lastPanel);
+        storage_size_ += num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+      }
+      else {
+        storage_size_ = sizeof(T)*size*numRows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
+      }
 
       Int num_updrows = 0;
       if (aiFr == aiFc){
         num_updrows = num_blocks;
-        //storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
       }
-
-
-
-
 
       try{
         this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
@@ -226,6 +240,7 @@ namespace symPACK{
       char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
       blocks_ = (NZBlockDesc*) last;
 
+      meta_->panel_sz_ = panel;
       meta_->iId_ = aiId;
       meta_->iFirstRow_ = aiFr;
       meta_->iFirstCol_ = aiFc;
@@ -252,12 +267,12 @@ namespace symPACK{
           Idx row = *it;
 
           if(row>prevRow+1){
-            this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
+            this->AddNZBlock( prevRow - firstRow + 1, firstRow);
             firstRow = row;
           }
           prevRow = row;
         }
-        this->AddNZBlock( prevRow - firstRow + 1, size, firstRow);
+        this->AddNZBlock( prevRow - firstRow + 1, firstRow);
       }
     }; 
 
@@ -318,7 +333,7 @@ namespace symPACK{
     }
 
   template<typename T, class Allocator>
-    inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex){
+    inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiGIndex){
 
       //Resize the container if I own the storage
       if(meta_->b_own_storage_){
@@ -327,7 +342,14 @@ namespace symPACK{
         Int cur_fr = aiGIndex;
         Int cur_lr = cur_fr + aiNRows -1;
         Int cur_nzval_cnt = aiNRows*meta_->iSize_;
-
+        if ( cur_fr == FirstCol() && meta_->panel_sz_ > 0 ) {
+          Int panel = meta_->panel_sz_;
+          Int numPanels = std::ceil((double)meta_->iSize_/(double)panel);
+          Int lastPanel = std::max(meta_->iSize_ - (numPanels-1)*panel,0);
+          cur_nzval_cnt = (numPanels-1)*aiNRows*panel - 
+                            - (numPanels-1)*(numPanels-2)*panel/2 
+                                + (aiNRows-(numPanels-1)*panel)*lastPanel;
+        }
 
 #ifndef ITREE
         std::fill(&(*globalToLocal_)[cur_fr],&(*globalToLocal_)[cur_lr]+1,meta_->blocks_cnt_); 
@@ -343,10 +365,6 @@ namespace symPACK{
         //if there is no more room for either nzval or blocks, extend
         Int block_space = (Int)(blocks_+1 - (NZBlockDesc*)(meta_ +1)) - meta_->blocks_cnt_;
         size_t nzval_space = ((size_t)((char*)meta_ - (char*)nzval_) - meta_->nzval_cnt_*sizeof(T) );
-        //if(ownDiagonal){
-        //  nzval_space = nzval_space - (meta_->updrows_cnt_+1)*sizeof(Idx);
-        //}
-
 
         if(block_space==0 || nzval_space<cur_nzval_cnt*sizeof(T)){
           //need to resize storage space. this is expensive !
@@ -354,11 +372,7 @@ namespace symPACK{
           size_t extra_nzvals_bytes = std::max((size_t)0,(cur_nzval_cnt*sizeof(T) - nzval_space));
           Int extra_blocks = std::max((Int)0,(Int)1 - block_space);
           size_t new_size = storage_size_ + extra_nzvals_bytes + extra_blocks*sizeof(NZBlockDesc);
-          //if(ownDiagonal){
-          //  new_size += sizeof(Idx);
-          //}
 
-          //size_t offset_updrows = (char*)updrows_ - (char*)nzval_;
           size_t offset_meta = (char*)meta_ - (char*)nzval_;
           size_t offset_block = (char*)blocks_ - (char*)nzval_;
 
@@ -376,8 +390,6 @@ namespace symPACK{
           //move the meta data if required
           char * cur_meta_ptr = (char*)&loc_storage_container_[0] + offset_meta;
           //move the updated rows if required
-          //char * cur_updrows_ptr = (char*)&loc_storage_container_[0] + offset_updrows;
-
 
           meta_ = (SuperNodeDesc*) cur_meta_ptr;
           //we need to move everything, starting from the blocks, then meta
@@ -396,8 +408,6 @@ namespace symPACK{
           std::copy(cur_meta_ptr,cur_meta_ptr + sizeof(SuperNodeDesc),new_meta_ptr);
 
           //now move the updated rows by extra_nzvals_bytes
-          //char * new_updrows_ptr = cur_updrows_ptr + extra_nzvals_bytes;
-          //std::copy(cur_updrows_ptr,cur_updrows_ptr + meta_->updrows_cnt_*sizeof(Idx),new_updrows_ptr);
 
           //update pointers
           //updrows_ = (Idx*) new_updrows_ptr;
@@ -412,21 +422,13 @@ namespace symPACK{
           GetNZBlockDesc(meta_->blocks_cnt_-1).Last = false;
         }
 
-        //blocks_container_.push_back(NZBlockDesc(aiGIndex,nzval_cnt_));
-
         meta_->blocks_cnt_++;
-        //if(OwnDiagonal()){
-        //  updrows_[meta_->updrows_cnt_] = aiGIndex;
-        //  meta_->updrows_cnt_++;
-        //}
-        trsm_count++;
 
         //fill the new block with zeros
         std::fill(nzval_+meta_->nzval_cnt_,nzval_+meta_->nzval_cnt_+cur_nzval_cnt,ZERO<T>());
 
         //update nzval count
         meta_->nzval_cnt_+=cur_nzval_cnt;
-
       }
     }
 
@@ -805,7 +807,7 @@ namespace symPACK{
           toInsert.pop();
           if(FindBlockIdx(curInter.low,curInter.high,overlap)==-1){
             //Add the full block
-            AddNZBlock( curInter.high - curInter.low + 1, tgt_snode_size, curInter.low);
+            AddNZBlock( curInter.high - curInter.low + 1, curInter.low);
           }
           else{
 
@@ -1394,10 +1396,34 @@ namespace symPACK{
 
       Int snode_size = Size();
       NZBlockDesc & diag_desc = GetNZBlockDesc(0);
-      T * diag_nzval = &GetNZval(diag_desc.Offset)[0];
-      lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
-      T * nzblk_nzval = &GetNZval(diag_desc.Offset)[(snode_size)*snode_size];
-      blas::Trsm('L','U','T','N',snode_size, NRowsBelowBlock(0)-snode_size, T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+      if ( diag_desc.GIndex == this->FirstCol() && this->meta_->panel_sz_ > 0 ) {
+        gdb_lock();
+        Int panel = meta_->panel_sz_;
+        Int numPanels = std::ceil((double)meta_->iSize_/(double)panel);
+        Int lastPanel = std::max(meta_->iSize_ - (numPanels-1)*panel,0);
+        T * diag_nzval = &GetNZval(diag_desc.Offset)[0];
+        for ( Int pan = 0; pan<numPanels-1; pan++ ) {
+          Int ld_diag = std::min(meta_->iSize_,(pan+1)*panel);
+          Int pansize = std::min(panel,meta_->iSize_ - pan*panel);
+          //factor current panel's top diagonal block
+          lapack::Potrf( 'U', pansize, diag_nzval, pansize);
+          T * nzblk_nzval = diag_nzval + pansize*pansize;
+          //update current panel
+          for ( Int lpan = pan+1; lpan<numPanels; lpan++ ) {
+            Int ld_lpan = std::min(meta_->iSize_,(lpan+1)*panel);
+            Int lpansize = std::min(panel,meta_->iSize_ - lpan*panel);
+            blas::Trsm('L','U','T','N',pansize, lpansize, T(1.0),  diag_nzval, ld_diag, nzblk_nzval, ld_lpan );
+          }
+          //TODO update trailing matrix
+          diag_nzval += (pan+1)*panel*panel;
+        }
+      }
+      else {
+        T * diag_nzval = &GetNZval(diag_desc.Offset)[0];
+        lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
+        T * nzblk_nzval = &GetNZval(diag_desc.Offset)[(snode_size)*snode_size];
+        blas::Trsm('L','U','T','N',snode_size, NRowsBelowBlock(0)-snode_size, T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+      }
       return 0;
 
     }

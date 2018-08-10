@@ -208,12 +208,12 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
         //MEMORY CONSUMPTION TOO HIGH ?
         Int iLocalI = snodeLocalIndex(I);
         SuperNode<T> * cur_snode = this->LocalSupernodes_[iLocalI-1];
-        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(this->options_.decomposition,I,cur_snode->FirstRow(),1,nrhs, cur_snode->NRowsBelowBlock(0) ,this->iSize_));
+        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(this->options_.decomposition,I,cur_snode->FirstRow(),1,nrhs, cur_snode->NRowsBelowBlock(0) ,this->iSize_,this->options_.panel));
         auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[iLocalI-1]);
 
         for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
           NZBlockDesc & cur_desc = cur_snode->GetNZBlockDesc(blkidx);
-          contrib->AddNZBlock(cur_snode->NRows(blkidx),nrhs,cur_desc.GIndex);
+          contrib->AddNZBlock(cur_snode->NRows(blkidx),cur_desc.GIndex);
 
           //Copy RHS into contrib if first block
           if(blkidx==0){
@@ -677,13 +677,13 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
         //and the same width as the final solution
         //MEMORY CONSUMPTION TOO HIGH ?
         timeAlloc -= get_time();
-        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(this->options_.decomposition,I,0/*cur_snode->FirstRow()*/,1,nrhs, cur_snode->NRowsBelowBlock(0) ,this->iSize_, cur_snode->NZBlockCnt() ));
+        Contributions2_[iLocalI-1].reset(CreateSuperNode<UpcxxAllocator>(this->options_.decomposition,I,0/*cur_snode->FirstRow()*/,1,nrhs, cur_snode->NRowsBelowBlock(0) ,this->iSize_, cur_snode->NZBlockCnt(),this->options_.panel ));
         auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[iLocalI-1]);
         timeAlloc += get_time();
 
         for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
           NZBlockDesc & cur_desc = cur_snode->GetNZBlockDesc(blkidx);
-          contrib->AddNZBlock(cur_snode->NRows(blkidx),nrhs,cur_desc.GIndex);
+          contrib->AddNZBlock(cur_snode->NRows(blkidx),cur_desc.GIndex);
 
           //Copy RHS into contrib if first block
           if(blkidx==0){

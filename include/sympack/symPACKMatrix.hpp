@@ -281,14 +281,14 @@ namespace symPACK{
         SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type);
 
       template <class Allocator = UpcxxAllocator>
-        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
+        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1, Int panel=-1);
 
 
       template <class Allocator = UpcxxAllocator>
         SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Int firstRow = -1);
 
       template <class Allocator = UpcxxAllocator>
-        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
+        SuperNode<T,Allocator> * CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel=-1);
 
 
     protected:

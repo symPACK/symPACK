@@ -132,6 +132,17 @@ int main(int argc, char **argv)
   }
   optionsFact.relax.SetMaxSize(maxSnode);
 
+  Int panel = -1;
+  if( options.find("-p") != options.end() ){
+    if(options["-p"].front() != "inf"){
+      panel= atoi(options["-p"].front().c_str());
+    }
+  }
+  optionsFact.panel = panel;
+
+
+
+
   if( options.find("-relax") != options.end() ){
     if(options["-relax"].size()==3){
       optionsFact.relax.SetNrelax0(atoi(options["-relax"][0].c_str()));

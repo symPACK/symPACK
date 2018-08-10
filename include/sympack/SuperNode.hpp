@@ -91,10 +91,11 @@ namespace symPACK{
     Int iN_; 
     Int blocks_cnt_;
     Int nzval_cnt_;
+    Int panel_sz_;
     //Int updrows_cnt_;
 
     SuperNodeDesc():iId_(-1),iSize_(-1),iFirstRow_(-1),iFirstCol_(-1),
-        iLastCol_(-1),iN_(-1),blocks_cnt_(-1),nzval_cnt_(-1)/*,updrows_cnt_(-1)*/{}
+        iLastCol_(-1),iN_(-1),panel_sz_(-1),blocks_cnt_(-1),nzval_cnt_(-1)/*,updrows_cnt_(-1)*/{}
   };
 
 
@@ -114,7 +115,6 @@ namespace symPACK{
   template<typename T, class Allocator = UpcxxAllocator>
     class SuperNode: public SuperNodeBase<T>{
       public:
-        std::atomic<int> trsm_count;
         //Idx * updrows_;
 
       protected:
@@ -158,14 +158,28 @@ namespace symPACK{
         inline Int NRows(Int blkidx){
           NZBlockDesc & desc = GetNZBlockDesc(blkidx);
           size_t end = (blkidx<NZBlockCnt()-1)?GetNZBlockDesc(blkidx+1).Offset:meta_->nzval_cnt_;
-          Int nRows = (end-desc.Offset)/Size();
+          size_t nzvalcnt = end - desc.Offset;
+          Int panel = meta_->panel_sz_;
+          if ( panel>0 && desc.GIndex == FirstCol() ) {
+            gdb_lock();
+            Int numPanels = std::ceil((double)meta_->iSize_/(double)panel);
+            nzvalcnt += numPanels*(numPanels-1)*panel*panel/2; 
+          }
+
+          Int nRows = (nzvalcnt)/Size();
           return nRows;
         }
 
         inline Int NRowsBelowBlock(Int blkidx){
           NZBlockDesc & desc = GetNZBlockDesc(blkidx);
           size_t end = meta_->nzval_cnt_;
-          Int nRows = (end-desc.Offset)/Size();
+          size_t nzvalcnt = end - desc.Offset;
+          Int panel = meta_->panel_sz_;
+          if ( panel>0 && desc.GIndex == FirstCol() ) {
+            Int numPanels = std::ceil((double)meta_->iSize_/(double)panel);
+            nzvalcnt += numPanels*(numPanels-1)*panel*panel/2; 
+          }
+          Int nRows = (nzvalcnt)/Size();
           return nRows;
         }
  
@@ -185,16 +199,16 @@ namespace symPACK{
         }
 
         SuperNode();
-        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
-        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1);
-        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN);
+        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel=-1);
+        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1, Int panel=-1);
+        SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, Int panel=-1);
         SuperNode(char * storage_ptr,size_t storage_size, Int GIndex = -1);
         ~SuperNode();
 
         virtual void Init(char * storage_ptr,size_t storage_size, Int GIndex = -1);
-        virtual void Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices);
+        virtual void Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel=-1);
 
-        virtual inline void AddNZBlock(Int aiNRows, Int aiNCols, Int aiGIndex);
+        virtual inline void AddNZBlock(Int aiNRows, Int aiGIndex);
         inline void Reserve(size_t storage_size);
 
         inline Int FindBlockIdx(Int aiGIndex);

@@ -623,7 +623,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                 if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
                                   aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition);
                                 }
-                                aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
+                                aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure,this->options_.panel);
                               } 
                               else
 #endif
@@ -684,7 +684,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                 if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
                                   aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition);
                                 }
-                                aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
+                                aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure,this->options_.panel);
                                 //                                aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_);
 
                               }
@@ -1032,7 +1032,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                               aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition);
                             }
                             aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id,this->Xsuper_[curUpdate.tgt_snode_id-1],
-                                this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
+                                this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure,this->options_.panel);
                           } 
                           else
 #endif
@@ -1095,7 +1095,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                               aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition);
                             }
                             aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1],
-                                this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
+                                this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure,this->options_.panel);
 
                           }
                           SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
@@ -2049,7 +2049,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
                   }
                 }
               }
-              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
+              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure,this->options_.panel);
             } 
             else
 #endif
@@ -2092,7 +2092,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
                 }
                 UpcxxAllocator::deallocate((char*)buffer);
               }
-              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
+              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure,this->options_.panel);
             }
             SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
           }

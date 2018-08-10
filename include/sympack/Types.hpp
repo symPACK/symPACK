@@ -142,6 +142,7 @@ namespace symPACK{
   //enum OrderRefinementType {BarryDL,MCT,PR,FIFO};
   class symPACKOptions{
     public:
+      int panel;
       int numThreads;
       bool iterRefinement;
       int NpOrdering;
@@ -184,6 +185,7 @@ namespace symPACK{
 
     public:
       symPACKOptions(){
+        panel = -1;
         numThreads = 1;
         verbose = 0;
         NpOrdering = 0;
