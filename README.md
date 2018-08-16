@@ -53,3 +53,12 @@ make install
 ```
 
 Additionally, a standalone driver for **symPACK** can be built by typing `make examples`
+
+
+# Troubleshooting
+
+On some systems such as OS X, the build may fail and report that the **libtoolize** command is not found. 
+A workaround is to create a symbolic link to the **glibtoolize**, assuming that it is available (it can be installed using Homebrew on OS X for instance).
+```
+ln -s /usr/local/bin/glibtoolize /usr/local/bin/libtoolize
+```
