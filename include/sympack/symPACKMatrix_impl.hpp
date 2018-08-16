@@ -77,14 +77,15 @@ namespace symPACK{
 
 namespace symPACK{
 
-  supernodalTaskGraph::supernodalTaskGraph(){
+  inline supernodalTaskGraph::supernodalTaskGraph(){
     localTaskCount_=0;
   }
-  supernodalTaskGraph::supernodalTaskGraph( const supernodalTaskGraph& g ){
+
+  inline supernodalTaskGraph::supernodalTaskGraph( const supernodalTaskGraph& g ){
     (*this) = g;
   }
 
-  supernodalTaskGraph& supernodalTaskGraph::operator=( const supernodalTaskGraph& g ){
+  inline supernodalTaskGraph& supernodalTaskGraph::operator=( const supernodalTaskGraph& g ){
     localTaskCount_ = g.localTaskCount_;
     taskLists_.resize(g.taskLists_.size(),NULL);
     for(int i = 0; i<taskLists_.size(); ++i){
@@ -95,7 +96,7 @@ namespace symPACK{
     }
   }
 
-  supernodalTaskGraph::~supernodalTaskGraph(){
+  inline supernodalTaskGraph::~supernodalTaskGraph(){
     for(int i = 0; i<taskLists_.size(); ++i){
       if(taskLists_[i] != NULL){
         delete taskLists_[i];
@@ -104,12 +105,12 @@ namespace symPACK{
 
   }        
 
-  void supernodalTaskGraph::removeTask(std::list<FBTask>::iterator & taskit){
+  inline void supernodalTaskGraph::removeTask(std::list<FBTask>::iterator & taskit){
     taskLists_[taskit->tgt_snode_id-1]->erase(taskit);
     //decreaseTaskCount();
   }
 
-  std::list<FBTask>::iterator supernodalTaskGraph::addTask(FBTask & task){
+  inline std::list<FBTask>::iterator supernodalTaskGraph::addTask(FBTask & task){
     if(taskLists_[task.tgt_snode_id-1] == NULL){
       taskLists_[task.tgt_snode_id-1]=new std::list<FBTask>();
     }
@@ -122,33 +123,33 @@ namespace symPACK{
 
 
 
-  Int supernodalTaskGraph::getTaskCount()
+  inline Int supernodalTaskGraph::getTaskCount()
   {
     Int val = localTaskCount_;
     return val;
   }
 
-  Int supernodalTaskGraph::setTaskCount(Int value)
+  inline Int supernodalTaskGraph::setTaskCount(Int value)
   {
     localTaskCount_ = value;
     return value;
   }
 
-  Int supernodalTaskGraph::increaseTaskCount()
+  inline Int supernodalTaskGraph::increaseTaskCount()
   {
     Int val;
     val = ++localTaskCount_;
     return val;
   }
 
-  Int supernodalTaskGraph::decreaseTaskCount()
+  inline Int supernodalTaskGraph::decreaseTaskCount()
   {
     Int val;
     val = --localTaskCount_;
     return val;
   }
 
-  std::list<FBTask>::iterator supernodalTaskGraph::find_task(Int src, Int tgt, TaskType type )
+  inline std::list<FBTask>::iterator supernodalTaskGraph::find_task(Int src, Int tgt, TaskType type )
   {
     scope_timer(a,FB_FIND_TASK);
     //find task corresponding to curUpdate
@@ -164,7 +165,7 @@ namespace symPACK{
   }
 
 
-  template<typename T> void symPACKMatrix<T>::generateTaskGraph(supernodalTaskGraph & taskGraph,
+  template<typename T> inline void symPACKMatrix<T>::generateTaskGraph(supernodalTaskGraph & taskGraph,
       std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates)
   {
     //we will need to communicate if only partial xlindx_, lindx_

@@ -14,7 +14,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED on)
 #add_compile_options("$<$<CONFIG:Debug>:-g>")
 
 string( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
-IF(${config_type} STREQUAL "debug")
+IF(config_type STREQUAL "debug")
   message("Debug mode")
   #SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0" CACHE STRING "" FORCE)
   #SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0" CACHE STRING "" FORCE)
@@ -333,7 +333,9 @@ foreach( d ${LIBS} )
 endforeach()
 
 file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += \$(UPCXX_LDLIBS)\n")
+IF(NOT CMAKE_DL_LIBS STREQUAL "")
 file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += -l${CMAKE_DL_LIBS}\n")
+endif()
 
 unset(TMPUPCXXDIR)
 
