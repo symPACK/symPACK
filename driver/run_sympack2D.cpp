@@ -16,6 +16,8 @@
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
 #include <memory>
+#include <thread>
+#include <chrono>
 
 //#define DUMP_MATLAB
 //#define DUMP_MATLAB_SOL
@@ -427,6 +429,7 @@ int main(int argc, char **argv)
       utility::scope_memprofiler m("symPACK2D_symbolic");
       SMat2D->Init(optionsFact);
       SMat2D->SymbolicFactorization(HMat);
+
 #if 1
       SMat2D->DistributeMatrix(HMat);
 #ifdef DUMP_MATLAB
@@ -435,8 +438,10 @@ int main(int argc, char **argv)
     }
     SMat2D->DumpMatlab();
 #endif
+#endif
       }
 
+#if 1
       timeSta = get_time();
       SMat2D->Factorize();
       timeEnd = get_time();

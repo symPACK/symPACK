@@ -145,8 +145,14 @@ namespace symPACK{
 #define CELL(a,b) (*pCELL((a),(b)))
 
   class blockCellBase_t {
-    protected:
-      blockCellBase_t(){}
+    using int_t = int;
+    using intrank_t = upcxx::intrank_t;
+    public:
+        intrank_t owner;
+        int_t i;
+        int_t j;
+//    protected:
+      blockCellBase_t():owner(0),i(0),j(0){}
   };
 
   namespace scheduling {
@@ -188,8 +194,6 @@ namespace symPACK{
             int in_remote_dependencies_cnt;
             int in_local_dependencies_cnt;
 
-            //std::deque< upcxx::global_ptr<char> > in_ptr;
-
             //promise to sync all outgoing RPCs
             upcxx::promise<> out_prom;
             //promise to wait for all incoming_data_t to be created
@@ -204,15 +208,15 @@ namespace symPACK{
             in_local_dependencies_cnt(0){ }
 
             ~task_t(){
-              bassert(out_prom.get_future().ready());
-              bassert(in_prom.get_future().ready());
-              bassert(in_avail_prom.get_future().ready());
+              //bassert(out_prom.get_future().ready());
+              //bassert(in_prom.get_future().ready());
+              //bassert(in_avail_prom.get_future().ready());
             }
 
             void reset(){
-              bassert(out_prom.get_future().ready());
-              bassert(in_prom.get_future().ready());
-              bassert(in_avail_prom.get_future().ready());
+              //bassert(out_prom.get_future().ready());
+              //bassert(in_prom.get_future().ready());
+              //bassert(in_avail_prom.get_future().ready());
               out_prom = upcxx::promise<>();
               in_prom = upcxx::promise<>();
               in_avail_prom = upcxx::promise<>();
@@ -311,9 +315,9 @@ namespace symPACK{
             //rowind_t nrows;
         };
 
-        int_t i;
-        int_t j;
-        intrank_t owner;
+//        int_t i;
+//        int_t j;
+        //intrank_t owner;
         rowind_t first_col;
         std::tuple<rowind_t> _dims;
         upcxx::global_ptr< char > _gstorage;
@@ -425,7 +429,7 @@ namespace symPACK{
 
 
 
-        blockCell_t():i(0),j(0),owner(0),
+        blockCell_t(): //i(0),j(0),
         first_col(0),_dims(std::make_tuple(0)),_total_rows(0),
         _storage(nullptr),_nzval(nullptr),//_blocks(nullptr),_nblocks(0),
         _gstorage(nullptr),_nnz(0),_storage_size(0){}
@@ -612,6 +616,11 @@ namespace symPACK{
         }
 
         void add_block( rowind_t first_row, rowind_t nrows ){
+          assert( this->_block_container.data()!=nullptr );
+          assert( this->_block_container.size() + 1 <= block_capacity() );
+          assert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
+
+          bassert( this->_block_container.data()!=nullptr );
           bassert( this->_block_container.size() + 1 <= block_capacity() );
           bassert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
           auto & new_block = _block_container[_block_container._nblocks++];
@@ -638,6 +647,8 @@ namespace symPACK{
           if ( shared_segment ) {
             _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
             _storage = _gstorage.local();
+            if ( this->_storage==nullptr ) std::cout<<"Trying to allocate "<<nzval_cnt<<" for cell ("<<i<<","<<j<<")"<<std::endl;
+            assert( this->_storage!=nullptr );
           }
           else {
             _gstorage = nullptr;
@@ -2382,7 +2393,6 @@ namespace symPACK{
         Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
         Int firstSnode = this->XsuperDist_[this->iam];
 
-        //gdb_lock();
         //now create cell structures
         for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
           Idx I = locsupno + firstSnode-1;
@@ -2491,7 +2501,15 @@ namespace symPACK{
         MPI_Type_free(&type);
 
         //gdb_lock();
-
+#define _BALANCE_NNZ_
+#ifdef _BALANCE_NNZ_
+        using load_t = std::tuple<int,size_t>;
+        auto compare_load = [](load_t & a, load_t & b){ return std::get<1>(a)>std::get<1>(b);};
+        std::priority_queue< load_t, std::vector<load_t>, decltype( compare_load ) > load(compare_load);
+        for ( int p = 0; p < nprow*npcol ; p++) {
+          load.push( std::make_tuple(p, (size_t)0));
+        }
+#endif
         std::shared_ptr<snodeBlock_t> pLast_cell = nullptr;
         for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
           auto & cur_cell = (*it);
@@ -2503,16 +2521,23 @@ namespace symPACK{
             Int first_row = std::get<2>(cur_cell);
             Int nrows = std::get<3>(cur_cell);
             pLast_cell->add_block(first_row,nrows);
-
           }
           else{
             Int nBlock = std::get<2>(cur_cell);
             Int nRows = std::get<3>(cur_cell);
-            auto pcol = j % npcol;
             //auto idx = coord2supidx(i,j);
             auto idx = coord2supidx(i-1,j-1);
+
+#ifdef _BALANCE_NNZ_
+            auto proc = load.top();
+            load.pop();
+            auto p = std::get<0>(proc);
+#else
             auto prow = i % nprow;
+            auto pcol = j % npcol;
             auto p = pcol*nprow+prow;
+#endif      
+
             //cells_[idx].owner = p;
             //cells_[idx].i = i;
             //cells_[idx].j = j;
@@ -2522,16 +2547,37 @@ namespace symPACK{
             Int iWidth = lc-fc+1;
             size_t block_cnt = nBlock;
             size_t nnz = nRows * iWidth;
+#ifdef _BALANCE_NNZ_
+            auto & lp = std::get<1>(proc);
+            lp += nnz*iWidth;
+            load.push(proc);
+#endif
 
-            auto sptr = std::make_shared<snodeBlock_t>(fc,iWidth,nnz,block_cnt);
-            pLast_cell = sptr;
-            //auto sptr = std::make_shared<snodeBlock_t>();
-            cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
-            //logfileptr->OFS()<<idx<<" "<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
-            //logfileptr->OFS()<<i<<" "<<j<<" = "<<sptr<<" "<<std::static_pointer_cast<blockCellBase_t>(sptr)<<" "<<cells_[idx]<<std::endl;
-            sptr->owner = p;
+            std::shared_ptr<blockCellBase_t> sptr(nullptr);
+            if (0 ||  p == iam ) {
+              //auto sptr = std::make_shared<snodeBlock_t>(fc,iWidth,nnz,block_cnt);
+              if ( p == iam ) {
+                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(fc,iWidth,nnz,block_cnt));
+              }
+              else {
+                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(fc,iWidth,0,0));
+              }
+
+              pLast_cell = std::static_pointer_cast<snodeBlock_t>(sptr);
+              //auto sptr = std::make_shared<snodeBlock_t>();
+              cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
+              //logfileptr->OFS()<<idx<<" "<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
+              //logfileptr->OFS()<<i<<" "<<j<<" = "<<sptr<<" "<<std::static_pointer_cast<blockCellBase_t>(sptr)<<" "<<cells_[idx]<<std::endl;
+              pLast_cell->i = i;
+              pLast_cell->j = j;
+            }
+            else {
+              sptr = std::make_shared<blockCellBase_t>();
+            }
+
             sptr->i = i;
             sptr->j = j;
+            sptr->owner = p;
           }
         }
         //logfileptr->OFS()<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
@@ -2829,10 +2875,7 @@ namespace symPACK{
               }
             }
 
-
             bassert(this->task_graph.find(key)==this->task_graph.end());
-
-
 
             this->task_graph[key] = std::unique_ptr<SparseTask2D>(ptask);
           }

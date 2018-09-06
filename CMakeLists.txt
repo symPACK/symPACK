@@ -26,7 +26,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED on)
 
 string( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
-IF( "${config_type}" STREQUAL "debug")
+IF( config_type STREQUAL "debug")
   message("Debug mode")
 ENDIF()  
   
@@ -340,7 +340,9 @@ else()
 file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += \$(UPCXX_LDLIBS)\n")
 endif()
 
+IF( NOT CMAKE_DL_LIBS STREQUAL "")
 file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += -l${CMAKE_DL_LIBS}\n")
+endif()
 
 unset(TMPUPCXXDIR)
 
