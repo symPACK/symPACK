@@ -165,6 +165,7 @@ namespace symPACK{
       int verbose;
       int dumpPerm;
       int * perm;
+      double memory_limit;
     protected:
       bool isSqrtP(){
         bool val = false;
@@ -211,6 +212,8 @@ namespace symPACK{
         //        load_balance = SUBCUBE;
         print_stats=false;
         iterRefinement=false;
+
+        memory_limit = -1.0;
       }
 
       Int used_procs(Int np){

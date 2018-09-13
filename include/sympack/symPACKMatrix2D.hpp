@@ -81,6 +81,10 @@ such enhancements or derivative works thereof, in binary and source code form.
 #define NEW_GRAPH
 //#define LOCK_SRC 2
 
+#define _COMPACT_DEPENDENCIES_
+
+#define _MEMORY_LIMIT_
+
 #ifdef NEW_GRAPH
 #include <functional>
 
@@ -145,14 +149,13 @@ namespace symPACK{
 #define CELL(a,b) (*pCELL((a),(b)))
 
   class blockCellBase_t {
-    using int_t = int;
     using intrank_t = upcxx::intrank_t;
     public:
         intrank_t owner;
-        int_t i;
-        int_t j;
-//    protected:
+        int i;
+        int j;
       blockCellBase_t():owner(0),i(0),j(0){}
+
   };
 
   namespace scheduling {
@@ -183,7 +186,13 @@ namespace symPACK{
             std::function< void() > execute;
 
             //byte storage for tasks 
-            std::deque< depend_task_t > out_dependencies;
+#ifdef _COMPACT_DEPENDENCIES_
+            std::vector< int > out_dependencies;
+#else
+            std::vector< depend_task_t > out_dependencies;
+#endif
+            //need counter here as same REMOTE cell can be input to many tasks.
+            std::vector< std::shared_ptr< data_t > > input_msg;
 
             //in fact we only need the SIZE, the counts
             //TODO REMOVE THIS
@@ -222,8 +231,6 @@ namespace symPACK{
               in_avail_prom = upcxx::promise<>();
             }
 
-            //need counter here as same REMOTE cell can be input to many tasks.
-            std::deque< std::shared_ptr< incoming_data_t<task_t,meta_t> > > input_msg;
         };
 
 
@@ -235,11 +242,13 @@ namespace symPACK{
           using task_t = ttask_t;
           using meta_t = tmeta_t;
           //this should be made generic, not specific to sparse matrices
-          std::deque< task_t *> target_tasks;
+          std::vector< task_t *> target_tasks;
+
           meta_t in_meta;
           //a pointer to be used by the user if he wants to attach some data
           //void * extra_data;
           std::unique_ptr<blockCellBase_t> extra_data;
+          //blockCellBase_t * extra_data;
 
           incoming_data_t():transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr){};
           bool transfered;
@@ -248,8 +257,14 @@ namespace symPACK{
           char * landing_zone;
 
           void allocate(){
-            if(landing_zone == nullptr)
+            if(landing_zone == nullptr) {
+//	           struct rusage bous, eous;
+//           getrusage(RUSAGE_SELF, &bous);
+//           logfileptr->OFS()<<size<<"bytes Before "<<bous.ru_maxrss<<" KiB used"<<std::endl; 
               landing_zone = new char[size];
+//           getrusage(RUSAGE_SELF, &eous);
+//           logfileptr->OFS()<<size<<"bytes After "<<eous.ru_maxrss<<" KiB used"<<std::endl; 
+            }
           }
 
           upcxx::future<incoming_data_t *> fetch(){
@@ -266,6 +281,9 @@ namespace symPACK{
             if (landing_zone) {
               delete [] landing_zone;
             }
+            //if ( extra_data ) {
+            //  delete extra_data;
+            //}
           }
 
       };
@@ -284,12 +302,18 @@ namespace symPACK{
       class Scheduler2D{
         public:
           int sp_handle;
-          std::deque<ttask_t*> ready_tasks;
-          std::deque<ttask_t*> avail_tasks;
+          std::list<ttask_t*> ready_tasks;
+
+//          std::list<ttask_t*> avail_tasks;
+           struct avail_comp{
+             bool operator()(ttask_t *& a,ttask_t*& b){ return a->out_dependencies.size() > b->out_dependencies.size();};
+           };
+
+          std::priority_queue<ttask_t*,std::vector<ttask_t*>,avail_comp> avail_tasks;
 #ifdef _DEBUG_DEPENDENCIES_
           void execute(ttaskgraph_t & graph, Int * SupMembership );
 #else
-          void execute(ttaskgraph_t & graph );
+          void execute(ttaskgraph_t & graph, double & mem_budget );
 #endif
       };
 
@@ -435,6 +459,7 @@ namespace symPACK{
         _gstorage(nullptr),_nnz(0),_storage_size(0){}
 
         ~blockCell_t() {
+          //gdb_lock();
           if ( !_gstorage.is_null() ) {
             bassert(_storage == _gstorage.local());
             upcxx::deallocate( _gstorage );
@@ -451,14 +476,18 @@ namespace symPACK{
           return _total_rows;
         }
 
-        blockCell_t ( rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true  ): blockCell_t() {
+        blockCell_t ( int_t i, int_t j, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true  ): blockCell_t() {
+          this->i = i;
+          this->j = j;
           _dims = std::make_tuple(width);
           first_col = firstcol;
           allocate(nzval_cnt,block_cnt, shared_segment);
           initialize(nzval_cnt,block_cnt);
         }
 
-        blockCell_t ( char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
+        blockCell_t (  int_t i, int_t j,char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
+          this->i = i;
+          this->j = j;
           _gstorage = nullptr;
           _storage = ext_storage;
           _dims = std::make_tuple(width);
@@ -468,7 +497,9 @@ namespace symPACK{
           _block_container._nblocks = block_cnt;
         }
 
-        blockCell_t ( upcxx::global_ptr<char> ext_gstorage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
+        blockCell_t (  int_t i, int_t j,upcxx::global_ptr<char> ext_gstorage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
+          this->i = i;
+          this->j = j;
           _gstorage = ext_gstorage;
           _storage = _gstorage.local();
           _dims = std::make_tuple(width);
@@ -645,6 +676,7 @@ namespace symPACK{
         void allocate ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
           bassert(nzval_cnt!=0 && block_cnt!=0);
           if ( shared_segment ) {
+
             _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
             _storage = _gstorage.local();
             if ( this->_storage==nullptr ) std::cout<<"Trying to allocate "<<nzval_cnt<<" for cell ("<<i<<","<<j<<")"<<std::endl;
@@ -1592,7 +1624,7 @@ namespace symPACK{
 
       public:
       int nsuper;
-
+      double mem_budget;
 
       size_t coord2supidx(uint64_t i, uint64_t j){ 
         size_t val =  (i-j) + j*(nsuper+1) - (j+1)*(j)/2;  
@@ -1716,6 +1748,8 @@ namespace symPACK{
       scope_timer(a,symPACKMatrix2D::Init);
       this->options_ = options;
       logfileptr->verbose = this->options_.verbose>0;
+
+      this->mem_budget = this->options_.memory_limit;
 
 #ifndef NO_MPI
       this->all_np = 0;
@@ -2510,7 +2544,8 @@ namespace symPACK{
           load.push( std::make_tuple(p, (size_t)0));
         }
 #endif
-        std::shared_ptr<snodeBlock_t> pLast_cell = nullptr;
+        //std::shared_ptr<snodeBlock_t> pLast_cell = nullptr;
+        std::shared_ptr<blockCellBase_t> pLast_cell = nullptr;
         for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
           auto & cur_cell = (*it);
           Int i = std::get<0>(cur_cell);
@@ -2518,9 +2553,12 @@ namespace symPACK{
 
           if (i==-1 && j==-1) {
             bassert(pLast_cell!=nullptr);
-            Int first_row = std::get<2>(cur_cell);
-            Int nrows = std::get<3>(cur_cell);
-            pLast_cell->add_block(first_row,nrows);
+            if ( pLast_cell->owner == iam ) {
+              auto ptr = std::static_pointer_cast<snodeBlock_t>(pLast_cell);
+              Int first_row = std::get<2>(cur_cell);
+              Int nrows = std::get<3>(cur_cell);
+              ptr->add_block(first_row,nrows);
+            }
           }
           else{
             Int nBlock = std::get<2>(cur_cell);
@@ -2557,27 +2595,29 @@ namespace symPACK{
             if (0 ||  p == iam ) {
               //auto sptr = std::make_shared<snodeBlock_t>(fc,iWidth,nnz,block_cnt);
               if ( p == iam ) {
-                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(fc,iWidth,nnz,block_cnt));
+                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
               }
               else {
-                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(fc,iWidth,0,0));
+                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,0,0));
               }
 
-              pLast_cell = std::static_pointer_cast<snodeBlock_t>(sptr);
+//              pLast_cell = std::static_pointer_cast<snodeBlock_t>(sptr);
               //auto sptr = std::make_shared<snodeBlock_t>();
-              cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
+//              cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
               //logfileptr->OFS()<<idx<<" "<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
               //logfileptr->OFS()<<i<<" "<<j<<" = "<<sptr<<" "<<std::static_pointer_cast<blockCellBase_t>(sptr)<<" "<<cells_[idx]<<std::endl;
-              pLast_cell->i = i;
-              pLast_cell->j = j;
+//              pLast_cell->i = i;
+//              pLast_cell->j = j;
             }
             else {
               sptr = std::make_shared<blockCellBase_t>();
             }
 
+            cells_[idx] = sptr;
             sptr->i = i;
             sptr->j = j;
             sptr->owner = p;
+            pLast_cell = sptr;
           }
         }
         //logfileptr->OFS()<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
@@ -2603,7 +2643,7 @@ namespace symPACK{
           size_t block_cnt = nBlock;
           size_t nnz = nRows * iWidth;
 
-          auto sptr = std::make_shared<snodeBlock_t>(iWidth,nnz,block_cnt);
+          auto sptr = std::make_shared<snodeBlock_t>(i,j,iWidth,nnz,block_cnt);
           cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
           sptr->owner = p;
           sptr->i = i;
@@ -2937,7 +2977,11 @@ namespace symPACK{
 #ifdef _DEBUG_DEPENDENCIES_
                 taskptr->out_dependencies.push_back( std::make_tuple(J,I,false) );
 #else
+#ifdef _COMPACT_DEPENDENCIES_
+                taskptr->out_dependencies.push_back( J );
+#else
                 taskptr->out_dependencies.push_back( std::make_tuple(J,I) );
+#endif
 #endif
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep added to FACTOR"<<" from "<<I<<" to "<<I<<std::endl;
@@ -3040,7 +3084,13 @@ namespace symPACK{
 #ifdef _DEBUG_DEPENDENCIES_
                 taskptr->out_dependencies.push_back( std::make_tuple(K,J,false) );
 #else
+
+#ifdef _COMPACT_DEPENDENCIES_
+                taskptr->out_dependencies.push_back( J );
+#else
                 taskptr->out_dependencies.push_back( std::make_tuple(K,J) );
+#endif
+
 #endif
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep added to UPDATE_COMP"<<" from "<<I<<" to "<<J<<std::endl;
@@ -3099,7 +3149,11 @@ namespace symPACK{
 #ifdef _DEBUG_DEPENDENCIES_
                 taskptr->out_dependencies.push_back( std::make_tuple(J,K,false) );
 #else
+#ifdef _COMPACT_DEPENDENCIES_
+                taskptr->out_dependencies.push_back( K );
+#else
                 taskptr->out_dependencies.push_back( std::make_tuple(J,K) );
+#endif
 #endif
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep added to TRSM"<<" from "<<I<<" to "<<I<<std::endl;
@@ -3124,7 +3178,11 @@ namespace symPACK{
 #ifdef _DEBUG_DEPENDENCIES_
                 taskptr->out_dependencies.push_back( std::make_tuple(K,J,false) );
 #else
+#ifdef _COMPACT_DEPENDENCIES_
+                taskptr->out_dependencies.push_back( -K );
+#else
                 taskptr->out_dependencies.push_back( std::make_tuple(K,J) );
+#endif
 #endif
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep DOWN added to TRSM"<<" from "<<I<<" to "<<I<<std::endl;
@@ -3242,7 +3300,8 @@ namespace symPACK{
             auto fut_comm = ptask->in_avail_prom.finalize();
             if (remote_deps >0 ) {
               fut_comm.then([this,ptask](){
-                  this->scheduler.avail_tasks.push_back(ptask);
+//                  this->scheduler.avail_tasks.push_back(ptask);
+                  this->scheduler.avail_tasks.push(ptask);
                   });
             }
             //fulfill the promise by one to "unlock" that promise
@@ -3278,6 +3337,7 @@ namespace symPACK{
                 {
                   ptask->execute = [this,src_snode,ptask,I,J,K] () {
                     scope_timer(b,FB_FACTOR_DIAG_TASK);
+//            utility::scope_memprofiler2 m("symPACKMatrix_factorization",1);
                     auto & diagcell = CELL(I-1,I-1);
                     bassert( diagcell.owner == this->iam);
 
@@ -3343,12 +3403,8 @@ namespace symPACK{
                             data->on_fetch.get_future().then(
                                 [fc,width,nnz,nblocks,I](SparseTask2D::data_t * pdata){
                                 //create snodeBlock_t and store it in the extra_data
-                                //pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
-                                //gdb_lock();
-                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(pdata->landing_zone,fc,width,nnz,nblocks) );
-                                auto pcell = (snodeBlock_t*)pdata->extra_data.get();
-                                pcell->i = I;
-                                pcell->j = I;
+                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                //pdata->extra_data = (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks);
                                 });
 
                             }, this->sp_handle, diagcell._gstorage, diagcell._storage_size, diagcell.nnz(), diagcell.nblocks(), std::get<0>(diagcell._dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
@@ -3385,6 +3441,7 @@ namespace symPACK{
                 {
                   ptask->execute = [this,src_snode,tgt_snode,ptask,I,J,K] () {
                     scope_timer(b,FB_TRSM_TASK);
+//            utility::scope_memprofiler2 m("symPACKMatrix_trsm",1);
 
                     //logfileptr->OFS()<<"Exec TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
 
@@ -3405,20 +3462,16 @@ namespace symPACK{
                     if ( ptr_diagCell->owner != this->iam ){
                       //gdb_lock();
                       ptr_diagCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
+                      //ptr_diagCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data);
+//                      m.pstate->overhead_mb += ptask->input_msg.begin()->get()->size  / 1024./ m.pstate->divider; 
                     }
                     bassert(ptr_diagCell!=NULL);
 
 
                     od_cell.trsm(*ptr_diagCell,tmpBuf);
 
-          {
-            volatile utility::scope_memprofiler m("symPACKMatrix_clear1",1);
-          }
                     //get rid of the shared_ptr
                     ptask->input_msg.clear();
-          {
-            volatile utility::scope_memprofiler m("symPACKMatrix_clear2",1);
-          }
 
                     //send this to the all facing blocks (tgt_snode-1,*) and off diagonal blocks (*,tgt_snode-1)
                     std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
@@ -3472,11 +3525,8 @@ namespace symPACK{
                             data->on_fetch.get_future().then(
                                 [fc,width,nnz,nblocks,K,I](SparseTask2D::data_t * pdata){
                                 //create snodeBlock_t and store it in the extra_data
-                                //pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
-                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(pdata->landing_zone,fc,width,nnz,nblocks) );
-                                auto pcell = (snodeBlock_t*)pdata->extra_data.get();
-                                pcell->i = K;
-                                pcell->j = I;
+                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                 }
                                 );
 
@@ -3516,6 +3566,8 @@ namespace symPACK{
                 {
                   ptask->execute = [this,src_snode,ptask,I,J,K] () {
                     scope_timer(b,FB_UPDATE2D_TASK);
+//                    utility::scope_memprofiler2 m("symPACKMatrix_update",1);
+                    static std::map< std::tuple<int,int>, bool > block_used_update; 
 
                     auto & upd_cell = CELL(K-1,J-1);
 
@@ -3534,12 +3586,27 @@ namespace symPACK{
                     auto ptr_odCell = pCELL(J-1,I-1).get(); 
                     if ( ptr_odCell->owner != this->iam ){
                       ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
+//                      ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data);
+//                      auto it = block_used_update.find( std::make_tuple(J,I) ) ;
+//                      if ( it == block_used_update.end() ) {
+//                        block_used_update[std::make_tuple(J,I)] = true;
+//                        m.pstate->overhead_mb += ptask->input_msg.begin()->get()->size  / 1024./ m.pstate->divider; 
+//                      }
+
                     }
                     bassert(ptr_odCell!=NULL);
 
                     auto ptr_facingCell = pCELL(K-1,I-1).get(); 
                     if ( ptr_facingCell->owner != this->iam ){
                       ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data.get());
+                      //ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data);
+
+
+//                      auto it = block_used_update.find( std::make_tuple(K,I) ) ;
+//                      if ( it == block_used_update.end() ) {
+//                        block_used_update[std::make_tuple(K,I)] = true;
+//                        m.pstate->overhead_mb += ptask->input_msg.rbegin()->get()->size  / 1024./ m.pstate->divider; 
+//                      }
                     }
                     bassert(ptr_facingCell!=NULL);
 
@@ -3610,12 +3677,8 @@ namespace symPACK{
                             data->on_fetch.get_future().then(
                                 [fc,width,nnz,nblocks,K,J](SparseTask2D::data_t * pdata){
                                 //create snodeBlock_t and store it in the extra_data
-                                //pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
-                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(pdata->landing_zone,fc,width,nnz,nblocks) );
-
-                                auto pcell = (snodeBlock_t*)pdata->extra_data.get();
-                                pcell->i = K;
-                                pcell->j = J;
+                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
                                 }
                                 );
 
@@ -3684,7 +3747,8 @@ namespace symPACK{
           auto fut_comm = ptask->in_avail_prom.finalize();
           if (remote_deps >0 ) {
             fut_comm.then([this,ptr](){
-                this->scheduler.avail_tasks.push_back(ptr);
+//                this->scheduler.avail_tasks.push_back(ptr);
+                this->scheduler.avail_tasks.push(ptr);
                 });
           }
           //fulfill the promise by one to "unlock" that promise
@@ -3703,6 +3767,8 @@ namespace symPACK{
 
                 ptask->execute = [this,src_snode,ptr,I,J,K] () {
                   scope_timer(b,FB_FACTOR_DIAG_TASK);
+//            utility::scope_memprofiler2 m("symPACKMatrix_factorization",1);
+
                   auto ptask = ptr;
                   //logfileptr->OFS()<<"Exec FACTOR"<<" cell ("<<I<<","<<I<<")"<<std::endl;
 
@@ -3718,6 +3784,14 @@ namespace symPACK{
                   diagcell.factorize(tmpBuf);
 
                   std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
+#ifdef _COMPACT_DEPENDENCIES_
+                  for (auto &tpl : ptask->out_dependencies) {
+                    auto tgt_j = tpl;
+                    auto & tgt_cell = CELL(tgt_j-1,I-1);
+                    //add this cell to the list of cells depending on diagcell for the TRSM task(s)
+                    data_to_send[tgt_cell.owner].push_back(std::make_tuple(tgt_j,I));
+                  }
+#else
                   for (auto &tpl : ptask->out_dependencies) {
                     auto tgt_i = std::get<0>(tpl);
                     auto tgt_j = std::get<1>(tpl);
@@ -3725,6 +3799,7 @@ namespace symPACK{
                     //add this cell to the list of cells depending on diagcell for the TRSM task(s)
                     data_to_send[tgt_cell.owner].push_back(tpl);
                   }
+#endif
 
                   //send factor and update local tasks
                   //ptask->out_prom->require_anonymous(data_to_send.size());
@@ -3775,12 +3850,8 @@ namespace symPACK{
                           data->on_fetch.get_future().then(
                               [fc,width,nnz,nblocks,I](SparseTask2D::data_t * pdata){
                               //create snodeBlock_t and store it in the extra_data
-                              //pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
-                              //gdb_lock();
-                              pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(pdata->landing_zone,fc,width,nnz,nblocks) );
-                              auto pcell = (snodeBlock_t*)pdata->extra_data.get();
-                              pcell->i = I;
-                              pcell->j = I;
+                              pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                              //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                               });
 
                           }, this->sp_handle, diagcell._gstorage, diagcell._storage_size, diagcell.nnz(), diagcell.nblocks(), std::get<0>(diagcell._dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
@@ -3830,7 +3901,9 @@ namespace symPACK{
               {
 
                 ptask->execute = [this,src_snode,tgt_snode,ptr,I,J,K] () {
+                    static std::map< std::tuple<int,int>, bool > block_used_update; 
                   scope_timer(b,FB_TRSM_TASK);
+//            utility::scope_memprofiler2 m("symPACKMatrix_trsm",1);
                   auto ptask = ptr;
 
                   //logfileptr->OFS()<<"Exec TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
@@ -3846,29 +3919,64 @@ namespace symPACK{
                   auto & tmpBuf = tmpBufs;
 #endif
 
+
                   //input data is one or 0 (local diagonal block)
                   bassert(ptask->input_msg.size()<=1);
                   auto ptr_diagCell = pCELL(I-1,I-1).get(); 
                   if ( ptr_diagCell->owner != this->iam ){
-                    //gdb_lock();
                     ptr_diagCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
+                    //ptr_diagCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data);
+
+//                      auto it = block_used_update.find( std::make_tuple(I,I) ) ;
+//                      if ( it == block_used_update.end() ) {
+//                        block_used_update[std::make_tuple(I,I)] = true;
+//                        logfileptr->OFS()<<ptask->input_msg.begin()->get()->size<<" vs "<<ptr_diagCell->_storage_size<<std::endl;
+
+//                        m.pstate->overhead_mb += ptask->input_msg.begin()->get()->size / 1024. /m.pstate->divider; 
+//                      }
+
+
                   }
                   bassert(ptr_diagCell!=NULL);
 
 
                   od_cell.trsm(*ptr_diagCell,tmpBuf);
 
+#ifdef _MEMORY_LIMIT_
+              if ( this->mem_budget != -1.0 ) {
+                size_t mem_cost = 0;
+                for(auto & msg : ptask->input_msg){
+                  mem_cost += msg->size;
+                }
+                this->mem_budget += mem_cost; 
+//                  logfileptr->OFS()<<"mem budget is back to "<<mem_budget<<std::endl;
+              }
+#endif
                   //get rid of the shared_ptr
                   ptask->input_msg.clear();
 
                   //send this to the all facing blocks (tgt_snode-1,*) and off diagonal blocks (*,tgt_snode-1)
                   std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
+#ifdef _COMPACT_DEPENDENCIES_
+                  for (auto &tpl : ptask->out_dependencies) {
+                    auto tgt_j = tpl;
+                    if ( tgt_j > 0 ) {
+                      auto & tgt_cell = CELL(K-1,tgt_j-1);
+                      data_to_send[tgt_cell.owner].push_back(std::make_tuple(K,tgt_j));
+                    }
+                    else {
+                      auto & tgt_cell = CELL(-tgt_j-1,K-1);
+                      data_to_send[tgt_cell.owner].push_back(std::make_tuple(-tgt_j,K));
+                    }
+                  }
+#else
                   for (auto &tpl : ptask->out_dependencies) {
                     auto tgt_i = std::get<0>(tpl);
                     auto tgt_j = std::get<1>(tpl);
-                    auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(tgt_i-1,tgt_j-1)]);
+                    auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);
                     data_to_send[tgt_cell.owner].push_back(tpl);
                   }
+#endif
 
 
                   //send factor and update local tasks
@@ -3916,17 +4024,9 @@ namespace symPACK{
                           rowind_t fc = matptr->Xsuper_[I-1];
                           data->on_fetch.get_future().then(
                               [fc,width,nnz,nblocks,K,I](SparseTask2D::data_t * pdata){
-
-                              //auto tpl = std::make_tuple(3,3,symPACK::Factorization::op_type::TRSM, 20, 20);
-                              //if(pdata->in_meta==tpl){gdb_lock();}
-
                               //create snodeBlock_t and store it in the extra_data
-                              //pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
-                              //gdb_lock();
-                              pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(pdata->landing_zone,fc,width,nnz,nblocks) );
-                              auto pcell = (snodeBlock_t*)pdata->extra_data.get();
-                              pcell->i = K;
-                              pcell->j = I;
+                              pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                              //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                               }
                               );
 
@@ -3970,7 +4070,9 @@ namespace symPACK{
               {
 
                 ptask->execute = [this,src_snode,ptr,I,J,K] () {
+                    static std::map< std::tuple<int,int>, bool > block_used_update; 
                   scope_timer(b,FB_UPDATE2D_TASK);
+//            utility::scope_memprofiler2 m("symPACKMatrix_update",1);
                   auto ptask = ptr;
                   auto & upd_cell = CELL(K-1,J-1);
 
@@ -3989,12 +4091,26 @@ namespace symPACK{
                   auto ptr_odCell = pCELL(J-1,I-1).get(); 
                   if ( ptr_odCell->owner != this->iam ){
                     ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
+//                    ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data);
+//                      auto it = block_used_update.find( std::make_tuple(J,I) ) ;
+//                      if ( it == block_used_update.end() ) {
+//                        block_used_update[std::make_tuple(J,I)] = true;
+//                        m.pstate->overhead_mb += ptask->input_msg.begin()->get()->size  / 1024./ m.pstate->divider; 
+//                      }
+
                   }
                   bassert(ptr_odCell!=NULL);
 
                   auto ptr_facingCell = pCELL(K-1,I-1).get(); 
                   if ( ptr_facingCell->owner != this->iam ){
                     ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data.get());
+//                    ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data);
+
+//                      auto it = block_used_update.find( std::make_tuple(K,I) ) ;
+//                      if ( it == block_used_update.end() ) {
+//                        block_used_update[std::make_tuple(K,I)] = true;
+//                        m.pstate->overhead_mb += ptask->input_msg.rbegin()->get()->size  / 1024./ m.pstate->divider; 
+//                      }
                   }
                   bassert(ptr_facingCell!=NULL);
 
@@ -4005,18 +4121,35 @@ namespace symPACK{
 
                   upd_cell.update(*ptr_odCell,*ptr_facingCell,tmpBuf);
 
+#ifdef _MEMORY_LIMIT_
+              if ( this->mem_budget != -1.0 ) {
+                size_t mem_cost = 0;
+                for(auto & msg : ptask->input_msg){
+                  mem_cost += msg->size;
+                }
+                this->mem_budget += mem_cost; 
+//                  logfileptr->OFS()<<"mem budget is back to "<<mem_budget<<std::endl;
+              }
+#endif
                   //get rid of the shared_ptr
                   ptask->input_msg.clear();
 
                   //send this to all facing blocks (tgt_snode-1,*) and off diagonal blocks (*,tgt_snode-1)
                   std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
+#ifdef _COMPACT_DEPENDENCIES_
+                  for (auto &tpl : ptask->out_dependencies) {
+                    auto tgt_j = tpl;
+                    auto & tgt_cell = CELL(K-1,tgt_j-1);
+                    data_to_send[tgt_cell.owner].push_back(std::make_tuple(K,tgt_j));
+                  }
+#else
                   for (auto &tpl : ptask->out_dependencies) {
                     auto tgt_i = std::get<0>(tpl);
                     auto tgt_j = std::get<1>(tpl);
                     auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);
                     data_to_send[tgt_cell.owner].push_back(tpl);
                   }
-
+#endif
                   //send factor and update local tasks
                   //                    ptask->out_prom->require_anonymous(data_to_send.size());
                   for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
@@ -4072,13 +4205,8 @@ namespace symPACK{
                           data->on_fetch.get_future().then(
                               [fc,width,nnz,nblocks,K,J](SparseTask2D::data_t * pdata){
                               //create snodeBlock_t and store it in the extra_data
-                              //pdata->extra_data = (void*)new snodeBlock_t(pdata->landing_zone,width,nnz,nblocks);
-                              //gdb_lock();
-                              pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(pdata->landing_zone,fc,width,nnz,nblocks) );
-
-                              auto pcell = (snodeBlock_t*)pdata->extra_data.get();
-                              pcell->i = K;
-                              pcell->j = J;
+                              pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
+//                              pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
                               }
                               );
 
@@ -4386,7 +4514,7 @@ namespace symPACK{
 #ifdef _DEBUG_DEPENDENCIES_
       this->scheduler.execute(this->task_graph,this->SupMembership_.data());
 #else
-      this->scheduler.execute(this->task_graph);
+      this->scheduler.execute(this->task_graph,this->mem_budget);
 #endif
     } 
 
@@ -4497,7 +4625,7 @@ namespace symPACK{
 #ifdef _DEBUG_DEPENDENCIES_
       inline void Scheduler2D<ttask_t,ttaskgraph_t>::execute(ttaskgraph_t & task_graph, Int * SupMembership )
 #else
-      inline void Scheduler2D<ttask_t,ttaskgraph_t>::execute(ttaskgraph_t & task_graph )
+      inline void Scheduler2D<ttask_t,ttaskgraph_t>::execute(ttaskgraph_t & task_graph, double & mem_budget )
 #endif
       {
         try{
@@ -4520,7 +4648,7 @@ int64_t local_task_cnt;
             utility::scope_memprofiler m("symPACKMatrix_execute_2");
             bool progress = false;
             while(local_task_cnt>0){
-              if (!ready_tasks.empty()) {
+              while (!ready_tasks.empty()) {
                 auto ptask = ready_tasks.front();
                 ready_tasks.pop_front();
                 ptask->execute(); 
@@ -4530,6 +4658,7 @@ int64_t local_task_cnt;
                 progress = true;
 #endif
 #endif
+                upcxx::progress(upcxx::progress_level::internal);
               }
 
               upcxx::progress();
@@ -4537,8 +4666,74 @@ int64_t local_task_cnt;
               //handle communications
               if (!avail_tasks.empty()) {
                 //get all comms from a task
-                auto ptask = avail_tasks.front();
-                avail_tasks.pop_front();
+//                avail_tasks.sort([](ttask_t* & a, ttask_t* &b){ return a->out_dependencies.size() > b->out_dependencies.size();});
+#ifdef _MEMORY_LIMIT_
+              if ( mem_budget != -1.0 ) {
+                ttask_t* ptask = nullptr;
+                auto task_cnt = avail_tasks.size();
+                size_t mem_cost = 0;
+                size_t cnt = 0;
+                std::list<ttask_t*> temp_list;
+                do {
+                  //ptask = avail_tasks.front();
+                  //avail_tasks.pop_front();
+                  ptask = avail_tasks.top();
+                  avail_tasks.pop();
+
+                  mem_cost = 0;
+                  for(auto & msg : ptask->input_msg){
+                    mem_cost += msg->size;
+                  }
+                  if (mem_cost > mem_budget && ready_tasks.size()>0) {
+                    //avail_tasks.push_back(ptask);
+                    temp_list.push_back(ptask);
+
+                    cnt++;
+                    ptask = nullptr;
+                    continue;
+                  }
+                  else{
+                    break;
+                  }
+                } while ( cnt < task_cnt );
+
+                for (auto ptask : temp_list) {
+                  avail_tasks.push(ptask);
+                }
+
+                if ( ptask != nullptr ) {
+                  mem_budget -= mem_cost;
+//                  logfileptr->OFS()<<"mem budget is "<<mem_budget<<std::endl;
+                  for(auto & msg : ptask->input_msg){
+                    msg->allocate();
+                    msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
+                        //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
+                        ptask->in_prom.fulfill_anonymous(1);
+                        });
+                  } 
+                }
+              }
+              else{
+                //auto ptask = avail_tasks.front();
+                //avail_tasks.pop_front();
+                auto ptask = avail_tasks.top();
+                avail_tasks.pop();
+
+                for(auto & msg : ptask->input_msg){
+                  msg->allocate();
+                  msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
+                      //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
+                      ptask->in_prom.fulfill_anonymous(1);
+                      });
+                } 
+              }
+
+#else
+//                auto ptask = avail_tasks.front();
+//                avail_tasks.pop_front();
+                auto ptask = avail_tasks.top();
+                avail_tasks.pop();
+
                 for(auto & msg : ptask->input_msg){
                   msg->allocate();
                   msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
@@ -4549,6 +4744,7 @@ int64_t local_task_cnt;
 #ifndef NEW_GRAPH
 #ifdef _DEBUG_DEPENDENCIES_
                 progress = false;
+#endif
 #endif
 #endif
               }
@@ -4618,6 +4814,7 @@ int64_t local_task_cnt;
 #endif
 #endif
             }
+//            utility::scope_memprofiler2::print_stats(1024.);
           }
         }
         catch(const std::runtime_error& e){

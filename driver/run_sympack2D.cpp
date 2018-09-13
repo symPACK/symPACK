@@ -19,6 +19,9 @@
 #include <thread>
 #include <chrono>
 
+#include <gasnetex.h>
+#include <gasnet_tools.h>
+
 //#define DUMP_MATLAB
 //#define DUMP_MATLAB_SOL
 
@@ -82,6 +85,11 @@ int main(int argc, char **argv)
   }
 
   //-----------------------------------------------------------------
+  optionsFact.memory_limit=-1.0;
+  if (options.find("-mem") != options.end()){
+    optionsFact.memory_limit = atof(options["-mem"].front().c_str()) ;
+  }
+
 
   optionsFact.print_stats=false;
   if (options.find("-ps") != options.end()){
@@ -211,7 +219,7 @@ int main(int argc, char **argv)
 
   //-----------------------------------------------------------------
 
-  Int nrhs = 1;
+  Int nrhs = 0;
   if( options.find("-nrhs") != options.end() ){
     nrhs= atoi(options["-nrhs"].front().c_str());
   }
@@ -442,6 +450,8 @@ int main(int argc, char **argv)
       }
 
 #if 1
+//      if ( iam == 0 ) { gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); }
+
       timeSta = get_time();
       SMat2D->Factorize();
       timeEnd = get_time();

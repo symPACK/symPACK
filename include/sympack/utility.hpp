@@ -2137,100 +2137,239 @@ class scope_memprofiler{
 	//int error, signal, rank, poolsize;
   int rank, poolsize;
   double divider;
+
+  struct state {
+    int count = 0;
+    size_t used_mb = 0;
+    size_t overhead_mb = 0;
+    size_t hwm = 0;
+  };
+
+  static std::map<std::string,state> nested;
   
   scope_memprofiler(std::string aname):divider(1024){
       name = aname;
 
       rank = upcxx::rank_me();
       poolsize = upcxx::rank_n();
+      auto it = nested.find(name);
+      if ( it != nested.end() ) 
+        it->second.count++;
+      else {
+        nested[name].count = 1;
 
-//      char *value_child_mp, *value_procs_mp, *value_rank_pmi, *value_ncpus;
-//      value_child_mp = getenv ("MP_CHILD");
-//      value_rank_pmi = getenv ("PMI_RANK");
-//
-//      value_procs_mp = getenv ("MP_PROCS");
-//      value_ncpus    = getenv ("NCPUS");
-//
-//      if (  ((! value_child_mp) && (! value_rank_pmi))
-//          || ((! value_procs_mp) && (! value_ncpus))
-//         ) {
-//        rank = 0;
-//        poolsize = 1;
-//      } else {
-//        if (value_child_mp) {
-//          rank = atoi(value_child_mp);
-//        } else {
-//          rank = atoi(value_rank_pmi);
-//        }
-//        if (value_procs_mp) {
-//          poolsize = atoi(value_procs_mp);
-//        } else {
-//          poolsize = atoi(value_ncpus);
-//        }
-//      }
+        //      char *value_child_mp, *value_procs_mp, *value_rank_pmi, *value_ncpus;
+        //      value_child_mp = getenv ("MP_CHILD");
+        //      value_rank_pmi = getenv ("PMI_RANK");
+        //
+        //      value_procs_mp = getenv ("MP_PROCS");
+        //      value_ncpus    = getenv ("NCPUS");
+        //
+        //      if (  ((! value_child_mp) && (! value_rank_pmi))
+        //          || ((! value_procs_mp) && (! value_ncpus))
+        //         ) {
+        //        rank = 0;
+        //        poolsize = 1;
+        //      } else {
+        //        if (value_child_mp) {
+        //          rank = atoi(value_child_mp);
+        //        } else {
+        //          rank = atoi(value_rank_pmi);
+        //        }
+        //        if (value_procs_mp) {
+        //          poolsize = atoi(value_procs_mp);
+        //        } else {
+        //          poolsize = atoi(value_ncpus);
+        //        }
+        //      }
 
-		  if ( getrusage(RUSAGE_CHILDREN, &bus) || getrusage(RUSAGE_SELF, &bous) ) {
-        gdb_lock();
-		  }
+        if ( getrusage(RUSAGE_CHILDREN, &bus) || getrusage(RUSAGE_SELF, &bous) ) {
+          gdb_lock();
+        }
+      }
   }
 
 
 
   scope_memprofiler(std::string aname,double pdivider):divider(pdivider){
       name = aname;
-
       rank = upcxx::rank_me();
       poolsize = upcxx::rank_n();
 
-//      char *value_child_mp, *value_procs_mp, *value_rank_pmi, *value_ncpus;
-//      value_child_mp = getenv ("MP_CHILD");
-//      value_rank_pmi = getenv ("PMI_RANK");
-//
-//      value_procs_mp = getenv ("MP_PROCS");
-//      value_ncpus    = getenv ("NCPUS");
-//
-//      if (  ((! value_child_mp) && (! value_rank_pmi))
-//          || ((! value_procs_mp) && (! value_ncpus))
-//         ) {
-//        rank = 0;
-//        poolsize = 1;
-//      } else {
-//        if (value_child_mp) {
-//          rank = atoi(value_child_mp);
-//        } else {
-//          rank = atoi(value_rank_pmi);
-//        }
-//        if (value_procs_mp) {
-//          poolsize = atoi(value_procs_mp);
-//        } else {
-//          poolsize = atoi(value_ncpus);
-//        }
-//      }
+      auto it = nested.find(name);
+      if ( it != nested.end() ) 
+        it->second.count++;
+      else {
+        nested[name].count = 1;
 
-		  if ( getrusage(RUSAGE_CHILDREN, &bus) || getrusage(RUSAGE_SELF, &bous) ) {
-        gdb_lock();
-		  }
+
+        //      char *value_child_mp, *value_procs_mp, *value_rank_pmi, *value_ncpus;
+        //      value_child_mp = getenv ("MP_CHILD");
+        //      value_rank_pmi = getenv ("PMI_RANK");
+        //
+        //      value_procs_mp = getenv ("MP_PROCS");
+        //      value_ncpus    = getenv ("NCPUS");
+        //
+        //      if (  ((! value_child_mp) && (! value_rank_pmi))
+        //          || ((! value_procs_mp) && (! value_ncpus))
+        //         ) {
+        //        rank = 0;
+        //        poolsize = 1;
+        //      } else {
+        //        if (value_child_mp) {
+        //          rank = atoi(value_child_mp);
+        //        } else {
+        //          rank = atoi(value_rank_pmi);
+        //        }
+        //        if (value_procs_mp) {
+        //          poolsize = atoi(value_procs_mp);
+        //        } else {
+        //          poolsize = atoi(value_ncpus);
+        //        }
+        //      }
+
+        if ( getrusage(RUSAGE_CHILDREN, &bus) || getrusage(RUSAGE_SELF, &bous) ) {
+          gdb_lock();
+        }
+      }
   }
 
 
 
 
   ~scope_memprofiler(){
-		  if ( getrusage(RUSAGE_CHILDREN, &eus) || getrusage(RUSAGE_SELF, &eous) ) {
+    auto it = nested.find(name);
+    assert( it != nested.end() );
+
+    it->second.count--;
+
+    if ( it->second.count ==0 ) {
+      if ( getrusage(RUSAGE_CHILDREN, &eus) || getrusage(RUSAGE_SELF, &eous) ) {
         gdb_lock();
-		  }
+      }
       else {
         size_t used_mb = (eus.ru_maxrss - bus.ru_maxrss)/divider;
         size_t overhead_mb = (eous.ru_maxrss - bous.ru_maxrss)/divider;
-        //logfileptr->OFS()<<"memory "<<name<<": "<<used_mb<<" MiB"/*<<" ("<<std::ctime(&start_time)<<" - "<<std::ctime(&stop_time)<<")"*/<<std::endl;
+
+        it->second.used_mb += used_mb;
+        it->second.overhead_mb += overhead_mb;
+        it->second.hwm = std::max(it->second.hwm,(size_t)(eous.ru_maxrss/divider));
+
         std::stringstream sstr;
-        sstr<<"P"<<rank<<"/"<<poolsize<<" memory "<<name<<": "<<overhead_mb<<" MiB ; total "<<eous.ru_maxrss/divider<<" MiB"<<std::endl;
+        sstr<<"P"<<rank<<"/"<<poolsize<<" memory "<<name<<": "<<it->second.overhead_mb<<" MiB ; total "<<it->second.hwm<<" MiB"<<std::endl;
         std::cout<<sstr.str();
-		  }
-
-
+        nested.erase(it);
+      }
+    }
   }
 };
+
+class scope_memprofiler2{
+ public:  
+  std::string name;
+	struct rusage bus, bous;	/* resource us struct */
+	struct rusage eus, eous;	/* resource us struct */
+	//int error, signal, rank, poolsize;
+
+  struct state {
+    double divider = 1;
+    int count = 0;
+    size_t used_mb = 0;
+    size_t overhead_mb = 0;
+    size_t hwm = 0;
+    int rank, poolsize;
+  };
+
+  state * pstate;
+  static std::map<std::string,state> nested;
+  
+  scope_memprofiler2(std::string aname){
+      name = aname;
+
+      auto it = nested.find(name);
+      if ( it != nested.end() ) { 
+        it->second.count++;
+        pstate = &it->second;
+      }
+      else {
+        nested[name].count = 1;
+        nested[name].rank = upcxx::rank_me();
+        nested[name].poolsize = upcxx::rank_n();
+        pstate = &nested[name];
+        pstate->divider = 1024.0;
+      }
+
+
+      if ( getrusage(RUSAGE_CHILDREN, &bus) || getrusage(RUSAGE_SELF, &bous) ) {
+        gdb_lock();
+      }
+  }
+
+
+
+  scope_memprofiler2(std::string aname,double pdivider){
+    name = aname;
+
+    auto it = nested.find(name);
+    if ( it != nested.end() ) {
+      it->second.count++;
+      pstate = &it->second;
+    }
+    else {
+      nested[name].count = 1;
+      nested[name].rank = upcxx::rank_me();
+      nested[name].poolsize = upcxx::rank_n();
+      pstate = &nested[name];
+      pstate->divider = pdivider;
+    }
+    if ( getrusage(RUSAGE_CHILDREN, &bus) || getrusage(RUSAGE_SELF, &bous) ) {
+      gdb_lock();
+    }
+
+  }
+
+
+
+
+  ~scope_memprofiler2(){
+    auto it = nested.find(name);
+    assert( it != nested.end() );
+
+    it->second.count--;
+
+    if ( getrusage(RUSAGE_CHILDREN, &eus) || getrusage(RUSAGE_SELF, &eous) ) {
+      gdb_lock();
+    }
+    else {
+      size_t used_mb = (eus.ru_maxrss - bus.ru_maxrss)/pstate->divider;
+      size_t overhead_mb = (eous.ru_maxrss - bous.ru_maxrss)/pstate->divider;
+
+      it->second.used_mb += used_mb;
+      it->second.overhead_mb += overhead_mb;
+      it->second.hwm = std::max(it->second.hwm,(size_t)(eous.ru_maxrss/pstate->divider));
+
+    }
+  }
+
+    static void print_stats(double extra_divider = 1.){
+      for ( auto it = nested.begin(); it!=nested.end(); it++) {
+          std::stringstream sstr;
+          sstr<<"P"<<it->second.rank<<"/"<<it->second.poolsize<<" memory "<<it->first<<": "<<it->second.overhead_mb/extra_divider<<" MiB ; total "<<it->second.hwm/extra_divider<<" MiB"<<std::endl;
+          std::cout<<sstr.str();
+//          if ( it->second.count ==0 ) {
+//            it = nested.erase(it);
+//          }
+//          else{
+//            it++;
+//          }
+      }
+      
+    }
+
+};
+
+
+
 
 
 }
