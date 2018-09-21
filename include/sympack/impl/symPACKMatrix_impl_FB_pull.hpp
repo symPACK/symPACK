@@ -428,7 +428,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       Int nzval_cnt_ = src_snode->Size()*(src_snode->NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
                       T* nzval_ptr = src_snode->GetNZval(nzblk_desc.Offset) + local_first_row*src_snode->Size();
 
+#ifdef NEW_UPCXX
+                      upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr((char*)nzval_ptr);
+#else
                       upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
+#endif
                       //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
 
                       //Send factor 
@@ -763,7 +767,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                               meta.id = hash_fn(std::string(buf));
 
 
+#ifdef NEW_UPCXX
+                              upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr(tgt_aggreg->GetStoragePtr(meta.GIndex));
+#else
                               upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
+#endif
                               //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
                               size_t msgSize = tgt_aggreg->StorageSize();
 #ifndef NDEBUG
@@ -1171,7 +1179,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           sprintf(buf,"%d_%d_%d_%d",meta.src,meta.tgt,0,(Int)Factorization::op_type::AGGREGATE);
                           meta.id = hash_fn(std::string(buf));
 
+#ifdef NEW_UPCXX
+                          upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr(tgt_aggreg->GetStoragePtr(meta.GIndex));
+#else
                           upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
+#endif
                           //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
                           size_t msgSize = tgt_aggreg->StorageSize();
                           {
@@ -1896,7 +1908,11 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
         Int nzval_cnt_ = src_snode->Size()*(src_snode->NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
         T* nzval_ptr = src_snode->GetNZval(nzblk_desc.Offset) + local_first_row*src_snode->Size();
 
+#ifdef NEW_UPCXX
+        upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr((char*)nzval_ptr);
+#else
         upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
+#endif
         //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
 
         //Send factor 
@@ -2143,7 +2159,11 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
 
             //            logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" on P"<<iTarget<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
 
+#ifdef NEW_UPCXX
+            upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr(tgt_aggreg->GetStoragePtr(meta.GIndex));
+#else
             upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
+#endif
             //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
             size_t msgSize = tgt_aggreg->StorageSize();
 #ifndef NDEBUG

@@ -4284,7 +4284,7 @@ namespace symPACK{
             SuperNode<T> * newSnode = snodeLocal(I);
             SuperNodeDesc * meta = newSnode->GetMeta();
 #ifdef NEW_UPCXX
-            remoteFactors_[I-1] = std::make_tuple( upcxx::global_ptr<char>( (char*)meta ), meta->blocks_cnt_) ;
+            remoteFactors_[I-1] = std::make_tuple( upcxx::to_global_ptr<char>( (char*)meta ), meta->blocks_cnt_) ;
 #else
             remoteFactors_[I-1] = std::make_tuple( upcxx::global_ptr<SuperNodeDesc>( meta ), meta->blocks_cnt_) ;
 #endif

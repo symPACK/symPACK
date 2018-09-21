@@ -743,7 +743,12 @@ char * locTmpPtr = NULL;
         cnt_.erase(ptr);
 #endif
 
+#ifdef NEW_UPCXX
+        upcxx::global_ptr<char> tmpPtr = upcxx::to_global_ptr((char*)ptr);
+#else
         upcxx::global_ptr<char> tmpPtr((char*)ptr);
+#endif
+
 #ifdef SP_THREADS
 
         if(Multithreading::NumThread>1){
