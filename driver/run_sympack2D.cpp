@@ -42,7 +42,9 @@ int main(int argc, char **argv)
   symPACK_Init(&argc,&argv);
 
   {
+#ifdef _MEM_PROFILER_
   utility::scope_memprofiler m("run_symPACK2D");
+#endif
   symPACKOptions optionsFact;
 
   int iam = 0;
@@ -432,9 +434,13 @@ int main(int argc, char **argv)
 
     auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
     try{
+#ifdef _MEM_PROFILER_
       utility::scope_memprofiler m("symPACK2D");
+#endif
       {
+#ifdef _MEM_PROFILER_
       utility::scope_memprofiler m("symPACK2D_symbolic");
+#endif
       SMat2D->Init(optionsFact);
       SMat2D->SymbolicFactorization(HMat);
 

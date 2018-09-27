@@ -59,10 +59,12 @@ using std::vector;
 using std::cerr;
 namespace symPACK{
 
+#ifdef _MEM_PROFILER_
 namespace utility {
   std::map<std::string,scope_memprofiler::state> scope_memprofiler::nested;
   std::map<std::string,scope_memprofiler2::state> scope_memprofiler2::nested;
 }
+#endif
 
 //Int iam,np;
 

@@ -98,7 +98,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
     //Create a copy of the task graph
     taskGraph graph = taskGraph_New_;
   {
+#ifdef _MEM_PROFILER_
     utility::scope_memprofiler m("symPACKMatrix_task_graph2");
+#endif
 
     //std::shared_ptr<Scheduler< std::shared_ptr<GenericTask> > > scheduler(new FIFOScheduler< std::shared_ptr<GenericTask> >( ));
 
@@ -428,7 +430,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       Int nzval_cnt_ = src_snode->Size()*(src_snode->NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
                       T* nzval_ptr = src_snode->GetNZval(nzblk_desc.Offset) + local_first_row*src_snode->Size();
 
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
                       upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr((char*)nzval_ptr);
 #else
                       upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
@@ -767,7 +769,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                               meta.id = hash_fn(std::string(buf));
 
 
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
                               upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr(tgt_aggreg->GetStoragePtr(meta.GIndex));
 #else
                               upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
@@ -1179,7 +1181,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           sprintf(buf,"%d_%d_%d_%d",meta.src,meta.tgt,0,(Int)Factorization::op_type::AGGREGATE);
                           meta.id = hash_fn(std::string(buf));
 
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
                           upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr(tgt_aggreg->GetStoragePtr(meta.GIndex));
 #else
                           upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
@@ -1908,7 +1910,7 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
         Int nzval_cnt_ = src_snode->Size()*(src_snode->NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
         T* nzval_ptr = src_snode->GetNZval(nzblk_desc.Offset) + local_first_row*src_snode->Size();
 
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
         upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr((char*)nzval_ptr);
 #else
         upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
@@ -2159,7 +2161,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
 
             //            logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" on P"<<iTarget<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
 
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
             upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr(tgt_aggreg->GetStoragePtr(meta.GIndex));
 #else
             upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));

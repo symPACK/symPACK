@@ -423,7 +423,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
                   NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
                   Int src_first_row = pivot_desc.GIndex;
                   T* nzval_ptr = contrib->GetNZval(pivot_desc.Offset);
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
                   upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr((char*)nzval_ptr);
 #else
                   upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
@@ -484,7 +484,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
                       NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
                       Int src_first_row = pivot_desc.GIndex;
                       T* nzval_ptr = contrib->GetNZval(pivot_desc.Offset);
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
                       upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr((char*)nzval_ptr);
 #else
                       upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
@@ -937,7 +937,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                       NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
                       Int src_first_row = pivot_desc.GIndex;
                       T* nzval_ptr = contrib->GetNZval(pivot_desc.Offset);
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
                       upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr((char*)nzval_ptr);
 #else
                       upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
@@ -1157,7 +1157,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                           NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
                           Int src_first_row = pivot_desc.GIndex;
                           T* nzval_ptr = contrib->GetNZval(pivot_desc.Offset);
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
                           upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr((char*)nzval_ptr);
 #else
                           upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);

@@ -743,7 +743,7 @@ char * locTmpPtr = NULL;
         cnt_.erase(ptr);
 #endif
 
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
         upcxx::global_ptr<char> tmpPtr = upcxx::to_global_ptr((char*)ptr);
 #else
         upcxx::global_ptr<char> tmpPtr((char*)ptr);

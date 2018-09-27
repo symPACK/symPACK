@@ -36,7 +36,9 @@ int main(int argc, char **argv)
   symPACK_Init(&argc,&argv);
 
   {
+#ifdef _MEM_PROFILER_
   utility::scope_memprofiler m("run_symPACK");
+#endif
   symPACKOptions optionsFact;
 
   int iam = 0;
@@ -139,8 +141,6 @@ int main(int argc, char **argv)
     }
   }
   optionsFact.panel = panel;
-
-
 
 
   if( options.find("-relax") != options.end() ){
@@ -375,7 +375,9 @@ int main(int argc, char **argv)
     symPACKMatrix<SCALAR>*  SMat;
 
     {
+#ifdef _MEM_PROFILER_
       utility::scope_memprofiler m("symPACK1D");
+#endif
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
 #ifndef NOTRY
       try

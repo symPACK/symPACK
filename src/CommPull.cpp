@@ -123,7 +123,7 @@ namespace symPACK{
       delete local_ptr;
 #else
       //TODO use upcxx::deallocate
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
       upcxx::global_ptr<char> tmp = upcxx::to_global_ptr(local_ptr);
 #else
       upcxx::global_ptr<char> tmp(local_ptr);

@@ -304,12 +304,14 @@ namespace symPACK{
           int sp_handle;
           std::list<ttask_t*> ready_tasks;
 
-//          std::list<ttask_t*> avail_tasks;
+#ifdef _PRIORITY_QUEUE_AVAIL_
            struct avail_comp{
              bool operator()(ttask_t *& a,ttask_t*& b){ return a->out_dependencies.size() > b->out_dependencies.size();};
            };
-
           std::priority_queue<ttask_t*,std::vector<ttask_t*>,avail_comp> avail_tasks;
+#else
+          std::list<ttask_t*> avail_tasks;
+#endif
 #ifdef _DEBUG_DEPENDENCIES_
           void execute(ttaskgraph_t & graph, Int * SupMembership );
 #else
@@ -1786,9 +1788,11 @@ namespace symPACK{
   template <typename colptr_t, typename rowind_t, typename T>
     void symPACKMatrix2D<colptr_t,rowind_t,T>::SymbolicFactorization(DistSparseMatrix<T> & pMat ){
       scope_timer(a,symPACKMatrix2D::SymbolicFactorization);
+      std::vector<Int> cc;
       {
+#ifdef _MEM_PROFILER_
         utility::scope_memprofiler m("symPACK2D_symbolic_before_mapping");
-
+#endif
       //This has to be declared here to be able to debug ...
       std::vector<int, Mallocator<int> > xadj;
       std::vector<int, Mallocator<int> > adj;
@@ -2014,7 +2018,6 @@ namespace symPACK{
         logfileptr->OFS()<<"]"<<std::endl;
       }
 
-      std::vector<Int> cc;
       std::vector<Int> rc;
 
 
@@ -2407,7 +2410,9 @@ namespace symPACK{
       }
 
       {
+#ifdef _MEM_PROFILER_
         utility::scope_memprofiler m("symPACK2D_symbolic_mapping");
+#endif
       //compute a mapping
       // Do a 2D cell-cyclic distribution for now.
       nsuper = this->Xsuper_.size()-1;
@@ -2535,6 +2540,349 @@ namespace symPACK{
         MPI_Type_free(&type);
 
         //gdb_lock();
+
+#define _SUBCUBE2D_
+#ifdef _SUBCUBE2D_
+        std::map<std::tuple<int,int>, int> mapping;
+      using ProcGroup = TreeLoadBalancer::ProcGroup;
+      std::vector< ProcGroup > levelGroups_;
+      std::vector< Int > groupIdx_;
+          std::vector<double> NodeLoad;
+        {
+
+          auto factor_cost = [](Int m, Int n)->double{
+            return CHOLESKY_COST(m,n);
+          };
+
+          auto update_cost = [](Int m, Int n, Int k)->double{
+            return 2.0*m*n*k;
+          };
+
+
+          auto supETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
+
+
+          Int numLevels = 1;
+          NodeLoad.assign(supETree.Size()+1,0.0);
+
+          std::vector<double> SubTreeLoad(supETree.Size()+1,0.0);
+          std::vector<int> children(supETree.Size()+1,0);
+
+          Int numLocSnode = this->XsuperDist_[iam+1]-this->XsuperDist_[iam];
+          Int firstSnode = this->XsuperDist_[iam];
+
+          for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
+            Idx I = locsupno + firstSnode-1;
+
+            Idx fc = this->Xsuper_[I-1];
+            Idx lc = this->Xsuper_[I]-1;
+
+            Int width = lc - fc + 1;
+            Int height = cc[fc-1];
+
+            //cost of factoring curent panel
+            double local_load = factor_cost(height,width);
+            SubTreeLoad[I]+=local_load;
+            NodeLoad[I]+=local_load;
+
+            //cost of updating ancestors
+            {
+              Ptr lfi = this->locXlindx_[locsupno-1];
+              Ptr lli = this->locXlindx_[locsupno]-1;
+
+              //parse rows
+              Int tgt_snode_id = I;
+              Idx tgt_fr = fc;
+              Idx tgt_lr = fc;
+              Ptr tgt_fr_ptr = 0;
+              Ptr tgt_lr_ptr = 0;
+              for(Ptr rowptr = lfi; rowptr<=lli;rowptr++){
+                Idx row = this->locLindx_[rowptr-1]; 
+                if(this->SupMembership_[row-1]==tgt_snode_id){ continue;}
+
+                //we have a new tgt_snode_id
+                tgt_lr_ptr = rowptr-1;
+                tgt_lr = this->locLindx_[rowptr-1 -1];
+                if(tgt_snode_id!=I){
+                  Int m = lli-tgt_fr_ptr+1;
+                  Int n = width;
+                  Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
+                  double cost = update_cost(m,n,k);
+                  if(0/*fan_in_*/){
+                    SubTreeLoad[I]+=cost;
+                    NodeLoad[I]+=cost;
+                  }
+                  else{
+                    SubTreeLoad[tgt_snode_id]+=cost;
+                    NodeLoad[tgt_snode_id]+=cost;
+                  }
+                }
+                tgt_fr = row;
+                tgt_fr_ptr = rowptr;
+                tgt_snode_id = this->SupMembership_[row-1];
+              }
+
+
+
+              //do the last update supernode
+              //we have a new tgt_snode_id
+              tgt_lr_ptr = lli;
+              tgt_lr = this->locLindx_[lli -1];
+              if(tgt_snode_id!=I){
+                Int m = lli-tgt_fr_ptr+1;
+                Int n = width;
+                Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
+                double cost = update_cost(m,n,k);
+                if(0 /*fan_in_*/){
+                  SubTreeLoad[I]+=cost;
+                  NodeLoad[I]+=cost;
+                }
+                else{
+                  SubTreeLoad[tgt_snode_id]+=cost;
+                  NodeLoad[tgt_snode_id]+=cost;
+                }
+              }
+
+            }
+          }
+
+          //Allreduce SubTreeLoad and NodeLoad
+          MPI_Allreduce(MPI_IN_PLACE,&NodeLoad[0],NodeLoad.size(),MPI_DOUBLE,MPI_SUM,this->workcomm_);
+          MPI_Allreduce(MPI_IN_PLACE,&SubTreeLoad[0],SubTreeLoad.size(),MPI_DOUBLE,MPI_SUM,this->workcomm_);
+
+          for(Int I=1;I<=supETree.Size();I++){
+            Int parent = supETree.Parent(I-1);
+            ++children[parent];
+            SubTreeLoad[parent]+=SubTreeLoad[I];
+          }
+
+
+
+          int n_ = nsuper;//supETree.Size();
+          std::vector<Int> levels(supETree.Size()+1,0);
+          for(Int I=n_; I>= 1;I--){ 
+            Int parent = supETree.Parent(I-1);
+            if(parent==0){levels[I]=0;}
+            else{ levels[I] = levels[parent]+1; numLevels = std::max(numLevels,levels[I]);}
+          }
+          numLevels++;
+
+#ifdef _DEBUG_LOAD_BALANCER_
+          logfileptr->OFS()<<"levels : "; 
+          for(Int i = 0; i<levels.size();++i){logfileptr->OFS()<<levels.at(i)<<" ";}
+          logfileptr->OFS()<<std::endl;
+          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<std::endl;
+#endif
+
+      std::vector< ProcGroup > procGroups_;
+      std::vector< Int > groupWorker_;
+          //procmaps[0]/pstart[0] represents the complete list
+          procGroups_.resize(n_+1);
+          procGroups_[0].Ranks().reserve(np);
+          for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
+
+
+          std::vector<Int> pstart(n_+1,0);
+          levelGroups_.reserve(numLevels);
+          levelGroups_.push_back(ProcGroup());//reserve(numLevels);
+          levelGroups_[0].Ranks().reserve(np);
+          for(Int p = 0;p<np;++p){levelGroups_[0].Ranks().push_back(p);}
+
+
+          std::vector<double> load(n_+1,0.0);
+          for(Int I=n_; I>= 1;I--){ 
+            Int parent = supETree.Parent(I-1);
+
+            //split parent's proc list
+            double parent_load = 0.0;
+
+            if(parent!=0){
+              Int fc = this->Xsuper_[parent-1];
+              Int width = this->Xsuper_[parent] - this->Xsuper_[parent-1];
+              Int height = cc[fc-1];
+              parent_load = NodeLoad[parent];// factor_cost(height,width);
+              load[parent] = parent_load;
+            }
+
+
+            double proportion = std::min(1.0,SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load));
+            Int npParent = levelGroups_[groupIdx_[parent]].Ranks().size();
+            Int pFirstIdx = std::min(pstart[parent],npParent-1);
+            Int npIdeal =(Int)std::round(npParent*proportion);
+            Int numProcs = std::max((Int)1,std::min(npParent-pFirstIdx,npIdeal));
+            Int pFirst = levelGroups_[groupIdx_[parent]].Ranks().at(pFirstIdx);
+
+            //Int npParent = procGroups_[parent].Ranks().size();
+            //Int pFirst = procGroups_[parent].Ranks().at(pFirstIdx);
+#ifdef _DEBUG_LOAD_BALANCER_
+            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<std::endl; 
+            logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<std::endl; 
+#endif
+            pstart[parent]+= numProcs;
+
+            if(npParent!=numProcs){
+              {
+                levelGroups_.push_back(ProcGroup());//reserve(numLevels);
+                levelGroups_.back().Ranks().reserve(numProcs);
+
+                std::vector<Int> & parentRanks = levelGroups_[groupIdx_[parent]].Ranks();
+                levelGroups_.back().Ranks().insert(levelGroups_.back().Ranks().begin(),parentRanks.begin()+pFirstIdx,parentRanks.begin()+pFirstIdx+numProcs);
+
+                groupIdx_[I] = levelGroups_.size()-1;
+#ifdef _DEBUG_LOAD_BALANCER_
+                logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<std::endl<<levelGroups_[groupIdx_[I]]<<std::endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
+#endif
+              }
+            }
+            else{
+              groupIdx_[I] = groupIdx_[parent];
+
+#ifdef _DEBUG_LOAD_BALANCER_
+              logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<std::endl<<levelGroups_[groupIdx_[I]]<<std::endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
+#endif
+            }
+          }
+
+
+////          //now choose which processor to get
+////          //std::vector<double> load(np,0.0);
+////          load.assign(np,0.0);
+////          for(Int I=1;I<=supETree.Size();I++){
+////            Int minLoadP= -1;
+////            double minLoad = -1;
+////            ProcGroup & group = levelGroups_[groupIdx_[I]];
+////            for(Int i = 0; i<group.Ranks().size();++i){
+////              Int proc = group.Ranks()[i];
+////              if(load[proc]<minLoad || minLoad==-1){
+////                minLoad = load[proc];
+////                minLoadP = proc;
+////              }
+////            }
+////
+////#ifdef _DEBUG_LOAD_BALANCER_
+////            logfileptr->OFS()<<"MinLoadP "<<minLoadP<<std::endl;
+////            logfileptr->OFS()<<"group of "<<I<<std::endl;
+////            for(Int i = 0; i<group.Ranks().size();++i){
+////              Int proc = group.Ranks()[i];
+////              logfileptr->OFS()<<proc<<" ["<<load[proc]<<"] ";
+////            }
+////            logfileptr->OFS()<<std::endl;
+////#endif
+////            groupWorker_[I] = minLoadP;
+////
+////            //procGroups_[I].Worker() = minLoadP;
+////
+////
+////            Int fc = Xsuper_[I-1];
+////            Int width = Xsuper_[I] - Xsuper_[I-1];
+////            Int height = cc[fc-1];
+////            //cost of factoring current node + updating ancestors (how about fanboth ?)
+////            //this is exactly the cost of FAN-In while 
+////            //CHOLESKY_COST(height,width) + SUM_child SubtreeLoads - SUM_descendant CHOLESKY_COSTS
+////            // would be the cost of Fan-Out
+////            double local_load = NodeLoad[I];//width*height*height;
+////
+////            load[minLoadP]+=local_load;
+////          }
+
+
+#ifdef _DEBUG_LOAD_BALANCER_
+          logfileptr->OFS()<<"Proc load: "<<load<<std::endl;
+#endif
+
+
+#ifdef _DEBUG_LOAD_BALANCER_
+          for(Int I = 0; I<levelGroups_.size();++I){ 
+            logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<std::endl;
+          }
+#endif
+
+        }
+
+
+        std::shared_ptr<blockCellBase_t> pLast_cell = nullptr;
+        std::vector<std::vector<double>> group_load(nsuper);
+
+        for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
+          auto & cur_cell = (*it);
+          Int i = std::get<0>(cur_cell);
+          Int j = std::get<1>(cur_cell);
+
+          if (i==-1 && j==-1) {
+            bassert(pLast_cell!=nullptr);
+            if ( pLast_cell->owner == iam ) {
+              auto ptr = std::static_pointer_cast<snodeBlock_t>(pLast_cell);
+              Int first_row = std::get<2>(cur_cell);
+              Int nrows = std::get<3>(cur_cell);
+              ptr->add_block(first_row,nrows);
+            }
+          }
+          else{
+            Int nBlock = std::get<2>(cur_cell);
+            Int nRows = std::get<3>(cur_cell);
+            auto idx = coord2supidx(i-1,j-1);
+
+            //j is supernode index
+            Int minLoadP= -1;
+            double minLoad = -1;
+            ProcGroup & group = levelGroups_[groupIdx_[j-1]];
+            auto & load = group_load[j-1];
+
+            if ( load.size() < group.Ranks().size() ){ load.assign(group.Ranks().size(),0.0); }
+
+            for(Int i = 0; i<group.Ranks().size();++i){
+              if(load[i]<minLoad || minLoad==-1){
+                minLoad = load[i];
+                minLoadP = i;
+              }
+            }
+
+            double local_load = NodeLoad[j-1];
+            load[minLoadP]+=local_load;
+            auto p = group.Ranks()[minLoadP];
+
+            Idx fc = this->Xsuper_[j-1];
+            Idx lc = this->Xsuper_[j]-1;
+            Int iWidth = lc-fc+1;
+            size_t block_cnt = nBlock;
+            size_t nnz = nRows * iWidth;
+
+            std::shared_ptr<blockCellBase_t> sptr(nullptr);
+            if (0 ||  p == iam ) {
+              //auto sptr = std::make_shared<snodeBlock_t>(fc,iWidth,nnz,block_cnt);
+              if ( p == iam ) {
+                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
+              }
+              else {
+                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,0,0));
+              }
+
+//              pLast_cell = std::static_pointer_cast<snodeBlock_t>(sptr);
+              //auto sptr = std::make_shared<snodeBlock_t>();
+//              cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
+              //logfileptr->OFS()<<idx<<" "<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
+              //logfileptr->OFS()<<i<<" "<<j<<" = "<<sptr<<" "<<std::static_pointer_cast<blockCellBase_t>(sptr)<<" "<<cells_[idx]<<std::endl;
+//              pLast_cell->i = i;
+//              pLast_cell->j = j;
+            }
+            else {
+              sptr = std::make_shared<blockCellBase_t>();
+            }
+
+            cells_[idx] = sptr;
+            sptr->i = i;
+            sptr->j = j;
+            sptr->owner = p;
+            pLast_cell = sptr;
+          }
+        }
+        //logfileptr->OFS()<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
+      }
+
+
+
+#else
+
 #define _BALANCE_NNZ_
 #ifdef _BALANCE_NNZ_
         using load_t = std::tuple<int,size_t>;
@@ -2622,6 +2970,7 @@ namespace symPACK{
         }
         //logfileptr->OFS()<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
       }
+#endif
 
 #else
 
@@ -2663,7 +3012,9 @@ namespace symPACK{
 
       //generate task graph
       {
+#ifdef _MEM_PROFILER_
         utility::scope_memprofiler m("symPACK2D_symbolic_task_graph");
+#endif
 
         MPI_Datatype type;
         MPI_Type_contiguous( sizeof(SparseTask2D::meta_t), MPI_BYTE, &type );
@@ -3300,8 +3651,11 @@ namespace symPACK{
             auto fut_comm = ptask->in_avail_prom.finalize();
             if (remote_deps >0 ) {
               fut_comm.then([this,ptask](){
-//                  this->scheduler.avail_tasks.push_back(ptask);
+#ifdef _PRIORITY_QUEUE_AVAIL_
                   this->scheduler.avail_tasks.push(ptask);
+#else
+                  this->scheduler.avail_tasks.push_back(ptask);
+#endif
                   });
             }
             //fulfill the promise by one to "unlock" that promise
@@ -3747,8 +4101,11 @@ namespace symPACK{
           auto fut_comm = ptask->in_avail_prom.finalize();
           if (remote_deps >0 ) {
             fut_comm.then([this,ptr](){
-//                this->scheduler.avail_tasks.push_back(ptr);
+#ifdef _PRIORITY_QUEUE_AVAIL_
                 this->scheduler.avail_tasks.push(ptr);
+#else
+                this->scheduler.avail_tasks.push_back(ptr);
+#endif
                 });
           }
           //fulfill the promise by one to "unlock" that promise
@@ -4292,7 +4649,9 @@ namespace symPACK{
       Idx LastLocalCol = pMat.Localg_.vertexDist[this->iam+1] + (1 - baseval); //1-based
 
       {
+#ifdef _MEM_PROFILER_
         utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Counting");
+#endif
         scope_timer(a,symPACKMatrix2D::DistributeMatrix::Counting);
         for(Int I=1;I<this->Xsuper_.size();I++){
           Idx fc = this->Xsuper_[I-1];
@@ -4352,7 +4711,9 @@ namespace symPACK{
         std::vector<minType, Mallocator<minType> > sendBuffer(total_send_size);
 
         {
+#ifdef _MEM_PROFILER_
           utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Serializing");
+#endif
           scope_timer(a,symPACKMatrix2D::DistributeMatrix::Serializing);
 
           for(Int I=1;I<this->Xsuper_.size();I++){
@@ -4438,7 +4799,9 @@ namespace symPACK{
 
 
         {
+#ifdef _MEM_PROFILER_
           utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Deserializing");
+#endif
           scope_timer(a,symPACKMatrix2D::DistributeMatrix::Deserializing);
           size_t head = 0;
 
@@ -4631,7 +4994,9 @@ namespace symPACK{
         try{
 int64_t local_task_cnt;
           {
+#ifdef _MEM_PROFILER_
           utility::scope_memprofiler m("symPACKMatrix_execute_1");
+#endif
 #ifndef NEW_GRAPH
           local_task_cnt = 0;
           for (auto it = task_graph.begin(); it != task_graph.end(); it++) {
@@ -4645,7 +5010,9 @@ int64_t local_task_cnt;
           }
 
           {
+#ifdef _MEM_PROFILER_
             utility::scope_memprofiler m("symPACKMatrix_execute_2");
+#endif
             bool progress = false;
             while(local_task_cnt>0){
               while (!ready_tasks.empty()) {
@@ -4673,20 +5040,28 @@ int64_t local_task_cnt;
                 auto task_cnt = avail_tasks.size();
                 size_t mem_cost = 0;
                 size_t cnt = 0;
+#ifdef _PRIORITY_QUEUE_AVAIL_
                 std::list<ttask_t*> temp_list;
+#endif
                 do {
-                  //ptask = avail_tasks.front();
-                  //avail_tasks.pop_front();
+#ifdef _PRIORITY_QUEUE_AVAIL_
                   ptask = avail_tasks.top();
                   avail_tasks.pop();
+#else
+                  ptask = avail_tasks.front();
+                  avail_tasks.pop_front();
+#endif
 
                   mem_cost = 0;
                   for(auto & msg : ptask->input_msg){
                     mem_cost += msg->size;
                   }
                   if (mem_cost > mem_budget && ready_tasks.size()>0) {
-                    //avail_tasks.push_back(ptask);
+#ifdef _PRIORITY_QUEUE_AVAIL_
                     temp_list.push_back(ptask);
+#else
+                    avail_tasks.push_back(ptask);
+#endif
 
                     cnt++;
                     ptask = nullptr;
@@ -4697,10 +5072,11 @@ int64_t local_task_cnt;
                   }
                 } while ( cnt < task_cnt );
 
+#ifdef _PRIORITY_QUEUE_AVAIL_
                 for (auto ptask : temp_list) {
                   avail_tasks.push(ptask);
                 }
-
+#endif
                 if ( ptask != nullptr ) {
                   mem_budget -= mem_cost;
 //                  logfileptr->OFS()<<"mem budget is "<<mem_budget<<std::endl;
@@ -4714,10 +5090,13 @@ int64_t local_task_cnt;
                 }
               }
               else{
-                //auto ptask = avail_tasks.front();
-                //avail_tasks.pop_front();
+#ifdef _PRIORITY_QUEUE_AVAIL_
                 auto ptask = avail_tasks.top();
                 avail_tasks.pop();
+#else
+                auto ptask = avail_tasks.front();
+                avail_tasks.pop_front();
+#endif
 
                 for(auto & msg : ptask->input_msg){
                   msg->allocate();
@@ -4729,11 +5108,13 @@ int64_t local_task_cnt;
               }
 
 #else
-//                auto ptask = avail_tasks.front();
-//                avail_tasks.pop_front();
+#ifdef _PRIORITY_QUEUE_AVAIL_
                 auto ptask = avail_tasks.top();
                 avail_tasks.pop();
-
+#else
+                auto ptask = avail_tasks.front();
+                avail_tasks.pop_front();
+#endif
                 for(auto & msg : ptask->input_msg){
                   msg->allocate();
                   msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){

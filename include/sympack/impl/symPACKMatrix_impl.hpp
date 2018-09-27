@@ -3628,7 +3628,9 @@ namespace symPACK{
         FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
         generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
           {
+#ifdef _MEM_PROFILER_
           utility::scope_memprofiler m("symPACKMatrix_task_graph");
+#endif
         generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
           }
 
@@ -4104,7 +4106,9 @@ namespace symPACK{
 
           //Fill up the send buffer
           {
+#ifdef _MEM_PROFILER_
           utility::scope_memprofiler m("symPACKMatrix::DistributeMatrix::Serializing");
+#endif
           SYMPACK_TIMER_SPECIAL_START(serializing);      
           for(Int I=1;I<this->Xsuper_.size();I++){
             Idx fc = this->Xsuper_[I-1];
@@ -4206,7 +4210,9 @@ namespace symPACK{
           //Need to parse the structure sent from the processor owning the first column of the supernode
 
           {
+#ifdef _MEM_PROFILER_
           utility::scope_memprofiler m("symPACKMatrix::DistributeMatrix::Deserializing");
+#endif
           SYMPACK_TIMER_SPECIAL_START(deserializing);      
           size_t head = 0;
 
@@ -4283,7 +4289,7 @@ namespace symPACK{
           if(this->iam==iDest){
             SuperNode<T> * newSnode = snodeLocal(I);
             SuperNodeDesc * meta = newSnode->GetMeta();
-#ifdef NEW_UPCXX
+#if UPCXX_VERSION >= 20180305
             remoteFactors_[I-1] = std::make_tuple( upcxx::to_global_ptr<char>( (char*)meta ), meta->blocks_cnt_) ;
 #else
             remoteFactors_[I-1] = std::make_tuple( upcxx::global_ptr<SuperNodeDesc>( meta ), meta->blocks_cnt_) ;

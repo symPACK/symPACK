@@ -2129,6 +2129,7 @@ namespace symPACK{
 namespace symPACK{
 namespace utility{
 
+#ifdef _MEM_PROFILER_
 class scope_memprofiler{
  public:  
   std::string name;
@@ -2368,7 +2369,10 @@ class scope_memprofiler2{
 
 };
 
-
+#else
+#define scope_memprofiler(a) do{}while(0) 
+#define scope_memprofiler2(a) do{}while(0)
+#endif
 
 
 
