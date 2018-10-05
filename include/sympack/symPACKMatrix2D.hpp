@@ -632,7 +632,7 @@ namespace symPACK{
 
         inline int_t block_capacity() const { return _cblocks; }
         inline int_t nblocks() const { return _block_container.size(); }
-        inline block_container_t blocks() const { return _block_container; }
+        inline const block_container_t & blocks() const { return _block_container; }
         inline int_t nz_capacity() const { return _cnz; }
         inline int_t nnz() const { return _nnz; }
         inline int_t width() const { return std::get<0>(_dims); }
@@ -1650,7 +1650,14 @@ namespace symPACK{
         return val;
       };
 
-      inline std::shared_ptr<blockCellBase_t> pQueryCELL (int a, int b)  { return  this->cells_[coord2supidx((a),(b))]; }
+      inline std::shared_ptr<blockCellBase_t> pQueryCELL (int a, int b)  { 
+        auto idx = coord2supidx((a),(b)); 
+        auto it = this->cells_.find(idx);
+        if (it != this->cells_.end() ) 
+          return it->second;
+        else
+          return nullptr;
+        }
       inline std::shared_ptr<snodeBlock_t> pCELL (int a, int b) { return std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))]); }
       inline snodeBlock_t & CELL (int a, int b) { return *pCELL(a,b); }
 //#define pCELL(a,b) (std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))]))
@@ -2769,7 +2776,7 @@ namespace symPACK{
               std::shared_ptr<blockCellBase_t> sptr(nullptr);
               if ( p == iam ) {
                 sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
-logfileptr->OFS()<<" orig2 : S"<<sptr->j <<" -> "<<((snodeBlock_t*)sptr.get())->nnz()<<" vs. "<<nnz<<std::endl;
+//logfileptr->OFS()<<" orig2 : S"<<sptr->j <<" -> "<<((snodeBlock_t*)sptr.get())->nnz()<<" vs. "<<nnz<<std::endl;
               }
               else {
                 sptr = std::make_shared<blockCellBase_t>();

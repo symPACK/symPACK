@@ -2641,10 +2641,18 @@ namespace symPACK{
     //    if(options.commEnv == NULL){
     //      throw std::runtime_error("The communication environment must be initialized in the options");
     //    }
-
-
     this->options_ = options;
     logfileptr->verbose = this->options_.verbose>0;
+
+#ifndef NO_MPI
+    if(this->fullcomm_!=MPI_COMM_NULL){
+      MPI_Comm_free(&this->fullcomm_);
+    }
+    MPI_Comm_dup(this->options_.MPIcomm,&this->fullcomm_);
+#endif
+
+
+
 
     this->all_np = 0;
     MPI_Comm_size(this->options_.MPIcomm,&this->all_np);
@@ -2732,13 +2740,6 @@ namespace symPACK{
     int fc,lc,colbeg,colend,col;
     Ptr supbeg,supend,rowidx;
     Int I;
-
-#ifndef NO_MPI
-    if(this->fullcomm_!=MPI_COMM_NULL){
-      MPI_Comm_free(&this->fullcomm_);
-    }
-    MPI_Comm_dup(pMat.comm,&this->fullcomm_);
-#endif
 
     this->iSize_ = pMat.size;
 #ifdef EXPLICIT_PERMUTE
