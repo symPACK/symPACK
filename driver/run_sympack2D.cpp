@@ -482,9 +482,9 @@ catch(const std::runtime_error& e){
     }
     SMat2D->DumpMatlab();
 #endif
-
-
-
+    {
+      auto SMat1D = std::make_shared<symPACKMatrix<SCALAR>>(*SMat2D);
+    }
 ////
 ////    if(iam==0){
 ////      std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;

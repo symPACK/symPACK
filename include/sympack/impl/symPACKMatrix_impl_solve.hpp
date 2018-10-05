@@ -864,9 +864,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                   if(task==0){
                     //link this to the other subtasks
                     //decrement remote dependency count of those tasks
-
                     for(Int other = 1; other<numSubTasks;other++){
-
                       std::stringstream sstr;
                       sstr<<tgt<<"_"<<tgt<<"_"<<other<<"_"<<(Int)Solve::op_type::FUC;
                       auto id = hash_fn(sstr.str());
@@ -879,23 +877,6 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                       dec_ref(taskit,0,1);
                     }
                   }
-
-                  //this will be done later
-                  //if(task<numSubTasks-1){
-                  //  //decrement local dependency count of the last task
-                  //  std::stringstream sstr;
-                  //  sstr<<src<<"_"<<tgt<<"_"<<numSubTasks-1<<"_"<<(Int)Solve::op_type::FU;
-                  //  auto id = hash_fn(sstr.str());
-                  //  auto taskit = graph.find_task(id);
-                  //  //log_task(taskit);
-                  //  dec_ref(taskit,1,0);
-                  //}
-
-
-                  //If last subtasks, delete msg
-                  //if(task==numSubTasks-1){
-                  //  delete msgPtr;
-                  //}
               }
 
               //Do the local ones
@@ -998,96 +979,6 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                 dec_ref(taskit,1,0);
               }
             };
-
-
-
-
-
-
-//            FUCtask.execute = [&,this,I,pFUCtask,task,maxNrhsPerTask,numSubTasks,taskNrhs](){
-//
-//              scope_timer(a,SOLVE_FUC);
-//
-//              Int src = I;
-//              Int tgt = I;
-//              Int nrhsOffset = task * maxNrhsPerTask;
-//
-//              SparseTask & FUCtask = *(SparseTask*)pFUCtask.get();
-//
-//              Int src_local = this->snodeLocalIndex(src); 
-//              auto cur_snode = this->LocalSupernodes_[src_local-1];
-//              auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(this->Contributions2_[src_local-1]);
-//              contrib->forward_update_contrib(cur_snode,nrhsOffset,taskNrhs);
-//
-//              //may have to send to parent
-//              
-//              Int parent = SupETree.PostParent(src-1);
-//              if(parent!=0){
-//                Int parentOwner = this->Mapping_->Map(parent-1,parent-1);
-//                if(parentOwner!=this->iam){
-//                  if(task==numSubTasks-1){
-//                    //Send to the parent if all subtasks are done // TODO
-//                    {
-//                      Int src_nzblk_idx = 1;
-//                      NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
-//                      Int src_first_row = pivot_desc.GIndex;
-//                      T* nzval_ptr = contrib->GetNZval(pivot_desc.Offset);
-//                      upcxx::global_ptr<char> sendPtr((char*)nzval_ptr);
-//
-//                      MsgMetadata meta;
-//                      meta.src = src;
-//                      meta.tgt = parent;
-//                      meta.GIndex = src_first_row;
-//
-//                      std::stringstream sstr;
-//                      sstr<<src<<"_"<<parent<<"_"<<0<<"_"<<(Int)Solve::op_type::FU;
-//                      meta.id = hash_fn(sstr.str());
-//
-//                      char * last_byte_ptr = (char*)&pivot_desc + sizeof(NZBlockDesc);
-//                      size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
-//
-//                      //log_msg(src,parent,Solve::op_type::FU);
-//
-//                      {
-//#ifdef SP_THREADS
-//                        std::lock_guard<std::mutex> lock(scheduler->upcxx_mutex_);
-//#endif
-//                        signal_data(sendPtr, msgSize, parentOwner, meta);
-//                      }
-//                    }
-//                  }
-//                  else{
-//                    //decrement the last FUC subtask
-//                    if(task<numSubTasks-1){
-//                      std::stringstream sstr;
-//                      sstr<<src<<"_"<<tgt<<"_"<<numSubTasks-1<<"_"<<(Int)Solve::op_type::FUC;
-//                      auto id = hash_fn(sstr.str());
-//                      auto taskit = graph.find_task(id);
-//                      //log_task(taskit);
-//                      dec_ref(taskit,1,0);
-//                    }
-//                  }
-//                }
-//                else{
-//                  //unlock the FU task
-//                  std::stringstream sstr;
-//                  sstr<<src<<"_"<<parent<<"_"<<task<<"_"<<(Int)Solve::op_type::FU;
-//                  auto id = hash_fn(sstr.str());
-//                  auto taskit = graph.find_task(id);
-//                  //log_task(taskit);
-//                  dec_ref(taskit,1,0);
-//                }
-//              }
-//              else{
-//                //unlock the BUC task
-//                std::stringstream sstr;
-//                sstr<<tgt<<"_"<<tgt<<"_"<<task<<"_"<<(Int)Solve::op_type::BUC;
-//                auto id = hash_fn(sstr.str());
-//                auto taskit = graph.find_task(id);
-//                //log_task(taskit);
-//                dec_ref(taskit,1,0);
-//              }
-//            };
 
             std::stringstream sstr;
             sstr<<I<<"_"<<I<<"_"<<task<<"_"<<(Int)type;
@@ -1228,125 +1119,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
       Int parent = SupETree.PostParent(I-1);
       if(parent!=0){
-#if 0
-        //Add the FU task
-        {
-          Int iOwner = Mapping_->Map(parent-1,parent-1);
-          if(this->iam==iOwner){
-            for(Int task = 0; task < numSubTasks; task++){
-              Int taskNrhs = (task==numSubTasks-1)?nrhs-(numSubTasks-1)*maxNrhsPerTask:maxNrhsPerTask;
-              std::shared_ptr<GenericTask> pFUtask(new SparseTask);
-              SparseTask & FUtask = *(SparseTask*)pFUtask.get();
 
-              FUtask.meta.resize(3*sizeof(Int)+sizeof(Solve::op_type));
-              Int * meta = reinterpret_cast<Int*>(FUtask.meta.data());
-              meta[0] = I;
-              meta[1] = parent;
-              meta[2] = task;
-              Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[3]);
-              type = Solve::op_type::FU;
-
-              Int childOwner = this->Mapping_->Map(I-1,I-1);
-              if(childOwner==this->iam){
-                FUtask.local_deps = 1;
-              }
-              else{
-                FUtask.remote_deps = 1;
-
-                if(numSubTasks>1){
-                  if(task==numSubTasks-1){
-                    FUtask.local_deps += numSubTasks - 1;
-                  }
-                }
-              }
-
-              FUtask.execute = [&,this,I,parent,pFUtask,task,maxNrhsPerTask,numSubTasks,taskNrhs] (){
-                scope_timer(a,SOLVE_FU);
-                SparseTask & FUtask = *(SparseTask*)pFUtask.get();
-
-                Int src = I;
-                Int tgt = parent;
-                Int nrhsOffset = task * maxNrhsPerTask;
-                Int tgt_local = snodeLocalIndex(tgt); 
-                auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[tgt_local-1]);
-
-                Int iOwner = this->Mapping_->Map(src-1,src-1);
-                if(iOwner==this->iam){
-                  //local
-                  Int src_local = snodeLocalIndex(src); 
-                  auto dist_contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[src_local-1]);
-                  contrib->forward_update(&*dist_contrib,iOwner,this->iam,nrhsOffset,taskNrhs);
-                }
-                else{
-                  //remote
-                  //TODO only the first subtask receives the data
-                  //data is then put in other subtasks incoming data as well
-                  //received data is deleted by the last subtask ?
-                  assert(FUtask.data.size()==1);
-                  IncomingMessage * msgPtr = *FUtask.data.begin();
-
-
-                  assert(msgPtr->IsDone());
-                  char* dataPtr = msgPtr->GetLocalPtr();
-                  auto dist_contrib = CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size());
-                  dist_contrib->InitIdxToBlk();
-                  contrib->forward_update(&*dist_contrib,iOwner,this->iam,nrhsOffset,taskNrhs);
-                  delete dist_contrib;
-
-                  if(task==0){
-                    //link this to the other subtasks
-                    //decrement remote dependency count of those tasks
-
-                    for(Int other = 1; other<numSubTasks;other++){
-
-                      std::stringstream sstr;
-                      sstr<<src<<"_"<<tgt<<"_"<<other<<"_"<<(Int)Solve::op_type::FU;
-                      auto id = hash_fn(sstr.str());
-                      auto taskit = graph.find_task(id);
-
-                      //msgPtr->meta.id = id;
-                      taskit->second->data.push_back(msgPtr);
-
-                      //log_task(taskit);
-                      dec_ref(taskit,0,1);
-                    }
-                  }
-
-
-                  if(task<numSubTasks-1){
-                    //decrement local dependency count of the last task
-                    std::stringstream sstr;
-                    sstr<<src<<"_"<<tgt<<"_"<<numSubTasks-1<<"_"<<(Int)Solve::op_type::FU;
-                    auto id = hash_fn(sstr.str());
-                    auto taskit = graph.find_task(id);
-                    //log_task(taskit);
-                    dec_ref(taskit,1,0);
-                  }
-
-
-                  //If last subtasks, delete msg
-                  if(task==numSubTasks-1){
-                    delete msgPtr;
-                  }
-                }
-
-                std::stringstream sstr;
-                sstr<<tgt<<"_"<<tgt<<"_"<<task<<"_"<<(Int)Solve::op_type::FUC;
-                auto id = hash_fn(sstr.str());
-                auto taskit = graph.find_task(id);
-                //log_task(taskit);
-                dec_ref(taskit,1,0);
-              };
-
-              std::stringstream sstr;
-              sstr<<I<<"_"<<parent<<"_"<<task<<"_"<<(Int)type;
-              FUtask.id = hash_fn(sstr.str());
-
-              graph.addTask(pFUtask);
-            }
-          }
-        }
-#endif
         //Add the BU task
         {
           Int iOwner = Mapping_->Map(I-1,I-1);

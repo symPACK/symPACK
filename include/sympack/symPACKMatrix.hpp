@@ -99,6 +99,9 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #include "SuperNode.hpp"
 #include "SuperNodeInd.hpp"
+#include "symPACKMatrixBase.hpp"
+
+#include "symPACKMatrix2D.hpp"
 
 #define FANIN_OPTIMIZATION
 #define _SEQ_SPECIAL_CASE_
@@ -113,104 +116,11 @@ namespace symPACK{
   //Forward declarations
   template<typename Task> class supernodalTaskGraph;
 
-  class symPACKMatrixBase{
-    protected:
-      static int last_id;
-    public:
-      int sp_handle; 
-      virtual ~symPACKMatrixBase(){
-        sp_handle = last_id++;
-      }
-  };
+
+  template <typename colptr_t, typename rowind_t, typename T> 
+    class symPACKMatrix2D;
 
 
-
-  template <typename T> class symPACKMatrixMeta: public symPACKMatrixBase{
-    public:
-      symPACKMatrixMeta():symPACKMatrixBase(){
-#ifndef NO_MPI
-        fullcomm_ = MPI_COMM_NULL;
-        non_workcomm_ = MPI_COMM_NULL;
-        workcomm_ = MPI_COMM_NULL;
-#endif
-      }
-
-      ~symPACKMatrixMeta(){
-#ifndef NO_MPI
-        if(this->non_workcomm_ != MPI_COMM_NULL){
-          MPI_Comm_free(&non_workcomm_);
-        }
-
-        if(this->workcomm_ != MPI_COMM_NULL){
-          MPI_Comm_free(&this->workcomm_);
-        }
-
-        if(this->fullcomm_ != MPI_COMM_NULL){
-          MPI_Comm_free(&this->fullcomm_);
-        }
-#endif
-      }
-
-      //Accessors
-      Int Size(){return iSize_;}
-      const ETree & GetETree(){return ETree_;}
-      const Ordering & GetOrdering(){return Order_;}
-      symPACKOptions GetOptions(){ return options_;}
-      std::vector<Int> & GetSupernodalPartition(){ return Xsuper_;}
-      const std::vector<Int> & GetSupMembership(){return SupMembership_;}
-
-      Idx TotalSupernodeCnt() { return Xsuper_.empty()?0:Xsuper_.size()-1;}
-    protected:
-      //MPI/UPCXX ranks and sizes
-      int iam, np,all_np;
-      std::shared_ptr<RankGroup> group_;
-
-      symPACKOptions options_;
-
-      //Order of the matrix
-      Int iSize_;
-      //Column-based elimination tree
-      ETree ETree_;
-      //Column permutation
-      Ordering Order_;
-
-      //Local and Global structure of the matrix (CSC format)
-      DistSparseMatrixGraph graph_;
-
-      //Supernodal partition array: supernode I ranges from column Xsuper_[I-1] to Xsuper_[I]-1
-      std::vector<Int> Xsuper_;
-      std::vector<Int> XsuperDist_;
-      //Supernode membership array: column i belongs to supernode SupMembership_[i-1]
-      std::vector<Int> SupMembership_;
-
-#ifndef NO_MPI
-      MPI_Comm fullcomm_;
-      MPI_Comm non_workcomm_;
-      MPI_Comm workcomm_;
-#endif
-
-      //CSC structure of L factor
-      //      PtrVec xlindx_;
-      //      IdxVec lindx_;
-      PtrVec locXlindx_;
-      IdxVec locLindx_;
-
-    protected:
-      void getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc);
-      void getLColRowCount(DistSparseMatrixGraph & dgraph, std::vector<Int> & cc, std::vector<Int> & rc);
-      void findSupernodes(ETree& tree, Ordering & aOrder, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, Int maxSize = -1);
-      void relaxSupernodes(ETree& tree, std::vector<Int> & cc,std::vector<Int> & supMembership, std::vector<Int> & xsuper, RelaxationParameters & params  );
-
-      void symbolicFactorizationRelaxedDist(std::vector<Int> & cc);
-
-      void refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T>* pMat = NULL);
-
-
-
-      void gatherLStructure(std::vector<Ptr>& xlindx, std::vector<Idx> & lindx);
-
-
-  };
 
 
   template <typename T> class symPACKMatrix: public symPACKMatrixMeta<T>{
@@ -221,6 +131,242 @@ namespace symPACK{
       symPACKMatrix(DistSparseMatrix<T> & pMat, symPACKOptions & options );
       //TODO
       symPACKMatrix( symPACKMatrix & M){};
+
+
+
+
+      symPACKMatrix( symPACKMatrix2D<Ptr,Idx,T> & M){
+
+    Mapping_ = nullptr;
+    Balancer_ = nullptr;
+    CommEnv_ = nullptr;
+    scheduler_ = nullptr;
+    scheduler2_ = nullptr;
+
+    if(logfileptr==NULL){
+      logfileptr = new LogFile(upcxx::rank_me(),false);
+      logfileptr->OFS()<<"********* LOGFILE OF P"<<upcxx::rank_me()<<" *********"<<std::endl;
+      logfileptr->OFS()<<"**********************************"<<std::endl;
+    }
+    logfileptr->OFS()<<"Shared node size "<<shmNode_.shmsize<<", rank "<<shmNode_.shmrank<<std::endl;
+
+
+
+        this->iSize_ = M.iSize_; 
+        this->Init(M.options_);        
+
+        this->graph_ = M.graph_;
+        this->Order_ = M.Order_;
+        //this->Order_.NpOrdering = this->options_.NpOrdering;
+        //this->Order_.invp = M.Order_.invp;
+        //this->Order_.perm = M.Order_.perm;
+        this->ETree_ = M.ETree_;
+        this->Xsuper_ = M.Xsuper_;
+        this->SupMembership_ = M.SupMembership_;
+        this->iam = M.iam;
+        this->np = M.np;
+
+        delete this->CommEnv_;
+        this->CommEnv_ = new CommEnvironment(this->workcomm_);
+        this->group_.reset( new RankGroup( this->workcomm_ ) ); 
+        this->XsuperDist_ = M.XsuperDist_;
+        this->locXlindx_ = M.locXlindx_;
+        this->locLindx_ = M.locLindx_;
+
+        //no balancer, balancing is done in 2D matrix
+        this->Balancer_ = NULL;
+
+
+      Int pmapping = this->np;
+      Int pr = (Int)sqrt((double)pmapping);
+      if(this->options_.mappingTypeStr ==  "MODWRAP2DTREE"){
+        this->Mapping_ = new ModWrap2DTreeMapping(pmapping, pr, pr, 1);
+      }
+      else if(this->options_.mappingTypeStr ==  "WRAP2D"){
+        this->Mapping_ = new Wrap2D(pmapping, pr, pr, 1);
+      }
+      else if(this->options_.mappingTypeStr ==  "WRAP2DFORCED"){
+        this->Mapping_ = new Wrap2DForced(pmapping, pr, pr, 1);
+      }
+      else if(this->options_.mappingTypeStr ==  "MODWRAP2DNS"){
+        this->Mapping_ = new Modwrap2DNS(pmapping, pr, pr, 1);
+      }
+      else if(this->options_.mappingTypeStr ==  "ROW2D"){
+        this->Mapping_ = new Row2D(pmapping, pmapping, pmapping, 1);
+      }
+      else if(this->options_.mappingTypeStr ==  "COL2D"){
+        this->Mapping_ = new Col2D(pmapping, pmapping, pmapping, 1);
+      }
+      else{
+        this->Mapping_ = new Modwrap2D(pmapping, pr, pr, 1);
+      }
+
+
+
+        this->scheduler2_ = NULL;
+
+
+        //Matrix is distributed in 2D fashion, need to pick one of the process holding blocks of a supernode and gather all blocks on it
+      std::vector<int> load(M.np,0);
+      std::vector<int> sup_mapp(M.nsuper,-1);
+
+      for ( auto & it : M.cells_ ) {
+        auto & cell = it.second;
+        if ( cell == nullptr ) continue;
+        if ( cell->owner==M.iam) {
+          auto blockptr = (typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t *)cell.get();
+          logfileptr->OFS()<<"orig "<<blockptr->nnz()<<std::endl;
+        }
+      }
+
+      for ( auto & it : M.cells_ ) {
+        auto & cell = it.second;
+        if ( cell == nullptr ) continue;
+
+        int supid = cell->j;
+        int fc = M.Xsuper_[supid-1];
+        auto & proot = sup_mapp[supid-1];
+        if ( proot == -1 ) {
+          logfileptr->OFS()<<"Working on supernode "<<cell->j<<std::endl;
+          //find the least loaded processor among those owning blocks of supernode supid
+          int cell_count = 0;
+          std::set<int> proc_group;
+          std::vector< std::shared_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t> > localBlocks;
+
+          int minLoadP = -1;
+          int minLoad = -1;
+          for (int I=supid;I<=M.nsuper;I++) {
+            auto cellptr = M.pQueryCELL(I-1,supid-1);
+            if ( cellptr != nullptr ) {
+              cell_count++;
+              proc_group.insert(cellptr->owner);
+              if ( cellptr->owner==M.iam) {
+                auto blockptr = M.pCELL(I-1,supid-1);
+                localBlocks.push_back(blockptr);
+//                logfileptr->OFS()<<"orig "<<blockptr->nnz()<<std::endl;
+              }
+
+              if ( minLoadP == -1 || minLoad > load[cellptr->owner]) {
+                minLoadP = cellptr->owner;
+                minLoad = load[cellptr->owner];
+              }
+            }
+          }
+          proot = minLoadP;
+          load[proot] += 1;
+          logfileptr->OFS()<<"Proot is "<<proot<<std::endl;
+
+          //Gather all cells on proot
+          //create a dist_object only to access the vector from within the RPC
+          if ( M.iam != proot )
+            cell_count = 0;
+          
+          struct cell_list_t {
+            using cell_desc_t = std::tuple<std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t>, std::vector<char>, size_t, int, size_t, size_t, Idx, int, int >;
+            std::vector< cell_desc_t > cells;
+            upcxx::promise<> prom;
+            cell_list_t(int count){
+              this->prom.require_anonymous(count);
+              cells.reserve(count);
+            }
+          };
+
+          auto cell_list = new cell_list_t(cell_count);
+
+          upcxx::dist_object< cell_list_t * > remote_ptrs( cell_list );
+upcxx::barrier();
+          upcxx::promise<> prom;//(localBlocks.size());
+          for ( auto & cellptr : localBlocks ) {
+            assert( cellptr->j == supid );
+          }
+  
+          for ( auto & cellptr : localBlocks ) {
+            upcxx::rpc_ff(proot, upcxx::source_cx::as_promise(prom), 
+                            [&remote_ptrs,supid,fc,proot]( upcxx::global_ptr< char > ptr, std::size_t size, size_t nnz, size_t nblocks, Idx width, int sender, int i ) {
+//                logfileptr->OFS()<<"Executing rpc"<<std::endl;
+                              //allocate a landing_zone
+                              (*remote_ptrs)->cells.push_back( std::make_tuple(nullptr, std::vector<char>(0/*size*/), size, supid, nnz, nblocks, width, sender, fc) );
+                              typename cell_list_t::cell_desc_t * descptr;
+                              descptr = &(*remote_ptrs)->cells.back();
+                              
+             //                 {
+             //                   auto & vect = std::get<1>(*descptr);
+             //                   logfileptr->OFS()<<(*remote_ptrs)<<" "<<descptr<<" before executing lpc post rget "<<vect.size()<<" vs "<<size<<std::endl;
+             //                 }
+//                                (*remote_ptrs)->prom.fulfill_anonymous(1); 
+                              //issue a rget
+                              upcxx::rget(ptr,std::get<1>(*descptr).data(),size).then([&remote_ptrs]() {(*remote_ptrs)->prom.fulfill_anonymous(1); });
+//upcxx::operation_cx::as_lpc( upcxx::master_persona(), [&remote_ptrs,descptr,fc,width,nnz,nblocks,supid,size,i]() {
+//                                auto & vect = std::get<1>(*descptr);
+//                assert (vect.size() == size);
+//                //logfileptr->OFS()<<(*remote_ptrs)<<" "<<descptr<<" Executing lpc post rget "<<vect.size()<<" vs "<<size<<std::endl;
+//                                auto lptr = std::get<1>(*descptr).data();
+//                                //std::get<0>(*descptr) = std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t>( new typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t(i,supid,lptr,fc,width,nnz,nblocks)); 
+//                                (*remote_ptrs)->prom.fulfill_anonymous(1); }));
+                            }, cellptr->_gstorage, cellptr->_storage_size,cellptr->nnz(), cellptr->nblocks(), std::get<0>(cellptr->_dims), upcxx::rank_me() , cellptr->i );
+          }
+       
+          //make sure everything has been sent 
+          prom.finalize().wait(); 
+
+          //wait until we get all the data 
+          cell_list->prom.finalize().wait();
+          if ( M.iam == proot ) {
+            assert ( cell_list->cells.size() == cell_count );
+          } 
+         
+//          upcxx::barrier(); 
+
+          //everything has been created from this point 
+//          if ( M.iam == proot ) {
+//            //do the conversion
+//            Int I = supid;
+////#ifndef ITREE2
+////            globToLocSnodes_.push_back(I-1);
+////#else 
+////            ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
+////            globToLocSnodes_.Insert(snode_inter);
+////#endif
+//            SuperNode<T> * newSnode = NULL;
+//            try{
+//              //compute height
+//              size_t height = 0;
+//              auto & cell_list = *(*remote_ptrs);
+//              for ( auto & cell_desc: cell_list.cells) {
+//                auto & blocks = std::get<0>(cell_desc);  
+//                logfileptr->OFS()<<blocks->nnz()<<std::endl;
+//              }
+//              //newSnode = CreateSuperNode(this->options_.decomposition,I,fc,fc,lc,iHeight,this->iSize_,nzBlockCnt,this->options_.panel);
+//            }
+//            catch(const MemoryAllocationException & e){
+//              std::stringstream sstr;
+//              sstr<<"There is not enough memory on the system to allocate the factors. Try to increase GASNET_MAX_SEGSIZE value."<<std::endl;
+//              logfileptr->OFS()<<sstr.str();
+//              std::cerr<<sstr.str();
+//              throw(e);
+//            }
+
+//            LocalSupernodes_.push_back(newSnode);
+
+//          }
+
+          upcxx::barrier(); 
+          delete cell_list;
+        }
+
+ 
+      }
+      upcxx::barrier(); 
+
+                logfileptr->OFS()<<"DONE"<<std::endl;
+        //create a Mapping
+        //this->Mapping_ has to be updated to reflect the distribution 
+
+
+      };
+
+
+
       //Destructor
       ~symPACKMatrix();
 
@@ -430,57 +576,6 @@ typedef symPACKMatrix<double>       symPACKMatrixDouble;
 typedef symPACKMatrix<std::complex<float> >       symPACKMatrixComplex;
 typedef symPACKMatrix<std::complex<double> >       symPACKMatrixDoubleComplex;
 
-
-
-
-  namespace TSP{
-    typedef struct SymbolBlok_ {
-      int frownum;  /*< First row index            */
-      int lrownum;  /*< Last row index (inclusive) */
-      int lcblknm;  /*< Local column block         */
-      int fcblknm;  /*< Facing column block        */ //>> CBLK que tu update (ou cblk couran pr le bloc diagonal)
-    } SymbolBlok;
-
-    typedef struct SymbolCblk_ {
-      int fcolnum;  /*< First column index               */
-      int lcolnum;  /*< Last column index (inclusive)    */
-      int bloknum;  /*< First block in column (diagonal) */
-      int brownum;  /*< First block in row facing the diagonal block in browtab, 0-based */
-    } SymbolCblk;
-
-
-
-    typedef struct SymbolMatrix_ {
-      int            baseval;  /*< Base value for numberings               */
-      int            dof;      /*< Degrees of freedom per node
-                                 (constant if > 0, unconstant if 0 (not implemented)) */
-      int            cblknbr;  /*< Number of column blocks                 */
-      int            bloknbr;  /*< Number of blocks                        */
-      int            nodenbr;  /*< Number of node in the compressed symbol */
-      SymbolCblk   * cblktab;  /*< Array of column blocks [+1,based]       */
-      SymbolBlok   * bloktab;  /*< Array of blocks [based]                 */
-      int * browtab;  /*< Global index of a given block number in bloktab 0-based    */
-    } SymbolMatrix;
-
-    typedef struct Order_ {
-      int  baseval;   /*< base value used for numbering       */
-      int  vertnbr;   /*< Number of vertices                  */
-      int  cblknbr;   /*< Number of column blocks             */
-      int *permtab;   /*< Permutation array [based]           */ //scotch
-      int *peritab;   /*< Inverse permutation array [based]   */
-      int *rangtab;   /*< Column block range array [based,+1] */
-      int *treetab;   /*< Partitioning tree [based]           */
-    } Order;
-
-
-    void countBlock(const vector<Int> & Xsuper, const vector<Ptr> & Xlindx, const vector<Idx> & Lindx, const vector<Int> & supMembership, vector<int> & blkCount);
-    void symbolBuildRowtab(SymbolMatrix *symbptr);
-    Order * GetPastixOrder(SymbolMatrix * symbptr,const vector<Int> & xsuper, const ETree & etree, const Int * perm, const Int * iperm);
-    SymbolMatrix *  GetPastixSymbolMatrix(const vector<Int> & xsuper,const vector<Int> & supMembership, vector<Ptr> & xlindx, vector<Idx> & lindx);
-
-
-    void symbolReordering( const SymbolMatrix *symbptr, Order *order, int split_level, int stop_criteria, int stop_when_fitting );
-  }
 } // namespace SYMPACK
 
 #include <sympack/impl/symPACKMatrix_impl.hpp>

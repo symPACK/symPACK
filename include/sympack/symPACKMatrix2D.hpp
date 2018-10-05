@@ -76,7 +76,10 @@ such enhancements or derivative works thereof, in binary and source code form.
 #define _SYMPACK_MATRIX2D_DECL_HPP_
 
 #include "sympack/Environment.hpp"
+#include "sympack/symPACKMatrixBase.hpp"
 #include "sympack/symPACKMatrix.hpp"
+
+#include "sympack/mpi_interf.hpp"
 
 #define NEW_GRAPH
 //#define LOCK_SRC 2
@@ -145,8 +148,6 @@ namespace symPACK{
 
   //#define _DEBUG_DEPENDENCIES_
 
-#define pCELL(a,b) (std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))]))
-#define CELL(a,b) (*pCELL((a),(b)))
 
   class blockCellBase_t {
     using intrank_t = upcxx::intrank_t;
@@ -155,7 +156,6 @@ namespace symPACK{
         int i;
         int j;
       blockCellBase_t():owner(0),i(0),j(0){}
-
   };
 
   namespace scheduling {
@@ -321,11 +321,7 @@ namespace symPACK{
 
   }
 
-
-  //extern std::map<int, std::deque< scheduling::incoming_data_t >  > g_sp_handle_incoming;
-  //extern std::map<int, taskGraph2D_t *  > g_sp_handle_to_graph;
   extern std::map<int, symPACKMatrixBase *  > g_sp_handle_to_matrix;
-
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t = int> 
     class blockCell_t: public blockCellBase_t {
@@ -338,7 +334,6 @@ namespace symPACK{
             //this is just an offset from the begining of the cell;
             size_t offset;
             rowind_t first_row;
-            //rowind_t nrows;
         };
 
 //        int_t i;
@@ -458,16 +453,19 @@ namespace symPACK{
         blockCell_t(): //i(0),j(0),
         first_col(0),_dims(std::make_tuple(0)),_total_rows(0),
         _storage(nullptr),_nzval(nullptr),//_blocks(nullptr),_nblocks(0),
-        _gstorage(nullptr),_nnz(0),_storage_size(0){}
+        _gstorage(nullptr),_nnz(0),_storage_size(0), _own_storage(true){}
+        bool _own_storage;
 
         ~blockCell_t() {
           //gdb_lock();
-          if ( !_gstorage.is_null() ) {
-            bassert(_storage == _gstorage.local());
-            upcxx::deallocate( _gstorage );
-          }
-          else {
-            delete [] _storage;
+          if (_own_storage) {
+            if ( !_gstorage.is_null() ) {
+              bassert(_storage == _gstorage.local());
+              upcxx::deallocate( _gstorage );
+            }
+            else {
+              delete [] _storage;
+            }
           }
         }
 
@@ -490,6 +488,7 @@ namespace symPACK{
         blockCell_t (  int_t i, int_t j,char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
           this->i = i;
           this->j = j;
+          _own_storage = false;
           _gstorage = nullptr;
           _storage = ext_storage;
           _dims = std::make_tuple(width);
@@ -502,6 +501,7 @@ namespace symPACK{
         blockCell_t (  int_t i, int_t j,upcxx::global_ptr<char> ext_gstorage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
           this->i = i;
           this->j = j;
+          _own_storage = false;
           _gstorage = ext_gstorage;
           _storage = _gstorage.local();
           _dims = std::make_tuple(width);
@@ -519,6 +519,7 @@ namespace symPACK{
           first_col   = other.first_col;
           _dims       = other._dims;
           _total_rows = other._total_rows;
+          _own_storage = other._own_storage;
 
           allocate( other.nz_capacity(), other.block_capacity , !other._gstorage.is_null() );
           //now copy the data
@@ -535,6 +536,7 @@ namespace symPACK{
           first_col   = other.first_col;
           _dims       = other._dims;
           _total_rows = other._total_rows;
+          _own_storage = other._own_storage;
 
           _gstorage = other._gstorage;
           _storage = other._storage;
@@ -550,6 +552,7 @@ namespace symPACK{
           other._nzval = nullptr;
           other._block_container._nblocks = 0;
           other._block_container._blocks = nullptr;
+          other._own_storage = false;
         }
 
 
@@ -573,6 +576,7 @@ namespace symPACK{
             first_col   = other.first_col;
             _dims       = other._dims;
             _total_rows = other._total_rows;
+            _own_storage = other._own_storage;
 
             allocate( other._cnz, other._cblocks , !other._gstorage.is_null() );
             //now copy the data
@@ -602,6 +606,7 @@ namespace symPACK{
             first_col   = other.first_col;
             _dims       = other._dims;
             _total_rows = other._total_rows;
+            _own_storage = other._own_storage;
 
             _gstorage = other._gstorage;
             _storage = other._storage;
@@ -617,6 +622,7 @@ namespace symPACK{
             other._nzval = nullptr;        
             other._block_container._nblocks = 0;
             other._block_container._blocks = nullptr;
+            other._own_storage = false;
           } 
           return *this;  
         }  
@@ -1618,13 +1624,23 @@ namespace symPACK{
     };
 #endif
 
+  template <typename T> class symPACKMatrix;
 
   template <typename colptr_t, typename rowind_t, typename T> 
     class symPACKMatrix2D: public symPACKMatrixMeta<T>{
+
+  
+      friend class symPACKMatrix<T>;
+
       using snodeBlock_t = blockCell_t<colptr_t,rowind_t, T>;
       using SparseTask2D = scheduling::task_t<scheduling::meta_t, scheduling::depend_t>;
 
       public:
+
+
+
+
+
       int nsuper;
       double mem_budget;
 
@@ -1633,6 +1649,13 @@ namespace symPACK{
         bassert(val>=0);
         return val;
       };
+
+      inline std::shared_ptr<blockCellBase_t> pQueryCELL (int a, int b)  { return  this->cells_[coord2supidx((a),(b))]; }
+      inline std::shared_ptr<snodeBlock_t> pCELL (int a, int b) { return std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))]); }
+      inline snodeBlock_t & CELL (int a, int b) { return *pCELL(a,b); }
+//#define pCELL(a,b) (std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))]))
+//#define CELL(a,b) (*pCELL((a),(b)))
+
       //TODO implement this
       //auto idx2coord = [nsuper](Int idx){ return 0; };
 
@@ -2413,315 +2436,271 @@ namespace symPACK{
 #ifdef _MEM_PROFILER_
         utility::scope_memprofiler m("symPACK2D_symbolic_mapping");
 #endif
-      //compute a mapping
-      // Do a 2D cell-cyclic distribution for now.
-      nsuper = this->Xsuper_.size()-1;
-      auto iam = this->iam;
-      auto np = this->np;
-      Int npcol = std::floor(std::sqrt(np));
-      Int nprow = std::floor(np / npcol);
-      //npcol = 1;//std::floor(std::sqrt(np));
-      //nprow = np;//std::floor(np / npcol);
+        //compute a mapping
+        // Do a 2D cell-cyclic distribution for now.
+        nsuper = this->Xsuper_.size()-1;
+        auto iam = this->iam;
+        auto np = this->np;
+        Int npcol = std::floor(std::sqrt(np));
+        Int nprow = std::floor(np / npcol);
+
+        {
+          using cell_tuple_t = std::tuple<Idx,Idx,Int,Int>;
+          std::list< cell_tuple_t> cellsToSend;
+
+          Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
+          Int firstSnode = this->XsuperDist_[this->iam];
+
+          //now create cell structures
+          for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
+            Idx I = locsupno + firstSnode-1;
+            Int first_col = this->Xsuper_[I-1];
+            Int last_col = this->Xsuper_[I]-1;
+
+            Ptr lfi = this->locXlindx_[locsupno-1];
+            Ptr lli = this->locXlindx_[locsupno]-1;
+
+            Int iWidth = last_col - first_col + 1;
+
+            Int * pNrows = nullptr;
+            Int * pNblock = nullptr;
+
+            Idx iStartRow = this->locLindx_[lfi-1];
+            Idx iPrevRow = iStartRow;
+            Int iContiguousRows = 0;
 
 
-#if 1    
-      {
-        using cell_tuple_t = std::tuple<Idx,Idx,Int,Int>;
-        std::list< cell_tuple_t> cellsToSend;
+            Int K = -1;
+            Int K_prevSnode = -1;
+            for(Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++){
+              Idx K_row = this->locLindx_[K_sidx-1];
+              K = this->SupMembership_[K_row-1];
 
-        Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
-        Int firstSnode = this->XsuperDist_[this->iam];
+              //Split at boundary or after diagonal block
+              if(K!=K_prevSnode){
+                if(K>=I){
+                  //add last block from previous cell
+                  if (pNblock) {
+                    bassert(K>I);
+                    bassert(iContiguousRows>0);
+                    //now we are at the end of a block
+                    (*pNblock)++;
+                    //add a fake cell to describe the block
+                    cellsToSend.push_back(std::make_tuple(-1,-1,iStartRow,iContiguousRows));
+                    iContiguousRows = 0;
+                  }
 
-        //now create cell structures
-        for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
-          Idx I = locsupno + firstSnode-1;
-          Int first_col = this->Xsuper_[I-1];
-          Int last_col = this->Xsuper_[I]-1;
-
-          Ptr lfi = this->locXlindx_[locsupno-1];
-          Ptr lli = this->locXlindx_[locsupno]-1;
-
-          Int iWidth = last_col - first_col + 1;
-
-          Int * pNrows = nullptr;
-          Int * pNblock = nullptr;
-
-          Idx iStartRow = this->locLindx_[lfi-1];
-          Idx iPrevRow = iStartRow;
-          Int iContiguousRows = 0;
-
-
-          Int K = -1;
-          Int K_prevSnode = -1;
-          for(Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++){
-            Idx K_row = this->locLindx_[K_sidx-1];
-            K = this->SupMembership_[K_row-1];
-
-            //Split at boundary or after diagonal block
-            if(K!=K_prevSnode){
-              if(K>=I){
-                //add last block from previous cell
-                if (pNblock) {
-                  bassert(K>I);
-                  bassert(iContiguousRows>0);
-                  //now we are at the end of a block
-                  (*pNblock)++;
-                  //add a fake cell to describe the block
-                  cellsToSend.push_back(std::make_tuple(-1,-1,iStartRow,iContiguousRows));
                   iContiguousRows = 0;
+                  iStartRow = K_row;
+                  iPrevRow = iStartRow;
+                  cellsToSend.push_back(std::make_tuple(K,I,0,0));
+                  pNblock = &std::get<2>(cellsToSend.back());
+                  pNrows = &std::get<3>(cellsToSend.back());
                 }
-
-                iContiguousRows = 0;
-                iStartRow = K_row;
-                iPrevRow = iStartRow;
-                cellsToSend.push_back(std::make_tuple(K,I,0,0));
-                pNblock = &std::get<2>(cellsToSend.back());
-                pNrows = &std::get<3>(cellsToSend.back());
               }
-            }
-            K_prevSnode = K;
+              K_prevSnode = K;
 
 
-            //counting contiguous rows
-            if(K_row==iPrevRow+1 || K_row==iStartRow ){
-              ++iContiguousRows;
+              //counting contiguous rows
+              if(K_row==iPrevRow+1 || K_row==iStartRow ){
+                ++iContiguousRows;
+              }
+              //add previous block from current cell
+              else{
+                bassert(iContiguousRows>0);
+                //now we are at the end of a block
+                (*pNblock)++;
+                //add a fake cell to describe the block
+                cellsToSend.push_back(std::make_tuple(-1,-1,iStartRow,iContiguousRows));
+                iContiguousRows = 1;
+                iStartRow = K_row;
+              }
+              iPrevRow=K_row;
+              (*pNrows)++;
             }
-            //add previous block from current cell
-            else{
-              bassert(iContiguousRows>0);
+
+            if (pNblock) {
               //now we are at the end of a block
               (*pNblock)++;
               //add a fake cell to describe the block
+              bassert(iContiguousRows>0);
               cellsToSend.push_back(std::make_tuple(-1,-1,iStartRow,iContiguousRows));
-              iContiguousRows = 1;
-              iStartRow = K_row;
+              iContiguousRows = 0;
             }
-            iPrevRow=K_row;
-            (*pNrows)++;
+
           }
 
-          if (pNblock) {
-            //now we are at the end of a block
-            (*pNblock)++;
-            //add a fake cell to describe the block
-            bassert(iContiguousRows>0);
-            cellsToSend.push_back(std::make_tuple(-1,-1,iStartRow,iContiguousRows));
-            iContiguousRows = 0;
-          }
+          MPI_Datatype type;
+          MPI_Type_contiguous( sizeof(cell_tuple_t), MPI_BYTE, &type );
+          MPI_Type_commit(&type);
 
-        }
+          //then do an allgatherv
+          //compute send sizes
+          int ssize = cellsToSend.size();
 
-        MPI_Datatype type;
-        MPI_Type_contiguous( sizeof(cell_tuple_t), MPI_BYTE, &type );
-        MPI_Type_commit(&type);
+          //Build the contiguous array
+          vector<cell_tuple_t> sendbuf;
+          sendbuf.reserve(ssize);
+          sendbuf.insert(sendbuf.end(),cellsToSend.begin(),cellsToSend.end());
 
-        //then do an allgatherv
-        //compute send sizes
-        int ssize = cellsToSend.size();
+          //allgather receive sizes
+          vector<int> rsizes(this->np,0);
+          MPI_Allgather(&ssize,sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,this->workcomm_);
 
-        //Build the contiguous array
-        vector<cell_tuple_t> sendbuf;
-        sendbuf.reserve(ssize);
-        sendbuf.insert(sendbuf.end(),cellsToSend.begin(),cellsToSend.end());
-
-        //allgather receive sizes
-        vector<int> rsizes(this->np,0);
-        MPI_Allgather(&ssize,sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,this->workcomm_);
-
-        //compute receive displacements
-        vector<int> rdispls(this->np+1,0);
-        rdispls[0] = 0;
-        std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+          //compute receive displacements
+          vector<int> rdispls(this->np+1,0);
+          rdispls[0] = 0;
+          std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
 
 
-        //Now do the allgatherv
-        vector<cell_tuple_t> recvbuf(rdispls.back());
-        MPI_Allgatherv(&sendbuf[0],ssize,type,&recvbuf[0],&rsizes[0],&rdispls[0],type,this->workcomm_);
-        MPI_Type_free(&type);
+          //Now do the allgatherv
+          vector<cell_tuple_t> recvbuf(rdispls.back());
+          MPI_Allgatherv(&sendbuf[0],ssize,type,&recvbuf[0],&rsizes[0],&rdispls[0],type,this->workcomm_);
+          MPI_Type_free(&type);
 
-        //gdb_lock();
 
 #define _SUBCUBE2D_
 #ifdef _SUBCUBE2D_
-        std::map<std::tuple<int,int>, int> mapping;
-      using ProcGroup = TreeLoadBalancer::ProcGroup;
-      std::vector< ProcGroup > levelGroups_;
-      std::vector< Int > groupIdx_;
+          std::map<std::tuple<int,int>, int> mapping;
+          using ProcGroup = TreeLoadBalancer::ProcGroup;
+          std::vector< ProcGroup > levelGroups_;
+          std::vector< Int > groupIdx_;
           std::vector<double> NodeLoad;
-        {
+          {
 
-          auto factor_cost = [](Int m, Int n)->double{
-            return CHOLESKY_COST(m,n);
-          };
+            auto factor_cost = [](Int m, Int n)->double{
+              return CHOLESKY_COST(m,n);
+            };
 
-          auto update_cost = [](Int m, Int n, Int k)->double{
-            return 2.0*m*n*k;
-          };
-
-
-          auto supETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
+            auto update_cost = [](Int m, Int n, Int k)->double{
+              return 2.0*m*n*k;
+            };
 
 
-          Int numLevels = 1;
-          NodeLoad.assign(supETree.Size()+1,0.0);
+            auto supETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
+            Int numLevels = 1;
+            NodeLoad.assign(supETree.Size()+1,0.0);
+            std::vector<double> SubTreeLoad(supETree.Size()+1,0.0);
+            std::vector<int> children(supETree.Size()+1,0);
+            Int numLocSnode = this->XsuperDist_[iam+1]-this->XsuperDist_[iam];
+            Int firstSnode = this->XsuperDist_[iam];
 
-          std::vector<double> SubTreeLoad(supETree.Size()+1,0.0);
-          std::vector<int> children(supETree.Size()+1,0);
+            for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
+              Idx I = locsupno + firstSnode-1;
 
-          Int numLocSnode = this->XsuperDist_[iam+1]-this->XsuperDist_[iam];
-          Int firstSnode = this->XsuperDist_[iam];
+              Idx fc = this->Xsuper_[I-1];
+              Idx lc = this->Xsuper_[I]-1;
 
-          for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
-            Idx I = locsupno + firstSnode-1;
+              Int width = lc - fc + 1;
+              Int height = cc[fc-1];
 
-            Idx fc = this->Xsuper_[I-1];
-            Idx lc = this->Xsuper_[I]-1;
+              //cost of factoring curent panel
+              double local_load = factor_cost(height,width);
+              SubTreeLoad[I]+=local_load;
+              NodeLoad[I]+=local_load;
 
-            Int width = lc - fc + 1;
-            Int height = cc[fc-1];
+              //cost of updating ancestors
+              {
+                Ptr lfi = this->locXlindx_[locsupno-1];
+                Ptr lli = this->locXlindx_[locsupno]-1;
 
-            //cost of factoring curent panel
-            double local_load = factor_cost(height,width);
-            SubTreeLoad[I]+=local_load;
-            NodeLoad[I]+=local_load;
+                //parse rows
+                Int tgt_snode_id = I;
+                Idx tgt_fr = fc;
+                Idx tgt_lr = fc;
+                Ptr tgt_fr_ptr = 0;
+                Ptr tgt_lr_ptr = 0;
+                for(Ptr rowptr = lfi; rowptr<=lli;rowptr++){
+                  Idx row = this->locLindx_[rowptr-1]; 
+                  if(this->SupMembership_[row-1]==tgt_snode_id){ continue;}
 
-            //cost of updating ancestors
-            {
-              Ptr lfi = this->locXlindx_[locsupno-1];
-              Ptr lli = this->locXlindx_[locsupno]-1;
+                  //we have a new tgt_snode_id
+                  tgt_lr_ptr = rowptr-1;
+                  tgt_lr = this->locLindx_[rowptr-1 -1];
+                  if(tgt_snode_id!=I){
+                    Int m = lli-tgt_fr_ptr+1;
+                    Int n = width;
+                    Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
+                    double cost = update_cost(m,n,k);
+                    SubTreeLoad[tgt_snode_id]+=cost;
+                    NodeLoad[tgt_snode_id]+=cost;
+                  }
+                  tgt_fr = row;
+                  tgt_fr_ptr = rowptr;
+                  tgt_snode_id = this->SupMembership_[row-1];
+                }
 
-              //parse rows
-              Int tgt_snode_id = I;
-              Idx tgt_fr = fc;
-              Idx tgt_lr = fc;
-              Ptr tgt_fr_ptr = 0;
-              Ptr tgt_lr_ptr = 0;
-              for(Ptr rowptr = lfi; rowptr<=lli;rowptr++){
-                Idx row = this->locLindx_[rowptr-1]; 
-                if(this->SupMembership_[row-1]==tgt_snode_id){ continue;}
-
+                //do the last update supernode
                 //we have a new tgt_snode_id
-                tgt_lr_ptr = rowptr-1;
-                tgt_lr = this->locLindx_[rowptr-1 -1];
+                tgt_lr_ptr = lli;
+                tgt_lr = this->locLindx_[lli -1];
                 if(tgt_snode_id!=I){
                   Int m = lli-tgt_fr_ptr+1;
                   Int n = width;
                   Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
                   double cost = update_cost(m,n,k);
-                  if(0/*fan_in_*/){
-                    SubTreeLoad[I]+=cost;
-                    NodeLoad[I]+=cost;
-                  }
-                  else{
-                    SubTreeLoad[tgt_snode_id]+=cost;
-                    NodeLoad[tgt_snode_id]+=cost;
-                  }
-                }
-                tgt_fr = row;
-                tgt_fr_ptr = rowptr;
-                tgt_snode_id = this->SupMembership_[row-1];
-              }
-
-
-
-              //do the last update supernode
-              //we have a new tgt_snode_id
-              tgt_lr_ptr = lli;
-              tgt_lr = this->locLindx_[lli -1];
-              if(tgt_snode_id!=I){
-                Int m = lli-tgt_fr_ptr+1;
-                Int n = width;
-                Int k = tgt_lr_ptr - tgt_fr_ptr+1; 
-                double cost = update_cost(m,n,k);
-                if(0 /*fan_in_*/){
-                  SubTreeLoad[I]+=cost;
-                  NodeLoad[I]+=cost;
-                }
-                else{
                   SubTreeLoad[tgt_snode_id]+=cost;
                   NodeLoad[tgt_snode_id]+=cost;
                 }
+
+              }
+            }
+
+            //Allreduce SubTreeLoad and NodeLoad
+            MPI_Allreduce(MPI_IN_PLACE,&NodeLoad[0],NodeLoad.size(),MPI_DOUBLE,MPI_SUM,this->workcomm_);
+            MPI_Allreduce(MPI_IN_PLACE,&SubTreeLoad[0],SubTreeLoad.size(),MPI_DOUBLE,MPI_SUM,this->workcomm_);
+
+            for(Int I=1;I<=supETree.Size();I++){
+              Int parent = supETree.Parent(I-1);
+              ++children[parent];
+              SubTreeLoad[parent]+=SubTreeLoad[I];
+            }
+
+            int n_ = nsuper;//supETree.Size();
+            std::vector<Int> levels(supETree.Size()+1,0);
+            for(Int I=n_; I>= 1;I--){ 
+              Int parent = supETree.Parent(I-1);
+              if(parent==0){levels[I]=0;}
+              else{ levels[I] = levels[parent]+1; numLevels = std::max(numLevels,levels[I]);}
+            }
+            numLevels++;
+
+            std::vector< ProcGroup > procGroups_;
+            groupIdx_.resize(n_+1,0);
+            procGroups_.resize(n_+1);
+            procGroups_[0].Ranks().reserve(np);
+            for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
+
+            std::vector<Int> pstart(n_+1,0);
+            levelGroups_.reserve(numLevels);
+            levelGroups_.push_back(ProcGroup());//reserve(numLevels);
+            levelGroups_[0].Ranks().reserve(np);
+            for(Int p = 0;p<np;++p){levelGroups_[0].Ranks().push_back(p);}
+
+            std::vector<double> load(n_+1,0.0);
+            for(Int I=n_; I>= 1;I--){ 
+              Int parent = supETree.Parent(I-1);
+
+              //split parent's proc list
+              double parent_load = 0.0;
+
+              if(parent!=0){
+                Int fc = this->Xsuper_[parent-1];
+                Int width = this->Xsuper_[parent] - this->Xsuper_[parent-1];
+                Int height = cc[fc-1];
+                parent_load = NodeLoad[parent];// factor_cost(height,width);
+                load[parent] = parent_load;
               }
 
-            }
-          }
+              double proportion = std::min(1.0,SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load));
+              Int npParent = levelGroups_[groupIdx_[parent]].Ranks().size();
+              Int pFirstIdx = std::min(pstart[parent],npParent-1);
+              Int npIdeal =(Int)std::round(npParent*proportion);
+              Int numProcs = std::max((Int)1,std::min(npParent-pFirstIdx,npIdeal));
+              Int pFirst = levelGroups_[groupIdx_[parent]].Ranks().at(pFirstIdx);
+              pstart[parent]+= numProcs;
 
-          //Allreduce SubTreeLoad and NodeLoad
-          MPI_Allreduce(MPI_IN_PLACE,&NodeLoad[0],NodeLoad.size(),MPI_DOUBLE,MPI_SUM,this->workcomm_);
-          MPI_Allreduce(MPI_IN_PLACE,&SubTreeLoad[0],SubTreeLoad.size(),MPI_DOUBLE,MPI_SUM,this->workcomm_);
-
-          for(Int I=1;I<=supETree.Size();I++){
-            Int parent = supETree.Parent(I-1);
-            ++children[parent];
-            SubTreeLoad[parent]+=SubTreeLoad[I];
-          }
-
-
-
-          int n_ = nsuper;//supETree.Size();
-          std::vector<Int> levels(supETree.Size()+1,0);
-          for(Int I=n_; I>= 1;I--){ 
-            Int parent = supETree.Parent(I-1);
-            if(parent==0){levels[I]=0;}
-            else{ levels[I] = levels[parent]+1; numLevels = std::max(numLevels,levels[I]);}
-          }
-          numLevels++;
-
-#ifdef _DEBUG_LOAD_BALANCER_
-          logfileptr->OFS()<<"levels : "; 
-          for(Int i = 0; i<levels.size();++i){logfileptr->OFS()<<levels.at(i)<<" ";}
-          logfileptr->OFS()<<std::endl;
-          logfileptr->OFS()<<"SubTreeLoad is "<<SubTreeLoad<<std::endl;
-#endif
-
-      std::vector< ProcGroup > procGroups_;
-      std::vector< Int > groupWorker_;
-          //procmaps[0]/pstart[0] represents the complete list
-          procGroups_.resize(n_+1);
-          procGroups_[0].Ranks().reserve(np);
-          for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
-
-
-          std::vector<Int> pstart(n_+1,0);
-          levelGroups_.reserve(numLevels);
-          levelGroups_.push_back(ProcGroup());//reserve(numLevels);
-          levelGroups_[0].Ranks().reserve(np);
-          for(Int p = 0;p<np;++p){levelGroups_[0].Ranks().push_back(p);}
-
-
-          std::vector<double> load(n_+1,0.0);
-          for(Int I=n_; I>= 1;I--){ 
-            Int parent = supETree.Parent(I-1);
-
-            //split parent's proc list
-            double parent_load = 0.0;
-
-            if(parent!=0){
-              Int fc = this->Xsuper_[parent-1];
-              Int width = this->Xsuper_[parent] - this->Xsuper_[parent-1];
-              Int height = cc[fc-1];
-              parent_load = NodeLoad[parent];// factor_cost(height,width);
-              load[parent] = parent_load;
-            }
-
-
-            double proportion = std::min(1.0,SubTreeLoad[I]/(SubTreeLoad[parent]-parent_load));
-            Int npParent = levelGroups_[groupIdx_[parent]].Ranks().size();
-            Int pFirstIdx = std::min(pstart[parent],npParent-1);
-            Int npIdeal =(Int)std::round(npParent*proportion);
-            Int numProcs = std::max((Int)1,std::min(npParent-pFirstIdx,npIdeal));
-            Int pFirst = levelGroups_[groupIdx_[parent]].Ranks().at(pFirstIdx);
-
-            //Int npParent = procGroups_[parent].Ranks().size();
-            //Int pFirst = procGroups_[parent].Ranks().at(pFirstIdx);
-#ifdef _DEBUG_LOAD_BALANCER_
-            logfileptr->OFS()<<I<<" npParent = "<<npParent<<" pstartParent = "<<pstart[parent]<<" childrenParent = "<<children[parent]<<" pFirst = "<<pFirst<<" numProcs = "<<numProcs<<" proportion = "<<proportion<<std::endl; 
-            logfileptr->OFS()<<I<<" npIdeal = "<<npIdeal<<" pFirstIdx = "<<pFirstIdx<<std::endl; 
-#endif
-            pstart[parent]+= numProcs;
-
-            if(npParent!=numProcs){
-              {
+              if(npParent!=numProcs){
                 levelGroups_.push_back(ProcGroup());//reserve(numLevels);
                 levelGroups_.back().Ranks().reserve(numProcs);
 
@@ -2729,105 +2708,21 @@ namespace symPACK{
                 levelGroups_.back().Ranks().insert(levelGroups_.back().Ranks().begin(),parentRanks.begin()+pFirstIdx,parentRanks.begin()+pFirstIdx+numProcs);
 
                 groupIdx_[I] = levelGroups_.size()-1;
-#ifdef _DEBUG_LOAD_BALANCER_
-                logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<std::endl<<levelGroups_[groupIdx_[I]]<<std::endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
-#endif
+              }
+              else{
+                groupIdx_[I] = groupIdx_[parent];
               }
             }
-            else{
-              groupIdx_[I] = groupIdx_[parent];
 
-#ifdef _DEBUG_LOAD_BALANCER_
-              logfileptr->OFS()<<"DEBUG "<<I<<" = "<<groupIdx_[I]<<" | "<<std::endl<<levelGroups_[groupIdx_[I]]<<std::endl;//for(Int p = pFirst; p<pFirst+numProcs;++p){ logfileptr->OFS()<<p<<" ";} logfileptr->OFS()<<std::endl;
-#endif
-            }
+
           }
 
-
-////          //now choose which processor to get
-////          //std::vector<double> load(np,0.0);
-////          load.assign(np,0.0);
-////          for(Int I=1;I<=supETree.Size();I++){
-////            Int minLoadP= -1;
-////            double minLoad = -1;
-////            ProcGroup & group = levelGroups_[groupIdx_[I]];
-////            for(Int i = 0; i<group.Ranks().size();++i){
-////              Int proc = group.Ranks()[i];
-////              if(load[proc]<minLoad || minLoad==-1){
-////                minLoad = load[proc];
-////                minLoadP = proc;
-////              }
-////            }
-////
-////#ifdef _DEBUG_LOAD_BALANCER_
-////            logfileptr->OFS()<<"MinLoadP "<<minLoadP<<std::endl;
-////            logfileptr->OFS()<<"group of "<<I<<std::endl;
-////            for(Int i = 0; i<group.Ranks().size();++i){
-////              Int proc = group.Ranks()[i];
-////              logfileptr->OFS()<<proc<<" ["<<load[proc]<<"] ";
-////            }
-////            logfileptr->OFS()<<std::endl;
-////#endif
-////            groupWorker_[I] = minLoadP;
-////
-////            //procGroups_[I].Worker() = minLoadP;
-////
-////
-////            Int fc = Xsuper_[I-1];
-////            Int width = Xsuper_[I] - Xsuper_[I-1];
-////            Int height = cc[fc-1];
-////            //cost of factoring current node + updating ancestors (how about fanboth ?)
-////            //this is exactly the cost of FAN-In while 
-////            //CHOLESKY_COST(height,width) + SUM_child SubtreeLoads - SUM_descendant CHOLESKY_COSTS
-////            // would be the cost of Fan-Out
-////            double local_load = NodeLoad[I];//width*height*height;
-////
-////            load[minLoadP]+=local_load;
-////          }
-
-
-#ifdef _DEBUG_LOAD_BALANCER_
-          logfileptr->OFS()<<"Proc load: "<<load<<std::endl;
-#endif
-
-
-#ifdef _DEBUG_LOAD_BALANCER_
-          for(Int I = 0; I<levelGroups_.size();++I){ 
-            logfileptr->OFS()<<"Group "<<I<<": "<<std::endl<<levelGroups_[I]<<std::endl;
-          }
-#endif
-
-        }
-
-
-        std::shared_ptr<blockCellBase_t> pLast_cell = nullptr;
-        std::vector<std::vector<double>> group_load(nsuper);
-
-        for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
-          auto & cur_cell = (*it);
-          Int i = std::get<0>(cur_cell);
-          Int j = std::get<1>(cur_cell);
-
-          if (i==-1 && j==-1) {
-            bassert(pLast_cell!=nullptr);
-            if ( pLast_cell->owner == iam ) {
-              auto ptr = std::static_pointer_cast<snodeBlock_t>(pLast_cell);
-              Int first_row = std::get<2>(cur_cell);
-              Int nrows = std::get<3>(cur_cell);
-              ptr->add_block(first_row,nrows);
-            }
-          }
-          else{
-            Int nBlock = std::get<2>(cur_cell);
-            Int nRows = std::get<3>(cur_cell);
-            auto idx = coord2supidx(i-1,j-1);
-
-            //j is supernode index
+          std::vector<std::vector<double>> group_load(nsuper);
+          auto find_min_proc = [this,&levelGroups_,&groupIdx_,&group_load,&NodeLoad](int j){
             Int minLoadP= -1;
             double minLoad = -1;
             ProcGroup & group = levelGroups_[groupIdx_[j-1]];
             auto & load = group_load[j-1];
-
             if ( load.size() < group.Ranks().size() ){ load.assign(group.Ranks().size(),0.0); }
 
             for(Int i = 0; i<group.Ranks().size();++i){
@@ -2836,48 +2731,56 @@ namespace symPACK{
                 minLoadP = i;
               }
             }
-
             double local_load = NodeLoad[j-1];
             load[minLoadP]+=local_load;
-            auto p = group.Ranks()[minLoadP];
+            return group.Ranks()[minLoadP];
+          };
 
-            Idx fc = this->Xsuper_[j-1];
-            Idx lc = this->Xsuper_[j]-1;
-            Int iWidth = lc-fc+1;
-            size_t block_cnt = nBlock;
-            size_t nnz = nRows * iWidth;
 
-            std::shared_ptr<blockCellBase_t> sptr(nullptr);
-            if (0 ||  p == iam ) {
-              //auto sptr = std::make_shared<snodeBlock_t>(fc,iWidth,nnz,block_cnt);
+          std::shared_ptr<blockCellBase_t> pLast_cell = nullptr;
+
+          for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
+            auto & cur_cell = (*it);
+            Int i = std::get<0>(cur_cell);
+            Int j = std::get<1>(cur_cell);
+
+            if (i==-1 && j==-1) {
+              bassert(pLast_cell!=nullptr);
+              if ( pLast_cell->owner == iam ) {
+                auto ptr = std::static_pointer_cast<snodeBlock_t>(pLast_cell);
+                Int first_row = std::get<2>(cur_cell);
+                Int nrows = std::get<3>(cur_cell);
+                ptr->add_block(first_row,nrows);
+              }
+            }
+            else{
+              Int nBlock = std::get<2>(cur_cell);
+              Int nRows = std::get<3>(cur_cell);
+              auto idx = coord2supidx(i-1,j-1);
+
+              //j is supernode index
+              auto p = find_min_proc(j);
+              Idx fc = this->Xsuper_[j-1];
+              Idx lc = this->Xsuper_[j]-1;
+              Int iWidth = lc-fc+1;
+              size_t block_cnt = nBlock;
+              size_t nnz = nRows * iWidth;
+
+              std::shared_ptr<blockCellBase_t> sptr(nullptr);
               if ( p == iam ) {
                 sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
+logfileptr->OFS()<<" orig2 : S"<<sptr->j <<" -> "<<((snodeBlock_t*)sptr.get())->nnz()<<" vs. "<<nnz<<std::endl;
               }
               else {
-                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,0,0));
+                sptr = std::make_shared<blockCellBase_t>();
               }
-
-//              pLast_cell = std::static_pointer_cast<snodeBlock_t>(sptr);
-              //auto sptr = std::make_shared<snodeBlock_t>();
-//              cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
-              //logfileptr->OFS()<<idx<<" "<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
-              //logfileptr->OFS()<<i<<" "<<j<<" = "<<sptr<<" "<<std::static_pointer_cast<blockCellBase_t>(sptr)<<" "<<cells_[idx]<<std::endl;
-//              pLast_cell->i = i;
-//              pLast_cell->j = j;
+              cells_[idx] = sptr;
+              sptr->i = i;
+              sptr->j = j;
+              sptr->owner = p;
+              pLast_cell = sptr;
             }
-            else {
-              sptr = std::make_shared<blockCellBase_t>();
-            }
-
-            cells_[idx] = sptr;
-            sptr->i = i;
-            sptr->j = j;
-            sptr->owner = p;
-            pLast_cell = sptr;
           }
-        }
-        //logfileptr->OFS()<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
-      }
 
 
 
@@ -2885,122 +2788,72 @@ namespace symPACK{
 
 #define _BALANCE_NNZ_
 #ifdef _BALANCE_NNZ_
-        using load_t = std::tuple<int,size_t>;
-        auto compare_load = [](load_t & a, load_t & b){ return std::get<1>(a)>std::get<1>(b);};
-        std::priority_queue< load_t, std::vector<load_t>, decltype( compare_load ) > load(compare_load);
-        for ( int p = 0; p < nprow*npcol ; p++) {
-          load.push( std::make_tuple(p, (size_t)0));
-        }
-#endif
-        //std::shared_ptr<snodeBlock_t> pLast_cell = nullptr;
-        std::shared_ptr<blockCellBase_t> pLast_cell = nullptr;
-        for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
-          auto & cur_cell = (*it);
-          Int i = std::get<0>(cur_cell);
-          Int j = std::get<1>(cur_cell);
-
-          if (i==-1 && j==-1) {
-            bassert(pLast_cell!=nullptr);
-            if ( pLast_cell->owner == iam ) {
-              auto ptr = std::static_pointer_cast<snodeBlock_t>(pLast_cell);
-              Int first_row = std::get<2>(cur_cell);
-              Int nrows = std::get<3>(cur_cell);
-              ptr->add_block(first_row,nrows);
-            }
+          using load_t = std::tuple<int,size_t>;
+          auto compare_load = [](load_t & a, load_t & b){ return std::get<1>(a)>std::get<1>(b);};
+          std::priority_queue< load_t, std::vector<load_t>, decltype( compare_load ) > load(compare_load);
+          for ( int p = 0; p < nprow*npcol ; p++) {
+            load.push( std::make_tuple(p, (size_t)0));
           }
-          else{
-            Int nBlock = std::get<2>(cur_cell);
-            Int nRows = std::get<3>(cur_cell);
-            //auto idx = coord2supidx(i,j);
-            auto idx = coord2supidx(i-1,j-1);
+#endif
+          std::shared_ptr<blockCellBase_t> pLast_cell = nullptr;
+          for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
+            auto & cur_cell = (*it);
+            Int i = std::get<0>(cur_cell);
+            Int j = std::get<1>(cur_cell);
+
+            if (i==-1 && j==-1) {
+              bassert(pLast_cell!=nullptr);
+              if ( pLast_cell->owner == iam ) {
+                auto ptr = std::static_pointer_cast<snodeBlock_t>(pLast_cell);
+                Int first_row = std::get<2>(cur_cell);
+                Int nrows = std::get<3>(cur_cell);
+                ptr->add_block(first_row,nrows);
+              }
+            }
+            else{
+              Int nBlock = std::get<2>(cur_cell);
+              Int nRows = std::get<3>(cur_cell);
+              //auto idx = coord2supidx(i,j);
+              auto idx = coord2supidx(i-1,j-1);
 
 #ifdef _BALANCE_NNZ_
-            auto proc = load.top();
-            load.pop();
-            auto p = std::get<0>(proc);
+              auto proc = load.top();
+              load.pop();
+              auto p = std::get<0>(proc);
 #else
-            auto prow = i % nprow;
-            auto pcol = j % npcol;
-            auto p = pcol*nprow+prow;
+              auto prow = i % nprow;
+              auto pcol = j % npcol;
+              auto p = pcol*nprow+prow;
 #endif      
 
-            //cells_[idx].owner = p;
-            //cells_[idx].i = i;
-            //cells_[idx].j = j;
-
-            Idx fc = this->Xsuper_[j-1];
-            Idx lc = this->Xsuper_[j]-1;
-            Int iWidth = lc-fc+1;
-            size_t block_cnt = nBlock;
-            size_t nnz = nRows * iWidth;
+              Idx fc = this->Xsuper_[j-1];
+              Idx lc = this->Xsuper_[j]-1;
+              Int iWidth = lc-fc+1;
+              size_t block_cnt = nBlock;
+              size_t nnz = nRows * iWidth;
 #ifdef _BALANCE_NNZ_
-            auto & lp = std::get<1>(proc);
-            lp += nnz*iWidth;
-            load.push(proc);
+              auto & lp = std::get<1>(proc);
+              lp += nnz*iWidth;
+              load.push(proc);
 #endif
 
-            std::shared_ptr<blockCellBase_t> sptr(nullptr);
-            if (0 ||  p == iam ) {
-              //auto sptr = std::make_shared<snodeBlock_t>(fc,iWidth,nnz,block_cnt);
+              std::shared_ptr<blockCellBase_t> sptr(nullptr);
               if ( p == iam ) {
                 sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
               }
               else {
-                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,0,0));
+                sptr = std::make_shared<blockCellBase_t>();
               }
 
-//              pLast_cell = std::static_pointer_cast<snodeBlock_t>(sptr);
-              //auto sptr = std::make_shared<snodeBlock_t>();
-//              cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
-              //logfileptr->OFS()<<idx<<" "<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
-              //logfileptr->OFS()<<i<<" "<<j<<" = "<<sptr<<" "<<std::static_pointer_cast<blockCellBase_t>(sptr)<<" "<<cells_[idx]<<std::endl;
-//              pLast_cell->i = i;
-//              pLast_cell->j = j;
+              cells_[idx] = sptr;
+              sptr->i = i;
+              sptr->j = j;
+              sptr->owner = p;
+              pLast_cell = sptr;
             }
-            else {
-              sptr = std::make_shared<blockCellBase_t>();
-            }
-
-            cells_[idx] = sptr;
-            sptr->i = i;
-            sptr->j = j;
-            sptr->owner = p;
-            pLast_cell = sptr;
           }
-        }
-        //logfileptr->OFS()<<1<<" "<<1<<" = "<<cells_[1]<<std::endl;
-      }
 #endif
-
-#else
-
-      cells_.resize(nsuper*(nsuper-1)/2.0+nsuper);
-
-      //should create cell only if non empty
-      for(Int j = 0; j < nsuper; j++){
-        auto pcol = j % npcol;
-        for(Int i = j; i < nsuper; i++){
-          auto idx = coord2supidx(i,j);
-          auto prow = i % nprow;
-          auto p = pcol*nprow+prow;
-          //cells_[idx].owner = p;
-          //cells_[idx].i = i;
-          //cells_[idx].j = j;
-          Idx fc = this->Xsuper_[j-1];
-          Idx lc = this->Xsuper_[j]-1;
-          Int iWidth = lc-fc+1;
-          size_t block_cnt = nBlock;
-          size_t nnz = nRows * iWidth;
-
-          auto sptr = std::make_shared<snodeBlock_t>(i,j,iWidth,nnz,block_cnt);
-          cells_[idx] = std::static_pointer_cast<blockCellBase_t>(sptr);
-          sptr->owner = p;
-          sptr->i = i;
-          sptr->j = j;
-
         }
-      }
-#endif
       }
 
       logfileptr->OFS()<<"#supernodes = "<<nsuper<<" #cells = "<<cells_.size()<< " which is "<<cells_.size()*sizeof(snodeBlock_t)<<" bytes"<<std::endl;
@@ -3010,7 +2863,7 @@ namespace symPACK{
         std::cout<<"#supernodes = "<<nsuper<<" #cells = "<<cells_.size()<< " which is "<<cells_.size()*sizeof(snodeBlock_t)<<" bytes"<<std::endl;
       }
 
-      //generate task graph
+      //generate task graph for the factorization
       {
 #ifdef _MEM_PROFILER_
         utility::scope_memprofiler m("symPACK2D_symbolic_task_graph");
@@ -4629,6 +4482,7 @@ namespace symPACK{
         logfileptr->OFS()<<"Task graph created"<<std::endl;
       }
 
+      //generate task graph for the solution phase
     } 
 
   template <typename colptr_t, typename rowind_t, typename T>
@@ -5209,6 +5063,8 @@ int64_t local_task_cnt;
 #endif
 
 }
+
+#include <sympack/impl/symPACKMatrix2D_impl.hpp>
 
 #endif //_SYMPACK_MATRIX2D_DECL_HPP_
 

@@ -25,10 +25,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED on)
 
-string( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
-IF( config_type STREQUAL "debug")
-  message("Debug mode")
-ENDIF()  
   
 find_package(MPI REQUIRED)
 if(MPI_CXX_FOUND)
@@ -185,7 +181,6 @@ if(ENABLE_PROFILE)
 endif()
 
 
-if(NEW_UPCXX)
   #set(upcxx-meta "/home/mjacquel/Work/lbl/pagoda/upcxx_dev/upcxx_install/bin/upcxx-meta") 
   set(upcxx-meta "upcxx-meta") 
   execute_process( COMMAND ${upcxx-meta} PPFLAGS OUTPUT_VARIABLE UPCXX_PPFLAGS)
@@ -201,53 +196,20 @@ if(NEW_UPCXX)
   string(STRIP ${UPCXX_LIBFLAGS} UPCXX_LIBFLAGS)
   string(STRIP ${UPCXX_PPFLAGS}  UPCXX_PPFLAGS)
   string(STRIP ${UPCXX_LDFLAGS}  UPCXX_LDFLAGS)
-  set(UPCXX_DEFINES "${UPCXX_PPFLAGS} ${UPCXX_LDFLAGS} -DNEW_UPCXX")
+  set(UPCXX_DEFINES "${UPCXX_PPFLAGS} -DNEW_UPCXX")
   set(UPCXX_LIBRARIES "${UPCXX_LIBFLAGS}")
-
-  #string(REPLACE " " ";" UPCXX_LIBRARIES ${UPCXX_LIBRARIES})
-  #message( STATUS "UPCXX_LIBRARIES: " ${UPCXX_LIBRARIES} )
-  #foreach( d ${UPCXX_LIBRARIES} )
-  #  string(STRIP ${d} d)
-  #  message( STATUS "Found UPCXX Define: " ${d} )
-  #  add_definitions("${d}")
-  #endforeach()
-
-  #endif()
-
-
   
-else()
-#######   GASNET AND UPCXX OPTIONS ######
-
-  include(cmake/gasnet.cmake)
-  include(cmake/upcxx.cmake)
-
-
-include_directories(${UPCXX_INCLUDE_DIR})
-link_directories(${UPCXX_LIBRARY_PATH})
-
-if(GASNET_DEFINES)
-  string(REPLACE " " ";" GASNET_DEFINES ${GASNET_DEFINES})
-  message( STATUS "GASNET_DEFINES: " ${GASNET_DEFINES} )
-  foreach( d ${GASNET_DEFINES} )
-    string(STRIP ${d} d)
-    message( STATUS "Found GASNET Define: " ${d} )
-    add_definitions("${d}")
-  endforeach()
-endif()
-
 #this work with both old and new upcxx
-if(UPCXX_DEFINES)
-  string(REPLACE " " ";" UPCXX_DEFINES ${UPCXX_DEFINES})
-  message( STATUS "UPCXX_DEFINES: " ${UPCXX_DEFINES} )
-  foreach( d ${UPCXX_DEFINES} )
-    string(STRIP ${d} d)
-    message( STATUS "Found UPCXX Define: " ${d} )
-    add_definitions("${d}")
-  endforeach()
-endif()
+#if(UPCXX_DEFINES)
+#  string(REPLACE " " ";" UPCXX_DEFINES ${UPCXX_DEFINES})
+#  message( STATUS "UPCXX_DEFINES: " ${UPCXX_DEFINES} )
+#  foreach( d ${UPCXX_DEFINES} )
+#    string(STRIP ${d} d)
+#    message( STATUS "Found UPCXX Define: " ${d} )
+#    add_definitions("${d}")
+#  endforeach()
+#endif()
 
-endif()
 
 set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
   src/lapack.cpp src/global.cpp src/LogFile.cpp 
@@ -318,34 +280,11 @@ if(ENABLE_PARMETIS)
   file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += -I${PARMETIS_INCLUDE_DIRS}\n")
 endif()
 
-
-
-if(NEW_UPCXX)
-else()
-list(GET UPCXX_INCLUDE_DIR 0 TMPUPCXXDIR)
-
-set(UPCXX_PREFIX $ENV{UPCXX_DIR})
-if (UPCXX_PREFIX)
-  file(APPEND "sympack.mak.cmake" "\ninclude ${TMPUPCXXDIR}/upcxx.mak\n")
-  file(APPEND "sympack.mak.cmake" "VPATH=${TMPUPCXXDIR}\n\n")
-else()
-  file(APPEND "sympack.mak.cmake" "\ninclude \$(SYMPACK_DIR)/upcxx_install/include/upcxx.mak\n")
-  file(APPEND "sympack.mak.cmake" "VPATH=\$(SYMPACK_DIR)/upcxx_install\n\n")
-endif()
-
-file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += \$(UPCXX_CXXFLAGS)\n\n")
-endif()
-
 file(APPEND "sympack.mak.cmake" "SYMPACK_LIB = -L\$(SYMPACK_DIR)/lib -lsympack\n")
 
 foreach( d ${LIBS} )
   file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += ${d}\n")
 endforeach()
-
-if(NEW_UPCXX)
-else()
-file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += \$(UPCXX_LDLIBS)\n")
-endif()
 
 IF( NOT CMAKE_DL_LIBS STREQUAL "")
 file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += -l${CMAKE_DL_LIBS}\n")
@@ -363,27 +302,38 @@ add_library(sympack ${SYMPACKSRC})
 
 
 
-if(NEW_UPCXX) 
+#if(NEW_UPCXX) 
       set(CMAKE_CXX_FLAGS "${UPCXX_DEFINES} ${CMAKE_CXX_FLAGS}")
-      #      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${UPCXX_LIBFLAGS}")
-else()
-add_dependencies(sympack gasnet upcxx)
-set_target_properties(gasnet PROPERTIES POSITION_INDEPENDENT_CODE ON)
-set_target_properties(upcxx PROPERTIES POSITION_INDEPENDENT_CODE ON)
-endif()
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${UPCXX_LDFLAGS}")
+#else()
+#add_dependencies(sympack gasnet upcxx)
+#set_target_properties(gasnet PROPERTIES POSITION_INDEPENDENT_CODE ON)
+#set_target_properties(upcxx PROPERTIES POSITION_INDEPENDENT_CODE ON)
+#endif()
 
 set_target_properties(sympack PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+
+
+string( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
+IF( config_type STREQUAL "debug")
+  add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-g>")
+  add_compile_options("$<$<COMPILE_LANGUAGE:C>:-g>")
+  add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-g>")
+  add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-O0>")
+  add_compile_options("$<$<COMPILE_LANGUAGE:C>:-O0>")
+  add_compile_options("$<$<COMPILE_LANGUAGE:Fortran>:-O0>")
+  message("Debug mode")
+ENDIF()  
+
+
+
  
 if(UNIX AND NOT APPLE)
     target_link_libraries(sympack rt)
 endif()
 
-
-if(NEW_UPCXX)
 target_link_libraries(sympack ${LIBS} ${CMAKE_DL_LIBS})
-else()
-target_link_libraries(sympack libupcxx libgasnet-conduit ${LIBS} ${UPCXX_LIBRARIES} ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
-endif()
 
 install(TARGETS sympack LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 install(FILES 
@@ -400,6 +350,7 @@ install(FILES
   include/sympack/CommTypes.hpp
   include/sympack/DistSparseMatrix.hpp
   include/sympack/symPACKMatrix.hpp
+  include/sympack/symPACKMatrixBase.hpp
   include/sympack/symPACKMatrix2D.hpp
   include/sympack/DistSparseMatrixGraph.hpp
   include/sympack/ETree.hpp
@@ -422,7 +373,9 @@ install(FILES
   DESTINATION include/sympack)
 
 install(FILES 
+  include/sympack/impl/symPACKMatrixBase_impl.hpp
   include/sympack/impl/symPACKMatrix_impl.hpp
+  include/sympack/impl/symPACKMatrix2D_impl.hpp
   include/sympack/impl/SuperNode_impl.hpp
   include/sympack/impl/SuperNodeInd_impl.hpp
   include/sympack/impl/DistSparseMatrix_impl.hpp
@@ -433,12 +386,6 @@ install(FILES
   include/sympack/impl/supernodalTaskGraph_impl.hpp
   include/sympack/impl/Scheduler_impl.hpp
   DESTINATION include/sympack/impl)
-
-if(NEW_UPCXX)
-else()
-install (SCRIPT "${CMAKE_SOURCE_DIR}/cmake/gasnetPostInstall.cmake")
-install (SCRIPT "${CMAKE_SOURCE_DIR}/cmake/upcxxPostInstall.cmake")
-endif()
 
 add_executable(run_sympack EXCLUDE_FROM_ALL driver/run_sympack.cpp)
 add_executable(run_sympack2D EXCLUDE_FROM_ALL driver/run_sympack2D.cpp)
@@ -453,15 +400,9 @@ add_dependencies(run_sympack_c sympack)# gasnet upcxx)
 
 
 
-if(NEW_UPCXX)
   target_link_libraries(run_sympack sympack ${UPCXX_LIBFLAGS})
   target_link_libraries(run_sympack2D sympack ${UPCXX_LIBFLAGS})
 target_link_libraries(run_sympack_c sympack)
-else()
-target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit)
-target_link_libraries(run_sympack2D sympack libupcxx libgasnet-conduit)
-target_link_libraries(run_sympack_c sympack libupcxx libgasnet-conduit)
-endif()
 
 
 find_package( Threads )
