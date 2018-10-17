@@ -135,23 +135,54 @@ namespace symPACK{
 
 
 
+
+
+
+
+
+
+
+
+
       symPACKMatrix( symPACKMatrix2D<Ptr,Idx,T> & M){
 
-    Mapping_ = nullptr;
-    Balancer_ = nullptr;
-    CommEnv_ = nullptr;
-    scheduler_ = nullptr;
-    scheduler2_ = nullptr;
+        using cell_desc_t = std::tuple</*std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t>,*/ std::vector<char>, size_t, int,int, size_t, size_t, Idx, int >;
 
-    if(logfileptr==NULL){
-      logfileptr = new LogFile(upcxx::rank_me(),false);
-      logfileptr->OFS()<<"********* LOGFILE OF P"<<upcxx::rank_me()<<" *********"<<std::endl;
-      logfileptr->OFS()<<"**********************************"<<std::endl;
-    }
-    logfileptr->OFS()<<"Shared node size "<<shmNode_.shmsize<<", rank "<<shmNode_.shmrank<<std::endl;
+        struct cell_list_t {
+          std::vector< cell_desc_t > cells;
+          //            std::set< cell_desc_t, cell_desc_comp > cells;
+          upcxx::promise<> prom;
+          cell_list_t(int count){
+            this->prom.require_anonymous(count);
+            cells.reserve(count);
+          }
+        };
+
+        struct cell_desc_comp {
+          bool operator () (const cell_desc_t & a, const cell_desc_t & b){return std::get<2>(a) < std::get<2>(b);}
+        } cell_desc_comp;
 
 
-this->fullcomm_ = MPI_COMM_NULL;
+//        auto cellPointers = std::vector<cell_list_t *>(M.nsuper,nullptr);
+//        upcxx::dist_object< cell_list_t ** > remote_ptrs( cellPointers.data()  );
+        upcxx::dist_object< std::vector<cell_list_t *> > remote_ptrs( std::vector<cell_list_t *>(M.nsuper,nullptr) );
+
+
+        Mapping_ = nullptr;
+        Balancer_ = nullptr;
+        CommEnv_ = nullptr;
+        scheduler_ = nullptr;
+        scheduler2_ = nullptr;
+
+        if(logfileptr==NULL){
+          logfileptr = new LogFile(upcxx::rank_me(),false);
+          logfileptr->OFS()<<"********* LOGFILE OF P"<<upcxx::rank_me()<<" *********"<<std::endl;
+          logfileptr->OFS()<<"**********************************"<<std::endl;
+        }
+        logfileptr->OFS()<<"Shared node size "<<shmNode_.shmsize<<", rank "<<shmNode_.shmrank<<std::endl;
+
+
+        this->fullcomm_ = MPI_COMM_NULL;
         this->iSize_ = M.iSize_; 
         this->Init(M.options_);        
 
@@ -177,290 +208,281 @@ this->fullcomm_ = MPI_COMM_NULL;
         this->Balancer_ = NULL;
 
 
-      Int pmapping = this->np;
-      Int pr = (Int)sqrt((double)pmapping);
-      if(this->options_.mappingTypeStr ==  "MODWRAP2DTREE"){
-        this->Mapping_ = new ModWrap2DTreeMapping(pmapping, pr, pr, 1);
-      }
-      else if(this->options_.mappingTypeStr ==  "WRAP2D"){
-        this->Mapping_ = new Wrap2D(pmapping, pr, pr, 1);
-      }
-      else if(this->options_.mappingTypeStr ==  "WRAP2DFORCED"){
-        this->Mapping_ = new Wrap2DForced(pmapping, pr, pr, 1);
-      }
-      else if(this->options_.mappingTypeStr ==  "MODWRAP2DNS"){
-        this->Mapping_ = new Modwrap2DNS(pmapping, pr, pr, 1);
-      }
-      else if(this->options_.mappingTypeStr ==  "ROW2D"){
-        this->Mapping_ = new Row2D(pmapping, pmapping, pmapping, 1);
-      }
-      else if(this->options_.mappingTypeStr ==  "COL2D"){
-        this->Mapping_ = new Col2D(pmapping, pmapping, pmapping, 1);
-      }
-      else{
-        this->Mapping_ = new Modwrap2D(pmapping, pr, pr, 1);
-      }
+        Int pmapping = this->np;
+        Int pr = (Int)sqrt((double)pmapping);
+        if(this->options_.mappingTypeStr ==  "MODWRAP2DTREE"){
+          this->Mapping_ = new ModWrap2DTreeMapping(pmapping, pr, pr, 1);
+        }
+        else if(this->options_.mappingTypeStr ==  "WRAP2D"){
+          this->Mapping_ = new Wrap2D(pmapping, pr, pr, 1);
+        }
+        else if(this->options_.mappingTypeStr ==  "WRAP2DFORCED"){
+          this->Mapping_ = new Wrap2DForced(pmapping, pr, pr, 1);
+        }
+        else if(this->options_.mappingTypeStr ==  "MODWRAP2DNS"){
+          this->Mapping_ = new Modwrap2DNS(pmapping, pr, pr, 1);
+        }
+        else if(this->options_.mappingTypeStr ==  "ROW2D"){
+          this->Mapping_ = new Row2D(pmapping, pmapping, pmapping, 1);
+        }
+        else if(this->options_.mappingTypeStr ==  "COL2D"){
+          this->Mapping_ = new Col2D(pmapping, pmapping, pmapping, 1);
+        }
+        else{
+          this->Mapping_ = new Modwrap2D(pmapping, pr, pr, 1);
+        }
 
 
 
         this->scheduler2_ = NULL;
 
-
+        double timeSta = get_time();
         //Matrix is distributed in 2D fashion, need to pick one of the process holding blocks of a supernode and gather all blocks on it
-      std::vector<int> load(M.np,0);
-      std::vector<int> sup_mapp(M.nsuper,-1);
+        std::vector<int> sup_mapp(M.nsuper,-1);
 
-//      for ( auto & it : M.cells_ ) {
-//        auto & cell = it.second;
-//        if ( cell == nullptr ) continue;
-//        if ( cell->owner==M.iam) {
-//          auto blockptr = (typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t *)cell.get();
-//          logfileptr->OFS()<<"orig "<<blockptr->nnz()<<std::endl;
-//        }
-//      }
+        std::vector<Int> cell_counts(this->Xsuper_.size(),0);
+        //Communicate the number of blocks in each supernode.
+        assert( this->locXlindx_.size()-1 == this->XsuperDist_[this->iam+1] - this->XsuperDist_[this->iam] );
+        for (int locSupid = 1; locSupid <= this->locXlindx_.size()-1; locSupid++ ) {
 
-      for (int supid=1;supid<=M.nsuper;supid++) {
-        auto cell = M.pQueryCELL(supid-1,supid-1);
-        if ( cell == nullptr ) continue;
-
-        assert( supid == cell->j );
-        int fc = M.Xsuper_[supid-1];
-        auto & proot = sup_mapp[supid-1];
-        if ( proot == -1 ) {
-          logfileptr->OFS()<<"Working on supernode "<<cell->j<<std::endl;
-          //find the least loaded processor among those owning blocks of supernode supid
+          int supid = this->XsuperDist_[this->iam]+locSupid-1;
+          auto colbeg = this->locXlindx_[locSupid-1];
+          auto colend = this->locXlindx_[locSupid]-1;
+          int prevSnode = -1;
           int cell_count = 0;
-          std::set<int> proc_group;
-          std::vector< std::shared_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t> > localBlocks;
-
-          int minLoadP = -1;
-          int minLoad = -1;
-          for (int I=supid;I<=M.nsuper;I++) {
-            auto cellptr = M.pQueryCELL(I-1,supid-1);
-            if ( cellptr != nullptr ) {
+          for ( auto ptr = colbeg; ptr <= colend; ptr++ ) {
+            auto row = this->locLindx_[ptr-1];
+            int J = this->SupMembership_[row-1];
+            if(J!=prevSnode){
               cell_count++;
-              proc_group.insert(cellptr->owner);
-              if ( cellptr->owner==M.iam) {
-                auto blockptr = M.pCELL(I-1,supid-1);
-                localBlocks.push_back(blockptr);
-//                logfileptr->OFS()<<"orig "<<blockptr->nnz()<<std::endl;
-              }
-
-              if ( minLoadP == -1 || minLoad > load[cellptr->owner]) {
-                minLoadP = cellptr->owner;
-                minLoad = load[cellptr->owner];
-              }
             }
+            prevSnode = J;
           }
-          proot = minLoadP;
-          load[proot] += 1;
-//          logfileptr->OFS()<<"Proot is "<<proot<<std::endl;
+          cell_counts[supid-1] = cell_count;
+        }
+        //now communicate
+        upcxx::future<> conj = upcxx::make_future();
+        for ( int p = 0; p < this->np; p++ ) {
+          int supidBeg = this->XsuperDist_[p];
+          int supidEnd = this->XsuperDist_[p+1];
+          conj = upcxx::when_all( conj, 
+                  upcxx::broadcast( &cell_counts[supidBeg-1],
+                                           supidEnd - supidBeg, p));
+        }
+        conj.wait();
 
-          //Gather all cells on proot
-          //create a dist_object only to access the vector from within the RPC
-          if ( M.iam != proot )
-            cell_count = 0;
-          
+        auto local_it = M.localBlocks_.begin();
+        upcxx::future<> all_fut = upcxx::make_future();
+        for (int supid=1;supid<=M.nsuper;supid++) {
+          auto cell = M.pQueryCELL(supid-1,supid-1);
+          if ( cell == nullptr ) continue;
 
-          using cell_desc_t = std::tuple</*std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t>,*/ std::vector<char>, size_t, int,int, size_t, size_t, Idx, int >;
-          
-          struct cell_list_t {
-            std::vector< cell_desc_t > cells;
-//            std::set< cell_desc_t, cell_desc_comp > cells;
-            upcxx::promise<> prom;
-            cell_list_t(int count){
-              this->prom.require_anonymous(count);
-              cells.reserve(count);
+          assert( supid == cell->j );
+          int fc = M.Xsuper_[supid-1];
+          auto proot = cell->owner;
+          sup_mapp[supid-1] = proot;
+
+          {
+            //find the least loaded processor among those owning blocks of supernode supid
+            int cell_count = cell_counts[supid-1];
+            std::set<int> proc_group;
+            std::vector< std::shared_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t> > localBlocks;
+            while ( local_it != M.localBlocks_.end() && (*local_it)->j<supid  ) { local_it++; }
+            while ( local_it != M.localBlocks_.end() && (*local_it)->j == supid ) {
+              auto cellptr = *local_it;
+              localBlocks.push_back(cellptr);
+              local_it++;
             }
-          };
 
-          struct cell_desc_comp {
-              bool operator () (const cell_desc_t & a, const cell_desc_t & b){return std::get<2>(a) < std::get<2>(b);}
-          } cell_desc_comp;
+            
+            if ( (*remote_ptrs)[supid-1] == nullptr ) {
+              auto cell_list = new cell_list_t(M.iam==proot?cell_count:0);
+              (*remote_ptrs)[supid-1] = cell_list;
+            }
+            else if(M.iam==proot){
+              assert( (*remote_ptrs)[supid-1]->cells.capacity() == cell_count);
+            }
 
-          auto cell_list = new cell_list_t(cell_count);
+            for ( auto & cellptr : localBlocks ) {
+              assert( cellptr->j == supid );
+              upcxx::rpc_ff(proot, 
+                  [&remote_ptrs,fc,proot,cell_count]( upcxx::global_ptr< char > ptr, std::size_t size, size_t nnz, size_t nblocks, Idx width, int sender, int i, int j ) {
 
-          upcxx::dist_object< cell_list_t * > remote_ptrs( cell_list );
-upcxx::barrier();
-          upcxx::promise<> prom;//(localBlocks.size());
-          for ( auto & cellptr : localBlocks ) {
-            assert( cellptr->j == supid );
-          }
-  
-          for ( auto & cellptr : localBlocks ) {
-            upcxx::rpc_ff(proot, upcxx::source_cx::as_promise(prom), 
-                            [&remote_ptrs,supid,fc,proot]( upcxx::global_ptr< char > ptr, std::size_t size, size_t nnz, size_t nblocks, Idx width, int sender, int i ) {
-                              //allocate a landing_zone
-                              (*remote_ptrs)->cells.push_back( std::make_tuple( std::vector<char>(size), size,i, supid, nnz, nblocks, width, sender) );
-                              //auto res = (*remote_ptrs)->cells.insert( std::move(std::make_tuple( std::vector<char>(size), size,i, supid, nnz, nblocks, width, sender)) );
-                              cell_desc_t * descptr;
-                              descptr = &(*remote_ptrs)->cells.back();
-                              //descptr = (typename cell_list_t::cell_desc_t *)&*res.first;
-                              
-                              //issue a rget
-                              upcxx::rget(ptr,std::get<0>(*descptr).data(),size).then([&remote_ptrs]() {(*remote_ptrs)->prom.fulfill_anonymous(1); });
-//upcxx::operation_cx::as_lpc( upcxx::master_persona(), [&remote_ptrs,descptr,fc,width,nnz,nblocks,supid,size,i]() {
-//                                auto & vect = std::get<1>(*descptr);
-//                assert (vect.size() == size);
-//                //logfileptr->OFS()<<(*remote_ptrs)<<" "<<descptr<<" Executing lpc post rget "<<vect.size()<<" vs "<<size<<std::endl;
-//                                auto lptr = std::get<1>(*descptr).data();
-//                                //std::get<0>(*descptr) = std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t>( new typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t(i,supid,lptr,fc,width,nnz,nblocks)); 
-//                                (*remote_ptrs)->prom.fulfill_anonymous(1); }));
-                            }, cellptr->_gstorage, cellptr->_storage_size,cellptr->nnz(), cellptr->nblocks(), std::get<0>(cellptr->_dims), upcxx::rank_me() , cellptr->i );
-          }
-       
-          //make sure everything has been sent 
-          prom.finalize().wait(); 
+                  assert((*remote_ptrs).size()>0);
+                  auto & cell_list_ptr =  (*remote_ptrs)[j-1];
+                  if ( cell_list_ptr == nullptr ) {
+                    //cell list hasn't been allocated yet, need to do it
+                    auto cell_list = new cell_list_t(cell_count);
+                    cell_list_ptr = cell_list;
+                  }
+                  
+                  assert(cell_list_ptr->cells.size() < cell_list_ptr->cells.capacity() );
+                    
+                    //allocate a landing_zone
+                    cell_list_ptr->cells.push_back( std::make_tuple( std::vector<char>(size), size,i, j, nnz, nblocks, width, sender) );
+                    cell_desc_t * descptr;
+                    descptr = &cell_list_ptr->cells.back();
+                    //issue a rget
+                    upcxx::rget(ptr,std::get<0>(*descptr).data(),size).then([&remote_ptrs,j,i,sender]() {
+                        (*remote_ptrs)[j-1]->prom.fulfill_anonymous(1); });
+                  }, cellptr->_gstorage, cellptr->_storage_size,cellptr->nnz(), cellptr->nblocks(), std::get<0>(cellptr->_dims), upcxx::rank_me() , cellptr->i, supid );
+            }
 
-          //wait until we get all the data 
-          cell_list->prom.finalize().wait();
-          if ( M.iam == proot ) {
-            assert ( cell_list->cells.size() == cell_count );
-          } 
-        
-          //everything has been created from this point 
-          if ( M.iam == proot ) {
-            //do the conversion
-            Int I = supid;
-            int fc = this->Xsuper_[I-1];
-            int lc = this->Xsuper_[I]-1;
+            upcxx::future<> fut;
+            //everything has been created from this point 
+            if ( M.iam == proot ) {
+              fut = (*remote_ptrs)[supid-1]->prom.finalize().then([&remote_ptrs,supid,this,cell_desc_comp](){
+              //do the conversion
+              Int I = supid;
+              int fc = this->Xsuper_[I-1];
+              int lc = this->Xsuper_[I]-1;
 
 #ifndef ITREE2
-            globToLocSnodes_.push_back(I-1);
+              this->globToLocSnodes_.push_back(I-1);
 #else 
-            ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
-            globToLocSnodes_.Insert(snode_inter);
+              ITree::Interval snode_inter = { I, I, this->LocalSupernodes_.size() };
+              this->globToLocSnodes_.Insert(snode_inter);
 #endif
-            SuperNode<T> * newSnode = NULL;
+              SuperNode<T> * newSnode = NULL;
 
-                        try{
-            size_t height = 0;
-            size_t nzBlockCnt = 0;
-            
-            std::sort(cell_list->cells.begin(), cell_list->cells.end(), cell_desc_comp );
+              try{
+                size_t height = 0;
+                size_t nzBlockCnt = 0;
 
-            for ( auto & cell: cell_list->cells ) { 
-              std::vector<char> storage;
-              size_t size;
-              int i,j;
-              size_t nnz;
-              size_t nblocks;
-              Idx width;
-              int sender;
-              std::tie( storage, size, i,j, nnz, nblocks, width, sender) = cell;
-              assert(I==j);
-              height += nnz/width;
-              nzBlockCnt += nblocks;
-            }
-            newSnode = CreateSuperNode(this->options_.decomposition,I,fc,fc,lc,height,this->iSize_,nzBlockCnt,this->options_.panel);
-            auto nzval = newSnode->GetNZval(0);
+                std::sort((*remote_ptrs)[supid-1]->cells.begin(), (*remote_ptrs)[supid-1]->cells.end(), cell_desc_comp );
 
-            //now add blocks
-            for ( auto & cell: cell_list->cells ) { 
-              std::vector<char> storage;
-              size_t size;
-              int i,j;
-              size_t nnz;
-              size_t nblocks;
-              Idx width;
-              int sender;
-              std::tie( storage, size, i,j, nnz, nblocks, width, sender) = cell;
-              std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t> snode2D( new typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t(i,j,storage.data(),fc,width,nnz,nblocks));
-//              logfileptr->OFS()<<snode2D->nnz()<<std::endl;
-              auto & blocks = snode2D->blocks();
-              for ( auto & block: blocks ) {
-                newSnode->AddNZBlock(snode2D->block_nrows(block) , block.first_row);
+                for ( auto & cell: (*remote_ptrs)[supid-1]->cells ) { 
+                  std::vector<char> storage;
+                  size_t size;
+                  int i,j;
+                  size_t nnz;
+                  size_t nblocks;
+                  Idx width;
+                  int sender;
+                  std::tie( storage, size, i,j, nnz, nblocks, width, sender) = cell;
+                  assert(I==j);
+                  height += nnz/width;
+                  nzBlockCnt += nblocks;
+                }
+                newSnode = CreateSuperNode(this->options_.decomposition,I,fc,fc,lc,height,this->iSize_,nzBlockCnt,this->options_.panel);
+                auto nzval = newSnode->GetNZval(0);
+
+                //now add blocks
+                for ( auto & cell: (*remote_ptrs)[supid-1]->cells ) { 
+                  std::vector<char> storage;
+                  size_t size;
+                  int i,j;
+                  size_t nnz;
+                  size_t nblocks;
+                  Idx width;
+                  int sender;
+                  std::tie( storage, size, i,j, nnz, nblocks, width, sender) = cell;
+                  std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t> snode2D( new typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t(i,j,storage.data(),fc,width,nnz,nblocks));
+                  auto & blocks = snode2D->blocks();
+                  for ( auto & block: blocks ) {
+                    newSnode->AddNZBlock(snode2D->block_nrows(block) , block.first_row);
+                  }
+                  //now copy numerical values
+                  std::copy(snode2D->_nzval,snode2D->_nzval+nnz,nzval);
+                  nzval+=nnz;
+                }
+
               }
-              //now copy numerical values
-              std::copy(snode2D->_nzval,snode2D->_nzval+nnz,nzval);
-              nzval+=nnz;
+              catch(const MemoryAllocationException & e){
+                std::stringstream sstr;
+                sstr<<"There is not enough memory on the system to allocate the factors. Try to increase GASNET_MAX_SEGSIZE value."<<std::endl;
+                logfileptr->OFS()<<sstr.str();
+                std::cerr<<sstr.str();
+                throw(e);
+              }
+
+              this->LocalSupernodes_.push_back(newSnode);
+              delete (*remote_ptrs)[supid-1];
+              });
+            }
+            else {
+              fut = (*remote_ptrs)[supid-1]->prom.finalize().then([&remote_ptrs,supid](){
+                delete (*remote_ptrs)[supid-1];
+              });
             }
 
-                        }
-                        catch(const MemoryAllocationException & e){
-                          std::stringstream sstr;
-                          sstr<<"There is not enough memory on the system to allocate the factors. Try to increase GASNET_MAX_SEGSIZE value."<<std::endl;
-                          logfileptr->OFS()<<sstr.str();
-                          std::cerr<<sstr.str();
-                          throw(e);
-                        }
-
-            LocalSupernodes_.push_back(newSnode);
+            all_fut = upcxx::when_all( all_fut, fut );
           }
 
-//          upcxx::barrier(); 
-          delete cell_list;
+
         }
+            all_fut.wait();
+        //upcxx::barrier(); 
 
- 
-      }
-      upcxx::barrier(); 
-
-//      logfileptr->OFS()<<sup_mapp<<std::endl;
-//      for( auto p: sup_mapp){ assert(p!=-1); }
+        double timeEnd = get_time();
+        if(this->iam==0){
+          std::cout<<"Conversion to 1D time: "<<timeEnd-timeSta<<std::endl;
+        }
+        //      logfileptr->OFS()<<sup_mapp<<std::endl;
+        //      for( auto p: sup_mapp){ assert(p!=-1); }
 
         //create a Mapping
         //this->Mapping_ has to be updated to reflect the distribution 
-            this->Mapping_->Update(sup_mapp);
-
-        
-            //starting from now, this only concerns the working processors
-    SYMPACK_TIMER_START(Get_UpdateCount);
-    GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_,UpdateHeight_,numBlk_);
-    SYMPACK_TIMER_STOP(Get_UpdateCount);
-
-    return;
-    if(this->iam<this->np){
-
-      {
-        double timeSta = get_time();
-        std::vector<Int> AggregatesToRecv;
-        std::vector<Int> LocalAggregates;
+        this->Mapping_->Update(sup_mapp);
 
 
-        FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
-        generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
+        //starting from now, this only concerns the working processors
+        SYMPACK_TIMER_START(Get_UpdateCount);
+        GetUpdatingSupernodeCount(UpdateCount_,UpdateWidth_,UpdateHeight_,numBlk_);
+        SYMPACK_TIMER_STOP(Get_UpdateCount);
+
+        return;
+        if(this->iam<this->np){
+
           {
+            double timeSta = get_time();
+            std::vector<Int> AggregatesToRecv;
+            std::vector<Int> LocalAggregates;
+
+
+            FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
+            generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
+            {
 #ifdef _MEM_PROFILER_
-          utility::scope_memprofiler m("symPACKMatrix_task_graph");
+              utility::scope_memprofiler m("symPACKMatrix_task_graph");
 #endif
-        generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
-          }
+              generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
+            }
 
 
-        //#define _OUTPUT_TASK_GRAPH_
+            //#define _OUTPUT_TASK_GRAPH_
 #ifdef _OUTPUT_TASK_GRAPH_
-        logfileptr->OFS()<<"tasks: ";
-        for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
-          if((*binit)!=NULL){
-            for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
-              logfileptr->OFS()<<"t_"<<taskit->src_snode_id<<"_"<<taskit->tgt_snode_id<<" ";
-            }
-          }
+            logfileptr->OFS()<<"tasks: ";
+            for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
+              if((*binit)!=NULL){
+                for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
+                  logfileptr->OFS()<<"t_"<<taskit->src_snode_id<<"_"<<taskit->tgt_snode_id<<" ";
+                }
+              }
 
-        }
-        logfileptr->OFS()<<std::endl; 
-        logfileptr->OFS()<<"taskmap: ";
-        for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
-          if((*binit)!=NULL){
-            for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
-              logfileptr->OFS()<<this->iam<<" ";
             }
-          }
-        }
-        logfileptr->OFS()<<std::endl; 
+            logfileptr->OFS()<<std::endl; 
+            logfileptr->OFS()<<"taskmap: ";
+            for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
+              if((*binit)!=NULL){
+                for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
+                  logfileptr->OFS()<<this->iam<<" ";
+                }
+              }
+            }
+            logfileptr->OFS()<<std::endl; 
 #endif
 
-        double timeStop = get_time();
-        if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Task graph generation time: "<<timeStop - timeSta<<std::endl;
+            double timeStop = get_time();
+            if(this->iam==0 && this->options_.verbose){
+              std::cout<<"Task graph generation time: "<<timeStop - timeSta<<std::endl;
+            }
+          }
+          MPI_Barrier(CommEnv_->MPI_GetComm());
         }
-      }
-      MPI_Barrier(CommEnv_->MPI_GetComm());
-    }
 
 
-                logfileptr->OFS()<<"DONE"<<std::endl;
+        logfileptr->OFS()<<"DONE"<<std::endl;
 
       };
 
@@ -561,7 +583,7 @@ upcxx::barrier();
       //TODO Task lists
       Scheduler<std::list<FBTask>::iterator> * scheduler_;
       Scheduler<FBTask> * scheduler2_;
-      
+
       std::shared_ptr< Scheduler< std::shared_ptr<GenericTask> > > scheduler_new_;
 
       //backup for factorization
@@ -652,7 +674,7 @@ upcxx::barrier();
 
 
       template<typename Task>
-      void CheckIncomingMessages_Solve(supernodalTaskGraph<Task> & taskGraph, std::shared_ptr<Scheduler<Task> > scheduler);
+        void CheckIncomingMessages_Solve(supernodalTaskGraph<Task> & taskGraph, std::shared_ptr<Scheduler<Task> > scheduler);
 
 
 

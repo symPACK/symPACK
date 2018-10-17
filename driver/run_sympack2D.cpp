@@ -432,57 +432,57 @@ int main(int argc, char **argv)
 
 
     {
-    auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
-    try{
+      auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
+      try{
 #ifdef _MEM_PROFILER_
-      utility::scope_memprofiler m("symPACK2D");
+        utility::scope_memprofiler m("symPACK2D");
 #endif
-      {
+        {
 #ifdef _MEM_PROFILER_
-      utility::scope_memprofiler m("symPACK2D_symbolic");
+          utility::scope_memprofiler m("symPACK2D_symbolic");
 #endif
-      SMat2D->Init(optionsFact);
-      SMat2D->SymbolicFactorization(HMat);
+          SMat2D->Init(optionsFact);
+          SMat2D->SymbolicFactorization(HMat);
 
 #if 1
-      SMat2D->DistributeMatrix(HMat);
+          SMat2D->DistributeMatrix(HMat);
 #ifdef DUMP_MATLAB
-    if(iam==0){
-      logfileptr->OFS()<<"A2= ";
-    }
-    SMat2D->DumpMatlab();
+          if(iam==0){
+            logfileptr->OFS()<<"A2= ";
+          }
+          SMat2D->DumpMatlab();
 #endif
+#endif
+        }
+
+#if 1
+        //      if ( iam == 0 ) { gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); }
+
+        timeSta = get_time();
+        SMat2D->Factorize();
+        timeEnd = get_time();
+        if(iam==0){
+          std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+        }
+        logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
 #endif
       }
+      catch(const std::bad_alloc& e){
+        std::cout << "Allocation failed: " << e.what() << '\n';
+        SMat2D = nullptr;
+        abort();
+      }
+      catch(const std::runtime_error& e){
+        std::cerr << "Runtime error: " << e.what() << '\n';
+      }
 
-#if 1
-//      if ( iam == 0 ) { gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); }
-
-      timeSta = get_time();
-      SMat2D->Factorize();
-      timeEnd = get_time();
+#ifdef DUMP_MATLAB
       if(iam==0){
-        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+        logfileptr->OFS()<<"L2= ";
       }
-      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+      SMat2D->DumpMatlab();
 #endif
-    }
-    catch(const std::bad_alloc& e){
-      std::cout << "Allocation failed: " << e.what() << '\n';
-      SMat2D = nullptr;
-      abort();
-    }
-catch(const std::runtime_error& e){
-      std::cerr << "Runtime error: " << e.what() << '\n';
-}
-
-#ifdef DUMP_MATLAB
-    if(iam==0){
-      logfileptr->OFS()<<"L2= ";
-    }
-    SMat2D->DumpMatlab();
-#endif
-    SMat = new symPACKMatrix<SCALAR>(*SMat2D);
+      SMat = new symPACKMatrix<SCALAR>(*SMat2D);
     }
 
 ////

@@ -81,14 +81,13 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #include "sympack/mpi_interf.hpp"
 
-#define NEW_GRAPH
 //#define LOCK_SRC 2
 
 #define _COMPACT_DEPENDENCIES_
 
-#define _MEMORY_LIMIT_
+//#define _MEMORY_LIMIT_
+#define _PRIORITY_QUEUE_AVAIL_
 
-#ifdef NEW_GRAPH
 #include <functional>
 
 namespace symPACK{
@@ -138,7 +137,6 @@ namespace std
     }
   };
 }
-#endif  
 
 
 namespace symPACK{
@@ -146,7 +144,6 @@ namespace symPACK{
 
 #ifdef NEW_UPCXX
 
-  //#define _DEBUG_DEPENDENCIES_
 
 
   class blockCellBase_t {
@@ -165,11 +162,7 @@ namespace symPACK{
 
     //(from I, to J,Factorization::op_type, updated first col, facing row));
     using meta_t = std::tuple<Idx,Idx,Factorization::op_type,Idx,Idx>;
-#ifdef _DEBUG_DEPENDENCIES_
-    using depend_t = std::tuple<Int,Int,bool>; //(I,J,satisfied)
-#else
     using depend_t = std::tuple<Int,Int>; //(I,J)
-#endif
 
     template
       < typename tmeta_t = meta_t,
@@ -196,10 +189,6 @@ namespace symPACK{
 
             //in fact we only need the SIZE, the counts
             //TODO REMOVE THIS
-#ifdef _DEBUG_DEPENDENCIES_
-            std::deque< depend_task_t > in_remote_dependencies;
-            std::deque< depend_task_t > in_local_dependencies;
-#endif
             int in_remote_dependencies_cnt;
             int in_local_dependencies_cnt;
 
@@ -292,11 +281,9 @@ namespace symPACK{
       class task_graph_t: public std::unordered_map< bin_label_t,  std::deque< ttask_t * > > {
       };
 
-#ifdef NEW_GRAPH 
     template <typename label_t = key_t, typename ttask_t = task_t<meta_t, depend_t> >
       class task_graph_t2: public std::unordered_map< label_t,  std::unique_ptr<ttask_t> > {
       };
-#endif
 
     template <typename ttask_t = task_t<meta_t, depend_t> , typename ttaskgraph_t = task_graph_t<Int,task_t<meta_t, depend_t> > >
       class Scheduler2D{
@@ -312,11 +299,7 @@ namespace symPACK{
 #else
           std::list<ttask_t*> avail_tasks;
 #endif
-#ifdef _DEBUG_DEPENDENCIES_
-          void execute(ttaskgraph_t & graph, Int * SupMembership );
-#else
           void execute(ttaskgraph_t & graph, double & mem_budget );
-#endif
       };
 
   }
@@ -1636,11 +1619,7 @@ namespace symPACK{
       using SparseTask2D = scheduling::task_t<scheduling::meta_t, scheduling::depend_t>;
 
       public:
-
-
-
-
-
+      std::vector< std::shared_ptr<snodeBlock_t> > localBlocks_;
       int nsuper;
       double mem_budget;
 
@@ -1660,66 +1639,11 @@ namespace symPACK{
         }
       inline std::shared_ptr<snodeBlock_t> pCELL (int a, int b) { return std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))]); }
       inline snodeBlock_t & CELL (int a, int b) { return *pCELL(a,b); }
-//#define pCELL(a,b) (std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))]))
-//#define CELL(a,b) (*pCELL((a),(b)))
 
       //TODO implement this
       //auto idx2coord = [nsuper](Int idx){ return 0; };
 
-#ifndef NEW_GRAPH
-      SparseTask2D * task_lookup(Int cellI_, Int cellJ_, Int I_, Int J_, Int K_, Factorization::op_type type_){
-        scope_timer(a,symPACKMatrix2D::task_lookup);
-        static std::unordered_map< Factorization::op_type , SparseTask2D * > last_ptr;
-
-
-        //first check last_ptr
-        auto last_it = last_ptr.find(type_);
-        if ( last_it != last_ptr.end() ) {
-          //auto meta = reinterpret_cast<SparseTask2D::meta_t*>( last_it->second->meta.data() );
-          auto meta = &last_it->second->_meta;
-          auto & src_snode = std::get<0>(meta[0]);
-          auto & tgt_snode = std::get<1>(meta[0]);
-          auto & facing_row = std::get<4>(meta[0]);
-          auto K = this->SupMembership_[facing_row-1];
-          auto & type = std::get<2>(meta[0]);
-
-          bassert(type==type_);
-
-          if( (src_snode == I_) && (tgt_snode == J_) && ( K == K_) ){
-            return last_it->second;
-          }
-        }
-
-        auto idx = coord2supidx(cellI_-1,cellJ_-1);
-        auto it = std::find_if(this->task_graph[idx].begin(),this->task_graph[idx].end(),
-            [I_,J_,K_,type_,this]( SparseTask2D * ptask)->bool{
-            auto meta = &ptask->_meta;
-            //auto meta = reinterpret_cast<SparseTask2D::meta_t*>(ptask->meta.data());
-            auto & src_snode = std::get<0>(meta[0]);
-            auto & tgt_snode = std::get<1>(meta[0]);
-            auto & facing_row = std::get<4>(meta[0]);
-            auto K = this->SupMembership_[facing_row-1];
-            auto & type = std::get<2>(meta[0]);
-            return (src_snode == I_) && (tgt_snode == J_) && (K == K_) && (type == type_) ;
-            });
-
-        if (it!=this->task_graph[idx].end()){
-          //backup
-          last_ptr[type_] = *it;
-          return *it;
-        }
-        else{
-          return (SparseTask2D*)nullptr;
-        }
-      };
-
-#endif
-
-
-
-
       protected:
-      //std::unordered_map<Int, snodeBlock_t > cells_;
       std::unordered_map<Int, std::shared_ptr<blockCellBase_t> > cells_;
 
 
@@ -1734,11 +1658,7 @@ namespace symPACK{
 #ifndef NO_MPI
 #endif
       public:
-#ifndef NEW_GRAPH
-      using TaskGraph2D = scheduling::task_graph_t<Int,SparseTask2D>; 
-#else
       using TaskGraph2D = scheduling::task_graph_t2<scheduling::key_t,SparseTask2D >; 
-#endif
       TaskGraph2D task_graph;
       scheduling::Scheduler2D<SparseTask2D,TaskGraph2D> scheduler;
 
@@ -2720,8 +2640,6 @@ namespace symPACK{
                 groupIdx_[I] = groupIdx_[parent];
               }
             }
-
-
           }
 
           std::vector<std::vector<double>> group_load(nsuper);
@@ -2776,6 +2694,9 @@ namespace symPACK{
               std::shared_ptr<blockCellBase_t> sptr(nullptr);
               if ( p == iam ) {
                 sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
+                
+                this->localBlocks_.push_back(std::static_pointer_cast<snodeBlock_t>(sptr));
+
 //logfileptr->OFS()<<" orig2 : S"<<sptr->j <<" -> "<<((snodeBlock_t*)sptr.get())->nnz()<<" vs. "<<nnz<<std::endl;
               }
               else {
@@ -2790,6 +2711,9 @@ namespace symPACK{
           }
 
 
+          std::sort(this->localBlocks_.begin(),this->localBlocks_.end(),[](std::shared_ptr<snodeBlock_t> & a, std::shared_ptr<snodeBlock_t> & b){
+              return a->j < b->j || (a->i < b->i &&  a->j == b->j ) ; 
+              });
 
 #else
 
@@ -2891,7 +2815,6 @@ namespace symPACK{
           //tuple is: src_snode,tgt_snode,op_type,lt_first_row = updated fc, facing_first_row = updated fr,
           std::map<Idx, std::list< SparseTask2D::meta_t> > Updates;
           std::vector<int> marker(this->np,0);
-
           std::vector< std::map< Idx, std::pair<Idx,std::set<Idx> > > > updCnt(this->Xsuper_.size() -1 );
 
           Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
@@ -2908,7 +2831,6 @@ namespace symPACK{
 
             //Create the factor task on the owner
             Updates[iOwner].push_back(std::make_tuple(I,I,Factorization::op_type::FACTOR,first_col,first_col));
-
 
             Ptr lfi = this->locXlindx_[locsupno-1];
             Ptr lli = this->locXlindx_[locsupno]-1;
@@ -2932,13 +2854,11 @@ namespace symPACK{
             for(auto J_row : ancestor_rows){
               Int J = this->SupMembership_[J_row-1];
 
-              auto & fodcell = CELL(J-1,I-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(J-1,I-1)]);
-              //auto & fodcell = cells_[coord2supidx(J-1,I-1)];
+              auto & fodcell = CELL(J-1,I-1);
               Int iFODOwner = fodcell.owner;
 
               Updates[iOwner].push_back(std::make_tuple(I,I,Factorization::op_type::TRSM_SEND,J_row,J_row));
               Updates[iFODOwner].push_back(std::make_tuple(I,I,Factorization::op_type::TRSM_RECV,J_row,J_row));
-
               Updates[iFODOwner].push_back(std::make_tuple(I,I,Factorization::op_type::TRSM,J_row,J_row));
 
               //add the UPDATE_SEND from FODOwner tasks
@@ -2946,8 +2866,7 @@ namespace symPACK{
                 K = this->SupMembership_[K_row-1];
 
                 if(K>=J){
-                  auto & tgtupdcell = CELL(K-1,J-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(K-1,J-1)]);
-                  //auto & tgtupdcell = cells_[coord2supidx(K-1,J-1)];
+                  auto & tgtupdcell = CELL(K-1,J-1);
                   Int iTgtOwner = tgtupdcell.owner;
                   //TODO update this for non fan-out mapping
                   Int iUpdOwner = tgtupdcell.owner;
@@ -2958,14 +2877,12 @@ namespace symPACK{
                 }
 
                 if(K<=J){
-                  auto & tgtupdcell = CELL(J-1,K-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(J-1,K-1)]);
-                  //auto & tgtupdcell = cells_[coord2supidx(J-1,K-1)];
+                  auto & tgtupdcell = CELL(J-1,K-1);
                   Int iTgtOwner = tgtupdcell.owner;
                   //TODO update this for non fan-out mapping
                   Int iUpdOwner = tgtupdcell.owner;
 
-                  auto & facingcell = CELL(J-1,I-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(J-1,I-1)]);
-                  //auto & facingcell = cells_[coord2supidx(J-1,I-1)];
+                  auto & facingcell = CELL(J-1,I-1);
                   Int iFacingOwner = facingcell.owner;
 
                   //sender point of view
@@ -2978,15 +2895,13 @@ namespace symPACK{
               for(auto K_row : ancestor_rows){
                 K = this->SupMembership_[K_row-1];
                 if(K>=J){
-                  auto & tgtupdcell = CELL(K-1,J-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(K-1,J-1)]);
-                  //auto & tgtupdcell = cells_[coord2supidx(K-1,J-1)];
+                  auto & tgtupdcell = CELL(K-1,J-1);
                   Int iTgtOwner = tgtupdcell.owner;
                   //TODO update this for non fan-out mapping
                   Int iUpdOwner = tgtupdcell.owner;
 
                   //update on cell(K,J)
                   Updates[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::UPDATE2D_COMP,J_row,K_row));
-
                   //cell(K,J) to cell (K,J)
                   Updates[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::AGGREGATE2D_SEND,J_row,K_row));
                   Updates[iTgtOwner].push_back(std::make_tuple(I,J,Factorization::op_type::AGGREGATE2D_RECV,J_row,K_row));
@@ -2995,11 +2910,10 @@ namespace symPACK{
             }
           }
 
-
           //then do an alltoallv
           //compute send sizes
           for(auto itp = Updates.begin();itp!=Updates.end();itp++){
-            ssizes[itp->first] = itp->second.size();//*sizeof(std::pair<Idx,Idx>);
+            ssizes[itp->first] = itp->second.size();
           }
 
           //compute send displacements
@@ -3012,10 +2926,7 @@ namespace symPACK{
           for(auto itp = Updates.begin();itp!=Updates.end();itp++){
             sendbuf.insert(sendbuf.end(),itp->second.begin(),itp->second.end());
           }
-
         }
-
-
 
         //gather receive sizes
         vector<int> rsizes(this->np,0);
@@ -3029,7 +2940,6 @@ namespace symPACK{
         //Now do the alltoallv
         vector<SparseTask2D::meta_t> recvbuf(rdispls.back());
         MPI_Alltoallv(&sendbuf[0],&ssizes[0],&sdispls[0],type,&recvbuf[0],&rsizes[0],&rdispls[0],type,this->workcomm_);
-
         MPI_Type_free(&type);
 
         //clear the send buffer
@@ -3037,8 +2947,6 @@ namespace symPACK{
           vector<SparseTask2D::meta_t> tmp;
           sendbuf.swap( tmp );
         }
-
-
 
         //do a top down traversal of my local task list
         for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
@@ -3065,41 +2973,9 @@ namespace symPACK{
               break;
           }
 
-
           auto I = src_snode;
           auto J = tgt_snode;
-#ifndef NEW_GRAPH
-          switch(type){
-            case Factorization::op_type::TRSM:
-              {
-                auto J = this->SupMembership_[facing_first_row-1];
-#ifdef _VERBOSE_
-                logfileptr->OFS()<<"TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<J<<","<<I<<")"<<std::endl;
-#endif
-                this->task_graph[coord2supidx(J-1,I-1)].push_back(ptask);
-              }
-              break;
-            case Factorization::op_type::FACTOR:
-              {
-#ifdef _VERBOSE_
-                logfileptr->OFS()<<"FACTOR"<<" cell ("<<J<<","<<I<<")"<<std::endl;
-#endif
-                this->task_graph[coord2supidx(I-1,I-1)].push_back(ptask);
-              }
-              break;
-            case Factorization::op_type::UPDATE2D_COMP:
-              {
-                auto K = this->SupMembership_[facing_first_row-1];
-#ifdef _VERBOSE_
-                logfileptr->OFS()<<"UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
-#endif
-                this->task_graph[coord2supidx(K-1,J-1)].push_back(ptask);
-              }
-              break;
-            default:
-              break;
-          }
-#else
+
           if(ptask!=nullptr){
             scheduling::key_t key(this->SupMembership_[std::get<4>(cur_op)-1], std::get<1>(cur_op), std::get<0>(cur_op), std::get<2>(cur_op));
 
@@ -3153,8 +3029,6 @@ namespace symPACK{
               break;
           }
 #endif
-
-#endif
         }
 
         //return;
@@ -3176,23 +3050,15 @@ namespace symPACK{
             case Factorization::op_type::TRSM_SEND:
               {
                 auto J = this->SupMembership_[facing_first_row-1];
-#ifndef NEW_GRAPH
-                auto taskptr = task_lookup(I,I,I,I,I,Factorization::op_type::FACTOR);
-#else
                 auto taskptr = task_graph[scheduling::key_t(I,I,I,Factorization::op_type::FACTOR)].get();
-#endif
                 bassert(taskptr!=nullptr); 
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"TRSM_SEND"<<" from "<<I<<" to "<<I<<" cell ("<<J<<","<<I<<")"<<std::endl;
 #endif
-#ifdef _DEBUG_DEPENDENCIES_
-                taskptr->out_dependencies.push_back( std::make_tuple(J,I,false) );
-#else
 #ifdef _COMPACT_DEPENDENCIES_
                 taskptr->out_dependencies.push_back( J );
 #else
                 taskptr->out_dependencies.push_back( std::make_tuple(J,I) );
-#endif
 #endif
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep added to FACTOR"<<" from "<<I<<" to "<<I<<std::endl;
@@ -3204,28 +3070,15 @@ namespace symPACK{
                 auto J = this->SupMembership_[facing_first_row-1];
 
                 //find the TRSM and add cell I,I as incoming dependency
-#ifndef NEW_GRAPH
-                auto taskptr = task_lookup(J,I,I,I,J,Factorization::op_type::TRSM);
-#else
                 auto taskptr = task_graph[scheduling::key_t(J,I,I,Factorization::op_type::TRSM)].get();
-#endif
                 bassert(taskptr!=nullptr); 
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"TRSM_RECV"<<" from "<<I<<" to "<<I<<" cell ("<<J<<","<<I<<")"<<std::endl;
 #endif
-#ifdef _DEBUG_DEPENDENCIES_
                 if (  CELL(J-1,I-1).owner != CELL(I-1,I-1).owner )
-                  taskptr->in_remote_dependencies.push_back( std::make_tuple(I,I,false) );
-                else
-                  taskptr->in_local_dependencies.push_back( std::make_tuple(I,I,false) );
-#else
-                if (  CELL(J-1,I-1).owner != CELL(I-1,I-1).owner )
-//                  taskptr->in_remote_dependencies.push_back( std::make_tuple(I,I) );
                   taskptr->in_remote_dependencies_cnt++;
                 else
-//                  taskptr->in_local_dependencies.push_back( std::make_tuple(I,I) );
                   taskptr->in_local_dependencies_cnt++;
-#endif
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        in dep added to TRSM"<<" from "<<I<<" to "<<I<<std::endl;
 #endif
@@ -3240,36 +3093,18 @@ namespace symPACK{
 #endif
                 //find the FACTOR or TRSM and add cell K,J as incoming dependency
                 if(K==J){
-#ifndef NEW_GRAPH
-                  auto taskptr = task_lookup(K,J,J,J,J,Factorization::op_type::FACTOR);
-#else
                   auto taskptr = task_graph[scheduling::key_t(J,J,J,Factorization::op_type::FACTOR)].get();
-#endif
                   bassert(taskptr!=nullptr); 
 
-#ifdef _DEBUG_DEPENDENCIES_
-                  taskptr->in_local_dependencies.push_back( std::make_tuple(K,J,false) );
-#else
-                  //taskptr->in_local_dependencies.push_back( std::make_tuple(K,J) );
                   taskptr->in_local_dependencies_cnt++;
-#endif
 #ifdef _VERBOSE_
                   logfileptr->OFS()<<"        in dep added to FACTOR"<<" from "<<J<<" to "<<J<<std::endl;
 #endif
                 }
                 else{
-#ifndef NEW_GRAPH
-                  auto taskptr = task_lookup(K,J,J,J,K,Factorization::op_type::TRSM);
-#else
                   auto taskptr = task_graph[scheduling::key_t(K,J,J,Factorization::op_type::TRSM)].get();
-#endif
                   bassert(taskptr!=nullptr); 
-#ifdef _DEBUG_DEPENDENCIES_
-                  taskptr->in_local_dependencies.push_back( std::make_tuple(K,J,false) );
-#else
-                  //taskptr->in_local_dependencies.push_back( std::make_tuple(K,J) );
                   taskptr->in_local_dependencies_cnt++;
-#endif
 #ifdef _VERBOSE_
                   logfileptr->OFS()<<"        in dep added to TRSM"<<" from "<<J<<" to "<<J<<std::endl;
 #endif
@@ -3285,16 +3120,9 @@ namespace symPACK{
                 logfileptr->OFS()<<"AGGREGATE2D_SEND"<<" from "<<I<<" to "<<J<<" cell ("<<K<<","<<J<<") to cell("<<K<<","<<J<<")"<<std::endl;
 #endif
                 //find the UPDATE2D_COMP and add cell K,J as outgoing dependency
-#ifndef NEW_GRAPH
-                auto taskptr = task_lookup(K,J,I,J,K,Factorization::op_type::UPDATE2D_COMP);
-#else
                 auto taskptr = task_graph[scheduling::key_t(K,J,I,Factorization::op_type::UPDATE2D_COMP)].get();
-#endif
                 bassert(taskptr!=nullptr); 
 
-#ifdef _DEBUG_DEPENDENCIES_
-                taskptr->out_dependencies.push_back( std::make_tuple(K,J,false) );
-#else
 
 #ifdef _COMPACT_DEPENDENCIES_
                 taskptr->out_dependencies.push_back( J );
@@ -3302,7 +3130,6 @@ namespace symPACK{
                 taskptr->out_dependencies.push_back( std::make_tuple(K,J) );
 #endif
 
-#endif
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep added to UPDATE_COMP"<<" from "<<I<<" to "<<J<<std::endl;
 #endif
@@ -3318,25 +3145,13 @@ namespace symPACK{
                 logfileptr->OFS()<<"UPDATE_RECV"<<" from "<<I<<" to "<<K<<" cell ("<<J<<","<<I<<") to cell ("<<J<<","<<K<<")"<<std::endl;
 #endif
                 //find the UPDATE2D_COMP and add cell J,I as incoming dependency
-#ifndef NEW_GRAPH
-                auto taskptr = task_lookup(J,K,I,K,J,Factorization::op_type::UPDATE2D_COMP);
-#else
                 auto taskptr = task_graph[scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP)].get();
-#endif
                 bassert(taskptr!=nullptr);
-#ifdef _DEBUG_DEPENDENCIES_
+
                 if (  CELL(J-1,I-1).owner != CELL(J-1,K-1).owner )
-                  taskptr->in_remote_dependencies.push_back( std::make_tuple(J,I,false) );
-                else
-                  taskptr->in_local_dependencies.push_back( std::make_tuple(J,I,false) );
-#else
-                if (  CELL(J-1,I-1).owner != CELL(J-1,K-1).owner )
-//                  taskptr->in_remote_dependencies.push_back( std::make_tuple(J,I) );
                   taskptr->in_remote_dependencies_cnt++;
                 else
-//                  taskptr->in_local_dependencies.push_back( std::make_tuple(J,I) );
                   taskptr->in_local_dependencies_cnt++;
-#endif
 
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        in dep added to UPDATE_COMP"<<" from "<<I<<" to "<<K<<std::endl;
@@ -3351,20 +3166,12 @@ namespace symPACK{
                 logfileptr->OFS()<<"UPDATE_SEND"<<" from "<<I<<" to "<<K<<" cell ("<<J<<","<<I<<") to cell ("<<J<<","<<K<<")"<<std::endl;
 #endif
                 //find the TRSM and add cell J,K as outgoing dependency
-#ifndef NEW_GRAPH
-                auto taskptr = task_lookup(J,I,I,I,J,Factorization::op_type::TRSM);
-#else
                 auto taskptr = task_graph[scheduling::key_t(J,I,I,Factorization::op_type::TRSM)].get();
-#endif
                 bassert(taskptr!=nullptr); 
-#ifdef _DEBUG_DEPENDENCIES_
-                taskptr->out_dependencies.push_back( std::make_tuple(J,K,false) );
-#else
 #ifdef _COMPACT_DEPENDENCIES_
                 taskptr->out_dependencies.push_back( K );
 #else
                 taskptr->out_dependencies.push_back( std::make_tuple(J,K) );
-#endif
 #endif
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep added to TRSM"<<" from "<<I<<" to "<<I<<std::endl;
@@ -3379,21 +3186,13 @@ namespace symPACK{
 #endif
 
                 //find the TRSM and add cell K,J as outgoing dependency
-#ifndef NEW_GRAPH
-                auto taskptr = task_lookup(J,I,I,I,J,Factorization::op_type::TRSM);
-#else
                 auto taskptr = task_graph[scheduling::key_t(J,I,I,Factorization::op_type::TRSM)].get();
-#endif
 
                 bassert(taskptr!=nullptr); 
-#ifdef _DEBUG_DEPENDENCIES_
-                taskptr->out_dependencies.push_back( std::make_tuple(K,J,false) );
-#else
 #ifdef _COMPACT_DEPENDENCIES_
                 taskptr->out_dependencies.push_back( -K );
 #else
                 taskptr->out_dependencies.push_back( std::make_tuple(K,J) );
-#endif
 #endif
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep DOWN added to TRSM"<<" from "<<I<<" to "<<I<<std::endl;
@@ -3408,26 +3207,13 @@ namespace symPACK{
 #endif
 
                 //find the UPDATE2D_COMP and add cell J,I as incoming dependency
-#ifndef NEW_GRAPH
-                auto taskptr = task_lookup(K,J,I,J,K,Factorization::op_type::UPDATE2D_COMP);
-#else
                 auto taskptr = task_graph[scheduling::key_t(K,J,I,Factorization::op_type::UPDATE2D_COMP)].get();
-#endif
 
                 bassert(taskptr!=nullptr);
-#ifdef _DEBUG_DEPENDENCIES_
                 if (  CELL(J-1,I-1).owner != CELL(K-1,J-1).owner )
-                  taskptr->in_remote_dependencies.push_back( std::make_tuple(J,I,false) );
-                else
-                  taskptr->in_local_dependencies.push_back( std::make_tuple(J,I,false) );
-#else
-                if (  CELL(J-1,I-1).owner != CELL(K-1,J-1).owner )
-//                  taskptr->in_remote_dependencies.push_back( std::make_tuple(J,I) );
                   taskptr->in_remote_dependencies_cnt++;
                 else
-//                  taskptr->in_local_dependencies.push_back( std::make_tuple(J,I) );
                   taskptr->in_local_dependencies_cnt++;
-#endif
 
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        in dep DOWN added to UPDATE2D_COMP"<<" from "<<I<<" to "<<J<<std::endl;
@@ -3437,504 +3223,9 @@ namespace symPACK{
             default:
               break;
           }
-
         }
-
 
         scheduler.sp_handle = this->sp_handle;
-
-#ifndef NEW_GRAPH
-        //Now we have our local part of the task graph
-        for(auto it = this->task_graph.begin(); it != this->task_graph.end(); it++){
-          auto idx = it->first;
-          auto tasklist = it->second;
-
-          for( auto && ptask: tasklist){
-            auto meta = &ptask->_meta;
-            auto & src_snode = std::get<0>(meta[0]);
-            auto & tgt_snode = std::get<1>(meta[0]);
-            auto & lt_first_row = std::get<3>(meta[0]);
-            auto & facing_row = std::get<4>(meta[0]);
-            auto & type = std::get<2>(meta[0]);
-
-            auto I = src_snode;
-            auto J = tgt_snode;
-            auto K = this->SupMembership_[facing_row-1];
-
-#if 0
-            switch(type){
-              case Factorization::op_type::TRSM:
-                {
-                  logfileptr->OFS()<<"TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
-                }
-                break;
-              case Factorization::op_type::FACTOR:
-                {
-                  logfileptr->OFS()<<"FACTOR"<<" cell ("<<I<<","<<I<<")"<<std::endl;
-                }
-                break;
-              case Factorization::op_type::UPDATE2D_COMP:
-                {
-                  logfileptr->OFS()<<"UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
-                }
-                break;
-              default:
-                delete ptask;
-                break;
-            }
-
-            logfileptr->OFS()<<"      local input dependencies: ";
-            for(auto &&tpl : ptask->in_local_dependencies){
-              logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<") ";
-            }
-            logfileptr->OFS()<<std::endl;
-            logfileptr->OFS()<<"      remote input dependencies: ";
-            for(auto &&tpl : ptask->in_remote_dependencies){
-              logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<") ";
-            }
-            logfileptr->OFS()<<std::endl;
-            logfileptr->OFS()<<"      output dependencies: ";
-            for(auto &&tpl : ptask->out_dependencies){
-              logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<") ";
-            }
-            logfileptr->OFS()<<std::endl;
-#endif
-
-            //            ptask->dep_count = ptask->in_dependencies.size();      
-
-            auto remote_deps = ptask->in_remote_dependencies_cnt;
-            auto local_deps = ptask->in_local_dependencies_cnt;
-
-            ptask->in_prom.require_anonymous(local_deps + remote_deps);
-            ptask->in_avail_prom.require_anonymous(remote_deps);
-
-            auto fut_comm = ptask->in_avail_prom.finalize();
-            if (remote_deps >0 ) {
-              fut_comm.then([this,ptask](){
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                  this->scheduler.avail_tasks.push(ptask);
-#else
-                  this->scheduler.avail_tasks.push_back(ptask);
-#endif
-                  });
-            }
-            //fulfill the promise by one to "unlock" that promise
-            //ptask->in_avail_prom->fulfill_anonymous(1);
-
-            //do not fulfill it to lock the tasks
-            //auto fut = ptask->in_prom->get_future();
-            auto fut = ptask->in_prom.finalize();
-            fut.then([this,ptask](){
-                this->scheduler.ready_tasks.push_back(ptask);
-                });
-          }
-        }
-
-        for(auto it = this->task_graph.begin(); it != this->task_graph.end(); it++){
-          auto idx = it->first;
-          auto tasklist = it->second;
-
-          for( auto && ptask: tasklist){
-            auto meta = &ptask->_meta;
-            auto & src_snode = std::get<0>(meta[0]);
-            auto & tgt_snode = std::get<1>(meta[0]);
-            auto & lt_first_row = std::get<3>(meta[0]);
-            auto & facing_row = std::get<4>(meta[0]);
-            auto & type = std::get<2>(meta[0]);
-
-            auto I = src_snode;
-            auto J = tgt_snode;
-            auto K = this->SupMembership_[facing_row-1];
-
-            switch(type){
-              case Factorization::op_type::FACTOR:
-                {
-                  ptask->execute = [this,src_snode,ptask,I,J,K] () {
-                    scope_timer(b,FB_FACTOR_DIAG_TASK);
-//            utility::scope_memprofiler2 m("symPACKMatrix_factorization",1);
-                    auto & diagcell = CELL(I-1,I-1);
-                    bassert( diagcell.owner == this->iam);
-
-#ifdef SP_THREADS
-                    std::thread::id tid = std::this_thread::get_id();
-                    auto & tmpBuf = tmpBufs_th[tid];
-#else
-                    auto & tmpBuf = tmpBufs;
-#endif
-                    diagcell.factorize(tmpBuf);
-
-                    std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
-                    for (auto &tpl : ptask->out_dependencies) {
-                      auto tgt_i = std::get<0>(tpl);
-                      auto tgt_j = std::get<1>(tpl);
-                      auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);
-                      //add this cell to the list of cells depending on diagcell for the TRSM task(s)
-                      data_to_send[tgt_cell.owner].push_back(tpl);
-                    }
-
-                    //send factor and update local tasks
-                    //ptask->out_prom->require_anonymous(data_to_send.size());
-                    for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
-                      auto pdest = it->first;
-                      auto & tgt_cells = it->second;
-                      //serialize data once, and list of meta data
-                      //factor is output data so it will not be deleted
-                      if ( pdest != this->iam ) {
-                        auto cxs = upcxx::source_cx::as_buffered() | upcxx::source_cx::as_promise(ptask->out_prom);
-#if 1
-                        upcxx::rpc_ff( pdest, /*cxs,*/ 
-                            [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
-                            //gdb_lock();
-                            //store pointer & associated metadata somewhere
-                            auto data = std::make_shared<SparseTask2D::data_t >();
-                            data->in_meta = meta;
-                            data->size = storage_size;
-                            data->remote_gptr = gptr;
-
-                            //there is a map between sp_handle and task_graphs
-                            auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
-
-                            for ( auto & tgt_cell: target_cells) {
-                            auto tgt_i = std::get<0>(tgt_cell);
-                            auto tgt_j = std::get<1>(tgt_cell);
-                            auto taskptr = matptr->task_lookup(tgt_i,tgt_j,tgt_j,tgt_j,tgt_i,Factorization::op_type::TRSM);
-                            taskptr->input_msg.push_back(data);
-                            data->target_tasks.push_back(taskptr);
-                            taskptr->in_avail_prom.fulfill_anonymous(1);
-
-#ifdef _DEBUG_DEPENDENCIES_
-                            auto it = std::find(taskptr->in_remote_dependencies.begin(),taskptr->in_remote_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                            if (it!=taskptr->in_remote_dependencies.end()) {
-                              std::get<2>(*it) = true;
-                            }
-#endif
-
-                            }
-
-                            auto I = std::get<1>(meta);
-                            rowind_t fc = matptr->Xsuper_[I-1];
-
-                            data->on_fetch.get_future().then(
-                                [fc,width,nnz,nblocks,I](SparseTask2D::data_t * pdata){
-                                //create snodeBlock_t and store it in the extra_data
-                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                //pdata->extra_data = (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks);
-                                });
-
-                            }, this->sp_handle, diagcell._gstorage, diagcell._storage_size, diagcell.nnz(), diagcell.nblocks(), std::get<0>(diagcell._dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
-#endif
-                      }
-                      else {
-                        for ( auto & tgt_cell: tgt_cells ) {
-                          auto tgt_i = std::get<0>(tgt_cell);
-                          auto tgt_j = std::get<1>(tgt_cell);
-                          bassert(I==tgt_j);
-                          auto taskptr = task_lookup(tgt_i,tgt_j,tgt_j,tgt_j,tgt_i,Factorization::op_type::TRSM);
-                          bassert(taskptr!=nullptr); 
-                          //mark the dependency as satisfied
-#ifdef _DEBUG_DEPENDENCIES_
-                          auto it = std::find(taskptr->in_local_dependencies.begin(),taskptr->in_local_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                          if (it!=taskptr->in_local_dependencies.end()) {
-                            std::get<2>(*it) = true;
-                          }
-#endif
-                          taskptr->in_prom.fulfill_anonymous(1);
-                        }
-                      }
-                    }
-
-                    //the task pointed by ptask can be deleted when all outgoing communications have been performed.
-                    auto fut = ptask->out_prom.finalize();
-                    fut.wait();
-                    //TODO what do do with the task OR return a future
-                    ptask->executed = true;
-                  };
-                }
-                break;
-              case Factorization::op_type::TRSM:
-                {
-                  ptask->execute = [this,src_snode,tgt_snode,ptask,I,J,K] () {
-                    scope_timer(b,FB_TRSM_TASK);
-//            utility::scope_memprofiler2 m("symPACKMatrix_trsm",1);
-
-                    //logfileptr->OFS()<<"Exec TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
-
-                    auto & od_cell = CELL(K-1,I-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(tgt_snode-1,src_snode-1)]);
-                    //auto & od_cell = cells_[coord2supidx(tgt_snode-1,src_snode-1)];
-                    bassert( od_cell.owner == this->iam);
-
-#ifdef SP_THREADS
-                    std::thread::id tid = std::this_thread::get_id();
-                    auto & tmpBuf = tmpBufs_th[tid];
-#else
-                    auto & tmpBuf = tmpBufs;
-#endif
-
-                    //input data is one or 0 (local diagonal block)
-                    bassert(ptask->input_msg.size()<=1);
-                    auto ptr_diagCell = pCELL(I-1,I-1).get(); 
-                    if ( ptr_diagCell->owner != this->iam ){
-                      //gdb_lock();
-                      ptr_diagCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
-                      //ptr_diagCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data);
-//                      m.pstate->overhead_mb += ptask->input_msg.begin()->get()->size  / 1024./ m.pstate->divider; 
-                    }
-                    bassert(ptr_diagCell!=NULL);
-
-
-                    od_cell.trsm(*ptr_diagCell,tmpBuf);
-
-                    //get rid of the shared_ptr
-                    ptask->input_msg.clear();
-
-                    //send this to the all facing blocks (tgt_snode-1,*) and off diagonal blocks (*,tgt_snode-1)
-                    std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
-                    for (auto &tpl : ptask->out_dependencies) {
-                      auto tgt_i = std::get<0>(tpl);
-                      auto tgt_j = std::get<1>(tpl);
-                      auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(tgt_i-1,tgt_j-1)]);
-                      data_to_send[tgt_cell.owner].push_back(tpl);
-                    }
-
-
-                    //send factor and update local tasks
-                    //                    ptask->out_prom->require_anonymous(data_to_send.size());
-                    for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
-                      auto pdest = it->first;
-                      auto & tgt_cells = it->second;
-                      //serialize data once, and list of meta data
-                      //factor is output data so it will not be deleted
-                      if ( pdest != this->iam ) {
-                        auto cxs = upcxx::source_cx::as_buffered() | upcxx::source_cx::as_promise(ptask->out_prom);
-#if 1
-                        upcxx::rpc_ff( pdest, //cxs, 
-                            [K,I] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
-                            //                            gdb_lock();
-                            //store pointer & associated metadata somewhere
-                            auto data = std::make_shared<SparseTask2D::data_t >();
-                            data->in_meta = meta;
-                            data->size = storage_size;
-                            data->remote_gptr = gptr;
-                            //there is a map between sp_handle and task_graphs
-                            auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
-                            for ( auto & tgt_cell: target_cells) {
-                            auto tgt_i = std::get<0>(tgt_cell);
-                            auto tgt_j = std::get<1>(tgt_cell);
-
-                            auto taskptr = matptr->task_lookup(tgt_i,tgt_j,I,tgt_j,tgt_i,Factorization::op_type::UPDATE2D_COMP);
-                            taskptr->input_msg.push_back(data);
-                            data->target_tasks.push_back(taskptr);
-                            taskptr->in_avail_prom.fulfill_anonymous(1);
-
-#ifdef _DEBUG_DEPENDENCIES_
-                            auto it = std::find(taskptr->in_remote_dependencies.begin(),taskptr->in_remote_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                            if (it!=taskptr->in_remote_dependencies.end()) {
-                              std::get<2>(*it) = true;
-                            }
-#endif
-                            }
-
-                            //auto I = std::get<1>(meta);
-                            rowind_t fc = matptr->Xsuper_[I-1];
-                            data->on_fetch.get_future().then(
-                                [fc,width,nnz,nblocks,K,I](SparseTask2D::data_t * pdata){
-                                //create snodeBlock_t and store it in the extra_data
-                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                }
-                                );
-
-                            }, this->sp_handle, od_cell._gstorage,od_cell._storage_size, od_cell.nnz(),od_cell.nblocks(), std::get<0>(od_cell._dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
-#endif
-                      }
-                      else {
-                        for ( auto & tgt_cell: tgt_cells ) {
-                          auto tgt_i = std::get<0>(tgt_cell);
-                          auto tgt_j = std::get<1>(tgt_cell);
-
-                          bassert(K==tgt_i || K==tgt_j); // K is either facing or pivot row
-
-                          auto taskptr = task_lookup(tgt_i,tgt_j,I,tgt_j,tgt_i,Factorization::op_type::UPDATE2D_COMP);
-                          bassert(taskptr!=nullptr); 
-#ifdef _DEBUG_DEPENDENCIES_
-                          auto it = std::find(taskptr->in_local_dependencies.begin(),taskptr->in_local_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                          if (it!=taskptr->in_local_dependencies.end()) {
-                            std::get<2>(*it) = true;
-                          }
-#endif
-                          taskptr->in_prom.fulfill_anonymous(1);
-
-                        }
-                      }
-                    }
-
-                    //the task pointed by ptask can be deleted when all outgoing communications have been performed.
-                    auto fut = ptask->out_prom.finalize();
-                    fut.wait();
-
-                    ptask->executed = true;
-                  };
-                }
-                break;
-              case Factorization::op_type::UPDATE2D_COMP:
-                {
-                  ptask->execute = [this,src_snode,ptask,I,J,K] () {
-                    scope_timer(b,FB_UPDATE2D_TASK);
-//                    utility::scope_memprofiler2 m("symPACKMatrix_update",1);
-                    static std::map< std::tuple<int,int>, bool > block_used_update; 
-
-                    auto & upd_cell = CELL(K-1,J-1);
-
-#ifdef SP_THREADS
-                    std::thread::id tid = std::this_thread::get_id();
-                    auto & tmpBuf = tmpBufs_th[tid];
-#else
-                    auto & tmpBuf = tmpBufs;
-#endif
-
-                    //TODO do something
-                    //input data should be at most two
-
-                    bassert(ptask->input_msg.size()<=2);
-
-                    auto ptr_odCell = pCELL(J-1,I-1).get(); 
-                    if ( ptr_odCell->owner != this->iam ){
-                      ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
-//                      ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data);
-//                      auto it = block_used_update.find( std::make_tuple(J,I) ) ;
-//                      if ( it == block_used_update.end() ) {
-//                        block_used_update[std::make_tuple(J,I)] = true;
-//                        m.pstate->overhead_mb += ptask->input_msg.begin()->get()->size  / 1024./ m.pstate->divider; 
-//                      }
-
-                    }
-                    bassert(ptr_odCell!=NULL);
-
-                    auto ptr_facingCell = pCELL(K-1,I-1).get(); 
-                    if ( ptr_facingCell->owner != this->iam ){
-                      ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data.get());
-                      //ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data);
-
-
-//                      auto it = block_used_update.find( std::make_tuple(K,I) ) ;
-//                      if ( it == block_used_update.end() ) {
-//                        block_used_update[std::make_tuple(K,I)] = true;
-//                        m.pstate->overhead_mb += ptask->input_msg.rbegin()->get()->size  / 1024./ m.pstate->divider; 
-//                      }
-                    }
-                    bassert(ptr_facingCell!=NULL);
-
-                    //check that they don't need to be swapped
-                    if ( ptr_facingCell->i < ptr_odCell->i ) {
-                      std::swap(ptr_facingCell, ptr_odCell);
-                    }
-
-                    upd_cell.update(*ptr_odCell,*ptr_facingCell,tmpBuf);
-
-                    //get rid of the shared_ptr
-                    ptask->input_msg.clear();
-
-                    //send this to all facing blocks (tgt_snode-1,*) and off diagonal blocks (*,tgt_snode-1)
-                    std::unordered_map<Int,std::list<SparseTask2D::depend_task_t> > data_to_send;
-                    for (auto &tpl : ptask->out_dependencies) {
-                      auto tgt_i = std::get<0>(tpl);
-                      auto tgt_j = std::get<1>(tpl);
-                      auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);
-                      data_to_send[tgt_cell.owner].push_back(tpl);
-                    }
-
-                    //send factor and update local tasks
-                    for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
-                      auto pdest = it->first;
-                      auto & tgt_cells = it->second;
-                      //serialize data once, and list of meta data
-                      //factor is output data so it will not be deleted
-                      if ( pdest != this->iam ) {
-                        auto cxs = upcxx::source_cx::as_buffered() | upcxx::source_cx::as_promise(ptask->out_prom);
-                        //#if 1
-                        upcxx::rpc_ff( pdest,  
-                            [K,J] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size,
-                              size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, 
-                              upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
-                            //store pointer & associated metadata somewhere
-                            auto data = std::make_shared<SparseTask2D::data_t >();
-                            data->in_meta = meta;
-                            data->size = storage_size;
-                            data->remote_gptr = gptr;
-
-                            //there is a map between sp_handle and task_graphs
-                            auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
-                            for ( auto & tgt_cell: target_cells) {
-                            auto tgt_i = std::get<0>(tgt_cell);
-                            auto tgt_j = std::get<1>(tgt_cell);
-                            auto K = tgt_i;
-                            auto J = tgt_j;
-                            auto taskptr = matptr->task_lookup(tgt_i,tgt_j,J,J,K,
-                              (tgt_i==tgt_j?Factorization::op_type::FACTOR:Factorization::op_type::TRSM));
-                            taskptr->input_msg.push_back(data);
-                            data->target_tasks.push_back(taskptr);
-                            taskptr->in_avail_prom.fulfill_anonymous(1);
-
-#ifdef _DEBUG_DEPENDENCIES_
-                            auto it = std::find(taskptr->in_remote_dependencies.begin(),taskptr->in_remote_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                            if (it!=taskptr->in_remote_dependencies.end()) {
-                              std::get<2>(*it) = true;
-                            }
-#endif
-
-
-                            }
-
-
-                            auto I = std::get<1>(meta);
-                            rowind_t fc = matptr->Xsuper_[I-1];
-                            data->on_fetch.get_future().then(
-                                [fc,width,nnz,nblocks,K,J](SparseTask2D::data_t * pdata){
-                                //create snodeBlock_t and store it in the extra_data
-                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                }
-                                );
-
-                            }, this->sp_handle, upd_cell._gstorage, upd_cell._storage_size, upd_cell.nnz(),upd_cell.nblocks(), std::get<0>(upd_cell._dims), ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
-                        //#endif
-                      }
-                      else {
-                        for ( auto & tgt_cell: tgt_cells ) {
-                          auto tgt_i = std::get<0>(tgt_cell);
-                          auto tgt_j = std::get<1>(tgt_cell);
-
-                          bassert(K==tgt_i && J==tgt_j);
-                          auto taskptr = task_lookup(tgt_i,tgt_j,J,J,K,
-                              (tgt_i==tgt_j?Factorization::op_type::FACTOR:Factorization::op_type::TRSM));
-                          bassert(taskptr!=nullptr); 
-#ifdef _DEBUG_DEPENDENCIES_
-                          //mark the dependency as satisfied
-                          auto it = std::find(taskptr->in_local_dependencies.begin(),taskptr->in_local_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                          if (it!=taskptr->in_local_dependencies.end()) {
-                            std::get<2>(*it) = true;
-                          }
-#endif
-                          taskptr->in_prom.fulfill_anonymous(1);
-                        }
-                      }
-                    }
-
-                    //the task pointed by ptask can be deleted when all outgoing communications have been performed.
-                    auto fut = ptask->out_prom.finalize();
-                    fut.wait();
-
-                              ptask->executed = true;
-                  };
-                }
-                break;
-              default:
-                delete ptask;
-                break;
-            }
-          }
-        }
-#else
         //Now we have our local part of the task graph
         for(auto it = this->task_graph.begin(); it != this->task_graph.end(); it++){
           auto & key = it->first;
@@ -4043,22 +3334,10 @@ namespace symPACK{
                           for ( auto & tgt_cell: target_cells) {
                           auto tgt_i = std::get<0>(tgt_cell);
                           auto tgt_j = std::get<1>(tgt_cell);
-#ifndef NEW_GRAPH
-                          auto taskptr = matptr->task_lookup(tgt_i,tgt_j,tgt_j,tgt_j,tgt_i,Factorization::op_type::TRSM);
-#else
                           auto taskptr = matptr->task_graph[scheduling::key_t(tgt_i,tgt_j,tgt_j,Factorization::op_type::TRSM)].get();
-#endif
                           taskptr->input_msg.push_back(data);
                           data->target_tasks.push_back(taskptr);
                           taskptr->in_avail_prom.fulfill_anonymous(1);
-
-#ifdef _DEBUG_DEPENDENCIES_
-                          auto it = std::find(taskptr->in_remote_dependencies.begin(),taskptr->in_remote_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                          if (it!=taskptr->in_remote_dependencies.end()) {
-                            std::get<2>(*it) = true;
-                          }
-#endif
-
                           }
 
                           auto I = std::get<1>(meta);
@@ -4079,27 +3358,11 @@ namespace symPACK{
                         auto tgt_i = std::get<0>(tgt_cell);
                         auto tgt_j = std::get<1>(tgt_cell);
                         bassert(I==tgt_j);
-#ifndef NEW_GRAPH
-                        auto taskptr = task_lookup(tgt_i,tgt_j,tgt_j,tgt_j,tgt_i,Factorization::op_type::TRSM);
-#else
                         auto taskptr = task_graph[scheduling::key_t(tgt_i,tgt_j,tgt_j,Factorization::op_type::TRSM)].get();
-#endif
                         bassert(taskptr!=nullptr); 
                         //mark the dependency as satisfied
-#ifdef _DEBUG_DEPENDENCIES_
-                        auto it = std::find(taskptr->in_local_dependencies.begin(),taskptr->in_local_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                        if (it!=taskptr->in_local_dependencies.end()) {
-                          std::get<2>(*it) = true;
-                        }
-#endif
-
-
                         taskptr->in_prom.fulfill_anonymous(1);
-                        //taskptr->in_prom->fulfill_anonymous(1);
-                        //                          taskptr->dep_count--;
-
                       }
-                      //ptask->out_prom->fulfill_anonymous(1);
                     }
                   }
 
@@ -4218,22 +3481,10 @@ namespace symPACK{
                           for ( auto & tgt_cell: target_cells) {
                           auto tgt_i = std::get<0>(tgt_cell);
                           auto tgt_j = std::get<1>(tgt_cell);
-#ifndef NEW_GRAPH
-                          auto taskptr = matptr->task_lookup(tgt_i,tgt_j,I,tgt_j,tgt_i,Factorization::op_type::UPDATE2D_COMP);
-#else
                           auto taskptr = matptr->task_graph[scheduling::key_t(tgt_i,tgt_j,I,Factorization::op_type::UPDATE2D_COMP)].get();
-#endif
                           taskptr->input_msg.push_back(data);
                           data->target_tasks.push_back(taskptr);
                           taskptr->in_avail_prom.fulfill_anonymous(1);
-
-#ifdef _DEBUG_DEPENDENCIES_
-                          auto it = std::find(taskptr->in_remote_dependencies.begin(),taskptr->in_remote_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                          if (it!=taskptr->in_remote_dependencies.end()) {
-                            std::get<2>(*it) = true;
-                          }
-#endif
-
 
                           }
 
@@ -4256,19 +3507,9 @@ namespace symPACK{
                         auto tgt_j = std::get<1>(tgt_cell);
 
                         bassert(K==tgt_i || K==tgt_j); // K is either facing or pivot row
-#ifndef NEW_GRAPH
-                        auto taskptr = task_lookup(tgt_i,tgt_j,I,tgt_j,tgt_i,Factorization::op_type::UPDATE2D_COMP);
-#else
                         auto taskptr = task_graph[scheduling::key_t(tgt_i,tgt_j,I,Factorization::op_type::UPDATE2D_COMP)].get();
-#endif
                         bassert(taskptr!=nullptr); 
                         //mark the dependency as satisfied
-#ifdef _DEBUG_DEPENDENCIES_
-                        auto it = std::find(taskptr->in_local_dependencies.begin(),taskptr->in_local_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                        if (it!=taskptr->in_local_dependencies.end()) {
-                          std::get<2>(*it) = true;
-                        }
-#endif
                         taskptr->in_prom.fulfill_anonymous(1);
                       }
                     }
@@ -4395,25 +3636,11 @@ namespace symPACK{
                           auto tgt_j = std::get<1>(tgt_cell);
                           auto K = tgt_i;
                           auto J = tgt_j;
-#ifndef NEW_GRAPH
-                          auto taskptr = matptr->task_lookup(tgt_i,tgt_j,J,J,K,
-                            (tgt_i==tgt_j?Factorization::op_type::FACTOR:Factorization::op_type::TRSM));
-#else
                           auto taskptr = matptr->task_graph[scheduling::key_t(tgt_i,tgt_j,J,(tgt_i==tgt_j?Factorization::op_type::FACTOR:Factorization::op_type::TRSM))].get();
-#endif
 
                           taskptr->input_msg.push_back(data);
                           data->target_tasks.push_back(taskptr);
                           taskptr->in_avail_prom.fulfill_anonymous(1);
-
-#ifdef _DEBUG_DEPENDENCIES_
-                          auto it = std::find(taskptr->in_remote_dependencies.begin(),taskptr->in_remote_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                          if (it!=taskptr->in_remote_dependencies.end()) {
-                            std::get<2>(*it) = true;
-                          }
-#endif
-
-
                           }
 
 
@@ -4423,7 +3650,6 @@ namespace symPACK{
                               [fc,width,nnz,nblocks,K,J](SparseTask2D::data_t * pdata){
                               //create snodeBlock_t and store it in the extra_data
                               pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
-//                              pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
                               }
                               );
 
@@ -4434,35 +3660,13 @@ namespace symPACK{
                       for ( auto & tgt_cell: tgt_cells ) {
                         auto tgt_i = std::get<0>(tgt_cell);
                         auto tgt_j = std::get<1>(tgt_cell);
-
                         bassert(K==tgt_i && J==tgt_j);
-
-#ifndef NEW_GRAPH
-                        auto taskptr = task_lookup(tgt_i,tgt_j,J,J,K,
-                            (tgt_i==tgt_j?Factorization::op_type::FACTOR:Factorization::op_type::TRSM));
-#else
                         auto taskptr = task_graph[scheduling::key_t(tgt_i,tgt_j,J,
                             (tgt_i==tgt_j?Factorization::op_type::FACTOR:Factorization::op_type::TRSM))].get();
-#endif
                         bassert(taskptr!=nullptr); 
                         //mark the dependency as satisfied
-
-
-#ifdef _DEBUG_DEPENDENCIES_
-                        auto it = std::find(taskptr->in_local_dependencies.begin(),taskptr->in_local_dependencies.end(),std::make_tuple(tgt_i,tgt_j,false));
-                        if (it!=taskptr->in_local_dependencies.end()) {
-                          std::get<2>(*it) = true;
-                        }
-#endif
-
-
-
-
                         taskptr->in_prom.fulfill_anonymous(1);
-                        //taskptr->in_prom->fulfill_anonymous(1);
-
                       }
-                      //                        ptask->out_prom->fulfill_anonymous(1);
                     }
                   }
 
@@ -4484,7 +3688,6 @@ namespace symPACK{
           }
         }
 
-#endif
 
         logfileptr->OFS()<<"Task graph created"<<std::endl;
       }
@@ -4735,11 +3938,7 @@ namespace symPACK{
 
   template <typename colptr_t, typename rowind_t, typename T>
     void symPACKMatrix2D<colptr_t,rowind_t,T>::Factorize( ){
-#ifdef _DEBUG_DEPENDENCIES_
-      this->scheduler.execute(this->task_graph,this->SupMembership_.data());
-#else
       this->scheduler.execute(this->task_graph,this->mem_budget);
-#endif
     } 
 
 
@@ -4846,11 +4045,7 @@ namespace symPACK{
   namespace scheduling {
 
     template <typename ttask_t , typename ttaskgraph_t >
-#ifdef _DEBUG_DEPENDENCIES_
-      inline void Scheduler2D<ttask_t,ttaskgraph_t>::execute(ttaskgraph_t & task_graph, Int * SupMembership )
-#else
       inline void Scheduler2D<ttask_t,ttaskgraph_t>::execute(ttaskgraph_t & task_graph, double & mem_budget )
-#endif
       {
         try{
 int64_t local_task_cnt;
@@ -4858,16 +4053,7 @@ int64_t local_task_cnt;
 #ifdef _MEM_PROFILER_
           utility::scope_memprofiler m("symPACKMatrix_execute_1");
 #endif
-#ifndef NEW_GRAPH
-          local_task_cnt = 0;
-          for (auto it = task_graph.begin(); it != task_graph.end(); it++) {
-            auto idx = it->first;
-            auto tasklist = it->second;
-            local_task_cnt += tasklist.size();
-          }
-#else
           local_task_cnt = task_graph.size();
-#endif
           }
 
           {
@@ -4876,22 +4062,19 @@ int64_t local_task_cnt;
 #endif
             bool progress = false;
             while(local_task_cnt>0){
-              while (!ready_tasks.empty()) {
+              if (!ready_tasks.empty()) {
+              //while (!ready_tasks.empty()) {
+                upcxx::progress(upcxx::progress_level::internal);
                 auto ptask = ready_tasks.front();
                 ready_tasks.pop_front();
                 ptask->execute(); 
                 local_task_cnt--;
-#ifndef NEW_GRAPH
-#ifdef _DEBUG_DEPENDENCIES_
-                progress = true;
-#endif
-#endif
-                upcxx::progress(upcxx::progress_level::internal);
               }
 
               upcxx::progress();
 
               //handle communications
+              //while (!avail_tasks.empty()) {
               if (!avail_tasks.empty()) {
                 //get all comms from a task
 //                avail_tasks.sort([](ttask_t* & a, ttask_t* &b){ return a->out_dependencies.size() > b->out_dependencies.size();});
@@ -4983,78 +4166,9 @@ int64_t local_task_cnt;
                       ptask->in_prom.fulfill_anonymous(1);
                       });
                 } 
-#ifndef NEW_GRAPH
-#ifdef _DEBUG_DEPENDENCIES_
-                progress = false;
 #endif
-#endif
-#endif
+              
               }
-
-
-#ifndef NEW_GRAPH
-#ifdef _DEBUG_DEPENDENCIES_
-              if(!progress){
-                progress = true;
-                for(auto it = task_graph.begin(); it != task_graph.end(); it++){
-                  auto idx = it->first;
-                  auto tasklist = it->second;
-
-                  for( auto && ptask: tasklist){
-                    if (!ptask->executed){
-
-                      auto meta = &ptask->_meta;
-                      auto & src_snode = std::get<0>(meta[0]);
-                      auto & tgt_snode = std::get<1>(meta[0]);
-                      auto & lt_first_row = std::get<3>(meta[0]);
-                      auto & facing_row = std::get<4>(meta[0]);
-                      auto & type = std::get<2>(meta[0]);
-
-                      auto I = src_snode;
-                      auto J = tgt_snode;
-                      auto K = SupMembership[facing_row-1];
-
-                      switch(type){
-                        case Factorization::op_type::TRSM:
-                          {
-                            logfileptr->OFS()<<"TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
-                          }
-                          break;
-                        case Factorization::op_type::FACTOR:
-                          {
-                            logfileptr->OFS()<<"FACTOR"<<" cell ("<<I<<","<<I<<")"<<std::endl;
-                          }
-                          break;
-                        case Factorization::op_type::UPDATE2D_COMP:
-                          {
-                            logfileptr->OFS()<<"UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
-                          }
-                          break;
-                        default:
-                          delete ptask;
-                          break;
-                      }
-
-
-
-
-                      logfileptr->OFS()<<"      local input dependencies: ";
-                      for(auto &&tpl : ptask->in_local_dependencies){
-                        logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<","<<(std::get<2>(tpl)?"yes":"no")<<") ";
-                      }
-                      logfileptr->OFS()<<std::endl;
-                      logfileptr->OFS()<<"      remote input dependencies: ";
-                      for(auto &&tpl : ptask->in_remote_dependencies){
-                        logfileptr->OFS()<<"("<<std::get<0>(tpl)<<","<<std::get<1>(tpl)<<","<<(std::get<2>(tpl)?"yes":"no")<<") ";
-                      }
-                      logfileptr->OFS()<<std::endl;
-                    }
-                  }
-
-                }
-              }
-#endif
-#endif
             }
 //            utility::scope_memprofiler2::print_stats(1024.);
           }
@@ -5065,8 +4179,6 @@ int64_t local_task_cnt;
         upcxx::barrier();
       }
   }
-
-
 #endif
 
 }
