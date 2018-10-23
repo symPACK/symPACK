@@ -153,6 +153,7 @@ namespace symPACK{
         int i;
         int j;
       blockCellBase_t():owner(0),i(0),j(0){}
+      virtual int I(){return i;}
   };
 
   namespace scheduling {
@@ -319,6 +320,7 @@ namespace symPACK{
             rowind_t first_row;
         };
 
+        virtual int I(){return i;}
 //        int_t i;
 //        int_t j;
         //intrank_t owner;
@@ -504,7 +506,7 @@ namespace symPACK{
           _total_rows = other._total_rows;
           _own_storage = other._own_storage;
 
-          allocate( other.nz_capacity(), other.block_capacity , !other._gstorage.is_null() );
+          allocate( other.nz_capacity(), other.block_capacity() , !other._gstorage.is_null() );
           //now copy the data
           std::copy( other._storage, other._storage + other._storage_size, _storage );
           _block_container._nblocks = other._block_container._nblocks;
@@ -1168,7 +1170,7 @@ namespace symPACK{
           this->_total_rows = other._total_rows;
           this->first_row   = other.first_row;
 
-          allocate( other.nz_capacity(), other.block_capacity , !other._gstorage.is_null() );
+          allocate( other.nz_capacity(), other.block_capacity() , !other._gstorage.is_null() );
           //now copy the data
           std::copy( other._storage, other._storage + other._storage_size, this->_storage );
           this->_block_container._nblocks = other._block_container._nblocks;
@@ -1623,28 +1625,50 @@ namespace symPACK{
       int nsuper;
       double mem_budget;
 
-      size_t coord2supidx(uint64_t i, uint64_t j){ 
-        size_t val =  (i-j) + j*(nsuper+1) - (j+1)*(j)/2;  
-        bassert(val>=0);
+      //using cell_key_t = std::size_t;
+      //cell_key_t coord2supidx(uint64_t i, uint64_t j){ 
+      //  cell_key_t val =  (i-j) + j*(nsuper+1) - (j+1)*(j)/2;  
+      //  bassert(val>=0);
+      //  return val;
+      //};
+
+      using cell_key_t = std::pair<uint64_t,uint64_t>;;
+      cell_key_t coord2supidx(uint64_t i, uint64_t j){ 
+        cell_key_t val = std::make_pair(i,j);
         return val;
       };
+      std::map<cell_key_t, std::shared_ptr<blockCellBase_t> > cells_;
 
       inline std::shared_ptr<blockCellBase_t> pQueryCELL (int a, int b)  { 
         auto idx = coord2supidx((a),(b)); 
         auto it = this->cells_.find(idx);
-        if (it != this->cells_.end() ) 
+        if (it != this->cells_.end() ) { 
+//          auto ptr = std::dynamic_pointer_cast<snodeBlock_t>(it->second);
+//          if ( ptr == nullptr ) { gdb_lock(); }
           return it->second;
+        }
         else
           return nullptr;
         }
+
+      inline std::shared_ptr<snodeBlock_t> pQueryCELL2 (int a, int b)  { 
+        auto idx = coord2supidx((a),(b)); 
+        auto it = this->cells_.find(idx);
+        std::shared_ptr<snodeBlock_t> ptr = nullptr;
+        if (it != this->cells_.end() ){ 
+          ptr = std::dynamic_pointer_cast<snodeBlock_t>(it->second);
+          if ( ptr == nullptr ) { gdb_lock(); }
+        }
+          return ptr;
+        }
       inline std::shared_ptr<snodeBlock_t> pCELL (int a, int b) { return std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))]); }
-      inline snodeBlock_t & CELL (int a, int b) { return *pCELL(a,b); }
+      inline snodeBlock_t & CELL (int a, int b) { auto ptr = pQueryCELL2(a,b); assert(ptr!=nullptr && (ptr->i-1==a && ptr->j-1==b)); return *ptr;  }
+//      inline snodeBlock_t & CELL (int a, int b) { auto ptr = pQueryCELL(a,b); assert(ptr && (ptr->i-1==a && ptr->j-1==b)); return *std::static_pointer_cast<snodeBlock_t>(ptr);  }
 
       //TODO implement this
       //auto idx2coord = [nsuper](Int idx){ return 0; };
 
       protected:
-      std::unordered_map<Int, std::shared_ptr<blockCellBase_t> > cells_;
 
 
       //TODO ideally, this should be DistSparseMatrixGraph<colptr_t,rowind_t>
@@ -2707,6 +2731,14 @@ namespace symPACK{
               sptr->j = j;
               sptr->owner = p;
               pLast_cell = sptr;
+
+              if ( p ==iam){
+                auto & test = CELL(i-1,j-1);
+              }
+              else { 
+                auto test = pQueryCELL(i-1,j-1);
+                assert(test);
+              }
             }
           }
 
@@ -2771,6 +2803,7 @@ namespace symPACK{
               std::shared_ptr<blockCellBase_t> sptr(nullptr);
               if ( p == iam ) {
                 sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
+                this->localBlocks_.push_back(std::static_pointer_cast<snodeBlock_t>(sptr));
               }
               else {
                 sptr = std::make_shared<blockCellBase_t>();
@@ -2783,6 +2816,10 @@ namespace symPACK{
               pLast_cell = sptr;
             }
           }
+
+          std::sort(this->localBlocks_.begin(),this->localBlocks_.end(),[](std::shared_ptr<snodeBlock_t> & a, std::shared_ptr<snodeBlock_t> & b){
+              return a->j < b->j || (a->i < b->i &&  a->j == b->j ) ; 
+              });
 #endif
         }
       }
@@ -2824,10 +2861,10 @@ namespace symPACK{
             Int first_col = this->Xsuper_[I-1];
             Int last_col = this->Xsuper_[I]-1;
 
-            bassert( cells_[coord2supidx(I-1,I-1)] != nullptr );
+            bassert( cells_.find(coord2supidx(I-1,I-1)) != cells_.end() );
 
-            auto & fcell = CELL(I-1,I-1);
-            Int iOwner = fcell.owner;
+            auto ptr_fcell = pQueryCELL(I-1,I-1);
+            Int iOwner = ptr_fcell->owner;
 
             //Create the factor task on the owner
             Updates[iOwner].push_back(std::make_tuple(I,I,Factorization::op_type::FACTOR,first_col,first_col));
@@ -2854,8 +2891,8 @@ namespace symPACK{
             for(auto J_row : ancestor_rows){
               Int J = this->SupMembership_[J_row-1];
 
-              auto & fodcell = CELL(J-1,I-1);
-              Int iFODOwner = fodcell.owner;
+              auto ptr_fodcell = pQueryCELL(J-1,I-1);
+              Int iFODOwner = ptr_fodcell->owner;
 
               Updates[iOwner].push_back(std::make_tuple(I,I,Factorization::op_type::TRSM_SEND,J_row,J_row));
               Updates[iFODOwner].push_back(std::make_tuple(I,I,Factorization::op_type::TRSM_RECV,J_row,J_row));
@@ -2866,10 +2903,10 @@ namespace symPACK{
                 K = this->SupMembership_[K_row-1];
 
                 if(K>=J){
-                  auto & tgtupdcell = CELL(K-1,J-1);
-                  Int iTgtOwner = tgtupdcell.owner;
+                  auto ptr_tgtupdcell = pQueryCELL(K-1,J-1);
+                  Int iTgtOwner = ptr_tgtupdcell->owner;
                   //TODO update this for non fan-out mapping
-                  Int iUpdOwner = tgtupdcell.owner;
+                  Int iUpdOwner = ptr_tgtupdcell->owner;
 
                   //cell(J,I) to cell(K,J)
                   Updates[iFODOwner].push_back(std::make_tuple(I,J,Factorization::op_type::UPDATE2D_SEND_OD,K_row,J_row));
@@ -2877,13 +2914,13 @@ namespace symPACK{
                 }
 
                 if(K<=J){
-                  auto & tgtupdcell = CELL(J-1,K-1);
-                  Int iTgtOwner = tgtupdcell.owner;
+                  auto ptr_tgtupdcell = pQueryCELL(J-1,K-1);
+                  Int iTgtOwner = ptr_tgtupdcell->owner;
                   //TODO update this for non fan-out mapping
-                  Int iUpdOwner = tgtupdcell.owner;
+                  Int iUpdOwner = ptr_tgtupdcell->owner;
 
-                  auto & facingcell = CELL(J-1,I-1);
-                  Int iFacingOwner = facingcell.owner;
+                  auto ptr_facingcell = pQueryCELL(J-1,I-1);
+                  Int iFacingOwner = ptr_facingcell->owner;
 
                   //sender point of view
                   //cell(J,I) to cell(J,K)
@@ -2895,10 +2932,10 @@ namespace symPACK{
               for(auto K_row : ancestor_rows){
                 K = this->SupMembership_[K_row-1];
                 if(K>=J){
-                  auto & tgtupdcell = CELL(K-1,J-1);
-                  Int iTgtOwner = tgtupdcell.owner;
+                  auto ptr_tgtupdcell = pQueryCELL(K-1,J-1);
+                  Int iTgtOwner = ptr_tgtupdcell->owner;
                   //TODO update this for non fan-out mapping
-                  Int iUpdOwner = tgtupdcell.owner;
+                  Int iUpdOwner = ptr_tgtupdcell->owner;
 
                   //update on cell(K,J)
                   Updates[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::UPDATE2D_COMP,J_row,K_row));
@@ -3075,7 +3112,7 @@ namespace symPACK{
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"TRSM_RECV"<<" from "<<I<<" to "<<I<<" cell ("<<J<<","<<I<<")"<<std::endl;
 #endif
-                if (  CELL(J-1,I-1).owner != CELL(I-1,I-1).owner )
+                if (  pQueryCELL(J-1,I-1)->owner != pQueryCELL(I-1,I-1)->owner )
                   taskptr->in_remote_dependencies_cnt++;
                 else
                   taskptr->in_local_dependencies_cnt++;
@@ -3148,7 +3185,7 @@ namespace symPACK{
                 auto taskptr = task_graph[scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP)].get();
                 bassert(taskptr!=nullptr);
 
-                if (  CELL(J-1,I-1).owner != CELL(J-1,K-1).owner )
+                if (  pQueryCELL(J-1,I-1)->owner != pQueryCELL(J-1,K-1)->owner )
                   taskptr->in_remote_dependencies_cnt++;
                 else
                   taskptr->in_local_dependencies_cnt++;
@@ -3210,7 +3247,7 @@ namespace symPACK{
                 auto taskptr = task_graph[scheduling::key_t(K,J,I,Factorization::op_type::UPDATE2D_COMP)].get();
 
                 bassert(taskptr!=nullptr);
-                if (  CELL(J-1,I-1).owner != CELL(K-1,J-1).owner )
+                if (  pQueryCELL(J-1,I-1)->owner != pQueryCELL(K-1,J-1)->owner )
                   taskptr->in_remote_dependencies_cnt++;
                 else
                   taskptr->in_local_dependencies_cnt++;
@@ -3280,6 +3317,9 @@ namespace symPACK{
                   auto ptask = ptr;
                   //logfileptr->OFS()<<"Exec FACTOR"<<" cell ("<<I<<","<<I<<")"<<std::endl;
 
+                  auto ptr_diagcell = pQueryCELL2(I-1,I-1);
+                  assert(ptr_diagcell);
+
                   auto & diagcell = CELL(I-1,I-1);
                   bassert( diagcell.owner == this->iam);
 
@@ -3295,17 +3335,17 @@ namespace symPACK{
 #ifdef _COMPACT_DEPENDENCIES_
                   for (auto &tpl : ptask->out_dependencies) {
                     auto tgt_j = tpl;
-                    auto & tgt_cell = CELL(tgt_j-1,I-1);
+                    auto ptr_tgt_cell = pQueryCELL(tgt_j-1,I-1);
                     //add this cell to the list of cells depending on diagcell for the TRSM task(s)
-                    data_to_send[tgt_cell.owner].push_back(std::make_tuple(tgt_j,I));
+                    data_to_send[ptr_tgt_cell->owner].push_back(std::make_tuple(tgt_j,I));
                   }
 #else
                   for (auto &tpl : ptask->out_dependencies) {
                     auto tgt_i = std::get<0>(tpl);
                     auto tgt_j = std::get<1>(tpl);
-                    auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);
+                    auto ptr_tgt_cell = pQueryCELL(tgt_i-1,tgt_j-1);
                     //add this cell to the list of cells depending on diagcell for the TRSM task(s)
-                    data_to_send[tgt_cell.owner].push_back(tpl);
+                    data_to_send[ptr_tgt_cell->owner].push_back(tpl);
                   }
 #endif
 
@@ -3349,6 +3389,9 @@ namespace symPACK{
                               pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                               //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                               });
+                          //TODO check this
+                          data->allocate();
+                          data->fetch();
 
                           }, this->sp_handle, diagcell._gstorage, diagcell._storage_size, diagcell.nnz(), diagcell.nblocks(), std::get<0>(diagcell._dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
@@ -3388,6 +3431,9 @@ namespace symPACK{
 
                   //logfileptr->OFS()<<"Exec TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<K<<","<<I<<")"<<std::endl;
 
+                  auto ptr_od_cell = pQueryCELL2(K-1,I-1);
+                  assert(ptr_od_cell);
+
                   auto & od_cell = CELL(K-1,I-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(tgt_snode-1,src_snode-1)]);
                   //auto & od_cell = cells_[coord2supidx(tgt_snode-1,src_snode-1)];
                   bassert( od_cell.owner == this->iam);
@@ -3402,7 +3448,7 @@ namespace symPACK{
 
                   //input data is one or 0 (local diagonal block)
                   bassert(ptask->input_msg.size()<=1);
-                  auto ptr_diagCell = pCELL(I-1,I-1).get(); 
+                  auto ptr_diagCell = pQueryCELL(I-1,I-1).get(); 
                   if ( ptr_diagCell->owner != this->iam ){
                     ptr_diagCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
                     //ptr_diagCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data);
@@ -3420,7 +3466,7 @@ namespace symPACK{
                   bassert(ptr_diagCell!=NULL);
 
 
-                  od_cell.trsm(*ptr_diagCell,tmpBuf);
+                  od_cell.trsm(*dynamic_cast<snodeBlock_t*>(ptr_diagCell),tmpBuf);
 
 #ifdef _MEMORY_LIMIT_
               if ( this->mem_budget != -1.0 ) {
@@ -3441,20 +3487,20 @@ namespace symPACK{
                   for (auto &tpl : ptask->out_dependencies) {
                     auto tgt_j = tpl;
                     if ( tgt_j > 0 ) {
-                      auto & tgt_cell = CELL(K-1,tgt_j-1);
-                      data_to_send[tgt_cell.owner].push_back(std::make_tuple(K,tgt_j));
+                      auto ptr_tgt_cell = pQueryCELL(K-1,tgt_j-1);
+                      data_to_send[ptr_tgt_cell->owner].push_back(std::make_tuple(K,tgt_j));
                     }
                     else {
-                      auto & tgt_cell = CELL(-tgt_j-1,K-1);
-                      data_to_send[tgt_cell.owner].push_back(std::make_tuple(-tgt_j,K));
+                      auto ptr_tgt_cell = pQueryCELL(-tgt_j-1,K-1);
+                      data_to_send[ptr_tgt_cell->owner].push_back(std::make_tuple(-tgt_j,K));
                     }
                   }
 #else
                   for (auto &tpl : ptask->out_dependencies) {
                     auto tgt_i = std::get<0>(tpl);
                     auto tgt_j = std::get<1>(tpl);
-                    auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);
-                    data_to_send[tgt_cell.owner].push_back(tpl);
+                    auto ptr_tgt_cell = pQueryCELL(tgt_i-1,tgt_j-1);
+                    data_to_send[ptr_tgt_cell->owner].push_back(tpl);
                   }
 #endif
 
@@ -3497,6 +3543,9 @@ namespace symPACK{
                               //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                               }
                               );
+                          //TODO check this
+                          data->allocate();
+                          data->fetch();
 
                           }, this->sp_handle, od_cell._gstorage,od_cell._storage_size, od_cell.nnz(),od_cell.nblocks(), std::get<0>(od_cell._dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
@@ -3532,7 +3581,13 @@ namespace symPACK{
                   scope_timer(b,FB_UPDATE2D_TASK);
 //            utility::scope_memprofiler2 m("symPACKMatrix_update",1);
                   auto ptask = ptr;
+
+                  auto ptr_upd_cell = pQueryCELL2(K-1,J-1);
+                  assert(ptr_upd_cell);
+
                   auto & upd_cell = CELL(K-1,J-1);
+                  //TODO false for fan-both
+                  bassert(upd_cell.owner==this->iam);
 
 #ifdef SP_THREADS
                   std::thread::id tid = std::this_thread::get_id();
@@ -3546,7 +3601,7 @@ namespace symPACK{
 
                   bassert(ptask->input_msg.size()<=2);
 
-                  auto ptr_odCell = pCELL(J-1,I-1).get(); 
+                  auto ptr_odCell = pQueryCELL(J-1,I-1).get(); 
                   if ( ptr_odCell->owner != this->iam ){
                     ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
 //                    ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data);
@@ -3559,7 +3614,7 @@ namespace symPACK{
                   }
                   bassert(ptr_odCell!=NULL);
 
-                  auto ptr_facingCell = pCELL(K-1,I-1).get(); 
+                  auto ptr_facingCell = pQueryCELL(K-1,I-1).get(); 
                   if ( ptr_facingCell->owner != this->iam ){
                     ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data.get());
 //                    ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data);
@@ -3577,7 +3632,7 @@ namespace symPACK{
                     std::swap(ptr_facingCell, ptr_odCell);
                   }
 
-                  upd_cell.update(*ptr_odCell,*ptr_facingCell,tmpBuf);
+                  upd_cell.update(*dynamic_cast<snodeBlock_t*>(ptr_odCell),*dynamic_cast<snodeBlock_t*>(ptr_facingCell),tmpBuf);
 
 #ifdef _MEMORY_LIMIT_
               if ( this->mem_budget != -1.0 ) {
@@ -3597,15 +3652,15 @@ namespace symPACK{
 #ifdef _COMPACT_DEPENDENCIES_
                   for (auto &tpl : ptask->out_dependencies) {
                     auto tgt_j = tpl;
-                    auto & tgt_cell = CELL(K-1,tgt_j-1);
-                    data_to_send[tgt_cell.owner].push_back(std::make_tuple(K,tgt_j));
+                    auto ptr_tgt_cell = pQueryCELL(K-1,tgt_j-1);
+                    data_to_send[ptr_tgt_cell->owner].push_back(std::make_tuple(K,tgt_j));
                   }
 #else
                   for (auto &tpl : ptask->out_dependencies) {
                     auto tgt_i = std::get<0>(tpl);
                     auto tgt_j = std::get<1>(tpl);
-                    auto & tgt_cell = CELL(tgt_i-1,tgt_j-1);
-                    data_to_send[tgt_cell.owner].push_back(tpl);
+                    auto ptr_tgt_cell = pQueryCELL(tgt_i-1,tgt_j-1);
+                    data_to_send[ptr_tgt_cell->owner].push_back(tpl);
                   }
 #endif
                   //send factor and update local tasks
@@ -3652,6 +3707,9 @@ namespace symPACK{
                               pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
                               }
                               );
+                          //TODO check this
+                          data->allocate();
+                          data->fetch();
 
                           }, this->sp_handle, upd_cell._gstorage, upd_cell._storage_size,upd_cell.nnz(),upd_cell.nblocks(), std::get<0>(upd_cell._dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
@@ -3737,14 +3795,14 @@ namespace symPACK{
 
                 if(row>=col){
                   //this has to go in cell(J,I)
-                  auto & tgt_cell = CELL(J-1,I-1);
-                  Int iDest = tgt_cell.owner;
+                  auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
+                  Int iDest = ptr_tgt_cell->owner;
                   send_map[iDest] += IdxToMin+PtrToMin+ (IdxToMin + TToMin);
                 }
                 else{
                   //this has to go in cell(I,J)
-                  auto & tgt_cell = CELL(I-1,J-1);
-                  Int iDestJ = tgt_cell.owner;
+                  auto ptr_tgt_cell = pQueryCELL(I-1,J-1);
+                  Int iDestJ = ptr_tgt_cell->owner;
                   //add the pair (col,row) to processor owning column row
                   send_map[iDestJ] += IdxToMin+PtrToMin+ (IdxToMin + TToMin);
                 }
@@ -3801,8 +3859,9 @@ namespace symPACK{
 
                   if(row>=col){
                     //this has to go in cell(J,I)
-                    auto & tgt_cell = CELL(J-1,I-1);
-                    Int iDest = tgt_cell.owner;
+                    auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
+                    bassert(ptr_tgt_cell->i==J && ptr_tgt_cell->j==I);
+                    Int iDest = ptr_tgt_cell->owner;
 
                     T val = pMat.nzvalLocal[rowidx-1];
 
@@ -3817,8 +3876,9 @@ namespace symPACK{
                   }
                   else{
                     //this has to go in cell(I,J)
-                    auto & tgt_cell = CELL(I-1,J-1);
-                    Int iDestJ = tgt_cell.owner;
+                    auto ptr_tgt_cell = pQueryCELL(I-1,J-1);
+                    bassert(ptr_tgt_cell->i==I && ptr_tgt_cell->j==J);
+                    Int iDestJ = ptr_tgt_cell->owner;
                     //add the pair (col,row) to processor owning column row
 
                     T val = pMat.nzvalLocal[rowidx-1];
@@ -3922,8 +3982,12 @@ namespace symPACK{
 
                 Int J = this->SupMembership_[row-1];
 
-                auto & tgt_cell = CELL(J-1,I-1);
+                  auto ptr_tgt_cell = pQueryCELL2(J-1,I-1);
+                  assert(ptr_tgt_cell);
+
+                auto & tgt_cell =CELL(J-1,I-1);
                 bassert(this->iam == tgt_cell.owner);
+                bassert(tgt_cell.i==J && tgt_cell.j==I);
 
                 bool found = false;
                 for(auto & block: tgt_cell.blocks()){
@@ -3962,7 +4026,7 @@ namespace symPACK{
 
 
 
-
+//TODO redo this
   template <typename colptr_t, typename rowind_t, typename T>
     inline void symPACKMatrix2D<colptr_t,rowind_t,T>::DumpMatlab(){
       logfileptr->OFS()<<"+sparse([";
@@ -3974,9 +4038,16 @@ namespace symPACK{
         for(Int J=I;J<this->Xsuper_.size();J++){
           auto idx = coord2supidx(J-1,I-1);
           if (this->cells_.find(idx)!= this->cells_.end()){
-            auto & tgt_cell = CELL(J-1,I-1);
-            Int iOwner = tgt_cell.owner;
+
+            //auto tmp = CELL(J-1,I-1);
+
+            auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
+            assert(ptr_tgt_cell!=nullptr);
+            
+
+            Int iOwner = ptr_tgt_cell->owner;
             if( iOwner == this->iam ){
+              auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
               for(auto & block: tgt_cell.blocks()){
                 T * val = &tgt_cell._nzval[block.offset];
                 Int nRows = tgt_cell.block_nrows(block);
@@ -4000,9 +4071,10 @@ namespace symPACK{
         for(Int J=I;J<this->Xsuper_.size();J++){
           auto idx = coord2supidx(J-1,I-1);
           if (this->cells_.find(idx)!= this->cells_.end()){
-            auto & tgt_cell = CELL(J-1,I-1);
-            Int iOwner = tgt_cell.owner;
+            auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
+            Int iOwner = ptr_tgt_cell->owner;
             if( iOwner == this->iam ){
+              auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
               for(auto & block: tgt_cell.blocks()){
                 T * val = &tgt_cell._nzval[block.offset];
                 Int nRows = tgt_cell.block_nrows(block);
@@ -4026,10 +4098,12 @@ namespace symPACK{
 
         for(Int J=I;J<this->Xsuper_.size();J++){
           auto idx = coord2supidx(J-1,I-1);
-          if (this->cells_.find(idx)!= this->cells_.end()){
-            auto & tgt_cell = CELL(J-1,I-1);
-            Int iOwner = tgt_cell.owner;
+          auto it = this->cells_.end();
+          if ( (it = this->cells_.find(idx)) != this->cells_.end()){
+            auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
+            Int iOwner = ptr_tgt_cell->owner;
             if( iOwner == this->iam ){
+              auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
               for(auto & block: tgt_cell.blocks()){
                 T * val = &tgt_cell._nzval[block.offset];
                 auto nRows = tgt_cell.block_nrows(block);
@@ -4179,10 +4253,11 @@ int64_t local_task_cnt;
 #endif
                 for(auto & msg : ptask->input_msg){
                   msg->allocate();
-                  msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
-                      //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                      ptask->in_prom.fulfill_anonymous(1);
-                      });
+                  //if (!msg->transfered)
+                      msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
+                        //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
+                        ptask->in_prom.fulfill_anonymous(1);
+                        });
                 } 
 #endif
               

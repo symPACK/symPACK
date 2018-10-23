@@ -482,6 +482,7 @@ int main(int argc, char **argv)
       }
       SMat2D->DumpMatlab();
 #endif
+//      SMat2D->DumpMatlab();
       SMat = new symPACKMatrix<SCALAR>(*SMat2D);
 //      SMat2D->DumpMatlab();
     }

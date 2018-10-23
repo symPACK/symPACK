@@ -292,6 +292,7 @@ namespace symPACK{
         std::vector< char > sendbuf;
         std::vector<size_t> ssizes(this->np,0);
 
+//gdb_lock();
         auto local_it = M.localBlocks_.begin();
         for (int supid=1;supid<=M.nsuper;supid++) {
           auto cell = M.pQueryCELL(supid-1,supid-1);
@@ -366,30 +367,30 @@ namespace symPACK{
         
         
         
-        auto sheads = sdispls; 
-
-          for ( int precv = 0; precv < this->np; precv++ ) {
-            cell_meta_t tuple; 
-
-            while ( sheads[precv] < sdispls[precv+1] ) {
-              tuple = *((cell_meta_t*)&sendbuf[sheads[precv]]);
-              bassert(std::get<5>(tuple)<=M.nsuper && std::get<5>(tuple)>0);
-              logfileptr->OFS()<<"precv="<<precv<<" "<<std::get<5>(tuple)<<std::endl;
-              //if ( !((std::get<5>(tuple) == localPrevSnode  && localPrevSnode == curSnode) || localPrevSnode == -1) ) {
-              //  break;
-              //}
-              //if ( std::get<5>(tuple) == curSnode ) {
-                size_t size, nnz, nblocks;
-                int i,j;
-                Idx width;
-                std::tie( size, nnz, nblocks, width, i,j) = tuple;         
-                char * ptr = &sendbuf[sheads[precv]+sizeof(tuple)];
-
-                sheads[precv] += sizeof(tuple) + size; 
-              //}
-              //localPrevSnode = std::get<5>(tuple);
-            }
-          }
+//        auto sheads = sdispls; 
+//
+//          for ( int precv = 0; precv < this->np; precv++ ) {
+//            cell_meta_t tuple; 
+//
+//            while ( sheads[precv] < sdispls[precv+1] ) {
+//              tuple = *((cell_meta_t*)&sendbuf[sheads[precv]]);
+//              bassert(std::get<5>(tuple)<=M.nsuper && std::get<5>(tuple)>0);
+//              logfileptr->OFS()<<"precv="<<precv<<" "<<std::get<5>(tuple)<<std::endl;
+//              //if ( !((std::get<5>(tuple) == localPrevSnode  && localPrevSnode == curSnode) || localPrevSnode == -1) ) {
+//              //  break;
+//              //}
+//              //if ( std::get<5>(tuple) == curSnode ) {
+//                size_t size, nnz, nblocks;
+//                int i,j;
+//                Idx width;
+//                std::tie( size, nnz, nblocks, width, i,j) = tuple;         
+//                char * ptr = &sendbuf[sheads[precv]+sizeof(tuple)];
+//
+//                sheads[precv] += sizeof(tuple) + size; 
+//              //}
+//              //localPrevSnode = std::get<5>(tuple);
+//            }
+//          }
         
         
        
@@ -405,104 +406,39 @@ namespace symPACK{
             container.resize(sz); 
             };
 
-
-
-
-
-
-//  //try to see if transferring larger chunks makes the error go away
-//  size_t myGCD = 0;
-//    myGCD = findGCD(ssizes.data(),ssizes.size());
-//    //now we need to to an allgather of these
-//    std::vector<size_t> gcds(this->np,0);
-//    MPI_Allgather(&myGCD,sizeof(size_t),MPI_BYTE,gcds.data(),sizeof(size_t),MPI_BYTE,this->workcomm_);
-//    myGCD = findGCD(gcds.data(),gcds.size());
-//
-//
-//    MPI_Datatype fused_type;
-//    MPI_Type_contiguous( myGCD, MPI_BYTE, &fused_type );
-//    MPI_Type_commit(&fused_type);
-//
-//    
-//
-//
-//        //sendbuf is ready, do a alltoallv
-//        //gather receive sizes
-//        vector<int> ssizes2(this->np,0);
-//        for(int i =0; i< this->np;i++){ssizes2[i] = ssizes[i]/myGCD;}
-//        vector<int> sdispls2(this->np+1,0);
-//        sdispls2[0] = 0;
-//        std::partial_sum(ssizes2.begin(),ssizes2.end(),&sdispls2[1]);
-//
-//        vector<int> rsizes2(this->np,0);
-//        MPI_Alltoall(&ssizes2[0],sizeof(int),MPI_BYTE,&rsizes2[0],sizeof(int),MPI_BYTE,this->workcomm_);
-//
-//        //compute receive displacements
-//        vector<int> rdispls2(this->np+1,0);
-//        rdispls2[0] = 0;
-//        std::partial_sum(rsizes2.begin(),rsizes2.end(),&rdispls2[1]);
-//
-//
-//
-//
-//
-//        //Now do the alltoallv
-//        recvbuf.resize(rdispls2.back());
-//        MPI_Alltoallv(&sendbuf[0],&ssizes2[0],&sdispls2[0],fused_type,&recvbuf[0],&rsizes2[0],&rdispls2[0],fused_type,this->workcomm_);
-//
-//
-//
-//
-//
-//    MPI_Type_free(&fused_type);
-
-
-
-
         mpi::Alltoallv(sendbuf, ssizes.data(),sdispls.data(), MPI_BYTE,
             recvbuf,rsizes.data(),rdispls.data(),this->fullcomm_,resize_lambda );
         
-        //for(int i = 0; i<rsizes.size(); i++){ assert(rsizes[i]==rsizes2[i]);}
-        //for(int i = 0; i<rdispls.size(); i++){ assert(rdispls[i]==rdispls2[i]);}
-        //for(int i = 0; i<recvbuf.size(); i++){ assert(recvbuf[i]==recvbuf2[i]);}
-
-
-
-
-
-
-
         //clear the send buffer
         { vector<char> tmp; sendbuf.swap( tmp ); }
 
         Int curSnode = 1;
         //if ( this->iam==0 ) { gdb_lock();}
-        auto rheads = rdispls; 
-          for ( int psend = 0; psend < this->np; psend++ ) {
-            cell_meta_t tuple; 
-
-            while ( rheads[psend] < rdispls[psend+1] ) {
-              tuple = *((cell_meta_t*)&recvbuf[rheads[psend]]);
-              bassert(std::get<5>(tuple)<=M.nsuper && std::get<5>(tuple)>0);
-              logfileptr->OFS()<<"psend="<<psend<<" "<<std::get<5>(tuple)<<std::endl;
-              //if ( !((std::get<5>(tuple) == localPrevSnode  && localPrevSnode == curSnode) || localPrevSnode == -1) ) {
-              //  break;
-              //}
-              //if ( std::get<5>(tuple) == curSnode ) {
-                size_t size, nnz, nblocks;
-                int i,j;
-                Idx width;
-                std::tie( size, nnz, nblocks, width, i,j) = tuple;         
-                char * ptr = &recvbuf[rheads[psend]+sizeof(tuple)];
-
-                rheads[psend] += sizeof(tuple) + size; 
-              //}
-              //localPrevSnode = std::get<5>(tuple);
-            }
-          }
+//        auto rheads = rdispls; 
+//          for ( int psend = 0; psend < this->np; psend++ ) {
+//            cell_meta_t tuple; 
+//
+//            while ( rheads[psend] < rdispls[psend+1] ) {
+//              tuple = *((cell_meta_t*)&recvbuf[rheads[psend]]);
+//              bassert(std::get<5>(tuple)<=M.nsuper && std::get<5>(tuple)>0);
+//              logfileptr->OFS()<<"psend="<<psend<<" "<<std::get<5>(tuple)<<std::endl;
+//              //if ( !((std::get<5>(tuple) == localPrevSnode  && localPrevSnode == curSnode) || localPrevSnode == -1) ) {
+//              //  break;
+//              //}
+//              //if ( std::get<5>(tuple) == curSnode ) {
+//                size_t size, nnz, nblocks;
+//                int i,j;
+//                Idx width;
+//                std::tie( size, nnz, nblocks, width, i,j) = tuple;         
+//                char * ptr = &recvbuf[rheads[psend]+sizeof(tuple)];
+//
+//                rheads[psend] += sizeof(tuple) + size; 
+//              //}
+//              //localPrevSnode = std::get<5>(tuple);
+//            }
+//          }
         
 
-//gdb_lock();
 
         auto heads = rdispls; 
         while ( std::any_of(heads.begin(),heads.end()-1,[&heads,&rdispls](size_t & a){ size_t idx = &a-heads.data(); return a<rdispls[idx+1];}) ){
@@ -521,7 +457,7 @@ namespace symPACK{
             while ( heads[psend] < rdispls[psend+1] ) {
               tuple = *((cell_meta_t*)&recvbuf[heads[psend]]);
               bassert(std::get<5>(tuple)<=M.nsuper && std::get<5>(tuple)>0);
-              logfileptr->OFS()<<"["<<curSnode<<"] psend="<<psend<<" "<<std::get<5>(tuple)<<std::endl;
+//              logfileptr->OFS()<<"["<<curSnode<<"] psend="<<psend<<" "<<std::get<5>(tuple)<<std::endl;
               if ( !((std::get<5>(tuple) == localPrevSnode  && localPrevSnode == curSnode) || localPrevSnode == -1) ) {
                 break;
               }
