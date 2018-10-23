@@ -128,6 +128,24 @@ namespace symPACK{
 
 
 namespace symPACK{
+  // Function to return gcd of a and b 
+  template <typename F> 
+   inline F gcd(F a, F b) { 
+       if (a == 0) 
+         return b; 
+       return gcd(b % a, a); 
+   } 
+                     
+  // Function to find gcd of array of numbers 
+  template <typename F, typename S> 
+   inline F findGCD(F * arr, S n) { 
+         typename std::remove_cv<F>::type result = arr[0]; 
+         for (S i = 1; i < n; i++) 
+             result = gcd(arr[i], result); 
+                                       
+         return result; 
+   } 
+
 
   //exact cost of a mxn panel
 #define CHOLESKY_COST(m,n)  ((n)*pow((m),2.0) + 2*(n)*(m)-pow((n),3.0)/3.0 - 3.0*pow((n),2.0)/2.0 - (n)/6.0 -1.0)

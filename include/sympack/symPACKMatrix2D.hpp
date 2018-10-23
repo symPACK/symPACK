@@ -3841,17 +3841,34 @@ namespace symPACK{
         spositions[0] = 0;
         std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
 
+
+        //size_t myGCD = 0;
+        //myGCD = findGCD(stotcounts.data(),stotcounts.size());
+        ////now we need to to an allgather of these
+        //std::vector<size_t> gcds(this->np,0);
+        //MPI_Allgather(&myGCD,sizeof(size_t),MPI_BYTE,gcds.data(),sizeof(size_t),MPI_BYTE,this->workcomm_);
+        //myGCD = findGCD(gcds.data(),gcds.size());
+
+
+        //MPI_Datatype fused_type;
+        //MPI_Type_contiguous( myGCD*sizeof(minType), MPI_BYTE, &fused_type );
+        //MPI_Type_commit(&fused_type);
+
+        //for ( int i = 0; i< stotcounts.size(); i++){ stotcounts[i]/=myGCD; }
+        //spositions[0] = 0;
+        //std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
+
         size_t total_recv_size = 0;
         std::vector<minType, Mallocator<minType> > recvBuffer;
         std::function<void(std::vector<minType, Mallocator<minType> >&,size_t)> resize_lambda =
-          [](std::vector<minType, Mallocator<minType> >& container, size_t sz){
-            container.resize(sz);
-          };
-
+        [](std::vector<minType, Mallocator<minType> >& container, size_t sz){
+          container.resize(sz);
+        };
 
         MPI_Datatype type;
         MPI_Type_contiguous( sizeof(minType), MPI_BYTE, &type );
         MPI_Type_commit(&type);
+
 
         mpi::Alltoallv(sendBuffer, &stotcounts[0], &spositions[0], type ,
             recvBuffer,this->fullcomm_, resize_lambda);
@@ -3859,6 +3876,7 @@ namespace symPACK{
         total_recv_size = recvBuffer.size();
 
         MPI_Type_free(&type);
+        //MPI_Type_free(&fused_type);
         //Need to parse the structure sent from the processor owning the first column of the supernode
 
 

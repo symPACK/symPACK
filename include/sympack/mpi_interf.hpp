@@ -97,9 +97,175 @@ namespace symPACK{
 
 
 
+
+
+
+
+
 template<typename _Container, typename _Size>
 inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size *stotdispls, MPI_Datatype sendtype,
-                _Container & recvbuf, MPI_Comm & comm, std::function< void(_Container &, size_t)> & resize_func){
+                _Container & recvbuf, _Size *rtotcounts, _Size *rtotdispls,MPI_Comm & comm, std::function< void(_Container &, size_t)> & resize_func){
+
+  int mpirank, mpisize, err;
+  MPI_Comm_rank( comm, &mpirank );
+  MPI_Comm_size( comm, &mpisize );
+  err = MPI_SUCCESS;
+
+  //if _Size is signed, we can save an alltoall, reducing the overhead if there is an error
+  bool is_signed = std::numeric_limits<_Size>::is_signed;
+  
+  //first check that everything is positive
+  if ( is_signed && 
+      (std::any_of(stotcounts,stotcounts+mpisize,[](const _Size & a){ return a < 0;}) || 
+                std::any_of(stotdispls,stotdispls+mpisize,[](const _Size & a){ return a < 0;}) ) ) {
+    return -1;
+  }
+
+  //convert to size_t
+  std::vector< std::size_t > stotsizes(mpisize);
+  for ( std::size_t i = 0; i < mpisize; i++ ) { 
+    stotsizes[i] = std::size_t(stotcounts[i]);
+  }
+
+  //now check if everything is below threshold ( limit of integers )
+  bool need_split = false;
+  need_split = std::any_of(stotsizes.begin(),stotsizes.end(),
+        [](const std::size_t & a){ return a > std::numeric_limits<int>::max();});
+
+  
+  if ( !need_split ) {
+    std::vector< std::size_t > stotdispls_test(mpisize+1);
+    stotdispls_test[0] = 0;
+    std::partial_sum(stotsizes.begin(),stotsizes.end(),&stotdispls_test[1]);
+
+    
+    for ( std::size_t i = 0; i < mpisize+1; i++ ) {
+      if ( stotdispls_test[i] / std::numeric_limits<int>::max() > 0 ) {
+        need_split = true;
+      }
+    }
+  }
+
+  //now do an Allgather of the flag
+  std::vector<char> need_splits(mpisize);
+  err = MPI_Allgather(&need_split,sizeof(bool),MPI_BYTE,need_splits.data(),sizeof(bool),MPI_BYTE,comm);
+  if ( err != MPI_SUCCESS ) return err;
+  need_split = std::any_of(need_splits.begin(),need_splits.end(),
+        [](const char & a){ return (bool)a;});
+
+
+  size_t myGCD = 1;
+  if ( need_split ) {
+
+    //try to see if transferring larger chunks makes the error go away
+    myGCD = findGCD(stotsizes.data(),stotsizes.size());
+    //now we need to to an allgather of these
+    std::vector<size_t> gcds(mpisize,0);
+    err = MPI_Allgather(&myGCD,sizeof(size_t),MPI_BYTE,gcds.data(),sizeof(size_t),MPI_BYTE,comm);
+    if ( err != MPI_SUCCESS ) return err;
+    myGCD = findGCD(gcds.data(),gcds.size());
+
+    need_split = false;
+    for ( std::size_t i = 0; i < mpisize; i++ ) { 
+      if (std::size_t(stotcounts[i])/std::size_t(myGCD) > std::numeric_limits<int>::max() ) {
+        need_split = true;
+        break;
+      }
+      else {
+        stotsizes[i] = std::size_t(stotcounts[i])/std::size_t(myGCD);
+      }
+    }
+
+    if ( !need_split ) {
+      std::vector< std::size_t > stotdispls_test(mpisize+1);
+      stotdispls_test[0] = 0;
+      std::partial_sum(stotsizes.begin(),stotsizes.end(),&stotdispls_test[1]);
+
+    
+      for ( std::size_t i = 0; i < mpisize+1; i++ ) {
+        if ( stotdispls_test[i] / std::numeric_limits<int>::max() > 0 ) {
+          need_split = true;
+          break;
+        }
+      }
+
+      //now do an Allgather of the flag
+      std::vector<char> need_splits(mpisize);
+      err = MPI_Allgather(&need_split,sizeof(bool),MPI_BYTE,need_splits.data(),sizeof(bool),MPI_BYTE,comm);
+      if ( err != MPI_SUCCESS ) return err;
+      need_split = std::any_of(need_splits.begin(),need_splits.end(),
+                                    [](const char & a){ return (bool)a;});
+    }
+  }
+
+  if ( need_split ) {
+    //TODO handle that later
+    gdb_lock();
+  }
+  else {
+
+    //get the byte size from the MPI_Datatype to know how much we need to advance the pointers
+    int typesize = 0;
+    MPI_Type_size(sendtype, &typesize); 
+
+    MPI_Datatype fused_type;
+    MPI_Type_contiguous( typesize*myGCD, MPI_BYTE, &fused_type );
+    MPI_Type_commit(&fused_type);
+
+    vector<int> ssizes2(mpisize,0);
+    for (int i = 0; i< mpisize; i++) { ssizes2[i] = int( std::size_t(stotcounts[i]) / myGCD );}
+
+    vector<int> sdispls2(mpisize+1,0);
+    sdispls2[0] = 0;
+    std::partial_sum(ssizes2.begin(),ssizes2.end(),&sdispls2[1]);
+
+    vector<int> rsizes2(mpisize,0);
+    err = MPI_Alltoall(&ssizes2[0],sizeof(int),MPI_BYTE,&rsizes2[0],sizeof(int),MPI_BYTE,comm);
+    if ( err != MPI_SUCCESS ) return err;
+
+    //compute receive displacements
+    vector<int> rdispls2(mpisize+1,0);
+    rdispls2[0] = 0;
+    std::partial_sum(rsizes2.begin(),rsizes2.end(),&rdispls2[1]);
+
+    //resize the receive container
+    resize_func(recvbuf,rdispls2.back()*myGCD);
+
+    //Now do the alltoallv
+    err = MPI_Alltoallv(&sendbuf[0],&ssizes2[0],&sdispls2[0],fused_type,&recvbuf[0],&rsizes2[0],&rdispls2[0],fused_type,comm);
+    if ( err != MPI_SUCCESS ) return err;
+
+    MPI_Type_free(&fused_type);
+
+    //if ( myGCD > 1 ) {
+    for (int i = 0; i< mpisize; i++) { rtotcounts[i] = _Size( std::size_t(rsizes2[i]) * myGCD );}
+    for (int i = 0; i< mpisize+1; i++) { rtotdispls[i] = _Size( std::size_t(rdispls2[i]) * myGCD );}
+    //}
+  }
+
+  return err;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+template<typename _Container, typename _Size>
+inline int Alltoallv2(_Container & sendbuf, const _Size *stotcounts, const _Size *stotdispls, MPI_Datatype sendtype,
+                _Container & recvbuf, _Size *rtotcounts, _Size *rtotdispls,MPI_Comm & comm, std::function< void(_Container &, size_t)> & resize_func){
 
   int mpirank, mpisize;
   MPI_Comm_rank( comm, &mpirank );
@@ -120,18 +286,17 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
   MPI_Type_contiguous( sizeof(_Size), MPI_BYTE, &size_type );
   MPI_Type_commit(&size_type);
   //do the all to all
-  std::vector<_Size> rtotcounts(mpisize,0);
 
 
   if(need_split){
     std::vector<_Size> serrorsizes;
-      if(is_signed){
-        serrorsizes.reserve(mpisize);
-        for(int i = 0; i<mpisize;i++){ serrorsizes[i] = -stotcounts[i]; }
-      }
-      else{
-        serrorsizes.assign(mpisize,std::numeric_limits<_Size>::max());
-      }
+    if(is_signed){
+      serrorsizes.reserve(mpisize);
+      for(int i = 0; i<mpisize;i++){ serrorsizes[i] = -stotcounts[i]; }
+    }
+    else{
+      serrorsizes.assign(mpisize,std::numeric_limits<_Size>::max());
+    }
     MPI_Alltoall(&serrorsizes[0],1,size_type,&rtotcounts[0],1,size_type,comm);
   }
   else{
@@ -146,6 +311,15 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
     const _Size * errorLocal = std::max_element(&rtotcounts[0],&rtotcounts[0]+mpisize);
     need_split = *errorLocal==std::numeric_limits<_Size>::max();
   }
+
+
+
+
+
+
+
+
+
 
   size_t max_sr_size = 0;
   if(need_split){
@@ -168,9 +342,17 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
 
   MPI_Type_free(&size_type);
 
-  std::vector<_Size> rtotdispls(mpisize,0);
+
+
+
+
+
+
+
+
+
   rtotdispls[0] = 0;
-  std::partial_sum(rtotcounts.begin(),rtotcounts.end()-1,&rtotdispls[1]);
+  std::partial_sum(rtotcounts,rtotcounts+mpisize-1,&rtotdispls[1]);
 
   size_t total_send_size = 0;
   size_t total_recv_size = 0;
@@ -225,6 +407,14 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
     std::vector<int> rcounts(mpisize,0);
 
 
+
+
+
+
+
+
+
+
     //now we know how many alltoallv are required
     for(int step_atav = 0; step_atav<split_atav;step_atav++){
       size_t offset_buffer = step_atav*chunk_atav;
@@ -232,7 +422,7 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
       size_t tot_send = 0;
       for(Int i = 0; i< mpisize; i++){
         if(offset_buffer<=size_t(stotcounts[i])){
-          scounts[i] = std::min(chunk_atav,int(stotcounts[i]-offset_buffer));
+          scounts[i] = int(std::min(_Size(chunk_atav),stotcounts[i]-offset_buffer));
         }
         else{
           scounts[i]=0;
@@ -243,7 +433,7 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
       size_t tot_recv = 0;
       for(Int i = 0; i< mpisize; i++){
         if(offset_buffer<=size_t(rtotcounts[i])){
-          rcounts[i] = std::min(chunk_atav,int(rtotcounts[i]-offset_buffer));
+          rcounts[i] = int(std::min(_Size(chunk_atav),rtotcounts[i]-offset_buffer));
         }
         else{
           rcounts[i]=0;
@@ -302,9 +492,17 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
       }
 
 
-      MPI_Alltoallv((void*)sptrs, &scounts[0], &sdispls[0], sendtype,
+      int errmpi = MPI_Alltoallv((void*)sptrs, &scounts[0], &sdispls[0], sendtype,
           (void*)rptrs, &rcounts[0], &rdispls[0], sendtype,
           comm);
+
+
+      bassert( scounts[mpirank] == rcounts[mpirank] );
+      for ( size_t i = 0; i < scounts[mpirank] ; i++) {
+        bassert( sptrs[ sdispls[mpirank] + i ] == rptrs[ rdispls[mpirank] + i ] );
+      }
+
+
 
       if(max_s_gap==0){
         //advance the pointer
@@ -338,7 +536,24 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
       delete tmpsbuf;
     }
   }
+
+  rtotdispls[0] = 0;
+  std::partial_sum(rtotcounts,rtotcounts+mpisize,&rtotdispls[1]);
   return 0;
+}
+
+
+
+template<typename _Container, typename _Size>
+inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size *stotdispls, MPI_Datatype sendtype,
+                _Container & recvbuf, MPI_Comm & comm, std::function< void(_Container &, size_t)> & resize_func){
+
+  int mpisize;
+  MPI_Comm_size( comm, &mpisize );
+  std::vector<_Size> rtotdispls(mpisize,0);
+  std::vector<_Size> rtotcounts(mpisize,0);
+  return Alltoallv(sendbuf, stotcounts, stotdispls, sendtype,
+                recvbuf, rtotcounts.data(), rtotdispls.data(), comm, resize_func);
 }
 
 

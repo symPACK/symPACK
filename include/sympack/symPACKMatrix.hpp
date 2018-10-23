@@ -87,6 +87,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include "sympack/Types.hpp"
 #include "sympack/Task.hpp"
 #include "sympack/Scheduler.hpp"
+#include "sympack/mpi_interf.hpp"
 
 #include <list>
 #include <tuple>
@@ -260,6 +261,325 @@ namespace symPACK{
           }
           cell_counts[supid-1] = cell_count;
         }
+
+#if 1
+        {
+          MPI_Datatype type;
+          MPI_Type_contiguous( sizeof(int), MPI_BYTE, &type );
+          MPI_Type_commit(&type);
+
+          int supidBeg = this->XsuperDist_[this->iam];
+          int supidEnd = this->XsuperDist_[this->iam+1];
+          //allgather receive sizes
+          size_t ssize = supidEnd - supidBeg;
+          vector<int> rsizes(this->np,0);
+          MPI_Allgather(&ssize,sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,this->workcomm_);
+
+          //compute receive displacements
+          vector<int> rdispls(this->np+1,0);
+          rdispls[0] = 0;
+          std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
+
+
+          //Now do the allgatherv
+          vector<int> cell_counts2(rdispls.back());
+          MPI_Allgatherv(&cell_counts[supidBeg-1],ssize,type,cell_counts2.data(),rsizes.data(),rdispls.data(),type,this->workcomm_);
+          MPI_Type_free(&type);
+          cell_counts.swap(cell_counts2);
+        }
+
+        using cell_meta_t = std::tuple< std::size_t , size_t, size_t , Idx , int, int > ;
+        std::vector< char > sendbuf;
+        std::vector<size_t> ssizes(this->np,0);
+
+        auto local_it = M.localBlocks_.begin();
+        for (int supid=1;supid<=M.nsuper;supid++) {
+          auto cell = M.pQueryCELL(supid-1,supid-1);
+          assert( cell != nullptr );
+          assert( supid == cell->j );
+          int fc = M.Xsuper_[supid-1];
+          auto proot = cell->owner;
+          sup_mapp[supid-1] = proot;
+
+          while ( local_it != M.localBlocks_.end() && (*local_it)->j<supid  ) { local_it++; }
+          while ( local_it != M.localBlocks_.end() && (*local_it)->j == supid ) {
+            auto cellptr = *local_it;
+            ssizes[proot]+=sizeof(cell_meta_t)+cellptr->_storage_size;
+            local_it++;
+          }
+        }
+
+        vector<size_t> sdispls(this->np+1,0);
+        sdispls[0] = 0;
+        std::partial_sum(ssizes.begin(),ssizes.end(),&sdispls[1]);
+
+        sendbuf.resize(sdispls.back());
+
+        local_it = M.localBlocks_.begin();
+        for (int supid=1;supid<=M.nsuper;supid++) {
+          auto cell = M.pQueryCELL(supid-1,supid-1);
+          assert( cell != nullptr );
+          assert( supid == cell->j );
+          int fc = M.Xsuper_[supid-1];
+          auto proot = cell->owner;
+          sup_mapp[supid-1] = proot;
+
+          //find the least loaded processor among those owning blocks of supernode supid
+          while ( local_it != M.localBlocks_.end() && (*local_it)->j<supid  ) { local_it++; }
+          while ( local_it != M.localBlocks_.end() && (*local_it)->j == supid ) {
+            auto cellptr = *local_it;
+            cell_meta_t tuple = std::make_tuple(cellptr->_storage_size,cellptr->nnz(), cellptr->nblocks(), std::get<0>(cellptr->_dims), cellptr->i, cellptr->j);
+            char * tail = &sendbuf[sdispls[proot]];
+            *(cell_meta_t*)tail = tuple;
+            tail+=sizeof(tuple);
+            std::copy(cellptr->_gstorage.local(),cellptr->_gstorage.local()+cellptr->_storage_size,tail);
+            tail+=cellptr->_storage_size;
+            sdispls[proot]+=sizeof(tuple)+cellptr->_storage_size;
+            local_it++;
+          }
+        }
+
+        sdispls[0] = 0;
+        std::partial_sum(ssizes.begin(),ssizes.end(),&sdispls[1]);
+
+        
+        //sendbuf is ready, do a alltoallv
+         //gather receive sizes
+        //vector<int> ssizes2(this->np,0);
+        //for(int i =0; i< this->np;i++){ssizes2[i] = ssizes[i];}
+        //vector<int> sdispls2(this->np+1,0);
+        //sdispls2[0] = 0;
+        //std::partial_sum(ssizes2.begin(),ssizes2.end(),&sdispls2[1]);
+
+        //vector<int> rsizes2(this->np,0);
+        //MPI_Alltoall(&ssizes2[0],sizeof(int),MPI_BYTE,&rsizes2[0],sizeof(int),MPI_BYTE,this->workcomm_);
+
+        ////compute receive displacements
+        //vector<int> rdispls2(this->np+1,0);
+        //rdispls2[0] = 0;
+        //std::partial_sum(rsizes2.begin(),rsizes2.end(),&rdispls2[1]);
+
+        ////Now do the alltoallv
+        //vector<char> recvbuf2(rdispls2.back());
+        //MPI_Alltoallv(&sendbuf[0],&ssizes2[0],&sdispls2[0],MPI_BYTE,&recvbuf2[0],&rsizes2[0],&rdispls2[0],MPI_BYTE,this->workcomm_);
+
+        
+        
+        
+        auto sheads = sdispls; 
+
+          for ( int precv = 0; precv < this->np; precv++ ) {
+            cell_meta_t tuple; 
+
+            while ( sheads[precv] < sdispls[precv+1] ) {
+              tuple = *((cell_meta_t*)&sendbuf[sheads[precv]]);
+              bassert(std::get<5>(tuple)<=M.nsuper && std::get<5>(tuple)>0);
+              logfileptr->OFS()<<"precv="<<precv<<" "<<std::get<5>(tuple)<<std::endl;
+              //if ( !((std::get<5>(tuple) == localPrevSnode  && localPrevSnode == curSnode) || localPrevSnode == -1) ) {
+              //  break;
+              //}
+              //if ( std::get<5>(tuple) == curSnode ) {
+                size_t size, nnz, nblocks;
+                int i,j;
+                Idx width;
+                std::tie( size, nnz, nblocks, width, i,j) = tuple;         
+                char * ptr = &sendbuf[sheads[precv]+sizeof(tuple)];
+
+                sheads[precv] += sizeof(tuple) + size; 
+              //}
+              //localPrevSnode = std::get<5>(tuple);
+            }
+          }
+        
+        
+       
+//        if ( this->iam==2){gdb_lock();}
+//gdb_lock();
+ 
+        vector<char> recvbuf;
+        vector<size_t> rsizes(this->np,0);
+        vector<size_t> rdispls(this->np+1,0);
+
+        std::function<void(std::vector<char> &,size_t)> resize_lambda =
+            [](std::vector<char> & container, size_t sz){
+            container.resize(sz); 
+            };
+
+
+
+
+
+
+//  //try to see if transferring larger chunks makes the error go away
+//  size_t myGCD = 0;
+//    myGCD = findGCD(ssizes.data(),ssizes.size());
+//    //now we need to to an allgather of these
+//    std::vector<size_t> gcds(this->np,0);
+//    MPI_Allgather(&myGCD,sizeof(size_t),MPI_BYTE,gcds.data(),sizeof(size_t),MPI_BYTE,this->workcomm_);
+//    myGCD = findGCD(gcds.data(),gcds.size());
+//
+//
+//    MPI_Datatype fused_type;
+//    MPI_Type_contiguous( myGCD, MPI_BYTE, &fused_type );
+//    MPI_Type_commit(&fused_type);
+//
+//    
+//
+//
+//        //sendbuf is ready, do a alltoallv
+//        //gather receive sizes
+//        vector<int> ssizes2(this->np,0);
+//        for(int i =0; i< this->np;i++){ssizes2[i] = ssizes[i]/myGCD;}
+//        vector<int> sdispls2(this->np+1,0);
+//        sdispls2[0] = 0;
+//        std::partial_sum(ssizes2.begin(),ssizes2.end(),&sdispls2[1]);
+//
+//        vector<int> rsizes2(this->np,0);
+//        MPI_Alltoall(&ssizes2[0],sizeof(int),MPI_BYTE,&rsizes2[0],sizeof(int),MPI_BYTE,this->workcomm_);
+//
+//        //compute receive displacements
+//        vector<int> rdispls2(this->np+1,0);
+//        rdispls2[0] = 0;
+//        std::partial_sum(rsizes2.begin(),rsizes2.end(),&rdispls2[1]);
+//
+//
+//
+//
+//
+//        //Now do the alltoallv
+//        recvbuf.resize(rdispls2.back());
+//        MPI_Alltoallv(&sendbuf[0],&ssizes2[0],&sdispls2[0],fused_type,&recvbuf[0],&rsizes2[0],&rdispls2[0],fused_type,this->workcomm_);
+//
+//
+//
+//
+//
+//    MPI_Type_free(&fused_type);
+
+
+
+
+        mpi::Alltoallv(sendbuf, ssizes.data(),sdispls.data(), MPI_BYTE,
+            recvbuf,rsizes.data(),rdispls.data(),this->fullcomm_,resize_lambda );
+        
+        //for(int i = 0; i<rsizes.size(); i++){ assert(rsizes[i]==rsizes2[i]);}
+        //for(int i = 0; i<rdispls.size(); i++){ assert(rdispls[i]==rdispls2[i]);}
+        //for(int i = 0; i<recvbuf.size(); i++){ assert(recvbuf[i]==recvbuf2[i]);}
+
+
+
+
+
+
+
+        //clear the send buffer
+        { vector<char> tmp; sendbuf.swap( tmp ); }
+
+        Int curSnode = 1;
+        //if ( this->iam==0 ) { gdb_lock();}
+        auto rheads = rdispls; 
+          for ( int psend = 0; psend < this->np; psend++ ) {
+            cell_meta_t tuple; 
+
+            while ( rheads[psend] < rdispls[psend+1] ) {
+              tuple = *((cell_meta_t*)&recvbuf[rheads[psend]]);
+              bassert(std::get<5>(tuple)<=M.nsuper && std::get<5>(tuple)>0);
+              logfileptr->OFS()<<"psend="<<psend<<" "<<std::get<5>(tuple)<<std::endl;
+              //if ( !((std::get<5>(tuple) == localPrevSnode  && localPrevSnode == curSnode) || localPrevSnode == -1) ) {
+              //  break;
+              //}
+              //if ( std::get<5>(tuple) == curSnode ) {
+                size_t size, nnz, nblocks;
+                int i,j;
+                Idx width;
+                std::tie( size, nnz, nblocks, width, i,j) = tuple;         
+                char * ptr = &recvbuf[rheads[psend]+sizeof(tuple)];
+
+                rheads[psend] += sizeof(tuple) + size; 
+              //}
+              //localPrevSnode = std::get<5>(tuple);
+            }
+          }
+        
+
+//gdb_lock();
+
+        auto heads = rdispls; 
+        while ( std::any_of(heads.begin(),heads.end()-1,[&heads,&rdispls](size_t & a){ size_t idx = &a-heads.data(); return a<rdispls[idx+1];}) ){
+          bassert(curSnode<=M.nsuper);
+          SuperNode<T> * newSnode = NULL;
+          std::vector< std::tuple<cell_meta_t,char*> > blocks;
+
+          size_t height = 0;
+          size_t nzBlockCnt = 0;
+
+
+          for ( int psend = 0; psend < this->np; psend++ ) {
+            Int localPrevSnode = -1;
+            cell_meta_t tuple; 
+
+            while ( heads[psend] < rdispls[psend+1] ) {
+              tuple = *((cell_meta_t*)&recvbuf[heads[psend]]);
+              bassert(std::get<5>(tuple)<=M.nsuper && std::get<5>(tuple)>0);
+              logfileptr->OFS()<<"["<<curSnode<<"] psend="<<psend<<" "<<std::get<5>(tuple)<<std::endl;
+              if ( !((std::get<5>(tuple) == localPrevSnode  && localPrevSnode == curSnode) || localPrevSnode == -1) ) {
+                break;
+              }
+              if ( std::get<5>(tuple) == curSnode ) {
+                size_t size, nnz, nblocks;
+                int i,j;
+                Idx width;
+                std::tie( size, nnz, nblocks, width, i,j) = tuple;         
+                char * ptr = &recvbuf[heads[psend]+sizeof(tuple)];
+                blocks.push_back(std::make_tuple(tuple,ptr));
+
+                height += nnz/width;
+                nzBlockCnt += nblocks;
+                heads[psend] += sizeof(tuple) + size; 
+              }
+              localPrevSnode = std::get<5>(tuple);
+            }
+          }
+
+          if ( blocks.size()>0 ){
+#ifndef ITREE2
+              this->globToLocSnodes_.push_back(curSnode-1);
+#else 
+              ITree::Interval snode_inter = { curSnode, curSnode, this->LocalSupernodes_.size() };
+              this->globToLocSnodes_.Insert(snode_inter);
+#endif
+
+            int fc = this->Xsuper_[curSnode-1];
+            int lc = this->Xsuper_[curSnode]-1;
+            newSnode = CreateSuperNode(this->options_.decomposition,curSnode,fc,fc,lc,height,this->iSize_,nzBlockCnt,this->options_.panel);
+
+            auto nzval = newSnode->GetNZval(0);
+            for(auto & tpl: blocks){
+              cell_meta_t & tuple = std::get<0>(tpl);
+              size_t size, nnz, nblocks;
+              int i,j;
+              Idx width;
+              std::tie( size, nnz, nblocks, width, i,j) = tuple;         
+              char * ptr = std::get<1>(tpl);
+
+              std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t> snode2D( new typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t(i,j,ptr,fc,width,nnz,nblocks));
+              auto & blocks = snode2D->blocks();
+              for ( auto & block: blocks ) {
+                newSnode->AddNZBlock(snode2D->block_nrows(block) , block.first_row);
+              }
+              //now copy numerical values
+              std::copy(snode2D->_nzval,snode2D->_nzval+nnz,nzval);
+              nzval+=nnz;
+            }
+
+            this->LocalSupernodes_.push_back(newSnode);
+          }
+          curSnode++;
+        }
+
+#else          
+
+
         //now communicate
         upcxx::future<> conj = upcxx::make_future();
         for ( int p = 0; p < this->np; p++ ) {
@@ -412,6 +732,7 @@ namespace symPACK{
 
         }
             all_fut.wait();
+#endif
         //upcxx::barrier(); 
 
         double timeEnd = get_time();
