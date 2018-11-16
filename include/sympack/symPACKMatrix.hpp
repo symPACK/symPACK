@@ -233,8 +233,9 @@ namespace symPACK{
       //Int localTaskCount_;
       //void generateTaskGraph(Int & localTaskCount, std::vector<std::list<FBTask> * > & taskLists);
       std::list<FBTask>::iterator find_task(std::vector<std::list<FBTask> * > & taskLists, Int src, Int tgt, TaskType type );
-
+    public:
       supernodalTaskGraph taskGraph_;
+    protected:
       void generateTaskGraph(supernodalTaskGraph & taskGraph,std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates);
 
       std::vector<std::list<Int> > chSupTree_;

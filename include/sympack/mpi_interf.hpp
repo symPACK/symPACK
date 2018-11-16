@@ -204,8 +204,8 @@ int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size *stotdi
     MPI_Type_size(sendtype, &typesize); 
 
 
-    std::vector<char> * tmpsbuf; 
-    std::vector<char> * tmprbuf; 
+    std::vector<char> * tmpsbuf = nullptr; 
+    std::vector<char> * tmprbuf = nullptr; 
     if(max_s_gap>0){
       tmpsbuf = new std::vector<char>();
     }

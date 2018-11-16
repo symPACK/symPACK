@@ -174,6 +174,9 @@ template <typename T> void symPACKMatrix<T>::FanBoth()
   SYMPACK_TIMER_START(FB_INIT);
   double timeSta, timeEnd;
 
+  //Create a copy of the task graph
+  supernodalTaskGraph taskGraph = taskGraph_;
+
   std::vector<Int> UpdatesToDo = UpdatesToDo_;
 
   //tmp buffer space
@@ -204,8 +207,6 @@ template <typename T> void symPACKMatrix<T>::FanBoth()
   timeSta =  get_time( );
   SYMPACK_TIMER_START(BUILD_TASK_LIST);
 
-  //Create a copy of the task graph
-  supernodalTaskGraph taskGraph = taskGraph_;
 
 ////  std::vector<std::list<FBTask> * > taskLists;
 ////  Int localTaskCount = localTaskCount_;

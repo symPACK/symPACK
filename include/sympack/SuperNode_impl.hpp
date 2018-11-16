@@ -1128,12 +1128,10 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
 
   }
   else{
-    Update(src_snode, update, tmpBuffers);
+    return Update(src_snode, update, tmpBuffers);
   }
 
-
-
-
+    return 0;
 
 }
 

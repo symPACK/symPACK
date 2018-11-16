@@ -16,7 +16,7 @@ set(UPCXX_LIBRARY_PATH ${UPCXX_LIBRARY_PATH} ${GASNET_LIBRARY_PATH})
   add_library(upcxx STATIC IMPORTED)
   else()
 set(UPCXX_NAME upcxx)
-  set(UPCXX_REPO https://bitbucket.org/upcxx/upcxx.git)
+  set(UPCXX_REPO https://bitbucket.org/pagoda-archive/legacy-upcpp.git)
 
   if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     #    set(UPCXX_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DUPCXX_DEBUG")

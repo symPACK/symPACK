@@ -1,9 +1,14 @@
+#set(BLAS_DIR /usr/include/x86_64-linux-gnu)
+#set(LAPACK_DIR /usr/include/x86_64-linux-gnu)
+##Required for mkl
+#set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} /usr/lib/x86_64-linux-gnu/openblas)
+#set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} /usr/lib/x86_64-linux-gnu/openblas)
+
 set(BLAS_DIR /opt/intel/mkl)
 set(LAPACK_DIR /opt/intel/mkl)
 #Required for mkl
 set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} ${BLAS_DIR}/lib/intel64)
 set(CMAKE_LIBRARY_PATH ${CMAKE_LIBRARY_PATH} ${LAPACK_DIR}/lib/intel64)
-
 
 
 #set(BLAS_DIR /usr/lib/)
