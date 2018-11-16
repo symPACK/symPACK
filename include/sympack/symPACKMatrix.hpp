@@ -144,7 +144,7 @@ namespace symPACK{
 
       //Solve routines
       //note: RHS & B are stored in column major format
-      void Solve(T * RHS, int nrhs,  T * Xptr=NULL);
+      void Solve(T * RHS, int nrhs,  T * Xptr=nullptr);
       void GetSolution(T * B, int nrhs);
 
       void FanBoth( );
@@ -283,7 +283,7 @@ namespace symPACK{
 
       void symbolicFactorizationRelaxedDist(std::vector<Int> & cc);
 
-      void refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T>* pMat = NULL);
+      void refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T>* pMat = nullptr);
 
       void getLColRowCount(std::vector<Int> & cc, std::vector<Int> & rc);
       void getLColRowCount(SparseMatrixGraph & sgraph, std::vector<Int> & cc, std::vector<Int> & rc);

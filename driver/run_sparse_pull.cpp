@@ -222,8 +222,8 @@ int main(int argc, char **argv)
 
 
           Ptr nnz = 0;
-          Idx * rowind = NULL;
-          SCALAR * nzval = NULL;
+          Idx * rowind = nullptr;
+          SCALAR * nzval = nullptr;
 
           //do I own the column ?
 
@@ -315,7 +315,7 @@ int main(int argc, char **argv)
 #ifndef NOTRY
       catch(const std::bad_alloc& e){
         std::cout << "Allocation failed: " << e.what() << '\n';
-        SMat = NULL;
+        SMat = nullptr;
         abort();
       }
 #endif

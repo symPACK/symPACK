@@ -71,7 +71,7 @@ namespace symPACK{
 //  }
 
 template<typename T, class Allocator>
-SuperNodeInd<T,Allocator>::SuperNodeInd() :SuperNode<T,Allocator>(), diag_(NULL){ }
+SuperNodeInd<T,Allocator>::SuperNodeInd() :SuperNode<T,Allocator>(), diag_(nullptr){ }
 
 template<typename T, class Allocator>
 SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {
@@ -90,14 +90,14 @@ SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int ai_num
   //storage_container_ = upcxx::allocate<char>(iam,this->storage_size_); 
   //this->loc_storage_container_ = (char *)storage_container_;
 #ifdef _USE_COREDUMPER_
-  if(this->loc_storage_container_==NULL){
+  if(this->loc_storage_container_==nullptr){
 gdb_lock();
     std::stringstream corename;
     corename << "core.sympack." << upcxx::myrank();
     WriteCoreDump(corename.str().c_str());
   }
 #endif
-  assert(this->loc_storage_container_!=NULL);
+  assert(this->loc_storage_container_!=nullptr);
 
   this->nzval_ = (T*)&this->loc_storage_container_[0];
   this->diag_ = (T*)(this->nzval_+size*ai_num_rows);
@@ -158,7 +158,7 @@ SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFc, Int aiLc, Int aiN, s
   this->storage_size_ += sizeof(T)*size; //extra space for diagonal (indefinite matrices)
 
   this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
-  assert(this->loc_storage_container_!=NULL);
+  assert(this->loc_storage_container_!=nullptr);
 
   this->nzval_ = (T*)&this->loc_storage_container_[0];
   this->diag_ = (T*)(this->nzval_+size*numRows);
@@ -239,7 +239,7 @@ void SuperNodeInd<T,Allocator>::Init(char * storage_ptr,size_t storage_size, Int
   this->blocks_ = (NZBlockDesc*) last;
 
   Int blkCnt = 0;
-  NZBlockDesc * curBlockPtr = NULL;
+  NZBlockDesc * curBlockPtr = nullptr;
   do{
     curBlockPtr = &this->GetNZBlockDesc(blkCnt);
     ++blkCnt;
@@ -318,14 +318,14 @@ inline void SuperNodeInd<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int 
       char * locTmpPtr = Allocator::allocate(new_size);
 
 #ifdef _USE_COREDUMPER_
-      if(locTmpPtr==NULL){
+      if(locTmpPtr==nullptr){
         std::stringstream corename;
         corename << "core.sympack." << upcxx::myrank();
         WriteCoreDump(corename.str().c_str());
       }
 #endif
 
-      assert(locTmpPtr!=NULL);
+      assert(locTmpPtr!=nullptr);
 
       //std::copy(this->loc_storage_container_,this->loc_storage_container_+this->storage_size_,locTmpPtr);
       for(size_t i = 0;i<this->storage_size_;i++){locTmpPtr[i] = this->loc_storage_container_[i];}
@@ -403,7 +403,7 @@ inline Int SuperNodeInd<T,Allocator>::Shrink(){
 
 
 #ifdef _USE_COREDUMPER_
-      if(locTmpPtr==NULL){
+      if(locTmpPtr==nullptr){
         std::stringstream corename;
         corename << "core.sympack." << upcxx::myrank();
         WriteCoreDump(corename.str().c_str());
@@ -411,7 +411,7 @@ inline Int SuperNodeInd<T,Allocator>::Shrink(){
 #endif
 
 
-      assert(locTmpPtr!=NULL);
+      assert(locTmpPtr!=nullptr);
 
       //copy nzvals
       std::copy(this->nzval_,this->nzval_+this->meta_->nzval_cnt_,(T*)locTmpPtr);
@@ -540,7 +540,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
 
 
   //Pointer to the output buffer of the GEMM
-  T * buf = NULL;
+  T * buf = nullptr;
   T beta = ZERO<T>();
   //If the target supernode has the same structure,
   //The GEMM is directly done in place
@@ -729,7 +729,7 @@ inline Int SuperNodeInd<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode,
   T * tgt = this->GetNZval(0);
 
   //Pointer to the output buffer of the GEMM
-  T * buf = NULL;
+  T * buf = nullptr;
   T beta = ZERO<T>();
   //If the target supernode has the same structure,
   //The GEMM is directly done in place

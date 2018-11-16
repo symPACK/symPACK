@@ -1715,7 +1715,7 @@ iss.clear(); // Clear state flags.
   MPI_Type_commit(&type);
   //scatter colptr
   pspmat.Localg_.colptr.resize(nlocal+1);
-  MPI_Scatterv(mpirank==0?&gcolptr[0]:NULL,&sizes[0],&disps[0],type,&pspmat.Localg_.colptr[0],nlocal+1,type,0,comm);
+  MPI_Scatterv(mpirank==0?&gcolptr[0]:nullptr,&sizes[0],&disps[0],type,&pspmat.Localg_.colptr[0],nlocal+1,type,0,comm);
   MPI_Type_free(&type);
 
   logfileptr->OFS()<<pspmat.Localg_.colptr<<std::endl;
@@ -1741,7 +1741,7 @@ iss.clear(); // Clear state flags.
     for( Int ip = 0; ip < mpisize; ip++ ){
       numRead = gcolptr[ pspmat.Localg_.vertexDist[ip+1] - baseval ] 
         - gcolptr[ pspmat.Localg_.vertexDist[ip] - baseval ];
-      Idx * ptr = NULL;
+      Idx * ptr = nullptr;
       if(ip>0){
         buf.resize(numRead);
         ptr = &buf[0];
@@ -1784,7 +1784,7 @@ logfileptr->OFS()<<"Expecting "<<nnzLocal<<std::endl;
     for( Int ip = 0; ip < mpisize; ip++ ){
       numRead = gcolptr[ pspmat.Localg_.vertexDist[ip+1] - baseval ] 
         - gcolptr[ pspmat.Localg_.vertexDist[ip] - baseval ];
-      SCALAR * ptr = NULL;
+      SCALAR * ptr = nullptr;
       if(ip>0){
         buf.resize(numRead);
         ptr = &buf[0];

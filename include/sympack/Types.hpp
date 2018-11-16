@@ -193,10 +193,10 @@ namespace symPACK{
         relax = RelaxationParameters(0);
         relax.SetMaxSize(150);
 
-        commEnv = NULL;
+        commEnv = nullptr;
         MPIcomm = MPI_COMM_NULL;
 
-        perm = NULL;
+        perm = nullptr;
         dumpPerm = 0;
 //        mappingType = ROW2D;
 ///        ordering = MMD;

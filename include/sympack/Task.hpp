@@ -79,7 +79,7 @@ namespace symPACK{
 
 
 //          SuperNode2<T> * cur_src_snode; 
-//          IncomingMessage * msgPtr = NULL;
+//          IncomingMessage * msgPtr = nullptr;
 //          //Local or remote factor
 //          //we have only one local or one remote incoming aggregate
 //          if(curTask.data.size()==0){
@@ -364,7 +364,7 @@ inline std::ostream& operator<<( std::ostream& os, const FBTask& t)
 //    //computation
 //    std::function<int(std::vector<char>&)> process;
 //
-//    Task():data(NULL){
+//    Task():data(nullptr){
 //      id.resize(idSize);
 //    }
 //};

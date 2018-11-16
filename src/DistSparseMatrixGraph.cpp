@@ -227,16 +227,18 @@ namespace symPACK{
   }
 
   DistSparseMatrixGraph& DistSparseMatrixGraph::operator=( const DistSparseMatrixGraph& g ) {
-    expanded = g.expanded;
-    size = g.size;
-    nnz = g.nnz;
-    colptr = g.colptr;
-    rowind = g.rowind;
-    SetComm(g.comm);
-    vertexDist = g.vertexDist;
-    baseval = g.baseval;
-    keepDiag = g.keepDiag;
-    sorted = g.sorted;
+    if ( this != & g ) {
+      expanded = g.expanded;
+      size = g.size;
+      nnz = g.nnz;
+      colptr = g.colptr;
+      rowind = g.rowind;
+      SetComm(g.comm);
+      vertexDist = g.vertexDist;
+      baseval = g.baseval;
+      keepDiag = g.keepDiag;
+      sorted = g.sorted;
+    }
     return *this;
   }
 
@@ -369,14 +371,14 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
   }
 
   void DistSparseMatrixGraph::Permute(Int * invp){
-    permute_(invp, NULL, 1);
+    permute_(invp, nullptr, 1);
   }
   void DistSparseMatrixGraph::Permute(Int * invp, Idx * newVertexDist){
     permute_(invp, newVertexDist, 1);
   }
 
   void DistSparseMatrixGraph::Redistribute(Idx * newVertexDist){
-    permute_(NULL, newVertexDist, 1);
+    permute_(nullptr, newVertexDist, 1);
   }
 
 
@@ -391,7 +393,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     SYMPACK_TIMER_START(PERMUTE);
 
     //handle default parameter values
-    if(newVertexDist==NULL){
+    if(newVertexDist==nullptr){
       newVertexDist = &vertexDist[0];
     }
 
@@ -413,7 +415,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       Idx col = firstCol + locCol; //0-based
       Ptr colbeg = colptr[locCol] - baseval;
       Ptr colend = colptr[locCol+1] - baseval;
-      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // 0 based;
+      Idx permCol = invp!=nullptr?invp[col]-invpbaseval:col; // 0 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
       //sizes[pdest] += (colend - colbeg) + PtrIdx_sz + 1; //extra 2 are for the count of elements and the permuted columns
@@ -421,7 +423,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       //now permute rows
       for(Ptr jptr = colbeg; jptr<colend; jptr++){
         Idx row = rowind[jptr] - baseval; //0 based
-        Idx permRow = invp!=NULL?invp[row] - invpbaseval:row; // 0 based
+        Idx permRow = invp!=nullptr?invp[row] - invpbaseval:row; // 0 based
 
         if(permRow<permCol && !expanded){
           Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
@@ -450,13 +452,13 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       Idx col = firstCol + locCol; 
       Ptr colbeg = colptr[locCol]-baseval;
       Ptr colend = colptr[locCol+1]-baseval;
-      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // 0 based;
+      Idx permCol = invp!=nullptr?invp[col]-invpbaseval:col; // 0 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
 
       for(Ptr jptr = colbeg; jptr<colend; jptr++){
         Idx row = rowind[jptr] - baseval; //0 based
-        Idx permRow = invp!=NULL?invp[row] - invpbaseval:row; // 0 based
+        Idx permRow = invp!=nullptr?invp[row] - invpbaseval:row; // 0 based
         if(permRow<permCol && !expanded){
           Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
           sbuf[displs[pdestR]++] = std::make_pair(permRow,permCol);
@@ -551,7 +553,7 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     ////      Ptr colend = colptr[locCol+1]-baseval;
     ////      //Ptr colbeg = colptr.at(locCol) - baseval;
     ////      //Ptr colend = colptr.at(locCol+1) - baseval;
-    ////      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // perm is 1 based;
+    ////      Idx permCol = invp!=nullptr?invp[col]-invpbaseval:col; // perm is 1 based;
     ////      //find destination processors
     ////      Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
     ////      //Idx pdest = min((Idx)mpisize-1, permCol / colPerProc);
@@ -1316,8 +1318,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
 /////          }
 /////          else{
 /////            SYMPACK_TIMER_START(REDUCE);
-/////            MPI_Reduce(&remote_colptr[1],NULL,remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
-/////            MPI_Reduce(&remote_colptr[0],NULL,1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
+/////            MPI_Reduce(&remote_colptr[1],nullptr,remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
+/////            MPI_Reduce(&remote_colptr[0],nullptr,1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
 /////            SYMPACK_TIMER_STOP(REDUCE);
 /////            remote_rowind.resize(extraNNZ);
 /////          }
@@ -1448,8 +1450,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
 /////        }
 /////        else{
 /////          SYMPACK_TIMER_START(REDUCE);
-/////            MPI_Reduce(&remote_colptr[1],NULL,remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
-/////            MPI_Reduce(&remote_colptr[0],NULL,1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
+/////            MPI_Reduce(&remote_colptr[1],nullptr,remColCnt,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_SUM,prow,comm);
+/////            MPI_Reduce(&remote_colptr[0],nullptr,1,MPI_SYMPACK_PTR,MPI_SYMPACK_PTR_MAX,prow,comm);
 /////          SYMPACK_TIMER_STOP(REDUCE);
 /////        }
 /////
@@ -1595,8 +1597,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
       MPI_Gatherv(&colptr[0],localVertexCnt,type,&g.colptr[0],&rsizes[0],&rdispls[0],type,proot,comm);
     }
     else{
-    //MPI_Gatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,NULL,NULL,NULL,MPI_BYTE,proot,comm);
-    MPI_Gatherv(&colptr[0],localVertexCnt,type,NULL,NULL,NULL,type,proot,comm);
+    //MPI_Gatherv(&colptr[0],localVertexCnt*sizeof(Ptr),MPI_BYTE,nullptr,nullptr,nullptr,MPI_BYTE,proot,comm);
+    MPI_Gatherv(&colptr[0],localVertexCnt,type,nullptr,nullptr,nullptr,type,proot,comm);
     }
 
         MPI_Type_free(&type);
@@ -1622,8 +1624,8 @@ if(colbeg>colend){logfileptr->OFS()<<colptr<<std::endl; gdb_lock();}
     MPI_Gatherv(&rowind[0],localEdgeCnt,type,&g.rowind[0],&rsizes[0],&rdispls[0],type,proot,comm);
     }
     else{
-    //MPI_Gatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,NULL,NULL,NULL,MPI_BYTE,proot,comm);
-    MPI_Gatherv(&rowind[0],localEdgeCnt,type,NULL,NULL,NULL,type,proot,comm);
+    //MPI_Gatherv(&rowind[0],localEdgeCnt*sizeof(Idx),MPI_BYTE,nullptr,nullptr,nullptr,MPI_BYTE,proot,comm);
+    MPI_Gatherv(&rowind[0],localEdgeCnt,type,nullptr,nullptr,nullptr,type,proot,comm);
     }
         MPI_Type_free(&type);
 

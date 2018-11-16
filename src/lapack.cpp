@@ -1577,7 +1577,7 @@ Getri ( Int n, dcomplex* A, Int lda, const Int* ipiv )
 double
 Lange(char norm, Int m, Int n, const double* A, Int lda)
 {
-  double * work = NULL;
+  double * work = nullptr;
   if (norm=='I'){
     work = new double[m];
   }
@@ -1594,7 +1594,7 @@ Lange(char norm, Int m, Int n, const double* A, Int lda)
 double
 Lange(char norm, Int m, Int n, const dcomplex* A, Int lda)
 {
-  double * work = NULL;
+  double * work = nullptr;
   if (norm=='I'){
     work = new double[m];
   }

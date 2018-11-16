@@ -181,7 +181,7 @@ class BackupBuffer{
     BackupBuffer();
     ~BackupBuffer();
     bool InUse(){return inUse;}
-    bool Allocated(){return local_ptr!=NULL;}
+    bool Allocated(){return local_ptr!=nullptr;}
     bool AllocLocal(size_t size);
     void DeallocLocal();
     char * GetPtr();
@@ -308,7 +308,7 @@ struct MSGCompare{
 
 #ifdef HANDLE_LOCAL_POINTER
       char * tryPtr = (char*)pRemote_ptr;
-      if(tryPtr!=NULL){
+      if(tryPtr!=nullptr){
 //         logfileptr->OFS()<<"LOCAL POINTER"<<std::endl;
           gIncomingRecvLocal.push_back(new IncomingMessage() );
           IncomingMessage * msg_ptr = gIncomingRecvLocal.back();

@@ -56,7 +56,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-  int symPACK_Init(int *argc=NULL, char ***argv=NULL);
+  int symPACK_Init(int *argc=nullptr, char ***argv=nullptr);
   int symPACK_Finalize();
 #ifdef __cplusplus
 }

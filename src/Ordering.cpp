@@ -197,7 +197,7 @@ namespace symPACK{
       }
 
 
-      MMDInt * prowind = NULL;
+      MMDInt * prowind = nullptr;
       if(!isSameIdx || g.baseval!=1){
         prowind = new MMDInt[g.EdgeCount()];
         for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (MMDInt)g.rowind[i];}
@@ -206,7 +206,7 @@ namespace symPACK{
         prowind = (MMDInt*)&g.rowind[0];
       }
 
-      MMDInt * pcolptr = NULL;
+      MMDInt * pcolptr = nullptr;
       if(!isSamePtr || g.baseval!=1){
         pcolptr = new MMDInt[g.VertexCount()+1];
         for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (MMDInt)g.colptr[i];}
@@ -315,7 +315,7 @@ namespace symPACK{
       }
 
 
-      RCMInt * prowind = NULL;
+      RCMInt * prowind = nullptr;
       if(!isSameIdx || g.baseval!=1){
         prowind = new RCMInt[g.EdgeCount()];
         for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (RCMInt)g.rowind[i];}
@@ -324,7 +324,7 @@ namespace symPACK{
         prowind = (RCMInt*)&g.rowind[0];
       }
 
-      RCMInt * pcolptr = NULL;
+      RCMInt * pcolptr = nullptr;
       if(!isSamePtr || g.baseval!=1){
         pcolptr = new RCMInt[g.VertexCount()+1];
         for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (RCMInt)g.colptr[i];}
@@ -505,7 +505,7 @@ namespace symPACK{
       AMDInt * prowind = new AMDInt[g.EdgeCount() + N];
       for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (AMDInt)g.rowind[i];}
 
-      AMDInt * pcolptr = NULL;
+      AMDInt * pcolptr = nullptr;
       if(!isSamePtr || g.baseval!=1){
         pcolptr = new AMDInt[g.VertexCount()+1];
         for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (AMDInt)g.colptr[i];}
@@ -621,7 +621,7 @@ namespace symPACK{
       }
 
 
-      idx_t * prowind = NULL;
+      idx_t * prowind = nullptr;
       if(!isSameIdx){
         prowind = new idx_t[g.EdgeCount()];
         for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (idx_t)g.rowind[i];}
@@ -630,7 +630,7 @@ namespace symPACK{
         prowind = (idx_t*)&g.rowind[0];
       }
 
-      idx_t * pcolptr = NULL;
+      idx_t * pcolptr = nullptr;
       if(!isSamePtr){
         pcolptr = new idx_t[g.VertexCount()+1];
         for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (idx_t)g.colptr[i];}
@@ -644,7 +644,7 @@ namespace symPACK{
       METIS_SetDefaultOptions(options);
       options[METIS_OPTION_NUMBERING] = g.baseval;
 
-      METIS_NodeND(&N, pcolptr, prowind, NULL,
+      METIS_NodeND(&N, pcolptr, prowind, nullptr,
           options, mperm, iperm);
 
 
@@ -764,7 +764,7 @@ namespace symPACK{
 
         //      logfileptr->OFS()<<vtxdist<<std::endl;
 
-        idx_t * iperm = NULL;
+        idx_t * iperm = nullptr;
         if(typeid(idx_t) != typeid(Int)){
           iperm = new idx_t[N];
         }
@@ -772,7 +772,7 @@ namespace symPACK{
           iperm = (idx_t*)&invp[0];
         }
 
-        idx_t * pperm = NULL;
+        idx_t * pperm = nullptr;
         if(typeid(idx_t) != typeid(Int)){
           pperm = new idx_t[N];
         }
@@ -781,7 +781,7 @@ namespace symPACK{
           pperm = (idx_t*)&perm[0];
         }
 
-        idx_t * prowind = NULL;
+        idx_t * prowind = nullptr;
         if(typeid(idx_t) != typeid(Idx)){
           prowind = new idx_t[ng.LocalEdgeCount()];
           for(Ptr i = 0; i<ng.rowind.size();i++){ prowind[i] = (idx_t)ng.rowind[i];}
@@ -790,7 +790,7 @@ namespace symPACK{
           prowind = (idx_t*)&ng.rowind[0];
         }
 
-        idx_t * pcolptr = NULL;
+        idx_t * pcolptr = nullptr;
         if(typeid(idx_t) != typeid(Ptr)){
           pcolptr = new idx_t[ng.LocalVertexCount()+1];
           for(Ptr i = 0; i<ng.colptr.size();i++){ pcolptr[i] = (idx_t)ng.colptr[i];}
@@ -878,7 +878,7 @@ namespace symPACK{
 
         //      logfileptr->OFS()<<vtxdist<<std::endl;
 
-        idx_t * iperm = NULL;
+        idx_t * iperm = nullptr;
         if(typeid(idx_t) != typeid(Int)){
           iperm = new idx_t[N];
         }
@@ -886,7 +886,7 @@ namespace symPACK{
           iperm = (idx_t*)&invp[0];
         }
 
-        idx_t * pperm = NULL;
+        idx_t * pperm = nullptr;
         if(typeid(idx_t) != typeid(Int)){
           pperm = new idx_t[N];
         }
@@ -895,7 +895,7 @@ namespace symPACK{
           pperm = (idx_t*)&perm[0];
         }
 
-        idx_t * prowind = NULL;
+        idx_t * prowind = nullptr;
         if(typeid(idx_t) != typeid(Idx)){
           prowind = new idx_t[g.LocalEdgeCount()];
           for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (idx_t)g.rowind[i];}
@@ -904,7 +904,7 @@ namespace symPACK{
           prowind = (idx_t*)&g.rowind[0];
         }
 
-        idx_t * pcolptr = NULL;
+        idx_t * pcolptr = nullptr;
         if(typeid(idx_t) != typeid(Ptr)){
           pcolptr = new idx_t[g.LocalVertexCount()+1];
           for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (idx_t)g.colptr[i];}
@@ -1025,7 +1025,7 @@ namespace symPACK{
         permtab = (SCOTCH_Num*)&invp[0];
       }
 
-      SCOTCH_Num * prowind = NULL;
+      SCOTCH_Num * prowind = nullptr;
       if(!isSameIdx){
         prowind = new SCOTCH_Num[g.EdgeCount()];
         for(Ptr i = 0; i<g.rowind.size();i++){ prowind[i] = (SCOTCH_Num)g.rowind[i];}
@@ -1034,7 +1034,7 @@ namespace symPACK{
         prowind = (SCOTCH_Num*)&g.rowind[0];
       }
 
-      SCOTCH_Num * pcolptr = NULL;
+      SCOTCH_Num * pcolptr = nullptr;
       if(!isSamePtr){
         pcolptr = new SCOTCH_Num[g.VertexCount()+1];
         for(Ptr i = 0; i<g.colptr.size();i++){ pcolptr[i] = (SCOTCH_Num)g.colptr[i];}
@@ -1058,12 +1058,12 @@ namespace symPACK{
               baseval, 
               N, 
               pcolptr, 
-              NULL, 
-              NULL,
-              NULL,
+              nullptr, 
+              nullptr,
+              nullptr,
               nnz, 
               prowind, 
-              NULL) == 0) {
+              nullptr) == 0) {
 
           SCOTCH_stratInit (&stradat);
 
@@ -1079,10 +1079,10 @@ namespace symPACK{
                   &grafdat,
                   &ordedat,
                   permtab,
-                  NULL,
-                  /*nb de supernoeud*/NULL,
-                  /*ptr vers rank tab : xsuper*/ NULL,
-                  /*tree tab: parent structure*/ NULL) == 0) {
+                  nullptr,
+                  /*nb de supernoeud*/nullptr,
+                  /*ptr vers rank tab : xsuper*/ nullptr,
+                  /*tree tab: parent structure*/ nullptr) == 0) {
               SCOTCH_graphOrderCompute (&grafdat, &ordedat, &stradat);
               SCOTCH_graphOrderExit    (&grafdat, &ordedat);
             }
@@ -1189,8 +1189,8 @@ namespace symPACK{
       //} 
       //vtxdist[ndomains] = N+baseval;
 
-      SCOTCH_Num * prowind = NULL;
-      SCOTCH_Num * pcolptr = NULL;
+      SCOTCH_Num * prowind = nullptr;
+      SCOTCH_Num * pcolptr = nullptr;
       SCOTCH_Num          vertlocnbr;
       SCOTCH_Num          edgelocnbr;
       DistSparseMatrixGraph ng;
@@ -1283,14 +1283,14 @@ namespace symPACK{
             vertlocnbr, 
             vertlocnbr, 
             pcolptr, 
-            NULL,
-            NULL, 
-            NULL,
+            nullptr,
+            nullptr, 
+            nullptr,
             edgelocnbr,
             edgelocnbr,
             prowind, 
-            NULL,
-            NULL
+            nullptr,
+            nullptr
             ) != 0) {
         throw std::logic_error( "Error in SCOTCH_dgraphBuild\n" );
       }
@@ -1335,18 +1335,18 @@ namespace symPACK{
           &ordering,
           &sc_permtab[0],
           &sc_peritab[0],
-          NULL,
-          NULL,
-          NULL
+          nullptr,
+          nullptr,
+          nullptr
           );
 
 
       //if (iam == 0) {
       logfileptr->OFS()<<"SCOTCH_dgraphOrderGather"<<std::endl;
-      SCOTCH_dgraphOrderGather (&grafdat, &ordedat, (iam==0?&ordering:NULL));
+      SCOTCH_dgraphOrderGather (&grafdat, &ordedat, (iam==0?&ordering:nullptr));
       //}
       //else {     
-      //  SCOTCH_dgraphOrderGather (&grafdat, &ordedat, NULL);
+      //  SCOTCH_dgraphOrderGather (&grafdat, &ordedat, nullptr);
       //}
 
 

@@ -54,7 +54,7 @@ bool libUPCXXInit = false;
 
 
 extern "C"
-int symPACK_Init(int *argc=NULL, char ***argv=NULL){
+int symPACK_Init(int *argc=nullptr, char ***argv=nullptr){
   int retval = 1;
 
   if(!libUPCXXInit){

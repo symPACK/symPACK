@@ -66,7 +66,7 @@ namespace symPACK{
 
 //SuperNode implementation
 template<typename T, class Allocator>
-SuperNode<T,Allocator>::SuperNode() : meta_(NULL), blocks_(NULL), nzval_(NULL) { }
+SuperNode<T,Allocator>::SuperNode() : meta_(nullptr), blocks_(nullptr), nzval_(nullptr) { }
 
 template<typename T, class Allocator>
 SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt) {
@@ -88,13 +88,13 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int ai_num_rows,
   //storage_container_ = upcxx::allocate<char>(iam,storage_size_); 
   //loc_storage_container_ = (char *)storage_container_;
 #ifdef _USE_COREDUMPER_
-  if(loc_storage_container_==NULL){
+  if(loc_storage_container_==nullptr){
     std::stringstream corename;
     corename << "core.sympack." << upcxx::myrank();
     WriteCoreDump(corename.str().c_str());
   }
 #endif
-  assert(loc_storage_container_!=NULL);
+  assert(loc_storage_container_!=nullptr);
 
   nzval_ = (T*)&loc_storage_container_[0];
   meta_ = (SuperNodeDesc*)(nzval_+size*ai_num_rows);
@@ -154,7 +154,7 @@ SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFc, Int aiLc, Int aiN, std::se
   storage_size_ = sizeof(T)*size*numRows + num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
 
   loc_storage_container_ = Allocator::allocate(storage_size_);
-  assert(loc_storage_container_!=NULL);
+  assert(loc_storage_container_!=nullptr);
 
   nzval_ = (T*)&loc_storage_container_[0];
   meta_ = (SuperNodeDesc*)(nzval_+size*numRows);
@@ -252,7 +252,7 @@ void SuperNode<T,Allocator>::Init(char * storage_ptr,size_t storage_size, Int GI
   blocks_ = (NZBlockDesc*) last;
 
   Int blkCnt = 0;
-  NZBlockDesc * curBlockPtr = NULL;
+  NZBlockDesc * curBlockPtr = nullptr;
   do{
     curBlockPtr = &GetNZBlockDesc(blkCnt);
     ++blkCnt;
@@ -331,7 +331,7 @@ inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiG
       char * locTmpPtr = Allocator::allocate(new_size);
 
 //#ifdef _NO_MEMORY_PROGRESS_
-//      while(locTmpPtr==NULL){
+//      while(locTmpPtr==nullptr){
 //        logfileptr->OFS()<<"No more memory, calling advance"<<std::endl;
 //        upcxx::advance();
 //        tmpPtr = upcxx::allocate<char>(iam,new_size);
@@ -341,14 +341,14 @@ inline void SuperNode<T,Allocator>::AddNZBlock(Int aiNRows, Int aiNCols, Int aiG
 //#endif
 
 #ifdef _USE_COREDUMPER_
-      if(locTmpPtr==NULL){
+      if(locTmpPtr==nullptr){
         std::stringstream corename;
         corename << "core.sympack." << upcxx::myrank();
         WriteCoreDump(corename.str().c_str());
       }
 #endif
 
-      assert(locTmpPtr!=NULL);
+      assert(locTmpPtr!=nullptr);
 
       //std::copy(loc_storage_container_,loc_storage_container_+storage_size_,locTmpPtr);
       for(size_t i = 0;i<storage_size_;i++){locTmpPtr[i] = loc_storage_container_[i];}
@@ -424,7 +424,7 @@ inline Int SuperNode<T,Allocator>::FindBlockIdx(Int aiGIndex){
 
 
   ITree::Interval * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex);
-  if (res != NULL){
+  if (res != nullptr){
     rval = res->block_idx;
   }
 #endif
@@ -435,18 +435,18 @@ template<typename T, class Allocator>
 inline Int SuperNode<T,Allocator>::FindBlockIdx(Int aiGIndex,Int & closestR, Int & closestL){
   scope_timer_special(a,FindBlockIdxRL);
   Int rval = -1;
-  ITree::Interval * L = NULL;
-  ITree::Interval * R = NULL;
+  ITree::Interval * L = nullptr;
+  ITree::Interval * R = nullptr;
   ITree::Interval * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex,R,L);
-  if(R!=NULL){
+  if(R!=nullptr){
     closestR = R->low;
   }
 
-  if(L!=NULL){
+  if(L!=nullptr){
     closestL = L->high;
   }
 
-  if (res != NULL){
+  if (res != nullptr){
     rval = res->block_idx;
   }
   return rval;
@@ -459,7 +459,7 @@ inline Int SuperNode<T,Allocator>::FindBlockIdx(Int fr, Int lr, ITree::Interval 
   Int rval = -1;
 
   ITree::Interval * res = idxToBlk_->IntervalSearch(fr,lr);
-  if (res != NULL){
+  if (res != nullptr){
     overlap = *res;
     rval = res->block_idx;
   }
@@ -503,7 +503,7 @@ inline Int SuperNode<T,Allocator>::Shrink(){
 
 
 #ifdef _USE_COREDUMPER_
-      if(locTmpPtr==NULL){
+      if(locTmpPtr==nullptr){
         std::stringstream corename;
         corename << "core.sympack." << upcxx::myrank();
         WriteCoreDump(corename.str().c_str());
@@ -511,7 +511,7 @@ inline Int SuperNode<T,Allocator>::Shrink(){
 #endif
 
 
-      assert(locTmpPtr!=NULL);
+      assert(locTmpPtr!=nullptr);
 
       //copy nzvals
       std::copy(nzval_,nzval_+meta_->nzval_cnt_,(T*)locTmpPtr);
@@ -967,7 +967,7 @@ inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_
     T * tgt = GetNZval(0);
 
     //Pointer to the output buffer of the GEMM
-    T * buf = NULL;
+    T * buf = nullptr;
     T beta = ZERO<T>();
 #ifdef _DEBUG_
     tmpBuffers.tmpBuf.Resize(tgt_width,src_nrows);
@@ -1180,7 +1180,7 @@ inline Int SuperNode<T,Allocator>::Update(SuperNode<T,Allocator> * src_snode, Sn
   T * tgt = GetNZval(0);
 
   //Pointer to the output buffer of the GEMM
-  T * buf = NULL;
+  T * buf = nullptr;
   T beta = ZERO<T>();
   //If the target supernode has the same structure,
   //The GEMM is directly done in place
@@ -1538,7 +1538,7 @@ inline void SuperNode<T,Allocator>::Serialize(Icomm & buffer, Int first_blkidx, 
     if(offset!=0){
       Int blkCnt = 1;
       if(blkCnt<nzblk_cnt){
-        NZBlockDesc * curBlockPtr = NULL;
+        NZBlockDesc * curBlockPtr = nullptr;
         do{
           curBlockPtr = new_blk_ptr - blkCnt;
           curBlockPtr->Offset -= offset;
@@ -1794,7 +1794,7 @@ inline void Serialize(Icomm & buffer,SuperNode<T, Allocator> & snode, Int first_
     if(offset!=0){
       Int blkCnt = 1;
       if(blkCnt<nzblk_cnt){
-        NZBlockDesc * curBlockPtr = NULL;
+        NZBlockDesc * curBlockPtr = nullptr;
         do{
           curBlockPtr = new_blk_ptr - blkCnt;
           curBlockPtr->Offset -= offset;

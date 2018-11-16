@@ -86,11 +86,11 @@ namespace symPACK{
           ~ITNode(){
             delete i;
 
-            if(left!=NULL){
+            if(left!=nullptr){
               delete left;
             }
 
-            if(right!=NULL){
+            if(right!=nullptr){
               delete right;
             }
           }
@@ -131,12 +131,12 @@ namespace symPACK{
     public:
 
 
-      ITree():root_(NULL) { }
+      ITree():root_(nullptr) { }
 
 
       virtual ~ITree()
       {
-        if(root_!=NULL){
+        if(root_!=nullptr){
           delete root_;
         }
       }
@@ -187,7 +187,7 @@ namespace symPACK{
 
 
       inline void clear(){
-        if(root_!=NULL){
+        if(root_!=nullptr){
           delete root_;
         }
       }

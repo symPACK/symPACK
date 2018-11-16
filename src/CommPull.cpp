@@ -58,7 +58,7 @@ namespace symPACK{
   //std::priority_queue< IncomingMessage *, std::vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
   std::list< IncomingMessage * > gIncomingRecvAsync;
   std::list< IncomingMessage * > gIncomingRecvLocal;
-  //SupernodalMatrixBase * gSuperMatrixPtr = NULL;
+  //SupernodalMatrixBase * gSuperMatrixPtr = nullptr;
 
   int gMaxIrecv = 0;
 
@@ -68,7 +68,7 @@ namespace symPACK{
 
     BackupBuffer::BackupBuffer(){
       inUse = false;
-      local_ptr = NULL;
+      local_ptr = nullptr;
       size = 0;
     }
     BackupBuffer::~BackupBuffer(){
@@ -77,7 +77,7 @@ namespace symPACK{
 
     bool BackupBuffer::AllocLocal(size_t psize){
       if(!Allocated()){
-      local_ptr=NULL;
+      local_ptr=nullptr;
 #ifndef USE_LOCAL_ALLOCATE
       local_ptr = (char *)malloc(psize);
 #else
@@ -85,10 +85,10 @@ namespace symPACK{
       upcxx::global_ptr<char> tmp = upcxx::allocate<char>(upcxx::myrank(),psize);
       local_ptr=(char*)tmp; 
 #endif
-        if(local_ptr!=NULL){
+        if(local_ptr!=nullptr){
           size = psize;
         }
-        return local_ptr!=NULL;
+        return local_ptr!=nullptr;
       }
       else{
         return false;
@@ -113,7 +113,7 @@ namespace symPACK{
         return local_ptr; 
       }
       else{
-        return NULL;
+        return nullptr;
       }
     }
 
@@ -125,9 +125,9 @@ namespace symPACK{
 
  
     IncomingMessage::IncomingMessage(){
-      event_ptr=NULL;
-      task_ptr =NULL;
-      local_ptr=NULL;
+      event_ptr=nullptr;
+      task_ptr =nullptr;
+      local_ptr=nullptr;
       isDone = false;
       isLocal = false;
       remoteDealloc = false;
@@ -138,10 +138,10 @@ namespace symPACK{
 
     IncomingMessage::~IncomingMessage(){
       //assert(IsDone());
-      if(event_ptr!=NULL){
+      if(event_ptr!=nullptr){
         delete event_ptr;
       }
-      if(task_ptr!=NULL){
+      if(task_ptr!=nullptr){
         delete task_ptr;
       }
 
@@ -149,7 +149,7 @@ namespace symPACK{
     }
 
     void IncomingMessage::AsyncGet(){
-      assert(event_ptr==NULL);
+      assert(event_ptr==nullptr);
       event_ptr = new upcxx::event;
       upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr()),msg_size,event_ptr);
     }
@@ -165,12 +165,12 @@ namespace symPACK{
         isDone = true;
         success = true;
       }
-      else if(event_ptr!=NULL){
+      else if(event_ptr!=nullptr){
         //TODO wait is not necessary if calling async_try/isdone
         event_ptr->wait();
         assert(event_ptr->isdone());
         delete event_ptr;
-        event_ptr = NULL;
+        event_ptr = nullptr;
         isDone = true;
         success = true;
       }
@@ -203,7 +203,7 @@ namespace symPACK{
     }
     void IncomingMessage::DeallocLocal(){
         if(allocated && ownLocalStorage){
-      if(!isLocal && local_ptr!=NULL){
+      if(!isLocal && local_ptr!=nullptr){
 #ifndef USE_LOCAL_ALLOCATE
         delete local_ptr;
 #else
@@ -218,7 +218,7 @@ namespace symPACK{
 
     bool IncomingMessage::IsDone(){
       scope_timer(a,IN_MSG_ISDONE);
-      if(event_ptr!=NULL){
+      if(event_ptr!=nullptr){
         //return event_ptr->isdone();
         return event_ptr->async_try();
         //TODO also look at event_ptr async_try because it calls "progress"
@@ -229,12 +229,12 @@ namespace symPACK{
     }
 
     bool IncomingMessage::IsAsync(){
-      return (event_ptr==NULL);
+      return (event_ptr==nullptr);
     }
 
     bool IncomingMessage::AllocLocal(){
       if(!allocated){
-      local_ptr=NULL;
+      local_ptr=nullptr;
 #ifndef USE_LOCAL_ALLOCATE
       local_ptr = (char *)malloc(msg_size);
 #else
@@ -243,9 +243,9 @@ namespace symPACK{
       local_ptr=(char*)tmp; 
 #endif
 
-        allocated = local_ptr!=NULL;
+        allocated = local_ptr!=nullptr;
         ownLocalStorage = allocated;
-        return local_ptr!=NULL;
+        return local_ptr!=nullptr;
       }
       else{
         return true;

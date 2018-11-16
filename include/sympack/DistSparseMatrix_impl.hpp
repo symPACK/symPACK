@@ -181,7 +181,7 @@ namespace symPACK{
         MPI_Comm_rank(comm,&mpirank);
 
         //vector<Ptr> tnewVertexDist;
-        if(newVertexDist==NULL){
+        if(newVertexDist==nullptr){
           //tnewVertexDist.resize(Localg_.vertexDist.size());
           //for(Int i =0; i<Localg_.vertexDist.size(); i++){
           //  tnewVertexDist[i] = Localg_.vertexDist[i];
@@ -615,7 +615,7 @@ namespace symPACK{
     MPI_Comm_size(comm,&mpisize);
     MPI_Comm_rank(comm,&mpirank);
 
-    if(avertexDist == NULL){
+    if(avertexDist == nullptr){
       avertexDist = &Localg_.vertexDist[0];
     }
 

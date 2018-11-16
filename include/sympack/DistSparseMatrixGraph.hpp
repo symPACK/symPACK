@@ -155,7 +155,7 @@ class DistSparseMatrixGraph{
   void AllGatherStructure(SparseMatrixGraph & g);
   void GatherStructure(SparseMatrixGraph & g, int proot);
 protected:
-  void permute_(Int * invp, Idx * newVertexDist=NULL, Int invpbaseval=1);
+  void permute_(Int * invp, Idx * newVertexDist=nullptr, Int invpbaseval=1);
 };
 
 }

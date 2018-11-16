@@ -140,7 +140,7 @@
 ////    Int J = curUpdate.tgt_snode_id;
 ////
 ////    //create the list if needed
-////    if(taskLists[J-1] == NULL){
+////    if(taskLists[J-1] == nullptr){
 ////      taskLists[J-1]=new std::list<FBTask>();
 ////    }
 ////    taskLists[J-1]->push_back(curUpdate);
@@ -201,7 +201,7 @@ template <typename T> void symPACKMatrix<T>::FanBoth()
   tmpBufs.Clear();
   tmpBufs.Resize(maxwidth + maxheight/*Size()*/,maxwidth);
 
-  std::vector< SuperNode<T> * > aggVectors(Xsuper_.size()-1,NULL);
+  std::vector< SuperNode<T> * > aggVectors(Xsuper_.size()-1,nullptr);
 
 
   timeSta =  get_time( );
@@ -210,16 +210,16 @@ template <typename T> void symPACKMatrix<T>::FanBoth()
 
 ////  std::vector<std::list<FBTask> * > taskLists;
 ////  Int localTaskCount = localTaskCount_;
-////  taskLists.resize(origTaskLists_.size(),NULL);
+////  taskLists.resize(origTaskLists_.size(),nullptr);
 ////  for(int i = 0; i<taskLists.size(); ++i){
-////    if(origTaskLists_[i] != NULL){
+////    if(origTaskLists_[i] != nullptr){
 ////      taskLists[i] = new std::list<FBTask>(); 
 ////      taskLists[i]->insert(taskLists[i]->end(),origTaskLists_[i]->begin(),origTaskLists_[i]->end());
 ////    }
 ////  }
 
   for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
-    if(taskGraph.taskLists_[i] != NULL){
+    if(taskGraph.taskLists_[i] != nullptr){
       auto taskit = taskGraph.taskLists_[i]->begin();
       while (taskit != taskGraph.taskLists_[i]->end())
       {
@@ -896,8 +896,8 @@ template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph & 
     //AsyncComms * cur_incomingRecv = incomingRecvFactArr[tgt_snode_id-1];
 
 
-    IncomingMessage * structPtr = NULL;
-    IncomingMessage * msgPtr = NULL;
+    IncomingMessage * structPtr = nullptr;
+    IncomingMessage * msgPtr = nullptr;
     //Local or remote factor
     //we have only one local or one remote incoming aggregate
 
@@ -940,7 +940,7 @@ template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph & 
         }
         else{
           //Check if src_snode_id already have an aggregate std::vector
-          if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==NULL){
+          if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
             //use number of rows below factor as initializer
 
             //TODO do a customized version for FANIN as we have all the factors locally
@@ -1073,12 +1073,12 @@ template <typename T> void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph & 
     SYMPACK_TIMER_STOP(UPDATE_ANCESTORS);
 
 
-    if(msgPtr!=NULL){
+    if(msgPtr!=nullptr){
       delete cur_src_snode;
       delete msgPtr;
     }
 
-    if(structPtr!=NULL){
+    if(structPtr!=nullptr){
       delete structPtr;
     }
 
@@ -1110,8 +1110,8 @@ template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTas
     SYMPACK_TIMER_STOP(UPCXX_ADVANCE);
 
     bool comm_found = false;
-    IncomingMessage * msg = NULL;
-    FBTask * curTask = NULL;
+    IncomingMessage * msg = nullptr;
+    FBTask * curTask = nullptr;
     if(is_static){
       curTask = &scheduler2_->top();
 #ifdef _DEBUG_PROGRESS_
@@ -1121,7 +1121,7 @@ template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTas
 
 
     do{
-      msg=NULL;
+      msg=nullptr;
 
       SYMPACK_TIMER_START(MV_MSG_SYNC);
       //if we have some room, turn blocking comms into async comms
@@ -1200,7 +1200,7 @@ template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTas
           //find a "high priority" task
           SYMPACK_TIMER_START(RM_MSG_SYNC);
           if(is_static){
-            msg=NULL;
+            msg=nullptr;
             for(auto it = gIncomingRecv.begin();it!=gIncomingRecv.end();it++){
               //find a message corresponding to current task
               IncomingMessage * curMsg = *it;
@@ -1229,7 +1229,7 @@ template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTas
 
       }
 
-      if(msg!=NULL){
+      if(msg!=nullptr){
         scope_timer(a,WAIT_AND_UPDATE_DEPS);
         bool success = msg->Wait(); 
         if(!success){
@@ -1299,7 +1299,7 @@ template <typename T> void symPACKMatrix<T>::CheckIncomingMessages(supernodalTas
           }
         }
       }
-    }while(msg!=NULL);
+    }while(msg!=nullptr);
 }
 
 
