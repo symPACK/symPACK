@@ -37,7 +37,7 @@ int main(int argc, char **argv)
   int iam = 0;
   int np = 1;
   MPI_Comm worldcomm;
-  MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
+  MPI_Comm_dup(symPACK::world_comm,&worldcomm);
   MPI_Comm_size(worldcomm,&np);
   MPI_Comm_rank(worldcomm,&iam);
 

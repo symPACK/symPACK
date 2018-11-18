@@ -83,6 +83,10 @@
 
 #include "sympack/datatypes.hpp"
 
+namespace symPACK {
+    extern MPI_Comm world_comm;
+}
+
 /***********************************************************************
  *  Error handling
  **********************************************************************/

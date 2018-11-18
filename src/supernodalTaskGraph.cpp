@@ -78,6 +78,7 @@ namespace symPACK{
 
   std::list<FBTask>::iterator supernodalTaskGraph::find_task(Int src, Int tgt, TaskType type )
   {
+    bassert(taskLists_[tgt-1]!=nullptr);
     scope_timer(a,FB_FIND_TASK);
     //find task corresponding to curUpdate
     auto taskit = taskLists_[tgt-1]->begin();

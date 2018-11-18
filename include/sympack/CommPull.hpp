@@ -77,14 +77,14 @@ namespace symPACK{
       //resize our translation arrays
       l2g.resize(size);
 
-      //get the MPI_Group from the communicator amd MPI_COMM_WORLD
+      //get the MPI_Group from the communicator and symPACK::world_comm
       MPI_Group group, Wgroup;
       MPI_Comm_group(comm, &group);
-      MPI_Comm_group(MPI_COMM_WORLD, &Wgroup);
+      MPI_Comm_group(symPACK::world_comm, &Wgroup);
 
       std::vector<int> tmp(size);
       std::iota(tmp.begin(),tmp.end(),0);
-      //Get the corresponding ranks in MPI_COMM_WORLD
+      //Get the corresponding ranks in symPACK::world_comm
       MPI_Group_translate_ranks(group, size, tmp.data(), Wgroup, l2g.data());
 
       for(int i = 0; i < size; i++ ){

@@ -46,12 +46,13 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #include <upcxx.h>
 
-extern "C" 
 bool libMPIInit = false;
-
-extern "C" 
 bool libUPCXXInit = false;
 
+namespace symPACK{
+  int mpi_already_init = 0;
+  MPI_Comm world_comm = MPI_COMM_NULL;
+}
 
 extern "C"
 int symPACK_Init(int *argc=nullptr, char ***argv=nullptr){
@@ -65,25 +66,35 @@ int symPACK_Init(int *argc=nullptr, char ***argv=nullptr){
   }
 
   if(!libMPIInit){
-    int mpiinit = 0;
-    MPI_Initialized(&mpiinit);
-    if(mpiinit==0){
-      if(MPI_Init(argc,argv)==MPI_SUCCESS){
-        libMPIInit = true;
-        retval = retval && 1;
-      }   
-    }   
+
+    MPI_Initialized(&symPACK::mpi_already_init);
+    if (!symPACK::mpi_already_init) MPI_Init(argc, argv);
+   // int mpiinit = 0;
+   // MPI_Initialized(&mpiinit);
+   // if(mpiinit==0){
+   //   if(MPI_Init(argc,argv)==MPI_SUCCESS){
+   //     libMPIInit = true;
+   //     retval = retval && 1;
+   //   }   
+   // }   
   }
 
   int mpiinit = 0;
   MPI_Initialized(&mpiinit);
   assert(mpiinit==1);
+
+  MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::myrank(), &symPACK::world_comm);
+
+
   assert(upcxx::is_init());
   return retval;
 }
 
 extern "C"
 int symPACK_Finalize(){
+  MPI_Comm_free(&symPACK::world_comm);
+  //if (!symPACK::mpi_already_init) MPI_Finalize();
+
   int retval = 1;
   if(libUPCXXInit){
     upcxx::finalize();
