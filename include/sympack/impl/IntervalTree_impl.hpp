@@ -55,7 +55,7 @@ inline ITree<F>::ITNode<F> * ITree<F>::newNode_(ITree<F>::Interval<F> & i)
   ITree<F>::ITNode<F> *temp = new ITree<F>::ITNode<F>;
   temp->i = new ITree<F>::Interval<F>(i);
   temp->max = i.high;
-  temp->left = temp->right = NULL;
+  temp->left = temp->right = nullptr;
   temp->height = 1;
 
   temp->min = i.low;
@@ -67,7 +67,7 @@ inline ITree<F>::ITNode<F> * ITree<F>::newNode_(ITree<F>::Interval<F> & i)
   template<typename F>
 inline   Int ITree<F>::height_(ITree<F>::ITNode<F> *N)
 {
-  if (N == NULL)
+  if (N == nullptr)
     return 0;
   return N->height;
 }
@@ -75,7 +75,7 @@ inline   Int ITree<F>::height_(ITree<F>::ITNode<F> *N)
   template<typename F>
 inline   Int ITree<F>::max_(ITree<F>::ITNode<F> *N)
 {
-  if (N == NULL)
+  if (N == nullptr)
     return 0;
   return N->max;
 }
@@ -83,7 +83,7 @@ inline   Int ITree<F>::max_(ITree<F>::ITNode<F> *N)
   template<typename F>
 inline   Int ITree<F>::min_(ITree<F>::ITNode<F> *N)
 {
-  if (N == NULL)
+  if (N == nullptr)
     return 0;
   return N->min;
 }
@@ -101,7 +101,7 @@ inline   ITree<F>::ITNode<F> * ITree<F>::insert_(ITree<F>::ITNode<F> *root, ITre
   assert(i.low<=i.high);
 
   // Base case: Tree is empty, new node becomes root
-  if (root == NULL)
+  if (root == nullptr)
     return newNode_(i);
 
   // Get low value of interval at root
@@ -133,12 +133,12 @@ inline   Int ITree<F>::recomputeMax_(ITree<F>::ITNode<F> * root)
 {
   root->max = root->i->high;
 
-  if(root->left != NULL){
+  if(root->left != nullptr){
     recomputeMax_(root->left);
     root->max = std::max( root->max, max_(root->left));
   }
 
-  if(root->right != NULL){
+  if(root->right != nullptr){
     recomputeMax_(root->right);
     root->max = std::max( root->max, max_(root->right));
   }
@@ -152,7 +152,7 @@ inline   Int ITree<F>::recomputeMinMax_(ITree<F>::ITNode<F> * root)
   root->max = root->i->high;
   root->min = root->i->low;
 
-  if(root->left != NULL){
+  if(root->left != nullptr){
     recomputeMinMax_(root->left);
     Int maxL = max_(root->left);
     root->max = std::max( root->max, maxL);
@@ -161,7 +161,7 @@ inline   Int ITree<F>::recomputeMinMax_(ITree<F>::ITNode<F> * root)
     root->min = std::min( root->min, minL);
   }
 
-  if(root->right != NULL){
+  if(root->right != nullptr){
     recomputeMinMax_(root->right);
     Int maxL = max_(root->right);
     root->max = std::max( root->max, maxL);
@@ -202,8 +202,8 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
 //  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, ITree::Interval &i)
 {
   // Base Case, tree is empty
-  if (root == NULL){
-    return NULL;
+  if (root == nullptr){
+    return nullptr;
   }
 
   // If given interval overlaps with root
@@ -218,8 +218,8 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
   // If left child of root is present and max of left child is
   // greater than or equal to given interval, then i may
   // overlap with an interval is left subtree
-  //if (root->left != NULL && root->left->max >= i.low)
-  if (root->left != NULL && root->left->max >= begin){
+  //if (root->left != nullptr && root->left->max >= i.low)
+  if (root->left != nullptr && root->left->max >= begin){
     return intervalSearch_(root->left, begin,end);
   }
   //return intervalSearch_(root->left, i);
@@ -235,8 +235,8 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
 //  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, ITree::Interval &i)
 {
   // Base Case, tree is empty
-  if (root == NULL){
-    return NULL;
+  if (root == nullptr){
+    return nullptr;
   }
 
   // If given interval overlaps with root
@@ -250,8 +250,8 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
     return root->i;
   }
 
-  if(root->left!=NULL){
-    if(closestL!=NULL){
+  if(root->left!=nullptr){
+    if(closestL!=nullptr){
       if( std::min((Int)0,end - root->left->i->high) < std::min((Int)0,end - closestL->high)){
         closestL = root->left->i;
       }
@@ -260,7 +260,7 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
       closestL = root->left->i;
     }
 
-    if(closestR!=NULL){
+    if(closestR!=nullptr){
       if( std::min((Int)0,root->left->i->low - begin) < std::min((Int)0,closestL->low - begin)){
         closestR = root->left->i;
       }
@@ -270,8 +270,8 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
     }
   }
 
-  if(root->right!=NULL){
-    if(closestL!=NULL){
+  if(root->right!=nullptr){
+    if(closestL!=nullptr){
       if( std::min((Int)0,end - root->right->i->high) < std::min((Int)0,end - closestL->high)){
         closestL = root->right->i;
       }
@@ -280,7 +280,7 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
       closestL = root->right->i;
     }
 
-    if(closestR!=NULL){
+    if(closestR!=nullptr){
       if( std::min((Int)0,root->right->i->low - begin) < std::min((Int)0,closestL->low - begin)){
         closestR = root->right->i;
       }
@@ -293,19 +293,19 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
   // If left child of root is present and max of left child is
   // greater than or equal to given interval, then i may
   // overlap with an interval in left subtree
-  //if (root->left != NULL && root->left->max >= i.low)
-  if (root->left != NULL && root->left->max >= begin && root->left->min <= end){
+  //if (root->left != nullptr && root->left->max >= i.low)
+  if (root->left != nullptr && root->left->max >= begin && root->left->min <= end){
     return intervalSearch_(root->left, begin,end,closestR,closestL);
   }
   //return intervalSearch_(root->left, i);
 
   // Else interval can only overlap with right subtree
-  if(root->right != NULL && root->right->max >= begin && root->right->min <= end){
+  if(root->right != nullptr && root->right->max >= begin && root->right->min <= end){
     return intervalSearch_(root->right, begin,end,closestR,closestL);
   }
 
   //interval is outside the range
-  return NULL;
+  return nullptr;
   //return intervalSearch_(root->right, i);
 }
 
@@ -316,7 +316,7 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
   template<typename F>
 inline   void ITree<F>::inorder_(ITree<F>::ITNode<F> *root)
 {
-  if (root == NULL) return;
+  if (root == nullptr) return;
 
   logfileptr->OFS()<< " LEFT of "<< "[" << root->i->low << ", " << root->i->high << "]"<<": "<<std::endl;
   inorder_(root->left);
@@ -333,7 +333,7 @@ inline   void ITree<F>::inorder_(ITree<F>::ITNode<F> *root)
   template<typename F>
 inline   Int ITree<F>::getSize_(ITree<F>::ITNode<F> *root)
 {
-  if (root == NULL) return 0;
+  if (root == nullptr) return 0;
 
   Int size = getSize_(root->left);
   size += sizeof(*root);
@@ -442,7 +442,7 @@ inline   typename ITree<F>::template ITNode<F> * AVLITree<F>::leftRotate_(typena
   template<typename F>
 inline   Int AVLITree<F>::getBalance_(typename ITree<F>::template ITNode<F> *N)
 {
-  if (N == NULL)
+  if (N == nullptr)
     return 0;
   return height_(N->left) - height_(N->right);
 }
@@ -461,9 +461,9 @@ inline void DSWITree<F>::tree_to_vine_( typename ITree<F>::template ITNode<F>* r
   remainder = vineTail->right;
   size = 0;
 
-  while ( remainder != NULL )
+  while ( remainder != nullptr )
   {//If no leftward subtree, move rightward
-    if ( remainder->left == NULL )
+    if ( remainder->left == nullptr )
     {  vineTail = remainder;
       remainder = remainder->right;
       size++;
@@ -518,7 +518,7 @@ inline void DSWITree<F>::vine_to_tree_ ( typename ITree<F>::template ITNode<F> *
 // Traverse entire tree, correcting heights and parents
   template<typename F>
   inline void DSWITree<F>::correctTree_( typename ITree<F>::template ITNode<F>* node )
-{  if ( node != NULL )
+{  if ( node != nullptr )
   {  Int LtHt, RtHt;
 
     correctTree_ (node->left);
@@ -534,7 +534,7 @@ inline void DSWITree<F>::Rebalance()
   // Public member function:  Do the DSW algorithm to balance the tree
 {//Declare as automatic variable; remember to pass as pointer
   SYMPACK_TIMER_START(ITREE_BALANCE_DSW);
-  //   BaseCell pseudo_root( -1, NULL, NULL, Root );
+  //   BaseCell pseudo_root( -1, nullptr, nullptr, Root );
 
   Int size;
 

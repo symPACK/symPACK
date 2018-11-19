@@ -202,10 +202,10 @@ namespace symPACK{
         relax = RelaxationParameters(150);
         relax.SetMaxSize(150);
 
-        commEnv = NULL;
+        commEnv = nullptr;
         MPIcomm = MPI_COMM_NULL;
 
-        perm = NULL;
+        perm = nullptr;
         dumpPerm = 0;
         //        mappingType = ROW2D;
         ///        ordering = MMD;
@@ -651,7 +651,7 @@ namespace symPACK{
       }
 #endif
 
-      static char * allocate(size_t count){};
+      static char * allocate(size_t count){return nullptr;};
 
       static void deallocate(char* ptr) {};
   };
@@ -660,7 +660,7 @@ namespace symPACK{
   class MallocAllocator: public MemoryAllocator{
     public:
       static char * allocate(size_t count){
-char * locTmpPtr = NULL; 
+char * locTmpPtr = nullptr; 
         try{
           locTmpPtr = new char[count];
         }
@@ -721,7 +721,7 @@ char * locTmpPtr = NULL;
         char * locTmpPtr = (char*)tmpPtr;
 #endif
 
-        if(locTmpPtr == NULL){
+        if(locTmpPtr == nullptr){
           throw MemoryAllocationException(count);
         }
 

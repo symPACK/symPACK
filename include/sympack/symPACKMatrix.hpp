@@ -175,7 +175,7 @@ namespace symPACK{
         scheduler_ = nullptr;
         scheduler2_ = nullptr;
 
-        if(logfileptr==NULL){
+        if(logfileptr==nullptr){
           logfileptr = new LogFile(upcxx::rank_me(),false);
           logfileptr->OFS()<<"********* LOGFILE OF P"<<upcxx::rank_me()<<" *********"<<std::endl;
           logfileptr->OFS()<<"**********************************"<<std::endl;
@@ -206,7 +206,7 @@ namespace symPACK{
         this->locLindx_ = M.locLindx_;
 
         //no balancer, balancing is done in 2D matrix
-        this->Balancer_ = NULL;
+        this->Balancer_ = nullptr;
 
 
         Int pmapping = this->np;
@@ -235,7 +235,7 @@ namespace symPACK{
 
 
 
-        this->scheduler2_ = NULL;
+        this->scheduler2_ = nullptr;
 
         double timeSta = get_time();
         //Matrix is distributed in 2D fashion, need to pick one of the process holding blocks of a supernode and gather all blocks on it
@@ -443,7 +443,7 @@ namespace symPACK{
         auto heads = rdispls; 
         while ( std::any_of(heads.begin(),heads.end()-1,[&heads,&rdispls](size_t & a){ size_t idx = &a-heads.data(); return a<rdispls[idx+1];}) ){
           bassert(curSnode<=M.nsuper);
-          SuperNode<T> * newSnode = NULL;
+          SuperNode<T> * newSnode = nullptr;
           std::vector< std::tuple<cell_meta_t,char*> > blocks;
 
           size_t height = 0;
@@ -599,7 +599,7 @@ namespace symPACK{
               ITree::Interval snode_inter = { I, I, this->LocalSupernodes_.size() };
               this->globToLocSnodes_.Insert(snode_inter);
 #endif
-              SuperNode<T> * newSnode = NULL;
+              SuperNode<T> * newSnode = nullptr;
 
               try{
                 size_t height = 0;
@@ -711,7 +711,7 @@ namespace symPACK{
 #ifdef _OUTPUT_TASK_GRAPH_
             logfileptr->OFS()<<"tasks: ";
             for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
-              if((*binit)!=NULL){
+              if((*binit)!=nullptr){
                 for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
                   logfileptr->OFS()<<"t_"<<taskit->src_snode_id<<"_"<<taskit->tgt_snode_id<<" ";
                 }
@@ -721,7 +721,7 @@ namespace symPACK{
             logfileptr->OFS()<<std::endl; 
             logfileptr->OFS()<<"taskmap: ";
             for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
-              if((*binit)!=NULL){
+              if((*binit)!=nullptr){
                 for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
                   logfileptr->OFS()<<this->iam<<" ";
                 }
@@ -772,7 +772,7 @@ namespace symPACK{
 
       //Solve routines
       //note: RHS & B are stored in column major format
-      void Solve(T * RHS, int nrhs,  T * Xptr=NULL);
+      void Solve(T * RHS, int nrhs,  T * Xptr=nullptr);
       void GetSolution(T * B, int nrhs);
 
       void FanBoth( );
@@ -855,9 +855,9 @@ namespace symPACK{
 
       std::vector<std::list<Int> > chSupTree_;
       void dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier);
-      void solve_(T * RHS, int nrhs,  T * Xptr=NULL);
-      void solveNew_(T * RHS, int nrhs,  T * Xptr=NULL);
-      void solveNew2_(T * RHS, int nrhs,  T * Xptr=NULL);
+      void solve_(T * RHS, int nrhs,  T * Xptr=nullptr);
+      void solveNew_(T * RHS, int nrhs,  T * Xptr=nullptr);
+      void solveNew2_(T * RHS, int nrhs,  T * Xptr=nullptr);
 
       std::list<std::list<FBTask>::iterator > readyTasks_;
 

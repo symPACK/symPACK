@@ -107,7 +107,7 @@ template <typename F> class DistSparseMatrix: public DistSparseMatrixBase{
   /// @brief Permutation currently used in the matrix. Empty vector means unpermuted matrix
   std::vector<Int> cinvp;
 
-  inline bool isPermuted(Int * invp, Idx * vertexDist = NULL);
+  inline bool isPermuted(Int * invp, Idx * vertexDist = nullptr);
 
   DistSparseMatrix();
   DistSparseMatrix(MPI_Comm aComm);
@@ -124,7 +124,7 @@ template <typename F> class DistSparseMatrix: public DistSparseMatrixBase{
   void Dump() const;
   void DumpMatlab() const;
 
-  void Permute(Int * invp, Idx * newVertexDist = NULL);
+  void Permute(Int * invp, Idx * newVertexDist = nullptr);
   void ExpandSymmetric();
   void ToLowerTriangular();
   void SortGraph();

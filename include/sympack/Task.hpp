@@ -96,7 +96,7 @@ namespace Solve{
 
 
           //          SuperNode2<T> * cur_src_snode; 
-          //          IncomingMessage * msgPtr = NULL;
+          //          IncomingMessage * msgPtr = nullptr;
           //          //Local or remote factor
           //          //we have only one local or one remote incoming aggregate
           //          if(curTask.data.size()==0){
@@ -438,7 +438,7 @@ namespace Solve{
   template<typename T = FBTask >
     class FBTaskCompare: public TaskCompare<T>{
       public:
-        virtual bool operator()(const T & a,const T & b) const {};
+        virtual bool operator()(const T & a,const T & b) const { return false;};
 
         virtual bool operator()(const typename std::list<T>::iterator & a,const typename std::list<T>::iterator & b) const
         {
@@ -626,7 +626,7 @@ namespace Solve{
   //    //computation
   //    std::function<int(std::vector<char>&)> process;
   //
-  //    Task():data(NULL){
+  //    Task():data(nullptr){
   //      id.resize(idSize);
   //    }
   //};

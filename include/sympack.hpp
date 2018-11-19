@@ -82,7 +82,7 @@ extern "C" {
 extern bool libMPIInit;
 extern bool libUPCXXInit;
 
-  int symPACK_Init(int *argc=NULL, char ***argv=NULL);
+  int symPACK_Init(int *argc=nullptr, char ***argv=nullptr);
   int symPACK_Finalize();
   int symPACK_Rank(int * rank);
 

@@ -92,7 +92,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
   //maxwidth for indefinite matrices
   tmpBufs.Resize(maxwidth + maxheight,maxwidth);
-  std::vector< SuperNode<T>* > aggVectors(this->Xsuper_.size()-1,NULL);
+  std::vector< SuperNode<T>* > aggVectors(this->Xsuper_.size()-1,nullptr);
 
   timeSta =  get_time( );
     //Create a copy of the task graph
@@ -520,7 +520,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                   Int iSrcOwner = this->Mapping_->Map(abs(src_snode_id)-1,abs(src_snode_id)-1);
 
 
-                  IncomingMessage * structPtr = NULL;
+                  IncomingMessage * structPtr = nullptr;
                   std::shared_ptr<IncomingMessage> msgPtr = nullptr;
                   std::shared_ptr<ChainedMessage<SuperNodeBase<T> > > newMsgPtr = nullptr;
                   //Local or remote factor
@@ -815,7 +815,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                             break;
                           }
 
-                          // if(structPtr!=NULL){
+                          // if(structPtr!=nullptr){
                           //   delete structPtr;
                           // }
 
@@ -857,7 +857,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                   Int iSrcOwner = this->Mapping_->Map(abs(src_snode_id)-1,abs(src_snode_id)-1);
 
                   {
-                    IncomingMessage * structPtr = NULL;
+                    IncomingMessage * structPtr = nullptr;
                     std::shared_ptr<IncomingMessage> msgPtr = nullptr;
                     std::shared_ptr<ChainedMessage<SuperNodeBase<T> > > newMsgPtr = nullptr;
                     //Local or remote factor
@@ -1224,7 +1224,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
                     }
 
-                    if(structPtr!=NULL){
+                    if(structPtr!=nullptr){
                       delete structPtr;
                     }
 
@@ -1328,7 +1328,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
   //maxwidth for indefinite matrices
   tmpBufs.Resize(maxwidth + maxheight/*this->Size()*/,maxwidth);
 
-  std::vector< SuperNode<T> * > aggVectors(this->Xsuper_.size()-1,NULL);
+  std::vector< SuperNode<T> * > aggVectors(this->Xsuper_.size()-1,nullptr);
 
 
   timeSta =  get_time( );
@@ -1341,7 +1341,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
   Int localTaskCount = localTaskCount_;
 
   for(int i = 0; i<gTaskCnt; ++i){
-    if(taskGraph.taskLists_[i] != NULL){
+    if(taskGraph.taskLists_[i] != nullptr){
       auto taskit = taskGraph.taskLists_[i]->begin();
       while (taskit != taskGraph.taskLists_[i]->end())
       {
@@ -1988,8 +1988,8 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
     //AsyncComms * cur_incomingRecv = incomingRecvFactArr[tgt_snode_id-1];
 
 
-    IncomingMessage * structPtr = NULL;
-    IncomingMessage * msgPtr = NULL;
+    IncomingMessage * structPtr = nullptr;
+    IncomingMessage * msgPtr = nullptr;
     //Local or remote factor
     //we have only one local or one remote incoming aggregate
 
@@ -2036,7 +2036,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
         else{
           SYMPACK_TIMER_START(UPD_ANC_Agg_tmp);
           //Check if src_snode_id already have an aggregate std::vector
-          if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==NULL){
+          if(/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
             SYMPACK_TIMER_START(UPD_ANC_Agg_tmp_creat);
             //use number of rows below factor as initializer
 
@@ -2213,12 +2213,12 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
     SYMPACK_TIMER_STOP(UPDATE_ANCESTORS);
 
 
-    if(msgPtr!=NULL){
+    if(msgPtr!=nullptr){
       delete cur_src_snode;
       delete msgPtr;
     }
 
-    if(structPtr!=NULL){
+    if(structPtr!=nullptr){
       delete structPtr;
     }
 
@@ -2254,8 +2254,8 @@ template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supern
   SYMPACK_TIMER_STOP(UPCXX_ADVANCE);
 
   bool comm_found = false;
-  IncomingMessage * msg = NULL;
-  FBTask * curTask = NULL;
+  IncomingMessage * msg = nullptr;
+  FBTask * curTask = nullptr;
   if(is_static){
     curTask = &scheduler2_->top();
 #ifdef _DEBUG_PROGRESS_
@@ -2265,7 +2265,7 @@ template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supern
 
 
   do{
-    msg=NULL;
+    msg=nullptr;
 
     SYMPACK_TIMER_START(MV_MSG_SYNC);
     //if we have some room, turn blocking comms into async comms
@@ -2370,7 +2370,7 @@ template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supern
 
         SYMPACK_TIMER_START(RM_MSG_SYNC);
         if(is_static){
-          msg=NULL;
+          msg=nullptr;
           for(auto it = gIncomingRecv.begin();it!=gIncomingRecv.end();it++){
             //find a message corresponding to current task
             IncomingMessage * curMsg = *it;
@@ -2405,7 +2405,7 @@ template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supern
 
     }
 
-    if(msg!=NULL){
+    if(msg!=nullptr){
       scope_timer(a,WAIT_AND_UPDATE_DEPS);
       bool success = msg->Wait(); 
       if(!success){
@@ -2474,7 +2474,7 @@ template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supern
           taskit = taskGraph.addTask(curTask);
 
           Int J = msg->meta.tgt;
-          //            if(taskLists[J-1] == NULL){
+          //            if(taskLists[J-1] == nullptr){
           //              taskLists[J-1]=new std::list<FBTask>();
           //            }
           //            taskLists[J-1]->push_back(curTask);
@@ -2541,7 +2541,7 @@ template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supern
         }
       }
     }
-  }while(msg!=NULL);
+  }while(msg!=nullptr);
 }
 
 #endif //_SYMPACK_MATRIX_IMPL_FB_PULL_HPP_

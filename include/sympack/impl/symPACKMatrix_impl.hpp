@@ -156,7 +156,7 @@ namespace symPACK{
     MPI_Type_free(&type);
 
     //now process recvbuf and add the tasks to my tasklists
-    taskGraph.taskLists_.resize(this->TotalSupernodeCnt(),NULL);
+    taskGraph.taskLists_.resize(this->TotalSupernodeCnt(),nullptr);
     //Int localTaskCount = 0;
     for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
       FBTask curUpdate;
@@ -169,7 +169,7 @@ namespace symPACK{
       taskGraph.addTask(curUpdate);
 
       ////create the list if needed
-      //if(taskGraph.taskLists_[J-1] == NULL){
+      //if(taskGraph.taskLists_[J-1] == nullptr){
       //  taskGraph.taskLists_[J-1]=new std::list<FBTask>();
       //}
       //taskGraph.taskLists_[J-1]->push_back(curUpdate);
@@ -182,7 +182,7 @@ namespace symPACK{
 
 
     for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
-      if(taskGraph.taskLists_[i] != NULL){
+      if(taskGraph.taskLists_[i] != nullptr){
         for(auto taskit = taskGraph.taskLists_[i]->begin(); taskit!=taskGraph.taskLists_[i]->end();taskit++){
           FBTask & curUpdate = *taskit;
           if(curUpdate.type==FACTOR){
@@ -219,7 +219,7 @@ namespace symPACK{
     }
 
     for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
-      if(taskGraph.taskLists_[i] != NULL){
+      if(taskGraph.taskLists_[i] != nullptr){
         for(auto taskit = taskGraph.taskLists_[i]->begin(); taskit!=taskGraph.taskLists_[i]->end();taskit++){
           taskit->rank = levels[taskit->src_snode_id];
         }
@@ -2245,13 +2245,13 @@ namespace symPACK{
   //          Int fc = 0;
   //          Int lc = 0;
   //          Int iWidth = 0;
-  //          SuperNode<T> * snode = NULL;
+  //          SuperNode<T> * snode = nullptr;
   //
   //          Idx prevRow = 0;
   //          Int blkidx = 0;
-  //          NZBlockDesc * blk_desc = NULL;
+  //          NZBlockDesc * blk_desc = nullptr;
   //          Int blknrows = 0;
-  //          T * nzval = NULL;
+  //          T * nzval = nullptr;
   //
   //
   //          if(1){
@@ -2300,7 +2300,7 @@ namespace symPACK{
   //              iWidth = lc-fc+1;
   //              snode = snodeLocal(I);
   //              prevRow = 0;
-  //              nzval=NULL;
+  //              nzval=nullptr;
   //              bassert(cur_elem->row!=prevRow); 
   //              prevI = I;
   //            }
@@ -2321,7 +2321,7 @@ namespace symPACK{
   //              }
   //              prevRow=cur_elem->row;
   //            }
-  //            bassert(nzval!=NULL);
+  //            bassert(nzval!=nullptr);
   //
   //            Int local_row = cur_elem->row - blk_desc->GIndex + 1;
   //            Int local_col = cur_elem->col - fc + 1;
@@ -2507,13 +2507,13 @@ namespace symPACK{
   //              Int fc = 0;
   //              Int lc = 0;
   //              Int iWidth = 0;
-  //              SuperNode<T> * snode = NULL;
+  //              SuperNode<T> * snode = nullptr;
   //
   //              Idx prevRow = 0;
   //              Int blkidx = 0;
-  //              NZBlockDesc * blk_desc = NULL;
+  //              NZBlockDesc * blk_desc = nullptr;
   //              Int blknrows = 0;
-  //              T * nzval = NULL;
+  //              T * nzval = nullptr;
   //
   //
   //              if(0){
@@ -2562,7 +2562,7 @@ namespace symPACK{
   //                  iWidth = lc-fc+1;
   //                  snode = snodeLocal(I);
   //                  prevRow = 0;
-  //                  nzval=NULL;
+  //                  nzval=nullptr;
   //                  bassert(cur_elem->row!=prevRow); 
   //                  prevI = I;
   //                }
@@ -2583,7 +2583,7 @@ namespace symPACK{
   //                  }
   //                  prevRow=cur_elem->row;
   //                }
-  //                bassert(nzval!=NULL);
+  //                bassert(nzval!=nullptr);
   //
   //                Int local_row = cur_elem->row - blk_desc->GIndex + 1;
   //                Int local_col = cur_elem->col - fc + 1;
@@ -2634,11 +2634,11 @@ namespace symPACK{
 #endif
 
     //Create the CommEnvironment object if necessary
-    if(CommEnv_!=NULL){
+    if(CommEnv_!=nullptr){
       delete CommEnv_;
     }
 
-    //    if(options.commEnv == NULL){
+    //    if(options.commEnv == nullptr){
     //      throw std::runtime_error("The communication environment must be initialized in the options");
     //    }
     this->options_ = options;
@@ -2761,7 +2761,7 @@ namespace symPACK{
 
     logfileptr->OFS()<<"Matrix structure expanded"<<std::endl;
 
-    SparseMatrixGraph * sgraph = NULL;
+    SparseMatrixGraph * sgraph = nullptr;
     {
       {
 
@@ -2801,7 +2801,7 @@ namespace symPACK{
           this->options_.ordering = symPACK::NATURAL;
         }
         else if(this->options_.orderingStr=="USER"){
-          if(this->options_.perm ==NULL){
+          if(this->options_.perm ==nullptr){
             throw std::logic_error( "When using USER, symPACKOptions.perm must be provided.\n" );
           }
           else{
@@ -2968,7 +2968,7 @@ namespace symPACK{
     std::vector<Int> & cc = cc_;
     std::vector<Int> &rc = rc_;
 
-    if(sgraph==NULL){ 
+    if(sgraph==nullptr){ 
       logfileptr->OFS()<<"copying graph"<<std::endl;
       DistSparseMatrixGraph graph = this->graph_;
       double timeSta = get_time();
@@ -3092,7 +3092,7 @@ namespace symPACK{
     else
     {
       //gather the graph if necessary to build the elimination tree
-      if(sgraph==NULL){ 
+      if(sgraph==nullptr){ 
         sgraph = new SparseMatrixGraph();
         this->graph_.GatherStructure(*sgraph,0);
       }
@@ -3175,7 +3175,7 @@ namespace symPACK{
 
 
     //get rid of the sequential graph
-    if(sgraph!=NULL && this->options_.order_refinement_str.substr(0,4) != "TSPB"){delete sgraph;}
+    if(sgraph!=nullptr && this->options_.order_refinement_str.substr(0,4) != "TSPB"){delete sgraph;}
 
     { 
       double timeSta = get_time();
@@ -3195,7 +3195,7 @@ namespace symPACK{
         MPI_Comm_free(&this->workcomm_);
       }
       MPI_Comm_split(this->options_.MPIcomm,this->iam<this->np,this->iam,&this->workcomm_);
-      bassert(CommEnv_!=NULL);
+      bassert(CommEnv_!=nullptr);
       delete CommEnv_;
       CommEnv_ = new CommEnvironment(this->workcomm_);
       this->group_.reset( new RankGroup( this->workcomm_ ) ); 
@@ -3210,7 +3210,7 @@ namespace symPACK{
       }
 
       //now create the mapping
-      if(this->Mapping_ != NULL){
+      if(this->Mapping_ != nullptr){
         delete this->Mapping_;
       }
 
@@ -3337,7 +3337,7 @@ namespace symPACK{
         } 
         else if(this->options_.order_refinement_str.substr(0,4) == "TSPB"){
 
-          if(sgraph==NULL){ 
+          if(sgraph==nullptr){ 
             sgraph = new SparseMatrixGraph();
             this->graph_.GatherStructure(*sgraph,0);
           }
@@ -3400,7 +3400,7 @@ namespace symPACK{
             for(size_t i = 0; i< sgraph->colptr.size(); i++){ xadj[i] = int(sgraph->colptr[i]); }
             for(size_t i = 0; i< sgraph->rowind.size(); i++){ adj[i] = int(sgraph->rowind[i]); }
 
-            if(sgraph!=NULL){delete sgraph;}
+            if(sgraph!=nullptr){delete sgraph;}
 
             std::vector<int, Mallocator<int> > etpar(neqns);
             for(int i = 0; i<neqns; i++){ etpar[i] = tree.PostParent(i); }
@@ -3511,7 +3511,7 @@ namespace symPACK{
       scope_timer(a,LOAD_BALANCE);
       double timeSta = get_time();
 
-      if (this->Balancer_!=NULL){
+      if (this->Balancer_!=nullptr){
         delete this->Balancer_;
       }
 
@@ -3546,16 +3546,16 @@ namespace symPACK{
       }
 
 
-      if (this->Balancer_!=NULL){
+      if (this->Balancer_!=nullptr){
         map = this->Balancer_->GetMap();
         TreeLoadBalancer * testBalancer = dynamic_cast<TreeLoadBalancer*>(this->Balancer_);
-        if(testBalancer==NULL){
+        if(testBalancer==nullptr){
           this->Mapping_->Update(map);
         }
         else{
 
           TreeMapping * test = dynamic_cast<TreeMapping*>(this->Mapping_);
-          if(test==NULL){
+          if(test==nullptr){
             this->Mapping_->Update(map);
           }
           else{
@@ -3610,7 +3610,7 @@ namespace symPACK{
 #ifdef _OUTPUT_TASK_GRAPH_
         logfileptr->OFS()<<"tasks: ";
         for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
-          if((*binit)!=NULL){
+          if((*binit)!=nullptr){
             for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
               logfileptr->OFS()<<"t_"<<taskit->src_snode_id<<"_"<<taskit->tgt_snode_id<<" ";
             }
@@ -3620,7 +3620,7 @@ namespace symPACK{
         logfileptr->OFS()<<std::endl; 
         logfileptr->OFS()<<"taskmap: ";
         for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
-          if((*binit)!=NULL){
+          if((*binit)!=nullptr){
             for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
               logfileptr->OFS()<<this->iam<<" ";
             }
@@ -3670,7 +3670,7 @@ namespace symPACK{
         ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
         globToLocSnodes_.Insert(snode_inter);
 #endif
-        SuperNode<T> * newSnode = NULL;
+        SuperNode<T> * newSnode = nullptr;
         try{
           newSnode = CreateSuperNode(this->options_.decomposition,I,fc,fc,lc,iHeight,this->iSize_,nzBlockCnt,this->options_.panel);
         }
@@ -4310,20 +4310,20 @@ namespace symPACK{
 
   template <typename T> inline symPACKMatrix<T>::symPACKMatrix():
     symPACKMatrixMeta<T>(){
-    CommEnv_=NULL;
+    CommEnv_=nullptr;
     //team_=nullptr;
-    Mapping_ = NULL;
-    Balancer_ = NULL;
-    scheduler_ = NULL;
-    scheduler2_ = NULL;
-    //Local_=NULL;
-    //Global_=NULL;
+    Mapping_ = nullptr;
+    Balancer_ = nullptr;
+    scheduler_ = nullptr;
+    scheduler2_ = nullptr;
+    //Local_=nullptr;
+    //Global_=nullptr;
     //isGlobStructAllocated_ = false;
 //    if(!upcxx::is_init()){
-//      upcxx::init(NULL,NULL);
+//      upcxx::init(nullptr,nullptr);
 //    }
 
-    if(logfileptr==NULL){
+    if(logfileptr==nullptr){
 #ifdef NEW_UPCXX
       logfileptr = new LogFile(upcxx::rank_me(),false);
       logfileptr->OFS()<<"********* LOGFILE OF P"<<upcxx::rank_me()<<" *********"<<std::endl;
@@ -4359,34 +4359,34 @@ namespace symPACK{
     //    }
 #endif
 
-    if(this->scheduler_!=NULL){
+    if(this->scheduler_!=nullptr){
       delete this->scheduler_;
     }
 
-    if(this->scheduler2_!=NULL){
+    if(this->scheduler2_!=nullptr){
       delete this->scheduler2_;
     }
 
-    if(this->Mapping_!=NULL){
+    if(this->Mapping_!=nullptr){
       delete this->Mapping_;
     }
 
-    if(this->Balancer_!=NULL){
+    if(this->Balancer_!=nullptr){
       delete this->Balancer_;
     }
 
-    if(CommEnv_!=NULL){
+    if(CommEnv_!=nullptr){
       delete CommEnv_;
     }
 
     //if(team_!=nullptr){
     //  delete team_;
     //}
-    //  if(Local_!=NULL){
+    //  if(Local_!=nullptr){
     //    delete Local_;
     //  }
     //
-    //  if(Global_!=NULL){
+    //  if(Global_!=nullptr){
     //    delete Global_;
     //  }
 
@@ -4402,7 +4402,7 @@ namespace symPACK{
     return it - globToLocSnodes_.begin();
 #else
     ITree::Interval * ptr = globToLocSnodes_.IntervalSearch(global,global);
-    assert(ptr!=NULL);
+    assert(ptr!=nullptr);
     return ptr->block_idx;
 #endif
   }
@@ -4423,7 +4423,7 @@ namespace symPACK{
   template <typename T> 
     template <class Allocator>
     inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt, Int panel){
-      SuperNode<T,Allocator> * retval = NULL;
+      SuperNode<T,Allocator> * retval = nullptr;
         try{
       switch(type){
         case DecompositionType::LDL:
@@ -4446,7 +4446,7 @@ namespace symPACK{
   template <typename T> 
     template <class Allocator>
     inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel){
-      SuperNode<T,Allocator> * retval = NULL;
+      SuperNode<T,Allocator> * retval = nullptr;
       switch(type){
         case DecompositionType::LDL:
           retval = new SuperNodeInd<T,Allocator>( aiId, aiFr,  aiFc,  aiLc,  aiN,  rowIndices, panel);
@@ -4464,7 +4464,7 @@ namespace symPACK{
   template <typename T> 
     template <class Allocator>
     inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type){
-      SuperNode<T,Allocator> * retval = NULL;
+      SuperNode<T,Allocator> * retval = nullptr;
         switch(type){
           case DecompositionType::LDL:
             retval = new SuperNodeInd<T,Allocator>();
@@ -4483,7 +4483,7 @@ namespace symPACK{
   template <typename T>
     template <class Allocator>
     inline SuperNode<T,Allocator> * symPACKMatrix<T>::CreateSuperNode(DecompositionType type,char * dataPtr,size_t size, Int firstRow){
-      SuperNode<T,Allocator> * retval = NULL;
+      SuperNode<T,Allocator> * retval = nullptr;
       switch(type){
         case DecompositionType::LDL:
           retval = new SuperNodeInd<T,Allocator>(dataPtr,size,firstRow);
@@ -4648,7 +4648,7 @@ namespace symPACK{
           (*intmp)++;
         }
       }
-      //if (symbptr->browtab == NULL) {
+      //if (symbptr->browtab == nullptr) {
       //   delete [] symbptr->browtab;
       //}
       symbptr->browtab = browtab;
@@ -5340,8 +5340,8 @@ split:
         for (i=0; i<symbptr->nodenbr; i++) {
           order->permtab[ order->peritab[i] ] = i;
         }
-        delete [] levels; levels = NULL;
-        delete [] depthweight; depthweight = NULL;
+        delete [] levels; levels = nullptr;
+        delete [] depthweight; depthweight = nullptr;
       }
 
 

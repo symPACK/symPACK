@@ -68,10 +68,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 
 
-extern "C"
 bool libMPIInit = false;
-
-extern "C"
 bool libUPCXXInit = false;
 
 
@@ -117,6 +114,7 @@ int symPACK_Init(int *argc, char ***argv){
 #ifdef NEW_UPCXX
   int retval = 1;
   // init UPC++
+  if ( libUPCXXInit ) symPACK::gdb_lock();
   upcxx::init();
   libUPCXXInit = true;
   
@@ -124,7 +122,6 @@ int symPACK_Init(int *argc, char ***argv){
   //int mpi_already_init;
   MPI_Initialized(&symPACK::mpi_already_init);
   if (!symPACK::mpi_already_init) MPI_Init(argc, argv);
-  //libMPIInit = !mpi_already_init;
 
   MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &symPACK::world_comm);
 
@@ -194,13 +191,15 @@ int symPACK_Init(int *argc, char ***argv){
     }
   }
 
+  MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &symPACK::world_comm);
+
     int mpiinit = 0;
     MPI_Initialized(&mpiinit);
     assert(mpiinit==1);
 //    assert(upcxx::is_init());
 
-  return retval;
 #endif
+  return retval;
 }
 
 
@@ -210,6 +209,7 @@ int symPACK_Finalize(){
   int rank = 0;
   symPACK_Rank(&rank);
 
+  MPI_Comm_free(&symPACK::world_comm);
 
   if (!symPACK::mpi_already_init) MPI_Finalize();
 

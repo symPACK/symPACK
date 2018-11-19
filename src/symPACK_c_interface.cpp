@@ -24,9 +24,9 @@ namespace symPACK{
 
   //returns a integer corresponding to a symPACK handle
 extern "C" 
-  int symPACK_C_InitInstanceFloat(MPI_Comm ccomm) {}
+  int symPACK_C_InitInstanceFloat(MPI_Comm ccomm) { return -1;}
 extern "C" 
-  int symPACK_InitInstanceFloat(MPI_Fint * Fcomm) {}
+  int symPACK_InitInstanceFloat(MPI_Fint * Fcomm) { return -1;}
 
 
 //extern "C" 
@@ -58,22 +58,25 @@ extern "C"
 
 extern "C" 
   int symPACK_C_InitInstanceComplex(MPI_Comm ccomm){
-  
+   return -1; 
   }
 
 extern "C" 
   int symPACK_InitInstanceComplex(MPI_Fint * Fcomm){
 
+   return -1; 
   }
 
 extern "C" 
   int symPACK_C_InitInstanceDoubleComplex(MPI_Comm ccomm){
 
+   return -1; 
   }
 
 extern "C" 
   int symPACK_InitInstanceDoubleComplex(MPI_Fint * Fcomm){
 
+   return -1; 
   }
 
 

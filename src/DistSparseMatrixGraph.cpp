@@ -546,14 +546,14 @@ bassert(colbeg<=colend);
   }
 
   void DistSparseMatrixGraph::Permute(Int * invp){
-    permute_(invp, NULL, 1);
+    permute_(invp, nullptr, 1);
   }
   void DistSparseMatrixGraph::Permute(Int * invp, Idx * newVertexDist){
     permute_(invp, newVertexDist, 1);
   }
 
   void DistSparseMatrixGraph::Redistribute(Idx * newVertexDist){
-    permute_(NULL, newVertexDist, 1);
+    permute_(nullptr, newVertexDist, 1);
   }
 
 
@@ -569,7 +569,7 @@ bassert(colbeg<=colend);
     SYMPACK_TIMER_START(PERMUTE);
 
     //handle default parameter values
-    if(newVertexDist==NULL){
+    if(newVertexDist==nullptr){
       newVertexDist = &vertexDist[0];
     }
 
@@ -591,7 +591,7 @@ bassert(colbeg<=colend);
       Idx col = firstCol + locCol; //0-based
       Ptr colbeg = colptr[locCol] - baseval;
       Ptr colend = colptr[locCol+1] - baseval;
-      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // 0 based;
+      Idx permCol = invp!=nullptr?invp[col]-invpbaseval:col; // 0 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
       //sizes[pdest] += (colend - colbeg) + PtrIdx_sz + 1; //extra 2 are for the count of elements and the permuted columns
@@ -599,7 +599,7 @@ bassert(colbeg<=colend);
       //now permute rows
       for(Ptr jptr = colbeg; jptr<colend; jptr++){
         Idx row = rowind[jptr] - baseval; //0 based
-        Idx permRow = invp!=NULL?invp[row] - invpbaseval:row; // 0 based
+        Idx permRow = invp!=nullptr?invp[row] - invpbaseval:row; // 0 based
 
         if(permRow<permCol && !expanded){
           Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
@@ -628,13 +628,13 @@ bassert(colbeg<=colend);
       Idx col = firstCol + locCol; 
       Ptr colbeg = colptr[locCol]-baseval;
       Ptr colend = colptr[locCol+1]-baseval;
-      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // 0 based;
+      Idx permCol = invp!=nullptr?invp[col]-invpbaseval:col; // 0 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
 
       for(Ptr jptr = colbeg; jptr<colend; jptr++){
         Idx row = rowind[jptr] - baseval; //0 based
-        Idx permRow = invp!=NULL?invp[row] - invpbaseval:row; // 0 based
+        Idx permRow = invp!=nullptr?invp[row] - invpbaseval:row; // 0 based
         if(permRow<permCol && !expanded){
           Idx pdestR; for(pdestR = 0; pdestR<mpisize; pdestR++){ if(permRow>=newVertexDist[pdestR]-baseval && permRow < newVertexDist[pdestR+1]-baseval){ break;} }
           assert(displs[pdestR]<sbuf.size());
@@ -731,7 +731,7 @@ bassert(colbeg<=colend);
     ////      Ptr colend = colptr[locCol+1]-baseval;
     ////      //Ptr colbeg = colptr.at(locCol) - baseval;
     ////      //Ptr colend = colptr.at(locCol+1) - baseval;
-    ////      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // perm is 1 based;
+    ////      Idx permCol = invp!=nullptr?invp[col]-invpbaseval:col; // perm is 1 based;
     ////      //find destination processors
     ////      Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
     ////      //Idx pdest = min((Idx)mpisize-1, permCol / colPerProc);
@@ -859,7 +859,7 @@ assert(sizeof(Ptr)>=sizeof(Idx));
     SYMPACK_TIMER_START(PERMUTE);
 
     //handle default parameter values
-    if(newVertexDist==NULL){
+    if(newVertexDist==nullptr){
       newVertexDist = &vertexDist[0];
     }
 
@@ -883,7 +883,7 @@ assert(sizeof(Ptr)>=sizeof(Idx));
       Ptr colend = colptr[locCol+1] - baseval;
       //Ptr colbeg = colptr.at(locCol) - baseval;
       //Ptr colend = colptr.at(locCol+1) - baseval;
-      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // 0 based;
+      Idx permCol = invp!=nullptr?invp[col]-invpbaseval:col; // 0 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
       //Idx pdest = min( (Idx)mpisize-1, permCol / colPerProc);
@@ -894,7 +894,7 @@ assert(sizeof(Ptr)>=sizeof(Idx));
       for(Ptr jptr = colbeg; jptr<colend; jptr++){
         Idx row = rowind[jptr] - baseval; //0 based
         //Idx row = rowind.at(jptr) - baseval; //0 based
-        Idx permRow = invp!=NULL?invp[row] - invpbaseval:row; // 0 based
+        Idx permRow = invp!=nullptr?invp[row] - invpbaseval:row; // 0 based
         rowind[jptr] = permRow + baseval;
         //rowind.at(jptr) = permRow + baseval;
       }
@@ -926,7 +926,7 @@ assert(sizeof(Ptr)>=sizeof(Idx));
       Ptr colend = colptr[locCol+1]-baseval;
       //Ptr colbeg = colptr.at(locCol) - baseval;
       //Ptr colend = colptr.at(locCol+1) - baseval;
-      Idx permCol = invp!=NULL?invp[col]-invpbaseval:col; // perm is 1 based;
+      Idx permCol = invp!=nullptr?invp[col]-invpbaseval:col; // perm is 1 based;
       //find destination processors
       Idx pdest; for(pdest = 0; pdest<mpisize; pdest++){ if(permCol>=newVertexDist[pdest]-baseval && permCol < newVertexDist[pdest+1]-baseval){ break;} }
       //Idx pdest = min((Idx)mpisize-1, permCol / colPerProc);
@@ -1764,7 +1764,7 @@ assert(sizeof(Ptr)>=sizeof(Idx));
       MPI_Gatherv(&colptr[0],localVertexCnt,type,&g.colptr[0],&rsizes[0],&rdispls[0],type,proot,comm);
     }
     else{
-    MPI_Gatherv(&colptr[0],localVertexCnt,type,NULL,NULL,NULL,type,proot,comm);
+    MPI_Gatherv(&colptr[0],localVertexCnt,type,nullptr,nullptr,nullptr,type,proot,comm);
     }
 
         MPI_Type_free(&type);
@@ -1788,7 +1788,7 @@ assert(sizeof(Ptr)>=sizeof(Idx));
     MPI_Gatherv(&rowind[0],localEdgeCnt,type,&g.rowind[0],&rsizes[0],&rdispls[0],type,proot,comm);
     }
     else{
-    MPI_Gatherv(&rowind[0],localEdgeCnt,type,NULL,NULL,NULL,type,proot,comm);
+    MPI_Gatherv(&rowind[0],localEdgeCnt,type,nullptr,nullptr,nullptr,type,proot,comm);
     }
         MPI_Type_free(&type);
 

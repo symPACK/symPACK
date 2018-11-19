@@ -65,19 +65,20 @@ namespace symPACK{
   template <typename Task>
   inline supernodalTaskGraph<Task>& supernodalTaskGraph<Task>::operator=( const supernodalTaskGraph<Task>& g ){
     localTaskCount_ = g.localTaskCount_;
-    taskLists_.resize(g.taskLists_.size(),NULL);
+    taskLists_.resize(g.taskLists_.size(),nullptr);
     for(int i = 0; i<taskLists_.size(); ++i){
-      if(g.taskLists_[i] != NULL){
+      if(g.taskLists_[i] != nullptr){
         taskLists_[i] = new std::list<Task>(); 
         taskLists_[i]->insert(taskLists_[i]->end(),g.taskLists_[i]->begin(),g.taskLists_[i]->end());
       }
     }
+    return *this;
   }
 
   template <typename Task>
   inline supernodalTaskGraph<Task>::~supernodalTaskGraph(){
     for(int i = 0; i<taskLists_.size(); ++i){
-      if(taskLists_[i] != NULL){
+      if(taskLists_[i] != nullptr){
         delete taskLists_[i];
       }
     }
@@ -106,7 +107,7 @@ namespace symPACK{
 
   template <>
   inline std::list<FBTask>::iterator supernodalTaskGraph<FBTask>::addTask(FBTask & task){
-    if(taskLists_[task.tgt_snode_id-1] == NULL){
+    if(taskLists_[task.tgt_snode_id-1] == nullptr){
       taskLists_[task.tgt_snode_id-1]=new std::list<FBTask>();
     }
     taskLists_[task.tgt_snode_id-1]->push_back(task);
@@ -122,7 +123,7 @@ namespace symPACK{
     Int * meta = reinterpret_cast<Int*>(task.meta.data());
     Int tgt = meta[1];
 
-    if(taskLists_[tgt-1] == NULL){
+    if(taskLists_[tgt-1] == nullptr){
       taskLists_[tgt-1]=new std::list<CompTask>();
     }
     taskLists_[tgt-1]->push_back(task);
@@ -280,7 +281,9 @@ namespace symPACK{
     //  std::shared_ptr<GenericTask> tptr = std::make_shared<GenericTask>(*taskit.second);
     //  tasks_[taskit.first] = tptr;
     //}
+
     tasks_ = g.tasks_;
+    return *this;
   }
 
 

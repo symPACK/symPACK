@@ -116,7 +116,7 @@ namespace symPACK{
         this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
       }
       catch(const MemoryAllocationException & e){
-        this->loc_storage_container_=NULL;
+        this->loc_storage_container_=nullptr;
         this->storage_size_ = 0;
         throw;
       }
@@ -226,7 +226,7 @@ namespace symPACK{
         this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
       }
       catch(const MemoryAllocationException & e){
-        this->loc_storage_container_=NULL;
+        this->loc_storage_container_=nullptr;
         this->storage_size_ = 0;
         throw;
       }
@@ -286,7 +286,7 @@ namespace symPACK{
       blocks_ = (NZBlockDesc*) last;
 
       Int blkCnt = 0;
-      NZBlockDesc * curBlockPtr = NULL;
+      NZBlockDesc * curBlockPtr = nullptr;
       do{
         curBlockPtr = &GetNZBlockDesc(blkCnt);
         ++blkCnt;
@@ -377,7 +377,7 @@ namespace symPACK{
           size_t offset_block = (char*)blocks_ - (char*)nzval_;
 
           char * locTmpPtr = Allocator::allocate(new_size);
-          bassert(locTmpPtr!=NULL);
+          bassert(locTmpPtr!=nullptr);
           std::copy(loc_storage_container_,loc_storage_container_+storage_size_,locTmpPtr);
 
           Allocator::deallocate(loc_storage_container_);
@@ -451,7 +451,7 @@ namespace symPACK{
 
 
       ITree<Int>::Interval<Int> * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex);
-      if (res != NULL){
+      if (res != nullptr){
         rval = res->data;
       }
 #endif
@@ -462,18 +462,18 @@ namespace symPACK{
     inline Int SuperNode<T,Allocator>::FindBlockIdx(Int aiGIndex,Int & closestR, Int & closestL){
       scope_timer(a,FindBlockIdxRL);
       Int rval = -1;
-      ITree<Int>::Interval<Int> * L = NULL;
-      ITree<Int>::Interval<Int> * R = NULL;
+      ITree<Int>::Interval<Int> * L = nullptr;
+      ITree<Int>::Interval<Int> * R = nullptr;
       ITree<Int>::Interval<Int> * res = idxToBlk_->IntervalSearch(aiGIndex,aiGIndex,R,L);
-      if(R!=NULL){
+      if(R!=nullptr){
         closestR = R->low;
       }
 
-      if(L!=NULL){
+      if(L!=nullptr){
         closestL = L->high;
       }
 
-      if (res != NULL){
+      if (res != nullptr){
         rval = res->data;
       }
       return rval;
@@ -486,7 +486,7 @@ namespace symPACK{
       Int rval = -1;
 
       ITree<Int>::Interval<Int> * res = idxToBlk_->IntervalSearch(fr,lr);
-      if (res != NULL){
+      if (res != nullptr){
         overlap = *res;
         rval = res->data;
       }
@@ -530,7 +530,7 @@ namespace symPACK{
 #endif
 
           char * locTmpPtr = Allocator::allocate(new_size);
-          bassert(locTmpPtr!=NULL);
+          bassert(locTmpPtr!=nullptr);
 
           //copy nzvals
           std::copy(nzval_,nzval_+meta_->nzval_cnt_,(T*)locTmpPtr);
@@ -992,7 +992,7 @@ namespace symPACK{
         T * tgt = GetNZval(0);
 
         //Pointer to the output buffer of the GEMM
-        T * buf = NULL;
+        T * buf = nullptr;
         T beta = ZERO<T>();
 
 #ifdef SP_THREADS
@@ -1153,7 +1153,7 @@ namespace symPACK{
 
       }
       else{
-        Update(src_snode, update, tmpBuffers);
+        return Update(src_snode, update, tmpBuffers);
       }
 
 
@@ -1207,7 +1207,7 @@ namespace symPACK{
       T * tgt = GetNZval(0);
 
       //Pointer to the output buffer of the GEMM
-      T * buf = NULL;
+      T * buf = nullptr;
       T beta = ZERO<T>();
 #ifdef SP_THREADS
         tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
@@ -1610,7 +1610,7 @@ namespace symPACK{
       if(offset!=0){
         Int blkCnt = 1;
         if(blkCnt<nzblk_cnt){
-          NZBlockDesc * curBlockPtr = NULL;
+          NZBlockDesc * curBlockPtr = nullptr;
           do{
             curBlockPtr = new_blk_ptr - blkCnt;
             curBlockPtr->Offset -= offset;
@@ -2004,7 +2004,7 @@ namespace symPACK{
       if(offset!=0){
         Int blkCnt = 1;
         if(blkCnt<nzblk_cnt){
-          NZBlockDesc * curBlockPtr = NULL;
+          NZBlockDesc * curBlockPtr = nullptr;
           do{
             curBlockPtr = new_blk_ptr - blkCnt;
             curBlockPtr->Offset -= offset;

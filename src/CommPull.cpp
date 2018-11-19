@@ -72,7 +72,7 @@ namespace symPACK{
   //std::priority_queue< IncomingMessage *, std::vector<IncomingMessage *>, MSGCompare > gIncomingRecv;
   std::list< IncomingMessage * > gIncomingRecvAsync;
   std::list< IncomingMessage * > gIncomingRecvLocal;
-  //SupernodalMatrixBase * gSuperMatrixPtr = NULL;
+  //SupernodalMatrixBase * gSuperMatrixPtr = nullptr;
 
   int gMaxIrecv = 0;
 
@@ -82,7 +82,7 @@ namespace symPACK{
 
   BackupBuffer::BackupBuffer(){
     inUse = false;
-    local_ptr = NULL;
+    local_ptr = nullptr;
     size = 0;
   }
   BackupBuffer::~BackupBuffer(){
@@ -91,7 +91,7 @@ namespace symPACK{
 
   bool BackupBuffer::AllocLocal(size_t psize){
     if(!Allocated()){
-      local_ptr=NULL;
+      local_ptr=nullptr;
 #ifndef USE_LOCAL_ALLOCATE
       local_ptr = (char *)malloc(psize);
 #else
@@ -104,13 +104,13 @@ namespace symPACK{
       local_ptr=(char*)tmp; 
 #endif
 #endif
-      if(local_ptr!=NULL){
+      if(local_ptr!=nullptr){
         size = psize;
       }
       else{
         throw MemoryAllocationException(psize);
       }
-      return local_ptr!=NULL;
+      return local_ptr!=nullptr;
     }
     else{
       return false;
@@ -139,7 +139,7 @@ namespace symPACK{
       return local_ptr; 
     }
     else{
-      return NULL;
+      return nullptr;
     }
   }
 
@@ -155,9 +155,9 @@ namespace symPACK{
 #ifdef NEW_UPCXX
     async_get = false;
 #else
-    event_ptr=NULL;
+    event_ptr=nullptr;
 #endif
-    task_ptr =NULL;
+    task_ptr =nullptr;
     local_ptr=nullptr;
     isDone = false;
     isLocal = false;
@@ -182,7 +182,7 @@ namespace symPACK{
       }
     }
 #else
-    if(event_ptr!=NULL){
+    if(event_ptr!=nullptr){
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
         std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
@@ -193,7 +193,7 @@ namespace symPACK{
         delete event_ptr;
     }
 #endif
-    if(task_ptr!=NULL){
+    if(task_ptr!=nullptr){
       delete task_ptr;
     }
 
@@ -217,14 +217,14 @@ namespace symPACK{
 #ifdef SP_THREADS
     if(Multithreading::NumThread>1){
       std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-      assert(event_ptr==NULL);
+      assert(event_ptr==nullptr);
       event_ptr = new upcxx::event;
       upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size,event_ptr);
     }
     else
 #endif
     {
-      assert(event_ptr==NULL);
+      assert(event_ptr==nullptr);
       event_ptr = new upcxx::event;
       upcxx::async_copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size,event_ptr);
     }
@@ -293,7 +293,7 @@ maxWaitT = std::max(maxWaitT, tstop-tstart);
       isDone = true;
       success = true;
     }
-    else if(event_ptr!=NULL){
+    else if(event_ptr!=nullptr){
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
         std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
@@ -304,7 +304,7 @@ double tstop = get_time();
 maxAWaitT = std::max(maxAWaitT, tstop-tstart);
         assert(event_ptr->isdone());
         delete event_ptr;
-        event_ptr = NULL;
+        event_ptr = nullptr;
         isDone = true;
         success = true;
       }
@@ -318,7 +318,7 @@ double tstop = get_time();
 maxAWaitT = std::max(maxAWaitT, tstop-tstart);
         assert(event_ptr->isdone());
         delete event_ptr;
-        event_ptr = NULL;
+        event_ptr = nullptr;
         isDone = true;
         success = true;
       }
@@ -409,7 +409,7 @@ maxWaitT = std::max(maxWaitT, tstop-tstart);
       return isDone;
     }
 #else
-    if(event_ptr!=NULL){
+    if(event_ptr!=nullptr){
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
         std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
@@ -433,7 +433,7 @@ maxWaitT = std::max(maxWaitT, tstop-tstart);
 #ifdef NEW_UPCXX
     return (async_get);
 #else
-    return (event_ptr==NULL);
+    return (event_ptr==nullptr);
 #endif
   }
 

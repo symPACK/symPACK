@@ -66,11 +66,11 @@ template< typename Task> inline void symPACKMatrix<T>::CheckIncomingMessages_Sol
   SYMPACK_TIMER_STOP(UPCXX_ADVANCE);
 
   bool comm_found = false;
-  IncomingMessage * msg = NULL;
-  Task * curTask = NULL;
+  IncomingMessage * msg = nullptr;
+  Task * curTask = nullptr;
 
   do{
-    msg=NULL;
+    msg=nullptr;
 
     {
       //find if there is some finished async comm
@@ -98,7 +98,7 @@ template< typename Task> inline void symPACKMatrix<T>::CheckIncomingMessages_Sol
       }
     }
 
-    if(msg!=NULL){
+    if(msg!=nullptr){
       scope_timer(a,WAIT_AND_UPDATE_DEPS);
       bool success = msg->Wait(); 
       //TODO what are the reasons of failure ?
@@ -130,7 +130,7 @@ template< typename Task> inline void symPACKMatrix<T>::CheckIncomingMessages_Sol
     }
 
 
-  }while(msg!=NULL);
+  }while(msg!=nullptr);
 
     //if we have some room, turn blocking comms into async comms
     if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
@@ -244,7 +244,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
     std::shared_ptr<Scheduler<CompTask> > scheduler(new DLScheduler<CompTask>( ));
 
     supernodalTaskGraph<CompTask> taskGraph;
-    taskGraph.taskLists_.resize(nsuper,NULL);
+    taskGraph.taskLists_.resize(nsuper,nullptr);
     //Build the graph
     //TODO
 
@@ -355,7 +355,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
     //  }
     //}
   for(int i = 0; i<gTaskCnt; ++i){
-    if(taskGraph.taskLists_[i] != NULL){
+    if(taskGraph.taskLists_[i] != nullptr){
       auto taskit = taskGraph.taskLists_[i]->begin();
       while (taskit != taskGraph.taskLists_[i]->end())
       {

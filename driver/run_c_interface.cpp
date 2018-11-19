@@ -266,8 +266,8 @@ int main(int argc, char **argv)
 
 
         Ptr nnz = 0;
-        Idx * rowind = NULL;
-        SCALAR * nzval = NULL;
+        Idx * rowind = nullptr;
+        SCALAR * nzval = nullptr;
 
         //do I own the column ?
 

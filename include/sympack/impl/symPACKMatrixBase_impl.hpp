@@ -923,8 +923,8 @@ namespace symPACK {
           do{
             Int jwidth = xsuper[jsup]-xsuper[jsup-1];
 
-            Ptr * jxlindx = NULL;
-            Idx * jlindx = NULL;
+            Ptr * jxlindx = nullptr;
+            Idx * jlindx = nullptr;
             Int locjsup = -1;
             if(jsup>=firstSnode && jsup<=lastSnode){
               locjsup = jsup - firstSnode +1;

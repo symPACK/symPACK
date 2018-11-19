@@ -71,7 +71,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 namespace symPACK{
 
   template<typename T, class Allocator>
-    SuperNodeInd<T,Allocator>::SuperNodeInd() :SuperNode<T,Allocator>(), diag_(NULL){ }
+    SuperNodeInd<T,Allocator>::SuperNodeInd() :SuperNode<T,Allocator>(), diag_(nullptr){ }
 
   template<typename T, class Allocator>
     SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt, Int panel) {
@@ -113,11 +113,11 @@ namespace symPACK{
         this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
       }
       catch(const MemoryAllocationException & e){
-        this->loc_storage_container_=NULL;
+        this->loc_storage_container_=nullptr;
         this->storage_size_ = 0;
         throw;
       }
-      bassert(this->loc_storage_container_!=NULL);
+      bassert(this->loc_storage_container_!=nullptr);
 
       this->nzval_ = (T*)&this->loc_storage_container_[0];
       //this->updrows_ = (Idx*)(this->nzval_+size*ai_num_rows);
@@ -167,7 +167,7 @@ namespace symPACK{
       this->blocks_ = (NZBlockDesc*) last;
 
       Int blkCnt = 0;
-      NZBlockDesc * curBlockPtr = NULL;
+      NZBlockDesc * curBlockPtr = nullptr;
       do{
         curBlockPtr = &this->GetNZBlockDesc(blkCnt);
         ++blkCnt;
@@ -262,7 +262,7 @@ namespace symPACK{
         this->loc_storage_container_ = Allocator::allocate(this->storage_size_);
       }
       catch(const MemoryAllocationException & e){
-        this->loc_storage_container_=NULL;
+        this->loc_storage_container_=nullptr;
         this->storage_size_ = 0;
         throw;
       }
@@ -367,7 +367,7 @@ namespace symPACK{
           size_t offset_block = (char*)this->blocks_ - (char*)this->nzval_;
 
           char * locTmpPtr = Allocator::allocate(new_size);
-          bassert(locTmpPtr!=NULL);
+          bassert(locTmpPtr!=nullptr);
 
           std::copy(this->loc_storage_container_,this->loc_storage_container_+this->storage_size_,locTmpPtr);
           //for(size_t i = 0;i<this->storage_size_;i++){locTmpPtr[i] = this->loc_storage_container_[i];}
@@ -458,7 +458,7 @@ namespace symPACK{
           size_t offset_block = (this->meta_->nzval_cnt_+this->meta_->iSize_)*sizeof(T)+sizeof(SuperNodeDesc);
 
           char * locTmpPtr = Allocator::allocate(new_size);
-          bassert(locTmpPtr!=NULL);
+          bassert(locTmpPtr!=nullptr);
 
           //copy nzvals
           std::copy(this->nzval_,this->nzval_+this->meta_->nzval_cnt_,(T*)locTmpPtr);
@@ -641,7 +641,7 @@ namespace symPACK{
 
 
         //Pointer to the output buffer of the GEMM
-        T * buf = NULL;
+        T * buf = nullptr;
         T beta = ZERO<T>();
         //If the target supernode has the same structure,
         //The GEMM is directly done in place
@@ -776,7 +776,7 @@ namespace symPACK{
 
       }
       else{
-        this->Update(src_snode, update, tmpBuffers);
+        return this->Update(src_snode, update, tmpBuffers);
       }
 
 
@@ -826,7 +826,7 @@ namespace symPACK{
       T * tgt = this->GetNZval(0);
 
       //Pointer to the output buffer of the GEMM
-      T * buf = NULL;
+      T * buf = nullptr;
       T beta = ZERO<T>();
       //If the target supernode has the same structure,
       //The GEMM is directly done in place

@@ -71,10 +71,10 @@ namespace symPACK{
 //      it.high = 1;
 //
 //      //Empty tree
-//      // Interval search should return NULL
+//      // Interval search should return nullptr
 //////      tree = new ITree();
 //////      resIt = tree->IntervalSearch(it);
-//////      success &= (resIt==NULL);
+//////      success &= (resIt==nullptr);
 //////      delete tree;
 //////
 //////      //Insertion

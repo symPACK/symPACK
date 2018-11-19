@@ -76,7 +76,7 @@ class Mapping{
 
   public:
       virtual void Update(std::vector<Int> & aProcMap){
-        if(pProcMap_==NULL){
+        if(pProcMap_==nullptr){
           pProcMap_ = new std::vector<Int>(aProcMap);
         }
         else{
@@ -98,7 +98,7 @@ class Mapping{
         }
       }
   
-      Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pProcMap_(NULL){};
+      Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pProcMap_(nullptr){};
       Mapping(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):
           iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize){
           pProcMap_ = new std::vector<Int>(aProcMap);
@@ -109,15 +109,15 @@ class Mapping{
         iPRows_     = C.iPRows_;
         iPCols_     = C.iPCols_;
         iBlockSize_ = C.iBlockSize_;
-        if(C.pProcMap_!=NULL){
+        if(C.pProcMap_!=nullptr){
           pProcMap_ = new std::vector<Int>(*C.pProcMap_);
         }
       }
       Mapping(){
-        pProcMap_=NULL;
+        pProcMap_=nullptr;
       };
       virtual ~Mapping(){
-        if(pProcMap_!=NULL){
+        if(pProcMap_!=nullptr){
           delete pProcMap_;
         }
       };
@@ -141,7 +141,7 @@ class Modwrap2D: public Mapping{
       Modwrap2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){ 
         Int proc = 0;
-        if(pProcMap_!=NULL){
+        if(pProcMap_!=nullptr){
           proc = modwrap2D_((*pProcMap_)[i],(*pProcMap_)[j]);
 
         }
@@ -165,7 +165,7 @@ class Modwrap2DNS: public Mapping{
       Modwrap2DNS():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
        Int proc = 0;
-        if(pProcMap_!=NULL){
+        if(pProcMap_!=nullptr){
           proc = modwrap2DNS_((*pProcMap_)[i],(*pProcMap_)[j]);
         }
         else{
@@ -188,7 +188,7 @@ class Row2D: public Mapping{
       Row2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
        Int proc = 0;
-        if(pProcMap_!=NULL){
+        if(pProcMap_!=nullptr){
           proc = row2D_((*pProcMap_)[i],(*pProcMap_)[j]);
         }
         else{
@@ -211,7 +211,7 @@ class Wrap2D: public Mapping{
       Wrap2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
        Int proc = 0;
-        if(pProcMap_!=NULL){
+        if(pProcMap_!=nullptr){
           proc = wrap2D_((*pProcMap_)[i],(*pProcMap_)[j]);
         }
         else{
@@ -233,7 +233,7 @@ class Wrap2DForced: public Mapping{
       Wrap2DForced():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
        Int proc = 0;
-        if(pProcMap_!=NULL){
+        if(pProcMap_!=nullptr){
           proc = wrap2D_((*pProcMap_)[i],(*pProcMap_)[j]);
         }
         else{
@@ -259,7 +259,7 @@ class AntiDiag2D: public Mapping{
       AntiDiag2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
        Int proc = 0;
-        if(pProcMap_!=NULL){
+        if(pProcMap_!=nullptr){
           proc = antidiag2D_((*pProcMap_)[i],(*pProcMap_)[j]);
         }
         else{
@@ -283,7 +283,7 @@ class Col2D: public Mapping{
       Col2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
        Int proc = 0;
-        if(pProcMap_!=NULL){
+        if(pProcMap_!=nullptr){
           proc = col2D_((*pProcMap_)[i],(*pProcMap_)[j]);
         }
         else{
@@ -325,7 +325,7 @@ class TreeMapping: public Mapping{
       }
 
  
-      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pBalancer_(NULL){};
+      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pBalancer_(nullptr){};
 //      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):
 //          iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize){
 //          pProcMap_ = new std::vector<Int>(aProcMap);
@@ -336,12 +336,12 @@ class TreeMapping: public Mapping{
 //        iPRows_     = C.iPRows_;
 //        iPCols_     = C.iPCols_;
 //        iBlockSize_ = C.iBlockSize_;
-//        if(C.pProcMap_!=NULL){
+//        if(C.pProcMap_!=nullptr){
 //          pProcMap_ = new std::vector<Int>(*C.pProcMap_);
 //        }
 //      }
       TreeMapping(){
-        pBalancer_=NULL;
+        pBalancer_=nullptr;
       };
 
       
@@ -349,7 +349,7 @@ class TreeMapping: public Mapping{
       virtual Int Map(Int i, Int j){
 i = i+1;
 j = j+1;
-        assert(pBalancer_!=NULL);
+        assert(pBalancer_!=nullptr);
         //call GroupMap on the correct group, which is the one corresponding to j
         std::vector<Int> & groupIdx = pBalancer_->GroupIdx();
         std::vector<Int> & groupWorker = pBalancer_->GroupWorker();
@@ -417,7 +417,7 @@ assert(p<treesize);
 
 //        Int local
 //        Int proc = GroupMap();
-//        if(pProcMap_!=NULL){
+//        if(pProcMap_!=nullptr){
 //          proc = antidiag2D_((*pProcMap_)[i],(*pProcMap_)[j]);
 //        }
 //        else{

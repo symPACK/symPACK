@@ -180,7 +180,7 @@ namespace symPACK{
         MPI_Comm_size(comm,&mpisize);
         MPI_Comm_rank(comm,&mpirank);
 
-        if(newVertexDist==NULL){
+        if(newVertexDist==nullptr){
           newVertexDist = &Localg_.vertexDist[0];
         }
 
@@ -625,7 +625,7 @@ namespace symPACK{
     MPI_Comm_size(comm,&mpisize);
     MPI_Comm_rank(comm,&mpirank);
 
-    if(avertexDist == NULL){
+    if(avertexDist == nullptr){
       avertexDist = &Localg_.vertexDist[0];
     }
 

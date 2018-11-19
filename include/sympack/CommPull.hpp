@@ -320,7 +320,7 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
       BackupBuffer();
       ~BackupBuffer();
       bool InUse(){return inUse;}
-      bool Allocated(){return local_ptr!=NULL;}
+      bool Allocated(){return local_ptr!=nullptr;}
       bool AllocLocal(size_t size);
       void DeallocLocal();
       char * GetPtr();

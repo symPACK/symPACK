@@ -791,7 +791,7 @@ namespace symPACK{
             T * tgt = this->_nzval;
 
             //Pointer to the output buffer of the GEMM
-            T * buf = NULL;
+            T * buf = nullptr;
             T beta = T(0);
 
             //If the target supernode has the same structure,
@@ -993,7 +993,7 @@ namespace symPACK{
           T * tgt = this->_nzval;
 
           //Pointer to the output buffer of the GEMM
-          T * buf = NULL;
+          T * buf = nullptr;
           T beta = T(0);
 
 
@@ -1423,9 +1423,9 @@ namespace symPACK{
             T * tgt = this->_nzval;
 
             //Pointer to the output buffer of the GEMM
-            T * buf = NULL;
+            T * buf = nullptr;
             T beta = T(0);
-            T * bufLDL = NULL;
+            T * bufLDL = nullptr;
             //If the target supernode has the same structure,
             //The GEMM is directly done in place
             size_t tgt_offset = 0;
@@ -1790,7 +1790,7 @@ namespace symPACK{
       this->graph_.ExpandSymmetric();
       logfileptr->OFS()<<"Matrix structure expanded"<<std::endl;
 
-      SparseMatrixGraph * sgraph = NULL;
+      SparseMatrixGraph * sgraph = nullptr;
       {
         {
           double timeSta = get_time();
@@ -1829,7 +1829,7 @@ namespace symPACK{
             this->options_.ordering = symPACK::NATURAL;
           }
           else if(this->options_.orderingStr=="USER"){
-            if(this->options_.perm ==NULL){
+            if(this->options_.perm ==nullptr){
               throw std::logic_error( "When using USER, symPACKOptions.perm must be provided.\n" );
             }
             else{
@@ -1995,7 +1995,7 @@ namespace symPACK{
       std::vector<Int> rc;
 
 
-      if(sgraph==NULL){ 
+      if(sgraph==nullptr){ 
         logfileptr->OFS()<<"copying graph"<<std::endl;
         auto graph = this->graph_;
         double timeSta = get_time();
@@ -2040,7 +2040,7 @@ namespace symPACK{
       else
       {
         //gather the graph if necessary to build the elimination tree
-        if(sgraph==NULL){ 
+        if(sgraph==nullptr){ 
           sgraph = new SparseMatrixGraph();
           this->graph_.GatherStructure(*sgraph,0);
         }
@@ -2085,7 +2085,7 @@ namespace symPACK{
       }
 
       //get rid of the sequential graph
-      if(sgraph!=NULL && this->options_.order_refinement_str.substr(0,4) != "TSPB"){delete sgraph;}
+      if(sgraph!=nullptr && this->options_.order_refinement_str.substr(0,4) != "TSPB"){delete sgraph;}
 
       { 
         double timeSta = get_time();
@@ -2202,7 +2202,7 @@ namespace symPACK{
           } 
           else if(this->options_.order_refinement_str.substr(0,4) == "TSPB"){
 
-            if(sgraph==NULL){ 
+            if(sgraph==nullptr){ 
               sgraph = new SparseMatrixGraph();
               this->graph_.GatherStructure(*sgraph,0);
             }
@@ -2265,7 +2265,7 @@ namespace symPACK{
               for(size_t i = 0; i< sgraph->colptr.size(); i++){ xadj[i] = int(sgraph->colptr[i]); }
               for(size_t i = 0; i< sgraph->rowind.size(); i++){ adj[i] = int(sgraph->rowind[i]); }
 
-              if(sgraph!=NULL){delete sgraph;}
+              if(sgraph!=nullptr){delete sgraph;}
 
               std::vector<int, Mallocator<int> > etpar(neqns);
               for(int i = 0; i<neqns; i++){ etpar[i] = tree.PostParent(i); }
@@ -3463,7 +3463,7 @@ namespace symPACK{
 
 
                   }
-                  bassert(ptr_diagCell!=NULL);
+                  bassert(ptr_diagCell!=nullptr);
 
 
                   od_cell.trsm(*dynamic_cast<snodeBlock_t*>(ptr_diagCell),tmpBuf);
@@ -3612,7 +3612,7 @@ namespace symPACK{
 //                      }
 
                   }
-                  bassert(ptr_odCell!=NULL);
+                  bassert(ptr_odCell!=nullptr);
 
                   auto ptr_facingCell = pQueryCELL(K-1,I-1).get(); 
                   if ( ptr_facingCell->owner != this->iam ){
@@ -3625,7 +3625,7 @@ namespace symPACK{
 //                        m.pstate->overhead_mb += ptask->input_msg.rbegin()->get()->size  / 1024./ m.pstate->divider; 
 //                      }
                   }
-                  bassert(ptr_facingCell!=NULL);
+                  bassert(ptr_facingCell!=nullptr);
 
                   //check that they don't need to be swapped
                   if ( ptr_facingCell->i < ptr_odCell->i ) {

@@ -193,7 +193,7 @@ namespace symPACK{
 
       void symbolicFactorizationRelaxedDist(std::vector<Int> & cc);
 
-      void refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T>* pMat = NULL);
+      void refineSupernodes(int ordflag,int altflag,DistSparseMatrix<T>* pMat = nullptr);
 
 
 
