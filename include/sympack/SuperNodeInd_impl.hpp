@@ -675,7 +675,7 @@ inline Int SuperNodeInd<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * s
 
   }
   else{
-    this->Update(src_snode, update, tmpBuffers);
+    return this->Update(src_snode, update, tmpBuffers);
   }
 
 

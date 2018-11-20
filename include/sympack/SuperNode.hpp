@@ -95,7 +95,7 @@ logfileptr->OFS()<<"Memory HWM: "<<hwm_<<std::endl;
     }
 #endif
 
-    static char * allocate(size_t count){};
+    static char * allocate(size_t count){ return nullptr;};
 
     static void deallocate(char* ptr) {};
 };

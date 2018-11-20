@@ -1179,8 +1179,7 @@ namespace symPACK{
 ////      MPI_Barrier( workcomm );
 ////      MPI_File_close(&fin);
 ////
-////      return 0;
-////
+      return 0;
     }
 
 

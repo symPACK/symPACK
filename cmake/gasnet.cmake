@@ -26,8 +26,8 @@ else()
 
   set(GASNET_NAME gasnet)
   set(GASNET_URL https://gasnet.lbl.gov/download/)
-  set(GASNET_GZ  GASNet-1.26.3.tar.gz)
-  set(GASNET_MD5 "93ab985881ca19de319bb73583c385d2")
+  set(GASNET_GZ  GASNet-1.30.0.tar.gz)
+  #set(GASNET_MD5 "4c6255469c9d2922ad8e2c8ab757eff1")
   set(GASNET_CFLAGS "${CMAKE_C_FLAGS} -DGASNETI_PSHM_BARRIER_HIER=0")
  
   if(ENABLE_ARIES)

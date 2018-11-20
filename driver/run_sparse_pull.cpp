@@ -481,6 +481,8 @@ int main(int argc, char **argv)
 
   //This will also finalize MPI
   symPACK_Finalize();
+  
+//gdb_lock();
   return 0;
 }
 
