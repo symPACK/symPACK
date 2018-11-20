@@ -361,7 +361,7 @@ namespace symPACK{
 
   template <class Task > 
 #ifdef NEW_UPCXX
-    inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, std::list< upcxx::future<> > & pFutures)
+    inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, upcxx::dist_object<int> & remDealloc)
 #else
     inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group, taskGraph & graph)
 #endif
@@ -370,7 +370,7 @@ namespace symPACK{
 
   template <> 
 #ifdef NEW_UPCXX
-    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, std::list< upcxx::future<> > & pFutures)
+    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, upcxx::dist_object<int> & remDealloc)
 #else
     inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph)
 #endif
@@ -604,8 +604,9 @@ for(auto && toto: delayedTasks_){
   upcxx::progress();
   upcxx::discharge();
    //tstart = get_time();
-  for(auto f: pFutures) f.wait();
-  pFutures.clear();
+//  for(auto f: pFutures) f.wait();
+//  pFutures.clear();
+  while ( (*remDealloc) > 0 ) { upcxx::progress(); }
    //tstop = get_time();
    //logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
 

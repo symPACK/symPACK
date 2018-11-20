@@ -835,6 +835,7 @@ namespace symPACK{
 
 #ifdef NEW_UPCXX
       std::list< upcxx::future<> > gFutures;
+      upcxx::dist_object<int> * remDealloc;
 #endif
 
       //TODO Task lists

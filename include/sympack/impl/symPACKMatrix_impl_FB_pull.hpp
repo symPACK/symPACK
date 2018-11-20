@@ -70,6 +70,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
   double timeSta, timeEnd;
 
   SYMPACK_TIMER_START(FB_INIT);
+  remDealloc = new upcxx::dist_object<int>(0);
 
   std::vector<Int> UpdatesToDo = UpdatesToDo_;
 
@@ -308,7 +309,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
                 if(!msgPtr->IsLocal()){
 #ifdef NEW_UPCXX
-                  msgPtr->DeallocRemote(this->gFutures);
+                  msgPtr->DeallocRemote(*this->remDealloc);
 #else
                   msgPtr->DeallocRemote();
 #endif
@@ -458,9 +459,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
                         Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
-                        auto f = signal_data(sendPtr, msgSize, liTarget, meta);
+                        signal_data(sendPtr, msgSize, liTarget, meta);
                         //enqueue the future somewhere
-                        this->gFutures.push_back(f);
+                        //this->gFutures.push_back(f);
 #else
                         signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -759,6 +760,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                               meta.tgt = curUpdate.tgt_snode_id;
                               meta.GIndex = nzblk_desc.GIndex;
 
+#ifdef NEW_UPCXX
+                              (*(*this->remDealloc))++;
+#endif
+
                               //std::stringstream sstr;
                               //sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
                               //meta.id = hash_fn(sstr.str());
@@ -781,10 +786,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
                               Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
-                              auto f = signal_data(sendPtr, msgSize, liTarget, meta);
+                              signal_data(sendPtr, msgSize, liTarget, meta);
                               //if ( meta.tgt == 26 ) { f.wait(); upcxx::discharge(); gdb_lock(); }
                               //enqueue the future somewhere
-                              this->gFutures.push_back(f);
+                              //this->gFutures.push_back(f);
 #else
                               signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -1194,9 +1199,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
                             Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
-                            auto f = signal_data(sendPtr, msgSize, liTarget, meta);
+                            signal_data(sendPtr, msgSize, liTarget, meta);
                             //enqueue the future somewhere
-                            this->gFutures.push_back(f);
+                            //this->gFutures.push_back(f);
 #else
                             signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -1259,7 +1264,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
   }
   timeSta = get_time();
 #ifdef NEW_UPCXX
-  scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph,this->gFutures);
+  scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph,*this->remDealloc);
+  delete this->remDealloc;
 #else
   scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph);
 #endif
@@ -1301,6 +1307,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
 
   SYMPACK_TIMER_START(FB_INIT);
   double timeSta, timeEnd;
+  remDealloc = new upcxx::dist_object<int>(0);
 
 
   //  Int this->iam = CommEnv_->MPI_Rank();
@@ -1451,8 +1458,9 @@ defaut:
   //tstart = get_time();
   upcxx::progress();
   upcxx::discharge();
-  for(auto f: this->gFutures) f.wait();
-  this->gFutures.clear();
+  //for(auto f: this->gFutures) f.wait();
+  //this->gFutures.clear();
+  while( *(*this->remDealloc) > 0 ) { upcxx::progress(); }
   //tstop = get_time();
   //logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
 
@@ -1466,6 +1474,7 @@ defaut:
   barrier_wait(barrier_id,*this->group_);
   //tstop = get_time();
   //logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
+  delete this->remDealloc;
 #else
   double tstart = get_time();
   int barrier_id = get_barrier_id(this->np);
@@ -1828,7 +1837,7 @@ template <typename T> inline void symPACKMatrix<T>::FBAggregationTask(supernodal
 
     if(!msgPtr->IsLocal()){
 #ifdef NEW_UPCXX
-      msgPtr->DeallocRemote(this->gFutures);
+      msgPtr->DeallocRemote(*this->remDealloc);
 #else
       msgPtr->DeallocRemote();
 #endif
@@ -1929,9 +1938,9 @@ template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernod
 #endif
         Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
-        auto f = signal_data(sendPtr, msgSize, liTarget, meta);
+        signal_data(sendPtr, msgSize, liTarget, meta);
         //enqueue the future somewhere
-        this->gFutures.push_back(f);
+        //this->gFutures.push_back(f);
 #else
         signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -2159,6 +2168,9 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
             meta.tgt = curUpdate.tgt_snode_id;
             meta.GIndex = nzblk_desc.GIndex;
 
+#ifdef NEW_UPCXX
+            (*(*this->remDealloc))++;
+#endif
             //            logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" on P"<<iTarget<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
 
 #if UPCXX_VERSION >= 20180305
@@ -2173,9 +2185,9 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
 #endif
             Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
-            auto f = signal_data(sendPtr, msgSize, liTarget, meta);
+            signal_data(sendPtr, msgSize, liTarget, meta);
             //enqueue the future somewhere
-            this->gFutures.push_back(f);
+            //this->gFutures.push_back(f);
 #else
             signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -2525,7 +2537,7 @@ template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supern
       if(!msg->IsLocal()){
         if( taskit->type==FACTOR || taskit->type==AGGREGATE){
 #ifdef NEW_UPCXX
-      msg->DeallocRemote(this->gFutures);
+      msg->DeallocRemote(*this->remDealloc);
 #else
       msg->DeallocRemote();
 #endif

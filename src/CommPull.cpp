@@ -360,14 +360,25 @@ maxWaitT = std::max(maxWaitT, tstop-tstart);
   }
 
 #ifdef NEW_UPCXX
-  void IncomingMessage::DeallocRemote( std::list< upcxx::future<> > & pFutures){
+  //void IncomingMessage::DeallocRemote( std::list< upcxx::future<> > & pFutures){
+  //  if(!remoteDealloc){
+  //    auto ptr = GetRemotePtr();
+  //    auto pdest = ptr.where();
+  //    auto fut = upcxx::rpc(pdest,[ptr](){upcxx::deallocate(ptr);});
+  //    pFutures.push_back(fut);
+  //  }
+  //}
+
+  void IncomingMessage::DeallocRemote(upcxx::dist_object<int> & remDealloc) {
     if(!remoteDealloc){
       auto ptr = GetRemotePtr();
       auto pdest = ptr.where();
-      auto fut = upcxx::rpc(pdest,[ptr](){upcxx::deallocate(ptr);});
-      pFutures.push_back(fut);
+      upcxx::rpc_ff(pdest,[ptr,&remDealloc](){upcxx::deallocate(ptr); (*remDealloc)--;});
+      //pFutures.push_back(fut);
     }
   }
+
+
 #else
   void IncomingMessage::DeallocRemote(){
     if(!remoteDealloc){

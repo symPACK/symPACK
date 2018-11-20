@@ -439,9 +439,9 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
 
         Int lparentOwner = this->group_->L2G(parentOwner);
 #ifdef NEW_UPCXX
-                              auto f = signal_data(sendPtr, msgSize, lparentOwner, meta);
+                              signal_data(sendPtr, msgSize, lparentOwner, meta);
                               //enqueue the future somewhere
-                              this->gFutures.push_back(f);
+                              //this->gFutures.push_back(f);
 #else
                   signal_data(sendPtr, msgSize, lparentOwner, meta);
 #endif
@@ -499,9 +499,9 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
 
         Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
-                              auto f = signal_data(sendPtr, msgSize, liTarget, meta);
+                      signal_data(sendPtr, msgSize, liTarget, meta);
                               //enqueue the future somewhere
-                              this->gFutures.push_back(f);
+                      //        this->gFutures.push_back(f);
 #else
                       signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -639,6 +639,10 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
   Int n = this->iSize_;
 
   if(this->iam<this->np){
+
+#ifdef NEW_UPCXX
+    this->remDealloc = new upcxx::dist_object<int>(0);
+#endif
 
     Int nsuper = this->TotalSupernodeCnt();
     auto SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
@@ -938,9 +942,9 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                       {
         Int lparentOwner = this->group_->L2G(parentOwner);
 #ifdef NEW_UPCXX
-                              auto f = signal_data(sendPtr, msgSize, lparentOwner, meta);
+                        signal_data(sendPtr, msgSize, lparentOwner, meta);
                               //enqueue the future somewhere
-                              this->gFutures.push_back(f);
+                        //      this->gFutures.push_back(f);
 #else
                         signal_data(sendPtr, msgSize, lparentOwner, meta);
 #endif
@@ -1069,9 +1073,9 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                           {
         Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
-                              auto f = signal_data(sendPtr, msgSize, liTarget, meta);
+                            signal_data(sendPtr, msgSize, liTarget, meta);
                               //enqueue the future somewhere
-                              this->gFutures.push_back(f);
+                            // this->gFutures.push_back(f);
 #else
                             signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -1292,7 +1296,8 @@ logfileptr->OFS()<<"WARNING: this is suboptimal and should use the new ChainedMe
 
     timeSta = get_time();
 #ifdef NEW_UPCXX
-    scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph,this->gFutures);
+    scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph,*this->remDealloc);
+    delete this->remDealloc;
 #else
     scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph);
 #endif

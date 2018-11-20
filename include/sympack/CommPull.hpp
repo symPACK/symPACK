@@ -365,7 +365,8 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
       virtual size_t Size(){return msg_size;}
       void AsyncGet();
 #ifdef NEW_UPCXX
-      void DeallocRemote(std::list< upcxx::future<> > & pFutures);
+//      void DeallocRemote(std::list< upcxx::future<> > & pFutures);
+      void DeallocRemote(upcxx::dist_object<int> & remDealloc);
 #else
       void DeallocRemote();
 #endif
@@ -456,7 +457,8 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
   //extern SupernodalMatrixBase * gSuperMatrixPtr;
 
 #ifdef NEW_UPCXX
-  upcxx::future<> signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
+  //upcxx::future<> signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
+  void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
   upcxx::future<> remote_delete(upcxx::global_ptr<char> pRemote_ptr);
 #else
   void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta);
@@ -504,7 +506,7 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
 
 
 #ifdef NEW_UPCXX
-  inline upcxx::future<> signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
+  inline void signal_data(upcxx::global_ptr<char> local_ptr, size_t pMsg_size, int dest, MsgMetadata & meta){
     scope_timer(a,SIGNAL_DATA);
     upcxx::future<> f_signal;
 #ifdef SP_THREADS
@@ -517,7 +519,7 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
 #endif
     {
 
-      f_signal = upcxx::rpc(dest,   
+      upcxx::rpc_ff(dest,   
           [](upcxx::global_ptr<char> pRemote_ptr, size_t pMsg_size, MsgMetadata meta){
           scope_timer(a,RCV_ASYNC);
           //if we still have async buffers
@@ -552,7 +554,6 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
           }
       ,local_ptr,pMsg_size,meta);
     }
-    return f_signal;
   }
 
 

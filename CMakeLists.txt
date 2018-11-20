@@ -18,9 +18,6 @@ option(AMD_IDX_64 "Use 64 bit integers for AMD" OFF)
 option(MMD_IDX_64 "Use 64 bit integers for MMD" OFF)
 option(RCM_IDX_64 "Use 64 bit integers for RCM" OFF)
 
-option(NEW_UPCXX "Use new UPCXX" OFF)
-
-
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED on)
@@ -302,14 +299,8 @@ add_library(sympack ${SYMPACKSRC})
 
 
 
-#if(NEW_UPCXX) 
       set(CMAKE_CXX_FLAGS "${UPCXX_DEFINES} ${CMAKE_CXX_FLAGS}")
       set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${UPCXX_LDFLAGS}")
-#else()
-#add_dependencies(sympack gasnet upcxx)
-#set_target_properties(gasnet PROPERTIES POSITION_INDEPENDENT_CODE ON)
-#set_target_properties(upcxx PROPERTIES POSITION_INDEPENDENT_CODE ON)
-#endif()
 
 set_target_properties(sympack PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
