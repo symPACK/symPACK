@@ -133,18 +133,6 @@ namespace symPACK{
       //TODO
       symPACKMatrix( symPACKMatrix & M){};
 
-
-
-
-
-
-
-
-
-
-
-
-
       symPACKMatrix( symPACKMatrix2D<Ptr,Idx,T> & M){
 
         using cell_desc_t = std::tuple</*std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t>,*/ std::vector<char>, size_t, int,int, size_t, size_t, Idx, int >;
@@ -673,7 +661,7 @@ namespace symPACK{
 
         double timeEnd = get_time();
         if(this->iam==0){
-          std::cout<<"Conversion to 1D time: "<<timeEnd-timeSta<<std::endl;
+          symPACKOS<<"Conversion to 1D time: "<<timeEnd-timeSta<<std::endl;
         }
         //      logfileptr->OFS()<<sup_mapp<<std::endl;
         //      for( auto p: sup_mapp){ assert(p!=-1); }
@@ -732,7 +720,7 @@ namespace symPACK{
 
             double timeStop = get_time();
             if(this->iam==0 && this->options_.verbose){
-              std::cout<<"Task graph generation time: "<<timeStop - timeSta<<std::endl;
+              symPACKOS<<"Task graph generation time: "<<timeStop - timeSta<<std::endl;
             }
           }
           MPI_Barrier(CommEnv_->MPI_GetComm());
@@ -772,6 +760,7 @@ namespace symPACK{
 
       //Solve routines
       //note: RHS & B are stored in column major format
+      void NewSolve(T * RHS, int nrhs,  T * Xptr=nullptr);
       void Solve(T * RHS, int nrhs,  T * Xptr=nullptr);
       void GetSolution(T * B, int nrhs);
 
@@ -856,7 +845,7 @@ namespace symPACK{
 
       std::vector<std::list<Int> > chSupTree_;
       void dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier);
-      void solve_(T * RHS, int nrhs,  T * Xptr=nullptr);
+      //void solve_(T * RHS, int nrhs,  T * Xptr=nullptr);
       void solveNew_(T * RHS, int nrhs,  T * Xptr=nullptr);
       void solveNew2_(T * RHS, int nrhs,  T * Xptr=nullptr);
 

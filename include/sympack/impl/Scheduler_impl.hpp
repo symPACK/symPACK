@@ -361,7 +361,7 @@ namespace symPACK{
 
   template <class Task > 
 #ifdef NEW_UPCXX
-    inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, upcxx::dist_object<int> & remDealloc)
+    inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, upcxx::dist_object<int> & remDealloc, upcxx::team & workteam)
 #else
     inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group, taskGraph & graph)
 #endif
@@ -370,13 +370,13 @@ namespace symPACK{
 
   template <> 
 #ifdef NEW_UPCXX
-    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, upcxx::dist_object<int> & remDealloc)
+    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, upcxx::dist_object<int> & remDealloc, upcxx::team & workteam)
 #else
     inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph)
 #endif
     {
-      maxWaitT = 0.0;
-      maxAWaitT = 0.0;
+      //maxWaitT = 0.0;
+      //maxAWaitT = 0.0;
 
       int np = 1;
       MPI_Comm_size(workcomm,&np);
@@ -616,8 +616,10 @@ for(auto && toto: delayedTasks_){
    //tstop = get_time();
    //logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
 
+        upcxx::barrier(workteam);
    //tstart = get_time();
-        barrier_wait(barrier_id,group);
+////        barrier_wait(barrier_id,group);
+
    //tstop = get_time();
    //logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
 #else
@@ -632,8 +634,8 @@ for(auto && toto: delayedTasks_){
    logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
 #endif
 
-   logfileptr->OFS()<<"maxWaitT: "<<maxWaitT<<std::endl;
-   logfileptr->OFS()<<"maxAWaitT: "<<maxAWaitT<<std::endl;
+   //logfileptr->OFS()<<"maxWaitT: "<<maxWaitT<<std::endl;
+   //logfileptr->OFS()<<"maxAWaitT: "<<maxAWaitT<<std::endl;
 
         //workteam.barrier();
         //upcxx::async_wait();

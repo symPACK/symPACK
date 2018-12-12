@@ -156,7 +156,7 @@ namespace symPACK{
     MPI_Comm_size(comm,&np);
 
     logfileptr->OFS()<<"MMD used"<<std::endl;
-    if(iam==0){std::cout<<"MMD used"<<std::endl;}
+    if(iam==0){symPACKOS<<"MMD used"<<std::endl;}
 
     if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
       throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call MMD\n" );
@@ -274,7 +274,7 @@ namespace symPACK{
     MPI_Comm_size(comm,&np);
 
     logfileptr->OFS()<<"RCM used"<<std::endl;
-    if(iam==0){std::cout<<"RCM used"<<std::endl;}
+    if(iam==0){symPACKOS<<"RCM used"<<std::endl;}
 
     if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
       throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call RCM\n" );
@@ -468,7 +468,7 @@ namespace symPACK{
         MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
         MPI_Type_commit(&type);
     logfileptr->OFS()<<"AMD used"<<std::endl;
-    if(iam==0){std::cout<<"AMD used"<<std::endl;}
+    if(iam==0){symPACKOS<<"AMD used"<<std::endl;}
 
     if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
       throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call AMD\n" );
@@ -585,7 +585,7 @@ namespace symPACK{
         MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
         MPI_Type_commit(&type);
     logfileptr->OFS()<<"METIS used"<<std::endl;
-    if(iam==0){std::cout<<"METIS used"<<std::endl;}
+    if(iam==0){symPACKOS<<"METIS used"<<std::endl;}
 
     if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
       throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call METIS\n" );
@@ -708,7 +708,7 @@ namespace symPACK{
         MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
         MPI_Type_commit(&type);
     logfileptr->OFS()<<"PARMETIS used"<<std::endl;
-    if(iam==0){std::cout<<"PARMETIS used"<<std::endl;}
+    if(iam==0){symPACKOS<<"PARMETIS used"<<std::endl;}
 
     if(!g.IsExpanded() || g.keepDiag==1){
       throw std::logic_error( "DistSparseMatrixGraph must be expanded and not including the diagonal in order to call PARMETIS\n" );
@@ -733,7 +733,7 @@ namespace symPACK{
 
       ndomains = NpOrdering;
 
-    if(iam==0){std::cout<<"PARMETIS using "<<ndomains<< " / "<< np<<std::endl;}
+    if(iam==0){symPACKOS<<"PARMETIS using "<<ndomains<< " / "<< np<<std::endl;}
       //make a copy
       DistSparseMatrixGraph ng = g;
       //create a new vertexDist, this is the important stuff
@@ -1001,7 +1001,7 @@ namespace symPACK{
         MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
         MPI_Type_commit(&type);
     logfileptr->OFS()<<"SCOTCH used"<<std::endl;
-    if(iam==0){std::cout<<"SCOTCH used"<<std::endl;}
+    if(iam==0){symPACKOS<<"SCOTCH used"<<std::endl;}
 
     if(iam == 0 && (!g.IsExpanded() || g.keepDiag==1) ){
       throw std::logic_error( "SparseMatrixGraph must be expanded and not including the diagonal in order to call SCOTCH\n" );
@@ -1149,7 +1149,7 @@ namespace symPACK{
     MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &type );
     MPI_Type_commit(&type);
     logfileptr->OFS()<<"PTSCOTCH used"<<std::endl;
-    if(iam==0){std::cout<<"PTSCOTCH used"<<std::endl;}
+    if(iam==0){symPACKOS<<"PTSCOTCH used"<<std::endl;}
 
     if(!g.IsExpanded() || g.keepDiag==1){
       throw std::logic_error( "DistSparseMatrixGraph must be expanded and not including the diagonal in order to call PTSCOTCH\n" );

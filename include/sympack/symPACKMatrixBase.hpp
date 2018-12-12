@@ -117,12 +117,13 @@ namespace symPACK{
 
   template <typename T> class symPACKMatrixMeta: public symPACKMatrixBase{
     public:
-      symPACKMatrixMeta():symPACKMatrixBase(){
+      symPACKMatrixMeta():symPACKMatrixBase(),workteam_(nullptr){
 #ifndef NO_MPI
         fullcomm_ = MPI_COMM_NULL;
         non_workcomm_ = MPI_COMM_NULL;
         workcomm_ = MPI_COMM_NULL;
 #endif
+
       }
 
       ~symPACKMatrixMeta(){
@@ -139,6 +140,9 @@ namespace symPACK{
           MPI_Comm_free(&this->fullcomm_);
         }
 #endif
+        if (workteam_!=nullptr) {
+          workteam_->destroy();
+        }
       }
 
       //Accessors
@@ -178,6 +182,7 @@ namespace symPACK{
       MPI_Comm non_workcomm_;
       MPI_Comm workcomm_;
 #endif
+      std::unique_ptr<upcxx::team> workteam_;
 
       //CSC structure of L factor
       //      PtrVec xlindx_;

@@ -672,7 +672,7 @@ namespace symPACK{
 
             _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
             _storage = _gstorage.local();
-            if ( this->_storage==nullptr ) std::cout<<"Trying to allocate "<<nzval_cnt<<" for cell ("<<i<<","<<j<<")"<<std::endl;
+            if ( this->_storage==nullptr ) symPACKOS<<"Trying to allocate "<<nzval_cnt<<" for cell ("<<i<<","<<j<<")"<<std::endl;
             assert( this->_storage!=nullptr );
           }
           else {
@@ -1724,6 +1724,9 @@ namespace symPACK{
       scope_timer(a,symPACKMatrix2D::Init);
       this->options_ = options;
       logfileptr->verbose = this->options_.verbose>0;
+      if(this->options_.verbose==0){
+        symPACKOS.rdbuf(nullptr);
+      }
 
       this->mem_budget = this->options_.memory_limit;
 
@@ -1978,7 +1981,7 @@ namespace symPACK{
           //The ordering is available on every processor of the full communicator
           double timeStop = get_time();
           if(this->iam==0 && this->options_.verbose){
-            std::cout<<"Ordering time: "<<timeStop - timeSta<<std::endl;
+            symPACKOS<<"Ordering time: "<<timeStop - timeSta<<std::endl;
           }
           logfileptr->OFS()<<"Ordering done"<<std::endl;
         }
@@ -2022,7 +2025,7 @@ namespace symPACK{
         this->getLColRowCount(graph,cc,rc);
         double timeStop_cc = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Column count (distributed) construction time: "<<timeStop_cc - timeSta_cc<<std::endl;
+          symPACKOS<<"Column count (distributed) construction time: "<<timeStop_cc - timeSta_cc<<std::endl;
         }
 
         if(this->options_.ordering != NATURAL){
@@ -2034,7 +2037,7 @@ namespace symPACK{
 
         double timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
+          symPACKOS<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
         }
       }
       else
@@ -2056,7 +2059,7 @@ namespace symPACK{
         this->getLColRowCount(*sgraph,cc,rc);
         double timeStop_cc = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Column count (gather + serial + bcast) construction time: "<<timeStop_cc - timeSta_cc<<std::endl;
+          symPACKOS<<"Column count (gather + serial + bcast) construction time: "<<timeStop_cc - timeSta_cc<<std::endl;
         }
 
         if(this->options_.ordering != NATURAL){
@@ -2068,7 +2071,7 @@ namespace symPACK{
 
         double timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
+          symPACKOS<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
         }
       }
 
@@ -2080,8 +2083,8 @@ namespace symPACK{
           flops+= (double)pow((double)cc[i],2.0);
           NNZ+=cc[i];
         }
-        std::cout<<"Flops: "<<flops<<std::endl;
-        std::cout<<"NNZ in L factor: "<<NNZ<<std::endl;
+        symPACKOS<<"Flops: "<<flops<<std::endl;
+        symPACKOS<<"NNZ in L factor: "<<NNZ<<std::endl;
       }
 
       //get rid of the sequential graph
@@ -2144,7 +2147,7 @@ namespace symPACK{
 
         double timeStopSymb = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Symbolic factorization time: "<<timeStopSymb - timeStaSymb<<std::endl;
+          symPACKOS<<"Symbolic factorization time: "<<timeStopSymb - timeStaSymb<<std::endl;
         }
         logfileptr->OFS()<<"Symbfact done"<<std::endl;
 
@@ -2187,7 +2190,7 @@ namespace symPACK{
               TSP::symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
               double timeStop = get_time();
               if(this->iam==0 && this->options_.verbose){
-                std::cout<<"TSP reordering done in "<<timeStop-timeSta<<std::endl;
+                symPACKOS<<"TSP reordering done in "<<timeStop-timeSta<<std::endl;
               }
 
               //overwrite order
@@ -2319,7 +2322,7 @@ namespace symPACK{
 
               double timeStop = get_time();
               if(this->iam==0 && this->options_.verbose){
-                std::cout<<"TSPB reordering done in "<<timeStop-timeSta<<std::endl;
+                symPACKOS<<"TSPB reordering done in "<<timeStop-timeSta<<std::endl;
               }
 
 
@@ -2338,7 +2341,7 @@ namespace symPACK{
           double timeStop = get_time();
 
           if(this->iam==0 && this->options_.verbose){
-            std::cout<<"Supernode reordering done in "<<timeStop-timeSta<<std::endl;
+            symPACKOS<<"Supernode reordering done in "<<timeStop-timeSta<<std::endl;
           }
 
           {
@@ -2346,7 +2349,7 @@ namespace symPACK{
             this->symbolicFactorizationRelaxedDist(cc);
             double timeStop = get_time();
             if(this->iam==0 && this->options_.verbose){
-              std::cout<<"Symbolic factorization time: "<<timeStop - timeSta<<std::endl;
+              symPACKOS<<"Symbolic factorization time: "<<timeStop - timeSta<<std::endl;
             }
             logfileptr->OFS()<<"Symbfact done"<<std::endl;
           }
@@ -2354,7 +2357,7 @@ namespace symPACK{
 
         double timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Total symbolic factorization time: "<<timeStop - timeSta<<std::endl;
+          symPACKOS<<"Total symbolic factorization time: "<<timeStop - timeSta<<std::endl;
         }
 
         //Print statistics
@@ -2828,7 +2831,7 @@ namespace symPACK{
 
 
       if(this->iam==0){
-        std::cout<<"#supernodes = "<<nsuper<<" #cells = "<<cells_.size()<< " which is "<<cells_.size()*sizeof(snodeBlock_t)<<" bytes"<<std::endl;
+        symPACKOS<<"#supernodes = "<<nsuper<<" #cells = "<<cells_.size()<< " which is "<<cells_.size()*sizeof(snodeBlock_t)<<" bytes"<<std::endl;
       }
 
       //generate task graph for the factorization
@@ -3361,37 +3364,41 @@ namespace symPACK{
 #if 1
                       upcxx::rpc_ff( pdest, /*cxs,*/ 
                           [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
-                          //gdb_lock();
-                          //store pointer & associated metadata somewhere
-                          auto data = std::make_shared<SparseTask2D::data_t >();
-                          data->in_meta = meta;
-                          data->size = storage_size;
-                          data->remote_gptr = gptr;
 
-                          //there is a map between sp_handle and task_graphs
-                          auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
 
-                          for ( auto & tgt_cell: target_cells) {
-                          auto tgt_i = std::get<0>(tgt_cell);
-                          auto tgt_j = std::get<1>(tgt_cell);
-                          auto taskptr = matptr->task_graph[scheduling::key_t(tgt_i,tgt_j,tgt_j,Factorization::op_type::TRSM)].get();
-                          taskptr->input_msg.push_back(data);
-                          data->target_tasks.push_back(taskptr);
-                          taskptr->in_avail_prom.fulfill_anonymous(1);
-                          }
+                          return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
+                              //gdb_lock();
+                              //store pointer & associated metadata somewhere
+                              auto data = std::make_shared<SparseTask2D::data_t >();
+                              data->in_meta = meta;
+                              data->size = storage_size;
+                              data->remote_gptr = gptr;
 
-                          auto I = std::get<1>(meta);
-                          rowind_t fc = matptr->Xsuper_[I-1];
+                              //there is a map between sp_handle and task_graphs
+                              auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
 
-                          data->on_fetch.get_future().then(
-                              [fc,width,nnz,nblocks,I](SparseTask2D::data_t * pdata){
-                              //create snodeBlock_t and store it in the extra_data
-                              pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                              //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                              });
-                          //TODO check this
-                          data->allocate();
-                          data->fetch();
+                              for ( auto & tgt_cell: target_cells) {
+                              auto tgt_i = std::get<0>(tgt_cell);
+                              auto tgt_j = std::get<1>(tgt_cell);
+                              auto taskptr = matptr->task_graph[scheduling::key_t(tgt_i,tgt_j,tgt_j,Factorization::op_type::TRSM)].get();
+                              taskptr->input_msg.push_back(data);
+                              data->target_tasks.push_back(taskptr);
+                              taskptr->in_avail_prom.fulfill_anonymous(1);
+                              }
+
+                              auto I = std::get<1>(meta);
+                              rowind_t fc = matptr->Xsuper_[I-1];
+
+                              data->on_fetch.get_future().then(
+                                  [fc,width,nnz,nblocks,I](SparseTask2D::data_t * pdata){
+                                  //create snodeBlock_t and store it in the extra_data
+                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  });
+                              //TODO check this
+                              data->allocate();
+                              data->fetch();
+                          });
 
                           }, this->sp_handle, diagcell._gstorage, diagcell._storage_size, diagcell.nnz(), diagcell.nblocks(), std::get<0>(diagcell._dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
@@ -3516,6 +3523,7 @@ namespace symPACK{
 #if 1
                       upcxx::rpc_ff( pdest, //cxs, 
                           [K,I] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
+                          return upcxx::current_persona().lpc( [K,I,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
                           //                            gdb_lock();
                           //store pointer & associated metadata somewhere
                           auto data = std::make_shared<SparseTask2D::data_t >();
@@ -3546,6 +3554,7 @@ namespace symPACK{
                           //TODO check this
                           data->allocate();
                           data->fetch();
+                          });
 
                           }, this->sp_handle, od_cell._gstorage,od_cell._storage_size, od_cell.nnz(),od_cell.nblocks(), std::get<0>(od_cell._dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
@@ -3675,6 +3684,7 @@ namespace symPACK{
 #if 1
                       upcxx::rpc_ff( pdest, //cxs, 
                           [K,J] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<SparseTask2D::depend_task_t> target_cells ) { 
+                          return upcxx::current_persona().lpc( [K,J,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
                           //                            gdb_lock();
                           //store pointer & associated metadata somewhere
                           auto data = std::make_shared<SparseTask2D::data_t >();
@@ -3710,6 +3720,7 @@ namespace symPACK{
                           //TODO check this
                           data->allocate();
                           data->fetch();
+                          });
 
                           }, this->sp_handle, upd_cell._gstorage, upd_cell._storage_size,upd_cell.nnz(),upd_cell.nblocks(), std::get<0>(upd_cell._dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif

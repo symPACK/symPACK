@@ -536,7 +536,7 @@ int main(int argc, char **argv)
         XFinal = RHS;
 
         timeSta = get_time();
-        SMat->Solve(&XFinal[0],nrhs);
+        SMat->NewSolve(&XFinal[0],nrhs);
         timeEnd = get_time();
 
         if(iam==0){

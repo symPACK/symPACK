@@ -467,8 +467,8 @@ namespace symPACK{
         MPI_Reduce(&gNumMsg,&totalNumMsg,1,MPI_UINT64_T,MPI_SUM,0,CommEnv_->MPI_GetComm());
 
         if(this->iam==0){
-          std::cout<<"Total volume of communication: "<<totalVolComm<<std::endl;
-          std::cout<<"Total number of messages: "<<totalNumMsg<<std::endl;
+          symPACKOS<<"Total volume of communication: "<<totalVolComm<<std::endl;
+          symPACKOS<<"Total number of messages: "<<totalNumMsg<<std::endl;
         }
 
         gVolComm=0;
@@ -479,10 +479,10 @@ namespace symPACK{
   }
 
 
-  template <typename T> inline void symPACKMatrix<T>::Solve(T * RHS, int nrhs,  T * Xptr) {
+  template <typename T> inline void symPACKMatrix<T>::NewSolve(T * RHS, int nrhs,  T * Xptr) {
     scope_timer(a,SPARSE_SOLVE);
 
-    if (this->options_.iterRefinement){
+    if (this->options_.iterRefinement) {
       abort();  
       this->solveNew_(RHS,nrhs,Xptr);
       //do{
@@ -523,13 +523,19 @@ namespace symPACK{
 
   }
 
+//  template <typename T> inline void symPACKMatrix<T>::SolveLegacy(T * RHS, int nrhs,  T * Xptr) {
+//    scope_timer(a,SPARSE_SOLVE_LEGACY);
+//    this->solve_(RHS,nrhs,Xptr);
+//  }
+
   //Solve related routines
-  template <typename T> inline void symPACKMatrix<T>::solve_(T * RHS, int nrhs,  T * Xptr) {
+  template <typename T> inline void symPACKMatrix<T>::Solve(T * RHS, int nrhs,  T * Xptr) {
     scope_timer(a,SPARSE_SOLVE_INTERNAL);
 
+    for(auto ptr: Contributions_){ delete ptr; }
+    Contributions_.clear();
+
     Int n = this->iSize_;
-    //Int this->iam = CommEnv_->MPI_Rank();
-    //Int this->np  = CommEnv_->MPI_Size();
 
     if(this->iam<this->np){
       std::vector<Int> children(this->Xsuper_.size());
@@ -692,7 +698,7 @@ namespace symPACK{
                   //need to push the prev src_last_row
                   ContribsToSend.push(DelayedComm(contrib->Id(),parent_snode_id,1,src_first_row));
 #ifdef _DEBUG_DELAY_
-                  std::cout<<"P"<<this->iam<<" has delayed update from Contrib "<<I<<" to "<<parent_snode_id<<" from row "<<src_first_row<<std::endl;
+                  symPACKOS<<"P"<<this->iam<<" has delayed update from Contrib "<<I<<" to "<<parent_snode_id<<" from row "<<src_first_row<<std::endl;
 #endif
                   isSkipped= true;
                 }
@@ -830,7 +836,7 @@ namespace symPACK{
                       Int src_first_row = pivot_desc.GIndex;
                       ContribsToSendDown.push(DelayedComm(contrib->Id(),child_snode_id,0,src_first_row));
 #ifdef _DEBUG_DELAY_
-                      std::cout<<"P"<<this->iam<<" has delayed update from Contrib "<<I<<" to "<<child_snode_id<<" from row "<<src_first_row<<std::endl;
+                      symPACKOS<<"P"<<this->iam<<" has delayed update from Contrib "<<I<<" to "<<child_snode_id<<" from row "<<src_first_row<<std::endl;
 #endif
                       isSkipped= true;
                     }
@@ -1029,7 +1035,7 @@ namespace symPACK{
           if(iTarget != this->iam){
 #ifdef _DEBUG_DELAY_
             logfileptr->OFS()<<"P"<<this->iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
-            std::cout<<"P"<<this->iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
+            symPACKOS<<"P"<<this->iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
 #endif
 
 #ifdef _DEBUG_
@@ -1079,7 +1085,7 @@ namespace symPACK{
       if(iTarget != this->iam){
 #ifdef _DEBUG_DELAY_
         logfileptr->OFS()<<"P"<<this->iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
-        std::cout<<"P"<<this->iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
+        symPACKOS<<"P"<<this->iam<<" has sent update from Supernode "<<prev_src_snode->Id()<<" to Supernode "<<tgt_snode_id<<std::endl;
 #endif
 
 #ifdef _DEBUG_
@@ -2643,6 +2649,9 @@ namespace symPACK{
     //    }
     this->options_ = options;
     logfileptr->verbose = this->options_.verbose>0;
+    if(this->options_.verbose==0){
+      symPACKOS.rdbuf(nullptr);
+    }
 
 #ifndef NO_MPI
     if(this->fullcomm_!=MPI_COMM_NULL){
@@ -2667,6 +2676,7 @@ namespace symPACK{
 
 
     MPI_Comm_split(this->options_.MPIcomm,this->iam<this->np,this->iam,&this->workcomm_);
+    this->workteam_.reset(new upcxx::team(upcxx::world().split(this->iam<this->np,this->iam)));
     CommEnv_ = new CommEnvironment(this->workcomm_);
 
 //    Int new_rank = (this->iam<this->np)?this->iam:this->iam-this->np;
@@ -2951,7 +2961,7 @@ namespace symPACK{
         //The ordering is available on every processor of the full communicator
         double timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Ordering time: "<<timeStop - timeSta<<std::endl;
+          symPACKOS<<"Ordering time: "<<timeStop - timeSta<<std::endl;
         }
         logfileptr->OFS()<<"Ordering done"<<std::endl;
       }
@@ -3050,7 +3060,7 @@ namespace symPACK{
         this->getLColRowCount(graph,cc,rc);
         double timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Column count (distributed) construction time: "<<timeStop - timeStart<<std::endl;
+          symPACKOS<<"Column count (distributed) construction time: "<<timeStop - timeStart<<std::endl;
         }
       }
 
@@ -3075,7 +3085,7 @@ namespace symPACK{
 
       double timeStop = get_time();
       if(this->iam==0 && this->options_.verbose){
-        std::cout<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
+        symPACKOS<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
       }
 
       //logfileptr->OFS()<<this->ETree_<<std::endl;
@@ -3133,7 +3143,7 @@ namespace symPACK{
           this->getLColRowCount(*sgraph,cc,rc);
           double timeStop = get_time();
           if(this->iam==0 && this->options_.verbose){
-            std::cout<<"Column count (gather + serial + bcast) construction time: "<<timeStop - timeStart<<std::endl;
+            symPACKOS<<"Column count (gather + serial + bcast) construction time: "<<timeStop - timeStart<<std::endl;
           }
         }
 
@@ -3150,7 +3160,7 @@ namespace symPACK{
 
         double timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
+          symPACKOS<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
         }
       }
 
@@ -3169,8 +3179,8 @@ namespace symPACK{
         flops+= (double)pow((double)cc[i],2.0);
         NNZ+=cc[i];
       }
-      std::cout<<"Flops: "<<flops<<std::endl;
-      std::cout<<"NNZ in L factor: "<<NNZ<<std::endl;
+      symPACKOS<<"Flops: "<<flops<<std::endl;
+      symPACKOS<<"NNZ in L factor: "<<NNZ<<std::endl;
     }
 
 
@@ -3195,6 +3205,10 @@ namespace symPACK{
         MPI_Comm_free(&this->workcomm_);
       }
       MPI_Comm_split(this->options_.MPIcomm,this->iam<this->np,this->iam,&this->workcomm_);
+
+      this->workteam_->destroy();
+      this->workteam_.reset(new upcxx::team(upcxx::world().split(this->iam<this->np,this->iam)));
+
       bassert(CommEnv_!=nullptr);
       delete CommEnv_;
       CommEnv_ = new CommEnvironment(this->workcomm_);
@@ -3279,7 +3293,7 @@ namespace symPACK{
 
       double timeStopSymb = get_time();
       if(this->iam==0 && this->options_.verbose){
-        std::cout<<"Symbolic factorization time: "<<timeStopSymb - timeStaSymb<<std::endl;
+        symPACKOS<<"Symbolic factorization time: "<<timeStopSymb - timeStaSymb<<std::endl;
       }
       logfileptr->OFS()<<"Symbfact done"<<std::endl;
 
@@ -3322,7 +3336,7 @@ namespace symPACK{
             TSP::symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
             double timeStop = get_time();
             if(this->iam==0 && this->options_.verbose){
-              std::cout<<"TSP reordering done in "<<timeStop-timeSta<<std::endl;
+              symPACKOS<<"TSP reordering done in "<<timeStop-timeSta<<std::endl;
             }
 
             //overwrite order
@@ -3454,7 +3468,7 @@ namespace symPACK{
 
             double timeStop = get_time();
             if(this->iam==0 && this->options_.verbose){
-              std::cout<<"TSPB reordering done in "<<timeStop-timeSta<<std::endl;
+              symPACKOS<<"TSPB reordering done in "<<timeStop-timeSta<<std::endl;
             }
 
 
@@ -3473,7 +3487,7 @@ namespace symPACK{
         double timeStop = get_time();
 
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Supernode reordering done in "<<timeStop-timeSta<<std::endl;
+          symPACKOS<<"Supernode reordering done in "<<timeStop-timeSta<<std::endl;
         }
 
         {
@@ -3481,7 +3495,7 @@ namespace symPACK{
           this->symbolicFactorizationRelaxedDist(cc);
           double timeStop = get_time();
           if(this->iam==0 && this->options_.verbose){
-            std::cout<<"Symbolic factorization time: "<<timeStop - timeSta<<std::endl;
+            symPACKOS<<"Symbolic factorization time: "<<timeStop - timeSta<<std::endl;
           }
           logfileptr->OFS()<<"Symbfact done"<<std::endl;
         }
@@ -3489,7 +3503,7 @@ namespace symPACK{
 
       double timeStop = get_time();
       if(this->iam==0 && this->options_.verbose){
-        std::cout<<"Total symbolic factorization time: "<<timeStop - timeSta<<std::endl;
+        symPACKOS<<"Total symbolic factorization time: "<<timeStop - timeSta<<std::endl;
       }
 
       //Print statistics
@@ -3517,31 +3531,31 @@ namespace symPACK{
 
       std::vector<Int> map;
       if(this->options_.load_balance_str=="SUBCUBE-FI"){
-        if(this->iam==0 && this->options_.verbose){ std::cout<<"Subtree to subcube FI mapping used"<<std::endl;}
+        if(this->iam==0 && this->options_.verbose){ symPACKOS<<"Subtree to subcube FI mapping used"<<std::endl;}
         ETree SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
         this->Balancer_ = new SubtreeToSubcube(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,this->locXlindx_,this->locLindx_,cc,this->fullcomm_,true);
       }
       else if(this->options_.load_balance_str=="SUBCUBE-FO"){
-        if(this->iam==0 && this->options_.verbose){ std::cout<<"Subtree to subcube FO mapping used"<<std::endl;}
+        if(this->iam==0 && this->options_.verbose){ symPACKOS<<"Subtree to subcube FO mapping used"<<std::endl;}
         ETree SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
         this->Balancer_ = new SubtreeToSubcube(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,this->locXlindx_,this->locLindx_,cc,this->fullcomm_,false);
       }
       else if(this->options_.load_balance_str=="SUBCUBE-VOLUME-FI"){
-        if(this->iam==0 && this->options_.verbose){ std::cout<<"Subtree to subcube volume FI mapping used"<<std::endl;}
+        if(this->iam==0 && this->options_.verbose){ symPACKOS<<"Subtree to subcube volume FI mapping used"<<std::endl;}
         ETree SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
         this->Balancer_ = new SubtreeToSubcubeVolume(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,this->locXlindx_,this->locLindx_,cc,this->fullcomm_,true);
       }
       else if(this->options_.load_balance_str=="SUBCUBE-VOLUME-FO"){
-        if(this->iam==0 && this->options_.verbose){ std::cout<<"Subtree to subcube volume FO mapping used"<<std::endl;}
+        if(this->iam==0 && this->options_.verbose){ symPACKOS<<"Subtree to subcube volume FO mapping used"<<std::endl;}
         ETree SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
         this->Balancer_ = new SubtreeToSubcubeVolume(this->np,SupETree,this->Xsuper_,this->XsuperDist_,this->SupMembership_,this->locXlindx_,this->locLindx_,cc,this->fullcomm_,false);
       }
       else if(this->options_.load_balance_str=="NNZ"){
-        if(this->iam==0 && this->options_.verbose){ std::cout<<"Load Balancing on NNZ used"<<std::endl;}
+        if(this->iam==0 && this->options_.verbose){ symPACKOS<<"Load Balancing on NNZ used"<<std::endl;}
         this->Balancer_ = new NNZBalancer(this->np,this->Xsuper_,cc);
       }
       else if(this->options_.load_balance_str=="WORK"){
-        if(this->iam==0 && this->options_.verbose){ std::cout<<"Load Balancing on WORK used"<<std::endl;}
+        if(this->iam==0 && this->options_.verbose){ symPACKOS<<"Load Balancing on WORK used"<<std::endl;}
         this->Balancer_ = new WorkBalancer(this->np,this->Xsuper_,cc);
       }
 
@@ -3565,7 +3579,7 @@ namespace symPACK{
       }
       double timeStop = get_time();
       if(this->iam==0 && this->options_.verbose){
-        std::cout<<"Load balancing time: "<<timeStop - timeSta<<std::endl;
+        symPACKOS<<"Load balancing time: "<<timeStop - timeSta<<std::endl;
       }
     }
 
@@ -3631,7 +3645,7 @@ namespace symPACK{
 
         double timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Task graph generation time: "<<timeStop - timeSta<<std::endl;
+          symPACKOS<<"Task graph generation time: "<<timeStop - timeSta<<std::endl;
         }
       }
       MPI_Barrier(CommEnv_->MPI_GetComm());
@@ -4291,7 +4305,7 @@ namespace symPACK{
       }
 #ifndef NOTRY
       catch(const std::bad_alloc& e){
-        std::cout << "Allocation failed: " << e.what() << '\n';
+        symPACKOS << "Allocation failed: " << e.what() << '\n';
         abort();
       }
 #endif
@@ -4299,7 +4313,7 @@ namespace symPACK{
 
       double timeStop = get_time();
       if(this->iam==0 && this->options_.verbose){
-        std::cout<<"Distribution time: "<<timeStop - timeSta<<std::endl;
+        symPACKOS<<"Distribution time: "<<timeStop - timeSta<<std::endl;
       }
     }
     MPI_Barrier(pMat.comm);

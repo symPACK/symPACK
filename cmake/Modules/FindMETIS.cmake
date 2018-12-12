@@ -1,133 +1,210 @@
-# - Try to find METIS
-# Once done this will define
+#   FindMETIS.cmake
 #
-#  METIS_FOUND        - system has METIS
-#  METIS_INCLUDE_DIRS - include directories for METIS
-#  METIS_LIBRARIES    - libraries for METIS
+#   Finds the METIS library.
 #
-# Variables used by this module. They can change the default behaviour and
-# need to be set before calling find_package:
+#   This module will define the following variables:
+#   
+#     METIS_FOUND        - System has found METIS installation
+#     METIS_INCLUDE_DIR  - Location of METIS headers
+#     METIS_LIBRARIES    - METIS libraries
+#     METIS_USES_ILP64   - Whether METIS was configured with ILP64
 #
-#  METIS_DIR          - Prefix directory of the METIS installation
-#  METIS_INCLUDE_DIR  - Include directory of the METIS installation
-#                       (set only if different from ${METIS_DIR}/include)
-#  METIS_LIB_DIR      - Library directory of the METIS installation
-#                       (set only if different from ${METIS_DIR}/lib)
-#  METIS_TEST_RUNS    - Skip tests building and running a test
-#                       executable linked against METIS libraries
-#  METIS_LIB_SUFFIX   - Also search for non-standard library names with the
-#                       given suffix appended
+#   This module can handle the following COMPONENTS
 #
-# NOTE: This file was modified from a ParMETIS detection script 
+#     ilp64 - 64-bit index integers
+#
+#   This module will export the following targets if METIS_FOUND
+#
+#     METIS::metis
+#
+#
+#
+#
+#   Proper usage:
+#
+#     project( TEST_FIND_METIS C )
+#     find_package( METIS )
+#
+#     if( METIS_FOUND )
+#       add_executable( test test.cxx )
+#       target_link_libraries( test METIS::metis )
+#     endif()
+#
+#
+#
+#
+#   This module will use the following variables to change
+#   default behaviour if set
+#
+#     metis_PREFIX
+#     metis_INCLUDE_DIR
+#     metis_LIBRARY_DIR
+#     metis_LIBRARIES
 
-#=============================================================================
-# Copyright (C) 2015 Jack Poulson. All rights reserved.
+#==================================================================
+#   Copyright (c) 2018 The Regents of the University of California,
+#   through Lawrence Berkeley National Laboratory.  
 #
-# Copyright (C) 2010-2012 Garth N. Wells, Anders Logg, Johannes Ring
-# and Florian Rathgeber. All rights reserved.
+#   Author: David Williams-Young
+#   
+#   This file is part of cmake-modules. All rights reserved.
+#   
+#   Redistribution and use in source and binary forms, with or without
+#   modification, are permitted provided that the following conditions are met:
+#   
+#   (1) Redistributions of source code must retain the above copyright notice, this
+#   list of conditions and the following disclaimer.
+#   (2) Redistributions in binary form must reproduce the above copyright notice,
+#   this list of conditions and the following disclaimer in the documentation
+#   and/or other materials provided with the distribution.
+#   (3) Neither the name of the University of California, Lawrence Berkeley
+#   National Laboratory, U.S. Dept. of Energy nor the names of its contributors may
+#   be used to endorse or promote products derived from this software without
+#   specific prior written permission.
+#   
+#   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+#   ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+#   WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+#   DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+#   ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+#   (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+#   LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+#   ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+#   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+#   SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#   
+#   You are under no obligation whatsoever to provide any bug fixes, patches, or
+#   upgrades to the features, functionality or performance of the source code
+#   ("Enhancements") to anyone; however, if you choose to make your Enhancements
+#   available either publicly, or directly to Lawrence Berkeley National
+#   Laboratory, without imposing a separate written license agreement for such
+#   Enhancements, then you hereby grant the following license: a non-exclusive,
+#   royalty-free perpetual license to install, use, modify, prepare derivative
+#   works, incorporate into other computer software, distribute, and sublicense
+#   such enhancements or derivative works thereof, in binary and source code form.
 #
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions
-# are met:
-#
-# 1. Redistributions of source code must retain the above copyright
-#    notice, this list of conditions and the following disclaimer.
-# 2. Redistributions in binary form must reproduce the above copyright
-#    notice, this list of conditions and the following disclaimer in
-#    the documentation and/or other materials provided with the
-#    distribution.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-# FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-# COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-# BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-# LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-# ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-# POSSIBILITY OF SUCH DAMAGE.
-#=============================================================================
+#==================================================================
 
-if(NOT METIS_INCLUDE_DIR)
-  find_path(METIS_INCLUDE_DIR metis.h
-    HINTS ${METIS_INCLUDE_DIR} ENV METIS_INCLUDE_DIR ${METIS_DIR} ENV METIS_DIR
-    PATH_SUFFIXES include
-    DOC "Directory where the METIS header files are located"
+cmake_minimum_required( VERSION 3.11 ) # Require CMake 3.11+
+# Set up some auxillary vars if hints have been set
+
+if( metis_PREFIX AND NOT metis_INCLUDE_DIR )
+  set( metis_INCLUDE_DIR ${metis_PREFIX}/include )
+endif()
+
+
+if( metis_PREFIX AND NOT metis_LIBRARY_DIR )
+  set( metis_LIBRARY_DIR 
+    ${metis_PREFIX}/lib 
+    ${metis_PREFIX}/lib32 
+    ${metis_PREFIX}/lib64 
   )
 endif()
 
-if(METIS_LIBRARIES)
-  set(METIS_LIBRARY ${METIS_LIBRARIES})
-endif()
-if(NOT METIS_LIBRARY)
-  find_library(METIS_LIBRARY
-    NAMES metis metis${METIS_LIB_SUFFIX}
-    HINTS ${METIS_LIB_DIR} ENV METIS_LIB_DIR ${METIS_DIR} ENV METIS_DIR
-    PATH_SUFFIXES lib
-    DOC "Directory where the METIS library is located"
+
+# Try to find the header
+find_path( METIS_INCLUDE_DIR 
+  NAMES metis.h
+  HINTS ${metis_PREFIX}
+  PATHS ${metis_INCLUDE_DIR}
+  PATH_SUFFIXES include
+  DOC "Location of METIS header"
+)
+
+# Try to find libraries if not already set
+if( NOT metis_LIBRARIES )
+
+  find_library( METIS_LIBRARIES
+    NAMES metis
+    HINTS ${metis_PREFIX}
+    PATHS ${metis_LIBRARY_DIR}
+    PATH_SUFFIXES lib lib64 lib32
+    DOC "METIS Libraries"
   )
+
+else()
+
+  # FIXME: Check if files exists at least?
+  set( METIS_LIBRARIES ${metis_LIBRARIES} )
+
 endif()
 
-# Get METIS version
-if(NOT METIS_VERSION_STRING AND METIS_INCLUDE_DIR AND EXISTS "${METIS_INCLUDE_DIR}/metis.h")
-  set(version_pattern "^#define[\t ]+METIS_(MAJOR|MINOR)_VERSION[\t ]+([0-9\\.]+)$")
-  file(STRINGS "${METIS_INCLUDE_DIR}/metis.h" metis_version REGEX ${version_pattern})
-
-  foreach(match ${metis_version})
+# Check version
+if( EXISTS ${METIS_INCLUDE_DIR}/metis.h )
+  set( version_pattern 
+  "^#define[\t ]+METIS_VER_(MAJOR|MINOR|SUBMINOR)[\t ]+([0-9\\.]+)$"
+  )
+  file( STRINGS ${METIS_INCLUDE_DIR}/metis.h metis_version
+        REGEX ${version_pattern} )
+  
+  foreach( match ${metis_version} )
+  
     if(METIS_VERSION_STRING)
       set(METIS_VERSION_STRING "${METIS_VERSION_STRING}.")
     endif()
-    string(REGEX REPLACE ${version_pattern} "${METIS_VERSION_STRING}\\2" METIS_VERSION_STRING ${match})
+  
+    string(REGEX REPLACE ${version_pattern} 
+      "${METIS_VERSION_STRING}\\2" 
+      METIS_VERSION_STRING ${match}
+    )
+  
     set(METIS_VERSION_${CMAKE_MATCH_1} ${CMAKE_MATCH_2})
+  
   endforeach()
-  unset(metis_version)
-  unset(version_pattern)
+  
+  unset( metis_version )
+  unset( version_pattern )
 endif()
 
-if(ENABLE_KNL)
-  set(METIS_TEST_RUNS 1 CACHE INTERNAL "Skipping METIS tests on KNL")
-else()
-# Try compiling and running test program
-if(METIS_INCLUDE_DIR AND METIS_LIBRARY)
+# Check ILP64
+if( EXISTS ${METIS_INCLUDE_DIR}/metis.h )
 
-  # Set flags for building test program
-  set(CMAKE_REQUIRED_INCLUDES ${METIS_INCLUDE_DIR})
-  set(CMAKE_REQUIRED_LIBRARIES ${METIS_LIBRARY})
+  set( idxwidth_pattern
+  "^#define[\t ]+IDXTYPEWIDTH[\t ]+([0-9\\.]+[0-9\\.]+)$"
+  )
+  file( STRINGS ${METIS_INCLUDE_DIR}/metis.h metis_idxwidth
+        REGEX ${idxwidth_pattern} )
 
-  # Build and run test program
-  include(CheckCSourceRuns)
-  check_c_source_runs("
-#define METIS_EXPORT
-#include \"metis.h\"
-int main( int argc, char* argv[] )
-{
-  // FIXME: Find a simple but sensible test for METIS
-  return 0;
-}
-" METIS_TEST_RUNS)
+  string( REGEX REPLACE ${idxwidth_pattern} 
+          "${METIS_IDXWIDTH_STRING}\\1"
+          METIS_IDXWIDTH_STRING ${metis_idxwidth} )
 
-  unset(CMAKE_REQUIRED_INCLUDES)
-  unset(CMAKE_REQUIRED_LIBRARIES)
-endif()
+  if( ${METIS_IDXWIDTH_STRING} MATCHES "64" )
+    set( METIS_USES_ILP64 TRUE )
+  else()
+    set( METIS_USES_ILP64 FALSE )
+  endif()
+
+  unset( idxwidth_pattern      )
+  unset( metis_idxwidth        )
+  unset( METIS_IDXWIDTH_STRING )
+
 endif()
 
-# Standard package handling
+
+
+# Handle components
+if( METIS_USES_ILP64 )
+  set( METIS_ilp64_FOUND TRUE )
+endif()
+
+# Determine if we've found METIS
+mark_as_advanced( METIS_FOUND METIS_INCLUDE_DIR METIS_LIBRARIES )
+
 include(FindPackageHandleStandardArgs)
-if(CMAKE_VERSION VERSION_GREATER 2.8.2)
-  find_package_handle_standard_args(METIS
-    REQUIRED_VARS METIS_LIBRARY METIS_INCLUDE_DIR METIS_TEST_RUNS
-    VERSION_VAR METIS_VERSION_STRING)
-else()
-  find_package_handle_standard_args(METIS
-    REQUIRED_VARS METIS_LIBRARY METIS_INCLUDE_DIR METIS_TEST_RUNS)
-endif()
+find_package_handle_standard_args( METIS
+  REQUIRED_VARS METIS_LIBRARIES METIS_INCLUDE_DIR
+  VERSION_VAR METIS_VERSION_STRING
+  HANDLE_COMPONENTS
+)
 
-if(METIS_FOUND)
-  set(METIS_LIBRARIES ${METIS_LIBRARY})
-  set(METIS_INCLUDE_DIRS ${METIS_INCLUDE_DIR})
-endif()
+# Export target
+if( METIS_FOUND AND NOT TARGET METIS::metis )
 
-mark_as_advanced(METIS_INCLUDE_DIR METIS_LIBRARY)
+  add_library( METIS::metis INTERFACE IMPORTED )
+  set_target_properties( METIS::metis PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${METIS_INCLUDE_DIR}"
+    INTERFACE_LINK_LIBRARIES      "${METIS_LIBRARIES}" 
+  )
+
+endif()

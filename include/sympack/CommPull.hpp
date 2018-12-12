@@ -69,8 +69,8 @@ such enhancements or derivative works thereof, in binary and source code form.
 #endif
 
 namespace symPACK{
-  extern double maxWaitT;
-  extern double maxAWaitT;
+  //extern double maxWaitT;
+  //extern double maxAWaitT;
 #ifdef NEW_UPCXX
   extern std::list< upcxx::future<> > gFutures;
 #endif

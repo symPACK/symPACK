@@ -669,7 +669,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
     }
     double timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Solve getting children count time: "<<timeStop - timeSta<<std::endl;
+          symPACKOS<<"Solve getting children count time: "<<timeStop - timeSta<<std::endl;
         }
 
 
@@ -723,7 +723,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
     }
     timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Solve allocating contributions time / alloc / copy: "<<timeStop - timeSta<<" / "<<timeAlloc<<" / "<<timeCopy<<std::endl;
+          symPACKOS<<"Solve allocating contributions time / alloc / copy: "<<timeStop - timeSta<<" / "<<timeAlloc<<" / "<<timeCopy<<std::endl;
         }
   }
 
@@ -1290,20 +1290,20 @@ logfileptr->OFS()<<"WARNING: this is suboptimal and should use the new ChainedMe
 
     timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Solve task graph generation time: "<<timeStop - timeSta<<std::endl;
+          symPACKOS<<"Solve task graph generation time: "<<timeStop - timeSta<<std::endl;
         }
     
 
     timeSta = get_time();
 #ifdef NEW_UPCXX
-    scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph,*this->remDealloc);
+    scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph,*this->remDealloc,*this->workteam_);
     delete this->remDealloc;
 #else
     scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph);
 #endif
     timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
-          std::cout<<"Solve task graph execution time: "<<timeStop - timeSta<<std::endl;
+          symPACKOS<<"Solve task graph execution time: "<<timeStop - timeSta<<std::endl;
         }
 
   }

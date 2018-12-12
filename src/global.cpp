@@ -133,7 +133,7 @@ int symPACK_Init(int *argc, char ***argv){
   //char hostname[MPI_MAX_PROCESSOR_NAME];
   //int junk;
   //MPI_Get_processor_name(hostname, &junk);
-  //std::cout << "Hello world from UPC++ rank " << upcxx::rank_me() << "/" << upcxx::rank_n()
+  //symPACKOS << "Hello world from UPC++ rank " << upcxx::rank_me() << "/" << upcxx::rank_n()
   //  << ", MPI rank " << mpi_rankme << "/" << mpi_rankn << " : "
   //  << hostname << std::endl;
  

@@ -249,7 +249,6 @@ int main(int argc, char **argv)
     ReadMatrix<SCALAR,RSCALAR>(filename , informatstr,  HMat);
   }
 
-
   Int n = HMat.size;
   std::vector<SCALAR> RHS,XTrue;
   if(nrhs>0){
@@ -264,8 +263,6 @@ int main(int argc, char **argv)
         val = -val;
       }
     }
-
-
 
     if(iam==0){
       std::cout<<"Starting spGEMM"<<std::endl;
@@ -455,12 +452,22 @@ int main(int argc, char **argv)
         XFinal = RHS;
 
         timeSta = get_time();
-        SMat->Solve(&XFinal[0],nrhs);
+        SMat->NewSolve(&XFinal[0],nrhs);
         timeEnd = get_time();
 
         if(iam==0){
           std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
         }
+
+        auto tmpX = RHS;
+        timeSta = get_time();
+        SMat->Solve(&tmpX[0],nrhs);
+        timeEnd = get_time();
+
+        if(iam==0){
+          std::cout<<"Legacy Solve time: "<<timeEnd-timeSta<<std::endl;
+        }
+
 
         SMat->GetSolution(&XFinal[0],nrhs);
 

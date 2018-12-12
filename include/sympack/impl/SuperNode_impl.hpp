@@ -1793,18 +1793,18 @@ namespace symPACK{
     inline void SuperNode<T,Allocator>::back_update_contrib(SuperNode<T> * cur_snode, Int nrhsOffset, Int pnrhs){
       SuperNode<T,Allocator> * contrib = this;
       Int nrhs = pnrhs;
-      if(pnrhs==-1){
+      //if(pnrhs==-1){
         nrhs = contrib->Size();
-        assert(nrhsOffset==0);
-      }
-      else{
-        nrhs = std::min(pnrhs,contrib->Size() - nrhsOffset);
-      }
+      //  assert(nrhsOffset==0);
+      //}
+      //else{
+      //  nrhs = std::min(pnrhs,contrib->Size() - nrhsOffset);
+      //}
 
       Int ldsol = contrib->Size();
       Int ldfact = cur_snode->Size();
 
-      nrhs += nrhsOffset;
+      //nrhs += nrhsOffset;
 
 
       NZBlockDesc & diag_desc = cur_snode->GetNZBlockDesc(0);
@@ -1813,7 +1813,8 @@ namespace symPACK{
       T* diag_nzval = cur_snode->GetNZval(diag_desc.Offset);
       T* tgt_nzval = contrib->GetNZval(tgt_desc.Offset);
 
-      for(Int j = nrhsOffset; j<nrhs;++j){
+      //for(Int j = nrhsOffset; j<nrhs;++j)
+      for(Int j = 0; j<nrhs;++j){
         for(Int ii = ldfact-1; ii>=0; --ii){
           T temp = tgt_nzval[ii*ldsol+j];
 

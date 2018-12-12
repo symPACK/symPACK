@@ -1,6 +1,73 @@
-cmake_minimum_required(VERSION 2.8)
-project(SYMPACK C CXX Fortran)
-include(ExternalProject)
+cmake_minimum_required(VERSION 3.1...3.12)
+
+if(${CMAKE_VERSION} VERSION_LESS 3.12)
+  cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
+endif()
+
+
+project(symPACK VERSION 2.0
+                DESCRIPTION "symPACK is a direct linear solver for sparse symmetric matrices"
+                LANGUAGES C CXX Fortran)
+
+              #include(ExternalProject)
+
+
+############################## Source files ######################################
+
+set(SYMPACKSRC
+src/ETree.cpp
+src/utility.cpp
+src/timer.cpp
+src/blas.cpp
+src/lapack.cpp
+src/global.cpp
+src/LogFile.cpp
+src/IntervalTree.cpp
+src/Ordering.cpp
+src/CommPull.cpp
+src/symPACK_c_interface.cpp
+src/DistSparseMatrixGraph.cpp
+src/amdbar.F
+src/genmmd.F
+src/mmdelm.F
+src/mmdint.F
+src/mmdnum.F
+src/mmdupd.F
+src/ordmmd.F
+src/betree.f
+src/del_heap.f
+src/ins_heap.f
+src/mcssup.f
+src/move_down.f
+src/ordsup.f
+src/boxnd.f
+src/gridnd.f
+src/degree.F
+src/fnroot.F
+src/genrcm.F
+src/rcm.F
+src/rootls.F
+src/TSPB/compress_skel2.f
+src/TSPB/fnskel2.f
+src/TSPB/near_ins2.f
+src/TSPB/ordsup_ind_tsp_paths2.f
+src/TSPB/ordsup_tsp_paths2.f
+src/TSPB/post_suptree2.f
+src/TSPB/sup_etpost2.f
+src/TSPB/fnskel.f
+src/TSPB/near_ins.f
+src/TSPB/ordsup_ind_tsp_paths.f
+src/TSPB/ordsup_tsp_paths.f
+src/TSPB/post_suptree.f
+src/TSPB/sup_etpost.f
+src/invinv.f
+src/mod_heap.f
+src/move_up.f
+)
+
+
+
+############################## Options ######################################
 
 #all options
 option(GASNET_PAR "Use Gasnet Parallel conduits" OFF)
@@ -10,6 +77,7 @@ option(ENABLE_KNL_ONLY "Cross compiling" OFF)
 option(ENABLE_PROFILE "Enable profiling" OFF)
 option(ENABLE_OPENMP "Enable OpenMP" OFF)
 option(TRACK_MEMORY "Enable (partial) Memory allocation tracking" OFF)
+option(ENABLE_PTSCOTCH "Enable PTSCOTCH" OFF)
 option(ENABLE_SCOTCH "Enable SCOTCH" OFF)
 option(ENABLE_PARMETIS "Enable PARMETIS" OFF)
 option(ENABLE_METIS "Enable METIS" OFF)
@@ -18,58 +86,70 @@ option(AMD_IDX_64 "Use 64 bit integers for AMD" OFF)
 option(MMD_IDX_64 "Use 64 bit integers for MMD" OFF)
 option(RCM_IDX_64 "Use 64 bit integers for RCM" OFF)
 
+
+
+############################## Targets ######################################
+add_library(sympack ${SYMPACKSRC})
+target_include_directories(sympack PUBLIC include)
+
+add_executable(run_sympack EXCLUDE_FROM_ALL driver/run_sympack.cpp)
+add_executable(run_sympack2D EXCLUDE_FROM_ALL driver/run_sympack2D.cpp)
+add_executable(run_sympack_c EXCLUDE_FROM_ALL driver/run_c_interface.cpp)
+add_custom_target(examples DEPENDS run_sympack run_sympack_c)
+########################### Dependencies ####################################
+
+
+
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules")
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED on)
 
   
 find_package(MPI REQUIRED)
 if(MPI_CXX_FOUND)
   message(STATUS "Found CXX MPI compiler: ${MPI_CXX_COMPILER}")
-  include_directories(${MPI_CXX_INCLUDE_PATH})
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${MPI_CXX_COMPILE_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${MPI_CXX_LINK_FLAGS}")
-  set(LIBS ${LIBS} ${MPI_CXX_LIBRARIES})
   message( STATUS "MPI_CXX_LINK_FLAGS: " ${MPI_CXX_LINK_FLAGS} )
   message( STATUS "MPI_CXX_LIBRARIES: " ${MPI_CXX_LIBRARIES} )
+  target_link_libraries(sympack PUBLIC MPI::MPI_CXX)
 endif()
 
-message( STATUS "CMAKE_EXE_LINKER_FLAGS: " ${CMAKE_EXE_LINKER_FLAGS} )
-
-if(MPI_C_FOUND)
-  message(STATUS "Found C MPI compiler: ${MPI_C_COMPILER}")
-  include_directories(${MPI_C_INCLUDE_PATH})
-  set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} ${MPI_C_COMPILE_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${MPI_C_LINK_FLAGS}")
-  set(LIBS ${LIBS} ${MPI_C_LIBRARIES})
-  message( STATUS "MPI_C_LINK_FLAGS: " ${MPI_C_LINK_FLAGS} )
-  message( STATUS "MPI_C_LIBRARIES: " ${MPI_C_LIBRARIES} )
-endif()
-
-
-message( STATUS "CMAKE_EXE_LINKER_FLAGS: " ${CMAKE_EXE_LINKER_FLAGS} )
 
 include(FortranCInterface)
 FortranCInterface_HEADER("${PROJECT_BINARY_DIR}/sympack_config.hpp" MACRO_NAMESPACE "FC_")
 FortranCInterface_VERIFY(CXX)
 
-if(RCM_IDX_64)
-  add_definitions( "-DRCMIDXSIZE=64")
-else()
-  add_definitions( "-DRCMIDXSIZE=32")
+
+#######   ORDERING LIBRARIES ######
+
+if(ENABLE_PARMETIS)
+  find_package(ParMETIS REQUIRED)
+  target_link_libraries(sympack PUBLIC ParMETIS::parmetis)
+  target_compile_definitions( sympack PUBLIC "-DUSE_PARMETIS")
+  set(ENABLE_METIS ON)
 endif()
 
-if(MMD_IDX_64)
-  add_definitions( "-DMMDIDXSIZE=64")
-else()
-  add_definitions( "-DMMDIDXSIZE=32")
+if(ENABLE_METIS)
+  if (NOT METIS_FOUND)
+    find_package(METIS REQUIRED)
+    target_link_libraries(sympack PUBLIC METIS::metis)
+  endif()
+  target_compile_definitions( sympack PUBLIC "-DUSE_METIS")
 endif()
 
-if(AMD_IDX_64)
-  add_definitions( "-DAMDIDXSIZE=64")
-else()
-  add_definitions( "-DAMDIDXSIZE=32")
+if(ENABLE_PTSCOTCH)
+  find_package(PTSCOTCH REQUIRED)
+  target_link_libraries(sympack PUBLIC PTSCOTCH::ptscotch)
+  target_compile_definitions( sympack PUBLIC "-DUSE_PTSCOTCH")
+  set(ENABLE_SCOTCH ON)
 endif()
+
+if(ENABLE_SCOTCH)
+  if (NOT SCOTCH_FOUND)
+    find_package(SCOTCH REQUIRED)
+    target_link_libraries(sympack PUBLIC SCOTCH::scotch)
+  endif()
+  target_compile_definitions( sympack PUBLIC "-DUSE_SCOTCH")
+endif()
+
 
 if(ENABLE_MKL)
   find_package(MKL)
@@ -117,36 +197,10 @@ else()
 endif()
 
 
-#######   ORDERING LIBRARIES ######
-
-if(ENABLE_METIS)
-  find_package(METIS REQUIRED)
-  set(LIBS ${LIBS} ${METIS_LIBRARIES})
-  include_directories(${METIS_INCLUDE_DIRS})
-  add_definitions("-DUSE_METIS")
-endif()
-
-if(ENABLE_PARMETIS)
-  find_package(ParMETIS REQUIRED)
-  set(LIBS ${LIBS} ${PARMETIS_LIBRARIES})
-  include_directories(${PARMETIS_INCLUDE_DIRS})
-  add_definitions("-DUSE_METIS")
-  add_definitions("-DUSE_PARMETIS")
-endif()
-
-if(ENABLE_SCOTCH)
-  find_package(Scotch REQUIRED)
-  set(LIBS ${LIBS} ${SCOTCH_LIBRARIES})
-  include_directories(${SCOTCH_INCLUDE_DIRS})
-  add_definitions("-DUSE_SCOTCH")
-  add_definitions("-DUSE_PTSCOTCH")
-endif()
-
-
 #######   SYMPACK OPTIONS ######
 
 if(TRACK_MEMORY)
-  add_definitions("-D_TRACK_MEMORY_")
+  target_compile_definitions( sympack PUBLIC "-D_TRACK_MEMORY_")
 endif()
 
 if(ENABLE_OPENMP)
@@ -172,78 +226,63 @@ if(ENABLE_PROFILE)
     endif()
   endif()
 
-
-  add_definitions("-DSPROFILE")
-  add_definitions("-DNO_INTRA_PROFILE")
+  target_compile_definitions( sympack PUBLIC "-DSPROFILE")
+  target_compile_definitions( sympack PUBLIC "-DNO_INTRA_PROFILE")
 endif()
 
 
-  #set(upcxx-meta "/home/mjacquel/Work/lbl/pagoda/upcxx_dev/upcxx_install/bin/upcxx-meta") 
-  set(upcxx-meta "upcxx-meta") 
-  execute_process( COMMAND ${upcxx-meta} PPFLAGS OUTPUT_VARIABLE UPCXX_PPFLAGS)
-  message( STATUS "UPCXX_PPFLAGS: " ${UPCXX_PPFLAGS} )
-  execute_process( COMMAND ${upcxx-meta} LDFLAGS OUTPUT_VARIABLE UPCXX_LDFLAGS)
-  message( STATUS "UPCXX_LDFLAGS: " ${UPCXX_LDFLAGS} )
-  execute_process( COMMAND ${upcxx-meta} LIBFLAGS OUTPUT_VARIABLE UPCXX_LIBFLAGS)
-  message( STATUS "UPCXX_LIBFLAGS: " ${UPCXX_LIBFLAGS} )
-  string(REPLACE "\n" " " UPCXX_LIBFLAGS ${UPCXX_LIBFLAGS})
-  string(REPLACE "\n" " " UPCXX_PPFLAGS ${UPCXX_PPFLAGS})
-  string(REPLACE "\n" " " UPCXX_LDFLAGS ${UPCXX_LDFLAGS})
+if(RCM_IDX_64)
+  target_compile_definitions( sympack PUBLIC  "-DRCMIDXSIZE=64")
+else()
+  target_compile_definitions( sympack PUBLIC  "-DRCMIDXSIZE=32")
+endif()
 
-  string(STRIP ${UPCXX_LIBFLAGS} UPCXX_LIBFLAGS)
-  string(STRIP ${UPCXX_PPFLAGS}  UPCXX_PPFLAGS)
-  string(STRIP ${UPCXX_LDFLAGS}  UPCXX_LDFLAGS)
-  set(UPCXX_DEFINES "${UPCXX_PPFLAGS} -DNEW_UPCXX")
-  set(UPCXX_LIBRARIES "${UPCXX_LIBFLAGS}")
+if(MMD_IDX_64)
+  target_compile_definitions( sympack PUBLIC  "-DMMDIDXSIZE=64")
+else()
+  target_compile_definitions( sympack PUBLIC  "-DMMDIDXSIZE=32")
+endif()
+
+if(AMD_IDX_64)
+  target_compile_definitions( sympack PUBLIC  "-DAMDIDXSIZE=64")
+else()
+  target_compile_definitions( sympack PUBLIC  "-DAMDIDXSIZE=32")
+endif()
+
+
+
+
+
+
+find_package(UPCXX REQUIRED)
+target_link_libraries(sympack PUBLIC UPCXX::upcxx)
   
-#this work with both old and new upcxx
-#if(UPCXX_DEFINES)
-#  string(REPLACE " " ";" UPCXX_DEFINES ${UPCXX_DEFINES})
-#  message( STATUS "UPCXX_DEFINES: " ${UPCXX_DEFINES} )
-#  foreach( d ${UPCXX_DEFINES} )
-#    string(STRIP ${d} d)
-#    message( STATUS "Found UPCXX Define: " ${d} )
-#    add_definitions("${d}")
-#  endforeach()
+
+
+target_link_libraries(sympack PUBLIC ${LIBS})
+target_link_libraries(sympack PUBLIC ${CMAKE_DL_LIBS})
+
+############################ Compile Options ################################
+
+target_compile_features(sympack PUBLIC cxx_std_11)
+set_target_properties(sympack PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+#find_library(MATH_LIBRARY m)
+#if(MATH_LIBRARY)
+#   target_link_libraries(sympack PUBLIC ${MATH_LIBRARY})
 #endif()
 
+target_include_directories(sympack PRIVATE ${PROJECT_BINARY_DIR})
 
-set(SYMPACKSRC src/ETree.cpp src/utility.cpp src/timer.cpp src/blas.cpp
-  src/lapack.cpp src/global.cpp src/LogFile.cpp 
-  src/IntervalTree.cpp src/Ordering.cpp src/CommPull.cpp
-  src/symPACK_c_interface.cpp
-  src/DistSparseMatrixGraph.cpp src/amdbar.F src/genmmd.F src/mmdelm.F
-  src/mmdint.F src/mmdnum.F src/mmdupd.F src/ordmmd.F
-  src/betree.f src/del_heap.f src/ins_heap.f src/mcssup.f
-  src/move_down.f src/ordsup.f src/boxnd.f src/gridnd.f
-  src/degree.F src/fnroot.F src/genrcm.F src/rcm.F src/rootls.F
-  src/TSPB/compress_skel2.f 
-  src/TSPB/fnskel2.f 
-  src/TSPB/near_ins2.f 
-  src/TSPB/ordsup_ind_tsp_paths2.f 
-  src/TSPB/ordsup_tsp_paths2.f 
-  src/TSPB/post_suptree2.f 
-  src/TSPB/sup_etpost2.f
-  src/TSPB/fnskel.f 
-  src/TSPB/near_ins.f 
-  src/TSPB/ordsup_ind_tsp_paths.f 
-  src/TSPB/ordsup_tsp_paths.f 
-  src/TSPB/post_suptree.f 
-  src/TSPB/sup_etpost.f
-  src/invinv.f src/mod_heap.f src/move_up.f)
-
-include_directories(${PROJECT_SOURCE_DIR}/include)
-include_directories(${PROJECT_BINARY_DIR})
-
-add_definitions("-DITREE")
-add_definitions("-D_DSW_ITREE_")
+target_compile_definitions(sympack PUBLIC "ITREE")
+target_compile_definitions(sympack PUBLIC "_DSW_ITREE_")
 #add_definitions("-DNOTRY")
 
 
 ###############################################
 ##  generate a config file
 ###############################################
-get_directory_property( ALL_DEFINITIONS DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_DEFINITIONS )
+get_target_property( ALL_DEFINITIONS sympack COMPILE_DEFINITIONS )
 file(WRITE "sympack_definitions.hpp.cmake" "#ifndef _HEADER_SYMPACK_DEFINITIONS_\n#define _HEADER_SYMPACK_DEFINITIONS_\n" )
 foreach( d ${ALL_DEFINITIONS} )
   string(REPLACE "=" " " d ${d})
@@ -261,48 +300,46 @@ CONFIGURE_FILE(
     ${CMAKE_CURRENT_BINARY_DIR}/sympack_definitions.hpp
 )
 
-###############################################
-## generate a makefile include file
-###############################################
-file(WRITE "sympack.mak.cmake" "SYMPACK_DIR = ${CMAKE_INSTALL_PREFIX}\n\n")
-file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE = -I\$(SYMPACK_DIR)/include\n")
-
-if(ENABLE_SCOTCH)
-  file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += -I${SCOTCH_INCLUDE_DIRS}\n")
-endif()
-if(ENABLE_METIS)
-  file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += -I${METIS_INCLUDE_DIRS}\n")
-endif()
-if(ENABLE_PARMETIS)
-  file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += -I${PARMETIS_INCLUDE_DIRS}\n")
-endif()
-
-file(APPEND "sympack.mak.cmake" "SYMPACK_LIB = -L\$(SYMPACK_DIR)/lib -lsympack\n")
-
-foreach( d ${LIBS} )
-  file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += ${d}\n")
-endforeach()
-
-IF( NOT CMAKE_DL_LIBS STREQUAL "")
-file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += -l${CMAKE_DL_LIBS}\n")
-endif()
-
-unset(TMPUPCXXDIR)
-
-CONFIGURE_FILE(
-    ${CMAKE_CURRENT_SOURCE_DIR}/sympack.mak.cmake
-    ${CMAKE_CURRENT_BINARY_DIR}/sympack.mak
-)
-
-
-add_library(sympack ${SYMPACKSRC})
-
+####################################################
+####### generate a makefile include file
+####################################################
+#####file(WRITE "sympack.mak.cmake" "SYMPACK_DIR = ${CMAKE_INSTALL_PREFIX}\n\n")
+#####file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE = -I\$(SYMPACK_DIR)/include\n")
+#####
+#####if(ENABLE_SCOTCH)
+#####  file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += -I${SCOTCH_INCLUDE_DIRS}\n")
+#####endif()
+#####if(ENABLE_METIS)
+#####  file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += -I${METIS_INCLUDE_DIRS}\n")
+#####endif()
+#####if(ENABLE_PARMETIS)
+#####  file(APPEND "sympack.mak.cmake" "SYMPACK_INCLUDE += -I${PARMETIS_INCLUDE_DIRS}\n")
+#####endif()
+#####
+#####file(APPEND "sympack.mak.cmake" "SYMPACK_LIB = -L\$(SYMPACK_DIR)/lib -lsympack\n")
+#####
+#####foreach( d ${LIBS} )
+#####  file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += ${d}\n")
+#####endforeach()
+#####
+#####IF( NOT CMAKE_DL_LIBS STREQUAL "")
+#####file(APPEND "sympack.mak.cmake" "SYMPACK_LIB += -l${CMAKE_DL_LIBS}\n")
+#####endif()
+#####
+#####unset(TMPUPCXXDIR)
+#####
+#####CONFIGURE_FILE(
+#####    ${CMAKE_CURRENT_SOURCE_DIR}/sympack.mak.cmake
+#####    ${CMAKE_CURRENT_BINARY_DIR}/sympack.mak
+#####)
+#####
+#####
 
 
-      set(CMAKE_CXX_FLAGS "${UPCXX_DEFINES} ${CMAKE_CXX_FLAGS}")
-      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${UPCXX_LDFLAGS}")
 
-set_target_properties(sympack PROPERTIES POSITION_INDEPENDENT_CODE ON)
+      #set(CMAKE_CXX_FLAGS "${UPCXX_DEFINES} ${CMAKE_CXX_FLAGS}")
+      #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${UPCXX_LDFLAGS}")
+
 
 
 
@@ -319,12 +356,15 @@ ENDIF()
 
 
 
+
+###########################################################################
+
+
  
 if(UNIX AND NOT APPLE)
-    target_link_libraries(sympack rt)
+  target_link_libraries(sympack PUBLIC rt)
 endif()
 
-target_link_libraries(sympack ${LIBS} ${CMAKE_DL_LIBS})
 
 install(TARGETS sympack LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 install(FILES 
@@ -378,30 +418,27 @@ install(FILES
   include/sympack/impl/Scheduler_impl.hpp
   DESTINATION include/sympack/impl)
 
-add_executable(run_sympack EXCLUDE_FROM_ALL driver/run_sympack.cpp)
-add_executable(run_sympack2D EXCLUDE_FROM_ALL driver/run_sympack2D.cpp)
-add_executable(run_sympack_c EXCLUDE_FROM_ALL driver/run_c_interface.cpp)
-add_custom_target(examples DEPENDS run_sympack run_sympack_c)
 
-add_dependencies(run_sympack sympack)# gasnet upcxx) 
-add_dependencies(run_sympack2D sympack)# gasnet upcxx) 
-add_dependencies(run_sympack_c sympack)# gasnet upcxx) 
 #target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
 
 
 
+#add_dependencies(run_sympack sympack)# gasnet upcxx) 
+#add_dependencies(run_sympack2D sympack)# gasnet upcxx) 
+#add_dependencies(run_sympack_c sympack)# gasnet upcxx) 
 
-  target_link_libraries(run_sympack sympack ${UPCXX_LIBFLAGS})
-  target_link_libraries(run_sympack2D sympack ${UPCXX_LIBFLAGS})
-target_link_libraries(run_sympack_c sympack)
-
+target_link_libraries(run_sympack PUBLIC sympack)
+target_link_libraries(run_sympack2D PUBLIC sympack)
+target_link_libraries(run_sympack_c PUBLIC sympack)
 
 find_package( Threads )
-target_link_libraries( run_sympack ${CMAKE_THREAD_LIBS_INIT} )
-target_link_libraries( run_sympack2D ${CMAKE_THREAD_LIBS_INIT} )
-target_link_libraries( run_sympack_c ${CMAKE_THREAD_LIBS_INIT} )
+target_link_libraries( run_sympack PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
+target_link_libraries( run_sympack2D PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
+target_link_libraries( run_sympack_c PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
 
 #install(TARGETS run_sympack RUNTIME DESTINATION bin)
+
+###########################################################################
 
 set(SYMPACK_VERSION_MAJOR 1)
 set(SYMPACK_VERSION_MINOR 0)

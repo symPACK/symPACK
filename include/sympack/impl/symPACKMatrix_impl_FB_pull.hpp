@@ -1260,18 +1260,18 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
 
   if(this->iam==0 && this->options_.verbose){
-    std::cout<<"TaskGraph size is: "<<graph.tasks_.size()<<std::endl;
+    symPACKOS<<"TaskGraph size is: "<<graph.tasks_.size()<<std::endl;
   }
   timeSta = get_time();
 #ifdef NEW_UPCXX
-  scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph,*this->remDealloc);
+  scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph,*this->remDealloc,*this->workteam_);
   delete this->remDealloc;
 #else
   scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph);
 #endif
   double timeStop = get_time();
   if(this->iam==0 && this->options_.verbose){
-    std::cout<<"Factorization task graph execution time: "<<timeStop - timeSta<<std::endl;
+    symPACKOS<<"Factorization task graph execution time: "<<timeStop - timeSta<<std::endl;
   }
 
 

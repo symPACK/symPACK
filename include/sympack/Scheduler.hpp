@@ -110,7 +110,7 @@ namespace symPACK{
         Int checkIncomingMessages_(taskGraph & graph);
 #ifdef NEW_UPCXX
 //        void run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, std::list< upcxx::future<> > & pFutures);
-        void run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, upcxx::dist_object<int> & remDealloc);
+        void run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, upcxx::dist_object<int> & remDealloc, upcxx::team & workteam);
 #else
         void run(MPI_Comm & workcomm, RankGroup & group, taskGraph & graph);
 #endif

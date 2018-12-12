@@ -159,12 +159,12 @@ namespace symPACK{
           NZBlockDesc & desc = GetNZBlockDesc(blkidx);
           size_t end = (blkidx<NZBlockCnt()-1)?GetNZBlockDesc(blkidx+1).Offset:meta_->nzval_cnt_;
           size_t nzvalcnt = end - desc.Offset;
-          Int panel = meta_->panel_sz_;
-          if ( panel>0 && desc.GIndex == FirstCol() ) {
-            gdb_lock();
-            Int numPanels = std::ceil((double)meta_->iSize_/(double)panel);
-            nzvalcnt += numPanels*(numPanels-1)*panel*panel/2; 
-          }
+          //Int panel = meta_->panel_sz_;
+          //if ( panel>0 && desc.GIndex == FirstCol() ) {
+          //  gdb_lock();
+          //  Int numPanels = std::ceil((double)meta_->iSize_/(double)panel);
+          //  nzvalcnt += numPanels*(numPanels-1)*panel*panel/2; 
+          //}
 
           Int nRows = (nzvalcnt)/Size();
           return nRows;

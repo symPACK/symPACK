@@ -2054,7 +2054,7 @@ namespace symPACK{
       MPI_Bcast(&isLowerTri,sizeof(bool),MPI_BYTE,0,comm);
       if(!isLowerTri){
         if(mpirank==0){
-          std::cout<<"Input matrix is not in lower triangular format. symPACK is converting it."<<std::endl;
+          symPACKOS<<"Input matrix is not in lower triangular format. symPACK is converting it."<<std::endl;
         }
         pspmat.Localg_.expanded = 1;
         pspmat.ToLowerTriangular();
@@ -2076,7 +2076,7 @@ namespace symPACK{
       MPI_Comm_rank(workcomm,&mpirank);
       int mpisize;
       MPI_Comm_size(workcomm,&mpisize);
-      if(mpirank==0){ std::cout<<"Start reading the matrix"<<std::endl; }
+      if(mpirank==0){ symPACKOS<<"Start reading the matrix"<<std::endl; }
       SYMPACK_TIMER_START(READING_MATRIX);
       double tstart = get_time();
       //Read the input matrix
@@ -2094,8 +2094,8 @@ namespace symPACK{
       }
       double tstop = get_time();
       SYMPACK_TIMER_STOP(READING_MATRIX);
-      if(mpirank==0){ std::cout<<"Matrix read time: "<<tstop - tstart<<std::endl; }
-      if(mpirank==0){ std::cout<<"Matrix order is "<<HMat.size<<std::endl; }
+      if(mpirank==0){ symPACKOS<<"Matrix read time: "<<tstop - tstart<<std::endl; }
+      if(mpirank==0){ symPACKOS<<"Matrix order is "<<HMat.size<<std::endl; }
     }
 
 
@@ -2276,7 +2276,7 @@ class scope_memprofiler{
 
         std::stringstream sstr;
         sstr<<"P"<<rank<<"/"<<poolsize<<" memory "<<name<<": "<<it->second.overhead_mb<<" MiB ; total "<<it->second.hwm<<" MiB"<<std::endl;
-        std::cout<<sstr.str();
+        symPACKOS<<sstr.str();
         nested.erase(it);
       }
     }
@@ -2374,7 +2374,7 @@ class scope_memprofiler2{
       for ( auto it = nested.begin(); it!=nested.end(); it++) {
           std::stringstream sstr;
           sstr<<"P"<<it->second.rank<<"/"<<it->second.poolsize<<" memory "<<it->first<<": "<<it->second.overhead_mb/extra_divider<<" MiB ; total "<<it->second.hwm/extra_divider<<" MiB"<<std::endl;
-          std::cout<<sstr.str();
+          symPACKOS<<sstr.str();
 //          if ( it->second.count ==0 ) {
 //            it = nested.erase(it);
 //          }

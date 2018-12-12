@@ -52,8 +52,8 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 namespace symPACK{
 
-  double maxWaitT = 0.0;
-  double maxAWaitT = 0.0;
+  //double maxWaitT = 0.0;
+  //double maxAWaitT = 0.0;
 
 #ifdef NEW_UPCXX
   std::list< upcxx::future<> > gFutures;
@@ -251,10 +251,10 @@ namespace symPACK{
       else
 #endif
       {
-double tstart = get_time();
+//double tstart = get_time();
         f_get.wait();
-double tstop = get_time();
-maxAWaitT = std::max(maxAWaitT, tstop-tstart);
+//double tstop = get_time();
+//maxAWaitT = std::max(maxAWaitT, tstop-tstart);
         async_get = false;
         isDone = true;
         success = true;
@@ -272,10 +272,10 @@ maxAWaitT = std::max(maxAWaitT, tstop-tstart);
 #endif
         {
 
-double tstart = get_time();
+//double tstart = get_time();
           upcxx::rget(remote_ptr,GetLocalPtr().get(),msg_size).wait();
-double tstop = get_time();
-maxWaitT = std::max(maxWaitT, tstop-tstart);
+//double tstop = get_time();
+//maxWaitT = std::max(maxWaitT, tstop-tstart);
 
           isDone = true;
         }
@@ -298,10 +298,10 @@ maxWaitT = std::max(maxWaitT, tstop-tstart);
       if(Multithreading::NumThread>1){
         std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
         //TODO wait is not necessary if calling async_try/isdone
-double tstart = get_time();
+//double tstart = get_time();
         event_ptr->wait();
-double tstop = get_time();
-maxAWaitT = std::max(maxAWaitT, tstop-tstart);
+//double tstop = get_time();
+//maxAWaitT = std::max(maxAWaitT, tstop-tstart);
         assert(event_ptr->isdone());
         delete event_ptr;
         event_ptr = nullptr;
@@ -312,10 +312,10 @@ maxAWaitT = std::max(maxAWaitT, tstop-tstart);
 #endif
       {
         //TODO wait is not necessary if calling async_try/isdone
-double tstart = get_time();
+//double tstart = get_time();
         event_ptr->wait();
-double tstop = get_time();
-maxAWaitT = std::max(maxAWaitT, tstop-tstart);
+//double tstop = get_time();
+//maxAWaitT = std::max(maxAWaitT, tstop-tstart);
         assert(event_ptr->isdone());
         delete event_ptr;
         event_ptr = nullptr;
@@ -337,10 +337,10 @@ maxAWaitT = std::max(maxAWaitT, tstop-tstart);
 #endif
         {
 
-double tstart = get_time();
+//double tstart = get_time();
           upcxx::copy(remote_ptr,upcxx::global_ptr<char>(GetLocalPtr().get()),msg_size);
-double tstop = get_time();
-maxWaitT = std::max(maxWaitT, tstop-tstart);
+//double tstop = get_time();
+//maxWaitT = std::max(maxWaitT, tstop-tstart);
           isDone = true;
         }
       }

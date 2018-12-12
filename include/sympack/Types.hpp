@@ -497,12 +497,12 @@ namespace symPACK{
       avgBlockSize = 0;
     }
     void print(){
-      std::cout<<"totalSnodeBlocks: "<<totalSnodeBlocks<<std::endl;
-      std::cout<<"totalBlocks: "<<totalBlocks<<std::endl;
-      std::cout<<"blocksPerSnode: "<<blocksPerSnode<<std::endl;
-      std::cout<<"blocksPerCol: "<<blocksPerCol<<std::endl;
-      std::cout<<"avgSnodeBlockSize (lines): "<<avgSnodeBlockSize<<std::endl;
-      std::cout<<"avgBlockSize (nnz): "<<avgBlockSize<<std::endl;
+      symPACKOS<<"totalSnodeBlocks: "<<totalSnodeBlocks<<std::endl;
+      symPACKOS<<"totalBlocks: "<<totalBlocks<<std::endl;
+      symPACKOS<<"blocksPerSnode: "<<blocksPerSnode<<std::endl;
+      symPACKOS<<"blocksPerCol: "<<blocksPerCol<<std::endl;
+      symPACKOS<<"avgSnodeBlockSize (lines): "<<avgSnodeBlockSize<<std::endl;
+      symPACKOS<<"avgBlockSize (nnz): "<<avgBlockSize<<std::endl;
     }
 
 

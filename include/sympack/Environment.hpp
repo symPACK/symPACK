@@ -58,7 +58,7 @@ inline double get_time()
     return tv.tv_sec + ((double) tv.tv_usec / 1000000);
   }
 
-
+#define NEW_UPCXX
 
 #ifdef NEW_UPCXX
 #include <upcxx/upcxx.hpp>
@@ -135,10 +135,10 @@ int iam = upcxx::rank_me();
 #else
 int iam = upcxx::myrank();
 #endif
-      std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
+      std::cerr<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
     volatile int lock = 1;
     while (lock == 1){ }
-      std::cout<<"P"<<iam<<" is unlocked"<<std::endl;
+      std::cerr<<"P"<<iam<<" is unlocked"<<std::endl;
   }
 
   inline void gdb_lock(Int proc){
@@ -149,10 +149,10 @@ int iam = upcxx::myrank();
 #endif
     if(iam==proc){
       pid_t pid = getpid();
-      std::cout<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
+      std::cerr<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
       volatile int lock = 1;
       while (lock == 1){ }
-      std::cout<<"P"<<iam<<" is unlocked"<<std::endl;
+      std::cerr<<"P"<<iam<<" is unlocked"<<std::endl;
     }
   }
 
@@ -293,7 +293,7 @@ public:
 
 		for (int i = 0; i < nSize; i++)
 		{
-			std::cout << symbols[i] << std::endl;
+			symPACKOS << symbols[i] << std::endl;
 		}
 
 		free(symbols);
