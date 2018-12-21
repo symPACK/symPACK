@@ -1,0 +1,8 @@
+
+#FILE(WRITE ${CMAKE_BINARY_DIR}/sympack.mak "TEST" )
+#FILE(GENERATE OUTPUT ${CMAKE_BINARY_DIR}/sympack.mak INPUT ${CMAKE_BINARY_DIR}/sympack.mak_at_configured )
+file(STRINGS @CMAKE_BINARY_DIR@/sympack.mak_at_generated configfile)
+string(REPLACE "-I@CMAKE_BINARY_DIR@" "" newconfigfile "${configfile}")
+string(REPLACE "@PROJECT_SOURCE_DIR@" "\${SYMPACK_DIR}" newconfigfile "${newconfigfile}")
+string(REGEX REPLACE "[;]+" "\n" newconfigfile "${newconfigfile}")
+file(WRITE @CMAKE_INSTALL_PREFIX@/include/sympack.mak "${newconfigfile}")

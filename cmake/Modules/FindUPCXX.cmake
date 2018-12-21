@@ -2,7 +2,6 @@ cmake_minimum_required( VERSION 3.11 ) # Require CMake 3.11+
 # Set up some auxillary vars if hints have been set
 
 
-
 if( DEFINED ENV{UPCXX_INSTALL} )
   find_program( UPCXX_EXECUTABLE upcxx-meta HINTS $ENV{UPCXX_INSTALL}/bin NO_DEFAULT_PATH )
 else()
@@ -34,9 +33,18 @@ if( UPCXX_EXECUTABLE )
   #list( APPEND UPCXX_LIBRARIES ${UPCXX_LDFLAGS})
   list( APPEND UPCXX_LIBRARIES ${UPCXX_LIBFLAGS})
 
+
+  #now separate include dirs from flags
+  if(UPCXX_LIBRARIES)
+    string(REGEX REPLACE "[ ]+" ";" UPCXX_LIBRARIES ${UPCXX_LIBRARIES})
+  endif()
+
+
+
+
   #now separate include dirs from flags
   if(UPCXX_PPFLAGS)
-    string(REPLACE " " ";" UPCXX_PPFLAGS ${UPCXX_PPFLAGS})
+    string(REGEX REPLACE "[ ]+" ";" UPCXX_PPFLAGS ${UPCXX_PPFLAGS})
     foreach( option ${UPCXX_PPFLAGS} )
       string(STRIP ${option} option)
       string(REGEX MATCH "^-I" UPCXX_INCLUDE ${option})
