@@ -395,6 +395,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                 //  logfileptr->OFS()<<"Before factoring Supernode "<<I<<std::endl;
                 //  logfileptr->OFS()<<*src_snode<<std::endl;
 
+//if ( src_snode->FirstCol()<=21 && src_snode->LastCol()>=21 ) { gdb_lock(); }
                 SYMPACK_TIMER_START(FACTOR_PANEL);
 #ifdef SP_THREADS
                 std::thread::id tid = std::this_thread::get_id();
@@ -707,6 +708,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
 
 
+                    std::cout.precision(std::numeric_limits< T >::max_digits10);
+//if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { std::cout<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" "<<tgt_aggreg->GetNZval(0)[4*(1+44)]<<std::endl; if(curUpdate.tgt_snode_id==3 && cur_src_snode->Id()==2){gdb_lock();} }
+
                           //if ( tgt != 4 || ( src==2 && tgt == 4 ) ) {
                           //if( tgt==4 ){logfileptr->OFS()<<"Before update from "<<src<<" to "<<tgt<<std::endl<<*tgt_aggreg<<std::endl;}
                           //Update the aggregate
@@ -721,6 +725,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           else
 #endif
                             tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
+//if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { std::cout<<tgt_aggreg->GetNZval(0)[4*(1+44)]<<std::endl; }
 
                           SYMPACK_TIMER_STOP(UPD_ANC_UPD);
                           //if( tgt==4 ){logfileptr->OFS()<<"After update from "<<src<<" to "<<tgt<<std::endl<<*tgt_aggreg<<std::endl;}
@@ -1125,6 +1130,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
 
 
+if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { gdb_lock(); }
                       //Update the aggregate
                       SYMPACK_TIMER_START(UPD_ANC_UPD);
 #ifdef SP_THREADS
@@ -1132,10 +1138,14 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                         //scheduler_new_->list_mutex_.lock();
                         auto & tmpBuf = tmpBufs_th[tid];
                         //scheduler_new_->list_mutex_.unlock();
+
                         tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,this->iam);
                       }
                       else
 #endif
+
+
+
                         tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
 
                       SYMPACK_TIMER_STOP(UPD_ANC_UPD);

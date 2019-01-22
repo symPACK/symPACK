@@ -441,9 +441,9 @@ int main(int argc, char **argv)
 #ifdef _MEM_PROFILER_
           utility::scope_memprofiler m("symPACK2D_symbolic");
 #endif
+          timeSta = get_time();
           SMat2D->Init(optionsFact);
           SMat2D->SymbolicFactorization(HMat);
-
 #if 1
           SMat2D->DistributeMatrix(HMat);
 #ifdef DUMP_MATLAB
@@ -453,6 +453,12 @@ int main(int argc, char **argv)
           SMat2D->DumpMatlab();
 #endif
 #endif
+
+          timeEnd = get_time();
+
+          if(iam==0){
+            std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
+          }
         }
 
 #if 1
@@ -482,52 +488,14 @@ int main(int argc, char **argv)
       }
       SMat2D->DumpMatlab();
 #endif
-//      SMat2D->DumpMatlab();
-      SMat = new symPACKMatrix<SCALAR>(*SMat2D);
+      //SMat2D->DumpMatlab();
+      if(nrhs>0){
+        SMat = new symPACKMatrix<SCALAR>(*SMat2D);
+//        SMat->DumpMatlab();
+      }
 //      SMat2D->DumpMatlab();
     }
 
-////
-////    if(iam==0){
-////      std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
-////    }
-////
-////#ifdef DUMP_MATLAB
-////    if(iam==0){
-////      logfileptr->OFS()<<"A= ";
-////    }
-////    SMat->DumpMatlab();
-////#endif
-////#if 0
-////    {
-////      logfileptr->OFS()<<"Supernode partition"<<SMat->GetSupernodalPartition()<<std::endl;
-////    }
-////#endif
-////
-////
-////    if(!nofact){
-////      /************* NUMERICAL FACTORIZATION PHASE ***********/
-////      if(iam==0){
-////        std::cout<<"Starting Factorization"<<std::endl;
-////      }
-////      timeSta = get_time();
-////      SYMPACK_TIMER_START(FACTORIZATION);
-////      SMat->Factorize();
-////      SYMPACK_TIMER_STOP(FACTORIZATION);
-////      timeEnd = get_time();
-////
-////      if(iam==0){
-////        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
-////      }
-////      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
-////
-////#ifdef DUMP_MATLAB
-////      if(iam==0){
-////        logfileptr->OFS()<<"L= ";
-////      }
-////      SMat->DumpMatlab();
-////#endif
-////
       if(nrhs>0){
         /**************** SOLVE PHASE ***********/
         if(iam==0){

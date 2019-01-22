@@ -1310,7 +1310,7 @@ namespace symPACK{
             for(Int i = 0; i< nRows; ++i){
               for(Int j = 0; j< src_snode->Size(); ++j){
                 //                logfileptr->OFS()<<std::scientific<<val[i*src_snode->Size()+j]<<" ";
-                logfileptr->OFS()<<std::scientific<<ToMatlabScalar(val[i*src_snode->Size()+j])<<" ";
+                logfileptr->OFS()<<std::scientific<<"("<<row+i<<","<<src_first_col+j<<") "<<ToMatlabScalar(val[i*src_snode->Size()+j])<<" "<<std::endl;
               }
             }
           }

@@ -442,6 +442,7 @@ int main(int argc, char **argv)
       }
     }
 
+      //SMat->DumpMatlab();
 
     if(!nofact){
       if(nrhs>0){

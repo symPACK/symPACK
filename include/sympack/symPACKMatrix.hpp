@@ -118,7 +118,7 @@ namespace symPACK{
   template<typename Task> class supernodalTaskGraph;
 
 
-  template <typename colptr_t, typename rowind_t, typename T> 
+  template <typename colptr_t, typename rowind_t, typename T, typename int_t> 
     class symPACKMatrix2D;
 
 
@@ -133,7 +133,7 @@ namespace symPACK{
       //TODO
       symPACKMatrix( symPACKMatrix & M){};
 
-      symPACKMatrix( symPACKMatrix2D<Ptr,Idx,T> & M){
+      symPACKMatrix( symPACKMatrix2D<Ptr,Idx,T,int> & M){
 
         using cell_desc_t = std::tuple</*std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t>,*/ std::vector<char>, size_t, int,int, size_t, size_t, Idx, int >;
 
@@ -280,7 +280,6 @@ namespace symPACK{
         std::vector< char > sendbuf;
         std::vector<size_t> ssizes(this->np,0);
 
-//gdb_lock();
         auto local_it = M.localBlocks_.begin();
         for (int supid=1;supid<=M.nsuper;supid++) {
           auto cell = M.pQueryCELL(supid-1,supid-1);
@@ -303,7 +302,6 @@ namespace symPACK{
         std::partial_sum(ssizes.begin(),ssizes.end(),&sdispls[1]);
 
         sendbuf.resize(sdispls.back());
-
         local_it = M.localBlocks_.begin();
         for (int supid=1;supid<=M.nsuper;supid++) {
           auto cell = M.pQueryCELL(supid-1,supid-1);
@@ -486,7 +484,15 @@ namespace symPACK{
               std::tie( size, nnz, nblocks, width, i,j) = tuple;         
               char * ptr = std::get<1>(tpl);
 
-              std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t> snode2D( new typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t(i,j,ptr,fc,width,nnz,nblocks));
+              std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t> snode2D;
+              
+              if(this->options_.decomposition == DecompositionType::LDL){
+                snode2D.reset( new typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlockLDL_t(i,j,ptr,fc,width,nnz,nblocks));
+              }
+              else {
+                snode2D.reset( new typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t(i,j,ptr,fc,width,nnz,nblocks));
+              }
+              
               auto & blocks = snode2D->blocks();
               for ( auto & block: blocks ) {
                 newSnode->AddNZBlock(snode2D->block_nrows(block) , block.first_row);
@@ -494,6 +500,16 @@ namespace symPACK{
               //now copy numerical values
               std::copy(snode2D->_nzval,snode2D->_nzval+nnz,nzval);
               nzval+=nnz;
+
+              if(this->options_.decomposition == DecompositionType::LDL){
+                if ( snode2D->i == snode2D->j ){
+                  auto snode2DLDL = (typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlockLDL_t*)snode2D.get();
+                  //now copy diagonal
+                  auto srcdiag = (T*)snode2DLDL->GetDiag();
+                  auto diag = ((SuperNodeInd<T>*)newSnode)->GetDiag();
+                  std::copy(srcdiag,srcdiag+width,diag);
+                }
+              }
             }
 
             this->LocalSupernodes_.push_back(newSnode);
@@ -621,7 +637,7 @@ namespace symPACK{
                   Idx width;
                   int sender;
                   std::tie( storage, size, i,j, nnz, nblocks, width, sender) = cell;
-                  std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t> snode2D( new typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t(i,j,storage.data(),fc,width,nnz,nblocks));
+                  std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t> snode2D( new typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t(i,j,storage.data(),fc,width,nnz,nblocks));
                   auto & blocks = snode2D->blocks();
                   for ( auto & block: blocks ) {
                     newSnode->AddNZBlock(snode2D->block_nrows(block) , block.first_row);
