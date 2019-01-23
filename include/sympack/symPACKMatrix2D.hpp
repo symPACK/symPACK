@@ -788,14 +788,17 @@ namespace symPACK{
           return 0;
         }
 
-        virtual int trsm( const blockCell_t & diag, TempUpdateBuffers<T> & tmpBuffers){
+        virtual int trsm( const blockCellBase_t * pdiag, TempUpdateBuffers<T> & tmpBuffers){
           scope_timer(a,blockCell_t::trsm);
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
 
-          bassert(diag.nblocks()>0);
-          auto diag_nzval = diag._nzval;
+          bassert(dynamic_cast<const blockCell_t*>(pdiag));
+          auto diag = dynamic_cast<const blockCell_t*>(pdiag);
+
+          bassert(diag->nblocks()>0);
+          auto diag_nzval = diag->_nzval;
 
           auto snode_size = std::get<0>(_dims);
           auto nzblk_nzval = _nzval;
@@ -806,7 +809,7 @@ namespace symPACK{
           return 0;
         }
 
-        virtual int update( /*const*/ blockCell_t & pivot, /*const*/ blockCell_t & facing, TempUpdateBuffers<T> & tmpBuffers){
+        virtual int update( /*const*/ blockCellBase_t * ppivot, /*const*/ blockCellBase_t * pfacing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr){
           scope_timer(a,blockCell_t::update);
 #if defined(_NO_COMPUTATION_)
           return 0;
@@ -815,6 +818,11 @@ namespace symPACK{
 
 #if 1
           {
+          bassert(dynamic_cast<blockCell_t*>(ppivot));
+          bassert(dynamic_cast<blockCell_t*>(pfacing));
+
+            blockCell_t & pivot = *dynamic_cast<blockCell_t*>(ppivot);
+            blockCell_t & facing = *dynamic_cast<blockCell_t*>(pfacing);
             bassert(nblocks()>0);
 
             bassert(pivot.nblocks()>0);
@@ -1440,14 +1448,16 @@ namespace symPACK{
           return 0;
         }
 
-        virtual int trsm( const blockCellLDL_t & diag, TempUpdateBuffers<T> & tmpBuffers){
+        virtual int trsm( const blockCellBase_t * pdiag, TempUpdateBuffers<T> & tmpBuffers){
           scope_timer(a,blockCellLDL_t::trsm);
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
+          bassert(dynamic_cast<const blockCellLDL_t*>(pdiag));
+          auto diag = dynamic_cast<const blockCellLDL_t*>(pdiag);
 
-          bassert(diag.nblocks()>0);
-          auto diag_nzval = diag._nzval;
+          bassert(diag->nblocks()>0);
+          auto diag_nzval = diag->_nzval;
 
           auto snode_size = std::get<0>(this->_dims);
           auto nzblk_nzval = this->_nzval;
@@ -1459,7 +1469,7 @@ namespace symPACK{
 
           //scale column I
           for ( int_t I = 1; I<=snode_size; I++) {
-            blas::Scal( this->total_rows(), T(1.0)/diag._diag[I-1], &nzblk_nzval[I-1], snode_size );
+            blas::Scal( this->total_rows(), T(1.0)/diag->_diag[I-1], &nzblk_nzval[I-1], snode_size );
           }
 
 #ifndef _NDEBUG_
@@ -1474,7 +1484,7 @@ namespace symPACK{
           return 0;
         }
 
-        virtual int update(  /*const*/ blockCellLDL_t & pivot, /*const*/ blockCellLDL_t & facing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr){
+        virtual int update(  /*const*/ blockCellBase_t * ppivot, /*const*/ blockCellBase_t * pfacing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr){
           scope_timer(a,blockCellLDL_t::update);
 #if defined(_NO_COMPUTATION_)
           return 0;
@@ -1482,6 +1492,13 @@ namespace symPACK{
           //do the owner compute update first
 
           {
+          bassert(dynamic_cast<blockCellLDL_t*>(ppivot));
+          bassert(dynamic_cast<blockCellLDL_t*>(pfacing));
+
+          blockCellLDL_t & pivot = *dynamic_cast<blockCellLDL_t*>(ppivot);
+          blockCellLDL_t & facing = *dynamic_cast<blockCellLDL_t*>(pfacing);
+
+
             bassert(this->nblocks()>0);
 
             bassert(pivot.nblocks()>0);
@@ -1809,6 +1826,7 @@ namespace symPACK{
       const upcxx::global_ptr<char> & find_diag_pointer( int supno ) const {
         auto it = std::lower_bound(this->diag_pointers_.begin(),this->diag_pointers_.end(), supno, [](const std::tuple<Int,upcxx::global_ptr<char> > & a, const Int & key ) { return std::get<0>(a) < key; });
         bassert(it != this->diag_pointers_.end());
+        bassert(supno == std::get<0>(*it));
         return std::get<1>(*it);
       }
 
@@ -3193,15 +3211,18 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
 
               std::shared_ptr<blockCellBase_t> sptr(nullptr);
               if ( p == iam ) {
-                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
-
-                this->localBlocks_.push_back(std::static_pointer_cast<snodeBlock_t>(sptr));
                 if(this->options_.decomposition == DecompositionType::LDL){
+                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlockLDL_t>(i,j,fc,iWidth,nnz,block_cnt));
+                this->localBlocks_.push_back(std::static_pointer_cast<snodeBlock_t>(sptr));
                   if ( i == j ) {
                     auto diagcell_ptr = std::dynamic_pointer_cast<snodeBlockLDL_t>(sptr);
                     assert(diagcell_ptr);
                     local_diag_pointers.push_back(std::make_tuple(i,diagcell_ptr->Diag()));
                   }
+                }
+                else{
+                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
+                this->localBlocks_.push_back(std::static_pointer_cast<snodeBlock_t>(sptr));
                 }
 
                 //logfileptr->OFS()<<" orig2 : S"<<sptr->j <<" -> "<<((snodeBlock_t*)sptr.get())->nnz()<<" vs. "<<nnz<<std::endl;
@@ -3228,7 +3249,6 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
           //} //end for
             }
           }
-
 
           std::sort(this->localBlocks_.begin(),this->localBlocks_.end(),[](std::shared_ptr<snodeBlock_t> & a, std::shared_ptr<snodeBlock_t> & b){
               return a->j < b->j || (a->i < b->i &&  a->j == b->j ) ; 
@@ -3258,64 +3278,68 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
           }
 #endif
           std::shared_ptr<blockCellBase_t> pLast_cell = nullptr;
-          for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
-            auto & cur_cell = (*it);
-            Int i = std::get<0>(cur_cell);
-            Int j = std::get<1>(cur_cell);
+          //for(auto it = recvbuf.begin();it!=recvbuf.end();it++)
+          //  auto & cur_cell = (*it);
 
-            if (i==-1 && j==-1) {
-              bassert(pLast_cell!=nullptr);
-              if ( pLast_cell->owner == iam ) {
-                auto ptr = std::static_pointer_cast<snodeBlock_t>(pLast_cell);
-                Int first_row = std::get<2>(cur_cell);
-                Int nrows = std::get<3>(cur_cell);
-                ptr->add_block(first_row,nrows);
+          for(int psend = np-1; psend>=0; --psend){
+            for(int idxcell = rdispls[psend]; idxcell<rdispls[psend+1]; idxcell++){
+              auto & cur_cell = recvbuf[idxcell];
+              Int i = std::get<0>(cur_cell);
+              Int j = std::get<1>(cur_cell);
+
+              if (i==-1 && j==-1) {
+                bassert(pLast_cell!=nullptr);
+                if ( pLast_cell->owner == iam ) {
+                  auto ptr = std::static_pointer_cast<snodeBlock_t>(pLast_cell);
+                  Int first_row = std::get<2>(cur_cell);
+                  Int nrows = std::get<3>(cur_cell);
+                  ptr->add_block(first_row,nrows);
+                }
               }
-            }
-            else{
-              Int nBlock = std::get<2>(cur_cell);
-              Int nRows = std::get<3>(cur_cell);
-              //auto idx = coord2supidx(i,j);
-              auto idx = coord2supidx(i-1,j-1);
+              else{
+                Int nBlock = std::get<2>(cur_cell);
+                Int nRows = std::get<3>(cur_cell);
+                //auto idx = coord2supidx(i,j);
+                auto idx = coord2supidx(i-1,j-1);
 
 #ifdef _BALANCE_NNZ_
-              auto proc = load.top();
-              load.pop();
-              auto p = std::get<0>(proc);
+                auto proc = load.top();
+                load.pop();
+                auto p = std::get<0>(proc);
 #else
-              auto prow = i % nprow;
-              auto pcol = j % npcol;
-              auto p = pcol*nprow+prow;
+                auto prow = i % nprow;
+                auto pcol = j % npcol;
+                auto p = pcol*nprow+prow;
 #endif      
 
-              Idx fc = this->Xsuper_[j-1];
-              Idx lc = this->Xsuper_[j]-1;
-              Int iWidth = lc-fc+1;
-              size_t block_cnt = nBlock;
-              size_t nnz = nRows * iWidth;
+                Idx fc = this->Xsuper_[j-1];
+                Idx lc = this->Xsuper_[j]-1;
+                Int iWidth = lc-fc+1;
+                size_t block_cnt = nBlock;
+                size_t nnz = nRows * iWidth;
 #ifdef _BALANCE_NNZ_
-              auto & lp = std::get<1>(proc);
-              lp += nnz*iWidth;
-              load.push(proc);
+                auto & lp = std::get<1>(proc);
+                lp += nnz*iWidth;
+                load.push(proc);
 #endif
 
-              std::shared_ptr<blockCellBase_t> sptr(nullptr);
-              if ( p == iam ) {
-                sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
-                this->localBlocks_.push_back(std::static_pointer_cast<snodeBlock_t>(sptr));
-              }
-              else {
-                sptr = std::make_shared<blockCellBase_t>();
-              }
+                std::shared_ptr<blockCellBase_t> sptr(nullptr);
+                if ( p == iam ) {
+                  sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
+                  this->localBlocks_.push_back(std::static_pointer_cast<snodeBlock_t>(sptr));
+                }
+                else {
+                  sptr = std::make_shared<blockCellBase_t>();
+                }
 
-              cells_[idx] = sptr;
-              sptr->i = i;
-              sptr->j = j;
-              sptr->owner = p;
-              pLast_cell = sptr;
+                cells_[idx] = sptr;
+                sptr->i = i;
+                sptr->j = j;
+                sptr->owner = p;
+                pLast_cell = sptr;
+              }
             }
           }
-
           std::sort(this->localBlocks_.begin(),this->localBlocks_.end(),[](std::shared_ptr<snodeBlock_t> & a, std::shared_ptr<snodeBlock_t> & b){
               return a->j < b->j || (a->i < b->i &&  a->j == b->j ) ; 
               });
@@ -3430,6 +3454,12 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                   //cell(J,I) to cell(J,K)
                   Messages[iFacingOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_SEND,K_row,J_row));
                   Messages[iUpdOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_RECV,K_row,J_row));
+
+
+                  if(this->options_.decomposition == DecompositionType::LDL){
+                      Messages[iOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_DIAG_SEND,K_row,J_row));
+                      Messages[iUpdOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_DIAG_RECV,K_row,J_row));
+                  }
                 }
               }
 
@@ -3633,6 +3663,50 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
           auto J = tgt_snode;
 
           switch(type){
+            case Factorization::op_type::UPDATE2D_DIAG_SEND:
+              {
+                Idx K = this->SupMembership_[facing_first_row-1];
+                std::swap(K,J);
+
+                auto k1 = scheduling::key_t(I,I,I,Factorization::op_type::FACTOR);
+                auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
+                auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
+                bassert(taskptr!=nullptr);
+                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                bassert(k2 == k1 );
+
+                auto owner = pQueryCELL(J-1,K-1)->owner;
+                auto task_idx_beg = &task_idx_recvbuf[task_idx_rdispls[owner]];
+                auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
+
+                std::size_t remote_task_idx = 0;
+                scheduling::key_t key(J,K,I,Factorization::op_type::UPDATE2D_COMP);
+                auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
+                bassert(task_idx_it != task_idx_end); 
+                remote_task_idx = std::get<1>(*task_idx_it);
+
+                taskptr->out_dependencies.push_back( std::make_tuple(owner,remote_task_idx) );
+              }
+              break;
+            case Factorization::op_type::UPDATE2D_DIAG_RECV:
+              {
+                Idx K = this->SupMembership_[facing_first_row-1];
+                std::swap(K,J);
+                //find the UPDATE2D_COMP and add cell J,I as incoming dependency
+                auto k1 = scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP);
+                auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
+                auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
+                bassert(taskptr!=nullptr);
+                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                bassert(k2 == k1 );
+
+                if (  pQueryCELL(I-1,I-1)->owner != pQueryCELL(J-1,K-1)->owner )
+                  taskptr->in_remote_dependencies_cnt++;
+                else
+                  taskptr->in_local_dependencies_cnt++;
+              }
+              break;
+
             case Factorization::op_type::TRSM_SEND:
               {
                 auto J = this->SupMembership_[facing_first_row-1];
@@ -3811,7 +3885,6 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                 bassert(k2 == k1 );
 
 
-                //find the FACTOR or TRSM target task
                 auto owner = pQueryCELL(J-1,K-1)->owner;
                 auto task_idx_beg = &task_idx_recvbuf[task_idx_rdispls[owner]];
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
@@ -4376,9 +4449,9 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
           std::sort(this->diag_pointers_.begin(),this->diag_pointers_.end(),[](diag_ptr_t & a, diag_ptr_t & b){ return std::get<0>(a) < std::get<0>(b) ; });
 
 #ifndef _NDEBUG_
-          for( Int I = 1; I<=nsuper; I++ ){
-            bassert( find_diag_pointer(I).where() == pQueryCELL(I-1,I-1)->owner);
-          }
+          //for( Int I = 1; I<=nsuper; I++ )
+            //bassert( 
+            
 #endif
         }
 
@@ -4407,17 +4480,18 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
           auto K = this->SupMembership_[facing_row-1];
 
           //const upcxx::global_ptr<T> diag_ptr;
-          if(this->options_.decomposition == DecompositionType::LDL){
-            if ( type == Factorization::op_type::UPDATE2D_COMP ) {
-              auto diag_ptr = this->find_diag_pointer( I );
-              if ( diag_ptr.where() != upcxx::rank_me() ) {
-                ptask->in_remote_dependencies_cnt++;
-              }
-//              else{
-//                ptask->in_local_dependencies_cnt++;
-//              } 
-            }
-          }
+          //if(this->options_.decomposition == DecompositionType::LDL){
+          //  if ( type == Factorization::op_type::UPDATE2D_COMP ) {
+          //    auto diag_ptr = this->find_diag_pointer( I-1 );
+          //    if ( diag_ptr.where() != upcxx::rank_me() ) {
+    //logfileptr->OFS()<<"("<<I<<","<<J<<","<<K<<")"<<std::endl;
+          //      ptask->in_remote_dependencies_cnt++;
+          //    }
+//        //      else{
+//        //        ptask->in_local_dependencies_cnt++;
+//        //      } 
+          //  }
+          //}
 
           auto remote_deps = ptask->in_remote_dependencies_cnt;
           auto local_deps = ptask->in_local_dependencies_cnt;
@@ -4457,11 +4531,11 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                   auto ptask = ptr;
                   //logfileptr->OFS()<<"Exec FACTOR"<<" cell ("<<I<<","<<I<<")"<<std::endl;
 
-//                  auto ptr_diagcell = pQueryCELL2(I-1,I-1);
-//                  assert(ptr_diagcell);
+                  auto ptr_diagcell = pQueryCELL2(I-1,I-1);
+                  assert(ptr_diagcell);
 
-                  auto & diagcell = CELL(I-1,I-1);
-                  bassert( diagcell.owner == this->iam);
+                  //auto & diagcell = CELL(I-1,I-1);
+                  //bassert( diagcell.owner == this->iam);
 
 #ifdef SP_THREADS
                   std::thread::id tid = std::this_thread::get_id();
@@ -4472,7 +4546,7 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
          gasneti_tick_t start = gasneti_ticks_now();
         std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 //if ( diagcell.first_col<=21 && (diagcell.first_col+diagcell.width()-1)>=21 ) { gdb_lock(); }
-                  diagcell.factorize(tmpBuf);
+                  ptr_diagcell->factorize(tmpBuf);
         //comp_fact_ticks += ((double)gasneti_ticks_to_ns(gasneti_ticks_now() - start))*1.0e-9;
         std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
         comp_fact_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
@@ -4495,6 +4569,7 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                     //serialize data once, and list of meta data
                     //factor is output data so it will not be deleted
                     if ( pdest != this->iam ) {
+                      
                       auto cxs = upcxx::source_cx::as_buffered() | upcxx::source_cx::as_promise(ptask->out_prom);
 #if 1
                       upcxx::rpc_ff( pdest, /*cxs,*/ 
@@ -4502,49 +4577,89 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
 
 
                           return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
+
                               //gdb_lock();
                               //there is a map between sp_handle and task_graphs
                               gasneti_tick_t start = gasneti_ticks_now();
                               auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
+                              auto I = std::get<1>(meta);
+                              rowind_t fc = matptr->Xsuper_[I-1];
 
                               //store pointer & associated metadata somewhere
-                              auto data = std::make_shared<SparseTask2D::data_t >();
-                              data->in_meta = meta;
-                              data->size = storage_size;
-                              data->remote_gptr = gptr;
+                              std::shared_ptr <SparseTask2D::data_t > data;
+                              std::shared_ptr <SparseTask2D::data_t > diag_data;
+                              
 
 
                               for ( auto & tgt_cell_idx: target_cells) {
                               auto taskptr = matptr->task_graph[tgt_cell_idx].get();
-                              taskptr->input_msg.push_back(data);
-                              data->target_tasks.push_back(taskptr);
-                              taskptr->in_avail_prom.fulfill_anonymous(1);
+
+                                if ( std::get<2>(taskptr->_meta) == Factorization::op_type::UPDATE2D_COMP) {
+                                  if ( !diag_data ) {
+                                    upcxx::global_ptr<char> diag_ptr = matptr->find_diag_pointer( I );
+                                    bassert ( diag_ptr.where() != upcxx::rank_me() );
+                                    diag_data = std::make_shared<SparseTask2D::data_t >();
+                                    diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,0,0);;
+                                    diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
+                                    diag_data->remote_gptr = diag_ptr;
+                                  }
+
+                                  taskptr->input_msg.push_back(diag_data);
+                                  diag_data->target_tasks.push_back(taskptr);
+                                  taskptr->in_avail_prom.fulfill_anonymous(1);
+
+
+                                }
+                                else {
+                                  if ( ! data ) {
+                                    data = std::make_shared<SparseTask2D::data_t >();
+                                    data->in_meta = meta;
+                                    data->size = storage_size;
+                                    data->remote_gptr = gptr;
+                                  }
+
+
+                                  taskptr->input_msg.push_back(data);
+                                  data->target_tasks.push_back(taskptr);
+                                  taskptr->in_avail_prom.fulfill_anonymous(1);
+                                }
                               }
 
-                              auto I = std::get<1>(meta);
-                              rowind_t fc = matptr->Xsuper_[I-1];
 
+                              if ( data ) {
                               data->on_fetch.get_future().then(
-                                  [fc,width,nnz,nblocks,I](SparseTask2D::data_t * pdata){
+                                  [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata){
                                   //create snodeBlock_t and store it in the extra_data
-                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  if (matptr->options_.decomposition == DecompositionType::LDL){
+                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
+                                  else{
+                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
                                   //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   });
                               //TODO check this
                               data->allocate();
                               data->fetch();
+                              }
+
+                              if ( diag_data ) {
+                                diag_data->allocate();
+                                diag_data->fetch();
+                              }
 
                               matptr->rpc_fact_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
                           });
 
-                          }, this->sp_handle, diagcell._gstorage, diagcell._storage_size, diagcell.nnz(), diagcell.nblocks(), std::get<0>(diagcell._dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                          }, this->sp_handle, ptr_diagcell->_gstorage, ptr_diagcell->_storage_size, ptr_diagcell->nnz(), ptr_diagcell->nblocks(), std::get<0>(ptr_diagcell->_dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
                     }
                     else {
                       for ( auto & tgt_cell_idx: tgt_cells ) {
                         auto taskptr = task_graph[tgt_cell_idx].get();
                         bassert(taskptr!=nullptr); 
-                        bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::TRSM);
+                        bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::TRSM
+                            ||  std::get<2>(taskptr->_meta) == Factorization::op_type::UPDATE2D_COMP);
                         //mark the dependency as satisfied
                         taskptr->in_prom.fulfill_anonymous(1);
                       }
@@ -4607,9 +4722,14 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                               rowind_t fc = matptr->Xsuper_[I-1];
 
                               data->on_fetch.get_future().then(
-                                  [fc,width,nnz,nblocks,I](SparseTask2D::data_t * pdata){
+                                  [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata){
                                   //create snodeBlock_t and store it in the extra_data
+                                  if (matptr->options_.decomposition == DecompositionType::LDL){
+                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
+                                  else{
                                   pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
                                   //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   });
                               //TODO check this
@@ -4617,7 +4737,7 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                               data->fetch();
                           });
 
-                          }, this->sp_handle, diagcell._gstorage, diagcell._storage_size, diagcell.nnz(), diagcell.nblocks(), std::get<0>(diagcell._dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                          }, this->sp_handle, ptr_diagcell->_gstorage, ptr_diagcell->_storage_size, ptr_diagcell->nnz(), ptr_diagcell->nblocks(), std::get<0>(ptr_diagcell->_dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
                     }
                     else {
@@ -4660,8 +4780,7 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                   auto ptr_od_cell = pQueryCELL2(K-1,I-1);
                   assert(ptr_od_cell);
 
-                  auto & od_cell = CELL(K-1,I-1);//*std::static_pointer_cast<snodeBlock_t>(cells_[coord2supidx(tgt_snode-1,src_snode-1)]);
-                  bassert( od_cell.owner == this->iam);
+                  bassert( ptr_od_cell->owner == this->iam);
 
 #ifdef SP_THREADS
                   std::thread::id tid = std::this_thread::get_id();
@@ -4682,7 +4801,7 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
 
          gasneti_tick_t start = gasneti_ticks_now();
         std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-                  od_cell.trsm(*dynamic_cast<snodeBlock_t*>(ptr_diagCell),tmpBuf);
+                  ptr_od_cell->trsm(ptr_diagCell,tmpBuf);
 
 #ifdef _MEMORY_LIMIT_
                   if ( this->mem_budget != -1.0 ) {
@@ -4732,43 +4851,53 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                               data->size = storage_size;
                               data->remote_gptr = gptr;
 
-                              std::shared_ptr<SparseTask2D::data_t> diag_data;
-                              upcxx::global_ptr<char> diag_ptr;
-                              
-
                               //there is a map between sp_handle and task_graphs
                               auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
+
+                             // std::shared_ptr<SparseTask2D::data_t> diag_data;
+                             // upcxx::global_ptr<char> diag_ptr = matptr->find_diag_pointer( I-1 );
+                             // if ( diag_ptr.where() != upcxx::rank_me() ) {
+                             //   diag_data = std::make_shared<SparseTask2D::data_t >();
+                             //   diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,0,0);;
+                             //   diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
+                             //   diag_data->remote_gptr = diag_ptr;
+                             // }
+
+
+
                               for ( auto & tgt_cell_idx: target_cells) {
                                 auto taskptr = matptr->task_graph[tgt_cell_idx].get();
 
 
-                                if(matptr->options_.decomposition == DecompositionType::LDL){
-                                    //since TRSM is available, diagonal entries MUST be available too (transitivity)
-                                    if ( taskptr->input_msg.empty() ) {
-                                      if ( diag_ptr.is_null() ) {
-                                        diag_ptr = matptr->find_diag_pointer( I );
-                                        if ( diag_ptr.where() != upcxx::rank_me() ) {
-                                          diag_data = std::make_shared<SparseTask2D::data_t >();
-                                          diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,-1,-1);;
-                                          diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
-                                          diag_data->remote_gptr = diag_ptr;
-    
-                                        }
-                                      }
+                                ////if(matptr->options_.decomposition == DecompositionType::LDL){
+                                ////    //since TRSM is available, diagonal entries MUST be available too (transitivity)
+                                ////    if ( taskptr->input_msg.empty() ) {
+                                ////      //if ( diag_ptr.is_null() ) {
+                                ////      //  diag_ptr = matptr->find_diag_pointer( I );
+                                ////      //  if ( diag_ptr.where() != upcxx::rank_me() ) {
+                                ////      //    diag_data = std::make_shared<SparseTask2D::data_t >();
+                                ////      //    diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,-1,-1);;
+                                ////      //    diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
+                                ////      //    diag_data->remote_gptr = diag_ptr;
+                                ////      //  }
+                                ////      //}
 
-//                                      auto J = std::get<1>(taskptr->_meta);
-//if (I == 20 && J == 21 && (K == 25 || K==21) ) { gdb_lock();}
-//if (I == 9 && J == 8 && (K == 13) ) { gdb_lock();}
-//if (I == 7 && J == 11 && (K == 18) ) { gdb_lock();}
-//if (I == 9 && J == 15 && (K == 15) ) { gdb_lock();}
+//                              ////        auto J = std::get<1>(taskptr->_meta);
+//if (I == 20 && J == 21 && (K =////= 25 || K==21) ) { gdb_lock();}
+//if (I == 9 && J == 8 && (K == ////13) ) { gdb_lock();}
+//if (I == 7 && J == 11 && (K ==//// 18) ) { gdb_lock();}
+//if (I == 9 && J == 15 && (K ==//// 15) ) { gdb_lock();}
 
-                                      if ( diag_data ) {
-                                        taskptr->input_msg.push_back(diag_data);
-                                        diag_data->target_tasks.push_back(taskptr);
-                                        taskptr->in_avail_prom.fulfill_anonymous(1);
-                                      }
-                                    }
-                                }
+                                ////      if ( diag_data ) {
+                                ////        auto diag_ptr2 = matptr->find_diag_pointer( I-1 );
+                                ////        bassert( diag_ptr2.where() != upcxx::rank_me() );
+                                ////        
+                                ////        taskptr->input_msg.push_back(diag_data);
+                                ////        diag_data->target_tasks.push_back(taskptr);
+                                ////        taskptr->in_avail_prom.fulfill_anonymous(1);
+                                ////      }
+                                ////    }
+                                ////}
 
 
                                 taskptr->input_msg.push_back(data);
@@ -4779,10 +4908,15 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                               //auto I = std::get<1>(meta);
                               rowind_t fc = matptr->Xsuper_[I-1];
                               data->on_fetch.get_future().then(
-                                  [fc,width,nnz,nblocks,K,I](SparseTask2D::data_t * pdata){
+                                  [fc,matptr,width,nnz,nblocks,K,I](SparseTask2D::data_t * pdata){
                                   //create snodeBlock_t and store it in the extra_data
 //if (K == 10 && I == 7 ) { gdb_lock();}
+                                  if (matptr->options_.decomposition == DecompositionType::LDL){
+                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
+                                  else{
                                   pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
                                   //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   }
                                   );
@@ -4791,27 +4925,50 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                               data->fetch();
 
 
-                                      if ( diag_data ) {
-                                          //for diag_data we'll use the landing zone directly
-                                          diag_data->allocate();
-                                          diag_data->fetch();
-                                      }
+                              ////if ( diag_data ) {
+                              ////  //for diag_data we'll use the landing zone directly
+                              ////  diag_data->allocate();
+                              ////  diag_data->fetch();
+                              ////}
 
 
                               matptr->rpc_trsm_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
                           });
 
-                          }, this->sp_handle, od_cell._gstorage,od_cell._storage_size, od_cell.nnz(),od_cell.nblocks(), std::get<0>(od_cell._dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                          }, this->sp_handle, ptr_od_cell->_gstorage,ptr_od_cell->_storage_size, ptr_od_cell->nnz(),ptr_od_cell->nblocks(), std::get<0>(ptr_od_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
                     }
                     else {
+std::shared_ptr<SparseTask2D::data_t> diag_data;
                       for ( auto & tgt_cell_idx: tgt_cells ) {
                         auto taskptr = task_graph[tgt_cell_idx].get();
                         bassert(taskptr!=nullptr); 
                         bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::UPDATE2D_COMP);
+
+
+/////                        auto & tJ = std::get<1>(taskptr->_meta);
+/////                        auto & tfacing_row = std::get<4>(taskptr->_meta);
+/////                        auto tK = this->SupMembership_[tfacing_row-1];
+/////                        bassert( K == tJ || K == tK );
+/////
+/////                        auto ptrOtherTrsmCell =  K==tJ?pQueryCELL2(tK-1,I-1):pQueryCELL2(tJ-1,I-1);
+/////                        if ( ptrOtherTrsmCell->owner == this->iam ) {
+/////                          upcxx::global_ptr<char> diag_ptr = this->find_diag_pointer( I-1 );
+/////                          if ( diag_ptr.where() != this->iam ) {
+/////                            if ( taskptr->input_msg.empty() ) {
+/////                            //if the other TRSM task is also local, then we need to fetch the diagonal entry here otherwise it'll be done in the rpc_ff
+/////                              if ( !diag_data ) {
+/////                              diag_data = std::make_shared<SparseTask2D::data_t >();
+/////                              diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,0,0);;
+/////                              diag_data->size = (this->Xsuper_[I] - this->Xsuper_[I-1])*sizeof(T);
+/////                              diag_data->remote_gptr = diag_ptr;
+/////
+/////                            }
+/////                          }
+/////                        }
+
                         //mark the dependency as satisfied
                         taskptr->in_prom.fulfill_anonymous(1);
-
                       }
                     }
                   }
@@ -4872,9 +5029,14 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                               //auto I = std::get<1>(meta);
                               rowind_t fc = matptr->Xsuper_[I-1];
                               data->on_fetch.get_future().then(
-                                  [fc,width,nnz,nblocks,K,I](SparseTask2D::data_t * pdata){
+                                  [fc,width,nnz,nblocks,K,I,matptr](SparseTask2D::data_t * pdata){
                                   //create snodeBlock_t and store it in the extra_data
+                                  if (matptr->options_.decomposition == DecompositionType::LDL){
+                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
+                                  else{
                                   pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
                                   //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   }
                                   );
@@ -4883,7 +5045,7 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                               data->fetch();
                           });
 
-                          }, this->sp_handle, od_cell._gstorage,od_cell._storage_size, od_cell.nnz(),od_cell.nblocks(), std::get<0>(od_cell._dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                          }, this->sp_handle, ptr_od_cell->_gstorage,ptr_od_cell->_storage_size, ptr_od_cell->nnz(),ptr_od_cell->nblocks(), std::get<0>(ptr_od_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
                     }
                     else {
@@ -4925,7 +5087,7 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
 
                   auto & upd_cell = CELL(K-1,J-1);
                   //TODO false for fan-both
-                  bassert(upd_cell.owner==this->iam);
+                  bassert(ptr_upd_cell->owner==this->iam);
 
 
 #ifdef SP_THREADS
@@ -4974,12 +5136,6 @@ bassert( !facingSet || ptr_facingCell != pQueryCELL(K-1,I-1).get() );
 bassert( ptr_facingCell->owner == this->iam || ptr_facingCell != pQueryCELL(K-1,I-1).get() );
 bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get() );
 
-                  if ( ! diagSet && this->options_.decomposition == DecompositionType::LDL){
-                    auto ptr_diagCell = pQueryCELL(I-1,I-1).get();
-                    bassert(ptr_diagCell->owner == this->iam);
-                    diag_ptr = (T*)dynamic_cast<snodeBlockLDL_t*>(ptr_diagCell)->GetDiag();
-                  }
-
                   //if ( ptr_odCell->owner != this->iam ){
                   //  ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
                   //}
@@ -4996,22 +5152,27 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                   }
 
                   gasneti_tick_t start = gasneti_ticks_now();
-        std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-        auto ptr_od = dynamic_cast<snodeBlock_t*>(ptr_odCell);
-        auto ptr_facing = dynamic_cast<snodeBlock_t*>(ptr_facingCell);
-                  bassert(ptr_od!=nullptr);
-                  bassert(ptr_facing!=nullptr);
+                  std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 
                   if(this->options_.decomposition == DecompositionType::LDL){
+                    if ( ! diagSet){
+                      auto ptr_diagCell = pQueryCELL(I-1,I-1).get();
+                      bassert(ptr_diagCell->owner == this->iam);
+                      diag_ptr = (T*)dynamic_cast<snodeBlockLDL_t*>(ptr_diagCell)->GetDiag();
+                    }
 
+
+                    auto ptr_od = dynamic_cast<snodeBlockLDL_t*>(ptr_odCell);
+                    auto ptr_facing = dynamic_cast<snodeBlockLDL_t*>(ptr_facingCell);
+                    bassert(ptr_od!=nullptr);
+                    bassert(ptr_facing!=nullptr);
+                    bassert(diag_ptr!=nullptr);
 
                     std::cout.precision(std::numeric_limits< T >::max_digits10);
-//if (  upd_cell.i == upd_cell.j && upd_cell.first_col<=21 && (upd_cell.first_col+upd_cell.width()-1)>=21 ) { std::cout<<upd_cell.j<<" is updated by Supernode "<<I<<" "<<upd_cell._nzval[4*(1+44)]<<std::endl; if(upd_cell.j==3 && I==2){gdb_lock();} }
-                      ((snodeBlockLDL_t*)ptr_upd_cell.get())->update(*dynamic_cast<snodeBlockLDL_t*>(ptr_odCell),*dynamic_cast<snodeBlockLDL_t*>(ptr_facingCell),tmpBuf,diag_ptr);
-//if ( upd_cell.i == upd_cell.j && upd_cell.first_col<=21 && (upd_cell.first_col+upd_cell.width()-1)>=21 ) { std::cout<<upd_cell._nzval[4*(1+44)]<<std::endl; }
+                      ptr_upd_cell->update(ptr_odCell,ptr_facingCell,tmpBuf,diag_ptr);
                   }
                   else {
-                      upd_cell.update(*dynamic_cast<snodeBlock_t*>(ptr_odCell),*dynamic_cast<snodeBlock_t*>(ptr_facingCell),tmpBuf);
+                      ptr_upd_cell->update(ptr_odCell,ptr_facingCell,tmpBuf);
                   }
 
 #ifdef _MEMORY_LIMIT_
@@ -5075,9 +5236,14 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                               auto I = std::get<1>(meta);
                               rowind_t fc = matptr->Xsuper_[I-1];
                               data->on_fetch.get_future().then(
-                                  [fc,width,nnz,nblocks,K,J](SparseTask2D::data_t * pdata){
+                                  [fc,width,nnz,nblocks,K,J,matptr](SparseTask2D::data_t * pdata){
                                   //create snodeBlock_t and store it in the extra_data
+                                  if (matptr->options_.decomposition == DecompositionType::LDL){
+                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
+                                  else{
                                   pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
                                   }
                                   );
                               //TODO check this
@@ -5086,7 +5252,7 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                               matptr->rpc_upd_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
                           });
 
-                          }, this->sp_handle, upd_cell._gstorage, upd_cell._storage_size,upd_cell.nnz(),upd_cell.nblocks(), std::get<0>(upd_cell._dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                          }, this->sp_handle, ptr_upd_cell->_gstorage, ptr_upd_cell->_storage_size,ptr_upd_cell->nnz(),ptr_upd_cell->nblocks(), std::get<0>(ptr_upd_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
                     }
                     else {
@@ -5156,9 +5322,15 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                               auto I = std::get<1>(meta);
                               rowind_t fc = matptr->Xsuper_[I-1];
                               data->on_fetch.get_future().then(
-                                  [fc,width,nnz,nblocks,K,J](SparseTask2D::data_t * pdata){
+                                  [fc,width,nnz,nblocks,K,J,matptr](SparseTask2D::data_t * pdata){
                                   //create snodeBlock_t and store it in the extra_data
+                                  if (matptr->options_.decomposition == DecompositionType::LDL){
+                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
+                                  else{
                                   pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
+
                                   }
                                   );
                               //TODO check this
@@ -5166,7 +5338,7 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                               data->fetch();
                           });
 
-                          }, this->sp_handle, upd_cell._gstorage, upd_cell._storage_size,upd_cell.nnz(),upd_cell.nblocks(), std::get<0>(upd_cell._dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                          }, this->sp_handle, ptr_upd_cell->_gstorage, ptr_upd_cell->_storage_size,ptr_upd_cell->nnz(),ptr_upd_cell->nblocks(), std::get<0>(ptr_upd_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
                     }
                     else {

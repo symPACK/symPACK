@@ -425,7 +425,6 @@ namespace symPACK{
 //          }
         
 
-
         auto heads = rdispls; 
         while ( std::any_of(heads.begin(),heads.end()-1,[&heads,&rdispls](size_t & a){ size_t idx = &a-heads.data(); return a<rdispls[idx+1];}) ){
           bassert(curSnode<=M.nsuper);
@@ -476,6 +475,17 @@ namespace symPACK{
             newSnode = CreateSuperNode(this->options_.decomposition,curSnode,fc,fc,lc,height,this->iSize_,nzBlockCnt,this->options_.panel);
 
             auto nzval = newSnode->GetNZval(0);
+
+
+            std::sort(blocks.begin(),blocks.end(),[](const std::tuple<cell_meta_t,char*> & a, const std::tuple<cell_meta_t,char*> & b){ 
+                auto ai = std::get<4>(std::get<0>(a));
+                auto aj = std::get<5>(std::get<0>(a));
+                auto bi = std::get<4>(std::get<0>(b));
+                auto bj = std::get<5>(std::get<0>(b));
+              return aj < bj || (ai < bi &&  aj == bj ) ;
+              }); 
+
+
             for(auto & tpl: blocks){
               cell_meta_t & tuple = std::get<0>(tpl);
               size_t size, nnz, nblocks;
@@ -484,6 +494,7 @@ namespace symPACK{
               std::tie( size, nnz, nblocks, width, i,j) = tuple;         
               char * ptr = std::get<1>(tpl);
 
+              //std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t> snode2D( new typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t(i,j,ptr,fc,width,nnz,nblocks));
               std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t> snode2D;
               
               if(this->options_.decomposition == DecompositionType::LDL){
@@ -493,8 +504,8 @@ namespace symPACK{
                 snode2D.reset( new typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t(i,j,ptr,fc,width,nnz,nblocks));
               }
               
-              auto & blocks = snode2D->blocks();
-              for ( auto & block: blocks ) {
+              auto & blocks2D = snode2D->blocks();
+              for ( auto & block: blocks2D ) {
                 newSnode->AddNZBlock(snode2D->block_nrows(block) , block.first_row);
               }
               //now copy numerical values

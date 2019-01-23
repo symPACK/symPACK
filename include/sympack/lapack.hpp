@@ -567,7 +567,7 @@ namespace symPACK {
         //*
         //*     Determine the block size for this environment.
         //*
-        NB = lapack::Ilaenv( 1, "DPOTRF", UPLO, N, -1, -1, -1 );
+        NB = 64;//lapack::Ilaenv( 1, "DPOTRF", UPLO, N, -1, -1, -1 );
 
         if ( NB <= 1 || NB >= N ) {
           tmpBuffers.Resize(N,1);

@@ -551,7 +551,7 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
   int mpisize;
   MPI_Comm_size( comm, &mpisize );
   std::vector<_Size> rtotdispls(mpisize+1,0);
-  std::vector<_Size> rtotcounts(mpisize+1,0);
+  std::vector<_Size> rtotcounts(mpisize,0);
   return Alltoallv(sendbuf, stotcounts, stotdispls, sendtype,
                 recvbuf, rtotcounts.data(), rtotdispls.data(), comm, resize_func);
 }
