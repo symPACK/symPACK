@@ -1190,8 +1190,10 @@ namespace symPACK{
       protected:
         T * _diag;
         rowind_t first_row;
+        std::vector<T> bufLDL_storage;
 
       public:
+        int local_pivot;
         using block_t = typename blockCell_t<colptr_t,rowind_t, T>::block_t;
 
         blockCellLDL_t():blockCell_t<colptr_t,rowind_t, T>(),_diag(nullptr) {
@@ -1589,24 +1591,28 @@ namespace symPACK{
 
             int ldbuf = tgt_width;
             //            if(src_nrows == tgt_nrows )
+            bool computeW = pivot.bufLDL_storage.empty();
+            ;
             if(in_place)
             {
               //TODO
               buf = tgt + tgt_offset;
               beta = T(1);
               ldbuf = tgt_snode_size;
-#ifdef SP_THREADS
-              tmpBuffers.tmpBuf.resize(src_snode_size*tgt_width);
-#endif
-              bufLDL = &tmpBuffers.tmpBuf[0];
+
+//#ifdef SP_THREADS
+//              tmpBuffers.tmpBuf.resize(src_snode_size*tgt_width);
+//#endif
+//              bufLDL = &tmpBuffers.tmpBuf[0];
             }
             else{
               //Compute the update in a temporary buffer
 #ifdef SP_THREADS
-              tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+              tmpBuffers.tmpBuf.resize(tgt_width*src_nrows /*+ src_snode_size*tgt_width*/);
 #endif
-              bufLDL = &tmpBuffers.tmpBuf[0];
-              buf = bufLDL + src_snode_size*tgt_width;
+              buf = &tmpBuffers.tmpBuf[0];
+              //bufLDL = &tmpBuffers.tmpBuf[0];
+              //buf = bufLDL + src_snode_size*tgt_width;
             }
 
             ///                print_block(pivot,"pivot");
@@ -1621,11 +1627,16 @@ namespace symPACK{
 
             //First do W = DLT 
             //T * diag = src_snode->_diag;//static_cast<SuperNodeInd<T,Allocator> * >(src_snode)->GetDiag();
-            for(int_t row = 0; row<src_snode_size; row++){
-              for(int_t col = 0; col<tgt_width; col++){
-                bufLDL[col+row*tgt_width] = diag[row]*(pivot_nzval[row+col*src_snode_size]);
+            if ( computeW ) {
+              pivot.bufLDL_storage.resize(src_snode_size*tgt_width);
+              bufLDL = pivot.bufLDL_storage.data();
+              for(int_t row = 0; row<src_snode_size; row++){
+                for(int_t col = 0; col<tgt_width; col++){
+                  bufLDL[col+row*tgt_width] = diag[row]*(pivot_nzval[row+col*src_snode_size]);
+                }
               }
             }
+            bufLDL = pivot.bufLDL_storage.data();
 
             //Then do -L*W (gemm)
             blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
@@ -1720,6 +1731,13 @@ namespace symPACK{
             }
 
             //              print_block(*this,"tgt after update");
+
+            if ( pivot._own_storage ) {
+              pivot.local_pivot--;
+              if ( pivot.local_pivot==0) {
+                pivot.bufLDL_storage.clear();
+              }
+            }
           }
           return 0;
         }
@@ -1772,7 +1790,9 @@ namespace symPACK{
         }
 
       inline std::shared_ptr<snodeBlock_t> pQueryCELL2 (int a, int b)  { 
+#ifdef _TIMING_
         gasneti_tick_t start = gasneti_ticks_now();
+#endif
         auto idx = coord2supidx((a),(b)); 
         auto it = this->cells_.find(idx);
         std::shared_ptr<snodeBlock_t> ptr = nullptr;
@@ -1781,12 +1801,15 @@ namespace symPACK{
           bassert ( ptr != nullptr );
         }
 
+#ifdef _TIMING_
         CELL_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
+#endif
 
           return ptr;
         }
       inline std::shared_ptr<snodeBlock_t> pCELL (int a, int b) { return std::static_pointer_cast<snodeBlock_t>(this->cells_[coord2supidx((a),(b))]); }
 
+#ifdef _TIMING_
       uint64_t CELL_ticks = 0;
       uint64_t rpc_fact_ticks = 0;
       uint64_t rpc_trsm_ticks = 0;
@@ -1798,7 +1821,7 @@ namespace symPACK{
       double comp_fact_ticks = 0;
       double comp_trsm_ticks = 0;
       double comp_upd_ticks = 0;
-
+#endif
 
       inline snodeBlock_t & CELL (int a, int b) {
         //std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
@@ -4543,15 +4566,15 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
 #else
                   auto & tmpBuf = tmpBufs;
 #endif
-         gasneti_tick_t start = gasneti_ticks_now();
+#ifdef _TIMING_
         std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-//if ( diagcell.first_col<=21 && (diagcell.first_col+diagcell.width()-1)>=21 ) { gdb_lock(); }
+#endif
                   ptr_diagcell->factorize(tmpBuf);
-        //comp_fact_ticks += ((double)gasneti_ticks_to_ns(gasneti_ticks_now() - start))*1.0e-9;
+#ifdef _TIMING_
         std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
         comp_fact_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+#endif
 
-         start = gasneti_ticks_now();
 #ifdef _POINTER_EXCHANGE_
                   std::unordered_map<int,std::list<std::size_t> > data_to_send;
                   for (auto &tpl : ptask->out_dependencies) {
@@ -4580,7 +4603,9 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
 
                               //gdb_lock();
                               //there is a map between sp_handle and task_graphs
+#ifdef _TIMING_
                               gasneti_tick_t start = gasneti_ticks_now();
+#endif
                               auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                               auto I = std::get<1>(meta);
                               rowind_t fc = matptr->Xsuper_[I-1];
@@ -4648,7 +4673,9 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                                 diag_data->fetch();
                               }
 
+#ifdef _TIMING_
                               matptr->rpc_fact_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
+#endif
                           });
 
                           }, this->sp_handle, ptr_diagcell->_gstorage, ptr_diagcell->_storage_size, ptr_diagcell->nnz(), ptr_diagcell->nblocks(), std::get<0>(ptr_diagcell->_dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
@@ -4757,7 +4784,9 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                   //the task pointed by ptask can be deleted when all outgoing communications have been performed.
                   auto fut = ptask->out_prom.finalize();
                   fut.wait();
+#ifdef _TIMING_
         deps_fact_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
+#endif
                   //fut.then( [ptask]() { delete ptask; } );
                   //
                   //
@@ -4799,10 +4828,10 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                   bassert(ptr_diagCell!=nullptr);
 
 
-         gasneti_tick_t start = gasneti_ticks_now();
+#ifdef _TIMING_
         std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+#endif
                   ptr_od_cell->trsm(ptr_diagCell,tmpBuf);
-
 #ifdef _MEMORY_LIMIT_
                   if ( this->mem_budget != -1.0 ) {
                     size_t mem_cost = 0;
@@ -4815,12 +4844,15 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
 #endif
                   //get rid of the shared_ptr
                   ptask->input_msg.clear();
-        //comp_trsm_ticks += ((double)gasneti_ticks_to_ns(gasneti_ticks_now() - start))*1.0e-9;
+#ifdef _TIMING_
         std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
         comp_trsm_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+#endif
 
 
+#ifdef _TIMING_
          start = gasneti_ticks_now();
+#endif
 #ifdef _POINTER_EXCHANGE_
                   std::unordered_map<int,std::list<std::size_t> > data_to_send;
                   for (auto &tpl : ptask->out_dependencies) {
@@ -4843,7 +4875,9 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                       upcxx::rpc_ff( pdest, //cxs, 
                           [K,I] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
                           return upcxx::current_persona().lpc( [K,I,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
+#ifdef _TIMING_
                               gasneti_tick_t start = gasneti_ticks_now();
+#endif
                               //                            gdb_lock();
                               //store pointer & associated metadata somewhere
                               auto data = std::make_shared<SparseTask2D::data_t >();
@@ -4932,40 +4966,32 @@ logfileptr->OFS()<<"time subtree2 "<<timeEnd-timeSta<<std::endl;
                               ////}
 
 
+#ifdef _TIMING_
                               matptr->rpc_trsm_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
+#endif
                           });
 
                           }, this->sp_handle, ptr_od_cell->_gstorage,ptr_od_cell->_storage_size, ptr_od_cell->nnz(),ptr_od_cell->nblocks(), std::get<0>(ptr_od_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
 #endif
                     }
                     else {
-std::shared_ptr<SparseTask2D::data_t> diag_data;
+                      std::shared_ptr<SparseTask2D::data_t> diag_data;
+                      if (this->options_.decomposition == DecompositionType::LDL){
+                        auto ptr_ldl = (snodeBlockLDL_t*)(ptr_od_cell.get());
+                        ptr_ldl->local_pivot = 0;
+                      }
                       for ( auto & tgt_cell_idx: tgt_cells ) {
                         auto taskptr = task_graph[tgt_cell_idx].get();
                         bassert(taskptr!=nullptr); 
                         bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::UPDATE2D_COMP);
-
-
-/////                        auto & tJ = std::get<1>(taskptr->_meta);
-/////                        auto & tfacing_row = std::get<4>(taskptr->_meta);
-/////                        auto tK = this->SupMembership_[tfacing_row-1];
-/////                        bassert( K == tJ || K == tK );
-/////
-/////                        auto ptrOtherTrsmCell =  K==tJ?pQueryCELL2(tK-1,I-1):pQueryCELL2(tJ-1,I-1);
-/////                        if ( ptrOtherTrsmCell->owner == this->iam ) {
-/////                          upcxx::global_ptr<char> diag_ptr = this->find_diag_pointer( I-1 );
-/////                          if ( diag_ptr.where() != this->iam ) {
-/////                            if ( taskptr->input_msg.empty() ) {
-/////                            //if the other TRSM task is also local, then we need to fetch the diagonal entry here otherwise it'll be done in the rpc_ff
-/////                              if ( !diag_data ) {
-/////                              diag_data = std::make_shared<SparseTask2D::data_t >();
-/////                              diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,0,0);;
-/////                              diag_data->size = (this->Xsuper_[I] - this->Xsuper_[I-1])*sizeof(T);
-/////                              diag_data->remote_gptr = diag_ptr;
-/////
-/////                            }
-/////                          }
-/////                        }
+                        if (this->options_.decomposition == DecompositionType::LDL){
+                          auto ptr_ldl = (snodeBlockLDL_t*)(ptr_od_cell.get());
+                          //get coordinates of target cell and check if ptr_od_cell is a pivot or a facing cell
+                          auto tJ = std::get<1>(taskptr->_meta);
+                          if ( ptr_ldl->i == tJ ) {
+                            ptr_ldl->local_pivot++;
+                          }
+                        }
 
                         //mark the dependency as satisfied
                         taskptr->in_prom.fulfill_anonymous(1);
@@ -5066,7 +5092,9 @@ std::shared_ptr<SparseTask2D::data_t> diag_data;
                   //the task pointed by ptask can be deleted when all outgoing communications have been performed.
                   auto fut = ptask->out_prom.finalize();
                   fut.wait();
+#ifdef _TIMING_
         deps_trsm_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
+#endif
 
                   ptask->executed = true;
 
@@ -5151,8 +5179,9 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                     std::swap(ptr_facingCell, ptr_odCell);
                   }
 
-                  gasneti_tick_t start = gasneti_ticks_now();
+#ifdef _TIMING_
                   std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
+#endif
 
                   if(this->options_.decomposition == DecompositionType::LDL){
                     if ( ! diagSet){
@@ -5189,9 +5218,10 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                   ptask->input_msg.clear();
 
         //comp_upd_ticks += ((double)gasneti_ticks_to_ns(gasneti_ticks_now() - start))*1.0e-9;
+#ifdef _TIMING_
         std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
         comp_upd_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-                  start = gasneti_ticks_now();
+#endif
 #ifdef _POINTER_EXCHANGE_
                   std::unordered_map<int,std::list<std::size_t> > data_to_send;
                   for (auto &tpl : ptask->out_dependencies) {
@@ -5213,7 +5243,9 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                       upcxx::rpc_ff( pdest, //cxs, 
                           [K,J] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
                           return upcxx::current_persona().lpc( [K,J,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
+#ifdef _TIMING_
                               gasneti_tick_t start = gasneti_ticks_now();
+#endif
                               //                            gdb_lock();
                               //store pointer & associated metadata somewhere
                               auto data = std::make_shared<SparseTask2D::data_t >();
@@ -5249,7 +5281,9 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                               //TODO check this
                               data->allocate();
                               data->fetch();
+#ifdef _TIMING_
                               matptr->rpc_upd_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
+#endif
                           });
 
                           }, this->sp_handle, ptr_upd_cell->_gstorage, ptr_upd_cell->_storage_size,ptr_upd_cell->nnz(),ptr_upd_cell->nblocks(), std::get<0>(ptr_upd_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
@@ -5358,7 +5392,9 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                   //the task pointed by ptask can be deleted when all outgoing communications have been performed.
                   auto fut = ptask->out_prom.finalize();
                   fut.wait();
+#ifdef _TIMING_
         deps_upd_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
+#endif
 
                   ptask->executed = true;
                 };
@@ -5649,18 +5685,24 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
     void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Factorize( ){
 
+#ifdef _TIMING_
               std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
+#endif
       this->scheduler.execute(this->task_graph,this->mem_budget);
+#ifdef _TIMING_
               std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
               double execute_graph_ticks = std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
+#endif
       //print timer
 //      uint64_t total_ns = gasneti_ticks_to_ns(CELL_ticks);
+#ifdef _TIMING_
       std::stringstream sstr;
       sstr<<upcxx::rank_me()<<" "<<(double)CELL_ticks*1.0e-9<<" "<<(double)rpc_fact_ticks*1.0e-9<<" "<<(double)rpc_trsm_ticks*1.0e-9<<" "<<(double)rpc_upd_ticks*1.0e-9<<std::endl;
       sstr<<upcxx::rank_me()<<" "<<(double)deps_fact_ticks*1.0e-9<<" "<<(double)deps_trsm_ticks*1.0e-9<<" "<<(double)deps_upd_ticks*1.0e-9<<std::endl;
       sstr<<upcxx::rank_me()<<" "<<(double)comp_fact_ticks*1.0e-6<<" "<<(double)comp_trsm_ticks*1.0e-6<<" "<<(double)comp_upd_ticks*1.0e-6<<std::endl;
       sstr<<upcxx::rank_me()<<" "<<(double)execute_graph_ticks*1.0e-6<<std::endl;
       logfileptr->OFS()<<sstr.str();
+#endif
     } 
 
 
@@ -5799,41 +5841,53 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
             utility::scope_memprofiler m("symPACKMatrix_execute_2");
 #endif
 
-            gasneti_tick_t start;
-
+#ifdef _TIMING_
             std::chrono::high_resolution_clock::time_point t9 = std::chrono::high_resolution_clock::now();
+#endif
             while(local_task_cnt>0){
+#ifdef _TIMING_
               std::chrono::high_resolution_clock::time_point t11 = std::chrono::high_resolution_clock::now();
+#endif
               if (!ready_tasks.empty()) {
                 //while (!ready_tasks.empty()) 
-                //         start = gasneti_ticks_now();
+#ifdef _TIMING_
                 std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
+#endif
                 upcxx::progress(upcxx::progress_level::internal);
+#ifdef _TIMING_
                 std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
                 progress_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
-                //        progress_ticks += ((double)gasneti_ticks_to_ns(gasneti_ticks_now() - start))*1.0e-9;
+#endif
                 auto ptask = ready_tasks.front();
                 ready_tasks.pop_front();
+#ifdef _TIMING_
                 t3 = std::chrono::high_resolution_clock::now();
+#endif
                 ptask->execute(); 
+#ifdef _TIMING_
                 t4 = std::chrono::high_resolution_clock::now();
                 execute_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
+#endif
                 local_task_cnt--;
               }
+#ifdef _TIMING_
               std::chrono::high_resolution_clock::time_point t12 = std::chrono::high_resolution_clock::now();
               ifempty_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t12 - t11).count();
+#endif
 
-              // start = gasneti_ticks_now();
+#ifdef _TIMING_
               std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
-              //std::chrono::system_clock::time_point t1 = std::chrono::system_clock::now();
+#endif
               upcxx::progress();
+#ifdef _TIMING_
               std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
-              //std::chrono::system_clock::time_point t2 = std::chrono::system_clock::now();
               progress_ticks2 += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-              //        progress_ticks2 += ((double)gasneti_ticks_to_ns(gasneti_ticks_now() - start));
+#endif
 
               //handle communications
+#ifdef _TIMING_
               std::chrono::high_resolution_clock::time_point t7 = std::chrono::high_resolution_clock::now();
+#endif
               //while (!avail_tasks.empty()) 
               if (!avail_tasks.empty()) {
                 //get all comms from a task
@@ -5930,25 +5984,33 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
 #endif
 
               }
+#ifdef _TIMING_
               std::chrono::high_resolution_clock::time_point t8 = std::chrono::high_resolution_clock::now();
               message_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t8 - t7).count();
+#endif
             }
+#ifdef _TIMING_
             std::chrono::high_resolution_clock::time_point t10 = std::chrono::high_resolution_clock::now();
             while_ticks = std::chrono::duration_cast<std::chrono::microseconds>(t10 - t9).count();
+#endif
             //            utility::scope_memprofiler2::print_stats(1024.);
           }
         }
         catch(const std::runtime_error& e){
           std::cerr << "Runtime error: " << e.what() << '\n';
         }
+#ifdef _TIMING_
         std::chrono::high_resolution_clock::time_point t5 = std::chrono::high_resolution_clock::now();
+#endif
         upcxx::barrier();
+#ifdef _TIMING_
         std::chrono::high_resolution_clock::time_point t6 = std::chrono::high_resolution_clock::now();
         double barrier_ticks = std::chrono::duration_cast<std::chrono::microseconds>(t6 - t5).count();
         std::stringstream sstr;
         sstr<<upcxx::rank_me()<<" TASK GRAPH "<<(double)progress_ticks*1.0e-6<<" "<<(double)progress_ticks2*1.0e-6<<" "<<(double)barrier_ticks*1.0e-6<<" "<<(double)message_ticks*1.0e-6<<std::endl;
         sstr<<upcxx::rank_me()<<" TASK GRAPH "<<(double)execute_ticks*1.0e-6<<" "<<(double)while_ticks*1.0e-6<<" "<<(double)(ifempty_ticks-progress_ticks-execute_ticks)*1.0e-6<<std::endl;
         logfileptr->OFS()<<sstr.str();
+#endif
       }
   }
 #endif
