@@ -69,7 +69,7 @@ FortranCInterface_VERIFY(CXX)
 # TARGET properties
 
   
-find_package(MPI REQUIRED)
+find_package(MPI )
 if(MPI_CXX_FOUND)
   message(STATUS "Found CXX MPI compiler: ${MPI_CXX_COMPILER}")
   message( STATUS "MPI_CXX_LINK_FLAGS: " ${MPI_CXX_LINK_FLAGS} )

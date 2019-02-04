@@ -456,7 +456,7 @@ int main(int argc, char **argv)
 
           timeEnd = get_time();
 
-          if(iam==0){
+          if(upcxx::rank_me()==0){
             std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
           }
         }
@@ -494,6 +494,7 @@ int main(int argc, char **argv)
 //        SMat->DumpMatlab();
       }
 //      SMat2D->DumpMatlab();
+//      if(iam==0){gdb_lock();}
     }
 
       if(nrhs>0){
@@ -527,8 +528,8 @@ int main(int argc, char **argv)
 #endif
 
 
-      }
       delete SMat;
+      }
 
     }
 

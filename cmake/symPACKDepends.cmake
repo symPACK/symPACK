@@ -5,16 +5,9 @@ add_library( symPACK::parallel_fortran INTERFACE IMPORTED )
 
 
 # Handle MPI and UPCXX 
-find_package( MPI REQUIRED )
+find_package( MPI )
 find_package( UPCXX REQUIRED )
 #######   ORDERING LIBRARIES ######
-
-if(ENABLE_PARMETIS)
-  find_package(ParMETIS REQUIRED)
-  target_link_libraries(symPACK::ordering INTERFACE ParMETIS::parmetis)
-  target_compile_definitions( symPACK::ordering INTERFACE "-DUSE_PARMETIS")
-  set(ENABLE_METIS ON)
-endif()
 
 if(ENABLE_METIS)
   if (NOT METIS_FOUND)
@@ -24,12 +17,13 @@ if(ENABLE_METIS)
   target_compile_definitions( symPACK::ordering INTERFACE "-DUSE_METIS")
 endif()
 
-if(ENABLE_PTSCOTCH)
-  find_package(PTSCOTCH REQUIRED)
-  target_link_libraries(symPACK::ordering INTERFACE PTSCOTCH::ptscotch)
-  target_compile_definitions( symPACK::ordering INTERFACE "-DUSE_PTSCOTCH")
-  set(ENABLE_SCOTCH ON)
+if(ENABLE_PARMETIS)
+  find_package(ParMETIS REQUIRED)
+  target_link_libraries(symPACK::ordering INTERFACE ParMETIS::parmetis)
+  target_compile_definitions( symPACK::ordering INTERFACE "-DUSE_PARMETIS")
+  set(ENABLE_METIS ON)
 endif()
+
 
 if(ENABLE_SCOTCH)
   if (NOT SCOTCH_FOUND)
@@ -39,6 +33,13 @@ if(ENABLE_SCOTCH)
   target_compile_definitions( symPACK::ordering INTERFACE "-DUSE_SCOTCH")
 endif()
 
+
+if(ENABLE_PTSCOTCH)
+  find_package(PTSCOTCH REQUIRED)
+  target_link_libraries(symPACK::ordering INTERFACE PTSCOTCH::ptscotch)
+  target_compile_definitions( symPACK::ordering INTERFACE "-DUSE_PTSCOTCH")
+  set(ENABLE_SCOTCH ON)
+endif()
 
 
 

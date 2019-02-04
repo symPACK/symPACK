@@ -611,8 +611,8 @@ for(auto && toto: delayedTasks_){
    //logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
 
    //tstart = get_time();
-        int barrier_id = get_barrier_id(np);
-        signal_exit(barrier_id,group); 
+//        int barrier_id = get_barrier_id(np);
+//        signal_exit(barrier_id,group); 
    //tstop = get_time();
    //logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
 

@@ -1475,13 +1475,17 @@ defaut:
   //logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
 
   //tstart = get_time();
-  int barrier_id = get_barrier_id(this->np);
-  signal_exit(barrier_id,*this->group_); 
-  //tstop = get_time();
-  //logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
+//  int barrier_id = get_barrier_id(this->np);
+//  signal_exit(barrier_id,*this->group_); 
+//  //tstop = get_time();
+//  //logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
+//
+//  //tstart = get_time();
+//  barrier_wait(barrier_id,*this->group_);
 
-  //tstart = get_time();
-  barrier_wait(barrier_id,*this->group_);
+upcxx::barrier(*this->workteam_);
+
+
   //tstop = get_time();
   //logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
   delete this->remDealloc;
