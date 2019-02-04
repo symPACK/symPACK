@@ -208,7 +208,8 @@ namespace symPACK{
         intrank_t owner;
         int i;
         int j;
-      blockCellBase_t():owner(0),i(0),j(0){}
+        blockCellBase_t():owner(0),i(0),j(0){}
+        virtual ~blockCellBase_t(){}
       virtual int I(){return i;}
   };
 
@@ -290,7 +291,6 @@ namespace symPACK{
           //a pointer to be used by the user if he wants to attach some data
           //void * extra_data;
           std::unique_ptr<blockCellBase_t> extra_data;
-          //blockCellBase_t * extra_data;
 
           incoming_data_t():transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr){};
           bool transfered;
@@ -300,12 +300,7 @@ namespace symPACK{
 
           void allocate(){
             if(landing_zone == nullptr) {
-//	           struct rusage bous, eous;
-//           getrusage(RUSAGE_SELF, &bous);
-//           logfileptr->OFS()<<size<<"bytes Before "<<bous.ru_maxrss<<" KiB used"<<std::endl; 
               landing_zone = new char[size];
-//           getrusage(RUSAGE_SELF, &eous);
-//           logfileptr->OFS()<<size<<"bytes After "<<eous.ru_maxrss<<" KiB used"<<std::endl; 
             }
           }
 
@@ -320,12 +315,11 @@ namespace symPACK{
           }
 
           ~incoming_data_t(){
+//            if ( extra_data) { extra_data.reset(nullptr); gdb_lock(); }
+//                  logfileptr->OFS()<<"deleting message"<<std::endl;
             if (landing_zone) {
               delete [] landing_zone;
             }
-            //if ( extra_data ) {
-            //  delete extra_data;
-            //}
           }
 
       };
@@ -347,15 +341,19 @@ namespace symPACK{
 #ifdef _PRIORITY_QUEUE_AVAIL_
            struct avail_comp{
              bool operator()(ttask_t *& a,ttask_t*& b){ 
-                return a->out_dependencies.size() > b->out_dependencies.size();
+                //return a->out_dependencies.size() > b->out_dependencies.size();
 
 
                 auto tgt_a = std::get<1>(a->_meta);
                 auto tgt_b = std::get<1>(b->_meta);
                 if ( tgt_a != tgt_b )
                   return tgt_a<tgt_b;
-                else if ( a->out_dependencies.size() != b->out_dependencies.size() )
-                  return a->out_dependencies.size() > b->out_dependencies.size();
+                else if ( std::get<2>(a->_meta) != std::get<2>(b->_meta) )
+                  return std::get<2>(a->_meta) < std::get<2>(b->_meta);
+                else
+                  return std::get<4>(a->_meta)<std::get<4>(b->_meta); 
+                //else if ( a->out_dependencies.size() != b->out_dependencies.size() )
+                //  return a->out_dependencies.size() > b->out_dependencies.size();
              };
            };
           std::priority_queue<ttask_t*,std::vector<ttask_t*>,avail_comp> avail_tasks;
@@ -505,7 +503,7 @@ namespace symPACK{
         _gstorage(nullptr),_nnz(0),_storage_size(0), _own_storage(true){}
         bool _own_storage;
 
-        ~blockCell_t() {
+        virtual ~blockCell_t() {
           //gdb_lock();
           if (_own_storage) {
             if ( !_gstorage.is_null() ) {
@@ -1203,10 +1201,13 @@ namespace symPACK{
         blockCellLDL_t():blockCell_t<colptr_t,rowind_t, T>(),_bufLDL(nullptr),_diag(nullptr) {
         }
 
-        ~blockCellLDL_t() {
+        virtual ~blockCellLDL_t() {
+//                  logfileptr->OFS()<<"deleting block"<<std::endl;
+          if ( this->_bufLDL ) 
+            delete [] this->_bufLDL;
         }
 
-        blockCellLDL_t (  int_t i, int_t j, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true  ): blockCell_t<colptr_t,rowind_t, T>() {
+        blockCellLDL_t (  int_t i, int_t j, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true  ): blockCellLDL_t<colptr_t,rowind_t, T>() {
           this->i = i;
           this->j = j;
           this->_dims = std::make_tuple(width);
@@ -1215,7 +1216,7 @@ namespace symPACK{
           this->initialize(nzval_cnt,block_cnt);
         }
 
-        blockCellLDL_t (  int_t i, int_t j,char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t<colptr_t,rowind_t, T>() {
+        blockCellLDL_t (  int_t i, int_t j,char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCellLDL_t<colptr_t,rowind_t, T>() {
           this->i = i;
           this->j = j;
           this->_own_storage = false;
@@ -1228,7 +1229,7 @@ namespace symPACK{
           this->_block_container._nblocks = block_cnt;
         }
 
-        blockCellLDL_t (  int_t i, int_t j,upcxx::global_ptr<char> ext_gstorage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t<colptr_t,rowind_t, T>() {
+        blockCellLDL_t (  int_t i, int_t j,upcxx::global_ptr<char> ext_gstorage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCellLDL_t<colptr_t,rowind_t, T>() {
           this->i = i;
           this->j = j;
           this->_own_storage = false;
@@ -1626,18 +1627,19 @@ namespace symPACK{
             //bufLDL = pivot.bufLDL_storage.data();
             bufLDL = pivot._bufLDL;
 
-//            bufLDL = new T[src_snode_size*tgt_width];
-//              for(int_t row = 0; row<src_snode_size; row++){
-//                for(int_t col = 0; col<tgt_width; col++){
-//                  bufLDL[col+row*tgt_width] = diag[row]*(pivot_nzval[row+col*src_snode_size]);
-//                }
-//              }
-
             //Then do -L*W (gemm)
             blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
               T(-1.0),bufLDL,tgt_width,facing_nzval,src_snode_size,beta,buf,ldbuf);
 
-//            delete [] bufLDL;
+            if ( pivot._own_storage ) {
+              pivot.local_pivot--;
+              if ( pivot.local_pivot==1) {
+                delete [] pivot._bufLDL;
+                pivot._bufLDL = nullptr;
+                //std::vector<T> tmp;
+                //pivot.bufLDL_storage.swap(tmp);
+              }
+            }
 
             SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_GEMM);
 
@@ -1729,15 +1731,6 @@ namespace symPACK{
             //              print_block(*this,"tgt after update");
 
 
-            if ( pivot._own_storage ) {
-              pivot.local_pivot--;
-              if ( pivot.local_pivot==0) {
-                delete [] pivot._bufLDL;
-                pivot._bufLDL = nullptr;
-                //std::vector<T> tmp;
-                //pivot.bufLDL_storage.swap(tmp);
-              }
-            }
           }
           return 0;
         }
@@ -4593,6 +4586,7 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                     std::swap(ptr_facingCell, ptr_odCell);
                   }
 
+
 #ifdef _TIMING_
                   std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 #endif
@@ -4629,7 +4623,24 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                   }
 #endif
                   //get rid of the shared_ptr
-                  ptask->input_msg.clear();
+                  if ( ptr_odCell->owner != this->iam ){
+//                    logfileptr->OFS()<<"before clearing"<<std::endl;
+                    for(auto & msg : ptask->input_msg){
+                      logfileptr->OFS()<<msg.use_count()<<std::endl;
+                    }
+                  }
+//                  else{
+//                    logfileptr->OFS()<<"Exec Update"<<" from "<<I<<" to ("<<J<<") cell ("<<K<<","<<J<<") pivot ("<<ptr_odCell->i<<","<<ptr_odCell->j<<") "<<((snodeBlockLDL_t*)ptr_odCell)->local_pivot<<std::endl;
+//                  }
+
+                  {
+                    std::vector< std::shared_ptr< SparseTask2D::data_t > > tmp;
+                    ptask->input_msg.swap(tmp);
+                  }
+                  //ptask->input_msg.clear();
+//                  if ( ptr_odCell->owner != this->iam ){
+//                    logfileptr->OFS()<<"after clearing"<<std::endl;
+//                  }
 
         //comp_upd_ticks += ((double)gasneti_ticks_to_ns(gasneti_ticks_now() - start))*1.0e-9;
 #ifdef _TIMING_

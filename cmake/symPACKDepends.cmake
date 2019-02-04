@@ -8,6 +8,13 @@ add_library( symPACK::parallel_fortran INTERFACE IMPORTED )
 find_package( MPI )
 find_package( UPCXX REQUIRED )
 #######   ORDERING LIBRARIES ######
+if(ENABLE_PARMETIS)
+  find_package(ParMETIS REQUIRED)
+  target_link_libraries(symPACK::ordering INTERFACE ParMETIS::parmetis)
+  target_compile_definitions( symPACK::ordering INTERFACE "-DUSE_PARMETIS")
+  set(ENABLE_METIS ON)
+endif()
+
 
 if(ENABLE_METIS)
   if (NOT METIS_FOUND)
@@ -15,13 +22,6 @@ if(ENABLE_METIS)
     target_link_libraries(symPACK::ordering INTERFACE METIS::metis)
   endif()
   target_compile_definitions( symPACK::ordering INTERFACE "-DUSE_METIS")
-endif()
-
-if(ENABLE_PARMETIS)
-  find_package(ParMETIS REQUIRED)
-  target_link_libraries(symPACK::ordering INTERFACE ParMETIS::parmetis)
-  target_compile_definitions( symPACK::ordering INTERFACE "-DUSE_PARMETIS")
-  set(ENABLE_METIS ON)
 endif()
 
 
