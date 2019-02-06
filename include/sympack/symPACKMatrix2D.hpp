@@ -1745,6 +1745,7 @@ namespace symPACK{
   
       friend class symPACKMatrix<T>;
 
+      int dist_np;
 //      using snodeBlock_t = blockCellLDL_t<colptr_t,rowind_t, T>;
       using snodeBlock_t = blockCell_t<colptr_t,rowind_t, T>;
 
@@ -1880,6 +1881,7 @@ namespace symPACK{
 #ifndef NO_MPI
 #endif
     g_sp_handle_to_matrix[this->sp_handle] = this;
+    this->dist_np = 0;
   }
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
@@ -1909,7 +1911,8 @@ namespace symPACK{
       this->all_np = upcxx::rank_n();
 #endif
 
-      this->np = this->options_.used_procs(this->all_np);
+      this->np = this->all_np;//this->options_.used_procs(this->all_np);
+      this->dist_np = this->all_np;
 
 
 #ifndef NO_MPI
@@ -2270,7 +2273,8 @@ namespace symPACK{
           }
 
           //modify this->np since it cannot be greater than the number of supernodes
-          this->np = std::min(this->np,this->options_.used_procs(this->Xsuper_.size()-1)); 
+          this->dist_np = std::min(this->all_np,this->options_.used_procs(this->Xsuper_.size()-1)); 
+          this->np = this->all_np;// std::min(this->np,this->options_.used_procs(this->Xsuper_.size()-1)); 
 
           if(this->workcomm_!=MPI_COMM_NULL){
             MPI_Comm_free(&this->workcomm_);
@@ -2290,13 +2294,13 @@ namespace symPACK{
           //Compute this->XsuperDist_
           std::vector<Idx> newVertexDist;
           {
-            Idx supPerProc = std::max((size_t)1,(this->Xsuper_.size()-1) / this->np);
+            Idx supPerProc = std::max((size_t)1,(this->Xsuper_.size()-1) / this->dist_np);
             this->XsuperDist_.resize(this->all_np+1,0);
-            this->XsuperDist_[this->np] = this->Xsuper_.size();
-            for(int p = 0; p<this->np; p++){
-              this->XsuperDist_[p]= std::min(this->XsuperDist_[this->np],(Int)(p*supPerProc+1));
+            this->XsuperDist_[this->dist_np] = this->Xsuper_.size();
+            for(int p = 0; p<this->dist_np; p++){
+              this->XsuperDist_[p]= std::min(this->XsuperDist_[this->dist_np],(Int)(p*supPerProc+1));
             }
-            for(int p = this->np+1; p<this->all_np; p++){
+            for(int p = this->dist_np+1; p<this->all_np; p++){
               this->XsuperDist_[p]= this->XsuperDist_[p-1];
             }
             this->XsuperDist_[this->all_np] = this->Xsuper_.size();
@@ -2309,6 +2313,10 @@ namespace symPACK{
               newVertexDist[p] = this->Xsuper_[S-1];
             }
           }
+
+          //TODO TEMPORARY UGLY FIX
+          this->np = this->dist_np;
+
 
           double timeStaSymb = get_time();
           this->symbolicFactorizationRelaxedDist(cc);
@@ -2553,6 +2561,9 @@ namespace symPACK{
         } 
 #endif
       }
+
+          //TODO TEMPORARY UGLY FIX
+          this->np = this->all_np;
 
       std::vector< std::tuple<Int,upcxx::global_ptr<char>> > local_diag_pointers;
       {
