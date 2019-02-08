@@ -1472,7 +1472,6 @@ namespace symPACK{
       Ptr colbeg,colend,ptr;
       int p;
 
-
       //compute local number of columns
       pspmat.Localg_.size = pspmat.size;
       pspmat.Localg_.SetComm(comm);
@@ -1534,12 +1533,12 @@ namespace symPACK{
       //      MPI_Type_free(&type);
 
       bassert(sizeof(Int)<=sizeof(Ptr));
-      int * tmpColptr = (int*)&pspmat.Localg_.colptr[0];
+      volatile Int * tmpColptr = (Int*)&pspmat.Localg_.colptr[0];
       for (col = pspmat.Localg_.colptr.size();col>0;col--){
         pspmat.Localg_.colptr[col-1] = (Ptr)tmpColptr[col-1];
       }
 
-
+//logfileptr->OFS()<<pspmat.Localg_.colptr<<std::endl;
       // Calculate nnz_loc on each processor
       Ptr mynnz = pspmat.Localg_.colptr[numColLocal] - pspmat.Localg_.colptr[0];
 
@@ -1580,8 +1579,8 @@ namespace symPACK{
       }
       //MPI_Type_free(&type);
 
-      bassert(sizeof(int)<=sizeof(Idx));
-      int * tmpRowind = (int*)&pspmat.Localg_.rowind[0];
+      bassert(sizeof(Int)<=sizeof(Idx));
+      volatile Int * tmpRowind = (Int*)&pspmat.Localg_.rowind[0];
       for (ptr = pspmat.Localg_.rowind.size(); ptr>0;ptr--){
         pspmat.Localg_.rowind[ptr-1] = (Idx)tmpRowind[ptr-1];
       }

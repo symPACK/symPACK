@@ -2,7 +2,21 @@ add_library( symPACK::ordering     INTERFACE IMPORTED )
 add_library( symPACK::parallel_cxx     INTERFACE IMPORTED )
 add_library( symPACK::parallel_c       INTERFACE IMPORTED )
 add_library( symPACK::parallel_fortran INTERFACE IMPORTED )
+add_library( symPACK::math     INTERFACE IMPORTED )
 
+find_package( LAPACK )
+# Export target
+if( LAPACK_FOUND AND NOT TARGET LAPACK::lapack )
+
+  add_library( LAPACK::lapack INTERFACE IMPORTED )
+  set_target_properties( LAPACK::lapack PROPERTIES
+    INTERFACE_LINK_LIBRARIES      "${LAPACK_LIBRARIES}" 
+  )
+endif()
+
+if ( LAPACK::lapack )
+  target_link_libraries( symPACK::math       INTERFACE LAPACK::lapack       )
+endif()
 
 # Handle MPI and UPCXX 
 find_package( MPI )

@@ -189,6 +189,7 @@ target_compile_definitions(sympack PUBLIC "_DSW_ITREE_")
 target_link_libraries(sympack PUBLIC 
   symPACK::ordering
   symPACK::parallel_cxx
+  symPACK::math
   ${LIBS} 
   ${CMAKE_DL_LIBS}
 )
