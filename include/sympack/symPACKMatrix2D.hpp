@@ -4634,12 +4634,12 @@ bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get
                   }
 #endif
                   //get rid of the shared_ptr
-                  if ( ptr_odCell->owner != this->iam ){
-//                    logfileptr->OFS()<<"before clearing"<<std::endl;
-                    for(auto & msg : ptask->input_msg){
-                      logfileptr->OFS()<<msg.use_count()<<std::endl;
-                    }
-                  }
+//                  if ( ptr_odCell->owner != this->iam ){
+////                    logfileptr->OFS()<<"before clearing"<<std::endl;
+//                    for(auto & msg : ptask->input_msg){
+//                      logfileptr->OFS()<<msg.use_count()<<std::endl;
+//                    }
+//                  }
 //                  else{
 //                    logfileptr->OFS()<<"Exec Update"<<" from "<<I<<" to ("<<J<<") cell ("<<K<<","<<J<<") pivot ("<<ptr_odCell->i<<","<<ptr_odCell->j<<") "<<((snodeBlockLDL_t*)ptr_odCell)->local_pivot<<std::endl;
 //                  }
