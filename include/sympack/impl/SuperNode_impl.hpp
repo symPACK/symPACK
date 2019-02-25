@@ -1726,9 +1726,6 @@ namespace symPACK{
 
   template <typename T, class Allocator> 
     inline void SuperNode<T,Allocator>::back_update(SuperNode<T,Allocator> * src_contrib, Int nrhsOffset, Int pnrhs){
-      //if(!this->lock_.try_lock()){
-      //  gdb_lock();
-      //}
 
       SuperNode<T,Allocator> * tgt_contrib = this;
       Int nrhs = pnrhs;
@@ -1791,6 +1788,7 @@ namespace symPACK{
 
   template <typename T, class Allocator> 
     inline void SuperNode<T,Allocator>::back_update_contrib(SuperNode<T> * cur_snode, Int nrhsOffset, Int pnrhs){
+
       SuperNode<T,Allocator> * contrib = this;
       Int nrhs = pnrhs;
       //if(pnrhs==-1){
@@ -1845,6 +1843,7 @@ namespace symPACK{
           tgt_nzval[ii*ldsol+j] = temp;
         }
       }
+//            if ( Id()==4) gdb_lock();
     }
 
   template <typename T, class Allocator> 
@@ -1951,6 +1950,19 @@ namespace symPACK{
           }
         }
         else{
+          
+          logfileptr->OFS()<<"----------------------------------"<<std::endl;
+          std::vector<T> buftmp (nrhs*cur_nrows,T(0));
+          for(Int kk = 0; kk<cur_snode->Size(); ++kk){
+            for(Int j = 0; j<nrhs;++j){
+              for(Int i = 0; i<cur_nrows;++i){
+                buftmp[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*(chol_nzval[i*cur_snode->Size()+kk]);
+              }
+            }
+          }
+          logfileptr->OFS()<<buftmp<<std::endl;
+          logfileptr->OFS()<<"----------------------------------"<<std::endl;
+
           for(Int kk = 0; kk<cur_snode->Size(); ++kk){
             for(Int j = 0; j<nrhs;++j){
               for(Int i = 0; i<cur_nrows;++i){

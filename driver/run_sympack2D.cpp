@@ -488,31 +488,43 @@ int main(int argc, char **argv)
       }
       SMat2D->DumpMatlab();
 #endif
-      //SMat2D->DumpMatlab();
-      if(nrhs>0){
-        SMat = new symPACKMatrix<SCALAR>(*SMat2D);
-//        SMat->DumpMatlab();
-      }
-//      SMat2D->DumpMatlab();
-//      if(iam==0){gdb_lock();}
-    }
 
-      if(nrhs>0){
-        /**************** SOLVE PHASE ***********/
+      if (nrhs>0){
         if(iam==0){
-          std::cout<<"Starting solve"<<std::endl;
+          std::cout<<"Starting solve 2D"<<std::endl;
         }
         XFinal = RHS;
 
         timeSta = get_time();
-        SMat->NewSolve(&XFinal[0],nrhs);
+        SMat2D->Solve(&XFinal[0],nrhs);
         timeEnd = get_time();
 
         if(iam==0){
-          std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
+          std::cout<<"Solve 2D time: "<<timeEnd-timeSta<<std::endl;
         }
+        SMat2D->GetSolution(&XFinal[0],nrhs);
+      }
 
-        SMat->GetSolution(&XFinal[0],nrhs);
+//      if(nrhs>0){
+//        SMat = new symPACKMatrix<SCALAR>(*SMat2D);
+//      }
+    }
+
+      if(nrhs>0){
+        /**************** SOLVE PHASE ***********/
+//        if(iam==0){
+//          std::cout<<"Starting solve"<<std::endl;
+//        }
+//        XFinal = RHS;
+//
+//        timeSta = get_time();
+//        SMat->NewSolve(&XFinal[0],nrhs);
+//        timeEnd = get_time();
+//
+//        if(iam==0){
+//          std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
+//        }
+//
 
 #if defined(DUMP_MATLAB) || defined(DUMP_MATLAB_SOL)
         if(nrhs>0 && XFinal.size()>0) {
@@ -528,7 +540,7 @@ int main(int argc, char **argv)
 #endif
 
 
-      delete SMat;
+//      delete SMat;
       }
 
     }
