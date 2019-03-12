@@ -2929,15 +2929,15 @@ bassert(src_nrows==tgt_width);
 #ifdef _SCHEDULING_EXPERIMENT_
           {
             //generate task graph for the factorization
-auto find_owner = [this,np] (Int I) -> int {
-                auto it = std::lower_bound(this->XsuperDist_.begin(),this->XsuperDist_.end(),I);
-std::cout<<*it<<std::endl;
-                int iOwner = std::distance(this->XsuperDist_.begin(),it);
-std::cout<<iOwner<<std::endl;
-                if ( *it > I ) iOwner--;
-                bassert(iOwner >= 0 && iOwner<np);
-                return iOwner;
-};
+            auto find_owner = [this,np] (Int I) -> int {
+              auto it = std::lower_bound(this->XsuperDist_.begin(),this->XsuperDist_.end(),I);
+              //std::cout<<*it<<std::endl;
+              int iOwner = std::distance(this->XsuperDist_.begin(),it);
+              //std::cout<<iOwner<<std::endl;
+              if ( *it > I ) iOwner--;
+              bassert(iOwner >= 0 && iOwner<np);
+              return iOwner;
+            };
 
             MPI_Datatype type;
             MPI_Type_contiguous( sizeof(SparseTask2D::meta_t), MPI_BYTE, &type );
@@ -3170,9 +3170,13 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
 
               if(ptask!=nullptr){
                 scheduling::key_t key(this->SupMembership_[std::get<4>(cur_op)-1], std::get<1>(cur_op), std::get<0>(cur_op), std::get<2>(cur_op));
-                this->task_graph.push_back( std::unique_ptr<SparseTask2D>(ptask) );
+                task_graph.push_back( std::unique_ptr<SparseTask2D>(ptask) );
                 task_idx.push_back( std::make_tuple(key,task_idx.size()));
               }
+#ifndef _VERBOSE_
+#define _VERBOSE_
+#define _UNDEF_VERBOSE_
+#endif
 #ifdef _VERBOSE_
               switch(type){
                 case Factorization::op_type::TRSM:
@@ -3195,6 +3199,10 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
                 default:
                   break;
               }
+#endif
+#ifdef _UNDEF_VERBOSE_
+#undef _VERBOSE_
+#undef _UNDEF_VERBOSE_
 #endif
             }
             logfileptr->OFS()<<"------------------------------------ TASK GRAPH --------------------------"<<std::endl;
@@ -3250,14 +3258,14 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
                 auto owner = find_owner(K);
 
 //                    auto owner = pQueryCELL(J-1,K-1)->owner;
-//                    auto task_idx_beg = &task_idx_recvbuf[task_idx_rdispls[owner]];
-//                    auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
+                    auto task_idx_beg = &task_idx_recvbuf[task_idx_rdispls[owner]];
+                    auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
 
                     std::size_t remote_task_idx = 0;
                     scheduling::key_t key(J,K,I,Factorization::op_type::UPDATE2D_COMP);
-//                    auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
-//                    bassert(task_idx_it != task_idx_end); 
-//                    remote_task_idx = std::get<1>(*task_idx_it);
+                    auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
+                    bassert(task_idx_it != task_idx_end); 
+                    remote_task_idx = std::get<1>(*task_idx_it);
 
                     taskptr->out_dependencies.push_back( std::make_tuple(owner,remote_task_idx) );
                   }
@@ -3300,7 +3308,7 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
                     auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
                     auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, key, key_lb_comp);
                     bassert(task_idx_it != task_idx_end); 
-                    taskptr->out_dependencies.push_back( std::make_tuple(owner,0) );
+                    taskptr->out_dependencies.push_back( std::make_tuple(owner,std::get<1>(*task_idx_it)) );
 #ifdef _VERBOSE_
                     logfileptr->OFS()<<"        out dep added to FACTOR"<<" from "<<I<<" to "<<I<<std::endl;
 #endif
@@ -3323,87 +3331,92 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
 #endif
 
                     //if (  pQueryCELL(J-1,I-1)->owner != pQueryCELL(I-1,I-1)->owner )
-                    taskptr->in_remote_dependencies_cnt++;
+                    //taskptr->in_remote_dependencies_cnt++;
                     //else
-                    //  taskptr->in_local_dependencies_cnt++;
+                    taskptr->in_local_dependencies_cnt++;
 #ifdef _VERBOSE_
                     logfileptr->OFS()<<"        in dep added to TRSM"<<" from "<<I<<" to "<<I<<std::endl;
 #endif
                   }
                   break;
-                case Factorization::op_type::AGGREGATE2D_RECV:
-                  {
-                    auto K = this->SupMembership_[facing_first_row-1];
+            case Factorization::op_type::AGGREGATE2D_RECV:
+              {
+                auto K = this->SupMembership_[facing_first_row-1];
 
 #ifdef _VERBOSE_
-                    logfileptr->OFS()<<"AGGREGATE2D_RECV"<<" from "<<I<<" to "<<J<<" cell ("<<K<<","<<J<<") to cell("<<K<<","<<J<<")"<<std::endl;
+                logfileptr->OFS()<<"AGGREGATE2D_RECV"<<" from "<<I<<" to "<<J<<" cell ("<<K<<","<<J<<") to cell("<<K<<","<<J<<")"<<std::endl;
 #endif
-                    //find the FACTOR or TRSM and add cell K,J as incoming dependency
-                    if(K==J){
-                      auto k1 = scheduling::key_t(J,J,J,Factorization::op_type::FACTOR);
-                      auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
-                      auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
-                      bassert(taskptr!=nullptr); 
-                      //  auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<0>(taskptr->_meta),std::get<1>(taskptr->_meta),std::get<2>(taskptr->_meta));
-                      auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
-                      bassert(k2 == k1 );
+                //find the FACTOR or TRSM and add cell K,J as incoming dependency
+                if(K==J){
+                  auto k1 = scheduling::key_t(J,J,J,Factorization::op_type::FACTOR);
+                  auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
+                  auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
+                  bassert(taskptr!=nullptr); 
+                  auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                  bassert(k2 == k1 );
 
-                      taskptr->in_local_dependencies_cnt++;
+                  taskptr->in_local_dependencies_cnt++;
 #ifdef _VERBOSE_
-                      logfileptr->OFS()<<"        in dep added to FACTOR"<<" from "<<J<<" to "<<J<<std::endl;
+                  logfileptr->OFS()<<"        in dep added to FACTOR"<<" from "<<J<<" to "<<J<<std::endl;
 #endif
-                    }
-                    else{
-                      auto k1 = scheduling::key_t(K,J,J,Factorization::op_type::TRSM);
-                      auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
-                      auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
-                      bassert(taskptr!=nullptr); 
-                      //  auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<0>(taskptr->_meta),std::get<1>(taskptr->_meta),std::get<2>(taskptr->_meta));
-                      auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
-                      bassert(k2 == k1 );
-                      taskptr->in_local_dependencies_cnt++;
+                }
+                else{
+                  auto k1 = scheduling::key_t(K,J,J,Factorization::op_type::TRSM);
+                  auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
+                  auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
+                  bassert(taskptr!=nullptr); 
+                  auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                  bassert(k2 == k1 );
+                  taskptr->in_local_dependencies_cnt++;
 #ifdef _VERBOSE_
-                      logfileptr->OFS()<<"        in dep added to TRSM"<<" from "<<J<<" to "<<J<<std::endl;
+                  logfileptr->OFS()<<"        in dep added to TRSM"<<" from "<<J<<" to "<<J<<std::endl;
 #endif
-                    }
-                  }
-                  break;
-                case Factorization::op_type::AGGREGATE2D_SEND:
-                  {
-                    //TODO this might be useless
-                    auto K = this->SupMembership_[facing_first_row-1];
+                }
+              }
+              break;
+            case Factorization::op_type::AGGREGATE2D_SEND:
+              {
+                //TODO this might be useless
+                auto K = this->SupMembership_[facing_first_row-1];
 
 #ifdef _VERBOSE_
-                    logfileptr->OFS()<<"AGGREGATE2D_SEND"<<" from "<<I<<" to "<<J<<" cell ("<<K<<","<<J<<") to cell("<<K<<","<<J<<")"<<std::endl;
+                logfileptr->OFS()<<"AGGREGATE2D_SEND"<<" from "<<I<<" to "<<J<<" cell ("<<K<<","<<J<<") to cell("<<K<<","<<J<<")"<<std::endl;
 #endif
-                    //find the UPDATE2D_COMP and add cell K,J as outgoing dependency
+                //find the UPDATE2D_COMP and add cell K,J as outgoing dependency
 
-                    auto k1 = scheduling::key_t(K,J,I,Factorization::op_type::UPDATE2D_COMP);
-                    auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
-                    auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
-                    bassert(taskptr!=nullptr); 
-                    //auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<1>(taskptr->_meta),std::get<0>(taskptr->_meta),std::get<2>(taskptr->_meta));
-                    auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
-                    bassert(k2 == k1 );
+                auto k1 = scheduling::key_t(K,J,I,Factorization::op_type::UPDATE2D_COMP);
+                auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
+                auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
+                bassert(taskptr!=nullptr); 
+                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                bassert(k2 == k1 );
 
-                    //find the FACTOR or TRSM target task
+                //find the FACTOR or TRSM target task
                 auto owner = find_owner(J);
-                    auto task_idx_beg = &task_idx_recvbuf[task_idx_rdispls[owner]];
-                    auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
+                auto task_idx_beg = &task_idx_recvbuf[task_idx_rdispls[owner]];
+                auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
 
-                    std::size_t remote_task_idx = 0;
-                    if(K==J){
-                      scheduling::key_t key(J,J,J,Factorization::op_type::FACTOR);
-                    }
-                    else{
-                      scheduling::key_t key(K,J,J,Factorization::op_type::TRSM);
-                    }
-                    taskptr->out_dependencies.push_back( std::make_tuple(owner,remote_task_idx) );
+                std::size_t remote_task_idx = 0;
+                if(K==J){
+                  scheduling::key_t key(J,J,J,Factorization::op_type::FACTOR);
+                  auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
+                  bassert(task_idx_it != task_idx_end); 
+                  remote_task_idx = std::get<1>(*task_idx_it);
+                }
+                else{
+                  scheduling::key_t key(K,J,J,Factorization::op_type::TRSM);
+                  auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
+                  bassert(task_idx_it != task_idx_end); 
+                  remote_task_idx = std::get<1>(*task_idx_it);
+                }
+
+                taskptr->out_dependencies.push_back( std::make_tuple(owner,remote_task_idx) );
 #ifdef _VERBOSE_
-                    logfileptr->OFS()<<"        out dep added to UPDATE_COMP"<<" from "<<I<<" to "<<J<<std::endl;
+                logfileptr->OFS()<<"        out dep added to UPDATE_COMP"<<" from "<<I<<" to "<<J<<std::endl;
 #endif
-                  }
-                  break;
+              }
+              break;
+
 
                 case Factorization::op_type::UPDATE2D_RECV:
                   {
@@ -3422,7 +3435,15 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
                     auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
                     bassert(k2 == k1 );
 
+                    
+                auto Kowner = find_owner(K);
+                auto Iowner = find_owner(I);
+                if ( Iowner != Kowner ) {
                       taskptr->in_remote_dependencies_cnt++;
+                }
+                else{
+                      taskptr->in_local_dependencies_cnt++;
+                }
 
 #ifdef _VERBOSE_
                     logfileptr->OFS()<<"        in dep added to UPDATE_COMP"<<" from "<<I<<" to "<<K<<std::endl;
@@ -3451,6 +3472,9 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
 
                     std::size_t remote_task_idx = 0;
                     scheduling::key_t key(J,K,I,Factorization::op_type::UPDATE2D_COMP);
+                auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
+                bassert(task_idx_it != task_idx_end); 
+                remote_task_idx = std::get<1>(*task_idx_it);
                     taskptr->out_dependencies.push_back( std::make_tuple(owner,remote_task_idx) );
 
 #ifdef _VERBOSE_
@@ -3481,6 +3505,9 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
 
                     std::size_t remote_task_idx = 0;
                     scheduling::key_t key(K,J,I,Factorization::op_type::UPDATE2D_COMP);
+                auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
+                bassert(task_idx_it != task_idx_end); 
+                remote_task_idx = std::get<1>(*task_idx_it);
                     taskptr->out_dependencies.push_back( std::make_tuple(owner,remote_task_idx) );
 
 #ifdef _VERBOSE_
@@ -3504,7 +3531,13 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
                     auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
                     bassert(k2 == k1 );
 
+                auto Jowner = find_owner(J);
+                auto Iowner = find_owner(I);
+                if ( Iowner != Jowner )
                     taskptr->in_remote_dependencies_cnt++;
+                else
+                  taskptr->in_local_dependencies_cnt++;
+
 
 #ifdef _VERBOSE_
                     logfileptr->OFS()<<"        in dep DOWN added to UPDATE2D_COMP"<<" from "<<I<<" to "<<J<<std::endl;
@@ -3521,9 +3554,119 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
 
 
             //Now we have task_graph that we may have to LB with another algorithm
+            std::list<SparseTask2D *> sources;
+            //find the source in the task_graph
+            for( auto && ptask: task_graph ) {
+              auto deps = ptask->in_remote_dependencies_cnt + ptask->in_local_dependencies_cnt;
+              if (deps==0) {
+                sources.push_back( ptask.get() );
+              }
+            }
 
 
+auto print_task = [this] ( SparseTask2D * ptask, int depth ) {
+              auto & cur_op = (ptask->_meta);
+              auto & src_snode = std::get<0>(cur_op);
+              auto & tgt_snode = std::get<1>(cur_op);
+              auto & type = std::get<2>(cur_op);
+              auto & lt_first_row = std::get<3>(cur_op);
+              auto & facing_first_row = std::get<4>(cur_op);
 
+              auto I = src_snode;
+              auto J = tgt_snode;
+
+              switch(type){
+                case Factorization::op_type::TRSM:
+                  {
+                    auto J = this->SupMembership_[facing_first_row-1];
+                    logfileptr->OFS()<<depth<<" TRSM"<<" from "<<I<<" to ("<<I<<") cell ("<<J<<","<<I<<")"<<std::endl;
+                  }
+                  break;
+                case Factorization::op_type::FACTOR:
+                  {
+                    logfileptr->OFS()<<depth<<" FACTOR"<<" cell ("<<J<<","<<I<<")"<<std::endl;
+                  }
+                  break;
+                case Factorization::op_type::UPDATE2D_COMP:
+                  {
+                    auto K = this->SupMembership_[facing_first_row-1];
+                    logfileptr->OFS()<<depth<<" UPDATE"<<" from "<<I<<" to "<<J<<" facing cell ("<<K<<","<<I<<") and cell ("<<J<<","<<I<<") to cell ("<<K<<","<<J<<")"<<std::endl;
+                  }
+                  break;
+                default:
+                  break;
+              }
+};
+
+
+            //then traverse the graph (BFS)
+            std::function<void(std::list<SparseTask2D *> &,int)> graph_bfs;
+         graph_bfs = [&task_graph,iam,&graph_bfs,&print_task] ( std::list<SparseTask2D *> & sources, int depth ) {
+                std::list<SparseTask2D *> next_level;
+                if ( sources.size() == 0 ) {
+                  return;
+                }
+                //receive remote_updates
+
+                for (auto && src: sources ) {
+                  print_task(src,depth);
+                  //                logfileptr->OFS()<<src->_meta<<std::endl;
+
+                  for( auto tpl: src->out_dependencies ) {
+                    auto owner = std::get<0>(tpl);
+                    auto idx = std::get<1>(tpl);
+                    if (owner == iam ) {
+                      auto ptr = task_graph[idx].get(); 
+                      ptr->in_local_dependencies_cnt--;
+
+                      auto deps = ptr->in_remote_dependencies_cnt + ptr->in_local_dependencies_cnt;
+                      if (deps==0) {
+                        next_level.push_back(ptr);
+                      }
+                    }
+                    else{
+                      //distributed memory version
+                    }
+                  }
+
+                  //send remote_updates
+                }
+                graph_bfs(next_level,depth+1);
+              };
+
+//            const auto graph_bfs = [&task_graph,iam] ( std::list<SparseTask2D *> & sources ) {
+//              auto graph_bfs_impl = [&task_graph,iam] ( std::list<SparseTask2D *> & sources, auto & graph_bfs_ref ) mutable {
+//                std::list<SparseTask2D *> next_level;
+//                //receive remote_updates
+//
+//
+//                for (auto && src: sources ) {
+//                  //                logfileptr->OFS()<<src->_meta<<std::endl;
+//
+//                  for( auto tpl: src->out_dependencies ) {
+//                    auto owner = std::get<0>(tpl);
+//                    auto idx = std::get<1>(tpl);
+//                    if (owner == iam ) {
+//                      auto ptr = task_graph[idx].get(); 
+//                      ptr->in_remote_dependencies_cnt--;
+//
+//                      if (ptr->in_remote_dependencies_cnt == 0) {
+//                        next_level.push_back(ptr);
+//                      }
+//                    }
+//                    else{
+//                      //distributed memory version
+//                    }
+//                  }
+//
+//                  //send remote_updates
+//                }
+//                graph_bfs_ref(next_level,graph_bfs_ref);
+//              };
+//              return graph_bfs_impl(sources,graph_bfs_impl);
+//            };
+
+            graph_bfs(sources,0);
 
 
           }
@@ -4300,8 +4443,8 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
         }
 
         //do a top down traversal of my local task list and create the computational tasks
-        this->task_graph.clear();
-        this->task_graph.reserve(recvbuf.size());
+        task_graph.clear();
+        task_graph.reserve(recvbuf.size());
         task_idx.clear();
         task_idx.reserve(recvbuf.size());
 
@@ -4334,7 +4477,7 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
 
           if(ptask!=nullptr){
             scheduling::key_t key(this->SupMembership_[std::get<4>(cur_op)-1], std::get<1>(cur_op), std::get<0>(cur_op), std::get<2>(cur_op));
-            this->task_graph.push_back( std::unique_ptr<SparseTask2D>(ptask) );
+            task_graph.push_back( std::unique_ptr<SparseTask2D>(ptask) );
             task_idx.push_back( std::make_tuple(key,task_idx.size()));
           }
 #ifdef _VERBOSE_
@@ -6498,6 +6641,7 @@ bassert( std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
 
 
 
+                  ptask->executed = true;
 
               };
 
@@ -6805,6 +6949,7 @@ bassert( std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
 
 
 
+                  ptask->executed = true;
 
               };
             }
