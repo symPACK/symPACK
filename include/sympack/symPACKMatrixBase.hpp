@@ -100,6 +100,12 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include "SuperNode.hpp"
 #include "SuperNodeInd.hpp"
 
+#ifdef SP_THREADS
+#if !UPCXX_BACKEND_GASNET_PAR
+  #error "UPCXX_THREADMODE=par required when using threads in symPACK."
+#endif
+#endif
+
 namespace symPACK{
 
   //Forward declarations

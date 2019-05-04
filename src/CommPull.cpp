@@ -172,10 +172,11 @@ namespace symPACK{
 #ifdef NEW_UPCXX
     if(async_get){
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){
-        throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
-      }
-      else
+//      if(Multithreading::NumThread>1){
+//        //throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+//        f_get.wait();
+//      }
+//      else
 #endif
       {
         f_get.wait();
@@ -203,10 +204,12 @@ namespace symPACK{
   void IncomingMessage::AsyncGet(){
 #ifdef NEW_UPCXX
 #ifdef SP_THREADS
-    if(Multithreading::NumThread>1){
-      throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
-    }
-    else
+//    if(Multithreading::NumThread>1){
+//      //throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+//      f_get = upcxx::rget(remote_ptr,GetLocalPtr().get(),msg_size);
+//      async_get = true;
+//    }
+//    else
 #endif
     {
       f_get = upcxx::rget(remote_ptr,GetLocalPtr().get(),msg_size);
@@ -245,10 +248,14 @@ namespace symPACK{
     }
     else if(async_get){
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){
-        throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
-      }
-      else
+//      if(Multithreading::NumThread>1){
+//        //throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+//        f_get.wait();
+//        async_get = false;
+//        isDone = true;
+//        success = true;
+//      }
+//      else
 #endif
       {
 //double tstart = get_time();
@@ -265,10 +272,12 @@ namespace symPACK{
       success = AllocLocal();
       if(success){
 #ifdef SP_THREADS
-        if(Multithreading::NumThread>1){
-          throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
-        }
-        else
+//        if(Multithreading::NumThread>1){
+//          //throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+//          upcxx::rget(remote_ptr,GetLocalPtr().get(),msg_size).wait();
+//          isDone = true;
+//        }
+//        else
 #endif
         {
 
@@ -401,11 +410,11 @@ namespace symPACK{
 #ifdef NEW_UPCXX
     if(async_get){
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){
-        throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
-        return isDone; 
-      }
-      else
+//      if(Multithreading::NumThread>1){
+//        throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+//        return isDone; 
+//      }
+//      else
 #endif
       {
         isDone = f_get.ready();

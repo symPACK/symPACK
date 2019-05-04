@@ -511,12 +511,12 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
     scope_timer(a,SIGNAL_DATA);
     //upcxx::future<> f_signal;
 #ifdef SP_THREADS
-    if(Multithreading::NumThread>1){
-      throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
-      //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-      //upcxx::async(dest)(rcv_async,local_ptr,pMsg_size,meta);
-    }
-    else
+//    if(Multithreading::NumThread>1){
+//      throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+//      //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+//      //upcxx::async(dest)(rcv_async,local_ptr,pMsg_size,meta);
+//    }
+//    else
 #endif
     {
 
@@ -526,7 +526,6 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
           //if we still have async buffers
           bool asyncComm = false;
           if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
-
           IncomingMessage * msg_ptr = new IncomingMessage();
           msg_ptr->meta = meta;
           msg_ptr->remote_ptr = pRemote_ptr;
@@ -587,7 +586,7 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
     scope_timer(a,SIGNAL_DATA);
 #ifdef SP_THREADS
     if(Multithreading::NumThread>1){
-      std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+//      std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
       upcxx::async(dest)(rcv_async,local_ptr,pMsg_size,meta);
     }
     else
@@ -603,7 +602,7 @@ logfileptr->OFS()<<"barrier_wait progress time: "<<tstop-tstart<<std::endl;
     int dest = pRemote_ptr.where();
 #ifdef SP_THREADS
     if(Multithreading::NumThread>1){
-      std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+      //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
       upcxx::async(dest)(dealloc_async,pRemote_ptr);
     }
     else

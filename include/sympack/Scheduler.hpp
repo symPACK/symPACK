@@ -66,10 +66,11 @@ namespace symPACK{
       public:
         std::mutex list_mutex_;
         Queue workQueue_;
+        std::vector<Queue> workQueues_;
         std::vector<std::thread> threads;
         std::condition_variable sync;
         std::function<void()> threadInitHandle_;
-        bool done = false;
+        std::atomic<bool> done;
 #ifdef THREAD_VERBOSE
         std::vector<T> processing_;  
 #endif

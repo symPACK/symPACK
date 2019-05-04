@@ -2925,7 +2925,7 @@ bassert(src_nrows==tgt_width);
 
 
 //TODO THIS IS NEW
-#define _SCHEDULING_EXPERIMENT_
+//#define _SCHEDULING_EXPERIMENT_
 #ifdef _SCHEDULING_EXPERIMENT_
           {
             //generate task graph for the factorization
@@ -3553,18 +3553,8 @@ std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
 
 
 
-            //Now we have task_graph that we may have to LB with another algorithm
-            std::list<SparseTask2D *> sources;
-            //find the source in the task_graph
-            for( auto && ptask: task_graph ) {
-              auto deps = ptask->in_remote_dependencies_cnt + ptask->in_local_dependencies_cnt;
-              if (deps==0) {
-                sources.push_back( ptask.get() );
-              }
-            }
 
-
-auto print_task = [this] ( SparseTask2D * ptask, int depth ) {
+            auto print_task = [this] ( SparseTask2D * ptask, int depth ) {
               auto & cur_op = (ptask->_meta);
               auto & src_snode = std::get<0>(cur_op);
               auto & tgt_snode = std::get<1>(cur_op);
@@ -3596,78 +3586,128 @@ auto print_task = [this] ( SparseTask2D * ptask, int depth ) {
                 default:
                   break;
               }
-};
+            };
+
+            //Now we have task_graph that we may have to LB with another algorithm
+            std::list<SparseTask2D *> sources;
+            //find the source in the task_graph
+            for( auto && ptask: task_graph ) {
+              auto deps = ptask->in_remote_dependencies_cnt + ptask->in_local_dependencies_cnt;
+              if (deps==0) {
+                sources.push_back( ptask.get() );
+              }
+            }
 
 
             //then traverse the graph (BFS)
-            std::function<void(std::list<SparseTask2D *> &,int)> graph_bfs;
-         graph_bfs = [&task_graph,iam,&graph_bfs,&print_task] ( std::list<SparseTask2D *> & sources, int depth ) {
-                std::list<SparseTask2D *> next_level;
-                if ( sources.size() == 0 ) {
-                  return;
+            {
+              using bfs_data_t = struct bfs_data{
+                TaskGraph2D* graph;
+                std::list<SparseTask2D *> * sources;
+                bfs_data(TaskGraph2D* pgraph,std::list<SparseTask2D *> * psources){
+                  graph = pgraph;
+                  sources = psources;
                 }
-                //receive remote_updates
+              };
+              upcxx::dist_object<bfs_data_t> ddata(std::move(bfs_data_t(&task_graph,&sources)));
 
-                for (auto && src: sources ) {
-                  print_task(src,depth);
-                  //                logfileptr->OFS()<<src->_meta<<std::endl;
+           
+            // setup atomic domain with only the operations needed
+            upcxx::atomic_domain<int64_t> ad({upcxx::atomic_op::load, upcxx::atomic_op::add});
+            // distributed object to keep track of number of inserts expected at every process
+            upcxx::dist_object<upcxx::global_ptr<int64_t> > n_updates(upcxx::new_<int64_t>(0));
 
-                  for( auto tpl: src->out_dependencies ) {
-                    auto owner = std::get<0>(tpl);
-                    auto idx = std::get<1>(tpl);
-                    if (owner == iam ) {
-                      auto ptr = task_graph[idx].get(); 
-                      ptr->in_local_dependencies_cnt--;
+            std::function<void(upcxx::dist_object<bfs_data_t> & , int)> graph_bfs;
 
-                      auto deps = ptr->in_remote_dependencies_cnt + ptr->in_local_dependencies_cnt;
-                      if (deps==0) {
-                        next_level.push_back(ptr);
-                      }
-                    }
-                    else{
-                      //distributed memory version
+            graph_bfs = [&task_graph,iam,&graph_bfs,&print_task] ( upcxx::dist_object<bfs_data_t> & ddata, int depth ) {
+              std::list<SparseTask2D *> next_level;
+              if ( ddata->sources->size() == 0 ) {
+                return;
+              }
+
+              std::map<int,std::map<size_t, int> >updates;
+              for (auto && src: *(ddata->sources) ) {
+                print_task(src,depth);
+                //                logfileptr->OFS()<<src->_meta<<std::endl;
+
+                for( auto tpl: src->out_dependencies ) {
+                  auto owner = std::get<0>(tpl);
+                  auto idx = std::get<1>(tpl);
+                  if (owner == iam ) {
+                    auto ptr = task_graph[idx].get(); 
+                    ptr->in_local_dependencies_cnt--;
+
+                    auto deps = ptr->in_remote_dependencies_cnt + ptr->in_local_dependencies_cnt;
+                    if (deps==0) {
+                      next_level.push_back(ptr);
                     }
                   }
-
-                  //send remote_updates
+                  else{
+                    //distributed memory version
+                    updates[owner][idx]++;
+                  }
                 }
-                graph_bfs(next_level,depth+1);
-              };
 
-//            const auto graph_bfs = [&task_graph,iam] ( std::list<SparseTask2D *> & sources ) {
-//              auto graph_bfs_impl = [&task_graph,iam] ( std::list<SparseTask2D *> & sources, auto & graph_bfs_ref ) mutable {
-//                std::list<SparseTask2D *> next_level;
-//                //receive remote_updates
-//
-//
-//                for (auto && src: sources ) {
-//                  //                logfileptr->OFS()<<src->_meta<<std::endl;
-//
-//                  for( auto tpl: src->out_dependencies ) {
-//                    auto owner = std::get<0>(tpl);
-//                    auto idx = std::get<1>(tpl);
-//                    if (owner == iam ) {
-//                      auto ptr = task_graph[idx].get(); 
-//                      ptr->in_remote_dependencies_cnt--;
-//
-//                      if (ptr->in_remote_dependencies_cnt == 0) {
-//                        next_level.push_back(ptr);
-//                      }
-//                    }
-//                    else{
-//                      //distributed memory version
-//                    }
-//                  }
-//
-//                  //send remote_updates
-//                }
-//                graph_bfs_ref(next_level,graph_bfs_ref);
-//              };
-//              return graph_bfs_impl(sources,graph_bfs_impl);
-//            };
+              }
+              //pack updates
 
-            graph_bfs(sources,0);
+              upcxx::future<> all_at = upcxx::make_future<>();
+              std::map<int,std::vector<std::tuple<size_t, int>> >sent_updates;
+              for( auto it : updates){
+                auto owner = it.first;
+                auto & upd = it.second;
+                auto & dest_updates = sent_updates[owner];
+                dest_updates.reserve(upd.size());
+                for( auto it2 : upd){
+                  dest_updates.push_back( std::make_tuple(it2.first, it2.second) );
+                }
 
+                upcxx::global_ptr<int64_t> remote_n_updates = n_updates.fetch(owner).wait();
+                // use atomics to increment the remote process's expected count of inserts
+                all_at = upcxx::when_all(all_at,ad.add(remote_n_updates, 1, memory_order_relaxed));
+              }
+
+              all_at.wait();
+
+              //send remote_updates
+              upcxx::future<> all = upcxx::make_future<>();
+
+              for( auto it : sent_updates){
+                auto owner = it.first;
+                auto & upd = it.second;
+                upcxx::future<> fut = upcxx::rpc(owner,[iam,&ddata](upcxx::view<std::tuple<size_t,int>> rem_updates) {
+                          TaskGraph2D* task_graph = ddata->graph;
+                          for ( auto tpl: rem_updates ) {
+                            auto tidx = std::get<0>(tpl);
+                            auto upd_cnt = std::get<1>(tpl);
+                            auto ptr = (*task_graph)[tidx].get();
+                            ptr->in_remote_dependencies_cnt-=upd_cnt;
+                            //if ( ptr->in_remote_dependencies_cnt==0){
+                            //  gdb_lock();
+                            //}
+
+                            auto deps = ptr->in_remote_dependencies_cnt + ptr->in_local_dependencies_cnt;
+                            //if (iam==1) gdb_lock();
+                            if (deps==0) {
+                              ddata->sources->push_back(ptr);
+                            }
+                          }
+
+                      },upcxx::make_view(upd.begin(),upd.end() ) );
+                all = upcxx::when_all(all,fut); 
+              }
+
+              ddata->sources->swap(next_level);
+              //receive remote_updates
+              upcxx::progress();
+              all.wait();
+
+              graph_bfs(ddata,depth+1);
+            };
+
+            graph_bfs(ddata,0);
+            upcxx::barrier();
+            }
 
           }
 #endif

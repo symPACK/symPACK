@@ -75,6 +75,19 @@ bool libUPCXXInit = false;
 namespace symPACK{
   int mpi_already_init = 0;
   MPI_Comm world_comm = MPI_COMM_NULL;
+  upcxx::persona_scope * master_scope = nullptr;
+
+
+  void liberate_master_scope(){
+    delete master_scope;
+    master_scope = nullptr;
+  }
+
+  void capture_master_scope() {
+    if ( master_scope == nullptr ) {
+      master_scope = new upcxx::persona_scope(upcxx::master_persona());
+    }
+  }
 }
 
 extern "C"
@@ -116,6 +129,8 @@ int symPACK_Init(int *argc, char ***argv){
   // init UPC++
   if ( libUPCXXInit ) symPACK::gdb_lock();
   upcxx::init();
+  upcxx::liberate_master_persona();
+  symPACK::capture_master_scope();
   libUPCXXInit = true;
   
   // init MPI, if necessary
@@ -215,7 +230,11 @@ int symPACK_Finalize(){
 
   if(libUPCXXInit){
     //if(rank==0){std::cerr<<"upcxx finalize"<<std::endl;}
+    symPACK::capture_master_scope();
+
     upcxx::finalize();
+    symPACK::liberate_master_scope();
+
     //if(rank==0){std::cerr<<"past upcxx finalize"<<std::endl;}
     libUPCXXInit = false;
     libMPIInit = false;

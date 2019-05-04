@@ -100,6 +100,10 @@ inline double get_time()
 
 
 namespace symPACK{
+  void liberate_master_scope();
+  void capture_master_scope();
+
+
   extern MPI_Comm world_comm;
 }
 

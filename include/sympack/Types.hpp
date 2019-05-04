@@ -701,6 +701,7 @@ char * locTmpPtr = nullptr;
         if(Multithreading::NumThread>1){
 //          std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
 //          tmpPtr = upcxx::allocate<char>(upcxx::myrank(),count);
+          tmpPtr = upcxx::allocate<char>(count);
         }
         else
 #endif
@@ -752,7 +753,7 @@ char * locTmpPtr = nullptr;
 #ifdef SP_THREADS
 
         if(Multithreading::NumThread>1){
-          std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+//          std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
           upcxx::deallocate(tmpPtr);
         }
         else

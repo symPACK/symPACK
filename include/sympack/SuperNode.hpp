@@ -260,7 +260,9 @@ namespace symPACK{
 
 #ifdef SP_THREADS
         std::atomic<bool> in_use;
-        
+#ifndef NDEBUG
+        //std::shared_ptr<GenericTask> in_use_task;
+#endif
 #endif
 
 

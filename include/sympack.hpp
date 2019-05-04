@@ -59,7 +59,6 @@
 #include <mpi.h>
 
 
-//namespace symPACK{
 //
 //extern template class symPACKMatrix<float>;
 //extern template class symPACKMatrix<double>;
@@ -68,7 +67,6 @@
 //
 //extern template class supernodalTaskGraph<FBTask>;
 //extern template class supernodalTaskGraph<CompTask>;
-//}
 
 
 

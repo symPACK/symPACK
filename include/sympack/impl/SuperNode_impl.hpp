@@ -72,6 +72,10 @@ namespace symPACK{
   template<typename T, class Allocator>
     SuperNode<T,Allocator>::SuperNode() : meta_(nullptr), blocks_(nullptr), nzval_(nullptr), storage_size_(0),
     loc_storage_container_(nullptr), storage_container_(nullptr),in_use(false){
+#ifndef NDEBUG
+      //in_use_task = nullptr;
+#endif
+
 #ifndef ITREE
       globalToLocal_=nullptr;
 #else
@@ -81,7 +85,7 @@ namespace symPACK{
 
   //this allocate the supernode with the number of rows and number of nzblocks known a priori
   template<typename T, class Allocator>
-    SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt, Int panel) {
+    SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt, Int panel):SuperNode<T,Allocator>() {
       assert(ai_num_rows>=0);
 
       //compute supernode size / width
@@ -148,12 +152,12 @@ namespace symPACK{
     }; 
 
   template<typename T, class Allocator>
-    SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel) {
+    SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel):SuperNode<T,Allocator>() {
       Init(aiId,aiFr,aiFc,aiLc,aiN,rowIndices,panel);
     }; 
 
   template<typename T, class Allocator>
-    SuperNode<T,Allocator>::SuperNode(char * storage_ptr,size_t storage_size, Int GIndex ) {
+    SuperNode<T,Allocator>::SuperNode(char * storage_ptr,size_t storage_size, Int GIndex ):SuperNode<T,Allocator>() {
       //Init(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt,aiN);
       Init(storage_ptr,storage_size,GIndex);
     }

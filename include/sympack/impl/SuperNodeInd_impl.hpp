@@ -74,7 +74,7 @@ namespace symPACK{
     SuperNodeInd<T,Allocator>::SuperNodeInd() :SuperNode<T,Allocator>(), diag_(nullptr){ }
 
   template<typename T, class Allocator>
-    SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt, Int panel) {
+    SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt, Int panel):SuperNodeInd<T,Allocator>() {
       //compute supernode size / width
       Int size = aiLc - aiFc +1;
       //compute maximum number of blocks, number of off-diagonal rows + 1
@@ -147,12 +147,12 @@ namespace symPACK{
     }; 
 
   template<typename T, class Allocator>
-    SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel) {
+    SuperNodeInd<T,Allocator>::SuperNodeInd(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel):SuperNodeInd<T,Allocator>() {
       Init(aiId,aiFr,aiFc,aiLc,aiN,rowIndices,panel);
     }; 
 
   template<typename T, class Allocator>
-    SuperNodeInd<T,Allocator>::SuperNodeInd(char * storage_ptr,size_t storage_size, Int GIndex ) {
+    SuperNodeInd<T,Allocator>::SuperNodeInd(char * storage_ptr,size_t storage_size, Int GIndex ):SuperNodeInd<T,Allocator>() {
       this->Init(storage_ptr,storage_size,GIndex);
     }
 

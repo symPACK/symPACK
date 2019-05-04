@@ -156,6 +156,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
           bool exp = false;
           if(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true )){
+#ifndef NDEBUG
+            //tgt_aggreg->in_use_task = pTask;
+#endif
             //if(!tgt_aggreg->in_use)
             //tgt_aggreg->in_use = true;
             return false;
@@ -331,6 +334,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifdef SP_THREADS
             if(Multithreading::NumThread>1){
               src_snode->in_use = false;
+#ifndef NDEBUG
+              //src_snode->in_use_task=nullptr;
+#endif
             }
 #endif
 
@@ -659,9 +665,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifdef SP_THREADS
                                     if(Multithreading::NumThread>1){
 #ifdef NEW_UPCXX
-                                      throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+//                                      throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+                                      upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
 #else
-                                      std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+                                      //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
                                       upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
 #endif
                                     }
@@ -733,6 +740,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifdef SP_THREADS
                           if(Multithreading::NumThread>1){
                             tgt_aggreg->in_use = false;
+#ifndef NDEBUG
+              //tgt_aggreg->in_use_task=nullptr;
+#endif
                           }
 #endif
 
@@ -1081,9 +1091,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifdef SP_THREADS
                                 if(Multithreading::NumThread>1){
 #ifdef NEW_UPCXX
-                                  throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+                                  //throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
+                                  upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
 #else
-                                  std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+//                                  std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
                                   upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
 #endif
                                 }
@@ -1130,7 +1141,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
 
 
-if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { gdb_lock(); }
+//if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { gdb_lock(); }
                       //Update the aggregate
                       SYMPACK_TIMER_START(UPD_ANC_UPD);
 #ifdef SP_THREADS
@@ -1153,6 +1164,9 @@ if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { gdb_lock(); }
 #ifdef SP_THREADS
                       if(Multithreading::NumThread>1){
                         tgt_aggreg->in_use = false;
+#ifndef NDEBUG
+              //tgt_aggreg->in_use_task=nullptr;
+#endif
                       }
 #endif
 

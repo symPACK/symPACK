@@ -5,15 +5,17 @@
 #include <errno.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <thread>
 
 //Definitions of the WorkQueue class
 namespace symPACK{
 
   template<typename T, typename Queue >
-    inline WorkQueue<T, Queue >::WorkQueue(Int nthreads){
+    inline WorkQueue<T, Queue >::WorkQueue(Int nthreads): done(false){
 #ifdef THREAD_VERBOSE
       processing_.resize(nthreads,nullptr);
 #endif
+      workQueues_.resize(nthreads);
       for (Int count {0}; count < nthreads; count += 1){
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
       }
@@ -36,10 +38,11 @@ namespace symPACK{
 
 
   template<typename T, typename Queue >
-    inline WorkQueue<T, Queue >::WorkQueue(Int nthreads, std::function<void()> & threadInitHandle ){
+    inline WorkQueue<T, Queue >::WorkQueue(Int nthreads, std::function<void()> & threadInitHandle ):done(false){
 #ifdef THREAD_VERBOSE
       processing_.resize(nthreads,nullptr);
 #endif
+      workQueues_.resize(nthreads);
       threadInitHandle_ = threadInitHandle;
       for (Int count {0}; count < nthreads; count += 1){
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
@@ -63,22 +66,26 @@ namespace symPACK{
   template<typename T, typename Queue >
     inline WorkQueue<T, Queue >::~WorkQueue(){
       if(threads.size()>0){
-        std::lock_guard<std::mutex> guard(list_mutex_);
+//        std::lock_guard<std::mutex> guard(list_mutex_);
         done = true;
-        sync.notify_all();
+//        sync.notify_all();
       }
       for (auto &&thread: threads) thread.join();
     }
 
   template<typename T, typename Queue >
     inline void WorkQueue<T, Queue >::pushTask(T & fut){
-      std::unique_lock<std::mutex> lock(list_mutex_);
-#ifdef THREAD_VERBOSE
-      auto it = std::find(workQueue_.begin(),workQueue_.end(),fut);
-      bassert(it==workQueue_.end());
-#endif
-      workQueue_.push_back(fut);
-      sync.notify_one();
+//      gdb_lock();
+//      std::unique_lock<std::mutex> lock(list_mutex_);
+//#ifdef THREAD_VERBOSE
+//      auto it = std::find(workQueue_.begin(),workQueue_.end(),fut);
+//      bassert(it==workQueue_.end());
+//#endif
+
+      auto & queue = *std::min_element(workQueues_.begin(),workQueues_.end(), [](Queue & a, Queue & b){return a.size()<b.size();});
+
+      queue.push_back(fut);
+ //     sync.notify_one();
     }
 
   template<typename T, typename Queue >
@@ -101,57 +108,61 @@ namespace symPACK{
         threadInitHandle_();
       }
 
-      std::unique_lock<std::mutex> lock(list_mutex_);
+      auto & queue = workQueues_[tid];
+
+      //std::unique_lock<std::mutex> lock(list_mutex_);
       while (true) {
-        if (not workQueue_.empty()) {
-          T func { std::move(workQueue_.front()) };
-          workQueue_.pop_front();
+        if (not queue.empty()) {
+          T func { std::move(queue.front()) };
+          queue.pop_front();
 
 
 #ifdef THREAD_VERBOSE
           processing_[tid] = func;
 #endif
-          sync.notify_one();
+          //sync.notify_one();
           bool success = false;
           while(!success){
-            lock.unlock();
-            try{
+            //lock.unlock();
+            //try
+            {
               func->execute();
               success=true;
               //clear resources
               func->reset();
-              lock.lock();
+              //lock.lock();
             }
-            catch(const MemoryAllocationException & e){
-              {
-                std::stringstream sstr;
-                sstr<<"Task locked on T"<<tid<<std::endl;
-                sstr<<e.what();
-                logfileptr->OFS()<<sstr.str();
-              }
-
-              lock.lock();
-              //wait for a task to be completed before retrying
-              //sync.wait(lock);
-              sync.wait_for(lock,std::chrono::milliseconds(10));
-              {
-                std::stringstream sstr;
-                sstr<<"Task un locked on T"<<tid<<std::endl;
-                logfileptr->OFS()<<sstr.str();
-              }
-
-              sync.notify_all();
-
-            }
+//            catch(const MemoryAllocationException & e){
+//              {
+//                std::stringstream sstr;
+//                sstr<<"Task locked on T"<<tid<<std::endl;
+//                sstr<<e.what();
+//                logfileptr->OFS()<<sstr.str();
+//              }
+//
+//              lock.lock();
+//              //wait for a task to be completed before retrying
+//              //sync.wait(lock);
+//              sync.wait_for(lock,std::chrono::milliseconds(10));
+//              {
+//                std::stringstream sstr;
+//                sstr<<"Task un locked on T"<<tid<<std::endl;
+//                logfileptr->OFS()<<sstr.str();
+//              }
+//
+//              sync.notify_all();
+//
+//            }
           }
 
 #ifdef THREAD_VERBOSE
           processing_[tid] = nullptr;
 #endif
-        } else if (done) {
+        } else if (done.load(std::memory_order_acquire) ){
           break;
-        } else {
-          sync.wait(lock);
+        }
+        else {
+          sched_yield();
         }
       }
     }
@@ -183,10 +194,12 @@ namespace symPACK{
 #ifdef SP_THREADS
       if(Multithreading::NumThread>1){
         scope_timer(a,UPCXX_ADVANCE);
-        std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
 #ifdef NEW_UPCXX
-        upcxx::progress();
+        //nothing here this is handled by the progress thread
+//        upcxx::progress();
 #else
+        //TODO this is obsolete and has to go`
+        //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
         upcxx::advance();
 #endif
       }
@@ -209,9 +222,10 @@ namespace symPACK{
 
         {
 #ifdef SP_THREADS
-          if(Multithreading::NumThread>1){
-            upcxx_mutex.lock();
-          }
+        //  if(Multithreading::NumThread>1){
+        //TODO this is obsolete and has to go`
+        //    upcxx_mutex.lock();
+        //  }
 #endif
 
 #if 1
@@ -244,9 +258,10 @@ namespace symPACK{
 #endif
 
 #ifdef SP_THREADS
-          if(Multithreading::NumThread>1){
-            upcxx_mutex.unlock();
-          }
+        //TODO this is obsolete and has to go`
+        //  if(Multithreading::NumThread>1){
+        //    upcxx_mutex.unlock();
+        //  }
 #endif
         }
 
@@ -300,9 +315,8 @@ namespace symPACK{
             bassert(taskit!=graph.tasks_.end());
             {
 #ifdef SP_THREADS
-              if(Multithreading::NumThread>1){
-                list_mutex_.lock();
-              }
+        //TODO this is obsolete and has to go`
+              if(Multithreading::NumThread>1){ list_mutex_.lock(); }
 #endif
               taskit->second->remote_deps--;
               taskit->second->addData(msgPtr);
@@ -313,9 +327,8 @@ namespace symPACK{
               }
 
 #ifdef SP_THREADS
-              if(Multithreading::NumThread>1){
-                list_mutex_.unlock();
-              }
+        //TODO this is obsolete and has to go`
+              if(Multithreading::NumThread>1){ list_mutex_.unlock(); }
 #endif
             }
           }
@@ -323,9 +336,10 @@ namespace symPACK{
       }while(msg!=nullptr);
 
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){
-        upcxx_mutex.lock();
-      }
+        //TODO this is obsolete and has to go`
+      //if(Multithreading::NumThread>1){
+      //  upcxx_mutex.lock();
+      //}
 #endif
       //if we have some room, turn blocking comms into async comms
       if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
@@ -350,9 +364,10 @@ namespace symPACK{
         }
       }
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){
-        upcxx_mutex.unlock();
-      }
+        //TODO this is obsolete and has to go`
+      //if(Multithreading::NumThread>1){
+      //  upcxx_mutex.unlock();
+      //}
 #endif
 
       return num_recv;
@@ -375,19 +390,10 @@ namespace symPACK{
     inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph)
 #endif
     {
-      //maxWaitT = 0.0;
-      //maxAWaitT = 0.0;
-
       int np = 1;
       MPI_Comm_size(workcomm,&np);
       int iam = 0;
       MPI_Comm_rank(workcomm,&iam);
-
-      //int completion = np;
-      //auto sync_cb = [&completion,iam](int p){
-      //  completion--;
-      //  logfileptr->OFS()<<"P"<<iam<<" received completion from P"<<p<<std::endl;
-      //};
 
       //put rdy tasks in rdy queue
       {
@@ -428,37 +434,39 @@ namespace symPACK{
       };
 
 #ifdef SP_THREADS
-      auto check_handle = [] (std::future< void > const& f) {
-        bool retval = f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
-        //logfileptr->OFS()<<"thread done ? "<<retval<<std::endl;
-        return retval; };
-
-      std::list<std::future<void> > handles;
-
-      if(Multithreading::NumThread>1){
-        logfileptr->OFS()<<"Num threads = "<<Multithreading::NumThread<<std::endl;
-      }
-
-      //handles.reserve(nthr);
-
-      auto progress_threads = [&]() {
-        //logfileptr->OFS()<<"handle size "<<handles.size()<<std::endl;
-        scope_timer(a,SOLVE_PROGRESS_THREADS);
-        auto it = handles.begin();
-        while(it != handles.end()){
-          //          it->wait();
-          //logfileptr->OFS()<<"checking handle"<<std::endl;
-          if(check_handle(*it)){
-            //logfileptr->OFS()<<"thread done"<<std::endl;
-            it->get();
-            it = handles.erase(it);
-          }
-          else{
-            it++;
-          }
-        }
-      };
+  //TODO it seems that this is dead code
+//      auto check_handle = [] (std::future< void > const& f) {
+//        bool retval = f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
+//        //logfileptr->OFS()<<"thread done ? "<<retval<<std::endl;
+//        return retval; };
+//
+//      std::list<std::future<void> > handles;
+//
+//      if(Multithreading::NumThread>1){
+//        logfileptr->OFS()<<"Num threads = "<<Multithreading::NumThread<<std::endl;
+//      }
+//
+//      //handles.reserve(nthr);
+//
+//      auto progress_threads = [&]() {
+//        //logfileptr->OFS()<<"handle size "<<handles.size()<<std::endl;
+//        scope_timer(a,SOLVE_PROGRESS_THREADS);
+//        auto it = handles.begin();
+//        while(it != handles.end()){
+//          //          it->wait();
+//          //logfileptr->OFS()<<"checking handle"<<std::endl;
+//          if(check_handle(*it)){
+//            //logfileptr->OFS()<<"thread done"<<std::endl;
+//            it->get();
+//            it = handles.erase(it);
+//          }
+//          else{
+//            it++;
+//          }
+//        }
+//      };
 #endif
+
 
       {
 
@@ -493,6 +501,33 @@ namespace symPACK{
         std::shared_ptr<GenericTask> curTask = nullptr;
         if(Multithreading::NumThread>1){
           WorkQueue<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread,threadInitHandle_);
+#ifdef NEW_UPCXX
+
+          // declare an agreed upon persona for the progress thread
+          //atomic<int> thread_barrier(0);
+          bool done = false;
+          // liberate the master persona to allow the progress thread to use it
+          symPACK::liberate_master_scope();
+
+          // create the progress thread
+          std::thread progress_thread( [this,&done,&queue]() {
+              // push the master persona onto this thread's stack
+              upcxx::persona_scope scope(upcxx::master_persona());
+              // push progress_persona onto this thread's persona stack
+              //upcxx::persona_scope scope(this->progress_persona_);
+              // progress thread drains progress until work is done
+              while (!done){
+              sched_yield();
+              upcxx::progress();
+              }
+              //        cout<<"Progress thread on process "<<upcxx::rank_me()<<" is done"<<endl; 
+
+
+              //unlock the other threads
+              //thread_barrier += 1;
+          });
+
+#endif
 
           while(graph.getTaskCount()>0 || !this->done() || !delayedTasks_.empty() ){
 
@@ -504,12 +539,12 @@ namespace symPACK{
             {
               auto taskit = delayedTasks_.begin();
 
-for(auto && toto: delayedTasks_){
-                  std::stringstream sstr;
-                  sstr<<"delayed";
-                  log_task(curTask,sstr);
-                  logfileptr->OFS()<<sstr.str();
-}
+              for(auto && toto: delayedTasks_){
+                std::stringstream sstr;
+                sstr<<"delayed";
+                log_task(curTask,sstr);
+                logfileptr->OFS()<<sstr.str();
+              }
 
               while(taskit!=delayedTasks_.end()){
                 bool delay = extraTaskHandle_(*taskit);
@@ -531,47 +566,86 @@ for(auto && toto: delayedTasks_){
 
             while(!this->done()){
               curTask = nullptr;
-              std::lock_guard<std::mutex> lock(list_mutex_);
-              curTask = this->top();
-              bassert(curTask!=nullptr);
-              this->pop();
-              bool delay = false;
-              if(extraTaskHandle_!=nullptr){
-                delay = extraTaskHandle_(curTask);
-                if(delay){
-//gdb_lock();
-//#ifdef THREAD_VERBOSE
-                  std::stringstream sstr;
-                  sstr<<"Delaying";
-                  log_task(curTask,sstr);
-                  logfileptr->OFS()<<sstr.str();
-//#endif
-                  delayedTasks_.push_back(curTask);
+  //            std::lock_guard<std::mutex> lock(list_mutex_);
+              if ( this->size() > 0 ) {
+
+#ifdef SP_THREADS
+      if(Multithreading::NumThread>1){ this->list_mutex_.lock(); }
+#endif
+                curTask = this->top();
+                bassert(curTask==this->top());
+                //if(extraTaskHandle_!=nullptr){
+                //  if (curTask==nullptr){
+                //    gdb_lock();
+                //    for(auto && toto: delayedTasks_){
+                //      bool delay = extraTaskHandle_(toto);
+                //    }
+                //  }
+                //}
+
+
+                bassert(curTask!=nullptr);
+                this->pop();
+#ifdef SP_THREADS
+      if(Multithreading::NumThread>1){ this->list_mutex_.unlock(); }
+#endif
+                bool delay = false;
+                if(extraTaskHandle_!=nullptr){
+                  delay = extraTaskHandle_(curTask);
+                  if(delay){
+                    //gdb_lock();
+                    //#ifdef THREAD_VERBOSE
+                    std::stringstream sstr;
+                    sstr<<"Delaying";
+                    log_task(curTask,sstr);
+                    logfileptr->OFS()<<sstr.str();
+                    //#endif
+                    delayedTasks_.push_back(curTask);
+                  }
+                }
+
+                if(!delay){
+                  queue.pushTask(curTask);
                 }
               }
-
-              if(!delay){
-                queue.pushTask(curTask);
+              else{
+                sched_yield();
               }
             }
 
 #ifdef THREAD_VERBOSE
             {
               std::stringstream sstr;
-              queue.list_mutex_.lock();
+//              queue.list_mutex_.lock();
 
               sstr<<"======delayed======"<<std::endl;
               for(auto ptr: delayedTasks_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
               sstr<<"======waiting======"<<std::endl;
-              for(auto && ptr : queue.workQueue_){ log_task(ptr,sstr); }
+//              for(auto && ptr : queue.workQueue_){ log_task(ptr,sstr); }
               sstr<<"======running======"<<std::endl;
               for(auto ptr: queue.processing_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
               sstr<<"==================="<<std::endl;
               logfileptr->OFS()<<sstr.str();
-              queue.list_mutex_.unlock();
+//              queue.list_mutex_.unlock();
             }
 #endif
           }
+
+#ifdef NEW_UPCXX
+  double tstop, tstart;
+  //upcxx::progress(); //this is handled by the progress thread
+  upcxx::discharge();
+  while ( (*remDealloc) > 0 ) {
+    sched_yield();
+  }
+  done = true; //this will stop the progress thread
+  progress_thread.join();
+
+    // recapture the master persona onto the initial thread's persona stack
+    // before calling barrier
+          symPACK::capture_master_scope();
+  upcxx::barrier(workteam);
+#endif
         }
         else{
           std::chrono::time_point<std::chrono::system_clock> start;
@@ -580,9 +654,7 @@ for(auto && toto: delayedTasks_){
               num_msg = checkIncomingMessages_(graph);
             }
 
-            //            start = std::chrono::system_clock::now();
-            //            while(!this->done() && (std::chrono::system_clock::now() - start < std::chrono::milliseconds(1))   )
-            while(!this->done()){// && (std::chrono::system_clock::now() - start < std::chrono::milliseconds(1))   )
+            while(!this->done()){
               //Pick a ready task
               curTask = this->top();
               this->pop();
@@ -590,63 +662,32 @@ for(auto && toto: delayedTasks_){
               //clear resources
               curTask->reset();
 #ifdef NEW_UPCXX
-        upcxx::progress();
+              upcxx::progress();
 #else
               upcxx::advance();
 #endif
             }
           }
-        }
-
 #ifdef NEW_UPCXX
-   double tstop, tstart;
-
+  double tstop, tstart;
   upcxx::progress();
   upcxx::discharge();
-   //tstart = get_time();
-//  for(auto f: pFutures) f.wait();
-//  pFutures.clear();
   while ( (*remDealloc) > 0 ) { upcxx::progress(); }
-   //tstop = get_time();
-   //logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
+  upcxx::barrier(workteam);
+#endif
+        }
 
-   //tstart = get_time();
-//        int barrier_id = get_barrier_id(np);
-//        signal_exit(barrier_id,group); 
-   //tstop = get_time();
-   //logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
-
-        upcxx::barrier(workteam);
-   //tstart = get_time();
-////        barrier_wait(barrier_id,group);
-
-   //tstop = get_time();
-   //logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
-#else
+#ifndef NEW_UPCXX
    double tstart = get_time();
-        int barrier_id = get_barrier_id(np);
-        signal_exit(barrier_id,np); 
+   int barrier_id = get_barrier_id(np);
+   signal_exit(barrier_id,np); 
    double tstop = get_time();
    logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
    tstart = get_time();
-        barrier_wait(barrier_id);
+   barrier_wait(barrier_id);
    tstop = get_time();
    logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
 #endif
-
-   //logfileptr->OFS()<<"maxWaitT: "<<maxWaitT<<std::endl;
-   //logfileptr->OFS()<<"maxAWaitT: "<<maxAWaitT<<std::endl;
-
-        //workteam.barrier();
-        //upcxx::async_wait();
-
-        //signal completion to everyone
-        //for(int p=0;p<np;p++){ upcxx::async(p)(sync_cb,iam); }
-        //wait until we reach completion
-        //while(completion>0){ upcxx::advance(); }
-
-        //MPI_Barrier(workcomm);
-
       }
     }
 

@@ -852,6 +852,12 @@ namespace symPACK{
 #ifdef NEW_UPCXX
       std::list< upcxx::future<> > gFutures;
       upcxx::dist_object<int> * remDealloc;
+
+#ifdef SP_THREADS
+  // declare an agreed upon persona for the progress thread
+  upcxx::persona progress_persona_;
+  std::thread progress_thread_;
+#endif
 #endif
 
       //TODO Task lists
