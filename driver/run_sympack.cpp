@@ -460,14 +460,14 @@ int main(int argc, char **argv)
           std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
         }
 
-        auto tmpX = RHS;
-        timeSta = get_time();
-        SMat->Solve(&tmpX[0],nrhs);
-        timeEnd = get_time();
-
-        if(iam==0){
-          std::cout<<"Legacy Solve time: "<<timeEnd-timeSta<<std::endl;
-        }
+//        auto tmpX = RHS;
+//        timeSta = get_time();
+//        SMat->Solve(&tmpX[0],nrhs);
+//        timeEnd = get_time();
+//
+//        if(iam==0){
+//          std::cout<<"Legacy Solve time: "<<timeEnd-timeSta<<std::endl;
+//        }
 
 
         SMat->GetSolution(&XFinal[0],nrhs);

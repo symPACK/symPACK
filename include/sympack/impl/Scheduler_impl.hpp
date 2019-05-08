@@ -16,6 +16,7 @@ namespace symPACK{
       processing_.resize(nthreads,nullptr);
 #endif
       workQueues_.resize(nthreads);
+      list_mutexes_.resize(nthreads);
       for (Int count {0}; count < nthreads; count += 1){
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
       }
@@ -43,6 +44,8 @@ namespace symPACK{
       processing_.resize(nthreads,nullptr);
 #endif
       workQueues_.resize(nthreads);
+      list_mutexes_.resize(nthreads);
+
       threadInitHandle_ = threadInitHandle;
       for (Int count {0}; count < nthreads; count += 1){
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
@@ -82,9 +85,13 @@ namespace symPACK{
 //      bassert(it==workQueue_.end());
 //#endif
 
-      auto & queue = *std::min_element(workQueues_.begin(),workQueues_.end(), [](Queue & a, Queue & b){return a.size()<b.size();});
 
+      auto queue_it = std::min_element(workQueues_.begin(),workQueues_.end(), [](Queue & a, Queue & b){return a.size()<b.size();});
+      auto & queue = *queue_it;
+      int queue_id = std::distance(workQueues_.begin(),queue_it);
+      list_mutexes_[queue_id].lock();
       queue.push_back(fut);
+      list_mutexes_[queue_id].unlock();
  //     sync.notify_one();
     }
 
@@ -109,12 +116,17 @@ namespace symPACK{
       }
 
       auto & queue = workQueues_[tid];
+      auto & list_mutex = list_mutexes_[tid];
 
       //std::unique_lock<std::mutex> lock(list_mutex_);
       while (true) {
-        if (not queue.empty()) {
+        list_mutex.lock();
+        bool empty = queue.empty();
+
+        if ( ! empty) {
           T func { std::move(queue.front()) };
           queue.pop_front();
+          list_mutex.unlock();
 
 
 #ifdef THREAD_VERBOSE
@@ -159,9 +171,11 @@ namespace symPACK{
           processing_[tid] = nullptr;
 #endif
         } else if (done.load(std::memory_order_acquire) ){
+          list_mutex.unlock();
           break;
         }
         else {
+          list_mutex.unlock();
           sched_yield();
         }
       }
@@ -499,35 +513,42 @@ namespace symPACK{
 
         Int num_msg =0;
         std::shared_ptr<GenericTask> curTask = nullptr;
+        bool done = false;
+        std::thread progress_thread;
         if(Multithreading::NumThread>1){
-          WorkQueue<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread,threadInitHandle_);
 #ifdef NEW_UPCXX
-
           // declare an agreed upon persona for the progress thread
           //atomic<int> thread_barrier(0);
-          bool done = false;
           // liberate the master persona to allow the progress thread to use it
           symPACK::liberate_master_scope();
 
           // create the progress thread
-          std::thread progress_thread( [this,&done,&queue]() {
+          progress_thread = std::thread( [this,&done,&remDealloc,&workteam]() {
               // push the master persona onto this thread's stack
               upcxx::persona_scope scope(upcxx::master_persona());
               // push progress_persona onto this thread's persona stack
               //upcxx::persona_scope scope(this->progress_persona_);
               // progress thread drains progress until work is done
-              while (!done){
+              //gdb_lock();
+              while (!done || (*remDealloc) > 0 ){
               sched_yield();
               upcxx::progress();
               }
               //        cout<<"Progress thread on process "<<upcxx::rank_me()<<" is done"<<endl; 
 
+              upcxx::discharge();
+//  upcxx::barrier(workteam);
+//  while ( (*remDealloc) > 0 ) { sched_yield(); }
 
               //unlock the other threads
               //thread_barrier += 1;
           });
 
 #endif
+        }
+
+        if(Multithreading::NumThread>1){
+          WorkQueue<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread,threadInitHandle_);
 
           while(graph.getTaskCount()>0 || !this->done() || !delayedTasks_.empty() ){
 
@@ -539,12 +560,14 @@ namespace symPACK{
             {
               auto taskit = delayedTasks_.begin();
 
+#ifdef THREAD_VERBOSE
               for(auto && toto: delayedTasks_){
                 std::stringstream sstr;
                 sstr<<"delayed";
                 log_task(curTask,sstr);
                 logfileptr->OFS()<<sstr.str();
               }
+#endif
 
               while(taskit!=delayedTasks_.end()){
                 bool delay = extraTaskHandle_(*taskit);
@@ -594,12 +617,12 @@ namespace symPACK{
                   delay = extraTaskHandle_(curTask);
                   if(delay){
                     //gdb_lock();
-                    //#ifdef THREAD_VERBOSE
+                    #ifdef THREAD_VERBOSE
                     std::stringstream sstr;
                     sstr<<"Delaying";
                     log_task(curTask,sstr);
                     logfileptr->OFS()<<sstr.str();
-                    //#endif
+                    #endif
                     delayedTasks_.push_back(curTask);
                   }
                 }
@@ -632,12 +655,9 @@ namespace symPACK{
           }
 
 #ifdef NEW_UPCXX
-  double tstop, tstart;
+  //double tstop, tstart;
   //upcxx::progress(); //this is handled by the progress thread
-  upcxx::discharge();
-  while ( (*remDealloc) > 0 ) {
-    sched_yield();
-  }
+  //upcxx::discharge();
   done = true; //this will stop the progress thread
   progress_thread.join();
 
@@ -669,10 +689,14 @@ namespace symPACK{
             }
           }
 #ifdef NEW_UPCXX
-  double tstop, tstart;
-  upcxx::progress();
+  //double tstop, tstart;
+  //upcxx::progress();
   upcxx::discharge();
   while ( (*remDealloc) > 0 ) { upcxx::progress(); }
+  //while ( (*remDealloc) > 0 ) { sched_yield(); }
+  //done = true; //this will stop the progress thread
+  //progress_thread.join();
+  //        symPACK::capture_master_scope();
   upcxx::barrier(workteam);
 #endif
         }

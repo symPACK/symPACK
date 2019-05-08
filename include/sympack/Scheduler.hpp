@@ -67,6 +67,7 @@ namespace symPACK{
         std::mutex list_mutex_;
         Queue workQueue_;
         std::vector<Queue> workQueues_;
+        std::deque<std::mutex> list_mutexes_;
         std::vector<std::thread> threads;
         std::condition_variable sync;
         std::function<void()> threadInitHandle_;

@@ -159,8 +159,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifndef NDEBUG
             //tgt_aggreg->in_use_task = pTask;
 #endif
-            //if(!tgt_aggreg->in_use)
-            //tgt_aggreg->in_use = true;
             return false;
           }
           else{
@@ -278,6 +276,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
           Int src = meta[0];
           Int tgt = meta[1];
+//          if ( src==96 && tgt == 97 ) { gdb_lock(); }
           Task.execute = [&,this,src,tgt,pTask] () {
             scope_timer(a,FB_AGGREGATION_TASK);
             Int iLocalI = snodeLocalIndex(tgt);
@@ -316,7 +315,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #else
                   msgPtr->DeallocRemote();
 #endif
-
                 }
                 char* dataPtr = msgPtr->GetLocalPtr().get();
 
@@ -344,9 +342,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             sprintf(buf,"%d_%d_%d_%d",tgt_snode_id,tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
             auto id = hash_fn(std::string(buf));
 
-            //          std::stringstream sstr;
-            //          sstr<<tgt_snode_id<<"_"<<tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
-            //          auto id = hash_fn(sstr.str());
             auto taskit = graph.find_task(id);
             //this is a particular case : we consider this as a remote dependency
             bassert(taskit!=graph.tasks_.end());
@@ -360,9 +355,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
           sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)type;
           Task.id = hash_fn(sstr.str());
           graph.addTask(pTask);
-
-          //auto taskit = graph.find_task(Task.id);
-          //log_task(taskit);
         }
 
       };
@@ -516,7 +508,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                   Int iLocalTGT = snodeLocalIndex(tgt);
                   Int src_snode_id = src;
                   Int tgt_snode_id = tgt;
-
                   src_snode_id = abs(src_snode_id);
                   bool is_first_local = src <0;
 
@@ -865,6 +856,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                   Int src_snode_id = src;
                   Int tgt_snode_id = tgt;
 
+//if ( src==96 && tgt==97){gdb_lock();}
                   src_snode_id = abs(src_snode_id);
                   bool is_first_local = src <0;
 
@@ -1205,6 +1197,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           //                std::stringstream sstr;
                           //                sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
                           //                meta.id = hash_fn(sstr.str());
+#ifdef NEW_UPCXX
+                              (*(*this->remDealloc))++;
+#endif
 
                           char buf[100];
                           sprintf(buf,"%d_%d_%d_%d",meta.src,meta.tgt,0,(Int)Factorization::op_type::AGGREGATE);
@@ -1289,6 +1284,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
   timeSta = get_time();
 #ifdef NEW_UPCXX
   scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph,*this->remDealloc,*this->workteam_);
+  //gdb_lock();
   delete this->remDealloc;
 #else
   scheduler_new_->run(CommEnv_->MPI_GetComm(),*this->group_,graph);
@@ -1297,27 +1293,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
   if(this->iam==0 && this->options_.verbose){
     symPACKOS<<"Factorization task graph execution time: "<<timeStop - timeSta<<std::endl;
   }
-
-
-
-  //  SYMPACK_TIMER_START(BARRIER);
-
-  //#ifdef NEW_UPCXX
-  //  for(auto f: gFutures){
-  //    f.wait();
-  //  }
-  //  gFutures.clear();
-  //#else
-  //        int barrier_id = get_barrier_id(this->np);
-  //        signal_exit(barrier_id,this->np); 
-  //        barrier_wait(barrier_id);
-  //#endif
-
-
-  //  upcxx::async_wait();
-  //  MPI_Barrier(CommEnv_->MPI_GetComm());
-
-  //  SYMPACK_TIMER_STOP(BARRIER);
 
   tmpBufs.Clear();
 }
@@ -2197,6 +2172,7 @@ template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskG
             meta.GIndex = nzblk_desc.GIndex;
 
 #ifdef NEW_UPCXX
+            //gdb_lock();
             (*(*this->remDealloc))++;
 #endif
             //            logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" on P"<<iTarget<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;

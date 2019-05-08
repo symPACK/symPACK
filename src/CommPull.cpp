@@ -382,7 +382,19 @@ namespace symPACK{
     if(!remoteDealloc){
       auto ptr = GetRemotePtr();
       auto pdest = ptr.where();
-      upcxx::rpc_ff(pdest,[ptr,&remDealloc](){upcxx::deallocate(ptr); (*remDealloc)--;});
+//      if ( pdest==0) { gdb_lock(); }
+      //auto id = remDealloc.id();
+      //auto sender = upcxx::rank_me();
+      upcxx::rpc_ff(pdest,[ptr](upcxx::dist_object<int> & dealloc_cnt){ 
+          static int init_cnt=*dealloc_cnt;
+          static int call_cnt=0;
+
+          call_cnt++;
+
+//          if ( upcxx::rank_me()==0) {gdb_lock();}
+          bassert(*dealloc_cnt > 0 );
+          upcxx::deallocate(ptr); (*dealloc_cnt)--;},remDealloc);
+
       //pFutures.push_back(fut);
     }
   }

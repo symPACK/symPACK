@@ -3248,6 +3248,12 @@ namespace symPACK{
       else if(this->options_.mappingTypeStr ==  "COL2D"){
         this->Mapping_ = new Col2D(pmapping, pmapping, pmapping, 1);
       }
+      else if(this->options_.mappingTypeStr ==  "FANOUT"){
+        this->Mapping_ = new Row2D(pmapping, pmapping, pmapping, 1);
+      }
+      else if(this->options_.mappingTypeStr ==  "FANIN"){
+        this->Mapping_ = new Col2D(pmapping, pmapping, pmapping, 1);
+      }
       else{
         this->Mapping_ = new Modwrap2D(pmapping, pr, pr, 1);
       }
