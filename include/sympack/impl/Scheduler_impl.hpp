@@ -7,8 +7,181 @@
 #include <pthread.h>
 #include <thread>
 
+//#define _LOCKFREE_QUEUE_
+
 //Definitions of the WorkQueue class
 namespace symPACK{
+
+
+
+
+//template<typename T>
+//  class MPMCBoundedQueue
+//  {
+//
+//    struct node_t { T data; std::atomic<size_t> next; };
+//    typedef typename std::aligned_storage<sizeof(node_t), std::alignment_of<node_t>::value>::type aligned_node_t;
+//    typedef char cache_line_pad_t[64];
+//
+//    cache_line_pad_t pad0;
+//    const size_t size;
+//    const size_t mask;
+//    node_t * const buffer;
+//    cache_line_pad_t pad1;
+//    std::atomic<size_t> head{ 0 };
+//    cache_line_pad_t pad2;
+//    std::atomic<size_t> tail{ 0 };
+//    cache_line_pad_t pad3;
+//
+//
+//    public:
+//
+//    MPMCBoundedQueue(size_t size = 1024) : size(size), mask(size-1), buffer(reinterpret_cast<node_t*>(new aligned_node_t[size]))
+//    {
+//      assert((size != 0) && ((size & (~size + 1)) == size)); // enforce power of 2
+//      for (size_t i = 0; i < size; ++i) buffer[i].next.store(i, std::memory_order_relaxed);
+//    }
+//
+//
+//    MPMCBoundedQueue(const MPMCBoundedQueue & other): size(other.size),mask(other.mask),buffer(reinterpret_cast<node_t*>(new aligned_node_t[size])) {
+//      //(*this) = other;
+//      assert((size != 0) && ((size & (~size + 1)) == size)); // enforce power of 2
+//      for (size_t i = 0; i < size; ++i) buffer[i].next.store(i, std::memory_order_relaxed);
+//      //std::copy((aligned_node_t*)other.buffer,(aligned_node_t*)other.buffer+size,(aligned_node_t*)buffer);
+//      head.store(other.head);
+//      tail.store(other.tail);
+//    }
+//    void operator= (const MPMCBoundedQueue & other){
+//      //size = other.size;
+//      //mask = other.mask;
+//      //delete [] buffer;
+//      //buffer = reinterpret_cast<node_t*>(new aligned_node_t[size]);
+//      //std::copy((aligned_node_t*)other.buffer,(aligned_node_t*)other.buffer+size,(aligned_node_t*)buffer);
+//      //head.store(other.head);
+//      //tail.store(other.tail);
+//    }
+//
+//
+//
+//    ~MPMCBoundedQueue()
+//    {
+//      delete[] buffer;
+//    }
+//
+//    bool sp_produce(T const & input)
+//    {
+//      size_t headSequence = head.load(std::memory_order_relaxed);
+//      node_t * node = &buffer[headSequence & mask];
+//      size_t nodeSequence = node->next.load(std::memory_order_acquire);
+//      intptr_t dif = (intptr_t)nodeSequence - (intptr_t)headSequence;
+//
+//      if (dif == 0) 
+//      {
+//        ++head;
+//        node->data = input;
+//        node->next.store(headSequence, std::memory_order_release);
+//        return true;
+//      }
+//
+//      assert(dif < 0);
+//      return false;
+//    }
+//
+//    bool mp_produce(const T & input)
+//    {
+//      size_t headSequence = head.load(std::memory_order_relaxed);
+//
+//      while (true)
+//      {
+//        node_t * node = &buffer[headSequence & mask];
+//        size_t nodeSequence = node->next.load(std::memory_order_acquire);
+//        intptr_t dif = (intptr_t)nodeSequence - (intptr_t)headSequence;
+//
+//        if (dif == 0)
+//        {
+//          if (head.compare_exchange_weak(headSequence, headSequence + 1, std::memory_order_relaxed))
+//          {
+//            node->data = input;
+//            node->next.store(headSequence + 1, std::memory_order_release);
+//            return true;
+//          }
+//        }
+//        else if (dif < 0)
+//        {
+//          return false;
+//        }
+//        else
+//        {
+//          headSequence = head.load(std::memory_order_relaxed);
+//        }
+//      }
+//
+//      return false;
+//    }
+//
+//    bool consume(T & output)
+//    {
+//      size_t tailSequence = tail.load(std::memory_order_relaxed);
+//
+//      while (true)
+//      {
+//        node_t * node = &buffer[tailSequence & mask];
+//        size_t nodeSequence = node->next.load(std::memory_order_acquire);
+//        intptr_t dif = (intptr_t)nodeSequence - (intptr_t)(tailSequence + 1);
+//        if (dif == 0)
+//        {
+//          if (tail.compare_exchange_weak(tailSequence, tailSequence + 1, std::memory_order_relaxed))
+//          {
+//            output = node->data;
+//            node->next.store(tailSequence + mask + 1, std::memory_order_release);
+//            return true;
+//          }
+//        }
+//        else if (dif < 0)
+//        {
+//          return false;
+//        }
+//        else
+//        {
+//          tailSequence = tail.load(std::memory_order_relaxed);
+//        }
+//      }
+//      return false;
+//    }
+//
+//    bool consume(T && output)
+//    {
+//      size_t tailSequence = tail.load(std::memory_order_relaxed);
+//
+//      while (true)
+//      {
+//        node_t * node = &buffer[tailSequence & mask];
+//        size_t nodeSequence = node->next.load(std::memory_order_acquire);
+//        intptr_t dif = (intptr_t)nodeSequence - (intptr_t)(tailSequence + 1);
+//        if (dif == 0)
+//        {
+//          if (tail.compare_exchange_weak(tailSequence, tailSequence + 1, std::memory_order_relaxed))
+//          {
+//            output = {std::move(node->data)};
+//            node->next.store(tailSequence + mask + 1, std::memory_order_release);
+//            return true;
+//          }
+//        }
+//        else if (dif < 0)
+//        {
+//          return false;
+//        }
+//        else
+//        {
+//          tailSequence = tail.load(std::memory_order_relaxed);
+//        }
+//      }
+//      return false;
+//    }
+//  };
+
+
+
 
   template<typename T, typename Queue >
     inline WorkQueue<T, Queue >::WorkQueue(Int nthreads): done(false){
@@ -17,6 +190,8 @@ namespace symPACK{
 #endif
       workQueues_.resize(nthreads);
       list_mutexes_.resize(nthreads);
+      prev_slot_ = 0;
+
       for (Int count {0}; count < nthreads; count += 1){
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
       }
@@ -45,6 +220,7 @@ namespace symPACK{
 #endif
       workQueues_.resize(nthreads);
       list_mutexes_.resize(nthreads);
+      prev_slot_ = 0;
 
       threadInitHandle_ = threadInitHandle;
       for (Int count {0}; count < nthreads; count += 1){
@@ -76,41 +252,18 @@ namespace symPACK{
       for (auto &&thread: threads) thread.join();
     }
 
+#ifndef _LOCKFREE_QUEUE_
   template<typename T, typename Queue >
     inline void WorkQueue<T, Queue >::pushTask(T & fut){
-//      gdb_lock();
-//      std::unique_lock<std::mutex> lock(list_mutex_);
-//#ifdef THREAD_VERBOSE
-//      auto it = std::find(workQueue_.begin(),workQueue_.end(),fut);
-//      bassert(it==workQueue_.end());
-//#endif
-
-
       auto queue_it = std::min_element(workQueues_.begin(),workQueues_.end(), [](Queue & a, Queue & b){return a.size()<b.size();});
       auto & queue = *queue_it;
       int queue_id = std::distance(workQueues_.begin(),queue_it);
       list_mutexes_[queue_id].lock();
       queue.push_back(fut);
       list_mutexes_[queue_id].unlock();
- //     sync.notify_one();
     }
-
   template<typename T, typename Queue >
-    inline void WorkQueue<T, Queue >::consume(Int tid)
-    {
-#ifdef THREAD_VERBOSE
-      std::stringstream sstr;
-      sstr<<"Thread "<<tid<<std::endl;
-      logfileptr->OFS()<<sstr.str();
-#endif
-
-      
-      std::stringstream sstr2;
-#if 0
-      sstr2 << "Thread #" << tid << ": on CPU " << sched_getcpu() << "\n";
-#endif
-      logfileptr->OFS()<<sstr2.str();
-
+    inline void WorkQueue<T, Queue >::consume(Int tid) {
       if(threadInitHandle_!=nullptr){
         threadInitHandle_();
       }
@@ -118,7 +271,6 @@ namespace symPACK{
       auto & queue = workQueues_[tid];
       auto & list_mutex = list_mutexes_[tid];
 
-      //std::unique_lock<std::mutex> lock(list_mutex_);
       while (true) {
         list_mutex.lock();
         bool empty = queue.empty();
@@ -128,14 +280,8 @@ namespace symPACK{
           queue.pop_front();
           list_mutex.unlock();
 
-
-#ifdef THREAD_VERBOSE
-          processing_[tid] = func;
-#endif
-          //sync.notify_one();
           bool success = false;
           while(!success){
-            //lock.unlock();
             //try
             {
               func->execute();
@@ -153,24 +299,9 @@ namespace symPACK{
 //              }
 //
 //              lock.lock();
-//              //wait for a task to be completed before retrying
-//              //sync.wait(lock);
-//              sync.wait_for(lock,std::chrono::milliseconds(10));
-//              {
-//                std::stringstream sstr;
-//                sstr<<"Task un locked on T"<<tid<<std::endl;
-//                logfileptr->OFS()<<sstr.str();
-//              }
-//
-//              sync.notify_all();
-//
-//            }
           }
-
-#ifdef THREAD_VERBOSE
-          processing_[tid] = nullptr;
-#endif
-        } else if (done.load(std::memory_order_acquire) ){
+        } 
+        else if (done.load(std::memory_order_acquire) ){
           list_mutex.unlock();
           break;
         }
@@ -180,6 +311,58 @@ namespace symPACK{
         }
       }
     }
+
+#else
+  template<typename T, typename Queue >
+    inline void WorkQueue<T, Queue >::pushTask(T & fut){
+      while ( true ) {
+        auto & queue = workQueues_[prev_slot_];
+        prev_slot_ = (prev_slot_+1)%workQueues_.size();
+        bool success = queue.enqueue(fut);
+        if ( success ) { 
+          break;
+        }
+        else {
+          sched_yield();
+        }
+      }
+  }      
+  template<typename T, typename Queue >
+    inline void WorkQueue<T, Queue >::consume(Int tid)
+    {
+      if(threadInitHandle_!=nullptr){
+        threadInitHandle_();
+      }
+
+      auto & queue = workQueues_[tid];
+      //auto & list_mutex = list_mutexes_[tid];
+      while (true) {
+        T func;
+        //list_mutex.lock();
+        bool success = queue.dequeue(func);
+        //list_mutex.unlock();
+        if ( success ) {
+              func->execute();
+              //clear resources
+              func->reset();
+        }
+        else if (done.load(std::memory_order_acquire) ){
+          break;
+        }
+        else {
+          sched_yield();
+        }
+      }
+    }
+
+#endif
+
+
+
+
+
+
+
 }//end namespace symPACK
 //end of definitions of the WorkQueue class
 
@@ -548,7 +731,11 @@ namespace symPACK{
         }
 
         if(Multithreading::NumThread>1){
+#ifndef _LOCKFREE_QUEUE_
           WorkQueue<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread,threadInitHandle_);
+#else
+          WorkQueue<std::shared_ptr<GenericTask>, mpmc_bounded_queue<std::shared_ptr<GenericTask>> > queue(Multithreading::NumThread,threadInitHandle_);
+#endif
 
           while(graph.getTaskCount()>0 || !this->done() || !delayedTasks_.empty() ){
 
