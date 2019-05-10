@@ -133,9 +133,18 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
         Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[3]);
 
         if(type == Factorization::op_type::FACTOR){
+#ifndef NDEBUG
+          int tgt = meta[1];
+          SuperNode<T> * tgt_aggreg = snodeLocal(tgt);
+
+          bool exp = false;
+          bassert(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true ));
+          tgt_aggreg->in_use_task = pTask;
+#endif
           return false;
         }
         else if(type == Factorization::op_type::TRSM){
+gdb_lock();
           return false;
         }
         else{
@@ -157,11 +166,16 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
           bool exp = false;
           if(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true )){
 #ifndef NDEBUG
-            //tgt_aggreg->in_use_task = pTask;
+            tgt_aggreg->in_use_task = pTask;
 #endif
+//            tgt_aggreg->lock.lock();
             return false;
           }
           else{
+//this assert is wonrg as it is not atomic
+//#ifndef NDEBUG
+//            bassert(tgt_aggreg->in_use_task!=nullptr && tgt_aggreg->in_use_task!=pTask);
+//#endif
             return true;
           }
         }
@@ -294,6 +308,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             Int src_first_col = src_snode->FirstCol();
             Int src_last_col = src_snode->LastCol();
 
+#ifndef NDEBUG
+            if(Multithreading::NumThread>1){
+              bassert(src_snode->in_use_task==pTask);
+            }
+#endif
 #ifdef _DEBUG_PROGRESS_
             logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 #endif
@@ -332,8 +351,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #ifdef SP_THREADS
             if(Multithreading::NumThread>1){
               src_snode->in_use = false;
+//              src_snode->lock.unlock();
 #ifndef NDEBUG
-              //src_snode->in_use_task=nullptr;
+              src_snode->in_use_task=nullptr;
 #endif
             }
 #endif
@@ -386,6 +406,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                 Int src_first_col = src_snode->FirstCol();
                 Int src_last_col = src_snode->LastCol();
 
+#ifndef NDEBUG
+                if(Multithreading::NumThread>1){
+                  bassert(src_snode->in_use_task==pTask);
+                }
+#endif
 #ifdef _DEBUG_PROGRESS_
                 logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
 #endif
@@ -404,6 +429,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
 
                 SYMPACK_TIMER_STOP(FACTOR_PANEL);
+
+
+
+
 
                 //  logfileptr->OFS()<<"After factoring Supernode "<<I<<std::endl;
                 //  logfileptr->OFS()<<*src_snode<<std::endl;
@@ -485,6 +514,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                 }
                 SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS_FACTORIZATION);
                 SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS);
+#ifndef NDEBUG
+                if(Multithreading::NumThread>1){
+                  src_snode->in_use = false;
+                  src_snode->in_use_task=nullptr;
+                }
+#endif
               };
 
               //#else
@@ -500,6 +535,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
           case Factorization::op_type::UPDATE:
             {
               //#ifdef _LAMBDAS_
+#undef _SEQ_SPECIAL_CASE_
 #ifdef _SEQ_SPECIAL_CASE_
               if(Multithreading::NumThread==1){
                 Task.execute = [&,this,src,tgt,pTask,type] () {
@@ -706,7 +742,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
 
 
-                    std::cout.precision(std::numeric_limits< T >::max_digits10);
+//                    std::cout.precision(std::numeric_limits< T >::max_digits10);
 //if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { std::cout<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" "<<tgt_aggreg->GetNZval(0)[4*(1+44)]<<std::endl; if(curUpdate.tgt_snode_id==3 && cur_src_snode->Id()==2){gdb_lock();} }
 
                           //if ( tgt != 4 || ( src==2 && tgt == 4 ) ) {
@@ -715,6 +751,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           SYMPACK_TIMER_START(UPD_ANC_UPD);
 #ifdef SP_THREADS
                           if(Multithreading::NumThread>1){
+
+#ifndef NDEBUG
+                            bassert(tgt_aggreg->in_use_task==pTask);
+#endif
                             //scheduler_new_->list_mutex_.lock();
                             auto & tmpBuf = tmpBufs_th[tid];
                             //scheduler_new_->list_mutex_.unlock();
@@ -728,14 +768,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           SYMPACK_TIMER_STOP(UPD_ANC_UPD);
                           //if( tgt==4 ){logfileptr->OFS()<<"After update from "<<src<<" to "<<tgt<<std::endl<<*tgt_aggreg<<std::endl;}
                           //}
-#ifdef SP_THREADS
-                          if(Multithreading::NumThread>1){
-                            tgt_aggreg->in_use = false;
-#ifndef NDEBUG
-              //tgt_aggreg->in_use_task=nullptr;
-#endif
-                          }
-#endif
+
 
                           --UpdatesToDo[curUpdate.tgt_snode_id-1];
 #ifdef _DEBUG_
@@ -839,7 +872,14 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                   }
 
 
-
+#ifdef SP_THREADS
+                          if(Multithreading::NumThread>1){
+                            tgt_aggreg->in_use = false;
+#ifndef NDEBUG
+                            tgt_aggreg->in_use_task=nullptr;
+#endif
+                          }
+#endif
 
 
 
@@ -1138,6 +1178,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       SYMPACK_TIMER_START(UPD_ANC_UPD);
 #ifdef SP_THREADS
                       if(Multithreading::NumThread>1){
+#ifndef NDEBUG
+                        bassert(tgt_aggreg->in_use_task==pTask);
+#endif
+
                         //scheduler_new_->list_mutex_.lock();
                         auto & tmpBuf = tmpBufs_th[tid];
                         //scheduler_new_->list_mutex_.unlock();
@@ -1146,22 +1190,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       }
                       else
 #endif
-
-
-
                         tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
 
                       SYMPACK_TIMER_STOP(UPD_ANC_UPD);
-
-#ifdef SP_THREADS
-                      if(Multithreading::NumThread>1){
-                        tgt_aggreg->in_use = false;
-#ifndef NDEBUG
-              //tgt_aggreg->in_use_task=nullptr;
-#endif
-                      }
-#endif
-
                       --UpdatesToDo[curUpdate.tgt_snode_id-1];
 #ifdef _DEBUG_
                       logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<std::endl;
@@ -1246,6 +1277,19 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
                       }
                       SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
+
+#ifdef SP_THREADS
+                      if(Multithreading::NumThread>1){
+                        tgt_aggreg->in_use = false;
+//                        tgt_aggreg->lock.unlock();
+#ifndef NDEBUG
+                        tgt_aggreg->in_use_task=nullptr;
+#endif
+                      }
+#endif
+
+
+
                     }
 
                     if(structPtr!=nullptr){

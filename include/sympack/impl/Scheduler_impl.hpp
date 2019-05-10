@@ -7,7 +7,7 @@
 #include <pthread.h>
 #include <thread>
 
-//#define _LOCKFREE_QUEUE_
+#define _LOCKFREE_QUEUE_
 
 //Definitions of the WorkQueue class
 namespace symPACK{
@@ -698,7 +698,7 @@ namespace symPACK{
         std::shared_ptr<GenericTask> curTask = nullptr;
         bool done = false;
         std::thread progress_thread;
-        if(Multithreading::NumThread>1){
+        if(Multithreading::NumThread>=1){
 #ifdef NEW_UPCXX
           // declare an agreed upon persona for the progress thread
           //atomic<int> thread_barrier(0);
@@ -784,16 +784,6 @@ namespace symPACK{
 #endif
                 curTask = this->top();
                 bassert(curTask==this->top());
-                //if(extraTaskHandle_!=nullptr){
-                //  if (curTask==nullptr){
-                //    gdb_lock();
-                //    for(auto && toto: delayedTasks_){
-                //      bool delay = extraTaskHandle_(toto);
-                //    }
-                //  }
-                //}
-
-
                 bassert(curTask!=nullptr);
                 this->pop();
 #ifdef SP_THREADS
@@ -876,6 +866,12 @@ namespace symPACK{
             }
           }
 #ifdef NEW_UPCXX
+#if 1
+  done = true; //this will stop the progress thread
+  progress_thread.join();
+  symPACK::capture_master_scope();
+  upcxx::barrier(workteam);
+#else
   //double tstop, tstart;
   //upcxx::progress();
   upcxx::discharge();
@@ -885,6 +881,7 @@ namespace symPACK{
   //progress_thread.join();
   //        symPACK::capture_master_scope();
   upcxx::barrier(workteam);
+#endif
 #endif
         }
 
