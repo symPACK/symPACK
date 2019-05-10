@@ -45,6 +45,34 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #include "sympack/symPACKMatrix.hpp"
 
+
+
+  template<typename T>
+class supernode_lock {
+  public:
+    supernode_lock(SuperNodeBase<T> * snode) {
+      snode_ = snode;
+    }
+
+    ~supernode_lock(){
+#ifdef SP_THREADS
+      if(Multithreading::NumThread>2){
+#ifndef NDEBUG
+        snode_->in_use_task=nullptr;
+#endif
+        snode_->in_use = false;
+      }
+#endif
+    }
+  protected:
+    SuperNodeBase<T> * snode_;
+};
+
+
+
+
+
+
 template <typename T> inline void symPACKMatrix<T>::dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier){
   for(std::list<Int>::iterator it = tree[node].begin(); it!=tree[node].end(); it++){
     Int I = *it;
@@ -125,7 +153,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
       scheduler_new_->list_mutex_.unlock();
     };
 
-    if(Multithreading::NumThread>1){
+    if(Multithreading::NumThread>2){
       scheduler_new_->extraTaskHandle_ = [&,this](std::shared_ptr<GenericTask> & pTask)->bool {
         SparseTask & Task = *(SparseTask*)pTask.get();
 
@@ -138,13 +166,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
           SuperNode<T> * tgt_aggreg = snodeLocal(tgt);
 
           bool exp = false;
+          if(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true )){
+            tgt_aggreg->in_use_task = pTask;
+          }
+
+          exp = true;
           bassert(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true ));
-          tgt_aggreg->in_use_task = pTask;
 #endif
-          return false;
-        }
-        else if(type == Factorization::op_type::TRSM){
-gdb_lock();
           return false;
         }
         else{
@@ -187,19 +215,21 @@ gdb_lock();
     auto dec_ref = [&] ( taskGraph::task_iterator taskit, Int loc, Int rem) {
       scope_timer(a,DECREF);
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){ scheduler_new_->list_mutex_.lock(); }
+      if(Multithreading::NumThread>2){ scheduler_new_->list_mutex_.lock(); }
 #endif
       taskit->second->local_deps-= loc;
       taskit->second->remote_deps-= rem;
 
       if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
 
+
+
         scheduler_new_->push(taskit->second);
         graph.removeTask(taskit->second->id);
       }
 
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){ scheduler_new_->list_mutex_.unlock(); }
+      if(Multithreading::NumThread>2){ scheduler_new_->list_mutex_.unlock(); }
 #endif
     };
 
@@ -308,8 +338,9 @@ gdb_lock();
             Int src_first_col = src_snode->FirstCol();
             Int src_last_col = src_snode->LastCol();
 
+            supernode_lock<T> lock(src_snode);
 #ifndef NDEBUG
-            if(Multithreading::NumThread>1){
+            if(Multithreading::NumThread>2){
               bassert(src_snode->in_use_task==pTask);
             }
 #endif
@@ -348,15 +379,15 @@ gdb_lock();
               }
             }
 
-#ifdef SP_THREADS
-            if(Multithreading::NumThread>1){
-              src_snode->in_use = false;
-//              src_snode->lock.unlock();
-#ifndef NDEBUG
-              src_snode->in_use_task=nullptr;
-#endif
-            }
-#endif
+//#ifdef SP_THREADS
+//            if(Multithreading::NumThread>1){
+//              src_snode->in_use = false;
+////              src_snode->lock.unlock();
+//#ifndef NDEBUG
+//              src_snode->in_use_task=nullptr;
+//#endif
+//            }
+//#endif
 
             char buf[100];
             sprintf(buf,"%d_%d_%d_%d",tgt_snode_id,tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
@@ -380,7 +411,6 @@ gdb_lock();
       };
 
 
-#if 1
       for(auto taskit = graph.tasks_.begin(); taskit != graph.tasks_.end(); taskit++){
         auto & pTask = taskit->second;
         SparseTask & Task = *(SparseTask*)pTask.get();
@@ -406,11 +436,13 @@ gdb_lock();
                 Int src_first_col = src_snode->FirstCol();
                 Int src_last_col = src_snode->LastCol();
 
+                supernode_lock<T> lock(src_snode);
 #ifndef NDEBUG
-                if(Multithreading::NumThread>1){
+                if(Multithreading::NumThread>2){
                   bassert(src_snode->in_use_task==pTask);
                 }
 #endif
+
 #ifdef _DEBUG_PROGRESS_
                 logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
 #endif
@@ -514,12 +546,12 @@ gdb_lock();
                 }
                 SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS_FACTORIZATION);
                 SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS);
-#ifndef NDEBUG
-                if(Multithreading::NumThread>1){
-                  src_snode->in_use = false;
-                  src_snode->in_use_task=nullptr;
-                }
-#endif
+//#ifndef NDEBUG
+//                if(Multithreading::NumThread>1){
+//                  src_snode->in_use = false;
+//                  src_snode->in_use_task=nullptr;
+//                }
+//#endif
               };
 
               //#else
@@ -537,7 +569,7 @@ gdb_lock();
               //#ifdef _LAMBDAS_
 #undef _SEQ_SPECIAL_CASE_
 #ifdef _SEQ_SPECIAL_CASE_
-              if(Multithreading::NumThread==1){
+              if(Multithreading::NumThread<3){
                 Task.execute = [&,this,src,tgt,pTask,type] () {
                   scope_timer(a,FB_UPDATE_TASK);
 
@@ -690,7 +722,7 @@ gdb_lock();
 #endif
                                   {
 #ifdef SP_THREADS
-                                    if(Multithreading::NumThread>1){
+                                    if(Multithreading::NumThread>2){
 #ifdef NEW_UPCXX
 //                                      throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
                                       upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
@@ -742,32 +774,10 @@ gdb_lock();
 #endif
 
 
-//                    std::cout.precision(std::numeric_limits< T >::max_digits10);
-//if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { std::cout<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" "<<tgt_aggreg->GetNZval(0)[4*(1+44)]<<std::endl; if(curUpdate.tgt_snode_id==3 && cur_src_snode->Id()==2){gdb_lock();} }
-
-                          //if ( tgt != 4 || ( src==2 && tgt == 4 ) ) {
-                          //if( tgt==4 ){logfileptr->OFS()<<"Before update from "<<src<<" to "<<tgt<<std::endl<<*tgt_aggreg<<std::endl;}
                           //Update the aggregate
                           SYMPACK_TIMER_START(UPD_ANC_UPD);
-#ifdef SP_THREADS
-                          if(Multithreading::NumThread>1){
-
-#ifndef NDEBUG
-                            bassert(tgt_aggreg->in_use_task==pTask);
-#endif
-                            //scheduler_new_->list_mutex_.lock();
-                            auto & tmpBuf = tmpBufs_th[tid];
-                            //scheduler_new_->list_mutex_.unlock();
-                            tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,this->iam);
-                          }
-                          else
-#endif
-                            tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
-//if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { std::cout<<tgt_aggreg->GetNZval(0)[4*(1+44)]<<std::endl; }
-
+                          tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
                           SYMPACK_TIMER_STOP(UPD_ANC_UPD);
-                          //if( tgt==4 ){logfileptr->OFS()<<"After update from "<<src<<" to "<<tgt<<std::endl<<*tgt_aggreg<<std::endl;}
-                          //}
 
 
                           --UpdatesToDo[curUpdate.tgt_snode_id-1];
@@ -872,14 +882,14 @@ gdb_lock();
                   }
 
 
-#ifdef SP_THREADS
-                          if(Multithreading::NumThread>1){
-                            tgt_aggreg->in_use = false;
-#ifndef NDEBUG
-                            tgt_aggreg->in_use_task=nullptr;
-#endif
-                          }
-#endif
+//#ifdef SP_THREADS
+//                          if(Multithreading::NumThread>1){
+//                            tgt_aggreg->in_use = false;
+//#ifndef NDEBUG
+//                            tgt_aggreg->in_use_task=nullptr;
+//#endif
+//                          }
+//#endif
 
 
 
@@ -1121,7 +1131,7 @@ gdb_lock();
 #endif
                               {
 #ifdef SP_THREADS
-                                if(Multithreading::NumThread>1){
+                                if(Multithreading::NumThread>2){
 #ifdef NEW_UPCXX
                                   //throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
                                   upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
@@ -1172,12 +1182,13 @@ gdb_lock();
                       logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
 #endif
 
+                      supernode_lock<T> lock(tgt_aggreg);
 
 //if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { gdb_lock(); }
                       //Update the aggregate
                       SYMPACK_TIMER_START(UPD_ANC_UPD);
 #ifdef SP_THREADS
-                      if(Multithreading::NumThread>1){
+                      if(Multithreading::NumThread>2){
 #ifndef NDEBUG
                         bassert(tgt_aggreg->in_use_task==pTask);
 #endif
@@ -1274,19 +1285,18 @@ gdb_lock();
                         auto taskit = graph.find_task(id);
                         bassert(taskit!=graph.tasks_.end());
                         dec_ref(taskit,1,0);
-
                       }
                       SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
 
-#ifdef SP_THREADS
-                      if(Multithreading::NumThread>1){
-                        tgt_aggreg->in_use = false;
-//                        tgt_aggreg->lock.unlock();
-#ifndef NDEBUG
-                        tgt_aggreg->in_use_task=nullptr;
-#endif
-                      }
-#endif
+//#ifdef SP_THREADS
+//                      if(Multithreading::NumThread>1){
+//                        tgt_aggreg->in_use = false;
+////                        tgt_aggreg->lock.unlock();
+//#ifndef NDEBUG
+//                        tgt_aggreg->in_use_task=nullptr;
+//#endif
+//                      }
+//#endif
 
 
 
@@ -1309,7 +1319,6 @@ gdb_lock();
             break;
         }
       }
-#endif
     }
   }
   SYMPACK_TIMER_STOP(FB_INIT);

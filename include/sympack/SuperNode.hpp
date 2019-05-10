@@ -102,7 +102,15 @@ namespace symPACK{
   template<typename T>
     class SuperNodeBase{
       public:
-        std::mutex lock_;
+        //std::mutex lock_;
+#ifdef SP_THREADS
+        std::atomic<bool> in_use;
+#ifndef NDEBUG
+        std::shared_ptr<GenericTask> in_use_task;
+#endif
+#endif
+
+        SuperNodeBase():in_use(false),in_use_task(nullptr){}
         virtual ~SuperNodeBase(){};
         virtual inline Int & Id() = 0;
     };
@@ -257,13 +265,6 @@ namespace symPACK{
         virtual inline void Serialize(Icomm & buffer, Int first_blkidx=0, Idx first_row=0);
         virtual inline size_t Deserialize(char * buffer, size_t size);
 
-
-#ifdef SP_THREADS
-        std::atomic<bool> in_use;
-#ifndef NDEBUG
-        std::shared_ptr<GenericTask> in_use_task;
-#endif
-#endif
 
 
     };

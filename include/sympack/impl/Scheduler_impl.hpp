@@ -318,6 +318,8 @@ namespace symPACK{
       while ( true ) {
         auto & queue = workQueues_[prev_slot_];
         prev_slot_ = (prev_slot_+1)%workQueues_.size();
+
+
         bool success = queue.enqueue(fut);
         if ( success ) { 
           break;
@@ -389,18 +391,7 @@ namespace symPACK{
       Int num_recv = 0;
 
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){
-        scope_timer(a,UPCXX_ADVANCE);
-#ifdef NEW_UPCXX
-        //nothing here this is handled by the progress thread
-//        upcxx::progress();
-#else
-        //TODO this is obsolete and has to go`
-        //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
-        upcxx::advance();
-#endif
-      }
-      else
+      if(Multithreading::NumThread==1)
 #endif
       {
         scope_timer(a,UPCXX_ADVANCE);
@@ -513,7 +504,7 @@ namespace symPACK{
             {
 #ifdef SP_THREADS
         //TODO this is obsolete and has to go`
-              if(Multithreading::NumThread>1){ list_mutex_.lock(); }
+              if(Multithreading::NumThread>2){ list_mutex_.lock(); }
 #endif
               taskit->second->remote_deps--;
               taskit->second->addData(msgPtr);
@@ -525,7 +516,7 @@ namespace symPACK{
 
 #ifdef SP_THREADS
         //TODO this is obsolete and has to go`
-              if(Multithreading::NumThread>1){ list_mutex_.unlock(); }
+              if(Multithreading::NumThread>2){ list_mutex_.unlock(); }
 #endif
             }
           }
@@ -698,7 +689,7 @@ namespace symPACK{
         std::shared_ptr<GenericTask> curTask = nullptr;
         bool done = false;
         std::thread progress_thread;
-        if(Multithreading::NumThread>=1){
+        if(Multithreading::NumThread>1){
 #ifdef NEW_UPCXX
           // declare an agreed upon persona for the progress thread
           //atomic<int> thread_barrier(0);
@@ -730,11 +721,11 @@ namespace symPACK{
 #endif
         }
 
-        if(Multithreading::NumThread>1){
+        if(Multithreading::NumThread>2){
 #ifndef _LOCKFREE_QUEUE_
-          WorkQueue<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread,threadInitHandle_);
+          WorkQueue<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread-2,threadInitHandle_);
 #else
-          WorkQueue<std::shared_ptr<GenericTask>, mpmc_bounded_queue<std::shared_ptr<GenericTask>> > queue(Multithreading::NumThread,threadInitHandle_);
+          WorkQueue<std::shared_ptr<GenericTask>, mpmc_bounded_queue<std::shared_ptr<GenericTask>> > queue(Multithreading::NumThread-2,threadInitHandle_);
 #endif
 
           while(graph.getTaskCount()>0 || !this->done() || !delayedTasks_.empty() ){
@@ -780,14 +771,14 @@ namespace symPACK{
               if ( this->size() > 0 ) {
 
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){ this->list_mutex_.lock(); }
+      if(Multithreading::NumThread>2){ this->list_mutex_.lock(); }
 #endif
                 curTask = this->top();
                 bassert(curTask==this->top());
                 bassert(curTask!=nullptr);
                 this->pop();
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>1){ this->list_mutex_.unlock(); }
+      if(Multithreading::NumThread>2){ this->list_mutex_.unlock(); }
 #endif
                 bool delay = false;
                 if(extraTaskHandle_!=nullptr){
@@ -866,22 +857,17 @@ namespace symPACK{
             }
           }
 #ifdef NEW_UPCXX
-#if 1
-  done = true; //this will stop the progress thread
-  progress_thread.join();
-  symPACK::capture_master_scope();
-  upcxx::barrier(workteam);
-#else
-  //double tstop, tstart;
-  //upcxx::progress();
-  upcxx::discharge();
-  while ( (*remDealloc) > 0 ) { upcxx::progress(); }
-  //while ( (*remDealloc) > 0 ) { sched_yield(); }
-  //done = true; //this will stop the progress thread
-  //progress_thread.join();
-  //        symPACK::capture_master_scope();
-  upcxx::barrier(workteam);
-#endif
+          if(Multithreading::NumThread>1){
+            done = true; //this will stop the progress thread
+            progress_thread.join();
+            symPACK::capture_master_scope();
+            upcxx::barrier(workteam);
+          }
+          else {
+            upcxx::discharge();
+            while ( (*remDealloc) > 0 ) { upcxx::progress(); }
+            upcxx::barrier(workteam);
+          }
 #endif
         }
 

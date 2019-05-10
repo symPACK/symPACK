@@ -71,11 +71,7 @@ namespace symPACK{
   //SuperNode implementation
   template<typename T, class Allocator>
     SuperNode<T,Allocator>::SuperNode() : meta_(nullptr), blocks_(nullptr), nzval_(nullptr), storage_size_(0),
-    loc_storage_container_(nullptr), storage_container_(nullptr),in_use(false){
-#ifndef NDEBUG
-      in_use_task = nullptr;
-#endif
-
+    loc_storage_container_(nullptr), storage_container_(nullptr){
 #ifndef ITREE
       globalToLocal_=nullptr;
 #else
