@@ -286,7 +286,7 @@ namespace symPACK{
                 }
 
 #ifdef _SEQ_SPECIAL_CASE_
-                if(Multithreading::NumThread==1){
+                if(Multithreading::NumThread<3){
                   //create only one task if I don't own the factor
                   if(iUpdater!=iOwner){
                     marker[iUpdater]=I;
@@ -3823,6 +3823,9 @@ namespace symPACK{
         int end = rdisplsStructure[p+1];
         while(pos<end){
           Int I = superStructure[pos++];
+
+          bassert(I-firstSnode+1>0 && I-firstSnode+1<this->locXlindx_.size());
+
           Int nzBlockCnt = numBlk_[I-1];
 
           Int fc = this->Xsuper_[I-1];
@@ -4421,6 +4424,7 @@ namespace symPACK{
   //returns the 1-based index of supernode id global in the local supernode array
   template <typename T> inline Int symPACKMatrix<T>::snodeLocalIndex(Int global){
 #ifndef ITREE2
+    bassert(global<=globToLocSnodes_.back());
     auto it = std::lower_bound(globToLocSnodes_.begin(),globToLocSnodes_.end(),global);
     return it - globToLocSnodes_.begin();
 #else
@@ -5324,16 +5328,16 @@ split:
         double time_compute_vectors = 0.;
         double time_update_perm     = 0.;
 
-        int i, maxdepth;
+        int maxdepth;
         int *levels, *depthweight;
 
         /* Create the level array to compute the depth of each cblk and the maximum depth */
         {
           maxdepth = 0;
           levels = new int[cblknbr];
-          for(int i = 0; i<cblknbr; ++i){levels[i] = 0;}
+          for (int i = 0; i<cblknbr; ++i){levels[i] = 0;}
 
-          for (i=0; i<cblknbr; i++) {
+          for (int i = 0; i<cblknbr; i++) {
             levels[i] = compute_cblklevel( order->treetab, levels, i );
             maxdepth = std::max( maxdepth, levels[i] );
           }
@@ -5360,7 +5364,7 @@ split:
         printf("Time to update  perm     %lf s\n", time_update_perm);
 
         /* Update the permutation */
-        for (i=0; i<symbptr->nodenbr; i++) {
+        for (int i = 0; i<symbptr->nodenbr; i++) {
           order->permtab[ order->peritab[i] ] = i;
         }
         delete [] levels; levels = nullptr;

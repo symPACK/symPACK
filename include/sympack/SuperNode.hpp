@@ -110,7 +110,14 @@ namespace symPACK{
 #endif
 #endif
 
-        SuperNodeBase():in_use(false),in_use_task(nullptr){}
+        SuperNodeBase():
+#ifdef SP_THREADS
+        in_use(false)
+#ifndef NDEBUG
+        ,in_use_task(nullptr)
+#endif
+#endif
+{}
         virtual ~SuperNodeBase(){};
         virtual inline Int & Id() = 0;
     };

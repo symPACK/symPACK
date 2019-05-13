@@ -161,18 +161,18 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
         Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[3]);
 
         if(type == Factorization::op_type::FACTOR){
-#ifndef NDEBUG
-          int tgt = meta[1];
-          SuperNode<T> * tgt_aggreg = snodeLocal(tgt);
-
-          bool exp = false;
-          if(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true )){
-            tgt_aggreg->in_use_task = pTask;
-          }
-
-          exp = true;
-          bassert(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true ));
-#endif
+//#ifndef NDEBUG
+//          int tgt = meta[1];
+//          SuperNode<T> * tgt_aggreg = snodeLocal(tgt);
+//
+//          bool exp = false;
+//          if(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true )){
+//            tgt_aggreg->in_use_task = pTask;
+//          }
+//
+//          exp = true;
+//          bassert(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true ));
+//#endif
           return false;
         }
         else{
@@ -305,6 +305,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
           Int I = msg->meta.src;
           Int J = msg->meta.tgt;
 
+          bassert(snodeLocal(J)->Id()==J);
 
           std::shared_ptr<GenericTask> pTask(new SparseTask);
           SparseTask & Task = *(SparseTask*)pTask.get();
@@ -338,12 +339,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             Int src_first_col = src_snode->FirstCol();
             Int src_last_col = src_snode->LastCol();
 
-            supernode_lock<T> lock(src_snode);
-#ifndef NDEBUG
-            if(Multithreading::NumThread>2){
-              bassert(src_snode->in_use_task==pTask);
-            }
-#endif
+//            supernode_lock<T> lock(src_snode);
+//#ifndef NDEBUG
+//            if(Multithreading::NumThread>2){
+//              bassert(src_snode->in_use_task==pTask);
+//            }
+//#endif
 #ifdef _DEBUG_PROGRESS_
             logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 #endif
@@ -437,11 +438,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                 Int src_last_col = src_snode->LastCol();
 
                 supernode_lock<T> lock(src_snode);
-#ifndef NDEBUG
-                if(Multithreading::NumThread>2){
-                  bassert(src_snode->in_use_task==pTask);
-                }
-#endif
+//#ifndef NDEBUG
+//                if(Multithreading::NumThread>2){
+//                  bassert(src_snode->in_use_task==pTask);
+//                }
+//#endif
 
 #ifdef _DEBUG_PROGRESS_
                 logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
@@ -567,7 +568,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
           case Factorization::op_type::UPDATE:
             {
               //#ifdef _LAMBDAS_
-#undef _SEQ_SPECIAL_CASE_
+//#undef _SEQ_SPECIAL_CASE_
 #ifdef _SEQ_SPECIAL_CASE_
               if(Multithreading::NumThread<3){
                 Task.execute = [&,this,src,tgt,pTask,type] () {
@@ -691,7 +692,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                     }
                                   }
                                 }
-                                //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
 
                                 if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
                                   aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition);
@@ -702,7 +702,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
                               {
                                 std::set<Idx> structure;
-#if 1
                                 {
                                   scope_timer(a,FETCH_REMOTE_STRUCTURE);
 #ifdef NEW_UPCXX
@@ -721,21 +720,17 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                   upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
 #endif
                                   {
-#ifdef SP_THREADS
-                                    if(Multithreading::NumThread>2){
+                                    //TODO why is this needed?
 #ifdef NEW_UPCXX
-//                                      throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
                                       upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
 #else
+#ifdef SP_THREADS
+                                    if(Multithreading::NumThread>2){
                                       //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
                                       upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
-#endif
                                     }
                                     else
 #endif
-#ifdef NEW_UPCXX
-                                      upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
-#else
                                     upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
 #endif
                                   }
@@ -753,13 +748,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                   }
                                   UpcxxAllocator::deallocate((char*)buffer);
                                 }
-                                //                        aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure);
-#endif
                                 if(aggVectors[curUpdate.tgt_snode_id-1]==nullptr){
                                   aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition);
                                 }
                                 aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure,this->options_.panel);
-                                //                                aggVectors[curUpdate.tgt_snode_id-1]->Init(curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_);
 
                               }
                               SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
@@ -813,11 +805,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                               (*(*this->remDealloc))++;
 #endif
 
-                              //std::stringstream sstr;
-                              //sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
-                              //meta.id = hash_fn(sstr.str());
-
-
                               char buf[100];
                               sprintf(buf,"%d_%d_%d_%d",meta.src,meta.tgt,0,(Int)Factorization::op_type::AGGREGATE);
                               meta.id = hash_fn(std::string(buf));
@@ -830,15 +817,9 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
                               //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
                               size_t msgSize = tgt_aggreg->StorageSize();
-#ifndef NDEBUG
-                              //logfileptr->OFS()<<"Signaling AGGREGATE "<<meta.src<<"->"<<meta.tgt<<" to P"<<iTarget<<std::endl;
-#endif
                               Int liTarget = this->group_->L2G(iTarget);
 #ifdef NEW_UPCXX
                               signal_data(sendPtr, msgSize, liTarget, meta);
-                              //if ( meta.tgt == 26 ) { f.wait(); upcxx::discharge(); gdb_lock(); }
-                              //enqueue the future somewhere
-                              //this->gFutures.push_back(f);
 #else
                               signal_data(sendPtr, msgSize, liTarget, meta);
 #endif
@@ -849,18 +830,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
                           if(iTarget == this->iam)
                           {
-
                             char buf[100];
                             sprintf(buf,"%d_%d_%d_%d",curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
                             auto id = hash_fn(std::string(buf));
-
-                            //                  std::stringstream sstr;
-                            //                  sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
-                            //                  auto id = hash_fn(sstr.str());
                             auto taskit = graph.find_task(id);
                             bassert(taskit!=graph.tasks_.end());
                             dec_ref(taskit,1,0);
-
                           }
                           SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
 
@@ -906,7 +881,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                   Int src_snode_id = src;
                   Int tgt_snode_id = tgt;
 
-//if ( src==96 && tgt==97){gdb_lock();}
                   src_snode_id = abs(src_snode_id);
                   bool is_first_local = src <0;
 
@@ -936,11 +910,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       msgPtr = *msgit;
                       bassert(msgPtr->IsDone());
 
-
                       //GET MY ID
-                      //std::stringstream sstr;
-                      //sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
-                      //auto id = hash_fn(sstr.str());
                       auto id = pTask->id;
 
                       if(msgPtr->meta.id == id){
@@ -981,9 +951,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                     char buf[100];
                                     sprintf(buf,"%d_%d_%d_%d",localUpdate.src_snode_id,localUpdate.tgt_snode_id,0,(Int)Factorization::op_type::UPDATE);
                                     auto id = hash_fn(std::string(buf));
-                                    //  std::stringstream sstr;
-                                    //  sstr<<localUpdate.src_snode_id<<"_"<<localUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                                    //  auto id = hash_fn(sstr.str());
                                     auto taskit = graph.find_task(id);
 
                                     bassert(taskit!=graph.tasks_.end());
@@ -1001,9 +968,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                               }
                             }
                           }
-
                         }
-
                       }
                       else{
                         newMsgPtr = std::dynamic_pointer_cast<ChainedMessage<SuperNodeBase<T> > >(msgPtr);

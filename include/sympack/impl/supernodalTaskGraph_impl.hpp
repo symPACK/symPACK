@@ -223,9 +223,9 @@ namespace symPACK{
 
   inline void taskGraph::removeTask(const GenericTask::id_type & hash){
 #ifdef SP_THREADS
-    if(Multithreading::NumThread>1){
-    std::lock_guard<std::mutex> lock(list_mutex_);
-    this->tasks_.erase(hash);
+    if(Multithreading::NumThread>2){
+      std::lock_guard<std::mutex> lock(list_mutex_);
+      this->tasks_.erase(hash);
     }
     else
 #endif
@@ -235,9 +235,9 @@ namespace symPACK{
   inline void taskGraph::addTask(std::shared_ptr<GenericTask> & task){
 
 #ifdef SP_THREADS
-    if(Multithreading::NumThread>1){
-    std::lock_guard<std::mutex> lock(list_mutex_);
-    this->tasks_.emplace(task->id,std::move(task));
+    if(Multithreading::NumThread>2){
+      std::lock_guard<std::mutex> lock(list_mutex_);
+      this->tasks_.emplace(task->id,std::move(task));
     }
     else
 #endif
@@ -248,9 +248,9 @@ namespace symPACK{
   {
     Int val = 0;
 #ifdef SP_THREADS
-    if(Multithreading::NumThread>1){
-    std::lock_guard<std::mutex> lock(list_mutex_);
-    val = tasks_.size();
+    if(Multithreading::NumThread>2){
+      std::lock_guard<std::mutex> lock(list_mutex_);
+      val = tasks_.size();
     }
     else
 #endif
@@ -260,9 +260,9 @@ namespace symPACK{
 
   inline taskGraph::task_iterator taskGraph::find_task( const GenericTask::id_type & hash ){
 #ifdef SP_THREADS
-    if(Multithreading::NumThread>1){
-    std::lock_guard<std::mutex> lock(list_mutex_);
-    return tasks_.find(hash);
+    if(Multithreading::NumThread>2){
+      std::lock_guard<std::mutex> lock(list_mutex_);
+      return tasks_.find(hash);
     }
     else
 #endif
