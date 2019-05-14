@@ -3823,8 +3823,8 @@ namespace symPACK{
         int end = rdisplsStructure[p+1];
         while(pos<end){
           Int I = superStructure[pos++];
-
-          bassert(I-firstSnode+1>0 && I-firstSnode+1<this->locXlindx_.size());
+          bassert(this->Mapping_->Map(I-1,I-1)==this->iam);
+          //bassert(I-firstSnode+1>0 && I-firstSnode+1<this->locXlindx_.size());
 
           Int nzBlockCnt = numBlk_[I-1];
 
@@ -4424,7 +4424,7 @@ namespace symPACK{
   //returns the 1-based index of supernode id global in the local supernode array
   template <typename T> inline Int symPACKMatrix<T>::snodeLocalIndex(Int global){
 #ifndef ITREE2
-    bassert(global<=globToLocSnodes_.back());
+    bassert(global<=globToLocSnodes_.back()+1);
     auto it = std::lower_bound(globToLocSnodes_.begin(),globToLocSnodes_.end(),global);
     return it - globToLocSnodes_.begin();
 #else
