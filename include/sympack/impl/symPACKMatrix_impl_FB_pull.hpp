@@ -45,7 +45,8 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #include "sympack/symPACKMatrix.hpp"
 
-
+//#define _NO_COMP_
+#define SP_THREADS
 
   template<typename T>
 class supernode_lock {
@@ -60,6 +61,7 @@ class supernode_lock {
 #ifndef NDEBUG
         snode_->in_use_task=nullptr;
 #endif
+//        gdb_lock();
         snode_->in_use = false;
       }
 #endif
@@ -136,7 +138,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
     std::hash<std::string> hash_fn;
 
     //  std::map<Int,Int> factorUser;
-    //  std::mutex factorinuse_mutex_;
+      std::mutex inuse_mutex_;
 
     //This is the important one
 #ifdef SP_THREADS
@@ -146,11 +148,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
     scheduler_new_->extraTaskHandle_  = nullptr;
     scheduler_new_->msgHandle = nullptr;
 
-    scheduler_new_->threadInitHandle_ = [&,this](){
+    scheduler_new_->threadInitHandle_ = [this](){
       std::thread::id tid = std::this_thread::get_id();
-      scheduler_new_->list_mutex_.lock();
+bassert(tid!=this->scheduler_new_->main_tid);
+
+      std::lock_guard<std::recursive_mutex> lk(scheduler_new_->list_mutex_);
       auto & tmpBuf = tmpBufs_th[tid];
-      scheduler_new_->list_mutex_.unlock();
     };
 
     if(Multithreading::NumThread>2){
@@ -161,18 +164,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
         Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[3]);
 
         if(type == Factorization::op_type::FACTOR){
-//#ifndef NDEBUG
-//          int tgt = meta[1];
-//          SuperNode<T> * tgt_aggreg = snodeLocal(tgt);
-//
-//          bool exp = false;
-//          if(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true )){
-//            tgt_aggreg->in_use_task = pTask;
-//          }
-//
-//          exp = true;
-//          bassert(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true ));
-//#endif
           return false;
         }
         else{
@@ -190,20 +181,14 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             }
           }
 
-
           bool exp = false;
           if(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true )){
 #ifndef NDEBUG
             tgt_aggreg->in_use_task = pTask;
 #endif
-//            tgt_aggreg->lock.lock();
             return false;
           }
           else{
-//this assert is wonrg as it is not atomic
-//#ifndef NDEBUG
-//            bassert(tgt_aggreg->in_use_task!=nullptr && tgt_aggreg->in_use_task!=pTask);
-//#endif
             return true;
           }
         }
@@ -212,10 +197,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
 #endif
 
-    auto dec_ref = [&] ( taskGraph::task_iterator taskit, Int loc, Int rem) {
+    auto dec_ref = [&graph,this] ( taskGraph::task_iterator taskit, Int loc, Int rem) {
       scope_timer(a,DECREF);
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>2){ scheduler_new_->list_mutex_.lock(); }
+      std::lock_guard<std::recursive_mutex> lk(scheduler_new_->list_mutex_);
+      //if(Multithreading::NumThread>2){ scheduler_new_->list_mutex_.lock(); }
 #endif
       taskit->second->local_deps-= loc;
       taskit->second->remote_deps-= rem;
@@ -223,13 +209,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
       if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
 
 
-
+gdb_lock();
         scheduler_new_->push(taskit->second);
         graph.removeTask(taskit->second->id);
       }
 
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>2){ scheduler_new_->list_mutex_.unlock(); }
+      //if(Multithreading::NumThread>2){ scheduler_new_->list_mutex_.unlock(); }
 #endif
     };
 
@@ -291,7 +277,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
     //Finish the initialization of the tasks by creating the lambdas
     {
 
-      scheduler_new_->msgHandle = [&,this](std::shared_ptr<IncomingMessage> msg) {
+      scheduler_new_->msgHandle = [hash_fn,&graph,dec_ref,this](std::shared_ptr<IncomingMessage> msg) {
+      std::thread::id tid = std::this_thread::get_id();
+bassert(tid==this->scheduler_new_->main_tid);
+
+
         scope_timer(a,MSGHANDLE);
         Int iOwner = Mapping_->Map(msg->meta.tgt-1,msg->meta.tgt-1);
         Int iUpdater = Mapping_->Map(msg->meta.tgt-1,msg->meta.src-1);
@@ -321,8 +311,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
           Int src = meta[0];
           Int tgt = meta[1];
-//          if ( src==96 && tgt == 97 ) { gdb_lock(); }
-          Task.execute = [&,this,src,tgt,pTask] () {
+          Task.execute = [hash_fn,dec_ref,&graph,this,src,tgt,pTask] () {
             scope_timer(a,FB_AGGREGATION_TASK);
             Int iLocalI = snodeLocalIndex(tgt);
 
@@ -339,7 +328,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             Int src_first_col = src_snode->FirstCol();
             Int src_last_col = src_snode->LastCol();
 
-//            supernode_lock<T> lock(src_snode);
+            supernode_lock<T> lock(src_snode);
 //#ifndef NDEBUG
 //            if(Multithreading::NumThread>2){
 //              bassert(src_snode->in_use_task==pTask);
@@ -373,31 +362,31 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
                 dist_src_snode->InitIdxToBlk();
 
+#ifndef _NDEBUG_
                 src_snode->Aggregate(dist_src_snode);
+#endif
 
                 delete dist_src_snode;
                 //delete msgPtr;
               }
             }
 
-//#ifdef SP_THREADS
-//            if(Multithreading::NumThread>1){
-//              src_snode->in_use = false;
-////              src_snode->lock.unlock();
-//#ifndef NDEBUG
-//              src_snode->in_use_task=nullptr;
-//#endif
-//            }
-//#endif
 
             char buf[100];
             sprintf(buf,"%d_%d_%d_%d",tgt_snode_id,tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
             auto id = hash_fn(std::string(buf));
 
-            auto taskit = graph.find_task(id);
-            //this is a particular case : we consider this as a remote dependency
-            bassert(taskit!=graph.tasks_.end());
-            dec_ref(taskit,0,1);
+            //auto taskit = graph.find_task(id);
+            ////this is a particular case : we consider this as a remote dependency
+            //bassert(taskit!=graph.tasks_.end());
+            //dec_ref(taskit,0,1);
+                    auto taskit = graph.find_task(id);
+                    bassert(taskit!=graph.tasks_.end());
+            if ( auto ptr = graph.updateTask(id,0,1) ) {
+bassert(ptr!=nullptr);
+              scheduler_new_->push(ptr);
+            }
+              
 
           };
 
@@ -437,12 +426,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                 Int src_first_col = src_snode->FirstCol();
                 Int src_last_col = src_snode->LastCol();
 
-                supernode_lock<T> lock(src_snode);
-//#ifndef NDEBUG
-//                if(Multithreading::NumThread>2){
-//                  bassert(src_snode->in_use_task==pTask);
-//                }
-//#endif
+//                supernode_lock<T> lock(src_snode);
 
 #ifdef _DEBUG_PROGRESS_
                 logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
@@ -455,10 +439,18 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                 SYMPACK_TIMER_START(FACTOR_PANEL);
 #ifdef SP_THREADS
                 std::thread::id tid = std::this_thread::get_id();
+
+bassert(tid!=this->scheduler_new_->main_tid);
+      //scheduler_new_->list_mutex_.lock();
                 auto & tmpBuf = tmpBufs_th[tid];
-                src_snode->Factorize(tmpBuf);
+      //scheduler_new_->list_mutex_.unlock();
+//#ifndef _NO_COMP_
+//                src_snode->Factorize(tmpBuf);
+//#endif
 #else
+#ifndef _NO_COMP_
                 src_snode->Factorize(tmpBufs);
+#endif
 #endif
 
                 SYMPACK_TIMER_STOP(FACTOR_PANEL);
@@ -542,7 +534,11 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     //      auto id = hash_fn(sstr.str());
                     auto taskit = graph.find_task(id);
                     bassert(taskit!=graph.tasks_.end());
-                    dec_ref(taskit,1,0);
+                    //dec_ref(taskit,1,0);
+            if ( auto ptr = graph.updateTask(id,1,0) ) {
+bassert(ptr!=nullptr);
+              scheduler_new_->push(ptr);
+            }
                   }
                 }
                 SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS_FACTORIZATION);
@@ -584,6 +580,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                   std::shared_ptr<SuperNode<T> > shptr_cur_src_snode = nullptr; 
 #ifdef SP_THREADS
                   std::thread::id tid = std::this_thread::get_id();
+bassert(tid!=this->scheduler_new_->main_tid);
 #endif
                   Int iSrcOwner = this->Mapping_->Map(abs(src_snode_id)-1,abs(src_snode_id)-1);
 
@@ -726,7 +723,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #else
 #ifdef SP_THREADS
                                     if(Multithreading::NumThread>2){
-                                      //std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+                                      //std::lock_guard<std::mutex><upcxx_mutex_type> lock(upcxx_mutex);
                                       upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
                                     }
                                     else
@@ -765,12 +762,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
 #endif
 
-
+//bassert(tgt_aggreg->storage_container_!=nullptr);
                           //Update the aggregate
+#ifndef _NO_COMP_
                           SYMPACK_TIMER_START(UPD_ANC_UPD);
                           tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
                           SYMPACK_TIMER_STOP(UPD_ANC_UPD);
-
+#endif
 
                           --UpdatesToDo[curUpdate.tgt_snode_id-1];
 #ifdef _DEBUG_
@@ -833,9 +831,14 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                             char buf[100];
                             sprintf(buf,"%d_%d_%d_%d",curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
                             auto id = hash_fn(std::string(buf));
-                            auto taskit = graph.find_task(id);
-                            bassert(taskit!=graph.tasks_.end());
-                            dec_ref(taskit,1,0);
+                            //auto taskit = graph.find_task(id);
+                            //bassert(taskit!=graph.tasks_.end());
+                            //dec_ref(taskit,1,0);
+
+            if ( auto ptr = graph.updateTask(id,1,0) ) {
+bassert(ptr!=nullptr);
+              scheduler_new_->push(ptr);
+            }
                           }
                           SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
 
@@ -874,7 +877,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
               else
 #endif
               {
-                Task.execute = [&,this,src,tgt,pTask,type] () {
+                Task.execute = [&graph,hash_fn,&UpdatesToDo,&aggVectors,&inuse_mutex_,dec_ref,this,src,tgt,pTask,type] () {
                   //log_task_internal(pTask);
                   scope_timer(a,FB_UPDATE_TASK);
                   Int iLocalTGT = snodeLocalIndex(tgt);
@@ -888,6 +891,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                   std::shared_ptr<SuperNode<T> > shptr_cur_src_snode = nullptr; 
 #ifdef SP_THREADS
                   std::thread::id tid = std::this_thread::get_id();
+bassert(tid!=this->scheduler_new_->main_tid);
 #endif
 
                   Int iSrcOwner = this->Mapping_->Map(abs(src_snode_id)-1,abs(src_snode_id)-1);
@@ -932,7 +936,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           SnodeUpdate localUpdate;
 
                           {
-                            //std::lock_guard<std::mutex> lock(factorinuse_mutex_);
+                            //std::lock_guard<std::mutex><std::mutex> lock(factorinuse_mutex_);
                             while(cur_src_snode->FindNextUpdate(localUpdate,this->Xsuper_,this->SupMembership_,this->iam==iSrcOwner)){
 
                               //skip if this update is "lower"
@@ -952,8 +956,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                     sprintf(buf,"%d_%d_%d_%d",localUpdate.src_snode_id,localUpdate.tgt_snode_id,0,(Int)Factorization::op_type::UPDATE);
                                     auto id = hash_fn(std::string(buf));
                                     auto taskit = graph.find_task(id);
-
                                     bassert(taskit!=graph.tasks_.end());
+
                                     if(newMsgPtr==nullptr){
                                       auto base_ptr = std::static_pointer_cast<SuperNodeBase<T> >(shptr_cur_src_snode);
                                       newMsgPtr = std::make_shared<ChainedMessage<SuperNodeBase<T> > >(  base_ptr  ,msgPtr);
@@ -962,7 +966,12 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                     //this is where we put the msg in the list
                                     auto base_ptr = std::static_pointer_cast<IncomingMessage>(newMsgPtr);
                                     taskit->second->addData( base_ptr );
-                                    dec_ref(taskit,0,1);
+            //                        dec_ref(taskit,0,1);
+
+            if ( auto ptr = graph.updateTask(id,0,1) ) {
+bassert(ptr!=nullptr);
+              scheduler_new_->push(ptr);
+            }
                                   }
                                 }
                               }
@@ -1101,7 +1110,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                                   //throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
                                   upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
 #else
-//                                  std::lock_guard<upcxx_mutex_type> lock(upcxx_mutex);
+//                                  std::lock_guard<std::mutex><upcxx_mutex_type> lock(upcxx_mutex);
                                   upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
 #endif
                                 }
@@ -1147,8 +1156,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
 #endif
 
-                      supernode_lock<T> lock(tgt_aggreg);
 
+                supernode_lock<T> lock(tgt_aggreg);
 //if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { gdb_lock(); }
                       //Update the aggregate
                       SYMPACK_TIMER_START(UPD_ANC_UPD);
@@ -1162,11 +1171,51 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                         auto & tmpBuf = tmpBufs_th[tid];
                         //scheduler_new_->list_mutex_.unlock();
 
-                        tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,this->iam);
+{
+std::lock_guard<std::mutex> lk(inuse_mutex_);
+                //       inuse_mutex_.lock();
+//#ifndef _NO_COMP_
+std::stringstream sstr;
+sstr<<curUpdate.src_snode_id<<" "<<curUpdate.tgt_snode_id<<std::endl;
+logfileptr->OFS()<<sstr.str();
+if (1){
+int tgt_width = tgt_aggreg->Size();
+int src_snode_size = cur_src_snode->Size();
+int src_nrows = cur_src_snode->NRowsBelowBlock(0);
+//std::vector<T> C (2*src_nrows*tgt_width);
+//std::vector<T> B (2*src_nrows*src_snode_size);
+//std::vector<T> A (2*tgt_width*src_snode_size);
+//auto pA = A.data();
+//auto pB = B.data();
+//auto pC = C.data();
+
+auto pA = new T[tgt_width*src_snode_size];
+auto pB = new T[src_nrows*src_snode_size];
+auto pC = new T[src_nrows*tgt_width];
+T alpha = T(-1);
+T beta = 0;
+//    BLAS(dgemm)( "N","N", &tgt_width, &src_nrows, &src_snode_size,
+        //(double*)&alpha, (double*)pA, &tgt_width, (double*)pB, &src_snode_size,(double*) &beta, (double*)pC, &tgt_width );
+
+      blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+          T(-1.0),pA,src_snode_size,
+          pB,src_snode_size,beta,pC,tgt_width);
+
+delete [] pA;
+delete [] pB;
+delete [] pC;
+
+}
+//                        tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,this->iam);
+//#endif
+                //       inuse_mutex_.unlock();
+}
                       }
                       else
 #endif
+#ifndef _NO_COMP_
                         tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
+#endif
 
                       SYMPACK_TIMER_STOP(UPD_ANC_UPD);
                       --UpdatesToDo[curUpdate.tgt_snode_id-1];
@@ -1247,9 +1296,16 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                         sprintf(buf,"%d_%d_%d_%d",curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
                         auto id = hash_fn(std::string(buf));
 
-                        auto taskit = graph.find_task(id);
-                        bassert(taskit!=graph.tasks_.end());
-                        dec_ref(taskit,1,0);
+//                        auto taskit = graph.find_task(id);
+//                        bassert(taskit!=graph.tasks_.end());
+//                        dec_ref(taskit,1,0);
+
+                    auto taskit = graph.find_task(id);
+                    bassert(taskit!=graph.tasks_.end());
+            if ( auto ptr = graph.updateTask(id,1,0) ) {
+bassert(ptr!=nullptr);
+              scheduler_new_->push(ptr);
+            }
                       }
                       SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
 

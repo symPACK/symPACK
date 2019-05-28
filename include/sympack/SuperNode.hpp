@@ -218,7 +218,7 @@ namespace symPACK{
         SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int ai_num_rows, Int aiN, Int aiNZBlkCnt=-1, Int panel=-1);
         SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, Int panel=-1);
         SuperNode(char * storage_ptr,size_t storage_size, Int GIndex = -1);
-        ~SuperNode();
+        virtual ~SuperNode();
 
         virtual void Init(char * storage_ptr,size_t storage_size, Int GIndex = -1);
         virtual void Init(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel=-1);

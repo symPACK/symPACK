@@ -47,6 +47,13 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include <google/coredumper.h>
 #endif
 
+extern "C" void BLAS(dgemm)
+( const char* transA, const char* transB,
+  const int* m, const int* n, const int* k,
+  const double* alpha, const double* A, const int* lda,
+                       const double* B, const int* ldb,
+  const double* beta,        double* C, const int* ldc );
+
 
 /****************************************/
 /*            _________________         */
@@ -890,7 +897,6 @@ namespace symPACK{
             T * tgt = GetNZval(tgt_offset);
 
             //blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
-            //#pragma omp simd
 #pragma loop unroll
             for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
 
@@ -1130,7 +1136,8 @@ namespace symPACK{
             Int tgt_offset = (tgt_fc - FirstCol());
             for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
               T * A = &buf[rowidx*tgt_width];
-              T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
+              //T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
+              T * B = &tgt[tmpBuffers.src_to_tgt_offset.at(rowidx) + tgt_offset];
 #pragma unroll
               for(Int i = 0; i < tgt_width; ++i){ B[i] += A[i]; }
               //          blas::Axpy(tgt_width,ONE<T>(),&buf[rowidx*tgt_width],1,
@@ -1172,6 +1179,7 @@ namespace symPACK{
       return 0;
 #endif
 
+//#define _NO_COMP_
 
       Int & pivot_idx = update.blkidx;
       Int & pivot_fr = update.src_first_row;
@@ -1204,6 +1212,7 @@ namespace symPACK{
 
       T * pivot = src_snode->GetNZval(first_pivot_desc.Offset)
         + (tgt_fc-first_pivot_desc.GIndex)*src_snode_size;
+bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
       T * tgt = GetNZval(0);
 
       //Pointer to the output buffer of the GEMM
@@ -1224,13 +1233,72 @@ namespace symPACK{
         buf = &tmpBuffers.tmpBuf[0];
       }
 
+      //std::vector<T> tmp(tgt_width*src_nrows);
+      //buf = tmp.data();
+      //std::vector<T> tmp2(tgt_width*src_snode_size);
+      //std::vector<T> tmp3(src_snode_size*src_nrows);
       //everything is in row-major
       SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
-      //logfileptr->OFS()<<"GEMM ("<<tgt_width<<"-by-"<<src_snode_size<<") x ("<<src_snode_size<<"-by-"<<src_nrows<<")"<<std::endl;
-      //blas::Gemm('C','N',tgt_width, src_nrows,src_snode_size,
+//      logfileptr->OFS()<<"GEMM ("<<tgt_width<<"-by-"<<src_snode_size<<") x ("<<src_snode_size<<"-by-"<<src_nrows<<")"<<std::endl;
+//      blas::Gemm('N','N',tgt_width, src_nrows,src_snode_size,
+//          T(-1.0),tmp2.data(),tgt_width,
+//          tmp3.data(),src_snode_size,beta,buf,tgt_width);
+////      T alpha = T(-1);
+////      for(int j = 0; j < src_nrows; j++){
+////        for(int i = 0; i < tgt_width; i++){
+////          T acc = T(0);
+////          for(int k = 0; k < src_snode_size; k++){
+////            acc += alpha * pivot[i + k*src_snode_size]*pivot[k*src_snode_size+j];
+////          }
+////          buf[i+j*tgt_width] = beta * buf[i+j*tgt_width] + acc;
+////        }
+////      }
+//#define _NO_COMP_
+#ifndef _NO_COMP_
+
+//      for(int j = 0; j < src_nrows; j++){
+//        for(int i = 0; i < tgt_width; i++){
+//          buf[i+j*tgt_width]+=1;
+//          buf[i+j*tgt_width]-=1;
+//        }
+//      }
+//
+//      for(int i = 0; i < tgt_width; i++){
+//        for(int j = 0; j < src_snode_size; j++){
+//          pivot[j+i*src_snode_size]+=1;
+//          pivot[j+i*src_snode_size]-=1;
+//        }
+//      }
+//
+//      for(int i = 0; i < src_nrows; i++){
+//        for(int j = 0; j < src_snode_size; j++){
+//          pivot[j+i*src_snode_size]+=1;
+//          pivot[j+i*src_snode_size]-=1;
+//        }
+//      }
       blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
           T(-1.0),pivot,src_snode_size,
           pivot,src_snode_size,beta,buf,tgt_width);
+
+/////std::vector<T> C (src_nrows*tgt_width);
+/////std::vector<T> B (src_nrows*src_snode_size);
+/////std::vector<T> A (tgt_width*src_snode_size);
+/////
+/////auto pA = A.data();
+/////auto pB = B.data();
+/////auto pC = C.data();
+/////T alpha = T(-1);
+/////    BLAS(dgemm)( "N","N", &tgt_width, &src_nrows, &src_snode_size,
+/////        (double*)&alpha, (double*)pA, &tgt_width, (double*)pB, &src_snode_size,(double*) &beta, (double*)pC, &tgt_width );
+//      blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+//          T(-1.0),A.data(),src_snode_size,
+//          B.data(),src_snode_size,beta,C.data(),tgt_width);
+
+
+//      blas::Gemm('N','N',tgt_width, src_nrows,src_snode_size,
+//          T(-1.0),pivot,tgt_width,
+//          pivot,src_snode_size,beta,buf,tgt_width);
+#endif
       SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_GEMM);
 
       //If the GEMM wasn't done in place we need to aggregate the update
@@ -1289,10 +1357,7 @@ namespace symPACK{
             Int row = cur_src_fr;
             while(row<=cur_src_lr){
               Int tgt_blk_idx = FindBlockIdx(row);
-              if(tgt_blk_idx<0){
-                logfileptr->OFS()<<"LOCK 4: tgt_blk_idx<0"<<std::endl;
-                gdb_lock();}
-              assert(tgt_blk_idx>=0);
+              bassert(tgt_blk_idx>=0);
               NZBlockDesc & cur_tgt_desc = GetNZBlockDesc(tgt_blk_idx);
               Int lr = std::min(cur_src_lr,cur_tgt_desc.GIndex + NRows(tgt_blk_idx)-1);
               Int tgtOffset = cur_tgt_desc.Offset 
@@ -1362,7 +1427,8 @@ namespace symPACK{
             Int tgt_offset = (tgt_fc - FirstCol());
             for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
               T * A = &buf[rowidx*tgt_width];
-              T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
+              //T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
+              T * B = &tgt[tmpBuffers.src_to_tgt_offset.at(rowidx) + tgt_offset];
 #pragma unroll
               for(Int i = 0; i < tgt_width; ++i){ B[i] += A[i]; }
               //          blas::Axpy(tgt_width,ONE<T>(),&buf[rowidx*tgt_width],1,

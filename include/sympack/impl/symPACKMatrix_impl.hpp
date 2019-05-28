@@ -418,6 +418,7 @@ namespace symPACK{
           //if(pmeta==nullptr){ pmeta = Task.meta.data(); } 
           std::stringstream sstr;
           sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)(*reinterpret_cast<Factorization::op_type*>(&meta[3]));
+//if ( meta[0] == 23532 && meta[1] == 23533 ) { gdb_lock(); }
           return hash_fn(sstr.str());
         };
         Task.id = Task.getHash(Task.meta.data());

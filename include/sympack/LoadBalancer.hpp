@@ -71,6 +71,7 @@ namespace symPACK{
         np_=np;
         procMap_.resize(n);
       };
+virtual ~LoadBalancer() = default;
 
       virtual std::vector<Int> & GetMap() =0;
   };

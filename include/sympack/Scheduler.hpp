@@ -221,6 +221,7 @@ template<typename T>
       public:
         Scheduler(){
         }
+        virtual ~Scheduler() = default;
 
         virtual T& top() =0;
         virtual void pop() =0;
@@ -229,6 +230,13 @@ template<typename T>
         virtual unsigned int size() =0;
 
         virtual bool done() =0;
+
+
+      std::thread::id main_tid;
+
+
+
+
 
         std::list<T> delayedTasks_;
         std::function<void()> threadInitHandle_;
@@ -243,7 +251,7 @@ template<typename T>
 #endif
 
 #ifdef SP_THREADS
-        std::mutex list_mutex_;
+        std::recursive_mutex list_mutex_;
 #endif
       protected:
     };
@@ -258,14 +266,23 @@ template<typename T>
         }
 
         virtual T& top(){ 
+#ifdef SP_THREADS
+        std::lock_guard<std::recursive_mutex> lk(this->list_mutex_);
+#endif
           T & ref = const_cast<T&>(readyTasks_.top());
           return ref;
         }
         virtual void pop() {
+#ifdef SP_THREADS
+        std::lock_guard<std::recursive_mutex> lk(this->list_mutex_);
+#endif
           readyTasks_.pop();
         }
 
         virtual void push( const T& val) { 
+#ifdef SP_THREADS
+        std::lock_guard<std::recursive_mutex> lk(this->list_mutex_);
+#endif
           readyTasks_.push(val);
         }
         virtual unsigned int size() {

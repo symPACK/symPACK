@@ -741,7 +741,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
     auto dec_ref = [&] ( taskGraph::task_iterator taskit, Int loc, Int rem) {
 #ifdef SP_THREADS
-        std::lock_guard<std::mutex> lock(scheduler_new_->list_mutex_);
+        std::lock_guard<std::recursive_mutex> lock(scheduler_new_->list_mutex_);
 #endif
       taskit->second->local_deps-= loc;
       taskit->second->remote_deps-= rem;
