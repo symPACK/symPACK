@@ -74,7 +74,6 @@ class supernode_lock {
 
 
 
-
 template <typename T> inline void symPACKMatrix<T>::dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier){
   for(std::list<Int>::iterator it = tree[node].begin(); it!=tree[node].end(); it++){
     Int I = *it;

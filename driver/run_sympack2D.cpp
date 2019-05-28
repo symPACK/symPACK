@@ -463,7 +463,6 @@ int main(int argc, char **argv)
 
 #if 1
         //      if ( iam == 0 ) { gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); }
-
         timeSta = get_time();
         SMat2D->Factorize();
         timeEnd = get_time();

@@ -71,6 +71,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 namespace symPACK{
 
+
   struct NZBlockDesc{
     bool Last;
     Int GIndex;
@@ -291,6 +292,27 @@ namespace symPACK{
   inline std::ostream& operator<<( std::ostream& os,  SuperNodeDesc& desc);
   inline std::ostream& operator<<( std::ostream& os,  NZBlockDesc& block);
 
+
+  template<typename T>
+class supernode_lock {
+  public:
+    supernode_lock(SuperNodeBase<T> * snode) {
+      snode_ = snode;
+    }
+
+    ~supernode_lock(){
+#ifdef SP_THREADS
+      if(Multithreading::NumThread>2){
+#ifndef NDEBUG
+        snode_->in_use_task=nullptr;
+#endif
+        snode_->in_use = false;
+      }
+#endif
+    }
+  protected:
+    SuperNodeBase<T> * snode_;
+};
 
 
 
