@@ -48,29 +48,6 @@ such enhancements or derivative works thereof, in binary and source code form.
 //#define _NO_COMP_
 #define SP_THREADS
 
-  template<typename T>
-class supernode_lock {
-  public:
-    supernode_lock(SuperNodeBase<T> * snode) {
-      snode_ = snode;
-    }
-
-    ~supernode_lock(){
-#ifdef SP_THREADS
-      if(Multithreading::NumThread>2){
-#ifndef NDEBUG
-        snode_->in_use_task=nullptr;
-#endif
-//        gdb_lock();
-        snode_->in_use = false;
-      }
-#endif
-    }
-  protected:
-    SuperNodeBase<T> * snode_;
-};
-
-
 
 
 
