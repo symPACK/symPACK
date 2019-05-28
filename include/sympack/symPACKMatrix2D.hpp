@@ -3112,7 +3112,7 @@ namespace symPACK{
               //then do an alltoallv
               //compute send sizes
               for(auto itp = Updates.begin();itp!=Updates.end();itp++){
-                std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
+                //std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
                 ssizes[itp->first] = itp->second.size();
               }
 
@@ -5498,7 +5498,7 @@ namespace symPACK{
                     bassert(ptr_facing!=nullptr);
                     bassert(diag_ptr!=nullptr);
 
-                    std::cout.precision(std::numeric_limits< T >::max_digits10);
+                    //std::cout.precision(std::numeric_limits< T >::max_digits10);
                     ptr_upd_cell->update(ptr_odCell,ptr_facingCell,tmpBuf,diag_ptr);
                   }
                   else {
@@ -6335,8 +6335,8 @@ namespace symPACK{
              auto ptr_lock_cell = pQueryCELL2(J-1,J-1);
              cell_lock<snodeBlock_sptr_t> lock_cell(ptr_lock_cell);
 
-             auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
-             cell_lock<snodeBlock_sptr_t> lock_cell2(ptr_lock_cell2);
+//             auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
+//             cell_lock<snodeBlock_sptr_t> lock_cell2(ptr_lock_cell2);
 
                   //gdb_lock();
                   auto & update_right_cnt = this->solve_data.update_right_cnt;
@@ -6609,8 +6609,8 @@ namespace symPACK{
                   auto ptr_lock_cell = pQueryCELL2(J-1,J-1);
                   cell_lock<snodeBlock_sptr_t> lock_cell(ptr_lock_cell);
 
-             auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
-             cell_lock<snodeBlock_sptr_t> lock_cell2(ptr_lock_cell2);
+//             auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
+//             cell_lock<snodeBlock_sptr_t> lock_cell2(ptr_lock_cell2);
 
                     auto & update_up_cnt = this->solve_data.update_up_cnt;
                     auto & contribs = this->solve_data.contribs;
@@ -7246,7 +7246,7 @@ namespace symPACK{
 
 
           this->scheduler.execute(this->task_graph_solve,this->mem_budget);
-gdb_lock();
+//gdb_lock();
           //      for ( int I = 1; I <= this->nsuper; I++ ) {
           //        auto ptr_tgt_cell = pQueryCELL(I-1,I-1);
           //        Int iOwner = ptr_tgt_cell->owner;
@@ -7480,7 +7480,7 @@ gdb_lock();
 #ifdef SP_THREADS
                         if(Multithreading::NumThread>2){
                         std::lock_guard<std::recursive_mutex> lock(this->ready_mutex_);
-                        std::cout<<"TASK IS READY\n";
+                        //std::cout<<"TASK IS READY\n";
 #ifdef _PRIORITY_QUEUE_AVAIL_
                         this->ready_tasks.push(ptr);
 #else
@@ -7508,7 +7508,7 @@ gdb_lock();
 
 #ifdef SP_THREADS
                 if(Multithreading::NumThread>2){
-                  logfileptr->OFS()<<"RDY TASK LIST SIZE: "<<ready_tasks.size()<<std::endl;
+                  //logfileptr->OFS()<<"RDY TASK LIST SIZE: "<<ready_tasks.size()<<std::endl;
 #ifdef _MEM_PROFILER_
                   utility::scope_memprofiler m("symPACKMatrix_execute_2");
 #endif
@@ -7525,7 +7525,7 @@ gdb_lock();
                         upcxx::progress(upcxx::progress_level::internal);
                         bool delay = extraTaskHandle_(*taskit);
                         if(!delay){
-                          std::cout<<"PUSHING DELAYED TASK\n";
+//                          std::cout<<"PUSHING DELAYED TASK\n";
                           queue.pushTask(*taskit);
                           taskit = delayedTasks_.erase(taskit);
                           local_task_cnt--;
@@ -7561,13 +7561,13 @@ gdb_lock();
                         if(extraTaskHandle_!=nullptr){
                           delay = extraTaskHandle_(ptask);
                           if(delay){
-                            std::cout<<"DELAYED TASK\n";
+//                            std::cout<<"DELAYED TASK\n";
                             delayedTasks_.push_back(ptask);
                           }
                         }
 
                         if(!delay){
-                          std::cout<<"PUSHING TASK\n";
+//                          std::cout<<"PUSHING TASK\n";
                           queue.pushTask(ptask);
                           local_task_cnt--;
                         }

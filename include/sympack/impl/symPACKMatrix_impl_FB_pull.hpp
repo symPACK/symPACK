@@ -114,7 +114,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
     std::hash<std::string> hash_fn;
 
     //  std::map<Int,Int> factorUser;
-      std::mutex inuse_mutex_;
+    //  std::mutex inuse_mutex_;
 
     //This is the important one
 #ifdef SP_THREADS
@@ -420,9 +420,9 @@ bassert(tid!=this->scheduler_new_->main_tid);
       //scheduler_new_->list_mutex_.lock();
                 auto & tmpBuf = tmpBufs_th[tid];
       //scheduler_new_->list_mutex_.unlock();
-//#ifndef _NO_COMP_
-//                src_snode->Factorize(tmpBuf);
-//#endif
+#ifndef _NO_COMP_
+                src_snode->Factorize(tmpBuf);
+#endif
 #else
 #ifndef _NO_COMP_
                 src_snode->Factorize(tmpBufs);
@@ -853,7 +853,7 @@ bassert(ptr!=nullptr);
               else
 #endif
               {
-                Task.execute = [&graph,hash_fn,&UpdatesToDo,&aggVectors,&inuse_mutex_,dec_ref,this,src,tgt,pTask,type] () {
+                Task.execute = [&graph,hash_fn,&UpdatesToDo,&aggVectors,/*&inuse_mutex_,*/dec_ref,this,src,tgt,pTask,type] () {
                   //log_task_internal(pTask);
                   scope_timer(a,FB_UPDATE_TASK);
                   Int iLocalTGT = snodeLocalIndex(tgt);
@@ -1147,45 +1147,45 @@ bassert(ptr!=nullptr);
                         auto & tmpBuf = tmpBufs_th[tid];
                         //scheduler_new_->list_mutex_.unlock();
 
-{
-std::lock_guard<std::mutex> lk(inuse_mutex_);
-                //       inuse_mutex_.lock();
-//#ifndef _NO_COMP_
-std::stringstream sstr;
-sstr<<curUpdate.src_snode_id<<" "<<curUpdate.tgt_snode_id<<std::endl;
-logfileptr->OFS()<<sstr.str();
-if (1){
-int tgt_width = tgt_aggreg->Size();
-int src_snode_size = cur_src_snode->Size();
-int src_nrows = cur_src_snode->NRowsBelowBlock(0);
-//std::vector<T> C (2*src_nrows*tgt_width);
-//std::vector<T> B (2*src_nrows*src_snode_size);
-//std::vector<T> A (2*tgt_width*src_snode_size);
-//auto pA = A.data();
-//auto pB = B.data();
-//auto pC = C.data();
-
-auto pA = new T[tgt_width*src_snode_size];
-auto pB = new T[src_nrows*src_snode_size];
-auto pC = new T[src_nrows*tgt_width];
-T alpha = T(-1);
-T beta = 0;
-//    BLAS(dgemm)( "N","N", &tgt_width, &src_nrows, &src_snode_size,
-        //(double*)&alpha, (double*)pA, &tgt_width, (double*)pB, &src_snode_size,(double*) &beta, (double*)pC, &tgt_width );
-
-      blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
-          T(-1.0),pA,src_snode_size,
-          pB,src_snode_size,beta,pC,tgt_width);
-
-delete [] pA;
-delete [] pB;
-delete [] pC;
-
-}
-//                        tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,this->iam);
+//{
+//std::lock_guard<std::mutex> lk(inuse_mutex_);
+//                //       inuse_mutex_.lock();
+////#ifndef _NO_COMP_
+//std::stringstream sstr;
+//sstr<<curUpdate.src_snode_id<<" "<<curUpdate.tgt_snode_id<<std::endl;
+//logfileptr->OFS()<<sstr.str();
+//if (1){
+//int tgt_width = tgt_aggreg->Size();
+//int src_snode_size = cur_src_snode->Size();
+//int src_nrows = cur_src_snode->NRowsBelowBlock(0);
+////std::vector<T> C (2*src_nrows*tgt_width);
+////std::vector<T> B (2*src_nrows*src_snode_size);
+////std::vector<T> A (2*tgt_width*src_snode_size);
+////auto pA = A.data();
+////auto pB = B.data();
+////auto pC = C.data();
+//
+//auto pA = new T[tgt_width*src_snode_size];
+//auto pB = new T[src_nrows*src_snode_size];
+//auto pC = new T[src_nrows*tgt_width];
+//T alpha = T(-1);
+//T beta = 0;
+////    BLAS(dgemm)( "N","N", &tgt_width, &src_nrows, &src_snode_size,
+//        //(double*)&alpha, (double*)pA, &tgt_width, (double*)pB, &src_snode_size,(double*) &beta, (double*)pC, &tgt_width );
+//
+//      blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+//          T(-1.0),pA,src_snode_size,
+//          pB,src_snode_size,beta,pC,tgt_width);
+//
+//delete [] pA;
+//delete [] pB;
+//delete [] pC;
+//
+//}
+                        tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,this->iam);
 //#endif
                 //       inuse_mutex_.unlock();
-}
+//}
                       }
                       else
 #endif

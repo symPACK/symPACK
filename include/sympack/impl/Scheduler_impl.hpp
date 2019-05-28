@@ -793,27 +793,16 @@ upcxx::progress();
 {
 #ifdef SP_THREADS
         std::lock_guard<std::recursive_mutex> lk(list_mutex_);
-      //if(Multithreading::NumThread>2){ this->list_mutex_.lock(); }
 #endif
                 curTask = this->top();
                 bassert(curTask==this->top());
                 bassert(curTask!=nullptr);
                 this->pop();
 }
-#ifdef SP_THREADS
-      //if(Multithreading::NumThread>2){ this->list_mutex_.unlock(); }
-#endif
                 bool delay = false;
                 if(extraTaskHandle_!=nullptr){
                   delay = extraTaskHandle_(curTask);
                   if(delay){
-                    //gdb_lock();
-                    #ifdef THREAD_VERBOSE
-                    std::stringstream sstr;
-                    sstr<<"Delaying";
-                    log_task(curTask,sstr);
-                    logfileptr->OFS()<<sstr.str();
-                    #endif
                     delayedTasks_.push_back(curTask);
                   }
                 }

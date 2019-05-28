@@ -657,7 +657,7 @@ namespace symPACK{
           auto it_max_acc_times = std::max_element(arr_acc_time.begin(),arr_acc_time.end(), [&](std::vector<Duration> & veca, std::vector<Duration> & vecb){ return max_duration(veca) > max_duration(vecb);});
           auto max_acc_time = it_max_acc_times!=arr_acc_time.end()?max_duration(*it_max_acc_times):Duration(0);
 
-          sprintf(outstr,"%5d    %lg  %3lu.%02lu  %lg  %3lu.%02lu %lg %lg %lg\n",
+          sprintf(outstr,"%5ld    %lg  %3lu.%02lu  %lg  %3lu.%02lu %lg %lg %lg\n",
               total_calls/(np*numcore),
               (double)ttotal_time.count()/(np*numcore),
               (uint64_t)((100.*ttotal_time.count())/complete_time.count()),
