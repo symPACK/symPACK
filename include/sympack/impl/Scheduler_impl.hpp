@@ -273,10 +273,10 @@ namespace symPACK{
 
       while (true) {
         bool empty = true;
-{
-        std::lock_guard<std::mutex> lk(list_mutex);
-        empty = queue.empty();
-}
+        {
+          std::lock_guard<std::mutex> lk(list_mutex);
+          empty = queue.empty();
+        }
         if ( ! empty) {
           std::lock_guard<std::mutex> lk(list_mutex);
           T func { std::move(queue.front()) };
