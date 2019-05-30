@@ -255,11 +255,15 @@ namespace symPACK{
 #ifndef _LOCKFREE_QUEUE_
   template<typename T, typename Queue >
     inline void WorkQueue<T, Queue >::pushTask(T & fut){
-      auto queue_it = workQueues_.begin();//std::min_element(workQueues_.begin(),workQueues_.end(), [](Queue & a, Queue & b){return a.size()<b.size();});
-      auto & queue = *queue_it;
-      int queue_id = std::distance(workQueues_.begin(),queue_it);
+      //auto queue_it = workQueues_.begin();//std::min_element(workQueues_.begin(),workQueues_.end(), [](Queue & a, Queue & b){return a.size()<b.size();});
+      //auto & queue = *queue_it;
+      //int queue_id = std::distance(workQueues_.begin(),queue_it);
+      auto & queue = workQueues_[prev_slot_];
+      int queue_id = prev_slot_;
+      prev_slot_ = (prev_slot_+1)%workQueues_.size();
 
       std::lock_guard<std::mutex> lk(list_mutexes_[queue_id]);
+//                          std::cout<<"PUSHING TASK on "<<queue_id<<"\n";
       queue.push_back(fut);
     }
   template<typename T, typename Queue >
@@ -273,14 +277,23 @@ namespace symPACK{
 
       while (true) {
         bool empty = true;
+        T func;
         {
           std::lock_guard<std::mutex> lk(list_mutex);
           empty = queue.empty();
+          if ( ! empty) {
+            func = { std::move(queue.front()) };
+            queue.pop_front();
+//                          std::cout<<"POPPING TASK from "<<tid<<"\n";
+          }
         }
         if ( ! empty) {
-          std::lock_guard<std::mutex> lk(list_mutex);
-          T func { std::move(queue.front()) };
-          queue.pop_front();
+          //{
+          //  std::lock_guard<std::mutex> lk(list_mutex);
+          //  func = { std::move(queue.front()) };
+          //  queue.pop_front();
+          //                std::cout<<"POPPING TASK from "<<tid<<"\n";
+          //}
 
           bool success = false;
           while(!success){

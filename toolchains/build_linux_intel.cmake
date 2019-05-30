@@ -30,6 +30,7 @@ add_compile_options("-mkl=sequential")
 #add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-gxx-name=g++-4.9>")
 add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-std=c++11>")
 
+add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-g>")
 
 option(ENABLE_VTUNE "Enable VTUNE" OFF)
 

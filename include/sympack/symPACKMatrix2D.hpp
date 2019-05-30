@@ -93,10 +93,34 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 //#define _MEMORY_LIMIT_
 #define _PRIORITY_QUEUE_AVAIL_
+#define _PRIORITY_QUEUE_RDY_
 
 #include <functional>
 #include <gasnetex.h>
 #include <chrono>
+
+#ifdef SP_THREADS
+#define decrement_dep(counter,value,exp,list_op,list_mutex) \
+                      do {\
+                        if ( counter.fetch_sub(value) == exp){\
+                          if(Multithreading::NumThread>2){\
+                            std::lock_guard<std::recursive_mutex> lock(list_mutex);\
+                            list_op;\
+                          }\
+                          else\
+                          {\
+                            list_op;\
+                          }\
+                        }\
+                      }while(0);
+#else
+#define decrement_dep(counter,value,exp,list_op,list_mutex) \
+                      do {\
+                        if ( counter.fetch_sub(value) == exp){\
+                            list_op;\
+                        }\
+                      }while(0);
+#endif
 
 namespace symPACK{
   namespace scheduling {
@@ -282,9 +306,12 @@ namespace symPACK{
             //promise to sync all outgoing RPCs
             upcxx::promise<> out_prom;
             //promise to wait for all incoming_data_t to be created
-            upcxx::promise<> in_avail_prom;
+            //upcxx::promise<> in_avail_prom;
             //promise to sync on all incoming_data_t fetch
-            upcxx::promise<> in_prom;
+            //upcxx::promise<> in_prom;
+            //std::recursive_mutex in_prom_lock;
+            std::atomic<int> in_counter;
+            std::atomic<int> in_avail_counter;
 
             bool executed;
 
@@ -303,8 +330,9 @@ namespace symPACK{
               //bassert(in_prom.get_future().ready());
               //bassert(in_avail_prom.get_future().ready());
               out_prom = upcxx::promise<>();
-              in_prom = upcxx::promise<>();
-              in_avail_prom = upcxx::promise<>();
+              //std::lock_guard<std::recursive_mutex> lock(in_prom_lock);
+              //in_prom = upcxx::promise<>();
+              //in_avail_prom = upcxx::promise<>();
             }
 
         };
@@ -382,6 +410,26 @@ namespace symPACK{
 #ifdef _PRIORITY_QUEUE_AVAIL_
           struct avail_comp{
             bool operator()(ttask_t *& a,ttask_t*& b){ 
+              auto tgt_a = std::get<1>(a->_meta);
+              auto tgt_b = std::get<1>(b->_meta);
+              if ( tgt_a != tgt_b )
+                return tgt_a<tgt_b;
+              else if ( std::get<2>(a->_meta) != std::get<2>(b->_meta) )
+                return std::get<2>(a->_meta) < std::get<2>(b->_meta);
+              else
+                return std::get<4>(a->_meta)<std::get<4>(b->_meta); 
+              //else if ( a->out_dependencies.size() != b->out_dependencies.size() )
+              //  return a->out_dependencies.size() > b->out_dependencies.size();
+            };
+          };
+          std::priority_queue<ttask_t*,std::vector<ttask_t*>,avail_comp> avail_tasks;
+#else
+          std::list<ttask_t*> avail_tasks;
+#endif
+
+#ifdef _PRIORITY_QUEUE_RDY_
+          struct rdy_comp{
+            bool operator()(ttask_t *& a,ttask_t*& b){ 
               //return a->out_dependencies.size() > b->out_dependencies.size();
 
 
@@ -397,12 +445,11 @@ namespace symPACK{
               //  return a->out_dependencies.size() > b->out_dependencies.size();
             };
           };
-          std::priority_queue<ttask_t*,std::vector<ttask_t*>,avail_comp> avail_tasks;
-          std::priority_queue<ttask_t*,std::vector<ttask_t*>,avail_comp> ready_tasks;
+          std::priority_queue<ttask_t*,std::vector<ttask_t*>,rdy_comp> ready_tasks;
 #else
           std::list<ttask_t*> ready_tasks;
-          std::list<ttask_t*> avail_tasks;
 #endif
+
           void execute(ttaskgraph_t & graph, double & mem_budget );
       };
 
@@ -2006,7 +2053,10 @@ namespace symPACK{
         T * rhs;
         int nrhs;
         //This containes AT MOST nsuper contribs.
-        std::map< uint64_t, snodeBlock_sptr_t > contribs;
+        //std::map< uint64_t, snodeBlock_sptr_t > contribs;
+        std::vector< snodeBlock_sptr_t > contribs;
+        std::deque<std::mutex> locks;
+
         //std::vector<std::atomic<int>> update_right_cnt;
         //std::vector<std::atomic<int>> update_up_cnt;
         std::atomic<int> * update_right_cnt;
@@ -4992,8 +5042,10 @@ namespace symPACK{
           auto remote_deps = ptask->in_remote_dependencies_cnt;
           auto local_deps = ptask->in_local_dependencies_cnt;
 
-          ptask->in_prom.require_anonymous(local_deps + remote_deps);
-          ptask->in_avail_prom.require_anonymous(remote_deps);
+          //ptask->in_prom.require_anonymous(local_deps + remote_deps);
+          ptask->in_counter = local_deps + remote_deps;
+          //ptask->in_avail_prom.require_anonymous(remote_deps);
+          ptask->in_avail_counter = remote_deps;
 
           auto ptr = ptask.get();
           //          auto fut_comm = ptask->in_avail_prom.finalize();
@@ -5097,8 +5149,13 @@ namespace symPACK{
 
                                 taskptr->input_msg.push_back(diag_data);
                                 diag_data->target_tasks.push_back(taskptr);
-                                taskptr->in_avail_prom.fulfill_anonymous(1);
+                                //taskptr->in_avail_prom.fulfill_anonymous(1);
 
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+#else
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+#endif
 
                               }
                               else {
@@ -5112,7 +5169,12 @@ namespace symPACK{
 
                                 taskptr->input_msg.push_back(data);
                                 data->target_tasks.push_back(taskptr);
-                                taskptr->in_avail_prom.fulfill_anonymous(1);
+                                //taskptr->in_avail_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+#else
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+#endif
                               }
                               }
 
@@ -5158,7 +5220,13 @@ namespace symPACK{
                         bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::TRSM
                             ||  std::get<2>(taskptr->_meta) == Factorization::op_type::UPDATE2D_COMP);
                         //mark the dependency as satisfied
-                        taskptr->in_prom.fulfill_anonymous(1);
+//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
+//                        taskptr->in_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+#else
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+#endif
                       }
                     }
                   }
@@ -5321,7 +5389,12 @@ namespace symPACK{
 
                                 taskptr->input_msg.push_back(data);
                                 data->target_tasks.push_back(taskptr);
-                                taskptr->in_avail_prom.fulfill_anonymous(1);
+                                //taskptr->in_avail_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+#else
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+#endif
                               }
 
                               //auto I = std::get<1>(meta);
@@ -5381,7 +5454,14 @@ namespace symPACK{
                         }
 
                         //mark the dependency as satisfied
-                        taskptr->in_prom.fulfill_anonymous(1);
+//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
+//                        taskptr->in_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+#else
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+#endif
+
                       }
                     }
                   }
@@ -5579,7 +5659,12 @@ namespace symPACK{
                               auto taskptr = matptr->task_graph[tgt_cell_idx].get();
                               taskptr->input_msg.push_back(data);
                               data->target_tasks.push_back(taskptr);
-                              taskptr->in_avail_prom.fulfill_anonymous(1);
+//                              taskptr->in_avail_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+#else
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+#endif
                               }
 
 
@@ -5615,7 +5700,14 @@ namespace symPACK{
                         bassert(taskptr!=nullptr); 
                         bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::FACTOR || std::get<2>(taskptr->_meta)==Factorization::op_type::TRSM);
                         //mark the dependency as satisfied
-                        taskptr->in_prom.fulfill_anonymous(1);
+//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
+//                        taskptr->in_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+#else
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+#endif
+
                       }
                     }
                   }
@@ -6300,8 +6392,10 @@ namespace symPACK{
           auto remote_deps = ptask->in_remote_dependencies_cnt;
           auto local_deps = ptask->in_local_dependencies_cnt;
 
-          ptask->in_prom.require_anonymous(local_deps + remote_deps);
-          ptask->in_avail_prom.require_anonymous(remote_deps);
+          //ptask->in_prom.require_anonymous(local_deps + remote_deps);
+          ptask->in_counter = local_deps + remote_deps;
+          //ptask->in_avail_prom.require_anonymous(remote_deps);
+          ptask->in_avail_counter = remote_deps;
 
           auto ptr = ptask.get();
 #ifdef _VERBOSE_
@@ -6327,16 +6421,20 @@ namespace symPACK{
                 int dep_cnt = update_right_cnt[J];
 
                 ptask->execute = [this,ptr,I,J,dep_cnt] () {
-//               std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
+//                  std::lock_guard<std::mutex> lock( this->solve_data.locks[J]);
+//                  std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
                   scope_timer(b,SOLVE_FUC_TASK);
                   auto ptask = ptr;
                   auto ptr_cell = pQueryCELL2(J-1,I-1);
 
-             auto ptr_lock_cell = pQueryCELL2(J-1,J-1);
-             cell_lock<snodeBlock_sptr_t> lock_cell(ptr_lock_cell);
+                  auto ptr_lock_cell = pQueryCELL2(J-1,J-1);
+                  cell_lock<snodeBlock_sptr_t> lock_cell(ptr_lock_cell);
 
-//             auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
-//             cell_lock<snodeBlock_sptr_t> lock_cell2(ptr_lock_cell2);
+                  std::unique_ptr<cell_lock<snodeBlock_sptr_t>> ptr_celllock2;
+                  if ( I != J ) {
+                    auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
+                    ptr_celllock2.reset( new cell_lock<snodeBlock_sptr_t>(ptr_lock_cell2));
+                  }
 
                   //gdb_lock();
                   auto & update_right_cnt = this->solve_data.update_right_cnt;
@@ -6347,7 +6445,7 @@ namespace symPACK{
                   //Allocate Y(K) with the same structure as L(K,M) where M is the highest anscestor in the Etree this rank owns
                   snodeBlock_sptr_t ptr_contrib = nullptr;
                   {
- //                   std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
+                    //                   std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
                     auto & rptr_contrib = contribs[J];
                     if ( ! rptr_contrib ) {
                       bassert(update_right_cnt[J] == 0);
@@ -6379,6 +6477,7 @@ namespace symPACK{
 
                     }
                     else if ( I == J ) {
+                      bassert( rptr_contrib->nnz() >0 && rptr_contrib->width()>0);
                       //Add data from RHS
                       for(rowind_t row = 0; row< rptr_contrib->total_rows(); ++row){
                         rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
@@ -6390,38 +6489,157 @@ namespace symPACK{
                     ptr_contrib = rptr_contrib;
                   }
 
-                    if ( I == J ) {
-                      //Then accumulate everything coming from children
-                      for ( auto && msg_ptr: ptask->input_msg ) {
-                        if ( msg_ptr->extra_data ) {
-                          auto ptr_rem_contrib = (snodeBlock_t*)(msg_ptr->extra_data.get());
-                          ptr_contrib->forward_update(ptr_rem_contrib);
+                  if ( I == J ) {
+                    //Then accumulate everything coming from children
+                    for ( auto && msg_ptr: ptask->input_msg ) {
+                      if ( msg_ptr->extra_data ) {
+                        auto ptr_rem_contrib = (snodeBlock_t*)(msg_ptr->extra_data.get());
+                        ptr_contrib->forward_update(ptr_rem_contrib);
+                      }
+                    }
+
+                    //this is a diagonal block update
+                    //this could be implemented as a straight trsm
+                    ptr_cell->forward_update_contrib(ptr_contrib.get());
+
+                    //send the contrib down
+                    std::unordered_map<int,std::list<std::size_t> > data_to_send;
+                    for (auto &tpl : ptask->out_dependencies) {
+                      auto owner = std::get<0>(tpl);
+                      auto idx = std::get<1>(tpl);
+                      data_to_send[owner].push_back(idx);
+                    }
+
+                    //send contrib and update local tasks
+                    //ptask->out_prom->require_anonymous(data_to_send.size());
+                    for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
+                      auto pdest = it->first;
+                      auto & tgt_cells = it->second;
+                      //serialize data once, and list of meta data
+                      //diag contrib is output data so it will not be deleted
+                      if ( pdest != this->iam ) {
+                        upcxx::rpc_ff( pdest,  
+                            [] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+                            return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
+                                //there is a map between sp_handle and task_graphs
+                                auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
+                                auto I = std::get<1>(meta);
+                                rowind_t fc = matptr->Xsuper_[I-1];
+
+                                //store pointer & associated metadata somewhere
+                                std::shared_ptr <SparseTask2D::data_t > data;
+
+                                for ( auto & tgt_cell_idx: target_cells) {
+                                auto taskptr = matptr->task_graph_solve[tgt_cell_idx].get();
+                                {
+                                if ( ! data ) {
+                                data = std::make_shared<SparseTask2D::data_t >();
+                                data->in_meta = meta;
+                                data->size = storage_size;
+                                data->remote_gptr = gptr;
+                                }
+
+                                taskptr->input_msg.push_back(data);
+                                data->target_tasks.push_back(taskptr);
+//                                taskptr->in_avail_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+#else
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+#endif
+
+                                }
+                                }
+
+
+                                if ( data ) {
+                                  data->on_fetch.get_future().then(
+                                      [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata){
+                                      //create snodeBlock_t and store it in the extra_data
+                                      if (matptr->options_.decomposition == DecompositionType::LDL){
+                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                      }
+                                      else{
+                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                      }
+                                      });
+                                  //TODO check this
+#ifdef _EAGER_FETCH_
+                                  data->allocate();
+                                  data->fetch();
+#endif
+                                }
+
+#ifdef _EAGER_FETCH_
+                                //if ( diag_data ) {
+                                //  diag_data->allocate();
+                                //  diag_data->fetch();
+                                //}
+#endif
+                            });
+
+                            }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                      }
+                      else {
+                        for ( auto & tgt_cell_idx: tgt_cells ) {
+                          auto taskptr = task_graph_solve[tgt_cell_idx].get();
+                          bassert(taskptr!=nullptr); 
+                          bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::FUC
+                              || std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
+                          //mark the dependency as satisfied
+//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
+//                          taskptr->in_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+#else
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+#endif
+
                         }
                       }
-
-                      //this is a diagonal block update
-                      //this could be implemented as a straight trsm
-                      ptr_cell->forward_update_contrib(ptr_contrib.get());
-
-                      //send the contrib down
-                      std::unordered_map<int,std::list<std::size_t> > data_to_send;
-                      for (auto &tpl : ptask->out_dependencies) {
-                        auto owner = std::get<0>(tpl);
-                        auto idx = std::get<1>(tpl);
-                        data_to_send[owner].push_back(idx);
+                    }
+                  }
+                  else {
+                    bassert(ptask->input_msg.size() <= 1 );
+                    //unpack the part of the solution (y) facing the diagonal block of the supernode
+                    auto ptr_diagContrib = pQueryCELL(I-1,I-1).get(); 
+                    if ( ptr_diagContrib->owner == this->iam ) {
+                      ptr_diagContrib = (symPACK::blockCellBase_t*)contribs[I].get();
+                      bassert(ptr_diagContrib != nullptr);
+                    }
+                    else{
+                      if ( ptask->input_msg.size() > 0 ) {
+                        auto msg_ptr = *ptask->input_msg.begin();
+                        bassert ( msg_ptr->extra_data != nullptr );
+                        ptr_diagContrib = (snodeBlock_t*)(msg_ptr->extra_data.get());
                       }
+                    }
 
-                      //send contrib and update local tasks
-                      //ptask->out_prom->require_anonymous(data_to_send.size());
-                      for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
-                        auto pdest = it->first;
-                        auto & tgt_cells = it->second;
-                        //serialize data once, and list of meta data
-                        //diag contrib is output data so it will not be deleted
-                        if ( pdest != this->iam ) {
-                          upcxx::rpc_ff( pdest,  
-                              [] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                              return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
+
+                    //compute the product between L(J,I) and Y(I)
+                    ptr_cell->forward_update_contrib(ptr_contrib.get(),ptr_diagContrib);
+
+
+
+                    //send the contrib
+                    std::unordered_map<int,std::list<std::size_t> > data_to_send;
+                    for (auto &tpl : ptask->out_dependencies) {
+                      auto owner = std::get<0>(tpl);
+                      auto idx = std::get<1>(tpl);
+                      data_to_send[owner].push_back(idx);
+                    }
+
+                    for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
+                      auto pdest = it->first;
+                      auto & tgt_cells = it->second;
+                      //serialize data once, and list of meta data
+                      //factor is output data so it will not be deleted
+                      if ( pdest != this->iam ) {
+                        update_right_cnt[J]++;
+                        if ( dep_cnt == update_right_cnt[J]){
+                          upcxx::rpc_ff( pdest, /*cxs,*/ 
+                              [dep_cnt ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+                              return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt](){
                                   //there is a map between sp_handle and task_graphs
                                   auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                   auto I = std::get<1>(meta);
@@ -6432,7 +6650,6 @@ namespace symPACK{
 
                                   for ( auto & tgt_cell_idx: target_cells) {
                                   auto taskptr = matptr->task_graph_solve[tgt_cell_idx].get();
-                                  {
                                   if ( ! data ) {
                                   data = std::make_shared<SparseTask2D::data_t >();
                                   data->in_meta = meta;
@@ -6440,9 +6657,24 @@ namespace symPACK{
                                   data->remote_gptr = gptr;
                                   }
 
+
                                   taskptr->input_msg.push_back(data);
                                   data->target_tasks.push_back(taskptr);
-                                  taskptr->in_avail_prom.fulfill_anonymous(1);
+                                  //taskptr->in_avail_prom.fulfill_anonymous(dep_cnt);
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                        decrement_dep(taskptr->in_avail_counter,dep_cnt,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+#else
+                        decrement_dep(taskptr->in_avail_counter,dep_cnt,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+#endif
+
+                                  if(dep_cnt>1){
+                                    //taskptr->in_prom.fulfill_anonymous(dep_cnt-1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(taskptr->in_counter,dep_cnt-1,1,matptr->scheduler.ready_tasks.push(taskptr),matptr->scheduler.ready_mutex_);
+#else
+                        decrement_dep(taskptr->in_counter,dep_cnt-1,1,matptr->scheduler.ready_tasks.push_back(taskptr),matptr->scheduler.ready_mutex_);
+#endif
+
                                   }
                                   }
 
@@ -6464,163 +6696,64 @@ namespace symPACK{
                                     data->fetch();
 #endif
                                   }
-
-#ifdef _EAGER_FETCH_
-                                  //if ( diag_data ) {
-                                  //  diag_data->allocate();
-                                  //  diag_data->fetch();
-                                  //}
-#endif
                               });
 
                               }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                         }
-                        else {
-                          for ( auto & tgt_cell_idx: tgt_cells ) {
-                            auto taskptr = task_graph_solve[tgt_cell_idx].get();
-                            bassert(taskptr!=nullptr); 
-                            bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::FUC
-                                || std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
-                            //mark the dependency as satisfied
-                            taskptr->in_prom.fulfill_anonymous(1);
-                          }
-                        }
                       }
-                    }
-                    else {
-                      bassert(ptask->input_msg.size() <= 1 );
-                      //unpack the part of the solution (y) facing the diagonal block of the supernode
-                      auto ptr_diagContrib = pQueryCELL(I-1,I-1).get(); 
-                      if ( ptr_diagContrib->owner == this->iam ) {
-                        ptr_diagContrib = (symPACK::blockCellBase_t*)contribs[I].get();
-                        bassert(ptr_diagContrib != nullptr);
-                      }
-                      else{
-                        if ( ptask->input_msg.size() > 0 ) {
-                          auto msg_ptr = *ptask->input_msg.begin();
-                          bassert ( msg_ptr->extra_data != nullptr );
-                          ptr_diagContrib = (snodeBlock_t*)(msg_ptr->extra_data.get());
-                        }
-                      }
-
-
-                      //compute the product between L(J,I) and Y(I)
-                      ptr_cell->forward_update_contrib(ptr_contrib.get(),ptr_diagContrib);
-
-
-
-                      //send the contrib
-                      std::unordered_map<int,std::list<std::size_t> > data_to_send;
-                      for (auto &tpl : ptask->out_dependencies) {
-                        auto owner = std::get<0>(tpl);
-                        auto idx = std::get<1>(tpl);
-                        data_to_send[owner].push_back(idx);
-                      }
-
-                      for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
-                        auto pdest = it->first;
-                        auto & tgt_cells = it->second;
-                        //serialize data once, and list of meta data
-                        //factor is output data so it will not be deleted
-                        if ( pdest != this->iam ) {
-                          update_right_cnt[J]++;
-                          if ( dep_cnt == update_right_cnt[J]){
-                            upcxx::rpc_ff( pdest, /*cxs,*/ 
-                                [dep_cnt ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                                return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt](){
-                                    //there is a map between sp_handle and task_graphs
-                                    auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
-                                    auto I = std::get<1>(meta);
-                                    rowind_t fc = matptr->Xsuper_[I-1];
-
-                                    //store pointer & associated metadata somewhere
-                                    std::shared_ptr <SparseTask2D::data_t > data;
-
-                                    for ( auto & tgt_cell_idx: target_cells) {
-                                    auto taskptr = matptr->task_graph_solve[tgt_cell_idx].get();
-                                    if ( ! data ) {
-                                    data = std::make_shared<SparseTask2D::data_t >();
-                                    data->in_meta = meta;
-                                    data->size = storage_size;
-                                    data->remote_gptr = gptr;
-                                    }
-
-
-                                    taskptr->input_msg.push_back(data);
-                                    data->target_tasks.push_back(taskptr);
-                                    taskptr->in_avail_prom.fulfill_anonymous(dep_cnt);
-
-                                    if(dep_cnt>1){
-                                      taskptr->in_prom.fulfill_anonymous(dep_cnt-1);
-                                    }
-                                    }
-
-
-                                    if ( data ) {
-                                      data->on_fetch.get_future().then(
-                                          [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata){
-                                          //create snodeBlock_t and store it in the extra_data
-                                          if (matptr->options_.decomposition == DecompositionType::LDL){
-                                          pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                          }
-                                          else{
-                                          pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                          }
-                                          });
-                                      //TODO check this
-#ifdef _EAGER_FETCH_
-                                      data->allocate();
-                                      data->fetch();
+                      else {
+                        for ( auto & tgt_cell_idx: tgt_cells ) {
+                          auto taskptr = task_graph_solve[tgt_cell_idx].get();
+                          bassert(taskptr!=nullptr); 
+                          bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::FUC);
+                          //mark the dependency as satisfied
+//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
+//                          taskptr->in_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+#else
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
 #endif
-                                    }
-                                });
 
-                                }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
-                          }
-                        }
-                        else {
-                          for ( auto & tgt_cell_idx: tgt_cells ) {
-                            auto taskptr = task_graph_solve[tgt_cell_idx].get();
-                            bassert(taskptr!=nullptr); 
-                            bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::FUC);
-                            //mark the dependency as satisfied
-                            taskptr->in_prom.fulfill_anonymous(1);
-                          }
                         }
                       }
                     }
-                    ptask->executed = true;
+                  }
+                  ptask->executed = true;
 
-                  };
+                };
 
-                }
-                break;
-                case Factorization::op_type::BUC:
-                {
-                  //std::swap(I,J);
-                  int dep_cnt = update_up_cnt[I];
-                  ptask->execute = [this,ptr,I,J,dep_cnt] () {
-   //         std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
+              }
+              break;
+            case Factorization::op_type::BUC:
+              {
+                int dep_cnt = update_up_cnt[I];
+                ptask->execute = [this,ptr,I,J,dep_cnt] () {
+//                  std::lock_guard<std::mutex> lock( this->solve_data.locks[I]);
+//                  std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
 
-                    scope_timer(b,SOLVE_BUC_TASK);
-                    auto ptask = ptr;
-                    auto ptr_cell = pQueryCELL2(J-1,I-1);
+                  scope_timer(b,SOLVE_BUC_TASK);
+                  auto ptask = ptr;
+                  auto ptr_cell = pQueryCELL2(J-1,I-1);
 
-                  auto ptr_lock_cell = pQueryCELL2(J-1,J-1);
+                  auto ptr_lock_cell = pQueryCELL2(I-1,I-1);
                   cell_lock<snodeBlock_sptr_t> lock_cell(ptr_lock_cell);
 
-//             auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
-//             cell_lock<snodeBlock_sptr_t> lock_cell2(ptr_lock_cell2);
+                  std::unique_ptr<cell_lock<snodeBlock_sptr_t>> ptr_celllock2;
+                  if ( I != J ) {
+                    auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
+                    ptr_celllock2.reset( new cell_lock<snodeBlock_sptr_t>(ptr_lock_cell2));
+                  }
 
-                    auto & update_up_cnt = this->solve_data.update_up_cnt;
-                    auto & contribs = this->solve_data.contribs;
-                    auto rhs = this->solve_data.rhs;
-                    auto nrhs = this->solve_data.nrhs;
-                    auto ptr_tgtcell = pQueryCELL(I-1,I-1);
+                  auto & update_up_cnt = this->solve_data.update_up_cnt;
+                  auto & contribs = this->solve_data.contribs;
+                  auto rhs = this->solve_data.rhs;
+                  auto nrhs = this->solve_data.nrhs;
+                  auto ptr_tgtcell = pQueryCELL(I-1,I-1);
 
                   snodeBlock_sptr_t ptr_contrib = nullptr;
                   {
-     //               std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
+                    //               std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
                     auto & rptr_contrib = contribs[I];
                     //TODO check this
                     bassert( ptr_tgtcell->owner != this->iam || rptr_contrib != nullptr );
@@ -6639,11 +6772,12 @@ namespace symPACK{
                         bassert(rptr_contrib!=nullptr);
                       }
                     }
+                    bassert( rptr_contrib->nnz() >0 && rptr_contrib->width()>0);
                     ptr_contrib = rptr_contrib;
                   }
 
-                      {
-      //      std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
+                  {
+                    //      std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
                     if ( I == J ) {
                       //Then accumulate everything coming from children
                       for ( auto && msg_ptr: ptask->input_msg ) {
@@ -6697,7 +6831,13 @@ namespace symPACK{
 
                                   taskptr->input_msg.push_back(data);
                                   data->target_tasks.push_back(taskptr);
-                                  taskptr->in_avail_prom.fulfill_anonymous(1);
+                                  //taskptr->in_avail_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+#else
+                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+#endif
+
                                   }
                                   }
 
@@ -6736,7 +6876,14 @@ namespace symPACK{
                             bassert(taskptr!=nullptr); 
                             bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
                             //mark the dependency as satisfied
-                            taskptr->in_prom.fulfill_anonymous(1);
+//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
+//                            taskptr->in_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+#else
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+#endif
+
                           }
                         }
                       }
@@ -6803,9 +6950,21 @@ namespace symPACK{
 
                                     taskptr->input_msg.push_back(data);
                                     data->target_tasks.push_back(taskptr);
-                                    taskptr->in_avail_prom.fulfill_anonymous(dep_cnt);
+                                    //taskptr->in_avail_prom.fulfill_anonymous(dep_cnt);
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                        decrement_dep(taskptr->in_avail_counter,dep_cnt,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+#else
+                        decrement_dep(taskptr->in_avail_counter,dep_cnt,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+#endif
+
                                     if(dep_cnt>1){
-                                      taskptr->in_prom.fulfill_anonymous(dep_cnt-1);
+                                      //taskptr->in_prom.fulfill_anonymous(dep_cnt-1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(taskptr->in_counter,dep_cnt-1,1,matptr->scheduler.ready_tasks.push(taskptr),matptr->scheduler.ready_mutex_);
+#else
+                        decrement_dep(taskptr->in_counter,dep_cnt-1,1,matptr->scheduler.ready_tasks.push_back(taskptr),matptr->scheduler.ready_mutex_);
+#endif
+
                                     }
                                     }
 
@@ -6838,28 +6997,35 @@ namespace symPACK{
                             bassert(taskptr!=nullptr); 
                             bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
                             //mark the dependency as satisfied
-                            taskptr->in_prom.fulfill_anonymous(1);
+//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
+//                            taskptr->in_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+#else
+                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+#endif
+
                           }
                         }
                       }
                     }
-                      }
-                    ptask->executed = true;
-                  };
-                }
-                break;
-                default:
-                break;
+                  }
+                  ptask->executed = true;
+                };
               }
+              break;
+            default:
+              break;
           }
-
-
-
-          logfileptr->OFS()<<"Solve task graph created"<<std::endl;
         }
 
 
-      } 
+
+        logfileptr->OFS()<<"Solve task graph created"<<std::endl;
+      }
+
+
+    } 
 
       template <typename colptr_t, typename rowind_t, typename T, typename int_t>
         void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::DistributeMatrix(DistSparseMatrix<T> & pMat ){
@@ -7200,6 +7366,9 @@ namespace symPACK{
           this->solve_data.rhs = RHS;
           this->solve_data.nrhs = nrhs;
           this->solve_data.contribs.clear();
+          this->solve_data.contribs.assign(nsuper+1,nullptr);
+          this->solve_data.locks.resize(nsuper+1);
+
           //this->solve_data.update_right_cnt.assign(this->nsuper+1,0);
           delete [] this->solve_data.update_right_cnt;
           this->solve_data.update_right_cnt = new std::atomic<int>[this->nsuper+1];
@@ -7225,8 +7394,17 @@ namespace symPACK{
             this->scheduler.extraTaskHandle_ = [&,this](SparseTask2D * pTask)->bool {
               auto type = std::get<2>(pTask->_meta);
 
-              if(type == Factorization::op_type::FACTOR){
-                return false;
+              if(type == Factorization::op_type::BUC){
+                auto J = std::get<0>(pTask->_meta);
+                auto I = std::get<1>(pTask->_meta);
+                auto ptr_tgtcell = pQueryCELL2(I-1,I-1);
+                bool exp = false;
+                if(std::atomic_compare_exchange_weak( &ptr_tgtcell->in_use, &exp, true )){
+                  return false;
+                }
+                else{
+                  return true;
+                }
               }
               else{
                 auto J = std::get<0>(pTask->_meta);
@@ -7236,6 +7414,17 @@ namespace symPACK{
                 if(std::atomic_compare_exchange_weak( &ptr_tgtcell->in_use, &exp, true )){
                   return false;
                 }
+                //else if ( I != J ) {
+                //  auto ptr_tgtcell2 = pQueryCELL2(I-1,I-1);
+                //  bool exp = false;
+                //  if(std::atomic_compare_exchange_weak( &ptr_tgtcell2->in_use, &exp, true )){
+                //    return false;
+                //  }
+                //  else{
+                //    ptr_tgtcell->in_use = false;
+                //    return true;
+                //  }
+                //}
                 else{
                   return true;
                 }
@@ -7451,52 +7640,63 @@ namespace symPACK{
                   auto & ptask = *it;
                   auto remote_deps = ptask->in_remote_dependencies_cnt;
                   auto ptr = ptask.get();
-                  auto fut_comm = ptask->in_avail_prom.finalize();
+//                  auto fut_comm = ptask->in_avail_prom.finalize();
                   if (remote_deps >0 ) {
-                    fut_comm.then([this,ptr](){
-#ifdef SP_THREADS
-                        if(Multithreading::NumThread>2){
-                        std::lock_guard<std::recursive_mutex> lock(this->avail_mutex_);
+//                    fut_comm.then([this,ptr](){
+//#ifdef SP_THREADS
+//                        if(Multithreading::NumThread>2){
+//                        std::lock_guard<std::recursive_mutex> lock(this->avail_mutex_);
+//#ifdef _PRIORITY_QUEUE_AVAIL_
+//                        this->avail_tasks.push(ptr);
+//#else
+//                        this->avail_tasks.push_back(ptr);
+//#endif
+//                        }
+//                        else
+//#endif
+//                        {
+//#ifdef _PRIORITY_QUEUE_AVAIL_
+//                        this->avail_tasks.push(ptr);
+//#else
+//                        this->avail_tasks.push_back(ptr);
+//#endif
+//                        }
+//                        });
 #ifdef _PRIORITY_QUEUE_AVAIL_
-                        this->avail_tasks.push(ptr);
+                        decrement_dep(ptr->in_avail_counter,0,0,this->avail_tasks.push(ptr),this->avail_mutex_);
 #else
-                        this->avail_tasks.push_back(ptr);
+                        decrement_dep(ptr->in_avail_counter,0,0,this->avail_tasks.push_back(ptr),this->avail_mutex_);
 #endif
-                        }
-                        else
-#endif
-                        {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                        this->avail_tasks.push(ptr);
-#else
-                        this->avail_tasks.push_back(ptr);
-#endif
-                        }
-                        });
                     }
 
-                    auto fut = ptask->in_prom.finalize();
-                    fut.then([this,ptr](){
-#ifdef SP_THREADS
-                        if(Multithreading::NumThread>2){
-                        std::lock_guard<std::recursive_mutex> lock(this->ready_mutex_);
-                        //std::cout<<"TASK IS READY\n";
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                        this->ready_tasks.push(ptr);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(ptr->in_counter,0,0,this->ready_tasks.push(ptr),this->ready_mutex_);
 #else
-                        this->ready_tasks.push_back(ptr);
+                        decrement_dep(ptr->in_counter,0,0,this->ready_tasks.push_back(ptr),this->ready_mutex_);
 #endif
-                        }
-                        else
-#endif
-                        {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                        this->ready_tasks.push(ptr);
-#else
-                        this->ready_tasks.push_back(ptr);
-#endif
-                        }
-                        });
+
+//                    auto fut = ptask->in_prom.finalize();
+//                    fut.then([this,ptr](){
+//#ifdef SP_THREADS
+//                        if(Multithreading::NumThread>2){
+//                        std::lock_guard<std::recursive_mutex> lock(this->ready_mutex_);
+//                        //std::cout<<"TASK IS READY\n";
+//#ifdef _PRIORITY_QUEUE_RDY_
+//                        this->ready_tasks.push(ptr);
+//#else
+//                        this->ready_tasks.push_back(ptr);
+//#endif
+//                        }
+//                        else
+//#endif
+//                        {
+//#ifdef _PRIORITY_QUEUE_RDY_
+//                        this->ready_tasks.push(ptr);
+//#else
+//                        this->ready_tasks.push_back(ptr);
+//#endif
+//                        }
+//                        });
                   }
 
 
@@ -7513,7 +7713,7 @@ namespace symPACK{
                   utility::scope_memprofiler m("symPACKMatrix_execute_2");
 #endif
 #ifndef _LOCKFREE_QUEUE_
-                  WorkQueue< ttask_t * > queue(Multithreading::NumThread-2,threadInitHandle_);
+                  WorkQueue< ttask_t * > queue(std::max(1,Multithreading::NumThread-2),threadInitHandle_);
 #else
                   WorkQueue< ttask_t *, mpmc_bounded_queue< ttask_t *> > queue(Multithreading::NumThread-2,threadInitHandle_);
 #endif
@@ -7539,16 +7739,12 @@ namespace symPACK{
 
                     bool empty = false;
                     while (!empty) {
+                      ttask_t * ptask = nullptr;
                       {
                         std::lock_guard<std::recursive_mutex> lock(ready_mutex_);
                         empty = ready_tasks.empty();
-                      }
-                      if (!empty) {
-                        upcxx::progress(upcxx::progress_level::internal);
-                        ttask_t * ptask = nullptr;
-                        {
-                          std::lock_guard<std::recursive_mutex> lock(ready_mutex_);
-#ifdef _PRIORITY_QUEUE_AVAIL_
+                        if (!empty){
+#ifdef _PRIORITY_QUEUE_RDY_
                           ptask = ready_tasks.top();
                           ready_tasks.pop();
 #else
@@ -7556,6 +7752,19 @@ namespace symPACK{
                           ready_tasks.pop_front();
 #endif
                         }
+                      }
+                      if (!empty) {
+                        upcxx::progress(upcxx::progress_level::internal);
+//                        {
+//                          std::lock_guard<std::recursive_mutex> lock(ready_mutex_);
+//#ifdef _PRIORITY_QUEUE_RDY_
+//                          ptask = ready_tasks.top();
+//                          ready_tasks.pop();
+//#else
+//                          ptask = ready_tasks.front();
+//                          ready_tasks.pop_front();
+//#endif
+//                        }
 
                         bool delay = false;
                         if(extraTaskHandle_!=nullptr){
@@ -7567,7 +7776,7 @@ namespace symPACK{
                         }
 
                         if(!delay){
-//                          std::cout<<"PUSHING TASK\n";
+                          //std::cout<<"PUSHING TASK\n";
                           queue.pushTask(ptask);
                           local_task_cnt--;
                         }
@@ -7583,14 +7792,12 @@ namespace symPACK{
                     //handle communications
                     empty = false;
                     while (!empty) {
+                      ttask_t * ptask = nullptr;
                       {
                         std::lock_guard<std::recursive_mutex> lock(avail_mutex_);
                         empty = avail_tasks.empty();
-                      }
-                      if (!empty) {
-                        ttask_t * ptask = nullptr;
-                        {
-                          std::lock_guard<std::recursive_mutex> lock(avail_mutex_);
+
+                        if (!empty) {
 #ifdef _PRIORITY_QUEUE_AVAIL_
                           auto ptask = avail_tasks.top();
                           avail_tasks.pop();
@@ -7599,12 +7806,30 @@ namespace symPACK{
                           avail_tasks.pop_front();
 #endif
                         }
+                      }
+                      if (!empty) {
+//                        {
+//                          std::lock_guard<std::recursive_mutex> lock(avail_mutex_);
+//#ifdef _PRIORITY_QUEUE_AVAIL_
+//                          auto ptask = avail_tasks.top();
+//                          avail_tasks.pop();
+//#else
+//                          auto ptask = avail_tasks.front();
+//                          avail_tasks.pop_front();
+//#endif
+//                        }
                         for(auto & msg : ptask->input_msg){
                           msg->allocate();
                           //if (!msg->transfered)
-                          msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
+                          msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
                               //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                              ptask->in_prom.fulfill_anonymous(1);
+                              //ptask->in_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push(ptask),this->ready_mutex_);
+#else
+                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
+#endif
+
                               });
                         } 
 
@@ -7636,7 +7861,7 @@ namespace symPACK{
                       std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
                       progress_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
 #endif
-#ifdef _PRIORITY_QUEUE_AVAIL_
+#ifdef _PRIORITY_QUEUE_RDY_
                       auto ptask = ready_tasks.top();
                       ready_tasks.pop();
 #else
@@ -7724,9 +7949,15 @@ namespace symPACK{
                           //                  logfileptr->OFS()<<"mem budget is "<<mem_budget<<std::endl;
                           for(auto & msg : ptask->input_msg){
                             msg->allocate();
-                            msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
+                            msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
                                 //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                                ptask->in_prom.fulfill_anonymous(1);
+                                //ptask->in_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push(ptask),this->ready_mutex_);
+#else
+                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
+#endif
+
                                 });
                           } 
                         }
@@ -7742,9 +7973,15 @@ namespace symPACK{
 
                         for(auto & msg : ptask->input_msg){
                           msg->allocate();
-                          msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
+                          msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
                               //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                              ptask->in_prom.fulfill_anonymous(1);
+                              //ptask->in_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push(ptask),this->ready_mutex_);
+#else
+                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
+#endif
+
                               });
                         } 
                       }
@@ -7760,9 +7997,15 @@ namespace symPACK{
                       for(auto & msg : ptask->input_msg){
                         msg->allocate();
                         //if (!msg->transfered)
-                        msg->fetch().then([ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
+                        msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
                             //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                            ptask->in_prom.fulfill_anonymous(1);
+                           // ptask->in_prom.fulfill_anonymous(1);
+#ifdef _PRIORITY_QUEUE_RDY_
+                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push(ptask),this->ready_mutex_);
+#else
+                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
+#endif
+
                             });
                       } 
 #endif
