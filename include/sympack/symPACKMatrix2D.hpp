@@ -100,9 +100,9 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include <chrono>
 
 #ifdef SP_THREADS
-#define decrement_dep(counter,value,exp,list_op,list_mutex) \
+#define decrement_dep(counter,value,list_op,list_mutex) \
                       do {\
-                        if ( counter.fetch_sub(value) == exp){\
+                        if ( counter.fetch_sub(value) == value){\
                           if(Multithreading::NumThread>2){\
                             std::lock_guard<std::recursive_mutex> lock(list_mutex);\
                             list_op;\
@@ -114,9 +114,9 @@ such enhancements or derivative works thereof, in binary and source code form.
                         }\
                       }while(0);
 #else
-#define decrement_dep(counter,value,exp,list_op,list_mutex) \
+#define decrement_dep(counter,value,list_op,list_mutex) \
                       do {\
-                        if ( counter.fetch_sub(value) == exp){\
+                        if ( counter.fetch_sub(value) == value){\
                             list_op;\
                         }\
                       }while(0);
@@ -262,6 +262,25 @@ namespace symPACK{
         }
       protected:
         cellptr cell_;
+    };
+
+
+
+  template<  >
+    class cell_lock< std::atomic<bool> > {
+      public:
+        cell_lock(std::atomic<bool> & celllock):lock_(celllock) {
+        }
+
+        ~cell_lock(){
+#ifdef SP_THREADS
+          if(Multithreading::NumThread>2){
+            lock_ =  false;
+          }
+#endif
+        }
+      protected:
+        std::atomic<bool> & lock_;
     };
 
 
@@ -2055,6 +2074,7 @@ namespace symPACK{
         //This containes AT MOST nsuper contribs.
         //std::map< uint64_t, snodeBlock_sptr_t > contribs;
         std::vector< snodeBlock_sptr_t > contribs;
+        std::atomic<bool> * contribs_lock;
         std::deque<std::mutex> locks;
 
         //std::vector<std::atomic<int>> update_right_cnt;
@@ -2065,11 +2085,13 @@ namespace symPACK{
         solve_data_t() {
           update_right_cnt = nullptr;
           update_up_cnt = nullptr;
+          contribs_lock = nullptr;
         }
 
         ~solve_data_t() {
           delete [] update_right_cnt;
           delete [] update_up_cnt;
+          delete [] contribs_lock;
         }
       };
       solve_data_t solve_data;
@@ -5152,9 +5174,9 @@ namespace symPACK{
                                 //taskptr->in_avail_prom.fulfill_anonymous(1);
 
 #ifdef _PRIORITY_QUEUE_AVAIL_
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
 #else
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
 #endif
 
                               }
@@ -5171,9 +5193,9 @@ namespace symPACK{
                                 data->target_tasks.push_back(taskptr);
                                 //taskptr->in_avail_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_AVAIL_
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
 #else
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
 #endif
                               }
                               }
@@ -5223,9 +5245,9 @@ namespace symPACK{
 //                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
 //                        taskptr->in_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
 #else
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
 #endif
                       }
                     }
@@ -5391,9 +5413,9 @@ namespace symPACK{
                                 data->target_tasks.push_back(taskptr);
                                 //taskptr->in_avail_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_AVAIL_
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
 #else
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
 #endif
                               }
 
@@ -5457,9 +5479,9 @@ namespace symPACK{
 //                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
 //                        taskptr->in_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
 #else
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
 #endif
 
                       }
@@ -5661,9 +5683,9 @@ namespace symPACK{
                               data->target_tasks.push_back(taskptr);
 //                              taskptr->in_avail_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_AVAIL_
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
 #else
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
 #endif
                               }
 
@@ -5703,9 +5725,9 @@ namespace symPACK{
 //                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
 //                        taskptr->in_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
 #else
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
 #endif
 
                       }
@@ -6427,14 +6449,15 @@ namespace symPACK{
                   auto ptask = ptr;
                   auto ptr_cell = pQueryCELL2(J-1,I-1);
 
-                  auto ptr_lock_cell = pQueryCELL2(J-1,J-1);
-                  cell_lock<snodeBlock_sptr_t> lock_cell(ptr_lock_cell);
+//                  auto ptr_lock_cell = pQueryCELL2(J-1,J-1);
+//                  cell_lock<snodeBlock_sptr_t> lock_cell(ptr_lock_cell);
+                  cell_lock<std::atomic<bool> > lock_cell(this->solve_data.contribs_lock[J]);
 
-                  std::unique_ptr<cell_lock<snodeBlock_sptr_t>> ptr_celllock2;
-                  if ( I != J ) {
-                    auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
-                    ptr_celllock2.reset( new cell_lock<snodeBlock_sptr_t>(ptr_lock_cell2));
-                  }
+//                  std::unique_ptr<cell_lock<snodeBlock_sptr_t>> ptr_celllock2;
+//                  if ( I != J ) {
+//                    auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
+//                    ptr_celllock2.reset( new cell_lock<snodeBlock_sptr_t>(ptr_lock_cell2));
+//                  }
 
                   //gdb_lock();
                   auto & update_right_cnt = this->solve_data.update_right_cnt;
@@ -6543,9 +6566,9 @@ namespace symPACK{
                                 data->target_tasks.push_back(taskptr);
 //                                taskptr->in_avail_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_AVAIL_
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
 #else
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
 #endif
 
                                 }
@@ -6590,9 +6613,9 @@ namespace symPACK{
 //                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
 //                          taskptr->in_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
 #else
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
 #endif
 
                         }
@@ -6662,17 +6685,17 @@ namespace symPACK{
                                   data->target_tasks.push_back(taskptr);
                                   //taskptr->in_avail_prom.fulfill_anonymous(dep_cnt);
 #ifdef _PRIORITY_QUEUE_AVAIL_
-                        decrement_dep(taskptr->in_avail_counter,dep_cnt,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,dep_cnt,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
 #else
-                        decrement_dep(taskptr->in_avail_counter,dep_cnt,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,dep_cnt,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
 #endif
 
                                   if(dep_cnt>1){
                                     //taskptr->in_prom.fulfill_anonymous(dep_cnt-1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(taskptr->in_counter,dep_cnt-1,1,matptr->scheduler.ready_tasks.push(taskptr),matptr->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,dep_cnt-1,matptr->scheduler.ready_tasks.push(taskptr),matptr->scheduler.ready_mutex_);
 #else
-                        decrement_dep(taskptr->in_counter,dep_cnt-1,1,matptr->scheduler.ready_tasks.push_back(taskptr),matptr->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,dep_cnt-1,matptr->scheduler.ready_tasks.push_back(taskptr),matptr->scheduler.ready_mutex_);
 #endif
 
                                   }
@@ -6710,9 +6733,9 @@ namespace symPACK{
 //                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
 //                          taskptr->in_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
 #else
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
 #endif
 
                         }
@@ -6736,14 +6759,10 @@ namespace symPACK{
                   auto ptask = ptr;
                   auto ptr_cell = pQueryCELL2(J-1,I-1);
 
-                  auto ptr_lock_cell = pQueryCELL2(I-1,I-1);
-                  cell_lock<snodeBlock_sptr_t> lock_cell(ptr_lock_cell);
 
-                  std::unique_ptr<cell_lock<snodeBlock_sptr_t>> ptr_celllock2;
-                  if ( I != J ) {
-                    auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
-                    ptr_celllock2.reset( new cell_lock<snodeBlock_sptr_t>(ptr_lock_cell2));
-                  }
+                  //auto ptr_lock_cell = pQueryCELL2(I-1,I-1);
+                  //cell_lock<snodeBlock_sptr_t> lock_cell(ptr_lock_cell);
+                  cell_lock<std::atomic<bool> > lock_cell(this->solve_data.contribs_lock[I]);
 
                   auto & update_up_cnt = this->solve_data.update_up_cnt;
                   auto & contribs = this->solve_data.contribs;
@@ -6833,9 +6852,9 @@ namespace symPACK{
                                   data->target_tasks.push_back(taskptr);
                                   //taskptr->in_avail_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_AVAIL_
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
 #else
-                        decrement_dep(taskptr->in_avail_counter,1,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
 #endif
 
                                   }
@@ -6879,9 +6898,9 @@ namespace symPACK{
 //                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
 //                            taskptr->in_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
 #else
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
 #endif
 
                           }
@@ -6952,17 +6971,17 @@ namespace symPACK{
                                     data->target_tasks.push_back(taskptr);
                                     //taskptr->in_avail_prom.fulfill_anonymous(dep_cnt);
 #ifdef _PRIORITY_QUEUE_AVAIL_
-                        decrement_dep(taskptr->in_avail_counter,dep_cnt,1,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,dep_cnt,matptr->scheduler.avail_tasks.push(taskptr),matptr->scheduler.avail_mutex_);
 #else
-                        decrement_dep(taskptr->in_avail_counter,dep_cnt,1,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
+                        decrement_dep(taskptr->in_avail_counter,dep_cnt,matptr->scheduler.avail_tasks.push_back(taskptr),matptr->scheduler.avail_mutex_);
 #endif
 
                                     if(dep_cnt>1){
                                       //taskptr->in_prom.fulfill_anonymous(dep_cnt-1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(taskptr->in_counter,dep_cnt-1,1,matptr->scheduler.ready_tasks.push(taskptr),matptr->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,dep_cnt-1,matptr->scheduler.ready_tasks.push(taskptr),matptr->scheduler.ready_mutex_);
 #else
-                        decrement_dep(taskptr->in_counter,dep_cnt-1,1,matptr->scheduler.ready_tasks.push_back(taskptr),matptr->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,dep_cnt-1,matptr->scheduler.ready_tasks.push_back(taskptr),matptr->scheduler.ready_mutex_);
 #endif
 
                                     }
@@ -7000,9 +7019,9 @@ namespace symPACK{
 //                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
 //                            taskptr->in_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push(taskptr),this->scheduler.ready_mutex_);
 #else
-                        decrement_dep(taskptr->in_counter,1,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
+                        decrement_dep(taskptr->in_counter,1,this->scheduler.ready_tasks.push_back(taskptr),this->scheduler.ready_mutex_);
 #endif
 
                           }
@@ -7368,6 +7387,9 @@ namespace symPACK{
           this->solve_data.contribs.clear();
           this->solve_data.contribs.assign(nsuper+1,nullptr);
           this->solve_data.locks.resize(nsuper+1);
+          delete [] this->solve_data.contribs_lock;
+          this->solve_data.contribs_lock = new std::atomic<bool>[this->nsuper+1];
+          for ( int i = 0; i < this->nsuper+1; i++ ) { this->solve_data.contribs_lock[i] = false; } 
 
           //this->solve_data.update_right_cnt.assign(this->nsuper+1,0);
           delete [] this->solve_data.update_right_cnt;
@@ -7397,9 +7419,10 @@ namespace symPACK{
               if(type == Factorization::op_type::BUC){
                 auto J = std::get<0>(pTask->_meta);
                 auto I = std::get<1>(pTask->_meta);
-                auto ptr_tgtcell = pQueryCELL2(I-1,I-1);
+                //auto ptr_tgtcell = pQueryCELL2(I-1,I-1);
                 bool exp = false;
-                if(std::atomic_compare_exchange_weak( &ptr_tgtcell->in_use, &exp, true )){
+                auto & lock = this->solve_data.contribs_lock[I];
+                if(std::atomic_compare_exchange_weak( &lock, &exp, true )){
                   return false;
                 }
                 else{
@@ -7409,22 +7432,12 @@ namespace symPACK{
               else{
                 auto J = std::get<0>(pTask->_meta);
                 auto I = std::get<1>(pTask->_meta);
-                auto ptr_tgtcell = pQueryCELL2(J-1,J-1);
+                //auto ptr_tgtcell = pQueryCELL2(J-1,J-1);
                 bool exp = false;
-                if(std::atomic_compare_exchange_weak( &ptr_tgtcell->in_use, &exp, true )){
+                auto & lock = this->solve_data.contribs_lock[J];
+                if(std::atomic_compare_exchange_weak( &lock, &exp, true )){
                   return false;
                 }
-                //else if ( I != J ) {
-                //  auto ptr_tgtcell2 = pQueryCELL2(I-1,I-1);
-                //  bool exp = false;
-                //  if(std::atomic_compare_exchange_weak( &ptr_tgtcell2->in_use, &exp, true )){
-                //    return false;
-                //  }
-                //  else{
-                //    ptr_tgtcell->in_use = false;
-                //    return true;
-                //  }
-                //}
                 else{
                   return true;
                 }
@@ -7663,16 +7676,16 @@ namespace symPACK{
 //                        }
 //                        });
 #ifdef _PRIORITY_QUEUE_AVAIL_
-                        decrement_dep(ptr->in_avail_counter,0,0,this->avail_tasks.push(ptr),this->avail_mutex_);
+                        decrement_dep(ptr->in_avail_counter,0,this->avail_tasks.push(ptr),this->avail_mutex_);
 #else
-                        decrement_dep(ptr->in_avail_counter,0,0,this->avail_tasks.push_back(ptr),this->avail_mutex_);
+                        decrement_dep(ptr->in_avail_counter,0,this->avail_tasks.push_back(ptr),this->avail_mutex_);
 #endif
                     }
 
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(ptr->in_counter,0,0,this->ready_tasks.push(ptr),this->ready_mutex_);
+                        decrement_dep(ptr->in_counter,0,this->ready_tasks.push(ptr),this->ready_mutex_);
 #else
-                        decrement_dep(ptr->in_counter,0,0,this->ready_tasks.push_back(ptr),this->ready_mutex_);
+                        decrement_dep(ptr->in_counter,0,this->ready_tasks.push_back(ptr),this->ready_mutex_);
 #endif
 
 //                    auto fut = ptask->in_prom.finalize();
@@ -7799,10 +7812,10 @@ namespace symPACK{
 
                         if (!empty) {
 #ifdef _PRIORITY_QUEUE_AVAIL_
-                          auto ptask = avail_tasks.top();
+                          ptask = avail_tasks.top();
                           avail_tasks.pop();
 #else
-                          auto ptask = avail_tasks.front();
+                          ptask = avail_tasks.front();
                           avail_tasks.pop_front();
 #endif
                         }
@@ -7825,9 +7838,9 @@ namespace symPACK{
                               //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
                               //ptask->in_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push(ptask),this->ready_mutex_);
+                        decrement_dep(ptask->in_counter,1,this->ready_tasks.push(ptask),this->ready_mutex_);
 #else
-                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
+                        decrement_dep(ptask->in_counter,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
 #endif
 
                               });
@@ -7953,9 +7966,9 @@ namespace symPACK{
                                 //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
                                 //ptask->in_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push(ptask),this->ready_mutex_);
+                        decrement_dep(ptask->in_counter,1,this->ready_tasks.push(ptask),this->ready_mutex_);
 #else
-                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
+                        decrement_dep(ptask->in_counter,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
 #endif
 
                                 });
@@ -7977,9 +7990,9 @@ namespace symPACK{
                               //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
                               //ptask->in_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push(ptask),this->ready_mutex_);
+                        decrement_dep(ptask->in_counter,1,this->ready_tasks.push(ptask),this->ready_mutex_);
 #else
-                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
+                        decrement_dep(ptask->in_counter,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
 #endif
 
                               });
@@ -8001,9 +8014,9 @@ namespace symPACK{
                             //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
                            // ptask->in_prom.fulfill_anonymous(1);
 #ifdef _PRIORITY_QUEUE_RDY_
-                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push(ptask),this->ready_mutex_);
+                        decrement_dep(ptask->in_counter,1,this->ready_tasks.push(ptask),this->ready_mutex_);
 #else
-                        decrement_dep(ptask->in_counter,1,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
+                        decrement_dep(ptask->in_counter,1,this->ready_tasks.push_back(ptask),this->ready_mutex_);
 #endif
 
                             });
