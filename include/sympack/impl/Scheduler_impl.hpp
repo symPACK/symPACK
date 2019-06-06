@@ -180,6 +180,105 @@ namespace symPACK{
 //    }
 //  };
 
+  template< typename ttask_t >
+    class worker_ptrs {
+      public: 
+        using atomic_ptr = std::atomic<ttask_t *>; 
+        atomic_ptr pointers[2];
+        int wslot_;
+        int rslot_;
+        worker_ptrs():pointers{{nullptr},{nullptr}},wslot_(0),rslot_(0){
+          bassert( nullptr== pointers[0].load(std::memory_order_acquire));
+          bassert( nullptr== pointers[1].load(std::memory_order_acquire));
+        }
+        virtual ~worker_ptrs() {
+          bassert( nullptr== pointers[0].load(std::memory_order_acquire));
+          bassert( nullptr== pointers[1].load(std::memory_order_acquire));
+        }
+
+        bool set(ttask_t * t){
+          ttask_t *  p = pointers[wslot_].load(std::memory_order_relaxed);
+          if (nullptr != p) {
+            return false;
+          }
+          pointers[wslot_].store(t, std::memory_order_release);
+          wslot_^=1;
+          return true;
+        }
+
+        
+        ttask_t * get(){
+          ttask_t * p = pointers[rslot_].load(std::memory_order_acquire);
+          if ( p != nullptr ){
+            pointers[rslot_].store(nullptr,std::memory_order_relaxed);
+            rslot_^=1;
+          }
+          
+          return p;
+        }
+    };
+
+
+
+//template<typename T>
+//  class spsc_queue {
+//    public:
+//    struct node {
+//      std::atomic<node*> next;
+//      T data;
+//    };
+//
+//
+//    struct consumer_side {
+//      node* prev_tail;
+//
+//      consumer_side() {
+//        prev_tail = new node;
+//      }
+//      ~consumer_side() {
+//        delete prev_tail;
+//      }
+//
+//      /* poll with a lambda that consumes T, example:
+//       *        my_side.poll([&](T data) {
+//       *                 // process one data item
+//       *                        });
+//       *                            */
+//      template<typename Fn>
+//        void poll(Fn fn) {
+//          while(true) {
+//            node *n = prev_tail->next.load(std::memory_order_acquire);
+//            if(n == nullptr)
+//              break;
+//
+//            delete prev_tail;
+//            fn(n->data);
+//            prev_tail = n;
+//          }
+//        }
+//    };
+//
+//    struct producer_side {
+//      node* tail;
+//
+//      producer_side(consumer_side &c):
+//        tail(c.prev_tail) {
+//        }
+//
+//      void enqueue(T data) {
+//        node *n = new node{{nullptr}, std::move(data)};
+//        tail->next.store(n, std::memory_order_release);
+//        tail = &n->next;
+//      }
+//    };
+//  };
+
+
+
+
+
+
+
 
 
 

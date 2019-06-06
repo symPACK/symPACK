@@ -23,7 +23,7 @@
 #include <gasnet_tools.h>
 
 //#define DUMP_MATLAB
-//#define DUMP_MATLAB_SOL
+#define DUMP_MATLAB_SOL
 
 /******* TYPE used in the computations ********/
 #define SCALAR double
@@ -358,7 +358,7 @@ int main(int argc, char **argv)
   std::vector<Int> perm;
 #endif
   std::vector<SCALAR> XFinal;
-  {
+  //{
     //do the symbolic factorization and build supernodal matrix
     optionsFact.maxIsend = maxIsend;
     optionsFact.maxIrecv = maxIrecv;
@@ -431,7 +431,7 @@ int main(int argc, char **argv)
 
 
 
-    {
+    //{
       auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
       try{
 #ifdef _MEM_PROFILER_
@@ -488,6 +488,7 @@ int main(int argc, char **argv)
       SMat2D->DumpMatlab();
 #endif
 
+        /**************** SOLVE PHASE ***********/
       if (nrhs>0){
         if(iam==0){
           std::cout<<"Starting solve 2D"<<std::endl;
@@ -501,29 +502,12 @@ int main(int argc, char **argv)
         if(iam==0){
           std::cout<<"Solve 2D time: "<<timeEnd-timeSta<<std::endl;
         }
+#if 1
         SMat2D->GetSolution(&XFinal[0],nrhs);
+#endif
       }
 
-//      if(nrhs>0){
-//        SMat = new symPACKMatrix<SCALAR>(*SMat2D);
-//      }
-    }
-
-      if(nrhs>0){
-        /**************** SOLVE PHASE ***********/
-//        if(iam==0){
-//          std::cout<<"Starting solve"<<std::endl;
-//        }
-//        XFinal = RHS;
-//
-//        timeSta = get_time();
-//        SMat->NewSolve(&XFinal[0],nrhs);
-//        timeEnd = get_time();
-//
-//        if(iam==0){
-//          std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
-//        }
-//
+    //}
 
 #if defined(DUMP_MATLAB) || defined(DUMP_MATLAB_SOL)
         if(nrhs>0 && XFinal.size()>0) {
@@ -538,12 +522,9 @@ int main(int argc, char **argv)
         }
 #endif
 
+    //}
 
-//      delete SMat;
-      }
-
-    }
-
+#if 1
     if(!nofact && nrhs>0 && XFinal.size()>0) {
       const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
       Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
@@ -589,9 +570,19 @@ int main(int argc, char **argv)
         double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
         double normRHS = lapack::Lange('F',n,nrhs,&RHS[0],n);
         std::cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
+
+        ///*if ( normAX/normRHS > 1e-10 )*/ gdb_lock();
       }
     }
 
+    for( auto && blockptr: SMat2D->solve_data.contribs){
+      if ( blockptr ) {
+        blockptr->print_block(*blockptr,"");
+      }
+    }
+
+
+#endif
 
 #ifdef _TRACK_MEMORY_
   MemoryAllocator::printStats();
