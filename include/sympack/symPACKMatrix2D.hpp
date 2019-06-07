@@ -96,6 +96,8 @@ such enhancements or derivative works thereof, in binary and source code form.
 #define _PRIORITY_QUEUE_RDY_
 
 #define PREALLOCATE
+#define _USE_PROM_AVAIL_
+#define _USE_PROM_RDY_
 
 #include <functional>
 #include <gasnetex.h>
@@ -337,13 +339,66 @@ namespace symPACK{
 
             //promise to sync all outgoing RPCs
             upcxx::promise<> out_prom;
+#ifdef _USE_PROM_AVAIL_
             //promise to wait for all incoming_data_t to be created
-            //upcxx::promise<> in_avail_prom;
-            //promise to sync on all incoming_data_t fetch
-            //upcxx::promise<> in_prom;
-            //std::recursive_mutex in_prom_lock;
-            std::atomic<int> in_counter;
+            upcxx::promise<> in_avail_prom;
+#else
             std::atomic<int> in_avail_counter;
+#endif
+
+#ifdef _USE_PROM_RDY_
+            //promise to sync on all incoming_data_t fetch
+            upcxx::promise<> in_prom;
+#else
+            std::atomic<int> in_counter;
+#endif
+
+            template<typename T> 
+              void satisfy_dep(int cnt,T&sched){
+#ifdef _USE_PROM_RDY_
+                in_prom.fulfill_anonymous(cnt);
+#else
+                T * sched_ptr = &sched;
+                                sched_ptr->lpc_cnt++;
+                upcxx::master_persona().lpc_ff( 
+                    [this,sched_ptr,cnt] () {
+                                sched_ptr->lpc_cnt--;
+                this->in_counter-=cnt;
+                if ( this->in_counter == 0 ) {
+#ifdef _PRIORITY_QUEUE_RDY_
+                  sched_ptr->ready_tasks.push(this);
+#else
+                  sched_ptr->ready_tasks.push_back(this);
+#endif
+                }
+                });
+#endif
+              } 
+
+            template<typename T> 
+              void avail_dep(int cnt,T&sched){
+#ifdef _USE_PROM_AVAIL_
+                in_avail_prom.fulfill_anonymous(cnt);
+#else
+                T * sched_ptr = &sched;
+                                sched_ptr->lpc_cnt++;
+                upcxx::master_persona().lpc_ff( 
+                    [this,sched_ptr,cnt] () {
+                                sched_ptr->lpc_cnt--;
+bassert(this->in_avail_counter-cnt >= 0);
+                this->in_avail_counter-=cnt;
+                if ( this->in_avail_counter == 0 ) {
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                  sched_ptr->avail_tasks.push(this);
+#else
+                  sched_ptr->avail_tasks.push_back(this);
+#endif
+                }
+                });
+#endif
+              } 
+
+
 
             bool executed;
 
@@ -363,8 +418,12 @@ namespace symPACK{
               //bassert(in_avail_prom.get_future().ready());
               out_prom = upcxx::promise<>();
               //std::lock_guard<std::recursive_mutex> lock(in_prom_lock);
-              //in_prom = upcxx::promise<>();
-              //in_avail_prom = upcxx::promise<>();
+#ifdef _USE_PROM_RDY_
+              in_prom = upcxx::promise<>();
+#endif
+#ifdef _USE_PRM_AVAIL_
+              in_avail_prom = upcxx::promise<>();
+#endif
             }
 
         };
@@ -430,6 +489,9 @@ namespace symPACK{
       class Scheduler2D{
         public:
           int sp_handle;
+
+
+          int lpc_cnt;
 #ifdef SP_THREADS
 
           std::list< int > free_workers_;
@@ -446,7 +508,7 @@ namespace symPACK{
           std::recursive_mutex scheduler_mutex_;
           std::function<void()> threadInitHandle_;
           std::function<bool(ttask_t *)> extraTaskHandle_;
-          Scheduler2D():/*work_pointers_(nullptr),*/threadInitHandle_(nullptr),extraTaskHandle_(nullptr){isSolve=false;}
+          Scheduler2D():/*work_pointers_(nullptr),*/threadInitHandle_(nullptr),extraTaskHandle_(nullptr),lpc_cnt(0){isSolve=false;}
           virtual ~Scheduler2D(){
             //delete [] work_pointers_;
           }
@@ -5058,10 +5120,17 @@ namespace symPACK{
           auto remote_deps = ptask->in_remote_dependencies_cnt;
           auto local_deps = ptask->in_local_dependencies_cnt;
 
-          //ptask->in_prom.require_anonymous(local_deps + remote_deps);
-          ptask->in_counter = local_deps + remote_deps;
-          //ptask->in_avail_prom.require_anonymous(remote_deps);
+#ifdef _USE_PROM_AVAIL_
+          ptask->in_avail_prom.require_anonymous(remote_deps);
+#else
           ptask->in_avail_counter = remote_deps;
+#endif
+#ifdef _USE_PROM_RDY_
+          ptask->in_prom.require_anonymous(local_deps + remote_deps);
+#else
+          ptask->in_counter = local_deps + remote_deps;
+#endif
+
 
           auto ptr = ptask.get();
           //          auto fut_comm = ptask->in_avail_prom.finalize();
@@ -5165,20 +5234,7 @@ namespace symPACK{
 
                                 taskptr->input_msg.push_back(diag_data);
                                 diag_data->target_tasks.push_back(taskptr);
-                                //taskptr->in_avail_prom.fulfill_anonymous(1);
-
-                              upcxx::master_persona().lpc_ff( 
-                                [matptr,taskptr] () {
-                                  taskptr->in_avail_counter-=1;
-                                  if (taskptr->in_avail_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                                    matptr->scheduler.avail_tasks.push(taskptr);
-#else
-                                    matptr->scheduler.avail_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
+                        taskptr->avail_dep(1,matptr->scheduler);
                               }
                               else {
                                 if ( ! data ) {
@@ -5191,20 +5247,7 @@ namespace symPACK{
 
                                 taskptr->input_msg.push_back(data);
                                 data->target_tasks.push_back(taskptr);
-                                //taskptr->in_avail_prom.fulfill_anonymous(1);
-                              upcxx::master_persona().lpc_ff( 
-                                [matptr,taskptr] () {
-                                  taskptr->in_avail_counter-=1;
-                                  if (taskptr->in_avail_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                                    matptr->scheduler.avail_tasks.push(taskptr);
-#else
-                                    matptr->scheduler.avail_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
-
+                        taskptr->avail_dep(1,matptr->scheduler);
                               }
                               }
 
@@ -5250,21 +5293,7 @@ namespace symPACK{
                         bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::TRSM
                             ||  std::get<2>(taskptr->_meta) == Factorization::op_type::UPDATE2D_COMP);
                         //mark the dependency as satisfied
-//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
-//                        taskptr->in_prom.fulfill_anonymous(1);
-                            upcxx::master_persona().lpc_ff( 
-                                [this,taskptr] () {
-                                  taskptr->in_counter-=1;
-                                  if (taskptr->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    this->scheduler.ready_tasks.push(taskptr);
-#else
-                                    this->scheduler.ready_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
-
+                        taskptr->satisfy_dep(1,this->scheduler);
                       }
                     }
                   }
@@ -5427,20 +5456,7 @@ namespace symPACK{
 
                                 taskptr->input_msg.push_back(data);
                                 data->target_tasks.push_back(taskptr);
-                                //taskptr->in_avail_prom.fulfill_anonymous(1);
-                             upcxx::master_persona().lpc_ff( 
-                                [matptr,taskptr] () {
-                                  taskptr->in_avail_counter-=1;
-                                  if (taskptr->in_avail_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                                    matptr->scheduler.avail_tasks.push(taskptr);
-#else
-                                    matptr->scheduler.avail_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
-
+                        taskptr->avail_dep(1,matptr->scheduler);
                               }
 
                               //auto I = std::get<1>(meta);
@@ -5500,21 +5516,7 @@ namespace symPACK{
                         }
 
                         //mark the dependency as satisfied
-//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
-//                        taskptr->in_prom.fulfill_anonymous(1);
-                              upcxx::master_persona().lpc_ff( 
-                                [this,taskptr] () {
-                                  taskptr->in_counter-=1;
-                                  if (taskptr->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    this->scheduler.ready_tasks.push(taskptr);
-#else
-                                    this->scheduler.ready_tasks.push_back(taskptr);
-#endif
-                                  }
-                                  
-                                });
-
+                        taskptr->satisfy_dep(1,this->scheduler);
                       }
                     }
                   }
@@ -5712,20 +5714,7 @@ namespace symPACK{
                               auto taskptr = matptr->task_graph[tgt_cell_idx].get();
                               taskptr->input_msg.push_back(data);
                               data->target_tasks.push_back(taskptr);
-//                              taskptr->in_avail_prom.fulfill_anonymous(1);
-                             upcxx::master_persona().lpc_ff( 
-                                [matptr,taskptr] () {
-                                  taskptr->in_avail_counter-=1;
-                                  if (taskptr->in_avail_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                                    matptr->scheduler.avail_tasks.push(taskptr);
-#else
-                                    matptr->scheduler.avail_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
-
+                        taskptr->avail_dep(1,matptr->scheduler);
                               }
 
 
@@ -5761,24 +5750,7 @@ namespace symPACK{
                         bassert(taskptr!=nullptr); 
                         bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::FACTOR || std::get<2>(taskptr->_meta)==Factorization::op_type::TRSM);
                         //mark the dependency as satisfied
-//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
-//                        taskptr->in_prom.fulfill_anonymous(1);
-
-                              upcxx::master_persona().lpc_ff( 
-                                [this,taskptr] () {
-                                  taskptr->in_counter-=1;
-                                  if (taskptr->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    this->scheduler.ready_tasks.push(taskptr);
-#else
-                                    this->scheduler.ready_tasks.push_back(taskptr);
-#endif
-                                  }
-                                  
-                                });
-
-
-
+                        taskptr->satisfy_dep(1,this->scheduler);
                       }
                     }
                   }
@@ -6463,10 +6435,16 @@ namespace symPACK{
           auto remote_deps = ptask->in_remote_dependencies_cnt;
           auto local_deps = ptask->in_local_dependencies_cnt;
 
-          //ptask->in_prom.require_anonymous(local_deps + remote_deps);
-          ptask->in_counter = local_deps + remote_deps;
-          //ptask->in_avail_prom.require_anonymous(remote_deps);
+#ifdef _USE_PROM_AVAIL_
+          ptask->in_avail_prom.require_anonymous(remote_deps);
+#else
           ptask->in_avail_counter = remote_deps;
+#endif
+#ifdef _USE_PROM_RDY_
+          ptask->in_prom.require_anonymous(local_deps + remote_deps);
+#else
+          ptask->in_counter = local_deps + remote_deps;
+#endif
 
           auto ptr = ptask.get();
 #ifdef _VERBOSE_
@@ -6621,21 +6599,7 @@ namespace symPACK{
 
                                 taskptr->input_msg.push_back(data);
                                 data->target_tasks.push_back(taskptr);
-//                                taskptr->in_avail_prom.fulfill_anonymous(1);
-                        upcxx::master_persona().lpc_ff( 
-                                [matptr,taskptr] () {
-                                  taskptr->in_avail_counter-=1;
-                                  if (taskptr->in_avail_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                                    matptr->scheduler.avail_tasks.push(taskptr);
-#else
-                                    matptr->scheduler.avail_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
-
-
+                        taskptr->avail_dep(1,matptr->scheduler);
                                 }
                                 }
 
@@ -6675,24 +6639,7 @@ namespace symPACK{
                           bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::FUC
                               || std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
                           //mark the dependency as satisfied
-//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
-//                          taskptr->in_prom.fulfill_anonymous(1);
-                              upcxx::master_persona().lpc_ff( 
-                                [this,taskptr] () {
-                                  taskptr->in_counter-=1;
-                                  if (taskptr->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    this->scheduler.ready_tasks.push(taskptr);
-#else
-                                    this->scheduler.ready_tasks.push_back(taskptr);
-#endif
-                                  }
-                                  
-                                });
-
-
-
-
+                        taskptr->satisfy_dep(1,this->scheduler);
                         }
                       }
                     }
@@ -6758,40 +6705,10 @@ namespace symPACK{
 
                                   taskptr->input_msg.push_back(data);
                                   data->target_tasks.push_back(taskptr);
-                                  //taskptr->in_avail_prom.fulfill_anonymous(dep_cnt);
-
-                        upcxx::master_persona().lpc_ff( 
-                                [matptr,taskptr,dep_cnt] () {
-                                  taskptr->in_avail_counter-=dep_cnt;
-                                  if (taskptr->in_avail_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                                    matptr->scheduler.avail_tasks.push(taskptr);
-#else
-                                    matptr->scheduler.avail_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
-
+                        taskptr->avail_dep(dep_cnt,matptr->scheduler);
 
                                   if(dep_cnt>1){
-                                    //taskptr->in_prom.fulfill_anonymous(dep_cnt-1);
-
-                              upcxx::master_persona().lpc_ff( 
-                                [matptr,taskptr,dep_cnt] () {
-                                  taskptr->in_counter-=dep_cnt-1;
-                                  if (taskptr->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    matptr->scheduler.ready_tasks.push(taskptr);
-#else
-                                    matptr->scheduler.ready_tasks.push_back(taskptr);
-#endif
-                                  }
-                                  
-                                });
-
-
-
+                        taskptr->satisfy_dep(dep_cnt-1,matptr->scheduler);
                                   }
                                   }
 
@@ -6824,23 +6741,7 @@ namespace symPACK{
                           bassert(taskptr!=nullptr); 
                           bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::FUC);
                           //mark the dependency as satisfied
-//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
-//                          taskptr->in_prom.fulfill_anonymous(1);
-
-                              upcxx::master_persona().lpc_ff( 
-                                [this,taskptr] () {
-                                //if ( std::get<0>(taskptr->_meta)==93 && std::get<1>(taskptr->_meta)==93) gdb_lock();
-                                  taskptr->in_counter-=1;
-                                  if (taskptr->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    this->scheduler.ready_tasks.push(taskptr);
-#else
-                                    this->scheduler.ready_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
-
+                        taskptr->satisfy_dep(1,this->scheduler);
                         }
                       }
                     }
@@ -6954,21 +6855,7 @@ namespace symPACK{
 
                                   taskptr->input_msg.push_back(data);
                                   data->target_tasks.push_back(taskptr);
-                                  //taskptr->in_avail_prom.fulfill_anonymous(1);
-
-                        upcxx::master_persona().lpc_ff( 
-                                [matptr,taskptr] () {
-                                  taskptr->in_avail_counter-=1;
-                                  if (taskptr->in_avail_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                                    matptr->scheduler.avail_tasks.push(taskptr);
-#else
-                                    matptr->scheduler.avail_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
-
+                        taskptr->avail_dep(1,matptr->scheduler);
                                   }
                                   }
 
@@ -7007,22 +6894,7 @@ namespace symPACK{
                             bassert(taskptr!=nullptr); 
                             bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
                             //mark the dependency as satisfied
-//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
-//                            taskptr->in_prom.fulfill_anonymous(1);
-                              upcxx::master_persona().lpc_ff( 
-                                [this,taskptr] () {
-                                  taskptr->in_counter-=1;
-                                  if (taskptr->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    this->scheduler.ready_tasks.push(taskptr);
-#else
-                                    this->scheduler.ready_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
-
-
+                        taskptr->satisfy_dep(1,this->scheduler);
                           }
                         }
                       }
@@ -7089,39 +6961,10 @@ namespace symPACK{
 
                                     taskptr->input_msg.push_back(data);
                                     data->target_tasks.push_back(taskptr);
-                                    //taskptr->in_avail_prom.fulfill_anonymous(dep_cnt);
-                        upcxx::master_persona().lpc_ff( 
-                                [matptr,taskptr,dep_cnt] () {
-                                  taskptr->in_avail_counter-=dep_cnt;
-                                  if (taskptr->in_avail_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                                    matptr->scheduler.avail_tasks.push(taskptr);
-#else
-                                    matptr->scheduler.avail_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
-
-
+                        taskptr->avail_dep(dep_cnt,matptr->scheduler);
 
                                     if(dep_cnt>1){
-                                      //taskptr->in_prom.fulfill_anonymous(dep_cnt-1);
-
-                              upcxx::master_persona().lpc_ff( 
-                                [matptr,taskptr,dep_cnt] () {
-                                  taskptr->in_counter-=dep_cnt-1;
-                                  if (taskptr->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    matptr->scheduler.ready_tasks.push(taskptr);
-#else
-                                    matptr->scheduler.ready_tasks.push_back(taskptr);
-#endif
-                                  }
-                                  
-                                });
-
-
+                        taskptr->satisfy_dep(dep_cnt-1,matptr->scheduler);
                                     }
                                     }
 
@@ -7154,22 +6997,7 @@ namespace symPACK{
                             bassert(taskptr!=nullptr); 
                             bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
                             //mark the dependency as satisfied
-//                 std::lock_guard<std::recursive_mutex> lock(taskptr->in_prom_lock);
-//                            taskptr->in_prom.fulfill_anonymous(1);
-
-                              upcxx::master_persona().lpc_ff( 
-                                [this,taskptr] () {
-                                  taskptr->in_counter-=1;
-                                  if (taskptr->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    this->scheduler.ready_tasks.push(taskptr);
-#else
-                                    this->scheduler.ready_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
-
-
+                        taskptr->satisfy_dep(1,this->scheduler);
                           }
                         }
                       }
@@ -7618,7 +7446,7 @@ namespace symPACK{
                   //Allocate Y(K) with the same structure as L(K,M) where M is the highest anscestor in the Etree this rank owns
                   auto & rptr_contrib = contribs[J];
                   if ( ! rptr_contrib ) {
-                    bassert(update_right_cnt[J] == 0);
+                    //bassert(update_right_cnt[J] == 0);
                     rptr_contrib = std::make_shared<snodeBlock_t>();
                     auto ptr_test_cell = pQueryCELL(J-1,J-1);
                     if ( ptr_test_cell->owner == this->iam ) {
@@ -7940,6 +7768,19 @@ namespace symPACK{
                   auto & ptask = *it;
                   auto remote_deps = ptask->in_remote_dependencies_cnt;
                   auto ptr = ptask.get();
+
+#ifdef _USE_PROM_AVAIL_
+              auto fut_comm = ptask->in_avail_prom.finalize();
+              if (remote_deps >0 ) {
+                fut_comm.then([this,ptr](){
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                    this->avail_tasks.push(ptr);
+#else
+                    this->avail_tasks.push_back(ptr);
+#endif
+                    });
+              }
+#else
                   if (remote_deps >0 ) {
                     if (ptr->in_avail_counter == 0 ) {
 #ifdef _PRIORITY_QUEUE_AVAIL_
@@ -7949,7 +7790,18 @@ namespace symPACK{
 #endif
                     }
                     }
+#endif
 
+#ifdef _USE_PROM_RDY_
+              auto fut = ptask->in_prom.finalize();
+              fut.then([this,ptr](){
+#ifdef _PRIORITY_QUEUE_RDY_
+                  this->ready_tasks.push(ptr);
+#else
+                  this->ready_tasks.push_back(ptr);
+#endif
+                  });
+#else
                     if (ptr->in_counter == 0 ) {
 #ifdef _PRIORITY_QUEUE_RDY_
                       this->ready_tasks.push(ptr);
@@ -7957,6 +7809,7 @@ namespace symPACK{
                       this->ready_tasks.push_back(ptr);
 #endif
                     }
+#endif
                   }
                 }
 
@@ -7996,8 +7849,10 @@ namespace symPACK{
                                 int J=std::get<0>(t->_meta);
                                 int I=std::get<1>(t->_meta);
                                 bool oldisSolve = this->isSolve;
+                                this->lpc_cnt++;
                                 upcxx::master_persona().lpc_ff( 
                                   [this,tid,I,J,oldisSolve] () {
+                                this->lpc_cnt--;
                                   if ( this->isSolve != oldisSolve) gdb_lock();
                                   //decrement the load of that worker
                                   bassert(this->worker_loads_[tid]>=1);
@@ -8126,21 +7981,7 @@ bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),tid)!=th
                           msg->allocate();
                           msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
                               //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                              //ptask->in_prom.fulfill_anonymous(1);
-                              upcxx::master_persona().lpc_ff( 
-                                [this,ptask] () {
-                                  ptask->in_counter-=1;
-                                  if (ptask->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    this->ready_tasks.push(ptask);
-#else
-                                    this->ready_tasks.push_back(ptask);
-#endif
-                                  }
-                                });
-
-
-
+                        ptask->satisfy_dep(1,*this);
                               });
                         } 
                       }
@@ -8233,18 +8074,7 @@ bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),tid)!=th
                             msg->allocate();
                             msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
                                 //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                                //ptask->in_prom.fulfill_anonymous(1);
-                            upcxx::master_persona().lpc_ff( 
-                                [this,taskptr] () {
-                                  taskptr->in_counter-=1;
-                                  if (taskptr->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    this->scheduler.ready_tasks.push(taskptr);
-#else
-                                    this->scheduler.ready_tasks.push_back(taskptr);
-#endif
-                                  }
-                                });
+                        ptask->satisfy_dep(1,*this);
                                 });
                           } 
                         }
@@ -8262,17 +8092,7 @@ bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),tid)!=th
                           msg->allocate();
                           msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
                               //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                            upcxx::master_persona().lpc_ff( 
-                                [this,ptask] () {
-                                  ptask->in_counter-=1;
-                                  if (ptask->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    this->scheduler.ready_tasks.push(ptask);
-#else
-                                    this->scheduler.ready_tasks.push_back(ptask);
-#endif
-                                  }
-                                });
+                        ptask->satisfy_dep(1,*this);
                               });
                         } 
                       }
@@ -8289,32 +8109,28 @@ bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),tid)!=th
                         msg->allocate();
                         msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
                             //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                           upcxx::master_persona().lpc_ff( 
-                                [this,ptask] () {
-                                  ptask->in_counter-=1;
-                                  if (ptask->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                                    this->ready_tasks.push(ptask);
-#else
-                                    this->ready_tasks.push_back(ptask);
-#endif
-                                  }
-                                });
+                        ptask->satisfy_dep(1,*this);
                             });
                       } 
 #endif
 
                     }
                   }
+              upcxx::progress();
+              upcxx::discharge();
+              upcxx::progress();
+              upcxx::barrier();
+              if ( this->lpc_cnt!=0) gdb_lock();
                 }
               }
               catch(const std::runtime_error& e){
                 std::cerr << "Runtime error: " << e.what() << '\n';
               }
-              upcxx::progress();
-              upcxx::discharge();
-              upcxx::progress();
-              upcxx::barrier();
+
+                for(auto it = task_graph.begin(); it != task_graph.end(); it++){
+                  auto & ptask = *it;
+                  if ( ! ptask->executed ) gdb_lock();
+                }
             }
           }
 #endif
