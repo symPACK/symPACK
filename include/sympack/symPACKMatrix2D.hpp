@@ -95,9 +95,9 @@ such enhancements or derivative works thereof, in binary and source code form.
 #define _PRIORITY_QUEUE_AVAIL_
 #define _PRIORITY_QUEUE_RDY_
 
-#define PREALLOCATE
-#define _USE_PROM_AVAIL_
-#define _USE_PROM_RDY_
+//#define PREALLOCATE
+//#define _USE_PROM_AVAIL_
+//#define _USE_PROM_RDY_
 
 #include <functional>
 #include <gasnetex.h>
