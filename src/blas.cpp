@@ -992,7 +992,6 @@ void Gemm
 assert(ldc>0 && lda>0 && ldb>0);
 #endif
 
-    
     BLAS(dgemm)( &fixedTransA, &fixedTransB, &m, &n, &k,
                  &alpha, A, &lda, B, &ldb, &beta, C, &ldc );
 }

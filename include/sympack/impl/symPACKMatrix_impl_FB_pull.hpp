@@ -39,7 +39,7 @@ Enhancements, then you hereby grant the following license: a non-exclusive,
 royalty-free perpetual license to install, use, modify, prepare derivative
 works, incorporate into other computer software, distribute, and sublicense
 such enhancements or derivative works thereof, in binary and source code form.
- */
+*/
 #ifndef _SYMPACK_MATRIX_IMPL_FB_PULL_HPP_
 #define _SYMPACK_MATRIX_IMPL_FB_PULL_HPP_
 
@@ -102,19 +102,15 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
   std::vector< SuperNode<T>* > aggVectors(this->Xsuper_.size()-1,nullptr);
 
   timeSta =  get_time( );
-    //Create a copy of the task graph
-    taskGraph graph = taskGraph_New_;
+  //Create a copy of the task graph
+  taskGraph graph = taskGraph_New_;
   {
 #ifdef _MEM_PROFILER_
     utility::scope_memprofiler m("symPACKMatrix_task_graph2");
 #endif
 
-    //std::shared_ptr<Scheduler< std::shared_ptr<GenericTask> > > scheduler(new FIFOScheduler< std::shared_ptr<GenericTask> >( ));
 
     std::hash<std::string> hash_fn;
-
-    //  std::map<Int,Int> factorUser;
-    //  std::mutex inuse_mutex_;
 
     //This is the important one
 #ifdef SP_THREADS
@@ -126,13 +122,13 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
     scheduler_new_->threadInitHandle_ = [this](){
       std::thread::id tid = std::this_thread::get_id();
-bassert(tid!=this->scheduler_new_->main_tid);
+      bassert(tid!=this->scheduler_new_->main_tid);
 
       std::lock_guard<std::recursive_mutex> lk(scheduler_new_->list_mutex_);
       auto & tmpBuf = tmpBufs_th[tid];
     };
 
-    if(Multithreading::NumThread>2){
+    if(Multithreading::NumThread>1){
       scheduler_new_->extraTaskHandle_ = [&,this](std::shared_ptr<GenericTask> & pTask)->bool {
         SparseTask & Task = *(SparseTask*)pTask.get();
 
@@ -159,9 +155,6 @@ bassert(tid!=this->scheduler_new_->main_tid);
 
           bool exp = false;
           if(std::atomic_compare_exchange_weak( &tgt_aggreg->in_use, &exp, true )){
-#ifndef NDEBUG
-            tgt_aggreg->in_use_task = pTask;
-#endif
             return false;
           }
           else{
@@ -177,22 +170,16 @@ bassert(tid!=this->scheduler_new_->main_tid);
       scope_timer(a,DECREF);
 #ifdef SP_THREADS
       std::lock_guard<std::recursive_mutex> lk(scheduler_new_->list_mutex_);
-      //if(Multithreading::NumThread>2){ scheduler_new_->list_mutex_.lock(); }
 #endif
       taskit->second->local_deps-= loc;
       taskit->second->remote_deps-= rem;
 
       if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
 
-
-gdb_lock();
         scheduler_new_->push(taskit->second);
         graph.removeTask(taskit->second->id);
       }
 
-#ifdef SP_THREADS
-      //if(Multithreading::NumThread>2){ scheduler_new_->list_mutex_.unlock(); }
-#endif
     };
 
     auto log_task = [&] (taskGraph::task_iterator taskit){
@@ -254,8 +241,8 @@ gdb_lock();
     {
 
       scheduler_new_->msgHandle = [hash_fn,&graph,dec_ref,this](std::shared_ptr<IncomingMessage> msg) {
-      std::thread::id tid = std::this_thread::get_id();
-bassert(tid==this->scheduler_new_->main_tid);
+        std::thread::id tid = std::this_thread::get_id();
+        bassert(tid==this->scheduler_new_->main_tid);
 
 
         scope_timer(a,MSGHANDLE);
@@ -305,11 +292,6 @@ bassert(tid==this->scheduler_new_->main_tid);
             Int src_last_col = src_snode->LastCol();
 
             supernode_lock<T> lock(src_snode);
-//#ifndef NDEBUG
-//            if(Multithreading::NumThread>2){
-//              bassert(src_snode->in_use_task==pTask);
-//            }
-//#endif
 #ifdef _DEBUG_PROGRESS_
             logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
 #endif
@@ -338,9 +320,7 @@ bassert(tid==this->scheduler_new_->main_tid);
 
                 dist_src_snode->InitIdxToBlk();
 
-#ifndef _NDEBUG_
                 src_snode->Aggregate(dist_src_snode);
-#endif
 
                 delete dist_src_snode;
                 //delete msgPtr;
@@ -353,16 +333,16 @@ bassert(tid==this->scheduler_new_->main_tid);
             auto id = hash_fn(std::string(buf));
 
             //auto taskit = graph.find_task(id);
-            ////this is a particular case : we consider this as a remote dependency
+            //this is a particular case : we consider this as a remote dependency
             //bassert(taskit!=graph.tasks_.end());
             //dec_ref(taskit,0,1);
-                    auto taskit = graph.find_task(id);
-                    bassert(taskit!=graph.tasks_.end());
+            auto taskit = graph.find_task(id);
+            bassert(taskit!=graph.tasks_.end());
             if ( auto ptr = graph.updateTask(id,0,1) ) {
-bassert(ptr!=nullptr);
+              bassert(ptr!=nullptr);
               scheduler_new_->push(ptr);
             }
-              
+
 
           };
 
@@ -402,8 +382,6 @@ bassert(ptr!=nullptr);
                 Int src_first_col = src_snode->FirstCol();
                 Int src_last_col = src_snode->LastCol();
 
-//                supernode_lock<T> lock(src_snode);
-
 #ifdef _DEBUG_PROGRESS_
                 logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
 #endif
@@ -411,29 +389,18 @@ bassert(ptr!=nullptr);
                 //  logfileptr->OFS()<<"Before factoring Supernode "<<I<<std::endl;
                 //  logfileptr->OFS()<<*src_snode<<std::endl;
 
-//if ( src_snode->FirstCol()<=21 && src_snode->LastCol()>=21 ) { gdb_lock(); }
+                //if ( src_snode->FirstCol()<=21 && src_snode->LastCol()>=21 ) { gdb_lock(); }
                 SYMPACK_TIMER_START(FACTOR_PANEL);
 #ifdef SP_THREADS
                 std::thread::id tid = std::this_thread::get_id();
-
-bassert(tid!=this->scheduler_new_->main_tid);
-      //scheduler_new_->list_mutex_.lock();
+                bassert(tid!=this->scheduler_new_->main_tid);
                 auto & tmpBuf = tmpBufs_th[tid];
-      //scheduler_new_->list_mutex_.unlock();
-#ifndef _NO_COMP_
                 src_snode->Factorize(tmpBuf);
-#endif
 #else
-#ifndef _NO_COMP_
                 src_snode->Factorize(tmpBufs);
-#endif
 #endif
 
                 SYMPACK_TIMER_STOP(FACTOR_PANEL);
-
-
-
-
 
                 //  logfileptr->OFS()<<"After factoring Supernode "<<I<<std::endl;
                 //  logfileptr->OFS()<<*src_snode<<std::endl;
@@ -511,20 +478,14 @@ bassert(tid!=this->scheduler_new_->main_tid);
                     auto taskit = graph.find_task(id);
                     bassert(taskit!=graph.tasks_.end());
                     //dec_ref(taskit,1,0);
-            if ( auto ptr = graph.updateTask(id,1,0) ) {
-bassert(ptr!=nullptr);
-              scheduler_new_->push(ptr);
-            }
+                    if ( auto ptr = graph.updateTask(id,1,0) ) {
+                      bassert(ptr!=nullptr);
+                      scheduler_new_->push(ptr);
+                    }
                   }
                 }
                 SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS_FACTORIZATION);
                 SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS);
-//#ifndef NDEBUG
-//                if(Multithreading::NumThread>1){
-//                  src_snode->in_use = false;
-//                  src_snode->in_use_task=nullptr;
-//                }
-//#endif
               };
 
               //#else
@@ -540,9 +501,8 @@ bassert(ptr!=nullptr);
           case Factorization::op_type::UPDATE:
             {
               //#ifdef _LAMBDAS_
-//#undef _SEQ_SPECIAL_CASE_
 #ifdef _SEQ_SPECIAL_CASE_
-              if(Multithreading::NumThread<3){
+              if(Multithreading::NumThread==1){
                 Task.execute = [&,this,src,tgt,pTask,type] () {
                   scope_timer(a,FB_UPDATE_TASK);
 
@@ -556,7 +516,7 @@ bassert(ptr!=nullptr);
                   std::shared_ptr<SuperNode<T> > shptr_cur_src_snode = nullptr; 
 #ifdef SP_THREADS
                   std::thread::id tid = std::this_thread::get_id();
-bassert(tid!=this->scheduler_new_->main_tid);
+                  bassert(tid!=this->scheduler_new_->main_tid);
 #endif
                   Int iSrcOwner = this->Mapping_->Map(abs(src_snode_id)-1,abs(src_snode_id)-1);
 
@@ -677,36 +637,14 @@ bassert(tid!=this->scheduler_new_->main_tid);
                                 std::set<Idx> structure;
                                 {
                                   scope_timer(a,FETCH_REMOTE_STRUCTURE);
-#ifdef NEW_UPCXX
                                   upcxx::global_ptr<char> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
-#else
-                                  upcxx::global_ptr<SuperNodeDesc> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
-#endif
                                   Int block_cnt = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1]);
 
 
                                   //allocate space to receive block descriptors
                                   char * buffer = (char*)UpcxxAllocator::allocate(sizeof(NZBlockDesc)*block_cnt+ sizeof(SuperNodeDesc));
-#ifdef NEW_UPCXX
                                   upcxx::global_ptr<char> remote = remoteDesc;
-#else
-                                  upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
-#endif
-                                  {
-                                    //TODO why is this needed?
-#ifdef NEW_UPCXX
-                                      upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
-#else
-#ifdef SP_THREADS
-                                    if(Multithreading::NumThread>2){
-                                      //std::lock_guard<std::mutex><upcxx_mutex_type> lock(upcxx_mutex);
-                                      upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
-                                    }
-                                    else
-#endif
-                                    upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
-#endif
-                                  }
+                                  upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
                                   SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
                                   NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
 
@@ -738,13 +676,10 @@ bassert(tid!=this->scheduler_new_->main_tid);
                           logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
 #endif
 
-//bassert(tgt_aggreg->storage_container_!=nullptr);
                           //Update the aggregate
-#ifndef _NO_COMP_
                           SYMPACK_TIMER_START(UPD_ANC_UPD);
                           tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
                           SYMPACK_TIMER_STOP(UPD_ANC_UPD);
-#endif
 
                           --UpdatesToDo[curUpdate.tgt_snode_id-1];
 #ifdef _DEBUG_
@@ -784,19 +719,11 @@ bassert(tid!=this->scheduler_new_->main_tid);
                               meta.id = hash_fn(std::string(buf));
 
 
-#if UPCXX_VERSION >= 20180305
                               upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr(tgt_aggreg->GetStoragePtr(meta.GIndex));
-#else
-                              upcxx::global_ptr<char> sendPtr(tgt_aggreg->GetStoragePtr(meta.GIndex));
-#endif
                               //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
                               size_t msgSize = tgt_aggreg->StorageSize();
                               Int liTarget = this->group_->L2G(iTarget);
-#ifdef NEW_UPCXX
                               signal_data(sendPtr, msgSize, liTarget, meta);
-#else
-                              signal_data(sendPtr, msgSize, liTarget, meta);
-#endif
                             }
                           }
                           SYMPACK_TIMER_STOP(UPD_ANC_Agg_Send);
@@ -811,10 +738,10 @@ bassert(tid!=this->scheduler_new_->main_tid);
                             //bassert(taskit!=graph.tasks_.end());
                             //dec_ref(taskit,1,0);
 
-            if ( auto ptr = graph.updateTask(id,1,0) ) {
-bassert(ptr!=nullptr);
-              scheduler_new_->push(ptr);
-            }
+                            if ( auto ptr = graph.updateTask(id,1,0) ) {
+                              bassert(ptr!=nullptr);
+                              scheduler_new_->push(ptr);
+                            }
                           }
                           SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
 
@@ -834,20 +761,6 @@ bassert(ptr!=nullptr);
                     SYMPACK_TIMER_STOP(UPDATE_ANCESTORS);
 
                   }
-
-
-//#ifdef SP_THREADS
-//                          if(Multithreading::NumThread>1){
-//                            tgt_aggreg->in_use = false;
-//#ifndef NDEBUG
-//                            tgt_aggreg->in_use_task=nullptr;
-//#endif
-//                          }
-//#endif
-
-
-
-
                 };
               }
               else
@@ -867,7 +780,7 @@ bassert(ptr!=nullptr);
                   std::shared_ptr<SuperNode<T> > shptr_cur_src_snode = nullptr; 
 #ifdef SP_THREADS
                   std::thread::id tid = std::this_thread::get_id();
-bassert(tid!=this->scheduler_new_->main_tid);
+                  bassert(tid!=this->scheduler_new_->main_tid);
 #endif
 
                   Int iSrcOwner = this->Mapping_->Map(abs(src_snode_id)-1,abs(src_snode_id)-1);
@@ -942,12 +855,12 @@ bassert(tid!=this->scheduler_new_->main_tid);
                                     //this is where we put the msg in the list
                                     auto base_ptr = std::static_pointer_cast<IncomingMessage>(newMsgPtr);
                                     taskit->second->addData( base_ptr );
-            //                        dec_ref(taskit,0,1);
+                                    //                        dec_ref(taskit,0,1);
 
-            if ( auto ptr = graph.updateTask(id,0,1) ) {
-bassert(ptr!=nullptr);
-              scheduler_new_->push(ptr);
-            }
+                                    if ( auto ptr = graph.updateTask(id,0,1) ) {
+                                      bassert(ptr!=nullptr);
+                                      scheduler_new_->push(ptr);
+                                    }
                                   }
                                 }
                               }
@@ -1079,27 +992,7 @@ bassert(ptr!=nullptr);
 #else
                               upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
 #endif
-                              {
-#ifdef SP_THREADS
-                                if(Multithreading::NumThread>2){
-#ifdef NEW_UPCXX
-                                  //throw std::runtime_error("Multithreading is not yet supported in symPACK with the new version of UPCXX");
-                                  upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
-#else
-//                                  std::lock_guard<std::mutex><upcxx_mutex_type> lock(upcxx_mutex);
-                                  upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
-#endif
-                                }
-                                else
-#endif
-                                {
-#ifdef NEW_UPCXX
-                                  upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
-#else
-                                  upcxx::copy(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc));
-#endif
-                                }
-                              }
+                              upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
                               SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
                               NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
 
@@ -1133,65 +1026,19 @@ bassert(ptr!=nullptr);
 #endif
 
 
-                supernode_lock<T> lock(tgt_aggreg);
-//if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { gdb_lock(); }
+                      supernode_lock<T> lock(tgt_aggreg);
+                      //if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { gdb_lock(); }
                       //Update the aggregate
                       SYMPACK_TIMER_START(UPD_ANC_UPD);
 #ifdef SP_THREADS
-                      if(Multithreading::NumThread>2){
-#ifndef NDEBUG
-                        bassert(tgt_aggreg->in_use_task==pTask);
-#endif
-
-                        //scheduler_new_->list_mutex_.lock();
+                      if(Multithreading::NumThread>1){
                         auto & tmpBuf = tmpBufs_th[tid];
-                        //scheduler_new_->list_mutex_.unlock();
 
-//{
-//std::lock_guard<std::mutex> lk(inuse_mutex_);
-//                //       inuse_mutex_.lock();
-////#ifndef _NO_COMP_
-//std::stringstream sstr;
-//sstr<<curUpdate.src_snode_id<<" "<<curUpdate.tgt_snode_id<<std::endl;
-//logfileptr->OFS()<<sstr.str();
-//if (1){
-//int tgt_width = tgt_aggreg->Size();
-//int src_snode_size = cur_src_snode->Size();
-//int src_nrows = cur_src_snode->NRowsBelowBlock(0);
-////std::vector<T> C (2*src_nrows*tgt_width);
-////std::vector<T> B (2*src_nrows*src_snode_size);
-////std::vector<T> A (2*tgt_width*src_snode_size);
-////auto pA = A.data();
-////auto pB = B.data();
-////auto pC = C.data();
-//
-//auto pA = new T[tgt_width*src_snode_size];
-//auto pB = new T[src_nrows*src_snode_size];
-//auto pC = new T[src_nrows*tgt_width];
-//T alpha = T(-1);
-//T beta = 0;
-////    BLAS(dgemm)( "N","N", &tgt_width, &src_nrows, &src_snode_size,
-//        //(double*)&alpha, (double*)pA, &tgt_width, (double*)pB, &src_snode_size,(double*) &beta, (double*)pC, &tgt_width );
-//
-//      blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
-//          T(-1.0),pA,src_snode_size,
-//          pB,src_snode_size,beta,pC,tgt_width);
-//
-//delete [] pA;
-//delete [] pB;
-//delete [] pC;
-//
-//}
                         tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBuf,iTarget,this->iam);
-//#endif
-                //       inuse_mutex_.unlock();
-//}
                       }
                       else
 #endif
-#ifndef _NO_COMP_
                         tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
-#endif
 
                       SYMPACK_TIMER_STOP(UPD_ANC_UPD);
                       --UpdatesToDo[curUpdate.tgt_snode_id-1];
@@ -1230,7 +1077,7 @@ bassert(ptr!=nullptr);
                           //                sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
                           //                meta.id = hash_fn(sstr.str());
 #ifdef NEW_UPCXX
-                              (*(*this->remDealloc))++;
+                          (*(*this->remDealloc))++;
 #endif
 
                           char buf[100];
@@ -1272,31 +1119,18 @@ bassert(ptr!=nullptr);
                         sprintf(buf,"%d_%d_%d_%d",curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
                         auto id = hash_fn(std::string(buf));
 
-//                        auto taskit = graph.find_task(id);
-//                        bassert(taskit!=graph.tasks_.end());
-//                        dec_ref(taskit,1,0);
+                        //                        auto taskit = graph.find_task(id);
+                        //                        bassert(taskit!=graph.tasks_.end());
+                        //                        dec_ref(taskit,1,0);
 
-                    auto taskit = graph.find_task(id);
-                    bassert(taskit!=graph.tasks_.end());
-            if ( auto ptr = graph.updateTask(id,1,0) ) {
-bassert(ptr!=nullptr);
-              scheduler_new_->push(ptr);
-            }
+                        auto taskit = graph.find_task(id);
+                        bassert(taskit!=graph.tasks_.end());
+                        if ( auto ptr = graph.updateTask(id,1,0) ) {
+                          bassert(ptr!=nullptr);
+                          scheduler_new_->push(ptr);
+                        }
                       }
                       SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
-
-//#ifdef SP_THREADS
-//                      if(Multithreading::NumThread>1){
-//                        tgt_aggreg->in_use = false;
-////                        tgt_aggreg->lock.unlock();
-//#ifndef NDEBUG
-//                        tgt_aggreg->in_use_task=nullptr;
-//#endif
-//                      }
-//#endif
-
-
-
                     }
 
                     if(structPtr!=nullptr){
@@ -1514,15 +1348,15 @@ defaut:
   //logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
 
   //tstart = get_time();
-//  int barrier_id = get_barrier_id(this->np);
-//  signal_exit(barrier_id,*this->group_); 
-//  //tstop = get_time();
-//  //logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
-//
-//  //tstart = get_time();
-//  barrier_wait(barrier_id,*this->group_);
+  //  int barrier_id = get_barrier_id(this->np);
+  //  signal_exit(barrier_id,*this->group_); 
+  //  //tstop = get_time();
+  //  //logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
+  //
+  //  //tstart = get_time();
+  //  barrier_wait(barrier_id,*this->group_);
 
-upcxx::barrier(*this->workteam_);
+  upcxx::barrier(*this->workteam_);
 
 
   //tstop = get_time();
@@ -2591,9 +2425,9 @@ template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supern
       if(!msg->IsLocal()){
         if( taskit->type==FACTOR || taskit->type==AGGREGATE){
 #ifdef NEW_UPCXX
-      msg->DeallocRemote(*this->remDealloc);
+          msg->DeallocRemote(*this->remDealloc);
 #else
-      msg->DeallocRemote();
+          msg->DeallocRemote();
 #endif
 
         }

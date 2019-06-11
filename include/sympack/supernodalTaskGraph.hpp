@@ -100,23 +100,31 @@ namespace symPACK{
         void addTask(std::shared_ptr<GenericTask> & task);
         Int getTaskCount();
         task_iterator find_task( const GenericTask::id_type & hash );
-        std::shared_ptr<GenericTask> updateTask(const GenericTask::id_type & hash, int loc, int rem ){
+        std::shared_ptr<GenericTask> updateTask(task_iterator & taskit, int loc, int rem ){
 #ifdef SP_THREADS
           std::lock_guard<std::recursive_mutex> lk(list_mutex_);
 #endif
-          auto taskit = find_task(hash);
-bassert(taskit != tasks_.end());
+          bassert(taskit != tasks_.end());
           taskit->second->local_deps-= loc;
           taskit->second->remote_deps-= rem;
 
           std::shared_ptr<GenericTask> ptr = nullptr;
           if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
             ptr = taskit->second;
-            removeTask(hash);
+            removeTask(taskit->first);
           }
 
           return ptr;
         }
+
+        std::shared_ptr<GenericTask> updateTask(const GenericTask::id_type & hash, int loc, int rem ){
+#ifdef SP_THREADS
+          std::lock_guard<std::recursive_mutex> lk(list_mutex_);
+#endif
+          auto taskit = find_task(hash);
+          return updateTask(taskit,loc,rem);
+        }
+
 
 #ifdef SP_THREADS
         std::recursive_mutex list_mutex_;

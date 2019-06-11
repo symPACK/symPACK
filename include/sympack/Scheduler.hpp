@@ -231,13 +231,7 @@ template<typename T>
 
         virtual bool done() =0;
 
-
-      std::thread::id main_tid;
-
-
-
-
-
+        std::thread::id main_tid;
         std::list<T> delayedTasks_;
         std::function<void()> threadInitHandle_;
         std::function<bool(T&)> extraTaskHandle_;

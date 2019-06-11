@@ -286,7 +286,7 @@ namespace symPACK{
                 }
 
 #ifdef _SEQ_SPECIAL_CASE_
-                if(Multithreading::NumThread<3){
+                if(Multithreading::NumThread==1){
                   //create only one task if I don't own the factor
                   if(iUpdater!=iOwner){
                     marker[iUpdater]=I;
@@ -418,7 +418,6 @@ namespace symPACK{
           //if(pmeta==nullptr){ pmeta = Task.meta.data(); } 
           std::stringstream sstr;
           sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)(*reinterpret_cast<Factorization::op_type*>(&meta[3]));
-//if ( meta[0] == 23532 && meta[1] == 23533 ) { gdb_lock(); }
           return hash_fn(sstr.str());
         };
         Task.id = Task.getHash(Task.meta.data());
@@ -3825,8 +3824,6 @@ namespace symPACK{
         while(pos<end){
           Int I = superStructure[pos++];
           bassert(this->Mapping_->Map(I-1,I-1)==this->iam);
-          //bassert(I-firstSnode+1>0 && I-firstSnode+1<this->locXlindx_.size());
-
           Int nzBlockCnt = numBlk_[I-1];
 
           Int fc = this->Xsuper_[I-1];

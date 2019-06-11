@@ -71,7 +71,6 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 namespace symPACK{
 
-
   struct NZBlockDesc{
     bool Last;
     Int GIndex;
@@ -103,20 +102,13 @@ namespace symPACK{
   template<typename T>
     class SuperNodeBase{
       public:
-        //std::mutex lock_;
 #ifdef SP_THREADS
         std::atomic<bool> in_use;
-#ifndef NDEBUG
-        std::shared_ptr<GenericTask> in_use_task;
-#endif
 #endif
 
         SuperNodeBase():
 #ifdef SP_THREADS
         in_use(false)
-#ifndef NDEBUG
-        ,in_use_task(nullptr)
-#endif
 #endif
 {}
         virtual ~SuperNodeBase(){};
@@ -302,10 +294,7 @@ class supernode_lock {
 
     ~supernode_lock(){
 #ifdef SP_THREADS
-      if(Multithreading::NumThread>2){
-#ifndef NDEBUG
-        snode_->in_use_task=nullptr;
-#endif
+      if(Multithreading::NumThread>1){
         snode_->in_use = false;
       }
 #endif
