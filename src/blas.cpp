@@ -990,6 +990,13 @@ void Gemm
     logfileptr->OFS()<<"Param 11 beta = "<<beta<<std::endl;
     logfileptr->OFS()<<"Param 13 ldc = "<<ldc<<std::endl;
 assert(ldc>0 && lda>0 && ldb>0);
+
+     if ( A == nullptr ) gdb_lock();
+     if ( B == nullptr ) gdb_lock();
+     if ( C == nullptr ) gdb_lock();
+     if ( !is_aligned<alignof(T)>(A) ) gdb_lock();
+     if ( !is_aligned<alignof(T)>(B) ) gdb_lock();
+     if ( !is_aligned<alignof(T)>(C) ) gdb_lock();
 #endif
 
     BLAS(dgemm)( &fixedTransA, &fixedTransB, &m, &n, &k,

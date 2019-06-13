@@ -17,7 +17,7 @@
 
 
 //#define DUMP_MATLAB
-//#define DUMP_MATLAB_SOL
+#define DUMP_MATLAB_SOL
 
 /******* TYPE used in the computations ********/
 #define SCALAR double
@@ -439,10 +439,10 @@ int main(int argc, char **argv)
         }
         SMat->DumpMatlab();
 #endif
+      SMat->DumpMatlab();
       }
     }
 
-      //SMat->DumpMatlab();
 
     if(!nofact){
       if(nrhs>0){

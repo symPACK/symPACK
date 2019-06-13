@@ -368,6 +368,102 @@ template<typename T>
 // *********************************************************************
 // Level 3 BLAS                                                  
 // *********************************************************************
+//template< typename T>
+//void Gemm
+//	( char transA, char transB, Int m, Int n, Int k,
+//		T alpha, const T* A, Int lda, const T* B, Int ldb,
+//    T beta,        T* C, Int ldc ) {
+//    bool nota = transA == 'N';
+//    bool notb = transB == 'N';
+//    T zero = T(0);
+//    T one = T(1);
+//    if (notb) {
+//      if (nota) {
+//        //   Form  C := alpha*A*B + beta*C.
+//        for (int j = 0; j<n ; j++) {
+//          if ( beta == zero ) {
+//            for ( int i = 0; i<m; i++ ){
+//              C[i+j*ldc] = zero;
+//            }
+//          }
+//          else if ( beta != one ) {
+//            for ( int i = 0; i<m; i++ ){
+//              C[i+j*ldc] *= beta;
+//            }
+//          }
+//          for ( int l = 0; l<k; l++ ){
+//            if ( B[l+j*ldb] != zero ) {
+//              T temp = alpha*B[l+j*ldb];
+//              for ( int i = 0; i<m; i++ ){
+//                C[i+j*ldc] += temp*A[i+l*lda];
+//              }
+//            }
+//          }
+//        }
+//      }
+//      else {
+//        //  Form  C := alpha*A'*B + beta*C
+//        for (int j = 0; j<n ; j++) {
+//          for ( int i = 0; i<m; i++ ){
+//            T temp = zero;
+//            for ( int l = 0; l<k; l++ ){
+//              temp += A[l+i*lda]*B[l+j*ldb];
+//            }
+//            if ( beta == zero ) {
+//              C[i+j*ldc] = alpha*temp;
+//            }
+//            else {
+//              C[i+j*ldc] = alpha*temp + beta*C[i+j*ldc];
+//            }
+//          }
+//        }
+//      }
+//    }
+//    else {
+//      if ( nota) {
+//        //   Form  C := alpha*A*B' + beta*C
+//        for (int j = 0; j<n ; j++) {
+//          if ( beta == zero ) {
+//            for ( int i = 0; i<m; i++ ){
+//              C[i+j*ldc] = zero;
+//            }
+//          }
+//          else if ( beta != one ) {
+//            for ( int i = 0; i<m; i++ ){
+//              C[i+j*ldc] *= beta;
+//            }
+//          }
+//          for ( int l = 0; l<k; l++ ){
+//            if ( B[j+l*ldb] != zero ) {
+//              T temp = alpha*B[j+l*ldb];
+//              for ( int i = 0; i<m; i++ ){
+//                C[i+j*ldc] += temp*A[i+l*lda];
+//              }
+//            }
+//          }
+//        }
+//      }
+//      else{
+//        //    Form  C := alpha*A'*B' + beta*C
+//        for (int j = 0; j<n ; j++) {
+//          for ( int i = 0; i<m; i++ ){
+//            T temp = zero;
+//            for ( int l = 0; l<k; l++ ){
+//              temp += A[l+i*lda]*B[j+l*ldb];
+//            }
+//            if ( beta == zero ) {
+//              C[i+j*ldc] = alpha*temp;
+//            }
+//            else {
+//              C[i+j*ldc] = alpha*temp + beta*C[i+j*ldc];
+//            }
+//          }
+//        }
+//
+//      }
+//    }
+//  }
+
 void Gemm
 	( char transA, char transB, Int m, Int n, Int k,
 		float alpha, const float* A, Int lda, const float* B, Int ldb,

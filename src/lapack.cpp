@@ -412,9 +412,10 @@ void Potrf( char uplo, Int n, const double* A, Int lda )
         msg << "dpotrf returned with info = " << info;
         throw std::logic_error( msg.str().c_str() );
     }
-    else if( info > 0 )
+    else if( info > 0 ){
 //        std::cerr << "Runtime error: " << "Matrix is not HPD." << '\n';
          throw std::runtime_error("Matrix is not HPD.");
+    }
 }
 
 void Potrf( char uplo, Int n, const scomplex* A, Int lda )

@@ -3620,7 +3620,7 @@ namespace symPACK{
 
 
         FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
-        //generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
+        generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
           {
 #ifdef _MEM_PROFILER_
           utility::scope_memprofiler m("symPACKMatrix_task_graph");

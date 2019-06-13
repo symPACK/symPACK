@@ -285,62 +285,10 @@ namespace symPACK{
             if ( auto ptr = graph.updateTask(taskit,0,1) ) {
               this->push(ptr);
             }
-
-//            auto taskit = graph.find_task(msg->meta.id);
-//            bassert(taskit!=graph.tasks_.end());
-//            {
-////#ifdef SP_THREADS
-////        //TODO this is obsolete and has to go`
-////              if(Multithreading::NumThread>1){ list_mutex_.lock(); }
-////#endif
-//              taskit->second->remote_deps--;
-//              taskit->second->addData(msgPtr);
-//
-//              if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
-//                this->push(taskit->second);    
-//                graph.removeTask(taskit->second->id);
-//              }
-//
-////#ifdef SP_THREADS
-////        //TODO this is obsolete and has to go`
-////              if(Multithreading::NumThread>1){ list_mutex_.unlock(); }
-////#endif
-//            }
-
-
-
-            //            auto taskit = graph.find_task(msg->meta.id);
-            //            bassert(taskit!=graph.tasks_.end());
-            {
-              //#ifdef SP_THREADS
-              //        //TODO this is obsolete and has to go`
-              //              if (Multithreading::NumThread>1) {
-              //                std::lock_guard<std::recursive_mutex> lock(graph.list_mutex_);
-              //              }
-              //              else {
-              //#endif
-              //              taskit->second->remote_deps--;
-              //              taskit->second->addData(msgPtr);
-              //
-              //              if(taskit->second->remote_deps==0 && taskit->second->local_deps==0){
-              //                this->push(taskit->second);    
-              //                graph.removeTask(taskit->second->id);
-              //              }
-              //
-              //#ifdef SP_THREADS
-              //              }
-              //#endif
-            }
           }
         }
       }while(msg!=nullptr);
 
-#ifdef SP_THREADS
-        //TODO this is obsolete and has to go`
-      //if(Multithreading::NumThread>1){
-      //  upcxx_mutex.lock();
-      //}
-#endif
       //if we have some room, turn blocking comms into async comms
       if(gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1){
         scope_timer(b,MV_MSG_SYNC);
@@ -363,32 +311,18 @@ namespace symPACK{
           }
         }
       }
-#ifdef SP_THREADS
-        //TODO this is obsolete and has to go`
-      //if(Multithreading::NumThread>1){
-      //  upcxx_mutex.unlock();
-      //}
-#endif
 
       return num_recv;
     }
 
 
   template <class Task > 
-#ifdef NEW_UPCXX
     inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, upcxx::dist_object<int> & remDealloc, upcxx::team & workteam)
-#else
-    inline void Scheduler<Task>::run(MPI_Comm & workcomm, RankGroup & group, taskGraph & graph)
-#endif
     {
     }
 
   template <> 
-#ifdef NEW_UPCXX
     inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph, upcxx::dist_object<int> & remDealloc, upcxx::team & workteam)
-#else
-    inline void Scheduler<std::shared_ptr<GenericTask> >::run(MPI_Comm & workcomm, RankGroup & group , taskGraph & graph)
-#endif
     {
       int np = 1;
       MPI_Comm_size(workcomm,&np);
@@ -411,131 +345,54 @@ namespace symPACK{
         }
       }
 
-      auto log_task = [&] (std::shared_ptr<GenericTask> & task){
-        SparseTask * tmp = ((SparseTask*)task.get());
-        Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
-        Solve::op_type & type = *reinterpret_cast<Solve::op_type*>(&meta[2]);
-        std::string name;
-        switch(type){
-          case Solve::op_type::FUC:
-            name="FUC";
-            break;
-          case Solve::op_type::BUC:
-            name="BUC";
-            break;
-          case Solve::op_type::BU:
-            name="BU";
-            break;
-          case Solve::op_type::FU:
-            name="FU";
-            break;
-        }
-        logfileptr->OFS()<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
-      };
-
-#ifdef SP_THREADS
-  //TODO it seems that this is dead code
-//      auto check_handle = [] (std::future< void > const& f) {
-//        bool retval = f.wait_for(std::chrono::milliseconds(0)) == std::future_status::ready;
-//        //logfileptr->OFS()<<"thread done ? "<<retval<<std::endl;
-//        return retval; };
-//
-//      std::list<std::future<void> > handles;
-//
-//      if(Multithreading::NumThread>1){
-//        logfileptr->OFS()<<"Num threads = "<<Multithreading::NumThread<<std::endl;
-//      }
-//
-//      //handles.reserve(nthr);
-//
-//      auto progress_threads = [&]() {
-//        //logfileptr->OFS()<<"handle size "<<handles.size()<<std::endl;
-//        scope_timer(a,SOLVE_PROGRESS_THREADS);
-//        auto it = handles.begin();
-//        while(it != handles.end()){
-//          //          it->wait();
-//          //logfileptr->OFS()<<"checking handle"<<std::endl;
-//          if(check_handle(*it)){
-//            //logfileptr->OFS()<<"thread done"<<std::endl;
-//            it->get();
-//            it = handles.erase(it);
-//          }
-//          else{
-//            it++;
-//          }
-//        }
-//      };
-#endif
-
 
       {
 
-        auto log_task = [&] (std::shared_ptr<GenericTask> & taskptr, std::stringstream & sstr){
-          SparseTask * tmp = ((SparseTask*)taskptr.get());
-          std::string name;
-          Int * meta = reinterpret_cast<Int*>(tmp->meta.data());
-
-          if(tmp->meta.size()==(2*sizeof(Int)+sizeof(Factorization::op_type))){
-            Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[2]);
-            switch(type){
-              case Factorization::op_type::FACTOR:
-                name="FACTOR";
-                break;
-              case Factorization::op_type::AGGREGATE:
-                name="AGGREGATE";
-                break;
-              case Factorization::op_type::UPDATE:
-                name="UPDATE";
-                break;
-            }
-          }
-          else{
-          }
-
-          sstr<<"           T "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
-        };
-
-
+        main_tid = std::this_thread::get_id();
 
         Int num_msg =0;
         std::shared_ptr<GenericTask> curTask = nullptr;
         bool done = false;
         std::thread progress_thread;
+///////        if(Multithreading::NumThread>1){
+///////#ifdef NEW_UPCXX
+///////          // declare an agreed upon persona for the progress thread
+///////          //atomic<int> thread_barrier(0);
+///////          // liberate the master persona to allow the progress thread to use it
+///////          symPACK::liberate_master_scope();
+///////
+///////          // create the progress thread
+///////          progress_thread = std::thread( [this,&done,&remDealloc,&workteam]() {
+///////              // push the master persona onto this thread's stack
+///////              upcxx::persona_scope scope(upcxx::master_persona());
+///////              // push progress_persona onto this thread's persona stack
+///////              //upcxx::persona_scope scope(this->progress_persona_);
+///////              // progress thread drains progress until work is done
+///////              //gdb_lock();
+///////              while (!done || (*remDealloc) > 0 ){
+///////              sched_yield();
+///////              upcxx::progress();
+///////              }
+///////              //        cout<<"Progress thread on process "<<upcxx::rank_me()<<" is done"<<endl; 
+///////
+///////              upcxx::discharge();
+/////////  upcxx::barrier(workteam);
+/////////  while ( (*remDealloc) > 0 ) { sched_yield(); }
+///////
+///////              //unlock the other threads
+///////              //thread_barrier += 1;
+///////          });
+///////
+///////#endif
+///////        }
+
         if(Multithreading::NumThread>1){
-#ifdef NEW_UPCXX
-          // declare an agreed upon persona for the progress thread
-          //atomic<int> thread_barrier(0);
-          // liberate the master persona to allow the progress thread to use it
-          symPACK::liberate_master_scope();
 
-          // create the progress thread
-          progress_thread = std::thread( [this,&done,&remDealloc,&workteam]() {
-              // push the master persona onto this thread's stack
-              upcxx::persona_scope scope(upcxx::master_persona());
-              // push progress_persona onto this thread's persona stack
-              //upcxx::persona_scope scope(this->progress_persona_);
-              // progress thread drains progress until work is done
-              //gdb_lock();
-              while (!done || (*remDealloc) > 0 ){
-              sched_yield();
-              upcxx::progress();
-              }
-              //        cout<<"Progress thread on process "<<upcxx::rank_me()<<" is done"<<endl; 
-
-              upcxx::discharge();
-//  upcxx::barrier(workteam);
-//  while ( (*remDealloc) > 0 ) { sched_yield(); }
-
-              //unlock the other threads
-              //thread_barrier += 1;
-          });
-
+#ifndef _LOCKFREE_QUEUE_
+          WorkQueue<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread-2,threadInitHandle_);
+#else
+          WorkQueue<std::shared_ptr<GenericTask>, mpmc_bounded_queue<std::shared_ptr<GenericTask>> > queue(Multithreading::NumThread-2,threadInitHandle_);
 #endif
-        }
-
-        if(Multithreading::NumThread>1){
-          WorkQueue<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread,threadInitHandle_);
-
           while(graph.getTaskCount()>0 || !this->done() || !delayedTasks_.empty() ){
 
             if(np>1){
@@ -546,24 +403,9 @@ namespace symPACK{
             {
               auto taskit = delayedTasks_.begin();
 
-#ifdef THREAD_VERBOSE
-              for(auto && toto: delayedTasks_){
-                std::stringstream sstr;
-                sstr<<"delayed";
-                log_task(curTask,sstr);
-                logfileptr->OFS()<<sstr.str();
-              }
-#endif
-
               while(taskit!=delayedTasks_.end()){
                 bool delay = extraTaskHandle_(*taskit);
                 if(!delay){
-#ifdef THREAD_VERBOSE
-                  std::stringstream sstr;
-                  sstr<<"Resuming";
-                  log_task(curTask,sstr);
-                  logfileptr->OFS()<<sstr.str();
-#endif
                   queue.pushTask(*taskit);
                   taskit = delayedTasks_.erase(taskit);
                 }
@@ -583,16 +425,6 @@ namespace symPACK{
 #endif
                 curTask = this->top();
                 bassert(curTask==this->top());
-                //if(extraTaskHandle_!=nullptr){
-                //  if (curTask==nullptr){
-                //    gdb_lock();
-                //    for(auto && toto: delayedTasks_){
-                //      bool delay = extraTaskHandle_(toto);
-                //    }
-                //  }
-                //}
-
-
                 bassert(curTask!=nullptr);
                 this->pop();
 #ifdef SP_THREADS
@@ -602,13 +434,6 @@ namespace symPACK{
                 if(extraTaskHandle_!=nullptr){
                   delay = extraTaskHandle_(curTask);
                   if(delay){
-                    //gdb_lock();
-                    #ifdef THREAD_VERBOSE
-                    std::stringstream sstr;
-                    sstr<<"Delaying";
-                    log_task(curTask,sstr);
-                    logfileptr->OFS()<<sstr.str();
-                    #endif
                     delayedTasks_.push_back(curTask);
                   }
                 }
@@ -622,36 +447,14 @@ namespace symPACK{
               }
             }
 
-#ifdef THREAD_VERBOSE
-            {
-              std::stringstream sstr;
-//              queue.list_mutex_.lock();
-
-              sstr<<"======delayed======"<<std::endl;
-              for(auto ptr: delayedTasks_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
-              sstr<<"======waiting======"<<std::endl;
-//              for(auto && ptr : queue.workQueue_){ log_task(ptr,sstr); }
-              sstr<<"======running======"<<std::endl;
-              for(auto ptr: queue.processing_){ if(ptr!=nullptr){log_task(ptr,sstr);}}
-              sstr<<"==================="<<std::endl;
-              logfileptr->OFS()<<sstr.str();
-//              queue.list_mutex_.unlock();
-            }
-#endif
           }
 
-#ifdef NEW_UPCXX
-  //double tstop, tstart;
-  //upcxx::progress(); //this is handled by the progress thread
-  //upcxx::discharge();
-  done = true; //this will stop the progress thread
-  progress_thread.join();
-
-    // recapture the master persona onto the initial thread's persona stack
-    // before calling barrier
-          symPACK::capture_master_scope();
-  upcxx::barrier(workteam);
-#endif
+            done = true; //this will stop the progress thread
+            progress_thread.join();
+            symPACK::capture_master_scope();
+            upcxx::discharge();
+            while ( (*remDealloc) > 0 ) { upcxx::progress(); }
+            upcxx::barrier(workteam);
         }
         else{
           std::chrono::time_point<std::chrono::system_clock> start;
@@ -667,37 +470,13 @@ namespace symPACK{
               curTask->execute();
               //clear resources
               curTask->reset();
-#ifdef NEW_UPCXX
               upcxx::progress();
-#else
-              upcxx::advance();
-#endif
             }
           }
-#ifdef NEW_UPCXX
-  //double tstop, tstart;
-  //upcxx::progress();
-  upcxx::discharge();
-  while ( (*remDealloc) > 0 ) { upcxx::progress(); }
-  //while ( (*remDealloc) > 0 ) { sched_yield(); }
-  //done = true; //this will stop the progress thread
-  //progress_thread.join();
-  //        symPACK::capture_master_scope();
-  upcxx::barrier(workteam);
-#endif
+            upcxx::discharge();
+            while ( (*remDealloc) > 0 ) { upcxx::progress(); }
+            upcxx::barrier(workteam);
         }
-
-#ifndef NEW_UPCXX
-   double tstart = get_time();
-   int barrier_id = get_barrier_id(np);
-   signal_exit(barrier_id,np); 
-   double tstop = get_time();
-   logfileptr->OFS()<<"signal_exit time: "<<tstop-tstart<<std::endl;
-   tstart = get_time();
-   barrier_wait(barrier_id);
-   tstop = get_time();
-   logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
-#endif
       }
     }
 

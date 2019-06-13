@@ -23,7 +23,7 @@
 #include <gasnet_tools.h>
 
 //#define DUMP_MATLAB
-//#define DUMP_MATLAB_SOL
+#define DUMP_MATLAB_SOL
 
 /******* TYPE used in the computations ********/
 #define SCALAR double
@@ -470,6 +470,7 @@ int main(int argc, char **argv)
           std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
         }
         logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+
 #endif
       }
       catch(const std::bad_alloc& e){
@@ -487,6 +488,22 @@ int main(int argc, char **argv)
       }
       SMat2D->DumpMatlab();
 #endif
+
+
+//      SMat = new symPACKMatrix<SCALAR>(*SMat2D);
+//      SMat->DumpMatlab();
+//      XFinal = RHS;
+//
+//      timeSta = get_time();
+//      SMat->NewSolve(&XFinal[0],nrhs);
+//      timeEnd = get_time();
+//
+//      if(iam==0){
+//        std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
+//      }
+//      SMat->GetSolution(&XFinal[0],nrhs);
+//      delete SMat;
+
 
         /**************** SOLVE PHASE ***********/
       if (nrhs>0){
@@ -575,11 +592,11 @@ int main(int argc, char **argv)
       }
     }
 
-    for( auto && blockptr: SMat2D->solve_data.contribs){
-      if ( blockptr ) {
-        blockptr->print_block(*blockptr,"");
-      }
-    }
+//    for( auto && blockptr: SMat2D->solve_data.contribs){
+//      if ( blockptr ) {
+//        blockptr->print_block(*blockptr,"");
+//      }
+//    }
 
 
 #endif

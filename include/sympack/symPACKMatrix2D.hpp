@@ -81,6 +81,8 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #include "sympack/mpi_interf.hpp"
 
+
+//#define _NO_COMPUTATION_
 //#define LOCK_SRC 2
 
 #define _SUBCUBE2D_
@@ -95,7 +97,8 @@ such enhancements or derivative works thereof, in binary and source code form.
 #define _PRIORITY_QUEUE_AVAIL_
 #define _PRIORITY_QUEUE_RDY_
 
-//#define PREALLOCATE
+#define PREALLOCATE1
+//#define PREALLOCATE2
 //#define _USE_PROM_AVAIL_
 //#define _USE_PROM_RDY_
 
@@ -103,30 +106,29 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include <gasnetex.h>
 #include <chrono>
 
-//#ifdef SP_THREADS
-//#define decrement_dep(counter,value,ptask,list,op) \
-//                      do {\
-//                              
-//                            this->ready_tasks.push_back(ptask);})]
-//                        if ( counter.fetch_sub(value) == value){\
-//                          if(Multithreading::NumThread>2){\
-//                            /*std::lock_guard<std::recursive_mutex> lock(list_mutex);*/\
-//                            list_op;\
-//                          }\
-//                          else\
-//                          {\
-//                            list_op;\
-//                          }\
-//                        }\
-//                      }while(0);
-//#else
-//#define decrement_dep(counter,value,list_op,list_mutex) \
-//                      do {\
-//                        if ( counter.fetch_sub(value) == value){\
-//                            list_op;\
-//                        }\
-//                      }while(0);
-//#endif
+
+
+#ifdef _PRIORITY_QUEUE_RDY_
+#define push_ready(sched,ptr) sched->ready_tasks.push(ptr);
+#define top_ready() ready_tasks.top();
+#define pop_ready() ready_tasks.pop();
+#else
+#define push_ready(sched,ptr) sched->ready_tasks.push_back(ptr);
+#define top_ready() ready_tasks.front();
+#define pop_ready() ready_tasks.pop_front();
+#endif
+
+
+#ifdef _PRIORITY_QUEUE_AVAIL_
+#define push_avail(sched,ptr) sched->avail_tasks.push(ptr);
+#define top_avail() avail_tasks.top();
+#define pop_avail() avail_tasks.pop();
+#else
+#define push_avail(sched,ptr) sched->avail_tasks.push_back(ptr);
+#define top_avail() avail_tasks.front();
+#define pop_avail() avail_tasks.pop_front();
+#endif
+
 
 namespace symPACK{
 
@@ -139,42 +141,25 @@ template <std::size_t alignment>
 
 
   namespace scheduling {
-    //cell row, cell col, src snode, op_type
-    //using key_t = std::tuple<Idx,Idx,Idx,Factorization::op_type>;
     struct key_t { 
       unsigned int cell_J; 
       unsigned int cell_I;
       unsigned int src;
       Factorization::op_type type;
-      key_t(unsigned int j, unsigned int i, unsigned int s, Factorization::op_type t){
-        cell_J=j;
-        cell_I=i;
-        src=s;
-        type=t;
-      }
-      key_t() {
-        cell_J=0;
-        cell_I=0;
-        src=0;
-        type=Factorization::op_type::FACTOR;
-      }
-
+      key_t(unsigned int j, unsigned int i, unsigned int s, Factorization::op_type t):
+                                                      cell_J(j),cell_I(i),src(s),type(t) {}
+      key_t():cell_J(0),cell_I(0),src(0),type(Factorization::op_type::FACTOR) {}
 
       bool operator==( symPACK::scheduling::key_t& rhs)
       {
         return cell_J==rhs.cell_J && cell_I == rhs.cell_I && src == rhs.src && type == rhs.type;
       }
+
       bool operator<( symPACK::scheduling::key_t& rhs)
       {
-        if (src != rhs.src ) {
-          return src<rhs.src;
-        }
-        else if( cell_I != rhs.cell_I ) {
-          return cell_I < rhs.cell_I;
-        }
-        else if (cell_J != rhs.cell_J ) {
-          return cell_J < rhs.cell_J;
-        }
+        if (src != rhs.src) return src<rhs.src;
+        else if (cell_I != rhs.cell_I) return cell_I < rhs.cell_I;
+        else if (cell_J != rhs.cell_J) return cell_J < rhs.cell_J;
         return (int)type < (int)rhs.type;
       }
 
@@ -182,17 +167,12 @@ template <std::size_t alignment>
       {
         return cell_J==rhs.cell_J && cell_I == rhs.cell_I && src == rhs.src && type == rhs.type;
       }
+
       bool operator<( const symPACK::scheduling::key_t& rhs) const
       {
-        if (src != rhs.src ) {
-          return src<rhs.src;
-        }
-        else if( cell_I != rhs.cell_I ) {
-          return cell_I < rhs.cell_I;
-        }
-        else if (cell_J != rhs.cell_J ) {
-          return cell_J < rhs.cell_J;
-        }
+        if (src != rhs.src) return src<rhs.src;
+        else if (cell_I != rhs.cell_I) return cell_I < rhs.cell_I;
+        else if (cell_J != rhs.cell_J) return cell_J < rhs.cell_J;
         return (int)type < (int)rhs.type;    
       }
     };
@@ -202,16 +182,6 @@ template <std::size_t alignment>
 // custom specialization of std::hash can be injected in namespace std
 namespace std
 {
-  //  inline bool operator==( symPACK::scheduling::key_t& lhs,  symPACK::scheduling::key_t& rhs)
-  //  {
-  //    return lhs.cell_J==rhs.cell_J && lhs.cell_I == rhs.cell_I && lhs.src == rhs.src && lhs.type == rhs.type;
-  //  }
-  //
-  //  inline bool operator==(const symPACK::scheduling::key_t& lhs, const symPACK::scheduling::key_t& rhs)
-  //  {
-  //    return lhs.cell_J==rhs.cell_J && lhs.cell_I == rhs.cell_I && lhs.src == rhs.src && lhs.type == rhs.type;
-  //  }
-
   template<> struct hash<symPACK::scheduling::key_t>
   {
     typedef symPACK::scheduling::key_t argument_type;
@@ -237,10 +207,6 @@ namespace std
 namespace symPACK{
 
 
-#ifdef NEW_UPCXX
-
-
-
   class blockCellBase_t {
     using intrank_t = upcxx::intrank_t;
     public:
@@ -253,7 +219,7 @@ namespace symPACK{
 #endif
                       {}
     virtual ~blockCellBase_t() = default;
-    virtual int I(){return i;}
+    virtual int I() {return i;}
 #ifdef SP_THREADS
     std::atomic<bool> in_use;
 #endif
@@ -261,6 +227,7 @@ namespace symPACK{
   };
 
 
+#ifdef SP_THREADS
   template< typename cellptr >
     class cell_lock {
       public:
@@ -268,35 +235,26 @@ namespace symPACK{
           cell_ = cell;
         }
 
-        ~cell_lock(){
-#ifdef SP_THREADS
-          if(Multithreading::NumThread>1){
-            cell_->in_use = false;
-          }
-#endif
+        ~cell_lock() {
+          if (Multithreading::NumThread>2) cell_->in_use = false;
         }
       protected:
         cellptr cell_;
     };
 
-
-
-  template<  >
+template<>
     class cell_lock< std::atomic<bool> > {
       public:
         cell_lock(std::atomic<bool> & celllock):lock_(celllock) {
         }
 
-        ~cell_lock(){
-#ifdef SP_THREADS
-          if(Multithreading::NumThread>1){
-            lock_ =  false;
-          }
-#endif
+        ~cell_lock() {
+          if (Multithreading::NumThread>2) lock_ =  false;
         }
       protected:
         std::atomic<bool> & lock_;
     };
+#endif
 
 
 
@@ -354,47 +312,39 @@ namespace symPACK{
 #endif
 
             template<typename T> 
-              void satisfy_dep(int cnt,T&sched){
+              void satisfy_dep(int cnt,T&sched) {
 #ifdef _USE_PROM_RDY_
                 in_prom.fulfill_anonymous(cnt);
 #else
                 T * sched_ptr = &sched;
-                                sched_ptr->lpc_cnt++;
+                sched_ptr->lpc_cnt++;
                 upcxx::master_persona().lpc_ff( 
                     [this,sched_ptr,cnt] () {
-                                sched_ptr->lpc_cnt--;
-                this->in_counter-=cnt;
-                if ( this->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                  sched_ptr->ready_tasks.push(this);
-#else
-                  sched_ptr->ready_tasks.push_back(this);
-#endif
-                }
-                });
+                    sched_ptr->lpc_cnt--;
+                    this->in_counter-=cnt;
+                    if ( this->in_counter == 0 ) {
+                    push_ready(sched_ptr,this)
+                    }
+                    });
 #endif
               } 
 
             template<typename T> 
-              void avail_dep(int cnt,T&sched){
+              void avail_dep(int cnt,T&sched) {
 #ifdef _USE_PROM_AVAIL_
                 in_avail_prom.fulfill_anonymous(cnt);
 #else
                 T * sched_ptr = &sched;
-                                sched_ptr->lpc_cnt++;
+                sched_ptr->lpc_cnt++;
                 upcxx::master_persona().lpc_ff( 
                     [this,sched_ptr,cnt] () {
-                                sched_ptr->lpc_cnt--;
-bassert(this->in_avail_counter-cnt >= 0);
-                this->in_avail_counter-=cnt;
-                if ( this->in_avail_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                  sched_ptr->avail_tasks.push(this);
-#else
-                  sched_ptr->avail_tasks.push_back(this);
-#endif
-                }
-                });
+                    sched_ptr->lpc_cnt--;
+                    bassert(this->in_avail_counter-cnt >= 0);
+                    this->in_avail_counter-=cnt;
+                    if ( this->in_avail_counter == 0 ) {
+                    push_avail(sched_ptr,this)
+                    }
+                    });
 #endif
               } 
 
@@ -404,26 +354,19 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             task_t( ):executed(false),
             in_remote_dependencies_cnt(0),
-            in_local_dependencies_cnt(0){ }
+            in_local_dependencies_cnt(0) { }
 
-            ~task_t(){
-              //bassert(out_prom.get_future().ready());
-              //bassert(in_prom.get_future().ready());
-              //bassert(in_avail_prom.get_future().ready());
-            }
+            virtual ~task_t() = default;
 
-            void reset(){
-              //bassert(out_prom.get_future().ready());
-              //bassert(in_prom.get_future().ready());
-              //bassert(in_avail_prom.get_future().ready());
+            void reset() {
               out_prom = upcxx::promise<>();
-              //std::lock_guard<std::recursive_mutex> lock(in_prom_lock);
 #ifdef _USE_PROM_RDY_
               in_prom = upcxx::promise<>();
 #endif
 #ifdef _USE_PRM_AVAIL_
               in_avail_prom = upcxx::promise<>();
 #endif
+              executed = false;
             }
 
         };
@@ -432,46 +375,38 @@ bassert(this->in_avail_counter-cnt >= 0);
     template <typename ttask_t = task_t<meta_t, depend_t> , typename tmeta_t = task_t<meta_t, depend_t>::meta_t>
       class incoming_data_t {
         public:
-          upcxx::promise<incoming_data_t *> on_fetch;
-
           using task_t = ttask_t;
           using meta_t = tmeta_t;
+          upcxx::promise<incoming_data_t *> on_fetch;
           //this should be made generic, not specific to sparse matrices
           std::vector< task_t *> target_tasks;
 
           meta_t in_meta;
           //a pointer to be used by the user if he wants to attach some data
-          //void * extra_data;
           std::unique_ptr<blockCellBase_t> extra_data;
 
-          incoming_data_t():transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr){};
+          incoming_data_t():transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr) {};
           bool transfered;
           upcxx::global_ptr<char> remote_gptr;
           size_t size;
           char * landing_zone;
 
-          void allocate(){
-            if(landing_zone == nullptr) {
-              landing_zone = new char[size];
-            }
+          void allocate() {
+            if (landing_zone == nullptr) landing_zone = new char[size];
           }
 
-          upcxx::future<incoming_data_t *> fetch(){
-            if(!transfered){
+          upcxx::future<incoming_data_t *> fetch() {
+            if (!transfered) {
               transfered=true;
-              upcxx::rget(remote_gptr,landing_zone,size).then([this](){
+              upcxx::rget(remote_gptr,landing_zone,size).then([this]() {
                   on_fetch.fulfill_result(this);
                   return;});
             }
             return on_fetch.get_future();
           }
 
-          ~incoming_data_t(){
-            //            if ( extra_data) { extra_data.reset(nullptr); gdb_lock(); }
-            //                  logfileptr->OFS()<<"deleting message"<<std::endl;
-            if (landing_zone) {
-              delete [] landing_zone;
-            }
+          ~incoming_data_t() {
+            if (landing_zone) delete [] landing_zone;
           }
 
       };
@@ -508,14 +443,14 @@ bassert(this->in_avail_counter-cnt >= 0);
           std::recursive_mutex scheduler_mutex_;
           std::function<void()> threadInitHandle_;
           std::function<bool(ttask_t *)> extraTaskHandle_;
-          Scheduler2D():/*work_pointers_(nullptr),*/threadInitHandle_(nullptr),extraTaskHandle_(nullptr),lpc_cnt(0){isSolve=false;}
-          virtual ~Scheduler2D(){
+          Scheduler2D():/*work_pointers_(nullptr),*/threadInitHandle_(nullptr),extraTaskHandle_(nullptr),lpc_cnt(0) {isSolve=false;}
+          virtual ~Scheduler2D() {
             //delete [] work_pointers_;
           }
 #endif
 #ifdef _PRIORITY_QUEUE_AVAIL_
           struct avail_comp{
-            bool operator()(ttask_t *& a,ttask_t*& b){ 
+            bool operator()(ttask_t *& a,ttask_t*& b) { 
               auto tgt_a = std::get<1>(a->_meta);
               auto tgt_b = std::get<1>(b->_meta);
               if ( tgt_a != tgt_b )
@@ -535,7 +470,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
 #ifdef _PRIORITY_QUEUE_RDY_
           struct rdy_comp{
-            bool operator()(ttask_t *& a,ttask_t*& b){ 
+            bool operator()(ttask_t *& a,ttask_t*& b) { 
               //return a->out_dependencies.size() > b->out_dependencies.size();
 
 
@@ -576,7 +511,7 @@ bassert(this->in_avail_counter-cnt >= 0);
             rowind_t first_row;
         };
 
-        virtual int I(){return i;}
+        virtual int I() {return i;}
         //        int_t i;
         //        int_t j;
         //intrank_t owner;
@@ -599,13 +534,13 @@ bassert(this->in_avail_counter-cnt >= 0);
             block_t * _blocks;
             size_t _nblocks;
 
-            block_container_t():_blocks(nullptr),_nblocks(0){};
+            block_container_t():_blocks(nullptr),_nblocks(0) {};
 
             size_t size() const{
               return _nblocks;
             }
 
-            block_t * data(){
+            block_t * data() {
               return _blocks;
             }
 
@@ -691,14 +626,13 @@ bassert(this->in_avail_counter-cnt >= 0);
 
 
 
-        blockCell_t(): //i(0),j(0),
+        blockCell_t(): 
           first_col(0),_dims(std::make_tuple(0)),_total_rows(0),
-          _storage(nullptr),_nzval(nullptr),//_blocks(nullptr),_nblocks(0),
-          _gstorage(nullptr),_nnz(0),_storage_size(0), _own_storage(true){}
+          _storage(nullptr),_nzval(nullptr),
+          _gstorage(nullptr),_nnz(0),_storage_size(0), _own_storage(true) {}
         bool _own_storage;
 
         virtual ~blockCell_t() {
-          //gdb_lock();
           if (_own_storage) {
             if ( !_gstorage.is_null() ) {
               bassert(_storage == _gstorage.local());
@@ -710,11 +644,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           }
         }
 
-        rowind_t total_rows(){
-          //if(this->_block_container.size()>0 && _total_rows==0){
-          //  for( auto & block: this->_block_container){ _total_rows += block_nrows(block);}
-          //}
-          //return _total_rows;
+        rowind_t total_rows() {
           return _nnz / width(); 
         }
 
@@ -896,11 +826,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           return nRows;
         }
 
-        void add_block( rowind_t first_row, rowind_t nrows ){
-          assert( this->_block_container.data()!=nullptr );
-          assert( this->_block_container.size() + 1 <= block_capacity() );
-          assert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
-
+        void add_block( rowind_t first_row, rowind_t nrows ) {
           bassert( this->_block_container.data()!=nullptr );
           bassert( this->_block_container.size() + 1 <= block_capacity() );
           bassert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
@@ -948,13 +874,13 @@ bassert(this->in_avail_counter-cnt >= 0);
         void print_block(const blockCell_t & block, std::string prefix) const{  
           logfileptr->OFS()<<prefix<<" ("<<block.i<<","<<block.j<<")"<<std::endl;
           logfileptr->OFS()<<prefix<<" nzval:"<<std::endl;
-          for(auto & nzblock: block.blocks() ){
+          for (auto & nzblock: block.blocks() ) {
             logfileptr->OFS()<<nzblock.first_row<<"-|"<<block.first_col<<"---------------------"<<block.first_col+block.width()-1<<std::endl;
-            for(int vrow = 0; vrow< block.block_nrows(nzblock); vrow++){
+            for (int vrow = 0; vrow< block.block_nrows(nzblock); vrow++) {
               //logfileptr->OFS()<<nzblock.first_row+vrow<<" | ";
               std::streamsize p = logfileptr->OFS().precision();
               logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
-              for(int vcol = 0; vcol< block.width() ; vcol++){
+              for (int vcol = 0; vcol< block.width() ; vcol++) {
                 logfileptr->OFS()<<std::scientific<<ToMatlabScalar(block._nzval[nzblock.offset+vrow*block.width()+vcol])<<" ";
               }
               logfileptr->OFS().precision(p);
@@ -967,7 +893,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
 
 
-        virtual int factorize( TempUpdateBuffers<T> & tmpBuffers){
+        virtual int factorize( TempUpdateBuffers<T> & tmpBuffers) {
           scope_timer(a,blockCell_t::factorize);
 #if defined(_NO_COMPUTATION_)
           return 0;
@@ -979,7 +905,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           try{
             lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
           }
-          catch(const std::runtime_error& e){
+          catch(const std::runtime_error& e) {
             std::cerr << "Runtime error: " << e.what() << '\n';
             gdb_lock();
           }
@@ -988,7 +914,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           return 0;
         }
 
-        virtual int trsm( const blockCellBase_t * pdiag, TempUpdateBuffers<T> & tmpBuffers){
+        virtual int trsm( const blockCellBase_t * pdiag, TempUpdateBuffers<T> & tmpBuffers) {
           scope_timer(a,blockCell_t::trsm);
 #if defined(_NO_COMPUTATION_)
           return 0;
@@ -1004,16 +930,16 @@ bassert(this->in_avail_counter-cnt >= 0);
           auto nzblk_nzval = _nzval;
           //          print_block(diag,"diag");
           //          print_block(*this,"offdiag before Trsm");
-          if ( diag_nzval == nullptr ) gdb_lock();
-          if ( nzblk_nzval == nullptr ) gdb_lock();
-          if ( !is_aligned<alignof(T)>(nzblk_nzval) ) gdb_lock();
-          if ( !is_aligned<alignof(T)>(diag_nzval) ) gdb_lock();
+          //if ( diag_nzval == nullptr ) gdb_lock();
+          //if ( nzblk_nzval == nullptr ) gdb_lock();
+          //if ( !is_aligned<alignof(T)>(nzblk_nzval) ) gdb_lock();
+          //if ( !is_aligned<alignof(T)>(diag_nzval) ) gdb_lock();
           blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
           //          print_block(*this,"offdiag after Trsm");
           return 0;
         }
 
-        virtual int update( /*const*/ blockCellBase_t * ppivot, /*const*/ blockCellBase_t * pfacing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr){
+        virtual int update( /*const*/ blockCellBase_t * ppivot, /*const*/ blockCellBase_t * pfacing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr) {
           scope_timer(a,blockCell_t::update);
 #if defined(_NO_COMPUTATION_)
           return 0;
@@ -1072,12 +998,11 @@ bassert(this->in_avail_counter-cnt >= 0);
             size_t tgt_offset = 0;
             bool in_place = ( first_pivot_idx == last_pivot_idx );
 
-            if (in_place){ 
+            if (in_place) { 
               int tgt_first_upd_blk_idx  = 0;
-              for ( ; tgt_first_upd_blk_idx < this->_block_container.size(); tgt_first_upd_blk_idx++ ){
+              for ( ; tgt_first_upd_blk_idx < this->_block_container.size(); tgt_first_upd_blk_idx++ ) {
                 auto & block = this->_block_container[tgt_first_upd_blk_idx];
-                if(facing_fr >= block.first_row && facing_fr <= block.first_row + this->block_nrows(block) -1)
-                  break;
+                if (facing_fr >= block.first_row && facing_fr <= block.first_row + this->block_nrows(block) -1) break;
               }
 
               tgt_offset = this->_block_container[tgt_first_upd_blk_idx].offset
@@ -1086,15 +1011,13 @@ bassert(this->in_avail_counter-cnt >= 0);
 
               //find the last block updated
               int tgt_last_upd_blk_idx  = this->_block_container.size()-1;
-              for ( ; tgt_last_upd_blk_idx > tgt_first_upd_blk_idx; tgt_last_upd_blk_idx-- ){
+              for ( ; tgt_last_upd_blk_idx > tgt_first_upd_blk_idx; tgt_last_upd_blk_idx-- ) {
                 auto & block = this->_block_container[tgt_last_upd_blk_idx];
-                if(facing_lr >= block.first_row && facing_lr <= block.first_row + this->block_nrows(block) -1)
-                  break;
+                if (facing_lr >= block.first_row && facing_lr <= block.first_row + this->block_nrows(block) -1) break;
               }
               //make sure that in between these two blocks, everything matches
               int upd_blk_cnt = tgt_last_upd_blk_idx - tgt_first_upd_blk_idx +1;
               if ( in_place && upd_blk_cnt == facing.nblocks() && upd_blk_cnt>=1) {
-                //              if(this->i==86 && this->j==86 && in_place){gdb_lock();}
                 for ( int blkidx = tgt_first_upd_blk_idx; blkidx <= tgt_last_upd_blk_idx; blkidx++) {
                   int facingidx = blkidx - tgt_first_upd_blk_idx;
                   int f_fr = facing._block_container[facingidx].first_row; 
@@ -1102,7 +1025,6 @@ bassert(this->in_avail_counter-cnt >= 0);
                   int t_fr = std::max(facing_fr, this->_block_container[blkidx].first_row); 
                   int t_lr = std::min(facing_lr, this->_block_container[blkidx].first_row+this->block_nrows(blkidx)-1); 
                   if (f_fr != t_fr || f_lr != t_lr) {
-                    //                 gdb_lock();
                     in_place = false;
                     break;
                   }
@@ -1112,18 +1034,13 @@ bassert(this->in_avail_counter-cnt >= 0);
                 in_place = false;
               }
             }
-            //in_place= false;
-
             int ldbuf = tgt_width;
-            //            if(src_nrows == tgt_nrows )
-            if(in_place)
-            {
-
+            if (in_place) {
               buf = tgt + tgt_offset;
               beta = T(1);
               ldbuf = tgt_snode_size;
             }
-            else{
+            else {
               //Compute the update in a temporary buffer
 #ifdef SP_THREADS
               tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
@@ -1131,20 +1048,20 @@ bassert(this->in_avail_counter-cnt >= 0);
               buf = &tmpBuffers.tmpBuf[0];
             }
 
-            ///                print_block(pivot,"pivot");
-            ///                print_block(facing,"facing");
-            ///                print_block(*this,"tgt before update");
             //TODO SYRK?? 
-            if( in_place && this->i == this->j ){
+            if ( in_place && this->i == this->j ) {
               bassert(src_nrows==tgt_width);
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_SYRK);
+              //TODO DEBUG
               blas::Syrk('U','T',tgt_width, src_snode_size,
                   T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
               SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_SYRK);
             }
-            else{
+            else {
               //everything is in row-major
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
+
+              //TODO DEBUG
               blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
                   T(-1.0),pivot_nzval,src_snode_size,
                   facing_nzval,src_snode_size,beta,buf,ldbuf);
@@ -1153,10 +1070,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             //If the GEMM wasn't done in place we need to aggregate the update
             //This is the assembly phase
-            //            if(src_nrows != tgt_nrows)
-            if(!in_place)
-            {
-              {
+            if (!in_place) {
                 SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_INDEX_MAP);
                 tmpBuffers.src_colindx.resize(tgt_width);
                 tmpBuffers.src_to_tgt_offset.resize(src_nrows);
@@ -1173,18 +1087,18 @@ bassert(this->in_avail_counter-cnt >= 0);
 
                   //The other one MUST reside into a single block in the target
                   rowind_t row = cur_src_fr;
-                  while(row<=cur_src_lr){
+                  while (row<=cur_src_lr) {
                     do {
                       if (tgt_ptr->first_row <= row 
                           && row< tgt_ptr->first_row + block_nrows(*tgt_ptr) ) {
                         break;
                       }
-                    } while( ++tgt_ptr<_block_container._blocks + _block_container._nblocks ); 
+                    } while ( ++tgt_ptr<_block_container._blocks + _block_container._nblocks ); 
 
                     int_t lr = std::min(cur_src_lr,tgt_ptr->first_row + block_nrows(*tgt_ptr)-1);
                     int_t tgtOffset = tgt_ptr->offset + (row - tgt_ptr->first_row)*tgt_snode_size;
 
-                    for(int_t cr = row ;cr<=lr;++cr){
+                    for (int_t cr = row ;cr<=lr;++cr) {
                       offset+=tgt_width;
                       tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
                       rowidx++;
@@ -1212,17 +1126,17 @@ bassert(this->in_avail_counter-cnt >= 0);
                 //Multiple cases to consider
                 SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_INDEX_MAP);
                 SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_ADD);
-                if(first_pivot_idx==last_pivot_idx){
+                if (first_pivot_idx==last_pivot_idx) {
                   // Updating contiguous columns
                   rowind_t tgt_offset = (tgt_fc - this->first_col);
                   for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
                     T * A = &buf[rowidx*tgt_width];
                     T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
 #pragma unroll
-                    for(rowind_t i = 0; i < tgt_width; ++i){ B[i] += A[i]; }
+                    for (rowind_t i = 0; i < tgt_width; ++i) { B[i] += A[i]; }
                   }
                 }
-                else{
+                else {
                   // full sparse case
                   for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
                     for (colptr_t colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx) {
@@ -1233,13 +1147,8 @@ bassert(this->in_avail_counter-cnt >= 0);
                     }
                   }
                 }
-
-
                 SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD);
-              }
             }
-
-            //              print_block(*this,"tgt after update");
           }
 #else
 
@@ -1280,17 +1189,17 @@ bassert(this->in_avail_counter-cnt >= 0);
 
 
           int tgt_first_upd_blk_idx  = 0;
-          for ( ; tgt_first_upd_blk_idx < this->_block_container.size(); tgt_first_upd_blk_idx++ ){
+          for ( ; tgt_first_upd_blk_idx < this->_block_container.size(); tgt_first_upd_blk_idx++ ) {
             auto & block = this->_block_container[tgt_first_upd_blk_idx];
-            if(facing_fr >= block.first_row && facing_fr <= block.first_row + block_nrows(block) -1)
+            if (facing_fr >= block.first_row && facing_fr <= block.first_row + block_nrows(block) -1)
               break;
           }
 
           //find the last block updated
           int tgt_last_upd_blk_idx  = this->_block_container.size()-1;
-          for ( ; tgt_last_upd_blk_idx > tgt_first_upd_blk_idx; tgt_last_upd_blk_idx-- ){
+          for ( ; tgt_last_upd_blk_idx > tgt_first_upd_blk_idx; tgt_last_upd_blk_idx-- ) {
             auto & block = this->_block_container[tgt_last_upd_blk_idx];
-            if(facing_lr >= block.first_row && facing_lr <= block.first_row + block_nrows(block) -1)
+            if (facing_lr >= block.first_row && facing_lr <= block.first_row + block_nrows(block) -1)
               break;
           }
 
@@ -1301,7 +1210,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
           //If the target supernode has the same structure,
           //The GEMM is directly done in place
-          if (in_place){ 
+          if (in_place) { 
             //make sure that in between these two blocks, everything matches
             int upd_blk_cnt = tgt_last_upd_blk_idx - tgt_first_upd_blk_idx +1;
             in_place = upd_blk_cnt == facing.nblocks();
@@ -1321,13 +1230,13 @@ bassert(this->in_avail_counter-cnt >= 0);
           }
 
           int ldbuf = tgt_width;
-          if(in_place)
+          if (in_place)
           {
             buf = tgt + tgt_offset;
             beta = T(1);
             ldbuf = tgt_snode_size;
           }
-          else{
+          else {
             //Compute the update in a temporary buffer
 #ifdef SP_THREADS
             tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
@@ -1337,17 +1246,23 @@ bassert(this->in_avail_counter-cnt >= 0);
 
           //everything is in row-major
           SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
+          //          if ( pivot_nzval == nullptr ) gdb_lock();
+          //          if ( facing_nzval == nullptr ) gdb_lock();
+          //          if ( buf == nullptr ) gdb_lock();
+          //          if ( !is_aligned<alignof(T)>(pivot_nzval) ) gdb_lock();
+          //          if ( !is_aligned<alignof(T)>(facing_nzval) ) gdb_lock();
+          //          if ( !is_aligned<alignof(T)>(buf) ) gdb_lock();
           blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
               T(-1.0),pivot_nzval,src_snode_size,
               facing_nzval,src_snode_size,beta,buf,ldbuf);
           SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_GEMM);
 
           if (!in_place) {
-            for ( int facingidx = 0; facingidx < facing.nblocks(); facingidx++){
+            for ( int facingidx = 0; facingidx < facing.nblocks(); facingidx++) {
               auto & facing_blk = facing._block_container[facingidx];
 
               int blkidx = 0;
-              for ( blkidx = tgt_first_upd_blk_idx; blkidx<= tgt_last_upd_blk_idx; blkidx++){
+              for ( blkidx = tgt_first_upd_blk_idx; blkidx<= tgt_last_upd_blk_idx; blkidx++) {
                 if ( this->_block_container[blkidx].first_row <= facing_blk.first_row &&
                     this->_block_container[blkidx].first_row + this->block_nrows(blkidx) >=
                     facing_blk.first_row + facing.block_nrows(facing_blk))
@@ -1394,10 +1309,6 @@ bassert(this->in_avail_counter-cnt >= 0);
           return 0;
         }
 
-
-
-
-
         virtual void copy_row_structure( int_t width, blockCell_t * other ) { 
           this->i = other->i;
           this->j = other->j;
@@ -1406,19 +1317,15 @@ bassert(this->in_avail_counter-cnt >= 0);
           this->_dims = std::make_tuple(width);
           this->first_col = other->first_col;
 
-          //if ( this->nz_capacity() < nnz ) {
           this->allocate(nnz,other->nblocks(),true);
-          //}
-          //if ( this->nnz() != nnz ) {
           this->initialize(nnz,other->nblocks());
           for ( auto & cur_block: other->blocks() ) {
             this->add_block(cur_block.first_row,other->block_nrows(cur_block));
           }
-          //}
         }
 
 
-        virtual int forward_update( blockCellBase_t * psrc_cell){
+        virtual int forward_update( blockCellBase_t * psrc_cell) {
           //src_cell is a descendant of the supernode corresponding to *this
           blockCell_t & src_cell = *dynamic_cast<blockCell_t*>(psrc_cell);
 
@@ -1426,10 +1333,10 @@ bassert(this->in_avail_counter-cnt >= 0);
           bassert(ldsol==src_cell.width());
 
           int_t tgt_blk_idx  = 0;
-          for( auto & src_block: src_cell.blocks() ){
-            for ( ; tgt_blk_idx < this->nblocks(); tgt_blk_idx++ ){
+          for ( auto & src_block: src_cell.blocks() ) {
+            for ( ; tgt_blk_idx < this->nblocks(); tgt_blk_idx++ ) {
               auto & block = this->_block_container[tgt_blk_idx];
-              if(src_block.first_row >= block.first_row && src_block.first_row <= block.first_row + this->block_nrows(block) -1)
+              if (src_block.first_row >= block.first_row && src_block.first_row <= block.first_row + this->block_nrows(block) -1)
                 break;
             }
 
@@ -1446,12 +1353,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           return 0;
         }
 
-
-
-
-
-        virtual int forward_update_contrib( blockCellBase_t * ptgt_contrib, blockCellBase_t * pdiag_contrib = nullptr){
-
+        virtual int forward_update_contrib( blockCellBase_t * ptgt_contrib, blockCellBase_t * pdiag_contrib = nullptr) {
           bassert(dynamic_cast<blockCell_t*>(ptgt_contrib));
           blockCell_t & tgt_contrib = *dynamic_cast<blockCell_t*>(ptgt_contrib);
 
@@ -1463,17 +1365,17 @@ bassert(this->in_avail_counter-cnt >= 0);
             auto diag_nzval = this->_nzval;
             blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
           }
-          else{
+          else {
             bassert(pdiag_contrib);
             bassert(dynamic_cast<blockCell_t*>(pdiag_contrib));
             blockCell_t & diag_contrib = *dynamic_cast<blockCell_t*>(pdiag_contrib);
 
             int_t tgt_blk_idx  = 0;
-            for( auto & src_block: this->blocks() ){
-              for ( ; tgt_blk_idx < tgt_contrib.nblocks(); tgt_blk_idx++ ){
+            for ( auto & src_block: this->blocks() ) {
+              for ( ; tgt_blk_idx < tgt_contrib.nblocks(); tgt_blk_idx++ ) {
                 auto & block = tgt_contrib._block_container[tgt_blk_idx];
-                if(src_block.first_row >= block.first_row && src_block.first_row <= block.first_row + tgt_contrib.block_nrows(block) -1)
-                  break;
+                if (src_block.first_row >= block.first_row && 
+                       src_block.first_row <= block.first_row + tgt_contrib.block_nrows(block) -1) break;
               }
 
               auto & block = tgt_contrib._block_container[tgt_blk_idx];
@@ -1488,44 +1390,35 @@ bassert(this->in_avail_counter-cnt >= 0);
           return 0;
         }
 
-
-        virtual int back_update( blockCellBase_t * psrc_cell){
-          //      //src_cell is an ancestor of the supernode corresponding to *this
+        virtual int back_update( blockCellBase_t * psrc_cell) {
+          //src_cell is an ancestor of the supernode corresponding to *this
           blockCell_t & src_cell = *dynamic_cast<blockCell_t*>(psrc_cell);
-
           Int ldsol = this->width();
           bassert(ldsol==src_cell.width());
           bassert(this->total_rows()==src_cell.total_rows());
-
           blas::Axpy( src_cell.nnz(),1.0,src_cell._nzval, 1, this->_nzval,1);
-
           return 0;
         }
 
-#define DGEMM_ROWMAJOR(A,B,C,m,n,k,alpha,beta,transf_A,transf_B, lda, ldb, ldc) \
-        blas::Gemm(transf_B, transf_A, n, m, k, alpha, B, ldb, A, lda, beta, C, ldc)
-
-        virtual int back_update_contrib( blockCellBase_t * ptgt_contrib, blockCellBase_t * pdiag_contrib = nullptr){
+        virtual int back_update_contrib( blockCellBase_t * ptgt_contrib, blockCellBase_t * pdiag_contrib = nullptr) {
           bassert(dynamic_cast<blockCell_t*>(ptgt_contrib));
           blockCell_t & tgt_contrib = *dynamic_cast<blockCell_t*>(ptgt_contrib);
-
           Int ldsol = tgt_contrib.width();
           Int ldfact = this->width();
-
           if ( this->i == this->j ) {
             bassert(this->blocks().size()==1);
             auto diag_nzval = this->_nzval;
             blas::Trsm('R','U','T','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
           }
-          else{
+          else {
             bassert(pdiag_contrib);
             bassert(dynamic_cast<blockCell_t*>(pdiag_contrib));
             blockCell_t & diag_contrib = *dynamic_cast<blockCell_t*>(pdiag_contrib);
             int_t src_blk_idx  = 0;
-            for( auto & fact_block: this->blocks() ){
-              for ( ; src_blk_idx < diag_contrib.nblocks(); src_blk_idx++ ){
+            for ( auto & fact_block: this->blocks() ) {
+              for ( ; src_blk_idx < diag_contrib.nblocks(); src_blk_idx++ ) {
                 auto & block = diag_contrib._block_container[src_blk_idx];
-                if(fact_block.first_row >= block.first_row && fact_block.first_row <= block.first_row + diag_contrib.block_nrows(block) -1)
+                if (fact_block.first_row >= block.first_row && fact_block.first_row <= block.first_row + diag_contrib.block_nrows(block) -1)
                   break;
               }
 
@@ -1533,6 +1426,12 @@ bassert(this->in_avail_counter-cnt >= 0);
               T * src = diag_contrib._nzval + block.offset + (fact_block.first_row - block.first_row)*ldsol;
               T * fact = this->_nzval+fact_block.offset;
               //Do -X*LT (gemm)
+              //          if ( src == nullptr ) gdb_lock();
+              //          if ( fact == nullptr ) gdb_lock();
+              //          if ( tgt_contrib._nzval == nullptr ) gdb_lock();
+              //          if ( !is_aligned<alignof(T)>(src) ) gdb_lock();
+              //          if ( !is_aligned<alignof(T)>(fact) ) gdb_lock();
+              //          if ( !is_aligned<alignof(T)>(tgt_contrib._nzval) ) gdb_lock();
               blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
             }
           }
@@ -1736,7 +1635,7 @@ bassert(this->in_avail_counter-cnt >= 0);
             this->_diag = reinterpret_cast<T*>( this->_nzval + nzval_cnt );
             this->_block_container._blocks = reinterpret_cast<block_t*>( this->_diag + this->width() );
           }
-          else{
+          else {
             this->_diag = nullptr;
           }
 
@@ -1753,7 +1652,7 @@ bassert(this->in_avail_counter-cnt >= 0);
               aligned_size = std::ceil(( (nzval_cnt+this->width())*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
               //this->_gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) + this->width()*sizeof(T) );
             }
-            else{
+            else {
               aligned_size = std::ceil((nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
               //this->_gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
             }
@@ -1780,13 +1679,13 @@ bassert(this->in_avail_counter-cnt >= 0);
         void print_block(const blockCellLDL_t & block, std::string prefix) const{  
           logfileptr->OFS()<<prefix<<" ("<<block.i<<","<<block.j<<")"<<std::endl;
           logfileptr->OFS()<<prefix<<" nzval:"<<std::endl;
-          for(auto & nzblock: block.blocks() ){
+          for (auto & nzblock: block.blocks() ) {
             logfileptr->OFS()<<nzblock.first_row<<"-|"<<block.first_col<<"---------------------"<<block.first_col+block.width()-1<<std::endl;
-            for(int vrow = 0; vrow< block.block_nrows(nzblock); vrow++){
+            for (int vrow = 0; vrow< block.block_nrows(nzblock); vrow++) {
               //logfileptr->OFS()<<nzblock.first_row+vrow<<" | ";
               std::streamsize p = logfileptr->OFS().precision();
               logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
-              for(int vcol = 0; vcol< block.width() ; vcol++){
+              for (int vcol = 0; vcol< block.width() ; vcol++) {
                 logfileptr->OFS()<<std::scientific<<ToMatlabScalar(block._nzval[nzblock.offset+vrow*block.width()+vcol])<<" ";
               }
               logfileptr->OFS().precision(p);
@@ -1799,7 +1698,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
 
 
-        virtual int factorize( TempUpdateBuffers<T> & tmpBuffers){
+        virtual int factorize( TempUpdateBuffers<T> & tmpBuffers) {
           scope_timer(a,blockCellLDL_t::factorize);
 #if defined(_NO_COMPUTATION_)
           return 0;
@@ -1813,9 +1712,9 @@ bassert(this->in_avail_counter-cnt >= 0);
             lapack::Potrf_LDL( "U", snode_size, diag_nzval, snode_size, tmpBuffers, INFO);
             //copy the diagonal entries into the diag portion of the supernode
 #pragma unroll
-            for(int_t col = 0; col< snode_size; col++){ this->_diag[col] = diag_nzval[col+ (col)*snode_size]; }
+            for (int_t col = 0; col< snode_size; col++) { this->_diag[col] = diag_nzval[col+ (col)*snode_size]; }
           }
-          catch(const std::runtime_error& e){
+          catch(const std::runtime_error& e) {
             std::cerr << "Runtime error: " << e.what() << '\n';
             gdb_lock();
           }
@@ -1823,7 +1722,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           return 0;
         }
 
-        virtual int trsm( const blockCellBase_t * pdiag, TempUpdateBuffers<T> & tmpBuffers){
+        virtual int trsm( const blockCellBase_t * pdiag, TempUpdateBuffers<T> & tmpBuffers) {
           scope_timer(a,blockCellLDL_t::trsm);
 #if defined(_NO_COMPUTATION_)
           return 0;
@@ -1848,8 +1747,8 @@ bassert(this->in_avail_counter-cnt >= 0);
           }
 
 #ifndef _NDEBUG_
-          for(int_t i = 0; i< this->total_rows(); i++){
-            for(int_t j = 0; j< snode_size; j++){
+          for (int_t i = 0; i< this->total_rows(); i++) {
+            for (int_t j = 0; j< snode_size; j++) {
               bassert(std::isfinite(nzblk_nzval[i*snode_size+j]));
             }
           }
@@ -1859,7 +1758,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           return 0;
         }
 
-        virtual int update(  /*const*/ blockCellBase_t * ppivot, /*const*/ blockCellBase_t * pfacing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr){
+        virtual int update(  /*const*/ blockCellBase_t * ppivot, /*const*/ blockCellBase_t * pfacing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr) {
           scope_timer(a,blockCellLDL_t::update);
 #if defined(_NO_COMPUTATION_)
           return 0;
@@ -1920,11 +1819,11 @@ bassert(this->in_avail_counter-cnt >= 0);
             size_t tgt_offset = 0;
             bool in_place = ( first_pivot_idx == last_pivot_idx );
 
-            if (in_place){ 
+            if (in_place) { 
               int tgt_first_upd_blk_idx  = 0;
-              for ( ; tgt_first_upd_blk_idx < this->_block_container.size(); tgt_first_upd_blk_idx++ ){
+              for ( ; tgt_first_upd_blk_idx < this->_block_container.size(); tgt_first_upd_blk_idx++ ) {
                 auto & block = this->_block_container[tgt_first_upd_blk_idx];
-                if(facing_fr >= block.first_row && facing_fr <= block.first_row + this->block_nrows(block) -1)
+                if (facing_fr >= block.first_row && facing_fr <= block.first_row + this->block_nrows(block) -1)
                   break;
               }
 
@@ -1934,9 +1833,9 @@ bassert(this->in_avail_counter-cnt >= 0);
 
               //find the last block updated
               int tgt_last_upd_blk_idx  = this->_block_container.size()-1;
-              for ( ; tgt_last_upd_blk_idx > tgt_first_upd_blk_idx; tgt_last_upd_blk_idx-- ){
+              for ( ; tgt_last_upd_blk_idx > tgt_first_upd_blk_idx; tgt_last_upd_blk_idx-- ) {
                 auto & block = this->_block_container[tgt_last_upd_blk_idx];
-                if(facing_lr >= block.first_row && facing_lr <= block.first_row + this->block_nrows(block) -1)
+                if (facing_lr >= block.first_row && facing_lr <= block.first_row + this->block_nrows(block) -1)
                   break;
               }
               //make sure that in between these two blocks, everything matches
@@ -1962,14 +1861,14 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             int ldbuf = tgt_width;
 
-            if(in_place)
+            if (in_place)
             {
               //TODO
               buf = tgt + tgt_offset;
               beta = T(1);
               ldbuf = tgt_snode_size;
             }
-            else{
+            else {
               //Compute the update in a temporary buffer
 #ifdef SP_THREADS
               tmpBuffers.tmpBuf.resize(tgt_width*src_nrows /*+ src_snode_size*tgt_width*/);
@@ -1985,8 +1884,8 @@ bassert(this->in_avail_counter-cnt >= 0);
             if ( computeW ) {
               pivot._bufLDL = new T[src_snode_size*tgt_width];
               bufLDL = pivot._bufLDL;//bufLDL_storage.data();
-              for(int_t row = 0; row<src_snode_size; row++){
-                for(int_t col = 0; col<tgt_width; col++){
+              for (int_t row = 0; row<src_snode_size; row++) {
+                for (int_t col = 0; col<tgt_width; col++) {
                   bufLDL[col+row*tgt_width] = diag[row]*(pivot_nzval[row+col*src_snode_size]);
                 }
               }
@@ -1995,6 +1894,12 @@ bassert(this->in_avail_counter-cnt >= 0);
             bufLDL = pivot._bufLDL;
 
             //Then do -L*W (gemm)
+            //          if ( bufLDL == nullptr ) gdb_lock();
+            //          if ( facing_nzval == nullptr ) gdb_lock();
+            //          if ( buf == nullptr ) gdb_lock();
+            //          if ( !is_aligned<alignof(T)>(bufLDL) ) gdb_lock();
+            //          if ( !is_aligned<alignof(T)>(facing_nzval) ) gdb_lock();
+            //          if ( !is_aligned<alignof(T)>(buf) ) gdb_lock();
             blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
                 T(-1.0),bufLDL,tgt_width,facing_nzval,src_snode_size,beta,buf,ldbuf);
 
@@ -2012,8 +1917,8 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             //If the GEMM wasn't done in place we need to aggregate the update
             //This is the assembly phase
-            //            if(src_nrows != tgt_nrows)
-            if(!in_place)
+            //            if (src_nrows != tgt_nrows)
+            if (!in_place)
             {
               {
                 SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_INDEX_MAP);
@@ -2032,18 +1937,18 @@ bassert(this->in_avail_counter-cnt >= 0);
 
                   //The other one MUST reside into a single block in the target
                   rowind_t row = cur_src_fr;
-                  while(row<=cur_src_lr){
+                  while (row<=cur_src_lr) {
                     do {
                       if (tgt_ptr->first_row <= row 
                           && row< tgt_ptr->first_row + this->block_nrows(*tgt_ptr) ) {
                         break;
                       }
-                    } while( ++tgt_ptr<this->_block_container._blocks + this->_block_container._nblocks ); 
+                    } while ( ++tgt_ptr<this->_block_container._blocks + this->_block_container._nblocks ); 
 
                     int_t lr = std::min(cur_src_lr,tgt_ptr->first_row + this->block_nrows(*tgt_ptr)-1);
                     int_t tgtOffset = tgt_ptr->offset + (row - tgt_ptr->first_row)*tgt_snode_size;
 
-                    for(int_t cr = row ;cr<=lr;++cr){
+                    for (int_t cr = row ;cr<=lr;++cr) {
                       offset+=tgt_width;
                       tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
                       rowidx++;
@@ -2066,17 +1971,17 @@ bassert(this->in_avail_counter-cnt >= 0);
                 //Multiple cases to consider
                 SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_INDEX_MAP);
                 SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_ADD);
-                if(first_pivot_idx==last_pivot_idx){
+                if (first_pivot_idx==last_pivot_idx) {
                   // Updating contiguous columns
                   rowind_t tgt_offset = (tgt_fc - this->first_col);
                   for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
                     T * A = &buf[rowidx*tgt_width];
                     T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
 #pragma unroll
-                    for(rowind_t i = 0; i < tgt_width; ++i){ B[i] += A[i]; }
+                    for (rowind_t i = 0; i < tgt_width; ++i) { B[i] += A[i]; }
                   }
                 }
-                else{
+                else {
                   // full sparse case
                   for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
                     for (colptr_t colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx) {
@@ -2158,14 +2063,14 @@ bassert(this->in_avail_counter-cnt >= 0);
       double mem_budget;
 
       //using cell_key_t = std::size_t;
-      //cell_key_t coord2supidx(uint64_t i, uint64_t j){ 
+      //cell_key_t coord2supidx(uint64_t i, uint64_t j) { 
       //  cell_key_t val =  (i-j) + j*(nsuper+1) - (j+1)*(j)/2;  
       //  bassert(val>=0);
       //  return val;
       //};
 
       using cell_key_t = std::pair<uint64_t,uint64_t>;;
-      cell_key_t coord2supidx(uint64_t i, uint64_t j){ 
+      cell_key_t coord2supidx(uint64_t i, uint64_t j) { 
         cell_key_t val = std::make_pair(i,j);
         return val;
       };
@@ -2190,7 +2095,7 @@ bassert(this->in_avail_counter-cnt >= 0);
         auto idx = coord2supidx((a),(b)); 
         auto it = this->cells_.find(idx);
         snodeBlock_sptr_t ptr = nullptr;
-        if (it != this->cells_.end() ){ 
+        if (it != this->cells_.end() ) { 
           ptr = std::dynamic_pointer_cast<snodeBlock_t>(it->second);
           bassert ( ptr != nullptr );
         }
@@ -2227,7 +2132,7 @@ bassert(this->in_avail_counter-cnt >= 0);
       //      inline snodeBlock_t & CELL (int a, int b) { auto ptr = pQueryCELL(a,b); assert(ptr && (ptr->i-1==a && ptr->j-1==b)); return *std::static_pointer_cast<snodeBlock_t>(ptr);  }
 
       //TODO implement this
-      //auto idx2coord = [nsuper](Int idx){ return 0; };
+      //auto idx2coord = [nsuper](Int idx) { return 0; };
 
       protected:
 
@@ -2291,16 +2196,16 @@ bassert(this->in_avail_counter-cnt >= 0);
   }
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
-    symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::~symPACKMatrix2D(){
+    symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::~symPACKMatrix2D() {
 
     }
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
-    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Init(symPACKOptions & options ){
+    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Init(symPACKOptions & options ) {
       scope_timer(a,symPACKMatrix2D::Init);
       this->options_ = options;
       logfileptr->verbose = this->options_.verbose>0;
-      if(this->options_.verbose==0){
+      if (this->options_.verbose==0) {
         symPACKOS.rdbuf(nullptr);
       }
 
@@ -2312,10 +2217,8 @@ bassert(this->in_avail_counter-cnt >= 0);
       MPI_Comm_rank(this->options_.MPIcomm,&this->iam);
 #endif
 
-#ifdef NEW_UPCXX
       this->iam = upcxx::rank_me();
       this->all_np = upcxx::rank_n();
-#endif
 
       this->np = this->all_np;//this->options_.used_procs(this->all_np);
       this->dist_np = this->all_np;
@@ -2325,7 +2228,7 @@ bassert(this->in_avail_counter-cnt >= 0);
       MPI_Comm_split(this->options_.MPIcomm,this->iam<this->np,this->iam,&this->workcomm_);
 
       //do another split to contain P0 and all the non working processors
-      if(this->all_np!=this->np){
+      if (this->all_np!=this->np) {
         this->non_workcomm_ = MPI_COMM_NULL;
         MPI_Comm_split(this->options_.MPIcomm,this->iam==0||this->iam>=this->np,this->iam==0?0:this->iam-this->np+1,&this->non_workcomm_);
       }
@@ -2336,11 +2239,11 @@ bassert(this->in_avail_counter-cnt >= 0);
     } 
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
-    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Init(DistSparseMatrix<T> & pMat,symPACKOptions & options ){
+    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Init(DistSparseMatrix<T> & pMat,symPACKOptions & options ) {
     } 
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
-    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::SymbolicFactorization(DistSparseMatrix<T> & pMat ){
+    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::SymbolicFactorization(DistSparseMatrix<T> & pMat ) {
       scope_timer(a,symPACKMatrix2D::SymbolicFactorization);
       std::vector<Int> cc;
       {
@@ -2356,7 +2259,7 @@ bassert(this->in_avail_counter-cnt >= 0);
         Int I;
 
 #ifndef NO_MPI
-        if(this->fullcomm_!=MPI_COMM_NULL){
+        if (this->fullcomm_!=MPI_COMM_NULL) {
           MPI_Comm_free(&this->fullcomm_);
         }
         MPI_Comm_dup(pMat.comm,&this->fullcomm_);
@@ -2376,47 +2279,47 @@ bassert(this->in_avail_counter-cnt >= 0);
             double timeSta = get_time();
             scope_timer(c,symPACKMatrix2D::ordering);
 
-            if(this->options_.orderingStr=="MMD"){
+            if (this->options_.orderingStr=="MMD") {
               this->options_.ordering = symPACK::MMD;
             }
-            else if(this->options_.orderingStr=="RCM"){
+            else if (this->options_.orderingStr=="RCM") {
               this->options_.ordering = symPACK::RCM;
             }
-            else if(this->options_.orderingStr=="AMD"){
+            else if (this->options_.orderingStr=="AMD") {
               this->options_.ordering = symPACK::AMD;
             }
 #ifdef USE_METIS
-            else if(this->options_.orderingStr=="METIS"){
+            else if (this->options_.orderingStr=="METIS") {
               this->options_.ordering = symPACK::METIS;
             }
 #endif
 #ifdef USE_SCOTCH
-            else if(this->options_.orderingStr=="SCOTCH"){
+            else if (this->options_.orderingStr=="SCOTCH") {
               this->options_.ordering = symPACK::SCOTCH;
             }
 #endif
 #ifdef USE_PARMETIS
-            else if(this->options_.orderingStr=="PARMETIS"){
+            else if (this->options_.orderingStr=="PARMETIS") {
               this->options_.ordering = symPACK::PARMETIS;
             }
 #endif
 #ifdef USE_PTSCOTCH
-            else if(this->options_.orderingStr=="PTSCOTCH"){
+            else if (this->options_.orderingStr=="PTSCOTCH") {
               this->options_.ordering = symPACK::PTSCOTCH;
             }
 #endif
-            else if(this->options_.orderingStr=="NATURAL"){
+            else if (this->options_.orderingStr=="NATURAL") {
               this->options_.ordering = symPACK::NATURAL;
             }
-            else if(this->options_.orderingStr=="USER"){
-              if(this->options_.perm ==nullptr){
+            else if (this->options_.orderingStr=="USER") {
+              if (this->options_.perm ==nullptr) {
                 throw std::logic_error( "When using USER, symPACKOptions.perm must be provided.\n" );
               }
-              else{
+              else {
                 this->options_.ordering = symPACK::USER;
               }
             }
-            else{
+            else {
               std::stringstream sstr;
               sstr<<"This ordering method is not supported by symPACK. Valid options are:";
               sstr<<"NATURAL MMD AMD RCM NDBOX NDGRID USER ";
@@ -2438,7 +2341,7 @@ bassert(this->in_avail_counter-cnt >= 0);
             }
 
             this->Order_.NpOrdering = this->options_.NpOrdering;
-            switch(this->options_.ordering){
+            switch(this->options_.ordering) {
               case MMD:
                 {
                   sgraph = new SparseMatrixGraph();
@@ -2475,9 +2378,9 @@ bassert(this->in_avail_counter-cnt >= 0);
                   //find baseval
                   auto baseval = std::min_element(&this->options_.perm[0],&this->options_.perm[0]+this->iSize_);
                   //now compute everything in 1 based 
-                  for(int i=0;i<this->Order_.perm.size();i++){this->Order_.perm[i] = this->options_.perm[i] - *baseval + 1; /*1 based*/}
+                  for (int i=0;i<this->Order_.perm.size();i++) {this->Order_.perm[i] = this->options_.perm[i] - *baseval + 1; /*1 based*/}
                   this->Order_.invp.resize(this->iSize_);
-                  for(int i=0;i<this->Order_.perm.size();i++){this->Order_.invp[this->Order_.perm[i]-1] = i;} 
+                  for (int i=0;i<this->Order_.perm.size();i++) {this->Order_.invp[this->Order_.perm[i]-1] = i;} 
                 }
                 break;
 
@@ -2528,7 +2431,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 #endif
               case NATURAL:
                 this->Order_.perm.resize(this->iSize_);
-                for(int i=0;i<this->Order_.perm.size();i++){this->Order_.perm[i]=i+1;} 
+                for (int i=0;i<this->Order_.perm.size();i++) {this->Order_.perm[i]=i+1;} 
                 this->Order_.invp = this->Order_.perm;
                 break;
               default:
@@ -2557,16 +2460,16 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             //The ordering is available on every processor of the full communicator
             double timeStop = get_time();
-            if(this->iam==0 && this->options_.verbose){
+            if (this->iam==0 && this->options_.verbose) {
               symPACKOS<<"Ordering time: "<<timeStop - timeSta<<std::endl;
             }
             logfileptr->OFS()<<"Ordering done"<<std::endl;
           }
         }
 
-        if(this->options_.dumpPerm>0){
+        if (this->options_.dumpPerm>0) {
           logfileptr->OFS()<<"perm = [";
-          for (auto i : this->Order_.perm){ 
+          for (auto i : this->Order_.perm) { 
             logfileptr->OFS()<<i<<" ";
           }
           logfileptr->OFS()<<"]"<<std::endl;
@@ -2575,7 +2478,7 @@ bassert(this->in_avail_counter-cnt >= 0);
         std::vector<Int> rc;
 
 
-        if(sgraph==nullptr){ 
+        if (sgraph==nullptr) { 
           logfileptr->OFS()<<"copying graph"<<std::endl;
           auto graph = this->graph_;
           double timeSta = get_time();
@@ -2601,26 +2504,26 @@ bassert(this->in_avail_counter-cnt >= 0);
           double timeSta_cc = get_time();
           this->getLColRowCount(graph,cc,rc);
           double timeStop_cc = get_time();
-          if(this->iam==0 && this->options_.verbose){
+          if (this->iam==0 && this->options_.verbose) {
             symPACKOS<<"Column count (distributed) construction time: "<<timeStop_cc - timeSta_cc<<std::endl;
           }
 
-          if(this->options_.ordering != NATURAL){
+          if (this->options_.ordering != NATURAL) {
             this->ETree_.SortChildren(cc,this->Order_);
-            if(this->options_.dumpPerm>0){
+            if (this->options_.dumpPerm>0) {
               logfileptr->OFS()<<"perm = "<<this->Order_.perm<<std::endl;
             }
           }
 
           double timeStop = get_time();
-          if(this->iam==0 && this->options_.verbose){
+          if (this->iam==0 && this->options_.verbose) {
             symPACKOS<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
           }
         }
         else
         {
           //gather the graph if necessary to build the elimination tree
-          if(sgraph==nullptr){ 
+          if (sgraph==nullptr) { 
             sgraph = new SparseMatrixGraph();
             this->graph_.GatherStructure(*sgraph,0);
           }
@@ -2635,28 +2538,28 @@ bassert(this->in_avail_counter-cnt >= 0);
           double timeSta_cc = get_time();
           this->getLColRowCount(*sgraph,cc,rc);
           double timeStop_cc = get_time();
-          if(this->iam==0 && this->options_.verbose){
+          if (this->iam==0 && this->options_.verbose) {
             symPACKOS<<"Column count (gather + serial + bcast) construction time: "<<timeStop_cc - timeSta_cc<<std::endl;
           }
 
-          if(this->options_.ordering != NATURAL){
+          if (this->options_.ordering != NATURAL) {
             this->ETree_.SortChildren(cc,this->Order_);
-            if(this->options_.dumpPerm>0){
+            if (this->options_.dumpPerm>0) {
               logfileptr->OFS()<<"perm = "<<this->Order_.perm<<std::endl;
             }
           }
 
           double timeStop = get_time();
-          if(this->iam==0 && this->options_.verbose){
+          if (this->iam==0 && this->options_.verbose) {
             symPACKOS<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
           }
         }
 
         //compute some statistics
-        if(this->iam==0 && this->options_.verbose){
+        if (this->iam==0 && this->options_.verbose) {
           double flops = 0.0;
           int64_t NNZ = 0;
-          for(Int i = 0; i<cc.size();++i){
+          for (Int i = 0; i<cc.size();++i) {
             flops+= (double)pow((double)cc[i],2.0);
             NNZ+=cc[i];
           }
@@ -2665,14 +2568,14 @@ bassert(this->in_avail_counter-cnt >= 0);
         }
 
         //get rid of the sequential graph
-        if(sgraph!=nullptr && this->options_.order_refinement_str.substr(0,4) != "TSPB"){delete sgraph;}
+        if (sgraph!=nullptr && this->options_.order_refinement_str.substr(0,4) != "TSPB") {delete sgraph;}
 
         { 
           double timeSta = get_time();
           this->findSupernodes(this->ETree_,this->Order_,cc,this->SupMembership_,this->Xsuper_,this->options_.relax.maxSize);
           logfileptr->OFS()<<"Supernodes found"<<std::endl;
 
-          if(this->options_.relax.nrelax0>0)
+          if (this->options_.relax.nrelax0>0)
           {
             this->relaxSupernodes(this->ETree_, cc,this->SupMembership_, this->Xsuper_, this->options_.relax );
             logfileptr->OFS()<<"Relaxation done"<<std::endl;
@@ -2682,15 +2585,15 @@ bassert(this->in_avail_counter-cnt >= 0);
           this->dist_np = std::min(this->all_np,this->options_.used_procs(this->Xsuper_.size()-1)); 
           this->np = this->all_np;// std::min(this->np,this->options_.used_procs(this->Xsuper_.size()-1)); 
 
-          if(this->workcomm_!=MPI_COMM_NULL){
+          if (this->workcomm_!=MPI_COMM_NULL) {
             MPI_Comm_free(&this->workcomm_);
           }
           MPI_Comm_split(this->options_.MPIcomm,this->iam<this->np,this->iam,&this->workcomm_);
           this->group_.reset( new RankGroup( this->workcomm_ ) ); 
 
           //do another split to contain P0 and all the non working processors
-          if(this->all_np!=this->np){
-            if(this->non_workcomm_!=MPI_COMM_NULL){
+          if (this->all_np!=this->np) {
+            if (this->non_workcomm_!=MPI_COMM_NULL) {
               MPI_Comm_free(&this->non_workcomm_);
             }
             this->non_workcomm_ = MPI_COMM_NULL;
@@ -2703,10 +2606,10 @@ bassert(this->in_avail_counter-cnt >= 0);
             Idx supPerProc = std::max((size_t)1,(this->Xsuper_.size()-1) / this->dist_np);
             this->XsuperDist_.resize(this->all_np+1,0);
             this->XsuperDist_[this->dist_np] = this->Xsuper_.size();
-            for(int p = 0; p<this->dist_np; p++){
+            for (int p = 0; p<this->dist_np; p++) {
               this->XsuperDist_[p]= std::min(this->XsuperDist_[this->dist_np],(Int)(p*supPerProc+1));
             }
-            for(int p = this->dist_np+1; p<this->all_np; p++){
+            for (int p = this->dist_np+1; p<this->all_np; p++) {
               this->XsuperDist_[p]= this->XsuperDist_[p-1];
             }
             this->XsuperDist_[this->all_np] = this->Xsuper_.size();
@@ -2714,7 +2617,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             newVertexDist.resize(this->all_np+1,0);
             newVertexDist[this->all_np] = this->iSize_+1;
-            for(int p = 0; p < this->all_np; p++){
+            for (int p = 0; p < this->all_np; p++) {
               Int S = this->XsuperDist_[p];
               newVertexDist[p] = this->Xsuper_[S-1];
             }
@@ -2728,55 +2631,55 @@ bassert(this->in_avail_counter-cnt >= 0);
           this->symbolicFactorizationRelaxedDist(cc);
 
           double timeStopSymb = get_time();
-          if(this->iam==0 && this->options_.verbose){
+          if (this->iam==0 && this->options_.verbose) {
             symPACKOS<<"Symbolic factorization time: "<<timeStopSymb - timeStaSymb<<std::endl;
           }
           logfileptr->OFS()<<"Symbfact done"<<std::endl;
 
 
-          if(this->options_.order_refinement_str != "NO") {
+          if (this->options_.order_refinement_str != "NO") {
             double timeSta = get_time();
-            if(this->options_.order_refinement_str == "SET"){ 
+            if (this->options_.order_refinement_str == "SET") { 
               this->refineSupernodes(3,1,&pMat);
             }
-            else if(this->options_.order_refinement_str == "SET10"){ 
+            else if (this->options_.order_refinement_str == "SET10") { 
               this->refineSupernodes(1,0,&pMat);
             }
-            else if(this->options_.order_refinement_str == "SET11"){ 
+            else if (this->options_.order_refinement_str == "SET11") { 
               this->refineSupernodes(1,1,&pMat);
             }
-            else if(this->options_.order_refinement_str == "SET20"){ 
+            else if (this->options_.order_refinement_str == "SET20") { 
               this->refineSupernodes(2,0,&pMat);
             }
-            else if(this->options_.order_refinement_str == "SET21"){ 
+            else if (this->options_.order_refinement_str == "SET21") { 
               this->refineSupernodes(2,1,&pMat);
             }
-            else if(this->options_.order_refinement_str == "SET30"){ 
+            else if (this->options_.order_refinement_str == "SET30") { 
               this->refineSupernodes(3,0,&pMat);
             }
-            else if(this->options_.order_refinement_str == "SET31"){ 
+            else if (this->options_.order_refinement_str == "SET31") { 
               this->refineSupernodes(3,1,&pMat);
             }
-            else if(this->options_.order_refinement_str == "TSP"){
+            else if (this->options_.order_refinement_str == "TSP") {
               auto SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
 
               std::vector<Ptr> xlindx;
               std::vector<Idx> lindx;
               this->gatherLStructure(xlindx, lindx);
 
-              if(this->iam==0){
+              if (this->iam==0) {
                 TSP::SymbolMatrix * symbmtx = TSP::GetPastixSymbolMatrix(this->Xsuper_,this->SupMembership_, xlindx, lindx);
                 TSP::Order * psorder = TSP::GetPastixOrder(symbmtx,this->Xsuper_, SupETree, &this->Order_.perm[0], &this->Order_.invp[0]);
 
                 double timeSta = get_time();
                 TSP::symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
                 double timeStop = get_time();
-                if(this->iam==0 && this->options_.verbose){
+                if (this->iam==0 && this->options_.verbose) {
                   symPACKOS<<"TSP reordering done in "<<timeStop-timeSta<<std::endl;
                 }
 
                 //overwrite order
-                for(int i = 0; i < this->Order_.perm.size(); ++i){
+                for (int i = 0; i < this->Order_.perm.size(); ++i) {
                   this->Order_.perm[i] = psorder->peritab[i]+1;
                   this->Order_.invp[i] = psorder->permtab[i]+1;
                 }
@@ -2785,9 +2688,9 @@ bassert(this->in_avail_counter-cnt >= 0);
               MPI_Bcast(this->Order_.perm.data(),this->Order_.perm.size()*sizeof(Int),MPI_BYTE,0,this->fullcomm_);
               MPI_Bcast(this->Order_.invp.data(),this->Order_.invp.size()*sizeof(Int),MPI_BYTE,0,this->fullcomm_);
             } 
-            else if(this->options_.order_refinement_str.substr(0,4) == "TSPB"){
+            else if (this->options_.order_refinement_str.substr(0,4) == "TSPB") {
 
-              if(sgraph==nullptr){ 
+              if (sgraph==nullptr) { 
                 sgraph = new SparseMatrixGraph();
                 this->graph_.GatherStructure(*sgraph,0);
               }
@@ -2808,19 +2711,19 @@ bassert(this->in_avail_counter-cnt >= 0);
                 std::vector<Idx> lindx;
                 this->gatherLStructure(xlindx, lindx);
 
-                if(this->iam==0){
+                if (this->iam==0) {
                   ixlindx.resize(xlindx.size());
-                  for(int i = 0;i<xlindx.size();i++){
+                  for (int i = 0;i<xlindx.size();i++) {
                     ixlindx[i] = xlindx[i];
                   }
                   ilindx.resize(lindx.size());
-                  for(int i = 0;i<lindx.size();i++){
+                  for (int i = 0;i<lindx.size();i++) {
                     ilindx[i] = lindx[i];
                   }
                 }
               }
 
-              if(this->iam==0){
+              if (this->iam==0) {
                 bassert(sgraph!=nullptr);
                 int neqns = this->iSize_;
 
@@ -2833,11 +2736,11 @@ bassert(this->in_avail_counter-cnt >= 0);
 
                 std::vector<int>  new_perm(neqns,0);
 
-                for(size_t i =0; i<new_perm.size(); i++){ new_invp[i] = this->Order_.invp[i];}
-                for(size_t i =0; i<new_perm.size(); i++){ new_perm[i] = this->Order_.perm[i];}
+                for (size_t i =0; i<new_perm.size(); i++) { new_invp[i] = this->Order_.invp[i];}
+                for (size_t i =0; i<new_perm.size(); i++) { new_perm[i] = this->Order_.perm[i];}
 
                 int supsiz = 0;
-                for(I = 1; I <= nsuper; I++){
+                for (I = 1; I <= nsuper; I++) {
                   Int fc = this->Xsuper_[I-1];
                   Int lc = this->Xsuper_[I]-1;
                   supsiz = std::max(supsiz,lc-fc+1);
@@ -2847,13 +2750,13 @@ bassert(this->in_avail_counter-cnt >= 0);
                 xadj.resize(sgraph->colptr.size());
                 adj.resize(sgraph->rowind.size());
                 int nadj = adj.size();
-                for(size_t i = 0; i< sgraph->colptr.size(); i++){ xadj[i] = int(sgraph->colptr[i]); }
-                for(size_t i = 0; i< sgraph->rowind.size(); i++){ adj[i] = int(sgraph->rowind[i]); }
+                for (size_t i = 0; i< sgraph->colptr.size(); i++) { xadj[i] = int(sgraph->colptr[i]); }
+                for (size_t i = 0; i< sgraph->rowind.size(); i++) { adj[i] = int(sgraph->rowind[i]); }
 
-                if(sgraph!=nullptr){delete sgraph;}
+                if (sgraph!=nullptr) {delete sgraph;}
 
                 std::vector<int, Mallocator<int> > etpar(neqns);
-                for(int i = 0; i<neqns; i++){ etpar[i] = tree.PostParent(i); }
+                for (int i = 0; i<neqns; i++) { etpar[i] = tree.PostParent(i); }
 
 
                 std::vector<int, Mallocator<int> > xskadj(neqns+1);
@@ -2872,7 +2775,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
                 int iflag = 0;
                 double timeSta = get_time();
-                if(this->options_.order_refinement_str == "TSPB"){
+                if (this->options_.order_refinement_str == "TSPB") {
                   std::vector<int, Mallocator<int> > rep(neqns);
                   FORTRAN(ordsup_ind_tsp_paths2)
                     ( 
@@ -2887,7 +2790,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                      fstloc.data(), sperm.data() , fstloc2.data(), dist1.data(), 
                      suppar.data(), &iwsiz , iwork.data() , rep.data()             );
                 }
-                else{
+                else {
                   FORTRAN(ordsup_ind_tsp_paths)
                     ( 
                      &nadj, &neqns , &nofsub, &nsuper, &supsiz, 
@@ -2903,14 +2806,14 @@ bassert(this->in_avail_counter-cnt >= 0);
                 }
 
                 double timeStop = get_time();
-                if(this->iam==0 && this->options_.verbose){
+                if (this->iam==0 && this->options_.verbose) {
                   symPACKOS<<"TSPB reordering done in "<<timeStop-timeSta<<std::endl;
                 }
 
 
                 //this->Order_.Compose(new_invp);
-                for(size_t i =0; i<new_perm.size(); i++){ this->Order_.invp[i] = new_invp[i];}
-                for(size_t i =0; i<new_perm.size(); i++){ this->Order_.perm[i] = new_perm[i];}
+                for (size_t i =0; i<new_perm.size(); i++) { this->Order_.invp[i] = new_invp[i];}
+                for (size_t i =0; i<new_perm.size(); i++) { this->Order_.perm[i] = new_perm[i];}
               }
 
               // broadcast invp
@@ -2922,7 +2825,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             double timeStop = get_time();
 
-            if(this->iam==0 && this->options_.verbose){
+            if (this->iam==0 && this->options_.verbose) {
               symPACKOS<<"Supernode reordering done in "<<timeStop-timeSta<<std::endl;
             }
 
@@ -2930,7 +2833,7 @@ bassert(this->in_avail_counter-cnt >= 0);
               double timeSta = get_time();
               this->symbolicFactorizationRelaxedDist(cc);
               double timeStop = get_time();
-              if(this->iam==0 && this->options_.verbose){
+              if (this->iam==0 && this->options_.verbose) {
                 symPACKOS<<"Symbolic factorization time: "<<timeStop - timeSta<<std::endl;
               }
               logfileptr->OFS()<<"Symbfact done"<<std::endl;
@@ -2938,15 +2841,15 @@ bassert(this->in_avail_counter-cnt >= 0);
           }
 
           double timeStop = get_time();
-          if(this->iam==0 && this->options_.verbose){
+          if (this->iam==0 && this->options_.verbose) {
             symPACKOS<<"Total symbolic factorization time: "<<timeStop - timeSta<<std::endl;
           }
 
           //Print statistics
-          if(this->options_.print_stats){
+          if (this->options_.print_stats) {
             OrderStats stats;
             stats.get(this->Xsuper_, this->XsuperDist_, this->locXlindx_, this->locLindx_, this->fullcomm_);
-            if (this->iam==0){
+            if (this->iam==0) {
               stats.print();
             }
           }
@@ -2992,8 +2895,8 @@ bassert(this->in_avail_counter-cnt >= 0);
           Int firstSnode = this->XsuperDist_[this->iam];
 
           //now create cell structures
-          for(Int locsupno = this->locXlindx_.size()-1; locsupno >= 1; --locsupno)
-            //          for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno)
+          for (Int locsupno = this->locXlindx_.size()-1; locsupno >= 1; --locsupno)
+            //          for (Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno)
           {
             Idx I = locsupno + firstSnode-1;
             Int first_col = this->Xsuper_[I-1];
@@ -3017,13 +2920,13 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             Int K = -1;
             Int K_prevSnode = -1;
-            for(Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++){
+            for (Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++) {
               Idx K_row = this->locLindx_[K_sidx-1];
               K = this->SupMembership_[K_row-1];
 
               //Split at boundary or after diagonal block
-              if(K!=K_prevSnode){
-                if(K>=I){
+              if (K!=K_prevSnode) {
+                if (K>=I) {
                   //add last block from previous cell
                   if (pNblock) {
                     bassert(K>I);
@@ -3047,11 +2950,11 @@ bassert(this->in_avail_counter-cnt >= 0);
 
 
               //counting contiguous rows
-              if(K_row==iPrevRow+1 || K_row==iStartRow ){
+              if (K_row==iPrevRow+1 || K_row==iStartRow ) {
                 ++iContiguousRows;
               }
               //add previous block from current cell
-              else{
+              else {
                 bassert(iContiguousRows>0);
                 //now we are at the end of a block
                 (*pNblock)++;
@@ -3145,7 +3048,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
               Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
               Int firstSnode = this->XsuperDist_[this->iam];
-              for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
+              for (Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno) {
                 Idx I = locsupno + firstSnode-1;
                 Int first_col = this->Xsuper_[I-1];
                 Int last_col = this->Xsuper_[I]-1;
@@ -3163,20 +3066,20 @@ bassert(this->in_avail_counter-cnt >= 0);
 
                 Int K = -1; 
                 Idx K_prevSnode = -1;
-                for(Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++){
+                for (Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++) {
                   Idx K_row = this->locLindx_[K_sidx-1];
                   K = this->SupMembership_[K_row-1];
 
                   //Split at boundary or after diagonal block
-                  if(K!=K_prevSnode){
-                    if(K>I){
+                  if (K!=K_prevSnode) {
+                    if (K>I) {
                       ancestor_rows.push_back(K_row);
                     }
                   }
                   K_prevSnode = K;
                 }
 
-                for(auto J_row : ancestor_rows){
+                for (auto J_row : ancestor_rows) {
                   Int J = this->SupMembership_[J_row-1];
                   Int iFODOwner = iOwner;
 
@@ -3187,10 +3090,10 @@ bassert(this->in_avail_counter-cnt >= 0);
                   Updates[iFODOwner].push_back(std::make_tuple(I,I,Factorization::op_type::TRSM,J_row,J_row));
 
                   //add the UPDATE_SEND from FODOwner tasks
-                  for(auto K_row : ancestor_rows){
+                  for (auto K_row : ancestor_rows) {
                     K = this->SupMembership_[K_row-1];
 
-                    if(K>=J){
+                    if (K>=J) {
                       Int iTgtOwner = iJOwner;
                       //TODO update this for non fan-out mapping
                       Int iUpdOwner = iTgtOwner;
@@ -3200,7 +3103,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                       Messages[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::UPDATE2D_RECV_OD,K_row,J_row));
                     }
 
-                    if(K<=J){
+                    if (K<=J) {
                       auto iTgtOwner = find_owner(K);
                       //TODO update this for non fan-out mapping
                       Int iUpdOwner = iTgtOwner;
@@ -3211,16 +3114,16 @@ bassert(this->in_avail_counter-cnt >= 0);
                       Messages[iFacingOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_SEND,K_row,J_row));
                       Messages[iUpdOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_RECV,K_row,J_row));
 
-                      if(this->options_.decomposition == DecompositionType::LDL){
+                      if (this->options_.decomposition == DecompositionType::LDL) {
                         Messages[iOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_DIAG_SEND,K_row,J_row));
                         Messages[iUpdOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_DIAG_RECV,K_row,J_row));
                       }
                     }
                   }
 
-                  for(auto K_row : ancestor_rows){
+                  for (auto K_row : ancestor_rows) {
                     K = this->SupMembership_[K_row-1];
-                    if(K>=J){
+                    if (K>=J) {
                       auto ptr_tgtupdcell = pQueryCELL(K-1,J-1);
                       Int iTgtOwner = iJOwner;
                       //TODO update this for non fan-out mapping
@@ -3239,7 +3142,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
               //then do an alltoallv
               //compute send sizes
-              for(auto itp = Updates.begin();itp!=Updates.end();itp++){
+              for (auto itp = Updates.begin();itp!=Updates.end();itp++) {
                 //std::cout<<itp->first<<" "<<itp->second.size()<<std::endl;
                 ssizes[itp->first] = itp->second.size();
               }
@@ -3251,13 +3154,13 @@ bassert(this->in_avail_counter-cnt >= 0);
               //Build the contiguous array of pairs
               sendbuf.reserve(sdispls.back());
 
-              for(auto itp = Updates.begin();itp!=Updates.end();itp++){
+              for (auto itp = Updates.begin();itp!=Updates.end();itp++) {
                 sendbuf.insert(sendbuf.end(),itp->second.begin(),itp->second.end());
               }
 
               //then do an alltoallv
               //compute send sizes
-              for(auto itp = Messages.begin();itp!=Messages.end();itp++){
+              for (auto itp = Messages.begin();itp!=Messages.end();itp++) {
                 ssizes_dep[itp->first] = itp->second.size();
               }
 
@@ -3268,7 +3171,7 @@ bassert(this->in_avail_counter-cnt >= 0);
               //Build the contiguous array of pairs
               sendbuf_dep.reserve(sdispls_dep.back());
 
-              for(auto itp = Messages.begin();itp!=Messages.end();itp++){
+              for (auto itp = Messages.begin();itp!=Messages.end();itp++) {
                 sendbuf_dep.insert(sendbuf_dep.end(),itp->second.begin(),itp->second.end());
               }
 
@@ -3326,7 +3229,7 @@ bassert(this->in_avail_counter-cnt >= 0);
             task_idx.reserve(recvbuf.size());
 
             logfileptr->OFS()<<"------------------------------------ TASK GRAPH --------------------------"<<std::endl;
-            for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
+            for (auto it = recvbuf.begin();it!=recvbuf.end();it++) {
               auto & cur_op = (*it);
               auto & src_snode = std::get<0>(cur_op);
               auto & tgt_snode = std::get<1>(cur_op);
@@ -3335,7 +3238,7 @@ bassert(this->in_avail_counter-cnt >= 0);
               auto & facing_first_row = std::get<4>(cur_op);
 
               SparseTask2D * ptask = nullptr;
-              switch(type){
+              switch(type) {
                 case Factorization::op_type::TRSM:
                 case Factorization::op_type::FACTOR:
                 case Factorization::op_type::UPDATE2D_COMP:
@@ -3353,7 +3256,7 @@ bassert(this->in_avail_counter-cnt >= 0);
               auto I = src_snode;
               auto J = tgt_snode;
 
-              if(ptask!=nullptr){
+              if (ptask!=nullptr) {
                 scheduling::key_t key(this->SupMembership_[std::get<4>(cur_op)-1], std::get<1>(cur_op), std::get<0>(cur_op), std::get<2>(cur_op));
                 task_graph.push_back( std::unique_ptr<SparseTask2D>(ptask) );
                 task_idx.push_back( std::make_tuple(key,task_idx.size()));
@@ -3363,7 +3266,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 #define _UNDEF_VERBOSE_
 #endif
 #ifdef _VERBOSE_
-              switch(type){
+              switch(type) {
                 case Factorization::op_type::TRSM:
                   {
                     auto J = this->SupMembership_[facing_first_row-1];
@@ -3393,7 +3296,7 @@ bassert(this->in_avail_counter-cnt >= 0);
             logfileptr->OFS()<<"------------------------------------ TASK GRAPH --------------------------"<<std::endl;
 
             //sort task_idx by keys
-            std::sort(task_idx.begin(),task_idx.end(),[](std::tuple<scheduling::key_t, std::size_t > &a, std::tuple<scheduling::key_t, std::size_t >&b){ return std::get<0>(a) < std::get<0>(b);});
+            std::sort(task_idx.begin(),task_idx.end(),[](std::tuple<scheduling::key_t, std::size_t > &a, std::tuple<scheduling::key_t, std::size_t >&b) { return std::get<0>(a) < std::get<0>(b);});
 
             MPI_Datatype task_idx_type;
             MPI_Type_contiguous( sizeof(std::tuple<scheduling::key_t, std::size_t >), MPI_BYTE, &task_idx_type );
@@ -3413,10 +3316,10 @@ bassert(this->in_avail_counter-cnt >= 0);
             MPI_Allgatherv(task_idx.data(),task_idx_size,task_idx_type,task_idx_recvbuf.data(),task_idx_rsizes.data(),task_idx_rdispls.data(),task_idx_type,this->workcomm_);
             MPI_Type_free(&task_idx_type);
 
-            auto key_lb_comp = [](const std::tuple<scheduling::key_t, std::size_t > & a, const scheduling::key_t & key){ return std::get<0>(a) < key;};
+            auto key_lb_comp = [](const std::tuple<scheduling::key_t, std::size_t > & a, const scheduling::key_t & key) { return std::get<0>(a) < key;};
             //now we can process the dependency tasks
 
-            for(auto it = recvbuf_dep.begin();it!=recvbuf_dep.end();it++){
+            for (auto it = recvbuf_dep.begin();it!=recvbuf_dep.end();it++) {
               auto & cur_op = (*it);
               auto & src_snode = std::get<0>(cur_op);
               auto & tgt_snode = std::get<1>(cur_op);
@@ -3427,7 +3330,7 @@ bassert(this->in_avail_counter-cnt >= 0);
               auto I = src_snode;
               auto J = tgt_snode;
 
-              switch(type){
+              switch(type) {
                 case Factorization::op_type::UPDATE2D_DIAG_SEND:
                   {
                     Idx K = this->SupMembership_[facing_first_row-1];
@@ -3532,7 +3435,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                     logfileptr->OFS()<<"AGGREGATE2D_RECV"<<" from "<<I<<" to "<<J<<" cell ("<<K<<","<<J<<") to cell("<<K<<","<<J<<")"<<std::endl;
 #endif
                     //find the FACTOR or TRSM and add cell K,J as incoming dependency
-                    if(K==J){
+                    if (K==J) {
                       auto k1 = scheduling::key_t(J,J,J,Factorization::op_type::FACTOR);
                       auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                       auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
@@ -3545,7 +3448,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                       logfileptr->OFS()<<"        in dep added to FACTOR"<<" from "<<J<<" to "<<J<<std::endl;
 #endif
                     }
-                    else{
+                    else {
                       auto k1 = scheduling::key_t(K,J,J,Factorization::op_type::TRSM);
                       auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                       auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
@@ -3582,13 +3485,13 @@ bassert(this->in_avail_counter-cnt >= 0);
                     auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
 
                     std::size_t remote_task_idx = 0;
-                    if(K==J){
+                    if (K==J) {
                       scheduling::key_t key(J,J,J,Factorization::op_type::FACTOR);
                       auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                       bassert(task_idx_it != task_idx_end); 
                       remote_task_idx = std::get<1>(*task_idx_it);
                     }
-                    else{
+                    else {
                       scheduling::key_t key(K,J,J,Factorization::op_type::TRSM);
                       auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                       bassert(task_idx_it != task_idx_end); 
@@ -3626,7 +3529,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                     if ( Iowner != Kowner ) {
                       taskptr->in_remote_dependencies_cnt++;
                     }
-                    else{
+                    else {
                       taskptr->in_local_dependencies_cnt++;
                     }
 
@@ -3750,7 +3653,7 @@ bassert(this->in_avail_counter-cnt >= 0);
               auto I = src_snode;
               auto J = tgt_snode;
 
-              switch(type){
+              switch(type) {
                 case Factorization::op_type::TRSM:
                   {
                     auto J = this->SupMembership_[facing_first_row-1];
@@ -3776,7 +3679,7 @@ bassert(this->in_avail_counter-cnt >= 0);
             //Now we have task_graph that we may have to LB with another algorithm
             std::list<SparseTask2D *> sources;
             //find the source in the task_graph
-            for( auto && ptask: task_graph ) {
+            for ( auto && ptask: task_graph ) {
               auto deps = ptask->in_remote_dependencies_cnt + ptask->in_local_dependencies_cnt;
               if (deps==0) {
                 sources.push_back( ptask.get() );
@@ -3789,7 +3692,7 @@ bassert(this->in_avail_counter-cnt >= 0);
               using bfs_data_t = struct bfs_data{
                 TaskGraph2D* graph;
                 std::list<SparseTask2D *> * sources;
-                bfs_data(TaskGraph2D* pgraph,std::list<SparseTask2D *> * psources){
+                bfs_data(TaskGraph2D* pgraph,std::list<SparseTask2D *> * psources) {
                   graph = pgraph;
                   sources = psources;
                 }
@@ -3815,7 +3718,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                   print_task(src,depth);
                   //                logfileptr->OFS()<<src->_meta<<std::endl;
 
-                  for( auto tpl: src->out_dependencies ) {
+                  for ( auto tpl: src->out_dependencies ) {
                     auto owner = std::get<0>(tpl);
                     auto idx = std::get<1>(tpl);
                     if (owner == iam ) {
@@ -3827,7 +3730,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                         next_level.push_back(ptr);
                       }
                     }
-                    else{
+                    else {
                       //distributed memory version
                       updates[owner][idx]++;
                     }
@@ -3838,12 +3741,12 @@ bassert(this->in_avail_counter-cnt >= 0);
 
                 upcxx::future<> all_at = upcxx::make_future<>();
                 std::map<int,std::vector<std::tuple<size_t, int>> >sent_updates;
-                for( auto it : updates){
+                for ( auto it : updates) {
                   auto owner = it.first;
                   auto & upd = it.second;
                   auto & dest_updates = sent_updates[owner];
                   dest_updates.reserve(upd.size());
-                  for( auto it2 : upd){
+                  for ( auto it2 : upd) {
                     dest_updates.push_back( std::make_tuple(it2.first, it2.second) );
                   }
 
@@ -3857,7 +3760,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                 //send remote_updates
                 upcxx::future<> all = upcxx::make_future<>();
 
-                for( auto it : sent_updates){
+                for ( auto it : sent_updates) {
                   auto owner = it.first;
                   auto & upd = it.second;
                   upcxx::future<> fut = upcxx::rpc(owner,[iam,&ddata](upcxx::view<std::tuple<size_t,int>> rem_updates) {
@@ -3867,7 +3770,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                       auto upd_cnt = std::get<1>(tpl);
                       auto ptr = (*task_graph)[tidx].get();
                       ptr->in_remote_dependencies_cnt-=upd_cnt;
-                      //if ( ptr->in_remote_dependencies_cnt==0){
+                      //if ( ptr->in_remote_dependencies_cnt==0) {
                       //  gdb_lock();
                       //}
 
@@ -3965,8 +3868,8 @@ bassert(this->in_avail_counter-cnt >= 0);
             Int numLocSnode = this->XsuperDist_[iam+1]-this->XsuperDist_[iam];
             Int firstSnode = this->XsuperDist_[iam];
 
-            for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno)
-              //            for(Int locsupno = this->locXlindx_.size()-1; locsupno >= 1; --locsupno)
+            for (Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno)
+              //            for (Int locsupno = this->locXlindx_.size()-1; locsupno >= 1; --locsupno)
             {
               Int I = locsupno + firstSnode-1;
 
@@ -3983,22 +3886,22 @@ bassert(this->in_avail_counter-cnt >= 0);
                 Ptr lfi = this->locXlindx_[locsupno-1];
                 Ptr lli = this->locXlindx_[locsupno]-1;
 
-                auto getPerCellCost = [this,&update_cost,&LocalCellLoad,&CellLoad,width,I,firstSnode,numLocSnode,&trsm_cost](Int tgt_snode_id, Ptr rowptr, Ptr lli){
+                auto getPerCellCost = [this,&update_cost,&LocalCellLoad,&CellLoad,width,I,firstSnode,numLocSnode,&trsm_cost](Int tgt_snode_id, Ptr rowptr, Ptr lli) {
                   Int K = -1;
                   Int K_prevSnode = -1;
                   Int nrows = 0;
                   Int odRows = 0;
                   Int locsupno = I - firstSnode+1;
-                  for(Ptr K_sidx = rowptr; K_sidx<=lli;K_sidx++){
+                  for (Ptr K_sidx = rowptr; K_sidx<=lli;K_sidx++) {
                     Idx K_row = this->locLindx_[K_sidx-1];
                     K = this->SupMembership_[K_row-1];
                     //Split at boundary or after diagonal block
-                    if(K!=K_prevSnode){
-                      if (K_prevSnode==tgt_snode_id){
+                    if (K!=K_prevSnode) {
+                      if (K_prevSnode==tgt_snode_id) {
                         odRows = nrows;
                       }
 
-                      if (K_prevSnode>=tgt_snode_id){
+                      if (K_prevSnode>=tgt_snode_id) {
                         Int m = nrows;
                         Int n = odRows;
                         Int k = width;
@@ -4011,7 +3914,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                         }
                       }
 
-                      if (K_prevSnode>I){
+                      if (K_prevSnode>I) {
                         Int m = nrows;
                         Int n = odRows;
                         Int k = width;
@@ -4021,7 +3924,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                         bassert(K_prevSnode>0);
                       }
 
-                      if(K>=tgt_snode_id){
+                      if (K>=tgt_snode_id) {
                         nrows = 0;
                       }
                     }
@@ -4029,7 +3932,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                     K_prevSnode = K;
                   }
 
-                  if (K_prevSnode>=tgt_snode_id){
+                  if (K_prevSnode>=tgt_snode_id) {
                     Int m = nrows;
                     Int n = odRows;
                     Int k = width;
@@ -4043,7 +3946,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                     bassert(K_prevSnode>0);
                   }
 
-                  if (K_prevSnode>I){
+                  if (K_prevSnode>I) {
                     Int m = nrows;
                     Int n = odRows;
                     Int k = width;
@@ -4063,9 +3966,9 @@ bassert(this->in_avail_counter-cnt >= 0);
 
                 getPerCellCost(tgt_snode_id,lfi,lli);
 
-                for(Ptr rowptr = lfi; rowptr<=lli;rowptr++){
+                for (Ptr rowptr = lfi; rowptr<=lli;rowptr++) {
                   Idx row = this->locLindx_[rowptr-1]; 
-                  if(this->SupMembership_[row-1]==tgt_snode_id){ continue;}
+                  if (this->SupMembership_[row-1]==tgt_snode_id) { continue;}
 
                   //we have a new tgt_snode_id
                   tgt_snode_id = this->SupMembership_[row-1];
@@ -4080,11 +3983,11 @@ bassert(this->in_avail_counter-cnt >= 0);
               using cell_load_t = std::tuple<int_t,double>; 
               std::vector< cell_load_t > load_sendbuf,load_recvbuf;
               int load_send_size = 0;
-              for(auto & m : LocalCellLoad){
+              for (auto & m : LocalCellLoad) {
                 load_send_size += 1 + m.size();
               }
               int remote_load_send_size = 0;
-              for(auto & m : CellLoad){
+              for (auto & m : CellLoad) {
                 remote_load_send_size += 1 + m.second.size();
               }
 
@@ -4092,18 +3995,18 @@ bassert(this->in_avail_counter-cnt >= 0);
               load_sendbuf.reserve(load_send_size);
               //now serialize
               int supno = firstSnode;
-              for(auto & m : LocalCellLoad){
+              for (auto & m : LocalCellLoad) {
                 load_sendbuf.push_back(std::make_tuple(-supno,0.0));
-                for(auto & c: m){
+                for (auto & c: m) {
                   load_sendbuf.push_back(std::make_tuple(c.first,c.second));
                 }
                 supno++;
               }
 
 
-              for(auto & m : CellLoad){
+              for (auto & m : CellLoad) {
                 load_sendbuf.push_back(std::make_tuple(-m.first,0.0));
-                for(auto & c: m.second){
+                for (auto & c: m.second) {
                   load_sendbuf.push_back(std::make_tuple(c.first,c.second));
                 }
               }
@@ -4151,9 +4054,9 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             NodeLoad.assign(supETree.Size()+1,0.0);
             //now we need to reduce this CellLoad. AlltoAllv then merge/reduce? 
-            for(auto & m : CellLoad){
+            for (auto & m : CellLoad) {
               NodeLoad[m.first] = 0.0;
-              for(auto & c: m.second){
+              for (auto & c: m.second) {
                 //                val3+=c.second;
                 NodeLoad[m.first] += c.second;
               }
@@ -4165,21 +4068,21 @@ bassert(this->in_avail_counter-cnt >= 0);
             SubTreeLoad = NodeLoad;
 
 
-            for(Int I=1;I<=supETree.Size();I++){
+            for (Int I=1;I<=supETree.Size();I++) {
               Int parent = supETree.Parent(I-1);
               ++children[parent];
               SubTreeLoad[parent]+=SubTreeLoad[I];
             }
 
 #ifndef _NDEBUG_
-            auto check = [&NodeLoad,&SubTreeLoad,&supETree](){ double val1 = std::accumulate(NodeLoad.begin(),NodeLoad.end(),0.0); double val2 = 0.0; for(Int I=1;I<=supETree.Size();I++){ Int parent = supETree.Parent(I-1); if (parent == 0 ) { val2 += SubTreeLoad[I];} } ; /*symPACKOS<<val1<<" vs "<<val2<<std::endl;*/return val1==val2;};
+            auto check = [&NodeLoad,&SubTreeLoad,&supETree]() { double val1 = std::accumulate(NodeLoad.begin(),NodeLoad.end(),0.0); double val2 = 0.0; for (Int I=1;I<=supETree.Size();I++){ Int parent = supETree.Parent(I-1); if (parent == 0 ) { val2 += SubTreeLoad[I];} } ; /*symPACKOS<<val1<<" vs "<<val2<<std::endl;*/return val1==val2;};
             bassert( check() );
 #endif
 
             using node_t = struct _node_t { int id; std::vector<_node_t *> children; };
             std::vector<node_t> nodes(nsuper+1);
             node_t * root = &nodes[0];
-            for(Int I=nsuper; I>= 1;I--){ 
+            for (Int I=nsuper; I>= 1;I--) { 
               Int parent = supETree.Parent(I-1);
               nodes[I].id = I;
               nodes[parent].children.push_back(&nodes[I]);
@@ -4187,10 +4090,10 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             int n_ = nsuper;//supETree.Size();
             std::vector<Int> levels(supETree.Size()+1,0);
-            for(Int I=n_; I>= 1;I--){ 
+            for (Int I=n_; I>= 1;I--) { 
               Int parent = supETree.Parent(I-1);
-              if(parent==0){levels[I]=0;}
-              else{ levels[I] = levels[parent]+1; numLevels = std::max(numLevels,levels[I]);}
+              if (parent==0) {levels[I]=0;}
+              else { levels[I] = levels[parent]+1; numLevels = std::max(numLevels,levels[I]);}
             }
             numLevels++;
 
@@ -4198,13 +4101,13 @@ bassert(this->in_avail_counter-cnt >= 0);
             groupIdx_.resize(n_+1,0);
             procGroups_.resize(n_+1);
             procGroups_[0].Ranks().reserve(np);
-            for(Int p = 0;p<np;++p){ procGroups_[0].Ranks().push_back(p);}
+            for (Int p = 0;p<np;++p) { procGroups_[0].Ranks().push_back(p);}
 
             std::vector<Int> pstart(n_+1,0);
             levelGroups_.reserve(numLevels);
             levelGroups_.push_back(ProcGroup());//reserve(numLevels);
             levelGroups_[0].Ranks().reserve(np);
-            for(Int p = 0;p<np;++p){levelGroups_[0].Ranks().push_back(p);}
+            for (Int p = 0;p<np;++p) {levelGroups_[0].Ranks().push_back(p);}
 
 
             {
@@ -4224,10 +4127,10 @@ bassert(this->in_avail_counter-cnt >= 0);
                 if ( npParent < procLimit || parent->children.size() == 1) {
                   groupIdx2[node->id] = groupIdx2[parent->id];
                 }
-                else{
+                else {
                   Int I = node->id;
                   double parent_load = 0.0;
-                  if (parent != root){
+                  if (parent != root) {
                     Int fc = this->Xsuper_[parent->id-1];
                     Int width = this->Xsuper_[parent->id] - this->Xsuper_[parent->id-1];
                     Int height = cc[fc-1];
@@ -4244,7 +4147,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                   pstart2[parent->id]+= numProcs;
                   pstart2[parent->id] = pstart2[parent->id] % npParent;
 
-                  if(npParent!=numProcs){
+                  if (npParent!=numProcs) {
                     levelGroups2.push_back(ProcGroup());
                     levelGroups2.back().Ranks().reserve(numProcs);
 
@@ -4253,11 +4156,11 @@ bassert(this->in_avail_counter-cnt >= 0);
 
                     groupIdx2[I] = levelGroups2.size()-1;
                   }
-                  else{
+                  else {
                     groupIdx2[I] = groupIdx2[parent->id];
                   }
                 }
-                for( auto & c: node->children){
+                for ( auto & c: node->children) {
                   recSubtree(c,node);
                 }
               };
@@ -4274,7 +4177,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
           std::vector<double> procLoad(np,0);
           std::vector<std::vector<double>> group_load(nsuper);
-          auto find_min_proc = [this,&levelGroups_,&groupIdx_,&group_load,&CellLoad,&procLoad](int i,int j){
+          auto find_min_proc = [this,&levelGroups_,&groupIdx_,&group_load,&CellLoad,&procLoad](int i,int j) {
 #ifdef _NO_SUBCUBE2D_
             Int nprow = std::floor(std::sqrt(this->np));
             auto pcol = j % nprow;
@@ -4289,8 +4192,8 @@ bassert(this->in_avail_counter-cnt >= 0);
             ProcGroup & group = levelGroups_[groupIdx_[j-1]];
 
             auto & ranks = group.Ranks();
-            for(Int i = 0; i<ranks.size();++i){
-              if(procLoad[ranks[i]]<minLoad || minLoad==-1){
+            for (Int i = 0; i<ranks.size();++i) {
+              if (procLoad[ranks[i]]<minLoad || minLoad==-1) {
                 minLoad = procLoad[ranks[i]];
                 minLoadP = i;
               }
@@ -4305,11 +4208,11 @@ bassert(this->in_avail_counter-cnt >= 0);
 
           snodeBlockBase_sptr_t pLast_cell = nullptr;
 
-          for(int psend = np-1; psend>=0; --psend){
-            for(int idxcell = rdispls[psend]; idxcell<rdispls[psend+1]; idxcell++){
+          for (int psend = np-1; psend>=0; --psend) {
+            for (int idxcell = rdispls[psend]; idxcell<rdispls[psend+1]; idxcell++) {
               auto & cur_cell = recvbuf[idxcell];
 
-              //for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
+              //for (auto it = recvbuf.begin();it!=recvbuf.end();it++) {
               //  auto & cur_cell = (*it);
               Int i = std::get<0>(cur_cell);
               Int j = std::get<1>(cur_cell);
@@ -4323,7 +4226,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                   ptr->add_block(first_row,nrows);
                 }
               }
-              else{
+              else {
                 Int nBlock = std::get<2>(cur_cell);
                 Int nRows = std::get<3>(cur_cell);
                 auto idx = coord2supidx(i-1,j-1);
@@ -4338,7 +4241,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
                 snodeBlockBase_sptr_t sptr(nullptr);
                 if ( p == iam ) {
-                  if(this->options_.decomposition == DecompositionType::LDL){
+                  if (this->options_.decomposition == DecompositionType::LDL) {
                     sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlockLDL_t>(i,j,fc,iWidth,nnz,block_cnt));
                     this->localBlocks_.push_back(std::static_pointer_cast<snodeBlock_t>(sptr));
                     if ( i == j ) {
@@ -4347,7 +4250,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                       local_diag_pointers.push_back(std::make_tuple(i,diagcell_ptr->Diag()));
                     }
                   }
-                  else{
+                  else {
                     sptr = std::static_pointer_cast<blockCellBase_t>(std::make_shared<snodeBlock_t>(i,j,fc,iWidth,nnz,block_cnt));
                     this->localBlocks_.push_back(std::static_pointer_cast<snodeBlock_t>(sptr));
                   }
@@ -4364,7 +4267,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                 pLast_cell = sptr;
 
 #ifndef _NDEBUG_
-                if ( p ==iam){
+                if ( p ==iam) {
                   auto & test = CELL(i-1,j-1);
                 }
                 else { 
@@ -4377,7 +4280,7 @@ bassert(this->in_avail_counter-cnt >= 0);
             }
           }
 
-          std::sort(this->localBlocks_.begin(),this->localBlocks_.end(),[](snodeBlock_sptr_t & a, snodeBlock_sptr_t & b){
+          std::sort(this->localBlocks_.begin(),this->localBlocks_.end(),[](snodeBlock_sptr_t & a, snodeBlock_sptr_t & b) {
               return a->j < b->j || (a->i < b->i &&  a->j == b->j ) ; 
               });
 
@@ -4386,18 +4289,18 @@ bassert(this->in_avail_counter-cnt >= 0);
 #define _BALANCE_NNZ_
 #ifdef _BALANCE_NNZ_
           using load_t = std::tuple<int,size_t>;
-          auto compare_load = [](load_t & a, load_t & b){ return std::get<1>(a)>std::get<1>(b);};
+          auto compare_load = [](load_t & a, load_t & b) { return std::get<1>(a)>std::get<1>(b);};
           std::priority_queue< load_t, std::vector<load_t>, decltype( compare_load ) > load(compare_load);
           for ( int p = 0; p < nprow*npcol ; p++) {
             load.push( std::make_tuple(p, (size_t)0));
           }
 #endif
           std::shared_ptr<blockCellBase_t> pLast_cell = nullptr;
-          //for(auto it = recvbuf.begin();it!=recvbuf.end();it++)
+          //for (auto it = recvbuf.begin();it!=recvbuf.end();it++)
           //  auto & cur_cell = (*it);
 
-          for(int psend = np-1; psend>=0; --psend){
-            for(int idxcell = rdispls[psend]; idxcell<rdispls[psend+1]; idxcell++){
+          for (int psend = np-1; psend>=0; --psend) {
+            for (int idxcell = rdispls[psend]; idxcell<rdispls[psend+1]; idxcell++) {
               auto & cur_cell = recvbuf[idxcell];
               Int i = std::get<0>(cur_cell);
               Int j = std::get<1>(cur_cell);
@@ -4411,7 +4314,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                   ptr->add_block(first_row,nrows);
                 }
               }
-              else{
+              else {
                 Int nBlock = std::get<2>(cur_cell);
                 Int nRows = std::get<3>(cur_cell);
                 //auto idx = coord2supidx(i,j);
@@ -4455,7 +4358,7 @@ bassert(this->in_avail_counter-cnt >= 0);
               }
             }
           }
-          std::sort(this->localBlocks_.begin(),this->localBlocks_.end(),[](std::shared_ptr<snodeBlock_t> & a, std::shared_ptr<snodeBlock_t> & b){
+          std::sort(this->localBlocks_.begin(),this->localBlocks_.end(),[](std::shared_ptr<snodeBlock_t> & a, std::shared_ptr<snodeBlock_t> & b) {
               return a->j < b->j || (a->i < b->i &&  a->j == b->j ) ; 
               });
 #endif
@@ -4465,7 +4368,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
       logfileptr->OFS()<<"#supernodes = "<<nsuper<<" #cells = "<<cells_.size()<< " which is "<<cells_.size()*sizeof(snodeBlock_t)<<" bytes"<<std::endl;
 
-      if(this->iam==0){
+      if (this->iam==0) {
         symPACKOS<<"#supernodes = "<<nsuper<<" #cells = "<<cells_.size()<< " which is "<<cells_.size()*sizeof(snodeBlock_t)<<" bytes"<<std::endl;
       }
 
@@ -4496,7 +4399,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
           Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
           Int firstSnode = this->XsuperDist_[this->iam];
-          for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
+          for (Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno) {
             Idx I = locsupno + firstSnode-1;
             Int first_col = this->Xsuper_[I-1];
             Int last_col = this->Xsuper_[I]-1;
@@ -4515,20 +4418,20 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             Int K = -1; 
             Idx K_prevSnode = -1;
-            for(Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++){
+            for (Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++) {
               Idx K_row = this->locLindx_[K_sidx-1];
               K = this->SupMembership_[K_row-1];
 
               //Split at boundary or after diagonal block
-              if(K!=K_prevSnode){
-                if(K>I){
+              if (K!=K_prevSnode) {
+                if (K>I) {
                   ancestor_rows.push_back(K_row);
                 }
               }
               K_prevSnode = K;
             }
 
-            for(auto J_row : ancestor_rows){
+            for (auto J_row : ancestor_rows) {
               Int J = this->SupMembership_[J_row-1];
               auto ptr_fodcell = pQueryCELL(J-1,I-1);
               Int iFODOwner = ptr_fodcell->owner;
@@ -4538,10 +4441,10 @@ bassert(this->in_avail_counter-cnt >= 0);
               Updates[iFODOwner].push_back(std::make_tuple(I,I,Factorization::op_type::TRSM,J_row,J_row));
 
               //add the UPDATE_SEND from FODOwner tasks
-              for(auto K_row : ancestor_rows){
+              for (auto K_row : ancestor_rows) {
                 K = this->SupMembership_[K_row-1];
 
-                if(K>=J){
+                if (K>=J) {
                   auto ptr_tgtupdcell = pQueryCELL(K-1,J-1);
                   Int iTgtOwner = ptr_tgtupdcell->owner;
                   //TODO update this for non fan-out mapping
@@ -4552,7 +4455,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                   Messages[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::UPDATE2D_RECV_OD,K_row,J_row));
                 }
 
-                if(K<=J){
+                if (K<=J) {
                   auto ptr_tgtupdcell = pQueryCELL(J-1,K-1);
                   Int iTgtOwner = ptr_tgtupdcell->owner;
                   //TODO update this for non fan-out mapping
@@ -4565,16 +4468,16 @@ bassert(this->in_avail_counter-cnt >= 0);
                   Messages[iFacingOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_SEND,K_row,J_row));
                   Messages[iUpdOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_RECV,K_row,J_row));
 
-                  if(this->options_.decomposition == DecompositionType::LDL){
+                  if (this->options_.decomposition == DecompositionType::LDL) {
                     Messages[iOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_DIAG_SEND,K_row,J_row));
                     Messages[iUpdOwner].push_back(std::make_tuple(I,K,Factorization::op_type::UPDATE2D_DIAG_RECV,K_row,J_row));
                   }
                 }
               }
 
-              for(auto K_row : ancestor_rows){
+              for (auto K_row : ancestor_rows) {
                 K = this->SupMembership_[K_row-1];
-                if(K>=J){
+                if (K>=J) {
                   auto ptr_tgtupdcell = pQueryCELL(K-1,J-1);
                   Int iTgtOwner = ptr_tgtupdcell->owner;
                   //TODO update this for non fan-out mapping
@@ -4592,7 +4495,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
           //then do an alltoallv
           //compute send sizes
-          for(auto itp = Updates.begin();itp!=Updates.end();itp++){
+          for (auto itp = Updates.begin();itp!=Updates.end();itp++) {
             ssizes[itp->first] = itp->second.size();
           }
 
@@ -4603,13 +4506,13 @@ bassert(this->in_avail_counter-cnt >= 0);
           //Build the contiguous array of pairs
           sendbuf.reserve(sdispls.back());
 
-          for(auto itp = Updates.begin();itp!=Updates.end();itp++){
+          for (auto itp = Updates.begin();itp!=Updates.end();itp++) {
             sendbuf.insert(sendbuf.end(),itp->second.begin(),itp->second.end());
           }
 
           //then do an alltoallv
           //compute send sizes
-          for(auto itp = Messages.begin();itp!=Messages.end();itp++){
+          for (auto itp = Messages.begin();itp!=Messages.end();itp++) {
             ssizes_dep[itp->first] = itp->second.size();
           }
 
@@ -4620,7 +4523,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           //Build the contiguous array of pairs
           sendbuf_dep.reserve(sdispls_dep.back());
 
-          for(auto itp = Messages.begin();itp!=Messages.end();itp++){
+          for (auto itp = Messages.begin();itp!=Messages.end();itp++) {
             sendbuf_dep.insert(sendbuf_dep.end(),itp->second.begin(),itp->second.end());
           }
 
@@ -4673,7 +4576,7 @@ bassert(this->in_avail_counter-cnt >= 0);
         task_idx.clear();
         task_idx.reserve(recvbuf.size());
 
-        for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
+        for (auto it = recvbuf.begin();it!=recvbuf.end();it++) {
           auto & cur_op = (*it);
           auto & src_snode = std::get<0>(cur_op);
           auto & tgt_snode = std::get<1>(cur_op);
@@ -4682,7 +4585,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           auto & facing_first_row = std::get<4>(cur_op);
 
           SparseTask2D * ptask = nullptr;
-          switch(type){
+          switch(type) {
             case Factorization::op_type::TRSM:
             case Factorization::op_type::FACTOR:
             case Factorization::op_type::UPDATE2D_COMP:
@@ -4700,13 +4603,13 @@ bassert(this->in_avail_counter-cnt >= 0);
           auto I = src_snode;
           auto J = tgt_snode;
 
-          if(ptask!=nullptr){
+          if (ptask!=nullptr) {
             scheduling::key_t key(this->SupMembership_[std::get<4>(cur_op)-1], std::get<1>(cur_op), std::get<0>(cur_op), std::get<2>(cur_op));
             task_graph.push_back( std::unique_ptr<SparseTask2D>(ptask) );
             task_idx.push_back( std::make_tuple(key,task_idx.size()));
           }
 #ifdef _VERBOSE_
-          switch(type){
+          switch(type) {
             case Factorization::op_type::TRSM:
               {
                 auto J = this->SupMembership_[facing_first_row-1];
@@ -4731,7 +4634,7 @@ bassert(this->in_avail_counter-cnt >= 0);
         }
 
         //sort task_idx by keys
-        std::sort(task_idx.begin(),task_idx.end(),[](std::tuple<scheduling::key_t, std::size_t > &a, std::tuple<scheduling::key_t, std::size_t >&b){ return std::get<0>(a) < std::get<0>(b);});
+        std::sort(task_idx.begin(),task_idx.end(),[](std::tuple<scheduling::key_t, std::size_t > &a, std::tuple<scheduling::key_t, std::size_t >&b) { return std::get<0>(a) < std::get<0>(b);});
 
         MPI_Datatype task_idx_type;
         MPI_Type_contiguous( sizeof(std::tuple<scheduling::key_t, std::size_t >), MPI_BYTE, &task_idx_type );
@@ -4751,10 +4654,10 @@ bassert(this->in_avail_counter-cnt >= 0);
         MPI_Allgatherv(task_idx.data(),task_idx_size,task_idx_type,task_idx_recvbuf.data(),task_idx_rsizes.data(),task_idx_rdispls.data(),task_idx_type,this->workcomm_);
         MPI_Type_free(&task_idx_type);
 
-        auto key_lb_comp = [](const std::tuple<scheduling::key_t, std::size_t > & a, const scheduling::key_t & key){ return std::get<0>(a) < key;};
+        auto key_lb_comp = [](const std::tuple<scheduling::key_t, std::size_t > & a, const scheduling::key_t & key) { return std::get<0>(a) < key;};
         //now we can process the dependency tasks
 
-        for(auto it = recvbuf_dep.begin();it!=recvbuf_dep.end();it++){
+        for (auto it = recvbuf_dep.begin();it!=recvbuf_dep.end();it++) {
           auto & cur_op = (*it);
           auto & src_snode = std::get<0>(cur_op);
           auto & tgt_snode = std::get<1>(cur_op);
@@ -4765,7 +4668,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           auto I = src_snode;
           auto J = tgt_snode;
 
-          switch(type){
+          switch(type) {
             case Factorization::op_type::UPDATE2D_DIAG_SEND:
               {
                 Idx K = this->SupMembership_[facing_first_row-1];
@@ -4869,7 +4772,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                 logfileptr->OFS()<<"AGGREGATE2D_RECV"<<" from "<<I<<" to "<<J<<" cell ("<<K<<","<<J<<") to cell("<<K<<","<<J<<")"<<std::endl;
 #endif
                 //find the FACTOR or TRSM and add cell K,J as incoming dependency
-                if(K==J){
+                if (K==J) {
                   auto k1 = scheduling::key_t(J,J,J,Factorization::op_type::FACTOR);
                   auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                   auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
@@ -4883,7 +4786,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                   logfileptr->OFS()<<"        in dep added to FACTOR"<<" from "<<J<<" to "<<J<<std::endl;
 #endif
                 }
-                else{
+                else {
                   auto k1 = scheduling::key_t(K,J,J,Factorization::op_type::TRSM);
                   auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                   auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
@@ -4922,13 +4825,13 @@ bassert(this->in_avail_counter-cnt >= 0);
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
 
                 std::size_t remote_task_idx = 0;
-                if(K==J){
+                if (K==J) {
                   scheduling::key_t key(J,J,J,Factorization::op_type::FACTOR);
                   auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                   bassert(task_idx_it != task_idx_end); 
                   remote_task_idx = std::get<1>(*task_idx_it);
                 }
-                else{
+                else {
                   scheduling::key_t key(K,J,J,Factorization::op_type::TRSM);
                   auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                   bassert(task_idx_it != task_idx_end); 
@@ -5070,7 +4973,7 @@ bassert(this->in_avail_counter-cnt >= 0);
         //upcxx::dist_object< std::vector< upcxx::global_ptr<T> > > dist_diag_pointers;
         //Allgatherv
 
-        if(this->options_.decomposition == DecompositionType::LDL){
+        if (this->options_.decomposition == DecompositionType::LDL) {
           using diag_ptr_t = std::tuple<Int,upcxx::global_ptr<char>>;
           MPI_Datatype upcxx_ptr_type;
           MPI_Type_contiguous( sizeof(diag_ptr_t), MPI_BYTE, &upcxx_ptr_type );
@@ -5089,10 +4992,10 @@ bassert(this->in_avail_counter-cnt >= 0);
           MPI_Allgatherv(local_diag_pointers.data(),local_diag_pointers.size(),upcxx_ptr_type,this->diag_pointers_.data(),rsizes.data(),rdispls.data(),upcxx_ptr_type,this->workcomm_);
           MPI_Type_free(&upcxx_ptr_type);
 
-          std::sort(this->diag_pointers_.begin(),this->diag_pointers_.end(),[](diag_ptr_t & a, diag_ptr_t & b){ return std::get<0>(a) < std::get<0>(b) ; });
+          std::sort(this->diag_pointers_.begin(),this->diag_pointers_.end(),[](diag_ptr_t & a, diag_ptr_t & b) { return std::get<0>(a) < std::get<0>(b) ; });
 
 #ifndef _NDEBUG_
-          //for( Int I = 1; I<=nsuper; I++ )
+          //for ( Int I = 1; I<=nsuper; I++ )
           //bassert( 
 
 #endif
@@ -5103,7 +5006,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
         scheduler.sp_handle = this->sp_handle;
         //Now we have our local part of the task graph
-        for(auto it = this->task_graph.begin(); it != this->task_graph.end(); it++){
+        for (auto it = this->task_graph.begin(); it != this->task_graph.end(); it++) {
           auto & ptask = *it;
           auto meta = &ptask->_meta;
 
@@ -5131,29 +5034,8 @@ bassert(this->in_avail_counter-cnt >= 0);
           ptask->in_counter = local_deps + remote_deps;
 #endif
 
-
           auto ptr = ptask.get();
-          //          auto fut_comm = ptask->in_avail_prom.finalize();
-          //          if (remote_deps >0 ) {
-          //            fut_comm.then([this,ptr](){
-          //#ifdef _PRIORITY_QUEUE_AVAIL_
-          //                this->scheduler.avail_tasks.push(ptr);
-          //#else
-          //                this->scheduler.avail_tasks.push_back(ptr);
-          //#endif
-          //                });
-          //          }
-          //
-          //          auto fut = ptask->in_prom.finalize();
-          //          fut.then([this,ptr](){
-          //#ifdef _PRIORITY_QUEUE_AVAIL_
-          //              this->scheduler.ready_tasks.push(ptr);
-          //#else
-          //              this->scheduler.ready_tasks.push_back(ptr);
-          //#endif
-          //              });
-
-          switch(type){
+          switch(type) {
             case Factorization::op_type::FACTOR:
               {
                 ptask->execute = [this,src_snode,ptr,I,J,K] () {
@@ -5172,6 +5054,8 @@ bassert(this->in_avail_counter-cnt >= 0);
 #ifdef _TIMING_
                   std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 #endif
+
+                  //TODO DEBUG
                   ptr_diagcell->factorize(tmpBuf);
 #ifdef _TIMING_
                   std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
@@ -5202,84 +5086,84 @@ bassert(this->in_avail_counter-cnt >= 0);
                           [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
 
 
-                          return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
+                          return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
 
-                              //gdb_lock();
-                              //there is a map between sp_handle and task_graphs
+                            //gdb_lock();
+                            //there is a map between sp_handle and task_graphs
 #ifdef _TIMING_
-                              gasneti_tick_t start = gasneti_ticks_now();
+                            gasneti_tick_t start = gasneti_ticks_now();
 #endif
-                              auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
-                              auto I = std::get<1>(meta);
-                              rowind_t fc = matptr->Xsuper_[I-1];
+                            auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
+                            auto I = std::get<1>(meta);
+                            rowind_t fc = matptr->Xsuper_[I-1];
 
-                              //store pointer & associated metadata somewhere
-                              std::shared_ptr <SparseTask2D::data_t > data;
-                              std::shared_ptr <SparseTask2D::data_t > diag_data;
+                            //store pointer & associated metadata somewhere
+                            std::shared_ptr <SparseTask2D::data_t > data;
+                            std::shared_ptr <SparseTask2D::data_t > diag_data;
 
 
 
-                              for ( auto & tgt_cell_idx: target_cells) {
-                              auto taskptr = matptr->task_graph[tgt_cell_idx].get();
+                            for ( auto & tgt_cell_idx: target_cells) {
+                            auto taskptr = matptr->task_graph[tgt_cell_idx].get();
 
-                              if ( std::get<2>(taskptr->_meta) == Factorization::op_type::UPDATE2D_COMP) {
-                                if ( !diag_data ) {
-                                  upcxx::global_ptr<char> diag_ptr = matptr->find_diag_pointer( I );
-                                  bassert ( diag_ptr.where() != upcxx::rank_me() );
-                                  diag_data = std::make_shared<SparseTask2D::data_t >();
-                                  diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,0,0);;
-                                  diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
-                                  diag_data->remote_gptr = diag_ptr;
-                                }
-
-                                taskptr->input_msg.push_back(diag_data);
-                                diag_data->target_tasks.push_back(taskptr);
-                        taskptr->avail_dep(1,matptr->scheduler);
+                            if ( std::get<2>(taskptr->_meta) == Factorization::op_type::UPDATE2D_COMP) {
+                              if ( !diag_data ) {
+                                upcxx::global_ptr<char> diag_ptr = matptr->find_diag_pointer( I );
+                                bassert ( diag_ptr.where() != upcxx::rank_me() );
+                                diag_data = std::make_shared<SparseTask2D::data_t >();
+                                diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,0,0);;
+                                diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
+                                diag_data->remote_gptr = diag_ptr;
                               }
-                              else {
-                                if ( ! data ) {
-                                  data = std::make_shared<SparseTask2D::data_t >();
-                                  data->in_meta = meta;
-                                  data->size = storage_size;
-                                  data->remote_gptr = gptr;
-                                }
 
-
-                                taskptr->input_msg.push_back(data);
-                                data->target_tasks.push_back(taskptr);
-                        taskptr->avail_dep(1,matptr->scheduler);
-                              }
+                              taskptr->input_msg.push_back(diag_data);
+                              diag_data->target_tasks.push_back(taskptr);
+                              taskptr->avail_dep(1,matptr->scheduler);
+                            }
+                            else {
+                              if ( ! data ) {
+                                data = std::make_shared<SparseTask2D::data_t >();
+                                data->in_meta = meta;
+                                data->size = storage_size;
+                                data->remote_gptr = gptr;
                               }
 
 
-                              if ( data ) {
-                                data->on_fetch.get_future().then(
-                                    [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata){
-                                    //create snodeBlock_t and store it in the extra_data
-                                    if (matptr->options_.decomposition == DecompositionType::LDL){
-                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                    }
-                                    else{
-                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                    }
-                                    //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                    });
-                                //TODO check this
+                              taskptr->input_msg.push_back(data);
+                              data->target_tasks.push_back(taskptr);
+                              taskptr->avail_dep(1,matptr->scheduler);
+                            }
+                            }
+
+
+                            if ( data ) {
+                              data->on_fetch.get_future().then(
+                                  [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
+                                  //create snodeBlock_t and store it in the extra_data
+                                  if (matptr->options_.decomposition == DecompositionType::LDL) {
+                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
+                                  else {
+                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
+                                  //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  });
+                              //TODO check this
 #ifdef _EAGER_FETCH_
-                                data->allocate();
-                                data->fetch();
+                              data->allocate();
+                              data->fetch();
 #endif
-                              }
+                            }
 
 #ifdef _EAGER_FETCH_
-                              if ( diag_data ) {
-                                diag_data->allocate();
-                                diag_data->fetch();
-                              }
+                            if ( diag_data ) {
+                              diag_data->allocate();
+                              diag_data->fetch();
+                            }
 #endif
 
 #ifdef _TIMING_
-                              matptr->rpc_fact_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
+                            matptr->rpc_fact_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
                           });
 
@@ -5342,7 +5226,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                   //input data is one or 0 (local diagonal block)
                   bassert(ptask->input_msg.size()<=1);
                   auto ptr_diagCell = pQueryCELL(I-1,I-1).get(); 
-                  if ( ptr_diagCell->owner != this->iam ){
+                  if ( ptr_diagCell->owner != this->iam ) {
                     ptr_diagCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
                   }
                   bassert(ptr_diagCell!=nullptr);
@@ -5351,11 +5235,12 @@ bassert(this->in_avail_counter-cnt >= 0);
 #ifdef _TIMING_
                   std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 #endif
+                  //TODO DEBUG
                   ptr_od_cell->trsm(ptr_diagCell,tmpBuf);
 #ifdef _MEMORY_LIMIT_
                   if ( this->mem_budget != -1.0 ) {
                     size_t mem_cost = 0;
-                    for(auto & msg : ptask->input_msg){
+                    for (auto & msg : ptask->input_msg) {
                       mem_cost += msg->size;
                     }
                     this->mem_budget += mem_cost; 
@@ -5394,102 +5279,102 @@ bassert(this->in_avail_counter-cnt >= 0);
 #if 1
                       upcxx::rpc_ff( pdest, //cxs, 
                           [K,I] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                          return upcxx::current_persona().lpc( [K,I,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
+                          return upcxx::current_persona().lpc( [K,I,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
 #ifdef _TIMING_
-                              gasneti_tick_t start = gasneti_ticks_now();
+                            gasneti_tick_t start = gasneti_ticks_now();
 #endif
-                              //                            gdb_lock();
-                              //store pointer & associated metadata somewhere
-                              auto data = std::make_shared<SparseTask2D::data_t >();
-                              data->in_meta = meta;
-                              data->size = storage_size;
-                              data->remote_gptr = gptr;
+                            //                            gdb_lock();
+                            //store pointer & associated metadata somewhere
+                            auto data = std::make_shared<SparseTask2D::data_t >();
+                            data->in_meta = meta;
+                            data->size = storage_size;
+                            data->remote_gptr = gptr;
 
-                              //there is a map between sp_handle and task_graphs
-                              auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
+                            //there is a map between sp_handle and task_graphs
+                            auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
 
-                              // std::shared_ptr<SparseTask2D::data_t> diag_data;
-                              // upcxx::global_ptr<char> diag_ptr = matptr->find_diag_pointer( I-1 );
-                              // if ( diag_ptr.where() != upcxx::rank_me() ) {
-                              //   diag_data = std::make_shared<SparseTask2D::data_t >();
-                              //   diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,0,0);;
-                              //   diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
-                              //   diag_data->remote_gptr = diag_ptr;
-                              // }
-
-
-
-                              for ( auto & tgt_cell_idx: target_cells) {
-                                auto taskptr = matptr->task_graph[tgt_cell_idx].get();
+                            // std::shared_ptr<SparseTask2D::data_t> diag_data;
+                            // upcxx::global_ptr<char> diag_ptr = matptr->find_diag_pointer( I-1 );
+                            // if ( diag_ptr.where() != upcxx::rank_me() ) {
+                            //   diag_data = std::make_shared<SparseTask2D::data_t >();
+                            //   diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,0,0);;
+                            //   diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
+                            //   diag_data->remote_gptr = diag_ptr;
+                            // }
 
 
-                                ////if(matptr->options_.decomposition == DecompositionType::LDL){
-                                ////    //since TRSM is available, diagonal entries MUST be available too (transitivity)
-                                ////    if ( taskptr->input_msg.empty() ) {
-                                ////      //if ( diag_ptr.is_null() ) {
-                                ////      //  diag_ptr = matptr->find_diag_pointer( I );
-                                ////      //  if ( diag_ptr.where() != upcxx::rank_me() ) {
-                                ////      //    diag_data = std::make_shared<SparseTask2D::data_t >();
-                                ////      //    diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,-1,-1);;
-                                ////      //    diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
-                                ////      //    diag_data->remote_gptr = diag_ptr;
-                                ////      //  }
-                                ////      //}
 
-                                //                              ////        auto J = std::get<1>(taskptr->_meta);
-                                //if (I == 20 && J == 21 && (K =////= 25 || K==21) ) { gdb_lock();}
-                                //if (I == 9 && J == 8 && (K == ////13) ) { gdb_lock();}
-                                //if (I == 7 && J == 11 && (K ==//// 18) ) { gdb_lock();}
-                                //if (I == 9 && J == 15 && (K ==//// 15) ) { gdb_lock();}
-
-                                ////      if ( diag_data ) {
-                                ////        auto diag_ptr2 = matptr->find_diag_pointer( I-1 );
-                                ////        bassert( diag_ptr2.where() != upcxx::rank_me() );
-                                ////        
-                                ////        taskptr->input_msg.push_back(diag_data);
-                                ////        diag_data->target_tasks.push_back(taskptr);
-                                ////        taskptr->in_avail_prom.fulfill_anonymous(1);
-                                ////      }
-                                ////    }
-                                ////}
+                            for ( auto & tgt_cell_idx: target_cells) {
+                              auto taskptr = matptr->task_graph[tgt_cell_idx].get();
 
 
-                                taskptr->input_msg.push_back(data);
-                                data->target_tasks.push_back(taskptr);
-                        taskptr->avail_dep(1,matptr->scheduler);
-                              }
+                              ////if (matptr->options_.decomposition == DecompositionType::LDL) {
+                              ////    //since TRSM is available, diagonal entries MUST be available too (transitivity)
+                              ////    if ( taskptr->input_msg.empty() ) {
+                              ////      //if ( diag_ptr.is_null() ) {
+                              ////      //  diag_ptr = matptr->find_diag_pointer( I );
+                              ////      //  if ( diag_ptr.where() != upcxx::rank_me() ) {
+                              ////      //    diag_data = std::make_shared<SparseTask2D::data_t >();
+                              ////      //    diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,-1,-1);;
+                              ////      //    diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
+                              ////      //    diag_data->remote_gptr = diag_ptr;
+                              ////      //  }
+                              ////      //}
 
-                              //auto I = std::get<1>(meta);
-                              rowind_t fc = matptr->Xsuper_[I-1];
-                              data->on_fetch.get_future().then(
-                                  [fc,matptr,width,nnz,nblocks,K,I](SparseTask2D::data_t * pdata){
-                                  //create snodeBlock_t and store it in the extra_data
-                                  //if (K == 10 && I == 7 ) { gdb_lock();}
-                                  if (matptr->options_.decomposition == DecompositionType::LDL){
-                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                  }
-                                  else{
-                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                  }
-                                  //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                  }
-                                  );
-                              //TODO check this
-#ifdef _EAGER_FETCH_
-                              data->allocate();
-                              data->fetch();
-#endif
+                              //                              ////        auto J = std::get<1>(taskptr->_meta);
+                              //if (I == 20 && J == 21 && (K =////= 25 || K==21) ) { gdb_lock();}
+                              //if (I == 9 && J == 8 && (K == ////13) ) { gdb_lock();}
+                              //if (I == 7 && J == 11 && (K ==//// 18) ) { gdb_lock();}
+                              //if (I == 9 && J == 15 && (K ==//// 15) ) { gdb_lock();}
 
-
-                              ////if ( diag_data ) {
-                              ////  //for diag_data we'll use the landing zone directly
-                              ////  diag_data->allocate();
-                              ////  diag_data->fetch();
+                              ////      if ( diag_data ) {
+                              ////        auto diag_ptr2 = matptr->find_diag_pointer( I-1 );
+                              ////        bassert( diag_ptr2.where() != upcxx::rank_me() );
+                              ////        
+                              ////        taskptr->input_msg.push_back(diag_data);
+                              ////        diag_data->target_tasks.push_back(taskptr);
+                              ////        taskptr->in_avail_prom.fulfill_anonymous(1);
+                              ////      }
+                              ////    }
                               ////}
 
 
+                              taskptr->input_msg.push_back(data);
+                              data->target_tasks.push_back(taskptr);
+                              taskptr->avail_dep(1,matptr->scheduler);
+                            }
+
+                            //auto I = std::get<1>(meta);
+                            rowind_t fc = matptr->Xsuper_[I-1];
+                            data->on_fetch.get_future().then(
+                                [fc,matptr,width,nnz,nblocks,K,I](SparseTask2D::data_t * pdata) {
+                                //create snodeBlock_t and store it in the extra_data
+                                //if (K == 10 && I == 7 ) { gdb_lock();}
+                                if (matptr->options_.decomposition == DecompositionType::LDL) {
+                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                }
+                                else {
+                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                }
+                                //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                }
+                                );
+                            //TODO check this
+#ifdef _EAGER_FETCH_
+                            data->allocate();
+                            data->fetch();
+#endif
+
+
+                            ////if ( diag_data ) {
+                            ////  //for diag_data we'll use the landing zone directly
+                            ////  diag_data->allocate();
+                            ////  diag_data->fetch();
+                            ////}
+
+
 #ifdef _TIMING_
-                              matptr->rpc_trsm_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
+                            matptr->rpc_trsm_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
                           });
 
@@ -5498,7 +5383,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                     }
                     else {
                       std::shared_ptr<SparseTask2D::data_t> diag_data;
-                      if (this->options_.decomposition == DecompositionType::LDL){
+                      if (this->options_.decomposition == DecompositionType::LDL) {
                         auto ptr_ldl = (snodeBlockLDL_t*)(ptr_od_cell.get());
                         ptr_ldl->local_pivot = 0;
                       }
@@ -5506,7 +5391,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                         auto taskptr = task_graph[tgt_cell_idx].get();
                         bassert(taskptr!=nullptr); 
                         bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::UPDATE2D_COMP);
-                        if (this->options_.decomposition == DecompositionType::LDL){
+                        if (this->options_.decomposition == DecompositionType::LDL) {
                           auto ptr_ldl = (snodeBlockLDL_t*)(ptr_od_cell.get());
                           //get coordinates of target cell and check if ptr_od_cell is a pivot or a facing cell
                           auto tJ = std::get<1>(taskptr->_meta);
@@ -5576,11 +5461,11 @@ bassert(this->in_avail_counter-cnt >= 0);
                   bool diagSet = false;
                   for ( auto && msg_ptr: ptask->input_msg ) {
                     if ( msg_ptr->extra_data ) {
-                      if ( ptr_odCell->owner != this->iam && !odSet){
+                      if ( ptr_odCell->owner != this->iam && !odSet) {
                         odSet = true;
                         ptr_odCell = (snodeBlock_t*)(msg_ptr->extra_data.get());
                       }
-                      else if ( ptr_facingCell->owner != this->iam && !facingSet){
+                      else if ( ptr_facingCell->owner != this->iam && !facingSet) {
                         facingSet = true;
                         ptr_facingCell = (snodeBlock_t*)(msg_ptr->extra_data.get());
                       }
@@ -5599,11 +5484,11 @@ bassert(this->in_avail_counter-cnt >= 0);
                   bassert( ptr_facingCell->owner == this->iam || ptr_facingCell != pQueryCELL(K-1,I-1).get() );
                   bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get() );
 
-                  //if ( ptr_odCell->owner != this->iam ){
+                  //if ( ptr_odCell->owner != this->iam ) {
                   //  ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
                   //}
 
-                  //if ( ptr_facingCell->owner != this->iam ){
+                  //if ( ptr_facingCell->owner != this->iam ) {
                   //  ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data.get());
                   //}
                   bassert(ptr_odCell!=nullptr);
@@ -5619,8 +5504,8 @@ bassert(this->in_avail_counter-cnt >= 0);
                   std::chrono::high_resolution_clock::time_point t1 = std::chrono::high_resolution_clock::now();
 #endif
 
-                  if(this->options_.decomposition == DecompositionType::LDL){
-                    if ( ! diagSet){
+                  if (this->options_.decomposition == DecompositionType::LDL) {
+                    if ( ! diagSet) {
                       auto ptr_diagCell = pQueryCELL(I-1,I-1).get();
                       bassert(ptr_diagCell->owner == this->iam);
                       diag_ptr = (T*)dynamic_cast<snodeBlockLDL_t*>(ptr_diagCell)->GetDiag();
@@ -5637,13 +5522,14 @@ bassert(this->in_avail_counter-cnt >= 0);
                     ptr_upd_cell->update(ptr_odCell,ptr_facingCell,tmpBuf,diag_ptr);
                   }
                   else {
+                    //TODO DEBUG
                     ptr_upd_cell->update(ptr_odCell,ptr_facingCell,tmpBuf);
                   }
 
 #ifdef _MEMORY_LIMIT_
                   if ( this->mem_budget != -1.0 ) {
                     size_t mem_cost = 0;
-                    for(auto & msg : ptask->input_msg){
+                    for (auto & msg : ptask->input_msg) {
                       mem_cost += msg->size;
                     }
                     this->mem_budget += mem_cost; 
@@ -5651,13 +5537,13 @@ bassert(this->in_avail_counter-cnt >= 0);
                   }
 #endif
                   //get rid of the shared_ptr
-                  //                  if ( ptr_odCell->owner != this->iam ){
+                  //                  if ( ptr_odCell->owner != this->iam ) {
                   ////                    logfileptr->OFS()<<"before clearing"<<std::endl;
-                  //                    for(auto & msg : ptask->input_msg){
+                  //                    for (auto & msg : ptask->input_msg) {
                   //                      logfileptr->OFS()<<msg.use_count()<<std::endl;
                   //                    }
                   //                  }
-                  //                  else{
+                  //                  else {
                   //                    logfileptr->OFS()<<"Exec Update"<<" from "<<I<<" to ("<<J<<") cell ("<<K<<","<<J<<") pivot ("<<ptr_odCell->i<<","<<ptr_odCell->j<<") "<<((snodeBlockLDL_t*)ptr_odCell)->local_pivot<<std::endl;
                   //                  }
 
@@ -5666,7 +5552,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                     ptask->input_msg.swap(tmp);
                   }
                   //ptask->input_msg.clear();
-                  //                  if ( ptr_odCell->owner != this->iam ){
+                  //                  if ( ptr_odCell->owner != this->iam ) {
                   //                    logfileptr->OFS()<<"after clearing"<<std::endl;
                   //                  }
 
@@ -5695,49 +5581,49 @@ bassert(this->in_avail_counter-cnt >= 0);
 #if 1
                       upcxx::rpc_ff( pdest, //cxs, 
                           [K,J] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                          return upcxx::current_persona().lpc( [K,J,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
+                          return upcxx::current_persona().lpc( [K,J,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
 #ifdef _TIMING_
-                              gasneti_tick_t start = gasneti_ticks_now();
+                            gasneti_tick_t start = gasneti_ticks_now();
 #endif
-                              //                            gdb_lock();
-                              //store pointer & associated metadata somewhere
-                              auto data = std::make_shared<SparseTask2D::data_t >();
-                              //data->target_cells.insert(data->target_cells.begin(),
-                              //    target_cells.begin(),target_cells.end());
-                              data->in_meta = meta;
-                              data->size = storage_size;
-                              data->remote_gptr = gptr;
+                            //                            gdb_lock();
+                            //store pointer & associated metadata somewhere
+                            auto data = std::make_shared<SparseTask2D::data_t >();
+                            //data->target_cells.insert(data->target_cells.begin(),
+                            //    target_cells.begin(),target_cells.end());
+                            data->in_meta = meta;
+                            data->size = storage_size;
+                            data->remote_gptr = gptr;
 
-                              //there is a map between sp_handle and task_graphs
-                              auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
-                              for ( auto & tgt_cell_idx: target_cells) {
-                              auto taskptr = matptr->task_graph[tgt_cell_idx].get();
-                              taskptr->input_msg.push_back(data);
-                              data->target_tasks.push_back(taskptr);
-                        taskptr->avail_dep(1,matptr->scheduler);
-                              }
+                            //there is a map between sp_handle and task_graphs
+                            auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
+                            for ( auto & tgt_cell_idx: target_cells) {
+                            auto taskptr = matptr->task_graph[tgt_cell_idx].get();
+                            taskptr->input_msg.push_back(data);
+                            data->target_tasks.push_back(taskptr);
+                            taskptr->avail_dep(1,matptr->scheduler);
+                            }
 
 
-                              auto I = std::get<1>(meta);
-                              rowind_t fc = matptr->Xsuper_[I-1];
-                              data->on_fetch.get_future().then(
-                                  [fc,width,nnz,nblocks,K,J,matptr](SparseTask2D::data_t * pdata){
-                                  //create snodeBlock_t and store it in the extra_data
-                                  if (matptr->options_.decomposition == DecompositionType::LDL){
-                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                  }
-                                  else{
-                                  pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                  }
-                                  }
-                                  );
-                              //TODO check this
+                            auto I = std::get<1>(meta);
+                            rowind_t fc = matptr->Xsuper_[I-1];
+                            data->on_fetch.get_future().then(
+                                [fc,width,nnz,nblocks,K,J,matptr](SparseTask2D::data_t * pdata) {
+                                //create snodeBlock_t and store it in the extra_data
+                                if (matptr->options_.decomposition == DecompositionType::LDL) {
+                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                }
+                                else {
+                                pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                }
+                                }
+                                );
+                            //TODO check this
 #ifdef _EAGER_FETCH_
-                              data->allocate();
-                              data->fetch();
+                            data->allocate();
+                            data->fetch();
 #endif
 #ifdef _TIMING_
-                              matptr->rpc_upd_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
+                            matptr->rpc_upd_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
                           });
 
@@ -5782,7 +5668,7 @@ bassert(this->in_avail_counter-cnt >= 0);
       }
 
       //generate task graph for the solution phase
-      if (1){
+      if (1) {
         //#define _VERBOSE_
         MPI_Datatype type;
         MPI_Type_contiguous( sizeof(SparseTask2D::meta_t), MPI_BYTE, &type );
@@ -5806,7 +5692,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
           Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
           Int firstSnode = this->XsuperDist_[this->iam];
-          for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
+          for (Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno) {
             Idx I = locsupno + firstSnode-1;
             Int first_col = this->Xsuper_[I-1];
             Int last_col = this->Xsuper_[I]-1;
@@ -5834,13 +5720,13 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             Int K = -1; 
             Idx K_prevSnode = -1;
-            for(Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++){
+            for (Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++) {
               Idx K_row = this->locLindx_[K_sidx-1];
               K = this->SupMembership_[K_row-1];
 
               //Split at boundary or after diagonal block
-              if(K!=K_prevSnode){
-                if(K>I){
+              if (K!=K_prevSnode) {
+                if (K>I) {
                   ancestor_rows.push_back(K_row);
                 }
               }
@@ -5851,14 +5737,14 @@ bassert(this->in_avail_counter-cnt >= 0);
             //            int ancest = I;
             //            while ( supETree.Parent(ancest-1) != 0 ) {
             //              auto parent = supETree.Parent(ancest-1);
-            //              if ( parent != 0 ){
+            //              if ( parent != 0 ) {
             //                ancestors.push_back(parent);
             //                ancest = parent;
             //              }
             //            }
-            //            logfileptr->OFS()<<"ancestors: "; for ( auto && a: ancestors){ logfileptr->OFS()<<a<<" ";} logfileptr->OFS()<<std::endl;
+            //            logfileptr->OFS()<<"ancestors: "; for ( auto && a: ancestors) { logfileptr->OFS()<<a<<" ";} logfileptr->OFS()<<std::endl;
             //            std::vector<bool> isRecvd(this->np,false);
-            for(auto J_row : ancestor_rows){
+            for (auto J_row : ancestor_rows) {
               Int J = this->SupMembership_[J_row-1];
 
               auto ptr_fodcell = pQueryCELL(J-1,I-1);
@@ -5881,16 +5767,16 @@ bassert(this->in_avail_counter-cnt >= 0);
               Messages[iUpdOwner].push_back(std::make_tuple(J,I,Factorization::op_type::FUC_RECV,J,J_row));
               //                isRecvd[iFODOwner] = true;
               //              }
-              //              if(this->options_.decomposition == DecompositionType::LDL){
+              //              if (this->options_.decomposition == DecompositionType::LDL) {
               //                Messages[iOwner].push_back(std::make_tuple(I,J,Factorization::op_type::FUC_DIAG_SEND,J_row,J_row));
               //                Messages[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::FUC_DIAG_RECV,J_row,J_row));
               //              }
 
 
 
-              //              for(auto K_row : ancestor_rows){
+              //              for (auto K_row : ancestor_rows) {
               //                K = this->SupMembership_[K_row-1];
-              //                if(K<=J){
+              //                if (K<=J) {
               //                  auto ptr_tgtupdcell = pQueryCELL(J-1,K-1);
               //                  Int iTgtOwner = ptr_tgtupdcell->owner;
               //                  //TODO update this for non fan-out mapping
@@ -5905,7 +5791,7 @@ bassert(this->in_avail_counter-cnt >= 0);
               //                  Messages[iUpdOwner].push_back(std::make_tuple(I,K,Factorization::op_type::FUC_RECV,K_row,J_row));
               //
               //
-              //                  if(this->options_.decomposition == DecompositionType::LDL){
+              //                  if (this->options_.decomposition == DecompositionType::LDL) {
               //                      Messages[iOwner].push_back(std::make_tuple(I,K,Factorization::op_type::FUC_DIAG_SEND,K_row,J_row));
               //                      Messages[iUpdOwner].push_back(std::make_tuple(I,K,Factorization::op_type::FUC_DIAG_RECV,K_row,J_row));
               //                  }
@@ -5918,7 +5804,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
             //if ( I == 1 ) gdb_lock();
             //            std::vector<bool> isBUCRecvd(this->np,false);
-            for(auto J_row : ancestor_rows){
+            for (auto J_row : ancestor_rows) {
               Int J = this->SupMembership_[J_row-1];
 
               auto ptr_fodcell = pQueryCELL(J-1,I-1);
@@ -5941,9 +5827,9 @@ bassert(this->in_avail_counter-cnt >= 0);
 
 
               //              //TODO THIS PROBABLY HAS TO BE REWRITTEN
-              //              for(auto K_row : ancestor_rows){
+              //              for (auto K_row : ancestor_rows) {
               //                K = this->SupMembership_[K_row-1];
-              //                if(K<=J){
+              //                if (K<=J) {
               //                  auto ptr_tgtupdcell = pQueryCELL(J-1,K-1);
               //                  Int iTgtOwner = ptr_tgtupdcell->owner;
               //                  //TODO update this for non fan-out mapping
@@ -5965,7 +5851,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
           //then do an alltoallv
           //compute send sizes
-          for(auto itp = Updates.begin();itp!=Updates.end();itp++){
+          for (auto itp = Updates.begin();itp!=Updates.end();itp++) {
             ssizes[itp->first] = itp->second.size();
           }
 
@@ -5976,13 +5862,13 @@ bassert(this->in_avail_counter-cnt >= 0);
           //Build the contiguous array of pairs
           sendbuf.reserve(sdispls.back());
 
-          for(auto itp = Updates.begin();itp!=Updates.end();itp++){
+          for (auto itp = Updates.begin();itp!=Updates.end();itp++) {
             sendbuf.insert(sendbuf.end(),itp->second.begin(),itp->second.end());
           }
 
           //then do an alltoallv
           //compute send sizes
-          for(auto itp = Messages.begin();itp!=Messages.end();itp++){
+          for (auto itp = Messages.begin();itp!=Messages.end();itp++) {
             ssizes_dep[itp->first] = itp->second.size();
           }
 
@@ -5993,7 +5879,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           //Build the contiguous array of pairs
           sendbuf_dep.reserve(sdispls_dep.back());
 
-          for(auto itp = Messages.begin();itp!=Messages.end();itp++){
+          for (auto itp = Messages.begin();itp!=Messages.end();itp++) {
             sendbuf_dep.insert(sendbuf_dep.end(),itp->second.begin(),itp->second.end());
           }
 
@@ -6047,7 +5933,7 @@ bassert(this->in_avail_counter-cnt >= 0);
         task_idx_solve.clear();
         task_idx_solve.reserve(recvbuf.size());
 
-        for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
+        for (auto it = recvbuf.begin();it!=recvbuf.end();it++) {
           auto & cur_op = (*it);
           auto & src_snode = std::get<0>(cur_op);
           auto & tgt_snode = std::get<1>(cur_op);
@@ -6056,7 +5942,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           auto & facing_first_row = std::get<4>(cur_op);
 
           SparseTask2D * ptask = nullptr;
-          switch(type){
+          switch(type) {
             case Factorization::op_type::FUC:
             case Factorization::op_type::BUC:
               {
@@ -6073,7 +5959,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           auto I = src_snode;
           auto J = tgt_snode;
 
-          if(ptask!=nullptr){
+          if (ptask!=nullptr) {
             scheduling::key_t key(std::get<0>(cur_op), std::get<1>(cur_op), 0, std::get<2>(cur_op));
             this->task_graph_solve.push_back( std::unique_ptr<SparseTask2D>(ptask) );
             task_idx_solve.push_back( std::make_tuple(key,task_idx_solve.size()));
@@ -6083,7 +5969,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
 
         //sort task_idx_solve by keys
-        std::sort(task_idx_solve.begin(),task_idx_solve.end(),[](std::tuple<scheduling::key_t, std::size_t > &a, std::tuple<scheduling::key_t, std::size_t >&b){ return std::get<0>(a) < std::get<0>(b);});
+        std::sort(task_idx_solve.begin(),task_idx_solve.end(),[](std::tuple<scheduling::key_t, std::size_t > &a, std::tuple<scheduling::key_t, std::size_t >&b) { return std::get<0>(a) < std::get<0>(b);});
 
 
         MPI_Datatype task_idx_type;
@@ -6104,13 +5990,13 @@ bassert(this->in_avail_counter-cnt >= 0);
         MPI_Allgatherv(task_idx_solve.data(),task_idx_size,task_idx_type,task_idx_recvbuf.data(),task_idx_rsizes.data(),task_idx_rdispls.data(),task_idx_type,this->workcomm_);
         MPI_Type_free(&task_idx_type);
 
-        auto key_lb_comp = [](const std::tuple<scheduling::key_t, std::size_t > & a, const scheduling::key_t & key){ return std::get<0>(a) < key;};
+        auto key_lb_comp = [](const std::tuple<scheduling::key_t, std::size_t > & a, const scheduling::key_t & key) { return std::get<0>(a) < key;};
 
         std::vector<int> update_right_cnt(this->nsuper+1,0);
         std::vector<int> update_up_cnt(this->nsuper+1,0);
 
         //now we can process the dependency tasks
-        for(auto it = recvbuf_dep.begin();it!=recvbuf_dep.end();it++){
+        for (auto it = recvbuf_dep.begin();it!=recvbuf_dep.end();it++) {
           auto & cur_op = (*it);
           auto & src_snode = std::get<0>(cur_op);
           auto & tgt_snode = std::get<1>(cur_op);
@@ -6121,7 +6007,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           auto J = src_snode;
           auto I = tgt_snode;
 
-          switch(type){
+          switch(type) {
             case Factorization::op_type::FUC_DIAG_SEND:
               {
                 Idx K = this->SupMembership_[facing_first_row-1];
@@ -6236,7 +6122,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                   bassert(J==I);
                   k1 = scheduling::key_t(J,J,0,Factorization::op_type::BUC);
                 }
-                //if(J==4 && J!=I) gdb_lock();
+                //if (J==4 && J!=I) gdb_lock();
 
                 auto outtask_idx_it = std::lower_bound(task_idx_solve.begin(), task_idx_solve.end(), k1, key_lb_comp);
                 auto taskptr = task_graph_solve[std::get<1>(*outtask_idx_it)].get();
@@ -6419,7 +6305,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 #endif
 
         //Now we have our local part of the task graph
-        for(auto it = this->task_graph_solve.begin(); it != this->task_graph_solve.end(); it++){
+        for (auto it = this->task_graph_solve.begin(); it != this->task_graph_solve.end(); it++) {
           auto & ptask = *it;
           auto meta = &ptask->_meta;
 
@@ -6448,7 +6334,7 @@ bassert(this->in_avail_counter-cnt >= 0);
 
           auto ptr = ptask.get();
 #ifdef _VERBOSE_
-          switch(type){
+          switch(type) {
             case Factorization::op_type::FUC:
               {
                 logfileptr->OFS()<<"FUC"<<" from "<<I<<" to ("<<I<<") cell ("<<J<<","<<I<<") "<<remote_deps<<std::endl;
@@ -6464,7 +6350,7 @@ bassert(this->in_avail_counter-cnt >= 0);
           }
 #endif
 
-          switch(type){
+          switch(type) {
             case Factorization::op_type::FUC:
               {
                 int dep_cnt = update_right_cnt[J];
@@ -6472,34 +6358,21 @@ bassert(this->in_avail_counter-cnt >= 0);
 
 
                 ptask->execute = [this,ptr,I,J,dep_cnt] () {
-//                  std::lock_guard<std::mutex> lock( this->solve_data.locks[J]);
-//                  std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
                   scope_timer(b,SOLVE_FUC_TASK);
                   auto ptask = ptr;
                   auto ptr_cell = pQueryCELL2(J-1,I-1);
-
-//                  auto ptr_lock_cell = pQueryCELL2(J-1,J-1);
-//                  cell_lock<snodeBlock_sptr_t> lock_cell(ptr_lock_cell);
+#ifdef SP_THREADS
                   cell_lock<std::atomic<bool> > lock_cell(this->solve_data.contribs_lock[J]);
-
-                                //if ( I==93 && J==93) gdb_lock();
-//                  std::unique_ptr<cell_lock<snodeBlock_sptr_t>> ptr_celllock2;
-//                  if ( I != J ) {
-//                    auto ptr_lock_cell2 = pQueryCELL2(I-1,I-1);
-//                    ptr_celllock2.reset( new cell_lock<snodeBlock_sptr_t>(ptr_lock_cell2));
-//                  }
-
-                  //gdb_lock();
+#endif
                   auto & update_right_cnt = this->solve_data.update_right_cnt;
                   auto & contribs = this->solve_data.contribs;
                   auto rhs = this->solve_data.rhs;
                   auto nrhs = this->solve_data.nrhs;
 
-#ifndef PREALLOCATE
+#ifndef PREALLOCATE2
                   //Allocate Y(K) with the same structure as L(K,M) where M is the highest anscestor in the Etree this rank owns
                   snodeBlock_sptr_t ptr_contrib = nullptr;
                   {
-                    //                   std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
                     auto & rptr_contrib = contribs[J];
                     if ( ! rptr_contrib ) {
                       bassert(update_right_cnt[J] == 0);
@@ -6513,7 +6386,6 @@ bassert(this->in_avail_counter-cnt >= 0);
                         rowind_t nrows = this->Xsuper_[J] - this->Xsuper_[J-1];
                         rptr_contrib = std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1);
                         rptr_contrib->add_block(this->Xsuper_[J-1],nrows);
-
                         //ptr_contrib->copy_row_structure(nrhs,(snodeBlock_t*)ptr_cell.get());
                       }
 
@@ -6521,21 +6393,20 @@ bassert(this->in_avail_counter-cnt >= 0);
                         std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
                       }
                       else {
-                        for(rowind_t row = 0; row< rptr_contrib->total_rows(); ++row){
+                        for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
                           rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
-                          for(rowind_t col = 0; col<nrhs;++col){
+                          for (rowind_t col = 0; col<nrhs;++col) {
                             rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
                           }
                         }
                       }
-
                     }
                     else if ( I == J ) {
                       bassert( rptr_contrib->nnz() >0 && rptr_contrib->width()>0);
                       //Add data from RHS
-                      for(rowind_t row = 0; row< rptr_contrib->total_rows(); ++row){
+                      for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
                         rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
-                        for(rowind_t col = 0; col<nrhs;++col){
+                        for (rowind_t col = 0; col<nrhs;++col) {
                           rptr_contrib->_nzval[row*nrhs+col] += rhs[srcRow + col*this->iSize_];
                         }
                       }
@@ -6543,8 +6414,8 @@ bassert(this->in_avail_counter-cnt >= 0);
                     ptr_contrib = rptr_contrib;
                   }
 #else
-                    auto ptr_contrib = contribs[J];
-                    bassert(ptr_contrib!=nullptr);
+                  auto ptr_contrib = contribs[J];
+                  bassert(ptr_contrib!=nullptr);
 #endif
 
                   if ( I == J ) {
@@ -6578,55 +6449,55 @@ bassert(this->in_avail_counter-cnt >= 0);
                       if ( pdest != this->iam ) {
                         upcxx::rpc_ff( pdest,  
                             [] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                            return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
-                                //there is a map between sp_handle and task_graphs
-                                auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
-                                auto I = std::get<1>(meta);
-                                rowind_t fc = matptr->Xsuper_[I-1];
+                            return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+                              //there is a map between sp_handle and task_graphs
+                              auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
+                              auto I = std::get<1>(meta);
+                              rowind_t fc = matptr->Xsuper_[I-1];
 
-                                //store pointer & associated metadata somewhere
-                                std::shared_ptr <SparseTask2D::data_t > data;
+                              //store pointer & associated metadata somewhere
+                              std::shared_ptr <SparseTask2D::data_t > data;
 
-                                for ( auto & tgt_cell_idx: target_cells) {
-                                auto taskptr = matptr->task_graph_solve[tgt_cell_idx].get();
-                                {
-                                if ( ! data ) {
-                                data = std::make_shared<SparseTask2D::data_t >();
-                                data->in_meta = meta;
-                                data->size = storage_size;
-                                data->remote_gptr = gptr;
-                                }
+                              for ( auto & tgt_cell_idx: target_cells) {
+                              auto taskptr = matptr->task_graph_solve[tgt_cell_idx].get();
+                              {
+                              if ( ! data ) {
+                              data = std::make_shared<SparseTask2D::data_t >();
+                              data->in_meta = meta;
+                              data->size = storage_size;
+                              data->remote_gptr = gptr;
+                              }
 
-                                taskptr->input_msg.push_back(data);
-                                data->target_tasks.push_back(taskptr);
-                        taskptr->avail_dep(1,matptr->scheduler);
-                                }
-                                }
+                              taskptr->input_msg.push_back(data);
+                              data->target_tasks.push_back(taskptr);
+                              taskptr->avail_dep(1,matptr->scheduler);
+                              }
+                              }
 
 
-                                if ( data ) {
-                                  data->on_fetch.get_future().then(
-                                      [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata){
-                                      //create snodeBlock_t and store it in the extra_data
-                                      if (matptr->options_.decomposition == DecompositionType::LDL){
-                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                      }
-                                      else{
-                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                      }
-                                      });
-                                  //TODO check this
+                              if ( data ) {
+                                data->on_fetch.get_future().then(
+                                    [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
+                                    //create snodeBlock_t and store it in the extra_data
+                                    if (matptr->options_.decomposition == DecompositionType::LDL) {
+                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    }
+                                    else {
+                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    }
+                                    });
+                                //TODO check this
 #ifdef _EAGER_FETCH_
-                                  data->allocate();
-                                  data->fetch();
+                                data->allocate();
+                                data->fetch();
 #endif
-                                }
+                              }
 
 #ifdef _EAGER_FETCH_
-                                //if ( diag_data ) {
-                                //  diag_data->allocate();
-                                //  diag_data->fetch();
-                                //}
+                              //if ( diag_data ) {
+                              //  diag_data->allocate();
+                              //  diag_data->fetch();
+                              //}
 #endif
                             });
 
@@ -6639,7 +6510,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                           bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::FUC
                               || std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
                           //mark the dependency as satisfied
-                        taskptr->satisfy_dep(1,this->scheduler);
+                          taskptr->satisfy_dep(1,this->scheduler);
                         }
                       }
                     }
@@ -6652,7 +6523,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                       ptr_diagContrib = (symPACK::blockCellBase_t*)contribs[I].get();
                       bassert(ptr_diagContrib != nullptr);
                     }
-                    else{
+                    else {
                       if ( ptask->input_msg.size() > 0 ) {
                         auto msg_ptr = *ptask->input_msg.begin();
                         bassert ( msg_ptr->extra_data != nullptr );
@@ -6681,55 +6552,55 @@ bassert(this->in_avail_counter-cnt >= 0);
                       //factor is output data so it will not be deleted
                       if ( pdest != this->iam ) {
                         update_right_cnt[J]++;
-                        if ( dep_cnt == update_right_cnt[J]){
+                        if ( dep_cnt == update_right_cnt[J]) {
                           upcxx::rpc_ff( pdest, /*cxs,*/ 
                               [dep_cnt ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                              return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt](){
-                                  //there is a map between sp_handle and task_graphs
-                                  auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
-                                  auto I = std::get<1>(meta);
-                                  rowind_t fc = matptr->Xsuper_[I-1];
+                              return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
+                                //there is a map between sp_handle and task_graphs
+                                auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
+                                auto I = std::get<1>(meta);
+                                rowind_t fc = matptr->Xsuper_[I-1];
 
-                                  //store pointer & associated metadata somewhere
-                                  std::shared_ptr <SparseTask2D::data_t > data;
+                                //store pointer & associated metadata somewhere
+                                std::shared_ptr <SparseTask2D::data_t > data;
 
-                                  for ( auto & tgt_cell_idx: target_cells) {
-                                  auto taskptr = matptr->task_graph_solve[tgt_cell_idx].get();
-                                  if ( ! data ) {
-                                  data = std::make_shared<SparseTask2D::data_t >();
-                                  data->in_meta = meta;
-                                  data->size = storage_size;
-                                  data->remote_gptr = gptr;
-                                  }
-
-
-                                  taskptr->input_msg.push_back(data);
-                                  data->target_tasks.push_back(taskptr);
-                        taskptr->avail_dep(dep_cnt,matptr->scheduler);
-
-                                  if(dep_cnt>1){
-                        taskptr->satisfy_dep(dep_cnt-1,matptr->scheduler);
-                                  }
-                                  }
+                                for ( auto & tgt_cell_idx: target_cells) {
+                                auto taskptr = matptr->task_graph_solve[tgt_cell_idx].get();
+                                if ( ! data ) {
+                                data = std::make_shared<SparseTask2D::data_t >();
+                                data->in_meta = meta;
+                                data->size = storage_size;
+                                data->remote_gptr = gptr;
+                                }
 
 
-                                  if ( data ) {
-                                    data->on_fetch.get_future().then(
-                                        [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata){
-                                        //create snodeBlock_t and store it in the extra_data
-                                        if (matptr->options_.decomposition == DecompositionType::LDL){
-                                        pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                        }
-                                        else{
-                                        pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                        }
-                                        });
-                                    //TODO check this
+                                taskptr->input_msg.push_back(data);
+                                data->target_tasks.push_back(taskptr);
+                                taskptr->avail_dep(dep_cnt,matptr->scheduler);
+
+                                if (dep_cnt>1) {
+                                  taskptr->satisfy_dep(dep_cnt-1,matptr->scheduler);
+                                }
+                                }
+
+
+                                if ( data ) {
+                                  data->on_fetch.get_future().then(
+                                      [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
+                                      //create snodeBlock_t and store it in the extra_data
+                                      if (matptr->options_.decomposition == DecompositionType::LDL) {
+                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                      }
+                                      else {
+                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                      }
+                                      });
+                                  //TODO check this
 #ifdef _EAGER_FETCH_
-                                    data->allocate();
-                                    data->fetch();
+                                  data->allocate();
+                                  data->fetch();
 #endif
-                                  }
+                                }
                               });
 
                               }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
@@ -6741,7 +6612,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                           bassert(taskptr!=nullptr); 
                           bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::FUC);
                           //mark the dependency as satisfied
-                        taskptr->satisfy_dep(1,this->scheduler);
+                          taskptr->satisfy_dep(1,this->scheduler);
                         }
                       }
                     }
@@ -6756,25 +6627,20 @@ bassert(this->in_avail_counter-cnt >= 0);
               {
                 int dep_cnt = update_up_cnt[I];
                 ptask->execute = [this,ptr,I,J,dep_cnt] () {
-//                  std::lock_guard<std::mutex> lock( this->solve_data.locks[I]);
-//                  std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
-
                   scope_timer(b,SOLVE_BUC_TASK);
                   auto ptask = ptr;
                   auto ptr_cell = pQueryCELL2(J-1,I-1);
 
-
-                  //auto ptr_lock_cell = pQueryCELL2(I-1,I-1);
-                  //cell_lock<snodeBlock_sptr_t> lock_cell(ptr_lock_cell);
+#ifdef SP_THREADS
                   cell_lock<std::atomic<bool> > lock_cell(this->solve_data.contribs_lock[I]);
-
+#endif
                   auto & update_up_cnt = this->solve_data.update_up_cnt;
                   auto & contribs = this->solve_data.contribs;
                   auto rhs = this->solve_data.rhs;
                   auto nrhs = this->solve_data.nrhs;
                   auto ptr_tgtcell = pQueryCELL(I-1,I-1);
 
-#ifndef PREALLOCATE
+#ifndef PREALLOCATE1
                   snodeBlock_sptr_t ptr_contrib = nullptr;
                   {
                     auto & rptr_contrib = contribs[I];
@@ -6784,7 +6650,7 @@ bassert(this->in_avail_counter-cnt >= 0);
                     if ( ptr_tgtcell->owner != this->iam ) {
                       if (update_up_cnt[I] == 0 ) {
                         bassert(I!=J);
-                        if ( !rptr_contrib ){
+                        if ( !rptr_contrib ) {
                           rowind_t nrows = this->Xsuper_[I] - this->Xsuper_[I-1];
                           rptr_contrib = std::make_shared<snodeBlock_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1);
                           rptr_contrib->add_block(this->Xsuper_[I-1],nrows);
@@ -6799,209 +6665,209 @@ bassert(this->in_avail_counter-cnt >= 0);
                     ptr_contrib = rptr_contrib;
                   }
 #else
-                    auto ptr_contrib = contribs[I];
-                    bassert(ptr_contrib!=nullptr);
+                  auto ptr_contrib = contribs[I];
+                  bassert(ptr_contrib!=nullptr);
 #endif
-                    if ( I == J ) {
-                      //Then accumulate everything coming from children
-                      for ( auto && msg_ptr: ptask->input_msg ) {
-                        if ( msg_ptr->extra_data ) {
-                          auto ptr_rem_contrib = (snodeBlock_t*)(msg_ptr->extra_data.get());
-                          ptr_contrib->back_update(ptr_rem_contrib);
+                  if ( I == J ) {
+                    //Then accumulate everything coming from children
+                    for ( auto && msg_ptr: ptask->input_msg ) {
+                      if ( msg_ptr->extra_data ) {
+                        auto ptr_rem_contrib = (snodeBlock_t*)(msg_ptr->extra_data.get());
+                        ptr_contrib->back_update(ptr_rem_contrib);
+                      }
+                    }
+
+                    //this is a diagonal block update
+                    //this could be implemented as a straight trsm
+                    ptr_cell->back_update_contrib(ptr_contrib.get());
+
+                    //send the contrib left
+                    std::unordered_map<int,std::list<std::size_t> > data_to_send;
+                    for (auto &tpl : ptask->out_dependencies) {
+                      auto owner = std::get<0>(tpl);
+                      auto idx = std::get<1>(tpl);
+                      data_to_send[owner].push_back(idx);
+                    }
+
+                    //send contrib and update local tasks
+                    for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
+                      auto pdest = it->first;
+                      auto & tgt_cells = it->second;
+                      //serialize data once, and list of meta data
+                      //diag contrib is output data so it will not be deleted
+                      if ( pdest != this->iam ) {
+                        upcxx::rpc_ff( pdest,  
+                            [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+                            return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+                              //there is a map between sp_handle and task_graphs
+                              auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
+                              auto I = std::get<1>(meta);
+                              rowind_t fc = matptr->Xsuper_[I-1];
+
+                              //store pointer & associated metadata somewhere
+                              std::shared_ptr <SparseTask2D::data_t > data;
+
+                              for ( auto & tgt_cell_idx: target_cells) {
+                              auto taskptr = matptr->task_graph_solve[tgt_cell_idx].get();
+
+
+                              {
+                              if ( ! data ) {
+                              data = std::make_shared<SparseTask2D::data_t >();
+                              data->in_meta = meta;
+                              data->size = storage_size;
+                              data->remote_gptr = gptr;
+                              }
+
+                              taskptr->input_msg.push_back(data);
+                              data->target_tasks.push_back(taskptr);
+                              taskptr->avail_dep(1,matptr->scheduler);
+                              }
+                              }
+
+
+                              if ( data ) {
+                                data->on_fetch.get_future().then(
+                                    [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
+                                    //create snodeBlock_t and store it in the extra_data
+                                    if (matptr->options_.decomposition == DecompositionType::LDL) {
+                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    }
+                                    else {
+                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    }
+                                    });
+                                //TODO check this
+#ifdef _EAGER_FETCH_
+                                data->allocate();
+                                data->fetch();
+#endif
+                              }
+
+#ifdef _EAGER_FETCH_
+                              //if ( diag_data ) {
+                              //  diag_data->allocate();
+                              //  diag_data->fetch();
+                              //}
+#endif
+                            });
+
+                            }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                      }
+                      else {
+                        for ( auto & tgt_cell_idx: tgt_cells ) {
+                          auto taskptr = task_graph_solve[tgt_cell_idx].get();
+                          bassert(taskptr!=nullptr); 
+                          bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
+                          //mark the dependency as satisfied
+                          taskptr->satisfy_dep(1,this->scheduler);
                         }
                       }
+                    }
+                  }
+                  else {
 
-                      //this is a diagonal block update
-                      //this could be implemented as a straight trsm
-                      ptr_cell->back_update_contrib(ptr_contrib.get());
-
-                      //send the contrib left
-                      std::unordered_map<int,std::list<std::size_t> > data_to_send;
-                      for (auto &tpl : ptask->out_dependencies) {
-                        auto owner = std::get<0>(tpl);
-                        auto idx = std::get<1>(tpl);
-                        data_to_send[owner].push_back(idx);
+                    bassert(ptask->input_msg.size() <= 1 );
+                    //unpack the part of the solution (y) facing the diagonal block of the supernode
+                    auto ptr_diagContrib = pQueryCELL(J-1,J-1).get(); 
+                    if ( ptr_diagContrib->owner == this->iam ) {
+                      ptr_diagContrib = (symPACK::blockCellBase_t*)contribs[J].get();
+                      bassert(ptr_diagContrib != nullptr);
+                    }
+                    else {
+                      if ( ptask->input_msg.size() > 0 ) {
+                        auto msg_ptr = *ptask->input_msg.begin();
+                        bassert ( msg_ptr->extra_data != nullptr );
+                        ptr_diagContrib = (snodeBlock_t*)(msg_ptr->extra_data.get());
                       }
-
-                      //send contrib and update local tasks
-                      for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
-                        auto pdest = it->first;
-                        auto & tgt_cells = it->second;
-                        //serialize data once, and list of meta data
-                        //diag contrib is output data so it will not be deleted
-                        if ( pdest != this->iam ) {
-                          upcxx::rpc_ff( pdest,  
-                              [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                              return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells](){
-                                  //there is a map between sp_handle and task_graphs
-                                  auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
-                                  auto I = std::get<1>(meta);
-                                  rowind_t fc = matptr->Xsuper_[I-1];
-
-                                  //store pointer & associated metadata somewhere
-                                  std::shared_ptr <SparseTask2D::data_t > data;
-
-                                  for ( auto & tgt_cell_idx: target_cells) {
-                                  auto taskptr = matptr->task_graph_solve[tgt_cell_idx].get();
+                    }
 
 
-                                  {
-                                  if ( ! data ) {
-                                  data = std::make_shared<SparseTask2D::data_t >();
-                                  data->in_meta = meta;
-                                  data->size = storage_size;
-                                  data->remote_gptr = gptr;
-                                  }
-
-                                  taskptr->input_msg.push_back(data);
-                                  data->target_tasks.push_back(taskptr);
-                        taskptr->avail_dep(1,matptr->scheduler);
-                                  }
-                                  }
+                    //compute the product between L(J,I) and Y(I)
+                    ptr_cell->back_update_contrib(ptr_contrib.get(),ptr_diagContrib);
 
 
-                                  if ( data ) {
-                                    data->on_fetch.get_future().then(
-                                        [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata){
-                                        //create snodeBlock_t and store it in the extra_data
-                                        if (matptr->options_.decomposition == DecompositionType::LDL){
-                                        pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                        }
-                                        else{
-                                        pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                        }
-                                        });
-                                    //TODO check this
+
+                    //send the contrib up
+                    std::unordered_map<int,std::list<std::size_t> > data_to_send;
+                    for (auto &tpl : ptask->out_dependencies) {
+                      auto owner = std::get<0>(tpl);
+                      auto idx = std::get<1>(tpl);
+                      data_to_send[owner].push_back(idx);
+                    }
+
+                    for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
+                      auto pdest = it->first;
+                      auto & tgt_cells = it->second;
+                      //serialize data once, and list of meta data
+                      //factor is output data so it will not be deleted
+                      if ( pdest != this->iam ) {
+                        update_up_cnt[I]++;
+                        if ( dep_cnt == update_up_cnt[I]) {
+                          upcxx::rpc_ff( pdest, /*cxs,*/ 
+                              [ dep_cnt] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+                              return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
+                                //there is a map between sp_handle and task_graphs
+                                auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
+                                auto I = std::get<1>(meta);
+                                rowind_t fc = matptr->Xsuper_[I-1];
+
+                                //store pointer & associated metadata somewhere
+                                std::shared_ptr <SparseTask2D::data_t > data;
+
+                                for ( auto & tgt_cell_idx: target_cells) {
+                                auto taskptr = matptr->task_graph_solve[tgt_cell_idx].get();
+                                if ( ! data ) {
+                                data = std::make_shared<SparseTask2D::data_t >();
+                                data->in_meta = meta;
+                                data->size = storage_size;
+                                data->remote_gptr = gptr;
+                                }
+
+
+                                taskptr->input_msg.push_back(data);
+                                data->target_tasks.push_back(taskptr);
+                                taskptr->avail_dep(dep_cnt,matptr->scheduler);
+
+                                if (dep_cnt>1) {
+                                  taskptr->satisfy_dep(dep_cnt-1,matptr->scheduler);
+                                }
+                                }
+
+
+                                if ( data ) {
+                                  data->on_fetch.get_future().then(
+                                      [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
+                                      //create snodeBlock_t and store it in the extra_data
+                                      if (matptr->options_.decomposition == DecompositionType::LDL) {
+                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                      }
+                                      else {
+                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                      }
+                                      });
+                                  //TODO check this
 #ifdef _EAGER_FETCH_
-                                    data->allocate();
-                                    data->fetch();
+                                  data->allocate();
+                                  data->fetch();
 #endif
-                                  }
-
-#ifdef _EAGER_FETCH_
-                                  //if ( diag_data ) {
-                                  //  diag_data->allocate();
-                                  //  diag_data->fetch();
-                                  //}
-#endif
+                                }
                               });
 
                               }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                         }
-                        else {
-                          for ( auto & tgt_cell_idx: tgt_cells ) {
-                            auto taskptr = task_graph_solve[tgt_cell_idx].get();
-                            bassert(taskptr!=nullptr); 
-                            bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
-                            //mark the dependency as satisfied
-                        taskptr->satisfy_dep(1,this->scheduler);
-                          }
+                      }
+                      else {
+                        for ( auto & tgt_cell_idx: tgt_cells ) {
+                          auto taskptr = task_graph_solve[tgt_cell_idx].get();
+                          bassert(taskptr!=nullptr); 
+                          bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
+                          //mark the dependency as satisfied
+                          taskptr->satisfy_dep(1,this->scheduler);
                         }
                       }
                     }
-                    else {
-
-                      bassert(ptask->input_msg.size() <= 1 );
-                      //unpack the part of the solution (y) facing the diagonal block of the supernode
-                      auto ptr_diagContrib = pQueryCELL(J-1,J-1).get(); 
-                      if ( ptr_diagContrib->owner == this->iam ) {
-                        ptr_diagContrib = (symPACK::blockCellBase_t*)contribs[J].get();
-                        bassert(ptr_diagContrib != nullptr);
-                      }
-                      else{
-                        if ( ptask->input_msg.size() > 0 ) {
-                          auto msg_ptr = *ptask->input_msg.begin();
-                          bassert ( msg_ptr->extra_data != nullptr );
-                          ptr_diagContrib = (snodeBlock_t*)(msg_ptr->extra_data.get());
-                        }
-                      }
-
-
-                      //compute the product between L(J,I) and Y(I)
-                      ptr_cell->back_update_contrib(ptr_contrib.get(),ptr_diagContrib);
-
-
-
-                      //send the contrib up
-                      std::unordered_map<int,std::list<std::size_t> > data_to_send;
-                      for (auto &tpl : ptask->out_dependencies) {
-                        auto owner = std::get<0>(tpl);
-                        auto idx = std::get<1>(tpl);
-                        data_to_send[owner].push_back(idx);
-                      }
-
-                      for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
-                        auto pdest = it->first;
-                        auto & tgt_cells = it->second;
-                        //serialize data once, and list of meta data
-                        //factor is output data so it will not be deleted
-                        if ( pdest != this->iam ) {
-                          update_up_cnt[I]++;
-                          if ( dep_cnt == update_up_cnt[I]){
-                            upcxx::rpc_ff( pdest, /*cxs,*/ 
-                                [ dep_cnt] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                                return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt](){
-                                    //there is a map between sp_handle and task_graphs
-                                    auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
-                                    auto I = std::get<1>(meta);
-                                    rowind_t fc = matptr->Xsuper_[I-1];
-
-                                    //store pointer & associated metadata somewhere
-                                    std::shared_ptr <SparseTask2D::data_t > data;
-
-                                    for ( auto & tgt_cell_idx: target_cells) {
-                                    auto taskptr = matptr->task_graph_solve[tgt_cell_idx].get();
-                                    if ( ! data ) {
-                                    data = std::make_shared<SparseTask2D::data_t >();
-                                    data->in_meta = meta;
-                                    data->size = storage_size;
-                                    data->remote_gptr = gptr;
-                                    }
-
-
-                                    taskptr->input_msg.push_back(data);
-                                    data->target_tasks.push_back(taskptr);
-                        taskptr->avail_dep(dep_cnt,matptr->scheduler);
-
-                                    if(dep_cnt>1){
-                        taskptr->satisfy_dep(dep_cnt-1,matptr->scheduler);
-                                    }
-                                    }
-
-
-                                    if ( data ) {
-                                      data->on_fetch.get_future().then(
-                                          [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata){
-                                          //create snodeBlock_t and store it in the extra_data
-                                          if (matptr->options_.decomposition == DecompositionType::LDL){
-                                          pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                          }
-                                          else{
-                                          pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                          }
-                                          });
-                                      //TODO check this
-#ifdef _EAGER_FETCH_
-                                      data->allocate();
-                                      data->fetch();
-#endif
-                                    }
-                                });
-
-                                }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
-                          }
-                        }
-                        else {
-                          for ( auto & tgt_cell_idx: tgt_cells ) {
-                            auto taskptr = task_graph_solve[tgt_cell_idx].get();
-                            bassert(taskptr!=nullptr); 
-                            bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
-                            //mark the dependency as satisfied
-                        taskptr->satisfy_dep(1,this->scheduler);
-                          }
-                        }
-                      }
-                    }
+                  }
                   ptask->executed = true;
                 };
               }
@@ -7019,1123 +6885,1058 @@ bassert(this->in_avail_counter-cnt >= 0);
 
     } 
 
-      template <typename colptr_t, typename rowind_t, typename T, typename int_t>
-        void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::DistributeMatrix(DistSparseMatrix<T> & pMat ){
+  template <typename colptr_t, typename rowind_t, typename T, typename int_t>
+    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::DistributeMatrix(DistSparseMatrix<T> & pMat ) {
 
-          std::map<Int,size_t > send_map;
+      std::map<Int,size_t > send_map;
 
-          typedef std::conditional< sizeof(Idx) < sizeof(Ptr), Idx, Ptr>::type minTypeIdxPtr;
-          using minType = typename std::conditional< sizeof(minTypeIdxPtr) < sizeof(T), minTypeIdxPtr, T >::type;
+      typedef std::conditional< sizeof(Idx) < sizeof(Ptr), Idx, Ptr>::type minTypeIdxPtr;
+      using minType = typename std::conditional< sizeof(minTypeIdxPtr) < sizeof(T), minTypeIdxPtr, T >::type;
 
-          size_t minSize = sizeof(minType);
-          size_t IdxToMin = sizeof(Idx) / minSize;
-          size_t PtrToMin = sizeof(Ptr) / minSize;
-          size_t TToMin = sizeof(T) / minSize;
+      size_t minSize = sizeof(minType);
+      size_t IdxToMin = sizeof(Idx) / minSize;
+      size_t PtrToMin = sizeof(Ptr) / minSize;
+      size_t TToMin = sizeof(T) / minSize;
 
-          Int baseval = pMat.Localg_.GetBaseval();
-          Idx FirstLocalCol = pMat.Localg_.vertexDist[this->iam] + (1 - baseval); //1-based
-          Idx LastLocalCol = pMat.Localg_.vertexDist[this->iam+1] + (1 - baseval); //1-based
+      Int baseval = pMat.Localg_.GetBaseval();
+      Idx FirstLocalCol = pMat.Localg_.vertexDist[this->iam] + (1 - baseval); //1-based
+      Idx LastLocalCol = pMat.Localg_.vertexDist[this->iam+1] + (1 - baseval); //1-based
 
-          {
+      {
 #ifdef _MEM_PROFILER_
-            utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Counting");
+        utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Counting");
 #endif
-            scope_timer(a,symPACKMatrix2D::DistributeMatrix::Counting);
-            for(Int I=1;I<this->Xsuper_.size();I++){
-              Idx fc = this->Xsuper_[I-1];
-              Idx lc = this->Xsuper_[I]-1;
-              Int iWidth = lc-fc+1;
+        scope_timer(a,symPACKMatrix2D::DistributeMatrix::Counting);
+        for (Int I=1;I<this->Xsuper_.size();I++) {
+          Idx fc = this->Xsuper_[I-1];
+          Idx lc = this->Xsuper_[I]-1;
+          Int iWidth = lc-fc+1;
 
-              //post all the recv and sends
-              for(Idx col = fc;col<=lc;col++){
-                //corresponding column in the unsorted matrix A
-                Idx orig_col = this->Order_.perm[col-1];
-                if(orig_col>= FirstLocalCol && orig_col < LastLocalCol){
-                  Ptr nrows = 0;
-                  Idx local_col = orig_col - FirstLocalCol+1;//1 based
-                  for(Ptr rowidx = pMat.Localg_.colptr[local_col-1] + (1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
-                    Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);//1-based
-                    Idx row = this->Order_.invp[orig_row-1];
+          //post all the recv and sends
+          for (Idx col = fc;col<=lc;col++) {
+            //corresponding column in the unsorted matrix A
+            Idx orig_col = this->Order_.perm[col-1];
+            if (orig_col>= FirstLocalCol && orig_col < LastLocalCol) {
+              Ptr nrows = 0;
+              Idx local_col = orig_col - FirstLocalCol+1;//1 based
+              for (Ptr rowidx = pMat.Localg_.colptr[local_col-1] + (1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx) {
+                Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);//1-based
+                Idx row = this->Order_.invp[orig_row-1];
 
-                    Int J = this->SupMembership_[row-1];
+                Int J = this->SupMembership_[row-1];
 
-                    if(row>=col){
-                      //this has to go in cell(J,I)
-                      auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
-                      Int iDest = ptr_tgt_cell->owner;
-                      send_map[iDest] += IdxToMin+PtrToMin+ (IdxToMin + TToMin);
-                    }
-                    else{
-                      //this has to go in cell(I,J)
-                      auto ptr_tgt_cell = pQueryCELL(I-1,J-1);
-                      Int iDestJ = ptr_tgt_cell->owner;
-                      //add the pair (col,row) to processor owning column row
-                      send_map[iDestJ] += IdxToMin+PtrToMin+ (IdxToMin + TToMin);
-                    }
-                  }
+                if (row>=col) {
+                  //this has to go in cell(J,I)
+                  auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
+                  Int iDest = ptr_tgt_cell->owner;
+                  send_map[iDest] += IdxToMin+PtrToMin+ (IdxToMin + TToMin);
+                }
+                else {
+                  //this has to go in cell(I,J)
+                  auto ptr_tgt_cell = pQueryCELL(I-1,J-1);
+                  Int iDestJ = ptr_tgt_cell->owner;
+                  //add the pair (col,row) to processor owning column row
+                  send_map[iDestJ] += IdxToMin+PtrToMin+ (IdxToMin + TToMin);
                 }
               }
             }
           }
+        }
+      }
 
 
 
-          {
-            //allocate one buffer for every remote processor
-            //compute the send structures
-            size_t total_send_size = 0;
-            std::vector<size_t> stotcounts(this->all_np,0);
-            for(auto it = send_map.begin(); it!=send_map.end();it++){
-              Int iCurDest = it->first;
-              size_t & send_bytes = it->second;
-              stotcounts[iCurDest] = send_bytes;
-            }
-            //compute send displacements
-            std::vector<size_t> spositions(this->all_np+1,0);
-            spositions[0] = 0;
-            std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
-            total_send_size = spositions.back();
+      {
+        //allocate one buffer for every remote processor
+        //compute the send structures
+        size_t total_send_size = 0;
+        std::vector<size_t> stotcounts(this->all_np,0);
+        for (auto it = send_map.begin(); it!=send_map.end();it++) {
+          Int iCurDest = it->first;
+          size_t & send_bytes = it->second;
+          stotcounts[iCurDest] = send_bytes;
+        }
+        //compute send displacements
+        std::vector<size_t> spositions(this->all_np+1,0);
+        spositions[0] = 0;
+        std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
+        total_send_size = spositions.back();
 
-            std::vector<minType, Mallocator<minType> > sendBuffer(total_send_size);
+        std::vector<minType, Mallocator<minType> > sendBuffer(total_send_size);
 
-            {
+        {
 #ifdef _MEM_PROFILER_
-              utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Serializing");
+          utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Serializing");
 #endif
-              scope_timer(a,symPACKMatrix2D::DistributeMatrix::Serializing);
+          scope_timer(a,symPACKMatrix2D::DistributeMatrix::Serializing);
 
-              for(Int I=1;I<this->Xsuper_.size();I++){
-                Idx fc = this->Xsuper_[I-1];
-                Idx lc = this->Xsuper_[I]-1;
-                Int iWidth = lc-fc+1;
+          for (Int I=1;I<this->Xsuper_.size();I++) {
+            Idx fc = this->Xsuper_[I-1];
+            Idx lc = this->Xsuper_[I]-1;
+            Int iWidth = lc-fc+1;
 
-                //Serialize
-                for(Idx col = fc;col<=lc;col++){
-                  Idx orig_col = this->Order_.perm[col-1];
+            //Serialize
+            for (Idx col = fc;col<=lc;col++) {
+              Idx orig_col = this->Order_.perm[col-1];
 
-                  if(orig_col>= FirstLocalCol && orig_col < LastLocalCol){
-                    Ptr nrows = 0;
-                    Idx local_col = orig_col - FirstLocalCol+1;//1 based
+              if (orig_col>= FirstLocalCol && orig_col < LastLocalCol) {
+                Ptr nrows = 0;
+                Idx local_col = orig_col - FirstLocalCol+1;//1 based
 
-                    for(Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx){
-                      Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
-                      Idx row = this->Order_.invp[orig_row-1];
+                for (Ptr rowidx = pMat.Localg_.colptr[local_col-1]+(1-baseval); rowidx<pMat.Localg_.colptr[local_col]+(1-baseval); ++rowidx) {
+                  Idx orig_row = pMat.Localg_.rowind[rowidx-1]+(1-baseval);
+                  Idx row = this->Order_.invp[orig_row-1];
 
-                      Int J = this->SupMembership_[row-1];
+                  Int J = this->SupMembership_[row-1];
 
-                      if(row>=col){
-                        //this has to go in cell(J,I)
-                        auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
-                        bassert(ptr_tgt_cell->i==J && ptr_tgt_cell->j==I);
-                        Int iDest = ptr_tgt_cell->owner;
-
-                        T val = pMat.nzvalLocal[rowidx-1];
-
-                        *((Idx*)&sendBuffer[spositions[iDest]]) = col;
-                        spositions[iDest]+=IdxToMin;
-                        *((Ptr*)&sendBuffer[spositions[iDest]]) = 1;
-                        spositions[iDest]+=PtrToMin;
-                        *((Idx*)&sendBuffer[spositions[iDest]]) = row;
-                        spositions[iDest]+=IdxToMin;
-                        *((T*)&sendBuffer[spositions[iDest]]) = val;
-                        spositions[iDest]+=TToMin;
-                      }
-                      else{
-                        //this has to go in cell(I,J)
-                        auto ptr_tgt_cell = pQueryCELL(I-1,J-1);
-                        bassert(ptr_tgt_cell->i==I && ptr_tgt_cell->j==J);
-                        Int iDestJ = ptr_tgt_cell->owner;
-                        //add the pair (col,row) to processor owning column row
-
-                        T val = pMat.nzvalLocal[rowidx-1];
-
-                        *((Idx*)&sendBuffer[spositions[iDestJ]]) = row;
-                        spositions[iDestJ]+=IdxToMin;
-                        *((Ptr*)&sendBuffer[spositions[iDestJ]]) = 1;
-                        spositions[iDestJ]+=PtrToMin;
-                        *((Idx*)&sendBuffer[spositions[iDestJ]]) = col;
-                        spositions[iDestJ]+=IdxToMin;
-                        *((T*)&sendBuffer[spositions[iDestJ]]) = val;
-                        spositions[iDestJ]+=TToMin;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-
-            spositions[0] = 0;
-            std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
-
-
-            //size_t myGCD = 0;
-            //myGCD = findGCD(stotcounts.data(),stotcounts.size());
-            ////now we need to to an allgather of these
-            //std::vector<size_t> gcds(this->np,0);
-            //MPI_Allgather(&myGCD,sizeof(size_t),MPI_BYTE,gcds.data(),sizeof(size_t),MPI_BYTE,this->workcomm_);
-            //myGCD = findGCD(gcds.data(),gcds.size());
-
-
-            //MPI_Datatype fused_type;
-            //MPI_Type_contiguous( myGCD*sizeof(minType), MPI_BYTE, &fused_type );
-            //MPI_Type_commit(&fused_type);
-
-            //for ( int i = 0; i< stotcounts.size(); i++){ stotcounts[i]/=myGCD; }
-            //spositions[0] = 0;
-            //std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
-
-            size_t total_recv_size = 0;
-            std::vector<minType, Mallocator<minType> > recvBuffer;
-            std::function<void(std::vector<minType, Mallocator<minType> >&,size_t)> resize_lambda =
-              [](std::vector<minType, Mallocator<minType> >& container, size_t sz){
-                container.resize(sz);
-              };
-
-            MPI_Datatype type;
-            MPI_Type_contiguous( sizeof(minType), MPI_BYTE, &type );
-            MPI_Type_commit(&type);
-
-
-            mpi::Alltoallv(sendBuffer, &stotcounts[0], &spositions[0], type ,
-                recvBuffer,this->fullcomm_, resize_lambda);
-
-            total_recv_size = recvBuffer.size();
-
-            MPI_Type_free(&type);
-            //MPI_Type_free(&fused_type);
-            //Need to parse the structure sent from the processor owning the first column of the supernode
-
-
-            {
-#ifdef _MEM_PROFILER_
-              utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Deserializing");
-#endif
-              scope_timer(a,symPACKMatrix2D::DistributeMatrix::Deserializing);
-              size_t head = 0;
-
-              while(head < total_recv_size)
-              { 
-                //Deserialize
-                Idx col = *((Idx*)&recvBuffer[head]);
-                head+=IdxToMin;
-                //nrows of column col sent by processor p
-                Ptr nrows = *((Ptr*)&recvBuffer[head]);
-                head+=PtrToMin;
-                Idx * rowind = (Idx*)(&recvBuffer[head]);
-                head+=nrows*IdxToMin;
-                T * nzvalA = (T*)(&recvBuffer[head]);
-                head+=nrows*TToMin;
-
-                Int I = this->SupMembership_[col-1];
-
-                Int fc = this->Xsuper_[I-1];
-                Int lc = this->Xsuper_[I]-1;
-                Int iWidth = lc-fc+1;
-                //              SuperNode<T> * snode = snodeLocal(I);
-
-                //Here, do a linear search instead for the blkidx
-                Ptr colbeg = 1;
-                Ptr colend = nrows;
-                if(colbeg<=colend){
-                  //sort rowind and nzvals
-                  std::vector<size_t> lperm = sort_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,std::less<Idx>());
-                  apply_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,lperm);
-                  apply_permutation(&nzvalA[colbeg-1],&nzvalA[colend-1]+1,lperm);
-                  Idx firstRow = rowind[colbeg-1];
-
-                  for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
-                    Idx row = rowind[rowidx-1];
-
-                    Int J = this->SupMembership_[row-1];
-
+                  if (row>=col) {
+                    //this has to go in cell(J,I)
                     auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
-                    assert(ptr_tgt_cell);
+                    bassert(ptr_tgt_cell->i==J && ptr_tgt_cell->j==I);
+                    Int iDest = ptr_tgt_cell->owner;
 
-                    auto & tgt_cell =CELL(J-1,I-1);
-                    bassert(this->iam == tgt_cell.owner);
-                    bassert(tgt_cell.i==J && tgt_cell.j==I);
+                    T val = pMat.nzvalLocal[rowidx-1];
 
-                    bool found = false;
-                    for(auto & block: tgt_cell.blocks()){
-                      if ( block.first_row <= row && row < block.first_row + tgt_cell.block_nrows(block) ){
-                        auto offset = block.offset + (row - block.first_row)*tgt_cell.width() + (col-fc);
-                        tgt_cell._nzval[offset] = nzvalA[rowidx-1];
-                        found = true;
-                        break;
+                    *((Idx*)&sendBuffer[spositions[iDest]]) = col;
+                    spositions[iDest]+=IdxToMin;
+                    *((Ptr*)&sendBuffer[spositions[iDest]]) = 1;
+                    spositions[iDest]+=PtrToMin;
+                    *((Idx*)&sendBuffer[spositions[iDest]]) = row;
+                    spositions[iDest]+=IdxToMin;
+                    *((T*)&sendBuffer[spositions[iDest]]) = val;
+                    spositions[iDest]+=TToMin;
+                  }
+                  else {
+                    //this has to go in cell(I,J)
+                    auto ptr_tgt_cell = pQueryCELL(I-1,J-1);
+                    bassert(ptr_tgt_cell->i==I && ptr_tgt_cell->j==J);
+                    Int iDestJ = ptr_tgt_cell->owner;
+                    //add the pair (col,row) to processor owning column row
 
-                      }  
-                    } 
+                    T val = pMat.nzvalLocal[rowidx-1];
 
-                    bassert(found);
-
+                    *((Idx*)&sendBuffer[spositions[iDestJ]]) = row;
+                    spositions[iDestJ]+=IdxToMin;
+                    *((Ptr*)&sendBuffer[spositions[iDestJ]]) = 1;
+                    spositions[iDestJ]+=PtrToMin;
+                    *((Idx*)&sendBuffer[spositions[iDestJ]]) = col;
+                    spositions[iDestJ]+=IdxToMin;
+                    *((T*)&sendBuffer[spositions[iDestJ]]) = val;
+                    spositions[iDestJ]+=TToMin;
                   }
                 }
               }
-
             }
-
-          }
-
-
-
-
-
-
-
-        } 
-
-      template <typename colptr_t, typename rowind_t, typename T, typename int_t>
-        void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Factorize( ){
-
-
-#ifdef SP_THREADS
-          this->scheduler.threadInitHandle_ = nullptr;
-          this->scheduler.extraTaskHandle_  = nullptr;
-
-          this->scheduler.threadInitHandle_ = [&,this](){
-            std::thread::id tid = std::this_thread::get_id();
-            std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
-            auto & tmpBuf = tmpBufs_th[tid];
-          };
-
-          if(Multithreading::NumThread>=2){
-            this->scheduler.extraTaskHandle_ = [&,this](SparseTask2D * pTask)->bool {
-              auto type = std::get<2>(pTask->_meta);
-
-              if(type == Factorization::op_type::FACTOR){
-                return false;
-              }
-              else{
-                auto src = std::get<0>(pTask->_meta);
-                auto J = std::get<1>(pTask->_meta);
-                auto facing_row = std::get<4>(pTask->_meta);
-                auto K = this->SupMembership_[facing_row-1];
-
-                auto ptr_tgtcell = pQueryCELL2(K-1,J-1);
-
-                bool exp = false;
-                if(std::atomic_compare_exchange_weak( &ptr_tgtcell->in_use, &exp, true )){
-                  return false;
-                }
-                else{
-                  return true;
-                }
-              }
-            };
-          }
-
-
-
-
-#endif
-
-#ifdef _TIMING_
-          std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
-#endif
-          this->scheduler.execute(this->task_graph,this->mem_budget);
-#ifdef _TIMING_
-          std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
-          double execute_graph_ticks = std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
-#endif
-          //print timer
-          //      uint64_t total_ns = gasneti_ticks_to_ns(CELL_ticks);
-#ifdef _TIMING_
-          std::stringstream sstr;
-          sstr<<upcxx::rank_me()<<" "<<(double)CELL_ticks*1.0e-9<<" "<<(double)rpc_fact_ticks*1.0e-9<<" "<<(double)rpc_trsm_ticks*1.0e-9<<" "<<(double)rpc_upd_ticks*1.0e-9<<std::endl;
-          sstr<<upcxx::rank_me()<<" "<<(double)deps_fact_ticks*1.0e-9<<" "<<(double)deps_trsm_ticks*1.0e-9<<" "<<(double)deps_upd_ticks*1.0e-9<<std::endl;
-          sstr<<upcxx::rank_me()<<" "<<(double)comp_fact_ticks*1.0e-6<<" "<<(double)comp_trsm_ticks*1.0e-6<<" "<<(double)comp_upd_ticks*1.0e-6<<std::endl;
-          sstr<<upcxx::rank_me()<<" "<<(double)execute_graph_ticks*1.0e-6<<std::endl;
-          logfileptr->OFS()<<sstr.str();
-#endif
-        } 
-
-
-      template <typename colptr_t, typename rowind_t, typename T, typename int_t>
-        void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Solve( T * RHS, int nrhs,  T * Xptr ){
-          this->scheduler.isSolve = true;
-          //set solve_data
-          //TODO RHS should be distributed according to Xsuper
-          std::vector<T> distRHS;
-          this->solve_data.rhs = RHS;
-          this->solve_data.nrhs = nrhs;
-          this->solve_data.contribs.clear();
-          this->solve_data.contribs.assign(nsuper+1,nullptr);
-          //this->solve_data.locks.resize(nsuper+1);
-          delete [] this->solve_data.contribs_lock;
-          this->solve_data.contribs_lock = new std::atomic<bool>[this->nsuper+1];
-          for ( int i = 0; i < this->nsuper+1; i++ ) { this->solve_data.contribs_lock[i] = false; } 
-
-          this->solve_data.update_right_cnt.assign(this->nsuper+1,0);
-          //delete [] this->solve_data.update_right_cnt;
-          //this->solve_data.update_right_cnt = new std::atomic<int>[this->nsuper+1];
-          //for ( int i = 0; i < this->nsuper+1; i++ ) { this->solve_data.update_right_cnt[i] = 0; } 
-          
-          this->solve_data.update_up_cnt.assign(this->nsuper+1,0);
-          //delete [] this->solve_data.update_up_cnt;
-          //this->solve_data.update_up_cnt = new std::atomic<int>[this->nsuper+1];
-          //for ( int i = 0; i < this->nsuper+1; i++ ) { this->solve_data.update_up_cnt[i] = 0; } 
-
-#ifdef SP_THREADS
-          this->scheduler.threadInitHandle_ = nullptr;
-          this->scheduler.extraTaskHandle_  = nullptr;
-
-          this->scheduler.threadInitHandle_ = [&,this](){
-            std::thread::id tid = std::this_thread::get_id();
-            std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
-            auto & tmpBuf = tmpBufs_th[tid];
-          };
-
-
-          if(Multithreading::NumThread>=2){
-            this->scheduler.extraTaskHandle_ = [&,this](SparseTask2D * pTask)->bool {
-              auto type = std::get<2>(pTask->_meta);
-
-              if(type == Factorization::op_type::BUC){
-                auto J = std::get<0>(pTask->_meta);
-                auto I = std::get<1>(pTask->_meta);
-                //auto ptr_tgtcell = pQueryCELL2(I-1,I-1);
-                bool exp = false;
-                auto & lock = this->solve_data.contribs_lock[I];
-                if(std::atomic_compare_exchange_weak( &lock, &exp, true )){
-                  return false;
-                }
-                else{
-                  return true;
-                }
-              }
-              else{
-                auto J = std::get<0>(pTask->_meta);
-                auto I = std::get<1>(pTask->_meta);
-                //auto ptr_tgtcell = pQueryCELL2(J-1,J-1);
-                bool exp = false;
-                auto & lock = this->solve_data.contribs_lock[J];
-                if(std::atomic_compare_exchange_weak( &lock, &exp, true )){
-                  return false;
-                }
-                else{
-                  return true;
-                }
-              }
-            };
-          }
-#endif
-
-#ifdef PREALLOCATE
-        //Now we have our local part of the task graph
-          for(auto it = this->task_graph_solve.begin(); it != this->task_graph_solve.end(); it++){
-            auto & ptask = *it;
-            auto meta = &ptask->_meta;
-
-            auto & src_snode = std::get<0>(meta[0]);
-            auto & tgt_snode = std::get<1>(meta[0]);
-            auto & last_local_ancestor = std::get<3>(meta[0]);
-            auto & facing_row = std::get<4>(meta[0]);
-            auto & type = std::get<2>(meta[0]);
-
-            auto J = src_snode;
-            auto I = tgt_snode;
-
-            auto ptr = ptask.get();
-            switch(type){
-              case Factorization::op_type::FUC:
-                {
-                  auto & contribs = this->solve_data.contribs;
-                  auto rhs = this->solve_data.rhs;
-                  auto nrhs = this->solve_data.nrhs;
-
-                  //Allocate Y(K) with the same structure as L(K,M) where M is the highest anscestor in the Etree this rank owns
-                  auto & rptr_contrib = contribs[J];
-                  if ( ! rptr_contrib ) {
-                    //bassert(update_right_cnt[J] == 0);
-                    rptr_contrib = std::make_shared<snodeBlock_t>();
-                    auto ptr_test_cell = pQueryCELL(J-1,J-1);
-                    if ( ptr_test_cell->owner == this->iam ) {
-                      rptr_contrib->copy_row_structure(nrhs,(snodeBlock_t*)ptr_test_cell.get());
-                    }
-                    else {
-                      bassert(I!=J);
-                      rowind_t nrows = this->Xsuper_[J] - this->Xsuper_[J-1];
-                      rptr_contrib = std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1);
-                      rptr_contrib->add_block(this->Xsuper_[J-1],nrows);
-                    }
-
-                    if ( I != J ) {
-                      std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
-                    }
-                    else {
-                      for(rowind_t row = 0; row< rptr_contrib->total_rows(); ++row){
-                        rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
-                        for(rowind_t col = 0; col<nrhs;++col){
-                          rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
-                        }
-                      }
-                    }
-
-                  }
-                  else if ( I == J ) {
-                    bassert( rptr_contrib->nnz() >0 && rptr_contrib->width()>0);
-                    //Add data from RHS
-                    for(rowind_t row = 0; row< rptr_contrib->total_rows(); ++row){
-                      rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
-                      for(rowind_t col = 0; col<nrhs;++col){
-                        rptr_contrib->_nzval[row*nrhs+col] += rhs[srcRow + col*this->iSize_];
-                      }
-                    }
-                  }
-                }
-                break;
-              case Factorization::op_type::BUC:
-                {
-
-                  auto & contribs = this->solve_data.contribs;
-                  auto rhs = this->solve_data.rhs;
-                  auto nrhs = this->solve_data.nrhs;
-                  auto ptr_tgtcell = pQueryCELL(I-1,I-1);
-
-                  auto & rptr_contrib = contribs[I];
-                  if ( ptr_tgtcell->owner != this->iam ) {
-                    bassert(I!=J);
-                    if ( !rptr_contrib ){
-                      rowind_t nrows = this->Xsuper_[I] - this->Xsuper_[I-1];
-                      rptr_contrib = std::make_shared<snodeBlock_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1);
-                      rptr_contrib->add_block(this->Xsuper_[I-1],nrows);
-                    }
-                    std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
-                  }
-                }
-                break;
-            }
-          }
-#endif
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-          this->scheduler.execute(this->task_graph_solve,this->mem_budget);
-
-
-
-
-
-//gdb_lock();
-          //      for ( int I = 1; I <= this->nsuper; I++ ) {
-          //        auto ptr_tgt_cell = pQueryCELL(I-1,I-1);
-          //        Int iOwner = ptr_tgt_cell->owner;
-          //        if ( this->iam == iOwner ) {
-          //                logfileptr->OFS()<<"-------- "<<I<<" ----------"<<std::endl;
-          //          auto ptr_tgt_cell = this->solve_data.contribs[I];
-          //          auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
-          //          for(auto & block: tgt_cell.blocks()){
-          //            T * val = &tgt_cell._nzval[block.offset];
-          //            auto nRows = tgt_cell.block_nrows(block);
-          //            auto row = block.first_row;
-          //            for(auto i = 0; i< nRows; ++i){
-          //              for(auto j = 0; j< tgt_cell.width(); ++j){
-          //
-          //                Int destRow = tgt_cell.first_col + i;
-          //                destRow = this->Order_.perm[destRow - 1];
-          //
-          //                Xptr[ (destRow -1) +j*this->iSize_ ] = val[i*tgt_cell.width()+j];
-          //                logfileptr->OFS()<<std::scientific<<val[i*tgt_cell.width()+j]<<" "<<std::endl;
-          //              }
-          //            }
-          //          }
-          //                logfileptr->OFS()<<"--------------------------"<<std::endl;
-          //        }
-          //      }  
-
-        } 
-
-      template <typename colptr_t, typename rowind_t, typename T, typename int_t>
-        void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::GetSolution(T * B, int nrhs){
-          Int n = this->iSize_;
-          {
-            std::fill(B,B+n*nrhs,T(0.0));
-
-            //Gather B from everybody and put it in the original matrix order
-            for ( int I = 1; I <= this->nsuper; I++ ) {
-              auto ptr_tgt_cell = pQueryCELL(I-1,I-1);
-              Int iOwner = ptr_tgt_cell->owner;
-              T * data;
-              Int snode_size = this->Xsuper_[I] - this->Xsuper_[I-1];
-              Int nzcnt = snode_size * nrhs;
-
-              //logfileptr->OFS()<<"-------- "<<I<<" ----------"<<std::endl;
-              if( iOwner == this->iam ){
-                auto ptr_tgt_cell = this->solve_data.contribs[I];
-                bassert(ptr_tgt_cell!=nullptr);
-                auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
-                for(auto & block: tgt_cell.blocks()){
-                  T * val = &tgt_cell._nzval[block.offset];
-                  auto nRows = tgt_cell.block_nrows(block);
-                  auto row = block.first_row;
-                  for(auto i = 0; i< nRows; ++i){
-                    for(auto j = 0; j< tgt_cell.width(); ++j){
-
-                      Int destRow = tgt_cell.first_col + i;
-                      destRow = this->Order_.perm[destRow - 1];
-
-                      B[ (destRow -1) +j*this->iSize_ ] = val[i*tgt_cell.width()+j];
-                      //logfileptr->OFS()<<std::scientific<<val[i*tgt_cell.width()+j]<<" "<<std::endl;
-                    }
-                  }
-                }
-              }
-              //logfileptr->OFS()<<"--------------------------"<<std::endl;
-            }
-
-            mpi::Allreduce((T*)MPI_IN_PLACE,&B[0],n*nrhs,MPI_SUM,this->fullcomm_);
-            MPI_Barrier(this->fullcomm_);
           }
         }
 
+        spositions[0] = 0;
+        std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
 
 
-
-      //TODO redo this
-      template <typename colptr_t, typename rowind_t, typename T, typename int_t>
-        inline void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::DumpMatlab(){
-          logfileptr->OFS()<<"+sparse([";
-          for(Int I=1;I<this->Xsuper_.size();I++){
-            Int src_first_col = this->Xsuper_[I-1];
-            Int src_last_col = this->Xsuper_[I]-1;
-
-            //       gdb_lock(); 
-            for(Int J=I;J<this->Xsuper_.size();J++){
-              auto idx = coord2supidx(J-1,I-1);
-              if (this->cells_.find(idx)!= this->cells_.end()){
-
-                //auto tmp = CELL(J-1,I-1);
-
-                auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
-                assert(ptr_tgt_cell!=nullptr);
+        //size_t myGCD = 0;
+        //myGCD = findGCD(stotcounts.data(),stotcounts.size());
+        ////now we need to to an allgather of these
+        //std::vector<size_t> gcds(this->np,0);
+        //MPI_Allgather(&myGCD,sizeof(size_t),MPI_BYTE,gcds.data(),sizeof(size_t),MPI_BYTE,this->workcomm_);
+        //myGCD = findGCD(gcds.data(),gcds.size());
 
 
-                Int iOwner = ptr_tgt_cell->owner;
-                if( iOwner == this->iam ){
-                  auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
-                  for(auto & block: tgt_cell.blocks()){
-                    T * val = &tgt_cell._nzval[block.offset];
-                    Int nRows = tgt_cell.block_nrows(block);
+        //MPI_Datatype fused_type;
+        //MPI_Type_contiguous( myGCD*sizeof(minType), MPI_BYTE, &fused_type );
+        //MPI_Type_commit(&fused_type);
 
-                    Int row = block.first_row;
-                    for(Int i = 0; i< nRows; ++i){
-                      for(Int j = 0; j< tgt_cell.width(); ++j){
-                        logfileptr->OFS()<<row+i<<" ";
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          logfileptr->OFS()<<"],[";
-          for(Int I=1;I<this->Xsuper_.size();I++){
-            Int src_first_col = this->Xsuper_[I-1];
-            Int src_last_col = this->Xsuper_[I]-1;
+        //for ( int i = 0; i< stotcounts.size(); i++) { stotcounts[i]/=myGCD; }
+        //spositions[0] = 0;
+        //std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
 
-            for(Int J=I;J<this->Xsuper_.size();J++){
-              auto idx = coord2supidx(J-1,I-1);
-              if (this->cells_.find(idx)!= this->cells_.end()){
-                auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
-                Int iOwner = ptr_tgt_cell->owner;
-                if( iOwner == this->iam ){
-                  auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
-                  for(auto & block: tgt_cell.blocks()){
-                    T * val = &tgt_cell._nzval[block.offset];
-                    Int nRows = tgt_cell.block_nrows(block);
+        size_t total_recv_size = 0;
+        std::vector<minType, Mallocator<minType> > recvBuffer;
+        std::function<void(std::vector<minType, Mallocator<minType> >&,size_t)> resize_lambda =
+          [](std::vector<minType, Mallocator<minType> >& container, size_t sz) {
+            container.resize(sz);
+          };
 
-                    Int row = block.first_row;
-                    for(Int i = 0; i< nRows; ++i){
-                      for(Int j = 0; j< tgt_cell.width(); ++j){
-                        logfileptr->OFS()<<src_first_col+j<<" ";
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          logfileptr->OFS()<<"],[";
-          logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
-          for(Int I=1;I<this->Xsuper_.size();I++){
-            Int src_first_col = this->Xsuper_[I-1];
-            Int src_last_col = this->Xsuper_[I]-1;
-
-            for(Int J=I;J<this->Xsuper_.size();J++){
-              auto idx = coord2supidx(J-1,I-1);
-              auto it = this->cells_.end();
-              if ( (it = this->cells_.find(idx)) != this->cells_.end()){
-                auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
-                Int iOwner = ptr_tgt_cell->owner;
-                if( iOwner == this->iam ){
-                  auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
-                  for(auto & block: tgt_cell.blocks()){
-                    T * val = &tgt_cell._nzval[block.offset];
-                    auto nRows = tgt_cell.block_nrows(block);
-
-                    auto row = block.first_row;
-                    for(auto i = 0; i< nRows; ++i){
-                      for(auto j = 0; j< tgt_cell.width(); ++j){
-                        logfileptr->OFS()<<std::scientific<<"("<<row+i<<","<<src_first_col+j<<") "<<ToMatlabScalar(val[i*tgt_cell.width()+j])<<" "<<std::endl;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-          logfileptr->OFS()<<"],"<<this->iSize_<<","<<this->iSize_<<")"<<std::endl;
-        }
+        MPI_Datatype type;
+        MPI_Type_contiguous( sizeof(minType), MPI_BYTE, &type );
+        MPI_Type_commit(&type);
 
 
+        mpi::Alltoallv(sendBuffer, &stotcounts[0], &spositions[0], type ,
+            recvBuffer,this->fullcomm_, resize_lambda);
+
+        total_recv_size = recvBuffer.size();
+
+        MPI_Type_free(&type);
+        //MPI_Type_free(&fused_type);
+        //Need to parse the structure sent from the processor owning the first column of the supernode
 
 
-
-
-
-
-
-
-
-
-
-      namespace scheduling {
-        template <typename ttask_t , typename ttaskgraph_t >
-                  inline bool Scheduler2D<ttask_t,ttaskgraph_t>::assignWork(ttask_t * ptask){
-                      if ( ! free_workers_.empty() ) {
-                        auto id = free_workers_.front();
-                        auto & w_p = work_pointers_[id];
-                        bool success = w_p.set(ptask);
-                        if ( success ) {
-                          bassert(worker_loads_[id]<2);
-++worker_loads_[id]; 
-                          if ( worker_loads_[id] == 2 ){
-                            //if ( isSolve) gdb_lock();
-                            
-                            free_workers_.pop_front();
-                            bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),id)==this->free_workers_.end());
-                          }
-                        }
-
-                        //int cnt = 0;
-                        //if (nullptr != w_p.pointers[w_p.wslot_].load(std::memory_order_relaxed)) cnt++;
-                        //if (nullptr != w_p.pointers[w_p.wslot_^1].load(std::memory_order_relaxed)) cnt++;
-                        //bassert(worker_loads_[id] == cnt);
-                        //bassert(success);
-                        return success;
-                      }
-                      else {
-//.#ifdef _PRIORITY_QUEUE_RDY_
-//.                        ready_tasks.push(ptask);
-//.#else
-//.                        ready_tasks.push_back(ptask);
-//.#endif
-                        return false;
-                      }
-                    }
-
-
-        template <typename ttask_t , typename ttaskgraph_t >
-          inline void Scheduler2D<ttask_t,ttaskgraph_t>::execute(ttaskgraph_t & task_graph, double & mem_budget )
-          {
-            double progress_ticks = 0;
-            double progress_ticks2 = 0;
-            double message_ticks = 0;
-            double execute_ticks = 0;
-            double while_ticks = 0;
-            double ifempty_ticks = 0;
-            try{
-              int64_t local_task_cnt;
-              {
+        {
 #ifdef _MEM_PROFILER_
-                utility::scope_memprofiler m("symPACKMatrix_execute_1");
+          utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Deserializing");
 #endif
-                local_task_cnt = task_graph.size();
-                for(auto it = task_graph.begin(); it != task_graph.end(); it++){
-                  auto & ptask = *it;
-                  auto remote_deps = ptask->in_remote_dependencies_cnt;
-                  auto ptr = ptask.get();
+          scope_timer(a,symPACKMatrix2D::DistributeMatrix::Deserializing);
+          size_t head = 0;
+
+          while (head < total_recv_size)
+          { 
+            //Deserialize
+            Idx col = *((Idx*)&recvBuffer[head]);
+            head+=IdxToMin;
+            //nrows of column col sent by processor p
+            Ptr nrows = *((Ptr*)&recvBuffer[head]);
+            head+=PtrToMin;
+            Idx * rowind = (Idx*)(&recvBuffer[head]);
+            head+=nrows*IdxToMin;
+            T * nzvalA = (T*)(&recvBuffer[head]);
+            head+=nrows*TToMin;
+
+            Int I = this->SupMembership_[col-1];
+
+            Int fc = this->Xsuper_[I-1];
+            Int lc = this->Xsuper_[I]-1;
+            Int iWidth = lc-fc+1;
+            //              SuperNode<T> * snode = snodeLocal(I);
+
+            //Here, do a linear search instead for the blkidx
+            Ptr colbeg = 1;
+            Ptr colend = nrows;
+            if (colbeg<=colend) {
+              //sort rowind and nzvals
+              std::vector<size_t> lperm = sort_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,std::less<Idx>());
+              apply_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,lperm);
+              apply_permutation(&nzvalA[colbeg-1],&nzvalA[colend-1]+1,lperm);
+              Idx firstRow = rowind[colbeg-1];
+
+              for (Ptr rowidx = colbeg; rowidx<=colend; ++rowidx) {
+                Idx row = rowind[rowidx-1];
+
+                Int J = this->SupMembership_[row-1];
+
+                auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
+                assert(ptr_tgt_cell);
+
+                auto & tgt_cell =CELL(J-1,I-1);
+                bassert(this->iam == tgt_cell.owner);
+                bassert(tgt_cell.i==J && tgt_cell.j==I);
+
+                bool found = false;
+                for (auto & block: tgt_cell.blocks()) {
+                  if ( block.first_row <= row && row < block.first_row + tgt_cell.block_nrows(block) ) {
+                    auto offset = block.offset + (row - block.first_row)*tgt_cell.width() + (col-fc);
+                    tgt_cell._nzval[offset] = nzvalA[rowidx-1];
+                    found = true;
+                    break;
+
+                  }  
+                } 
+
+                bassert(found);
+
+              }
+            }
+          }
+
+        }
+
+      }
+
+
+
+
+
+
+
+    } 
+
+  template <typename colptr_t, typename rowind_t, typename T, typename int_t>
+    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Factorize( ) {
+
+
+#ifdef SP_THREADS
+      this->scheduler.threadInitHandle_ = nullptr;
+      this->scheduler.extraTaskHandle_  = nullptr;
+
+      this->scheduler.threadInitHandle_ = [&,this]() {
+        std::thread::id tid = std::this_thread::get_id();
+        std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
+        auto & tmpBuf = tmpBufs_th[tid];
+      };
+
+      if (Multithreading::NumThread>2) {
+        this->scheduler.extraTaskHandle_ = [&,this](SparseTask2D * pTask)->bool {
+          auto type = std::get<2>(pTask->_meta);
+
+          if (type == Factorization::op_type::FACTOR) {
+            return false;
+          }
+          else {
+            auto src = std::get<0>(pTask->_meta);
+            auto J = std::get<1>(pTask->_meta);
+            auto facing_row = std::get<4>(pTask->_meta);
+            auto K = this->SupMembership_[facing_row-1];
+
+            auto ptr_tgtcell = pQueryCELL2(K-1,J-1);
+
+            bool exp = false;
+            if (std::atomic_compare_exchange_weak( &ptr_tgtcell->in_use, &exp, true )) {
+              return false;
+            }
+            else {
+              return true;
+            }
+          }
+        };
+      }
+#endif
+
+#ifdef _TIMING_
+      std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
+#endif
+      this->scheduler.execute(this->task_graph,this->mem_budget);
+#ifdef _TIMING_
+      std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
+      double execute_graph_ticks = std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
+#endif
+      //print timer
+      //      uint64_t total_ns = gasneti_ticks_to_ns(CELL_ticks);
+#ifdef _TIMING_
+      std::stringstream sstr;
+      sstr<<upcxx::rank_me()<<" "<<(double)CELL_ticks*1.0e-9<<" "<<(double)rpc_fact_ticks*1.0e-9<<" "<<(double)rpc_trsm_ticks*1.0e-9<<" "<<(double)rpc_upd_ticks*1.0e-9<<std::endl;
+      sstr<<upcxx::rank_me()<<" "<<(double)deps_fact_ticks*1.0e-9<<" "<<(double)deps_trsm_ticks*1.0e-9<<" "<<(double)deps_upd_ticks*1.0e-9<<std::endl;
+      sstr<<upcxx::rank_me()<<" "<<(double)comp_fact_ticks*1.0e-6<<" "<<(double)comp_trsm_ticks*1.0e-6<<" "<<(double)comp_upd_ticks*1.0e-6<<std::endl;
+      sstr<<upcxx::rank_me()<<" "<<(double)execute_graph_ticks*1.0e-6<<std::endl;
+      logfileptr->OFS()<<sstr.str();
+#endif
+    } 
+
+
+  template <typename colptr_t, typename rowind_t, typename T, typename int_t>
+    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Solve( T * RHS, int nrhs,  T * Xptr ) {
+      this->scheduler.isSolve = true;
+      //set solve_data
+      //TODO RHS should be distributed according to Xsuper
+      std::vector<T> distRHS;
+      this->solve_data.rhs = RHS;
+      this->solve_data.nrhs = nrhs;
+      this->solve_data.contribs.clear();
+      this->solve_data.contribs.assign(nsuper+1,nullptr);
+      //this->solve_data.locks.resize(nsuper+1);
+      delete [] this->solve_data.contribs_lock;
+      this->solve_data.contribs_lock = new std::atomic<bool>[this->nsuper+1];
+      for ( int i = 0; i < this->nsuper+1; i++ ) { this->solve_data.contribs_lock[i] = false; } 
+
+      this->solve_data.update_right_cnt.assign(this->nsuper+1,0);
+      //delete [] this->solve_data.update_right_cnt;
+      //this->solve_data.update_right_cnt = new std::atomic<int>[this->nsuper+1];
+      //for ( int i = 0; i < this->nsuper+1; i++ ) { this->solve_data.update_right_cnt[i] = 0; } 
+
+      this->solve_data.update_up_cnt.assign(this->nsuper+1,0);
+      //delete [] this->solve_data.update_up_cnt;
+      //this->solve_data.update_up_cnt = new std::atomic<int>[this->nsuper+1];
+      //for ( int i = 0; i < this->nsuper+1; i++ ) { this->solve_data.update_up_cnt[i] = 0; } 
+
+#ifdef SP_THREADS
+      this->scheduler.threadInitHandle_ = nullptr;
+      this->scheduler.extraTaskHandle_  = nullptr;
+
+      this->scheduler.threadInitHandle_ = [&,this]() {
+        std::thread::id tid = std::this_thread::get_id();
+        std::lock_guard<std::recursive_mutex> lock( this->scheduler.scheduler_mutex_);
+        auto & tmpBuf = tmpBufs_th[tid];
+      };
+
+
+      if (Multithreading::NumThread>2) {
+        this->scheduler.extraTaskHandle_ = [&,this](SparseTask2D * pTask)->bool {
+          auto type = std::get<2>(pTask->_meta);
+
+          if (type == Factorization::op_type::BUC) {
+            auto J = std::get<0>(pTask->_meta);
+            auto I = std::get<1>(pTask->_meta);
+            //auto ptr_tgtcell = pQueryCELL2(I-1,I-1);
+            bool exp = false;
+            auto & lock = this->solve_data.contribs_lock[I];
+            if (std::atomic_compare_exchange_weak( &lock, &exp, true )) {
+              return false;
+            }
+            else {
+              return true;
+            }
+          }
+          else {
+            auto J = std::get<0>(pTask->_meta);
+            auto I = std::get<1>(pTask->_meta);
+            //auto ptr_tgtcell = pQueryCELL2(J-1,J-1);
+            bool exp = false;
+            auto & lock = this->solve_data.contribs_lock[J];
+            if (std::atomic_compare_exchange_weak( &lock, &exp, true )) {
+              return false;
+            }
+            else {
+              return true;
+            }
+          }
+        };
+      }
+#endif
+
+#if defined(PREALLOCATE1) || defined(PREALLOCATE2)
+      //Now we have our local part of the task graph
+      for (auto it = this->task_graph_solve.begin(); it != this->task_graph_solve.end(); it++) {
+        auto & ptask = *it;
+        auto meta = &ptask->_meta;
+
+        auto & src_snode = std::get<0>(meta[0]);
+        auto & tgt_snode = std::get<1>(meta[0]);
+        auto & last_local_ancestor = std::get<3>(meta[0]);
+        auto & facing_row = std::get<4>(meta[0]);
+        auto & type = std::get<2>(meta[0]);
+
+        auto J = src_snode;
+        auto I = tgt_snode;
+
+        auto ptr = ptask.get();
+        switch(type) {
+#ifdef PREALLOCATE2
+          case Factorization::op_type::FUC:
+            {
+              auto & contribs = this->solve_data.contribs;
+              auto rhs = this->solve_data.rhs;
+              auto nrhs = this->solve_data.nrhs;
+
+              //Allocate Y(K) with the same structure as L(K,M) where M is the highest anscestor in the Etree this rank owns
+              auto & rptr_contrib = contribs[J];
+              if ( ! rptr_contrib ) {
+                //bassert(update_right_cnt[J] == 0);
+                rptr_contrib = std::make_shared<snodeBlock_t>();
+                auto ptr_test_cell = pQueryCELL(J-1,J-1);
+                if ( ptr_test_cell->owner == this->iam ) {
+                  rptr_contrib->copy_row_structure(nrhs,(snodeBlock_t*)ptr_test_cell.get());
+                }
+                else {
+                  bassert(I!=J);
+                  rowind_t nrows = this->Xsuper_[J] - this->Xsuper_[J-1];
+                  rptr_contrib = std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1);
+                  rptr_contrib->add_block(this->Xsuper_[J-1],nrows);
+                }
+
+                if ( I != J ) {
+                  std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
+                }
+                else {
+                  for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
+                    rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
+                    for (rowind_t col = 0; col<nrhs;++col) {
+                      rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
+                    }
+                  }
+                }
+
+              }
+              else if ( I == J ) {
+                bassert( rptr_contrib->nnz() >0 && rptr_contrib->width()>0);
+                //Add data from RHS
+                for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
+                  rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
+                  for (rowind_t col = 0; col<nrhs;++col) {
+                    rptr_contrib->_nzval[row*nrhs+col] += rhs[srcRow + col*this->iSize_];
+                  }
+                }
+              }
+            }
+            break;
+#endif
+#ifdef PREALLOCATE1
+          case Factorization::op_type::BUC:
+            {
+
+              auto & contribs = this->solve_data.contribs;
+              auto rhs = this->solve_data.rhs;
+              auto nrhs = this->solve_data.nrhs;
+              auto ptr_tgtcell = pQueryCELL(I-1,I-1);
+
+              auto & rptr_contrib = contribs[I];
+              if ( ptr_tgtcell->owner != this->iam ) {
+                bassert(I!=J);
+                if ( !rptr_contrib ) {
+                  rowind_t nrows = this->Xsuper_[I] - this->Xsuper_[I-1];
+                  rptr_contrib = std::make_shared<snodeBlock_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1);
+                  rptr_contrib->add_block(this->Xsuper_[I-1],nrows);
+                }
+                std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
+              }
+            }
+            break;
+#endif
+          default:
+            break;
+        }
+      }
+#endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+      this->scheduler.execute(this->task_graph_solve,this->mem_budget);
+
+
+
+
+
+      //gdb_lock();
+      //      for ( int I = 1; I <= this->nsuper; I++ ) {
+      //        auto ptr_tgt_cell = pQueryCELL(I-1,I-1);
+      //        Int iOwner = ptr_tgt_cell->owner;
+      //        if ( this->iam == iOwner ) {
+      //                logfileptr->OFS()<<"-------- "<<I<<" ----------"<<std::endl;
+      //          auto ptr_tgt_cell = this->solve_data.contribs[I];
+      //          auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
+      //          for (auto & block: tgt_cell.blocks()) {
+      //            T * val = &tgt_cell._nzval[block.offset];
+      //            auto nRows = tgt_cell.block_nrows(block);
+      //            auto row = block.first_row;
+      //            for (auto i = 0; i< nRows; ++i) {
+      //              for (auto j = 0; j< tgt_cell.width(); ++j) {
+      //
+      //                Int destRow = tgt_cell.first_col + i;
+      //                destRow = this->Order_.perm[destRow - 1];
+      //
+      //                Xptr[ (destRow -1) +j*this->iSize_ ] = val[i*tgt_cell.width()+j];
+      //                logfileptr->OFS()<<std::scientific<<val[i*tgt_cell.width()+j]<<" "<<std::endl;
+      //              }
+      //            }
+      //          }
+      //                logfileptr->OFS()<<"--------------------------"<<std::endl;
+      //        }
+      //      }  
+
+    } 
+
+  template <typename colptr_t, typename rowind_t, typename T, typename int_t>
+    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::GetSolution(T * B, int nrhs) {
+      Int n = this->iSize_;
+      {
+        std::fill(B,B+n*nrhs,T(0.0));
+
+        //Gather B from everybody and put it in the original matrix order
+        for ( int I = 1; I <= this->nsuper; I++ ) {
+          auto ptr_tgt_cell = pQueryCELL(I-1,I-1);
+          Int iOwner = ptr_tgt_cell->owner;
+          T * data;
+          Int snode_size = this->Xsuper_[I] - this->Xsuper_[I-1];
+          Int nzcnt = snode_size * nrhs;
+
+          //logfileptr->OFS()<<"-------- "<<I<<" ----------"<<std::endl;
+          if ( iOwner == this->iam ) {
+            auto ptr_tgt_cell = this->solve_data.contribs[I];
+            bassert(ptr_tgt_cell!=nullptr);
+            auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
+            for (auto & block: tgt_cell.blocks()) {
+              T * val = &tgt_cell._nzval[block.offset];
+              auto nRows = tgt_cell.block_nrows(block);
+              auto row = block.first_row;
+              for (auto i = 0; i< nRows; ++i) {
+                for (auto j = 0; j< tgt_cell.width(); ++j) {
+
+                  Int destRow = tgt_cell.first_col + i;
+                  destRow = this->Order_.perm[destRow - 1];
+
+                  B[ (destRow -1) +j*this->iSize_ ] = val[i*tgt_cell.width()+j];
+                  //logfileptr->OFS()<<std::scientific<<val[i*tgt_cell.width()+j]<<" "<<std::endl;
+                }
+              }
+            }
+          }
+          //logfileptr->OFS()<<"--------------------------"<<std::endl;
+        }
+
+        mpi::Allreduce((T*)MPI_IN_PLACE,&B[0],n*nrhs,MPI_SUM,this->fullcomm_);
+        MPI_Barrier(this->fullcomm_);
+      }
+    }
+
+
+
+
+  //TODO redo this
+  template <typename colptr_t, typename rowind_t, typename T, typename int_t>
+    inline void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::DumpMatlab() {
+      logfileptr->OFS()<<"+sparse([";
+      for (Int I=1;I<this->Xsuper_.size();I++) {
+        Int src_first_col = this->Xsuper_[I-1];
+        Int src_last_col = this->Xsuper_[I]-1;
+
+        //       gdb_lock(); 
+        for (Int J=I;J<this->Xsuper_.size();J++) {
+          auto idx = coord2supidx(J-1,I-1);
+          if (this->cells_.find(idx)!= this->cells_.end()) {
+
+            //auto tmp = CELL(J-1,I-1);
+
+            auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
+            assert(ptr_tgt_cell!=nullptr);
+
+
+            Int iOwner = ptr_tgt_cell->owner;
+            if ( iOwner == this->iam ) {
+              auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
+              for (auto & block: tgt_cell.blocks()) {
+                T * val = &tgt_cell._nzval[block.offset];
+                Int nRows = tgt_cell.block_nrows(block);
+
+                Int row = block.first_row;
+                for (Int i = 0; i< nRows; ++i) {
+                  for (Int j = 0; j< tgt_cell.width(); ++j) {
+                    logfileptr->OFS()<<row+i<<" ";
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      logfileptr->OFS()<<"],[";
+      for (Int I=1;I<this->Xsuper_.size();I++) {
+        Int src_first_col = this->Xsuper_[I-1];
+        Int src_last_col = this->Xsuper_[I]-1;
+
+        for (Int J=I;J<this->Xsuper_.size();J++) {
+          auto idx = coord2supidx(J-1,I-1);
+          if (this->cells_.find(idx)!= this->cells_.end()) {
+            auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
+            Int iOwner = ptr_tgt_cell->owner;
+            if ( iOwner == this->iam ) {
+              auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
+              for (auto & block: tgt_cell.blocks()) {
+                T * val = &tgt_cell._nzval[block.offset];
+                Int nRows = tgt_cell.block_nrows(block);
+
+                Int row = block.first_row;
+                for (Int i = 0; i< nRows; ++i) {
+                  for (Int j = 0; j< tgt_cell.width(); ++j) {
+                    logfileptr->OFS()<<src_first_col+j<<" ";
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      logfileptr->OFS()<<"],[";
+      logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
+      for (Int I=1;I<this->Xsuper_.size();I++) {
+        Int src_first_col = this->Xsuper_[I-1];
+        Int src_last_col = this->Xsuper_[I]-1;
+
+        for (Int J=I;J<this->Xsuper_.size();J++) {
+          auto idx = coord2supidx(J-1,I-1);
+          auto it = this->cells_.end();
+          if ( (it = this->cells_.find(idx)) != this->cells_.end()) {
+            auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
+            Int iOwner = ptr_tgt_cell->owner;
+            if ( iOwner == this->iam ) {
+              auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
+              for (auto & block: tgt_cell.blocks()) {
+                T * val = &tgt_cell._nzval[block.offset];
+                auto nRows = tgt_cell.block_nrows(block);
+
+                auto row = block.first_row;
+                for (auto i = 0; i< nRows; ++i) {
+                  for (auto j = 0; j< tgt_cell.width(); ++j) {
+                    logfileptr->OFS()<<std::scientific<<"("<<row+i<<","<<src_first_col+j<<") "<<ToMatlabScalar(val[i*tgt_cell.width()+j])<<" "<<std::endl;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      logfileptr->OFS()<<"],"<<this->iSize_<<","<<this->iSize_<<")"<<std::endl;
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+  namespace scheduling {
+    template <typename ttask_t , typename ttaskgraph_t >
+      inline bool Scheduler2D<ttask_t,ttaskgraph_t>::assignWork(ttask_t * ptask) {
+        if ( ! free_workers_.empty() ) {
+          auto id = free_workers_.front();
+          auto & w_p = work_pointers_[id];
+          bool success = w_p.set(ptask);
+          if ( success ) {
+            bassert(worker_loads_[id]<2);
+            ++worker_loads_[id]; 
+            if ( worker_loads_[id] == 2 ) {
+              free_workers_.pop_front();
+              bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),id)==this->free_workers_.end());
+            }
+          }
+          return success;
+        }
+        else {
+          return false;
+        }
+      }
+
+
+    template <typename ttask_t , typename ttaskgraph_t >
+      inline void Scheduler2D<ttask_t,ttaskgraph_t>::execute(ttaskgraph_t & task_graph, double & mem_budget )
+      {
+        double progress_ticks = 0;
+        double progress_ticks2 = 0;
+        double message_ticks = 0;
+        double execute_ticks = 0;
+        double while_ticks = 0;
+        double ifempty_ticks = 0;
+        try{
+          int64_t local_task_cnt;
+          {
+#ifdef _MEM_PROFILER_
+            utility::scope_memprofiler m("symPACKMatrix_execute_1");
+#endif
+            local_task_cnt = task_graph.size();
+            for (auto it = task_graph.begin(); it != task_graph.end(); it++) {
+              auto & ptask = *it;
+              auto remote_deps = ptask->in_remote_dependencies_cnt;
+              auto ptr = ptask.get();
 
 #ifdef _USE_PROM_AVAIL_
               auto fut_comm = ptask->in_avail_prom.finalize();
               if (remote_deps >0 ) {
-                fut_comm.then([this,ptr](){
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                    this->avail_tasks.push(ptr);
-#else
-                    this->avail_tasks.push_back(ptr);
-#endif
+                fut_comm.then([this,ptr]() {
+                    push_avail(this,ptr);
                     });
               }
 #else
-                  if (remote_deps >0 ) {
-                    if (ptr->in_avail_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                      this->avail_tasks.push(ptr);
-#else
-                      this->avail_tasks.push_back(ptr);
-#endif
-                    }
-                    }
+              if (remote_deps >0 ) {
+                if (ptr->in_avail_counter == 0 ) {
+                  push_avail(this,ptr);
+                }
+              }
 #endif
 
 #ifdef _USE_PROM_RDY_
               auto fut = ptask->in_prom.finalize();
-              fut.then([this,ptr](){
-#ifdef _PRIORITY_QUEUE_RDY_
-                  this->ready_tasks.push(ptr);
-#else
-                  this->ready_tasks.push_back(ptr);
-#endif
+              fut.then([this,ptr]() {
+                  push_ready(this,ptr);
                   });
 #else
-                    if (ptr->in_counter == 0 ) {
-#ifdef _PRIORITY_QUEUE_RDY_
-                      this->ready_tasks.push(ptr);
-#else
-                      this->ready_tasks.push_back(ptr);
-#endif
-                    }
-#endif
-                  }
-                }
-
-#ifdef SP_THREADS
-                if(Multithreading::NumThread>1){
-                  std::atomic<bool> done(false);
-                  int nthreads = Multithreading::NumThread-1;
-                  this->work_pointers_ = std::vector<worker_ptrs<ttask_t>>(nthreads);
-
-                  std::vector<std::thread> workers;
-                  workers.reserve(nthreads);
-
-                  this->free_workers_.clear();
-                  this->worker_loads_.clear();
-                  this->worker_loads_.resize(nthreads,0);
-                  for (int count {0}; count < nthreads; count += 1){
-                    bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),count)==this->free_workers_.end());
-                    this->free_workers_.push_back(count);
-                  }
-
-                  for (int count {0}; count < nthreads; count += 1){
-                    workers.emplace_back(
-                        [this,&done](int tid) {
-                          if(this->threadInitHandle_!=nullptr){
-                            this->threadInitHandle_();
-                          }
-                          auto & w_p = this->work_pointers_[tid];
-
-                          bool local_done = false;
-                          int drain = 0;
-                          while (true) {
-                            ttask_t * t = w_p.get();
-                            while (t!=nullptr) { 
-                                t->execute();
-                                t->reset();
-
-                                int J=std::get<0>(t->_meta);
-                                int I=std::get<1>(t->_meta);
-                                bool oldisSolve = this->isSolve;
-                                this->lpc_cnt++;
-                                upcxx::master_persona().lpc_ff( 
-                                  [this,tid,I,J,oldisSolve] () {
-                                this->lpc_cnt--;
-                                  if ( this->isSolve != oldisSolve) gdb_lock();
-                                  //decrement the load of that worker
-                                  bassert(this->worker_loads_[tid]>=1);
-                                  if (--this->worker_loads_[tid]==1){
-bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),tid)==this->free_workers_.end());
-                                    this->free_workers_.push_back(tid);
-                                  }
-                                  else{
-bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),tid)!=this->free_workers_.end());
-                                  }
-                                  });
-                              t = w_p.get();
-                            }
-
-                            if (done.load(std::memory_order_acquire) ){
-                                  break;
-                            }
-                            else {
-                              sched_yield();
-                            }
-                          }
-                        }
-                    , count);
-                  }
-
-                  while(local_task_cnt>0){
-                    if(extraTaskHandle_!=nullptr)
-                    {
-                      auto taskit = delayedTasks_.begin();
-                      while(taskit!=delayedTasks_.end() && !this->free_workers_.empty()){
-                        bool delay = extraTaskHandle_(*taskit);
-                        if(!delay){
-                          if (assignWork(*taskit)) {
-                            local_task_cnt--;
-                            taskit = delayedTasks_.erase(taskit);
-                          }
-                          else {
-                            taskit++;
-                          }
-                        }
-                        else{
-                          taskit++;
-                        }
-                        //upcxx::progress(upcxx::progress_level::internal);
-                      }
-                    }
-
-
-                    bool empty = false;
-                    while (!empty && !this->free_workers_.empty()) {
-                      ttask_t * ptask = nullptr;
-                      {
-                        //std::lock_guard<std::recursive_mutex> lock(ready_mutex_);
-                        empty = ready_tasks.empty();
-                        if (!empty){
-#ifdef _PRIORITY_QUEUE_RDY_
-                          ptask = ready_tasks.top();
-#else
-                          ptask = ready_tasks.front();
-#endif
-                        }
-                      }
-
-                      if (empty)
-                        break;
-
-                      if (!empty) {
-                        //upcxx::progress(upcxx::progress_level::internal);
-                        bool delay = false;
-                        if(extraTaskHandle_!=nullptr){
-                          delay = extraTaskHandle_(ptask);
-                          if(delay){
-                            delayedTasks_.push_back(ptask);
-#ifdef _PRIORITY_QUEUE_RDY_
-                            ready_tasks.pop();
-#else
-                            ready_tasks.pop_front();
-#endif
-                          }
-                        }
-
-                        if(!delay){
-                          if (assignWork(ptask)) {
-                            local_task_cnt--;
-#ifdef _PRIORITY_QUEUE_RDY_
-                            ready_tasks.pop();
-#else
-                            ready_tasks.pop_front();
-#endif
-                          }
-                          else{
-                            break;
-                          }
-                        }
-                      }
-                      
-                      //upcxx::progress(upcxx::progress_level::internal);
-                      //else {
-                      //  upcxx::progress(upcxx::progress_level::internal);
-                      //  sched_yield();
-                      //}
-                    }
-
-                    upcxx::progress();
-                    //sched_yield();
-
-                    //handle communications
-                    empty = false;
-                    while (!empty) {
-                      ttask_t * ptask = nullptr;
-                      {
-                        empty = avail_tasks.empty();
-
-                        if (!empty) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                          ptask = avail_tasks.top();
-                          avail_tasks.pop();
-#else
-                          ptask = avail_tasks.front();
-                          avail_tasks.pop_front();
-#endif
-                        }
-                      }
-                      if (!empty) {
-                        for(auto & msg : ptask->input_msg){
-                          msg->allocate();
-                          msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
-                              //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                        ptask->satisfy_dep(1,*this);
-                              });
-                        } 
-                      }
-                    }
-                  }
-
-
-                  upcxx::progress();
-                  upcxx::discharge();
-                  done = true;
-                  for(auto && thread: workers){
-                    thread.join();
-                  }
-                  //ensure the last lpc_ff are executed;
-                  upcxx::progress();
-                  upcxx::barrier();
-                }
-                else
-#endif
-                {
-#ifdef _MEM_PROFILER_
-                  utility::scope_memprofiler m("symPACKMatrix_execute_2");
-#endif
-                  while(local_task_cnt>0){
-                    if (!ready_tasks.empty()) {
-                      //while (!ready_tasks.empty()) 
-                      upcxx::progress(upcxx::progress_level::internal);
-#ifdef _PRIORITY_QUEUE_RDY_
-                      auto ptask = ready_tasks.top();
-                      ready_tasks.pop();
-#else
-                      auto ptask = ready_tasks.front();
-                      ready_tasks.pop_front();
-#endif
-                      ptask->execute(); 
-                      local_task_cnt--;
-                    }
-                    upcxx::progress();
-                    //handle communications
-                    //while (!avail_tasks.empty()) 
-                    if (!avail_tasks.empty()) {
-                      //get all comms from a task
-#ifdef _MEMORY_LIMIT_
-                      if ( mem_budget != -1.0 ) {
-                        ttask_t* ptask = nullptr;
-                        auto task_cnt = avail_tasks.size();
-                        size_t mem_cost = 0;
-                        size_t cnt = 0;
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                        std::list<ttask_t*> temp_list;
-#endif
-                        do {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                          ptask = avail_tasks.top();
-                          avail_tasks.pop();
-#else
-                          ptask = avail_tasks.front();
-                          avail_tasks.pop_front();
-#endif
-
-                          mem_cost = 0;
-                          for(auto & msg : ptask->input_msg){
-                            mem_cost += msg->size;
-                          }
-                          if (mem_cost > mem_budget && ready_tasks.size()>0) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                            temp_list.push_back(ptask);
-#else
-                            avail_tasks.push_back(ptask);
-#endif
-
-                            cnt++;
-                            ptask = nullptr;
-                            continue;
-                          }
-                          else{
-                            break;
-                          }
-                        } while ( cnt < task_cnt );
-
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                        for (auto ptask : temp_list) {
-                          avail_tasks.push(ptask);
-                        }
-#endif
-                        if ( ptask != nullptr ) {
-                          mem_budget -= mem_cost;
-                          //                  logfileptr->OFS()<<"mem budget is "<<mem_budget<<std::endl;
-                          for(auto & msg : ptask->input_msg){
-                            msg->allocate();
-                            msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
-                                //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                        ptask->satisfy_dep(1,*this);
-                                });
-                          } 
-                        }
-                      }
-                      else{
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                        auto ptask = avail_tasks.top();
-                        avail_tasks.pop();
-#else
-                        auto ptask = avail_tasks.front();
-                        avail_tasks.pop_front();
-#endif
-
-                        for(auto & msg : ptask->input_msg){
-                          msg->allocate();
-                          msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
-                              //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                        ptask->satisfy_dep(1,*this);
-                              });
-                        } 
-                      }
-
-#else
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                      auto ptask = avail_tasks.top();
-                      avail_tasks.pop();
-#else
-                      auto ptask = avail_tasks.front();
-                      avail_tasks.pop_front();
-#endif
-                      for(auto & msg : ptask->input_msg){
-                        msg->allocate();
-                        msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg){
-                            //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                        ptask->satisfy_dep(1,*this);
-                            });
-                      } 
-#endif
-
-                    }
-                  }
-              upcxx::progress();
-              upcxx::discharge();
-              upcxx::progress();
-              upcxx::barrier();
-              if ( this->lpc_cnt!=0) gdb_lock();
-                }
+              if (ptr->in_counter == 0 ) {
+                push_ready(this,ptr);
               }
-              catch(const std::runtime_error& e){
-                std::cerr << "Runtime error: " << e.what() << '\n';
-              }
-
-                for(auto it = task_graph.begin(); it != task_graph.end(); it++){
-                  auto & ptask = *it;
-                  if ( ! ptask->executed ) gdb_lock();
-                }
+#endif
             }
           }
+
+#ifdef SP_THREADS
+          if (Multithreading::NumThread>1) {
+            std::atomic<bool> done(false);
+            int nthreads = std::max(1,Multithreading::NumThread-1);
+            this->work_pointers_ = std::vector<worker_ptrs<ttask_t>>(nthreads);
+
+            std::vector<std::thread> workers;
+            workers.reserve(nthreads);
+
+            this->free_workers_.clear();
+            this->worker_loads_.clear();
+            this->worker_loads_.resize(nthreads,0);
+            for (int count {0}; count < nthreads; count += 1) {
+              bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),count)==this->free_workers_.end());
+              this->free_workers_.push_back(count);
+            }
+
+            for (int count {0}; count < nthreads; count += 1) {
+              workers.emplace_back(
+                  [this,&done](int tid) {
+                  if (this->threadInitHandle_!=nullptr) {
+                  this->threadInitHandle_();
+                  }
+                  auto & w_p = this->work_pointers_[tid];
+
+                  bool local_done = false;
+                  int drain = 0;
+                  while (true) {
+                  ttask_t * t = w_p.get();
+                  while (t!=nullptr) { 
+                  t->execute();
+                  t->reset();
+
+                  int J=std::get<0>(t->_meta);
+                  int I=std::get<1>(t->_meta);
+                  bool oldisSolve = this->isSolve;
+                  this->lpc_cnt++;
+                  upcxx::master_persona().lpc_ff( 
+                    [this,tid,I,J,oldisSolve] () {
+                    this->lpc_cnt--;
+                    if ( this->isSolve != oldisSolve) gdb_lock();
+                    //decrement the load of that worker
+                    bassert(this->worker_loads_[tid]>=1);
+                    if (--this->worker_loads_[tid]==1) {
+                    bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),tid)==this->free_workers_.end());
+                    this->free_workers_.push_back(tid);
+                    }
+                    else {
+                    bassert(std::find(this->free_workers_.begin(),this->free_workers_.end(),tid)!=this->free_workers_.end());
+                    }
+                    });
+                  t = w_p.get();
+                  }
+
+                  if (done.load(std::memory_order_acquire) ) {
+                    break;
+                  }
+                  else {
+                    sched_yield();
+                  }
+                  }
+                  }
+              , count);
+            }
+
+            while (local_task_cnt>0) {
+              if (extraTaskHandle_!=nullptr)
+              {
+                auto taskit = delayedTasks_.begin();
+                while (taskit!=delayedTasks_.end() && !this->free_workers_.empty()) {
+                  bool delay = extraTaskHandle_(*taskit);
+                  if (!delay) {
+                    if (assignWork(*taskit)) {
+                      local_task_cnt--;
+                      taskit = delayedTasks_.erase(taskit);
+                      //break;
+                    }
+                    else {
+                      taskit++;
+                    }
+                  }
+                  else {
+                    taskit++;
+                  }
+                  //upcxx::progress(upcxx::progress_level::internal);
+                }
+              }
+
+
+              bool empty = false;
+              while (!empty && !this->free_workers_.empty()) {
+                ttask_t * ptask = nullptr;
+                {
+                  //std::lock_guard<std::recursive_mutex> lock(ready_mutex_);
+                  empty = ready_tasks.empty();
+                  if (!empty) {
+                    ptask = top_ready();
+                  }
+                }
+
+                if (empty)
+                  break;
+
+                if (!empty) {
+                  //upcxx::progress(upcxx::progress_level::internal);
+                  bool delay = false;
+                  if (extraTaskHandle_!=nullptr) {
+                    delay = extraTaskHandle_(ptask);
+                    if (delay) {
+                      delayedTasks_.push_back(ptask);
+                      pop_ready();
+                    }
+                  }
+
+                  if (!delay) {
+                    if (assignWork(ptask)) {
+                      local_task_cnt--;
+                      pop_ready();
+                      //break;
+                    }
+                    else {
+                      break;
+                    }
+                  }
+                }
+
+                //upcxx::progress(upcxx::progress_level::internal);
+                //else {
+                //  upcxx::progress(upcxx::progress_level::internal);
+                //  sched_yield();
+                //}
+              }
+
+              upcxx::progress();
+              sched_yield();
+
+              //handle communications
+              empty = false;
+              while (!empty) {
+                ttask_t * ptask = nullptr;
+                {
+                  empty = avail_tasks.empty();
+
+                  if (!empty) {
+                    ptask = top_avail();
+                    pop_avail();
+                  }
+                }
+                if (!empty) {
+                  for (auto & msg : ptask->input_msg) {
+                    msg->allocate();
+                    msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg) {
+                        //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
+                        ptask->satisfy_dep(1,*this);
+                        });
+                  }
+                  upcxx::progress(upcxx::progress_level::internal);
+                  //break; 
+                }
+              }
+            }
+            upcxx::progress();
+            upcxx::discharge();
+            done = true;
+            for (auto && thread: workers) thread.join();
+            //ensure the last lpc_ff are executed;
+            upcxx::progress();
+            upcxx::barrier();
+          }
+          else
+#endif
+          {
+#ifdef _MEM_PROFILER_
+            utility::scope_memprofiler m("symPACKMatrix_execute_2");
+#endif
+            while (local_task_cnt>0) {
+              if (!ready_tasks.empty()) {
+                //while (!ready_tasks.empty()) 
+                upcxx::progress(upcxx::progress_level::internal);
+                auto ptask = top_ready();
+                pop_ready();
+                ptask->execute(); 
+                local_task_cnt--;
+              }
+              upcxx::progress();
+              //handle communications
+              //while (!avail_tasks.empty()) 
+              if (!avail_tasks.empty()) {
+                //get all comms from a task
+#ifdef _MEMORY_LIMIT_
+                if ( mem_budget != -1.0 ) {
+                  ttask_t* ptask = nullptr;
+                  auto task_cnt = avail_tasks.size();
+                  size_t mem_cost = 0;
+                  size_t cnt = 0;
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                  std::list<ttask_t*> temp_list;
+#endif
+                  do {
+                    ptask = top_avail();
+                    pop_avail();
+                    mem_cost = 0;
+                    for (auto & msg : ptask->input_msg) {
+                      mem_cost += msg->size;
+                    }
+                    if (mem_cost > mem_budget && ready_tasks.size()>0) {
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                      temp_list.push_back(ptask);
+#else
+                      avail_tasks.push_back(ptask);
 #endif
 
+                      cnt++;
+                      ptask = nullptr;
+                      continue;
+                    }
+                    else {
+                      break;
+                    }
+                  } while ( cnt < task_cnt );
+
+#ifdef _PRIORITY_QUEUE_AVAIL_
+                  for (auto ptask : temp_list) {
+                    avail_tasks.push(ptask);
+                  }
+#endif
+                  if ( ptask != nullptr ) {
+                    mem_budget -= mem_cost;
+                    //                  logfileptr->OFS()<<"mem budget is "<<mem_budget<<std::endl;
+                    for (auto & msg : ptask->input_msg) {
+                      msg->allocate();
+                      msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg) {
+                          //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
+                          ptask->satisfy_dep(1,*this);
+                          });
+                    } 
+                  }
+                }
+                else {
+                  auto ptask = top_avail();
+                  pop_avail();
+                  for (auto & msg : ptask->input_msg) {
+                    msg->allocate();
+                    msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg) {
+                        //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
+                        ptask->satisfy_dep(1,*this);
+                        });
+                  } 
+                }
+
+#else
+                auto ptask = top_avail();
+                pop_avail();
+                for (auto & msg : ptask->input_msg) {
+                  msg->allocate();
+                  msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg) {
+                      //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
+                      ptask->satisfy_dep(1,*this);
+                      });
+                } 
+                upcxx::progress(upcxx::progress_level::internal);
+#endif
+
+              }
+            }
+            upcxx::progress();
+            upcxx::discharge();
+            upcxx::progress();
+            upcxx::barrier();
+            if ( this->lpc_cnt!=0) gdb_lock();
+          }
+        }
+        catch(const std::runtime_error& e) {
+          std::cerr << "Runtime error: " << e.what() << '\n';
+        }
+
+#ifndef NDEBUG
+        for (auto it = task_graph.begin(); it != task_graph.end(); it++) {
+          if ( ! (*it)->executed ) gdb_lock();
+        }
+#endif
       }
+  }
+
+}
 
 #include <sympack/impl/symPACKMatrix2D_impl.hpp>
 

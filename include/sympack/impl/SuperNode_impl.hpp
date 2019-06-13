@@ -865,7 +865,7 @@ namespace symPACK{
       if(src_snode->NRowsBelowBlock(0) == NRowsBelowBlock(0) && src_snode->Size() == Size()){
             T * src = src_snode->nzval_;
             T * tgt = nzval_;
-#pragma loop unroll
+#pragma unroll
             for(Int i = 0; i< meta_->nzval_cnt_ ;i++){ tgt[i] += src[i]; }
       }
       else{
@@ -890,7 +890,7 @@ namespace symPACK{
             T * tgt = GetNZval(tgt_offset);
 
             //blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
-#pragma loop unroll
+#pragma unroll
             for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
 
           }
@@ -1785,7 +1785,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
 
   template <typename T, class Allocator> 
     inline void SuperNode<T,Allocator>::back_update_contrib(SuperNode<T> * cur_snode, Int nrhsOffset, Int pnrhs){
-
       SuperNode<T,Allocator> * contrib = this;
       Int nrhs = pnrhs;
       //if(pnrhs==-1){
@@ -1840,7 +1839,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
           tgt_nzval[ii*ldsol+j] = temp;
         }
       }
-//            if ( Id()==4) gdb_lock();
     }
 
   template <typename T, class Allocator> 
@@ -1947,18 +1945,17 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
           }
         }
         else{
-          
-          logfileptr->OFS()<<"----------------------------------"<<std::endl;
-          std::vector<T> buftmp (nrhs*cur_nrows,T(0));
-          for(Int kk = 0; kk<cur_snode->Size(); ++kk){
-            for(Int j = 0; j<nrhs;++j){
-              for(Int i = 0; i<cur_nrows;++i){
-                buftmp[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*(chol_nzval[i*cur_snode->Size()+kk]);
-              }
-            }
-          }
-          logfileptr->OFS()<<buftmp<<std::endl;
-          logfileptr->OFS()<<"----------------------------------"<<std::endl;
+//          logfileptr->OFS()<<"----------------------------------"<<std::endl;
+//          std::vector<T> buftmp (nrhs*cur_nrows,T(0));
+//          for(Int kk = 0; kk<cur_snode->Size(); ++kk){
+//            for(Int j = 0; j<nrhs;++j){
+//              for(Int i = 0; i<cur_nrows;++i){
+//                buftmp[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*(chol_nzval[i*cur_snode->Size()+kk]);
+//              }
+//            }
+//          }
+//          logfileptr->OFS()<<buftmp<<std::endl;
+//          logfileptr->OFS()<<"----------------------------------"<<std::endl;
 
           for(Int kk = 0; kk<cur_snode->Size(); ++kk){
             for(Int j = 0; j<nrhs;++j){
