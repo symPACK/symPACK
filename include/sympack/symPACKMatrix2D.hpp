@@ -28,7 +28,7 @@
    CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
    OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-   */
+ */
 
 /*
    Copyright (c) 2016 The Regents of the University of California,
@@ -71,7 +71,7 @@ Enhancements, then you hereby grant the following license: a non-exclusive,
 royalty-free perpetual license to install, use, modify, prepare derivative
 works, incorporate into other computer software, distribute, and sublicense
 such enhancements or derivative works thereof, in binary and source code form.
-*/
+ */
 #ifndef _SYMPACK_MATRIX2D_DECL_HPP_
 #define _SYMPACK_MATRIX2D_DECL_HPP_
 
@@ -97,7 +97,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #define _PRIORITY_QUEUE_AVAIL_
 #define _PRIORITY_QUEUE_RDY_
 
-#define PREALLOCATE1
+//#define PREALLOCATE1
 //#define PREALLOCATE2
 //#define _USE_PROM_AVAIL_
 //#define _USE_PROM_RDY_
@@ -133,11 +133,11 @@ such enhancements or derivative works thereof, in binary and source code form.
 namespace symPACK{
 
 
-template <std::size_t alignment>
-  inline bool is_aligned(void * ptr) noexcept {
-        std::size_t max = 1u;
-        return std::align(alignment, 1u, ptr, max)==ptr;
-  }
+  template <std::size_t alignment>
+    inline bool is_aligned(void * ptr) noexcept {
+      std::size_t max = 1u;
+      return std::align(alignment, 1u, ptr, max)==ptr;
+    }
 
 
   namespace scheduling {
@@ -147,7 +147,7 @@ template <std::size_t alignment>
       unsigned int src;
       Factorization::op_type type;
       key_t(unsigned int j, unsigned int i, unsigned int s, Factorization::op_type t):
-                                                      cell_J(j),cell_I(i),src(s),type(t) {}
+        cell_J(j),cell_I(i),src(s),type(t) {}
       key_t():cell_J(0),cell_I(0),src(0),type(Factorization::op_type::FACTOR) {}
 
       bool operator==( symPACK::scheduling::key_t& rhs)
@@ -242,7 +242,7 @@ namespace symPACK{
         cellptr cell_;
     };
 
-template<>
+  template<>
     class cell_lock< std::atomic<bool> > {
       public:
         cell_lock(std::atomic<bool> & celllock):lock_(celllock) {
@@ -1071,83 +1071,83 @@ template<>
             //If the GEMM wasn't done in place we need to aggregate the update
             //This is the assembly phase
             if (!in_place) {
-                SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_INDEX_MAP);
-                tmpBuffers.src_colindx.resize(tgt_width);
-                tmpBuffers.src_to_tgt_offset.resize(src_nrows);
-                colptr_t colidx = 0;
-                colptr_t rowidx = 0;
-                size_t offset = 0;
+              SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_INDEX_MAP);
+              tmpBuffers.src_colindx.resize(tgt_width);
+              tmpBuffers.src_to_tgt_offset.resize(src_nrows);
+              colptr_t colidx = 0;
+              colptr_t rowidx = 0;
+              size_t offset = 0;
 
-                block_t * tgt_ptr = _block_container._blocks;
+              block_t * tgt_ptr = _block_container._blocks;
 
-                for ( auto & cur_block: facing.blocks() ) {
-                  rowind_t cur_src_nrows = facing.block_nrows(cur_block);
-                  rowind_t cur_src_lr = cur_block.first_row + cur_src_nrows -1;
-                  rowind_t cur_src_fr = cur_block.first_row;
+              for ( auto & cur_block: facing.blocks() ) {
+                rowind_t cur_src_nrows = facing.block_nrows(cur_block);
+                rowind_t cur_src_lr = cur_block.first_row + cur_src_nrows -1;
+                rowind_t cur_src_fr = cur_block.first_row;
 
-                  //The other one MUST reside into a single block in the target
-                  rowind_t row = cur_src_fr;
-                  while (row<=cur_src_lr) {
-                    do {
-                      if (tgt_ptr->first_row <= row 
-                          && row< tgt_ptr->first_row + block_nrows(*tgt_ptr) ) {
-                        break;
-                      }
-                    } while ( ++tgt_ptr<_block_container._blocks + _block_container._nblocks ); 
-
-                    int_t lr = std::min(cur_src_lr,tgt_ptr->first_row + block_nrows(*tgt_ptr)-1);
-                    int_t tgtOffset = tgt_ptr->offset + (row - tgt_ptr->first_row)*tgt_snode_size;
-
-                    for (int_t cr = row ;cr<=lr;++cr) {
-                      offset+=tgt_width;
-                      tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
-                      rowidx++;
+                //The other one MUST reside into a single block in the target
+                rowind_t row = cur_src_fr;
+                while (row<=cur_src_lr) {
+                  do {
+                    if (tgt_ptr->first_row <= row 
+                        && row< tgt_ptr->first_row + block_nrows(*tgt_ptr) ) {
+                      break;
                     }
-                    row += (lr-row+1);
+                  } while ( ++tgt_ptr<_block_container._blocks + _block_container._nblocks ); 
+
+                  int_t lr = std::min(cur_src_lr,tgt_ptr->first_row + block_nrows(*tgt_ptr)-1);
+                  int_t tgtOffset = tgt_ptr->offset + (row - tgt_ptr->first_row)*tgt_snode_size;
+
+                  for (int_t cr = row ;cr<=lr;++cr) {
+                    offset+=tgt_width;
+                    tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
+                    rowidx++;
                   }
+                  row += (lr-row+1);
                 }
+              }
 
-                for ( auto & cur_block: pivot.blocks() ) {
-                  rowind_t cur_src_ncols = pivot.block_nrows(cur_block);
-                  rowind_t cur_src_lc = std::min(cur_block.first_row + cur_src_ncols -1, this->first_col+this->width()-1);
-                  rowind_t cur_src_fc = std::max(cur_block.first_row,this->first_col);
+              for ( auto & cur_block: pivot.blocks() ) {
+                rowind_t cur_src_ncols = pivot.block_nrows(cur_block);
+                rowind_t cur_src_lc = std::min(cur_block.first_row + cur_src_ncols -1, this->first_col+this->width()-1);
+                rowind_t cur_src_fc = std::max(cur_block.first_row,this->first_col);
 
-                  for (rowind_t col = cur_src_fc ;col<=cur_src_lc;++col) {
-                    bassert(this->first_col <= col && col< this->first_col+this->width() );
-                    tmpBuffers.src_colindx[colidx++] = col;
-                  }
+                for (rowind_t col = cur_src_fc ;col<=cur_src_lc;++col) {
+                  bassert(this->first_col <= col && col< this->first_col+this->width() );
+                  tmpBuffers.src_colindx[colidx++] = col;
                 }
+              }
 
 
 
 
 
 
-                //Multiple cases to consider
-                SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_INDEX_MAP);
-                SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_ADD);
-                if (first_pivot_idx==last_pivot_idx) {
-                  // Updating contiguous columns
-                  rowind_t tgt_offset = (tgt_fc - this->first_col);
-                  for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
-                    T * A = &buf[rowidx*tgt_width];
-                    T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
+              //Multiple cases to consider
+              SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_INDEX_MAP);
+              SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_ADD);
+              if (first_pivot_idx==last_pivot_idx) {
+                // Updating contiguous columns
+                rowind_t tgt_offset = (tgt_fc - this->first_col);
+                for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
+                  T * A = &buf[rowidx*tgt_width];
+                  T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
 #pragma unroll
-                    for (rowind_t i = 0; i < tgt_width; ++i) { B[i] += A[i]; }
+                  for (rowind_t i = 0; i < tgt_width; ++i) { B[i] += A[i]; }
+                }
+              }
+              else {
+                // full sparse case
+                for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
+                  for (colptr_t colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx) {
+                    rowind_t col = tmpBuffers.src_colindx[colidx];
+                    rowind_t tgt_colidx = col - this->first_col;
+                    tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
+                      += buf[rowidx*tgt_width+colidx]; 
                   }
                 }
-                else {
-                  // full sparse case
-                  for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
-                    for (colptr_t colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx) {
-                      rowind_t col = tmpBuffers.src_colindx[colidx];
-                      rowind_t tgt_colidx = col - this->first_col;
-                      tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
-                        += buf[rowidx*tgt_width+colidx]; 
-                    }
-                  }
-                }
-                SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD);
+              }
+              SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD);
             }
           }
 #else
@@ -1375,7 +1375,7 @@ template<>
               for ( ; tgt_blk_idx < tgt_contrib.nblocks(); tgt_blk_idx++ ) {
                 auto & block = tgt_contrib._block_container[tgt_blk_idx];
                 if (src_block.first_row >= block.first_row && 
-                       src_block.first_row <= block.first_row + tgt_contrib.block_nrows(block) -1) break;
+                    src_block.first_row <= block.first_row + tgt_contrib.block_nrows(block) -1) break;
               }
 
               auto & block = tgt_contrib._block_container[tgt_blk_idx];

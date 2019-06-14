@@ -490,6 +490,9 @@ int main(int argc, char **argv)
 #endif
 
 
+
+        /**************** SOLVE PHASE ***********/
+      if (nrhs>0){
 //      SMat = new symPACKMatrix<SCALAR>(*SMat2D);
 //      SMat->DumpMatlab();
 //      XFinal = RHS;
@@ -503,10 +506,9 @@ int main(int argc, char **argv)
 //      }
 //      SMat->GetSolution(&XFinal[0],nrhs);
 //      delete SMat;
+//
+//logfileptr->OFS()<<XFinal<<std::endl;
 
-
-        /**************** SOLVE PHASE ***********/
-      if (nrhs>0){
         if(iam==0){
           std::cout<<"Starting solve 2D"<<std::endl;
         }
@@ -519,9 +521,8 @@ int main(int argc, char **argv)
         if(iam==0){
           std::cout<<"Solve 2D time: "<<timeEnd-timeSta<<std::endl;
         }
-#if 1
         SMat2D->GetSolution(&XFinal[0],nrhs);
-#endif
+//logfileptr->OFS()<<XFinal<<std::endl;
       }
 
     //}
