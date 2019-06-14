@@ -870,27 +870,39 @@ namespace symPACK{
           //#endif
           _nnz = 0;
           _block_container._nblocks = 0;
-          //_block_container._blocks = reinterpret_cast<block_t*>( _storage );
-          //_nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
+#ifdef _ALIGNED_
           _nzval = reinterpret_cast<T*>( _storage );
           _block_container._blocks = reinterpret_cast<block_t*>( _nzval + _cnz );
+#else
+          _block_container._blocks = reinterpret_cast<block_t*>( _storage );
+          _nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
+#endif
         }
 
         void allocate ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
           bassert(nzval_cnt!=0 && block_cnt!=0);
+#ifdef _ALIGNED_
           size_t aligned_size = std::ceil((nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
+#endif
 
           if ( shared_segment ) {
 
+#ifdef _ALIGNED_
             _gstorage = upcxx::allocate<char, alignof(T) >( aligned_size ); //nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
+#else
+            _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
+#endif
             _storage = _gstorage.local();
             if ( this->_storage==nullptr ) symPACKOS<<"Trying to allocate "<<nzval_cnt<<" for cell ("<<i<<","<<j<<")"<<std::endl;
             assert( this->_storage!=nullptr );
           }
           else {
             _gstorage = nullptr;
+#ifdef _ALIGNED_
             _storage = (char *)new T[aligned_size];
-            //_storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
+#else
+            _storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
+#endif
           }
           initialize( nzval_cnt, block_cnt );
         }
@@ -1682,7 +1694,9 @@ namespace symPACK{
           if ( this->i == this->j ) {
             this->_storage_size += this->width()*sizeof(T);
             this->_diag = reinterpret_cast<T*>( this->_nzval + nzval_cnt );
+#ifdef _ALIGNED_
             this->_block_container._blocks = reinterpret_cast<block_t*>( this->_diag + this->width() );
+#endif
           }
           else {
             this->_diag = nullptr;
@@ -1695,27 +1709,43 @@ namespace symPACK{
           size_t aligned_size = 0;
           if ( shared_segment ) {
             if ( this->i == this->j ) {
+#ifdef _ALIGNED_
               aligned_size = std::ceil(( (nzval_cnt+this->width())*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
-              //this->_gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) + this->width()*sizeof(T) );
+#else
+              this->_gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) + this->width()*sizeof(T) );
+#endif
             }
             else {
+#ifdef _ALIGNED_
               aligned_size = std::ceil((nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
-              //this->_gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
+#else
+              this->_gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
+#endif
             }
+#ifdef _ALIGNED_
             this->_gstorage = upcxx::allocate<char, alignof(T) >( aligned_size );
+#endif
             this->_storage = this->_gstorage.local();
           }
           else {
             this->_gstorage = nullptr;
             if ( this->i == this->j ) {
+#ifdef _ALIGNED_
               aligned_size = std::ceil(( (nzval_cnt+this->width())*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
-              //this->_storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) + this->width()*sizeof(T)];
+#else
+              this->_storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) + this->width()*sizeof(T)];
+#endif
             }
             else {
+#ifdef _ALIGNED_
               aligned_size = std::ceil((nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
-              //this->_storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
+#else
+              this->_storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
+#endif
             }
+#ifdef _ALIGNED_
             this->_storage = (char *)new T[aligned_size];
+#endif
           }
           assert(this->_storage!= nullptr);
           initialize( nzval_cnt, block_cnt );
