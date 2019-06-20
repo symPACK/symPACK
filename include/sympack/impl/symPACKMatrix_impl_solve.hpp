@@ -217,7 +217,6 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
 
           //Copy RHS into contrib if first block
           if(blkidx==0){
-
             T * diag_nzval = contrib->GetNZval(0);
 
             for(Int kk = 0; kk<cur_snode->Size(); ++kk){
@@ -706,6 +705,8 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               Int srcRow = this->Order_.perm[cur_desc.GIndex+kk-1];
               for(Int j = 0; j<nrhs;++j){
                 diag_nzval[kk*nrhs+j] = RHS[srcRow-1 + j*n];
+//TODO DEBUG_SOLVE
+//                diag_nzval[kk*nrhs+j] = 0;
               }
             }
         timeCopy += get_time();
@@ -895,6 +896,8 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               auto cur_snode = this->LocalSupernodes_[src_local-1];
               auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(this->Contributions2_[src_local-1]);
 
+   //   if ( contrib->Id()==96 ) gdb_lock();
+
               //Apply all forward updates first
               //Do the remote ones
               for(auto && msgPtr : FUCtask.getData() ){
@@ -945,10 +948,22 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                 }
               }
 
-
-
-
               contrib->forward_update_contrib(cur_snode,nrhsOffset,taskNrhs);
+
+////              //TODO DEBUG_SOLVE
+////              if(contrib->Id()==cur_snode->Id()){
+////                if ( contrib->Id()==96) gdb_lock();
+////                NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(0);
+////                T * diag_nzval = contrib->GetNZval(0);
+////                for(Int kk = 0; kk<cur_snode->Size(); ++kk){
+////                  //First, copy the RHS into the contribution
+////                  Int srcRow = this->Order_.perm[cur_desc.GIndex+kk-1];
+////                  for(Int j = 0; j<nrhs;++j){
+////                    diag_nzval[kk*nrhs+j] += RHS[srcRow-1 + j*n];
+////                  }
+////                }
+////              }
+
 
               //may have to send to parent
               

@@ -23,7 +23,7 @@
 #include <gasnet_tools.h>
 
 //#define DUMP_MATLAB
-#define DUMP_MATLAB_SOL
+//#define DUMP_MATLAB_SOL
 
 /******* TYPE used in the computations ********/
 #define SCALAR double
@@ -358,6 +358,7 @@ int main(int argc, char **argv)
   std::vector<Int> perm;
 #endif
   std::vector<SCALAR> XFinal;
+  std::vector<SCALAR> XFinal1D;
   //{
     //do the symbolic factorization and build supernodal matrix
     optionsFact.maxIsend = maxIsend;
@@ -493,21 +494,21 @@ int main(int argc, char **argv)
 
         /**************** SOLVE PHASE ***********/
       if (nrhs>0){
-//      SMat = new symPACKMatrix<SCALAR>(*SMat2D);
-//      SMat->DumpMatlab();
-//      XFinal = RHS;
-//
-//      timeSta = get_time();
-//      SMat->NewSolve(&XFinal[0],nrhs);
-//      timeEnd = get_time();
-//
-//      if(iam==0){
-//        std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
-//      }
-//      SMat->GetSolution(&XFinal[0],nrhs);
-//      delete SMat;
-//
-//logfileptr->OFS()<<XFinal<<std::endl;
+      SMat = new symPACKMatrix<SCALAR>(*SMat2D);
+      SMat->DumpMatlab();
+      XFinal1D = RHS;
+
+      timeSta = get_time();
+      SMat->NewSolve(&XFinal1D[0],nrhs);
+      timeEnd = get_time();
+
+      if(iam==0){
+        std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
+      }
+      SMat->GetSolution(&XFinal1D[0],nrhs);
+      delete SMat;
+
+logfileptr->OFS()<<XFinal1D<<std::endl;
 
         if(iam==0){
           std::cout<<"Starting solve 2D"<<std::endl;
@@ -522,7 +523,7 @@ int main(int argc, char **argv)
           std::cout<<"Solve 2D time: "<<timeEnd-timeSta<<std::endl;
         }
         SMat2D->GetSolution(&XFinal[0],nrhs);
-//logfileptr->OFS()<<XFinal<<std::endl;
+logfileptr->OFS()<<XFinal<<std::endl;
       }
 
     //}
@@ -543,7 +544,9 @@ int main(int argc, char **argv)
     //}
 
 #if 1
-    if(!nofact && nrhs>0 && XFinal.size()>0) {
+    if(!nofact && nrhs>0 ) {
+    auto check_solution = [&](std::vector<SCALAR> & XFinal) {
+    if(XFinal.size()>0) {
       const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
       Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
       Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
@@ -592,7 +595,11 @@ int main(int argc, char **argv)
         ///*if ( normAX/normRHS > 1e-10 )*/ gdb_lock();
       }
     }
+    };
 
+    check_solution(XFinal);
+    check_solution(XFinal1D);
+    }
 //    for( auto && blockptr: SMat2D->solve_data.contribs){
 //      if ( blockptr ) {
 //        blockptr->print_block(*blockptr,"");

@@ -1391,6 +1391,8 @@ namespace symPACK{
         }
 
         virtual int back_update( blockCellBase_t * psrc_cell) {
+//TODO DEBUG_SOLVE
+//return 0 ;
           //src_cell is an ancestor of the supernode corresponding to *this
           blockCell_t & src_cell = *dynamic_cast<blockCell_t*>(psrc_cell);
           Int ldsol = this->width();
@@ -1400,7 +1402,14 @@ namespace symPACK{
           return 0;
         }
 
+        virtual int _tri_solve(char TRANSA, int_t M,int_t N,T ALPHA,T* A,int_t LDA,T* B,int_t LDB) {
+            blas::Trsm('R','U',TRANSA,'N',M,N, ALPHA,  A, LDA, B, LDB);
+            return 0;
+        }
+
         virtual int back_update_contrib( blockCellBase_t * ptgt_contrib, blockCellBase_t * pdiag_contrib = nullptr) {
+//TODO DEBUG_SOLVE
+//return 0;
           bassert(dynamic_cast<blockCell_t*>(ptgt_contrib));
           blockCell_t & tgt_contrib = *dynamic_cast<blockCell_t*>(ptgt_contrib);
           Int ldsol = tgt_contrib.width();
@@ -1408,7 +1417,8 @@ namespace symPACK{
           if ( this->i == this->j ) {
             bassert(this->blocks().size()==1);
             auto diag_nzval = this->_nzval;
-            blas::Trsm('R','U','T','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
+            //blas::Trsm('R','U','T','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
+            this->_tri_solve('T',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
           }
           else {
             bassert(pdiag_contrib);
@@ -1426,12 +1436,6 @@ namespace symPACK{
               T * src = diag_contrib._nzval + block.offset + (fact_block.first_row - block.first_row)*ldsol;
               T * fact = this->_nzval+fact_block.offset;
               //Do -X*LT (gemm)
-              //          if ( src == nullptr ) gdb_lock();
-              //          if ( fact == nullptr ) gdb_lock();
-              //          if ( tgt_contrib._nzval == nullptr ) gdb_lock();
-              //          if ( !is_aligned<alignof(T)>(src) ) gdb_lock();
-              //          if ( !is_aligned<alignof(T)>(fact) ) gdb_lock();
-              //          if ( !is_aligned<alignof(T)>(tgt_contrib._nzval) ) gdb_lock();
               blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
             }
           }
@@ -1446,6 +1450,7 @@ namespace symPACK{
     class blockCellLDL_t: public blockCell_t<colptr_t,rowind_t,T,int_t> {
       protected:
         T * _diag;
+        size_t _diag_cnt;
         rowind_t first_row;
         std::vector<T> bufLDL_storage;
         //MAKE THAT WORK IN THE COPY CONSTRUCTORS
@@ -1455,7 +1460,7 @@ namespace symPACK{
         int local_pivot;
         using block_t = typename blockCell_t<colptr_t,rowind_t, T>::block_t;
 
-        blockCellLDL_t():blockCell_t<colptr_t,rowind_t, T>(),_bufLDL(nullptr),_diag(nullptr) {
+        blockCellLDL_t():blockCell_t<colptr_t,rowind_t, T>(),_bufLDL(nullptr),_diag(nullptr),_diag_cnt(0) {
         }
 
         virtual ~blockCellLDL_t() {
@@ -1468,16 +1473,32 @@ namespace symPACK{
           this->i = i;
           this->j = j;
           this->_dims = std::make_tuple(width);
+          this->_diag_cnt = width;
           this->first_col = firstcol;
           this->allocate(nzval_cnt,block_cnt, shared_segment);
           this->initialize(nzval_cnt,block_cnt);
         }
 
-        blockCellLDL_t (  int_t i, int_t j,char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCellLDL_t<colptr_t,rowind_t, T>() {
+
+        blockCellLDL_t (  int_t i, int_t j, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, size_t diag_cnt, bool shared_segment = true  ): blockCellLDL_t<colptr_t,rowind_t, T>() {
+          this->i = i;
+          this->j = j;
+          this->_dims = std::make_tuple(width);
+          this->first_col = firstcol;
+          this->_diag_cnt = diag_cnt;
+          this->allocate(nzval_cnt,block_cnt, shared_segment);
+          this->initialize(nzval_cnt,block_cnt);
+        }
+
+
+
+        blockCellLDL_t (  int_t i, int_t j,char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, size_t diag_cnt = 0 ): blockCellLDL_t<colptr_t,rowind_t, T>() {
           this->i = i;
           this->j = j;
           this->_own_storage = false;
           this->_gstorage = nullptr;
+          if ( diag_cnt == 0 ) this->_diag_cnt = width;
+          else this->_diag_cnt = diag_cnt;
           this->_storage = ext_storage;
           this->_dims = std::make_tuple(width);
           this->first_col = firstcol;
@@ -1486,13 +1507,15 @@ namespace symPACK{
           this->_block_container._nblocks = block_cnt;
         }
 
-        blockCellLDL_t (  int_t i, int_t j,upcxx::global_ptr<char> ext_gstorage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCellLDL_t<colptr_t,rowind_t, T>() {
+        blockCellLDL_t (  int_t i, int_t j,upcxx::global_ptr<char> ext_gstorage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, size_t diag_cnt = 0 ): blockCellLDL_t<colptr_t,rowind_t, T>() {
           this->i = i;
           this->j = j;
           this->_own_storage = false;
           this->_gstorage = ext_gstorage;
           this->_storage = this->_gstorage.local();
           this->_dims = std::make_tuple(width);
+          if ( diag_cnt == 0 ) this->_diag_cnt = width;
+          else this->_diag_cnt = diag_cnt;
           this->first_col = firstcol;
           this->initialize(nzval_cnt,block_cnt);
           this->_nnz = nzval_cnt;
@@ -1506,6 +1529,7 @@ namespace symPACK{
           this->owner       = other.owner;
           this->first_col   = other.first_col;
           this->_dims       = other._dims;
+          this->_diag_cnt       = other.__diag_cnt;
           this->_total_rows = other._total_rows;
           this->_own_storage = other._own_storage;
 
@@ -1526,6 +1550,7 @@ namespace symPACK{
           this->_dims       = other._dims;
           this->_total_rows = other._total_rows;
           this->_own_storage = other._own_storage;
+          this->_diag_cnt       = other.__diag_cnt;
 
           this->_gstorage = other._gstorage;
           this->_storage = other._storage;
@@ -1543,6 +1568,7 @@ namespace symPACK{
           other._block_container._nblocks = 0;
           other._block_container._blocks = nullptr;
           other._own_storage = false;
+          other._diag_cnt = 0;
         }
 
         // Copy assignment operator.  
@@ -1564,6 +1590,7 @@ namespace symPACK{
             this->_dims       = other._dims;
             this->_total_rows = other._total_rows;
             this->_own_storage = other._own_storage;
+            this->_diag_cnt       = other.__diag_cnt;
 
             allocate( other._cnz, other._cblocks , !other._gstorage.is_null() );
             //now copy the data
@@ -1593,6 +1620,7 @@ namespace symPACK{
             this->_dims       = other._dims;
             this->_total_rows = other._total_rows;
             this->_own_storage = other._own_storage;
+            this->_diag_cnt       = other.__diag_cnt;
 
             this->_gstorage = other._gstorage;
             this->_storage = other._storage;
@@ -1610,6 +1638,7 @@ namespace symPACK{
             other._block_container._nblocks = 0;
             other._block_container._blocks = nullptr;
             other._own_storage = false;
+          other._diag_cnt = 0;
 
           } 
           return *this;  
@@ -1633,14 +1662,11 @@ namespace symPACK{
           if ( this->i == this->j ) {
             this->_storage_size += this->width()*sizeof(T);
             this->_diag = reinterpret_cast<T*>( this->_nzval + nzval_cnt );
-            this->_block_container._blocks = reinterpret_cast<block_t*>( this->_diag + this->width() );
+            this->_block_container._blocks = reinterpret_cast<block_t*>( this->_diag + this->_diag_cnt );
           }
           else {
             this->_diag = nullptr;
           }
-
-
-
         }
 
         void allocate ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
@@ -1649,7 +1675,7 @@ namespace symPACK{
           size_t aligned_size = 0;
           if ( shared_segment ) {
             if ( this->i == this->j ) {
-              aligned_size = std::ceil(( (nzval_cnt+this->width())*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
+              aligned_size = std::ceil(( (nzval_cnt+this->_diag_cnt)*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
               //this->_gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) + this->width()*sizeof(T) );
             }
             else {
@@ -1662,7 +1688,7 @@ namespace symPACK{
           else {
             this->_gstorage = nullptr;
             if ( this->i == this->j ) {
-              aligned_size = std::ceil(( (nzval_cnt+this->width())*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
+              aligned_size = std::ceil(( (nzval_cnt+this->_diag_cnt)*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
               //this->_storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) + this->width()*sizeof(T)];
             }
             else {
@@ -1694,6 +1720,30 @@ namespace symPACK{
             logfileptr->OFS()<<nzblock.first_row+block.block_nrows(nzblock)-1<<"-|"<<block.first_col<<"---------------------"<<block.first_col+block.width()-1<<std::endl;
           }
         }  
+
+        virtual void copy_row_structure( int_t width, blockCell_t<colptr_t,rowind_t, T> * other ) { 
+          this->i = other->i;
+          this->j = other->j;
+
+          if ( this->i == this->j ) {
+//           if ( this->i == 96 ) gdb_lock();
+            bassert(other);
+            bassert(dynamic_cast<blockCellLDL_t*>(other));
+            auto ldl_other = dynamic_cast<blockCellLDL_t*>(other);
+            this->_diag_cnt = ldl_other->_diag_cnt;
+          }
+
+          //check if the block has been initialized yet
+          int_t nnz = width * other->total_rows();
+          this->_dims = std::make_tuple(width);
+          this->first_col = other->first_col;
+
+          this->allocate(nnz,other->nblocks(),true);
+          this->initialize(nnz,other->nblocks());
+          for ( auto & cur_block: other->blocks() ) {
+            this->add_block(cur_block.first_row,other->block_nrows(cur_block));
+          }
+        }
 
 
 
@@ -2006,6 +2056,96 @@ namespace symPACK{
           }
           return 0;
         }
+
+
+        virtual int _tri_solve(char TRANSA, int_t M,int_t N,T ALPHA,T* A,int_t LDA,T* B,int_t LDB) {
+            blas::Trsm('R','U',TRANSA,'U',M,N, ALPHA,  A, LDA, B, LDB);
+            return 0;
+        }
+
+
+        virtual int forward_update_contrib( blockCellBase_t * ptgt_contrib, blockCellBase_t * pdiag_contrib = nullptr) {
+          static bool first = false;
+
+          bassert(dynamic_cast<blockCellLDL_t*>(ptgt_contrib));
+          blockCellLDL_t & tgt_contrib = *dynamic_cast<blockCellLDL_t*>(ptgt_contrib);
+
+          int_t ldsol = tgt_contrib.width();
+          int_t ldfact = this->width();
+
+
+          if ( this->i == this->j ) {
+//            if ( !first && tgt_contrib.j==96 ) { first = true; gdb_lock(); }
+            bassert(this->blocks().size()==1);
+            auto diag_nzval = this->_nzval;
+            //blas::Trsm('R','U','N','U',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
+            this->_tri_solve('N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
+//            for(Int kk = 0; kk<ldfact; ++kk){
+//              //then compute the rank one update
+////TODO DEBUG_SOLVE
+//              blas::Geru(ldsol,ldfact-kk-1, T(-1.0),  &tgt_contrib._nzval[kk*ldsol], 1,&diag_nzval[(kk + 1)*ldfact+kk], ldfact, &tgt_contrib._nzval[(kk + 1)*ldsol], ldsol );
+//            }
+
+            //bassert(pdiag_contrib);
+            //bassert(dynamic_cast<blockCellLDL_t*>(pdiag_contrib));
+            //blockCellLDL_t & diag_contrib = *dynamic_cast<blockCellLDL_t*>(pdiag_contrib);
+              for(int_t kk = 0; kk<ldfact; ++kk){
+                blas::Scal( ldsol, T(1.0)/this->_diag[kk], &tgt_contrib._nzval[kk*ldsol], 1 );
+              }
+          }
+          else {
+
+//            if ( tgt_contrib.j==96 ) { first = true; gdb_lock(); }
+
+            bassert(pdiag_contrib);
+            bassert(dynamic_cast<blockCellLDL_t*>(pdiag_contrib));
+            blockCellLDL_t & diag_contrib = *dynamic_cast<blockCellLDL_t*>(pdiag_contrib);
+
+            int_t tgt_blk_idx  = 0;
+            for ( auto & src_block: this->blocks() ) {
+              for ( ; tgt_blk_idx < tgt_contrib.nblocks(); tgt_blk_idx++ ) {
+                auto & block = tgt_contrib._block_container[tgt_blk_idx];
+                if (src_block.first_row >= block.first_row && 
+                    src_block.first_row <= block.first_row + tgt_contrib.block_nrows(block) -1) break;
+              }
+
+              auto & block = tgt_contrib._block_container[tgt_blk_idx];
+              T * src = this->_nzval + src_block.offset;
+              T * tgt = tgt_contrib._nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
+              auto cur_nrows = tgt_contrib.block_nrows(block) - (src_block.first_row - block.first_row);
+
+//              //Do -L*Y (gemm)
+              blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
+                  T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
+//            for(Int kk = 0; kk<ldfact; ++kk){
+////TODO DEBUG_SOLVE
+//              //then compute the rank one update
+//  blas::Geru(ldsol,cur_nrows, T(-1.0),  &diag_contrib._nzval[kk*ldsol], 1,&src[kk], ldfact, tgt, ldsol );
+//            }
+
+
+
+//              for(int_t kk = 0; kk<this->block_nrows(src_block); ++kk){
+//                blas::Scal( ldsol, T(1.0)/diag_contrib._diag[kk], &tgt[kk*ldsol], ldsol );
+//              }
+
+            }
+
+            //auto snode_size = std::get<0>(this->_dims);
+            //auto nzblk_nzval = this->_nzval;
+            //auto nrhs = ldsol;
+            //for(int_t kk = 0; kk<snode_size; ++kk){
+            //  //scale the kk-th row of the solution
+            //  //TODO WE ALSO NEED THE DIAGONAL CHOLESKY BLOCK
+            //  blas::Scal( nrhs, T(1.0)/diag_contrib._diag[kk], &tgt_contrib._nzval[kk*ldsol], snode_size );
+            //}
+
+          }
+          return 0;
+        }
+
+
+
     };
 #endif
 
@@ -6376,7 +6516,9 @@ namespace symPACK{
                     auto & rptr_contrib = contribs[J];
                     if ( ! rptr_contrib ) {
                       bassert(update_right_cnt[J] == 0);
-                      rptr_contrib = std::make_shared<snodeBlock_t>();
+
+                      rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>():std::make_shared<snodeBlock_t>());
+//                      rptr_contrib = std::make_shared<snodeBlock_t>();
                       auto ptr_test_cell = pQueryCELL(J-1,J-1);
                       if ( ptr_test_cell->owner == this->iam ) {
                         rptr_contrib->copy_row_structure(nrhs,(snodeBlock_t*)ptr_test_cell.get());
@@ -6384,7 +6526,10 @@ namespace symPACK{
                       else {
                         bassert(I!=J);
                         rowind_t nrows = this->Xsuper_[J] - this->Xsuper_[J-1];
-                        rptr_contrib = std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1);
+                        //rptr_contrib = std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1);
+
+                        rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1):std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1));
+
                         rptr_contrib->add_block(this->Xsuper_[J-1],nrows);
                         //ptr_contrib->copy_row_structure(nrhs,(snodeBlock_t*)ptr_cell.get());
                       }
@@ -6397,6 +6542,8 @@ namespace symPACK{
                           rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
                           for (rowind_t col = 0; col<nrhs;++col) {
                             rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
+            //TODO DEBUG_SOLVE
+//                            rptr_contrib->_nzval[row*nrhs+col] = 0;
                           }
                         }
                       }
@@ -6407,6 +6554,7 @@ namespace symPACK{
                       for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
                         rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
                         for (rowind_t col = 0; col<nrhs;++col) {
+                          //TODO DEBUG_SOLVE
                           rptr_contrib->_nzval[row*nrhs+col] += rhs[srcRow + col*this->iSize_];
                         }
                       }
@@ -6427,6 +6575,12 @@ namespace symPACK{
                       }
                     }
 
+                    //For LDL, package the diagonal values in the contrib
+                    if (this->options_.decomposition == DecompositionType::LDL) {
+                        auto ptr_ldlcontrib = dynamic_cast<snodeBlockLDL_t*>(ptr_contrib.get());
+                        auto ptr_diag = dynamic_cast<snodeBlockLDL_t*>(ptr_cell.get());
+                        std::copy(ptr_diag->GetDiag(), ptr_diag->GetDiag()+ptr_diag->width(), ptr_ldlcontrib->GetDiag());
+                    }
                     //this is a diagonal block update
                     //this could be implemented as a straight trsm
                     ptr_cell->forward_update_contrib(ptr_contrib.get());
@@ -6532,7 +6686,7 @@ namespace symPACK{
                     }
 
 
-                    //compute the product between L(J,I) and Y(I)
+                    //compute the product between L(I,J) and Y(I)
                     ptr_cell->forward_update_contrib(ptr_contrib.get(),ptr_diagContrib);
 
 
@@ -6652,7 +6806,8 @@ namespace symPACK{
                         bassert(I!=J);
                         if ( !rptr_contrib ) {
                           rowind_t nrows = this->Xsuper_[I] - this->Xsuper_[I-1];
-                          rptr_contrib = std::make_shared<snodeBlock_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1);
+                          //rptr_contrib = std::make_shared<snodeBlock_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1);
+                          rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1):std::make_shared<snodeBlock_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1));
                           rptr_contrib->add_block(this->Xsuper_[I-1],nrows);
                         }
                         std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
@@ -7331,6 +7486,7 @@ namespace symPACK{
                     for (rowind_t col = 0; col<nrhs;++col) {
                       rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
                     }
+              //    std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
                   }
                 }
 
@@ -7362,7 +7518,7 @@ namespace symPACK{
                 bassert(I!=J);
                 if ( !rptr_contrib ) {
                   rowind_t nrows = this->Xsuper_[I] - this->Xsuper_[I-1];
-                  rptr_contrib = std::make_shared<snodeBlock_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1);
+                  rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1,ptr_tgtcell->width()):std::make_shared<snodeBlock_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1));
                   rptr_contrib->add_block(this->Xsuper_[I-1],nrows);
                 }
                 std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
