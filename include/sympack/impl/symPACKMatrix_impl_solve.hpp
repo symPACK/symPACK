@@ -219,6 +219,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew_(T * RHS, int nrhs,
           if(blkidx==0){
             T * diag_nzval = contrib->GetNZval(0);
 
+//if ( contrib->Id()==6) gdb_lock();
             for(Int kk = 0; kk<cur_snode->Size(); ++kk){
               //First, copy the RHS into the contribution
               Int srcRow = this->Order_.perm[cur_desc.GIndex+kk-1];
@@ -948,6 +949,7 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                 }
               }
 
+//if ( contrib->Id()==5) gdb_lock();
               contrib->forward_update_contrib(cur_snode,nrhsOffset,taskNrhs);
 
 ////              //TODO DEBUG_SOLVE

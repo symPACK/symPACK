@@ -998,13 +998,10 @@ namespace symPACK{
 
   template <typename T, class Allocator> 
     inline void SuperNodeInd<T,Allocator>::back_update_contrib(SuperNode<T> * cur_snode, Int nrhsOffset, Int pnrhs){
-//TODO DEBUG_SOLVE
-//return ;
-
-
-
       SuperNodeInd<T,Allocator> * contrib = this;
       SuperNodeInd<T> * cur_snodeInd = static_cast<SuperNodeInd<T>*>(cur_snode);
+//TODO DEBUG_SOLVE
+//return  ;
 
       Int nrhs = pnrhs;
       if(pnrhs==-1){
@@ -1107,8 +1104,6 @@ namespace symPACK{
       Int ldfact = cur_snodeInd->Size();
 
 
-      //if ( this->Id()==96 ) gdb_lock();
-
 
 
       if(cur_snodeInd->NZBlockCnt()>=1){
@@ -1134,24 +1129,32 @@ namespace symPACK{
             //if we are processing the "pivot" block
             for(Int kk = 0; kk<snodeSize; ++kk){
               //then compute the rank one update
-//TODO DEBUG_SOLVE
               blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*ldsol+nrhsOffset], 1,&chol_nzval[(kk + 1)*ldfact+kk], ldfact, &cur_nzval[(kk + 1)*ldsol+nrhsOffset], ldsol );
             }
-
-        //TODO DEBUG_SOLVE
-        for(Int kk = 0; kk<snodeSize; ++kk){
-          //scale the kk-th row of the solution
-          lapack::Scal(nrhs, T(1.0)/chol_diag[kk], &diag_nzval[kk*ldsol+nrhsOffset], 1);
-        }
           }
           else{
             for(Int kk = 0; kk<snodeSize; ++kk){
               //compute the rank one update
-//TODO DEBUG_SOLVE
               blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*ldsol+nrhsOffset], 1, &chol_nzval[kk], ldfact, &cur_nzval[nrhsOffset], ldsol );
             }
           }
         }
+        logfileptr->OFS()<<"2 diag of ("<<contrib->Id()<<"): ";
+          for(Int kk = 0; kk<ldfact; ++kk){
+            logfileptr->OFS()<<diag_nzval[kk*ldsol]<<" ";
+          }
+          for(Int kk = 0; kk<ldfact; ++kk){
+            logfileptr->OFS()<<chol_diag[kk]<<" ";
+          }
+          logfileptr->OFS()<<std::endl;
+
+//if ( this->Id()==6) gdb_lock();
+        for(Int kk = 0; kk<snodeSize; ++kk){
+          //scale the kk-th row of the solution
+          lapack::Scal(nrhs, T(1.0)/chol_diag[kk], &diag_nzval[kk*ldsol+nrhsOffset], 1);
+        }
+
+
 
       }
     }
@@ -1269,11 +1272,10 @@ namespace symPACK{
         }
 
 
-        //TODO DEBUG_SOLVE
-//        for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
-//          //scale the kk-th row of the solution
-//          lapack::Scal(nrhs, T(1.0)/chol_diag[kk], &diag_nzval[kk*nrhs], 1);
-//        }
+        for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
+          //scale the kk-th row of the solution
+          lapack::Scal(nrhs, T(1.0)/chol_diag[kk], &diag_nzval[kk*nrhs], 1);
+        }
 #endif
 
 

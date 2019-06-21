@@ -528,6 +528,8 @@ namespace symPACK{
         size_t _storage_size;
         rowind_t _total_rows;
 
+        //relevant only for LDL but more convenient here
+        size_t _diag_cnt;
 
         class block_container_t {
           public:
@@ -628,7 +630,7 @@ namespace symPACK{
 
         blockCell_t(): 
           first_col(0),_dims(std::make_tuple(0)),_total_rows(0),
-          _storage(nullptr),_nzval(nullptr),
+          _storage(nullptr),_nzval(nullptr),_diag_cnt(0),
           _gstorage(nullptr),_nnz(0),_storage_size(0), _own_storage(true) {}
         bool _own_storage;
 
@@ -928,14 +930,7 @@ namespace symPACK{
 
           auto snode_size = std::get<0>(_dims);
           auto nzblk_nzval = _nzval;
-          //          print_block(diag,"diag");
-          //          print_block(*this,"offdiag before Trsm");
-          //if ( diag_nzval == nullptr ) gdb_lock();
-          //if ( nzblk_nzval == nullptr ) gdb_lock();
-          //if ( !is_aligned<alignof(T)>(nzblk_nzval) ) gdb_lock();
-          //if ( !is_aligned<alignof(T)>(diag_nzval) ) gdb_lock();
           blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
-          //          print_block(*this,"offdiag after Trsm");
           return 0;
         }
 
@@ -945,7 +940,6 @@ namespace symPACK{
           return 0;
 #endif
           //do the owner compute update first
-
 #if 1
           {
             bassert(dynamic_cast<blockCell_t*>(ppivot));
@@ -1450,7 +1444,6 @@ namespace symPACK{
     class blockCellLDL_t: public blockCell_t<colptr_t,rowind_t,T,int_t> {
       protected:
         T * _diag;
-        size_t _diag_cnt;
         rowind_t first_row;
         std::vector<T> bufLDL_storage;
         //MAKE THAT WORK IN THE COPY CONSTRUCTORS
@@ -1460,7 +1453,7 @@ namespace symPACK{
         int local_pivot;
         using block_t = typename blockCell_t<colptr_t,rowind_t, T>::block_t;
 
-        blockCellLDL_t():blockCell_t<colptr_t,rowind_t, T>(),_bufLDL(nullptr),_diag(nullptr),_diag_cnt(0) {
+        blockCellLDL_t():blockCell_t<colptr_t,rowind_t, T>(),_bufLDL(nullptr),_diag(nullptr) {
         }
 
         virtual ~blockCellLDL_t() {
@@ -1474,6 +1467,7 @@ namespace symPACK{
           this->j = j;
           this->_dims = std::make_tuple(width);
           this->_diag_cnt = width;
+          //this->_diag_cnt = 0;
           this->first_col = firstcol;
           this->allocate(nzval_cnt,block_cnt, shared_segment);
           this->initialize(nzval_cnt,block_cnt);
@@ -1486,6 +1480,7 @@ namespace symPACK{
           this->_dims = std::make_tuple(width);
           this->first_col = firstcol;
           this->_diag_cnt = diag_cnt;
+          this->_diag_cnt = 0;
           this->allocate(nzval_cnt,block_cnt, shared_segment);
           this->initialize(nzval_cnt,block_cnt);
         }
@@ -1498,7 +1493,7 @@ namespace symPACK{
           this->_own_storage = false;
           this->_gstorage = nullptr;
           if ( diag_cnt == 0 ) this->_diag_cnt = width;
-          else this->_diag_cnt = diag_cnt;
+          else this->_diag_cnt = 0;//diag_cnt;
           this->_storage = ext_storage;
           this->_dims = std::make_tuple(width);
           this->first_col = firstcol;
@@ -1515,7 +1510,7 @@ namespace symPACK{
           this->_storage = this->_gstorage.local();
           this->_dims = std::make_tuple(width);
           if ( diag_cnt == 0 ) this->_diag_cnt = width;
-          else this->_diag_cnt = diag_cnt;
+          else this->_diag_cnt = 0;//diag_cnt;
           this->first_col = firstcol;
           this->initialize(nzval_cnt,block_cnt);
           this->_nnz = nzval_cnt;
@@ -2057,6 +2052,33 @@ namespace symPACK{
           return 0;
         }
 
+        bool scaled = false;
+        int scale_contrib(blockCellLDL_t * ptgt_contrib) {
+          blockCellLDL_t & tgt_contrib = *(ptgt_contrib);
+
+//            if ( tgt_contrib.j==6 ) { gdb_lock(); }
+
+          int_t ldsol = tgt_contrib.width();
+          auto & block = tgt_contrib.blocks()[0];
+          int_t ldfact = tgt_contrib.block_nrows(block);
+          //int_t ldfact = this->width();
+          logfileptr->OFS()<<"diag of ("<<tgt_contrib.j<<"): ";
+          for(int_t kk = 0; kk<ldfact; ++kk){
+            logfileptr->OFS()<<tgt_contrib._nzval[kk*ldsol]<<" ";
+          }
+          for(int_t kk = 0; kk<ldfact; ++kk){
+            logfileptr->OFS()<<this->_diag[kk]<<" ";
+          }
+          logfileptr->OFS()<<std::endl;
+
+          bassert(tgt_contrib.i == tgt_contrib.j);
+          bassert(!tgt_contrib.scaled);
+          for(int_t kk = 0; kk<ldfact; ++kk){
+            blas::Scal( ldsol, T(1.0)/this->_diag[kk], &tgt_contrib._nzval[kk*ldsol], 1 );
+          }
+          tgt_contrib.scaled = true;
+          return 0;
+        }
 
         virtual int _tri_solve(char TRANSA, int_t M,int_t N,T ALPHA,T* A,int_t LDA,T* B,int_t LDB) {
             blas::Trsm('R','U',TRANSA,'U',M,N, ALPHA,  A, LDA, B, LDB);
@@ -2070,31 +2092,20 @@ namespace symPACK{
           bassert(dynamic_cast<blockCellLDL_t*>(ptgt_contrib));
           blockCellLDL_t & tgt_contrib = *dynamic_cast<blockCellLDL_t*>(ptgt_contrib);
 
+          bassert(!tgt_contrib.scaled);
           int_t ldsol = tgt_contrib.width();
           int_t ldfact = this->width();
 
+//            if ( tgt_contrib.j==6 ) { first = true; gdb_lock(); }
 
           if ( this->i == this->j ) {
 //            if ( !first && tgt_contrib.j==96 ) { first = true; gdb_lock(); }
             bassert(this->blocks().size()==1);
             auto diag_nzval = this->_nzval;
-            //blas::Trsm('R','U','N','U',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
             this->_tri_solve('N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
-//            for(Int kk = 0; kk<ldfact; ++kk){
-//              //then compute the rank one update
-////TODO DEBUG_SOLVE
-//              blas::Geru(ldsol,ldfact-kk-1, T(-1.0),  &tgt_contrib._nzval[kk*ldsol], 1,&diag_nzval[(kk + 1)*ldfact+kk], ldfact, &tgt_contrib._nzval[(kk + 1)*ldsol], ldsol );
-//            }
-
-            //bassert(pdiag_contrib);
-            //bassert(dynamic_cast<blockCellLDL_t*>(pdiag_contrib));
-            //blockCellLDL_t & diag_contrib = *dynamic_cast<blockCellLDL_t*>(pdiag_contrib);
-              for(int_t kk = 0; kk<ldfact; ++kk){
-                blas::Scal( ldsol, T(1.0)/this->_diag[kk], &tgt_contrib._nzval[kk*ldsol], 1 );
-              }
           }
           else {
-
+//if (this->i==6 && this->j==5)  gdb_lock();
 //            if ( tgt_contrib.j==96 ) { first = true; gdb_lock(); }
 
             bassert(pdiag_contrib);
@@ -2114,21 +2125,10 @@ namespace symPACK{
               T * tgt = tgt_contrib._nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
               auto cur_nrows = tgt_contrib.block_nrows(block) - (src_block.first_row - block.first_row);
 
-//              //Do -L*Y (gemm)
+              bassert(diag_contrib.j != tgt_contrib.j);
+              //Do -L*Y (gemm)
               blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
                   T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
-//            for(Int kk = 0; kk<ldfact; ++kk){
-////TODO DEBUG_SOLVE
-//              //then compute the rank one update
-//  blas::Geru(ldsol,cur_nrows, T(-1.0),  &diag_contrib._nzval[kk*ldsol], 1,&src[kk], ldfact, tgt, ldsol );
-//            }
-
-
-
-//              for(int_t kk = 0; kk<this->block_nrows(src_block); ++kk){
-//                blas::Scal( ldsol, T(1.0)/diag_contrib._diag[kk], &tgt[kk*ldsol], ldsol );
-//              }
-
             }
 
             //auto snode_size = std::get<0>(this->_dims);
@@ -2181,6 +2181,7 @@ namespace symPACK{
 
         std::vector<int> update_right_cnt;
         std::vector<int> update_up_cnt;
+        std::vector<int> update_diag_cnt;
         //std::atomic<int> * update_right_cnt;
         //std::atomic<int> * update_up_cnt;
 
@@ -5873,17 +5874,6 @@ namespace symPACK{
               K_prevSnode = K;
             }
 
-            //            std::list<Int> ancestors;
-            //            int ancest = I;
-            //            while ( supETree.Parent(ancest-1) != 0 ) {
-            //              auto parent = supETree.Parent(ancest-1);
-            //              if ( parent != 0 ) {
-            //                ancestors.push_back(parent);
-            //                ancest = parent;
-            //              }
-            //            }
-            //            logfileptr->OFS()<<"ancestors: "; for ( auto && a: ancestors) { logfileptr->OFS()<<a<<" ";} logfileptr->OFS()<<std::endl;
-            //            std::vector<bool> isRecvd(this->np,false);
             for (auto J_row : ancestor_rows) {
               Int J = this->SupMembership_[J_row-1];
 
@@ -5910,32 +5900,6 @@ namespace symPACK{
               //              if (this->options_.decomposition == DecompositionType::LDL) {
               //                Messages[iOwner].push_back(std::make_tuple(I,J,Factorization::op_type::FUC_DIAG_SEND,J_row,J_row));
               //                Messages[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::FUC_DIAG_RECV,J_row,J_row));
-              //              }
-
-
-
-              //              for (auto K_row : ancestor_rows) {
-              //                K = this->SupMembership_[K_row-1];
-              //                if (K<=J) {
-              //                  auto ptr_tgtupdcell = pQueryCELL(J-1,K-1);
-              //                  Int iTgtOwner = ptr_tgtupdcell->owner;
-              //                  //TODO update this for non fan-out mapping
-              //                  Int iUpdOwner = ptr_tgtupdcell->owner;
-              //
-              //                  auto ptr_facingcell = pQueryCELL(J-1,I-1);
-              //                  Int iFacingOwner = ptr_facingcell->owner;
-              //
-              //                  //sender point of view
-              //                  //cell(J,I) to cell(J,K)
-              //                  Messages[iFacingOwner].push_back(std::make_tuple(I,K,Factorization::op_type::FUC_SEND,K_row,J_row));
-              //                  Messages[iUpdOwner].push_back(std::make_tuple(I,K,Factorization::op_type::FUC_RECV,K_row,J_row));
-              //
-              //
-              //                  if (this->options_.decomposition == DecompositionType::LDL) {
-              //                      Messages[iOwner].push_back(std::make_tuple(I,K,Factorization::op_type::FUC_DIAG_SEND,K_row,J_row));
-              //                      Messages[iUpdOwner].push_back(std::make_tuple(I,K,Factorization::op_type::FUC_DIAG_RECV,K_row,J_row));
-              //                  }
-              //                }
               //              }
             }
 
@@ -6134,6 +6098,11 @@ namespace symPACK{
 
         std::vector<int> update_right_cnt(this->nsuper+1,0);
         std::vector<int> update_up_cnt(this->nsuper+1,0);
+        std::vector<int> update_diag_ldl;
+        if (this->options_.decomposition == DecompositionType::LDL) {
+          update_diag_ldl.resize(this->nsuper+1,0);
+        }
+
 
         //now we can process the dependency tasks
         for (auto it = recvbuf_dep.begin();it!=recvbuf_dep.end();it++) {
@@ -6262,7 +6231,9 @@ namespace symPACK{
                   bassert(J==I);
                   k1 = scheduling::key_t(J,J,0,Factorization::op_type::BUC);
                 }
-                //if (J==4 && J!=I) gdb_lock();
+
+                if (this->options_.decomposition == DecompositionType::LDL) { update_diag_ldl[J]++; }
+
 
                 auto outtask_idx_it = std::lower_bound(task_idx_solve.begin(), task_idx_solve.end(), k1, key_lb_comp);
                 auto taskptr = task_graph_solve[std::get<1>(*outtask_idx_it)].get();
@@ -6443,6 +6414,7 @@ namespace symPACK{
         logfileptr->OFS()<<update_right_cnt<<std::endl;
         logfileptr->OFS()<<update_up_cnt<<std::endl;
 #endif
+        logfileptr->OFS()<<update_diag_ldl<<std::endl;
 
         //Now we have our local part of the task graph
         for (auto it = this->task_graph_solve.begin(); it != this->task_graph_solve.end(); it++) {
@@ -6494,10 +6466,9 @@ namespace symPACK{
             case Factorization::op_type::FUC:
               {
                 int dep_cnt = update_right_cnt[J];
-
-
-
-                ptask->execute = [this,ptr,I,J,dep_cnt] () {
+                int upd_diag_cnt = 0;
+                if (this->options_.decomposition == DecompositionType::LDL) upd_diag_cnt = update_diag_ldl[J] + (supETree.Parent(J-1)!=0?1:0);
+                ptask->execute = [this,ptr,I,J,dep_cnt,upd_diag_cnt] () {
                   scope_timer(b,SOLVE_FUC_TASK);
                   auto ptask = ptr;
                   auto ptr_cell = pQueryCELL2(J-1,I-1);
@@ -6505,10 +6476,11 @@ namespace symPACK{
                   cell_lock<std::atomic<bool> > lock_cell(this->solve_data.contribs_lock[J]);
 #endif
                   auto & update_right_cnt = this->solve_data.update_right_cnt;
+                  auto & update_diag_cnt = this->solve_data.update_diag_cnt;
                   auto & contribs = this->solve_data.contribs;
                   auto rhs = this->solve_data.rhs;
                   auto nrhs = this->solve_data.nrhs;
-
+//if(J==97)gdb_lock();
 #ifndef PREALLOCATE2
                   //Allocate Y(K) with the same structure as L(K,M) where M is the highest anscestor in the Etree this rank owns
                   snodeBlock_sptr_t ptr_contrib = nullptr;
@@ -6528,16 +6500,29 @@ namespace symPACK{
                         rowind_t nrows = this->Xsuper_[J] - this->Xsuper_[J-1];
                         //rptr_contrib = std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1);
 
-                        rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1):std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1));
+                        rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1,nrows,true):std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1));
 
                         rptr_contrib->add_block(this->Xsuper_[J-1],nrows);
                         //ptr_contrib->copy_row_structure(nrhs,(snodeBlock_t*)ptr_cell.get());
                       }
 
+//                      if ( ptr_test_cell->owner == this->iam ) {
+//            if ( rptr_contrib->j==6 ) { gdb_lock(); }
+//                        for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
+//                          rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
+//                          for (rowind_t col = 0; col<nrhs;++col) {
+//                            rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
+//            //TODO DEBUG_SOLVE
+////                            rptr_contrib->_nzval[row*nrhs+col] = 0;
+//                          }
+//                        }
+//                      }
+//                      else 
                       if ( I != J ) {
                         std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
                       }
                       else {
+//            if ( rptr_contrib->j==6 ) { gdb_lock(); }
                         for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
                           rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
                           for (rowind_t col = 0; col<nrhs;++col) {
@@ -6551,6 +6536,7 @@ namespace symPACK{
                     else if ( I == J ) {
                       bassert( rptr_contrib->nnz() >0 && rptr_contrib->width()>0);
                       //Add data from RHS
+            //if ( rptr_contrib->j==6 ) { gdb_lock(); }
                       for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
                         rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
                         for (rowind_t col = 0; col<nrhs;++col) {
@@ -6571,19 +6557,28 @@ namespace symPACK{
                     for ( auto && msg_ptr: ptask->input_msg ) {
                       if ( msg_ptr->extra_data ) {
                         auto ptr_rem_contrib = (snodeBlock_t*)(msg_ptr->extra_data.get());
+//            if ( ptr_rem_contrib->j==6 ) { gdb_lock(); }
                         ptr_contrib->forward_update(ptr_rem_contrib);
                       }
                     }
 
                     //For LDL, package the diagonal values in the contrib
-                    if (this->options_.decomposition == DecompositionType::LDL) {
-                        auto ptr_ldlcontrib = dynamic_cast<snodeBlockLDL_t*>(ptr_contrib.get());
-                        auto ptr_diag = dynamic_cast<snodeBlockLDL_t*>(ptr_cell.get());
-                        std::copy(ptr_diag->GetDiag(), ptr_diag->GetDiag()+ptr_diag->width(), ptr_ldlcontrib->GetDiag());
-                    }
+//TODO DEBUG_SOLVE
+//                    if (this->options_.decomposition == DecompositionType::LDL) {
+//                        auto ptr_ldlcontrib = dynamic_cast<snodeBlockLDL_t*>(ptr_contrib.get());
+//                        auto ptr_diag = dynamic_cast<snodeBlockLDL_t*>(ptr_cell.get());
+//                        std::copy(ptr_diag->GetDiag(), ptr_diag->GetDiag()+ptr_diag->width(), ptr_ldlcontrib->GetDiag());
+//                    }
                     //this is a diagonal block update
                     //this could be implemented as a straight trsm
                     ptr_cell->forward_update_contrib(ptr_contrib.get());
+//                    if (this->options_.decomposition == DecompositionType::LDL) {
+//                      if (++update_diag_cnt[J] == upd_diag_cnt) {
+//                        auto ptr_ldlcontrib = dynamic_cast<snodeBlockLDL_t*>(ptr_contrib.get());
+//                        auto ptr_diag = dynamic_cast<snodeBlockLDL_t*>(ptr_cell.get());
+//                        ptr_diag->scale_contrib(ptr_ldlcontrib);
+//                      }
+//                    }
 
                     //send the contrib down
                     std::unordered_map<int,std::list<std::size_t> > data_to_send;
@@ -6602,8 +6597,8 @@ namespace symPACK{
                       //diag contrib is output data so it will not be deleted
                       if ( pdest != this->iam ) {
                         upcxx::rpc_ff( pdest,  
-                            [] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                            return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+                            [] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, int_t diag_cnt, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+                            return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,diag_cnt]() {
                               //there is a map between sp_handle and task_graphs
                               auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                               auto I = std::get<1>(meta);
@@ -6631,10 +6626,11 @@ namespace symPACK{
 
                               if ( data ) {
                                 data->on_fetch.get_future().then(
-                                    [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
+                                    [diag_cnt,fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
                                     //create snodeBlock_t and store it in the extra_data
                                     if (matptr->options_.decomposition == DecompositionType::LDL) {
-                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    if(I==97)gdb_lock();
+                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks,diag_cnt) );
                                     }
                                     else {
                                     pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
@@ -6655,7 +6651,7 @@ namespace symPACK{
 #endif
                             });
 
-                            }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                            }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptr_contrib->_diag_cnt, ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                       }
                       else {
                         for ( auto & tgt_cell_idx: tgt_cells ) {
@@ -6676,6 +6672,8 @@ namespace symPACK{
                     if ( ptr_diagContrib->owner == this->iam ) {
                       ptr_diagContrib = (symPACK::blockCellBase_t*)contribs[I].get();
                       bassert(ptr_diagContrib != nullptr);
+
+                      
                     }
                     else {
                       if ( ptask->input_msg.size() > 0 ) {
@@ -6688,6 +6686,15 @@ namespace symPACK{
 
                     //compute the product between L(I,J) and Y(I)
                     ptr_cell->forward_update_contrib(ptr_contrib.get(),ptr_diagContrib);
+ //                   if (this->options_.decomposition == DecompositionType::LDL) {
+ //                     if (++update_diag_cnt[J] == upd_diag_cnt) {
+ //                       auto ptr_ldlcontrib = dynamic_cast<snodeBlockLDL_t*>(ptr_contrib.get());
+ //                       auto ptr_diag = dynamic_cast<snodeBlockLDL_t*>(ptr_diagContrib);
+ //                       bassert(ptr_diag->scaled);
+ //                       ptr_diag->scale_contrib(ptr_ldlcontrib);
+ //                     }
+ //                   }
+
 
 
 
@@ -6708,8 +6715,8 @@ namespace symPACK{
                         update_right_cnt[J]++;
                         if ( dep_cnt == update_right_cnt[J]) {
                           upcxx::rpc_ff( pdest, /*cxs,*/ 
-                              [dep_cnt ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                              return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
+                              [dep_cnt ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, int_t diag_cnt, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+                              return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt,diag_cnt]() {
                                 //there is a map between sp_handle and task_graphs
                                 auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                 auto I = std::get<1>(meta);
@@ -6740,10 +6747,11 @@ namespace symPACK{
 
                                 if ( data ) {
                                   data->on_fetch.get_future().then(
-                                      [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
+                                      [diag_cnt,fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
                                       //create snodeBlock_t and store it in the extra_data
                                       if (matptr->options_.decomposition == DecompositionType::LDL) {
-                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    if(I==97)gdb_lock();
+                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks,diag_cnt) );
                                       }
                                       else {
                                       pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
@@ -6757,7 +6765,7 @@ namespace symPACK{
                                 }
                               });
 
-                              }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                              }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptr_contrib->_diag_cnt ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                         }
                       }
                       else {
@@ -6765,6 +6773,7 @@ namespace symPACK{
                           auto taskptr = task_graph_solve[tgt_cell_idx].get();
                           bassert(taskptr!=nullptr); 
                           bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::FUC);
+//                          if (std::get<1>(taskptr->_meta)==6) gdb_lock();
                           //mark the dependency as satisfied
                           taskptr->satisfy_dep(1,this->scheduler);
                         }
@@ -6807,7 +6816,7 @@ namespace symPACK{
                         if ( !rptr_contrib ) {
                           rowind_t nrows = this->Xsuper_[I] - this->Xsuper_[I-1];
                           //rptr_contrib = std::make_shared<snodeBlock_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1);
-                          rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1):std::make_shared<snodeBlock_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1));
+                          rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1,nrows,true):std::make_shared<snodeBlock_t>(I,I,this->Xsuper_[I-1],nrhs,nrows*nrhs,1));
                           rptr_contrib->add_block(this->Xsuper_[I-1],nrows);
                         }
                         std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
@@ -6823,6 +6832,17 @@ namespace symPACK{
                   auto ptr_contrib = contribs[I];
                   bassert(ptr_contrib!=nullptr);
 #endif
+
+            if (this->options_.decomposition == DecompositionType::LDL) {
+            //        if ( ptr_tgtcell->owner != this->iam ) {
+              auto & tgt_ldlcell = *std::dynamic_pointer_cast<snodeBlockLDL_t>(ptr_contrib);
+              if(!tgt_ldlcell.scaled){
+                    bassert( ptr_tgtcell->owner == this->iam );
+                tgt_ldlcell.scale_contrib(&tgt_ldlcell);
+              }
+            //        }
+            }
+
                   if ( I == J ) {
                     //Then accumulate everything coming from children
                     for ( auto && msg_ptr: ptask->input_msg ) {
@@ -6852,8 +6872,8 @@ namespace symPACK{
                       //diag contrib is output data so it will not be deleted
                       if ( pdest != this->iam ) {
                         upcxx::rpc_ff( pdest,  
-                            [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                            return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+                            [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, int_t diag_cnt , SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+                            return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,diag_cnt]() {
                               //there is a map between sp_handle and task_graphs
                               auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                               auto I = std::get<1>(meta);
@@ -6883,10 +6903,11 @@ namespace symPACK{
 
                               if ( data ) {
                                 data->on_fetch.get_future().then(
-                                    [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
+                                    [diag_cnt,fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
                                     //create snodeBlock_t and store it in the extra_data
                                     if (matptr->options_.decomposition == DecompositionType::LDL) {
-                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    if(I==97)gdb_lock();
+                                    pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks,diag_cnt) );
                                     }
                                     else {
                                     pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
@@ -6907,7 +6928,7 @@ namespace symPACK{
 #endif
                             });
 
-                            }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                            }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptr_contrib->_diag_cnt, ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                       }
                       else {
                         for ( auto & tgt_cell_idx: tgt_cells ) {
@@ -6960,8 +6981,8 @@ namespace symPACK{
                         update_up_cnt[I]++;
                         if ( dep_cnt == update_up_cnt[I]) {
                           upcxx::rpc_ff( pdest, /*cxs,*/ 
-                              [ dep_cnt] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                              return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
+                              [ dep_cnt] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, int_t diag_cnt, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+                              return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt,diag_cnt]() {
                                 //there is a map between sp_handle and task_graphs
                                 auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                 auto I = std::get<1>(meta);
@@ -6992,10 +7013,11 @@ namespace symPACK{
 
                                 if ( data ) {
                                   data->on_fetch.get_future().then(
-                                      [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
+                                      [fc,width,nnz,nblocks,I,diag_cnt,matptr](SparseTask2D::data_t * pdata) {
                                       //create snodeBlock_t and store it in the extra_data
                                       if (matptr->options_.decomposition == DecompositionType::LDL) {
-                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    if(I==97)gdb_lock();
+                                      pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks,diag_cnt) );
                                       }
                                       else {
                                       pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
@@ -7009,7 +7031,7 @@ namespace symPACK{
                                 }
                               });
 
-                              }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                              }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptr_contrib->_diag_cnt, ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                         }
                       }
                       else {
@@ -7392,6 +7414,10 @@ namespace symPACK{
       //this->solve_data.update_up_cnt = new std::atomic<int>[this->nsuper+1];
       //for ( int i = 0; i < this->nsuper+1; i++ ) { this->solve_data.update_up_cnt[i] = 0; } 
 
+      if (this->options_.decomposition == DecompositionType::LDL) {
+        this->solve_data.update_diag_cnt.assign(this->nsuper+1,0);
+      }
+
 #ifdef SP_THREADS
       this->scheduler.threadInitHandle_ = nullptr;
       this->scheduler.extraTaskHandle_  = nullptr;
@@ -7601,6 +7627,14 @@ namespace symPACK{
             auto ptr_tgt_cell = this->solve_data.contribs[I];
             bassert(ptr_tgt_cell!=nullptr);
             auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
+
+//            if (this->options_.decomposition == DecompositionType::LDL) {
+//              auto & tgt_ldlcell = *std::dynamic_pointer_cast<snodeBlockLDL_t>(ptr_tgt_cell);
+//              if(!tgt_ldlcell.scaled){
+//                tgt_ldlcell.scale_contrib(&tgt_ldlcell);
+//              }
+//            }
+
             for (auto & block: tgt_cell.blocks()) {
               T * val = &tgt_cell._nzval[block.offset];
               auto nRows = tgt_cell.block_nrows(block);
