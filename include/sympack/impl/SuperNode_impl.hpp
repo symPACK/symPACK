@@ -1626,6 +1626,8 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
 
   template <typename T, class Allocator> 
     inline void SuperNode<T,Allocator>::forward_update(SuperNode<T,Allocator> * src_contrib, Int iOwner,Int iam, Int nrhsOffset, Int pnrhs){
+//TODO DEBUG_SOLVE
+//return ;
       //if(!this->lock_.try_lock()){
       //  gdb_lock();
       //}

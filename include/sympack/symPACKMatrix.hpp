@@ -916,8 +916,9 @@ namespace symPACK{
       //Vector holding pointers to local contributions
       //This has to be renamed because it contains the distributed solution
       std::vector<SuperNode<T,MallocAllocator> *> Contributions_;
+    public:
       std::vector< std::shared_ptr<SuperNodeBase<T> > > Contributions2_;
-
+    protected:
 
 #ifndef ITREE2
       std::vector<Int> globToLocSnodes_;

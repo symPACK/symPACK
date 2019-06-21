@@ -494,9 +494,12 @@ int main(int argc, char **argv)
 
         /**************** SOLVE PHASE ***********/
       if (nrhs>0){
-      SMat = new symPACKMatrix<SCALAR>(*SMat2D);
-      SMat->DumpMatlab();
+#define SOLVE1D
+#ifdef SOLVE1D
+        SMat = new symPACKMatrix<SCALAR>(*SMat2D);
+ //     SMat->DumpMatlab();
       XFinal1D = RHS;
+
 
       timeSta = get_time();
       SMat->NewSolve(&XFinal1D[0],nrhs);
@@ -505,11 +508,50 @@ int main(int argc, char **argv)
       if(iam==0){
         std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
       }
+
+#endif
+
+#ifdef SOLVE1D
+
+      for(auto ptr: SMat->Contributions2_){
+        using T = SCALAR;
+        auto src_snode = (SuperNode<T>*)ptr.get();
+
+        logfileptr->OFS()<<"Supernode "<<src_snode->Id()<<" cell ("<<src_snode->Id()<<","<<src_snode->Id()<<")"<<std::endl;
+        logfileptr->OFS()<<" ("<<src_snode->Id()<<","<<src_snode->Id()<<")"<<std::endl;
+        logfileptr->OFS()<<" nzval:"<<std::endl;
+        for(int blkidx=0;blkidx<src_snode->NZBlockCnt();++blkidx){
+          NZBlockDesc & desc = src_snode->GetNZBlockDesc(blkidx);
+          T * val = src_snode->GetNZval(desc.Offset);
+          Int nRows = src_snode->NRows(blkidx);
+
+          Int row = desc.GIndex;
+          logfileptr->OFS()<<row<<"-|"<<src_snode->FirstCol()<<"---------------------"<<src_snode->LastCol()<<std::endl;
+          for(Int i = 0; i< nRows; ++i){
+            std::streamsize p = logfileptr->OFS().precision();
+            logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
+            for(Int j = 0; j< src_snode->Size(); ++j){
+              logfileptr->OFS()<<std::scientific<<ToMatlabScalar(val[i*src_snode->Size()+j])<<" ";
+            }
+            logfileptr->OFS().precision(p);
+            logfileptr->OFS()<<std::endl;
+          }
+          logfileptr->OFS()<<row+nRows-1<<"-|"<<src_snode->FirstCol()<<"---------------------"<<src_snode->LastCol()<<std::endl;
+          logfileptr->OFS()<<"_______________________________"<<std::endl;
+          break;
+        }
+      }
+
+
+            logfileptr->OFS()<<"_______________________________"<<std::endl;
+            logfileptr->OFS()<<"_______________________________"<<std::endl;
+            logfileptr->OFS()<<"_______________________________"<<std::endl;
+            logfileptr->OFS()<<"_______________________________"<<std::endl;
+            logfileptr->OFS()<<"_______________________________"<<std::endl;
+
       SMat->GetSolution(&XFinal1D[0],nrhs);
-      delete SMat;
-
-logfileptr->OFS()<<XFinal1D<<std::endl;
-
+        delete SMat;
+#endif
         if(iam==0){
           std::cout<<"Starting solve 2D"<<std::endl;
         }
@@ -522,8 +564,17 @@ logfileptr->OFS()<<XFinal1D<<std::endl;
         if(iam==0){
           std::cout<<"Solve 2D time: "<<timeEnd-timeSta<<std::endl;
         }
+
+        //compare SMat and SMat2D
+        for( auto & cellptr: SMat2D->solve_data.contribs ){
+          if ( !cellptr ) continue;
+          logfileptr->OFS()<<"2D Supernode "<<cellptr->j<<" cell ("<<cellptr->i<<","<<cellptr->j<<"):"<<std::endl;
+          cellptr->print_block(*cellptr,"2D ");
+        }
+
+//logfileptr->OFS()<<XFinal1D<<std::endl;
         SMat2D->GetSolution(&XFinal[0],nrhs);
-logfileptr->OFS()<<XFinal<<std::endl;
+//logfileptr->OFS()<<XFinal<<std::endl;
       }
 
     //}

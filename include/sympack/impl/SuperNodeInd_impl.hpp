@@ -1129,24 +1129,26 @@ namespace symPACK{
             //if we are processing the "pivot" block
             for(Int kk = 0; kk<snodeSize; ++kk){
               //then compute the rank one update
+//TODO DEBUG_SOLVE
               blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*ldsol+nrhsOffset], 1,&chol_nzval[(kk + 1)*ldfact+kk], ldfact, &cur_nzval[(kk + 1)*ldsol+nrhsOffset], ldsol );
             }
           }
           else{
             for(Int kk = 0; kk<snodeSize; ++kk){
               //compute the rank one update
+//TODO DEBUG_SOLVE
               blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*ldsol+nrhsOffset], 1, &chol_nzval[kk], ldfact, &cur_nzval[nrhsOffset], ldsol );
             }
           }
         }
-        logfileptr->OFS()<<"2 diag of ("<<contrib->Id()<<"): ";
-          for(Int kk = 0; kk<ldfact; ++kk){
-            logfileptr->OFS()<<diag_nzval[kk*ldsol]<<" ";
-          }
-          for(Int kk = 0; kk<ldfact; ++kk){
-            logfileptr->OFS()<<chol_diag[kk]<<" ";
-          }
-          logfileptr->OFS()<<std::endl;
+//        logfileptr->OFS()<<"2 diag of ("<<contrib->Id()<<"): ";
+//          for(Int kk = 0; kk<ldfact; ++kk){
+//            logfileptr->OFS()<<diag_nzval[kk*ldsol]<<" ";
+//          }
+//          for(Int kk = 0; kk<ldfact; ++kk){
+//            logfileptr->OFS()<<chol_diag[kk]<<" ";
+//          }
+//          logfileptr->OFS()<<std::endl;
 
 //if ( this->Id()==6) gdb_lock();
         for(Int kk = 0; kk<snodeSize; ++kk){
