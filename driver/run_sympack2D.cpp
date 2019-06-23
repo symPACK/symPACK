@@ -494,7 +494,7 @@ int main(int argc, char **argv)
 
         /**************** SOLVE PHASE ***********/
       if (nrhs>0){
-#define SOLVE1D
+//#define SOLVE1D
 #ifdef SOLVE1D
         SMat = new symPACKMatrix<SCALAR>(*SMat2D);
  //     SMat->DumpMatlab();

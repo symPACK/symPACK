@@ -99,8 +99,8 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 //#define PREALLOCATE1
 //#define PREALLOCATE2
-//#define _USE_PROM_AVAIL_
-//#define _USE_PROM_RDY_
+#define _USE_PROM_AVAIL_
+#define _USE_PROM_RDY_
 
 #include <functional>
 #include <gasnetex.h>
@@ -2131,12 +2131,12 @@ namespace symPACK{
               bassert(diag_contrib.j != tgt_contrib.j);
               //Do -L*Y (gemm)
 //TODO DEBUG_SOLVE
-//              blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact, T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
+              blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact, T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
 //TODO DEBUG_SOLVE
-            for(int_t kk = 0; kk<this->width(); ++kk){
-              //compute the rank one update
-              blas::Geru(ldsol,cur_nrows, T(-1.0), &diag_contrib._nzval[kk*ldsol], 1, &src[kk], ldfact, tgt, ldsol );
-            }
+//            for(int_t kk = 0; kk<this->width(); ++kk){
+//              //compute the rank one update
+//              blas::Geru(ldsol,cur_nrows, T(-1.0), &diag_contrib._nzval[kk*ldsol], 1, &src[kk], ldfact, tgt, ldsol );
+//            }
 
             }
 
@@ -8147,11 +8147,11 @@ bassert(I<J);
           std::cerr << "Runtime error: " << e.what() << '\n';
         }
 
-#ifndef NDEBUG
-        for (auto it = task_graph.begin(); it != task_graph.end(); it++) {
-          if ( ! (*it)->executed ) gdb_lock();
-        }
-#endif
+//#ifndef NDEBUG
+//        for (auto it = task_graph.begin(); it != task_graph.end(); it++) {
+//          if ( ! (*it)->executed ) gdb_lock();
+//        }
+//#endif
       }
   }
 
