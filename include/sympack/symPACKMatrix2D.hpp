@@ -300,6 +300,7 @@ namespace symPACK{
 #ifdef _USE_PROM_AVAIL_
             //promise to wait for all incoming_data_t to be created
             upcxx::promise<> in_avail_prom;
+            int in_avail_counter;
 #else
             std::atomic<int> in_avail_counter;
 #endif
@@ -307,6 +308,7 @@ namespace symPACK{
 #ifdef _USE_PROM_RDY_
             //promise to sync on all incoming_data_t fetch
             upcxx::promise<> in_prom;
+            int in_counter;
 #else
             std::atomic<int> in_counter;
 #endif
@@ -314,7 +316,12 @@ namespace symPACK{
             template<typename T> 
               void satisfy_dep(int cnt,T&sched) {
 #ifdef _USE_PROM_RDY_
-                in_prom.fulfill_anonymous(cnt);
+                upcxx::master_persona().lpc_ff( 
+                    [this,cnt] () {
+                    bassert(this->in_counter-cnt >= 0);
+                    this->in_counter-=cnt;
+                this->in_prom.fulfill_anonymous(cnt);
+                    });
 #else
                 T * sched_ptr = &sched;
                 sched_ptr->lpc_cnt++;
@@ -332,7 +339,12 @@ namespace symPACK{
             template<typename T> 
               void avail_dep(int cnt,T&sched) {
 #ifdef _USE_PROM_AVAIL_
-                in_avail_prom.fulfill_anonymous(cnt);
+                upcxx::master_persona().lpc_ff( 
+                    [this,cnt] () {
+                    bassert(this->in_avail_counter-cnt >= 0);
+                    this->in_avail_counter-=cnt;
+                this->in_avail_prom.fulfill_anonymous(cnt);
+                    });
 #else
                 T * sched_ptr = &sched;
                 sched_ptr->lpc_cnt++;
@@ -378,6 +390,8 @@ namespace symPACK{
           using task_t = ttask_t;
           using meta_t = tmeta_t;
           upcxx::promise<incoming_data_t *> on_fetch;
+          upcxx::future<incoming_data_t *> on_fetch_future;
+
           //this should be made generic, not specific to sparse matrices
           std::vector< task_t *> target_tasks;
 
@@ -385,7 +399,10 @@ namespace symPACK{
           //a pointer to be used by the user if he wants to attach some data
           std::unique_ptr<blockCellBase_t> extra_data;
 
-          incoming_data_t():transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr) {};
+          incoming_data_t():transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr) {
+            on_fetch_future = on_fetch.get_future();
+          };
+
           bool transfered;
           upcxx::global_ptr<char> remote_gptr;
           size_t size;
@@ -402,7 +419,7 @@ namespace symPACK{
                   on_fetch.fulfill_result(this);
                   return;});
             }
-            return on_fetch.get_future();
+            return on_fetch_future;
           }
 
           ~incoming_data_t() {
@@ -1784,10 +1801,30 @@ namespace symPACK{
           auto nzblk_nzval = this->_nzval;
 
 
+#ifndef _NDEBUG_
+          for (int_t i = 0; i< snode_size; i++) {
+            for (int_t j = 0; j< snode_size; j++) {
+              bassert(std::isfinite(diag_nzval[i*snode_size+j]));
+            }
+          }
+          for (int_t i = 0; i< this->total_rows(); i++) {
+            for (int_t j = 0; j< snode_size; j++) {
+              bassert(std::isfinite(nzblk_nzval[i*snode_size+j]));
+            }
+          }
+#endif 
           //          print_block(diag,"diag");
           //          print_block(*this,"offdiag before Trsm");
           blas::Trsm('L','U','T','U',snode_size, this->total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
 
+#ifndef _NDEBUG_
+          for (int_t i = 0; i< this->total_rows(); i++) {
+            for (int_t j = 0; j< snode_size; j++) {
+              bassert(std::isfinite(nzblk_nzval[i*snode_size+j]));
+            }
+          }
+            for (int_t j = 0; j< snode_size; j++) { bassert(diag->_diag[j] != T(0)); }
+#endif 
           //scale column I
           for ( int_t I = 1; I<=snode_size; I++) {
             blas::Scal( this->total_rows(), T(1.0)/diag->_diag[I-1], &nzblk_nzval[I-1], snode_size );
@@ -1799,6 +1836,7 @@ namespace symPACK{
               bassert(std::isfinite(nzblk_nzval[i*snode_size+j]));
             }
           }
+          if ( this->i == 835 && this->j==835 ) gdb_lock();
 #endif 
 
           //          print_block(*this,"offdiag after Trsm");
@@ -1933,6 +1971,8 @@ namespace symPACK{
               bufLDL = pivot._bufLDL;//bufLDL_storage.data();
               for (int_t row = 0; row<src_snode_size; row++) {
                 for (int_t col = 0; col<tgt_width; col++) {
+                  bassert(diag[row]!=T(0));
+                  bassert(std::isfinite(pivot_nzval[col+row*src_snode_size]));
                   bufLDL[col+row*tgt_width] = diag[row]*(pivot_nzval[row+col*src_snode_size]);
                 }
               }
@@ -1947,6 +1987,13 @@ namespace symPACK{
             //          if ( !is_aligned<alignof(T)>(bufLDL) ) gdb_lock();
             //          if ( !is_aligned<alignof(T)>(facing_nzval) ) gdb_lock();
             //          if ( !is_aligned<alignof(T)>(buf) ) gdb_lock();
+#ifndef NDEBUG
+              for (int_t row = 0; row<src_nrows; row++) {
+                for (int_t col = 0; col<src_snode_size; col++) {
+                  bassert(std::isfinite(facing_nzval[col+row*src_snode_size]));
+                }
+              }
+#endif
             blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
                 T(-1.0),bufLDL,tgt_width,facing_nzval,src_snode_size,beta,buf,ldbuf);
 
@@ -2063,15 +2110,6 @@ namespace symPACK{
           int_t ldsol = tgt_contrib.width();
           auto & block = tgt_contrib.blocks()[0];
           int_t ldfact = tgt_contrib.block_nrows(block);
-          //int_t ldfact = this->width();
-//          logfileptr->OFS()<<"diag of ("<<tgt_contrib.j<<"): ";
-//          for(int_t kk = 0; kk<ldfact; ++kk){
-//            logfileptr->OFS()<<tgt_contrib._nzval[kk*ldsol]<<" ";
-//          }
-//          for(int_t kk = 0; kk<ldfact; ++kk){
-//            logfileptr->OFS()<<this->_diag[kk]<<" ";
-//          }
-//          logfileptr->OFS()<<std::endl;
 
           bassert(tgt_contrib.i == tgt_contrib.j);
           bassert(!tgt_contrib.scaled);
@@ -5175,11 +5213,13 @@ namespace symPACK{
 
 #ifdef _USE_PROM_AVAIL_
           ptask->in_avail_prom.require_anonymous(remote_deps);
+          ptask->in_avail_counter = remote_deps;
 #else
           ptask->in_avail_counter = remote_deps;
 #endif
 #ifdef _USE_PROM_RDY_
           ptask->in_prom.require_anonymous(local_deps + remote_deps);
+          ptask->in_counter = local_deps + remote_deps;
 #else
           ptask->in_counter = local_deps + remote_deps;
 #endif
@@ -5238,7 +5278,6 @@ namespace symPACK{
 
                           return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
 
-                            //gdb_lock();
                             //there is a map between sp_handle and task_graphs
 #ifdef _TIMING_
                             gasneti_tick_t start = gasneti_ticks_now();
@@ -5627,20 +5666,18 @@ namespace symPACK{
                     }
                   }
 
-
+//#ifdef SP_THREADS
+//                  std::unique_ptr<cell_lock<snodeBlock_t*>> pivot_ldl_lock;
+//                  if (this->options_.decomposition == DecompositionType::LDL) {
+//                    pivot_ldl_lock.reset(new cell_lock<snodeBlock_t*>((snodeBlock_t*)ptr_odCell));
+//    }
+//#endif
                   bassert( !odSet || ptr_odCell != pQueryCELL(J-1,I-1).get() );
                   bassert( !facingSet || ptr_facingCell != pQueryCELL(K-1,I-1).get() );
 
                   bassert( ptr_facingCell->owner == this->iam || ptr_facingCell != pQueryCELL(K-1,I-1).get() );
                   bassert( ptr_odCell->owner == this->iam || ptr_odCell != pQueryCELL(J-1,I-1).get() );
 
-                  //if ( ptr_odCell->owner != this->iam ) {
-                  //  ptr_odCell = (snodeBlock_t*)(ptask->input_msg.begin()->get()->extra_data.get());
-                  //}
-
-                  //if ( ptr_facingCell->owner != this->iam ) {
-                  //  ptr_facingCell = (snodeBlock_t*)(ptask->input_msg.rbegin()->get()->extra_data.get());
-                  //}
                   bassert(ptr_odCell!=nullptr);
                   bassert(ptr_facingCell!=nullptr);
 
@@ -5661,14 +5698,13 @@ namespace symPACK{
                       diag_ptr = (T*)dynamic_cast<snodeBlockLDL_t*>(ptr_diagCell)->GetDiag();
                     }
 
-
+#ifndef NDEBUG
                     auto ptr_od = dynamic_cast<snodeBlockLDL_t*>(ptr_odCell);
                     auto ptr_facing = dynamic_cast<snodeBlockLDL_t*>(ptr_facingCell);
                     bassert(ptr_od!=nullptr);
                     bassert(ptr_facing!=nullptr);
                     bassert(diag_ptr!=nullptr);
-
-                    //std::cout.precision(std::numeric_limits< T >::max_digits10);
+#endif
                     ptr_upd_cell->update(ptr_odCell,ptr_facingCell,tmpBuf,diag_ptr);
                   }
                   else {
@@ -6444,11 +6480,13 @@ namespace symPACK{
 
 #ifdef _USE_PROM_AVAIL_
           ptask->in_avail_prom.require_anonymous(remote_deps);
+          ptask->in_avail_counter = remote_deps;
 #else
           ptask->in_avail_counter = remote_deps;
 #endif
 #ifdef _USE_PROM_RDY_
           ptask->in_prom.require_anonymous(local_deps + remote_deps);
+          ptask->in_counter = local_deps + remote_deps;
 #else
           ptask->in_counter = local_deps + remote_deps;
 #endif
@@ -6922,7 +6960,7 @@ bassert(I<J);
 
 
                               if ( data ) {
-                                data->on_fetch.get_future().then(
+                                data->on_fetch_future = data->on_fetch_future.then(
                                     [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
                                     //create snodeBlock_t and store it in the extra_data
                                     if (matptr->options_.decomposition == DecompositionType::LDL) {
@@ -6932,6 +6970,7 @@ bassert(I<J);
                                     else {
                                     pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                     }
+                                    return upcxx::to_future(pdata); 
                                     });
                                 //TODO check this
 #ifdef _EAGER_FETCH_
@@ -7383,13 +7422,64 @@ bassert(I<J);
             auto K = this->SupMembership_[facing_row-1];
 
             auto ptr_tgtcell = pQueryCELL2(K-1,J-1);
+          
+            if (this->options_.decomposition == DecompositionType::LDL) {
+              auto I = src;
+              bool od_locked = false;
+//              auto ptr_odcell = pQueryCELL(J-1,I-1).get();
+//              if ( ptr_odcell->owner != this->iam ) {
+//                  bool odSet = false;
+//                  bool facingSet = false;
+//                  auto ptr_facingCell = pQueryCELL(K-1,I-1).get(); 
+//                  for ( auto && msg_ptr: pTask->input_msg ) {
+//                    if ( msg_ptr->extra_data ) {
+//                      if ( ptr_odcell->owner != this->iam && !odSet) {
+//                        odSet = true;
+//                        ptr_odcell = (snodeBlock_t*)(msg_ptr->extra_data.get());
+//                      }
+//                      else if ( ptr_facingCell->owner != this->iam && !facingSet) {
+//                        facingSet = true;
+//                        ptr_facingCell = (snodeBlock_t*)(msg_ptr->extra_data.get());
+//                      }
+//                    }
+//                  }
+//                  //check that they don't need to be swapped
+//                  if ( ptr_facingCell->i < ptr_odcell->i ) {
+//                    std::swap(ptr_facingCell, ptr_odcell);
+//                  }
+//              }
+//
+//              bool exp = false;
+//              if (std::atomic_compare_exchange_weak( &ptr_odcell->in_use, &exp, true )) {
+//                  od_locked = false;
+//              }
+//              else {
+//                od_locked = true;
+//              }
 
-            bool exp = false;
-            if (std::atomic_compare_exchange_weak( &ptr_tgtcell->in_use, &exp, true )) {
-              return false;
+              if ( ! od_locked ) {
+                bool exp = false;
+                if (std::atomic_compare_exchange_weak( &ptr_tgtcell->in_use, &exp, true )) {
+                  return false;
+                }
+                else {
+                  //if od_locked is false, we need to set the in_use flag back to false
+                  //ptr_odcell->in_use = false;
+                  return true;
+                }
+              }
+              else {
+                return true;
+              }
             }
             else {
-              return true;
+              bool exp = false;
+              if (std::atomic_compare_exchange_weak( &ptr_tgtcell->in_use, &exp, true )) {
+                return false;
+              }
+              else {
+                return true;
+              }
             }
           }
         };
