@@ -1464,12 +1464,12 @@ namespace symPACK{
       protected:
         T * _diag;
         rowind_t first_row;
-        std::vector<T> bufLDL_storage;
-        //MAKE THAT WORK IN THE COPY CONSTRUCTORS
-        T * _bufLDL;
+        //std::vector<T> bufLDL_storage;
 
       public:
-        int local_pivot;
+        //MAKE THAT WORK IN THE COPY CONSTRUCTORS
+        T * _bufLDL;
+        std::atomic<int> local_pivot;
         using block_t = typename blockCell_t<colptr_t,rowind_t, T>::block_t;
 
         blockCellLDL_t():blockCell_t<colptr_t,rowind_t, T>(),_bufLDL(nullptr),_diag(nullptr) {
@@ -1477,7 +1477,7 @@ namespace symPACK{
 
         virtual ~blockCellLDL_t() {
           //                  logfileptr->OFS()<<"deleting block"<<std::endl;
-          if ( this->_bufLDL ) 
+          if ( this->_bufLDL )
             delete [] this->_bufLDL;
         }
 
@@ -1801,7 +1801,7 @@ namespace symPACK{
           auto nzblk_nzval = this->_nzval;
 
 
-#ifndef _NDEBUG_
+#ifndef NDEBUG
           for (int_t i = 0; i< snode_size; i++) {
             for (int_t j = 0; j< snode_size; j++) {
               bassert(std::isfinite(diag_nzval[i*snode_size+j]));
@@ -1817,7 +1817,7 @@ namespace symPACK{
           //          print_block(*this,"offdiag before Trsm");
           blas::Trsm('L','U','T','U',snode_size, this->total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
 
-#ifndef _NDEBUG_
+#ifndef NDEBUG
           for (int_t i = 0; i< this->total_rows(); i++) {
             for (int_t j = 0; j< snode_size; j++) {
               bassert(std::isfinite(nzblk_nzval[i*snode_size+j]));
@@ -1830,18 +1830,52 @@ namespace symPACK{
             blas::Scal( this->total_rows(), T(1.0)/diag->_diag[I-1], &nzblk_nzval[I-1], snode_size );
           }
 
-#ifndef _NDEBUG_
+#ifndef NDEBUG
           for (int_t i = 0; i< this->total_rows(); i++) {
             for (int_t j = 0; j< snode_size; j++) {
               bassert(std::isfinite(nzblk_nzval[i*snode_size+j]));
             }
           }
-          if ( this->i == 835 && this->j==835 ) gdb_lock();
 #endif 
+
+
+
+
+
+
+
 
           //          print_block(*this,"offdiag after Trsm");
           return 0;
         }
+
+
+        int computeDLT( T * diag ) {
+          auto snode_size = this->width();
+            // W = DLT 
+            int_t tgt_width = this->total_rows();
+            bool computeW = this->_bufLDL == nullptr;//pivot.bufLDL_storage.empty();
+            bassert(computeW);
+              //TODO THIS IS WRONG!!!
+              this->_bufLDL = new T[snode_size*tgt_width];
+              auto bufLDL = this->_bufLDL;//bufLDL_storage.data();
+
+
+              for ( int_t row = 0; row < snode_size; row++ ) {
+#ifndef NDEBUG
+                bassert(diag[row]!=T(0));
+                for (int_t col = 0; col<tgt_width; col++) {
+                  bassert(std::isfinite(this->_nzval[row+col*snode_size]));
+                }
+#endif
+                for (int_t col = 0; col<tgt_width; col++) {
+                  bufLDL[row*tgt_width+col] = diag[row]*this->_nzval[row+col*snode_size];
+                }
+            }
+              return 0;
+          }
+
+
 
         virtual int update(  /*const*/ blockCellBase_t * ppivot, /*const*/ blockCellBase_t * pfacing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr) {
           scope_timer(a,blockCellLDL_t::update);
@@ -1965,28 +1999,27 @@ namespace symPACK{
             SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
 
             //First do W = DLT 
-            bool computeW = pivot._bufLDL == nullptr;//pivot.bufLDL_storage.empty();
-            if ( computeW ) {
-              pivot._bufLDL = new T[src_snode_size*tgt_width];
-              bufLDL = pivot._bufLDL;//bufLDL_storage.data();
-              for (int_t row = 0; row<src_snode_size; row++) {
-                for (int_t col = 0; col<tgt_width; col++) {
-                  bassert(diag[row]!=T(0));
-                  bassert(std::isfinite(pivot_nzval[col+row*src_snode_size]));
-                  bufLDL[col+row*tgt_width] = diag[row]*(pivot_nzval[row+col*src_snode_size]);
-                }
+ //           if (Multithreading::NumThread<=2) {
+              bool computeW = pivot._bufLDL == nullptr;//pivot.bufLDL_storage.empty();
+              if ( computeW ) {
+                bassert(pivot._own_storage);
+                pivot.computeDLT(diag);
               }
-            }
+//            }
+
+              //for (int_t row = 0; row<src_snode_size; row++) {
+              //  for (int_t col = 0; col<tgt_width; col++) {
+              //    bassert(diag[row]!=T(0));
+              //    if (upcxx::rank_me()==0 && pivot.i == 1122 && pivot.j == 384 )
+              //    bassert(std::isfinite(pivot_nzval[col+row*src_snode_size]));
+              //    bufLDL[col+row*tgt_width] = diag[row]*(pivot_nzval[row+col*src_snode_size]);
+              //  }
+              //}
             //bufLDL = pivot.bufLDL_storage.data();
+      bassert(pivot._bufLDL!=nullptr);
             bufLDL = pivot._bufLDL;
 
             //Then do -L*W (gemm)
-            //          if ( bufLDL == nullptr ) gdb_lock();
-            //          if ( facing_nzval == nullptr ) gdb_lock();
-            //          if ( buf == nullptr ) gdb_lock();
-            //          if ( !is_aligned<alignof(T)>(bufLDL) ) gdb_lock();
-            //          if ( !is_aligned<alignof(T)>(facing_nzval) ) gdb_lock();
-            //          if ( !is_aligned<alignof(T)>(buf) ) gdb_lock();
 #ifndef NDEBUG
               for (int_t row = 0; row<src_nrows; row++) {
                 for (int_t col = 0; col<src_snode_size; col++) {
@@ -1994,12 +2027,12 @@ namespace symPACK{
                 }
               }
 #endif
+            
             blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
                 T(-1.0),bufLDL,tgt_width,facing_nzval,src_snode_size,beta,buf,ldbuf);
 
             if ( pivot._own_storage ) {
-              pivot.local_pivot--;
-              if ( pivot.local_pivot==1) {
+              if ( pivot.local_pivot.fetch_sub(1)==1) {
                 delete [] pivot._bufLDL;
                 pivot._bufLDL = nullptr;
                 //std::vector<T> tmp;
@@ -3552,6 +3585,7 @@ namespace symPACK{
                     std::swap(K,J);
                     //find the UPDATE2D_COMP and add cell J,I as incoming dependency
                     auto k1 = scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP);
+
                     auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                     auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                     bassert(taskptr!=nullptr);
@@ -4671,8 +4705,16 @@ namespace symPACK{
                   //TODO update this for non fan-out mapping
                   Int iUpdOwner = ptr_tgtupdcell->owner;
 
+                  auto ptr_facingcell = pQueryCELL(J-1,I-1);
+                  Int iFacingOwner = ptr_facingcell->owner;
+
                   //update on cell(K,J)
                   Updates[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::UPDATE2D_COMP,J_row,K_row));
+
+                  if (this->options_.decomposition == DecompositionType::LDL) {
+                      Updates[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::DLT2D_COMP,J_row,K_row));
+                  }
+
                   //cell(K,J) to cell (K,J)
                   Messages[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::AGGREGATE2D_SEND,J_row,K_row));
                   Messages[iTgtOwner].push_back(std::make_tuple(I,J,Factorization::op_type::AGGREGATE2D_RECV,J_row,K_row));
@@ -4777,6 +4819,7 @@ namespace symPACK{
             case Factorization::op_type::TRSM:
             case Factorization::op_type::FACTOR:
             case Factorization::op_type::UPDATE2D_COMP:
+            case Factorization::op_type::DLT2D_COMP:
               {
                 ptask = new SparseTask2D;
                 size_t tuple_size = sizeof(SparseTask2D::meta_t);
@@ -4861,7 +4904,6 @@ namespace symPACK{
               {
                 Idx K = this->SupMembership_[facing_first_row-1];
                 std::swap(K,J);
-
                 auto k1 = scheduling::key_t(I,I,I,Factorization::op_type::FACTOR);
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
@@ -4875,6 +4917,11 @@ namespace symPACK{
 
                 std::size_t remote_task_idx = 0;
                 scheduling::key_t key(J,K,I,Factorization::op_type::UPDATE2D_COMP);
+
+        if (this->options_.decomposition == DecompositionType::LDL) {
+            key = scheduling::key_t(J,K,I,Factorization::op_type::DLT2D_COMP);
+        }
+
                 auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                 bassert(task_idx_it != task_idx_end); 
                 remote_task_idx = std::get<1>(*task_idx_it);
@@ -4886,18 +4933,40 @@ namespace symPACK{
               {
                 Idx K = this->SupMembership_[facing_first_row-1];
                 std::swap(K,J);
+
+        if ( this->options_.decomposition == DecompositionType::LDL ) {
+              auto k1 = scheduling::key_t(J,K,I,Factorization::op_type::DLT2D_COMP);
+
+                auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
+                auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
+                bassert(taskptr!=nullptr);
+                if (  pQueryCELL(I-1,I-1)->owner != pQueryCELL(J-1,K-1)->owner )
+                  taskptr->in_remote_dependencies_cnt++;
+                else
+                  taskptr->in_local_dependencies_cnt++;
+
+                //now add a local dependency for the UPDATE2D_COMP task
+                auto k2 = scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP);
+                auto intask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k2, key_lb_comp);
+                auto intaskptr = task_graph[std::get<1>(*intask_idx_it)].get();
+                bassert(intaskptr!=nullptr);
+                intaskptr->in_local_dependencies_cnt++;
+                taskptr->out_dependencies.push_back( std::make_tuple(pQueryCELL(J-1,K-1)->owner,std::get<1>(*intask_idx_it)) );
+
+        }
+        else {
                 //find the UPDATE2D_COMP and add cell J,I as incoming dependency
                 auto k1 = scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP);
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
-                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
-                bassert(k2 == k1 );
 
                 if (  pQueryCELL(I-1,I-1)->owner != pQueryCELL(J-1,K-1)->owner )
                   taskptr->in_remote_dependencies_cnt++;
                 else
                   taskptr->in_local_dependencies_cnt++;
+        }
+
               }
               break;
 
@@ -5105,11 +5174,9 @@ namespace symPACK{
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr); 
-                //auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<0>(taskptr->_meta),std::get<1>(taskptr->_meta),std::get<2>(taskptr->_meta));
                 auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
                 bassert(k2 == k1 );
 
-                //find the FACTOR or TRSM target task
                 auto owner = pQueryCELL(K-1,J-1)->owner;
                 auto task_idx_beg = &task_idx_recvbuf[task_idx_rdispls[owner]];
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
@@ -5120,6 +5187,14 @@ namespace symPACK{
                 bassert(task_idx_it != task_idx_end); 
                 remote_task_idx = std::get<1>(*task_idx_it);
                 taskptr->out_dependencies.push_back( std::make_tuple(owner,remote_task_idx) );
+
+                if (this->options_.decomposition == DecompositionType::LDL) {
+                  key = scheduling::key_t(K,J,I,Factorization::op_type::DLT2D_COMP);
+                  task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
+                  bassert(task_idx_it != task_idx_end); 
+                  remote_task_idx = std::get<1>(*task_idx_it);
+                  taskptr->out_dependencies.push_back( std::make_tuple(owner,remote_task_idx) );
+                }
 
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        out dep DOWN added to TRSM"<<" from "<<I<<" to "<<I<<std::endl;
@@ -5135,6 +5210,7 @@ namespace symPACK{
 
                 //find the UPDATE2D_COMP and add cell J,I as incoming dependency
                 auto k1 = scheduling::key_t(K,J,I,Factorization::op_type::UPDATE2D_COMP);
+
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
@@ -5146,6 +5222,26 @@ namespace symPACK{
                   taskptr->in_remote_dependencies_cnt++;
                 else
                   taskptr->in_local_dependencies_cnt++;
+
+
+        if ( this->options_.decomposition == DecompositionType::LDL ) {
+              auto k3 = scheduling::key_t(K,J,I,Factorization::op_type::DLT2D_COMP);
+                auto dlttask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k3, key_lb_comp);
+                auto dlttaskptr = task_graph[std::get<1>(*dlttask_idx_it)].get();
+                bassert(dlttaskptr!=nullptr);
+                if (  pQueryCELL(J-1,I-1)->owner != pQueryCELL(K-1,J-1)->owner )
+                  dlttaskptr->in_remote_dependencies_cnt++;
+                else
+                  dlttaskptr->in_local_dependencies_cnt++;
+
+                //now add a local dependency for the UPDATE2D_COMP task
+                taskptr->in_local_dependencies_cnt++;
+                dlttaskptr->out_dependencies.push_back( std::make_tuple(pQueryCELL(K-1,J-1)->owner,std::get<1>(*outtask_idx_it)) );
+        }
+
+
+
+
 
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"        in dep DOWN added to UPDATE2D_COMP"<<" from "<<I<<" to "<<J<<std::endl;
@@ -5295,7 +5391,12 @@ namespace symPACK{
                             for ( auto & tgt_cell_idx: target_cells) {
                             auto taskptr = matptr->task_graph[tgt_cell_idx].get();
 
-                            if ( std::get<2>(taskptr->_meta) == Factorization::op_type::UPDATE2D_COMP) {
+                            if ( std::get<2>(taskptr->_meta) == Factorization::op_type::DLT2D_COMP
+                                 || std::get<2>(taskptr->_meta) == Factorization::op_type::UPDATE2D_COMP
+                                ) {
+                              bassert(std::get<2>(taskptr->_meta) == Factorization::op_type::DLT2D_COMP);
+
+                            bassert (matptr->options_.decomposition == DecompositionType::LDL);
                               if ( !diag_data ) {
                                 upcxx::global_ptr<char> diag_ptr = matptr->find_diag_pointer( I );
                                 bassert ( diag_ptr.where() != upcxx::rank_me() );
@@ -5326,7 +5427,7 @@ namespace symPACK{
 
 
                             if ( data ) {
-                              data->on_fetch.get_future().then(
+                              data->on_fetch_future = data->on_fetch_future.then(
                                   [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
                                   //create snodeBlock_t and store it in the extra_data
                                   if (matptr->options_.decomposition == DecompositionType::LDL) {
@@ -5336,6 +5437,7 @@ namespace symPACK{
                                   pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   }
                                   //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  return upcxx::to_future(pdata);
                                   });
                               //TODO check this
 #ifdef _EAGER_FETCH_
@@ -5364,6 +5466,7 @@ namespace symPACK{
                         auto taskptr = task_graph[tgt_cell_idx].get();
                         bassert(taskptr!=nullptr); 
                         bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::TRSM
+                            ||  std::get<2>(taskptr->_meta) == Factorization::op_type::DLT2D_COMP
                             ||  std::get<2>(taskptr->_meta) == Factorization::op_type::UPDATE2D_COMP);
                         //mark the dependency as satisfied
                         taskptr->satisfy_dep(1,this->scheduler);
@@ -5391,7 +5494,6 @@ namespace symPACK{
               {
 
                 ptask->execute = [this,src_snode,tgt_snode,ptr,I,J,K] () {
-                  static std::map< std::tuple<int,int>, bool > block_used_update; 
                   scope_timer(b,FB_TRSM_TASK);
                   //            utility::scope_memprofiler2 m("symPACKMatrix_trsm",1);
                   auto ptask = ptr;
@@ -5436,8 +5538,6 @@ namespace symPACK{
                     //                  logfileptr->OFS()<<"mem budget is back to "<<mem_budget<<std::endl;
                   }
 #endif
-                  //get rid of the shared_ptr
-                  ptask->input_msg.clear();
 #ifdef _TIMING_
                   std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
                   comp_trsm_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
@@ -5472,7 +5572,6 @@ namespace symPACK{
 #ifdef _TIMING_
                             gasneti_tick_t start = gasneti_ticks_now();
 #endif
-                            //                            gdb_lock();
                             //store pointer & associated metadata somewhere
                             auto data = std::make_shared<SparseTask2D::data_t >();
                             data->in_meta = meta;
@@ -5482,85 +5581,38 @@ namespace symPACK{
                             //there is a map between sp_handle and task_graphs
                             auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
 
-                            // std::shared_ptr<SparseTask2D::data_t> diag_data;
-                            // upcxx::global_ptr<char> diag_ptr = matptr->find_diag_pointer( I-1 );
-                            // if ( diag_ptr.where() != upcxx::rank_me() ) {
-                            //   diag_data = std::make_shared<SparseTask2D::data_t >();
-                            //   diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,0,0);;
-                            //   diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
-                            //   diag_data->remote_gptr = diag_ptr;
-                            // }
-
-
-
                             for ( auto & tgt_cell_idx: target_cells) {
                               auto taskptr = matptr->task_graph[tgt_cell_idx].get();
 
-
-                              ////if (matptr->options_.decomposition == DecompositionType::LDL) {
-                              ////    //since TRSM is available, diagonal entries MUST be available too (transitivity)
-                              ////    if ( taskptr->input_msg.empty() ) {
-                              ////      //if ( diag_ptr.is_null() ) {
-                              ////      //  diag_ptr = matptr->find_diag_pointer( I );
-                              ////      //  if ( diag_ptr.where() != upcxx::rank_me() ) {
-                              ////      //    diag_data = std::make_shared<SparseTask2D::data_t >();
-                              ////      //    diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,-1,-1);;
-                              ////      //    diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
-                              ////      //    diag_data->remote_gptr = diag_ptr;
-                              ////      //  }
-                              ////      //}
-
-                              //                              ////        auto J = std::get<1>(taskptr->_meta);
-                              //if (I == 20 && J == 21 && (K =////= 25 || K==21) ) { gdb_lock();}
-                              //if (I == 9 && J == 8 && (K == ////13) ) { gdb_lock();}
-                              //if (I == 7 && J == 11 && (K ==//// 18) ) { gdb_lock();}
-                              //if (I == 9 && J == 15 && (K ==//// 15) ) { gdb_lock();}
-
-                              ////      if ( diag_data ) {
-                              ////        auto diag_ptr2 = matptr->find_diag_pointer( I-1 );
-                              ////        bassert( diag_ptr2.where() != upcxx::rank_me() );
-                              ////        
-                              ////        taskptr->input_msg.push_back(diag_data);
-                              ////        diag_data->target_tasks.push_back(taskptr);
-                              ////        taskptr->in_avail_prom.fulfill_anonymous(1);
-                              ////      }
-                              ////    }
-                              ////}
-
+                        bassert( std::get<2>(taskptr->_meta)==Factorization::op_type::DLT2D_COMP
+                            || std::get<2>(taskptr->_meta)==Factorization::op_type::UPDATE2D_COMP);
 
                               taskptr->input_msg.push_back(data);
                               data->target_tasks.push_back(taskptr);
                               taskptr->avail_dep(1,matptr->scheduler);
                             }
 
+                            auto owner = gptr.where();
                             //auto I = std::get<1>(meta);
                             rowind_t fc = matptr->Xsuper_[I-1];
-                            data->on_fetch.get_future().then(
-                                [fc,matptr,width,nnz,nblocks,K,I](SparseTask2D::data_t * pdata) {
+                            data->on_fetch_future = data->on_fetch_future.then(
+                                [fc,matptr,width,nnz,nblocks,K,I,owner](SparseTask2D::data_t * pdata) {
                                 //create snodeBlock_t and store it in the extra_data
-                                //if (K == 10 && I == 7 ) { gdb_lock();}
                                 if (matptr->options_.decomposition == DecompositionType::LDL) {
                                 pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                 }
                                 else {
                                 pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                 }
-                                //pdata->extra_data = ( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                pdata->extra_data->owner = owner;
+                                //if (K == 1122 && I == 384 ) { gdb_lock();}
+                                    return upcxx::to_future(pdata); 
                                 }
                                 );
-                            //TODO check this
 #ifdef _EAGER_FETCH_
                             data->allocate();
                             data->fetch();
 #endif
-
-
-                            ////if ( diag_data ) {
-                            ////  //for diag_data we'll use the landing zone directly
-                            ////  diag_data->allocate();
-                            ////  diag_data->fetch();
-                            ////}
-
 
 #ifdef _TIMING_
                             matptr->rpc_trsm_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
@@ -5579,8 +5631,12 @@ namespace symPACK{
                       for ( auto & tgt_cell_idx: tgt_cells ) {
                         auto taskptr = task_graph[tgt_cell_idx].get();
                         bassert(taskptr!=nullptr); 
-                        bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::UPDATE2D_COMP);
-                        if (this->options_.decomposition == DecompositionType::LDL) {
+                        bassert( std::get<2>(taskptr->_meta)==Factorization::op_type::DLT2D_COMP
+                            || std::get<2>(taskptr->_meta)==Factorization::op_type::UPDATE2D_COMP);
+                        
+                        
+                        if (std::get<2>(taskptr->_meta)==Factorization::op_type::UPDATE2D_COMP &&
+                            this->options_.decomposition == DecompositionType::LDL) {
                           auto ptr_ldl = (snodeBlockLDL_t*)(ptr_od_cell.get());
                           //get coordinates of target cell and check if ptr_od_cell is a pivot or a facing cell
                           auto tJ = std::get<1>(taskptr->_meta);
@@ -5597,6 +5653,19 @@ namespace symPACK{
 #else
 #endif
 
+//                  if ( Multithreading::NumThread>2) {
+//                    if (this->options_.decomposition == DecompositionType::LDL) {
+//                      auto ptr_ldl = (snodeBlockLDL_t*)(ptr_od_cell.get());
+//                      if ( ptr_ldl->local_pivot>0 ) {
+//                        // W = DLT 
+//                        ptr_ldl->computeDLT(((snodeBlockLDL_t*)ptr_diagCell)->GetDiag());
+//                      }
+//                    }
+//                  }
+
+                  //get rid of the shared_ptr
+                  ptask->input_msg.clear();
+
                   //the task pointed by ptask can be deleted when all outgoing communications have been performed.
                   auto fut = ptask->out_prom.finalize();
                   fut.wait();
@@ -5609,19 +5678,103 @@ namespace symPACK{
                 };
               }
               break;
+            case Factorization::op_type::DLT2D_COMP:
+              {
+                ptask->execute = [this,src_snode,ptr,I,J,K] () {
+                  scope_timer(b,FB_DLT2D_TASK);
+                  auto ptask = ptr;
+
+                  bassert(ptask->input_msg.size()<=2);
+                  bassert(this->options_.decomposition == DecompositionType::LDL);
+
+                  T * diag_ptr = nullptr;
+                  //bassert(J==K);
+                  auto ptr_odCell = pQueryCELL(J-1,I-1).get(); 
+                  bool odSet = false;
+                  bool diagSet = false;
+                  for ( auto && msg_ptr: ptask->input_msg ) {
+                    if ( msg_ptr->extra_data ) {
+                      if ( ptr_odCell->owner != this->iam && !odSet) {
+                        odSet = true;
+                        ptr_odCell = (snodeBlock_t*)(msg_ptr->extra_data.get());
+                      }
+                      else {
+                        gdb_lock();
+                      }
+                    }
+                    else {
+                      diagSet = true;
+                      diag_ptr = (T*)msg_ptr->landing_zone;
+                    }
+                  }
+
+                  
+
+                  if ( ! diagSet) {
+                    auto ptr_diagCell = pQueryCELL(I-1,I-1).get();
+                    bassert(ptr_diagCell->owner == this->iam);
+                    diag_ptr = (T*)dynamic_cast<snodeBlockLDL_t*>(ptr_diagCell)->GetDiag();
+                  }
+
+                  auto ptr_odCellLDL =  dynamic_cast<snodeBlockLDL_t*>(ptr_odCell);
+
+//#ifdef SP_THREADS
+//                  auto ptr_pivotCell = pQueryCELL(J-1,I-1).get(); 
+//                    cell_lock<snodeBlock_t*> lock((snodeBlock_t*)ptr_odCell);
+//#endif
+
+                  if ( ptr_odCellLDL->owner == this->iam ) {
+                    bassert( ptr_odCellLDL->local_pivot>0 );
+
+                    if ( ptr_odCellLDL->_bufLDL == nullptr ) {
+                      ptr_odCellLDL->computeDLT(diag_ptr);
+                    }
+                  }
+                  else{
+                    if ( ptr_odCellLDL->_bufLDL == nullptr ) {
+                      ptr_odCellLDL->computeDLT(diag_ptr);
+                    }
+                  }
+
+                    //Signal the LOCAL dependencies
+                    std::unordered_map<int,std::list<std::size_t> > data_to_send;
+                    bassert(ptask->out_dependencies.size() <= 2);
+                    for (auto &tpl : ptask->out_dependencies) {
+                      auto owner = std::get<0>(tpl);
+                      auto idx = std::get<1>(tpl);
+                      //add this cell to the list of cells depending on diagcell for the TRSM task(s)
+                      data_to_send[owner].push_back(idx);
+                      bassert(owner == this->iam);
+                    }
+
+                    for (auto it = data_to_send.begin(); it!=data_to_send.end(); it++) {
+                      auto pdest = it->first;
+                      auto & tgt_cells = it->second;
+                      //serialize data once, and list of meta data
+                      //factor is output data so it will not be deleted
+                      bassert ( pdest == this->iam );
+                      for ( auto & tgt_cell_idx: tgt_cells ) {
+                        auto taskptr = task_graph[tgt_cell_idx].get();
+                        bassert(taskptr!=nullptr); 
+                        bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::UPDATE2D_COMP);
+                        //mark the dependency as satisfied
+                        taskptr->satisfy_dep(1,this->scheduler);
+                      }
+
+                    }
+                };
+              }
+              break;
             case Factorization::op_type::UPDATE2D_COMP:
               {
 
                 ptask->execute = [this,src_snode,ptr,I,J,K] () {
-                  static std::map< std::tuple<int,int>, bool > block_used_update; 
                   scope_timer(b,FB_UPDATE2D_TASK);
                   //            utility::scope_memprofiler2 m("symPACKMatrix_update",1);
                   auto ptask = ptr;
 
                   auto ptr_upd_cell = pQueryCELL2(K-1,J-1);
                   assert(ptr_upd_cell);
-
-                  auto & upd_cell = CELL(K-1,J-1);
                   //TODO false for fan-both
                   bassert(ptr_upd_cell->owner==this->iam);
 
@@ -5634,22 +5787,15 @@ namespace symPACK{
                   auto & tmpBuf = tmpBufs;
 #endif
 
-                  //TODO do something
                   //input data should be at most two
-                  //if (I == 20 && J == 21 && (K == 25 || K==21 || K==22) ) { gdb_lock();}
-                  //if (I == 9 && J == 8 && (K == 13) ) { gdb_lock();}
-                  //if (I == 7 && J == 11 && (K == 18) ) { gdb_lock();}
-                  //if (I == 9 && J == 15 && (K == 15) ) { gdb_lock();}
-                  bassert(ptask->input_msg.size()<=2 || this->options_.decomposition == DecompositionType::LDL);
+                  bassert(ptask->input_msg.size()<=2 );
 
-                  T * diag_ptr = nullptr;
                   auto ptr_odCell = pQueryCELL(J-1,I-1).get(); 
                   auto ptr_facingCell = pQueryCELL(K-1,I-1).get(); 
                   bool odSet = false;
                   bool facingSet = false;
-                  bool diagSet = false;
                   for ( auto && msg_ptr: ptask->input_msg ) {
-                    if ( msg_ptr->extra_data ) {
+                    bassert ( msg_ptr->extra_data != nullptr );
                       if ( ptr_odCell->owner != this->iam && !odSet) {
                         odSet = true;
                         ptr_odCell = (snodeBlock_t*)(msg_ptr->extra_data.get());
@@ -5658,20 +5804,8 @@ namespace symPACK{
                         facingSet = true;
                         ptr_facingCell = (snodeBlock_t*)(msg_ptr->extra_data.get());
                       }
-                    }
-                    else {
-                      diagSet = true;
-                      bassert(this->options_.decomposition == DecompositionType::LDL);
-                      diag_ptr = (T*)msg_ptr->landing_zone;
-                    }
                   }
 
-//#ifdef SP_THREADS
-//                  std::unique_ptr<cell_lock<snodeBlock_t*>> pivot_ldl_lock;
-//                  if (this->options_.decomposition == DecompositionType::LDL) {
-//                    pivot_ldl_lock.reset(new cell_lock<snodeBlock_t*>((snodeBlock_t*)ptr_odCell));
-//    }
-//#endif
                   bassert( !odSet || ptr_odCell != pQueryCELL(J-1,I-1).get() );
                   bassert( !facingSet || ptr_facingCell != pQueryCELL(K-1,I-1).get() );
 
@@ -5692,20 +5826,13 @@ namespace symPACK{
 #endif
 
                   if (this->options_.decomposition == DecompositionType::LDL) {
-                    if ( ! diagSet) {
-                      auto ptr_diagCell = pQueryCELL(I-1,I-1).get();
-                      bassert(ptr_diagCell->owner == this->iam);
-                      diag_ptr = (T*)dynamic_cast<snodeBlockLDL_t*>(ptr_diagCell)->GetDiag();
-                    }
-
 #ifndef NDEBUG
                     auto ptr_od = dynamic_cast<snodeBlockLDL_t*>(ptr_odCell);
                     auto ptr_facing = dynamic_cast<snodeBlockLDL_t*>(ptr_facingCell);
                     bassert(ptr_od!=nullptr);
                     bassert(ptr_facing!=nullptr);
-                    bassert(diag_ptr!=nullptr);
 #endif
-                    ptr_upd_cell->update(ptr_odCell,ptr_facingCell,tmpBuf,diag_ptr);
+                    ptr_upd_cell->update(ptr_odCell,ptr_facingCell,tmpBuf);
                   }
                   else {
                     //TODO DEBUG
@@ -5734,15 +5861,11 @@ namespace symPACK{
                   //                  }
 
                   {
+                    //TODO DEBUG
                     std::vector< std::shared_ptr< SparseTask2D::data_t > > tmp;
-                    ptask->input_msg.swap(tmp);
+//                    ptask->input_msg.swap(tmp);
                   }
                   //ptask->input_msg.clear();
-                  //                  if ( ptr_odCell->owner != this->iam ) {
-                  //                    logfileptr->OFS()<<"after clearing"<<std::endl;
-                  //                  }
-
-                  //comp_upd_ticks += ((double)gasneti_ticks_to_ns(gasneti_ticks_now() - start))*1.0e-9;
 #ifdef _TIMING_
                   std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
                   comp_upd_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
@@ -5792,7 +5915,7 @@ namespace symPACK{
 
                             auto I = std::get<1>(meta);
                             rowind_t fc = matptr->Xsuper_[I-1];
-                            data->on_fetch.get_future().then(
+                            data->on_fetch_future = data->on_fetch_future.then(
                                 [fc,width,nnz,nblocks,K,J,matptr](SparseTask2D::data_t * pdata) {
                                 //create snodeBlock_t and store it in the extra_data
                                 if (matptr->options_.decomposition == DecompositionType::LDL) {
@@ -5801,6 +5924,7 @@ namespace symPACK{
                                 else {
                                 pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
                                 }
+                                  return upcxx::to_future(pdata);
                                 }
                                 );
                             //TODO check this
@@ -6678,7 +6802,7 @@ namespace symPACK{
 
 
                               if ( data ) {
-                                data->on_fetch.get_future().then(
+                                data->on_fetch_future = data->on_fetch_future.then(
                                     [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
                                     //create snodeBlock_t and store it in the extra_data
                                     if (matptr->options_.decomposition == DecompositionType::LDL) {
@@ -6688,6 +6812,7 @@ namespace symPACK{
                                     else {
                                     pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                     }
+                                  return upcxx::to_future(pdata);
                                     });
                                 //TODO check this
 #ifdef _EAGER_FETCH_
@@ -6799,7 +6924,7 @@ bassert(I<J);
 
 
                                 if ( data ) {
-                                  data->on_fetch.get_future().then(
+                                  data->on_fetch_future = data->on_fetch_future.then(
                                       [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
                                       //create snodeBlock_t and store it in the extra_data
                                       if (matptr->options_.decomposition == DecompositionType::LDL) {
@@ -6809,6 +6934,7 @@ bassert(I<J);
                                       else {
                                       pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                       }
+                                  return upcxx::to_future(pdata);
                                       });
                                   //TODO check this
 #ifdef _EAGER_FETCH_
@@ -7001,7 +7127,6 @@ bassert(I<J);
                     }
                   }
                   else {
-
                     bassert(ptask->input_msg.size() <= 1 );
                     //unpack the part of the solution (y) facing the diagonal block of the supernode
                     auto ptr_diagContrib = pQueryCELL(J-1,J-1).get(); 
@@ -7079,7 +7204,7 @@ bassert(I<J);
 
 
                                 if ( data ) {
-                                  data->on_fetch.get_future().then(
+                                  data->on_fetch_future = data->on_fetch_future.then(
                                       [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
                                       //create snodeBlock_t and store it in the extra_data
                                       if (matptr->options_.decomposition == DecompositionType::LDL) {
@@ -7089,6 +7214,7 @@ bassert(I<J);
                                       else {
                                       pdata->extra_data = std::unique_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                       }
+                                  return upcxx::to_future(pdata);
                                       });
                                   //TODO check this
 #ifdef _EAGER_FETCH_
@@ -7415,6 +7541,19 @@ bassert(I<J);
           if (type == Factorization::op_type::FACTOR) {
             return false;
           }
+          else if (type == Factorization::op_type::DLT2D_COMP) {
+            return false;
+            //auto I = std::get<0>(pTask->_meta);
+            //auto J = std::get<1>(pTask->_meta);
+            //auto ptr_tgtcell = pQueryCELL2(J-1,I-1);
+            //  bool exp = false;
+            //  if (std::atomic_compare_exchange_weak( &ptr_tgtcell->in_use, &exp, true )) {
+            //    return false;
+            //  }
+            //  else {
+            //    return true;
+            //  }
+          }
           else {
             auto src = std::get<0>(pTask->_meta);
             auto J = std::get<1>(pTask->_meta);
@@ -7424,38 +7563,9 @@ bassert(I<J);
             auto ptr_tgtcell = pQueryCELL2(K-1,J-1);
           
             if (this->options_.decomposition == DecompositionType::LDL) {
+              
               auto I = src;
               bool od_locked = false;
-//              auto ptr_odcell = pQueryCELL(J-1,I-1).get();
-//              if ( ptr_odcell->owner != this->iam ) {
-//                  bool odSet = false;
-//                  bool facingSet = false;
-//                  auto ptr_facingCell = pQueryCELL(K-1,I-1).get(); 
-//                  for ( auto && msg_ptr: pTask->input_msg ) {
-//                    if ( msg_ptr->extra_data ) {
-//                      if ( ptr_odcell->owner != this->iam && !odSet) {
-//                        odSet = true;
-//                        ptr_odcell = (snodeBlock_t*)(msg_ptr->extra_data.get());
-//                      }
-//                      else if ( ptr_facingCell->owner != this->iam && !facingSet) {
-//                        facingSet = true;
-//                        ptr_facingCell = (snodeBlock_t*)(msg_ptr->extra_data.get());
-//                      }
-//                    }
-//                  }
-//                  //check that they don't need to be swapped
-//                  if ( ptr_facingCell->i < ptr_odcell->i ) {
-//                    std::swap(ptr_facingCell, ptr_odcell);
-//                  }
-//              }
-//
-//              bool exp = false;
-//              if (std::atomic_compare_exchange_weak( &ptr_odcell->in_use, &exp, true )) {
-//                  od_locked = false;
-//              }
-//              else {
-//                od_locked = true;
-//              }
 
               if ( ! od_locked ) {
                 bool exp = false;
