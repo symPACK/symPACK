@@ -146,13 +146,14 @@ namespace symPACK{
       unsigned int cell_I;
       unsigned int src;
       Factorization::op_type type;
-      key_t(unsigned int j, unsigned int i, unsigned int s, Factorization::op_type t):
-        cell_J(j),cell_I(i),src(s),type(t) {}
-      key_t():cell_J(0),cell_I(0),src(0),type(Factorization::op_type::FACTOR) {}
+      int owner;
+      key_t(unsigned int j, unsigned int i, unsigned int s, Factorization::op_type t, int o):
+        cell_J(j),cell_I(i),src(s),type(t), owner(o) {}
+      key_t():cell_J(0),cell_I(0),src(0),type(Factorization::op_type::FACTOR), owner(0) {}
 
       bool operator==( symPACK::scheduling::key_t& rhs)
       {
-        return cell_J==rhs.cell_J && cell_I == rhs.cell_I && src == rhs.src && type == rhs.type;
+        return cell_J==rhs.cell_J && cell_I == rhs.cell_I && src == rhs.src && type == rhs.type && owner==rhs.owner;
       }
 
       bool operator<( symPACK::scheduling::key_t& rhs)
@@ -160,20 +161,23 @@ namespace symPACK{
         if (src != rhs.src) return src<rhs.src;
         else if (cell_I != rhs.cell_I) return cell_I < rhs.cell_I;
         else if (cell_J != rhs.cell_J) return cell_J < rhs.cell_J;
+        else if (owner != rhs.owner) return owner < rhs.owner;
         return (int)type < (int)rhs.type;
       }
 
       bool operator==( const symPACK::scheduling::key_t& rhs) const
       {
-        return cell_J==rhs.cell_J && cell_I == rhs.cell_I && src == rhs.src && type == rhs.type;
+        return cell_J==rhs.cell_J && cell_I == rhs.cell_I && src == rhs.src && type == rhs.type && owner == rhs.owner;
       }
 
       bool operator<( const symPACK::scheduling::key_t& rhs) const
       {
+        //if (type != rhs.type ) return (int)type < (int)rhs.type;    
         if (src != rhs.src) return src<rhs.src;
         else if (cell_I != rhs.cell_I) return cell_I < rhs.cell_I;
         else if (cell_J != rhs.cell_J) return cell_J < rhs.cell_J;
-        return (int)type < (int)rhs.type;    
+        else if (owner != rhs.owner) return owner < rhs.owner;
+        return (int)type < (int)rhs.type;
       }
     };
   }
@@ -196,6 +200,8 @@ namespace std
       seed ^= h2 + 0x9e3779b9 + (seed<<6) + (seed>>2);
       result_type const h3 ( std::hash<unsigned int>{}(s.src) );
       seed ^= h3 + 0x9e3779b9 + (seed<<6) + (seed>>2);
+      result_type const h5 ( std::hash<int>{}((int)s.owner) );
+      seed ^= h5 + 0x9e3779b9 + (seed<<6) + (seed>>2);
       result_type const h4 ( std::hash<int>{}((int)s.type) );
       seed ^= h4 + 0x9e3779b9 + (seed<<6) + (seed>>2);
       return seed; // or use boost::hash_combine (see Discussion)
@@ -4697,6 +4703,7 @@ namespace symPACK{
                 }
               }
 
+              std::set<Int> dlt_sent;
               for (auto K_row : ancestor_rows) {
                 K = this->SupMembership_[K_row-1];
                 if (K>=J) {
@@ -4712,7 +4719,10 @@ namespace symPACK{
                   Updates[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::UPDATE2D_COMP,J_row,K_row));
 
                   if (this->options_.decomposition == DecompositionType::LDL) {
-                      Updates[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::DLT2D_COMP,J_row,K_row));
+                    if ( dlt_sent.count(iUpdOwner) == 0 ) {
+                      dlt_sent.insert(iUpdOwner);
+                      Updates[iUpdOwner].push_back(std::make_tuple(I,J,Factorization::op_type::DLT2D_COMP,J_row,J_row));
+                    }
                   }
 
                   //cell(K,J) to cell (K,J)
@@ -4835,7 +4845,7 @@ namespace symPACK{
           auto J = tgt_snode;
 
           if (ptask!=nullptr) {
-            scheduling::key_t key(this->SupMembership_[std::get<4>(cur_op)-1], std::get<1>(cur_op), std::get<0>(cur_op), std::get<2>(cur_op));
+            scheduling::key_t key(this->SupMembership_[std::get<4>(cur_op)-1], std::get<1>(cur_op), std::get<0>(cur_op), std::get<2>(cur_op),this->iam);
             task_graph.push_back( std::unique_ptr<SparseTask2D>(ptask) );
             task_idx.push_back( std::make_tuple(key,task_idx.size()));
           }
@@ -4904,11 +4914,11 @@ namespace symPACK{
               {
                 Idx K = this->SupMembership_[facing_first_row-1];
                 std::swap(K,J);
-                auto k1 = scheduling::key_t(I,I,I,Factorization::op_type::FACTOR);
+                auto k1 = scheduling::key_t(I,I,I,Factorization::op_type::FACTOR,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
-                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
 
                 auto owner = pQueryCELL(J-1,K-1)->owner;
@@ -4916,10 +4926,10 @@ namespace symPACK{
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
 
                 std::size_t remote_task_idx = 0;
-                scheduling::key_t key(J,K,I,Factorization::op_type::UPDATE2D_COMP);
+                scheduling::key_t key(J,K,I,Factorization::op_type::UPDATE2D_COMP,owner);
 
         if (this->options_.decomposition == DecompositionType::LDL) {
-            key = scheduling::key_t(J,K,I,Factorization::op_type::DLT2D_COMP);
+            key = scheduling::key_t(K,K,I,Factorization::op_type::DLT2D_COMP,owner);
         }
 
                 auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
@@ -4935,28 +4945,27 @@ namespace symPACK{
                 std::swap(K,J);
 
         if ( this->options_.decomposition == DecompositionType::LDL ) {
-              auto k1 = scheduling::key_t(J,K,I,Factorization::op_type::DLT2D_COMP);
-
+              auto k1 = scheduling::key_t(K,K,I,Factorization::op_type::DLT2D_COMP,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
+                bassert(std::get<2>(taskptr->_meta)==Factorization::op_type::DLT2D_COMP);
                 if (  pQueryCELL(I-1,I-1)->owner != pQueryCELL(J-1,K-1)->owner )
                   taskptr->in_remote_dependencies_cnt++;
                 else
                   taskptr->in_local_dependencies_cnt++;
 
                 //now add a local dependency for the UPDATE2D_COMP task
-                auto k2 = scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP);
+                auto k2 = scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP,this->iam);
                 auto intask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k2, key_lb_comp);
                 auto intaskptr = task_graph[std::get<1>(*intask_idx_it)].get();
                 bassert(intaskptr!=nullptr);
                 intaskptr->in_local_dependencies_cnt++;
                 taskptr->out_dependencies.push_back( std::make_tuple(pQueryCELL(J-1,K-1)->owner,std::get<1>(*intask_idx_it)) );
-
         }
         else {
                 //find the UPDATE2D_COMP and add cell J,I as incoming dependency
-                auto k1 = scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP);
+                auto k1 = scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
@@ -4974,19 +4983,18 @@ namespace symPACK{
               {
                 auto J = this->SupMembership_[facing_first_row-1];
 
-                auto k1 = scheduling::key_t(I,I,I,Factorization::op_type::FACTOR);
+                auto k1 = scheduling::key_t(I,I,I,Factorization::op_type::FACTOR,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
-                //                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<0>(taskptr->_meta),std::get<1>(taskptr->_meta),std::get<2>(taskptr->_meta));
-                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"TRSM_SEND"<<" from "<<I<<" to "<<I<<" cell ("<<J<<","<<I<<")"<<std::endl;
 #endif
                 //get index of task TRSM(J,I)
-                scheduling::key_t key(J,I,I,Factorization::op_type::TRSM);
                 auto owner = pQueryCELL(J-1,I-1)->owner;
+                scheduling::key_t key(J,I,I,Factorization::op_type::TRSM,owner);
                 auto task_idx_beg = &task_idx_recvbuf[task_idx_rdispls[owner]];
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
                 auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, key, key_lb_comp);
@@ -5002,12 +5010,12 @@ namespace symPACK{
                 auto J = this->SupMembership_[facing_first_row-1];
 
                 //find the TRSM and add cell I,I as incoming dependency
-                auto k1 = scheduling::key_t(J,I,I,Factorization::op_type::TRSM);
+                auto k1 = scheduling::key_t(J,I,I,Factorization::op_type::TRSM,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr); 
                 //auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<0>(taskptr->_meta),std::get<1>(taskptr->_meta),std::get<2>(taskptr->_meta));
-                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"TRSM_RECV"<<" from "<<I<<" to "<<I<<" cell ("<<J<<","<<I<<")"<<std::endl;
@@ -5030,12 +5038,12 @@ namespace symPACK{
 #endif
                 //find the FACTOR or TRSM and add cell K,J as incoming dependency
                 if (K==J) {
-                  auto k1 = scheduling::key_t(J,J,J,Factorization::op_type::FACTOR);
+                  auto k1 = scheduling::key_t(J,J,J,Factorization::op_type::FACTOR,this->iam);
                   auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                   auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                   bassert(taskptr!=nullptr); 
                   //  auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<0>(taskptr->_meta),std::get<1>(taskptr->_meta),std::get<2>(taskptr->_meta));
-                  auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                  auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta),this->iam);
                   bassert(k2 == k1 );
 
                   taskptr->in_local_dependencies_cnt++;
@@ -5044,12 +5052,11 @@ namespace symPACK{
 #endif
                 }
                 else {
-                  auto k1 = scheduling::key_t(K,J,J,Factorization::op_type::TRSM);
+                  auto k1 = scheduling::key_t(K,J,J,Factorization::op_type::TRSM,this->iam);
                   auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                   auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                   bassert(taskptr!=nullptr); 
-                  //  auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<0>(taskptr->_meta),std::get<1>(taskptr->_meta),std::get<2>(taskptr->_meta));
-                  auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                  auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta),this->iam);
                   bassert(k2 == k1 );
                   taskptr->in_local_dependencies_cnt++;
 #ifdef _VERBOSE_
@@ -5068,12 +5075,11 @@ namespace symPACK{
 #endif
                 //find the UPDATE2D_COMP and add cell K,J as outgoing dependency
 
-                auto k1 = scheduling::key_t(K,J,I,Factorization::op_type::UPDATE2D_COMP);
+                auto k1 = scheduling::key_t(K,J,I,Factorization::op_type::UPDATE2D_COMP,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr); 
-                //auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<1>(taskptr->_meta),std::get<0>(taskptr->_meta),std::get<2>(taskptr->_meta));
-                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
 
                 //find the FACTOR or TRSM target task
@@ -5083,13 +5089,13 @@ namespace symPACK{
 
                 std::size_t remote_task_idx = 0;
                 if (K==J) {
-                  scheduling::key_t key(J,J,J,Factorization::op_type::FACTOR);
+                  scheduling::key_t key(J,J,J,Factorization::op_type::FACTOR,owner);
                   auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                   bassert(task_idx_it != task_idx_end); 
                   remote_task_idx = std::get<1>(*task_idx_it);
                 }
                 else {
-                  scheduling::key_t key(K,J,J,Factorization::op_type::TRSM);
+                  scheduling::key_t key(K,J,J,Factorization::op_type::TRSM,owner);
                   auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                   bassert(task_idx_it != task_idx_end); 
                   remote_task_idx = std::get<1>(*task_idx_it);
@@ -5111,12 +5117,11 @@ namespace symPACK{
                 logfileptr->OFS()<<"UPDATE_RECV"<<" from "<<I<<" to "<<K<<" cell ("<<J<<","<<I<<") to cell ("<<J<<","<<K<<")"<<std::endl;
 #endif
                 //find the UPDATE2D_COMP and add cell J,I as incoming dependency
-                auto k1 = scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP);
+                auto k1 = scheduling::key_t(J,K,I,Factorization::op_type::UPDATE2D_COMP,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
-                //auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<1>(taskptr->_meta),std::get<0>(taskptr->_meta),std::get<2>(taskptr->_meta));
-                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
 
                 if (  pQueryCELL(J-1,I-1)->owner != pQueryCELL(J-1,K-1)->owner )
@@ -5137,12 +5142,11 @@ namespace symPACK{
                 logfileptr->OFS()<<"UPDATE_SEND"<<" from "<<I<<" to "<<K<<" cell ("<<J<<","<<I<<") to cell ("<<J<<","<<K<<")"<<std::endl;
 #endif
                 //find the TRSM and add cell J,K as outgoing dependency
-                auto k1 = scheduling::key_t(J,I,I,Factorization::op_type::TRSM);
+                auto k1 = scheduling::key_t(J,I,I,Factorization::op_type::TRSM,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr); 
-                //auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<0>(taskptr->_meta),std::get<1>(taskptr->_meta),std::get<2>(taskptr->_meta));
-                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
 
                 auto owner = pQueryCELL(J-1,K-1)->owner;
@@ -5150,7 +5154,7 @@ namespace symPACK{
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
 
                 std::size_t remote_task_idx = 0;
-                scheduling::key_t key(J,K,I,Factorization::op_type::UPDATE2D_COMP);
+                scheduling::key_t key(J,K,I,Factorization::op_type::UPDATE2D_COMP,owner);
                 auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                 bassert(task_idx_it != task_idx_end); 
                 remote_task_idx = std::get<1>(*task_idx_it);
@@ -5170,11 +5174,11 @@ namespace symPACK{
 #endif
 
                 //find the TRSM and add cell K,J as outgoing dependency
-                auto k1 = scheduling::key_t(J,I,I,Factorization::op_type::TRSM);
+                auto k1 = scheduling::key_t(J,I,I,Factorization::op_type::TRSM,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr); 
-                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
 
                 auto owner = pQueryCELL(K-1,J-1)->owner;
@@ -5182,14 +5186,14 @@ namespace symPACK{
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
 
                 std::size_t remote_task_idx = 0;
-                scheduling::key_t key(K,J,I,Factorization::op_type::UPDATE2D_COMP);
+                scheduling::key_t key(K,J,I,Factorization::op_type::UPDATE2D_COMP,owner);
                 auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                 bassert(task_idx_it != task_idx_end); 
                 remote_task_idx = std::get<1>(*task_idx_it);
                 taskptr->out_dependencies.push_back( std::make_tuple(owner,remote_task_idx) );
 
                 if (this->options_.decomposition == DecompositionType::LDL) {
-                  key = scheduling::key_t(K,J,I,Factorization::op_type::DLT2D_COMP);
+                  key = scheduling::key_t(J,J,I,Factorization::op_type::DLT2D_COMP,owner);
                   task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                   bassert(task_idx_it != task_idx_end); 
                   remote_task_idx = std::get<1>(*task_idx_it);
@@ -5209,13 +5213,12 @@ namespace symPACK{
 #endif
 
                 //find the UPDATE2D_COMP and add cell J,I as incoming dependency
-                auto k1 = scheduling::key_t(K,J,I,Factorization::op_type::UPDATE2D_COMP);
+                auto k1 = scheduling::key_t(K,J,I,Factorization::op_type::UPDATE2D_COMP,this->iam);
 
                 auto outtask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k1, key_lb_comp);
                 auto taskptr = task_graph[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
-                //auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1],std::get<1>(taskptr->_meta),std::get<0>(taskptr->_meta),std::get<2>(taskptr->_meta));
-                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
 
                 if (  pQueryCELL(J-1,I-1)->owner != pQueryCELL(K-1,J-1)->owner )
@@ -5225,10 +5228,11 @@ namespace symPACK{
 
 
         if ( this->options_.decomposition == DecompositionType::LDL ) {
-              auto k3 = scheduling::key_t(K,J,I,Factorization::op_type::DLT2D_COMP);
+              auto k3 = scheduling::key_t(J,J,I,Factorization::op_type::DLT2D_COMP,this->iam);
                 auto dlttask_idx_it = std::lower_bound(task_idx.begin(), task_idx.end(), k3, key_lb_comp);
                 auto dlttaskptr = task_graph[std::get<1>(*dlttask_idx_it)].get();
                 bassert(dlttaskptr!=nullptr);
+                bassert(std::get<2>(dlttaskptr->_meta)==Factorization::op_type::DLT2D_COMP);
                 if (  pQueryCELL(J-1,I-1)->owner != pQueryCELL(K-1,J-1)->owner )
                   dlttaskptr->in_remote_dependencies_cnt++;
                 else
@@ -5684,7 +5688,7 @@ namespace symPACK{
                   scope_timer(b,FB_DLT2D_TASK);
                   auto ptask = ptr;
 
-                  bassert(ptask->input_msg.size()<=2);
+//                  bassert(ptask->input_msg.size()<=2);
                   bassert(this->options_.decomposition == DecompositionType::LDL);
 
                   T * diag_ptr = nullptr;
@@ -5698,7 +5702,7 @@ namespace symPACK{
                         odSet = true;
                         ptr_odCell = (snodeBlock_t*)(msg_ptr->extra_data.get());
                       }
-                      else {
+                      else if (odSet && msg_ptr->extra_data.get() != ptr_odCell){
                         gdb_lock();
                       }
                     }
@@ -5738,7 +5742,7 @@ namespace symPACK{
 
                     //Signal the LOCAL dependencies
                     std::unordered_map<int,std::list<std::size_t> > data_to_send;
-                    bassert(ptask->out_dependencies.size() <= 2);
+                    //bassert(ptask->out_dependencies.size() <= 2);
                     for (auto &tpl : ptask->out_dependencies) {
                       auto owner = std::get<0>(tpl);
                       auto idx = std::get<1>(tpl);
@@ -6233,7 +6237,7 @@ namespace symPACK{
           auto J = tgt_snode;
 
           if (ptask!=nullptr) {
-            scheduling::key_t key(std::get<0>(cur_op), std::get<1>(cur_op), 0, std::get<2>(cur_op));
+            scheduling::key_t key(std::get<0>(cur_op), std::get<1>(cur_op), 0, std::get<2>(cur_op),this->iam);
             this->task_graph_solve.push_back( std::unique_ptr<SparseTask2D>(ptask) );
             task_idx_solve.push_back( std::make_tuple(key,task_idx_solve.size()));
           }
@@ -6291,11 +6295,11 @@ namespace symPACK{
                 Idx K = this->SupMembership_[facing_first_row-1];
                 //std::swap(K,J);
 
-                auto k1 = scheduling::key_t(I,I,0,Factorization::op_type::FUC);
+                auto k1 = scheduling::key_t(I,I,0,Factorization::op_type::FUC,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx_solve.begin(), task_idx_solve.end(), k1, key_lb_comp);
                 auto taskptr = task_graph_solve[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
-                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
 
                 auto owner = pQueryCELL(J-1,K-1)->owner;
@@ -6303,7 +6307,7 @@ namespace symPACK{
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
 
                 std::size_t remote_task_idx = 0;
-                scheduling::key_t key(J,K,0,Factorization::op_type::FUC);
+                scheduling::key_t key(J,K,0,Factorization::op_type::FUC,owner);
                 auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                 bassert(task_idx_it != task_idx_end); 
                 remote_task_idx = std::get<1>(*task_idx_it);
@@ -6319,7 +6323,7 @@ namespace symPACK{
                 Idx K = this->SupMembership_[facing_first_row-1];
                 std::swap(K,J);
                 //find the FUC and add cell I,I as incoming dependency
-                auto k1 = scheduling::key_t(J,K,I,Factorization::op_type::FUC);
+                auto k1 = scheduling::key_t(J,K,I,Factorization::op_type::FUC,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx_solve.begin(), task_idx_solve.end(), k1, key_lb_comp);
                 auto taskptr = task_graph_solve[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
@@ -6339,18 +6343,18 @@ namespace symPACK{
               {
                 //auto J = this->SupMembership_[facing_first_row-1];
 
-                auto k1 = scheduling::key_t(I,I,0,Factorization::op_type::FUC);
+                auto k1 = scheduling::key_t(I,I,0,Factorization::op_type::FUC,this->iam);
                 auto outtask_idx_it = std::lower_bound(task_idx_solve.begin(), task_idx_solve.end(), k1, key_lb_comp);
                 auto taskptr = task_graph_solve[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"FUC_D_SEND"<<" cell ("<<I<<","<<I<<") to cell("<<J<<","<<I<<")"<<std::endl;
 #endif
-                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
                 //get index of task FUC(J,I)
-                scheduling::key_t key(J,I,0,Factorization::op_type::FUC);
                 auto owner = pQueryCELL(J-1,I-1)->owner;
+                scheduling::key_t key(J,I,0,Factorization::op_type::FUC,owner);
                 auto task_idx_beg = &task_idx_recvbuf[task_idx_rdispls[owner]];
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
                 auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, key, key_lb_comp);
@@ -6366,20 +6370,17 @@ namespace symPACK{
                 //auto J = this->SupMembership_[facing_first_row-1];
 
                 //find the FUC and add cell I,I as incoming dependency
-                auto k1 = scheduling::key_t(J,I,0,Factorization::op_type::FUC);
+                auto k1 = scheduling::key_t(J,I,0,Factorization::op_type::FUC,this->iam);
 
                 auto outtask_idx_it = std::lower_bound(task_idx_solve.begin(), task_idx_solve.end(), k1, key_lb_comp);
                 auto taskptr = task_graph_solve[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr); 
-                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
                 if (  pQueryCELL(J-1,I-1)->owner != pQueryCELL(I-1,I-1)->owner )
                   taskptr->in_remote_dependencies_cnt++;
                 else
                   taskptr->in_local_dependencies_cnt++;
-                //#ifdef _VERBOSE_
-                //                logfileptr->OFS()<<"        in dep added to FUC"<<" from "<<I<<" to "<<I<<std::endl;
-                //#endif
 #ifdef _VERBOSE_
                 logfileptr->OFS()<<"FUC_D_RECV"<<" cell ("<<I<<","<<I<<") to cell("<<J<<","<<I<<")"<<std::endl;
 #endif
@@ -6393,12 +6394,12 @@ namespace symPACK{
                 //std::swap(K,J);
                 //find the FUC and add cell J,I as incoming dependency
 
-                auto k1 = scheduling::key_t(J,J,0,Factorization::op_type::FUC);
+                auto k1 = scheduling::key_t(J,J,0,Factorization::op_type::FUC,pQueryCELL(J-1,J-1)->owner);
                 //TODO keep going from here
                 Int parent = supETree.Parent(I-1);
                 if (parent == 0 ) {
                   bassert(J==I);
-                  k1 = scheduling::key_t(J,J,0,Factorization::op_type::BUC);
+                  k1 = scheduling::key_t(J,J,0,Factorization::op_type::BUC,pQueryCELL(J-1,J-1)->owner);
                 }
 
 //                if (this->options_.decomposition == DecompositionType::LDL) { update_diag_ldl[J]++; }
@@ -6428,11 +6429,11 @@ namespace symPACK{
                 //                logfileptr->OFS()<<"FUC_SEND"<<" from "<<I<<" to "<<K<<" cell ("<<J<<","<<I<<") to cell ("<<J<<","<<K<<")"<<std::endl;
                 //#endif
                 //find the FUC and add cell J,J as outgoing dependency
-                auto k1 = scheduling::key_t(J,I,0,Factorization::op_type::FUC);
+                auto k1 = scheduling::key_t(J,I,0,Factorization::op_type::FUC,pQueryCELL(J-1,I-1)->owner);
                 auto outtask_idx_it = std::lower_bound(task_idx_solve.begin(), task_idx_solve.end(), k1, key_lb_comp);
                 auto taskptr = task_graph_solve[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr); 
-                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
 
                 auto owner = pQueryCELL(J-1,J-1)->owner;
@@ -6440,10 +6441,10 @@ namespace symPACK{
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
 
                 std::size_t remote_task_idx = 0;
-                scheduling::key_t key(J,J,0,Factorization::op_type::FUC);
+                scheduling::key_t key(J,J,0,Factorization::op_type::FUC,owner);
                 Int parent = supETree.Parent(I-1);
                 if (parent == 0 ) {
-                  key = scheduling::key_t(J,J,0,Factorization::op_type::BUC);
+                  key = scheduling::key_t(J,J,0,Factorization::op_type::BUC,owner);
                 }
                 auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                 bassert(task_idx_it != task_idx_end); 
@@ -6471,12 +6472,12 @@ namespace symPACK{
                 //auto J = this->SupMembership_[facing_first_row-1];
 
                 //find the BUC and add cell J,I as incoming dependency
-                auto k1 = scheduling::key_t(I,I,0,Factorization::op_type::BUC);
+                auto k1 = scheduling::key_t(I,I,0,Factorization::op_type::BUC,pQueryCELL(I-1,I-1)->owner);
                 auto outtask_idx_it = std::lower_bound(task_idx_solve.begin(), task_idx_solve.end(), k1, key_lb_comp);
                 auto taskptr = task_graph_solve[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr);
                 //auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
-                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
 
                 if (  pQueryCELL(J-1,I-1)->owner != pQueryCELL(I-1,I-1)->owner )
@@ -6494,17 +6495,16 @@ namespace symPACK{
                 //auto J = this->SupMembership_[facing_first_row-1];
 
                 //find the BUC and add cell I,I as outgoing dependency
-                auto k1 = scheduling::key_t(J,I,0,Factorization::op_type::BUC);
+                auto k1 = scheduling::key_t(J,I,0,Factorization::op_type::BUC,pQueryCELL(J-1,I-1)->owner);
                 //gdb_lock();
                 auto outtask_idx_it = std::lower_bound(task_idx_solve.begin(), task_idx_solve.end(), k1, key_lb_comp);
                 auto taskptr = task_graph_solve[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr); 
-                //auto k2 = scheduling::key_t(this->SupMembership_[std::get<4>(taskptr->_meta)-1], std::get<1>(taskptr->_meta), std::get<0>(taskptr->_meta), std::get<2>(taskptr->_meta));
-                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
-                //get index of task BUC(I,I)
-                scheduling::key_t key(I,I,0,Factorization::op_type::BUC);
                 auto owner = pQueryCELL(I-1,I-1)->owner;
+                //get index of task BUC(I,I)
+                scheduling::key_t key(I,I,0,Factorization::op_type::BUC,owner);
                 auto task_idx_beg = &task_idx_recvbuf[task_idx_rdispls[owner]];
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
                 auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, key, key_lb_comp);
@@ -6527,11 +6527,11 @@ namespace symPACK{
                 logfileptr->OFS()<<"BUC_SEND"<<" cell ("<<J<<","<<J<<") to cell ("<<J<<","<<I<<")"<<std::endl;
 #endif
                 //find the BUC and add cell J,I as outgoing dependency
-                auto k1 = scheduling::key_t(J,J,0,Factorization::op_type::BUC);
+                auto k1 = scheduling::key_t(J,J,0,Factorization::op_type::BUC,pQueryCELL(J-1,J-1)->owner);
                 auto outtask_idx_it = std::lower_bound(task_idx_solve.begin(), task_idx_solve.end(), k1, key_lb_comp);
                 auto taskptr = task_graph_solve[std::get<1>(*outtask_idx_it)].get();
 
-                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta),this->iam);
                 bassert( k1==k2);
 
                 bassert(taskptr!=nullptr);
@@ -6541,7 +6541,7 @@ namespace symPACK{
                 auto task_idx_end = task_idx_beg + task_idx_rsizes[owner];
 
                 std::size_t remote_task_idx = 0;
-                scheduling::key_t key(J,I,0,Factorization::op_type::BUC);
+                scheduling::key_t key(J,I,0,Factorization::op_type::BUC,owner);
                 auto task_idx_it = std::lower_bound(task_idx_beg, task_idx_end, (key), key_lb_comp);
                 bassert(task_idx_it != task_idx_end); 
                 remote_task_idx = std::get<1>(*task_idx_it);
@@ -6558,11 +6558,11 @@ namespace symPACK{
                 logfileptr->OFS()<<"BUC_RECV"<<" cell ("<<J<<","<<J<<") to cell ("<<J<<","<<I<<")"<<std::endl;
 #endif
                 //find the BUC and add cell J,J as incoming dependency
-                auto k1 = scheduling::key_t(J,I,0,Factorization::op_type::BUC);
+                auto k1 = scheduling::key_t(J,I,0,Factorization::op_type::BUC,pQueryCELL(J-1,I-1)->owner);
                 auto outtask_idx_it = std::lower_bound(task_idx_solve.begin(), task_idx_solve.end(), k1, key_lb_comp);
                 auto taskptr = task_graph_solve[std::get<1>(*outtask_idx_it)].get();
                 bassert(taskptr!=nullptr); 
-                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta));
+                auto k2 = scheduling::key_t(std::get<0>(taskptr->_meta), std::get<1>(taskptr->_meta), 0, std::get<2>(taskptr->_meta),this->iam);
                 bassert(k2 == k1 );
                 bassert( std::get<2>(taskptr->_meta)==Factorization::op_type::BUC);
 
