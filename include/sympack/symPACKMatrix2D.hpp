@@ -7662,6 +7662,7 @@ bassert(I<J);
           auto type = std::get<2>(pTask->_meta);
 
           if (type == Factorization::op_type::BUC) {
+//return false;
             auto J = std::get<0>(pTask->_meta);
             auto I = std::get<1>(pTask->_meta);
             //auto ptr_tgtcell = pQueryCELL2(I-1,I-1);

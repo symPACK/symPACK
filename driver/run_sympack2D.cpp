@@ -566,11 +566,11 @@ int main(int argc, char **argv)
         }
 
         //compare SMat and SMat2D
-        for( auto & cellptr: SMat2D->solve_data.contribs ){
-          if ( !cellptr ) continue;
-          logfileptr->OFS()<<"2D Supernode "<<cellptr->j<<" cell ("<<cellptr->i<<","<<cellptr->j<<"):"<<std::endl;
-          cellptr->print_block(*cellptr,"2D ");
-        }
+//        for( auto & cellptr: SMat2D->solve_data.contribs ){
+//          if ( !cellptr ) continue;
+//          logfileptr->OFS()<<"2D Supernode "<<cellptr->j<<" cell ("<<cellptr->i<<","<<cellptr->j<<"):"<<std::endl;
+//          cellptr->print_block(*cellptr,"2D ");
+//        }
 
 //logfileptr->OFS()<<XFinal1D<<std::endl;
         SMat2D->GetSolution(&XFinal[0],nrhs);
