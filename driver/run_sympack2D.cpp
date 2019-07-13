@@ -471,7 +471,6 @@ int main(int argc, char **argv)
           std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
         }
         logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
-
 #endif
       }
       catch(const std::bad_alloc& e){
@@ -497,7 +496,6 @@ int main(int argc, char **argv)
 //#define SOLVE1D
 #ifdef SOLVE1D
         SMat = new symPACKMatrix<SCALAR>(*SMat2D);
- //     SMat->DumpMatlab();
       XFinal1D = RHS;
 
 

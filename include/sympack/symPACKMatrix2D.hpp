@@ -100,7 +100,8 @@ such enhancements or derivative works thereof, in binary and source code form.
 //#define PREALLOCATE1
 //#define PREALLOCATE2
 #define _USE_PROM_AVAIL_
-#define _USE_PROM_RDY_
+//#define _USE_PROM_RDY_
+#define NEW_DELAY
 
 #include <functional>
 #include <gasnetex.h>
@@ -336,6 +337,20 @@ namespace symPACK{
                     sched_ptr->lpc_cnt--;
                     this->in_counter-=cnt;
                     if ( this->in_counter == 0 ) {
+
+#ifdef NEW_DELAY
+#ifdef SP_THREADS
+              if (sched_ptr->extraTaskHandle_!=nullptr) {
+                  bool delay = sched_ptr->extraTaskHandle_(this);
+                  if (delay) {
+                  sched_ptr->delayedTasks_.push_back(this);
+                  return;
+                  }
+              }
+#endif
+#endif
+
+
                     push_ready(sched_ptr,this)
                     }
                     });
@@ -8092,6 +8107,17 @@ bassert(I<J);
 #ifdef _USE_PROM_RDY_
               auto fut = ptask->in_prom.finalize();
               fut.then([this,ptr]() {
+#ifdef NEW_DELAY
+#ifdef SP_THREADS
+              if (this->scheduler.extraTaskHandle_!=nullptr) {
+                  bool delay = this->scheduler.extraTaskHandle_(ptr);
+                  if (delay) {
+                  this->scheduler.delayedTasks_.push_back(ptr);
+                  return;
+                  }
+              }
+#endif
+#endif
                   push_ready(this,ptr);
                   });
 #else
@@ -8168,6 +8194,7 @@ bassert(I<J);
             }
 
             while (local_task_cnt>0) {
+#if 1//#ifndef NEW_DELAY
               if (extraTaskHandle_!=nullptr)
               {
                 auto taskit = delayedTasks_.begin();
@@ -8189,7 +8216,7 @@ bassert(I<J);
                   //upcxx::progress(upcxx::progress_level::internal);
                 }
               }
-
+#endif
 
               bool empty = false;
               while (!empty && !this->free_workers_.empty()) {
@@ -8208,6 +8235,7 @@ bassert(I<J);
                 if (!empty) {
                   //upcxx::progress(upcxx::progress_level::internal);
                   bool delay = false;
+#ifndef NEW_DELAY
                   if (extraTaskHandle_!=nullptr) {
                     delay = extraTaskHandle_(ptask);
                     if (delay) {
@@ -8215,6 +8243,7 @@ bassert(I<J);
                       pop_ready();
                     }
                   }
+#endif
 
                   if (!delay) {
                     if (assignWork(ptask)) {
