@@ -373,66 +373,6 @@ int main(int argc, char **argv)
 
     /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
 
-/////#ifndef NOTRY
-/////    try
-/////#endif
-/////    {
-/////      timeSta = get_time();
-/////      SMat = new symPACKMatrix<SCALAR>();
-/////      SMat->Init(optionsFact);
-/////      SMat->SymbolicFactorization(HMat);
-/////if(!nofact){
-/////      SMat->DistributeMatrix(HMat);
-/////}
-/////      timeEnd = get_time();
-/////#ifdef EXPLICIT_PERMUTE
-/////      perm = SMat->GetOrdering().perm;
-/////#endif
-/////    }
-/////#ifndef NOTRY
-/////    catch(const std::bad_alloc& e){
-/////      std::cout << "Allocation failed: " << e.what() << '\n';
-/////      SMat = nullptr;
-/////      abort();
-/////    }
-/////#endif
-/////
-/////
-/////
-/////#ifdef DUMP_MATLAB
-/////    if(iam==0){
-/////      logfileptr->OFS()<<"A= ";
-/////    }
-/////    SMat->DumpMatlab();
-/////#endif
-/////
-/////
-/////      /************* NUMERICAL FACTORIZATION PHASE ***********/
-/////      if(iam==0){
-/////        std::cout<<"Starting Factorization"<<std::endl;
-/////      }
-/////      timeSta = get_time();
-/////      SYMPACK_TIMER_START(FACTORIZATION);
-/////      SMat->Factorize();
-/////      SYMPACK_TIMER_STOP(FACTORIZATION);
-/////      timeEnd = get_time();
-/////
-/////      if(iam==0){
-/////        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
-/////      }
-/////      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
-/////
-/////#ifdef DUMP_MATLAB
-/////      if(iam==0){
-/////        logfileptr->OFS()<<"L= ";
-/////      }
-/////      SMat->DumpMatlab();
-/////#endif
-
-
-
-
-    //{
       auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
       try{
 #ifdef _MEM_PROFILER_
@@ -462,8 +402,7 @@ int main(int argc, char **argv)
           }
         }
 
-#if 1
-        //      if ( iam == 0 ) { gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen"); }
+if (!nofact) {
         timeSta = get_time();
         SMat2D->Factorize();
         timeEnd = get_time();
@@ -471,7 +410,7 @@ int main(int argc, char **argv)
           std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
         }
         logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
-#endif
+}
       }
       catch(const std::bad_alloc& e){
         std::cout << "Allocation failed: " << e.what() << '\n';
@@ -490,7 +429,7 @@ int main(int argc, char **argv)
 #endif
 
 
-
+if (!nofact) {
         /**************** SOLVE PHASE ***********/
       if (nrhs>0){
 //#define SOLVE1D
@@ -657,7 +596,7 @@ int main(int argc, char **argv)
 
 
 #endif
-
+}
 #ifdef _TRACK_MEMORY_
   MemoryAllocator::printStats();
 #endif

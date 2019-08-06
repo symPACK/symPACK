@@ -439,7 +439,6 @@ int main(int argc, char **argv)
         }
         SMat->DumpMatlab();
 #endif
-      SMat->DumpMatlab();
       }
     }
 

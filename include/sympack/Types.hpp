@@ -407,9 +407,21 @@ namespace symPACK{
         }
 
         void Clear(){
-          tmpBuf.clear();
-          src_colindx.clear();
-          src_to_tgt_offset.clear();
+{
+          std::vector<T> tmp;
+          tmpBuf.swap(tmp);
+}
+{
+std::vector<Int> tmp;
+src_colindx.swap(tmp);
+}
+{
+std::vector<Int> tmp;
+          src_to_tgt_offset.swap(tmp);
+}
+          //tmpBuf.clear();
+          //src_colindx.clear();
+          //src_to_tgt_offset.clear();
         }
 
 
