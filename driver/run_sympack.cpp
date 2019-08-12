@@ -17,7 +17,7 @@
 
 
 //#define DUMP_MATLAB
-#define DUMP_MATLAB_SOL
+//#define DUMP_MATLAB_SOL
 
 /******* TYPE used in the computations ********/
 #define SCALAR double

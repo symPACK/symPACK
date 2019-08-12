@@ -50,9 +50,6 @@ namespace symPACK{
 
   template<typename T, typename Queue >
     inline WorkQueue<T, Queue >::WorkQueue(Int nthreads): done(false){
-#ifdef THREAD_VERBOSE
-      processing_.resize(nthreads,nullptr);
-#endif
       workQueues_.resize(nthreads);
       list_mutexes_.resize(nthreads);
       prev_slot_ = 0;
@@ -79,9 +76,6 @@ namespace symPACK{
 
   template<typename T, typename Queue >
     inline WorkQueue<T, Queue >::WorkQueue(Int nthreads, std::function<void()> & threadInitHandle ):done(false){
-#ifdef THREAD_VERBOSE
-      processing_.resize(nthreads,nullptr);
-#endif
       workQueues_.resize(nthreads);
       list_mutexes_.resize(nthreads);
       prev_slot_ = 0;
@@ -120,7 +114,6 @@ namespace symPACK{
     inline void WorkQueue<T, Queue >::pushTask(T & fut){
 //      gdb_lock();
 //      std::unique_lock<std::mutex> lock(list_mutex_);
-//#ifdef THREAD_VERBOSE
       auto & queue = workQueues_[prev_slot_];
       int queue_id = prev_slot_;
       prev_slot_ = (prev_slot_+1)%workQueues_.size();
@@ -147,10 +140,6 @@ namespace symPACK{
           list_mutex.unlock();
 
 
-#ifdef THREAD_VERBOSE
-          processing_[tid] = func;
-#endif
-          //sync.notify_one();
           bool success = false;
           while(!success){
             //lock.unlock();
@@ -160,34 +149,9 @@ namespace symPACK{
               success=true;
               //clear resources
               func->reset();
-              //lock.lock();
             }
-//            catch(const MemoryAllocationException & e){
-//              {
-//                std::stringstream sstr;
-//                sstr<<"Task locked on T"<<tid<<std::endl;
-//                sstr<<e.what();
-//                logfileptr->OFS()<<sstr.str();
-//              }
-//
-//              lock.lock();
-//              //wait for a task to be completed before retrying
-//              //sync.wait(lock);
-//              sync.wait_for(lock,std::chrono::milliseconds(10));
-//              {
-//                std::stringstream sstr;
-//                sstr<<"Task un locked on T"<<tid<<std::endl;
-//                logfileptr->OFS()<<sstr.str();
-//              }
-//
-//              sync.notify_all();
-//
-//            }
           }
 
-#ifdef THREAD_VERBOSE
-          processing_[tid] = nullptr;
-#endif
         } else if (done.load(std::memory_order_acquire) ){
           list_mutex.unlock();
           break;
@@ -197,6 +161,9 @@ namespace symPACK{
           sched_yield();
         }
       }
+
+      upcxx::discharge();
+      upcxx::progress();
     }
 }//end namespace symPACK
 //end of definitions of the WorkQueue class
@@ -354,37 +321,37 @@ namespace symPACK{
         std::shared_ptr<GenericTask> curTask = nullptr;
         bool done = false;
         std::thread progress_thread;
-///////        if(Multithreading::NumThread>1){
-///////#ifdef NEW_UPCXX
-///////          // declare an agreed upon persona for the progress thread
-///////          //atomic<int> thread_barrier(0);
-///////          // liberate the master persona to allow the progress thread to use it
-///////          symPACK::liberate_master_scope();
-///////
-///////          // create the progress thread
-///////          progress_thread = std::thread( [this,&done,&remDealloc,&workteam]() {
-///////              // push the master persona onto this thread's stack
-///////              upcxx::persona_scope scope(upcxx::master_persona());
-///////              // push progress_persona onto this thread's persona stack
-///////              //upcxx::persona_scope scope(this->progress_persona_);
-///////              // progress thread drains progress until work is done
-///////              //gdb_lock();
-///////              while (!done || (*remDealloc) > 0 ){
-///////              sched_yield();
-///////              upcxx::progress();
-///////              }
-///////              //        cout<<"Progress thread on process "<<upcxx::rank_me()<<" is done"<<endl; 
-///////
-///////              upcxx::discharge();
-/////////  upcxx::barrier(workteam);
-/////////  while ( (*remDealloc) > 0 ) { sched_yield(); }
-///////
-///////              //unlock the other threads
-///////              //thread_barrier += 1;
-///////          });
-///////
-///////#endif
-///////        }
+        if(Multithreading::NumThread>1){
+#ifdef NEW_UPCXX
+          // declare an agreed upon persona for the progress thread
+          //atomic<int> thread_barrier(0);
+          // liberate the master persona to allow the progress thread to use it
+          symPACK::liberate_master_scope();
+
+          // create the progress thread
+          progress_thread = std::thread( [this,&done,&remDealloc,&workteam]() {
+              // push the master persona onto this thread's stack
+              upcxx::persona_scope scope(upcxx::master_persona());
+              // push progress_persona onto this thread's persona stack
+              //upcxx::persona_scope scope(this->progress_persona_);
+              // progress thread drains progress until work is done
+              //gdb_lock();
+              while (!done || (*remDealloc) > 0 ){
+              sched_yield();
+              upcxx::progress();
+              }
+              //        cout<<"Progress thread on process "<<upcxx::rank_me()<<" is done"<<endl; 
+
+              upcxx::discharge();
+//  upcxx::barrier(workteam);
+//  while ( (*remDealloc) > 0 ) { sched_yield(); }
+
+              //unlock the other threads
+              //thread_barrier += 1;
+          });
+
+#endif
+        }
 
         if(Multithreading::NumThread>1){
 

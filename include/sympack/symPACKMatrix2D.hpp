@@ -7790,7 +7790,7 @@ namespace symPACK{
 
       this->scheduler.execute(this->task_graph_solve,this->mem_budget);
 
-
+#if 0
       size_t num_contribs =0; 
       size_t num_owned =0; 
       size_t tot_nnz =0; 
@@ -7812,7 +7812,7 @@ namespace symPACK{
 
       logfileptr->OFS()<<num_owned<<" vs "<<num_contribs<<std::endl;
       logfileptr->OFS()<<owned_nnz<<" vs "<<tot_nnz<<std::endl;
-
+#endif
     } 
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
