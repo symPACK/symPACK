@@ -681,12 +681,6 @@ namespace symPACK{
         last_pivot_idx = -1;
         //find the pivot idx
 #ifndef _BINARY_BLOCK_SEARCH_
-        //    for(tgt_lc;tgt_lc>=tgt_fc;tgt_lc--){
-        //      last_pivot_idx = src_snode->FindBlockIdx(tgt_lc);
-        //      if(last_pivot_idx>=0){
-        //        break;
-        //      }
-        //    }
         do {last_pivot_idx = src_snode->FindBlockIdx(tgt_lc); tgt_lc--;}
         while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
         tgt_lc++;
@@ -697,43 +691,7 @@ namespace symPACK{
             break;
           }
         }
-
-        //    do {last_pivot_idx = src_snode->FindBlockIdx(tgt_lc); tgt_lc--;  logfileptr->OFS()<<"lpi: "<<last_pivot_idx<<" | "<<tgt_lc+1<<std::endl; }
-        //    while(last_pivot_idx<0 && tgt_lc>=tgt_fc);
-        //    tgt_lc++;
-        //    Int bak_tgt_lc = tgt_lc;
-        //    tgt_lc = LastCol();
-        //    Int tgt_cur;
-        //    Int count = tgt_lc - tgt_fc+1;
-        //    Int step;
-        //    //last_pivot_idx = src_snode->FindBlockIdx(tgt_lc);
-        //    //if(last_pivot_idx<0)
-        //    {
-        //      while (count > 0) {
-        //        step = count / 2;
-        //        tgt_cur = tgt_lc - step;
-        //        last_pivot_idx = src_snode->FindBlockIdx(tgt_cur); 
-        //        logfileptr->OFS()<<"lpi2: "<<last_pivot_idx<<" | "<<tgt_cur<<std::endl;
-        //        if (last_pivot_idx<0) {
-        //          tgt_lc = --tgt_cur;
-        //          count -= step - 1;
-        //        }
-        //        else{
-        //          count = step;
-        //        }
-        //      }
-        //    }
-        //    logfileptr->OFS()<<bak_tgt_lc<<" vs "<<tgt_lc<<std::endl;
-        //    logfileptr->OFS()<<src_snode->FindBlockIdx(tgt_lc+1)<<std::endl;
-        //    logfileptr->OFS()<<src_snode->FindBlockIdx(tgt_lc)<<std::endl;
-        //    assert(src_snode->FindBlockIdx(tgt_lc+1)<0 && src_snode->FindBlockIdx(tgt_lc)>=0);
-        //    assert(bak_tgt_lc == tgt_lc);
 #endif
-
-
-
-
-
 
 #ifdef _LINEAR_SEARCH_FCLC_
       }
@@ -1226,8 +1184,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
 
       //everything is in row-major
       SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
-//      logfileptr->OFS()<<"GEMM ("<<tgt_width<<"-by-"<<src_snode_size<<") x ("<<src_snode_size<<"-by-"<<src_nrows<<")"<<std::endl;
-//      blas::Gemm('N','N',tgt_width, src_nrows,src_snode_size,
       blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
           T(-1.0),pivot,src_snode_size,
           pivot,src_snode_size,beta,buf,tgt_width);

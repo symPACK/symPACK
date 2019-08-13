@@ -1129,28 +1129,17 @@ namespace symPACK{
             //if we are processing the "pivot" block
             for(Int kk = 0; kk<snodeSize; ++kk){
               //then compute the rank one update
-//TODO DEBUG_SOLVE
               blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*ldsol+nrhsOffset], 1,&chol_nzval[(kk + 1)*ldfact+kk], ldfact, &cur_nzval[(kk + 1)*ldsol+nrhsOffset], ldsol );
             }
           }
           else{
             for(Int kk = 0; kk<snodeSize; ++kk){
               //compute the rank one update
-//TODO DEBUG_SOLVE
               blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*ldsol+nrhsOffset], 1, &chol_nzval[kk], ldfact, &cur_nzval[nrhsOffset], ldsol );
             }
           }
         }
-//        logfileptr->OFS()<<"2 diag of ("<<contrib->Id()<<"): ";
-//          for(Int kk = 0; kk<ldfact; ++kk){
-//            logfileptr->OFS()<<diag_nzval[kk*ldsol]<<" ";
-//          }
-//          for(Int kk = 0; kk<ldfact; ++kk){
-//            logfileptr->OFS()<<chol_diag[kk]<<" ";
-//          }
-//          logfileptr->OFS()<<std::endl;
 
-//if ( this->Id()==6) gdb_lock();
         for(Int kk = 0; kk<snodeSize; ++kk){
           //scale the kk-th row of the solution
           lapack::Scal(nrhs, T(1.0)/chol_diag[kk], &diag_nzval[kk*ldsol+nrhsOffset], 1);
@@ -1243,34 +1232,17 @@ namespace symPACK{
                 diag_nzval[kk*nrhs+j] += RHS[srcRow-1 + j*n];
               }
 
-
               //then compute the rank one update
-              //blas::Ger(cur_nrows-kk-1, nrhs, static_cast<T>(-1.0), &chol_nzval[(kk + 1)*snodeSize+kk], snodeSize, &diag_nzval[kk*nrhs], 1, &cur_nzval[(kk + 1)*nrhs], cur_nrows );
               blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*nrhs], 1,&chol_nzval[(kk + 1)*snodeSize+kk], snodeSize, &cur_nzval[(kk + 1)*nrhs], nrhs );
-              //scale the kk-th row of the solution
-              //lapack::Scal(nrhs, static_cast<T>(-1.0)/chol_diag[kk], &diag_nzval[kk*nrhs], 1);
             }
           }
           else{
             for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
               //compute the rank one update
-              //blas::Ger(cur_nrows, nrhs, static_cast<T>(-1.0), &chol_nzval[kk], snodeSize, &diag_nzval[kk*nrhs], 1, &cur_nzval[0], cur_nrows );
               blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*nrhs], 1, &chol_nzval[kk], snodeSize, &cur_nzval[0], nrhs );
             }
 
           }
-
-
-          //  For each column of A
-          //  for(k=1;k<=n;k++){
-          //    //if its not the last column
-          //    if(k<n){
-          //      do a rank one update a(k+1,k)
-          //      dger( n-k, nrhs, -one, a( k+1, k ), 1, b( k, 1 ),
-          //          ldb, b( k+1, 1 ), ldb )
-          //    }
-          //    CALL dscal( nrhs, one / a( k, k ), b( k, 1 ), ldb )
-          //  }
         }
 
 

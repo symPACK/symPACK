@@ -164,6 +164,16 @@ namespace symPACK{
 
       upcxx::discharge();
       upcxx::progress();
+      upcxx::progress();
+      upcxx::progress();
+      upcxx::progress();
+      upcxx::progress();
+      upcxx::progress();
+      upcxx::progress();
+      upcxx::progress();
+      upcxx::progress();
+      upcxx::progress();
+      upcxx::progress();
     }
 }//end namespace symPACK
 //end of definitions of the WorkQueue class
