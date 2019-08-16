@@ -705,8 +705,6 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               Int srcRow = this->Order_.perm[cur_desc.GIndex+kk-1];
               for(Int j = 0; j<nrhs;++j){
                 diag_nzval[kk*nrhs+j] = RHS[srcRow-1 + j*n];
-//TODO DEBUG_SOLVE
-//                diag_nzval[kk*nrhs+j] = 0;
               }
             }
         timeCopy += get_time();
@@ -800,7 +798,6 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
     timeSta = get_time();
     Int maxNrhsPerTask = std::min(nrhs,nrhs);
-//    Int maxNrhsPerTask = std::min(nrhs,50);
     Int numSubTasks = std::ceil(nrhs / maxNrhsPerTask);
 
     //Do a bottom up traversal
@@ -851,52 +848,9 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
 
               SparseTask & FUCtask = *(SparseTask*)pFUCtask.get();
 
-
-
-
-          
-//                logfileptr->OFS()<<"888888888888888888888888888888888888888888888"<<std::endl;
-//                /*for ( int I = 1; I <= this->TotalSupernodeCnt(); I++ ) */{
-//                  
-//                  Int src_first_col = this->Xsuper_[I-1];
-//                  Int src_last_col = this->Xsuper_[I]-1;
-//                  Int iOwner = this->Mapping_->Map(I-1,I-1);
-//                  if( iOwner == this->iam ){
-//                    logfileptr->OFS()<<"-------- "<<I<<" ----------"<<std::endl;
-//          Int src_local = snodeLocalIndex(I); 
-//          auto src_snode = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[src_local-1]).get();
-//                    for(int blkidx=0;blkidx<src_snode->NZBlockCnt();++blkidx){
-//                      NZBlockDesc & desc = src_snode->GetNZBlockDesc(blkidx);
-//                      T * val = src_snode->GetNZval(desc.Offset);
-//                      Int nRows = src_snode->NRows(blkidx);
-//
-//                      Int row = desc.GIndex;
-//                      for(Int i = 0; i< nRows; ++i){
-//                        for(Int j = 0; j< src_snode->Size(); ++j){
-//                          logfileptr->OFS()<<std::scientific<<val[i*src_snode->Size()+j]<<" "<<std::endl;
-//                        }
-//                      }
-//                    }
-//                    logfileptr->OFS()<<"--------------------------"<<std::endl;
-//                  }
-//                }  
-//                logfileptr->OFS()<<"888888888888888888888888888888888888888888888"<<std::endl;
-
-
-
-
-
-
-
-
-
-
-
               Int src_local = this->snodeLocalIndex(src); 
               auto cur_snode = this->LocalSupernodes_[src_local-1];
               auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(this->Contributions2_[src_local-1]);
-
-   //   if ( contrib->Id()==96 ) gdb_lock();
 
               //Apply all forward updates first
               //Do the remote ones
@@ -949,21 +903,6 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               }
 
               contrib->forward_update_contrib(cur_snode,nrhsOffset,taskNrhs);
-
-////              //TODO DEBUG_SOLVE
-////              if(contrib->Id()==cur_snode->Id()){
-////                if ( contrib->Id()==96) gdb_lock();
-////                NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(0);
-////                T * diag_nzval = contrib->GetNZval(0);
-////                for(Int kk = 0; kk<cur_snode->Size(); ++kk){
-////                  //First, copy the RHS into the contribution
-////                  Int srcRow = this->Order_.perm[cur_desc.GIndex+kk-1];
-////                  for(Int j = 0; j<nrhs;++j){
-////                    diag_nzval[kk*nrhs+j] += RHS[srcRow-1 + j*n];
-////                  }
-////                }
-////              }
-
 
               //may have to send to parent
               
@@ -1038,34 +977,6 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                 //log_task(taskit);
                 dec_ref(taskit,1,0);
               }
-
-//                logfileptr->OFS()<<"555555555555555555555555555555555555555555555"<<std::endl;
-//                /*for ( int I = 1; I <= this->TotalSupernodeCnt(); I++ )*/ {
-//                  Int src_first_col = this->Xsuper_[I-1];
-//                  Int src_last_col = this->Xsuper_[I]-1;
-//                  Int iOwner = this->Mapping_->Map(I-1,I-1);
-//                  if( iOwner == this->iam ){
-//                    logfileptr->OFS()<<"-------- "<<I<<" ----------"<<std::endl;
-//          Int src_local = snodeLocalIndex(I); 
-//          auto src_snode = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[src_local-1]).get();
-//                    for(int blkidx=0;blkidx<src_snode->NZBlockCnt();++blkidx){
-//                      NZBlockDesc & desc = src_snode->GetNZBlockDesc(blkidx);
-//                      T * val = src_snode->GetNZval(desc.Offset);
-//                      Int nRows = src_snode->NRows(blkidx);
-//
-//                      Int row = desc.GIndex;
-//                      for(Int i = 0; i< nRows; ++i){
-//                        for(Int j = 0; j< src_snode->Size(); ++j){
-//                          logfileptr->OFS()<<std::scientific<<val[i*src_snode->Size()+j]<<" "<<std::endl;
-//                        }
-//                      }
-//                    }
-//                    logfileptr->OFS()<<"--------------------------"<<std::endl;
-//                  }
-//                }  
-//                logfileptr->OFS()<<"555555555555555555555555555555555555555555555"<<std::endl;
-
-
             };
 
             std::stringstream sstr;
@@ -1112,37 +1023,6 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
               bassert(src==meta[0]);
               bassert(tgt==meta[1]);
  
-////              logfileptr->OFS()<<"444444444444444444444444444444444444444444444"<<std::endl;
-////                /*for ( int I = 1; I <= this->TotalSupernodeCnt(); I++ )*/ {
-////                  Int src_first_col = this->Xsuper_[I-1];
-////                  Int src_last_col = this->Xsuper_[I]-1;
-////                  Int iOwner = this->Mapping_->Map(I-1,I-1);
-////                  if( iOwner == this->iam ){
-////                    logfileptr->OFS()<<"-------- "<<I<<" ----------"<<std::endl;
-////          Int src_local = snodeLocalIndex(I); 
-////          auto src_snode = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[src_local-1]).get();
-////                    for(int blkidx=0;blkidx<src_snode->NZBlockCnt();++blkidx){
-////                      NZBlockDesc & desc = src_snode->GetNZBlockDesc(blkidx);
-////                      T * val = src_snode->GetNZval(desc.Offset);
-////                      Int nRows = src_snode->NRows(blkidx);
-////
-////                      Int row = desc.GIndex;
-////                      for(Int i = 0; i< nRows; ++i){
-////                        for(Int j = 0; j< src_snode->Size(); ++j){
-////                          logfileptr->OFS()<<std::scientific<<val[i*src_snode->Size()+j]<<" "<<std::endl;
-////                        }
-////                      }
-////                    }
-////                    logfileptr->OFS()<<"--------------------------"<<std::endl;
-////                  }
-////                }  
-////                logfileptr->OFS()<<"444444444444444444444444444444444444444444444"<<std::endl;
-
-
-
-
-
-
               Int src_local = snodeLocalIndex(src); 
               auto cur_snode = LocalSupernodes_[src_local-1];
               auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[src_local-1]);
@@ -1220,33 +1100,6 @@ template <typename T> inline void symPACKMatrix<T>::solveNew2_(T * RHS, int nrhs
                 //log_task(taskit);
                 dec_ref(taskit,1,0);
               }
-
-/////              logfileptr->OFS()<<"333333333333333333333333333333333333333333333"<<std::endl;
-/////                /*for ( int I = 1; I <= this->TotalSupernodeCnt(); I++ )*/ {
-/////                  Int src_first_col = this->Xsuper_[I-1];
-/////                  Int src_last_col = this->Xsuper_[I]-1;
-/////                  Int iOwner = this->Mapping_->Map(I-1,I-1);
-/////                  if( iOwner == this->iam ){
-/////                    logfileptr->OFS()<<"-------- "<<I<<" ----------"<<std::endl;
-/////          Int src_local = snodeLocalIndex(I); 
-/////          auto src_snode = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[src_local-1]).get();
-/////                    for(int blkidx=0;blkidx<src_snode->NZBlockCnt();++blkidx){
-/////                      NZBlockDesc & desc = src_snode->GetNZBlockDesc(blkidx);
-/////                      T * val = src_snode->GetNZval(desc.Offset);
-/////                      Int nRows = src_snode->NRows(blkidx);
-/////
-/////                      Int row = desc.GIndex;
-/////                      for(Int i = 0; i< nRows; ++i){
-/////                        for(Int j = 0; j< src_snode->Size(); ++j){
-/////                          logfileptr->OFS()<<std::scientific<<val[i*src_snode->Size()+j]<<" "<<std::endl;
-/////                        }
-/////                      }
-/////                    }
-/////                    logfileptr->OFS()<<"--------------------------"<<std::endl;
-/////                  }
-/////                }  
-/////                logfileptr->OFS()<<"333333333333333333333333333333333333333333333"<<std::endl;
-
 
 
             };

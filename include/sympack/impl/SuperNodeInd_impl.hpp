@@ -1044,8 +1044,8 @@ namespace symPACK{
             T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
             T * fact_nzval = cur_snodeInd->GetNZval(fact_desc.Offset);
 
-            blas::Gemv( 'N', nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*ldsol+nrhsOffset],ldsol,
-                &fact_nzval[rowK*ldfact+kk],ldfact, T(1.0), &updated_nzval[(kk)*ldsol+nrhsOffset], 1);
+//            blas::Gemv( 'N', nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*ldsol+nrhsOffset],ldsol,
+//                &fact_nzval[rowK*ldfact+kk],ldfact, T(1.0), &updated_nzval[(kk)*ldsol+nrhsOffset], 1);
 
           }
         }
