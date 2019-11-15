@@ -407,18 +407,18 @@ namespace symPACK{
         }
 
         void Clear(){
-{
-          std::vector<T> tmp;
-          tmpBuf.swap(tmp);
-}
-{
-std::vector<Int> tmp;
-src_colindx.swap(tmp);
-}
-{
-std::vector<Int> tmp;
-          src_to_tgt_offset.swap(tmp);
-}
+          {
+            std::vector<T> tmp;
+            tmpBuf.swap(tmp);
+          }
+          {
+            std::vector<Int> tmp;
+            src_colindx.swap(tmp);
+          }
+          {
+            std::vector<Int> tmp;
+            src_to_tgt_offset.swap(tmp);
+          }
           //tmpBuf.clear();
           //src_colindx.clear();
           //src_to_tgt_offset.clear();
@@ -625,44 +625,29 @@ std::vector<Int> tmp;
 
 
 namespace symPACK{
-      class MemoryAllocationException: public std::runtime_error {
-        public:
-          MemoryAllocationException(size_t psz)
-            : std::runtime_error("Memory allocation error"), sz(psz)
-          {
-            //gdb_lock();
-            std::stringstream err_sstr;
-            err_sstr<<std::runtime_error::what()<< " of size "<<sz<<std::endl;
-            err_str = err_sstr.str();
-          }
+  class MemoryAllocationException: public std::runtime_error {
+    public:
+      MemoryAllocationException(size_t psz)
+        : std::runtime_error("Memory allocation error"), sz(psz)
+      {
+        //gdb_lock();
+        std::stringstream err_sstr;
+        err_sstr<<std::runtime_error::what()<< " of size "<<sz<<std::endl;
+        err_str = err_sstr.str();
+      }
 
-          virtual char const * what() const throw() { 
-            return err_str.c_str();
-          }
-        protected:
-          size_t sz;
-          std::string err_str;  
-      };
+      virtual char const * what() const throw() { 
+        return err_str.c_str();
+      }
+    protected:
+      size_t sz;
+      std::string err_str;  
+  };
 
 
 
   class MemoryAllocator{
     public:
-
-    protected:
-#ifdef _TRACK_MEMORY_
-      static std::map<char*,size_t> cnt_;
-      static size_t total_;
-      static size_t hwm_;
-#endif
-
-    public:
-#ifdef _TRACK_MEMORY_
-      static void printStats(){
-        logfileptr->OFS()<<"Memory HWM: "<<hwm_<<std::endl;
-      }
-#endif
-
       static char * allocate(size_t count){return nullptr;};
 
       static void deallocate(char* ptr) {};
@@ -672,7 +657,7 @@ namespace symPACK{
   class MallocAllocator: public MemoryAllocator{
     public:
       static char * allocate(size_t count){
-char * locTmpPtr = nullptr; 
+        char * locTmpPtr = nullptr; 
         try{
           locTmpPtr = new char[count];
         }
@@ -680,21 +665,11 @@ char * locTmpPtr = nullptr;
           throw MemoryAllocationException(count);
         }
 
-#ifdef _TRACK_MEMORY_
-        if(cnt_.size()==0){total_ = 0;}
-        cnt_[locTmpPtr] = count;
-        total_ += count;
-        hwm_ = std::max(hwm_,total_);
-#endif
         return locTmpPtr;
       }
 
       static void deallocate(char* ptr){
         if(ptr!=nullptr){
-#ifdef _TRACK_MEMORY_
-          total_-=cnt_[ptr];
-          cnt_.erase(ptr);
-#endif
           delete [] ptr;
         }
       }
@@ -716,26 +691,14 @@ char * locTmpPtr = nullptr;
           throw MemoryAllocationException(count);
         }
 
-#ifdef _TRACK_MEMORY_
-        if(cnt_.size()==0){total_ = 0;}
-        cnt_[locTmpPtr] = count;
-        total_ += count;
-        hwm_ = std::max(hwm_,total_);
-        //logfileptr->OFS()<<"Allocating UPCXX "<<" "<<count<<" bytes at "<<(uint64_t)locTmpPtr<<", total "<< total_<<std::endl;
-#endif
         return locTmpPtr;
       }
 
       static void deallocate(char* ptr){
         if(ptr!=nullptr){
-#ifdef _TRACK_MEMORY_
-        total_-=cnt_[ptr];
-        //logfileptr->OFS()<<"Deallocating UPCXX "<<(uint64_t)ptr<<" "<<cnt_[ptr]<<" bytes, total "<< total_<<std::endl;
-        cnt_.erase(ptr);
-#endif
 
-        upcxx::global_ptr<char> tmpPtr = upcxx::to_global_ptr((char*)ptr);
-        upcxx::deallocate(tmpPtr);
+          upcxx::global_ptr<char> tmpPtr = upcxx::to_global_ptr((char*)ptr);
+          upcxx::deallocate(tmpPtr);
         }
       }
   };

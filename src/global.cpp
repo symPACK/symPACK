@@ -133,12 +133,6 @@ namespace symPACK{
 
   std::map<int, symPACKMatrixBase *  > g_sp_handle_to_matrix;
 
-#ifdef _TRACK_MEMORY_
-  std::map<char*,size_t> MemoryAllocator::cnt_;
-  size_t MemoryAllocator::total_=0;
-  size_t MemoryAllocator::hwm_=0;
-#endif
-
 } // namespace SYMPACK
 
 

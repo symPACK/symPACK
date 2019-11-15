@@ -471,9 +471,6 @@ namespace symPACK{
             std::vector<Int> LocalAggregates;
             FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
             {
-#ifdef _MEM_PROFILER_
-              utility::scope_memprofiler m("symPACKMatrix_task_graph");
-#endif
               generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
             }
             double timeStop = get_time();

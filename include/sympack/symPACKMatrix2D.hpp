@@ -92,7 +92,6 @@ such enhancements or derivative works thereof, in binary and source code form.
 #define _POINTER_EXCHANGE_
 #define _COMPACT_DEPENDENCIES_
 
-//#define _MEMORY_LIMIT_
 #define _PRIORITY_QUEUE_AVAIL_
 #define _PRIORITY_QUEUE_RDY_
 
@@ -2263,9 +2262,6 @@ namespace symPACK{
       scope_timer(a,symPACKMatrix2D::SymbolicFactorization);
       std::vector<Int> cc;
       {
-#ifdef _MEM_PROFILER_
-        utility::scope_memprofiler m("symPACK2D_symbolic_before_mapping");
-#endif
         //This has to be declared here to be able to debug ...
         std::vector<int, Mallocator<int> > xadj;
         std::vector<int, Mallocator<int> > adj;
@@ -2892,9 +2888,6 @@ namespace symPACK{
 
       std::vector< std::tuple<Int,upcxx::global_ptr<char>> > local_diag_pointers;
       {
-#ifdef _MEM_PROFILER_
-        utility::scope_memprofiler m("symPACK2D_symbolic_mapping");
-#endif
         //compute a mapping
         // Do a 2D cell-cyclic distribution for now.
         nsuper = this->Xsuper_.size()-1;
@@ -3466,10 +3459,6 @@ namespace symPACK{
 
       //generate task graph for the factorization
       {
-#ifdef _MEM_PROFILER_
-        utility::scope_memprofiler m("symPACK2D_symbolic_task_graph");
-#endif
-
         MPI_Datatype type;
         MPI_Type_contiguous( sizeof(SparseTask2D::meta_t), MPI_BYTE, &type );
         MPI_Type_commit(&type);
@@ -4363,15 +4352,6 @@ namespace symPACK{
 #endif
                     //TODO DEBUG
                     ptr_od_cell->trsm(ptr_diagCell,tmpBuf);
-#ifdef _MEMORY_LIMIT_
-                    if ( this->mem_budget != -1.0 ) {
-                      size_t mem_cost = 0;
-                      for (auto & msg : ptask->input_msg) {
-                        mem_cost += msg->size;
-                      }
-                      this->mem_budget += mem_cost; 
-                    }
-#endif
 #ifdef _TIMING_
                     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
                     comp_trsm_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
@@ -4629,15 +4609,6 @@ namespace symPACK{
                       ptr_upd_cell->update(ptr_odCell,ptr_facingCell,tmpBuf);
                     }
 
-#ifdef _MEMORY_LIMIT_
-                    if ( this->mem_budget != -1.0 ) {
-                      size_t mem_cost = 0;
-                      for (auto & msg : ptask->input_msg) {
-                        mem_cost += msg->size;
-                      }
-                      this->mem_budget += mem_cost; 
-                    }
-#endif
 #ifdef _TIMING_
                     std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
                     comp_upd_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
@@ -5939,9 +5910,6 @@ namespace symPACK{
       Idx LastLocalCol = pMat.Localg_.vertexDist[this->iam+1] + (1 - baseval); //1-based
 
       {
-#ifdef _MEM_PROFILER_
-        utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Counting");
-#endif
         scope_timer(a,symPACKMatrix2D::DistributeMatrix::Counting);
         for (Int I=1;I<this->Xsuper_.size();I++) {
           Idx fc = this->Xsuper_[I-1];
@@ -6001,9 +5969,6 @@ namespace symPACK{
         std::vector<minType, Mallocator<minType> > sendBuffer(total_send_size);
 
         {
-#ifdef _MEM_PROFILER_
-          utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Serializing");
-#endif
           scope_timer(a,symPACKMatrix2D::DistributeMatrix::Serializing);
 
           for (Int I=1;I<this->Xsuper_.size();I++) {
@@ -6092,9 +6057,6 @@ namespace symPACK{
 
 
         {
-#ifdef _MEM_PROFILER_
-          utility::scope_memprofiler m("symPACKMatrix2D::DistributeMatrix::Deserializing");
-#endif
           scope_timer(a,symPACKMatrix2D::DistributeMatrix::Deserializing);
           size_t head = 0;
 
@@ -6494,9 +6456,6 @@ namespace symPACK{
         try{
           int64_t local_task_cnt;
           {
-#ifdef _MEM_PROFILER_
-            utility::scope_memprofiler m("symPACKMatrix_execute_1");
-#endif
             local_task_cnt = task_graph.size();
             for (auto it = task_graph.begin(); it != task_graph.end(); it++) {
               auto & ptask = *it;
@@ -6703,9 +6662,6 @@ namespace symPACK{
           else
 #endif
           {
-#ifdef _MEM_PROFILER_
-            utility::scope_memprofiler m("symPACKMatrix_execute_2");
-#endif
             while (local_task_cnt>0) {
               if (!ready_tasks.empty()) {
                 upcxx::progress(upcxx::progress_level::internal);
@@ -6718,67 +6674,6 @@ namespace symPACK{
               //handle communications
               if (!avail_tasks.empty()) {
                 //get all comms from a task
-#ifdef _MEMORY_LIMIT_
-                if ( mem_budget != -1.0 ) {
-                  ttask_t* ptask = nullptr;
-                  auto task_cnt = avail_tasks.size();
-                  size_t mem_cost = 0;
-                  size_t cnt = 0;
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                  std::list<ttask_t*> temp_list;
-#endif
-                  do {
-                    ptask = top_avail();
-                    pop_avail();
-                    mem_cost = 0;
-                    for (auto & msg : ptask->input_msg) {
-                      mem_cost += msg->size;
-                    }
-                    if (mem_cost > mem_budget && ready_tasks.size()>0) {
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                      temp_list.push_back(ptask);
-#else
-                      avail_tasks.push_back(ptask);
-#endif
-
-                      cnt++;
-                      ptask = nullptr;
-                      continue;
-                    }
-                    else {
-                      break;
-                    }
-                  } while ( cnt < task_cnt );
-
-#ifdef _PRIORITY_QUEUE_AVAIL_
-                  for (auto ptask : temp_list) {
-                    avail_tasks.push(ptask);
-                  }
-#endif
-                  if ( ptask != nullptr ) {
-                    mem_budget -= mem_cost;
-                    for (auto & msg : ptask->input_msg) {
-                      msg->allocate();
-                      msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg) {
-                          //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                          ptask->satisfy_dep(1,*this);
-                          });
-                    } 
-                  }
-                }
-                else {
-                  auto ptask = top_avail();
-                  pop_avail();
-                  for (auto & msg : ptask->input_msg) {
-                    msg->allocate();
-                    msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg) {
-                        //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
-                        ptask->satisfy_dep(1,*this);
-                        });
-                  } 
-                }
-
-#else
                 auto ptask = top_avail();
                 pop_avail();
                 for (auto & msg : ptask->input_msg) {
@@ -6789,8 +6684,6 @@ namespace symPACK{
                       });
                 } 
                 upcxx::progress(upcxx::progress_level::internal);
-#endif
-
               }
             }
             upcxx::progress();

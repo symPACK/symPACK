@@ -16,8 +16,6 @@ project(symPACK VERSION 2.0
 ############################## Options ######################################
 
 #all options
-option(GASNET_PAR "Use Gasnet Parallel conduits" OFF)
-option(ENABLE_ARIES "Enable ARIES" OFF)
 option(ENABLE_KNL "Cross compiling" OFF)
 option(ENABLE_KNL_ONLY "Cross compiling" OFF)
 option(ENABLE_PROFILE "Enable profiling" OFF)
@@ -42,6 +40,7 @@ add_executable(run_sympack_c EXCLUDE_FROM_ALL driver/run_c_interface.cpp)
 add_custom_target(examples DEPENDS run_sympack run_sympack_c)
 
 target_include_directories( run_sympack2D PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/driver> )
+target_include_directories( run_sympack PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/driver> )
 
 
 ########################### Dependencies ####################################

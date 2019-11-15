@@ -69,13 +69,13 @@ FortranCInterface_VERIFY(CXX)
 # TARGET properties
 
   
-find_package(MPI )
-if(MPI_CXX_FOUND)
-  message(STATUS "Found CXX MPI compiler: ${MPI_CXX_COMPILER}")
-  message( STATUS "MPI_CXX_LINK_FLAGS: " ${MPI_CXX_LINK_FLAGS} )
-  message( STATUS "MPI_CXX_LIBRARIES: " ${MPI_CXX_LIBRARIES} )
-  target_link_libraries(sympack PUBLIC MPI::MPI_CXX)
-endif()
+#find_package(MPI )
+#if(MPI_CXX_FOUND)
+#  message(STATUS "Found CXX MPI compiler: ${MPI_CXX_COMPILER}")
+#  message( STATUS "MPI_CXX_LINK_FLAGS: " ${MPI_CXX_LINK_FLAGS} )
+#  message( STATUS "MPI_CXX_LIBRARIES: " ${MPI_CXX_LIBRARIES} )
+#  target_link_libraries(sympack PUBLIC MPI::MPI_CXX)
+#endif()
 
 
 if(ENABLE_MKL)
@@ -126,31 +126,20 @@ endif()
 
 #######   SYMPACK OPTIONS ######
 
-if(TRACK_MEMORY)
-  target_compile_definitions( sympack PUBLIC "-D_TRACK_MEMORY_")
-endif()
-
-if(ENABLE_OPENMP)
-  find_package(OpenMP REQUIRED)
-  if(OPENMP_FOUND)
-    message(STATUS "OpenMP found")
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
-    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_CXX_FLAGS}")
-  endif()
+# Handle OpenMP
+if( ENABLE_OPENMP )
+  find_package( OpenMP REQUIRED )
+  target_link_libraries( symPACK::parallel_cxx     INTERFACE OpenMP::OpenMP_CXX     )   
+  target_link_libraries( symPACK::parallel_c       INTERFACE OpenMP::OpenMP_C       )
+  target_link_libraries( symPACK::parallel_fortran INTERFACE OpenMP::OpenMP_Fortran )
 endif()
 
 if(ENABLE_PROFILE)
   if(NOT ENABLE_OPENMP)
-    find_package(OpenMP REQUIRED)
-    if(OPENMP_FOUND)
-      message(STATUS "OpenMP found")
-      set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-      set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} ${OpenMP_Fortran_FLAGS}")
-      set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_CXX_FLAGS}")
-    endif()
+    find_package( OpenMP REQUIRED )
+    target_link_libraries( symPACK::parallel_cxx     INTERFACE OpenMP::OpenMP_CXX     )   
+    target_link_libraries( symPACK::parallel_c       INTERFACE OpenMP::OpenMP_C       )
+    target_link_libraries( symPACK::parallel_fortran INTERFACE OpenMP::OpenMP_Fortran )
   endif()
 
   target_compile_definitions( sympack PUBLIC "-DSPROFILE")

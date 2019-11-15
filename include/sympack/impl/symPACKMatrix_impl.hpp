@@ -1668,9 +1668,6 @@ namespace symPACK{
 
         FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
         {
-#ifdef _MEM_PROFILER_
-          utility::scope_memprofiler m("symPACKMatrix_task_graph");
-#endif
           generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
         }
 
@@ -1959,9 +1956,6 @@ namespace symPACK{
 
           //Fill up the send buffer
           {
-#ifdef _MEM_PROFILER_
-          utility::scope_memprofiler m("symPACKMatrix::DistributeMatrix::Serializing");
-#endif
           SYMPACK_TIMER_SPECIAL_START(serializing);      
           for(Int I=1;I<this->Xsuper_.size();I++){
             Idx fc = this->Xsuper_[I-1];
@@ -2063,9 +2057,6 @@ namespace symPACK{
           //Need to parse the structure sent from the processor owning the first column of the supernode
 
           {
-#ifdef _MEM_PROFILER_
-          utility::scope_memprofiler m("symPACKMatrix::DistributeMatrix::Deserializing");
-#endif
           SYMPACK_TIMER_SPECIAL_START(deserializing);      
           size_t head = 0;
 

@@ -103,9 +103,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
   //Create a copy of the task graph
   taskGraph graph = taskGraph_;
   {
-#ifdef _MEM_PROFILER_
-    utility::scope_memprofiler m("symPACKMatrix_task_graph2");
-#endif
 
 
     std::hash<std::string> hash_fn;
