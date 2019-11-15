@@ -43,7 +43,7 @@
 /// @file sparse_matrix_impl.hpp
 /// @brief Sparse matrix and Distributed sparse matrix in compressed
 /// column format.
-/// @author Lin Lin
+/// @author Lin Lin and Mathias Jacquelin
 /// @date 2012-11-10
 #ifndef _DIST_SPARSE_MATRIX_IMPL_HPP_
 #define _DIST_SPARSE_MATRIX_IMPL_HPP_
@@ -265,7 +265,6 @@ namespace symPACK{
         MPI_Type_commit(&type);
 
         //re compute send displs in bytes
-        //for(auto it = sizes.begin();it!=sizes.end();it++){ (*it)*=sizeof(triplet<F>);}
         displs[0] = 0;
         std::partial_sum(sizes.begin(),sizes.end(),&displs[1]);
 
@@ -281,12 +280,6 @@ namespace symPACK{
         std::vector<triplet<F> > rbuf(totRecv);
         MPI_Alltoallv(&sbuf[0],&sizes[0],&displs[0],type,&rbuf[0],&rsizes[0],&rdispls[0],type,comm);
 
-
-        //recompute displacements in triplets
-        //for(auto it = rsizes.begin();it!=rsizes.end();it++){ (*it)/=sizeof(triplet<F>);}
-        //rdispls[0] = 0;
-        //std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
-        //totRecv = rdispls.back();
 
 
         MPI_Type_free(&type);
@@ -322,9 +315,6 @@ namespace symPACK{
           Localg_.vertexDist[i] = newVertexDist[i];
         }
 
-        //  logfileptr->OFS()<<"**********permuted unsorted******"<<std::endl;
-        //  DumpMatlab();
-        //  logfileptr->OFS()<<"*********************************"<<std::endl;
 
         //store it as a distributed perm ?
         this->cinvp.resize(Localg_.LocalVertexCount());
@@ -370,7 +360,6 @@ namespace symPACK{
       {
         Int baseval = Localg_.GetBaseval();
         Idx FirstLocalCol = Localg_.LocalFirstVertex() - baseval;
-#if 1
         std::vector<Ptr> oldColptr = Localg_.colptr;
         std::vector<Idx> oldRowind = Localg_.rowind;
         Localg_.ToSymmetric();
@@ -392,55 +381,6 @@ namespace symPACK{
 
         nzvalLocal.swap(newNzvalLocal);
         nnz = (nnz - size)/2 + size;
-#else
-        Ptr localNNZ = 0;
-
-        std::vector<Ptr> newColptr(Localg_.colptr.size());
-        for(Idx locCol = 0 ; locCol< Localg_.LocalVertexCount(); locCol++){
-          Idx col = FirstLocalCol + locCol;  // 0 based
-          newColptr[locCol] = localNNZ+baseval;
-          Ptr colbeg = Localg_.colptr[locCol]-baseval; //now 0 based
-          Ptr colend = Localg_.colptr[locCol+1]-baseval; // now 0 based
-          for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-            Idx row = Localg_.rowind[rptr]-baseval; //0 based
-            if(row>col || (row==col && Localg_.GetKeepDiag())){
-              localNNZ++;
-            }
-          }
-        }
-        newColptr.back() = localNNZ+baseval;
-
-        //allocate new rowind & nzval
-        std::vector<Idx> newRowind(localNNZ);
-        std::vector<F> newNzvalLocal(localNNZ);
-        localNNZ = 0;
-        for(Idx locCol = 0 ; locCol< Localg_.LocalVertexCount(); locCol++){
-          Idx col = FirstLocalCol + locCol;  // 0 based
-          Ptr colbeg = Localg_.colptr[locCol]-baseval; //now 0 based
-          Ptr colend = Localg_.colptr[locCol+1]-baseval; // now 0 based
-          for(Ptr rptr = colbeg ; rptr< colend ; rptr++ ){
-            Idx row = Localg_.rowind[rptr]-baseval; //0 based
-            if(row>col || (row==col && Localg_.GetKeepDiag())){
-              F & val = nzvalLocal[rptr];
-              newRowind[localNNZ] = row+baseval;
-              newNzvalLocal[localNNZ] = val;
-              localNNZ++;
-            }
-          }
-        }
-
-        //swap the contents 
-        Localg_.colptr.swap(newColptr);
-        Localg_.rowind.swap(newRowind);
-        nzvalLocal.swap(newNzvalLocal);
-        nnz = (nnz - size)/2 + size;
-        Localg_.nnz = nnz;
-
-        //if(Localg_.GetSorted()){
-        //  Localg_.SetSorted(false);
-        //  SortGraph(); 
-        //}
-#endif
 
         expanded = 0;
       }
@@ -527,7 +467,6 @@ namespace symPACK{
         }  
         SYMPACK_TIMER_STOP(DistMat_Expand_pack);
 
-        //for(auto it = ssizes.begin();it!=ssizes.end();it++){  (*it)*=sizeof(triplet<F>);}
         sdispls[0] = 0;
         std::partial_sum(ssizes.begin(),ssizes.end(),sdispls.begin()+1);
         totSend = sdispls.back();
@@ -542,7 +481,7 @@ namespace symPACK{
 
         rdispls[0] = 0;
         std::partial_sum(rsizes.begin(),rsizes.end(),rdispls.begin()+1);
-        int totRecv = rdispls.back();///sizeof(triplet<F>);
+        int totRecv = rdispls.back();
         Irecv.resize(totRecv);
 
         MPI_Alltoallv(&Isend[0],&ssizes[0],&sdispls[0],type,&Irecv[0],&rsizes[0],&rdispls[0],type,comm);
@@ -550,7 +489,6 @@ namespace symPACK{
 
         MPI_Type_free(&type);
         //now parse
-        //for(auto it = rsizes.begin();it!=rsizes.end();it++){  (*it)/=sizeof(triplet<F>);}
 
 
         std::vector<Ptr> newColptr(colptr.size(),0);
@@ -606,7 +544,6 @@ namespace symPACK{
         SYMPACK_TIMER_STOP(DistMat_Expand_unpack);
 
         expanded = 1;
-        //keepDiag = 1;
 
         if(Localg_.GetSorted()){
           scope_timer(a,DistMat_Expand_sort);
@@ -708,7 +645,7 @@ namespace symPACK{
       for(Idx ptr = 0; ptr <= HMat.size; ptr++){
         graph.colptr[ptr] = Ptr(colptr[ptr]); 
       }
-      HMat.nnz = (Ptr) graph.colptr.back() - baseval;// +1;
+      HMat.nnz = (Ptr) graph.colptr.back() - baseval;
     }
 
     MPI_Bcast(&HMat.nnz,sizeof(HMat.nnz),MPI_BYTE,0,HMat.comm);

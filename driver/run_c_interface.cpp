@@ -16,9 +16,6 @@
 #include  "sympack/Ordering.hpp"
 
 
-//#define DUMP_MATLAB
-//#define DUMP_MATLAB_SOL
-
 /******* TYPE used in the computations ********/
 #define SCALAR double
 //#define SCALAR std::complex<double>
@@ -314,9 +311,6 @@ int main(int argc, char **argv)
     std::cout<<"Starting allocation"<<std::endl;
   }
 
-#ifdef EXPLICIT_PERMUTE
-  std::vector<Int> perm;
-#endif
   std::vector<SCALAR> XFinal;
   int handle = -1;
   {
@@ -432,7 +426,6 @@ int main(int argc, char **argv)
 
 
     }
-    //symPACK_FinalizeInstance(&handle);
   }
 
   if(nrhs>0 && XFinal.size()>0) {
@@ -447,22 +440,14 @@ int main(int argc, char **argv)
         //do I own the column ?
         if(j>=firstCol && j<lastCol){
           Int iLocal = j-firstCol;//0-based
-#ifdef EXPLICIT_PERMUTE
-          Int tgtCol = perm[j-1];
-#else
           Int tgtCol = j;
-#endif
           SCALAR t = XFinal[tgtCol-1+k*n];
           Ptr colbeg = Local.colptr[iLocal]-(1-Local.GetBaseval());//1-based
           Ptr colend = Local.colptr[iLocal+1]-(1-Local.GetBaseval());//1-based
           //do a dense mat mat mul ?
           for(Ptr ii = colbeg; ii< colend;++ii){
             Int row = Local.rowind[ii-1]-(1-Local.GetBaseval());
-#ifdef EXPLICIT_PERMUTE
-            Int tgtRow = perm[row-1];
-#else
             Int tgtRow = row;
-#endif
             AX[tgtRow-1+k*n] += t*HMat.nzvalLocal[ii-1];
             if(row>j){
               AX[tgtCol-1+k*n] += XFinal[tgtRow-1+k*n]*HMat.nzvalLocal[ii-1];
@@ -498,8 +483,6 @@ int main(int argc, char **argv)
 
   symPACK_FinalizeInstance(&handle);
   delete logfileptr;
-  //This will also finalize MPI
-  //  symPACK_Finalize();
   return 0;
 }
 

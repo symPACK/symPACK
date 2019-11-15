@@ -87,14 +87,6 @@ public:
     }
   }
 
-//  template <typename T>
-//  const LogFile& operator<<(const T& obj) 
-//  {
-//    // write obj to stream
-//    mySS_<<obj;
-//    myOFS_<<mySS_.str();
-//    return *this;
-//  }
 
   template <typename T>
   const std::ofstream& operator<<(const T& obj) 

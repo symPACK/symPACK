@@ -237,10 +237,8 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
 
     MPI_Type_free(&fused_type);
 
-    //if ( myGCD > 1 ) {
     for (int i = 0; i< mpisize; i++) { rtotcounts[i] = _Size( std::size_t(rsizes2[i]) * myGCD );}
     for (int i = 0; i< mpisize+1; i++) { rtotdispls[i] = _Size( std::size_t(rdispls2[i]) * myGCD );}
-    //}
   }
 
   return err;

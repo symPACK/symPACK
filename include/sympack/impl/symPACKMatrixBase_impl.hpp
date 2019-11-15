@@ -124,7 +124,6 @@ namespace symPACK {
         Idx * prvnbr = nullptr;
         Int * drc = nullptr;
         Idx * pxsup = nullptr;
-        //Idx * fdesc = nullptr;
 
         if(mpirank==0){
           storage.resize(5*size+1+1);
@@ -133,7 +132,6 @@ namespace symPACK {
           prvlf = &storage[2*size+1];
           prvnbr = &storage[3*size+1];
           drc = (Int*)&storage[4*size+1];
-          //fdesc = &storage[5*size+1];
           pxsup = &storage[5*size+1];
           *pxsup = 1;
         }
@@ -187,23 +185,8 @@ namespace symPACK {
           MPI_Recv(storage.data(),storage.size(),Idxtype,mpirank-1,mpirank-1,this->graph_.GetComm(),MPI_STATUS_IGNORE);
         }
 
-        //logfileptr->OFS()<<"weight: "; for(Int k = 0; k<=size; ++k){ logfileptr->OFS()<<weight[k]<<" "; } logfileptr->OFS()<<std::endl;
-        //logfileptr->OFS()<<"set: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<set[k]<<" "; } logfileptr->OFS()<<std::endl;
-        //logfileptr->OFS()<<"prvlf: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<prvlf[k]<<" "; } logfileptr->OFS()<<std::endl;
-        //logfileptr->OFS()<<"prvnbr: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<prvnbr[k]<<" "; } logfileptr->OFS()<<std::endl;
-        //logfileptr->OFS()<<"fdesc: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<fdesc[k]<<" "; } logfileptr->OFS()<<std::endl;
-        //logfileptr->OFS()<<"level: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<level[k]<<" "; } logfileptr->OFS()<<std::endl;
-        //logfileptr->OFS()<<"nchild: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<nchild[k]<<" "; } logfileptr->OFS()<<std::endl;
-        //logfileptr->OFS()<<"drc: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<drc[k]<<" "; } logfileptr->OFS()<<std::endl;
-
         for(Idx loclownbr = 1; loclownbr<=dgraph.LocalVertexCount(); ++loclownbr){
           Idx lownbr = firstLocCol + loclownbr;
-
-          //logfileptr->OFS()<<lownbr<<" weight: "; for(Int k = 0; k<=size; ++k){ logfileptr->OFS()<<weight[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<lownbr<<" set: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<set[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<lownbr<<" prvlf: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<prvlf[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<lownbr<<" prvnbr: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<prvnbr[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<lownbr<<" rc: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<drc[k]<<" "; } logfileptr->OFS()<<std::endl;
 
           Int lflag = 0;
           Idx ifdesc = fdesc[lownbr];
@@ -212,22 +195,14 @@ namespace symPACK {
           //           -----------------------------------------------
           //           for each ``high neighbor'', hinbr of lownbr ...
           //           -----------------------------------------------
-          //std::vector<Idx> hack(&dgraph.rowind[jstrt-1],&dgraph.rowind[jstop-1]+1);
-          //std::sort(hack.begin(),hack.end(),[this]( const Idx & a, const Idx &b){ return this->Order_.perm[a-1]<this->Order_.perm[b-1]; });
-          //logfileptr->OFS()<<lownbr<<" adj: "<<hack<<std::endl;
 
           for(Ptr j = jstrt; j<=jstop;++j){
             Idx hinbr = dgraph.rowind[j-1];
-            //Idx hinbr = hack[j-jstrt];
-            //bassert(hinbr >= lownbr);
             if  ( hinbr > lownbr )  {
-              //logfileptr->OFS()<<hinbr<<" vs "<<lownbr<<std::endl;
               if  ( ifdesc > prvnbr[hinbr-1] ) {
-                //logfileptr->OFS()<<ifdesc<<" vs "<<prvnbr[hinbr-1]<<std::endl;
                 //                       -------------------------
                 //                       increment weight[lownbr].
                 //                       -------------------------
-                //logfileptr->OFS()<<"lownbr "<<lownbr<<std::endl;
                 ++weight[lownbr];
                 Idx pleaf = prvlf[hinbr-1];
                 //                       -----------------------------------------
@@ -264,7 +239,6 @@ namespace symPACK {
                   //                           -------------------------------------
                   drc[hinbr-1] += level[lownbr] - level[lca];
                   --weight[lca];
-                  //logfileptr->OFS()<<"lca "<<lca<<std::endl;
                 }
                 //                       ----------------------------------------------
                 //                       lownbr now becomes ``previous leaf'' of hinbr.
@@ -283,13 +257,11 @@ namespace symPACK {
           //           set ( p[lownbr] ) <-- set ( p[lownbr] ) + set[xsup].
           //           ----------------------------------------------------
           Idx parent = this->ETree_.PostParent(lownbr-1);
-          //logfileptr->OFS()<<"parent "<<parent<<std::endl;
           --weight[parent];
 
           if  ( lflag == 1  || nchild[lownbr] >= 2 ) {
             *pxsup = lownbr;
           }
-          //logfileptr->OFS()<<"xsup "<<*pxsup<<std::endl;
           set[*pxsup-1] = parent;
         }
 
@@ -297,7 +269,6 @@ namespace symPACK {
           MPI_Send(storage.data(),storage.size(),Idxtype,mpirank+1,mpirank,this->graph_.GetComm());
         }
         else{
-          //logfileptr->OFS()<<"weight: "; for(Int k = 0; k<=size; ++k){ logfileptr->OFS()<<weight[k]<<" "; } logfileptr->OFS()<<std::endl;
 
           cc.assign(size,0);
           for(Int k = 1; k<=size; ++k){
@@ -349,8 +320,6 @@ namespace symPACK {
 
       sgraph.SetBaseval(1);
       sgraph.SetKeepDiag(1);
-      //TODO EXPERIMENTAL
-      //sgraph.SortEdges();
 
       MPI_Datatype Inttype;
       MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &Inttype );
@@ -395,38 +364,12 @@ namespace symPACK {
           }
         }
 
-
-          //logfileptr->OFS()<<"weight: "; for(Int k = 0; k<=size; ++k){ logfileptr->OFS()<<weight[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<"set: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<set[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<"prvlf: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<prvlf[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<"prvnbr: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<prvnbr[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<"fdesc: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<fdesc[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<"level: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<level[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<"nchild: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<nchild[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<"rc: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<rc[k]<<" "; } logfileptr->OFS()<<std::endl;
-
-
-
-
         for(Idx lownbr = 1; lownbr<=size; ++lownbr){
-
-          //logfileptr->OFS()<<lownbr<<" weight: "; for(Int k = 0; k<=size; ++k){ logfileptr->OFS()<<weight[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<lownbr<<" set: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<set[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<lownbr<<" prvlf: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<prvlf[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<lownbr<<" prvnbr: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<prvnbr[k]<<" "; } logfileptr->OFS()<<std::endl;
-          //logfileptr->OFS()<<lownbr<<" rc: "; for(Int k = 0; k<size; ++k){ logfileptr->OFS()<<rc[k]<<" "; } logfileptr->OFS()<<std::endl;
-
           Int lflag = 0;
           Idx ifdesc = fdesc[lownbr];
           Idx oldnbr = this->Order_.perm[lownbr-1];
           Ptr jstrt = sgraph.colptr[oldnbr-1];
           Ptr jstop = sgraph.colptr[oldnbr] - 1;
-
-
-          //std::vector<Idx> hack(&sgraph.rowind[jstrt-1],&sgraph.rowind[jstop-1]+1);
-          //std::for_each(hack.begin(),hack.end(),[this]( Idx & a){ a = this->Order_.invp[a-1]; });
-          //logfileptr->OFS()<<lownbr<<" adj: "<<hack<<std::endl;
-
 
           //           -----------------------------------------------
           //           for each ``high neighbor'', hinbr of lownbr ...
@@ -435,13 +378,10 @@ namespace symPACK {
             Idx hinbr = sgraph.rowind[j-1];
             hinbr = this->Order_.invp[hinbr-1];
             if  ( hinbr > lownbr )  {
-              //logfileptr->OFS()<<hinbr<<" vs "<<lownbr<<std::endl;
               if  ( ifdesc > prvnbr[hinbr-1] ) {
-                //logfileptr->OFS()<<ifdesc<<" vs "<<prvnbr[hinbr-1]<<std::endl;
                 //                       -------------------------
                 //                       increment weight[lownbr].
                 //                       -------------------------
-                //logfileptr->OFS()<<"lownbr "<<lownbr<<std::endl;
                 ++weight[lownbr];
                 Idx pleaf = prvlf[hinbr-1];
                 //                       -----------------------------------------
@@ -478,7 +418,6 @@ namespace symPACK {
                   //                           -------------------------------------
                   rc[hinbr-1] += level[lownbr] - level[lca];
                   --weight[lca];
-                  //logfileptr->OFS()<<"lca "<<lca<<std::endl;
                 }
                 //                       ----------------------------------------------
                 //                       lownbr now becomes ``previous leaf'' of hinbr.
@@ -497,17 +436,13 @@ namespace symPACK {
           //           set ( p[lownbr] ) <-- set ( p[lownbr] ) + set[xsup].
           //           ----------------------------------------------------
           Idx parent = this->ETree_.PostParent(lownbr-1);
-          //logfileptr->OFS()<<"parent "<<parent<<std::endl;
           --weight[parent];
 
           if  ( lflag == 1  || nchild[lownbr] >= 2 ) {
             xsup = lownbr;
           }
-          //logfileptr->OFS()<<"xsup "<<xsup<<std::endl;
           set[xsup-1] = parent;
         }
-
-          //logfileptr->OFS()<<"weight: "; for(Int k = 0; k<=size; ++k){ logfileptr->OFS()<<weight[k]<<" "; } logfileptr->OFS()<<std::endl;
 
         for(Int k = 1; k<=size; ++k){
           Int temp = cc[k-1] + weight[k];
@@ -628,10 +563,6 @@ namespace symPACK {
                       merge = true;
                     }
                   }
-                  // merge = ((merged_snode_size <= params.nrelax1 && z < params.zrelax0) 
-                  //     || (merged_snode_size <= params.nrelax2 && z < params.zrelax1)
-                  //     || (z<params.zrelax2)) &&
-                  //   (xtotsize < std::numeric_limits<Int>::max() / sizeof(double));
                 }
 
               }
@@ -674,12 +605,6 @@ namespace symPACK {
 
 
       xsuper = relXSuper;
-      ///      //adjust the column counts
-      ///      for(Int col=i-2;col>=i-supsize;--col){
-      ///        cc[col-1] = cc[col]+1;
-      ///      }
-
-
     }
 
 
@@ -694,135 +619,29 @@ namespace symPACK {
       std::vector<Int> & SupMembership = this->SupMembership_;
       PtrVec & xlindx = this->locXlindx_;
       IdxVec & lindx = this->locLindx_;
-      MPI_Comm & comm = this->graph_.comm;//CommEnv_->MPI_GetComm();
-
+      MPI_Comm & comm = this->graph_.comm;
 
       //permute the graph
-#ifdef EXPLICIT_PERMUTE
-      DistSparseMatrixGraph & pGraph = graph;
-#else
       DistSparseMatrixGraph pGraph = graph;
-#endif
 
-#if 0
       {
         double tstart = get_time();
-        pGraph.Permute(&this->Order_.invp[0]);
+
+        //recompute vertexDist based on XsuperDist
+        std::vector<Idx> newVertexDist;
+        newVertexDist.resize(this->all_np+1,0);
+        newVertexDist[this->all_np] = pGraph.size+1;
+        for(int p = 0; p < this->all_np; p++){
+          Int S = this->XsuperDist_[p];
+          newVertexDist[p] = this->Xsuper_[S-1];
+        }
+
+        pGraph.Permute(&this->Order_.invp[0],&newVertexDist[0]);
         double tstop = get_time();
         logfileptr->OFS()<<"Permute time: "<<tstop-tstart<<std::endl;
       }
-
-
-
-      //recompute xsuper by splitting some supernodes
-      {
-
-        //  gdb_lock();
-
-        Idx colPerProc = size / this->np;
-        Int numSplits = 0;
-        for(Int snode = 1; snode<=xsuper.size()-1;snode++){
-          Idx fstcol = xsuper[snode-1];
-          Idx lstcol = xsuper[snode]-1;
-          //check if these two columns are on the same processor
-          Idx pOwnerFirst = std::min((Idx)this->np-1, (fstcol-1) / colPerProc);
-          Idx pOwnerLast = std::min((Idx)this->np-1, (lstcol-1) / colPerProc);
-
-          if(pOwnerFirst!=pOwnerLast){
-            numSplits += pOwnerLast-pOwnerFirst;
-          }
-        }
-
-        std::vector<Int> newSnodes(this->np,0);
-        std::vector<Int> newXsuper(xsuper.size()+numSplits);
-        Int pos = 0;
-        for(Int snode = 1; snode<=xsuper.size()-1;snode++){
-          Idx fstcol = xsuper[snode-1];
-          Idx lstcol = xsuper[snode]-1;
-          //check if these two columns are on the same processor
-          Idx pOwnerFirst = std::min((Idx)this->np-1, (fstcol-1) / colPerProc);
-          Idx pOwnerLast = std::min((Idx)this->np-1, (lstcol-1) / colPerProc);
-
-          newXsuper[pos++] = xsuper[snode-1];
-          if(pOwnerFirst!=pOwnerLast){
-            for(Idx p = pOwnerFirst; p<pOwnerLast;p++){
-              Idx curLstcol = (p+1)*colPerProc+1;//1-based
-
-
-
-              //        assert(this->ETree_.PostParent(curLstcol-2)==curLstcol);
-              newXsuper[pos++] = curLstcol;
-              newSnodes[p+1]++;
-            }
-          }
-        }
-        newXsuper[pos++]=size+1;
-
-        xsuper = newXsuper;
-        for(Int snode = 1; snode<=xsuper.size()-1;snode++){
-          Int fstcol = xsuper[snode-1];
-          Int lstcol = xsuper[snode]-1;
-          for(Int col = fstcol; col<=lstcol;++col){
-            SupMembership[col-1] = snode;
-          }
-        }
-
-
-
-        //recompute this->XsuperDist_
-        for(int p =1; p<this->np; p++){
-          this->XsuperDist_[p]= this->XsuperDist_[p-1] + supPerProc + newSnodes[p-1];
-        }
-        this->XsuperDist_[this->np] = this->Xsuper_.size();
-
-
-        //update cc by recomputing the merged structure
-
-
-
-      }
-#else
-      {
-
-#ifndef EXPLICIT_PERMUTE
-        {
-          double tstart = get_time();
-
-          //recompute vertexDist based on XsuperDist
-          //      std::vector<Idx> newVertexDist(this->np+1);
-          //      for(int p = 0; p < this->np; p++){
-          //        newVertexDist[p] = this->Xsuper_[this->XsuperDist_[p]-1] + (pGraph.GetBaseval()-1);
-          //      }
-          //      newVertexDist[this->np] = pGraph.size+1;
-
-          std::vector<Idx> newVertexDist;
-          {
-            newVertexDist.resize(this->all_np+1,0);
-            newVertexDist[this->all_np] = pGraph.size+1;
-            for(int p = 0; p < this->all_np; p++){
-              Int S = this->XsuperDist_[p];
-              newVertexDist[p] = this->Xsuper_[S-1];
-            }
-          }
-
-
-
-          pGraph.Permute(&this->Order_.invp[0],&newVertexDist[0]);
-          double tstop = get_time();
-
-
-          logfileptr->OFS()<<"Permute time: "<<tstop-tstart<<std::endl;
-        }
-#endif
-      }
-#endif
-
-      //logfileptr->OFS()<<this->Xsuper_<<std::endl;
-
       Int nsuper = xsuper.size()-1;
-
       std::list<MPI_Request> mpirequests;
-
 
       Ptr nzbeg = 0;
       //nzend points to the last used slot in lindx
@@ -875,7 +694,6 @@ namespace symPACK {
         }
       } 
       xlindx[nsuperLocal] = point;
-      //logfileptr->OFS()<<xlindx<<std::endl;
 
       std::vector<Ptr> recvXlindx;
       std::vector<Idx> recvLindx;
@@ -936,7 +754,6 @@ namespace symPACK {
               recvLindx.resize(size);
               //receive jsup lindx
               Int psrc = 0; for(psrc = 0; psrc<this->iam;psrc++){ if(this->XsuperDist_[psrc]<=jsup && jsup<this->XsuperDist_[psrc+1]){ break; } }
-              //logfileptr->OFS()<<"trying to recv "<<jsup<<" max "<<recvLindx.size()*sizeof(Idx)<<" bytes"<<" from P"<<psrc<<std::endl;
               MPI_Recv(&recvLindx[0],recvLindx.size()*sizeof(Idx),MPI_BYTE,psrc,jsup+this->all_np,comm,&status);
               //get actual number of received elements
               int count = 0;
@@ -1163,7 +980,7 @@ namespace symPACK {
         for(int p=1;p<this->np;p++){
           offset+=remoteEdgeCnt[p-1]; 
           for(Idx lv = 0; lv < remoteVertexCnt[p]; lv++){
-            xlindx[pos++] += offset;//remoteEdgeCnt[p-1];//(vertexDist[p] - baseval);
+            xlindx[pos++] += offset;
           }
         }
         xlindx.back()=totalEdgeCnt + 1;
@@ -1215,14 +1032,7 @@ namespace symPACK {
       }
 
       if(this->iam==0){
-
-        //logfileptr->OFS()<<"xlindx: "<<ixlindx<<std::endl;
-        //logfileptr->OFS()<<"lindx: "<<ilindx<<std::endl;
-
         int neqns = this->iSize_;
-        //    int ordflag =2;
-        //    int altflag =1;
-
         int nofsub =ilindx.size();
         int nsuper = xsuper.size()-1;
 
@@ -1254,7 +1064,6 @@ namespace symPACK {
             &ordflag, &altflag, &neqns , &nofsub, &nsuper, 
             &xsuper[0], &ixlindx[0], &ilindx[0], &supMembership[0], 
             &new_perm[0], &new_invp[0], 
-            //        &aOrder.perm[0], &aOrder.invp[0], 
             &freeforw[0], &freeback[0], &sforw[0], &sback[0], 
             &setseg_forw[0], &setseg_back[0], &nodehead[0], 
             &nodeforw[0], &nodeback[0], 
@@ -1265,20 +1074,6 @@ namespace symPACK {
 
       }
 
-
-#ifdef EXPLICIT_PERMUTE
-
-      //Bcast the individual permutation
-      new_invp.resize(this->iSize_);
-      MPI_Bcast(&new_invp[0],this->iSize_*sizeof(int),MPI_BYTE,0,this->fullcomm_);
-
-      //re permute the matrix
-      pMat->Permute(&new_invp[0]);
-      this->graph_ = pMat->GetLocalGraph();
-      this->graph_.SetBaseval(1);
-      this->graph_.SetKeepDiag(1);
-      this->graph_.SetSorted(1);
-#endif
       // broadcast invp
       Int N = aOrder.invp.size();
       MPI_Bcast(&aOrder.invp[0],N*sizeof(int),MPI_BYTE,0,this->fullcomm_);

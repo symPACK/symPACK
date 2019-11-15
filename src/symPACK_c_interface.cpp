@@ -1,10 +1,4 @@
-//#include  "sympack/supernodalTaskGraph.hpp"
-//#include  "sympack/symPACKMatrix.hpp"
 #include  "sympack.hpp"
-//#include  "sympack/Environment.hpp"
-//#include  "sympack/utility.hpp"
-//#include  "sympack/SuperNode.hpp"
-//
 
     using namespace symPACK;
 
@@ -15,11 +9,7 @@ namespace symPACK{
     std::unique_ptr<DistSparseMatrixBase> inputMat;
     std::unique_ptr<symPACKMatrixBase> factorMat;
   };
-//
-//
   std::map<int, symPACK_handle  > symPACK_handles;
-
-  //int last_id = 0;
 }
 
   //returns a integer corresponding to a symPACK handle
@@ -27,26 +17,6 @@ extern "C"
   int symPACK_C_InitInstanceFloat(MPI_Comm ccomm) { return -1;}
 extern "C" 
   int symPACK_InitInstanceFloat(MPI_Fint * Fcomm) { return -1;}
-
-
-//extern "C" 
-//  int symPACK_C_InitInstanceDouble(MPI_Comm ccomm){
-//    symPACK_Init(nullptr,nullptr);
-//
-//    symPACK::symPACKOptions optionsFact;
-//    optionsFact.MPIcomm = ccomm;
-//    optionsFact.decomposition = symPACK::DecompositionType::LDL;
-//    optionsFact.verbose = 0;
-//   
-//    symPACK::symPACK_handle handle;
-//    handle.factorMat = std::unique_ptr< symPACK::symPACKMatrixBase > ( new symPACK::symPACKMatrix<double>() );//std::static_pointer_cast<symPACKMatrixBase >(SMat);
-//    handle.inputMat = std::unique_ptr< symPACK::DistSparseMatrixBase>( new symPACK::DistSparseMatrix<double>(optionsFact.MPIcomm) );
-//    symPACK::symPACK_handles[symPACK::last_id++] = std::move(handle);
-//    //TODO restore this
-//    static_cast<symPACK::symPACKMatrix<double> *>(handle.factorMat.get())->Init(optionsFact);
-//
-//    return symPACK::last_id-1;
-//  }
 
 extern "C" 
   int symPACK_InitInstanceDouble(MPI_Fint * Fcomm){
@@ -89,22 +59,6 @@ extern "C"
       symPACK_LoadGraph(pHMat,n,colptr,rowind);
       pSMat->SymbolicFactorization(*pHMat);
     }
-    //else if(auto pSMat = std::dynamic_pointer_cast<symPACKMatrix<std::complex<double> > >(handle.factorMat)){
-    //  auto pHMat = std::dynamic_pointer_cast<DistSparseMatrix<std::complex<double> > >(handle.inputMat);
-    //  symPACK_LoadGraph(pHMat,n,colptr,rowind);
-    //  pSMat->SymbolicFactorization(*pHMat);
-    //}
-    //else if(auto pSMat = std::dynamic_pointer_cast<symPACKMatrix<float> >(handle.factorMat)){
-    //  auto pHMat = std::dynamic_pointer_cast<DistSparseMatrix<float> >(handle.inputMat);
-    //  symPACK_LoadGraph(pHMat,n,colptr,rowind);
-    //  pSMat->SymbolicFactorization(*pHMat);
-    //}
-    //else if(auto pSMat = std::dynamic_pointer_cast<symPACKMatrix<std::complex<float> > >(handle.factorMat)){
-    //  auto pHMat = std::dynamic_pointer_cast<DistSparseMatrix<std::complex<float> > >(handle.inputMat);
-    //  symPACK_LoadGraph(pHMat,n,colptr,rowind);
-    //  pSMat->SymbolicFactorization(*pHMat);
-    //}
-
   }
 
 
@@ -200,9 +154,6 @@ extern "C"
 
 extern "C" 
   void symPACK_FinalizeInstance(int * sp_handle){
-    //auto handle = symPACK_handles[*sp_handle];
-    //handle.factorMat.reset(nullptr);
-    //handle.inputMat.reset(nullptr);
     symPACK_handles.erase(*sp_handle);
 
     if(symPACK_handles.empty()){
@@ -214,7 +165,6 @@ extern "C"
 
 extern "C" 
   int symPACK_C_InitInstanceDouble(MPI_Comm ccomm){
-    //static int last_id = 0;
     symPACK_Init(nullptr,nullptr);
 
     symPACKOptions optionsFact;
@@ -223,9 +173,8 @@ extern "C"
     optionsFact.verbose = 0;
    
     symPACK_handle handle;
-    handle.factorMat = std::unique_ptr< symPACKMatrixBase > ( new symPACKMatrix<double>() );//std::static_pointer_cast<symPACKMatrixBase >(SMat);
+    handle.factorMat = std::unique_ptr< symPACKMatrixBase > ( new symPACKMatrix<double>() );
     handle.inputMat = std::unique_ptr< DistSparseMatrixBase>( new DistSparseMatrix<double>(optionsFact.MPIcomm) );
-    //int handle_id = last_id++;
     //store the handle id in the matrix as well
     int handle_id =handle.factorMat->sp_handle;
 

@@ -40,6 +40,10 @@ add_executable(run_sympack EXCLUDE_FROM_ALL driver/run_sympack.cpp)
 add_executable(run_sympack2D EXCLUDE_FROM_ALL driver/run_sympack2D.cpp)
 add_executable(run_sympack_c EXCLUDE_FROM_ALL driver/run_c_interface.cpp)
 add_custom_target(examples DEPENDS run_sympack run_sympack_c)
+
+target_include_directories( run_sympack2D PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/driver> )
+
+
 ########################### Dependencies ####################################
 
 
@@ -62,15 +66,6 @@ add_subdirectory( src )
 
 
 
-
-
-
-      #set(CMAKE_CXX_FLAGS "${UPCXX_DEFINES} ${CMAKE_CXX_FLAGS}")
-      #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${UPCXX_LDFLAGS}")
-
-
-
-
 string( TOLOWER "${CMAKE_BUILD_TYPE}" config_type )
 IF( config_type STREQUAL "debug")
   add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:-g>")
@@ -84,13 +79,6 @@ ENDIF()
 
 
 
-#target_link_libraries(run_sympack sympack libupcxx libgasnet-conduit ${LIBS}  ${GASNET_LIBRARIES} ${CMAKE_DL_LIBS})
-
-
-
-#add_dependencies(run_sympack sympack)# gasnet upcxx) 
-#add_dependencies(run_sympack2D sympack)# gasnet upcxx) 
-#add_dependencies(run_sympack_c sympack)# gasnet upcxx) 
 
 target_link_libraries(run_sympack PUBLIC   symPACK::sympack)
 target_link_libraries(run_sympack2D PUBLIC symPACK::sympack)
@@ -101,19 +89,6 @@ target_link_libraries( run_sympack PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
 target_link_libraries( run_sympack2D PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
 target_link_libraries( run_sympack_c PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
 
-#install(TARGETS run_sympack RUNTIME DESTINATION bin)
 
 ###########################################################################
-
-#set(SYMPACK_VERSION_MAJOR 1)
-#set(SYMPACK_VERSION_MINOR 0)
-#set(SYMPACK_VERSION_PATCH 0)
-#set(SYMPACK_VERSION_FULL "${SYMPACK_VERSION_MAJOR}.${SYMPACK_VERSION_MINOR}")
-#set(CPACK_GENERATOR "TGZ")
-#set(CPACK_PACKAGE_VERSION_MAJOR ${SYMPACK_VERSION_MAJOR})
-#set(CPACK_PACKAGE_VERSION_MINOR ${SYMPACK_VERSION_MINOR})
-#set(CPACK_PACKAGE_VERSION_PATCH ${SYMPACK_VERSION_PATCH})
-##SET(CPACK_PACKAGE_FILE_NAME "sympack-"${SYMPACK_VERSION_FULL})
-#include(CPack)
-
 

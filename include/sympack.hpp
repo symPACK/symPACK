@@ -59,16 +59,6 @@
 #include <mpi.h>
 
 
-//
-//extern template class symPACKMatrix<float>;
-//extern template class symPACKMatrix<double>;
-//extern template class symPACKMatrix<std::complex<float> >;
-//extern template class symPACKMatrix<std::complex<double> >;
-//
-//extern template class supernodalTaskGraph<FBTask>;
-//extern template class supernodalTaskGraph<CompTask>;
-
-
 
 
 

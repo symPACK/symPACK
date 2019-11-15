@@ -106,7 +106,6 @@ such enhancements or derivative works thereof, in binary and source code form.
 
 #define FANIN_OPTIMIZATION
 #define _SEQ_SPECIAL_CASE_
-//#define _LAMBDAS_
 
 
 //#define _SEQ_SPECIAL_CASE_
@@ -135,11 +134,10 @@ namespace symPACK{
 
       symPACKMatrix( symPACKMatrix2D<Ptr,Idx,T,int> & M){
 
-        using cell_desc_t = std::tuple</*std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t>,*/ std::vector<char>, size_t, int,int, size_t, size_t, Idx, int >;
+        using cell_desc_t = std::tuple< std::vector<char>, size_t, int,int, size_t, size_t, Idx, int >;
 
         struct cell_list_t {
           std::vector< cell_desc_t > cells;
-          //            std::set< cell_desc_t, cell_desc_comp > cells;
           upcxx::promise<> prom;
           cell_list_t(int count){
             this->prom.require_anonymous(count);
@@ -152,8 +150,6 @@ namespace symPACK{
         } cell_desc_comp;
 
 
-//        auto cellPointers = std::vector<cell_list_t *>(M.nsuper,nullptr);
-//        upcxx::dist_object< cell_list_t ** > remote_ptrs( cellPointers.data()  );
         upcxx::dist_object< std::vector<cell_list_t *> > remote_ptrs( std::vector<cell_list_t *>(M.nsuper,nullptr) );
 
 
@@ -177,9 +173,6 @@ namespace symPACK{
 
         this->graph_ = M.graph_;
         this->Order_ = M.Order_;
-        //this->Order_.NpOrdering = this->options_.NpOrdering;
-        //this->Order_.invp = M.Order_.invp;
-        //this->Order_.perm = M.Order_.perm;
         this->ETree_ = M.ETree_;
         this->Xsuper_ = M.Xsuper_;
         this->SupMembership_ = M.SupMembership_;
@@ -256,7 +249,6 @@ namespace symPACK{
           cell_counts[supid-1] = cell_count;
         }
 
-#if 1
         {
           MPI_Datatype type;
           MPI_Type_contiguous( sizeof(int), MPI_BYTE, &type );
@@ -336,58 +328,6 @@ namespace symPACK{
         std::partial_sum(ssizes.begin(),ssizes.end(),&sdispls[1]);
 
         
-        //sendbuf is ready, do a alltoallv
-         //gather receive sizes
-        //vector<int> ssizes2(this->np,0);
-        //for(int i =0; i< this->np;i++){ssizes2[i] = ssizes[i];}
-        //vector<int> sdispls2(this->np+1,0);
-        //sdispls2[0] = 0;
-        //std::partial_sum(ssizes2.begin(),ssizes2.end(),&sdispls2[1]);
-
-        //vector<int> rsizes2(this->np,0);
-        //MPI_Alltoall(&ssizes2[0],sizeof(int),MPI_BYTE,&rsizes2[0],sizeof(int),MPI_BYTE,this->workcomm_);
-
-        ////compute receive displacements
-        //vector<int> rdispls2(this->np+1,0);
-        //rdispls2[0] = 0;
-        //std::partial_sum(rsizes2.begin(),rsizes2.end(),&rdispls2[1]);
-
-        ////Now do the alltoallv
-        //vector<char> recvbuf2(rdispls2.back());
-        //MPI_Alltoallv(&sendbuf[0],&ssizes2[0],&sdispls2[0],MPI_BYTE,&recvbuf2[0],&rsizes2[0],&rdispls2[0],MPI_BYTE,this->workcomm_);
-
-        
-        
-        
-//        auto sheads = sdispls; 
-//
-//          for ( int precv = 0; precv < this->np; precv++ ) {
-//            cell_meta_t tuple; 
-//
-//            while ( sheads[precv] < sdispls[precv+1] ) {
-//              tuple = *((cell_meta_t*)&sendbuf[sheads[precv]]);
-//              bassert(std::get<5>(tuple)<=M.nsuper && std::get<5>(tuple)>0);
-//              logfileptr->OFS()<<"precv="<<precv<<" "<<std::get<5>(tuple)<<std::endl;
-//              //if ( !((std::get<5>(tuple) == localPrevSnode  && localPrevSnode == curSnode) || localPrevSnode == -1) ) {
-//              //  break;
-//              //}
-//              //if ( std::get<5>(tuple) == curSnode ) {
-//                size_t size, nnz, nblocks;
-//                int i,j;
-//                Idx width;
-//                std::tie( size, nnz, nblocks, width, i,j) = tuple;         
-//                char * ptr = &sendbuf[sheads[precv]+sizeof(tuple)];
-//
-//                sheads[precv] += sizeof(tuple) + size; 
-//              //}
-//              //localPrevSnode = std::get<5>(tuple);
-//            }
-//          }
-        
-        
-       
-//        if ( this->iam==2){gdb_lock();}
-//gdb_lock();
  
         vector<char> recvbuf;
         vector<size_t> rsizes(this->np,0);
@@ -405,31 +345,7 @@ namespace symPACK{
         { vector<char> tmp; sendbuf.swap( tmp ); }
 
         Int curSnode = 1;
-        //if ( this->iam==0 ) { gdb_lock();}
-//        auto rheads = rdispls; 
-//          for ( int psend = 0; psend < this->np; psend++ ) {
-//            cell_meta_t tuple; 
-//
-//            while ( rheads[psend] < rdispls[psend+1] ) {
-//              tuple = *((cell_meta_t*)&recvbuf[rheads[psend]]);
-//              bassert(std::get<5>(tuple)<=M.nsuper && std::get<5>(tuple)>0);
-//              logfileptr->OFS()<<"psend="<<psend<<" "<<std::get<5>(tuple)<<std::endl;
-//              //if ( !((std::get<5>(tuple) == localPrevSnode  && localPrevSnode == curSnode) || localPrevSnode == -1) ) {
-//              //  break;
-//              //}
-//              //if ( std::get<5>(tuple) == curSnode ) {
-//                size_t size, nnz, nblocks;
-//                int i,j;
-//                Idx width;
-//                std::tie( size, nnz, nblocks, width, i,j) = tuple;         
-//                char * ptr = &recvbuf[rheads[psend]+sizeof(tuple)];
-//
-//                rheads[psend] += sizeof(tuple) + size; 
-//              //}
-//              //localPrevSnode = std::get<5>(tuple);
-//            }
-//          }
-        
+      
 
         auto heads = rdispls; 
         while ( std::any_of(heads.begin(),heads.end()-1,[&heads,&rdispls](size_t & a){ size_t idx = &a-heads.data(); return a<rdispls[idx+1];}) ){
@@ -448,7 +364,6 @@ namespace symPACK{
             while ( heads[psend] < rdispls[psend+1] ) {
               tuple = *((cell_meta_t*)&recvbuf[heads[psend]]);
               bassert(std::get<5>(tuple)<=M.nsuper && std::get<5>(tuple)>0);
-//              logfileptr->OFS()<<"["<<curSnode<<"] psend="<<psend<<" "<<std::get<5>(tuple)<<std::endl;
               if ( !((std::get<5>(tuple) == localPrevSnode  && localPrevSnode == curSnode) || localPrevSnode == -1) ) {
                 break;
               }
@@ -500,7 +415,6 @@ namespace symPACK{
               std::tie( size, nnz, nblocks, width, i,j) = tuple;         
               char * ptr = std::get<1>(tpl);
 
-              //std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t> snode2D( new typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t(i,j,ptr,fc,width,nnz,nblocks));
               std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t> snode2D;
               
               if(this->options_.decomposition == DecompositionType::LDL){
@@ -534,173 +448,12 @@ namespace symPACK{
           curSnode++;
         }
 
-#else          
-
-
-        //now communicate
-        upcxx::future<> conj = upcxx::make_future();
-        for ( int p = 0; p < this->np; p++ ) {
-          int supidBeg = this->XsuperDist_[p];
-          int supidEnd = this->XsuperDist_[p+1];
-          conj = upcxx::when_all( conj, 
-                  upcxx::broadcast( &cell_counts[supidBeg-1],
-                                           supidEnd - supidBeg, p));
-        }
-        conj.wait();
-
-        auto local_it = M.localBlocks_.begin();
-        upcxx::future<> all_fut = upcxx::make_future();
-        for (int supid=1;supid<=M.nsuper;supid++) {
-          auto cell = M.pQueryCELL(supid-1,supid-1);
-          if ( cell == nullptr ) continue;
-
-          assert( supid == cell->j );
-          int fc = M.Xsuper_[supid-1];
-          auto proot = cell->owner;
-          sup_mapp[supid-1] = proot;
-
-          {
-            //find the least loaded processor among those owning blocks of supernode supid
-            int cell_count = cell_counts[supid-1];
-            std::set<int> proc_group;
-            std::vector< std::shared_ptr<typename symPACKMatrix2D<Ptr,Idx,T>::snodeBlock_t> > localBlocks;
-            while ( local_it != M.localBlocks_.end() && (*local_it)->j<supid  ) { local_it++; }
-            while ( local_it != M.localBlocks_.end() && (*local_it)->j == supid ) {
-              auto cellptr = *local_it;
-              localBlocks.push_back(cellptr);
-              local_it++;
-            }
-
-            
-            if ( (*remote_ptrs)[supid-1] == nullptr ) {
-              auto cell_list = new cell_list_t(M.iam==proot?cell_count:0);
-              (*remote_ptrs)[supid-1] = cell_list;
-            }
-            else if(M.iam==proot){
-              assert( (*remote_ptrs)[supid-1]->cells.capacity() == cell_count);
-            }
-
-            for ( auto & cellptr : localBlocks ) {
-              assert( cellptr->j == supid );
-              upcxx::rpc_ff(proot, 
-                  [&remote_ptrs,fc,proot,cell_count]( upcxx::global_ptr< char > ptr, std::size_t size, size_t nnz, size_t nblocks, Idx width, int sender, int i, int j ) {
-
-                  assert((*remote_ptrs).size()>0);
-                  auto & cell_list_ptr =  (*remote_ptrs)[j-1];
-                  if ( cell_list_ptr == nullptr ) {
-                    //cell list hasn't been allocated yet, need to do it
-                    auto cell_list = new cell_list_t(cell_count);
-                    cell_list_ptr = cell_list;
-                  }
-                  
-                  assert(cell_list_ptr->cells.size() < cell_list_ptr->cells.capacity() );
-                    
-                    //allocate a landing_zone
-                    cell_list_ptr->cells.push_back( std::make_tuple( std::vector<char>(size), size,i, j, nnz, nblocks, width, sender) );
-                    cell_desc_t * descptr;
-                    descptr = &cell_list_ptr->cells.back();
-                    //issue a rget
-                    upcxx::rget(ptr,std::get<0>(*descptr).data(),size).then([&remote_ptrs,j,i,sender]() {
-                        (*remote_ptrs)[j-1]->prom.fulfill_anonymous(1); });
-                  }, cellptr->_gstorage, cellptr->_storage_size,cellptr->nnz(), cellptr->nblocks(), std::get<0>(cellptr->_dims), upcxx::rank_me() , cellptr->i, supid );
-            }
-
-            upcxx::future<> fut;
-            //everything has been created from this point 
-            if ( M.iam == proot ) {
-              fut = (*remote_ptrs)[supid-1]->prom.finalize().then([&remote_ptrs,supid,this,cell_desc_comp](){
-              //do the conversion
-              Int I = supid;
-              int fc = this->Xsuper_[I-1];
-              int lc = this->Xsuper_[I]-1;
-
-#ifndef ITREE2
-              this->globToLocSnodes_.push_back(I-1);
-#else 
-              ITree::Interval snode_inter = { I, I, this->LocalSupernodes_.size() };
-              this->globToLocSnodes_.Insert(snode_inter);
-#endif
-              SuperNode<T> * newSnode = nullptr;
-
-              try{
-                size_t height = 0;
-                size_t nzBlockCnt = 0;
-
-                std::sort((*remote_ptrs)[supid-1]->cells.begin(), (*remote_ptrs)[supid-1]->cells.end(), cell_desc_comp );
-
-                for ( auto & cell: (*remote_ptrs)[supid-1]->cells ) { 
-                  std::vector<char> storage;
-                  size_t size;
-                  int i,j;
-                  size_t nnz;
-                  size_t nblocks;
-                  Idx width;
-                  int sender;
-                  std::tie( storage, size, i,j, nnz, nblocks, width, sender) = cell;
-                  assert(I==j);
-                  height += nnz/width;
-                  nzBlockCnt += nblocks;
-                }
-                newSnode = CreateSuperNode(this->options_.decomposition,I,fc,fc,lc,height,this->iSize_,nzBlockCnt,this->options_.panel);
-                auto nzval = newSnode->GetNZval(0);
-
-                //now add blocks
-                for ( auto & cell: (*remote_ptrs)[supid-1]->cells ) { 
-                  std::vector<char> storage;
-                  size_t size;
-                  int i,j;
-                  size_t nnz;
-                  size_t nblocks;
-                  Idx width;
-                  int sender;
-                  std::tie( storage, size, i,j, nnz, nblocks, width, sender) = cell;
-                  std::unique_ptr<typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t> snode2D( new typename symPACKMatrix2D<Ptr,Idx,T,int>::snodeBlock_t(i,j,storage.data(),fc,width,nnz,nblocks));
-                  auto & blocks = snode2D->blocks();
-                  for ( auto & block: blocks ) {
-                    newSnode->AddNZBlock(snode2D->block_nrows(block) , block.first_row);
-                  }
-                  //now copy numerical values
-                  std::copy(snode2D->_nzval,snode2D->_nzval+nnz,nzval);
-                  nzval+=nnz;
-                }
-
-              }
-              catch(const MemoryAllocationException & e){
-                std::stringstream sstr;
-                sstr<<"There is not enough memory on the system to allocate the factors. Try to increase GASNET_MAX_SEGSIZE value."<<std::endl;
-                logfileptr->OFS()<<sstr.str();
-                std::cerr<<sstr.str();
-                throw(e);
-              }
-
-              this->LocalSupernodes_.push_back(newSnode);
-              delete (*remote_ptrs)[supid-1];
-              });
-            }
-            else {
-              fut = (*remote_ptrs)[supid-1]->prom.finalize().then([&remote_ptrs,supid](){
-                delete (*remote_ptrs)[supid-1];
-              });
-            }
-
-            all_fut = upcxx::when_all( all_fut, fut );
-          }
-
-
-        }
-            all_fut.wait();
-#endif
-        //upcxx::barrier(); 
-
         double timeEnd = get_time();
         if(this->iam==0){
           symPACKOS<<"Conversion to 1D time: "<<timeEnd-timeSta<<std::endl;
         }
-        //      logfileptr->OFS()<<sup_mapp<<std::endl;
-        //      for( auto p: sup_mapp){ assert(p!=-1); }
 
         //create a Mapping
-        //this->Mapping_ has to be updated to reflect the distribution 
         this->Mapping_->Update(sup_mapp);
 
 
@@ -716,41 +469,13 @@ namespace symPACK{
             double timeSta = get_time();
             std::vector<Int> AggregatesToRecv;
             std::vector<Int> LocalAggregates;
-
-
             FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
-            generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
             {
 #ifdef _MEM_PROFILER_
               utility::scope_memprofiler m("symPACKMatrix_task_graph");
 #endif
-              generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
+              generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
             }
-
-
-            //#define _OUTPUT_TASK_GRAPH_
-#ifdef _OUTPUT_TASK_GRAPH_
-            logfileptr->OFS()<<"tasks: ";
-            for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
-              if((*binit)!=nullptr){
-                for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
-                  logfileptr->OFS()<<"t_"<<taskit->src_snode_id<<"_"<<taskit->tgt_snode_id<<" ";
-                }
-              }
-
-            }
-            logfileptr->OFS()<<std::endl; 
-            logfileptr->OFS()<<"taskmap: ";
-            for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
-              if((*binit)!=nullptr){
-                for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
-                  logfileptr->OFS()<<this->iam<<" ";
-                }
-              }
-            }
-            logfileptr->OFS()<<std::endl; 
-#endif
-
             double timeStop = get_time();
             if(this->iam==0 && this->options_.verbose){
               symPACKOS<<"Task graph generation time: "<<timeStop - timeSta<<std::endl;
@@ -793,12 +518,10 @@ namespace symPACK{
 
       //Solve routines
       //note: RHS & B are stored in column major format
-      void NewSolve(T * RHS, int nrhs,  T * Xptr=nullptr);
       void Solve(T * RHS, int nrhs,  T * Xptr=nullptr);
       void GetSolution(T * B, int nrhs);
 
       void FanBoth( );
-      void FanBoth_New( );
 
 
       //debug routines
@@ -839,7 +562,6 @@ namespace symPACK{
 
     protected:
       CommEnvironment * CommEnv_;
-      //upcxx::team * team_;
 
       SharedNode shmNode_;
 
@@ -855,15 +577,11 @@ namespace symPACK{
 
       BackupBuffer backupBuffer_;
 
-#ifdef NEW_UPCXX
-      std::list< upcxx::future<> > gFutures;
       upcxx::dist_object<int> * remDealloc;
-
 #ifdef SP_THREADS
   // declare an agreed upon persona for the progress thread
   upcxx::persona progress_persona_;
   std::thread progress_thread_;
-#endif
 #endif
 
       //TODO Task lists
@@ -876,17 +594,13 @@ namespace symPACK{
       std::vector<Int> UpdatesToDo_;
       Int localTaskCount_;
 
-      supernodalTaskGraph<FBTask> taskGraph_;
-      void generateTaskGraph(supernodalTaskGraph<FBTask> & taskGraph,std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates);
 
-      taskGraph taskGraph_New_;
-      void generateTaskGraph_New(taskGraph & taskGraph, std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates, std::vector<Int> & mw, std::vector<Int> & mh);
+      taskGraph taskGraph_;
+      void generateTaskGraph(taskGraph & taskGraph, std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates, std::vector<Int> & mw, std::vector<Int> & mh);
 
       std::vector<std::list<Int> > chSupTree_;
       void dfs_traversal(std::vector<std::list<Int> > & tree,int node,std::list<Int> & frontier);
-      //void solve_(T * RHS, int nrhs,  T * Xptr=nullptr);
-      void solveNew_(T * RHS, int nrhs,  T * Xptr=nullptr);
-      void solveNew2_(T * RHS, int nrhs,  T * Xptr=nullptr);
+      void solve_(T * RHS, int nrhs,  T * Xptr=nullptr);
 
       std::list<std::list<FBTask>::iterator > readyTasks_;
 
@@ -905,13 +619,7 @@ namespace symPACK{
 
       //Vector holding pointers to local SuperNode2 objects (L factor)
       std::vector<SuperNode<T> * > LocalSupernodes_;
-      //std::vector<upcxx::global_ptr<SuperNodeDesc > > remoteFactors_;
-#ifdef NEW_UPCXX
       std::vector< std::tuple< upcxx::global_ptr<char>,Int> > remoteFactors_;
-#else
-      std::vector< std::tuple< upcxx::global_ptr<SuperNodeDesc >,Int> > remoteFactors_;
-#endif
-
 
       //Vector holding pointers to local contributions
       //This has to be renamed because it contains the distributed solution
@@ -941,9 +649,6 @@ namespace symPACK{
       void FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv, std::vector<Int> & LocalAggregates);
       void GetUpdatingSupernodeCount( std::vector<Int> & sc,std::vector<Int> & mw, std::vector<Int> & mh, std::vector<Int> & numBlk);
 
-      void FBFactorizationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, std::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
-      void FBAggregationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, bool is_static = false);
-      void FBUpdateTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
 
 
       //Communication related routines
@@ -955,28 +660,6 @@ namespace symPACK{
         void SendDelayedMessagesDown(Int iLocalI, DownCommList & MsgToSend, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl);
       template< class Alloc>
         void SendMessage(const DelayedComm & comm, AsyncComms & OutgoingSend, std::vector<SuperNode<T,Alloc> *> & snodeColl);
-
-      void CheckIncomingMessages(supernodalTaskGraph<FBTask> & taskGraph, std::vector< SuperNode<T> * > & aggVectors, bool is_static = false);
-
-
-
-      template<typename Task>
-        void CheckIncomingMessages_Solve(supernodalTaskGraph<Task> & taskGraph, std::shared_ptr<Scheduler<Task> > scheduler);
-
-
-
-
-
-      //functions replacing lambdas
-      //inline void _factorTask1D(Int src, Int tgt, const std::shared_ptr<GenericTask> & pTask, const Factorization::op_type & type, taskGraph & graph);
-      //inline void _updateTask1D(Int src, Int tgt, const std::shared_ptr<GenericTask> & pTask, const Factorization::op_type & type, std::vector<Int> & UpdatesToDo,std::vector< SuperNode<T>* >& aggVectors, taskGraph & graph);
-      //inline void _dec_ref_task(taskGraph & graph, taskGraph::task_iterator & taskit, Int loc, Int rem);
-
-
-
-
-
-
   };
 
 typedef symPACKMatrix<float>       symPACKMatrixFloat;
@@ -987,21 +670,6 @@ typedef symPACKMatrix<std::complex<double> >       symPACKMatrixDoubleComplex;
 } // namespace SYMPACK
 
 #include <sympack/impl/symPACKMatrix_impl.hpp>
-
-//namespace symPACK{
-//struct symPACK_handle;
-////class symPACKMatrixBase;
-////class DistSparseMatrixBase;
-//
-//
-//  extern std::map<int, symPACK_handle  > symPACK_handles;
-//
-//
-//
-//}
-
-
-
 
 #endif //_SYMPACK_MATRIX_DECL_HPP_
 

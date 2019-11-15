@@ -61,187 +61,19 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include <unordered_set>
 #include <type_traits>
 
-#define NEW_SOLVE
-
-
 #define SPLIT_AT_BOUNDARY
 
 namespace symPACK{
 
 
   template<typename T> 
-  inline void symPACKMatrix<T>::generateTaskGraph(supernodalTaskGraph<FBTask> & taskGraph,
-      std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates)
-  {
-    //we will need to communicate if only partial xlindx_, lindx_
-    //idea: build tasklist per processor and then exchange
-    std::map<Idx, std::list<std::pair<Idx,Idx> >  > Updates;
-    std::vector<int> marker(this->np,0);
-    Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
-    Int firstSnode = this->XsuperDist_[this->iam];
-    for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
-      Idx I = locsupno + firstSnode-1;
-      Int iOwner = Mapping_->Map(I-1,I-1);
-
-      Int first_col = this->Xsuper_[I-1];
-      Int last_col = this->Xsuper_[I]-1;
-
-      //Create the factor task on the owner
-      Updates[iOwner].push_back(std::make_pair(I,I));
-
-      Int J = -1; 
-      Ptr lfi = this->locXlindx_[locsupno-1];
-      Ptr lli = this->locXlindx_[locsupno]-1;
-      Idx prevSnode = -1;
-      for(Ptr sidx = lfi; sidx<=lli;sidx++){
-        Idx row = this->locLindx_[sidx-1];
-        J = this->SupMembership_[row-1];
-        if(J!=prevSnode){
-          //J = locSupLindx_[sidx-1];
-          Int iUpdater = Mapping_->Map(J-1,I-1);
-
-          if(J>I){
-            if(marker[iUpdater]!=I){
-              //create the task on iUpdater
-              Updates[iUpdater].push_back(std::make_pair(I,J));
-              //create only one task if I don't own the factor
-              if(iUpdater!=iOwner){
-                marker[iUpdater]=I;
-              }
-            }
-          }
-        }
-        prevSnode = J;
-      }
-    }
-
-    MPI_Datatype type;
-    MPI_Type_contiguous( sizeof(std::pair<Idx,Idx>), MPI_BYTE, &type );
-    MPI_Type_commit(&type);
-
-    //then do an alltoallv
-    //compute send sizes
-    vector<int> ssizes(this->np,0);
-    for(auto itp = Updates.begin();itp!=Updates.end();itp++){
-      ssizes[itp->first] = itp->second.size();//*sizeof(std::pair<Idx,Idx>);
-    }
-
-    //compute send displacements
-    vector<int> sdispls(this->np+1,0);
-    sdispls[0] = 0;
-    std::partial_sum(ssizes.begin(),ssizes.end(),&sdispls[1]);
-
-    //Build the contiguous array of pairs
-    vector<std::pair<Idx,Idx> > sendbuf;
-    sendbuf.reserve(sdispls.back());///sizeof(std::pair<Idx,Idx>));
-
-    for(auto itp = Updates.begin();itp!=Updates.end();itp++){
-      sendbuf.insert(sendbuf.end(),itp->second.begin(),itp->second.end());
-    }
-
-    //gather receive sizes
-    vector<int> rsizes(this->np,0);
-    MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,CommEnv_->MPI_GetComm());
-
-    //compute receive displacements
-    vector<int> rdispls(this->np+1,0);
-    rdispls[0] = 0;
-    std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
-
-
-    //Now do the alltoallv
-    vector<std::pair<Idx,Idx> > recvbuf(rdispls.back());///sizeof(std::pair<Idx,Idx>));
-    MPI_Alltoallv(&sendbuf[0],&ssizes[0],&sdispls[0],type,&recvbuf[0],&rsizes[0],&rdispls[0],type,CommEnv_->MPI_GetComm());
-
-    MPI_Type_free(&type);
-
-    //now process recvbuf and add the tasks to my tasklists
-    taskGraph.taskLists_.resize(this->TotalSupernodeCnt(),nullptr);
-    //Int localTaskCount = 0;
-    for(auto it = recvbuf.begin();it!=recvbuf.end();it++){
-      FBTask curUpdate;
-      curUpdate.src_snode_id = it->first;
-      curUpdate.tgt_snode_id = it->second;
-      curUpdate.type=(it->first==it->second)?FACTOR:UPDATE;
-
-      Int J = curUpdate.tgt_snode_id;
-
-      taskGraph.addTask(curUpdate);
-
-      ////create the list if needed
-      //if(taskGraph.taskLists_[J-1] == nullptr){
-      //  taskGraph.taskLists_[J-1]=new std::list<FBTask>();
-      //}
-      //taskGraph.taskLists_[J-1]->push_back(curUpdate);
-
-      //TODO
-      //localTaskCount++;
-    }
-    //taskGraph.localTaskCount_=localTaskCount;
-
-
-
-    for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
-      if(taskGraph.taskLists_[i] != nullptr){
-        for(auto taskit = taskGraph.taskLists_[i]->begin(); taskit!=taskGraph.taskLists_[i]->end();taskit++){
-          FBTask & curUpdate = *taskit;
-          if(curUpdate.type==FACTOR){
-            curUpdate.remote_deps = AggregatesToRecv[curUpdate.tgt_snode_id-1];
-            curUpdate.local_deps = LocalAggregates[curUpdate.tgt_snode_id-1];
-          }
-          else if(curUpdate.type==UPDATE){
-            Int iOwner = Mapping_->Map(curUpdate.src_snode_id-1,curUpdate.src_snode_id-1);
-            //If I own the factor, it is a local dependency
-            if(this->iam==iOwner){
-              curUpdate.remote_deps = 0;
-              curUpdate.local_deps = 1;
-            }
-            else{
-              curUpdate.remote_deps = 1;
-              curUpdate.local_deps = 0;
-            }
-          }
-        }
-      }
-    }
-
-
-    std::vector<Int> levels;
-    levels.resize(this->Xsuper_.size());
-    levels[0]=0;
-    Int numLevel = 0; 
-    for(Int i=this->Xsuper_.size()-1-1; i>=0; i-- ){     
-      Int fcol = this->Xsuper_[i];
-      bassert(fcol-1>=0);
-      Int pcol =this->ETree_.PostParent(fcol-1);
-      Int supno = pcol>0?this->SupMembership_[pcol-1]:0;
-      levels[i] = levels[supno]+1;
-    }
-
-    for(int i = 0; i<taskGraph.taskLists_.size(); ++i){
-      if(taskGraph.taskLists_[i] != nullptr){
-        for(auto taskit = taskGraph.taskLists_[i]->begin(); taskit!=taskGraph.taskLists_[i]->end();taskit++){
-          taskit->rank = levels[taskit->src_snode_id];
-        }
-      }
-    }
-
-
-  }
-
-
-#if 1
-  template<typename T> 
-    inline void symPACKMatrix<T>::generateTaskGraph_New(taskGraph & graph,
+    inline void symPACKMatrix<T>::generateTaskGraph(taskGraph & graph,
       std::vector<Int> & AggregatesToRecv,  std::vector<Int>& LocalAggregates, std::vector<Int> & mw, std::vector<Int> & mh)
     {
-
-
       //we will need to communicate if only partial xlindx_, lindx_
       //idea: build tasklist per processor and then exchange
       //tuple is: src_snode,tgt_snode,src_first_row,op_type,
       using upd_tuple_t = std::tuple<Idx,Idx,Idx,Factorization::op_type>;
-      //using upd_:std::tuple<Idx,Idx,Idx,Factorization::op_type> ; 
       std::map<Idx, std::list< upd_tuple_t> > Updates;
       std::vector<int> marker(this->np,0);
 
@@ -276,10 +108,6 @@ namespace symPACK{
               Int iUpdater = Mapping_->Map(J-1,I-1);
 
               if(J>I){
-
-
-            //if(J==26){gdb_lock();}
-
                 if(marker[iUpdater]!=I){
                   //create the task on iUpdater
                   Updates[iUpdater].push_back(std::make_tuple(I,J,row,Factorization::op_type::UPDATE));
@@ -307,7 +135,7 @@ namespace symPACK{
       //compute send sizes
       vector<int> ssizes(this->np,0);
       for(auto itp = Updates.begin();itp!=Updates.end();itp++){
-        ssizes[itp->first] = itp->second.size();//*sizeof(std::pair<Idx,Idx>);
+        ssizes[itp->first] = itp->second.size();
       }
 
       //compute send displacements
@@ -334,7 +162,7 @@ namespace symPACK{
 
 
       //Now do the alltoallv
-      vector<upd_tuple_t> recvbuf(rdispls.back());///sizeof(std::pair<Idx,Idx>));
+      vector<upd_tuple_t> recvbuf(rdispls.back());
       MPI_Alltoallv(&sendbuf[0],&ssizes[0],&sdispls[0],type,&recvbuf[0],&rsizes[0],&rdispls[0],type,CommEnv_->MPI_GetComm());
 
       MPI_Type_free(&type);
@@ -354,7 +182,7 @@ namespace symPACK{
         meta[1] = std::get<1>(*it);
         meta[2] = std::get<2>(*it);
         Factorization::op_type & type = *reinterpret_cast<Factorization::op_type*>(&meta[3]);
-        type = std::get<3>(*it);//(it->first==it->second)?Factorization::op_type::FACTOR:Factorization::op_type::UPDATE;
+        type = std::get<3>(*it);
 
         Int src = meta[0];
         Int tgt = meta[1];
@@ -415,7 +243,6 @@ namespace symPACK{
 
         Task.getHash = [&](char * ameta=nullptr)->GenericTask::id_type{
           char * pmeta = ameta;
-          //if(pmeta==nullptr){ pmeta = Task.meta.data(); } 
           std::stringstream sstr;
           sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)(*reinterpret_cast<Factorization::op_type*>(&meta[3]));
           return hash_fn(sstr.str());
@@ -428,7 +255,6 @@ namespace symPACK{
       }
       logfileptr->OFS()<<"Maximum single task memory requirement is: "<<max_mem_req<<std::endl;
     }
-#endif
 
 
 
@@ -444,7 +270,7 @@ namespace symPACK{
     if(this->iam<this->np){
       switch(this->options_.factorization){
         case FANBOTH:
-          FanBoth_New();
+          FanBoth();
           break;
         case FANOUT:
           FanBoth();
@@ -479,442 +305,34 @@ namespace symPACK{
   }
 
 
-  template <typename T> inline void symPACKMatrix<T>::NewSolve(T * RHS, int nrhs,  T * Xptr) {
+  template <typename T> inline void symPACKMatrix<T>::Solve(T * RHS, int nrhs,  T * Xptr) {
     scope_timer(a,SPARSE_SOLVE);
-
     if (this->options_.iterRefinement) {
-      abort();  
-      this->solveNew_(RHS,nrhs,Xptr);
-      //do{
-      //  this->solve_(RHS,nrhs,Xptr);
-
-      //  //update
-
-      //  //compute residual
-      //}
-      //while();
+      throw std::runtime_error("Iterative refinement is not yet implemented.");
+      this->solve_(RHS,nrhs,Xptr);
     }
     else{
-
-      for(auto ptr: Contributions_){ delete ptr; }
-      Contributions_.clear();
-      Contributions2_.clear();
-
-#ifndef NEW_SOLVE
-      this->solve_(RHS,nrhs,Xptr);
-#else
-//      if(this->iam<this->np){
+        Contributions2_.clear();
         switch(this->options_.factorization){
           case FANBOTH:
-            this->solveNew2_(RHS,nrhs,Xptr);
+            this->solve_(RHS,nrhs,Xptr);
             break;
           case FANOUT:
-            this->solveNew2_(RHS,nrhs,Xptr);
+            this->solve_(RHS,nrhs,Xptr);
             break;
           default:
-            this->solveNew2_(RHS,nrhs,Xptr);
+            this->solve_(RHS,nrhs,Xptr);
             break;
         }
-//      }
-
-      //      this->solveNew_(RHS,nrhs,Xptr);
-#endif
     }
-
-  }
-
-//  template <typename T> inline void symPACKMatrix<T>::SolveLegacy(T * RHS, int nrhs,  T * Xptr) {
-//    scope_timer(a,SPARSE_SOLVE_LEGACY);
-//    this->solve_(RHS,nrhs,Xptr);
-//  }
-
-  //Solve related routines
-  template <typename T> inline void symPACKMatrix<T>::Solve(T * RHS, int nrhs,  T * Xptr) {
-    scope_timer(a,SPARSE_SOLVE_INTERNAL);
-
-    for(auto ptr: Contributions_){ delete ptr; }
-    Contributions_.clear();
-
-    Int n = this->iSize_;
-
-    if(this->iam<this->np){
-      std::vector<Int> children(this->Xsuper_.size());
-      SetValue(children,0);
-
-      for(Int I=1;I<this->Xsuper_.size()-1;I++){
-        Int fc = this->Xsuper_[I-1];
-        Int lc = this->Xsuper_[I]-1;
-
-        Int parent = this->ETree_.PostParent(lc-1);
-        if(parent!=0){
-          ++children[this->SupMembership_[parent-1]-1];
-        }
-      }
-
-#ifdef _DEBUG_
-      logfileptr->OFS()<<"Children std::vector is"<<children<<std::endl;
-#endif
-
-
-      std::vector<Int> UpdatesToDo = children;
-
-      Contributions_.resize(LocalSupernodes_.size());
-      std::vector<std::stack<Int> > LocalUpdates(LocalSupernodes_.size());
-
-      AsyncComms outgoingSend;
-
-      //This corresponds to the k loop in dtrsm
-      for(Int I=1;I<this->Xsuper_.size();I++){
-        Int iOwner = this->Mapping_->Map(I-1,I-1);
-        //If I own the column, factor it
-        if( iOwner == this->iam ){
-          //Create the blocks of my contrib with the same nz structure as L
-          //and the same width as the final solution
-          //MEMORY CONSUMPTION TOO HIGH ?
-          Int iLocalI = snodeLocalIndex(I);
-          SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-          SuperNode<T,MallocAllocator> * contrib = CreateSuperNode<MallocAllocator>(this->options_.decomposition,I,cur_snode->FirstRow(),1,nrhs, cur_snode->NRowsBelowBlock(0) ,this->iSize_,this->options_.panel);
-
-          Contributions_[iLocalI-1] = contrib;
-
-
-          for(Int blkidx = 0; blkidx<cur_snode->NZBlockCnt();++blkidx){
-            NZBlockDesc & cur_desc = cur_snode->GetNZBlockDesc(blkidx);
-            contrib->AddNZBlock(cur_snode->NRows(blkidx), cur_desc.GIndex);
-          }
-          Int nRows = contrib->NRowsBelowBlock(0);
-          std::fill(contrib->GetNZval(0),contrib->GetNZval(0)+nRows*nrhs,ZERO<T>());
-
-          contrib->Shrink();
-        }
-      }
-
-      CommList ContribsToSend; 
-      DownCommList ContribsToSendDown; 
-
-
-      std::vector<char> src_blocks;
-
-
-      //forward-substitution phase
-      //Sending contrib up the tree
-      //Start from the leaves of the tree
-      SYMPACK_TIMER_START(SPARSE_FWD_SUBST);
-
-      Int I =1;
-      Int iLocalI =1;
-      while(iLocalI<=LocalSupernodes_.size() || !ContribsToSend.empty() || !outgoingSend.empty()){
-        //Check for completion of outgoing communication
-        AdvanceOutgoing(outgoingSend);
-
-        //process some of the delayed send
-
-        if(iLocalI>0 && iLocalI<=LocalSupernodes_.size()){
-
-          //If I own the column, factor it
-          SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-          I = cur_snode->Id();
-          Int parent = this->ETree_.PostParent(cur_snode->LastCol()-1);
-          SuperNode<T,MallocAllocator> * contrib = Contributions_[iLocalI-1];
-
-
-          //Do all my updates (Local and remote)
-          //Local updates
-          while(!LocalUpdates[iLocalI-1].empty()){
-            Int contrib_snode_id = LocalUpdates[iLocalI-1].top();
-            LocalUpdates[iLocalI-1].pop();
-
-            SuperNode<T,MallocAllocator> * dist_contrib = snodeLocal(contrib_snode_id,Contributions_);
-
-#ifdef _DEBUG_
-            logfileptr->OFS()<<"LOCAL Supernode "<<I<<" is updated by contrib of Supernode "<<contrib_snode_id<<std::endl;
-#endif
-
-            Int iOwner = this->iam;
-            contrib->forward_update(dist_contrib,iOwner,this->iam);
-            --UpdatesToDo[I-1];
-          }
-
-          //do remote updates
-          size_t max_bytes;
-          Int nz_cnt;
-          while(UpdatesToDo[I-1]>0){
-            //receive children contrib
-#ifdef _DEBUG_
-            logfileptr->OFS()<<UpdatesToDo[I-1]<<" contribs left"<<std::endl;
-#endif
-
-
-            MPI_Status recv_status;
-            int bytes_received = 0;
-
-            MPI_Probe(MPI_ANY_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-            MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-            src_blocks.resize(bytes_received);
-            MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,recv_status.MPI_SOURCE,I,CommEnv_->MPI_GetComm(),&recv_status);
-            SuperNode<T,MallocAllocator> * dist_contrib = CreateSuperNode<MallocAllocator>(this->options_.decomposition,&src_blocks[0],bytes_received);
-            //TODO Put this back
-            //Deserialize(&src_blocks[0],dist_contrib);
-#ifdef _DEBUG_
-            logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib.Id()<<std::endl;
-#endif
-
-            Int iOwner = recv_status.MPI_SOURCE;
-            contrib->forward_update(dist_contrib,iOwner,this->iam);
-
-            --UpdatesToDo[I-1];
-            delete dist_contrib;
-          }
-
-          assert(UpdatesToDo[I-1]==0);
-
-          if(UpdatesToDo[I-1]==0){
-
-            //now compute MY contribution
-            contrib->forward_update_contrib(RHS,cur_snode,this->Order_.perm);
-
-            //send to my parent
-            if(parent!=0){
-              Int parent_snode_id = this->SupMembership_[parent-1];
-
-              Int iTarget = this->Mapping_->Map(parent_snode_id-1,parent_snode_id-1);
-
-              if(iTarget!=this->iam){
-#ifdef _DEBUG_
-                logfileptr->OFS()<<"Remote Supernode "<<parent_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
-#endif
-
-                Int tgt_first_col = this->Xsuper_[parent_snode_id-1];
-                Int tgt_last_col = this->Xsuper_[parent_snode_id]-1;
-                Int src_nzblk_idx = 1;
-                NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
-
-                Int src_first_row = pivot_desc.GIndex;
-
-                bool isSkipped= false;
-
-                Int next_local_contrib = (iLocalI < Contributions_.size())?Contributions_[iLocalI]->Id():this->Xsuper_.size();
-                if(next_local_contrib< parent_snode_id || true){
-                  //need to push the prev src_last_row
-                  ContribsToSend.push(DelayedComm(contrib->Id(),parent_snode_id,1,src_first_row));
-#ifdef _DEBUG_DELAY_
-                  symPACKOS<<"P"<<this->iam<<" has delayed update from Contrib "<<I<<" to "<<parent_snode_id<<" from row "<<src_first_row<<std::endl;
-#endif
-                  isSkipped= true;
-                }
-
-                if(!isSkipped){
-                  //Create a new Icomm buffer, serialize the contribution
-                  // in it and add it to the outgoing comm list
-
-                  Icomm * send_buffer = new Icomm();
-                  contrib->Serialize(*send_buffer,src_nzblk_idx,src_first_row);
-                  AddOutgoingComm(outgoingSend,send_buffer);
-
-                  if( outgoingSend.size() > this->options_.maxIsend){
-                    MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,parent_snode_id,CommEnv_->MPI_GetComm());
-                    //that deletes the Icomm
-                    outgoingSend.pop_back();
-                  }
-                  else{
-                    MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,parent_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
-                  }
-#ifdef _DEBUG_            
-                  logfileptr->OFS()<<"     Send contribution "<<I<<" to Supernode "<<parent_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
-#endif
-                }
-              }
-              else{
-#ifdef _DEBUG_
-                logfileptr->OFS()<<"Local Supernode "<<parent_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
-#endif
-
-                Int iLocalJ = snodeLocalIndex(parent_snode_id);
-                LocalUpdates[iLocalJ-1].push((Int)I);
-              }
-            }
-
-          }
-        }
-
-
-        SendDelayedMessagesUp(iLocalI,ContribsToSend,outgoingSend,Contributions_);
-
-        ++iLocalI;
-      }
-
-      while(!outgoingSend.empty()){
-        AdvanceOutgoing(outgoingSend);
-      } 
-      MPI_Barrier(CommEnv_->MPI_GetComm());
-
-      SYMPACK_TIMER_STOP(SPARSE_FWD_SUBST);
-
-      //DumpContrib();
-
-      //Back-substitution phase
-      SYMPACK_TIMER_START(SPARSE_BACK_SUBST);
-
-      //start from the root of the tree
-      iLocalI = LocalSupernodes_.size() ;
-      while(iLocalI>0|| !ContribsToSend.empty() || !outgoingSend.empty()){
-
-        //Check for completion of outgoing communication
-        AdvanceOutgoing(outgoingSend);
-
-        if(iLocalI>0 && iLocalI<=LocalSupernodes_.size()){
-          SuperNode<T> * cur_snode = LocalSupernodes_[iLocalI-1];
-          I = cur_snode->Id();
-
-          SuperNode<T,MallocAllocator> * contrib = Contributions_[iLocalI-1];
-
-          Int parent = this->ETree_.PostParent(cur_snode->LastCol()-1);
-
-          std::vector<Int> isBlockUpdated(contrib->NZBlockCnt(),0);
-
-          if(parent!=0){
-            Int parent_snode_id = this->SupMembership_[parent-1];
-            Int iTarget = this->Mapping_->Map(parent_snode_id-1,parent_snode_id-1);
-            //Do all my updates (Local and remote)
-            //Local updates
-            SuperNode<T,MallocAllocator> * dist_contrib;
-            if(!LocalUpdates[iLocalI-1].empty()){
-              Int contrib_snode_id = LocalUpdates[iLocalI-1].top();
-              LocalUpdates[iLocalI-1].pop();
-              dist_contrib = snodeLocal(contrib_snode_id,Contributions_);
-              contrib->back_update(dist_contrib);
-            }
-            else{
-              //Receive parent contrib
-              MPI_Status recv_status;
-              Int bytes_received = 0;
-              MPI_Probe(iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
-              MPI_Get_count(&recv_status, MPI_BYTE, &bytes_received);
-              src_blocks.resize(bytes_received);
-
-              MPI_Recv(&src_blocks[0],bytes_received,MPI_BYTE,iTarget,I,CommEnv_->MPI_GetComm(),&recv_status);
-
-              dist_contrib = CreateSuperNode<MallocAllocator>(this->options_.decomposition,&src_blocks[0],bytes_received);
-              //TODO Replace this
-              //Deserialize(&src_blocks[0],*dist_contrib); 
-              dist_contrib->InitIdxToBlk();
-
-
-#ifdef _DEBUG_
-              logfileptr->OFS()<<"RECV contrib of Supernode "<<dist_contrib->Id()<<std::endl;
-#endif
-              contrib->back_update(dist_contrib);
-              delete dist_contrib;
-            }
-          }
-
-          //now compute MY contribution
-          contrib->back_update_contrib(cur_snode);
-
-          //send to my children
-          Int colIdx = cur_snode->FirstCol()-1;
-          if(colIdx>0){
-            Int children_found = 0;
-            while(children_found<children[I-1]){
-              Int child_snode_id = this->SupMembership_[colIdx-1];
-
-              Int parent = this->ETree_.PostParent(colIdx-1);
-              if(parent!=0){
-                if(this->SupMembership_[parent-1]==cur_snode->Id()){
-                  Int iTarget = this->Mapping_->Map(child_snode_id-1,child_snode_id-1);
-
-                  if(iTarget!=this->iam){
-
-                    bool isSkipped= false;
-
-                    Int next_local_contrib = (iLocalI >1)?Contributions_[iLocalI-2]->Id():0;
-                    if(next_local_contrib > child_snode_id || true){
-                      //need to push the prev src_last_row
-                      //Send
-                      Int src_nzblk_idx = 0;
-                      NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
-                      Int src_first_row = pivot_desc.GIndex;
-                      ContribsToSendDown.push(DelayedComm(contrib->Id(),child_snode_id,0,src_first_row));
-#ifdef _DEBUG_DELAY_
-                      symPACKOS<<"P"<<this->iam<<" has delayed update from Contrib "<<I<<" to "<<child_snode_id<<" from row "<<src_first_row<<std::endl;
-#endif
-                      isSkipped= true;
-                    }
-
-
-                    if(!isSkipped){
-#ifdef _DEBUG_
-                      logfileptr->OFS()<<"Remote Supernode "<<child_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
-#endif
-
-                      Int src_nzblk_idx = 0;
-                      NZBlockDesc & pivot_desc = contrib->GetNZBlockDesc(src_nzblk_idx);
-                      Int src_first_row = pivot_desc.GIndex;
-                      //Create a new Icomm buffer, serialize the contribution
-                      // in it and add it to the outgoing comm list
-                      Icomm * send_buffer = new Icomm();
-                      //TODO replace this
-                      contrib->Serialize(*send_buffer,src_nzblk_idx,src_first_row);
-                      AddOutgoingComm(outgoingSend,send_buffer);
-
-
-                      if( outgoingSend.size() > this->options_.maxIsend){
-                        MPI_Send(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm());
-                        outgoingSend.pop_back();
-                      }
-                      else{
-                        MPI_Isend(outgoingSend.back()->front(),outgoingSend.back()->size(), MPI_BYTE,iTarget,child_snode_id,CommEnv_->MPI_GetComm(),&outgoingSend.back()->Request);
-                      }
-
-#ifdef _DEBUG_            
-                      logfileptr->OFS()<<"     Send contribution "<<I<<" to Supernode "<<child_snode_id<<" on P"<<iTarget<<" from blk "<<src_nzblk_idx<<std::endl;
-#endif
-                    }
-                  }
-                  else{
-
-#ifdef _DEBUG_
-                    logfileptr->OFS()<<"Local Supernode "<<child_snode_id<<" gets the contribution of Supernode "<<I<<std::endl;
-#endif
-                    Int iLocalJ = snodeLocalIndex(child_snode_id);
-                    LocalUpdates[iLocalJ-1].push((Int)I);
-                  }
-                  children_found++;
-                }
-              }
-              //last column of the prev supernode
-              colIdx = this->Xsuper_[child_snode_id-1]-1;
-              if(colIdx==0){
-                break;
-              }
-            }
-
-
-          }
-        }
-
-        SendDelayedMessagesDown(iLocalI,ContribsToSendDown,outgoingSend,Contributions_);
-        --iLocalI;
-      }
-      SYMPACK_TIMER_STOP(SPARSE_BACK_SUBST);
-
-      MPI_Barrier(CommEnv_->MPI_GetComm());
-
-    }
-    //DumpContrib();
-
   }
 
   template<typename T> inline void symPACKMatrix<T>::GetSolution(T * B, int nrhs){
     Int n = this->iSize_;
-    //Int this->iam = CommEnv_->MPI_Rank();
-    //Int this->np  = CommEnv_->MPI_Size();
 
-    //if(this->iam<this->np)
     {
       std::fill(B,B+n*nrhs,T(0.0));
 
-      //    Int nrhs = B.n();
       //Gather B from everybody and put it in the original matrix order
       std::vector<T> tmp_nzval;
       for(Int I=1; I<this->Xsuper_.size();++I){
@@ -924,21 +342,14 @@ namespace symPACK{
         Int nzcnt = snode_size * nrhs;
 
         if( iOwner == this->iam ){
-#ifndef NEW_SOLVE
-          SuperNode<T,MallocAllocator> * contrib = snodeLocal(I,Contributions_);
-#else
           Int Ilocal = snodeLocalIndex(I); 
           auto contrib = std::dynamic_pointer_cast< SuperNode<T,UpcxxAllocator> >(Contributions2_[Ilocal-1]);
-#endif
-          //logfileptr->OFS()<<*contrib<<std::endl;
           data = contrib->GetNZval(0);
         }
         else{
           tmp_nzval.resize(nzcnt);
           data = &tmp_nzval[0];
         }
-
-        //MPI_Bcast(data,nzcnt*sizeof(T),MPI_BYTE,iOwner,CommEnv_->MPI_GetComm());
 
         if(this->iam==iOwner){
           for(Int i = 0; i<snode_size; ++i){ 
@@ -1152,9 +563,6 @@ namespace symPACK{
     mh.resize(this->Xsuper_.size(),I_ZERO);
     numBlk.resize(this->Xsuper_.size(),I_ZERO);
 
-    //Int numLocSnode = ( (this->Xsuper_.size()-1) / this->np);
-    //Int firstSnode = this->iam*numLocSnode + 1;
-
     Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
     Int firstSnode = this->XsuperDist_[this->iam];
 
@@ -1204,7 +612,6 @@ namespace symPACK{
             if( nextSup<=this->Xsuper_.size()-1){
               next_fc = this->Xsuper_[nextSup-1];
               next_lc = this->Xsuper_[nextSup]-1;
-              //             logfileptr->OFS()<<"P Moving on to next supernode"<<std::endl;
             }
             else{
               break;
@@ -1213,8 +620,6 @@ namespace symPACK{
 
           if(row==iPrevRow+1){
             if( nextSup<this->Xsuper_.size()-0 && row==next_fc){
-              //              logfileptr->OFS()<<"P "<<row<<" Next fc and lc are: "<<next_fc<<" "<<next_lc<<std::endl;
-              //              logfileptr->OFS()<<"Crossed boundary"<<std::endl;
               nzBlockCnt++;
             }
           }
@@ -1230,7 +635,6 @@ namespace symPACK{
         Int supno = this->SupMembership_[row-1];
 
         if(prevSnode!=supno){
-          //Idx supno = locSupLindx_[sidx-1];
           if(marker[supno-1]!=s && supno!=s){
             marker[supno-1] = s;
             ++sc[supno-1];
@@ -1309,7 +713,6 @@ namespace symPACK{
             Int row = desc.GIndex;
             for(Int i = 0; i< nRows; ++i){
               for(Int j = 0; j< src_snode->Size(); ++j){
-                //                logfileptr->OFS()<<std::scientific<<val[i*src_snode->Size()+j]<<" ";
                 logfileptr->OFS()<<std::scientific<<"("<<row+i<<","<<src_first_col+j<<") "<<ToMatlabScalar(val[i*src_snode->Size()+j])<<" "<<std::endl;
               }
             }
@@ -1403,1224 +806,6 @@ namespace symPACK{
     }
 
 
-  //#define BETTER_DISTRIB
-  //#define BETTER_DISTRIB3
-  //        //#define BETTER_DISTRIB2
-  //
-  //#ifndef BETTER_DISTRIB
-  //        //first, count 
-  //        map<Int,std::pair<size_t,Icomm *> > send_map;
-  //#else
-  //
-  //#ifdef BETTER_DISTRIB3
-  //
-  //
-  //        //map<Int, unordered_map<Int, std::set<triplet<T>, sortTriplet<T> > > > bufSup;
-  //
-  //        //   auto sortTriplet = [](const triplet<T> & a, const triplet<T> & b)->bool{
-  //        //               bool retval = a.row<b.row;
-  //        //               if(a.row==b.row){
-  //        //               retval = a.col<b.col;
-  //        //               }
-  //        //               return retval;
-  //        //               };
-  //
-  //
-  //        map<Int, unordered_map<Int, std::priority_queue<triplet<T>, std::vector<triplet<T> >, sortTripletInv<T> > > > bufSup;
-  //#endif
-  //
-  //#ifndef BETTER_DISTRIB2
-  //        //map< proc , map< Sup, map<col,std::tuple<count,posRow,posNzval>  > > >
-  //        map<Int, unordered_map<Int, unordered_map<Idx, std::tuple<int,int,int> > > > bufSupDesc;
-  //#else
-  //        Int NSuper = this->Xsuper_.size()-1;
-  //        vector<Int> bufSupCnt(NSuper);
-  //        vector<bool> bufSupMarker(NSuper,false);
-  //        vector<size_t> bufSupPos(NSuper,0);
-  //        //vector<Idx> lastLocalSup(this->np,0);
-  //#endif
-  //#endif
-  //
-  //
-  //#ifndef BETTER_DISTRIB
-  //        for(Int p=0;p<this->np;++p){
-  //          send_map[p].first = 0;
-  //        }
-  //#endif
-  //
-  //        SYMPACK_TIMER_START(DISTRIBUTE_COUNTING);
-  //
-  //        Int snodeCount = 0;
-  //        for(Int I=1;I<this->Xsuper_.size();I++){
-  //          Idx fc = this->Xsuper_[I-1];
-  //          Idx lc = this->Xsuper_[I]-1;
-  //          Int iWidth = lc-fc+1;
-  //          Int iHeight = UpdateHeight_[I-1];
-  //
-  //          Int iDest = this->Mapping_->Map(I-1,I-1);
-  //
-  //          if(iDest==this->iam){
-  //            ++snodeCount;
-  //          }
-  //
-  //          //look at the owner of the first column of the supernode
-  //          Idx numColFirst = std::max(1,this->iSize_ / this->np);
-  //
-  //          //post all the recv and sends
-  //          for(Idx col = fc;col<=lc;col++){
-  //            //corresponding column in the unsorted matrix A
-  //            Idx orig_col = this->Order_.perm[col-1];
-  //            Idx iOwnerCol = std::min((orig_col-1)/numColFirst,(Idx)this->np-1);
-  //#ifndef BETTER_DISTRIB
-  //            size_t & send_bytes = send_map[iDest].first;
-  //#endif
-  //            if(this->iam == iOwnerCol){
-  //              Int nrows = 0;
-  //              Idx local_col = (orig_col-(numColFirst)*iOwnerCol);
-  //              for(Ptr rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-  //                Idx orig_row = pMat.Local_.rowind[rowidx-1];
-  //                Idx row = this->Order_.invp[orig_row-1];
-  //
-  //                if(row<col){
-  //                  //add the pair (col,row) to processor owning column row
-  //                  Int J = this->SupMembership_[row-1];
-  //                  Int iDestJ = this->Mapping_->Map(J-1,J-1);
-  //#ifndef BETTER_DISTRIB
-  //                  send_map[iDestJ].first += sizeof(Idx)+sizeof(Int)+1*(sizeof(Idx)+sizeof(T));
-  //#else
-  //
-  //#ifndef BETTER_DISTRIB2
-  //                  auto & desc = bufSupDesc[iDestJ][J][row];
-  //                  std::get<0>(desc)++;
-  //#else
-  //                  if(!bufSupMarker[J-1]){
-  //                    bufSupMarker[J-1] = true;//++lastLocalSup[iDestJ];
-  //                  }
-  //                  bufSupCnt[J-1]++;
-  //#endif
-  //
-  //#endif
-  //                }
-  //                else{
-  //#ifndef BETTER_DISTRIB2
-  //                  //add the pair (row,col) to iDest
-  //                  nrows++;
-  //#else
-  //                  if(!bufSupMarker[I-1]){
-  //                    bufSupMarker[I-1] = true;//++lastLocalSup[iDest];
-  //                  }
-  //                  bufSupCnt[I-1]++;
-  //#endif
-  //                }
-  //              }
-  //#ifndef BETTER_DISTRIB
-  //              send_bytes += sizeof(Idx)+sizeof(Int)+nrows*(sizeof(Idx)+sizeof(T));
-  //#else
-  //
-  //#ifndef BETTER_DISTRIB2
-  //              auto & supMap = bufSupDesc[iDest][I];
-  //              std::get<0>(supMap[col])+=nrows;
-  //#endif
-  //
-  //#endif
-  //            }
-  //          }
-  //        }
-  //
-  //        SYMPACK_TIMER_STOP(DISTRIBUTE_COUNTING);
-  //
-  //        //Resize the local supernodes array
-  //        LocalSupernodes_.reserve(snodeCount);
-  //
-  //        //logfileptr->OFS()<<"INITIALIZING THE SHARED ARRAY"<<std::endl;
-  //
-  //        std::vector<upcxx::global_ptr<SuperNodeDesc > > localFactors;
-  //        //localFactors.reserve(snodeCount);
-  //        remoteFactors_.resize(this->Xsuper_.size()-1);
-  //        std::fill((char*)&remoteFactors_[0],(char*)&remoteFactors_[0]+remoteFactors_.size()*sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ),0);
-  //
-  //        //logfileptr->OFS()<<"My usable global memory size is: "<<upcxx::my_usable_global_memory_size()<<std::endl;
-  //
-  //        SYMPACK_TIMER_START(DISTRIBUTE_CREATE_SNODES);
-  //
-  //        for(Int I=1;I<this->Xsuper_.size();I++){
-  //
-  //          Int iDest = this->Mapping_->Map(I-1,I-1);
-  //
-  //          //parse the first column to create the supernode structure
-  //          if(this->iam==iDest){
-  //            Int fc = this->Xsuper_[I-1];
-  //            Int lc = this->Xsuper_[I]-1;
-  //            Int iWidth = lc-fc+1;
-  //            Int iHeight = UpdateHeight_[I-1];
-  //            Int nzBlockCnt = numBlk_[I-1];
-  //#ifndef ITREE2
-  //            globToLocSnodes_.push_back(I-1);
-  //#else 
-  //            ITree::Interval snode_inter = { I, I, LocalSupernodes_.size() };
-  //            globToLocSnodes_.Insert(snode_inter);
-  //#endif
-  //            SuperNode<T> * newSnode = CreateSuperNode(this->options_.decomposition,I,fc,lc,iHeight,this->iSize_,nzBlockCnt);
-  //            LocalSupernodes_.push_back(newSnode);
-  //          }
-  //        }
-  //
-  //
-  //        SYMPACK_TIMER_STOP(DISTRIBUTE_CREATE_SNODES);
-  //
-  //        //first create the structure of every supernode
-  //        {
-  //          std::vector< int > superStructure(this->np);
-  //          std::vector< int > rdisplsStructure;
-  //          std::vector< int > sSuperStructure(this->np);
-  //          std::vector< int > ssizes(this->np,0);
-  //          std::vector< int > sdispls(this->np+1,0);
-  //          std::vector< int > rsizes(this->np,0);
-  //
-  //          Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
-  //          Int firstSnode = this->XsuperDist_[this->iam];
-  //
-  //          for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
-  //            Idx I = locsupno + firstSnode-1;
-  //            Int iDest = this->Mapping_->Map(I-1,I-1);
-  //            ssizes[iDest] += 1 + 2*numBlk_[I-1]; //1 for supno index + numBlk startrows + numBlk number of rows
-  //          }
-  //
-  //          sdispls[0] = 0;
-  //          std::partial_sum(ssizes.begin(),ssizes.end(),&sdispls[1]);
-  //
-  //          rdisplsStructure = sdispls;
-  //          sSuperStructure.resize(sdispls.back());
-  //          for(Int locsupno = 1; locsupno<this->locXlindx_.size(); ++locsupno){
-  //            Idx I = locsupno + firstSnode-1;
-  //            Int iDest = this->Mapping_->Map(I-1,I-1);
-  //
-  //            int & tail = rdisplsStructure[iDest];
-  //
-  //
-  //            Int fc = this->Xsuper_[I-1];
-  //            Int lc = this->Xsuper_[I]-1;
-  //            Int iWidth = lc - fc + 1;
-  //            Ptr lfi = this->locXlindx_[locsupno-1];
-  //            Ptr lli = this->locXlindx_[locsupno]-1;
-  //
-  //            sSuperStructure[tail++] = I;
-  //            //count number of contiguous rows
-  //            for(Ptr sidx = lfi; sidx<=lli;sidx++){
-  //              Idx iStartRow = this->locLindx_[sidx-1];
-  //              Idx iPrevRow = iStartRow;
-  //              Int iContiguousRows = 1;
-  //              for(Int idx2 = sidx+1; idx2<=lli;idx2++){
-  //                Idx iCurRow = this->locLindx_[idx2-1];
-  //                if(iStartRow == this->locLindx_[lfi-1]){
-  //                  if(iCurRow>iStartRow+iWidth-1){
-  //                    //enforce the first block to be a square diagonal block
-  //                    break;
-  //                  }
-  //                }
-  //
-  //                if(iCurRow==iPrevRow+1){
-  //                  sidx++;
-  //                  ++iContiguousRows;
-  //                  iPrevRow=iCurRow;
-  //                }
-  //                else{
-  //                  break;
-  //                }
-  //              }
-  //
-  //              sSuperStructure[tail++] = iStartRow;
-  //              sSuperStructure[tail++] = iContiguousRows;
-  //            }
-  //          }
-  //
-  //          MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,pMat.comm);
-  //          rdisplsStructure[0] = 0;
-  //          std::partial_sum(rsizes.begin(),rsizes.end(),&rdisplsStructure[1]);
-  //          superStructure.resize(rdisplsStructure.back());
-  //
-  //          //turn everything into byte sizes
-  //          for(int p = 0; p<ssizes.size();p++){ ssizes[p]*=sizeof(int); }
-  //          for(int p = 0; p<rsizes.size();p++){ rsizes[p]*=sizeof(int); }
-  //          for(int p = 0; p<sdispls.size();p++){ sdispls[p]*=sizeof(int); }
-  //          for(int p = 0; p<rdisplsStructure.size();p++){ rdisplsStructure[p]*=sizeof(int); }
-  //
-  //          //Do the alltoallv to get the structures        
-  //          MPI_Alltoallv(&sSuperStructure[0], &ssizes[0], &sdispls[0], MPI_BYTE,
-  //              &superStructure[0], &rsizes[0], &rdisplsStructure[0], MPI_BYTE,
-  //              pMat.comm);
-  //
-  //          //loop through received structure and create supernodes
-  //          for(Int p = 0; p<this->np; p++){
-  //            int pos = rdisplsStructure[p]/sizeof(int);
-  //            int end = rdisplsStructure[p+1]/sizeof(int);
-  //            while(pos<end){
-  //              Int I = superStructure[pos++];
-  //              Int nzBlockCnt = numBlk_[I-1];
-  //
-  //              Int fc = this->Xsuper_[I-1];
-  //              Int lc = this->Xsuper_[I]-1;
-  //              Int iWidth = lc-fc+1;
-  //              SuperNode<T> * snode = snodeLocal(I);
-  //              if(snode->NZBlockCnt()==0){
-  //                for(Int i = 0; i<nzBlockCnt;i++){
-  //                  Int iStartRow = superStructure[pos++];
-  //                  Int iContiguousRows = superStructure[pos++];
-  //                  snode->AddNZBlock(iContiguousRows , iWidth,iStartRow);
-  //                }
-  //                snode->Shrink();
-  //              }
-  //            }
-  //          } 
-  //        }
-  //
-  //        {
-  //          //allocate one buffer for every remote processor
-  //          //compute the send structures
-  //          size_t total_send_size = 0;
-  //          std::vector<int> sdispls(this->np+1,0);
-  //          std::vector<int> scounts(this->np,0);
-  //#ifndef BETTER_DISTRIB
-  //          for(auto it = send_map.begin(); it!=send_map.end();it++){
-  //            Int iCurDest = it->first;
-  //            size_t & send_bytes = it->second.first;
-  //            scounts[iCurDest] = send_bytes;
-  //#ifdef _DEBUG_
-  //            logfileptr->OFS()<<"P"<<this->iam<<" ---- "<<send_bytes<<" ---> P"<<iCurDest<<std::endl;
-  //#endif
-  //          }
-  //#else
-  //
-  //
-  //#ifndef BETTER_DISTRIB2
-  //          //changing from nrows to pos
-  //          if(bufSupDesc.size()>0){
-  //            scope_timer_special(a,BETTER_DISTRIB_CNT_TO_POS);
-  //            auto prevProcIt = bufSupDesc.begin();
-  //            for(Int p = 0 ; p< prevProcIt->first; ++p){
-  //              scounts[p] = 0;
-  //            }
-  //
-  //            for(auto procIt = bufSupDesc.begin(); procIt != bufSupDesc.end(); procIt++){
-  //              //fill the holes
-  //              for(Int p =prevProcIt->first+1; p<procIt->first; ++p){
-  //                scounts[p] = 0;
-  //              }
-  //
-  //              Int iCurDest = procIt->first;
-  //              int send_bytes = 0;
-  //              auto & supMap = procIt->second;
-  //              for(auto supIt = supMap.begin() ; supIt != supMap.end(); supIt++){
-  //                Int I = supIt->first;
-  //                auto & colMap = supIt->second;
-  //                for(auto colIt = colMap.begin() ; colIt != colMap.end(); colIt++){
-  //                  Idx col = colIt->first;
-  //                  //Int count = colIt->second;
-  //                  auto & desc = colIt->second;
-  //                  Int count = std::get<0>(desc);
-  //                  //for each cols, add 1 x Idx, 1 Int,  count x Idx and count x T
-  //                  int col_bytes = (count+1)*sizeof(Idx) + sizeof(Int) + count*sizeof(T);
-  //                  send_bytes+= col_bytes;
-  //
-  //                  //update the buf pos (nzval offset will be computed later)
-  //                  std::get<1>(desc) = total_send_size;
-  //                  total_send_size+= col_bytes;
-  //                }
-  //              }
-  //              scounts[iCurDest] = send_bytes;
-  //              prevProcIt = procIt;
-  //            }
-  //
-  //            for(Int p = bufSupDesc.rbegin()->first+1; p<this->np; ++p){
-  //              scounts[p] = 0;
-  //            }
-  //          }
-  //          else{
-  //            for(Int p = 0; p<this->np; ++p){
-  //              scounts[p] = 0;
-  //            }
-  //          }
-  //          total_send_size = 0;
-  //#else
-  //
-  //          for(Int p = 0; p<this->np; ++p){
-  //            scounts[p] = 0;
-  //          }
-  //
-  //
-  //          for(Int I = 1; I<= NSuper;I++){        
-  //            Int iDest = this->Mapping_->Map(I-1,I-1);
-  //            auto nnzcnt = bufSupCnt[I-1];
-  //            //supId + nnz + nnzcnt triplets
-  //            //scounts[iDest]+=nnzcnt*(2*sizeof(Idx)+sizeof(T))+2*sizeof(Int);
-  //            scounts[iDest]+=nnzcnt*(2*sizeof(Idx)+sizeof(T));
-  //          }
-  //
-  //
-  //          sdispls[0] = 0;
-  //          std::partial_sum(scounts.begin(),scounts.end(),&sdispls[1]);
-  //          total_send_size = sdispls.back();
-  //
-  //          {
-  //            vector<int> spos(this->np,0); 
-  //            for(Int I = 1; I<= NSuper;I++){        
-  //              Int iDest = this->Mapping_->Map(I-1,I-1);
-  //              auto nnzcnt = bufSupCnt[I-1];
-  //              bufSupPos[I-1] = sdispls[iDest]+spos[iDest];
-  //              spos[iDest]+=nnzcnt*(2*sizeof(Idx)+sizeof(T));
-  //            }
-  //          }
-  //
-  //
-  //#endif
-  //
-  //          //      {
-  //          //        scope_timer(a,NEW_OFFSET);
-  //          //        
-  //          //        for(Int p = 0; p<this->np; ++p){
-  //          //            scounts[p] = 0;
-  //          //        }
-  //          //
-  //          //        for(auto colIt = colOffset.begin() ; colIt != colOffset.end(); colIt++){
-  //          //          Idx col = colIt->first;
-  //          //          auto & triplet = colIt->second;
-  //          //
-  //          //          Int I = this->SupMembership_[I-1];
-  //          //          Int iDest = this->Mapping_->Map(I-1,I-1);
-  //          //
-  //          //
-  //          //          std::get<0>(triplet)+=nrows;
-  //          //        }
-  //          //      }
-  //
-  //
-  //#endif
-  //
-  //#ifndef BETTER_DISTRIB2
-  //          //compute send displacements
-  //          sdispls[0] = 0;
-  //          std::partial_sum(scounts.begin(),scounts.end(),&sdispls[1]);
-  //          total_send_size = sdispls.back();
-  //#endif
-  //
-  //          auto sposition = sdispls;
-  //          Icomm * IsendPtr = new Icomm(total_send_size,MPI_REQUEST_NULL);
-  //
-  //          SYMPACK_TIMER_SPECIAL_START(serializing);      
-  //#ifndef BETTER_DISTRIB
-  //          //Fill up the send buffer
-  //          for(Int I=1;I<this->Xsuper_.size();I++){
-  //            Idx fc = this->Xsuper_[I-1];
-  //            Idx lc = this->Xsuper_[I]-1;
-  //            Int iWidth = lc-fc+1;
-  //            Int iHeight = cc[fc-1];
-  //
-  //            Icomm & Isend = *IsendPtr;
-  //            Int iDest = this->Mapping_->Map(I-1,I-1);
-  //
-  //#ifdef _DEBUG_
-  //            logfileptr->OFS()<<"Supernode "<<I<<" is owned by P"<<iDest<<std::endl;
-  //#endif
-  //
-  //            //look at the owner of the first column of the supernode
-  //            Int numColFirst = std::max(1,this->iSize_ / this->np);
-  //
-  //            //Serialize
-  //            for(Idx col = fc;col<=lc;col++){
-  //              Idx orig_col = this->Order_.perm[col-1];
-  //              Int iOwnerCol = std::min(Int((orig_col-1)/numColFirst),this->np-1);
-  //              if(this->iam == iOwnerCol){
-  //                Int nrows = 0;
-  //                Int local_col = (orig_col-(numColFirst)*iOwnerCol);
-  //                for(Ptr rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-  //                  Idx orig_row = pMat.Local_.rowind[rowidx-1];
-  //                  Idx row = this->Order_.invp[orig_row-1];
-  //
-  //
-  //                  if(row<col){
-  //                    //add the pair (col,row) to processor owning column row
-  //                    Int J = this->SupMembership_[row-1];
-  //                    Int iDestJ = this->Mapping_->Map(J-1,J-1);
-  //
-  //                    T val = pMat.nzvalLocal[rowidx-1];
-  //
-  //                    //we need to set head to the proper sdispls
-  //                    Isend.setHead(sposition[iDestJ]);
-  //                    Isend<<row;
-  //                    Isend<<1;
-  //                    Isend<<col;
-  //                    Isend<<val;
-  //                    //backup new position for processor iDestJ
-  //                    sposition[iDestJ] = Isend.head;
-  //                  }
-  //                  else{
-  //                    nrows++;
-  //                  }
-  //                }
-  //
-  //
-  //                //restore head
-  //                Isend.setHead(sposition[iDest]);
-  //                Isend<<col;
-  //                Isend<<nrows;
-  //
-  //                for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-  //                  Int orig_row = pMat.Local_.rowind[rowidx-1];
-  //                  Int row = this->Order_.invp[orig_row-1];
-  //                  if(row>=col){
-  //                    Isend<<row;
-  //                  }
-  //                }
-  //
-  //                for(Int rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-  //                  Int orig_row = pMat.Local_.rowind[rowidx-1];
-  //                  Int row = this->Order_.invp[orig_row-1];
-  //                  if(row>=col){
-  //                    Isend<<pMat.nzvalLocal[rowidx-1];
-  //                  }
-  //                }
-  //
-  //                //backup new position for processor iDest
-  //                sposition[iDest] = Isend.head;
-  //
-  //
-  //              }
-  //            }
-  //          }
-  //#else
-  //
-  //
-  //#ifndef BETTER_DISTRIB2
-  //          std::unordered_set<Idx> colInserted;
-  //          Idx numColFirst = (std::max(1,this->iSize_ / this->np));
-  //          for(Idx local_col = 1 ; local_col < pMat.Local_.colptr.size(); local_col++){
-  //            Idx orig_col = this->iam * numColFirst + local_col;
-  //            Idx col = this->Order_.invp[orig_col-1];
-  //
-  //            Icomm & Isend = *IsendPtr;
-  //            Int I = this->SupMembership_[col-1];
-  //            Int iDest = this->Mapping_->Map(I-1,I-1);
-  //            auto & posSup=bufSupDesc[iDest][I];
-  //
-  //            volatile int found = 0;
-  //            for(Ptr rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-  //              Idx orig_row = pMat.Local_.rowind[rowidx-1];
-  //              Idx row = this->Order_.invp[orig_row-1];
-  //              T & val = pMat.nzvalLocal[rowidx-1];
-  //
-  //
-  //              if(row<col){
-  //                //add the pair (col,row) to processor owning column row
-  //                Int destCol = row;
-  //                Int destRow = col;
-  //
-  //                Int J = this->SupMembership_[row-1];
-  //                Int iDestJ = this->Mapping_->Map(J-1,J-1);
-  //
-  //                auto & desc = bufSupDesc[iDestJ][J][destCol];
-  //                auto & bufPos = std::get<1>(desc);
-  //                auto & nzvalPos = std::get<2>(desc);
-  //                int cnt = colInserted.count(destCol);
-  //                if(cnt==0){
-  //                  auto nrows = std::get<0>(desc);
-  //                  Isend.setHead(bufPos);
-  //                  //serialize destCol and nrows
-  //                  Isend << destCol;
-  //                  Isend << nrows;
-  //                  bufPos = Isend.head;
-  //                  nzvalPos = bufPos+nrows*sizeof(Idx);
-  //                  colInserted.insert(destCol);
-  //                }
-  //
-  //                //write the row index
-  //                Isend.setHead(bufPos);
-  //                Isend<<destRow;
-  //                bufPos+=sizeof(Idx);
-  //                //write the nzval
-  //                Isend.setHead(nzvalPos);
-  //                Isend<<val;
-  //                nzvalPos+=sizeof(T);
-  //
-  //
-  //              }
-  //              else{
-  //                found = 1;
-  //              }
-  //            }
-  //
-  //            if(found){
-  //              auto & desc = posSup[col];
-  //              auto nrows = std::get<0>(desc);
-  //              auto & bufPos = std::get<1>(desc);
-  //              auto & nzvalPos = std::get<2>(desc);
-  //              int cnt = colInserted.count(col);
-  //              if(cnt==0){
-  //                Isend.setHead(bufPos);
-  //                //serialize destCol and nrows
-  //                Isend << col;
-  //                Isend << nrows;
-  //                bufPos = Isend.head;
-  //                nzvalPos = bufPos+nrows*sizeof(Idx);
-  //                colInserted.insert(col);
-  //              }
-  //
-  //              Isend.setHead(bufPos);
-  //              for(Ptr rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-  //                Idx orig_row = pMat.Local_.rowind[rowidx-1];
-  //                Idx row = this->Order_.invp[orig_row-1];
-  //                if(row>=col){
-  //                  Isend<<row;
-  //                }
-  //              }
-  //              bufPos+=nrows*sizeof(Idx);
-  //
-  //              Isend.setHead(nzvalPos);
-  //              for(Ptr rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-  //                Idx orig_row = pMat.Local_.rowind[rowidx-1];
-  //                Idx row = this->Order_.invp[orig_row-1];
-  //                if(row>=col){
-  //                  T & val = pMat.nzvalLocal[rowidx-1];
-  //                  Isend<<val;
-  //                }
-  //              }
-  //              nzvalPos += nrows*sizeof(T);
-  //            }
-  //
-  //
-  //          }
-  //#else
-  //
-  //          for(Int I=1;I<this->Xsuper_.size();I++){
-  //            Idx fc = this->Xsuper_[I-1];
-  //            Idx lc = this->Xsuper_[I]-1;
-  //            Int iWidth = lc-fc+1;
-  //            Int iHeight = UpdateHeight_[I-1];
-  //
-  //            Int iDest = this->Mapping_->Map(I-1,I-1);
-  //
-  //            Icomm & Isend = *IsendPtr;
-  //            //look at the owner of the first column of the supernode
-  //            Idx numColFirst = std::max(1,this->iSize_ / this->np);
-  //
-  //            //post all the recv and sends
-  //            for(Idx col = fc;col<=lc;col++){
-  //              //corresponding column in the unsorted matrix A
-  //              Idx orig_col = this->Order_.perm[col-1];
-  //              Idx iOwnerCol = std::min((orig_col-1)/numColFirst,(Idx)this->np-1);
-  //              if(this->iam == iOwnerCol){
-  //                Int nrows = 0;
-  //                Idx local_col = (orig_col-(numColFirst)*iOwnerCol);
-  //                for(Ptr rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-  //                  Idx orig_row = pMat.Local_.rowind[rowidx-1];
-  //                  Idx row = this->Order_.invp[orig_row-1];
-  //                  T & val = pMat.nzvalLocal[rowidx-1];
-  //
-  //                  Int destCol = col;
-  //                  Int destRow = row;
-  //                  if(row<col){
-  //                    destCol = row;
-  //                    destRow = col;
-  //                  }
-  //                  //add the pair (destCol,destRow) to processor owning column destCol
-  //                  Int J = this->SupMembership_[destCol-1];
-  //                  Int iDestJ = this->Mapping_->Map(J-1,J-1);
-  //
-  //                  Isend.setHead(bufSupPos[J-1]);
-  //                  //            if(bufSupMarker[J-1]){
-  //                  //              bufSupMarker[J-1]=false;
-  //                  //              Isend<<J;
-  //                  //              Isend<<bufSupCnt[J-1];
-  //                  //            }
-  //
-  //                  Isend<<destRow<<destCol<<val;
-  //                  bufSupPos[J-1] = Isend.head;
-  //                }
-  //              }
-  //            }
-  //          }
-  //
-  //
-  //
-  //
-  //
-  //
-  //#endif
-  //
-  //#endif
-  //          SYMPACK_TIMER_SPECIAL_STOP(serializing);      
-  //
-  //          //compute the receive structures
-  //          size_t total_recv_size = 0;
-  //          std::vector<int> rdispls(this->np+1,0);
-  //          std::vector<int> rcounts(this->np,0);
-  //
-  //          MPI_Alltoall(&scounts[0],sizeof(int),MPI_BYTE,&rcounts[0],sizeof(int),MPI_BYTE,pMat.comm);
-  //
-  //          //compute receive displacements
-  //          rdispls[0] = 0;
-  //          std::partial_sum(rcounts.begin(),rcounts.end(),&rdispls[1]);
-  //          total_recv_size = rdispls.back();
-  //
-  //          Icomm * IrecvPtr = new Icomm(total_recv_size,MPI_REQUEST_NULL);
-  //
-  //
-  //#ifdef _DEBUG_
-  //          logfileptr->OFS()<<"scounts: "<<scounts<<std::endl;
-  //          logfileptr->OFS()<<"sdispls: "<<sdispls<<std::endl;
-  //          logfileptr->OFS()<<"rcounts: "<<rcounts<<std::endl;
-  //          logfileptr->OFS()<<"rdispls: "<<rdispls<<std::endl;
-  //#endif
-  //
-  //          MPI_Alltoallv(IsendPtr->front(), &scounts[0], &sdispls[0], MPI_BYTE,
-  //              IrecvPtr->front(), &rcounts[0], &rdispls[0], MPI_BYTE,
-  //              pMat.comm);
-  //
-  //          //Need to parse the structure sent from the processor owning the first column of the supernode
-  //
-  //          SYMPACK_TIMER_SPECIAL_START(deserializing);      
-  //#ifndef BETTER_DISTRIB2
-  //          for(Int p=0;p<this->np;++p){
-  //            IrecvPtr->setHead(rdispls[p]);
-  //            while(IrecvPtr->head < rdispls[p]+rcounts[p]){ 
-  //
-  //              char * buffer = IrecvPtr->back();
-  //              //Deserialize
-  //              Idx col = *(Int*)&buffer[0];
-  //              Int I = this->SupMembership_[col-1];
-  //              //do a global to local mapping
-  //
-  //
-  //              Int iDest = this->Mapping_->Map(I-1,I-1);
-  //              bassert(this->iam==iDest);
-  //
-  //              Int fc = this->Xsuper_[I-1];
-  //              Int lc = this->Xsuper_[I]-1;
-  //              Int iWidth = lc-fc+1;
-  //
-  //              SuperNode<T> * snode = snodeLocal(I);
-  //
-  //              //nrows of column col sent by processor p
-  //              Int nrows = *((Int*)&buffer[sizeof(Int)]);
-  //              Idx * rowind = (Idx*)(&buffer[sizeof(Int)+sizeof(Idx)]);
-  //              T * nzvalA = (T*)(&buffer[(1+nrows)*sizeof(Idx)+sizeof(Int)]);
-  //              //advance in the buffer
-  //              IrecvPtr->setHead(IrecvPtr->head + sizeof(Idx) +sizeof(Int) + nrows*(sizeof(Idx)+sizeof(T)));
-  //
-  //              //Here, do a linear search instead for the blkidx
-  //
-  //              Ptr colbeg = 1;
-  //              Ptr colend = nrows;
-  //              //            for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
-  //              //              Idx row = rowind[rowidx-1];
-  //              //              logfileptr->OFS()<<row<<" ";
-  //              //            }
-  //              //              logfileptr->OFS()<<std::endl;
-  //
-  //              if(colbeg<=colend){
-  //                //sort rowind and nzvals
-  //
-  //#if 1 
-  //                std::vector<size_t> lperm = sort_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,std::less<Int>());
-  //                apply_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,lperm);
-  //                apply_permutation(&nzvalA[colbeg-1],&nzvalA[colend-1]+1,lperm);
-  //                Idx firstRow = rowind[colbeg-1];
-  //                Int blkidx = snode->FindBlockIdx(firstRow);
-  //                assert(blkidx!=-1);
-  //                Int blk_nrows = snode->NRows(blkidx);    
-  //                NZBlockDesc * blk_desc = &snode->GetNZBlockDesc(blkidx);
-  //#else
-  //                Idx prevRow = 0;
-  //                Int blkidx = 0;
-  //                NZBlockDesc * blk_desc = &snode->GetNZBlockDesc(blkidx);
-  //                Int blk_nrows = snode->NRows(blkidx);
-  //#endif
-  //
-  //                for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
-  //                  Idx row = rowind[rowidx-1];
-  //
-  //#if 1
-  //                  while(row>blk_desc->GIndex+blk_nrows-1){
-  //                    blkidx++;
-  //                    blk_nrows = snode->NRows(blkidx);    
-  //                    blk_desc = &snode->GetNZBlockDesc(blkidx);
-  //                  }
-  //#else
-  //                  if(row!=prevRow){
-  //                    if(row>blk_desc->GIndex+blk_nrows || row<blk_desc->GIndex){
-  //                      blkidx = snode->FindBlockIdx(row);
-  //                      blk_desc = &snode->GetNZBlockDesc(blkidx);
-  //                      blk_nrows = snode->NRows(blkidx);
-  //                    }
-  //                    prevRow=row;
-  //                  }
-  //#endif
-  //
-  //                  Int local_row = row - blk_desc->GIndex + 1;
-  //                  Int local_col = col - fc + 1;
-  //                  T * nzval = snode->GetNZval(blk_desc->Offset);
-  //                  nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
-  //                }
-  //                //for(Int rowidx = colbeg; rowidx<=colend; ++rowidx){
-  //                //  Int row = rowind[rowidx-1];
-  //                //  Int blkidx = snode->FindBlockIdx(row);
-  //                //  assert(blkidx!=-1);
-  //                //  NZBlockDesc & blk_desc = snode->GetNZBlockDesc(blkidx);
-  //                //  Int local_row = row - blk_desc.GIndex + 1;
-  //                //  Int local_col = col - fc + 1;
-  //                //  T * nzval = snode->GetNZval(blk_desc.Offset);
-  //                //  nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
-  //                //}
-  //              }
-  //            }
-  //          }
-  //#else
-  //#if 0
-  //          for(Int p=0;p<this->np;++p){
-  //            IrecvPtr->setHead(rdispls[p]);
-  //            while(IrecvPtr->head < rdispls[p]+rcounts[p]){ 
-  //
-  //              //Deserialize
-  //              Int I,nnz;
-  //              (*IrecvPtr)>>I>>nnz;
-  //
-  //              //          Int I = ((Int*)buffer)[0];
-  //              //          Int nnz = ((Int*)buffer)[1];
-  //              //          char * readBuf = buffer + 2*sizeof(Int);
-  //
-  //              //prepare for sorting
-  //              if(1){
-  //                scope_timer(a,SORTING_TRIPLETS);
-  //                size_t begin = 0;
-  //                size_t end   = nnz;
-  //                triplet<T> * buffer = (triplet<T>*)IrecvPtr->back();
-  //                //sort 
-  //                std::sort(&buffer[begin],&buffer[begin]+end,[](const triplet<T> & a, const triplet<T> & b)->bool{
-  //                    bool retval = a.row<b.row;
-  //                    if(a.row==b.row){
-  //                    retval = a.col<b.col;
-  //                    }
-  //                    return retval;
-  //                    });
-  //              }
-  //
-  //              Int fc = this->Xsuper_[I-1];
-  //              Int lc = this->Xsuper_[I]-1;
-  //              Int iWidth = lc-fc+1;
-  //              SuperNode<T> * snode = snodeLocal(I);
-  //              Int nnzRead = 0;
-  //
-  //              Idx prevRow = 0;
-  //              Int blkidx = 0;
-  //              NZBlockDesc * blk_desc = &snode->GetNZBlockDesc(blkidx);
-  //              Int blknrows = snode->NRows(blkidx);
-  //              T * nzval = snode->GetNZval(blk_desc->Offset);
-  //
-  //              while(nnzRead<nnz){
-  //                Idx row,col;
-  //                T val;
-  //                (*IrecvPtr)>>row>>col>>val;
-  //
-  //                if(row!=prevRow){
-  //                  if(row>blk_desc->GIndex+blknrows){
-  //                    blkidx = snode->FindBlockIdx(row);
-  //                    blk_desc = &snode->GetNZBlockDesc(blkidx);
-  //                    blknrows = snode->NRows(blkidx);
-  //                    nzval = snode->GetNZval(blk_desc->Offset);
-  //                  }
-  //                  prevRow=row;
-  //                }
-  //
-  //                Int local_row = row - blk_desc->GIndex + 1;
-  //                Int local_col = col - fc + 1;
-  //                nzval[(local_row-1)*iWidth+local_col-1] = val;
-  //
-  //                nnzRead++;
-  //              }
-  //
-  //            }
-  //          }
-  //#else
-  //          IrecvPtr->setHead(0);
-  //          //do a big sort
-  //
-  //          Int prevI = 0;
-  //
-  //          Idx row,col;
-  //          T val;
-  //
-  //          Int fc = 0;
-  //          Int lc = 0;
-  //          Int iWidth = 0;
-  //          SuperNode<T> * snode = nullptr;
-  //
-  //          Idx prevRow = 0;
-  //          Int blkidx = 0;
-  //          NZBlockDesc * blk_desc = nullptr;
-  //          Int blknrows = 0;
-  //          T * nzval = nullptr;
-  //
-  //
-  //          if(1){
-  //            scope_timer(a,SORTING_TRIPLETS);
-  //            size_t begin = 0;
-  //            size_t end   = total_recv_size/sizeof(triplet<T>);
-  //            triplet<T> * buffer = (triplet<T>*)IrecvPtr->back();
-  //            //sort 
-  //            std::sort(&buffer[begin],&buffer[begin]+end,[&supM = this->SupMembership_](const triplet<T> & a, const triplet<T> & b)->bool{
-  //                Int I = supM[a.col-1];
-  //                Int J = supM[b.col-1];
-  //
-  //                bool retval = I<J;
-  //                if(I==J){
-  //                retval = a.row<b.row;
-  //                if(a.row==b.row){
-  //                retval = a.col<b.col;
-  //                }
-  //                }
-  //                return retval;
-  //                });
-  //          }
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //          triplet<T> * elem = (triplet<T>*)IrecvPtr->back();
-  //          Int i = 0;
-  //          Int ntrip = total_recv_size/sizeof(triplet<T>);
-  //          while(i < ntrip){
-  //            triplet<T> * cur_elem = &elem[i];//(triplet<T>*)IrecvPtr->back();
-  //            i++;
-  //            //IrecvPtr->setHead(IrecvPtr->head+sizeof(triplet<T>));
-  //            //(*IrecvPtr)>>row>>col>>val;
-  //            Int I = this->SupMembership_[cur_elem->col-1];
-  //
-  //            Int iDest = this->Mapping_->Map(I-1,I-1);
-  //            bassert(this->iam==iDest);
-  //
-  //            if(I!=prevI){
-  //              fc = this->Xsuper_[I-1];
-  //              lc = this->Xsuper_[I]-1;
-  //              iWidth = lc-fc+1;
-  //              snode = snodeLocal(I);
-  //              prevRow = 0;
-  //              nzval=nullptr;
-  //              bassert(cur_elem->row!=prevRow); 
-  //              prevI = I;
-  //            }
-  //
-  //            if(cur_elem->row!=prevRow){
-  //              if(prevRow==0){
-  //                blkidx = snode->FindBlockIdx(cur_elem->row);
-  //                blk_desc = &snode->GetNZBlockDesc(blkidx);
-  //                blknrows = snode->NRows(blkidx);
-  //                nzval = snode->GetNZval(blk_desc->Offset);
-  //              }
-  //
-  //              if(cur_elem->row>blk_desc->GIndex+blknrows){
-  //                blkidx = snode->FindBlockIdx(cur_elem->row);
-  //                blk_desc = &snode->GetNZBlockDesc(blkidx);
-  //                blknrows = snode->NRows(blkidx);
-  //                nzval = snode->GetNZval(blk_desc->Offset);
-  //              }
-  //              prevRow=cur_elem->row;
-  //            }
-  //            bassert(nzval!=nullptr);
-  //
-  //            Int local_row = cur_elem->row - blk_desc->GIndex + 1;
-  //            Int local_col = cur_elem->col - fc + 1;
-  //
-  //            //logfileptr->OFS()<<I<<" "<<blkidx<<" "<<*blk_desc<<" ("<<row<<" "<<col<<" "<<val<<") "<<local_row<<" "<<local_col<<std::endl;
-  //            nzval[(local_row-1)*iWidth+local_col-1] = cur_elem->val;
-  //          } 
-  //#endif
-  //#endif
-  //
-  //          SYMPACK_TIMER_SPECIAL_STOP(deserializing);      
-  //
-  //          //after the alltoallv, cleanup
-  //          delete IrecvPtr;
-  //          delete IsendPtr;
-  //
-  //
-  //
-  //
-  //
-  //
-  //#ifdef BETTER_DISTRIB3
-  //          if (0){
-  //            {
-  //              scope_timer(a,NEW_PACKING);
-  //              for(Int I=1;I<this->Xsuper_.size();I++){
-  //                Idx fc = this->Xsuper_[I-1];
-  //                Idx lc = this->Xsuper_[I]-1;
-  //                Int iWidth = lc-fc+1;
-  //                Int iHeight = UpdateHeight_[I-1];
-  //
-  //                Int iDest = this->Mapping_->Map(I-1,I-1);
-  //
-  //                //look at the owner of the first column of the supernode
-  //                Idx numColFirst = std::max(1,this->iSize_ / this->np);
-  //
-  //                auto & setI = bufSup[iDest][I];
-  //
-  //                //post all the recv and sends
-  //                for(Idx col = fc;col<=lc;col++){
-  //                  //corresponding column in the unsorted matrix A
-  //                  Idx orig_col = this->Order_.perm[col-1];
-  //                  Idx iOwnerCol = std::min((orig_col-1)/numColFirst,(Idx)this->np-1);
-  //                  if(this->iam == iOwnerCol){
-  //                    Int nrows = 0;
-  //                    Idx local_col = (orig_col-(numColFirst)*iOwnerCol);
-  //                    for(Ptr rowidx = pMat.Local_.colptr[local_col-1]; rowidx<pMat.Local_.colptr[local_col]; ++rowidx){
-  //                      Idx orig_row = pMat.Local_.rowind[rowidx-1];
-  //                      Idx row = this->Order_.invp[orig_row-1];
-  //
-  //                      if(row<col){
-  //                        //add the pair (col,row) to processor owning column row
-  //                        Int J = this->SupMembership_[row-1];
-  //                        Int iDestJ = this->Mapping_->Map(J-1,J-1);
-  //                        auto & set = bufSup[iDestJ][J];
-  //                        T & val = pMat.nzvalLocal[rowidx-1];
-  //                        triplet<T> trip;
-  //                        trip.row = col;
-  //                        trip.col = row;
-  //                        trip.val = val;
-  //                        //set.insert(trip);
-  //                        set.push(trip);
-  //                      }
-  //                      else{
-  //                        T & val = pMat.nzvalLocal[rowidx-1];
-  //                        triplet<T> trip;
-  //                        trip.row = row;
-  //                        trip.col = col;
-  //                        trip.val = val;
-  //                        //setI.insert(trip);
-  //                        setI.push(trip);
-  //                      }
-  //                    }
-  //                  }
-  //                }
-  //              }
-  //            }
-  //
-  //            Icomm * IsendPtr;
-  //            Icomm * IrecvPtr;
-  //            std::vector<int> scounts(this->np,0);
-  //            std::vector<int> sdispls(this->np+1,0);
-  //            size_t total_send_size = 0;
-  //
-  //
-  //            {
-  //              scope_timer_special(a,NEW_SERIALIZING);
-  //
-  //              //map<Int, unordered_map<Int, std::set<triplet<T>, sortTriplet<T> > > > bufSup;
-  //              if(bufSup.size()>0){
-  //                auto prevProcIt = bufSup.begin();
-  //                for(Int p = 0 ; p< prevProcIt->first; ++p){
-  //                  scounts[p] = 0;
-  //                }
-  //
-  //                for(auto procIt = bufSup.begin(); procIt != bufSup.end(); procIt++){
-  //                  //fill the holes
-  //                  for(Int p =prevProcIt->first+1; p<procIt->first; ++p){
-  //                    scounts[p] = 0;
-  //                  }
-  //
-  //                  Int iCurDest = procIt->first;
-  //                  int send_bytes = 0;
-  //                  auto & supMap = procIt->second;
-  //                  for(auto supIt = supMap.begin() ; supIt != supMap.end(); supIt++){
-  //                    Int I = supIt->first;
-  //                    auto & supSet = supIt->second;
-  //                    send_bytes += supSet.size()*sizeof(triplet<T>);
-  //                    total_send_size+= supSet.size()*sizeof(triplet<T>);
-  //                  }
-  //                  scounts[iCurDest] = send_bytes;
-  //                  prevProcIt = procIt;
-  //                }
-  //
-  //                for(Int p = bufSup.rbegin()->first+1; p<this->np; ++p){
-  //                  scounts[p] = 0;
-  //                }
-  //              }
-  //              else{
-  //                for(Int p = 0; p<this->np; ++p){
-  //                  scounts[p] = 0;
-  //                }
-  //              }
-  //              total_send_size = 0;
-  //
-  //              //compute send displacements
-  //              sdispls[0] = 0;
-  //              std::partial_sum(scounts.begin(),scounts.end(),&sdispls[1]);
-  //              total_send_size = sdispls.back();
-  //
-  //              IsendPtr = new Icomm(total_send_size,MPI_REQUEST_NULL);
-  //              for(auto procIt = bufSup.begin(); procIt != bufSup.end(); procIt++){
-  //                Int iCurDest = procIt->first;
-  //                auto & supMap = procIt->second;
-  //                IsendPtr->setHead(sdispls[iCurDest]);
-  //
-  //                for(auto supIt = supMap.begin() ; supIt != supMap.end(); supIt++){
-  //                  Int I = supIt->first;
-  //                  auto & supSet = supIt->second;
-  //                  //std::copy(supSet.begin(),supSet.end(),(triplet<T>*)IsendPtr->back());
-  //                  //size_t sz = supSet.size()*sizeof(triplet<T>);
-  //                  //IsendPtr->setHead(IsendPtr->head + sz );
-  //                  scope_timer(b,COPY_PQUEUE);
-  //                  while(!supSet.empty()){
-  //                    const triplet<T> & trip = supSet.top();
-  //                    //            logfileptr->OFS()<<"PACK ("<<trip.row<<" "<<trip.col<<" "<<trip.val<<")"<<std::endl;
-  //
-  //                    *IsendPtr<<supSet.top();
-  //                    supSet.pop();
-  //                  }
-  //                }
-  //              }
-  //            }
-  //            //compute the receive structures
-  //            size_t total_recv_size = 0;
-  //            std::vector<int> rdispls(this->np+1,0);
-  //            std::vector<int> rcounts(this->np,0);
-  //
-  //            MPI_Alltoall(&scounts[0],sizeof(int),MPI_BYTE,&rcounts[0],sizeof(int),MPI_BYTE,pMat.comm);
-  //
-  //            //compute receive displacements
-  //            rdispls[0] = 0;
-  //            std::partial_sum(rcounts.begin(),rcounts.end(),&rdispls[1]);
-  //            total_recv_size = rdispls.back();
-  //
-  //            IrecvPtr = new Icomm(total_recv_size,MPI_REQUEST_NULL);
-  //
-  //            MPI_Alltoallv(IsendPtr->front(), &scounts[0], &sdispls[0], MPI_BYTE,
-  //                IrecvPtr->front(), &rcounts[0], &rdispls[0], MPI_BYTE,
-  //                pMat.comm);
-  //
-  //            //Need to parse the structure sent from the processor owning the first column of the supernode
-  //            {
-  //              scope_timer_special(a,NEW_DESERIALIZING);
-  //              IrecvPtr->setHead(0);
-  //              //do a big sort
-  //
-  //              Int prevI = 0;
-  //
-  //              Idx row,col;
-  //              T val;
-  //
-  //              Int fc = 0;
-  //              Int lc = 0;
-  //              Int iWidth = 0;
-  //              SuperNode<T> * snode = nullptr;
-  //
-  //              Idx prevRow = 0;
-  //              Int blkidx = 0;
-  //              NZBlockDesc * blk_desc = nullptr;
-  //              Int blknrows = 0;
-  //              T * nzval = nullptr;
-  //
-  //
-  //              if(0){
-  //                scope_timer(a,SORTING_TRIPLETS);
-  //                size_t begin = 0;
-  //                size_t end   = total_recv_size/sizeof(triplet<T>);
-  //                triplet<T> * buffer = (triplet<T>*)IrecvPtr->back();
-  //                //sort 
-  //                std::sort(&buffer[begin],&buffer[begin]+end,[&supM = this->SupMembership_](const triplet<T> & a, const triplet<T> & b)->bool{
-  //                    Int I = supM[a.col-1];
-  //                    Int J = supM[b.col-1];
-  //
-  //                    bool retval = I<J;
-  //                    if(I==J){
-  //                    retval = a.row<b.row;
-  //                    if(a.row==b.row){
-  //                    retval = a.col<b.col;
-  //                    }
-  //                    }
-  //                    return retval;
-  //                    });
-  //              }
-  //
-  //
-  //
-  //
-  //
-  //
-  //
-  //              triplet<T> * elem = (triplet<T>*)IrecvPtr->back();
-  //              Int i = 0;
-  //              Int ntrip = total_recv_size/sizeof(triplet<T>);
-  //              while(i < ntrip){
-  //                triplet<T> * cur_elem = &elem[i];//(triplet<T>*)IrecvPtr->back();
-  //                i++;
-  //                //IrecvPtr->setHead(IrecvPtr->head+sizeof(triplet<T>));
-  //                //(*IrecvPtr)>>row>>col>>val;
-  //                Int I = this->SupMembership_[cur_elem->col-1];
-  //
-  //                Int iDest = this->Mapping_->Map(I-1,I-1);
-  //                bassert(this->iam==iDest);
-  //
-  //                if(I!=prevI){
-  //                  fc = this->Xsuper_[I-1];
-  //                  lc = this->Xsuper_[I]-1;
-  //                  iWidth = lc-fc+1;
-  //                  snode = snodeLocal(I);
-  //                  prevRow = 0;
-  //                  nzval=nullptr;
-  //                  bassert(cur_elem->row!=prevRow); 
-  //                  prevI = I;
-  //                }
-  //
-  //                if(cur_elem->row!=prevRow){
-  //                  if(prevRow==0){
-  //                    blkidx = snode->FindBlockIdx(cur_elem->row);
-  //                    blk_desc = &snode->GetNZBlockDesc(blkidx);
-  //                    blknrows = snode->NRows(blkidx);
-  //                    nzval = snode->GetNZval(blk_desc->Offset);
-  //                  }
-  //
-  //                  if(cur_elem->row>blk_desc->GIndex+blknrows){
-  //                    blkidx = snode->FindBlockIdx(cur_elem->row);
-  //                    blk_desc = &snode->GetNZBlockDesc(blkidx);
-  //                    blknrows = snode->NRows(blkidx);
-  //                    nzval = snode->GetNZval(blk_desc->Offset);
-  //                  }
-  //                  prevRow=cur_elem->row;
-  //                }
-  //                bassert(nzval!=nullptr);
-  //
-  //                Int local_row = cur_elem->row - blk_desc->GIndex + 1;
-  //                Int local_col = cur_elem->col - fc + 1;
-  //
-  //                //            logfileptr->OFS()<<I<<" "<<blkidx<<" "<<*blk_desc<<" ("<<row<<" "<<col<<" "<<val<<") "<<local_row<<" "<<local_col<<std::endl;
-  //                //            logfileptr->OFS()<<"("<<cur_elem->row<<" "<<cur_elem->col<<" "<<cur_elem->val<<")"<<std::endl;
-  //                nzval[(local_row-1)*iWidth+local_col-1] = cur_elem->val;
-  //              }
-  //            }
-  //
-  //
-  //
-  //            delete IrecvPtr;
-  //            delete IsendPtr;
-  //
-  //          }
-  //#endif
-  //        }
-
-
-
-
-
-
-
-
-
-
-
-
-
   template <typename T> inline void symPACKMatrix<T>::Init(symPACKOptions & options ){
     scope_timer(a,symPACKMatrix::Init);
 #ifdef _STAT_COMM_
@@ -2644,9 +829,6 @@ namespace symPACK{
       delete CommEnv_;
     }
 
-    //    if(options.commEnv == nullptr){
-    //      throw std::runtime_error("The communication environment must be initialized in the options");
-    //    }
     this->options_ = options;
     logfileptr->verbose = this->options_.verbose>0;
     if(this->options_.verbose==0){
@@ -2667,10 +849,8 @@ namespace symPACK{
     MPI_Comm_size(this->options_.MPIcomm,&this->all_np);
     MPI_Comm_rank(this->options_.MPIcomm,&this->iam);
 
-#ifdef NEW_UPCXX
     this->iam = upcxx::rank_me();
     this->all_np = upcxx::rank_n();
-#endif
 
     this->np = this->options_.used_procs(this->all_np);
 
@@ -2679,20 +859,11 @@ namespace symPACK{
     this->workteam_.reset(new upcxx::team(upcxx::world().split(this->iam<this->np,this->iam)));
     CommEnv_ = new CommEnvironment(this->workcomm_);
 
-//    Int new_rank = (this->iam<this->np)?this->iam:this->iam-this->np;
-//    upcxx::team_all.split(this->iam<this->np,new_rank, this->team_);
-
-
-
     //do another split to contain P0 and all the non working processors
     if(this->all_np!=this->np){
       this->non_workcomm_ = MPI_COMM_NULL;
       MPI_Comm_split(this->options_.MPIcomm,this->iam==0||this->iam>=this->np,this->iam==0?0:this->iam-this->np+1,&this->non_workcomm_);
     }
-
-    //SYMPACK_TIMER_START(MAPPING);
-
-    //SYMPACK_TIMER_STOP(MAPPING);
 
     if(this->iam<this->np){
       //Options
@@ -2703,7 +874,6 @@ namespace symPACK{
         gMaxIrecv = this->options_.maxIrecv + this->options_.maxIsend;
       }
 
-      //SYMPACK_TIMER_START(SCHEDULER);
       switch(this->options_.scheduler){
         case DL:
           scheduler_ = new DLScheduler<std::list<FBTask>::iterator>();
@@ -2713,12 +883,10 @@ namespace symPACK{
         case MCT:
           scheduler_ = new MCTScheduler<std::list<FBTask>::iterator>();
           scheduler2_ = new MCTScheduler<FBTask>();
-          //scheduler_new_.reset(new MCTScheduler< std::shared_ptr<GenericTask> >( ));
           break;
         case PR:
           scheduler_ = new PRScheduler<std::list<FBTask>::iterator>();
           scheduler2_ = new PRScheduler<FBTask>();
-          //scheduler_new_.reset(new PRScheduler< std::shared_ptr<GenericTask> >( ));
           break;
         case FIFO:
           scheduler_ = new FIFOScheduler<std::list<FBTask>::iterator>();
@@ -2731,11 +899,6 @@ namespace symPACK{
           scheduler_new_ = std::make_shared<DLScheduler< std::shared_ptr<GenericTask> > >( );
           break;
       }
-      //SYMPACK_TIMER_STOP(SCHEDULER);
-
-      //Create an Ordering object to hold the permutation
-      //this->Order_.SetCommEnvironment(CommEnv_);
-      //    MPI_Barrier(CommEnv_->MPI_GetComm());
     }
 
   }
@@ -2752,29 +915,16 @@ namespace symPACK{
     Int I;
 
     this->iSize_ = pMat.size;
-#ifdef EXPLICIT_PERMUTE
-    pMat.Localg_.SetSorted(0);
-    //this is done on the full communicator
-    pMat.ExpandSymmetric();
-
-    this->graph_ = pMat.GetLocalGraph();
-    this->graph_.SetBaseval(1);
-    this->graph_.SetKeepDiag(0);
-    this->graph_.SetSorted(1);
-#else
     this->graph_ = pMat.GetLocalGraph();
     this->graph_.SetBaseval(1);
     this->graph_.SetSorted(1);
     this->graph_.ExpandSymmetric();
-#endif    
-
 
     logfileptr->OFS()<<"Matrix structure expanded"<<std::endl;
 
     SparseMatrixGraph * sgraph = nullptr;
     {
       {
-
         double timeSta = get_time();
         SYMPACK_TIMER_START(ORDERING);
 
@@ -2992,31 +1142,11 @@ namespace symPACK{
       graph.ExpandSymmetric();
 
       logfileptr->OFS()<<"graph expanded"<<std::endl;
-      //for(Idx i = 1; i<=graph.LocalVertexCount(); ++i){
-      //  Int node = this->Order_.perm[i-1];
-      //  logfileptr->OFS()<<node<<": ";
-
-      //  Ptr jstrt = graph.colptr[node-1];
-      //  Ptr jstop = graph.colptr[node] - 1;
-      //  for(Ptr j = jstrt; j<=jstop; ++j){
-      //    Idx nbr = graph.rowind[j-1];
-      //    nbr = this->Order_.invp[nbr-1];
-      //    logfileptr->OFS()<<nbr<<" ";
-      //  }
-      //  logfileptr->OFS()<<std::endl;
-      //}
-
-
-
 
       auto backinvp = this->Order_.invp;
-      //auto backperm = this->Order_.perm;
-
-
 
       //assume matrix is not permuted yet
       graph.Permute(this->Order_.invp.data());
-//      graph.Permute(this->Order_.perm.data());
 
       logfileptr->OFS()<<"graph permuted 1/2"<<std::endl;
 
@@ -3027,33 +1157,11 @@ namespace symPACK{
 
       std::vector<Int> relinvp;
       this->Order_.GetRelativeInvp(backinvp,relinvp);
-//      logfileptr->OFS()<<"relinvp "<<relinvp<<std::endl;
 
       graph.Permute(relinvp.data());
 
 
       logfileptr->OFS()<<"graph permuted 2/2"<<std::endl;
-
-
-      //  logfileptr->OFS()<<std::endl;
-      //  logfileptr->OFS()<<std::endl;
-      //for(Idx i = 1; i<=graph.LocalVertexCount(); ++i){
-      //  Int node = this->Order_.perm[i-1];
-      //  logfileptr->OFS()<<node<<": ";
-
-      //  Ptr jstrt = graph.colptr[i-1];
-      //  Ptr jstop = graph.colptr[i] - 1;
-      //  for(Ptr j = jstrt; j<=jstop; ++j){
-      //    Idx nbr = graph.rowind[j-1];
-      //    logfileptr->OFS()<<nbr<<" ";
-      //  }
-      //  logfileptr->OFS()<<std::endl;
-      //}
-
-
-
-      //logfileptr->OFS()<<this->ETree_<<std::endl;
-      //logfileptr->OFS()<<"ETREE done"<<std::endl;
 
       {
         double timeStart = get_time();
@@ -3063,13 +1171,6 @@ namespace symPACK{
           symPACKOS<<"Column count (distributed) construction time: "<<timeStop - timeStart<<std::endl;
         }
       }
-
-//      graph.Permute(this->Order_.perm.data());
-//      //graph.Permute(this->Order_.invp.data());
-//      //If graph was not expanded, restore to symmetric storage
-//      if(!expandedGraph){
-//        graph.ToSymmetric();
-//      }
 
       if(this->options_.ordering != NATURAL){
         this->ETree_.SortChildren(cc,this->Order_);
@@ -3087,17 +1188,6 @@ namespace symPACK{
       if(this->iam==0 && this->options_.verbose){
         symPACKOS<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
       }
-
-      //logfileptr->OFS()<<this->ETree_<<std::endl;
-      //logfileptr->OFS()<<"------------------------------------------"<<std::endl;
-      //logfileptr->OFS()<<cc<<std::endl;
-      //logfileptr->OFS()<<rc<<std::endl;
-      //logfileptr->OFS()<<"------------------------------------------"<<std::endl;
-
-      //this->Order_.invp = backinvp;
-      //this->Order_.perm = backperm;
-
-
     }
     else
     {
@@ -3113,30 +1203,9 @@ namespace symPACK{
 
 
       {
-
         double timeSta = get_time();
         this->ETree_.ConstructETree(*sgraph,this->Order_,this->fullcomm_);
         this->ETree_.PostOrderTree(this->Order_);
-
-      //for(Idx i = 1; i<=sgraph->LocalVertexCount(); ++i){
-      //  Int node = this->Order_.perm[i-1];
-      //  logfileptr->OFS()<<node<<": ";
-
-      //  Ptr jstrt = sgraph->colptr[node-1];
-      //  Ptr jstop = sgraph->colptr[node] - 1;
-      //  for(Ptr j = jstrt; j<=jstop; ++j){
-      //    Idx nbr = sgraph->rowind[j-1];
-      //    nbr = this->Order_.invp[nbr-1];
-      //    logfileptr->OFS()<<nbr<<" ";
-      //  }
-      //  logfileptr->OFS()<<std::endl;
-      //}
-
-
-        //logfileptr->OFS()<<this->ETree_<<std::endl;
-        //logfileptr->OFS()<<"ETREE done"<<std::endl;
-
-
 
         {
           double timeStart = get_time();
@@ -3163,12 +1232,6 @@ namespace symPACK{
           symPACKOS<<"Elimination tree construction time: "<<timeStop - timeSta<<std::endl;
         }
       }
-
-      //logfileptr->OFS()<<"------------------------------------------"<<std::endl;
-      //logfileptr->OFS()<<cc<<std::endl;
-      //logfileptr->OFS()<<rc<<std::endl;
-      //logfileptr->OFS()<<"------------------------------------------"<<std::endl;
-
     }
 
     //compute some statistics
@@ -3280,19 +1343,6 @@ namespace symPACK{
           newVertexDist[p] = this->Xsuper_[S-1];
         }
       }
-
-
-#ifdef EXPLICIT_PERMUTE
-      {
-        //This should permute the matrix A and move it
-        //onto this->np processor instead of this->all_np processors
-        pMat.Permute(&this->Order_.invp[0],&newVertexDist[0]);
-        this->graph_ = pMat.GetLocalGraph();
-        this->graph_.SetBaseval(1);
-        this->graph_.SetKeepDiag(1);
-        this->graph_.SetSorted(1);
-      }
-#endif
 
       double timeStaSymb = get_time();
       this->symbolicFactorizationRelaxedDist(cc);
@@ -3478,7 +1528,6 @@ namespace symPACK{
             }
 
 
-            //this->Order_.Compose(new_invp);
             for(size_t i =0; i<new_perm.size(); i++){ this->Order_.invp[i] = new_invp[i];}
             for(size_t i =0; i<new_perm.size(); i++){ this->Order_.perm[i] = new_perm[i];}
           }
@@ -3598,7 +1647,7 @@ namespace symPACK{
       auto supETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
       logfileptr->OFS()<<"Supernodal ETree is "<<supETree<<std::endl;
       logfileptr->OFS()<<"Mapping is ";for(Int i = 0;i<supETree.Size();i++){logfileptr->OFS()<<this->Mapping_->Map(i,i)<<" ";}logfileptr->OFS()<<std::endl;
-      logfileptr->OFS()<<"Xsuper is "<<this->Xsuper_<<std::endl;//;for(Int i = 0;i<supETree.Size();i++){logfileptr->OFS()<<this->Xsuper_->Map(i,i)<<" ";}logfileptr->OFS()<<std::endl;
+      logfileptr->OFS()<<"Xsuper is "<<this->Xsuper_<<std::endl;
     } 
 #endif
 
@@ -3612,45 +1661,18 @@ namespace symPACK{
 
 
     if(this->iam<this->np){
-
       {
         double timeSta = get_time();
         std::vector<Int> AggregatesToRecv;
         std::vector<Int> LocalAggregates;
 
-
         FBGetUpdateCount(UpdatesToDo_,AggregatesToRecv,LocalAggregates);
-        generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates);
-          {
+        {
 #ifdef _MEM_PROFILER_
           utility::scope_memprofiler m("symPACKMatrix_task_graph");
 #endif
-        generateTaskGraph_New(taskGraph_New_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
-          }
-
-
-        //#define _OUTPUT_TASK_GRAPH_
-#ifdef _OUTPUT_TASK_GRAPH_
-        logfileptr->OFS()<<"tasks: ";
-        for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
-          if((*binit)!=nullptr){
-            for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
-              logfileptr->OFS()<<"t_"<<taskit->src_snode_id<<"_"<<taskit->tgt_snode_id<<" ";
-            }
-          }
-
+          generateTaskGraph(taskGraph_, AggregatesToRecv, LocalAggregates,UpdateWidth_,UpdateHeight_);
         }
-        logfileptr->OFS()<<std::endl; 
-        logfileptr->OFS()<<"taskmap: ";
-        for(auto binit = taskGraph_.taskLists_.begin(); binit != taskGraph_.taskLists_.end(); binit++){
-          if((*binit)!=nullptr){
-            for(auto taskit = (*binit)->begin(); taskit!= (*binit)->end(); taskit++){
-              logfileptr->OFS()<<this->iam<<" ";
-            }
-          }
-        }
-        logfileptr->OFS()<<std::endl; 
-#endif
 
         double timeStop = get_time();
         if(this->iam==0 && this->options_.verbose){
@@ -3848,15 +1870,8 @@ namespace symPACK{
 
   template <typename T> inline void symPACKMatrix<T>::DistributeMatrix(DistSparseMatrix<T> & pMat){
     scope_timer(a,DistributeA);
-#ifdef EXPLICIT_PERMUTE
-    pMat.Localg_.SetSorted(0);
-    pMat.ExpandSymmetric();
-    //matrix should already be distributed ?
-    pMat.Permute(&this->Order_.invp[0]);
-#endif
     {
       double timeSta = get_time();
-      //Icomm buffer;
       Icomm recv_buffer;
 
 
@@ -3870,163 +1885,6 @@ namespace symPACK{
       try
 #endif
       {
-#ifdef EXPLICIT_PERMUTE
-        pMat.ToLowerTriangular();
-        pMat.SortGraph();
-
-        vector<std::pair<size_t,Icomm *> > send_map(this->np);
-
-        SYMPACK_TIMER_START(DISTRIBUTE_COUNTING);
-
-        Idx FirstLocalCol = pMat.Localg_.vertexDist[this->iam];
-        Idx LastLocalCol = pMat.Localg_.vertexDist[this->iam+1];
-        if(FirstLocalCol<LastLocalCol){
-          for(Int I=1;I<this->Xsuper_.size();I++){
-            Idx fc = this->Xsuper_[I-1];
-            Idx lc = this->Xsuper_[I]-1;
-            Int iWidth = lc-fc+1;
-            Int iHeight = UpdateHeight_[I-1];
-
-            Int iDest = this->Mapping_->Map(I-1,I-1);
-
-            //post all the recv and sends
-            for(Idx col = fc;col<=lc;col++){
-              //corresponding column in the unsorted matrix A
-              if(col>= FirstLocalCol && col < LastLocalCol){
-                Idx local_col = col - FirstLocalCol+1;//1 based
-                send_map[iDest].first += (pMat.Localg_.colptr[local_col]-pMat.Localg_.colptr[local_col-1])*(sizeof(Idx)+sizeof(T)) + sizeof(Idx) + sizeof(Ptr);
-              }
-            }
-          }
-        }
-        SYMPACK_TIMER_STOP(DISTRIBUTE_COUNTING);
-
-
-        size_t total_send_size = 0;
-        std::vector<size_t> stotcounts(this->all_np,0);
-        for(Int i = 0; i< send_map.size(); i++){
-          total_send_size += send_map[i].first;
-          stotcounts[i] = send_map[i].first;
-        }
-
-        Icomm * IsendPtr = new Icomm(total_send_size,MPI_REQUEST_NULL);
-
-        std::vector<size_t> spositions(this->all_np+1,0);
-        spositions[0] = 0;
-        std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
-
-        SYMPACK_TIMER_SPECIAL_START(serializing); 
-        auto baseval = pMat.Localg_.GetBaseval();
-        if(FirstLocalCol<LastLocalCol){
-          for(Int I=1;I<this->Xsuper_.size();I++){
-            Idx fc = this->Xsuper_[I-1];
-            Idx lc = this->Xsuper_[I]-1;
-            Int iWidth = lc-fc+1;
-            Int iHeight = UpdateHeight_[I-1];
-
-            Int iDest = this->Mapping_->Map(I-1,I-1);
-
-            //post all the recv and sends
-            for(Idx col = fc;col<=lc;col++){
-              //corresponding column in the unsorted matrix A
-              if(col>= FirstLocalCol && col < LastLocalCol){
-                Idx local_col = col - FirstLocalCol+1;//1 based
-                Ptr colbeg = pMat.Localg_.colptr[local_col-1]-baseval;//0-based
-                Ptr colend = pMat.Localg_.colptr[local_col]-baseval;//0-based
-                Ptr nrows = colend-colbeg;
-                IsendPtr->setHead(spositions[iDest]);
-                (*IsendPtr)<<(Idx)col<<nrows;
-                Serialize( *IsendPtr,  &pMat.Localg_.rowind[colbeg], nrows);
-                Serialize( *IsendPtr,  &pMat.nzvalLocal[colbeg], nrows);
-                spositions[iDest] = IsendPtr->head;
-              }
-            }
-          }
-        }
-        SYMPACK_TIMER_SPECIAL_STOP(serializing);
-
-
-        Icomm * IrecvPtr = new Icomm(0,MPI_REQUEST_NULL);
-
-        spositions[0] = 0;
-        std::partial_sum(stotcounts.begin(),stotcounts.end(),&spositions[1]);
-        std::function<void(Icomm&,size_t)> resize_lambda =
-          [](Icomm & container, size_t sz){
-            container.resize(sz); 
-            container.head = 0;
-          };
-
-        IsendPtr->setHead(0);
-        mpi::Alltoallv((*IsendPtr), &stotcounts[0], &spositions[0], MPI_BYTE,
-            (*IrecvPtr),this->fullcomm_, resize_lambda);
-
-        //restore zero values in the LocalSupernodes_
-        for(auto snode : LocalSupernodes_){
-          snode->clear();
-        }
-
-        SYMPACK_TIMER_SPECIAL_START(deserializing);      
-        IrecvPtr->setHead(0);
-        while(IrecvPtr->head < IrecvPtr->capacity()){ 
-          char * buffer = IrecvPtr->back();
-          //Deserialize
-          Idx col = *(Int*)&buffer[0];
-          Int I = this->SupMembership_[col-1];
-
-          Int iDest = this->Mapping_->Map(I-1,I-1);
-          bassert(this->iam==iDest);
-
-          Int fc = this->Xsuper_[I-1];
-          Int lc = this->Xsuper_[I]-1;
-          Int iWidth = lc-fc+1;
-
-          SuperNode<T> * snode = snodeLocal(I);
-
-          //nrows of column col sent by processor p
-          Ptr nrows = *((Ptr*)&buffer[sizeof(Idx)]);
-          Idx * rowind = (Idx*)(&buffer[sizeof(Ptr)+sizeof(Idx)]);
-          T * nzvalA = (T*)(&buffer[nrows*sizeof(Idx)+sizeof(Ptr)+sizeof(Idx)]);
-          //advance in the buffer
-          IrecvPtr->setHead(IrecvPtr->head + sizeof(Idx) +sizeof(Ptr) + nrows*(sizeof(Idx)+sizeof(T)));
-
-          //Here, do a linear search instead for the blkidx
-          Ptr colbeg = 1;
-          Ptr colend = nrows;
-
-          if(colbeg<=colend){
-            //sort rowind and nzvals
-            //            std::vector<size_t> lperm = sort_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,std::less<Int>());
-            //            apply_permutation(&rowind[colbeg-1],&rowind[colend-1]+1,lperm);
-            //            apply_permutation(&nzvalA[colbeg-1],&nzvalA[colend-1]+1,lperm);
-            Idx firstRow = rowind[colbeg-1];
-            Int blkidx = snode->FindBlockIdx(firstRow);
-            assert(blkidx!=-1);
-            Int blk_nrows = snode->NRows(blkidx);    
-            NZBlockDesc * blk_desc = &snode->GetNZBlockDesc(blkidx);
-
-            for(Ptr rowidx = colbeg; rowidx<=colend; ++rowidx){
-              Idx row = rowind[rowidx-1];
-              while(row>blk_desc->GIndex+blk_nrows-1){
-                blkidx++;
-                blk_nrows = snode->NRows(blkidx);    
-                blk_desc = &snode->GetNZBlockDesc(blkidx);
-              }
-
-              Int local_row = row - blk_desc->GIndex + 1;
-              Int local_col = col - fc + 1;
-              T * nzval = snode->GetNZval(blk_desc->Offset);
-              nzval[(local_row-1)*iWidth+local_col-1] = nzvalA[rowidx-1];
-            }
-          }
-        }
-        SYMPACK_TIMER_SPECIAL_STOP(deserializing);
-
-        //after the alltoallv, cleanup
-        delete IrecvPtr;
-        delete IsendPtr;
-
-
-#else
         std::map<Int,std::pair<size_t,Icomm *> > send_map;
         for(Int p=0;p<this->all_np;++p){
           send_map[p].first = 0;
@@ -4269,14 +2127,9 @@ namespace symPACK{
           SYMPACK_TIMER_SPECIAL_STOP(deserializing);      
           }
         }
-#endif
 
         remoteFactors_.resize(this->Xsuper_.size()-1);
-#ifdef NEW_UPCXX
         std::fill((char*)&remoteFactors_[0],(char*)&remoteFactors_[0]+remoteFactors_.size()*sizeof(std::tuple<upcxx::global_ptr<char>,Int> ),0);
-#else
-        std::fill((char*)&remoteFactors_[0],(char*)&remoteFactors_[0]+remoteFactors_.size()*sizeof(std::tuple<upcxx::global_ptr<SuperNodeDesc>,Int> ),0);
-#endif
 
         for(Int I=1;I<this->Xsuper_.size();I++){
           Int iDest = this->Mapping_->Map(I-1,I-1);
@@ -4284,11 +2137,7 @@ namespace symPACK{
           if(this->iam==iDest){
             SuperNode<T> * newSnode = snodeLocal(I);
             SuperNodeDesc * meta = newSnode->GetMeta();
-#if UPCXX_VERSION >= 20180305
             remoteFactors_[I-1] = std::make_tuple( upcxx::to_global_ptr<char>( (char*)meta ), meta->blocks_cnt_) ;
-#else
-            remoteFactors_[I-1] = std::make_tuple( upcxx::global_ptr<SuperNodeDesc>( meta ), meta->blocks_cnt_) ;
-#endif
           }
         }
 
@@ -4335,26 +2184,14 @@ namespace symPACK{
   template <typename T> inline symPACKMatrix<T>::symPACKMatrix():
     symPACKMatrixMeta<T>(){
     CommEnv_=nullptr;
-    //team_=nullptr;
     Mapping_ = nullptr;
     Balancer_ = nullptr;
     scheduler_ = nullptr;
     scheduler2_ = nullptr;
-    //Local_=nullptr;
-    //Global_=nullptr;
-    //isGlobStructAllocated_ = false;
-//    if(!upcxx::is_init()){
-//      upcxx::init(nullptr,nullptr);
-//    }
 
     if(logfileptr==nullptr){
-#ifdef NEW_UPCXX
       logfileptr = new LogFile(upcxx::rank_me(),false);
       logfileptr->OFS()<<"********* LOGFILE OF P"<<upcxx::rank_me()<<" *********"<<std::endl;
-#else
-      logfileptr = new LogFile(upcxx::myrank(),false);
-      logfileptr->OFS()<<"********* LOGFILE OF P"<<upcxx::myrank()<<" *********"<<std::endl;
-#endif
       logfileptr->OFS()<<"**********************************"<<std::endl;
     }
 
@@ -4377,11 +2214,6 @@ namespace symPACK{
       delete Contributions_[i];
     }
 
-#ifdef PREALLOC_IRECV
-    //    for(auto it = availRecvBuffers_.begin(); it != availRecvBuffers_.end();++it){
-    //      delete *it;
-    //    }
-#endif
 
     if(this->scheduler_!=nullptr){
       delete this->scheduler_;
@@ -4403,16 +2235,6 @@ namespace symPACK{
       delete CommEnv_;
     }
 
-    //if(team_!=nullptr){
-    //  delete team_;
-    //}
-    //  if(Local_!=nullptr){
-    //    delete Local_;
-    //  }
-    //
-    //  if(Global_!=nullptr){
-    //    delete Global_;
-    //  }
 
 
 
@@ -4573,7 +2395,6 @@ namespace symPACK{
             prevFacing = facing;
           }
 
-          //totalBlocks+=nzBlockCnt;
           if(col==lc){
             blkCount[I-1] = nzBlockCnt;
             totalBlocks+=nzBlockCnt;
@@ -4673,9 +2494,6 @@ namespace symPACK{
           (*intmp)++;
         }
       }
-      //if (symbptr->browtab == nullptr) {
-      //   delete [] symbptr->browtab;
-      //}
       symbptr->browtab = browtab;
 
       delete [] innbr;
@@ -5147,12 +2965,10 @@ namespace symPACK{
          * The delimitation between the lower and upper levels is made such that
          * the upper level represents 17% to 25% of the total number of cblk.
          */
-        //  clockStart(timer);
         {
           int weight = 0;
 
           /* Compute the weigth of each level */
-          //MATHIAS: this is a loop through blocks in current column 
           for(iterblok=cblk[0].brownum; iterblok<cblk[1].brownum; iterblok++)
           {
             int blokweight;
@@ -5275,10 +3091,6 @@ split:
           }
         }
 
-        //  clockStop(timer);
-        //  *time_compute_vectors += clockVal(timer);
-
-        //  clockStart(timer);
         {
           /* Apply the pseudo-TSP algorithm to the rows in the current supernode */
           symbol_reorder_tsp(size, order, cblk - symbptr->cblktab,
@@ -5286,8 +3098,6 @@ split:
               up_vectors, up_vectors_size,
               stop_criteria, stop_when_fitting);
         }
-        //  clockStop(timer);
-        //  *time_update_perm += clockVal(timer);
 
         for (i=0; i<size; i++){
           free(lw_vectors[i]);

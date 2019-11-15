@@ -88,8 +88,8 @@ namespace symPACK{
         Int numPanels = std::ceil((double)size/(double)panel);
         Int lastPanel = std::max(size - (numPanels-1)*panel,0);
         this->storage_size_ = sizeof(T)*((numPanels-1)*ai_num_rows*panel - 
-                            - (numPanels-1)*(numPanels-2)*panel/2 
-                                + (ai_num_rows-(numPanels-1)*panel)*lastPanel);
+            - (numPanels-1)*(numPanels-2)*panel/2 
+            + (ai_num_rows-(numPanels-1)*panel)*lastPanel);
       }
       else {
         this->storage_size_  = sizeof(T)*size*ai_num_rows; //size of nzvals
@@ -105,7 +105,6 @@ namespace symPACK{
       Int num_updrows = 0;
       if (aiFr == aiFc){
         num_updrows = num_blocks;
-        //this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
       }
 
 
@@ -120,8 +119,6 @@ namespace symPACK{
       bassert(this->loc_storage_container_!=nullptr);
 
       this->nzval_ = (T*)&this->loc_storage_container_[0];
-      //this->updrows_ = (Idx*)(this->nzval_+size*ai_num_rows);
-      //this->diag_ = (T*)(this->updrows_+num_updrows);
       this->diag_ = (T*)(this->nzval_+size*ai_num_rows);
       this->meta_ = (SuperNodeDesc*)(this->diag_ + size);
       char * last = this->loc_storage_container_+this->storage_size_-1 - (sizeof(NZBlockDesc) -1);
@@ -136,7 +133,6 @@ namespace symPACK{
       this->meta_->iSize_ = size;
       this->meta_->nzval_cnt_ = 0;
       this->meta_->blocks_cnt_ = 0;
-      //this->meta_->updrows_cnt_ = 0;
       this->meta_->b_own_storage_ = true;
 
 #ifndef ITREE
@@ -177,12 +173,10 @@ namespace symPACK{
 
       this->meta_= (SuperNodeDesc*)(this->blocks_ - blkCnt +1) - 1;
       this->diag_= (T*)(this->meta_) - this->Size();
-      //this->updrows_ = (Idx*)this->diag_ - this->meta_->updrows_cnt_;
       this->nzval_ = (T*) storage_ptr;
       //we now need to update the meta data
       this->meta_->b_own_storage_ = false;
       this->meta_->blocks_cnt_ = blkCnt;
-      //this->meta_->nzval_cnt_ = (T*)this->updrows_ - this->nzval_;
       this->meta_->nzval_cnt_ = (T*)this->diag_ - this->nzval_;
 
       if(GIndex==-1){
@@ -241,8 +235,8 @@ namespace symPACK{
         Int numPanels = std::ceil((double)size/(double)panel);
         Int lastPanel = std::max(size - (numPanels-1)*panel,0);
         this->storage_size_ = sizeof(T)*((numPanels-1)*numRows*panel - 
-                            - (numPanels-1)*(numPanels-2)*panel/2 
-                                + (numRows-(numPanels-1)*panel)*lastPanel);
+            - (numPanels-1)*(numPanels-2)*panel/2 
+            + (numRows-(numPanels-1)*panel)*lastPanel);
         this->storage_size_ += num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
       }
       else {
@@ -254,7 +248,6 @@ namespace symPACK{
       Int num_updrows = 0;
       if (aiFr == aiFc){
         num_updrows = num_blocks;
-        //this->storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
       }
 
 
@@ -268,8 +261,6 @@ namespace symPACK{
       }
 
       this->nzval_ = (T*)&this->loc_storage_container_[0];
-      //this->updrows_ = (Idx*)(this->nzval_+size*numRows);
-      //this->diag_ = (T*)(this->updrows_+num_updrows);
       this->diag_ = (T*)(this->nzval_+size*numRows);
       this->meta_ = (SuperNodeDesc*)(this->diag_ + size);
       char * last = this->loc_storage_container_+this->storage_size_-1 - (sizeof(NZBlockDesc) -1);
@@ -284,7 +275,6 @@ namespace symPACK{
       this->meta_->iSize_ = size;
       this->meta_->nzval_cnt_ = 0;
       this->meta_->blocks_cnt_ = 0;
-      //this->meta_->updrows_cnt_ = 0;
       this->meta_->b_own_storage_ = true;
 
 
@@ -327,8 +317,8 @@ namespace symPACK{
           Int numPanels = std::ceil((double)this->meta_->iSize_/(double)panel);
           Int lastPanel = std::max(this->meta_->iSize_ - (numPanels-1)*panel,0);
           cur_nzval_cnt = (numPanels-1)*aiNRows*panel - 
-                            - (numPanels-1)*(numPanels-2)*panel/2 
-                                + (aiNRows-(numPanels-1)*panel)*lastPanel;
+            - (numPanels-1)*(numPanels-2)*panel/2 
+            + (aiNRows-(numPanels-1)*panel)*lastPanel;
         }
 
 
@@ -347,9 +337,6 @@ namespace symPACK{
         //if there is no more room for either nzval or blocks, extend
         Int block_space = (Int)(this->blocks_+1 - (NZBlockDesc*)(this->meta_ +1)) - this->meta_->blocks_cnt_;
         size_t nzval_space = ((size_t)((char*)this->diag_ - (char*)this->nzval_) - this->meta_->nzval_cnt_*sizeof(T) );
-        //if(ownDiagonal){
-        //  nzval_space = nzval_space - (this->meta_->updrows_cnt_+1)*sizeof(Idx);
-        //}
 
         if(block_space==0 || nzval_space<cur_nzval_cnt*sizeof(T)){
           //need to resize storage space. this is expensive !
@@ -357,11 +344,7 @@ namespace symPACK{
           size_t extra_nzvals_bytes = std::max((size_t)0,cur_nzval_cnt*sizeof(T) - nzval_space);
           Int extra_blocks = std::max((Int)0,1 - block_space);
           size_t new_size = this->storage_size_ + extra_nzvals_bytes + extra_blocks*sizeof(NZBlockDesc);
-          //if(ownDiagonal){
-          //  new_size += sizeof(Idx);
-          //}
 
-          //size_t offset_updrows = (char*)this->updrows_ - (char*)this->nzval_;
           size_t offset_diag = (char*)this->diag_ - (char*)this->nzval_;
           size_t offset_meta = (char*)this->meta_ - (char*)this->nzval_;
           size_t offset_block = (char*)this->blocks_ - (char*)this->nzval_;
@@ -370,7 +353,6 @@ namespace symPACK{
           bassert(locTmpPtr!=nullptr);
 
           std::copy(this->loc_storage_container_,this->loc_storage_container_+this->storage_size_,locTmpPtr);
-          //for(size_t i = 0;i<this->storage_size_;i++){locTmpPtr[i] = this->loc_storage_container_[i];}
 
 
           Allocator::deallocate(this->loc_storage_container_);
@@ -385,8 +367,6 @@ namespace symPACK{
 
           //move the diag entries if required
           char * cur_diag_ptr = (char*)&this->loc_storage_container_[0] + offset_diag;
-          //move the updated rows if required
-          //char * cur_updrows_ptr = (char*)&this->loc_storage_container_[0] + offset_updrows;
 
           this->meta_ = (SuperNodeDesc*) cur_meta_ptr;
           //we need to move everything, starting from the blocks, then meta
@@ -401,12 +381,8 @@ namespace symPACK{
           //now move the diag entries by extra_nzvals_bytes
           char * new_diag_ptr = cur_diag_ptr + extra_nzvals_bytes;
           std::copy(cur_diag_ptr,cur_diag_ptr + sizeof(T)*size,new_diag_ptr);
-          //now move the updated rows by extra_nzvals_bytes
-          //char * new_updrows_ptr = cur_updrows_ptr + extra_nzvals_bytes;
-          //std::copy(cur_updrows_ptr,cur_updrows_ptr + this->meta_->updrows_cnt_*sizeof(Idx),new_updrows_ptr);
 
           //update pointers
-          //this->updrows_ = (Idx*) new_updrows_ptr;
           this->diag_ = (T*) new_diag_ptr;
           this->meta_ = (SuperNodeDesc*) new_meta_ptr;
           this->blocks_ = (NZBlockDesc*) new_blocks_ptr;
@@ -420,10 +396,6 @@ namespace symPACK{
         }
 
         this->meta_->blocks_cnt_++;
-        //if(this->OwnDiagonal()){
-        //  this->updrows_[this->meta_->updrows_cnt_] = aiGIndex;
-        //  this->meta_->updrows_cnt_++;
-        //}
 
         //fill the new block with zeros
         std::fill(this->nzval_+this->meta_->nzval_cnt_,this->nzval_+this->meta_->nzval_cnt_+cur_nzval_cnt,ZERO<T>());
@@ -443,16 +415,11 @@ namespace symPACK{
         //if there is too much room for either nzval or blocks, contract
         Int block_space = (Int)(this->blocks_+1 - (NZBlockDesc*)(this->meta_ +1)) - this->meta_->blocks_cnt_;
         size_t nzval_space = ((size_t)((char*)this->diag_ - (char*)this->nzval_) - this->meta_->nzval_cnt_*sizeof(T) );
-        //if(ownDiagonal && nzval_space>0){
-        //  nzval_space = nzval_space - (this->meta_->updrows_cnt_)*sizeof(Idx);
-        //}
 
         if(block_space >0 || nzval_space >0){
 
           size_t new_size = this->storage_size_ - nzval_space - block_space*sizeof(NZBlockDesc);
 
-          //size_t offset_updrows = this->meta_->nzval_cnt_*sizeof(T);
-          //size_t offset_diag = offset_updrows + this->meta_->updrows_cnt_*sizeof(Idx);
           size_t offset_diag = this->meta_->nzval_cnt_*sizeof(T);
           size_t offset_meta = (this->meta_->nzval_cnt_+this->meta_->iSize_)*sizeof(T);
           size_t offset_block = (this->meta_->nzval_cnt_+this->meta_->iSize_)*sizeof(T)+sizeof(SuperNodeDesc);
@@ -463,8 +430,6 @@ namespace symPACK{
           //copy nzvals
           std::copy(this->nzval_,this->nzval_+this->meta_->nzval_cnt_,(T*)locTmpPtr);
 
-          //copy updrows
-          //std::copy(this->updrows_,this->updrows_+this->meta_->updrows_cnt_,(Idx*)(locTmpPtr+offset_updrows));
 
           //copy diag
           std::copy(this->diag_,this->diag_+this->Size(),(T*)(locTmpPtr+offset_diag));
@@ -487,10 +452,7 @@ namespace symPACK{
 
           //now move the diag entries by extra_nzvals
           char * new_diag_ptr = this->loc_storage_container_ + offset_diag;
-          //move the updated rows data if required
-          //char * new_updrows_ptr = this->loc_storage_container_ + offset_updrows;
           //update pointers
-          //this->updrows_ = (Idx*) new_updrows_ptr;
           this->diag_ = (T*) new_diag_ptr;
           this->meta_ = (SuperNodeDesc*) new_meta_ptr;
           this->blocks_ = (NZBlockDesc*) new_blocks_ptr;
@@ -509,21 +471,6 @@ namespace symPACK{
       Int snodeSize = this->Size();
       NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
       T * diag_nzval = this->GetNZval(diag_desc.Offset);
-#if 0
-      Idx totalNRows = this->NRowsBelowBlock(0);
-      for(Int col = 0; col< snodeSize;col++){
-
-        //copy the diagonal entries into the diag portion of the supernode
-        this->diag_[col] = diag_nzval[col+ (col)*snodeSize];
-
-        //T piv = static_cast<T>(1.0) / diag_nzval[col+col*snodeSize];
-        T piv = symPACK::div(static_cast<T>(1.0) , diag_nzval[col+col*snodeSize]);
-        lapack::Scal( totalNRows - col - 1, piv, &diag_nzval[ col + (col+1)*snodeSize ], snodeSize );
-        blas::Ger(snodeSize - col - 1, totalNRows - col - 1, -this->diag_[col],&diag_nzval[col + (col+1)*snodeSize],
-            snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
-      }
-#else
-
       Idx totalNRows = this->NRowsBelowBlock(0);
       Int INFO = 0;
       SYMPACK_TIMER_START(FACT_POTRF_LDL);
@@ -548,7 +495,6 @@ namespace symPACK{
       }
       SYMPACK_TIMER_STOP(FACT_SCALE);
 
-#endif
       return 0;
 
     }
@@ -563,21 +509,6 @@ namespace symPACK{
       Int snodeSize = this->Size();
       NZBlockDesc & diag_desc = this->GetNZBlockDesc(0);
       T * diag_nzval = this->GetNZval(diag_desc.Offset);
-#if 0
-      Idx totalNRows = this->NRowsBelowBlock(0);
-      for(Int col = 0; col< snodeSize;col++){
-
-        //copy the diagonal entries into the diag portion of the supernode
-        this->diag_[col] = diag_nzval[col+ (col)*snodeSize];
-
-        //T piv = static_cast<T>(1.0) / diag_nzval[col+col*snodeSize];
-        T piv = symPACK::div(static_cast<T>(1.0) , diag_nzval[col+col*snodeSize]);
-        lapack::Scal( totalNRows - col - 1, piv, &diag_nzval[ col + (col+1)*snodeSize ], snodeSize );
-        blas::Ger(snodeSize - col - 1, totalNRows - col - 1, -this->diag_[col],&diag_nzval[col + (col+1)*snodeSize],
-            snodeSize,&diag_nzval[col + (col+1)*snodeSize],snodeSize, &diag_nzval[col+1 + (col+1)*snodeSize], snodeSize );
-      }
-#else
-
       Idx totalNRows = this->NRowsBelowBlock(0);
       Int INFO = 0;
       lapack::Potrf_LDL( "U", snodeSize, diag_nzval, snodeSize, tmpBuffers, INFO);
@@ -593,7 +524,6 @@ namespace symPACK{
       for ( Idx I = 1; I<=snodeSize;I++) {
         blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
       }
-#endif
       return 0;
     }
 
@@ -667,13 +597,6 @@ namespace symPACK{
             T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
 
         SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
-
-
-
-
-
-
-
 
         //If the GEMM wasn't done in place we need to aggregate the update
         //This is the assembly phase
@@ -756,8 +679,6 @@ namespace symPACK{
               for(Int i = 0; i < tgt_width; ++i){
                 B[i] += A[i];
               }
-              //          blas::Axpy(tgt_width,ONE<T>(),&buf[rowidx*tgt_width],1,
-              //              &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset],1);
             }
           }
           else{
@@ -851,7 +772,6 @@ namespace symPACK{
       //everything is in row-major
       //First do W = DLT 
       T * diag = static_cast<SuperNodeInd<T,Allocator> * >(src_snode)->GetDiag();
-      //#pragma omp parallel for
       for(Int row = 0; row<src_snode_size; row++){
         for(Int col = 0; col<tgt_width; col++){
           bufLDL[col+row*tgt_width] = diag[row]*(pivot[row+col*src_snode_size]);
@@ -876,9 +796,7 @@ namespace symPACK{
         if(tgt_snode_size==1){
           Int rowidx = 0;
           Int src_blkcnt = src_snode->NZBlockCnt();
-          //#pragma omp parallel
           {
-            //#pragma omp for
             for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
               NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
               Int cur_src_nrows = src_snode->NRows(blkidx);
@@ -915,9 +833,7 @@ namespace symPACK{
 
           Int src_blkcnt = src_snode->NZBlockCnt();
 
-          //#pragma omp parallel
           {
-            //#pragma omp for
             for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
               NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
               Int cur_src_nrows = src_snode->NRows(blkidx);
@@ -956,27 +872,20 @@ namespace symPACK{
             // Updating contiguous columns
             Int tgt_offset = (tgt_fc - this->FirstCol());
 
-            //#pragma omp parallel
             {
-              //#pragma omp for
               for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
                 T * A = &buf[rowidx*tgt_width];
                 T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
-                //          #pragma unroll
+#pragma unroll
                 for(Int i = 0; i < tgt_width; ++i){
                   B[i] += A[i];
                 }
-                //          blas::Axpy(tgt_width,ONE<T>(),&buf[rowidx*tgt_width],1,
-                //              &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset],1);
               }
             }
           }
           else{
             // full sparse case
-
-            //#pragma omp parallel
             {
-              //#pragma omp for
               for(Int rowidx = 0; rowidx < src_nrows; ++rowidx){
                 for(Int colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx){
                   Int col = tmpBuffers.src_colindx[colidx];
@@ -1000,8 +909,6 @@ namespace symPACK{
     inline void SuperNodeInd<T,Allocator>::back_update_contrib(SuperNode<T> * cur_snode, Int nrhsOffset, Int pnrhs){
       SuperNodeInd<T,Allocator> * contrib = this;
       SuperNodeInd<T> * cur_snodeInd = static_cast<SuperNodeInd<T>*>(cur_snode);
-//TODO DEBUG_SOLVE
-//return  ;
 
       Int nrhs = pnrhs;
       if(pnrhs==-1){
@@ -1015,17 +922,7 @@ namespace symPACK{
       Int ldsol = contrib->Size();
       Int ldfact = cur_snode->Size();
 
-
-
-
-      //  for(k=n;k>=1;k--){
-      //    if(k<n){
-      //      dgemv( 'Transpose', n-k, nrhs, -one, b( k+1, 1 ),
-      //          ldb, a( k+1, k ), 1, one, b( k, 1 ), ldb )
-      //    }
-      //  }
       Int nzblk_cnt = cur_snode->NZBlockCnt();
-#if 1
       if(nzblk_cnt>=1){
         //for each row (of the diagonal block)
         T * updated_nzval = contrib->GetNZval(0);
@@ -1044,43 +941,13 @@ namespace symPACK{
             T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
             T * fact_nzval = cur_snodeInd->GetNZval(fact_desc.Offset);
 
-//            blas::Gemv( 'N', nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*ldsol+nrhsOffset],ldsol,
-//                &fact_nzval[rowK*ldfact+kk],ldfact, T(1.0), &updated_nzval[(kk)*ldsol+nrhsOffset], 1);
+            //TODO CHECK THIS
+            blas::Gemv( 'N', nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*ldsol+nrhsOffset],ldsol,
+                &fact_nzval[rowK*ldfact+kk],ldfact, T(1.0), &updated_nzval[(kk)*ldsol+nrhsOffset], 1);
 
           }
         }
       }
-#else
-      Int snodeSize = cur_snode->Size();
-      if(nzblk_cnt>0){
-        Int blkidx =0;
-        NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
-        NZBlockDesc & fact_desc = cur_snodeInd->GetNZBlockDesc(blkidx);
-        Int cur_nrows = contrib->NRows(blkidx);
-        T * updated_nzval = contrib->GetNZval(cur_desc.Offset);
-        T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
-        T * fact_nzval = cur_snodeInd->GetNZval(fact_desc.Offset);
-
-        for (Int kk = snodeSize-1; kk>=0; --kk){
-          Int rowK =kk+1;
-          blas::Gemv( 'N', nrhs, cur_nrows-rowK, T(-1.0), &cur_nzval[(rowK)*nrhs],nrhs,
-              &fact_nzval[rowK*snodeSize+kk],snodeSize, T(1.0), &updated_nzval[(kk)*nrhs], 1);
-        }
-      }
-
-      if(nzblk_cnt>1){
-        Int blkidx =1;
-        NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
-        NZBlockDesc & fact_desc = cur_snodeInd->GetNZBlockDesc(blkidx);
-        Int tot_nrows = contrib->NRowsBelowBlock(blkidx);
-        T * updated_nzval = contrib->GetNZval(cur_desc.Offset);
-        T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
-        T * fact_nzval = cur_snodeInd->GetNZval(fact_desc.Offset);
-
-        blas::Gemm();
-
-      }
-#endif
 
     }
 
@@ -1151,7 +1018,6 @@ namespace symPACK{
     }
 
 
-
   template <typename T, class Allocator> 
     inline void SuperNodeInd<T,Allocator>::forward_update_contrib( T * RHS, SuperNode<T> * cur_snode, std::vector<Int> & perm){
       SuperNodeInd<T> * cur_snodeInd = static_cast<SuperNodeInd<T>*>(cur_snode);
@@ -1166,50 +1032,6 @@ namespace symPACK{
         T * diag_nzval = contrib->GetNZval(diag_desc.Offset);
         T * chol_diag = cur_snodeInd->GetDiag();
 
-
-#if 0
-        if(cur_snodeInd->NZBlockCnt()>0){
-          Int blkidx = 0;
-          NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
-          NZBlockDesc & chol_desc = cur_snodeInd->GetNZBlockDesc(blkidx);
-
-          Int cur_nrows = contrib->NRows(blkidx);
-          Int chol_nrows = cur_snodeInd->NRows(blkidx);
-
-          T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
-          T * chol_nzval = cur_snodeInd->GetNZval(chol_desc.Offset);
-          for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
-            //First, add the RHS into the contribution
-            Int srcRow = perm[diag_desc.GIndex+kk-1];
-            for(Int j = 0; j<nrhs;++j){
-              diag_nzval[kk*nrhs+j] += RHS[srcRow-1 + j*n];
-            }
-
-            blas::Gemm( 'N' , 'N', nrhs, cur_nrows-kk-1, 1, T(-1.0), &diag_nzval[(kk+1)*nrhs],nrhs, &chol_nzval[kk+1],snodeSize, T(1.0), &cur_nzval[(kk)*nrhs], nrhs);
-          }
-
-
-        }
-
-        if(cur_snodeInd->NZBlockCnt()>1){
-          Int blkidx = 1;
-          NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
-          NZBlockDesc & chol_desc = cur_snodeInd->GetNZBlockDesc(blkidx);
-
-          Int total_nrows = contrib->NRowsBelowBlock(blkidx);
-
-          T * cur_nzval = contrib->GetNZval(cur_desc.Offset);
-          T * chol_nzval = cur_snodeInd->GetNZval(chol_desc.Offset);
-
-          blas::Gemm( 'N' , 'N', nrhs, total_nrows, snodeSize, T(-1.0), &diag_nzval[0],nrhs, &chol_nzval[0],snodeSize, T(1.0), &cur_nzval[0], nrhs);
-
-        }
-
-        for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
-          //scale the kk-th row of the solution
-          lapack::Scal(nrhs, symPACK::div(T(1.0),chol_diag[kk]), &diag_nzval[kk*nrhs], 1);
-        }
-#else
         for(Int blkidx = 0; blkidx < cur_snodeInd->NZBlockCnt() ; ++blkidx){
           NZBlockDesc & cur_desc = contrib->GetNZBlockDesc(blkidx);
           NZBlockDesc & chol_desc = cur_snodeInd->GetNZBlockDesc(blkidx);
@@ -1250,7 +1072,6 @@ namespace symPACK{
           //scale the kk-th row of the solution
           lapack::Scal(nrhs, T(1.0)/chol_diag[kk], &diag_nzval[kk*nrhs], 1);
         }
-#endif
 
 
       }

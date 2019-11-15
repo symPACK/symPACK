@@ -66,7 +66,7 @@ namespace Solve{
 
   class IncomingMessage;
 
-  enum TaskType {FACTOR, AGGREGATE, UPDATE/*, ALLOCATE*/};
+  enum TaskType {FACTOR, AGGREGATE, UPDATE};
 
 
   struct FBTask{
@@ -85,7 +85,6 @@ namespace Solve{
     void update_rank(){
       if(rank==-1.0 || 0){
         if(type==FACTOR){
-          //taskit->rank = 2.0*pow((double)src_snode.Size(),3.0)/3.0 + src_snode.Size()*(src_snode.Size()+1.0)*(src_snode.NRowsBelowBlock(0)-src_snode.Size())/2.0;
           rank = 4.0;
         }
         else if(type == AGGREGATE){
@@ -94,34 +93,6 @@ namespace Solve{
         else if(type == UPDATE){
           rank = 1.0;
 
-
-          //          SuperNode2<T> * cur_src_snode; 
-          //          IncomingMessage * msgPtr = nullptr;
-          //          //Local or remote factor
-          //          //we have only one local or one remote incoming aggregate
-          //          if(curTask.data.size()==0){
-          //            cur_src_snode = snodeLocal(curTask.src_snode_id);
-          //          }
-          //          else{
-          //            auto msgit = curTask.data.begin();
-          //            msgPtr = *msgit;
-          //            assert(msgPtr->IsDone());
-          //            char* dataPtr = msgPtr->GetLocalPtr();
-          //
-          //            cur_src_snode = new SuperNode2<T>(dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
-          //            cur_src_snode->InitIdxToBlk();
-          //          }
-          //
-          //
-          //          //parse cur_src_snode to compute cost
-          //          while(cur_src_snode->FindNextUpdate(curUpdate,Xsuper_,SupMembership_,iam==iSrcOwner)){
-          //            //skip if this update is "lower"
-          //            if(curUpdate.tgt_snode_id<curTask.tgt_snode_id){continue;}
-          //
-          //            Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
-          //            if(iUpdater == iam){
-          //            }
-          //          }
         }
       }
     }
@@ -154,8 +125,6 @@ namespace Solve{
       std::function< id_type(char *) > getHash;
 
       //dependencies
-      //Int remote_deps_cnt;
-      //Int local_deps_cnt;
       Int remote_deps;
       Int local_deps;
 
@@ -164,18 +133,10 @@ namespace Solve{
       }
 
       void clearData(){
-//#ifndef NDEBUG
-//        logfileptr->OFS()<<"List size "<<data.size()<<std::endl;
-//        for(auto&& ptr : data){
-//          logfileptr->OFS()<<"Incoming msg "<<ptr->meta.src<<"->"<<ptr->meta.tgt<<" used by "<<ptr.use_count()<<std::endl;
-//        }
-//#endif
         data.clear();
       }
 
       virtual void init(){
-        //remote_deps_cnt = remote_deps;
-        //local_deps_cnt = local_deps;
       }
 
       virtual void reset(){
@@ -190,7 +151,7 @@ namespace Solve{
   
       std::function< void() > execute;
 
-      GenericTask( ):/*remote_deps_cnt(0),local_deps_cnt(0),*/remote_deps(0),local_deps(0){}
+      GenericTask( ):remote_deps(0),local_deps(0){}
   };
 
   class SparseTask: public GenericTask{
@@ -200,123 +161,6 @@ namespace Solve{
 
       SparseTask( ):GenericTask(){}
   };
-
-#if 0
-#ifdef NEW_UPCXX
-  //template <typename colptr_t, typename rowind_t, typename T> class symPACKMatrix2D;
-
-  class incoming_data_t; 
-  class blockCellBase_t;
-  class SparseTask2D: public SparseTask{
-    public:
-      //cell description
-      using depend_task_t = std::tuple<Int,Int>;
-      using meta_t = std::tuple<Idx,Idx,Factorization::op_type,Idx,Idx>;
-
-      //struct remote_task{
-      //  meta_t _meta;
-      //  T * _nzval;
-      //}
-      
-      //backup for convenience
-      meta_t * _meta;
-
-      //byte storage for tasks 
-      std::deque< depend_task_t > out_dependencies;
-      std::deque< depend_task_t > in_dependencies;
-
-      std::deque< upcxx::global_ptr<char> > in_ptr;
-
-      //promise to sync all outgoing RPCs
-      upcxx::promise<> * out_prom;
-      upcxx::promise<> * in_prom;
-      upcxx::promise<> * in_avail_prom;
-
-      int dep_count;
-      bool executed;
-
-      SparseTask2D( ):SparseTask(),dep_count(0),executed(false){
-        out_prom = new upcxx::promise<>();
-        in_prom = new upcxx::promise<>();
-        in_avail_prom = new upcxx::promise<>();
-      }
-
-      ~SparseTask2D(){
-        bassert(out_prom->get_future().ready());
-        bassert(in_prom->get_future().ready());
-        bassert(in_avail_prom->get_future().ready());
-        delete out_prom;
-        delete in_prom;
-        delete in_avail_prom;
-      }
-
-      void reset(){
-        bassert(out_prom->get_future().ready());
-        bassert(in_prom->get_future().ready());
-        bassert(in_avail_prom->get_future().ready());
-        delete out_prom;
-        delete in_prom;
-        delete in_avail_prom;
-        out_prom = new upcxx::promise<>();
-        in_prom = new upcxx::promise<>();
-        in_avail_prom = new upcxx::promise<>();
-      }
-
-      //need counter here as same REMOTE cell can be input to many tasks.
-      //std::deque< std::shared_ptr< blockCellBase_t > > input_data;
-      std::deque< std::shared_ptr< incoming_data_t > > input_msg;
-  };
-#endif
-#endif
-
-
-
-  ///template<typename F>
-  ///class CompTask;
-
-  /////template<typename F>
-  /////class CompTask: public CompTaskBase{
-  /////  public:
-  /////  //byte storage for tasks 
-  /////  std::vector<char> meta;
-
-  /////  //We will use std::bind and std::placeholders to pass the arguments
-
-  /////  F execute;
-  /////  
-  /////  virtual void dummy() = 0;
-
-  /////  //dependencies
-  /////  Int remote_deps;
-  /////  Int local_deps;
-  /////  //list of incoming messages
-  /////  std::list<IncomingMessage*> data;
-  /////  CompTask( F & pfunc ):execute(pfunc),remote_deps(0),local_deps(0){}
-
-  /////  //unused but preparing for task scheduling priorities
-  /////  //double rank;
-  /////};
-
-  ///template<typename R>
-  ///class CompTask<std::function<R> >: public CompTaskBase{
-  ///  public:
-
-  ///  //We will use std::bind and std::placeholders to pass the arguments
-
-  ///  std::function<R> execute;
-  ///  
-  ///  virtual void dummy(){};
-
-  ///  CompTask( std::function<R> & pfunc ):execute(pfunc),CompTaskBase(){}
-
-  ///  //unused but preparing for task scheduling priorities
-  ///  //double rank;
-  ///};
-
-
-
-
-
 
   inline std::ostream& operator<<( std::ostream& os, const FBTask& t)
   {
@@ -356,9 +200,6 @@ namespace Solve{
       //check whether it is an update or a factorization
       bool a_factor = a.tgt_snode_id == a.src_snode_id;
 
-      //if same type apply the usual priorities
-      //      if(a_factor == b_factor){
-
       //use the classic priorities otherwise
       if(a.tgt_snode_id>b.tgt_snode_id){
         return true;
@@ -369,62 +210,9 @@ namespace Solve{
       else{
         return false;
       }
-
-      //      }
-      //      else if (a_factor){
-      //        if(a.tgt_snode_id
-      //      }
-      //      else if (b_factor){
-      //
-      //      }
     }
   };
 
-
-
-
-
-  /*
-     bool CompareSnodeUpdateFB(const SnodeUpdateFB & a,const SnodeUpdateFB & b)
-     {
-
-     bool b_factor = b.tgt_snode_id == b.src_snode_id;
-
-
-  //use the ranks first
-  if(a.rank>=0 && b.rank>=0){
-  return a.rank<b.rank;
-  }
-
-
-
-  //check whether it is an update or a factorization
-  bool a_factor = a.tgt_snode_id == a.src_snode_id;
-
-  //if same type apply the usual priorities
-  //      if(a_factor == b_factor){
-
-  //use the classic priorities otherwise
-  if(a.tgt_snode_id>b.tgt_snode_id){
-  return true;
-  }
-  else if(a.tgt_snode_id==b.tgt_snode_id){
-  return a.src_snode_id>b.src_snode_id;
-  }
-  else{
-  return false;
-  }
-
-  //      }
-  //      else if (a_factor){
-  //        if(a.tgt_snode_id
-  //      }
-  //      else if (b_factor){
-  //
-  //      }
-  }
-
-*/
 
   template<typename T = FBTask >
     class TaskCompare{
@@ -455,12 +243,10 @@ namespace Solve{
       const Int * ameta = reinterpret_cast<const Int*>(a.meta.data());
       const Int asrc = ameta[0];
       const Int atgt = ameta[1];
-      //const Solve::op_type & atype = *reinterpret_cast<const Solve::op_type*>(&ameta[2]);
 
       const Int * bmeta = reinterpret_cast<const Int*>(b.meta.data());
       const Int bsrc = bmeta[0];
       const Int btgt = bmeta[1];
-      //const Solve::op_type & btype = *reinterpret_cast<const Solve::op_type*>(&bmeta[2]);
 
       //use the classic priorities otherwise
       if(atgt>btgt){
@@ -487,12 +273,10 @@ namespace Solve{
       const Int * ameta = reinterpret_cast<const Int*>(a.meta.data());
       const Int asrc = ameta[0];
       const Int atgt = ameta[1];
-      //const Solve::op_type & atype = *reinterpret_cast<const Solve::op_type*>(&ameta[2]);
 
       const Int * bmeta = reinterpret_cast<const Int*>(b.meta.data());
       const Int bsrc = bmeta[0];
       const Int btgt = bmeta[1];
-      //const Solve::op_type & btype = *reinterpret_cast<const Solve::op_type*>(&bmeta[2]);
 
       //use the classic priorities otherwise
       if(atgt>btgt){
@@ -609,27 +393,6 @@ namespace Solve{
 
 
 
-
-
-  /************************ UNUSED EXPERIMENTAL CLASS ***********************/
-
-  //class Task{
-  //  public:
-  //    static const size_t idSize = 100;
-  //    std::vector<char> id;
-  //    //dependencies
-  //    std::list< upcxx::global_ptr<Task> > inputs;
-  //    std::list< upcxx::global_ptr<Task> > outputs;
-  //    //data
-  //    upcxx::global_ptr<char> data;
-  //
-  //    //computation
-  //    std::function<int(std::vector<char>&)> process;
-  //
-  //    Task():data(nullptr){
-  //      id.resize(idSize);
-  //    }
-  //};
 
 }
 #endif //_TASK_DECL_HPP_

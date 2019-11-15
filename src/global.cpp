@@ -44,27 +44,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include  "sympack/utility.hpp"
 #include  "sympack/SuperNode.hpp"
 
-#ifdef NEW_UPCXX
    #include  "sympack/symPACKMatrix2D.hpp"
-#endif
-
-//#include  "sympack/symPACKMatrix.hpp"
-
-//namespace symPACK{
-//template class symPACKMatrix<float>;
-//template class symPACKMatrix<double>;
-//template class symPACKMatrix<std::complex<float> >;
-//template class symPACKMatrix<std::complex<double> >;
-//template class supernodalTaskGraph<FBTask>;
-//template class supernodalTaskGraph<CompTask>;
-//}
-//namespace symPACK{
-//
-//extern template class symPACKMatrix<float>;
-//extern template class symPACKMatrix<double>;
-//extern template class symPACKMatrix<std::complex<float> >;
-//extern template class symPACKMatrix<std::complex<double> >;
-//}
 
 
 
@@ -93,30 +73,8 @@ namespace symPACK{
 extern "C"
 int symPACK_Rank(int * rank){
   int retval = 0;
-#ifdef NEW_UPCXX
   *rank = upcxx::rank_me();
-#else
-  MPI_Initialized(&retval);
-  if(retval!=0 || libMPIInit){
-    MPI_Comm_rank(MPI_COMM_WORLD,rank);
-  }
-  else{
-#ifdef NEW_UPCXX
-    if( libUPCXXInit){
-      *rank = upcxx::rank_me();
-    }
-#else
-    if(upcxx::is_init() || libUPCXXInit){
-      *rank = upcxx::myrank();
-    }
-#endif
-    else{
-      *rank = -1;
-      return -1;
-    }
-  }
-#endif
-  return 0;
+    return 0;
 }
 
 
@@ -124,7 +82,6 @@ int symPACK_Rank(int * rank){
 
 extern "C"
 int symPACK_Init(int *argc, char ***argv){
-#ifdef NEW_UPCXX
   int retval = 1;
   // init UPC++
   if ( libUPCXXInit ) symPACK::gdb_lock();
@@ -134,86 +91,10 @@ int symPACK_Init(int *argc, char ***argv){
   libUPCXXInit = true;
   
   // init MPI, if necessary
-  //int mpi_already_init;
   MPI_Initialized(&symPACK::mpi_already_init);
   if (!symPACK::mpi_already_init) MPI_Init(argc, argv);
 
   MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &symPACK::world_comm);
-
-  /* program goes here */
-  //int mpi_rankme, mpi_rankn;
-  //MPI_Comm_rank(MPI_COMM_WORLD, &mpi_rankme);
-  //MPI_Comm_size(MPI_COMM_WORLD, &mpi_rankn);
-  
-  //char hostname[MPI_MAX_PROCESSOR_NAME];
-  //int junk;
-  //MPI_Get_processor_name(hostname, &junk);
-  //symPACKOS << "Hello world from UPC++ rank " << upcxx::rank_me() << "/" << upcxx::rank_n()
-  //  << ", MPI rank " << mpi_rankme << "/" << mpi_rankn << " : "
-  //  << hostname << std::endl;
- 
-    //
-    //
-    //
-
-#else
-  int retval = 1;
-
-//    upcxx::init(argc,argv);
-//
-//    int mpiinit = 0;
-//    MPI_Initialized(&mpiinit);
-//    if(mpiinit==0){
-//      if(MPI_Init(argc,argv)!=MPI_SUCCESS){
-//        symPACK::gdb_lock();
-//      }
-//    }
-//  return 1;
-
-  if(!libUPCXXInit){
-    //char *orig_pmi_gni_cookie = getenv("PMI_GNI_COOKIE");
-    //if (orig_pmi_gni_cookie) {
-    //  char *new_pmi_gni_cookie = (char *)malloc(32);
-    //  sprintf(new_pmi_gni_cookie, "PMI_GNI_COOKIE=%d",
-    //      1+atoi(orig_pmi_gni_cookie));
-    //  putenv(new_pmi_gni_cookie);
-    //}
-
-
-#ifdef NEW_UPCXX
-      upcxx::init();
-      libUPCXXInit = true;
-
-#else
-    if(!upcxx::is_init()){
-//std::cerr<<"upcxx init"<<std::endl;
-      upcxx::init(argc,argv);
-//std::cerr<<"past upcxx init"<<std::endl;
-      libUPCXXInit = true;
-    }
-#endif
-  }
-
-  if(!libMPIInit){
-    symPACK::mpi_already_init = 0;
-    MPI_Initialized(&symPACK::mpi_already_init);
-    if(symPACK::mpi_already_init==0){
-      if(MPI_Init(argc,argv)==MPI_SUCCESS){
-        libMPIInit = true;
-        retval = retval && 1;
-      }
-//std::cerr<<"past MPI_Initialize"<<std::endl;
-    }
-  }
-
-  MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &symPACK::world_comm);
-
-    int mpiinit = 0;
-    MPI_Initialized(&mpiinit);
-    assert(mpiinit==1);
-//    assert(upcxx::is_init());
-
-#endif
   return retval;
 }
 
@@ -229,35 +110,15 @@ int symPACK_Finalize(){
   if (!symPACK::mpi_already_init) MPI_Finalize();
 
   if(libUPCXXInit){
-    //if(rank==0){std::cerr<<"upcxx finalize"<<std::endl;}
     symPACK::capture_master_scope();
 
     upcxx::finalize();
     symPACK::liberate_master_scope();
 
-    //if(rank==0){std::cerr<<"past upcxx finalize"<<std::endl;}
     libUPCXXInit = false;
     libMPIInit = false;
   }
 
-  
-  ////if(libMPIInit)
-  ////{
-  ////  int mpiflag = 0;
-  ////  if(rank==0){std::cerr<<"MPI_Finalized"<<std::endl;};
-  ////  MPI_Finalized(&mpiflag);
-  ////  if(mpiflag==0){
-  ////    if(rank==0){std::cerr<<"MPI_Finalize"<<std::endl;};
-  ////    retval = retval && MPI_SUCCESS == MPI_Finalize();
-  ////    if(rank==0){std::cerr<<"past MPI_Finalize"<<std::endl;};
-  ////    libMPIInit = false;
-  ////  }
-  ////}
-
-  ////int mpiinit = 0;
-  ////MPI_Finalized(&mpiinit);
-  ////assert(mpiinit==1);
- // assert(!upcxx::is_init());
   return retval;
 }
 
@@ -270,11 +131,7 @@ namespace symPACK{
 
   int symPACKMatrixBase::last_id = 0;
 
-#ifdef NEW_UPCXX
-  //std::map<int, std::deque<incoming_data_t>  > g_sp_handle_incoming;
-
   std::map<int, symPACKMatrixBase *  > g_sp_handle_to_matrix;
-#endif
 
 #ifdef _TRACK_MEMORY_
   std::map<char*,size_t> MemoryAllocator::cnt_;

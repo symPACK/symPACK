@@ -306,11 +306,6 @@ void LAPACK(zlacpy)
 		const dcomplex* A, const Int *lda, 
 		dcomplex* B, const Int *ldb );
 
-// Triangular solve : Trsm
-//void LAPACK(ztrsm)
-//	( const char* side, const char* uplo, const char* transa, const char * diag,
-//		const Int* m, const Int* n, const dcomplex* alpha, const dcomplex* A, const Int* lda,
-//		dcomplex* B, const Int* ldb );
 
 // Inverting a factorized matrix: Getri
 void LAPACK(dgetri)
@@ -326,67 +321,6 @@ void LAPACK(zgetri)
 // *********************************************************************
 // Cholesky factorization
 // *********************************************************************
-
-
-
-
-///
-/////Special version for row major
-///void Potrf_RM( char uplo, Int n, const double* A, Int lda )
-///{
-///#ifndef _RELEASE_
-///    PushCallStack("lapack::Potrf");
-///#endif
-///    Int info;
-///    info=0;
-///    bool upper = (uplo == 'U' || uplo == 'u');
-///
-///    if(!upper && !(uplo=='L' || uplo=='l')){
-///      info = -1;
-///    }
-///    else if(n<0){
-///      info = -2;
-///    }
-///    else if(lda < max(1,n) ){
-///      info = -4;
-///    }
-///
-///    if(info <0){
-///      xerbla('DPOTRF', -info);
-///      return;
-///    }
-///    
-///    
-///
-///
-///    LAPACK(dpotrf)( &uplo, &n, A, &lda, &info );
-/////    if( info < 0 )
-/////    {
-/////        std::ostringstream msg;
-/////        msg << "dpotrf returned with info = " << info;
-/////        throw std::logic_error( msg.str().c_str() );
-/////    }
-/////      if( info > 0 )
-/////         throw std::runtime_error("Matrix is not HPD.");
-///#ifndef _RELEASE_
-///    PopCallStack();
-///#endif
-///}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 void Potrf( char uplo, Int n, const float* A, Int lda )
 {
     Int info;
@@ -398,7 +332,6 @@ void Potrf( char uplo, Int n, const float* A, Int lda )
         throw std::logic_error( msg.str().c_str() );
     }
     else if( info > 0 )
-//        std::cerr << "Runtime error: " << "Matrix is not HPD." << '\n';
         throw std::runtime_error("Matrix is not HPD.");
 }
 
@@ -413,7 +346,6 @@ void Potrf( char uplo, Int n, const double* A, Int lda )
         throw std::logic_error( msg.str().c_str() );
     }
     else if( info > 0 ){
-//        std::cerr << "Runtime error: " << "Matrix is not HPD." << '\n';
          throw std::runtime_error("Matrix is not HPD.");
     }
 }
@@ -429,7 +361,6 @@ void Potrf( char uplo, Int n, const scomplex* A, Int lda )
         throw std::logic_error( msg.str().c_str() );
     }
     else if( info > 0 )
-//        std::cerr << "Runtime error: " << "Matrix is not HPD." << '\n';
         throw std::runtime_error("Matrix is not HPD.");
 }
 
@@ -444,7 +375,6 @@ void Potrf( char uplo, Int n, const dcomplex* A, Int lda )
         throw std::logic_error( msg.str().c_str() );
     }
     else if( info > 0 )
-//        std::cerr << "Runtime error: " << "Matrix is not HPD." << '\n';
         throw std::runtime_error("Matrix is not HPD.");
 }
 

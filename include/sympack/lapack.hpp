@@ -593,38 +593,6 @@ namespace symPACK {
               //*              for non-positive-definiteness.
               //*
               JB = std::min( NB, N-J+1 );
-#if 0
-              PTR = 1;
-              #pragma unroll
-              for ( Idx I = J; I<=J+JB;I++) {
-                #pragma unroll
-                for(Idx K = 1; K <= J-1; K++){
-                  //copy and scale
-                  WORK[(I-1)*(J-1)+K-1]=A[(I-1)*LDA + K-1]*A[K-1+(K-1)*LDA];
-                }
-              }
-              PTR=JB*J-1;
-              if(J>1){
-                blas::Gemm( 'T', 'N', JB, JB, J-1, MINUS_ONE, WORK, J-1, &A[(J-1)*LDA], LDA, ONE, &A[J-1+(J-1)*LDA], LDA );
-              }
-              lapack::Potf2_LDL( "Upper", JB, &A[J-1+(J-1)*LDA], LDA, &WORK[PTR-1], INFO );
-              if  ( INFO != 0 ) {
-                INFO = INFO + J - 1;
-                return;
-              }
-              if ( J+JB <= N ) {
-                //*
-                //*                 Compute the current block row.
-                //*
-                if(J>1){
-                  blas::Gemm( 'T','N',JB,N-J-JB+1, J-1,MINUS_ONE, WORK, J-1 , &A[(J+JB-1)*LDA], LDA, ONE, &A[(J+JB-1)*LDA+ J-1], LDA );
-                }
-                blas::Trsm( 'L', 'U', 'T', 'U',JB, N-J-JB+1, ONE, &A[J-1+(J-1)*LDA], LDA, &A[J-1+(J+JB-1)*LDA], LDA );
-                for ( Idx I = J; I<=J+JB-1;I++) {
-                  blas::Scal( N-J-JB+1, ONE/A[I-1+(I-1)*LDA], &A[I-1+(J+JB-1)*LDA], LDA );
-                }
-              }
-#else
               PTR = 1;
               for ( Idx I = 1; I<=J-1;I++) {
                 blas::Copy( JB, &A[I-1+(J-1)*LDA], LDA, &WORK[PTR-1], 1 );
@@ -648,9 +616,6 @@ namespace symPACK {
                   blas::Scal( N-J-JB+1, ONE/A[I-1+(I-1)*LDA], &A[I-1+(J+JB-1)*LDA], LDA );
                 }
               }
-#endif
-
-
             }
           }
           else {

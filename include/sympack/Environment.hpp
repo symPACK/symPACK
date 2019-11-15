@@ -49,7 +49,6 @@
 #include "sympack_definitions.hpp"
 #include "sympack_config.hpp"
 
-//#define EXPLICIT_PERMUTE
 #include <sys/time.h>
 inline double get_time()
   {
@@ -58,19 +57,13 @@ inline double get_time()
     return tv.tv_sec + ((double) tv.tv_usec / 1000000);
   }
 
-#define NEW_UPCXX
 
-#ifdef NEW_UPCXX
 #include <upcxx/upcxx.hpp>
-#else
-#include <upcxx.h>
-#endif
 
 //debug
 #include <sys/types.h>
 #include <unistd.h>
 #include <execinfo.h>
-//#include <signal.h>
 #include <exception>
 
 
@@ -134,11 +127,7 @@ namespace symPACK{
 
   inline void gdb_lock(){
       pid_t pid = getpid();
-#ifdef NEW_UPCXX
 int iam = upcxx::rank_me();
-#else
-int iam = upcxx::myrank();
-#endif
       std::cerr<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;
     volatile int lock = 1;
     while (lock == 1){ }
@@ -146,11 +135,7 @@ int iam = upcxx::myrank();
   }
 
   inline void gdb_lock(Int proc){
-#ifdef NEW_UPCXX
 int iam = upcxx::rank_me();
-#else
-int iam = upcxx::myrank();
-#endif
     if(iam==proc){
       pid_t pid = getpid();
       std::cerr<<"P"<<iam<<" is locked, pid is "<<pid<<std::endl;

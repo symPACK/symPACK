@@ -94,11 +94,6 @@ namespace symPACK{
           src_nzblk_idx = a_src_nzblk_idx;
    }
 
-//   ~FBDelayedComm(){
-//        if(type==AGGREGATE){
-//          delete src_data;
-//        }
-//    }
 
   };
 
@@ -120,33 +115,12 @@ namespace symPACK{
         }
     }
 
-//    inline bool base_compare2(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const TaskType & a_type,
-//        const Int & b_src_snode_id, const Int & b_tgt_snode_id, const TaskType & b_type) const{
-//        if(a_tgt_snode_id>b_tgt_snode_id){
-//          return true;
-//        }
-//        else if(a_tgt_snode_id==b_tgt_snode_id){
-//          if(a_src_snode_id==b_src_snode_id){
-//            //factor comes first
-//            //case Fx,y   vs   Ax,y    =>   F comes first
-//            return !(a_type == FACTOR);
-//          }
-//          else{
-//             return a_src_snode_id>b_src_snode_id;
-//          }
-//        }
-//        else{
-//          return false;
-//        }
-//    }
-
 
     //Logic is: does a go after b ?
     inline bool compare(const Int & a_src_snode_id, const Int & a_tgt_snode_id, const TaskType & a_type,
         const Int & b_src_snode_id, const Int & b_tgt_snode_id, const TaskType & b_type) const{
 
 
-//      return base_compare2(a_src_snode_id, a_tgt_snode_id, a_type, b_src_snode_id, b_tgt_snode_id, b_type);
 
 
       //If they are the same type, sort by tgt id then by src_id
@@ -154,14 +128,13 @@ namespace symPACK{
         return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
       }
       //case Fx,y   vs   Ax,y    =>   F comes first
-      else if(a_type == FACTOR && /*a_src_snode_id == b_src_snode_id &&*/ a_tgt_snode_id == b_tgt_snode_id){
+      else if(a_type == FACTOR &&  a_tgt_snode_id == b_tgt_snode_id){
         return false;
       }
       //case Ax,*   vs   Fx,*    =>   F comes first
-      else if(b_type == FACTOR && /*a_src_snode_id == b_src_snode_id &&*/ a_tgt_snode_id == b_tgt_snode_id){
+      else if(b_type == FACTOR &&  a_tgt_snode_id == b_tgt_snode_id){
         return true;
       }
-//#ifndef _SEPARATE_COMM_
       //case Fy,*   vs   A*,y    =>   A comes first
       else if(a_type == FACTOR && a_src_snode_id == b_tgt_snode_id){
         return true;
@@ -170,7 +143,6 @@ namespace symPACK{
       else if(b_type == FACTOR && b_src_snode_id == a_tgt_snode_id){
         return false;
       }
-//#endif
       else{
         return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
       }
@@ -188,13 +160,12 @@ namespace symPACK{
       if(a_type == b_type){
         return base_compare(a_src_snode_id, a_tgt_snode_id, b_src_snode_id, b_tgt_snode_id);
       }
-//#ifndef _SEPARATE_COMM_
       //case Fx,y   vs   Ax,y    =>   F comes first
-      else if(a_type == FACTOR && /*a_src_snode_id == abs(b_src_snode_id) &&*/ a_tgt_snode_id == b_tgt_snode_id){
+      else if(a_type == FACTOR &&  a_tgt_snode_id == b_tgt_snode_id){
         return false;
       }
       //case Ax,*   vs   Fx,*    =>   F comes first
-      else if(b_type == FACTOR && /*a_src_snode_id == abs(b_src_snode_id) &&*/ a_tgt_snode_id == b_tgt_snode_id){
+      else if(b_type == FACTOR &&  a_tgt_snode_id == b_tgt_snode_id){
         return true;
       }
       //case Fy,*   vs   A*,y    =>   A comes first
@@ -205,7 +176,6 @@ namespace symPACK{
       else if(b_type == FACTOR && abs(b_src_snode_id) == a_tgt_snode_id){
         return false;
       }
-//#endif
       else{
         return base_compare(a_src_snode_id, a_tgt_snode_id, abs(b_src_snode_id), b_tgt_snode_id);
       }
@@ -225,7 +195,6 @@ namespace symPACK{
 
     bool operator()(const FBDelayedComm & a,const FBDelayedComm & b) const
     {
-//      return compare(a.src_data->Id(),a.tgt_snode_id,a.type,b.src_data->Id(),b.tgt_snode_id,b.type);
       return compare(a.src_snode_id,a.tgt_snode_id,a.type,b.src_snode_id,b.tgt_snode_id,b.type);
     }
   };
@@ -425,7 +394,6 @@ namespace symPACK{
   struct DelayedCommCompare{
     bool operator()(const DelayedComm & a,const DelayedComm & b) const
     {
-//      bool return_value =  a.tgt_snode_id<b.tgt_snode_id;
       if(a.tgt_snode_id>b.tgt_snode_id){
         return true;
       }
@@ -435,7 +403,6 @@ namespace symPACK{
       else{
         return false;
       }
-      //return a.tgt_snode_id>b.tgt_snode_id;
     }
   };
 
@@ -443,7 +410,6 @@ namespace symPACK{
   struct DelayedCommReverseCompare{
     bool operator()(const DelayedComm & a,const DelayedComm & b) const
     {
-//      bool return_value =  a.tgt_snode_id<b.tgt_snode_id;
       if(a.tgt_snode_id<b.tgt_snode_id){
         return true;
       }
@@ -453,7 +419,6 @@ namespace symPACK{
       else{
         return false;
       }
-      //return a.tgt_snode_id>b.tgt_snode_id;
     }
   };
 
@@ -569,7 +534,6 @@ namespace symPACK{
     public:
       CommEnvironment(){
           isMpi_ = false;
-          //pComm_ = MPI_COMM_NULL;
           MPI_size_ = -1;
           MPI_rank_ = -1;
       }

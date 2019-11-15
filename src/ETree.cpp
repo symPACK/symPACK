@@ -178,7 +178,6 @@ namespace symPACK{
     Int lroot = n_;
     for(Int vertex=n_-1; vertex>0; vertex--){
       Int curParent = PostParent(vertex-1);
-      //Int curParent = parent_(vertex-1);
       if(curParent==0 || curParent == vertex){
         brother[lroot-1] = vertex;
         lroot = vertex;
@@ -205,13 +204,11 @@ namespace symPACK{
 
 
     std::vector<Int> invpos;
-    //      std::vector<Int> invperm;
 
     //Compute the parent permutation and update postNumber_
     //Do a depth first search to construct the postordered tree
     std::vector<Int> stack(n_);
     invpos.resize(n_);
-    //      invperm.Resize(n_);
 
     Int stacktop=0, vertex=n_,m=0;
     bool exit = false;
@@ -283,7 +280,6 @@ namespace symPACK{
     int mpirank;
     MPI_Comm_rank(aDistExp.GetComm(),&mpirank);
 
-#if 1
     int expandedGraph = aDistExp.expanded;
     
     if ( !expandedGraph ){
@@ -308,16 +304,11 @@ namespace symPACK{
       parent_[i-1] = 0;
       ancstr[i-1] = 0;
 
-      //logfileptr->OFS()<<i<<" parent_ "<<parent_<<std::endl;
-      //logfileptr->OFS()<<i<<" ancstr "<<ancstr<<std::endl;
-      //logfileptr->OFS()<<"i = "<<i<<std::endl;
-
       Ptr jstrt = aDistExp.colptr[locCol]; //1-based
       Ptr jstop = aDistExp.colptr[locCol+1] -1;//1-based
       if (jstrt<jstop){
         for(Ptr j = jstrt; j<=jstop; ++j){
           Idx nbr = aDistExp.rowind[j-1]; //1-based
-//            logfileptr->OFS()<<"   nbr = "<<nbr<<std::endl;
           if  ( nbr < i ){
             //                       -------------------------------------------
             //                       for each nbr, find the root of its current
@@ -339,7 +330,6 @@ namespace symPACK{
                 ancstr[nbr-1] = i;
                 nbr = next;
               }
-              //              logfileptr->OFS()<<std::endl;
               //                       --------------------------------------------
               //                       now, nbr is the root of the subtree.  make i
               //                       the parent node of this root.
@@ -355,10 +345,6 @@ namespace symPACK{
     }
 
     if(mpirank<mpisize-1){
-      //        logfileptr->OFS()<<"my parent now is: "<<myParent<<std::endl;
-      //        logfileptr->OFS()<<"my ancstr now is: "<<myAncstr<<std::endl;
-      //logfileptr->OFS()<<"parent now is: "<<parent_<<std::endl;
-      //logfileptr->OFS()<<"ancstr now is: "<<ancstr<<std::endl;
       MPI_Send(&parent_[0],n_,Inttype,mpirank+1,mpirank,aDistExp.GetComm());
       MPI_Send(&ancstr[0],n_ ,Inttype,mpirank+1,mpirank,aDistExp.GetComm());
     }
@@ -368,98 +354,6 @@ namespace symPACK{
 
 
     MPI_Type_free( &Inttype );
-#else
-    throw std::logic_error( "ETree::ConstructETree(DistSparseMatrixGraph & , Ordering & ) not implemented\n" );
-    DistSparseMatrixGraph tmpGraph = aDistExp;
-
-    //Expand to unsymmetric storage
-    tmpGraph.ExpandSymmetric();
-
-    SYMPACK_TIMER_START(Construct_Etree);
-    //std::fill(parent_.begin(),parent_.end(),0);
-
-
-
-#if 1 
-    //first permute locally then redistribute with alltoallv then do the etree
-    tmpGraph.Permute(&aOrder.invp[0]);
-
-    parent_.assign(n_,0);
-    std::vector<Int> ancstr(n_,-1);
-
-    Idx fc = tmpGraph.LocalFirstVertex()-tmpGraph.GetBaseval(); //0 - based
-
-    if(mpirank>0){
-      MPI_Recv(&parent_[0],fc*sizeof(Int),MPI_BYTE,mpirank-1,mpirank-1,tmpGraph.GetComm(),MPI_STATUS_IGNORE);
-      MPI_Recv(&ancstr[0],fc*sizeof(Int),MPI_BYTE,mpirank-1,mpirank-1,tmpGraph.GetComm(),MPI_STATUS_IGNORE);
-    }
-    for(Idx locCol = 0; locCol< tmpGraph.LocalVertexCount(); locCol++){
-
-      Idx i = fc + locCol; // 0 - based;
-      parent_[i] = 0;
-      ancstr[i] = 0;
-
-      //logfileptr->OFS()<<"i = "<<i+1<<std::endl;
-
-      Ptr jstrt = tmpGraph.colptr[locCol] - tmpGraph.GetBaseval(); //0-based
-      Ptr jstop = tmpGraph.colptr[locCol+1] - tmpGraph.GetBaseval();//0-based
-      if(jstrt<jstop-1){
-        for(Ptr j = jstrt; j<jstop; ++j){
-          Idx nbr = tmpGraph.rowind[j] - tmpGraph.GetBaseval(); //0-based
-          //logfileptr->OFS()<<"   nbr = "<<nbr+1<<std::endl;
-          if  ( nbr < i ){
-            // -------------------------------------------
-            // for each nbr, find the root of its current
-            // elimination tree.  perform path compression
-            // as the subtree is traversed.
-            // -------------------------------------------
-            //column i (unpermuted) is not the parent of column nbr
-            if  ( ancstr[nbr] != i+1 ){
-              //logfileptr->OFS()<<"path: "<<nbr<<" ";
-              Int break_loop = 0;
-              while(ancstr[nbr] >0){
-                if  ( ancstr[nbr] == i+1 ){
-                  break_loop = 1;
-                  break;
-                }
-                Int next = ancstr[nbr];
-                ancstr[nbr] = i+1;
-                nbr = next - 1;
-                //logfileptr->OFS()<<nbr+1<<" ";
-              }
-              //logfileptr->OFS()<<std::endl;
-
-              // --------------------------------------------
-              // now, nbr is the root of the subtree.  make i
-              // the parent node of this root.
-              // --------------------------------------------
-              if(!break_loop){
-                parent_[nbr] = i + 1; // 1-based
-                ancstr[nbr] = i + 1; // 1-based
-              }
-            }
-          }
-        }
-      }
-
-    }
-
-    if(mpirank<mpisize-1){
-      //        logfileptr->OFS()<<"my parent now is: "<<myParent<<std::endl;
-      //        logfileptr->OFS()<<"my ancstr now is: "<<myAncstr<<std::endl;
-      //logfileptr->OFS()<<"parent now is: "<<parent_<<std::endl;
-      //logfileptr->OFS()<<"ancstr now is: "<<ancstr<<std::endl;
-      MPI_Send(&parent_[0],(fc+tmpGraph.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,tmpGraph.GetComm());
-      MPI_Send(&ancstr[0],(fc+tmpGraph.LocalVertexCount())*sizeof(Int),MPI_BYTE,mpirank+1,mpirank,tmpGraph.GetComm());
-    }
-
-    //Now proc mpisize-1 bcast the parent_ array
-    MPI_Bcast(&parent_[0],n_*sizeof(Int),MPI_BYTE,mpisize-1,tmpGraph.GetComm());
-
-
-#else
-#endif
-#endif
 
     SYMPACK_TIMER_STOP(Construct_Etree);
 
@@ -489,20 +383,14 @@ namespace symPACK{
       for(Int i = 1; i<=n_; ++i){
         parent_[i-1] = 0;
         ancstr[i-1] = 0;
-      //logfileptr->OFS()<<i<<" parent_ "<<parent_<<std::endl;
-      //logfileptr->OFS()<<i<<" ancstr "<<ancstr<<std::endl;
 
         Int node = aOrder.perm[i-1];
-        //          logfileptr->OFS()<<"i = "<<node<<std::endl;
         Ptr jstrt = sgraph.colptr[node-1];
         Ptr jstop = sgraph.colptr[node] - 1;
         if  ( jstrt < jstop ){
           for(Ptr j = jstrt; j<=jstop; ++j){
             Idx nbr = sgraph.rowind[j-1];
-//            logfileptr->OFS()<<"   nbr = "<<nbr<<std::endl;
-            //logfileptr->OFS()<<"   nbr = "<<nbr<<"  ";
             nbr = aOrder.invp[nbr-1];
-            //logfileptr->OFS()<<"|  nbr = "<<nbr<<std::endl;
             if  ( nbr < i ){
               //                       -------------------------------------------
               //                       for each nbr, find the root of its current
@@ -524,7 +412,6 @@ namespace symPACK{
                   ancstr[nbr-1] = i;
                   nbr = next;
                 }
-                //              logfileptr->OFS()<<std::endl;
                 //                       --------------------------------------------
                 //                       now, nbr is the root of the subtree.  make i
                 //                       the parent node of this root.

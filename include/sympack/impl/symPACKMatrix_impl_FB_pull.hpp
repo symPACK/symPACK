@@ -67,9 +67,7 @@ template <typename T> inline void symPACKMatrix<T>::dfs_traversal(std::vector<st
   }
 };
 
-
-
-template <typename T> inline void symPACKMatrix<T>::FanBoth_New() 
+template <typename T> inline void symPACKMatrix<T>::FanBoth() 
 {
   scope_timer(a,FACTORIZATION_FB);
 
@@ -103,7 +101,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
   timeSta =  get_time( );
   //Create a copy of the task graph
-  taskGraph graph = taskGraph_New_;
+  taskGraph graph = taskGraph_;
   {
 #ifdef _MEM_PROFILER_
     utility::scope_memprofiler m("symPACKMatrix_task_graph2");
@@ -114,8 +112,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
     //This is the important one
 #ifdef SP_THREADS
-    //  std::map<Int,bool> superNodeInUse;
-    //  std::mutex inuse_mutex_;
     scheduler_new_->threadInitHandle_ = nullptr;
     scheduler_new_->extraTaskHandle_  = nullptr;
     scheduler_new_->msgHandle = nullptr;
@@ -278,8 +274,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             scope_timer(a,FB_AGGREGATION_TASK);
             Int iLocalI = snodeLocalIndex(tgt);
 
-            //log_task_internal(pTask);
-
 #ifdef _DEBUG_PROGRESS_
             logfileptr->OFS()<<"Processing T_AGGREG("<<src<<","<<tgt<<") "<<std::endl;
 #endif
@@ -320,10 +314,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             sprintf(buf,"%d_%d_%d_%d",tgt_snode_id,tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
             auto id = hash_fn(std::string(buf));
 
-            //auto taskit = graph.find_task(id);
             //this is a particular case : we consider this as a remote dependency
-            //bassert(taskit!=graph.tasks_.end());
-            //dec_ref(taskit,0,1);
             auto taskit = graph.find_task(id);
             bassert(taskit!=graph.tasks_.end());
             if ( auto ptr = graph.updateTask(id,0,1) ) {
@@ -357,9 +348,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
         switch(type) {
           case Factorization::op_type::FACTOR:
             {
-              //#ifdef _LAMBDAS_
               Task.execute = [&,this,src,tgt,pTask] () {
-                //log_task_internal(pTask);
                 scope_timer(b,FB_FACTORIZATION_TASK);
 
                 Int iLocalTGT = snodeLocalIndex(tgt);
@@ -374,10 +363,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                 logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
 #endif
 
-                //  logfileptr->OFS()<<"Before factoring Supernode "<<I<<std::endl;
-                //  logfileptr->OFS()<<*src_snode<<std::endl;
 
-                //if ( src_snode->FirstCol()<=21 && src_snode->LastCol()>=21 ) { gdb_lock(); }
                 SYMPACK_TIMER_START(FACTOR_PANEL);
 #ifdef SP_THREADS
                 std::thread::id tid = std::this_thread::get_id();
@@ -389,9 +375,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 #endif
 
                 SYMPACK_TIMER_STOP(FACTOR_PANEL);
-
-                //  logfileptr->OFS()<<"After factoring Supernode "<<I<<std::endl;
-                //  logfileptr->OFS()<<*src_snode<<std::endl;
 
                 //Sending factors and update local tasks
                 //Send my factor to my ancestors. 
@@ -426,10 +409,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       char buf[100];
                       sprintf(buf,"%d_%d_%d_%d",meta.src,meta.tgt,0,(Int)Factorization::op_type::UPDATE);
                       meta.id = hash_fn(std::string(buf));
-                      //std::stringstream sstr;
-                      //sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                      //meta.id = hash_fn(sstr.str());
-
                       char * last_byte_ptr = (char*)&nzblk_desc + sizeof(NZBlockDesc);
                       size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
 
@@ -445,12 +424,8 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     char buf[100];
                     sprintf(buf,"%d_%d_%d_%d",curUpdate.src_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::UPDATE);
                     auto id = hash_fn(std::string(buf));
-                    //      std::stringstream sstr;
-                    //      sstr<<curUpdate.src_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::UPDATE;
-                    //      auto id = hash_fn(sstr.str());
                     auto taskit = graph.find_task(id);
                     bassert(taskit!=graph.tasks_.end());
-                    //dec_ref(taskit,1,0);
                     if ( auto ptr = graph.updateTask(id,1,0) ) {
                       bassert(ptr!=nullptr);
                       scheduler_new_->push(ptr);
@@ -461,11 +436,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                 SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS);
               };
 
-              //#else
-              //              Task.execute = [&,src,tgt,pTask,type] () {
-              //                this->_factorTask1D(src,tgt,pTask,type,graph);
-              //              };
-              //#endif
 
 
 
@@ -473,7 +443,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
             break;
           case Factorization::op_type::UPDATE:
             {
-              //#ifdef _LAMBDAS_
 #ifdef _SEQ_SPECIAL_CASE_
               if (Multithreading::NumThread==1) {
                 Task.execute = [&,this,src,tgt,pTask,type] () {
@@ -513,11 +482,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                     msgPtr = *msgit;
                     bassert(msgPtr->IsDone());
 
-
-                    //GET MY ID
-                    //std::stringstream sstr;
-                    //sstr<<src<<"_"<<tgt<<"_"<<0<<"_"<<(Int)type;
-                    //auto id = hash_fn(sstr.str());
                     auto id = pTask->id;
 
                     bassert(msgPtr->meta.id == id);
@@ -717,12 +681,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           if (this->iam==iSrcOwner ) {
                             break;
                           }
-
-                          // if (structPtr!=nullptr) {
-                          //   delete structPtr;
-                          // }
-
-
                         }
                       }
                     }
@@ -734,8 +692,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
               else
 #endif
               {
-                Task.execute = [&graph,hash_fn,&UpdatesToDo,&aggVectors,/*&inuse_mutex_,*/dec_ref,this,src,tgt,pTask,type] () {
-                  //log_task_internal(pTask);
+                Task.execute = [&graph,hash_fn,&UpdatesToDo,&aggVectors,dec_ref,this,src,tgt,pTask,type] () {
                   scope_timer(a,FB_UPDATE_TASK);
                   Int iLocalTGT = snodeLocalIndex(tgt);
                   Int src_snode_id = src;
@@ -985,7 +942,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
 
 
                       supernode_lock<T> lock(tgt_aggreg);
-                      //if ( tgt_aggreg->FirstCol()<=21 && tgt_aggreg->LastCol()>=21 ) { gdb_lock(); }
                       //Update the aggregate
                       SYMPACK_TIMER_START(UPD_ANC_UPD);
 #ifdef SP_THREADS
@@ -1031,9 +987,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                           meta.tgt = curUpdate.tgt_snode_id;
                           meta.GIndex = nzblk_desc.GIndex;
 
-                          //                std::stringstream sstr;
-                          //                sstr<<meta.src<<"_"<<meta.tgt<<"_"<<0<<"_"<<(Int)Factorization::op_type::AGGREGATE;
-                          //                meta.id = hash_fn(sstr.str());
                           (*(*this->remDealloc))++;
 
                           char buf[100];
@@ -1052,17 +1005,10 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                       SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
                       if (iTarget == this->iam)
                       {
-                        //std::stringstream sstr;
-                        //sstr<<curUpdate.tgt_snode_id<<"_"<<curUpdate.tgt_snode_id<<"_"<<0<<"_"<<(Int)Factorization::op_type::FACTOR;
-                        //auto id = hash_fn(sstr.str());
-
                         char buf[100];
                         sprintf(buf,"%d_%d_%d_%d",curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,0,(Int)Factorization::op_type::FACTOR);
                         auto id = hash_fn(std::string(buf));
 
-                        //                        auto taskit = graph.find_task(id);
-                        //                        bassert(taskit!=graph.tasks_.end());
-                        //                        dec_ref(taskit,1,0);
 
                         auto taskit = graph.find_task(id);
                         bassert(taskit!=graph.tasks_.end());
@@ -1082,11 +1028,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
                 };
 
               }
-              //#else
-              //                Task.execute = [&,src,tgt,pTask,type] () {
-              //                  this->_updateTask1D(src,tgt,pTask,type,UpdatesToDo,aggVectors,graph);
-              //                };
-              //#endif
             }
             break;
         }
@@ -1109,185 +1050,6 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth_New()
   tmpBufs.Clear();
 }
 
-
-
-
-template <typename T> inline void symPACKMatrix<T>::FanBoth() 
-{
-  SYMPACK_TIMER_START(FACTORIZATION_FB);
-
-  SYMPACK_TIMER_START(FB_INIT);
-  double timeSta, timeEnd;
-  remDealloc = new upcxx::dist_object<int>(0);
-
-
-  //  Int this->iam = CommEnv_->MPI_Rank();
-  //  Int this->np  = CommEnv_->MPI_Size();
-
-  std::vector<Int> UpdatesToDo = UpdatesToDo_;
-
-  //tmp buffer space
-  std::vector<T> src_nzval;
-  std::vector<char> src_blocks;
-
-
-  Int maxheight = 0;
-  Int maxwidth = 0;
-  for (Int i = 1; i<this->Xsuper_.size(); ++i) {
-    Int width =this->Xsuper_[i] - this->Xsuper_[i-1];
-    if (width>=maxwidth) {
-      maxwidth = width;
-    }
-    if (UpdateHeight_[i-1]>=maxheight) {
-      maxheight = UpdateHeight_[i-1];
-    }
-  }
-
-  //maxwidth for indefinite matrices
-  tmpBufs.Resize(maxwidth + maxheight/*this->Size()*/,maxwidth);
-
-  std::vector< SuperNode<T> * > aggVectors(this->Xsuper_.size()-1,nullptr);
-
-
-  timeSta =  get_time( );
-  SYMPACK_TIMER_START(BUILD_TASK_LIST);
-
-  //Create a copy of the task graph
-  supernodalTaskGraph<FBTask> taskGraph = taskGraph_;
-  size_t gTaskCnt = taskGraph.taskLists_.size();
-
-  Int localTaskCount = localTaskCount_;
-
-  for (int i = 0; i<gTaskCnt; ++i) {
-    if (taskGraph.taskLists_[i] != nullptr) {
-      auto taskit = taskGraph.taskLists_[i]->begin();
-      while (taskit != taskGraph.taskLists_[i]->end())
-      {
-        if (taskit->remote_deps==0 && taskit->local_deps==0) {
-          scheduler2_->push(*taskit);
-          auto it = taskit++;
-          taskGraph.removeTask(it);
-        }
-        else
-        {
-          ++taskit;
-        }
-      }
-    }
-  }
-
-
-
-
-
-
-
-
-#ifdef FANIN_OPTIMIZATION
-  if (this->options_.mappingTypeStr ==  "COL2D")
-  {
-    scope_timer(a,BUILD_SUPETREE);
-    ETree SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
-    //logfileptr->OFS()<<"SupETree:"<<SupETree<<std::endl;
-    chSupTree_.resize(SupETree.Size()+1);
-    for (Int I = 1; I<=SupETree.Size(); I++) {
-      Int parent = SupETree.PostParent(I-1);
-      chSupTree_[parent].push_back(I);
-    }
-  }
-#endif
-
-
-
-
-
-
-
-  SYMPACK_TIMER_STOP(BUILD_TASK_LIST);
-
-  SYMPACK_TIMER_STOP(FB_INIT);
-
-
-  bool doPrint = true;
-  Int prevCnt = -1;
-  while (taskGraph.getTaskCount()>0) {
-    CheckIncomingMessages(taskGraph,aggVectors);
-
-    if (!scheduler2_->done())
-    {
-      //Pick a ready task
-      FBTask curTask = scheduler2_->top();
-      scheduler2_->pop();
-
-
-#ifdef _DEBUG_PROGRESS_
-      logfileptr->OFS()<<"Processing T("<<curTask.src_snode_id<<","<<curTask.tgt_snode_id<<") "<<std::endl;
-#endif
-      Int iLocalTGT = snodeLocalIndex(curTask.tgt_snode_id);
-
-      switch(curTask.type) {
-        case FACTOR:
-          {
-            FBFactorizationTask(taskGraph, curTask, iLocalTGT,aggVectors);
-          }
-          break;
-        case AGGREGATE:
-          {
-            FBAggregationTask(taskGraph,curTask, iLocalTGT);
-          }
-          break;
-        case UPDATE:
-          {
-            FBUpdateTask(taskGraph, curTask, UpdatesToDo, aggVectors);
-          }
-          break;
-defaut:
-          {
-            abort();
-          }
-          break;
-      }
-
-      SYMPACK_TIMER_START(REMOVE_TASK);
-      //remove task
-      //taskLists[curTask.tgt_snode_id-1]->erase(taskit);
-      //localTaskCount--;
-      //taskGraph.removeTask(taskit);
-      taskGraph.decreaseTaskCount();
-      SYMPACK_TIMER_STOP(REMOVE_TASK);
-
-
-    }
-
-    prevCnt=taskGraph.getTaskCount();
-  }
-
-  SYMPACK_TIMER_START(BARRIER);
-
-  double tstart,tstop;
-  //tstart = get_time();
-  upcxx::progress();
-  upcxx::discharge();
-  //for (auto f: this->gFutures) f.wait();
-  //this->gFutures.clear();
-  while ( *(*this->remDealloc) > 0 ) { upcxx::progress(); }
-  //tstop = get_time();
-  //logfileptr->OFS()<<"gFutures sync: "<<tstop-tstart<<std::endl;
-  upcxx::barrier(*this->workteam_);
-
-
-  //tstop = get_time();
-  //logfileptr->OFS()<<"barrier wait: "<<tstop-tstart<<std::endl;
-  delete this->remDealloc;
-
-  SYMPACK_TIMER_STOP(BARRIER);
-
-  tmpBufs.Clear();
-
-  SYMPACK_TIMER_STOP(FACTORIZATION_FB);
-}
-
-
 template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector<Int> & UpdatesToDo, std::vector<Int> & AggregatesToRecv,std::vector<Int> & LocalAggregates)
 {
   SYMPACK_TIMER_START(FB_GET_UPDATE_COUNT);
@@ -1299,10 +1061,6 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
   //map of map of pairs (supno, count)
   std::map<Idx, std::map<Idx, Idx>  > Updates;
   std::map<Idx, std::map<Idx, Idx>  > sendAfter;
-
-  //  std::vector<bool>isSent(this->Xsuper_.size()*this->np,false);
-  //Int numLocSnode = ( (this->Xsuper_.size()-1) / this->np);
-  //Int firstSnode = this->iam*numLocSnode + 1;
 
   Int numLocSnode = this->XsuperDist_[this->iam+1]-this->XsuperDist_[this->iam];
   Int firstSnode = this->XsuperDist_[this->iam];
@@ -1321,7 +1079,6 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
       Idx row = this->locLindx_[sidx-1];
       Int supno = this->SupMembership_[row-1];
       if (supno!=prevSnode) {
-        //Idx supno = locSupLindx_[sidx-1];
         if (marker[supno-1]!=s && supno!=s) {
           marker[supno-1] = s;
 
@@ -1339,36 +1096,16 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
             if (it==procSendAfter.end()) {
               procSendAfter[supno]=s;
             }
-            //            if (!isSent[(supno-1)*this->np+iUpdater]) {
-            //              AggregatesToRecv[supno-1]++;
-            //              isSent[(supno-1)*this->np+iUpdater]=true;
-            //            }
           }
 
           auto & procUpdates = Updates[iUpdater];
           procUpdates[supno]++;
-          //          auto it = procUpdates.find(supno);
-          //          if (it==procUpdates.end()) {
-          //            procUpdates[supno]=1;
-          //          }
-          //          else {
-          //            it->second++;
-          //          }
-
         }
       }
       prevSnode = supno;
     }
   }
 
-
-  //for (auto itp = Updates.begin();itp!=Updates.end();itp++) {
-  //  logfileptr->OFS()<<"Updates on P"<<itp->first<<": ";
-  //  for (auto it = itp->second.begin();it!=itp->second.end();it++) {
-  //    logfileptr->OFS()<<it->first<<" = "<<it->second<<" | ";
-  //  }
-  //  logfileptr->OFS()<<std::endl;
-  //}
 
   //Build a Alltoallv communication for Updates
   {
@@ -1396,39 +1133,21 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
       sendbuf.insert(sendbuf.end(),itp->second.begin(),itp->second.end());
     }
 
-    //logfileptr->OFS()<<"Sent sizes: "<<ssizes<<std::endl;
-    //logfileptr->OFS()<<"Sent displs: "<<sdispls<<std::endl;
-    //logfileptr->OFS()<<"Sent updates: ";
-    //for (auto it = sendbuf.begin();it!=sendbuf.end();it++) {
-    //  logfileptr->OFS()<<it->first<<" = "<<it->second<<" | ";
-    //}
-    //logfileptr->OFS()<<std::endl;
-
     //gather receive sizes
     vector<int> rsizes(this->np,0);
     MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,CommEnv_->MPI_GetComm());
-    //for (int p = 0; p<this->np;p++) {
-    //  MPI_Gather(&ssizes[p],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,p,CommEnv_->MPI_GetComm());
-    //}
 
     //compute receive displacements
     vector<int> rdispls(this->np+1,0);
     rdispls[0] = 0;
     std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
 
-    //logfileptr->OFS()<<"Recv sizes: "<<rsizes<<std::endl;
-    //logfileptr->OFS()<<"Recv displs: "<<rdispls<<std::endl;
 
     //Now do the alltoallv
 
     vector<std::pair<Idx, Idx> > recvbuf(rdispls.back());
     MPI_Alltoallv(&sendbuf[0],&ssizes[0],&sdispls[0],type,&recvbuf[0],&rsizes[0],&rdispls[0],type,CommEnv_->MPI_GetComm());
 
-    //logfileptr->OFS()<<"Recv updates: ";
-    //for (auto it = recvbuf.begin();it!=recvbuf.end();it++) {
-    //  logfileptr->OFS()<<it->first<<" = "<<it->second<<" | ";
-    //}
-    //logfileptr->OFS()<<std::endl;
 
     std::map<Idx, Idx> LocalUpdates;
     for (auto it = recvbuf.begin();it!=recvbuf.end();it++) {
@@ -1443,11 +1162,6 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
 
     MPI_Type_free(&type);
 
-    //logfileptr->OFS()<<"Local updates: ";
-    //for (auto it = LocalUpdates.begin();it!=LocalUpdates.end();it++) {
-    //  logfileptr->OFS()<<it->first<<" = "<<it->second<<" | ";
-    //}
-    //logfileptr->OFS()<<std::endl;
 
     for (auto it = LocalUpdates.begin();it!=LocalUpdates.end();it++) {
       UpdatesToDo[it->first-1] = it->second;
@@ -1479,38 +1193,20 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
       sendbuf.insert(sendbuf.end(),itp->second.begin(),itp->second.end());
     }
 
-    //logfileptr->OFS()<<"Sent sizes: "<<ssizes<<std::endl;
-    //logfileptr->OFS()<<"Sent displs: "<<sdispls<<std::endl;
-    //logfileptr->OFS()<<"Sent updates: ";
-    //for (auto it = sendbuf.begin();it!=sendbuf.end();it++) {
-    //  logfileptr->OFS()<<it->first<<" = "<<it->second<<" | ";
-    //}
-    //logfileptr->OFS()<<std::endl;
-
     //gather receive sizes
     vector<int> rsizes(this->np,0);
     MPI_Alltoall(&ssizes[0],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,CommEnv_->MPI_GetComm());
-    //for (int p = 0; p<this->np;p++) {
-    //  MPI_Gather(&ssizes[p],sizeof(int),MPI_BYTE,&rsizes[0],sizeof(int),MPI_BYTE,p,CommEnv_->MPI_GetComm());
-    //}
 
     //compute receive displacements
     vector<int> rdispls(this->np+1,0);
     rdispls[0] = 0;
     std::partial_sum(rsizes.begin(),rsizes.end(),&rdispls[1]);
 
-    //logfileptr->OFS()<<"Recv sizes: "<<rsizes<<std::endl;
-    //logfileptr->OFS()<<"Recv displs: "<<rdispls<<std::endl;
 
     //Now do the alltoallv
     vector<std::pair<Idx, Idx> > recvbuf(rdispls.back());
     MPI_Alltoallv(&sendbuf[0],&ssizes[0],&sdispls[0],type,&recvbuf[0],&rsizes[0],&rdispls[0],type,CommEnv_->MPI_GetComm());
 
-    //logfileptr->OFS()<<"Recv sendAfter: ";
-    //for (auto it = recvbuf.begin();it!=recvbuf.end();it++) {
-    //  logfileptr->OFS()<<it->first<<" = "<<it->second<<" | ";
-    //}
-    //logfileptr->OFS()<<std::endl;
 
 
     std::map<Idx, Idx> mLocalSendAfter;
@@ -1562,7 +1258,6 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
       for (Ptr sidx = lfi; sidx<=lli;sidx++) {
         Idx row = this->locLindx_[sidx-1];
         Int supno = this->SupMembership_[row-1];
-        //Idx supno = locSupLindx_[sidx-1];
 
         if (supno!=prevSnode) {
           if (marker[supno-1]!=s && supno!=s) {
@@ -1591,671 +1286,7 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
   MPI_Allreduce(MPI_IN_PLACE,&AggregatesToRecv[0],AggregatesToRecv.size(),MPI_INT,MPI_SUM,CommEnv_->MPI_GetComm());
   MPI_Allreduce(MPI_IN_PLACE,&LocalAggregates[0],LocalAggregates.size(),MPI_INT,MPI_SUM,CommEnv_->MPI_GetComm());
 
-  //logfileptr->OFS()<<" REDUCED AggregatesToRecv: "<<AggregatesToRecv<<std::endl;
-  //logfileptr->OFS()<<"UpdatesToDo: "<<UpdatesToDo<<std::endl;
-  //logfileptr->OFS()<<"LocalAggregates: "<<LocalAggregates<<std::endl;
   SYMPACK_TIMER_STOP(FB_GET_UPDATE_COUNT);
-}
-
-template <typename T> inline void symPACKMatrix<T>::FBAggregationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, bool is_static)
-{
-  SYMPACK_TIMER_START(FB_AGGREGATION_TASK);
-
-#ifdef _DEBUG_PROGRESS_
-  logfileptr->OFS()<<"Processing T_AGGREG("<<curTask.src_snode_id<<","<<curTask.tgt_snode_id<<") "<<std::endl;
-#endif
-  Int src_snode_id = curTask.src_snode_id;
-  Int tgt_snode_id = curTask.tgt_snode_id;
-  Int I = src_snode_id;
-  SuperNode<T> * src_snode = LocalSupernodes_[iLocalI -1];
-  Int src_first_col = src_snode->FirstCol();
-  Int src_last_col = src_snode->LastCol();
-
-#ifdef _DEBUG_PROGRESS_
-  logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
-#endif
-
-
-  //Applying aggregates
-  //TODO we might have to create a third UPDATE type of task
-  //process them one by one
-  assert(curTask.data.size()==1);
-  for (auto msgit = curTask.data.begin();msgit!=curTask.data.end();msgit++) {
-    IncomingMessage * msgPtr = *msgit;
-    assert(msgPtr->IsDone());
-
-    if (!msgPtr->IsLocal()) {
-      msgPtr->DeallocRemote(*this->remDealloc);
-    }
-    char* dataPtr = msgPtr->GetLocalPtr().get();
-
-    SuperNode<T> * dist_src_snode = CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size());
-
-    dist_src_snode->InitIdxToBlk();
-
-    src_snode->Aggregate(dist_src_snode);
-
-    delete dist_src_snode;
-    delete msgPtr;
-  }
-
-
-  //need to update dependencies of the factorization task
-  //auto taskit = find_task(taskLists,tgt_snode_id,tgt_snode_id,FACTOR);
-  auto taskit = taskGraph.find_task(tgt_snode_id,tgt_snode_id,FACTOR);
-  taskit->remote_deps--;
-
-  if (!is_static) {
-    if (taskit->remote_deps==0 && taskit->local_deps==0) {
-      scheduler2_->push(*taskit);    
-      taskGraph.removeTask(taskit);
-    }
-  }
-  SYMPACK_TIMER_STOP(FB_AGGREGATION_TASK);
-}
-
-
-
-template <typename T> inline void symPACKMatrix<T>::FBFactorizationTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, Int iLocalI, std::vector< SuperNode<T> * > & aggVectors, bool is_static)
-{
-  SYMPACK_TIMER_START(FB_FACTORIZATION_TASK);
-
-#ifdef _DEBUG_PROGRESS_
-  logfileptr->OFS()<<"Processing Supernode "<<I<<std::endl;
-#endif
-  Int src_snode_id = curTask.src_snode_id;
-  Int tgt_snode_id = curTask.tgt_snode_id;
-  Int I = src_snode_id;
-  SuperNode<T> * src_snode = LocalSupernodes_[iLocalI -1];
-  Int src_first_col = src_snode->FirstCol();
-  Int src_last_col = src_snode->LastCol();
-
-
-#ifdef _DEBUG_PROGRESS_
-  logfileptr->OFS()<<"Factoring Supernode "<<I<<std::endl;
-#endif
-
-
-  SYMPACK_TIMER_START(FACTOR_PANEL);
-  src_snode->Factorize(tmpBufs);
-  SYMPACK_TIMER_STOP(FACTOR_PANEL);
-
-
-  //Sending factors and update local tasks
-  //Send my factor to my ancestors. 
-  std::vector<char> is_factor_sent(this->np);
-  SetValue(is_factor_sent,false);
-
-  SnodeUpdate curUpdate;
-  SYMPACK_TIMER_START(FIND_UPDATED_ANCESTORS);
-  SYMPACK_TIMER_START(FIND_UPDATED_ANCESTORS_FACTORIZATION);
-  while (src_snode->FindNextUpdate(curUpdate,this->Xsuper_,this->SupMembership_)) { 
-    Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,src_snode->Id()-1);
-
-    if (iTarget != this->iam) {
-      if (!is_factor_sent[iTarget]) {
-        MsgMetadata meta;
-
-        //if (curUpdate.tgt_snode_id==29 && curUpdate.src_snode_id==28) {gdb_lock(0);}
-        //TODO Replace all this by a Serialize function
-        NZBlockDesc & nzblk_desc = src_snode->GetNZBlockDesc(curUpdate.blkidx);
-        Int local_first_row = curUpdate.src_first_row - nzblk_desc.GIndex;
-        Int nzblk_cnt = src_snode->NZBlockCnt() - curUpdate.blkidx;
-        Int nzval_cnt_ = src_snode->Size()*(src_snode->NRowsBelowBlock(curUpdate.blkidx)-local_first_row);
-        T* nzval_ptr = src_snode->GetNZval(nzblk_desc.Offset) + local_first_row*src_snode->Size();
-        upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr((char*)nzval_ptr);
-        //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
-
-        //Send factor 
-        meta.src = curUpdate.src_snode_id;
-        meta.tgt = curUpdate.tgt_snode_id;
-        meta.GIndex = curUpdate.src_first_row;
-
-        char * last_byte_ptr = (char*)&nzblk_desc + sizeof(NZBlockDesc);
-        size_t msgSize = last_byte_ptr - (char*)nzval_ptr;
-        Int liTarget = this->group_->L2G(iTarget);
-        signal_data(sendPtr, msgSize, liTarget, meta);
-        is_factor_sent[iTarget] = true;
-      }
-    }
-    else {
-      //Update local tasks
-      //find task corresponding to curUpdate
-
-      //auto taskit = find_task(taskLists,curUpdate.src_snode_id,curUpdate.tgt_snode_id,UPDATE);
-      auto taskit = taskGraph.find_task(curUpdate.src_snode_id,curUpdate.tgt_snode_id,UPDATE);
-      taskit->local_deps--;
-      if (!is_static) {
-
-        if (taskit->remote_deps==0 && taskit->local_deps==0) {
-          //compute cost 
-          //taskit->update_rank();
-          //scheduler_->push(taskit);    
-          scheduler2_->push(*taskit);    
-          taskGraph.removeTask(taskit);
-        }
-      }
-    }
-  }
-  SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS_FACTORIZATION);
-  SYMPACK_TIMER_STOP(FIND_UPDATED_ANCESTORS);
-
-
-
-  SYMPACK_TIMER_STOP(FB_FACTORIZATION_TASK);
-}
-
-template <typename T> inline void symPACKMatrix<T>::FBUpdateTask(supernodalTaskGraph<FBTask> & taskGraph, FBTask & curTask, std::vector<Int> & UpdatesToDo, std::vector< SuperNode<T> * > & aggVectors, bool is_static)
-{
-
-
-  SYMPACK_TIMER_START(FB_UPDATE_TASK);
-  Int src_snode_id = curTask.src_snode_id;
-  Int tgt_snode_id = curTask.tgt_snode_id;
-
-  src_snode_id = abs(src_snode_id);
-  bool is_first_local = curTask.src_snode_id <0;
-  curTask.src_snode_id = src_snode_id;
-
-  SuperNode<T> * cur_src_snode; 
-
-
-  Int iSrcOwner = this->Mapping_->Map(abs(curTask.src_snode_id)-1,abs(curTask.src_snode_id)-1);
-  //if (iSrcOwner!=this->iam) {gdb_lock();}
-
-  {
-    //AsyncComms::iterator it;
-    //AsyncComms * cur_incomingRecv = incomingRecvFactArr[tgt_snode_id-1];
-
-
-    IncomingMessage * structPtr = nullptr;
-    IncomingMessage * msgPtr = nullptr;
-    //Local or remote factor
-    //we have only one local or one remote incoming aggregate
-
-    if (curTask.data.size()==0) {
-      cur_src_snode = snodeLocal(curTask.src_snode_id);
-    }
-    else {
-      auto msgit = curTask.data.begin();
-      msgPtr = *msgit;
-      assert(msgPtr->IsDone());
-      char* dataPtr = msgPtr->GetLocalPtr().get();
-      cur_src_snode = CreateSuperNode(this->options_.decomposition,dataPtr,msgPtr->Size(),msgPtr->meta.GIndex);
-      cur_src_snode->InitIdxToBlk();
-    }
-
-
-    //Update everything src_snode_id own with that factor
-    //Update the ancestors
-    SnodeUpdate curUpdate;
-    SYMPACK_TIMER_START(UPDATE_ANCESTORS);
-    while (cur_src_snode->FindNextUpdate(curUpdate,this->Xsuper_,this->SupMembership_,this->iam==iSrcOwner)) {
-
-      //skip if this update is "lower"
-      if (curUpdate.tgt_snode_id<curTask.tgt_snode_id) {continue;}
-
-      Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,cur_src_snode->Id()-1);
-
-      if (iUpdater == this->iam) {
-#ifdef _DEBUG_PROGRESS_
-        logfileptr->OFS()<<"implicit Task: {"<<curUpdate.src_snode_id<<" -> "<<curUpdate.tgt_snode_id<<"}"<<std::endl;
-        logfileptr->OFS()<<"Processing update from Supernode "<<curUpdate.src_snode_id<<" to Supernode "<<curUpdate.tgt_snode_id<<std::endl;
-#endif
-
-        SuperNode<T> * tgt_aggreg;
-
-        Int iTarget = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curUpdate.tgt_snode_id-1);
-        if (iTarget == this->iam) {
-          //the aggregate std::vector is directly the target snode
-          SYMPACK_TIMER_START(UPD_ANC_Agg_local);
-          tgt_aggreg = snodeLocal(curUpdate.tgt_snode_id);
-          assert(curUpdate.tgt_snode_id == tgt_aggreg->Id());
-          SYMPACK_TIMER_STOP(UPD_ANC_Agg_local);
-        }
-        else {
-          SYMPACK_TIMER_START(UPD_ANC_Agg_tmp);
-          //Check if src_snode_id already have an aggregate std::vector
-          if (/*AggregatesDone[curUpdate.tgt_snode_id-1]==0*/aggVectors[curUpdate.tgt_snode_id-1]==nullptr) {
-            SYMPACK_TIMER_START(UPD_ANC_Agg_tmp_creat);
-            //use number of rows below factor as initializer
-
-            //TODO do a customized version for FANIN as we have all the factors locally
-            // the idea is the following: do a DFS and stop each exploration at the first local descendant of current node
-#ifdef FANIN_OPTIMIZATION
-            if (this->options_.mappingTypeStr ==  "COL2D")
-            {
-              std::set<Idx> structure;
-              std::list<Int> frontier;
-              {
-                scope_timer(a,MERGE_STRUCTURE_FANIN);
-                Idx tgt_fc = this->Xsuper_[curUpdate.tgt_snode_id-1];
-                dfs_traversal(chSupTree_,curUpdate.tgt_snode_id,frontier);
-                //process frontier in decreasing order of nodes and merge their structure
-                for (auto it = frontier.rbegin(); it!=frontier.rend(); it++) {
-                  Int I = *it;
-                  SuperNode<T> * source = snodeLocal(I);
-                  for (Int blkidx=0; blkidx< source->NZBlockCnt();blkidx++) {
-                    NZBlockDesc & nzblk_desc = source->GetNZBlockDesc(blkidx);
-                    Idx fr = nzblk_desc.GIndex;
-                    Idx lr = source->NRows(blkidx) + fr;
-                    for (Idx row = fr; row<lr;row++) {
-                      if (row>=tgt_fc) {
-                        structure.insert(row);
-                      }
-                    }
-                  }
-                }
-              }
-              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure,this->options_.panel);
-            } 
-            else
-#endif
-            {
-              std::set<Idx> structure;
-              {
-                scope_timer(a,FETCH_REMOTE_STRUCTURE);
-
-                upcxx::global_ptr<char> remoteDesc = std::get<0>(remoteFactors_[curUpdate.tgt_snode_id-1]);
-                Int block_cnt = std::get<1>(remoteFactors_[curUpdate.tgt_snode_id-1]);
-
-
-                //allocate space to receive block descriptors
-                char * buffer = (char*)UpcxxAllocator::allocate(sizeof(NZBlockDesc)*block_cnt+ sizeof(SuperNodeDesc));
-                upcxx::global_ptr<char> remote = upcxx::global_ptr<char>(remoteDesc);
-                upcxx::rget(remote, (char*)&buffer[0],block_cnt*sizeof(NZBlockDesc)+sizeof(SuperNodeDesc)).wait();
-                SuperNodeDesc * pdesc = (SuperNodeDesc*)buffer;
-                NZBlockDesc * bufferBlocks = (NZBlockDesc*)(pdesc+1);
-
-                for (Int i =block_cnt-1;i>=0;i--) {
-                  NZBlockDesc & curdesc = bufferBlocks[i];
-                  size_t end = (i>0)?bufferBlocks[i-1].Offset:pdesc->nzval_cnt_;
-                  Int numRows = (end-curdesc.Offset)/pdesc->iSize_;
-
-                  for (Idx row = 0; row<numRows;row++) {
-                    structure.insert(curdesc.GIndex+row);
-                  }
-                }
-                UpcxxAllocator::deallocate((char*)buffer);
-              }
-              aggVectors[curUpdate.tgt_snode_id-1] = CreateSuperNode(this->options_.decomposition,curUpdate.tgt_snode_id, this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id-1], this->Xsuper_[curUpdate.tgt_snode_id]-1, this->iSize_,structure,this->options_.panel);
-            }
-            SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp_creat);
-          }
-          tgt_aggreg = aggVectors[curUpdate.tgt_snode_id-1];
-
-          SYMPACK_TIMER_STOP(UPD_ANC_Agg_tmp);
-        }
-
-#ifdef _DEBUG_
-        logfileptr->OFS()<<"RECV Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<" rows "<<curUpdate.src_first_row<<" "<<curUpdate.blkidx<<std::endl;
-#endif
-
-
-        //Update the aggregate
-        SYMPACK_TIMER_START(UPD_ANC_UPD);
-        tgt_aggreg->UpdateAggregate(cur_src_snode,curUpdate,tmpBufs,iTarget,this->iam);
-        SYMPACK_TIMER_STOP(UPD_ANC_UPD);
-
-
-        --UpdatesToDo[curUpdate.tgt_snode_id-1];
-#ifdef _DEBUG_
-        logfileptr->OFS()<<UpdatesToDo[curUpdate.tgt_snode_id-1]<<" updates left for Supernode "<<curUpdate.tgt_snode_id<<std::endl;
-#endif
-
-        //Send the aggregate if it's the last
-        //If this is my last update sent it to curUpdate.tgt_snode_id
-        SYMPACK_TIMER_START(UPD_ANC_Agg_Send);
-        if (UpdatesToDo[curUpdate.tgt_snode_id-1]==0) {
-          if (iTarget != this->iam) {
-#ifdef _DEBUG_
-            logfileptr->OFS()<<"Remote Supernode "<<curUpdate.tgt_snode_id<<" is updated by Supernode "<<cur_src_snode->Id()<<std::endl;
-#endif
-
-            tgt_aggreg->Shrink();
-
-            MsgMetadata meta;
-
-
-            //if (curUpdate.tgt_snode_id==86 && curUpdate.src_snode_id==84) {gdb_lock();}
-
-            NZBlockDesc & nzblk_desc = tgt_aggreg->GetNZBlockDesc(0);
-            T* nzval_ptr = tgt_aggreg->GetNZval(0);
-
-            //this is an aggregate
-            meta.src = curUpdate.src_snode_id;
-            meta.tgt = curUpdate.tgt_snode_id;
-            meta.GIndex = nzblk_desc.GIndex;
-
-            (*(*this->remDealloc))++;
-
-            upcxx::global_ptr<char> sendPtr = upcxx::to_global_ptr(tgt_aggreg->GetStoragePtr(meta.GIndex));
-            //the size of the message is the number of bytes between sendPtr and the address of nzblk_desc
-            size_t msgSize = tgt_aggreg->StorageSize();
-            Int liTarget = this->group_->L2G(iTarget);
-            signal_data(sendPtr, msgSize, liTarget, meta);
-          }
-        }
-        SYMPACK_TIMER_STOP(UPD_ANC_Agg_Send);
-
-        SYMPACK_TIMER_START(UPD_ANC_Upd_Deps);
-        if (iTarget == this->iam)
-        {
-          //update the dependency of the factorization
-          //auto taskit = find_task(taskLists,curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,FACTOR);
-          auto taskit = taskGraph.find_task(curUpdate.tgt_snode_id,curUpdate.tgt_snode_id,FACTOR);
-          taskit->local_deps--;
-          if (!is_static) {
-            if (taskit->remote_deps==0 && taskit->local_deps==0) {
-              //compute cost 
-              //taskit->update_rank();
-              //scheduler_->push(taskit);    
-              scheduler2_->push(*taskit);    
-              taskGraph.removeTask(taskit);
-            }
-          }
-        }
-        SYMPACK_TIMER_STOP(UPD_ANC_Upd_Deps);
-
-        //if local update, push a new task in the queue and stop the while loop
-        if (this->iam==iSrcOwner ) {
-          break;
-        }
-
-      }
-    }
-    SYMPACK_TIMER_STOP(UPDATE_ANCESTORS);
-
-
-    if (msgPtr!=nullptr) {
-      delete cur_src_snode;
-      delete msgPtr;
-    }
-
-    if (structPtr!=nullptr) {
-      delete structPtr;
-    }
-
-    //    if (curTask.data.size()>0) {
-    //      delete cur_src_snode;
-    //      auto msgit = curTask.data.begin();
-    //      IncomingMessage * msgPtr = *msgit;
-    //      delete msgPtr;
-    //    }
-
-
-
-
-
-  }
-  SYMPACK_TIMER_STOP(FB_UPDATE_TASK);
-}
-
-
-template <typename T> inline void symPACKMatrix<T>::CheckIncomingMessages(supernodalTaskGraph<FBTask> & taskGraph,std::vector< SuperNode<T> * > & aggVectors,bool is_static)
-{
-  scope_timer(a,CHECK_MESSAGE);
-  //return;
-
-  //call advance
-
-  SYMPACK_TIMER_START(UPCXX_ADVANCE);
-  upcxx::progress();
-  SYMPACK_TIMER_STOP(UPCXX_ADVANCE);
-
-  bool comm_found = false;
-  IncomingMessage * msg = nullptr;
-  FBTask * curTask = nullptr;
-  if (is_static) {
-    curTask = &scheduler2_->top();
-#ifdef _DEBUG_PROGRESS_
-    logfileptr->OFS()<<"Next Task T("<<curTask->src_snode_id<<","<<curTask->tgt_snode_id<<") "<<std::endl;
-#endif
-  }
-
-
-  do{
-    msg=nullptr;
-
-    SYMPACK_TIMER_START(MV_MSG_SYNC);
-    //if we have some room, turn blocking comms into async comms
-    if (gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) {
-      if (is_static) {
-        while ((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()) {
-          bool success = false;
-          for (auto it = gIncomingRecv.begin();it!=gIncomingRecv.end();it++) {
-            //find a message corresponding to current task
-            IncomingMessage * curMsg = *it;
-            if (curMsg->meta.tgt==curTask->tgt_snode_id) {
-              success = (curMsg)->AllocLocal();
-              if (success) {
-                (curMsg)->AsyncGet();
-                gIncomingRecvAsync.push_back(curMsg);
-                gIncomingRecv.erase(it);
-              }
-              else {
-                abort();
-              }
-              break;
-            }
-          }
-
-          if (!success) break;
-        }
-      }
-      else {
-        while ((gIncomingRecvAsync.size() < gMaxIrecv || gMaxIrecv==-1) && !gIncomingRecv.empty()) {
-          bool success = false;
-          //auto it = gIncomingRecv.top();
-          auto it = gIncomingRecv.begin();
-          //find one which is not done
-          while ((*it)->IsDone()) {it++;}
-
-          success = (*it)->AllocLocal();
-          if (success) {
-            (*it)->AsyncGet();
-            gIncomingRecvAsync.push_back(*it);
-            gIncomingRecv.erase(it);
-#ifdef _DEBUG_PROGRESS_
-            logfileptr->OFS()<<"TRANSFERRED TO ASYNC COMM"<<std::endl;
-#endif
-          }
-          else {
-            //TODO handle out of memory
-            abort();
-          }
-          if (!success) break;
-        }
-      }
-    }
-    SYMPACK_TIMER_STOP(MV_MSG_SYNC);
-
-#ifdef HANDLE_LOCAL_POINTER
-    //find if there is some local (SHMEM) comms
-    if (!gIncomingRecvLocal.empty()) {
-      auto it = gIncomingRecvLocal.begin();
-      msg = *it;
-      gIncomingRecvLocal.erase(it);
-
-#ifdef _DEBUG_PROGRESS_
-      logfileptr->OFS()<<"COMM LOCAL: AVAILABLE MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<msg->remote_ptr.where()<<std::endl;
-#endif
-    }
-    else
-#endif
-    {
-      //find if there is some finished async comm
-      auto it = TestAsyncIncomingMessage();
-      if (it!=gIncomingRecvAsync.end()) {
-        SYMPACK_TIMER_START(RM_MSG_ASYNC);
-        msg = *it;
-        gIncomingRecvAsync.erase(it);
-        SYMPACK_TIMER_STOP(RM_MSG_ASYNC);
-#ifdef _DEBUG_PROGRESS_
-        logfileptr->OFS()<<"COMM ASYNC: AVAILABLE MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<msg->remote_ptr.where()<<std::endl;
-#endif
-      }
-      else if ((is_static || scheduler2_->done()) && !gIncomingRecv.empty()) {
-        //find a "high priority" task
-        SYMPACK_TIMER_START(RM_MSG_SYNC);
-        if (is_static) {
-          msg=nullptr;
-          for (auto it = gIncomingRecv.begin();it!=gIncomingRecv.end();it++) {
-            //find a message corresponding to current task
-            IncomingMessage * curMsg = *it;
-            if (curMsg->meta.tgt==curTask->tgt_snode_id) {
-              msg = curMsg;
-              gIncomingRecv.erase(it);
-              break;
-            }
-          }
-        }
-        else {
-#if 1
-          //find a task we would like to process
-          auto it = gIncomingRecv.begin();
-          for (auto cur_msg = gIncomingRecv.begin(); 
-              cur_msg!= gIncomingRecv.end(); cur_msg++) {
-            //look at the meta data
-            if ((*cur_msg)->meta.tgt < (*it)->meta.tgt) it = cur_msg;
-          }
-          msg = *it;
-          gIncomingRecv.erase(it);
-#else
-          auto it = gIncomingRecv.front();
-          msg = it;
-          gIncomingRecv.pop_front();
-#endif
-        }
-        SYMPACK_TIMER_STOP(RM_MSG_SYNC);
-      }
-
-    }
-
-    if (msg!=nullptr) {
-      scope_timer(a,WAIT_AND_UPDATE_DEPS);
-      bool success = msg->Wait(); 
-      if (!success) {
-        //          //there has been a problem: only one case: sync get and memory allocation has failed
-        //          //try to use the backup buffer
-        //          assert(!backupBuffer_.InUse());
-        //         
-        //          //TODO handle backup mode : messages have to be consumed one by one: can't delay the processing 
-        //          msg->SetLocalPtr(backupBuffer_.GetPtr(),false);
-        //          success = msg->Wait(); 
-        assert(success);
-      }
-
-      //int * ptr = (int*)msg->GetLocalPtr();
-      //update task dependency
-      //find task corresponding to curUpdate
-      Int iOwner = Mapping_->Map(msg->meta.tgt-1,msg->meta.tgt-1);
-      Int iUpdater = Mapping_->Map(msg->meta.tgt-1,msg->meta.src-1);
-      //this is an aggregate
-      std::list<FBTask>::iterator taskit;
-      if (iOwner==this->iam && iUpdater!=this->iam) {
-#ifdef _DEBUG_PROGRESS_
-        logfileptr->OFS()<<"COMM: FETCHED AGGREG MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<iUpdater<<std::endl;
-#endif
-
-        if (!is_static) {
-          //insert an aggregation task
-          Int I = msg->meta.src;
-          Int J = msg->meta.tgt;
-          FBTask curUpdate;
-          curUpdate.type=AGGREGATE;
-          curUpdate.src_snode_id = I;
-          curUpdate.tgt_snode_id = J;
-
-          curUpdate.remote_deps = 1;
-          curUpdate.local_deps = 0;
-
-          taskit = taskGraph.addTask(curUpdate);
-        }
-        else {
-          taskit = taskGraph.find_task(msg->meta.tgt,msg->meta.tgt,FACTOR);
-        }
-      }
-      else {
-        Int iOwner = Mapping_->Map(msg->meta.src-1,msg->meta.src-1);
-#ifdef _DEBUG_PROGRESS_
-        logfileptr->OFS()<<"COMM: FETCHED FACTOR MSG("<<msg->meta.src<<","<<msg->meta.tgt<<") from P"<<iOwner<<std::endl;
-#endif
-
-#ifdef DYN_TASK_CREATE
-        {
-          abort();
-          FBTask curTask;
-          curTask.type=UPDATE;
-          curTask.src_snode_id = msg->meta.src;
-          curTask.tgt_snode_id = msg->meta.tgt;
-
-          //If I own the factor, it is a local dependency
-          curTask.remote_deps = 1;
-          curTask.local_deps = 0;
-
-          //create the list if needed
-          taskit = taskGraph.addTask(curTask);
-          Int J = msg->meta.tgt;
-          //            if (taskLists[J-1] == nullptr) {
-          //              taskLists[J-1]=new std::list<FBTask>();
-          //            }
-          //            taskLists[J-1]->push_back(curTask);
-          //            localTaskCount++;
-          //            taskit = --taskLists[J-1]->end();
-
-          //compute cost
-#if 0
-          if (1) {
-            char* dataPtr = msg->GetLocalPtr();
-#ifdef _INDEFINITE_
-            SuperNode<T> * dist_src_snode = SuperNodeInd<T>(dataPtr,msg->Size(),msg->meta.GIndex);
-#else
-            SuperNode<T> * dist_src_snode = SuperNode<T>(dataPtr,msg->Size(),msg->meta.GIndex);
-#endif
-            dist_src_snode->InitIdxToBlk();
-            SnodeUpdate curUpdate;
-            taskit->rank = 0.0;
-            while (dist_src_snode->FindNextUpdate(curUpdate,this->Xsuper_,this->SupMembership_,false)) {
-              //skip if this update is "lower"
-              if (curUpdate.tgt_snode_id<curTask.tgt_snode_id) {continue;}
-              Int iUpdater = this->Mapping_->Map(curUpdate.tgt_snode_id-1,curTask.src_snode_id-1);
-              if (iUpdater == this->iam) {
-                Int tgt_snode_width = this->Xsuper_[curUpdate.tgt_snode_id] - this->Xsuper_[curUpdate.tgt_snode_id-1];
-                taskit->rank += dist_src_snode->NRowsBelowBlock(0)*pow(tgt_snode_width,2.0);
-              }
-            }
-            delete dist_src_snode;
-            taskit->rank*=-1;
-          }
-#endif
-
-        }
-#else
-        taskit = taskGraph.find_task(msg->meta.src,msg->meta.tgt,UPDATE);
-#endif
-      } 
-
-      taskit->remote_deps--;
-      if (msg->meta.GIndex==-1 && msg->meta.src!=msg->meta.tgt) taskit->data.push_front(msg);
-      else taskit->data.push_back(msg);
-
-      //if this is a factor task, then we should delete the aggregate
-      if (!msg->IsLocal()) {
-        if ( taskit->type==FACTOR || taskit->type==AGGREGATE) {
-          msg->DeallocRemote(*this->remDealloc);
-        }
-      }
-
-      if (!is_static) {
-        if (taskit->remote_deps==0 && taskit->local_deps==0) {
-          //scheduler_->push(taskit);    
-          scheduler2_->push(*taskit);    
-          taskGraph.removeTask(taskit);
-        }
-      }
-    }
-  }while (msg!=nullptr);
 }
 
 #endif //_SYMPACK_MATRIX_IMPL_FB_PULL_HPP_

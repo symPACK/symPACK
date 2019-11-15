@@ -199,17 +199,12 @@ inline   bool ITree<F>::doOVerlap_(const ITree<F>::Interval<F> &i1, const Int & 
 // Interval Tree.
   template<typename F>
 inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *root,const Int & begin,const Int &end)
-//  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, ITree::Interval &i)
 {
   // Base Case, tree is empty
   if (root == nullptr){
     return nullptr;
   }
 
-  // If given interval overlaps with root
-  //if (doOVerlap_(*(root->i), begin,end)){
-  //  return root->i;
-  //}
   //without the function call
   if (root->i->low <= end && begin <= root->i->high){
     return root->i;
@@ -218,31 +213,23 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
   // If left child of root is present and max of left child is
   // greater than or equal to given interval, then i may
   // overlap with an interval is left subtree
-  //if (root->left != nullptr && root->left->max >= i.low)
   if (root->left != nullptr && root->left->max >= begin){
     return intervalSearch_(root->left, begin,end);
   }
-  //return intervalSearch_(root->left, i);
 
   // Else interval can only overlap with right subtree
   return intervalSearch_(root->right, begin,end);
-  //return intervalSearch_(root->right, i);
 }
 
 
   template<typename F>
 inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *root,const Int & begin,const Int &end, Interval<F> * & closestR, Interval<F> * & closestL)
-//  ITree::Interval * ITree::intervalSearch_(ITree::ITNode *root, ITree::Interval &i)
 {
   // Base Case, tree is empty
   if (root == nullptr){
     return nullptr;
   }
 
-  // If given interval overlaps with root
-  //if (doOVerlap_(*(root->i), begin,end)){
-  //  return root->i;
-  //}
   //without the function call
   if (root->i->low <= end && begin <= root->i->high){
     closestL = root->i;
@@ -293,11 +280,9 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
   // If left child of root is present and max of left child is
   // greater than or equal to given interval, then i may
   // overlap with an interval in left subtree
-  //if (root->left != nullptr && root->left->max >= i.low)
   if (root->left != nullptr && root->left->max >= begin && root->left->min <= end){
     return intervalSearch_(root->left, begin,end,closestR,closestL);
   }
-  //return intervalSearch_(root->left, i);
 
   // Else interval can only overlap with right subtree
   if(root->right != nullptr && root->right->max >= begin && root->right->min <= end){
@@ -306,7 +291,6 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
 
   //interval is outside the range
   return nullptr;
-  //return intervalSearch_(root->right, i);
 }
 
 
@@ -364,35 +348,25 @@ inline   typename ITree<F>::template ITNode<F> * AVLITree<F>::insert_(typename I
   // Left Left Case
   if (balance > 1 && i.low < root->left->i->low)
   {
-    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<std::endl;
-    //logfileptr->OFS()<<" LEFT LEFT ROTATION "<<std::endl;
     root = rightRotate_(root);
   }
   // Right Right Case
   else if (balance < -1 && i.low > root->right->i->low)
   {
-    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<std::endl;
-    //logfileptr->OFS()<<" RIGHT RIGHT ROTATION "<<std::endl;
     root = leftRotate_(root);
   }
   // Left Right Case
   else if (balance > 1 && i.low > root->left->i->low)
   {
-    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<std::endl;
-    //logfileptr->OFS()<<" LEFT RIGHT ROTATION "<<std::endl;
     root->left =  leftRotate_(root->left);
     root = rightRotate_(root);
   }
   // Right Left Case
   else if (balance < -1 && i.low < root->right->i->low)
   {
-    //logfileptr->OFS()<<" ROOT "; root->Dump(); logfileptr->OFS()<<std::endl;
-    //logfileptr->OFS()<<" RIGHT LEFT ROTATION "<<std::endl;
     root->right = rightRotate_(root->right);
     root = leftRotate_(root);
   }
-  //recompute max
-  //recomputeMax_(root);
   recomputeMinMax_(root);
   SYMPACK_TIMER_STOP(ITREE_BALANCE_AVL);
 
@@ -534,7 +508,6 @@ inline void DSWITree<F>::Rebalance()
   // Public member function:  Do the DSW algorithm to balance the tree
 {//Declare as automatic variable; remember to pass as pointer
   SYMPACK_TIMER_START(ITREE_BALANCE_DSW);
-  //   BaseCell pseudo_root( -1, nullptr, nullptr, Root );
 
   Int size;
 
@@ -544,7 +517,6 @@ inline void DSWITree<F>::Rebalance()
   this->vine_to_tree_ (this->root_, size);
 
   this->correctTree_ (this->root_->right);
-  //recomputeMax_(root_);
   this->recomputeMinMax_(this->root_);
   SYMPACK_TIMER_STOP(ITREE_BALANCE_DSW);
 }

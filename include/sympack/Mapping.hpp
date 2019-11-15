@@ -61,18 +61,6 @@ class Mapping{
     Int iPRows_;
     Int iPCols_;
     Int iBlockSize_;
-//      inline Int row2D(Int i, Int j) {return (i/iBlockSize_)%iNumProc_;}
-//      inline Int col2D(Int i, Int j) {return (j/iBlockSize_)%iNumProc_;}
-//
-//      inline Int chevron2D(Int i, Int j) {return (min(i,j)/iBlockSize_)%iNumProc_;}
-//      inline Int antichevron2D(Int i, Int j) {return (max(i,j)/iBlockSize_)%iNumProc_;}
-//
-//      inline Int diag2D(Int i, Int j) {return (abs(i-j)/iBlockSize_)%iNumProc_;}
-//      inline Int antidiag2D(Int i, Int j) {return ((i+j)/iBlockSize_)%iNumProc_;}
-//
-//
-//      inline Int modwrap2D(Int i, Int j) {return min(i/iBlockSize_,j/iBlockSize_)%iPRows_ + iPRows_*floor((double)(max(i/iBlockSize_,j/iBlockSize_)%iNumProc_)/(double)iPRows_);}
-//      inline Int modwrap2Dns(Int i, Int j) {return(i/iBlockSize_)%iPRows_ + iPRows_*floor((double)((j/iBlockSize_)%iNumProc_)/(double)iPRows_);}
 
   public:
       virtual void Update(std::vector<Int> & aProcMap){
@@ -136,7 +124,6 @@ class Modwrap2D: public Mapping{
   public:
       Modwrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
       Modwrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
-//      Modwrap2D(Modwrap2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Modwrap2D(Modwrap2D & C):Mapping(C){};
       Modwrap2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){ 
@@ -160,7 +147,6 @@ class Modwrap2DNS: public Mapping{
   public:
       Modwrap2DNS(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
       Modwrap2DNS(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
-//      Modwrap2DNS(Modwrap2DNS & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Modwrap2DNS(Modwrap2DNS & C):Mapping(C){};
       Modwrap2DNS():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
@@ -183,7 +169,6 @@ class Row2D: public Mapping{
   public:
       Row2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
       Row2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
-      //Row2D(Row2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Row2D(Row2D & C):Mapping(C){};
       Row2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
@@ -206,7 +191,6 @@ class Wrap2D: public Mapping{
   public:
       Wrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
       Wrap2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
-      //Wrap2D(Row2D & C):Mapping(C){}
       Wrap2D(Wrap2D & C):Mapping(C){};
       Wrap2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
@@ -228,7 +212,6 @@ class Wrap2DForced: public Mapping{
   public:
       Wrap2DForced(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
       Wrap2DForced(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
-      //Wrap2D(Row2D & C):Mapping(C){}
       Wrap2DForced(Wrap2DForced & C):Mapping(C){};
       Wrap2DForced():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
@@ -254,7 +237,6 @@ class AntiDiag2D: public Mapping{
   public:
       AntiDiag2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
       AntiDiag2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
-      //AntiDiag2D(Row2D & C):Mapping(C){}
       AntiDiag2D(AntiDiag2D & C):Mapping(C){};
       AntiDiag2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
@@ -278,7 +260,6 @@ class Col2D: public Mapping{
   public:
       Col2D(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aiBlockSize){};
       Col2D(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):Mapping(aiNumProc,aiPRows,aiPCols,aProcMap,aiBlockSize){};
-      //Col2D(Col2D & C):Mapping(C.iNumProc_,C.iPRows_,C.iPCols_,C.iBlockSize_){};
       Col2D(Col2D & C):Mapping(C){};
       Col2D():Mapping(0,0,0,0){};
       inline Int Map(Int i, Int j){
@@ -326,20 +307,6 @@ class TreeMapping: public Mapping{
 
  
       TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, Int aiBlockSize = 1):iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize),pBalancer_(nullptr){};
-//      TreeMapping(Int aiNumProc, Int aiPRows, Int aiPCols, std::vector<Int> & aProcMap, Int aiBlockSize = 1):
-//          iNumProc_(aiNumProc),iPRows_(aiPRows),iPCols_(aiPCols),iBlockSize_(aiBlockSize){
-//          pProcMap_ = new std::vector<Int>(aProcMap);
-//      };
-//
-//      TreeMapping(TreeMapping & C){
-//        iNumProc_   = C.iNumProc_;
-//        iPRows_     = C.iPRows_;
-//        iPCols_     = C.iPCols_;
-//        iBlockSize_ = C.iBlockSize_;
-//        if(C.pProcMap_!=nullptr){
-//          pProcMap_ = new std::vector<Int>(*C.pProcMap_);
-//        }
-//      }
       TreeMapping(){
         pBalancer_=nullptr;
       };
@@ -397,12 +364,9 @@ assert(i>=node);
         logfileptr->OFS()<<std::endl;
 #endif
 
-      //Int myI =locProcMap[ i-node ];
-      //Int myJ =locProcMap[ j-node ];
       Int myI = i-node ;
       Int myJ = j-node ;
       Int p =GroupMap(myI-1,myJ-1,iPRows,treesize);
- //std::min(myI,myJ)%iPRows + iPRows*floor((double)(std::max(myI,myJ)%treesize)/(double)iPRows);
 
 #ifdef VERBOSE
         logfileptr->OFS()<<"local i "<<myI<<std::endl;
@@ -414,15 +378,6 @@ assert(p<treesize);
         //convert i and j to "local indices" within the group.
         //Subtrees are postordered to we just need to remove the smallest
         //value, which is j - active_group_->Ranks().size() 
-
-//        Int local
-//        Int proc = GroupMap();
-//        if(pProcMap_!=nullptr){
-//          proc = antidiag2D_((*pProcMap_)[i],(*pProcMap_)[j]);
-//        }
-//        else{
-//          proc = antidiag2D_(i,j);
-//        }
 
         return locProcMap[p];
       }

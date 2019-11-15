@@ -561,14 +561,12 @@ namespace symPACK{
   {
     os<<tree.n()<<std::endl;
     for(Int i = 1; i<=tree.Size(); i++){
-      //    os<<i<<" ["<<tree.parent_(i-1)<<"] ";
       os<<tree.Parent(i-1)<<" ";
     }
     os<<std::endl;
 
     if(tree.IsPostOrdered()){
       for(Int i = 1; i<=tree.Size(); i++){
-        //      os<<i<<" ["<<tree.PostParent(i-1)<<"] ";
         os<<tree.PostParent(i-1)<<" ";
       }
       os<<std::endl;
@@ -918,7 +916,6 @@ namespace symPACK{
 } // namespace SYMPACK
 
 
-#if 1
 
 #ifdef WITH_BEBOP_UTIL
 extern "C" {
@@ -1088,301 +1085,10 @@ namespace symPACK{
 
   template <typename SCALAR, typename INSCALAR >
     int ReadHB_PARA_MPIIO(std::string & filename, DistSparseMatrix<SCALAR> & HMat){
-      ////
-      ////      MPI_Comm & workcomm = HMat.comm;
-      ////
-      ////      int mpirank;
-      ////      MPI_Comm_rank(workcomm,&mpirank);
-      ////
-      ////      int mpisize;
-      ////      MPI_Comm_size(workcomm,&mpisize);
-      ////
-      ////      auto n = HMat.size;
-      ////      auto nnz = HMat.nnz;
-      ////      size_t headerOffset = 0;
-      ////      int colptrWidth = 0;
-      ////      int rowindWidth = 0;
-      ////      int nzvalWidth = 0;
-      ////      int colptrCntPerRow = 0;
-      ////      int rowindCntPerRow = 0;
-      ////      int nzvalCntPerRow = 0;
-      ////      int colptrCnt = 0;
-      ////      int rowindCnt = 0;
-      ////      int nzvalCnt = 0;
-      ////
-      ////      if(mpirank==0){
-      ////        std::ifstream infile;
-      ////        infile.open(filename.c_str());
-      ////
-      ////        std::string line;
-      ////        std::stringstream iss;
-      ////        //skip 1st line
-      ////        if(std::getline(infile, line)){}
-      ////        if(std::getline(infile, line)){
-      ////          iss.str("");
-      ////          iss.clear();
-      ////          iss<<line;
-      ////          int dummy;
-      ////          iss>>dummy;
-      ////          iss>>colptrCnt>>rowindCnt>>nzvalCnt;
-      ////        }
-      ////        //read from third line
-      ////
-      ////        int m;
-      ////        if(std::getline(infile, line))
-      ////        {
-      ////          iss.str("");
-      ////          iss.clear();
-      ////          iss<<line;
-      ////          std::string type;
-      ////          iss>>type;
-      ////          iss>>m>>n>>nnz;
-      ////        }
-      ////
-      ////
-      ////        //read from 4th line
-      ////        if(std::getline(infile, line))
-      ////        {
-      ////          iss.str("");
-      ////          iss.clear();
-      ////          iss<<line;
-      ////          std::string format;
-      ////          iss>>format;
-      ////          int dummy;
-      ////          sscanf(format.c_str(),"(%dI%d)",&colptrCntPerRow,&colptrWidth);
-      ////          iss>>format;
-      ////          sscanf(format.c_str(),"(%dI%d)",&rowindCntPerRow,&rowindWidth);
-      ////          iss>>format;
-      ////          sscanf(format.c_str(),"(%dE%d.%d)",&nzvalCntPerRow,&nzvalWidth,&dummy);
-      ////        }
-      ////
-      ////        headerOffset = infile.tellg();
-      ////        infile.close();
-      ////      }
-      ////
-      ////
-      ////      MPI_Status mpistat;
-      ////      MPI_Datatype type;
-      ////      int lens[12];
-      ////      MPI_Aint disps[12];
-      ////      MPI_Datatype types[12];
-      ////
-      ////      /* define a struct that describes all our data */
-      ////      lens[0] = sizeof(n);
-      ////      lens[1] = sizeof(nnz);
-      ////      lens[2] = sizeof(headerOffset   );
-      ////      lens[3] = sizeof(colptrWidth    );
-      ////      lens[4] = sizeof(rowindWidth    );
-      ////      lens[5] = sizeof(nzvalWidth     );
-      ////      lens[6] = sizeof(colptrCntPerRow);
-      ////      lens[7] = sizeof(rowindCntPerRow);
-      ////      lens[8] = sizeof(nzvalCntPerRow );
-      ////      lens[9] =  sizeof(colptrCnt);
-      ////      lens[10] = sizeof(rowindCnt);
-      ////      lens[11] = sizeof(nzvalCnt );
-      ////      MPI_Address(&n, &disps[0]);
-      ////      MPI_Address(&nnz, &disps[1]);
-      ////      MPI_Address(&headerOffset   , &disps[2]);
-      ////      MPI_Address(&colptrWidth    , &disps[3]);
-      ////      MPI_Address(&rowindWidth    , &disps[4]);
-      ////      MPI_Address(&nzvalWidth     , &disps[5]);
-      ////      MPI_Address(&colptrCntPerRow, &disps[6]);
-      ////      MPI_Address(&rowindCntPerRow, &disps[7]);
-      ////      MPI_Address(&nzvalCntPerRow , &disps[8]);
-      ////      MPI_Address(&colptrCnt , &disps[9]);
-      ////      MPI_Address(&rowindCnt , &disps[10]);
-      ////      MPI_Address(&nzvalCnt  , &disps[11]);
-      ////      types[0] = MPI_BYTE;
-      ////      types[1] = MPI_BYTE;
-      ////      types[2] = MPI_BYTE;
-      ////      types[3] = MPI_BYTE;
-      ////      types[4] = MPI_BYTE;
-      ////      types[5] = MPI_BYTE;
-      ////      types[6] = MPI_BYTE;
-      ////      types[7] = MPI_BYTE;
-      ////      types[8] = MPI_BYTE;
-      ////      types[9] = MPI_BYTE;
-      ////      types[10] = MPI_BYTE;
-      ////      types[11] = MPI_BYTE;
-      ////      MPI_Type_struct(12, lens, disps, types, &type);
-      ////      MPI_Type_commit(&type);
-      ////
-      ////
-      ////      /* broadcast the header data to everyone */
-      ////      MPI_Bcast(MPI_BOTTOM, 1, type, 0, workcomm);
-      ////      MPI_Type_free(&type);
-      ////
-      ////      HMat.size = n;
-      ////      HMat.nnz = nnz;
-      ////
-      ////
-      ////      Int err = 0;
-      ////      int filemode = MPI_MODE_RDONLY | MPI_MODE_UNIQUE_OPEN;
-      ////
-      ////      MPI_File fin;
-      ////      MPI_Status status;
-      ////
-      ////      err = MPI_File_open(workcomm,(char*) filename.c_str(), filemode, MPI_INFO_NULL,  &fin);
-      ////
-      ////      if (err != MPI_SUCCESS) {
-      ////        throw std::logic_error( "File cannot be opened!" );
-      ////      }
-      ////
-      ////
-      ////      //compute local number of columns
-      ////      int colPerProc = std::max(1,(int)(n/mpisize));
-      ////      abort();
-      ////      int nlocal = (mpirank<mpisize-1)?n/mpisize:n-mpirank*(int)(n/mpisize);
-      ////      int firstNode = mpirank*(int)(n/mpisize) + 1;
-      ////      //initialize local arrays
-      ////      HMat.Local_.colptr.resize(nlocal+1);
-      ////
-      ////
-      ////      //colptr
-      ////      MPI_Offset myColptrOffset = 0;
-      ////      {
-      ////
-      ////        int lineLastNode = std::ceil(( double(firstNode+nlocal) / double(colptrCntPerRow)));
-      ////        int lineFirstNode = std::ceil(( double(firstNode) / double(colptrCntPerRow)));
-      ////        int skip = (firstNode - 1)*colptrWidth + (lineFirstNode - 1);
-      ////        int readBytes = (nlocal+1)*colptrWidth + (lineLastNode - lineFirstNode);
-      ////        int skipAfter = (n+1 - (firstNode+nlocal))*colptrWidth + (colptrCnt - lineLastNode +1) ;
-      ////
-      ////        myColptrOffset = headerOffset + skip;
-      ////
-      ////
-      ////        {
-      ////          std::string rdStr;
-      ////          rdStr.resize(readBytes);
-      ////
-      ////          err= MPI_File_read_at_all(fin, myColptrOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
-      ////          if (err != MPI_SUCCESS) {
-      ////            throw std::logic_error( "error reading colptr" );
-      ////          }
-      ////
-      ////          std::istringstream iss(rdStr);
-      ////          Ptr j;
-      ////          Int locPos = 0;
-      ////          while(iss>> j){
-      ////            HMat.Local_.colptr[locPos++]=j;
-      ////          }
-      ////        }
-      ////        myColptrOffset += skipAfter;
-      ////      }
-      ////
-      ////      //convert to local colptr and compute local nnz
-      ////      Ptr first_idx = HMat.Local_.colptr.front();
-      ////      Ptr last_idx = HMat.Local_.colptr.back();
-      ////      for(int i=nlocal;i>=0;i--){
-      ////        HMat.Local_.colptr[i] = HMat.Local_.colptr[i] - HMat.Local_.colptr[0] + 1;
-      ////      }
-      ////      Ptr nnzLocal = HMat.Local_.colptr.back()-1;
-      ////
-      ////      HMat.Local_.rowind.resize(nnzLocal);
-      ////
-      ////      //rowind
-      ////      MPI_Offset myRowindOffset = 0;
-      ////      {
-      ////
-      ////        int lineLastEdge = std::ceil(( double(last_idx-1) / double(rowindCntPerRow)));
-      ////        int lineFirstEdge = std::ceil(( double(first_idx) / double(rowindCntPerRow)));
-      ////        int skip = (first_idx - 1)*rowindWidth + (lineFirstEdge - 1);
-      ////        int readBytes = (last_idx - first_idx)*rowindWidth + (lineLastEdge - lineFirstEdge);
-      ////        int skipAfter = (nnz+1 - last_idx)*rowindWidth + (rowindCnt - lineLastEdge +1) ;
-      ////
-      ////
-      ////
-      ////        myRowindOffset = myColptrOffset + skip;
-      ////
-      ////
-      ////        {
-      ////          std::string rdStr;
-      ////          rdStr.resize(readBytes);
-      ////
-      ////          err= MPI_File_read_at_all(fin, myRowindOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
-      ////          if (err != MPI_SUCCESS) {
-      ////            throw std::logic_error( "error reading colptr" );
-      ////          }
-      ////
-      ////          std::istringstream iss(rdStr);
-      ////          Idx j;
-      ////          Int locPos = 0;
-      ////          while(iss>> j){
-      ////            HMat.Local_.rowind[locPos++]=j;
-      ////          }
-      ////        }
-      ////
-      ////        myRowindOffset+=skipAfter;
-      ////      }
-      ////
-      ////
-      ////      HMat.nzvalLocal.resize(nnzLocal);
-      ////
-      ////      //nzval
-      ////      MPI_Offset myNzvalOffset = 0;
-      ////      {
-      ////        int lineLastEdge = std::ceil(( double(last_idx-1) / double(nzvalCntPerRow)));
-      ////        int lineFirstEdge = std::ceil(( double(first_idx) / double(nzvalCntPerRow)));
-      ////        int skip = (first_idx - 1)*nzvalWidth + (lineFirstEdge - 1);
-      ////        int readBytes = (last_idx - first_idx)*nzvalWidth + (lineLastEdge - lineFirstEdge);
-      ////        int skipAfter = (nnz+1 - last_idx)*nzvalWidth + (nzvalCnt - lineLastEdge +1) ;
-      ////
-      ////        myNzvalOffset = myRowindOffset + skip;
-      ////        {
-      ////          std::string rdStr;
-      ////          rdStr.resize(readBytes);
-      ////
-      ////
-      ////          err= MPI_File_read_at_all(fin, myNzvalOffset, &rdStr[0], readBytes, MPI_BYTE, &status);
-      ////          if (err != MPI_SUCCESS) {
-      ////            throw std::logic_error( "error reading colptr" );
-      ////          }
-      ////          std::istringstream iss(rdStr);
-      ////
-      ////          INSCALAR j;
-      ////          Int locPos = 0;
-      ////          while(iss>> j){
-      ////            HMat.nzvalLocal[locPos++]=(SCALAR)j;
-      ////          }
-      ////        }
-      ////
-      ////        myNzvalOffset+=skipAfter;
-      ////      }
-      ////
-      ////
-      ////      MPI_Barrier( workcomm );
-      ////      MPI_File_close(&fin);
-      ////
+      abort();
             return 0;
-      ////
     }
 
-
-
-
-  //  template <typename S,typename I, std::complex<S>, template< typename> class INSCALAR>
-  //    void ReadCSCNzval(MPI_File & fin, int offset, std::vector< std::complex<S> > & dest, int nnz, const MPI_Datatype type){
-  //      MPI_Status status;
-  //      using SCALAR = std::complex<S>;
-  //      std::vector< INSCALAR > tmpBuf(nnz);
-  //      int err = MPI_File_read_at_all(fin, offset, tmpBuf.data(), nnz, type,&status);
-  //      dest.resize ( nnz );
-  //      for(Ptr i = 0; i<nnz;i++){
-  //        pspmat.nzvalLocal[i] = SCALAR(tmpBuf[i]);
-  //      }
-  //    }
-  //
-  //
-  //  template <typename S,typename I, template <typename> class SCALAR, std::complex<I> >
-  //    void ReadCSCNzval(MPI_File & fin, int offset, std::vector< SCALAR< > & dest, int nnz, const MPI_Datatype type){
-  //      MPI_Status status;
-  //      std::vector<std::complex<T> > tmpBuf(nnz);
-  //      int err = MPI_File_read_at_all(fin, offset, tmpBuf.data(), nnz, type,&status);
-  //      dest.resize ( nnz );
-  //      for(Ptr i = 0; i<nnz;i++){
-  //        pspmat.nzvalLocal[i] = SCALAR(std::abs(tmpBuf[i]));
-  //      }
-  //    }
 
 
 
@@ -1393,7 +1099,6 @@ namespace symPACK{
     void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm )
     {
 
-      //MPI_Errhandler_set(MPI_COMM_WORLD, MPI_ERRORS_RETURN);
       MPI_Errhandler_set(symPACK::world_comm, MPI_ERRORS_RETURN);
       MPI_Errhandler_set(comm, MPI_ERRORS_RETURN);
 
@@ -1418,14 +1123,10 @@ namespace symPACK{
       int lens[3];
       MPI_Aint disps[3];
       MPI_Datatype types[3];
-      //if(mpirank==mpisize-1){gdb_lock();}
-
-
-
 
       Int err = 0;
 
-      int filemode = MPI_MODE_RDONLY;// | MPI_MODE_UNIQUE_OPEN;
+      int filemode = MPI_MODE_RDONLY;
 
       MPI_File fin;
       MPI_Status status;
@@ -1501,36 +1202,14 @@ namespace symPACK{
       MPI_Offset myColPtrOffset = (2 + ((mpirank==0)?0:1) )* sizeof(Int)  + (firstNode)*sizeof(Int) + (mpirank==0?sizeof(Int):0);
 
       Int np1 = 0;
-
-      //      lens[0] = ((mpirank==0)?1:0);
-      //      lens[1] = (numColLocal + 1);
-      //      types[0] = typeInt;
-      //      types[1] = typeInt;
-      //      MPI_Get_address(&np1, &disps[0]);
-      //      MPI_Get_address(&pspmat.Localg_.colptr[0], &disps[1]);
-      //MPI_Type_struct(2, lens, disps, types, &type);
-      //MPI_Type_commit(&type);
-
-
-      //lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
-      //lens[1] = (numColLocal + 1)*sizeof(Int);
-
-      //MPI_Get_address(&np1, &disps[0]);
-      //MPI_Get_address(&pspmat.Localg_.colptr[0], &disps[1]);
-
-      //MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
-      //MPI_Type_commit(&type);
-
       err= MPI_File_read_at_all(fin, myColPtrOffset, &pspmat.Localg_.colptr[0], numColLocal+1, typeInt, &status);
 
-      //      err= MPI_File_read_at_all(fin, myColPtrOffset, MPI_BOTTOM, 1, type, &status);
       if (err != MPI_SUCCESS) {
 #ifdef USE_ABORT
         abort();
 #endif
         throw std::logic_error( "error reading colptr" );
       }
-      //      MPI_Type_free(&type);
 
       bassert(sizeof(Int)<=sizeof(Ptr));
       volatile Int * tmpColptr = (Int*)&pspmat.Localg_.colptr[0];
@@ -1538,37 +1217,14 @@ namespace symPACK{
         pspmat.Localg_.colptr[col-1] = (Ptr)tmpColptr[col-1];
       }
 
-//logfileptr->OFS()<<pspmat.Localg_.colptr<<std::endl;
       // Calculate nnz_loc on each processor
       Ptr mynnz = pspmat.Localg_.colptr[numColLocal] - pspmat.Localg_.colptr[0];
 
-      //pspmat.Localg_.nnz = mynnz;
       pspmat.Localg_.nnz = pspmat.nnz;
       pspmat.Localg_.rowind.resize( mynnz );
 
       //read rowIdx
-      //  MPI_Offset myRowIdxOffset = (3 + ((mpirank==0)?0:1) )*sizeof(Int) + (pspmat.size+1 + (pspmat.Localg_.colptr[0]-1))*sizeof(Int);
       MPI_Offset myRowIdxOffset = (3+((mpirank==0)?0:1))*sizeof(Int) + (pspmat.size+1 + (pspmat.Localg_.colptr[0]-1))*sizeof(Int) + (mpirank==0?sizeof(Int):0);
-
-      //      lens[0] = ((mpirank==0)?1:0);
-      //      lens[1] = mynnz;
-      //      types[0] = typeInt;
-      //      types[1] = typeInt;
-      //      MPI_Get_address(&np1, &disps[0]);
-      //      MPI_Get_address(&pspmat.Localg_.rowind[0], &disps[1]);
-      //      MPI_Type_struct(2, lens, disps, types, &type);
-      //      MPI_Type_commit(&type);
-
-      //lens[0] = ((mpirank==0)?1:0)*sizeof(Int);
-      //lens[1] = mynnz*sizeof(Int);
-
-      //MPI_Address(&np1, &disps[0]);
-      //MPI_Address(&pspmat.Localg_.rowind[0], &disps[1]);
-
-      //MPI_Type_hindexed(2, lens, disps, MPI_BYTE, &type);
-      //MPI_Type_commit(&type);
-
-      //err= MPI_File_read_at_all(fin, myRowIdxOffset, MPI_BOTTOM, 1, type,&status);
       err= MPI_File_read_at_all(fin, myRowIdxOffset, &pspmat.Localg_.rowind[0], mynnz, typeInt,&status);
 
       if (err != MPI_SUCCESS) {
@@ -1577,7 +1233,6 @@ namespace symPACK{
 #endif
         throw std::logic_error( "error reading rowind" );
       }
-      //MPI_Type_free(&type);
 
       bassert(sizeof(Int)<=sizeof(Idx));
       volatile Int * tmpRowind = (Int*)&pspmat.Localg_.rowind[0];
@@ -1611,8 +1266,6 @@ namespace symPACK{
 
 
 
-      //err = MPI_File_read_at_all(fin, myNzValOffset, MPI_BOTTOM, 1, type,&status);
-
       int error_code = err;
       if(error_code!=MPI_SUCCESS){
         char error_string[BUFSIZ];
@@ -1643,7 +1296,6 @@ namespace symPACK{
         throw std::logic_error( "error reading nzval" );
       }
 
-      //      MPI_Type_free(&type);
 
 
       //convert to local references
@@ -2179,7 +1831,6 @@ namespace symPACK{
 
 
 
-#endif
 
 
 namespace symPACK{
@@ -2191,7 +1842,6 @@ class scope_memprofiler{
   std::string name;
 	struct rusage bus, bous;	/* resource us struct */
 	struct rusage eus, eous;	/* resource us struct */
-	//int error, signal, rank, poolsize;
   int rank, poolsize;
   double divider;
 
@@ -2214,32 +1864,6 @@ class scope_memprofiler{
         it->second.count++;
       else {
         nested[name].count = 1;
-
-        //      char *value_child_mp, *value_procs_mp, *value_rank_pmi, *value_ncpus;
-        //      value_child_mp = getenv ("MP_CHILD");
-        //      value_rank_pmi = getenv ("PMI_RANK");
-        //
-        //      value_procs_mp = getenv ("MP_PROCS");
-        //      value_ncpus    = getenv ("NCPUS");
-        //
-        //      if (  ((! value_child_mp) && (! value_rank_pmi))
-        //          || ((! value_procs_mp) && (! value_ncpus))
-        //         ) {
-        //        rank = 0;
-        //        poolsize = 1;
-        //      } else {
-        //        if (value_child_mp) {
-        //          rank = atoi(value_child_mp);
-        //        } else {
-        //          rank = atoi(value_rank_pmi);
-        //        }
-        //        if (value_procs_mp) {
-        //          poolsize = atoi(value_procs_mp);
-        //        } else {
-        //          poolsize = atoi(value_ncpus);
-        //        }
-        //      }
-
         if ( getrusage(RUSAGE_CHILDREN, &bus) || getrusage(RUSAGE_SELF, &bous) ) {
           gdb_lock();
         }
@@ -2258,33 +1882,6 @@ class scope_memprofiler{
         it->second.count++;
       else {
         nested[name].count = 1;
-
-
-        //      char *value_child_mp, *value_procs_mp, *value_rank_pmi, *value_ncpus;
-        //      value_child_mp = getenv ("MP_CHILD");
-        //      value_rank_pmi = getenv ("PMI_RANK");
-        //
-        //      value_procs_mp = getenv ("MP_PROCS");
-        //      value_ncpus    = getenv ("NCPUS");
-        //
-        //      if (  ((! value_child_mp) && (! value_rank_pmi))
-        //          || ((! value_procs_mp) && (! value_ncpus))
-        //         ) {
-        //        rank = 0;
-        //        poolsize = 1;
-        //      } else {
-        //        if (value_child_mp) {
-        //          rank = atoi(value_child_mp);
-        //        } else {
-        //          rank = atoi(value_rank_pmi);
-        //        }
-        //        if (value_procs_mp) {
-        //          poolsize = atoi(value_procs_mp);
-        //        } else {
-        //          poolsize = atoi(value_ncpus);
-        //        }
-        //      }
-
         if ( getrusage(RUSAGE_CHILDREN, &bus) || getrusage(RUSAGE_SELF, &bous) ) {
           gdb_lock();
         }
@@ -2326,7 +1923,6 @@ class scope_memprofiler2{
   std::string name;
 	struct rusage bus, bous;	/* resource us struct */
 	struct rusage eus, eous;	/* resource us struct */
-	//int error, signal, rank, poolsize;
 
   struct state {
     double divider = 1;
@@ -2413,12 +2009,6 @@ class scope_memprofiler2{
           std::stringstream sstr;
           sstr<<"P"<<it->second.rank<<"/"<<it->second.poolsize<<" memory "<<it->first<<": "<<it->second.overhead_mb/extra_divider<<" MiB ; total "<<it->second.hwm/extra_divider<<" MiB"<<std::endl;
           symPACKOS<<sstr.str();
-//          if ( it->second.count ==0 ) {
-//            it = nested.erase(it);
-//          }
-//          else{
-//            it++;
-//          }
       }
       
     }

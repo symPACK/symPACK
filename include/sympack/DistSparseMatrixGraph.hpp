@@ -67,7 +67,6 @@ class SparseMatrixGraph{
   int keepDiag;
   int sorted;
   int expanded;
-  //bool bIsExpanded;
 
   public:
   void SetBaseval(int aBaseval);
@@ -101,12 +100,9 @@ class DistSparseMatrixGraph{
 
   protected:
   public:
-  //bool bIsExpanded;
-  
 
   public:
 	Idx          size;                            // Matrix dimension (global)
-	//Ptr          nnz;                             // Number of nonzeros (local)
   Ptr          nnz;                             // Number of nonzeros (global)
 	std::vector<Ptr>  colptr;                 // Column index pointer
 	std::vector<Idx>  rowind;                 // Starting row index pointer

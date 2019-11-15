@@ -56,21 +56,6 @@ namespace symPACK{
       for (Int count {0}; count < nthreads; count += 1){
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
       }
-
-#if 0      
-      for(int i = 0; i<threads.size(); i++){
-        auto & thread = threads[i];
-        // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
-        // only CPU i as set.
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(i, &cpuset);
-        int rc = pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
-        if (rc != 0) {
-          std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
-        }
-      }
-#endif
     }
 
 
@@ -84,36 +69,18 @@ namespace symPACK{
       for (Int count {0}; count < nthreads; count += 1){
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
       }
-#if 0
-      for(int i = 0; i<threads.size(); i++){
-        auto & thread = threads[i];
-        // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
-        // only CPU i as set.
-        cpu_set_t cpuset;
-        CPU_ZERO(&cpuset);
-        CPU_SET(i, &cpuset);
-        int rc = pthread_setaffinity_np(thread.native_handle(), sizeof(cpu_set_t), &cpuset);
-        if (rc != 0) {
-          std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
-        }
-      }
-#endif
     }
 
   template<typename T, typename Queue >
     inline WorkQueue<T, Queue >::~WorkQueue(){
       if(threads.size()>0){
-//        std::lock_guard<std::mutex> guard(list_mutex_);
         done = true;
-//        sync.notify_all();
       }
       for (auto &&thread: threads) thread.join();
     }
 
   template<typename T, typename Queue >
     inline void WorkQueue<T, Queue >::pushTask(T & fut){
-//      gdb_lock();
-//      std::unique_lock<std::mutex> lock(list_mutex_);
       auto & queue = workQueues_[prev_slot_];
       int queue_id = prev_slot_;
       prev_slot_ = (prev_slot_+1)%workQueues_.size();
@@ -142,7 +109,6 @@ namespace symPACK{
 
           bool success = false;
           while(!success){
-            //lock.unlock();
             //try
             {
               func->execute();
@@ -209,14 +175,6 @@ namespace symPACK{
             //find a "high priority" task
             //find a task we would like to process
             auto it = gIncomingRecv.begin();
-            //for(auto cur_msg = gIncomingRecv.begin(); 
-            //    cur_msg!= gIncomingRecv.end(); cur_msg++){
-            //  //look at the meta data
-            //  //TODO check if we can parametrize that
-            //  if((*cur_msg)->meta.tgt < (*it)->meta.tgt){
-            //    it = cur_msg;
-            //  }
-            //}
             msg = (*it);
             gIncomingRecv.erase(it);
           }
@@ -322,9 +280,7 @@ namespace symPACK{
         bool done = false;
         std::thread progress_thread;
         if(Multithreading::NumThread>1){
-#ifdef NEW_UPCXX
           // declare an agreed upon persona for the progress thread
-          //atomic<int> thread_barrier(0);
           // liberate the master persona to allow the progress thread to use it
           symPACK::liberate_master_scope();
 
@@ -332,34 +288,18 @@ namespace symPACK{
           progress_thread = std::thread( [this,&done,&remDealloc,&workteam]() {
               // push the master persona onto this thread's stack
               upcxx::persona_scope scope(upcxx::master_persona());
-              // push progress_persona onto this thread's persona stack
-              //upcxx::persona_scope scope(this->progress_persona_);
-              // progress thread drains progress until work is done
-              //gdb_lock();
               while (!done || (*remDealloc) > 0 ){
               sched_yield();
               upcxx::progress();
               }
-              //        cout<<"Progress thread on process "<<upcxx::rank_me()<<" is done"<<endl; 
 
               upcxx::discharge();
-//  upcxx::barrier(workteam);
-//  while ( (*remDealloc) > 0 ) { sched_yield(); }
-
-              //unlock the other threads
-              //thread_barrier += 1;
           });
-
-#endif
         }
 
         if(Multithreading::NumThread>1){
 
-#ifndef _LOCKFREE_QUEUE_
           WorkQueue<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread-2,threadInitHandle_);
-#else
-          WorkQueue<std::shared_ptr<GenericTask>, mpmc_bounded_queue<std::shared_ptr<GenericTask>> > queue(Multithreading::NumThread-2,threadInitHandle_);
-#endif
           while(graph.getTaskCount()>0 || !this->done() || !delayedTasks_.empty() ){
 
             if(np>1){
@@ -384,7 +324,6 @@ namespace symPACK{
 
             while(!this->done()){
               curTask = nullptr;
-  //            std::lock_guard<std::mutex> lock(list_mutex_);
               if ( this->size() > 0 ) {
 
 #ifdef SP_THREADS

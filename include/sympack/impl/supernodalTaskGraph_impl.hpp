@@ -274,14 +274,6 @@ namespace symPACK{
   }
 
   inline taskGraph& taskGraph::operator=( const taskGraph& g ){
-    //tasks_.clear();
-    ////do a deep copy
-    //for(auto && taskit : g.tasks_){
-    //  //auto task = *taskit.second;
-    //  std::shared_ptr<GenericTask> tptr = std::make_shared<GenericTask>(*taskit.second);
-    //  tasks_[taskit.first] = tptr;
-    //}
-
     tasks_ = g.tasks_;
     return *this;
   }

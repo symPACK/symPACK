@@ -96,8 +96,8 @@ namespace symPACK{
         Int numPanels = std::ceil((double)size/(double)panel);
         Int lastPanel = std::max(size - (numPanels-1)*panel,0);
         storage_size_ = sizeof(T)*((numPanels-1)*ai_num_rows*panel - 
-                            - (numPanels-1)*(numPanels-2)*panel/2 
-                                + (ai_num_rows-(numPanels-1)*panel)*lastPanel);
+            - (numPanels-1)*(numPanels-2)*panel/2 
+            + (ai_num_rows-(numPanels-1)*panel)*lastPanel);
         storage_size_ += num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
       }
       else {
@@ -109,7 +109,6 @@ namespace symPACK{
       Int num_updrows = 0;
       if (aiFr == aiFc){
         num_updrows = num_blocks;
-        //storage_size_ += num_updrows*sizeof(Idx); //list of first rows of blocks (only if supernode has diagonal) 
       }
 
       try{
@@ -122,8 +121,6 @@ namespace symPACK{
       }
 
       nzval_ = (T*)&loc_storage_container_[0];
-      //updrows_ = (Idx*)(nzval_+size*ai_num_rows);
-      //meta_ = (SuperNodeDesc*)(updrows_+num_updrows);
       meta_ = (SuperNodeDesc*)(nzval_+size*ai_num_rows);
       char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
       blocks_ = (NZBlockDesc*) last;
@@ -137,7 +134,6 @@ namespace symPACK{
       meta_->iSize_ = size;
       meta_->nzval_cnt_ = 0;
       meta_->blocks_cnt_ = 0;
-      //meta_->updrows_cnt_ = 0;
       meta_->b_own_storage_ = true;
 
 #ifndef ITREE
@@ -154,7 +150,6 @@ namespace symPACK{
 
   template<typename T, class Allocator>
     SuperNode<T,Allocator>::SuperNode(char * storage_ptr,size_t storage_size, Int GIndex ):SuperNode<T,Allocator>() {
-      //Init(aiId, aiFc, aiLc, a_block_desc, a_desc_cnt, a_nzval, a_nzval_cnt,aiN);
       Init(storage_ptr,storage_size,GIndex);
     }
 
@@ -162,7 +157,6 @@ namespace symPACK{
     SuperNode<T,Allocator>::~SuperNode(){
       if(loc_storage_container_!=nullptr && meta_!=nullptr){
         if(meta_->b_own_storage_){
-          //    upcxx::deallocate(storage_container_);
           Allocator::deallocate(loc_storage_container_);
         }
 #ifndef ITREE
@@ -209,8 +203,8 @@ namespace symPACK{
         Int numPanels = std::ceil((double)size/(double)panel);
         Int lastPanel = std::max(size - (numPanels-1)*panel,0);
         storage_size_ = sizeof(T)*((numPanels-1)*numRows*panel - 
-                            - (numPanels-1)*(numPanels-2)*panel/2 
-                                + (numRows-(numPanels-1)*panel)*lastPanel);
+            - (numPanels-1)*(numPanels-2)*panel/2 
+            + (numRows-(numPanels-1)*panel)*lastPanel);
         storage_size_ += num_blocks*sizeof(NZBlockDesc) + sizeof(SuperNodeDesc);
       }
       else {
@@ -234,8 +228,6 @@ namespace symPACK{
 
 
       nzval_ = (T*)&loc_storage_container_[0];
-      //updrows_ = (Idx*)(nzval_+size*numRows);
-      //meta_ = (SuperNodeDesc*)(updrows_+num_updrows);
       meta_ = (SuperNodeDesc*)(nzval_+size*numRows);
       char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
       blocks_ = (NZBlockDesc*) last;
@@ -249,7 +241,6 @@ namespace symPACK{
       meta_->iSize_ = size;
       meta_->nzval_cnt_ = 0;
       meta_->blocks_cnt_ = 0;
-      //meta_->updrows_cnt_ = 0;
       meta_->b_own_storage_ = true;
 
 #ifndef ITREE
@@ -300,8 +291,6 @@ namespace symPACK{
       //we now need to update the meta data
       meta_->b_own_storage_ = false;
       meta_->blocks_cnt_ = blkCnt;
-      //updrows_ = (Idx*)meta_ - meta_->updrows_cnt_;
-      //meta_->nzval_cnt_ = (T*)updrows_ - nzval_;
       meta_->nzval_cnt_ = (T*)meta_ - nzval_;
 
       if(GIndex==-1){
@@ -347,8 +336,8 @@ namespace symPACK{
           Int numPanels = std::ceil((double)meta_->iSize_/(double)panel);
           Int lastPanel = std::max(meta_->iSize_ - (numPanels-1)*panel,0);
           cur_nzval_cnt = (numPanels-1)*aiNRows*panel - 
-                            - (numPanels-1)*(numPanels-2)*panel/2 
-                                + (aiNRows-(numPanels-1)*panel)*lastPanel;
+            - (numPanels-1)*(numPanels-2)*panel/2 
+            + (aiNRows-(numPanels-1)*panel)*lastPanel;
         }
 
 #ifndef ITREE
@@ -410,7 +399,6 @@ namespace symPACK{
           //now move the updated rows by extra_nzvals_bytes
 
           //update pointers
-          //updrows_ = (Idx*) new_updrows_ptr;
           meta_ = (SuperNodeDesc*) new_meta_ptr;
           blocks_ = (NZBlockDesc*) new_blocks_ptr;
         }
@@ -511,23 +499,13 @@ namespace symPACK{
         //if there is too much room for either nzval or blocks, contract
         Int block_space = (Int)(blocks_+1 - (NZBlockDesc*)(meta_ +1)) - meta_->blocks_cnt_;
         size_t nzval_space = ((size_t)((char*)meta_ - (char*)nzval_) - meta_->nzval_cnt_*sizeof(T) );
-        //if(ownDiagonal && nzval_space>0){
-        //  nzval_space = nzval_space - (meta_->updrows_cnt_)*sizeof(Idx);
-        //}
 
         if(block_space >0 || nzval_space >0){
 
           size_t new_size = storage_size_ - nzval_space - block_space*sizeof(NZBlockDesc);
 
-#if 1
-          //size_t offset_updrows = meta_->nzval_cnt_*sizeof(T);
-          //size_t offset_meta = offset_updrows + meta_->updrows_cnt_*sizeof(Idx);
           size_t offset_meta = meta_->nzval_cnt_*sizeof(T);
           size_t offset_block = offset_meta +sizeof(SuperNodeDesc);
-#else
-          size_t offset_meta = (char*)meta_ - (char*)nzval_;
-          size_t offset_block = (char*)blocks_ - (char*)nzval_;
-#endif
 
           char * locTmpPtr = Allocator::allocate(new_size);
           bassert(locTmpPtr!=nullptr);
@@ -535,8 +513,6 @@ namespace symPACK{
           //copy nzvals
           std::copy(nzval_,nzval_+meta_->nzval_cnt_,(T*)locTmpPtr);
 
-          //copy updrows
-          //std::copy(updrows_,updrows_+meta_->updrows_cnt_,(Idx*)(locTmpPtr+offset_updrows));
           //copy meta
           std::copy(meta_,meta_+1,(SuperNodeDesc*)(locTmpPtr+offset_meta));
           //copy blocks
@@ -549,13 +525,10 @@ namespace symPACK{
           nzval_=(T*)&loc_storage_container_[0];
           //move the block descriptors if required
           char * new_blocks_ptr = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
-          //move the updated rows data if required
-          //char * new_updrows_ptr = loc_storage_container_ + offset_updrows;
           //move the meta data if required
           char * new_meta_ptr = loc_storage_container_ + offset_meta;
 
           //update pointers
-          //updrows_ = (Idx*) new_updrows_ptr;
           meta_ = (SuperNodeDesc*) new_meta_ptr;
           blocks_ = (NZBlockDesc*) new_blocks_ptr;
         }
@@ -581,12 +554,6 @@ namespace symPACK{
 
           Int tgt_lc = LastCol();
 #ifndef _BINARY_BLOCK_SEARCH_
-          //    for(tgt_fc;tgt_fc<tgt_lc;tgt_fc++){
-          //      first_pivot_idx = src_snode.FindBlockIdx(tgt_fc);
-          //      if(first_pivot_idx>=0){
-          //        break;
-          //      }
-          //    }
           do {first_pivot_idx = src_snode->FindBlockIdx(tgt_fc); tgt_fc++;}
           while(first_pivot_idx<0 && tgt_fc<=tgt_lc);
           tgt_fc--;
@@ -601,22 +568,6 @@ namespace symPACK{
             }
           }
           while(first_pivot_idx<0);
-
-          //    Int tgt_cur;
-          //    Int count = tgt_lc - tgt_fc+1;
-          //    Int step;
-          //    while (count > 0) {
-          //        step = count / 2;
-          //        tgt_cur = tgt_fc + step;
-          //        first_pivot_idx = src_snode.FindBlockIdx(tgt_cur); 
-          //        if (first_pivot_idx>=0) {
-          //            tgt_fc = ++tgt_cur;
-          //            count -= step + 1;
-          //        }
-          //        else{
-          //            count = step;
-          //        }
-          //    }
 #endif
 
         }
@@ -671,7 +622,6 @@ namespace symPACK{
 
   template<typename T, class Allocator>
     inline void SuperNode<T,Allocator>::FindUpdatedLastCol(SuperNode<T,Allocator> * src_snode, Int tgt_fc, Int first_pivot_idx , Int & tgt_lc,  Int & last_pivot_idx){
-      //gdb_lock();
       scope_timer(a,UPDATE_SNODE_FIND_INDEX);
 #ifdef _LINEAR_SEARCH_FCLC_
       if(src_snode->ITreeInitialized()){
@@ -727,7 +677,6 @@ namespace symPACK{
       assert(last_pivot_idx>=0);
     }
 
-  //#ifdef COMPACT_AGGREGATES
   template<typename T, class Allocator>
     inline Int SuperNode<T,Allocator>::Merge(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update){
       scope_timer(a,MERGE_SNODE);
@@ -794,9 +743,7 @@ namespace symPACK{
 
       return 0;
     }
-  //#endif
 
-  //#ifdef COMPACT_AGGREGATES
   template<typename T, class Allocator>
     inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode){
 
@@ -817,93 +764,42 @@ namespace symPACK{
       Int first_pivot_idx = 0 ;
       Int tgt_fc = FirstCol();
 
-#if 1
-
       assert(src_snode->NRowsBelowBlock(0) == NRowsBelowBlock(0) && src_snode->Size() == Size());
       if(src_snode->NRowsBelowBlock(0) == NRowsBelowBlock(0) && src_snode->Size() == Size()){
-            T * src = src_snode->nzval_;
-            T * tgt = nzval_;
+        T * src = src_snode->nzval_;
+        T * tgt = nzval_;
 #pragma unroll
-            for(Int i = 0; i< meta_->nzval_cnt_ ;i++){ tgt[i] += src[i]; }
+        for(Int i = 0; i< meta_->nzval_cnt_ ;i++){ tgt[i] += src[i]; }
       }
       else{
-      for(Int blkidx = first_pivot_idx; blkidx<src_snode->NZBlockCnt(); ++blkidx){
-        NZBlockDesc & blk_desc = src_snode->GetNZBlockDesc(blkidx);
-        Int nrows = src_snode->NRows(blkidx);
-        for(Int rowidx = 0; rowidx<nrows; ++rowidx){
-          Int row = blk_desc.GIndex + rowidx;
+        for(Int blkidx = first_pivot_idx; blkidx<src_snode->NZBlockCnt(); ++blkidx){
+          NZBlockDesc & blk_desc = src_snode->GetNZBlockDesc(blkidx);
+          Int nrows = src_snode->NRows(blkidx);
+          for(Int rowidx = 0; rowidx<nrows; ++rowidx){
+            Int row = blk_desc.GIndex + rowidx;
 
-          if(row>=tgt_fc){
-            Int src_offset = blk_desc.Offset + (row - blk_desc.GIndex)*src_snode_size;
+            if(row>=tgt_fc){
+              Int src_offset = blk_desc.Offset + (row - blk_desc.GIndex)*src_snode_size;
 
-            Int tgt_blkidx = FindBlockIdx(row);
-            if(tgt_blkidx==-1){
-              logfileptr->OFS()<<"LOCK 2: tgt_blkidx=-1"<<std::endl;
-              gdb_lock();
-            }
-            NZBlockDesc & tgt_desc = GetNZBlockDesc(tgt_blkidx);
-            Int tgt_offset = tgt_desc.Offset + (row - tgt_desc.GIndex)*tgt_snode_size;
+              Int tgt_blkidx = FindBlockIdx(row);
+              NZBlockDesc & tgt_desc = GetNZBlockDesc(tgt_blkidx);
+              Int tgt_offset = tgt_desc.Offset + (row - tgt_desc.GIndex)*tgt_snode_size;
 
-            T * src = src_snode->GetNZval(src_offset);
-            T * tgt = GetNZval(tgt_offset);
+              T * src = src_snode->GetNZval(src_offset);
+              T * tgt = GetNZval(tgt_offset);
 
-            //blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
 #pragma unroll
-            for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
+              for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
 
+            }
           }
         }
       }
-      }
-#else
-      Int tgt_blkcnt = NZBlockCnt();
-      Int tgt_blkidx = 0;
-      NZBlockDesc tgt_desc = GetNZBlockDesc(tgt_blkidx);
-      Int tgt_nrows = NRows(tgt_blkidx);
-
-      for(Int blkidx = first_pivot_idx; blkidx<src_snode->NZBlockCnt(); ++blkidx){
-        NZBlockDesc & blk_desc = src_snode->GetNZBlockDesc(blkidx);
-        Int nrows = src_snode->NRows(blkidx);
-        for(Int rowidx = 0; rowidx<nrows; ++rowidx){
-          Int row = blk_desc.GIndex + rowidx;
-
-          if(row>=tgt_fc){
-            Int src_offset = blk_desc.Offset + (row - blk_desc.GIndex)*src_snode_size;
-
-            while(row>tgt_desc.GIndex + tgt_nrows-1){
-              tgt_blkidx++;
-              tgt_desc = GetNZBlockDesc(tgt_blkidx);
-              tgt_nrows = NRows(tgt_blkidx);
-              if(tgt_blkidx==tgt_blkcnt){
-                tgt_blkidx=-1;
-                break;
-              }
-            }
-
-            if(tgt_blkidx==-1){
-              logfileptr->OFS()<<"LOCK 2: tgt_blkidx=-1"<<std::endl;
-              gdb_lock();
-            }
-            Int tgt_offset = tgt_desc.Offset + (row - tgt_desc.GIndex)*tgt_snode_size;
-
-            T * src = src_snode->GetNZval(src_offset);
-            T * tgt = GetNZval(tgt_offset);
-
-            //blas::Axpy(tgt_snode_size,ONE<T>(),src,1,tgt,1);
-#pragma unroll
-            for(Int i = 0; i< tgt_snode_size;i+=1){ tgt[i] += src[i]; }
-
-          }
-        }
-      }
-#endif
-
 
       return 0;
     }
 
 
-  //#ifdef COMPACT_AGGREGATES
   //CHECKED ON 11-18-2014
   template<typename T, class Allocator>
     inline Int SuperNode<T,Allocator>::UpdateAggregate(SuperNode<T,Allocator> * src_snode, SnodeUpdate &update, TempUpdateBuffers<T> & tmpBuffers, Int iTarget, Int iam){
@@ -959,7 +855,6 @@ namespace symPACK{
 
         //everything is in row-major
         SYMPACK_TIMER_START(UPDATE_SNODE_GEMM);
-        //blas::Gemm('C','N',tgt_width, src_nrows,src_snode_size,
         blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
             T(-1.0),pivot,src_snode_size,
             pivot,src_snode_size,beta,buf,tgt_width);
@@ -1006,7 +901,6 @@ namespace symPACK{
           Int offset = 0;
 
           Int src_blkcnt = src_snode->NZBlockCnt();
-#if 1
           for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
             NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
             Int cur_src_nrows = src_snode->NRows(blkidx);
@@ -1033,51 +927,6 @@ namespace symPACK{
               row += (lr-row+1);
             }
           }
-#else
-
-          Int tgt_blkcnt = NZBlockCnt();
-          Int tgt_blkidx = 0;
-          NZBlockDesc tgt_desc = GetNZBlockDesc(tgt_blkidx);
-          Int tgt_nrows = NRows(tgt_blkidx);
-
-          for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
-            NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
-            Int cur_src_nrows = src_snode->NRows(blkidx);
-            Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
-            Int cur_src_fr = std::max(tgt_fc, cur_block_desc.GIndex);
-            cur_src_nrows = cur_src_lr - cur_src_fr +1;
-
-            Int row = cur_src_fr;
-            while(row<=cur_src_lr){
-
-
-              while(row>tgt_desc.GIndex + tgt_nrows-1){
-                tgt_blkidx++;
-                tgt_desc = GetNZBlockDesc(tgt_blkidx);
-                tgt_nrows = NRows(tgt_blkidx);
-                if(tgt_blkidx==tgt_blkcnt){
-                  tgt_blkidx=-1;
-                  break;
-                }
-              }
-
-              assert(tgt_blkidx>=0);
-              Int lr = std::min(cur_src_lr,tgt_desc.GIndex + tgt_nrows-1);
-              Int tgtOffset = tgt_desc.Offset 
-                + (row - tgt_desc.GIndex)*tgt_snode_size;
-              for(Int cr = row ;cr<=lr;++cr){
-                if(cr<=tgt_lc){
-                  tmpBuffers.src_colindx[colidx++] = cr;
-                }
-                offset+=tgt_width;
-                tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
-                rowidx++;
-              }
-              row += (lr-row+1);
-            }
-          }
-
-#endif
           SYMPACK_TIMER_STOP(UPDATE_SNODE_INDEX_MAP);
 
 
@@ -1090,8 +939,6 @@ namespace symPACK{
               T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
 #pragma unroll
               for(Int i = 0; i < tgt_width; ++i){ B[i] += A[i]; }
-              //          blas::Axpy(tgt_width,ONE<T>(),&buf[rowidx*tgt_width],1,
-              //              &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset],1);
             }
           }
           else{
@@ -1112,11 +959,6 @@ namespace symPACK{
       else{
         return Update(src_snode, update, tmpBuffers);
       }
-
-
-
-
-
     }
 
 
@@ -1161,14 +1003,14 @@ namespace symPACK{
 
       T * pivot = src_snode->GetNZval(first_pivot_desc.Offset)
         + (tgt_fc-first_pivot_desc.GIndex)*src_snode_size;
-bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
+      bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
       T * tgt = GetNZval(0);
 
       //Pointer to the output buffer of the GEMM
       T * buf = nullptr;
       T beta = ZERO<T>();
 #ifdef SP_THREADS
-        tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+      tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
 #endif
       //If the target supernode has the same structure,
       //The GEMM is directly done in place
@@ -1233,7 +1075,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
           Int offset = 0;
 
           Int src_blkcnt = src_snode->NZBlockCnt();
-#if 1
           for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
             NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
             Int cur_src_nrows = src_snode->NRows(blkidx);
@@ -1261,51 +1102,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
               row += (lr-row+1);
             }
           }
-#else
-
-          Int tgt_blkcnt = NZBlockCnt();
-          Int tgt_blkidx = 0;
-          NZBlockDesc tgt_desc = GetNZBlockDesc(tgt_blkidx);
-          Int tgt_nrows = NRows(tgt_blkidx);
-
-          for(Int blkidx = first_pivot_idx; blkidx < src_blkcnt; ++blkidx){
-            NZBlockDesc & cur_block_desc = src_snode->GetNZBlockDesc(blkidx);
-            Int cur_src_nrows = src_snode->NRows(blkidx);
-            Int cur_src_lr = cur_block_desc.GIndex + cur_src_nrows -1;
-            Int cur_src_fr = std::max(tgt_fc, cur_block_desc.GIndex);
-            cur_src_nrows = cur_src_lr - cur_src_fr +1;
-
-            //The other one MUST reside into a single block in the target
-            Int row = cur_src_fr;
-            while(row<=cur_src_lr){
-
-              while(row>tgt_desc.GIndex + tgt_nrows-1){
-                tgt_blkidx++;
-                tgt_desc = GetNZBlockDesc(tgt_blkidx);
-                tgt_nrows = NRows(tgt_blkidx);
-                if(tgt_blkidx==tgt_blkcnt){
-                  tgt_blkidx=-1;
-                  break;
-                }
-              }
-
-
-              assert(tgt_blkidx>=0);
-              Int lr = std::min(cur_src_lr,tgt_desc.GIndex + tgt_nrows-1);
-              Int tgtOffset = tgt_desc.Offset 
-                + (row - tgt_desc.GIndex)*tgt_snode_size;
-              for(Int cr = row ;cr<=lr;++cr){
-                if(cr<=tgt_lc){
-                  tmpBuffers.src_colindx[colidx++] = cr;
-                }
-                offset+=tgt_width;
-                tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
-                rowidx++;
-              }
-              row += (lr-row+1);
-            }
-          }
-#endif
           //Multiple cases to consider
           SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_INDEX_MAP);
 
@@ -1318,8 +1114,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
               T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
 #pragma unroll
               for(Int i = 0; i < tgt_width; ++i){ B[i] += A[i]; }
-              //          blas::Axpy(tgt_width,ONE<T>(),&buf[rowidx*tgt_width],1,
-              //              &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset],1);
             }
           }
           else{
@@ -1391,7 +1185,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
       Int snode_size = Size();
       NZBlockDesc & diag_desc = diag_snode->GetNZBlockDesc(0);
       T * diag_nzval = &diag_snode->GetNZval(diag_desc.Offset)[0];
-      //lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
       T * nzblk_nzval = &GetNZval(diag_desc.Offset)[(snode_size)*snode_size];
       blas::Trsm('L','U','T','N',snode_size, NRowsBelowBlock(0)-snode_size, T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
       return 0;
@@ -1582,11 +1375,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
 
   template <typename T, class Allocator> 
     inline void SuperNode<T,Allocator>::forward_update(SuperNode<T,Allocator> * src_contrib, Int iOwner,Int iam, Int nrhsOffset, Int pnrhs){
-//TODO DEBUG_SOLVE
-//return ;
-      //if(!this->lock_.try_lock()){
-      //  gdb_lock();
-      //}
 
       SuperNode<T,Allocator> * tgt_contrib = this;
 
@@ -1636,20 +1424,15 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
         if(nrhs!=ldsol){
           Int nrows = tgt_local_lr - tgt_local_fr +1;
           for(Int row=0;row<nrows;row++){
-            //blas::Axpy(nrhs, T(1.0),&src[row*ldsol],1,&tgt[row*ldsol],1);
-
             for(Int col=0; col<nrhs;col++){
-              //atomic operations ?
               tgt[row*ldsol+col] += src[row*ldsol+col];
             }
           }
         }
         else{
-          //blas::Axpy((tgt_local_lr - tgt_local_fr +1)*nrhs, T(1.0),src,1,tgt,1);
           Int nrows = tgt_local_lr - tgt_local_fr +1;
           for(Int row=0;row<nrows;row++){
             for(Int col=0; col<nrhs;col++){
-              //atomic operations ?
               tgt[row*ldsol+col] += src[row*ldsol+col];
             }
           }
@@ -1659,7 +1442,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
           //the src block hasn't been completely used and is
           // updating some lines in the nz block just below the diagonal block
           //this case happens only locally for the diagonal block
-          //        assert(tgt_blkidx==0);
           //skip to the next tgt nz block
           ++tgt_blkidx;
         }
@@ -1672,8 +1454,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
           }
         }
       }
-
-      //this->lock_.unlock();
     }
 
 
@@ -1681,9 +1461,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
 
   template <typename T, class Allocator> 
     inline void SuperNode<T,Allocator>::back_update(SuperNode<T,Allocator> * src_contrib, Int nrhsOffset, Int pnrhs){
-//TODO DEBUG_SOLVE
-//return ;
-
       SuperNode<T,Allocator> * tgt_contrib = this;
       Int nrhs = pnrhs;
       if(pnrhs==-1){
@@ -1727,19 +1504,13 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
             std::copy(src,src+(tgt_local_lr - tgt_local_fr +1)*nrhs,tgt);
           }
 
-          //              lapack::Lacpy('N',nrhs,(tgt_local_lr - tgt_local_fr +1),
-          //                  src,nrhs,  
-          //                  tgt,nrhs);
-
           //do other block
           if(tgt_lr>src_lr){
-            //          assert(src_nzblk_idx==0);
             src_nzblk_idx++;
           }
 
         } while(tgt_lr>src_lr);
       }
-      //this->lock_.unlock();
     }
 
 
@@ -1747,19 +1518,10 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
     inline void SuperNode<T,Allocator>::back_update_contrib(SuperNode<T> * cur_snode, Int nrhsOffset, Int pnrhs){
       SuperNode<T,Allocator> * contrib = this;
       Int nrhs = pnrhs;
-      //if(pnrhs==-1){
-        nrhs = contrib->Size();
-      //  assert(nrhsOffset==0);
-      //}
-      //else{
-      //  nrhs = std::min(pnrhs,contrib->Size() - nrhsOffset);
-      //}
+      nrhs = contrib->Size();
 
       Int ldsol = contrib->Size();
       Int ldfact = cur_snode->Size();
-
-      //nrhs += nrhsOffset;
-
 
       NZBlockDesc & diag_desc = cur_snode->GetNZBlockDesc(0);
       NZBlockDesc & tgt_desc = contrib->GetNZBlockDesc(0);
@@ -1767,7 +1529,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
       T* diag_nzval = cur_snode->GetNZval(diag_desc.Offset);
       T* tgt_nzval = contrib->GetNZval(tgt_desc.Offset);
 
-      //for(Int j = nrhsOffset; j<nrhs;++j)
       for(Int j = 0; j<nrhs;++j){
         for(Int ii = ldfact-1; ii>=0; --ii){
           T temp = tgt_nzval[ii*ldsol+j];
@@ -1905,18 +1666,6 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
           }
         }
         else{
-//          logfileptr->OFS()<<"----------------------------------"<<std::endl;
-//          std::vector<T> buftmp (nrhs*cur_nrows,T(0));
-//          for(Int kk = 0; kk<cur_snode->Size(); ++kk){
-//            for(Int j = 0; j<nrhs;++j){
-//              for(Int i = 0; i<cur_nrows;++i){
-//                buftmp[i*nrhs+j] += -diag_nzval[kk*nrhs+j]*(chol_nzval[i*cur_snode->Size()+kk]);
-//              }
-//            }
-//          }
-//          logfileptr->OFS()<<buftmp<<std::endl;
-//          logfileptr->OFS()<<"----------------------------------"<<std::endl;
-
           for(Int kk = 0; kk<cur_snode->Size(); ++kk){
             for(Int j = 0; j<nrhs;++j){
               for(Int i = 0; i<cur_nrows;++i){
@@ -1998,7 +1747,7 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
       NZBlockDesc & nzblk_desc = snode.GetNZBlockDesc(blkidx);
       T * nzblk_nzval = snode.GetNZval(nzblk_desc.Offset);
       os<<"--- NZBlock "<<nzblk_desc.GIndex<<" ---"<<std::endl;
-              std::streamsize p = logfileptr->OFS().precision();
+      std::streamsize p = logfileptr->OFS().precision();
       logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
       for(Int i = 0; i<snode.NRows(blkidx);++i){
         for(Int j = 0; j<snode.Size();++j){
@@ -2006,7 +1755,7 @@ bassert(  src_snode->GetNZval(0) + src_snode->NNZ() -  pivot >= 0 );
         }
         os<<std::endl;
       }
-logfileptr->OFS().precision(p);
+      logfileptr->OFS().precision(p);
     }
     os<<"oooooooooooooooooooooooooooooooooooooooo"<<std::endl;
     return os;
