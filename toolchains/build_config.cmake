@@ -5,11 +5,15 @@ set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${BLAS_DIR})
 set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${LAPACK_DIR})
 
 #optional Ordering libraries
-#set(SCOTCH_DIR /path/to/scotch)
+#set(scotch_PREFIX /path/to/scotch)
 #set(ENABLE_SCOTCH ON CACHE BOOL "...")
 
-#set(METIS_DIR /path/to/metis)
+#set(ptscotch_PREFIX /path/to/ptscotch)
+#set(ENABLE_PTSCOTCH ON CACHE BOOL "...")
+
+#setmetis_PREFIX /path/to/metis)
 #set(ENABLE_METIS ON CACHE BOOL "...")
 
-#set(PARMETIS_DIR /path/to/parmetis)
+#set(parmetis_PREFIX /path/to/parmetis)
 #set(ENABLE_PARMETIS ON CACHE BOOL "...")
+
