@@ -19,13 +19,14 @@ git clone git@github.com:symPACK/symPACK.git  /path/to/sympack
 
 ### UPC++
 
-**SymPACK** requires the UPC++ library to be installed. It can be downloaded at <upcxx.lbl.gov>.
+**SymPACK** requires the UPC++ v1.0 library to be installed. The minimum supported release version is 2019.9.0. 
+It can be downloaded at (upcxx.lbl.gov).
 UPC++ contains a CMake config file which **symPACK** is using to link to the library. The install path
 needs to be provided to CMake as follows:
 ```
 #!
 
--DCMAKE_PREFIX_PATH=/home/mjacquel/Work/lbl/pagoda/upcxx_dev/upcxx_install_develop
+-DCMAKE_PREFIX_PATH=/path/to/upcxx-2019.9.0
 ``` 
 
 ### Ordering libraries
