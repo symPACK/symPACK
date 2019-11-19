@@ -19,8 +19,8 @@ git clone git@github.com:symPACK/symPACK.git  /path/to/sympack
 
 ### UPC++
 
-**SymPACK** requires the UPC++ v1.0 library to be installed. The minimum supported release version is 2019.9.0. 
-It can be downloaded at (upcxx.lbl.gov).
+**SymPACK** requires the **UPC++ v1.0** library to be installed. The minimum supported release version is 2019.9.0. 
+It can be downloaded at [upcxx.lbl.gov](upcxx.lbl.gov).
 UPC++ contains a CMake config file which **symPACK** is using to link to the library. The install path
 needs to be provided to CMake as follows:
 ```
@@ -89,21 +89,21 @@ Additionally, standalone drivers for **symPACK** can be built by typing `make ex
 ### Build options
 
 **SymPACK** has several optional features. We have already mentioned the options related to sparse matrix ordering. The following list is the complete set of options available when building **symPACK**:
-- `ENABLE_PTSCOTCH` to enable PTSCOTCH ordering (`ON|OFF`)
-- `ENABLE_SCOTCH` to enable SCOTCH ordering (`ON|OFF`)
-- `ENABLE_PARMETIS` to enable PARMETIS ordering (`ON|OFF`)
-- `ENABLE_METIS` to enable METIS ordering (`ON|OFF`)
-- `AMD_IDX_64` to use 64 bit integers for AMD ordering (`ON|OFF`)
-- `MMD_IDX_64` to use 64 bit integers for MMD ordering (`ON|OFF`)
-- `RCM_IDX_64` to use 64 bit integers for RCM ordering (`ON|OFF`)
-- `ENABLE_MKL` to enable Intel MKL through the `-mkl` flag (`ON|OFF`)
-- `ENABLE_THREADS` to enable multithreading (`ON|OFF`). `UPCXX_THREADMODE=par` is required during cmake configuration. **SymPACK** implements its own multithreading and as such should be linked with **sequential** BLAS/LAPACK libraries.
+- `-DENABLE_METIS` to enable **MeTiS** ordering (`ON|OFF`)
+- `-DENABLE_PARMETIS` to enable **ParMETIS** ordering (`ON|OFF`)
+- `-DENABLE_SCOTCH` to enable **SCOTCH** ordering (`ON|OFF`)
+- `-DENABLE_PTSCOTCH` to enable **PT-SCOTCH** ordering (`ON|OFF`)
+- `-DAMD_IDX_64` to use 64 bit integers for AMD ordering (`ON|OFF`)
+- `-DMMD_IDX_64` to use 64 bit integers for MMD ordering (`ON|OFF`)
+- `-DRCM_IDX_64` to use 64 bit integers for RCM ordering (`ON|OFF`)
+- `-DENABLE_MKL` to enable Intel MKL through the `-mkl` flag (`ON|OFF`)
+- `-DENABLE_THREADS` to enable multithreading (`ON|OFF`). `UPCXX_THREADMODE=par` is required during cmake configuration. **SymPACK** implements its own multithreading and as such should be linked with **sequential** BLAS/LAPACK libraries.
 
 # Running symPACK
 ---------------------------
 
-**SymPACK** uses both UPC++ and MPI, therefore, some preliminary environment variables may need to be defined on most platforms.
-More details can be found in the UPC++ [documentation](https://bitbucket.org/berkeleylab/upcxx/wiki/docs/mpi-hybrid):
+**SymPACK** uses both **UPC++** and **MPI**, therefore, some preliminary environment variables may need to be defined on most platforms.
+More details can be found in the **UPC++** [documentation](https://bitbucket.org/berkeleylab/upcxx/wiki/docs/mpi-hybrid):
 ```
 #!
 
@@ -127,4 +127,4 @@ upcxx-run -n 4 -shared-heap 3GB -- ./run_sympack -in audikw_1/audikw_1.rb -order
 ```
 
 Note that to run **symPACK**, `upcxx-run` is used in the example above, but on some platforms, such as NERSC Cori,
-other launchers may be used to both spawn MPI and UPC++, such as `srun` if the system is using SLURM.
+other launchers may be used to both spawn **MPI** and **UPC++**, such as `srun` if the system is using SLURM.
