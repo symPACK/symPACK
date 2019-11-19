@@ -43,7 +43,7 @@
 #ifndef _SYMPACK_HEADER_
 #define _SYMPACK_HEADER_
 
-#define SP_THREADS
+//#define SP_THREADS
 
 #ifdef __cplusplus
 #include  "sympack/Environment.hpp"

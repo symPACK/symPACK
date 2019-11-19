@@ -66,18 +66,6 @@ include(FortranCInterface)
 FortranCInterface_HEADER("${PROJECT_BINARY_DIR}/sympack_config.hpp" MACRO_NAMESPACE "FC_")
 FortranCInterface_VERIFY(CXX)
 
-# TARGET properties
-
-  
-#find_package(MPI )
-#if(MPI_CXX_FOUND)
-#  message(STATUS "Found CXX MPI compiler: ${MPI_CXX_COMPILER}")
-#  message( STATUS "MPI_CXX_LINK_FLAGS: " ${MPI_CXX_LINK_FLAGS} )
-#  message( STATUS "MPI_CXX_LIBRARIES: " ${MPI_CXX_LIBRARIES} )
-#  target_link_libraries(sympack PUBLIC MPI::MPI_CXX)
-#endif()
-
-
 if(ENABLE_MKL)
   find_package(MKL)
   if(MKL_FOUND)
@@ -142,37 +130,42 @@ if(ENABLE_PROFILE)
     target_link_libraries( symPACK::parallel_fortran INTERFACE OpenMP::OpenMP_Fortran )
   endif()
 
-  target_compile_definitions( sympack PUBLIC "-DSPROFILE")
-  target_compile_definitions( sympack PUBLIC "-DNO_INTRA_PROFILE")
+  target_compile_definitions( sympack PUBLIC "SPROFILE")
+  target_compile_definitions( sympack PUBLIC "NO_INTRA_PROFILE")
 endif()
 
 
 if(RCM_IDX_64)
-  target_compile_definitions( sympack PUBLIC  "-DRCMIDXSIZE=64")
+  target_compile_definitions( sympack PUBLIC  "RCMIDXSIZE=64")
 else()
-  target_compile_definitions( sympack PUBLIC  "-DRCMIDXSIZE=32")
+  target_compile_definitions( sympack PUBLIC  "RCMIDXSIZE=32")
 endif()
 
 if(MMD_IDX_64)
-  target_compile_definitions( sympack PUBLIC  "-DMMDIDXSIZE=64")
+  target_compile_definitions( sympack PUBLIC  "MMDIDXSIZE=64")
 else()
-  target_compile_definitions( sympack PUBLIC  "-DMMDIDXSIZE=32")
+  target_compile_definitions( sympack PUBLIC  "MMDIDXSIZE=32")
 endif()
 
 if(AMD_IDX_64)
-  target_compile_definitions( sympack PUBLIC  "-DAMDIDXSIZE=64")
+  target_compile_definitions( sympack PUBLIC  "AMDIDXSIZE=64")
 else()
-  target_compile_definitions( sympack PUBLIC  "-DAMDIDXSIZE=32")
+  target_compile_definitions( sympack PUBLIC  "AMDIDXSIZE=32")
 endif()
+
+if(ENABLE_THREADS)
+  get_target_property(UPCXX_DEFINITIONS UPCXX::upcxx INTERFACE_COMPILE_DEFINITIONS)
+  if("UPCXX_BACKEND_GASNET_PAR=1" IN_LIST UPCXX_DEFINITIONS)
+    target_compile_definitions( sympack PUBLIC  "SP_THREADS")
+  else()
+    message(FATAL_ERROR "UPCXX_THREADMODE=par is required when using ENABLE_THREADS=ON\n(UPCXX_BACKEND_GASNET_PAR=1 must be in the compiler definitions)")
+  endif()
+endif()
+
 
 
 target_compile_definitions(sympack PUBLIC "ITREE")
 target_compile_definitions(sympack PUBLIC "_DSW_ITREE_")
-#add_definitions("-DNOTRY")
-
-
-
-
   
 
 target_link_libraries(sympack PUBLIC 
@@ -182,10 +175,7 @@ target_link_libraries(sympack PUBLIC
   ${LIBS} 
   ${CMAKE_DL_LIBS}
 )
-#find_library(MATH_LIBRARY m)
-#if(MATH_LIBRARY)
-#   target_link_libraries(sympack PUBLIC ${MATH_LIBRARY})
-#endif()
+
 if(UNIX AND NOT APPLE)
   target_link_libraries(sympack PUBLIC rt)
 endif()

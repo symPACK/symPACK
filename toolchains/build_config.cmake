@@ -1,3 +1,6 @@
+#UPCXX if not in standard path
+set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${UPCXX_INSTALL})
+
 #BLAS and Lapack if not in standard path
 set(BLAS_DIR /path/to/blas)
 set(LAPACK_DIR /path/to/lapack)

@@ -86,6 +86,19 @@ make install
 
 Additionally, standalone drivers for **symPACK** can be built by typing `make examples`
 
+### Build options
+
+**SymPACK** has several optional features. We have already mentioned the options related to sparse matrix ordering. The following list is the complete set of options available when building **symPACK**:
+- `ENABLE_PTSCOTCH` to enable PTSCOTCH ordering (`ON|OFF`)
+- `ENABLE_SCOTCH` to enable SCOTCH ordering (`ON|OFF`)
+- `ENABLE_PARMETIS` to enable PARMETIS ordering (`ON|OFF`)
+- `ENABLE_METIS` to enable METIS ordering (`ON|OFF`)
+- `AMD_IDX_64` to use 64 bit integers for AMD ordering (`ON|OFF`)
+- `MMD_IDX_64` to use 64 bit integers for MMD ordering (`ON|OFF`)
+- `RCM_IDX_64` to use 64 bit integers for RCM ordering (`ON|OFF`)
+- `ENABLE_MKL` to enable Intel MKL through the `-mkl` flag (`ON|OFF`)
+- `ENABLE_THREADS` to enable multithreading (`ON|OFF`). `UPCXX_THREADMODE=par` is required during cmake configuration. **SymPACK** implements its own multithreading and as such should be linked with **sequential** BLAS/LAPACK libraries.
+
 # Running symPACK
 ---------------------------
 

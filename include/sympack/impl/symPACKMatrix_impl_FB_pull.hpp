@@ -46,7 +46,7 @@ such enhancements or derivative works thereof, in binary and source code form.
 #include "sympack/symPACKMatrix.hpp"
 
 //#define _NO_COMP_
-#define SP_THREADS
+//#define SP_THREADS
 
 
 

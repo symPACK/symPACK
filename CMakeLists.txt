@@ -16,11 +16,6 @@ project(symPACK VERSION 2.0
 ############################## Options ######################################
 
 #all options
-option(ENABLE_KNL "Cross compiling" OFF)
-option(ENABLE_KNL_ONLY "Cross compiling" OFF)
-option(ENABLE_PROFILE "Enable profiling" OFF)
-option(ENABLE_OPENMP "Enable OpenMP" OFF)
-option(TRACK_MEMORY "Enable (partial) Memory allocation tracking" OFF)
 option(ENABLE_PTSCOTCH "Enable PTSCOTCH" OFF)
 option(ENABLE_SCOTCH "Enable SCOTCH" OFF)
 option(ENABLE_PARMETIS "Enable PARMETIS" OFF)
@@ -29,6 +24,7 @@ option(ENABLE_MKL "Enable MKL" OFF)
 option(AMD_IDX_64 "Use 64 bit integers for AMD" OFF)
 option(MMD_IDX_64 "Use 64 bit integers for MMD" OFF)
 option(RCM_IDX_64 "Use 64 bit integers for RCM" OFF)
+option(ENABLE_THREADS "Enable Threading" OFF)
 
 
 

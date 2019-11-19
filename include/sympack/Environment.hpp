@@ -44,7 +44,7 @@
 #define _ENVIRONMENT_DECL_HPP_
 
 //#define _MAP_DEBUG_
-#define SP_THREADS
+//#define SP_THREADS
 
 #include "sympack_definitions.hpp"
 #include "sympack_config.hpp"

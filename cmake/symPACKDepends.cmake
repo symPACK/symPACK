@@ -61,14 +61,3 @@ target_link_libraries( symPACK::parallel_cxx     INTERFACE MPI::MPI_CXX  UPCXX::
 target_link_libraries( symPACK::parallel_c       INTERFACE MPI::MPI_C       )
 target_link_libraries( symPACK::parallel_fortran INTERFACE MPI::MPI_Fortran )
 
-## Handle OpenMP
-#if( symPACK_ENABLE_OPENMP )
-#
-#  find_package( OpenMP REQUIRED )
-#
-#  target_link_libraries( symPACK::parallel_cxx     INTERFACE OpenMP::OpenMP_CXX     )   
-#  target_link_libraries( symPACK::parallel_c       INTERFACE OpenMP::OpenMP_C       )
-#  target_link_libraries( symPACK::parallel_fortran INTERFACE OpenMP::OpenMP_Fortran )
-#
-#endif()
-
