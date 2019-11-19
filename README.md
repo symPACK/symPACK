@@ -52,13 +52,13 @@ cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/install/sympack
 
 The `...OPTIONS...` can be one of the following:
 
-* `-DENABLE_METIS=ON|OFF` to make **MeTiS** ordering available in **symPACK** (`metis_PREFIX` must be set in the environment)
+- `-DENABLE_METIS=ON|OFF` to make **MeTiS** ordering available in **symPACK** (`metis_PREFIX` must be set in the environment)
 
-* `-DENABLE_PARMETIS=ON|OFF` to make **ParMETIS** ordering available in **symPACK** (`parmetis_PREFIX` must be set in the environment, `metis_PREFIX` is required as well)
+- `-DENABLE_PARMETIS=ON|OFF` to make **ParMETIS** ordering available in **symPACK** (`parmetis_PREFIX` must be set in the environment, `metis_PREFIX` is required as well)
 
-* `-DENABLE_SCOTCH=ON|OFF` to make **SCOTCH** ordering available in **symPACK** (`scotch_PREFIX` must be set in the environment)
+- `-DENABLE_SCOTCH=ON|OFF` to make **SCOTCH** ordering available in **symPACK** (`scotch_PREFIX` must be set in the environment)
 
-* `-DENABLE_PTSCOTCH=ON|OFF` to make **PT-SCOTCH** ordering available in **symPACK** (`ptscotch_PREFIX` must be set in the environment, `scotch_PREFIX` is required as well)
+- `-DENABLE_PTSCOTCH=ON|OFF` to make **PT-SCOTCH** ordering available in **symPACK** (`ptscotch_PREFIX` must be set in the environment, `scotch_PREFIX` is required as well)
 
 ### Notes for specific platforms
 
@@ -89,14 +89,23 @@ Additionally, standalone drivers for **symPACK** can be built by typing `make ex
 ### Build options
 
 **SymPACK** has several optional features. We have already mentioned the options related to sparse matrix ordering. The following list is the complete set of options available when building **symPACK**:
+
 - `-DENABLE_METIS` to enable **MeTiS** ordering (`ON|OFF`)
+
 - `-DENABLE_PARMETIS` to enable **ParMETIS** ordering (`ON|OFF`)
+
 - `-DENABLE_SCOTCH` to enable **SCOTCH** ordering (`ON|OFF`)
+
 - `-DENABLE_PTSCOTCH` to enable **PT-SCOTCH** ordering (`ON|OFF`)
+
 - `-DAMD_IDX_64` to use 64 bit integers for AMD ordering (`ON|OFF`)
+
 - `-DMMD_IDX_64` to use 64 bit integers for MMD ordering (`ON|OFF`)
+
 - `-DRCM_IDX_64` to use 64 bit integers for RCM ordering (`ON|OFF`)
+
 - `-DENABLE_MKL` to enable Intel MKL through the `-mkl` flag (`ON|OFF`)
+
 - `-DENABLE_THREADS` to enable multithreading (`ON|OFF`). `UPCXX_THREADMODE=par` is required during cmake configuration. **SymPACK** implements its own multithreading and as such should be linked with **sequential** BLAS/LAPACK libraries.
 
 # Running symPACK
