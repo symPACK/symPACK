@@ -2672,34 +2672,6 @@ namespace symPACK{
             else if (this->options_.order_refinement_str == "SET31") { 
               this->refineSupernodes(3,1,&pMat);
             }
-            else if (this->options_.order_refinement_str == "TSP") {
-              auto SupETree = this->ETree_.ToSupernodalETree(this->Xsuper_,this->SupMembership_,this->Order_);
-
-              std::vector<Ptr> xlindx;
-              std::vector<Idx> lindx;
-              this->gatherLStructure(xlindx, lindx);
-
-              if (this->iam==0) {
-                TSP::SymbolMatrix * symbmtx = TSP::GetPastixSymbolMatrix(this->Xsuper_,this->SupMembership_, xlindx, lindx);
-                TSP::Order * psorder = TSP::GetPastixOrder(symbmtx,this->Xsuper_, SupETree, &this->Order_.perm[0], &this->Order_.invp[0]);
-
-                double timeSta = get_time();
-                TSP::symbolReordering( symbmtx, psorder, 0, std::numeric_limits<int>::max(), 0 );
-                double timeStop = get_time();
-                if (this->iam==0 && this->options_.verbose) {
-                  symPACKOS<<"TSP reordering done in "<<timeStop-timeSta<<std::endl;
-                }
-
-                //overwrite order
-                for (int i = 0; i < this->Order_.perm.size(); ++i) {
-                  this->Order_.perm[i] = psorder->peritab[i]+1;
-                  this->Order_.invp[i] = psorder->permtab[i]+1;
-                }
-              }
-
-              MPI_Bcast(this->Order_.perm.data(),this->Order_.perm.size()*sizeof(Int),MPI_BYTE,0,this->fullcomm_);
-              MPI_Bcast(this->Order_.invp.data(),this->Order_.invp.size()*sizeof(Int),MPI_BYTE,0,this->fullcomm_);
-            } 
             else if (this->options_.order_refinement_str.substr(0,4) == "TSPB") {
 
               if (sgraph==nullptr) { 
