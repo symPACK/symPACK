@@ -1,5 +1,9 @@
 #UPCXX if not in standard path
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${UPCXX_INSTALL})
+if(DEFINED ENV{UPCXX_INSTALL})
+  list(APPEND CMAKE_PREFIX_PATH $ENV{UPCXX_INSTALL} )
+else()
+  message( STATUS "UPCXX_INSTALL was not found in the environment, please make sure it is defined or that CMAKE_PREFIX_PATH contains a path to a UPC++ installation." )
+endif()
 
 #BLAS and Lapack if not in standard path
 set(BLAS_DIR /path/to/blas)
