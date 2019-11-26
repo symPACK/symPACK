@@ -106,11 +106,14 @@ namespace symPACK{
         std::atomic<bool> in_use;
 #endif
 
-        SuperNodeBase():
 #ifdef SP_THREADS
-        in_use(false)
+        SuperNodeBase():
+          in_use(false)
+        {}
+#else
+        SuperNodeBase()
+        {}
 #endif
-{}
         virtual ~SuperNodeBase(){};
         virtual inline Int & Id() = 0;
     };

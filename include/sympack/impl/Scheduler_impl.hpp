@@ -47,7 +47,7 @@ namespace symPACK{
         }
     };
 
-
+#ifdef SP_THREADS
   template<typename T, typename Queue >
     inline WorkQueue<T, Queue >::WorkQueue(Int nthreads): done(false){
       workQueues_.resize(nthreads);
@@ -57,7 +57,6 @@ namespace symPACK{
         threads.emplace_back(std::mem_fn<void(Int)>(&WorkQueue::consume ) , this, count);
       }
     }
-
 
   template<typename T, typename Queue >
     inline WorkQueue<T, Queue >::WorkQueue(Int nthreads, std::function<void()> & threadInitHandle ):done(false){
@@ -131,6 +130,7 @@ namespace symPACK{
       upcxx::discharge();
       upcxx::progress();
     }
+#endif
 }//end namespace symPACK
 //end of definitions of the WorkQueue class
 
@@ -277,6 +277,7 @@ namespace symPACK{
 
         Int num_msg =0;
         std::shared_ptr<GenericTask> curTask = nullptr;
+#ifdef SP_THREADS
         bool done = false;
         std::thread progress_thread;
         if(Multithreading::NumThread>1){
@@ -298,7 +299,6 @@ namespace symPACK{
         }
 
         if(Multithreading::NumThread>1){
-
           WorkQueue<std::shared_ptr<GenericTask> > queue(Multithreading::NumThread-2,threadInitHandle_);
           while(graph.getTaskCount()>0 || !this->done() || !delayedTasks_.empty() ){
 
@@ -362,7 +362,9 @@ namespace symPACK{
             while ( (*remDealloc) > 0 ) { upcxx::progress(); }
             upcxx::barrier(workteam);
         }
-        else{
+        else
+#endif
+        {
           std::chrono::time_point<std::chrono::system_clock> start;
           while(graph.getTaskCount()>0 || !this->done()){
             if(np>1){

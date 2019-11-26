@@ -350,6 +350,7 @@ namespace symPACK{
                     [this,sched_ptr,cnt] () {
                     this->in_counter-=cnt;
                     if ( this->in_counter == 0 ) {
+#ifdef SP_THREADS
                     if (sched_ptr->extraTaskHandle_!=nullptr) {
                     bool delay = sched_ptr->extraTaskHandle_(this);
                     if (delay) {
@@ -357,6 +358,7 @@ namespace symPACK{
                     return;
                     }
                     }
+#endif
                     push_ready(sched_ptr,this)
                     }
                     });
@@ -1077,9 +1079,9 @@ namespace symPACK{
             }
             else {
               //Compute the update in a temporary buffer
-#ifdef SP_THREADS
+//#ifdef SP_THREADS
               tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
-#endif
+//#endif
               buf = &tmpBuffers.tmpBuf[0];
             }
 
@@ -1831,9 +1833,9 @@ namespace symPACK{
             }
             else {
               //Compute the update in a temporary buffer
-#ifdef SP_THREADS
+//#ifdef SP_THREADS
               tmpBuffers.tmpBuf.resize(tgt_width*src_nrows);
-#endif
+//#endif
               buf = &tmpBuffers.tmpBuf[0];
             }
 
@@ -6393,6 +6395,7 @@ namespace symPACK{
 
 
   namespace scheduling {
+#ifdef SP_THREADS
     template <typename ttask_t , typename ttaskgraph_t >
       inline bool Scheduler2D<ttask_t,ttaskgraph_t>::assignWork(ttask_t * ptask) 
       {
@@ -6414,7 +6417,7 @@ namespace symPACK{
           return false;
         }
       }
-
+#endif
 
     template <typename ttask_t , typename ttaskgraph_t >
       inline void Scheduler2D<ttask_t,ttaskgraph_t>::execute(ttaskgraph_t & task_graph, double & mem_budget )
@@ -6452,6 +6455,7 @@ namespace symPACK{
 #ifdef _USE_PROM_RDY_
               auto fut = ptask->in_prom.finalize();
               fut.then([this,ptr]() {
+#ifdef SP_THREADS
                   if (this->scheduler.extraTaskHandle_!=nullptr) {
                   bool delay = this->scheduler.extraTaskHandle_(ptr);
                   if (delay) {
@@ -6459,20 +6463,24 @@ namespace symPACK{
                   return;
                   }
                   }
+#endif
                   push_ready(this,ptr);
                   });
 #else
               if (ptr->in_counter == 0 ) {
+#ifdef SP_THREADS
                 if (this->extraTaskHandle_!=nullptr) {
                   bool delay = this->extraTaskHandle_(ptr);
                   if (delay) {
                     this->delayedTasks_[ptr->_lock_ptr].push_back(ptr);
                   }
-                  else {
+                  else 
+                  {
                     push_ready(this,ptr);
                   }
-                }
-                else {
+                } else 
+#endif
+                {
                   push_ready(this,ptr);
                 }
               }
@@ -6660,7 +6668,9 @@ namespace symPACK{
             }
             upcxx::progress();
             upcxx::discharge();
+#ifdef SP_THREADS
             if ( this->quiesceHandle_ != nullptr ) this->quiesceHandle_();
+#endif
             upcxx::progress();
             upcxx::barrier();
           }
