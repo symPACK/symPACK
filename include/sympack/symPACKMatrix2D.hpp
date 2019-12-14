@@ -1654,41 +1654,12 @@ namespace symPACK{
           auto snode_size = std::get<0>(this->_dims);
           auto nzblk_nzval = this->_nzval;
 
-
-#ifndef NDEBUG
-          for (int_t i = 0; i< snode_size; i++) {
-            for (int_t j = 0; j< snode_size; j++) {
-              bassert(std::isfinite(diag_nzval[i*snode_size+j]));
-            }
-          }
-          for (int_t i = 0; i< this->total_rows(); i++) {
-            for (int_t j = 0; j< snode_size; j++) {
-              bassert(std::isfinite(nzblk_nzval[i*snode_size+j]));
-            }
-          }
-#endif 
           blas::Trsm('L','U','T','U',snode_size, this->total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
 
-#ifndef NDEBUG
-          for (int_t i = 0; i< this->total_rows(); i++) {
-            for (int_t j = 0; j< snode_size; j++) {
-              bassert(std::isfinite(nzblk_nzval[i*snode_size+j]));
-            }
-          }
-          for (int_t j = 0; j< snode_size; j++) { bassert(diag->_diag[j] != T(0)); }
-#endif 
           //scale column I
           for ( int_t I = 1; I<=snode_size; I++) {
             blas::Scal( this->total_rows(), T(1.0)/diag->_diag[I-1], &nzblk_nzval[I-1], snode_size );
           }
-
-#ifndef NDEBUG
-          for (int_t i = 0; i< this->total_rows(); i++) {
-            for (int_t j = 0; j< snode_size; j++) {
-              bassert(std::isfinite(nzblk_nzval[i*snode_size+j]));
-            }
-          }
-#endif 
 
           return 0;
         }
@@ -1708,12 +1679,6 @@ namespace symPACK{
 
 
           for ( int_t row = 0; row < snode_size; row++ ) {
-#ifndef NDEBUG
-            bassert(diag[row]!=T(0));
-            for (int_t col = 0; col<tgt_width; col++) {
-              bassert(std::isfinite(this->_nzval[row+col*snode_size]));
-            }
-#endif
             for (int_t col = 0; col<tgt_width; col++) {
               bufLDL[row*tgt_width+col] = diag[row]*this->_nzval[row+col*snode_size];
             }
@@ -1853,14 +1818,6 @@ namespace symPACK{
             bufLDL = pivot._bufLDL;
 
             //Then do -L*W (gemm)
-#ifndef NDEBUG
-            for (int_t row = 0; row<src_nrows; row++) {
-              for (int_t col = 0; col<src_snode_size; col++) {
-                bassert(std::isfinite(facing_nzval[col+row*src_snode_size]));
-              }
-            }
-#endif
-
             blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
                 T(-1.0),bufLDL,tgt_width,facing_nzval,src_snode_size,beta,buf,ldbuf);
 
@@ -1944,11 +1901,8 @@ namespace symPACK{
                     for (colptr_t colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx) {
                       rowind_t col = tmpBuffers.src_colindx[colidx];
                       rowind_t tgt_colidx = col - this->first_col;
-                      bassert(std::isfinite(tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx]));
-                      bassert(std::isfinite(buf[rowidx*tgt_width+colidx]));
                       tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
                         += buf[rowidx*tgt_width+colidx]; 
-                      bassert(std::isfinite(tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx]));
                     }
                   }
                 }
@@ -2187,16 +2141,16 @@ namespace symPACK{
 
       void DumpMatlab();
 
-      void Init(symPACKOptions & options );
+      virtual void Init(symPACKOptions & options );
       void Init(DistSparseMatrix<T> & pMat, symPACKOptions & options );
 
-      void SymbolicFactorization(DistSparseMatrix<T> & pMat);
-      void DistributeMatrix(DistSparseMatrix<T> & pMat);
+      virtual void SymbolicFactorization(DistSparseMatrix<T> & pMat);
+      virtual void DistributeMatrix(DistSparseMatrix<T> & pMat);
 
 
-      void Factorize();
-      void Solve( T * RHS, int nrhs,  T * Xptr = nullptr );
-      void GetSolution(T * B, int nrhs);
+      virtual void Factorize();
+      virtual void Solve( T * RHS, int nrhs,  T * Xptr = nullptr );
+      virtual void GetSolution(T * B, int nrhs);
 
 
 

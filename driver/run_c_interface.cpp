@@ -16,6 +16,8 @@
 #include  "sympack/Ordering.hpp"
 
 
+#include "utils.hpp"
+
 /******* TYPE used in the computations ********/
 #define SCALAR double
 //#define SCALAR std::complex<double>
@@ -30,189 +32,41 @@ using namespace symPACK;
 
 int main(int argc, char **argv) 
 {
-  if(0){
-    std::vector<SCALAR,AlignedAllocator<SCALAR> > tmp(5);
-    tmp[0]=1.0;
-    tmp[1]=2.0;
-    tmp[2]=3.0;
-    tmp[3]=4.0;
-    tmp[4]=5.0;
-
-    for(auto && val: tmp){
-      std::cout<<val<<" ";
-    }
-    std::cout<<std::endl;
-
-    tmp.resize(0);
-  }
-
-
+  int handle = -1;
   symPACK_Init(&argc,&argv);
+  {
+    int iam = 0;
+    int np = 1;
+    MPI_Comm worldcomm;
+    MPI_Comm_size(MPI_COMM_WORLD,&np);
+    assert(np==upcxx::rank_n());
+    symPACK_Rank(&iam);
+    MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &worldcomm);
 
-  symPACKOptions optionsFact;
+    MPI_Comm_size(worldcomm,&np);
+    symPACK_Rank(&iam);
 
-  int iam = 0;
-  int np = 1;
-  MPI_Comm worldcomm;
-  MPI_Comm_dup(MPI_COMM_WORLD,&worldcomm);
-  MPI_Comm_size(worldcomm,&np);
-  MPI_Comm_rank(worldcomm,&iam);
+    //Initialize a logfile per rank
+    logfileptr = new LogFile(iam);
+    logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
+    logfileptr->OFS()<<"**********************************"<<std::endl;
 
+    // *********************************************************************
+    // Input parameter
+    // *********************************************************************
+    symPACKOptions optionsFact;
+    std::string filename;
+    std::string informatstr;
+    bool complextype=false;
+    int nrhs = 0;
+    process_options(argc, argv, optionsFact, filename, informatstr, complextype, nrhs);
+    //-----------------------------------------------------------------
 
-#if defined(SPROFILE) || defined(PMPI)
-  SYMPACK_SPROFILE_INIT(argc, argv);
-#endif
-
-  //Initialize a logfile per rank
-  logfileptr = new LogFile(iam);
-  logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
-  logfileptr->OFS()<<"**********************************"<<std::endl;
-
-  // *********************************************************************
-  // Input parameter
-  // *********************************************************************
-  std::map<std::string,std::vector<std::string> > options;
-
-  OptionsCreate(argc, argv, options);
-
-  std::string filename;
-  if( options.find("-in") != options.end() ){
-    filename= options["-in"].front();
-  }
-  std::string informatstr;
-  if( options.find("-inf") != options.end() ){
-    informatstr= options["-inf"].front();
-  }
-
-  Int maxSnode = -1;
-  if( options.find("-b") != options.end() ){
-    maxSnode= atoi(options["-b"].front().c_str());
-  }
-
-  optionsFact.print_stats=false;
-  if (options.find("-ps") != options.end()){
-    optionsFact.print_stats = atoi(options["-ps"].front().c_str()) == 1;
-  }
-
-  bool complextype=false;
-  if (options.find("-z") != options.end()){
-    complextype = true;
-  }
-
-  if( options.find("-npord") != options.end() ){
-    optionsFact.NpOrdering= atoi(options["-npord"].front().c_str());
-  }
-
-  optionsFact.relax.SetMaxSize(maxSnode);
-  if( options.find("-relax") != options.end() ){
-    if(options["-relax"].size()==3){
-      optionsFact.relax.SetNrelax0(atoi(options["-relax"][0].c_str()));
-      optionsFact.relax.SetNrelax1(atoi(options["-relax"][1].c_str()));
-      optionsFact.relax.SetNrelax2(atoi(options["-relax"][2].c_str()));
-    }
-    else{
-      //disable relaxed supernodes
-      optionsFact.relax.SetNrelax0(0);
-    }
-  }
-
-
-
-  Int numThreads = 1;
-  if( options.find("-t") != options.end() ){
-    numThreads = atoi(options["-t"].front().c_str());
-  }
-
-
-  Int maxIsend = -1;
-  if( options.find("-is") != options.end() ){
-    if(options["-is"].front() != "inf"){
-      maxIsend= atoi(options["-is"].front().c_str());
-    }
-  }
-
-  Int maxIrecv = -1;
-  if( options.find("-ir") != options.end() ){
-    if(options["-ir"].front() != "inf"){
-      maxIrecv= atoi(options["-ir"].front().c_str());
-    }
-  }
-
-
-  Int nrhs = 1;
-  if( options.find("-nrhs") != options.end() ){
-    nrhs= atoi(options["-nrhs"].front().c_str());
-  }
-
-  if( options.find("-dumpPerm") != options.end() ){
-    optionsFact.dumpPerm = atoi(options["-dumpPerm"].front().c_str());
-  }
-
-  optionsFact.factorization = FANBOTH;
-  if( options.find("-alg") != options.end() ){
-    if(options["-alg"].front()=="FANBOTH"){
-      optionsFact.factorization = FANBOTH;
-    }
-    else if(options["-alg"].front()=="FANOUT"){
-      optionsFact.factorization = FANOUT;
-    }
-  }
-
-
-  if( options.find("-refine") != options.end() ){
-    optionsFact.order_refinement_str = options["-refine"].front();
-  }
-
-  if( options.find("-fact") != options.end() ){
-    if(options["-fact"].front()=="LL"){
-      optionsFact.decomposition = DecompositionType::LL;
-    }
-    else if(options["-fact"].front()=="LDL"){
-      optionsFact.decomposition = DecompositionType::LDL;
-    }
-  }
-
-  if( options.find("-lb") != options.end() ){
-    optionsFact.load_balance_str = options["-lb"].front();
-  }
-
-  optionsFact.orderingStr = "MMD" ;
-  if( options.find("-ordering") != options.end() ){
-    optionsFact.orderingStr = options["-ordering"].front();
-  }
-
-  if( options.find("-scheduler") != options.end() ){
-    if(options["-scheduler"].front()=="MCT"){
-      optionsFact.scheduler = MCT;
-    }
-    if(options["-scheduler"].front()=="FIFO"){
-      optionsFact.scheduler = FIFO;
-    }
-    else if(options["-scheduler"].front()=="PR"){
-      optionsFact.scheduler = PR;
-    }
-    else{
-      optionsFact.scheduler = DL;
-    }
-  }
-
-
-
-  Real timeSta, timeEnd;
-
-
-  if( options.find("-map") != options.end() ){
-    optionsFact.mappingTypeStr = options["-map"].front();
-  }
-  else{
-    optionsFact.mappingTypeStr = "ROW2D";
-  }
+    Real timeSta, timeEnd;
 
 
   Int all_np = np;
   np = optionsFact.used_procs(np);
-
-  //should be worldcomm at some point
   optionsFact.MPIcomm = worldcomm;
 
   DistSparseMatrix<SCALAR> HMat(worldcomm);
@@ -223,107 +77,19 @@ int main(int argc, char **argv)
     ReadMatrix<SCALAR,RSCALAR>(filename , informatstr,  HMat);
   }
 
-  //TODO send everything to the root processor
 
-  Int n = HMat.size;
-  std::vector<SCALAR> RHS,XTrue;
-  if(nrhs>0){
-    RHS.resize(n*nrhs);
-    XTrue.resize(n*nrhs);
-
-    //Initialize XTrue;
-    Int val = 1.0;
-    for(Int i = 0; i<n;++i){ 
-      for(Int j=0;j<nrhs;++j){
-        XTrue[i+j*n] = val;
-        val = -val;
-      }
-    }
-
-
-
-    if(iam==0){
-      std::cout<<"Starting spGEMM"<<std::endl;
-    }
-
-    timeSta = get_time();
-
-    {
-      const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
-      Int baseval = Local.GetBaseval();
-      Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
-      Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
-
-      RHS.assign(n*nrhs,0.0);
-      std::vector<Idx> rrowind;
-      std::vector<SCALAR> rnzval;
-      std::vector<SCALAR> ts(nrhs);
-      for(Idx j = 1; j<=n; ++j){
-        Int iOwner = 0; for(iOwner = 0; iOwner<np;iOwner++){ if(Local.vertexDist[iOwner]+(1-baseval)<=j && j<Local.vertexDist[iOwner+1]+(1-baseval)){ break; } }
-
-
-        Ptr nnz = 0;
-        Idx * rowind = nullptr;
-        SCALAR * nzval = nullptr;
-
-        //do I own the column ?
-
-        if(iam==iOwner){
-          Idx iLocal = j-firstCol;//0-based
-          Ptr colbeg = Local.colptr[iLocal]-(1-Local.GetBaseval());//1-based
-          Ptr colend = Local.colptr[iLocal+1]-(1-Local.GetBaseval());//1-based
-          nnz = colend-colbeg;
-          nzval = &HMat.nzvalLocal[colbeg-1];
-          rowind = const_cast<Idx*>(&Local.rowind[colbeg-1]);
-        }
-
-        if(iam==iOwner){
-          for(Int k = 0; k<nrhs; ++k){
-            ts[k] = XTrue[j-1+k*n];
-          }
-          //do a dense mat mat mul ?
-          for(Ptr ii = 1; ii<= nnz;++ii){
-            Idx row = rowind[ii-1]-(1-Local.GetBaseval());//1-based
-            for(Int k = 0; k<nrhs; ++k){
-              RHS[row-1+k*n] += ts[k]*nzval[ii-1];
-              if(row>j){
-                RHS[j-1+k*n] += XTrue[row-1+k*n]*nzval[ii-1];
-              }
-            }
-          }
-        }
-      }
-    }
-
-    mpi::Allreduce( (SCALAR*)MPI_IN_PLACE, &RHS[0],  n*nrhs, MPI_SUM, worldcomm);
-
-    timeEnd = get_time();
-    if(iam==0){
-      std::cout<<"spGEMM time: "<<timeEnd-timeSta<<std::endl;
-    }
-  }
-
-
-
-
+    Int n = HMat.size;
+    std::vector<SCALAR> RHS,XTrue;
+    generate_rhs(HMat,RHS,XTrue,nrhs);
 
   if(iam==0){
     std::cout<<"Starting allocation"<<std::endl;
   }
 
   std::vector<SCALAR> XFinal;
-  int handle = -1;
   {
-    //do the symbolic factorization and build supernodal matrix
-    optionsFact.maxIsend = maxIsend;
-    optionsFact.maxIrecv = maxIrecv;
-    optionsFact.numThreads = numThreads;
-
-    //Set up the threading environment
-    Multithreading::NumThread = numThreads;
-
-
-    auto & graph = HMat.GetLocalGraph();
+    //Gather enverything on P0
+    auto graph = HMat.GetLocalGraph();
     std::vector<int> colptr(graph.colptr.size());
     for(Idx col = 0; col< colptr.size(); col++){ colptr[col] = graph.colptr[col]; }
     std::vector<int> rowind(graph.rowind.size());
@@ -334,32 +100,53 @@ int main(int argc, char **argv)
     std::vector<int> sizes(np);
     std::vector<int> displs(np+1);
 
+    //auto vertexDistbak = graph.vertexDist;
 
     {
-      int cnt = (colptr.size()-1)*sizeof(int);
-      MPI_Gather(&cnt,sizeof(int),MPI_BYTE,sizes.data(),np*sizeof(int),MPI_BYTE,0,worldcomm);
+      int cnt = (colptr.size())*sizeof(int);
+      logfileptr->OFS()<<cnt<<std::endl;
+      logfileptr->OFS()<<colptr<<std::endl;
+
+      MPI_Gather(&cnt,sizeof(int),MPI_BYTE,sizes.data(),sizeof(int),MPI_BYTE,0,worldcomm);
+      logfileptr->OFS()<<sizes<<std::endl;
       displs[0] = 0;
       std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
-      std::vector<int> tcolptr(iam==0?displs.back()/sizeof(int)+1:0);
-      MPI_Gatherv(colptr.data(), colptr.size()*sizeof(int), MPI_BYTE,
+      std::vector<int> tcolptr(iam==0?displs.back()/sizeof(int):2);
+      if(!iam) std::cout<<tcolptr.size()<<" vs "<<displs<<std::endl;
+
+      MPI_Gatherv(colptr.data(), cnt, MPI_BYTE,
           tcolptr.data(), sizes.data(), displs.data(),MPI_BYTE,0,worldcomm);
+
+      logfileptr->OFS()<<"alive "<<sizes<<std::endl;
       if(iam==0){
         //make colptr great again
         for(int p = 1; p < np; p++){
-          int offset = displs[p]/sizeof(int)-1;
-          for(int i = 0; i < sizes[p]/sizeof(int); i++){
-            tcolptr[offset+i] += tcolptr[offset]; 
-          }
-        }
-        tcolptr.back() = HMat.nnz+graph.GetBaseval();
-      }
+          int offset = displs[p]/sizeof(int);
 
+          for(int i = 0; i < sizes[p]/sizeof(int); i++){ logfileptr->OFS()<<tcolptr[offset+i]<<" "; } logfileptr->OFS()<<std::endl;
+
+          int prev_entry_offset = displs[p]/sizeof(int)-p; 
+          int increment = tcolptr[prev_entry_offset] - graph.GetBaseval();
+          for(int i = 0; i < sizes[p]/sizeof(int); i++){
+            tcolptr[prev_entry_offset+i] = tcolptr[offset+i] + increment; 
+          }
+
+          for(int i = 0; i < sizes[p]/sizeof(int); i++){ logfileptr->OFS()<<tcolptr[prev_entry_offset+i]<<" "; } logfileptr->OFS()<<std::endl;
+        }
+        tcolptr.resize(HMat.size+1);
+        tcolptr.back() = HMat.nnz+graph.GetBaseval();
+        logfileptr->OFS()<<"here we go "<<tcolptr<<sizes<<std::endl;
+      }
+      else{
+        tcolptr[0] = graph.GetBaseval();
+        tcolptr[1] = tcolptr[0];
+      }
       colptr.swap(tcolptr);
     }
-
+    if ( !iam)std::cout<<"alive"<<std::endl;
     {
       int cnt = rowind.size()*sizeof(int);
-      MPI_Gather(&cnt,sizeof(int),MPI_BYTE,sizes.data(),np*sizeof(int),MPI_BYTE,0,worldcomm);
+      MPI_Gather(&cnt,sizeof(int),MPI_BYTE,sizes.data(),sizeof(int),MPI_BYTE,0,worldcomm);
       displs[0] = 0;
       std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
       std::vector<int> trowind(iam==0?displs.back()/sizeof(int):0);
@@ -367,10 +154,11 @@ int main(int argc, char **argv)
           trowind.data(), sizes.data(), displs.data(),MPI_BYTE,0,worldcomm);
       rowind.swap(trowind);
     }
+    if ( !iam)std::cout<<"alive"<<std::endl;
 
     {
       int cnt = nzval.size()*sizeof(SCALAR);
-      MPI_Gather(&cnt,sizeof(int),MPI_BYTE,sizes.data(),np*sizeof(int),MPI_BYTE,0,worldcomm);
+      MPI_Gather(&cnt,sizeof(int),MPI_BYTE,sizes.data(),sizeof(int),MPI_BYTE,0,worldcomm);
       displs[0] = 0;
       std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
       std::vector<SCALAR> tnzval(iam==0?displs.back()/sizeof(SCALAR):0);
@@ -378,7 +166,7 @@ int main(int argc, char **argv)
           tnzval.data(), sizes.data(), displs.data(),MPI_BYTE,0,worldcomm);
       nzval.swap(tnzval);
     }
-
+    if ( !iam)std::cout<<"alive"<<std::endl;
     for(int p = 1; p<=np;p++){ graph.vertexDist[p] = HMat.size+graph.GetBaseval(); }
 
 
@@ -424,57 +212,19 @@ int main(int argc, char **argv)
         std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
       }
 
-
-    }
-  }
-
-  if(nrhs>0 && XFinal.size()>0) {
-    const DistSparseMatrixGraph & Local = HMat.GetLocalGraph();
-    Idx firstCol = Local.LocalFirstVertex()+(1-Local.GetBaseval());//1-based
-    Idx lastCol = Local.LocalFirstVertex()+Local.LocalVertexCount()+(1-Local.GetBaseval());//1-based
-
-    std::vector<SCALAR> AX(n*nrhs,SCALAR(0.0));
-
-    for(Int k = 0; k<nrhs; ++k){
-      for(Int j = 1; j<=n; ++j){
-        //do I own the column ?
-        if(j>=firstCol && j<lastCol){
-          Int iLocal = j-firstCol;//0-based
-          Int tgtCol = j;
-          SCALAR t = XFinal[tgtCol-1+k*n];
-          Ptr colbeg = Local.colptr[iLocal]-(1-Local.GetBaseval());//1-based
-          Ptr colend = Local.colptr[iLocal+1]-(1-Local.GetBaseval());//1-based
-          //do a dense mat mat mul ?
-          for(Ptr ii = colbeg; ii< colend;++ii){
-            Int row = Local.rowind[ii-1]-(1-Local.GetBaseval());
-            Int tgtRow = row;
-            AX[tgtRow-1+k*n] += t*HMat.nzvalLocal[ii-1];
-            if(row>j){
-              AX[tgtCol-1+k*n] += XFinal[tgtRow-1+k*n]*HMat.nzvalLocal[ii-1];
-            }
-          }
-        }
-      }
-    }
-
-    //Do a reduce of RHS
-    mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,worldcomm);
-
-    if(iam==0){
-      blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
-      double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
-      double normRHS = lapack::Lange('F',n,nrhs,&RHS[0],n);
-      std::cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
+//    for(Idx col = 0; col< colptr.size(); col++){  graph.colptr[col]   =colptr[col] }
+//    for(Ptr ptr = 0; ptr< rowind.size(); ptr++){  graph.rowind[ptr]   =rowind[ptr] }
+      check_solution(HMat.size, graph.vertexDist.data(), colptr.data(), rowind.data(), nzval.data(), RHS,XFinal, worldcomm);
     }
   }
 
   MPI_Barrier(worldcomm);
   MPI_Comm_free(&worldcomm);
-
+  delete logfileptr;
+  }
 
 
   symPACK_FinalizeInstance(&handle);
-  delete logfileptr;
   return 0;
 }
 

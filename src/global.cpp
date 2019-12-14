@@ -84,17 +84,17 @@ extern "C"
 int symPACK_Init(int *argc, char ***argv){
   int retval = 1;
   // init UPC++
-  if ( libUPCXXInit ) symPACK::gdb_lock();
-  upcxx::init();
-  upcxx::liberate_master_persona();
-  symPACK::capture_master_scope();
-  libUPCXXInit = true;
+  if ( ! libUPCXXInit ) {
+    upcxx::init();
+    upcxx::liberate_master_persona();
+    symPACK::capture_master_scope();
+    libUPCXXInit = true;
+  }
   
   // init MPI, if necessary
   MPI_Initialized(&symPACK::mpi_already_init);
   if (!symPACK::mpi_already_init) MPI_Init(argc, argv);
-
-  MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &symPACK::world_comm);
+  if ( symPACK::world_comm == MPI_COMM_NULL ) MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &symPACK::world_comm);
   return retval;
 }
 
@@ -106,6 +106,7 @@ int symPACK_Finalize(){
   symPACK_Rank(&rank);
 
   MPI_Comm_free(&symPACK::world_comm);
+  symPACK::world_comm = MPI_COMM_NULL;
 
   if (!symPACK::mpi_already_init) MPI_Finalize();
 

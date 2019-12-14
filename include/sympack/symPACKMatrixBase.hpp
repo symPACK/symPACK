@@ -119,10 +119,21 @@ namespace symPACK{
       virtual ~symPACKMatrixBase(){
         sp_handle = last_id++;
       }
+      //core functionalities
+      virtual void Factorize() = 0;
+
+      virtual void Init(symPACKOptions & options ) = 0;
   };
 
   template <typename T> class symPACKMatrixMeta: public symPACKMatrixBase{
     public:
+      virtual void SymbolicFactorization(DistSparseMatrix<T> & pMat) = 0;
+      virtual void DistributeMatrix(DistSparseMatrix<T> & pMat) = 0;
+      //Solve routines
+      //note: RHS & B are stored in column major format
+      virtual void Solve(T * RHS, int nrhs,  T * Xptr=nullptr) = 0;
+      virtual void GetSolution(T * B, int nrhs) = 0;
+
       symPACKMatrixMeta():symPACKMatrixBase(),workteam_(nullptr){
 #ifndef NO_MPI
         fullcomm_ = MPI_COMM_NULL;

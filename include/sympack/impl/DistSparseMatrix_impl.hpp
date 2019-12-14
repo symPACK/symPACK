@@ -600,11 +600,12 @@ namespace symPACK{
 
     assert(n>0);
     //find baseval in first column
-    auto begin = colptr[0];
-    auto end = colptr[1];
-    int baseval = begin;
+    int baseval = 0;
     int keepdiag = 1;
     if(mpirank==0){
+      auto begin = colptr[0];
+      auto end = colptr[1];
+      baseval = begin;
       keepdiag = 0;
       for(Idx ptr = begin; ptr < end; ptr++){
         int row = rowind[ptr-baseval];
@@ -636,12 +637,11 @@ namespace symPACK{
     Idx nlocal = graph.LocalVertexCount();
 
     //initialize local arrays
-    graph.SetSorted(0);
     graph.colptr.resize(nlocal+1);
+    graph.SetSorted(0);
 
     //now copy
-    if(mpirank==0){
-      
+    if (mpirank==0) {
       for(Idx ptr = 0; ptr <= HMat.size; ptr++){
         graph.colptr[ptr] = Ptr(colptr[ptr]); 
       }
@@ -651,6 +651,9 @@ namespace symPACK{
     MPI_Bcast(&HMat.nnz,sizeof(HMat.nnz),MPI_BYTE,0,HMat.comm);
 
     graph.nnz = HMat.nnz;
+    if (mpirank!=0) {
+      graph.colptr.front() = HMat.nnz + baseval;
+    }
     graph.colptr.back() = HMat.nnz + baseval;
 
     Ptr nnzlocal = 0;

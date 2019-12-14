@@ -139,8 +139,6 @@ int main(int argc, char **argv)
 
     MPI_Barrier(worldcomm);
     MPI_Comm_free(&worldcomm);
-
-
     delete logfileptr;
   }
   //This will also finalize MPI

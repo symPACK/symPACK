@@ -496,11 +496,11 @@ namespace symPACK{
       symPACKMatrix & operator=( symPACKMatrix & M){return M;};
 
 
-      void Init(symPACKOptions & options );
+      virtual void Init(symPACKOptions & options );
       void Init(DistSparseMatrix<T> & pMat, symPACKOptions & options );
 
-      void SymbolicFactorization(DistSparseMatrix<T> & pMat);
-      void DistributeMatrix(DistSparseMatrix<T> & pMat);
+      virtual void SymbolicFactorization(DistSparseMatrix<T> & pMat);
+      virtual void DistributeMatrix(DistSparseMatrix<T> & pMat);
 
       //Accessors
       Int LocalSupernodeCnt(){ return LocalSupernodes_.size(); } 
@@ -511,12 +511,11 @@ namespace symPACK{
 
 
       //core functionalities
-      void Factorize();
-
+      virtual void Factorize();
       //Solve routines
       //note: RHS & B are stored in column major format
-      void Solve(T * RHS, int nrhs,  T * Xptr=nullptr);
-      void GetSolution(T * B, int nrhs);
+      virtual void Solve(T * RHS, int nrhs,  T * Xptr=nullptr);
+      virtual void GetSolution(T * B, int nrhs);
 
       void FanBoth( );
 

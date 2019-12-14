@@ -141,6 +141,56 @@ void check_solution( symPACK::DistSparseMatrix<SCALAR> & HMat, std::vector<SCALA
   }
 };
 
+template<typename vdist_int, typename ptr_t, typename ind_t, typename SCALAR>
+void check_solution( int n, vdist_int * vertexDist, ptr_t * colptr, ind_t * rowind, SCALAR * nzvalLocal, std::vector<SCALAR> & RHS, std::vector<SCALAR> & XFinal, MPI_Comm & worldcomm ) {
+  using namespace symPACK;
+  if(XFinal.size()>0) {
+    int iam = 0;
+    MPI_Comm_rank(worldcomm,&iam);
+    int nrhs = XFinal.size()/n;
+    int nLocal = int(vertexDist[iam+1]-vertexDist[iam]);
+    int baseval = nLocal>0?colptr[0]:0;
+
+    Idx firstCol = 1;//1-based
+    Idx lastCol = baseval+(nLocal==0?0:nLocal-1)+(1-baseval);//1-based
+
+    std::vector<SCALAR> AX(n*nrhs,SCALAR(0.0));
+
+    for(Int k = 0; k<nrhs; ++k){
+      for(Int j = 1; j<=n; ++j){
+        //do I own the column ?
+        if(j>=firstCol && j<lastCol){
+          Int iLocal = j-firstCol;//0-based
+          Int tgtCol = j;
+          SCALAR t = XFinal[tgtCol-1+k*n];
+          Ptr colbeg = colptr[iLocal]-(1-baseval);//1-based
+          Ptr colend = colptr[iLocal+1]-(1-baseval);//1-based
+          //do a dense mat mat mul ?
+          for(Ptr ii = colbeg; ii< colend;++ii){
+            Int row = rowind[ii-1]-(1-baseval);
+            Int tgtRow = row;
+            AX[tgtRow-1+k*n] += t*nzvalLocal[ii-1];
+            if(row>j){
+              AX[tgtCol-1+k*n] += XFinal[tgtRow-1+k*n]*nzvalLocal[ii-1];
+            }
+          }
+        }
+      }
+    }
+
+    //Do a reduce of RHS
+    mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,worldcomm);
+
+    if(iam==0){
+      blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
+      double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
+      double normRHS = lapack::Lange('F',n,nrhs,&RHS[0],n);
+      std::cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
+    }
+  }
+};
+
+
 
 inline void process_options(int argc, char **argv, symPACK::symPACKOptions & optionsFact,std::string & filename, std::string & informatstr, bool & complextype, int & nrhs){
   using namespace symPACK;

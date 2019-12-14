@@ -78,15 +78,15 @@ extern bool libUPCXXInit;
 
   //returns an integer corresponding to a symPACK handle
 
-  int symPACK_C_InitInstanceFloat(MPI_Comm ccomm);
-  int symPACK_C_InitInstanceDouble(MPI_Comm ccomm);
-  int symPACK_C_InitInstanceComplex(MPI_Comm ccomm);
-  int symPACK_C_InitInstanceDoubleComplex(MPI_Comm ccomm);
+  int symPACK_C_InitInstanceFloat(MPI_Comm ccomm, bool is2D = false);
+  int symPACK_C_InitInstanceDouble(MPI_Comm ccomm, bool is2D = false);
+  int symPACK_C_InitInstanceComplex(MPI_Comm ccomm, bool is2D = false);
+  int symPACK_C_InitInstanceDoubleComplex(MPI_Comm ccomm, bool is2D = false);
   
-  int symPACK_InitInstanceFloat(MPI_Fint * Fcomm);
-  int symPACK_InitInstanceDouble(MPI_Fint * Fcomm);
-  int symPACK_InitInstanceComplex(MPI_Fint * Fcomm);
-  int symPACK_InitInstanceDoubleComplex(MPI_Fint * Fcomm);
+  int symPACK_InitInstanceFloat(MPI_Fint * Fcomm, int is2D = 0);
+  int symPACK_InitInstanceDouble(MPI_Fint * Fcomm, int is2D = 0);
+  int symPACK_InitInstanceComplex(MPI_Fint * Fcomm, int is2D = 0);
+  int symPACK_InitInstanceDoubleComplex(MPI_Fint * Fcomm, int is2D = 0);
   
   void symPACK_SymbolicFactorize(int * sp_handle, int * n, int * colptr , int * rowind);
   

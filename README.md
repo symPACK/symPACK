@@ -8,8 +8,6 @@ First, download **symPACK** as follows:
 
 
 ```
-#!
-
 git clone git@github.com:symPACK/symPACK.git  /path/to/sympack
 
 ```
@@ -24,8 +22,6 @@ It can be downloaded at [upcxx.lbl.gov](upcxx.lbl.gov).
 UPC++ contains a CMake config file which **symPACK** is using to link to the library. The install path
 needs to be provided to CMake as follows:
 ```
-#!
-
 -DCMAKE_PREFIX_PATH=/path/to/upcxx-2019.9.0
 ``` 
 
@@ -43,8 +39,6 @@ Several environment variables can be optionally set before configuring the build
 Then, create a build directory, enter that directory and type:
 
 ```
-#!
-
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/install/sympack -DCMAKE_PREFIX_PATH=/path/to/upcxx/install
  ...OPTIONS... /path/to/sympack
 
@@ -64,8 +58,6 @@ The `...OPTIONS...` can be one of the following:
 
 Some platforms have preconfigured toolchain files which can be used by adding the following option to the `cmake` command:
 ```
-#!
-
 -DCMAKE_TOOLCHAIN_FILE=/path/to/sympack/toolchains/cori.cmake     
 (To build on NERSC Cori for instance)
 
@@ -78,8 +70,6 @@ A sample toolchain file can be found in `/path/to/sympack/toolchains/build_confi
 
 The `cmake` command will configure the build process, which can now start by typing:
 ```
-#!
-
 make
 make install
 ```
@@ -114,8 +104,6 @@ Additionally, standalone drivers for **symPACK** can be built by typing `make ex
 **SymPACK** uses both **UPC++** and **MPI**, therefore, some preliminary environment variables may need to be defined on most platforms.
 More details can be found in the **UPC++** [documentation](https://bitbucket.org/berkeleylab/upcxx/wiki/docs/mpi-hybrid):
 ```
-#!
-
 export UPCXX_NETWORK=udp #good option on most workstations, but NOT on high performance networks 
 export GASNET_SPAWNFN='C'
 export GASNET_CSPAWN_CMD='mpirun -np %N %C'
@@ -124,16 +112,15 @@ export GASNET_CSPAWN_CMD='mpirun -np %N %C'
 To run the standalone **symPACK** driver, for instance on a sample problem from the [Suite Sparse matrix collection](https://sparse.tamu.edu),
 the procedure below can be followed:
 ```
-#!
-
-#first download the input matrix (we are using audikw_1 here)
-wget https://sparse.tamu.edu/RB/GHS_psdef/audikw_1.tar.gz
+#first download the input matrix (we are using nasa2146 here)
+wget https://sparse.tamu.edu/RB/Nasa/nasa2146.tar.gz
 #extract the matrix
-tar xzf audikw_1.tar.gz
+tar xzf nasa2146.tar.gz
 
 #run sympack
-upcxx-run -n 4 -shared-heap 3GB -- ./run_sympack -in audikw_1/audikw_1.rb -ordering METIS -nrhs 1
+upcxx-run -n 4 -shared-heap 3GB -- ./run_sympack -in nasa2146/nasa2146.rb -ordering MMD -nrhs 1
 ```
-
+For larger problems, it is strongly advised to use more efficient orderings (such as **METIS**).
 Note that to run **symPACK**, `upcxx-run` is used in the example above, but on some platforms, such as NERSC Cori,
 other launchers may be used to both spawn **MPI** and **UPC++**, such as `srun` if the system is using SLURM.
+Moreover, for larger problems, the `-shared-heap XX` argument to `upcxx-run` may be needed (Please refer to **UPC++** documentation).
