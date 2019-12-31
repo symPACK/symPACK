@@ -181,6 +181,10 @@ void check_solution( int n, vdist_int * vertexDist, ptr_t * colptr, ind_t * rowi
     //Do a reduce of RHS
     mpi::Allreduce((SCALAR*)MPI_IN_PLACE,&AX[0],AX.size(),MPI_SUM,worldcomm);
 
+    logfileptr->OFS()<<"XFinal "<<XFinal<<std::endl;
+    logfileptr->OFS()<<"AX "<<AX<<std::endl;
+    logfileptr->OFS()<<"RHS "<<RHS<<std::endl;
+
     if(iam==0){
       blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
       double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
@@ -277,6 +281,16 @@ inline void process_options(int argc, char **argv, symPACK::symPACKOptions & opt
   if( options.find("-t") != options.end() ){
     numThreads = atoi(options["-t"].front().c_str());
   }
+
+  if( options.find("-dist") != options.end() ){
+    if(options["-dist"].front() != "2D"){
+      optionsFact.distribution = SYMPACK_DATA_1D;
+    }
+    else {
+      optionsFact.distribution = SYMPACK_DATA_2D;
+    }
+  }
+
 
   Int maxIsend = -1;
   if( options.find("-is") != options.end() ){

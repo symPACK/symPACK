@@ -97,6 +97,7 @@ namespace symPACK{
   enum LoadBalanceType {NOLB,NNZ,NCOLS,WORK,SUBCUBE,SUBCUBE_NNZ};
   enum OrderingType {NATURAL,RCM,MMD,AMD,NDBOX,NDGRID,SCOTCH,PTSCOTCH,METIS,PARMETIS,USER};
   enum SchedulerType {DL,MCT,PR,FIFO};
+  enum DataDistribution {SYMPACK_DATA_1D,SYMPACK_DATA_2D};
   //enum OrderRefinementType {BarryDL,MCT,PR,FIFO};
   class symPACKOptions{
     public:
@@ -119,6 +120,7 @@ namespace symPACK{
       Int maxIrecv;
       CommEnvironment * commEnv;
       RelaxationParameters relax;
+      DataDistribution distribution;
       MPI_Comm MPIcomm;
       int verbose;
       int dumpPerm;
@@ -157,6 +159,7 @@ namespace symPACK{
         scheduler = DL;
         maxIsend = 0;
         maxIrecv=0;
+        distribution = SYMPACK_DATA_1D;
         relax = RelaxationParameters(150);
         relax.SetMaxSize(150);
 

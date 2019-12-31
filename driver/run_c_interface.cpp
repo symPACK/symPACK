@@ -32,7 +32,10 @@ int main(int argc, char **argv)
     int np = 1;
     MPI_Comm worldcomm;
     MPI_Comm_size(MPI_COMM_WORLD,&np);
-    assert(np==upcxx::rank_n());
+    
+    //std::cout<<np<<" "<<upcxx::rank_n()<<std::endl;
+    //assert(np==upcxx::rank_n());
+
     symPACK_Rank(&iam);
     MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &worldcomm);
 
@@ -47,12 +50,14 @@ int main(int argc, char **argv)
     // *********************************************************************
     // Input parameter
     // *********************************************************************
+    //this is a dummy object
     symPACKOptions optionsFact;
     std::string filename;
     std::string informatstr;
     bool complextype=false;
     int nrhs = 0;
     process_options(argc, argv, optionsFact, filename, informatstr, complextype, nrhs);
+    bool is2D = optionsFact.distribution == SYMPACK_DATA_2D;
     //-----------------------------------------------------------------
 
     Real timeSta, timeEnd;
@@ -97,26 +102,20 @@ int main(int argc, char **argv)
 
     {
       int cnt = (colptr.size())*sizeof(int);
-      logfileptr->OFS()<<cnt<<std::endl;
-      logfileptr->OFS()<<colptr<<std::endl;
-
       MPI_Gather(&cnt,sizeof(int),MPI_BYTE,sizes.data(),sizeof(int),MPI_BYTE,0,worldcomm);
-      logfileptr->OFS()<<sizes<<std::endl;
       displs[0] = 0;
       std::partial_sum(sizes.begin(),sizes.end(),displs.begin()+1);
       std::vector<int> tcolptr(iam==0?displs.back()/sizeof(int):2);
-      if(!iam) std::cout<<tcolptr.size()<<" vs "<<displs<<std::endl;
 
       MPI_Gatherv(colptr.data(), cnt, MPI_BYTE,
           tcolptr.data(), sizes.data(), displs.data(),MPI_BYTE,0,worldcomm);
 
-      logfileptr->OFS()<<"alive "<<sizes<<std::endl;
       if(iam==0){
         //make colptr great again
         for(int p = 1; p < np; p++){
           int offset = displs[p]/sizeof(int);
 
-          for(int i = 0; i < sizes[p]/sizeof(int); i++){ logfileptr->OFS()<<tcolptr[offset+i]<<" "; } logfileptr->OFS()<<std::endl;
+          //for(int i = 0; i < sizes[p]/sizeof(int); i++){ logfileptr->OFS()<<tcolptr[offset+i]<<" "; } logfileptr->OFS()<<std::endl;
 
           int prev_entry_offset = displs[p]/sizeof(int)-p; 
           int increment = tcolptr[prev_entry_offset] - graph.GetBaseval();
@@ -124,11 +123,10 @@ int main(int argc, char **argv)
             tcolptr[prev_entry_offset+i] = tcolptr[offset+i] + increment; 
           }
 
-          for(int i = 0; i < sizes[p]/sizeof(int); i++){ logfileptr->OFS()<<tcolptr[prev_entry_offset+i]<<" "; } logfileptr->OFS()<<std::endl;
+          //for(int i = 0; i < sizes[p]/sizeof(int); i++){ logfileptr->OFS()<<tcolptr[prev_entry_offset+i]<<" "; } logfileptr->OFS()<<std::endl;
         }
         tcolptr.resize(HMat.size+1);
         tcolptr.back() = HMat.nnz+graph.GetBaseval();
-        logfileptr->OFS()<<"here we go "<<tcolptr<<sizes<<std::endl;
       }
       else{
         tcolptr[0] = graph.GetBaseval();
@@ -136,7 +134,6 @@ int main(int argc, char **argv)
       }
       colptr.swap(tcolptr);
     }
-    if ( !iam)std::cout<<"alive"<<std::endl;
     {
       int cnt = rowind.size()*sizeof(int);
       MPI_Gather(&cnt,sizeof(int),MPI_BYTE,sizes.data(),sizeof(int),MPI_BYTE,0,worldcomm);
@@ -147,7 +144,6 @@ int main(int argc, char **argv)
           trowind.data(), sizes.data(), displs.data(),MPI_BYTE,0,worldcomm);
       rowind.swap(trowind);
     }
-    if ( !iam)std::cout<<"alive"<<std::endl;
 
     {
       int cnt = nzval.size()*sizeof(SCALAR);
@@ -159,13 +155,12 @@ int main(int argc, char **argv)
           tnzval.data(), sizes.data(), displs.data(),MPI_BYTE,0,worldcomm);
       nzval.swap(tnzval);
     }
-    if ( !iam)std::cout<<"alive"<<std::endl;
     for(int p = 1; p<=np;p++){ graph.vertexDist[p] = HMat.size+graph.GetBaseval(); }
 
 
     timeSta = get_time();
 
-    handle = symPACK_C_InitInstanceDouble(worldcomm);
+    handle = symPACK_C_InitInstanceDouble(worldcomm/*,is2D*/);
     symPACK_SymbolicFactorize(&handle, &HMat.size, colptr.data() , rowind.data() );
     symPACK_DistributeDouble(&handle, nzval.data() );
     timeEnd = get_time();
@@ -199,15 +194,14 @@ int main(int argc, char **argv)
 
       timeSta = get_time();
       symPACK_NumericalSolveDouble(&handle, &nrhs, XFinal.data());
+
       timeEnd = get_time();
 
       if(iam==0){
         std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
       }
 
-//    for(Idx col = 0; col< colptr.size(); col++){  graph.colptr[col]   =colptr[col] }
-//    for(Ptr ptr = 0; ptr< rowind.size(); ptr++){  graph.rowind[ptr]   =rowind[ptr] }
-      check_solution(HMat.size, graph.vertexDist.data(), colptr.data(), rowind.data(), nzval.data(), RHS,XFinal, worldcomm);
+      check_solution( HMat, RHS, XFinal );
     }
   }
 
