@@ -1,10 +1,3 @@
-/// @file run_sparse_fanboth.cpp
-/// @brief Test for the interface of SuperLU_DIST and SelInv.
-/// @author Mathias Jacquelin
-/// @date 2014-01-23
-//#define _DEBUG_
-
-
 #include <mpi.h>
 
 #include  "sympack.hpp"

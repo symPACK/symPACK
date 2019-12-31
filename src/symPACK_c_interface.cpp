@@ -1,6 +1,6 @@
 #include  "sympack.hpp"
 
-    using namespace symPACK;
+using namespace symPACK;
 
 
 namespace symPACK{

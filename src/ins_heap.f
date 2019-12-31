@@ -1,23 +1,3 @@
-********************************************************************************
-***  void ins_heap  (int *heap, int  *heap_size, int *vtx_to_heap, int vtx, int val )
-***  {
-***  		extern void move_up (int *, int , int ,   int *);
-***  
-***  		int i,j;
-***  		(*heap_size)++;
-***  		i = *heap_size;
-***  		vtx_to_heap[vtx] = i;
-***  		j= i <<1 ;
-***  		heap [j] = vtx;
-***  		heap [j-1] = val;
-***  		if (i ==1) return;
-***  		move_up (heap, *heap_size, 
-***  				i,  vtx_to_heap);
-***  
-***  }
-********************************************************************************
-*
-
       subroutine  ins_heap
      &      ( heap, heap_size, vtx_to_heap, vtx, val )
 *

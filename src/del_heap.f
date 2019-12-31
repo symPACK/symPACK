@@ -1,29 +1,3 @@
-********************************************************************************
-***  void del_heap  (int *heap, int  *heap_size, int *vtx_to_heap, int vtx )
-***  {
-***  		extern void mod_heap    (int *, int *, int *, int  , int);
-***  		int i, j, k, val;
-***  		if ((*heap_size) ==0) return ;
-***  		i = vtx_to_heap[vtx];
-***  		if( i < (*heap_size)) {
-***  				vtx_to_heap[vtx] = 0;
-***  				j = *heap_size << 1;
-***  				k = i <<1;
-***  				heap[k] = vtx = heap[j];
-***  				val = heap[j-1];
-***  				vtx_to_heap[vtx] = i;
-***  				(*heap_size) --; 
-***  				mod_heap  (heap,  heap_size, vtx_to_heap, vtx, val );
-***  		} else {
-***  				vtx_to_heap[vtx] = 0;
-***  				(*heap_size) --;
-***  			};
-***  		
-***  		
-***  }
-********************************************************************************
-*
-
       subroutine  del_heap
      &      ( heap, heap_size, vtx_to_heap, vtx )
 *

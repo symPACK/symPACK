@@ -136,7 +136,7 @@ void check_solution( symPACK::DistSparseMatrix<SCALAR> & HMat, std::vector<SCALA
       blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
       double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
       double normRHS = lapack::Lange('F',n,nrhs,&RHS[0],n);
-      std::cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
+      std::cout<<"Norm of residual after factorization/solve is "<<normAX/normRHS<<std::endl;
     }
   }
 };
@@ -185,7 +185,7 @@ void check_solution( int n, vdist_int * vertexDist, ptr_t * colptr, ind_t * rowi
       blas::Axpy(AX.size(),-1.0,&RHS[0],1,&AX[0],1);
       double normAX = lapack::Lange('F',n,nrhs,&AX[0],n);
       double normRHS = lapack::Lange('F',n,nrhs,&RHS[0],n);
-      std::cout<<"Norm of residual after SPCHOL is "<<normAX/normRHS<<std::endl;
+      std::cout<<"Norm of residual after facotrization/solve is "<<normAX/normRHS<<std::endl;
     }
   }
 };
