@@ -447,7 +447,7 @@ namespace symPACK{
 
 
       //debug routines
-      void DumpMatlab();
+      virtual void DumpMatlab();
       void Dump();
       void DumpContrib();
 

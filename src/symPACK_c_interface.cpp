@@ -281,6 +281,7 @@ extern "C"
   void symPACK_NumericalSolveDouble(int * sp_handle, int * nrhs, double * rhs){
     auto & handle = symPACK_handles[*sp_handle];
     auto pSMat = dynamic_cast<symPACKMatrixMeta<double> * >( handle.factorMat.get() );
+pSMat->DumpMatlab();
     pSMat->Solve(rhs,*nrhs);
     pSMat->GetSolution(rhs,*nrhs);
   }

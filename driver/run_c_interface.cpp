@@ -201,7 +201,9 @@ int main(int argc, char **argv)
         std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
       }
 
+      logfileptr->OFS()<<XFinal<<std::endl;
       check_solution( HMat, RHS, XFinal );
+      //check_solution( HMat.size, graph.vertexDist.data(),colptr.data(),rowind.data(), nzval.data(), RHS , XFinal, worldcomm );
     }
   }
 

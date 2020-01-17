@@ -60,6 +60,8 @@ namespace symPACK{
       virtual void Solve(T * RHS, int nrhs,  T * Xptr=nullptr) = 0;
       virtual void GetSolution(T * B, int nrhs) = 0;
 
+      virtual void DumpMatlab() {};
+
       symPACKMatrixMeta():symPACKMatrixBase(),workteam_(nullptr){
 #ifndef NO_MPI
         fullcomm_ = MPI_COMM_NULL;

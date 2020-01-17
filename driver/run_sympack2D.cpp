@@ -113,6 +113,9 @@ int main(int argc, char **argv)
 
       SMat2D->GetSolution(&XFinal[0],nrhs);
 
+      SMat2D->DumpMatlab();
+      logfileptr->OFS()<<XFinal<<std::endl;
+
       check_solution(HMat,RHS,XFinal);
     }
 

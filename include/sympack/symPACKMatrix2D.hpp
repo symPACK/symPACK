@@ -2065,7 +2065,7 @@ namespace symPACK{
       ~symPACKMatrix2D();
 
 
-      void DumpMatlab();
+      virtual void DumpMatlab();
 
       virtual void Init(symPACKOptions & options );
       void Init(DistSparseMatrix<T> & pMat, symPACKOptions & options );
