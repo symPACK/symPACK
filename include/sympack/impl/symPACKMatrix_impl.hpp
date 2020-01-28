@@ -800,6 +800,9 @@ namespace symPACK{
 #endif
 
 
+    if(this->workcomm_!=MPI_COMM_NULL){
+      MPI_Comm_free(&this->workcomm_);
+    }
 
 
     this->all_np = 0;
@@ -813,6 +816,7 @@ namespace symPACK{
 
 
     MPI_Comm_split(this->options_.MPIcomm,this->iam<this->np,this->iam,&this->workcomm_);
+    if (this->workteam_!=nullptr)  { this->workteam_->destroy();}
     this->workteam_.reset(new upcxx::team(upcxx::world().split(this->iam<this->np,this->iam)));
     CommEnv_ = new CommEnvironment(this->workcomm_);
 
@@ -831,28 +835,21 @@ namespace symPACK{
         gMaxIrecv = this->options_.maxIrecv + this->options_.maxIsend;
       }
 
+      
       switch(this->options_.scheduler){
         case DL:
-          scheduler_ = new DLScheduler<std::list<FBTask>::iterator>();
-          scheduler2_ = new DLScheduler<FBTask>();
           scheduler_new_ = std::make_shared<DLScheduler< std::shared_ptr<GenericTask> > >( );
           break;
         case MCT:
-          scheduler_ = new MCTScheduler<std::list<FBTask>::iterator>();
-          scheduler2_ = new MCTScheduler<FBTask>();
+          //scheduler2_ = new MCTScheduler<FBTask>();
           break;
         case PR:
-          scheduler_ = new PRScheduler<std::list<FBTask>::iterator>();
-          scheduler2_ = new PRScheduler<FBTask>();
+          //scheduler2_ = new PRScheduler<FBTask>();
           break;
         case FIFO:
-          scheduler_ = new FIFOScheduler<std::list<FBTask>::iterator>();
-          scheduler2_ = new FIFOScheduler<FBTask>();
           scheduler_new_ = std::make_shared<FIFOScheduler< std::shared_ptr<GenericTask> > >( );
           break;
         default:
-          scheduler_ = new DLScheduler<std::list<FBTask>::iterator>();
-          scheduler2_ = new DLScheduler<FBTask>();
           scheduler_new_ = std::make_shared<DLScheduler< std::shared_ptr<GenericTask> > >( );
           break;
       }
@@ -2106,8 +2103,6 @@ namespace symPACK{
     CommEnv_=nullptr;
     Mapping_ = nullptr;
     Balancer_ = nullptr;
-    scheduler_ = nullptr;
-    scheduler2_ = nullptr;
 
     if(logfileptr==nullptr){
       logfileptr = new LogFile(upcxx::rank_me(),false);
@@ -2135,14 +2130,6 @@ namespace symPACK{
     }
 
 
-    if(this->scheduler_!=nullptr){
-      delete this->scheduler_;
-    }
-
-    if(this->scheduler2_!=nullptr){
-      delete this->scheduler2_;
-    }
-
     if(this->Mapping_!=nullptr){
       delete this->Mapping_;
     }
@@ -2155,7 +2142,13 @@ namespace symPACK{
       delete CommEnv_;
     }
 
+    if(this->fullcomm_!=MPI_COMM_NULL){
+      MPI_Comm_free(&this->fullcomm_);
+    }
 
+    if(this->workcomm_!=MPI_COMM_NULL){
+      MPI_Comm_free(&this->workcomm_);
+    }
 
 
   }

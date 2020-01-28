@@ -107,6 +107,8 @@ void check_solution( symPACK::DistSparseMatrix<SCALAR> & HMat, std::vector<SCALA
 
     std::vector<SCALAR> AX(n*nrhs,SCALAR(0.0));
 
+    logfileptr->OFS()<<"XFinal: "<<XFinal<<std::endl;
+
     for(Int k = 0; k<nrhs; ++k){
       for(Int j = 1; j<=n; ++j){
         //do I own the column ?

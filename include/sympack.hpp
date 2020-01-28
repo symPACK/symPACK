@@ -45,7 +45,8 @@ extern bool libUPCXXInit;
   int symPACK_InitInstanceDouble(MPI_Fint * Fcomm, int is2D = 0);
   int symPACK_InitInstanceComplex(MPI_Fint * Fcomm, int is2D = 0);
   int symPACK_InitInstanceDoubleComplex(MPI_Fint * Fcomm, int is2D = 0);
-  
+  void symPACK_C_SetOptions(int * sp_handle, MPI_Comm ccomm, int*maxSize, int * verbose, int * NpOrdering, int * numThreads, const char * orderingStr, const char * decompTypeStr, const char * mappingTypeStr, const char * load_balance_str, const char * order_refinement_str );
+  void symPACK_SetOptions( int * sp_handle, MPI_Fint * Fcomm, int *maxSize, int * verbose, int * NpOrdering, int * numThreads, const char * orderingStr, const char * decompTypeStr, const char * mappingTypeStr, const char * load_balance_str, const char * order_refinement_str); 
   void symPACK_SymbolicFactorize(int * sp_handle, int * n, int * colptr , int * rowind);
   
   void symPACK_DistributeFloat(int * sp_handle, float * nzvals);

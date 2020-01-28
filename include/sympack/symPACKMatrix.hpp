@@ -422,11 +422,11 @@ namespace symPACK{
       symPACKMatrix & operator=( symPACKMatrix & M){return M;};
 
 
-      virtual void Init(symPACKOptions & options );
+      virtual void Init(symPACKOptions & options ) override;
       void Init(DistSparseMatrix<T> & pMat, symPACKOptions & options );
 
-      virtual void SymbolicFactorization(DistSparseMatrix<T> & pMat);
-      virtual void DistributeMatrix(DistSparseMatrix<T> & pMat);
+      virtual void SymbolicFactorization(DistSparseMatrix<T> & pMat) override;
+      virtual void DistributeMatrix(DistSparseMatrix<T> & pMat) override;
 
       //Accessors
       Int LocalSupernodeCnt(){ return LocalSupernodes_.size(); } 
@@ -437,17 +437,17 @@ namespace symPACK{
 
 
       //core functionalities
-      virtual void Factorize();
+      virtual void Factorize() override;
       //Solve routines
       //note: RHS & B are stored in column major format
-      virtual void Solve(T * RHS, int nrhs,  T * Xptr=nullptr);
-      virtual void GetSolution(T * B, int nrhs);
+      virtual void Solve(T * RHS, int nrhs,  T * Xptr=nullptr) override;
+      virtual void GetSolution(T * B, int nrhs) override;
 
       void FanBoth( );
 
 
       //debug routines
-      virtual void DumpMatlab();
+      virtual void DumpMatlab() override;
       void Dump();
       void DumpContrib();
 

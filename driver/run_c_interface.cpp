@@ -33,8 +33,8 @@ int main(int argc, char **argv)
     MPI_Comm worldcomm;
     MPI_Comm_size(MPI_COMM_WORLD,&np);
     
-    //std::cout<<np<<" "<<upcxx::rank_n()<<std::endl;
-    //assert(np==upcxx::rank_n());
+    std::cout<<np<<" "<<upcxx::rank_n()<<std::endl;
+    assert(np==upcxx::rank_n());
 
     symPACK_Rank(&iam);
     MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &worldcomm);
@@ -160,7 +160,9 @@ int main(int argc, char **argv)
 
     timeSta = get_time();
 
-    handle = symPACK_C_InitInstanceDouble(worldcomm/*,is2D*/);
+    handle = symPACK_C_InitInstanceDouble(worldcomm,is2D);
+    symPACK_C_SetOptions(&handle,
+worldcomm, &optionsFact.relax.maxSize, &optionsFact.verbose, &optionsFact.NpOrdering, &optionsFact.numThreads, optionsFact.orderingStr.c_str(), "LDL", optionsFact.mappingTypeStr.c_str(), optionsFact.load_balance_str.c_str(), optionsFact.order_refinement_str.c_str());
     symPACK_SymbolicFactorize(&handle, &HMat.size, colptr.data() , rowind.data() );
     symPACK_DistributeDouble(&handle, nzval.data() );
     timeEnd = get_time();

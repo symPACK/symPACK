@@ -475,7 +475,7 @@ namespace symPACK{
             rowind_t first_row;
         };
 
-        virtual int I() {return i;}
+        //virtual int I() {return i;}
 
 #ifdef SP_THREADS
         std::atomic<bool> in_use;
@@ -1525,7 +1525,7 @@ namespace symPACK{
           }
         }  
 
-        virtual void copy_row_structure( int_t width, blockCell_t<colptr_t,rowind_t, T> * other ) { 
+        virtual void copy_row_structure( int_t width, blockCell_t<colptr_t,rowind_t, T> * other ) override { 
           this->i = other->i;
           this->j = other->j;
 
@@ -1544,7 +1544,7 @@ namespace symPACK{
 
 
 
-        virtual int factorize( TempUpdateBuffers<T> & tmpBuffers) {
+        virtual int factorize( TempUpdateBuffers<T> & tmpBuffers) override{
           scope_timer(a,blockCellLDL_t::factorize);
 #if defined(_NO_COMPUTATION_)
           return 0;
@@ -1566,7 +1566,7 @@ namespace symPACK{
           return 0;
         }
 
-        virtual int trsm( const blockCellBase_t * pdiag, TempUpdateBuffers<T> & tmpBuffers) {
+        virtual int trsm( const blockCellBase_t * pdiag, TempUpdateBuffers<T> & tmpBuffers) override {
           scope_timer(a,blockCellLDL_t::trsm);
 #if defined(_NO_COMPUTATION_)
           return 0;
@@ -1614,7 +1614,7 @@ namespace symPACK{
 
 
 
-        virtual int update(  blockCellBase_t * ppivot, blockCellBase_t * pfacing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr) {
+        virtual int update(  blockCellBase_t * ppivot, blockCellBase_t * pfacing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr) override {
           scope_timer(a,blockCellLDL_t::update);
 #if defined(_NO_COMPUTATION_)
           return 0;
@@ -1859,7 +1859,7 @@ namespace symPACK{
           return 0;
         }
 
-        virtual int _tri_solve(char TRANSA, int_t M,int_t N,T ALPHA,T* A,int_t LDA,T* B,int_t LDB) {
+        virtual int _tri_solve(char TRANSA, int_t M,int_t N,T ALPHA,T* A,int_t LDA,T* B,int_t LDB) override {
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
@@ -1868,7 +1868,7 @@ namespace symPACK{
         }
 
 
-        virtual int forward_update_contrib( blockCellBase_t * ptgt_contrib, blockCellBase_t * pdiag_contrib = nullptr) {
+        virtual int forward_update_contrib( blockCellBase_t * ptgt_contrib, blockCellBase_t * pdiag_contrib = nullptr) override {
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
@@ -2065,18 +2065,18 @@ namespace symPACK{
       ~symPACKMatrix2D();
 
 
-      virtual void DumpMatlab();
+      virtual void DumpMatlab() override;
 
-      virtual void Init(symPACKOptions & options );
+      virtual void Init(symPACKOptions & options ) override;
       void Init(DistSparseMatrix<T> & pMat, symPACKOptions & options );
 
-      virtual void SymbolicFactorization(DistSparseMatrix<T> & pMat);
-      virtual void DistributeMatrix(DistSparseMatrix<T> & pMat);
+      virtual void SymbolicFactorization(DistSparseMatrix<T> & pMat) override;
+      virtual void DistributeMatrix(DistSparseMatrix<T> & pMat) override;
 
 
-      virtual void Factorize();
-      virtual void Solve( T * RHS, int nrhs,  T * Xptr = nullptr );
-      virtual void GetSolution(T * B, int nrhs);
+      virtual void Factorize() override;
+      virtual void Solve( T * RHS, int nrhs,  T * Xptr = nullptr ) override;
+      virtual void GetSolution(T * B, int nrhs) override;
 
 
 
@@ -2122,9 +2122,17 @@ namespace symPACK{
 
 
 #ifndef NO_MPI
+
+      if(this->workcomm_!=MPI_COMM_NULL){
+        MPI_Comm_free(&this->workcomm_);
+      }
+      if(this->non_workcomm_!=MPI_COMM_NULL){
+        MPI_Comm_free(&this->non_workcomm_);
+      }
       MPI_Comm_split(this->options_.MPIcomm,this->iam<this->np,this->iam,&this->workcomm_);
 
       //do another split to contain P0 and all the non working processors
+
       if (this->all_np!=this->np) {
         this->non_workcomm_ = MPI_COMM_NULL;
         MPI_Comm_split(this->options_.MPIcomm,this->iam==0||this->iam>=this->np,this->iam==0?0:this->iam-this->np+1,&this->non_workcomm_);
