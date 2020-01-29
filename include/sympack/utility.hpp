@@ -1090,8 +1090,8 @@ namespace symPACK{
       /* define a struct that describes all our data */
       lens[0] = sizeof(Int);
       lens[1] = sizeof(Ptr);
-      MPI_Address(&pspmat.size, &disps[0]);
-      MPI_Address(&pspmat.nnz, &disps[1]);
+      MPI_Get_address(&pspmat.size, &disps[0]);
+      MPI_Get_address(&pspmat.nnz, &disps[1]);
       types[0] = MPI_BYTE;
       types[1] = MPI_BYTE;
       MPI_Type_create_struct(2, lens, disps, types, &type);
