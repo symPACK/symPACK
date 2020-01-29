@@ -14,7 +14,6 @@ LogFile.cpp
 IntervalTree.cpp
 Ordering.cpp
 CommPull.cpp
-symPACK_c_interface.cpp
 DistSparseMatrixGraph.cpp
 )
 

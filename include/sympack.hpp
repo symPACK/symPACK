@@ -32,40 +32,6 @@ extern bool libUPCXXInit;
   int symPACK_Finalize();
   int symPACK_Rank(int * rank);
 
-
-
-  //returns an integer corresponding to a symPACK handle
-
-  int symPACK_C_InitInstanceFloat(MPI_Comm ccomm, bool is2D = false);
-  int symPACK_C_InitInstanceDouble(MPI_Comm ccomm, bool is2D = false);
-  int symPACK_C_InitInstanceComplex(MPI_Comm ccomm, bool is2D = false);
-  int symPACK_C_InitInstanceDoubleComplex(MPI_Comm ccomm, bool is2D = false);
-  
-  int symPACK_InitInstanceFloat(MPI_Fint * Fcomm, int is2D = 0);
-  int symPACK_InitInstanceDouble(MPI_Fint * Fcomm, int is2D = 0);
-  int symPACK_InitInstanceComplex(MPI_Fint * Fcomm, int is2D = 0);
-  int symPACK_InitInstanceDoubleComplex(MPI_Fint * Fcomm, int is2D = 0);
-  void symPACK_C_SetOptions(int * sp_handle, MPI_Comm ccomm, int*maxSize, int * verbose, int * NpOrdering, int * numThreads, const char * orderingStr, const char * decompTypeStr, const char * mappingTypeStr, const char * load_balance_str, const char * order_refinement_str );
-  void symPACK_SetOptions( int * sp_handle, MPI_Fint * Fcomm, int *maxSize, int * verbose, int * NpOrdering, int * numThreads, const char * orderingStr, const char * decompTypeStr, const char * mappingTypeStr, const char * load_balance_str, const char * order_refinement_str); 
-  void symPACK_SymbolicFactorize(int * sp_handle, int * n, int * colptr , int * rowind);
-  
-  void symPACK_DistributeFloat(int * sp_handle, float * nzvals);
-  void symPACK_DistributeDouble(int * sp_handle, double * nzvals);
-  void symPACK_DistributeComplex(int * sp_handle, float * nzvals);
-  void symPACK_DistributeDoubleComplex(int * sp_handle, double * nzvals);
-  
-  void symPACK_NumericalFactorize(int * sp_handle);
-  
-  void symPACK_NumericalSolveFloat(int * sp_handle, int * nrhs, float * rhs);
-  void symPACK_NumericalSolveDouble(int * sp_handle, int * nrhs, double * rhs);
-  void symPACK_NumericalSolveComplex(int * sp_handle, int * nrhs, float * rhs);
-  void symPACK_NumericalSolveDoubleComplex(int * sp_handle, int * nrhs, double * rhs);
-  
-  void symPACK_FinalizeInstance(int * sp_handle);
-
-
-
-
 #ifdef __cplusplus
 }
 
