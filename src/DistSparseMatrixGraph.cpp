@@ -144,14 +144,14 @@ namespace symPACK{
     blocklen[6] = colptr.size();
     blocklen[7] = rowind.size();
 
-    MPI_Address( (void *)&size,  &disps[0]);
-    MPI_Address( (void *)&nnz,  &disps[1]);
-    MPI_Address( (void *)&baseval,  &disps[2]);
-    MPI_Address( (void *)&keepDiag,  &disps[3]);
-    MPI_Address( (void *)&sorted,  &disps[4]);
-    MPI_Address( (void *)&expanded,  &disps[5]);
-    MPI_Address( (void *)&colptr[0],  &disps[6]);
-    MPI_Address( (void *)&rowind[0],  &disps[7]);
+    MPI_Get_address( (void *)&size,  &disps[0]);
+    MPI_Get_address( (void *)&nnz,  &disps[1]);
+    MPI_Get_address( (void *)&baseval,  &disps[2]);
+    MPI_Get_address( (void *)&keepDiag,  &disps[3]);
+    MPI_Get_address( (void *)&sorted,  &disps[4]);
+    MPI_Get_address( (void *)&expanded,  &disps[5]);
+    MPI_Get_address( (void *)&colptr[0],  &disps[6]);
+    MPI_Get_address( (void *)&rowind[0],  &disps[7]);
 
     MPI_Type_create_struct(8, blocklen, disps, types, &graphType);
     MPI_Type_commit(&graphType);
