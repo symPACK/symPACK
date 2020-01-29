@@ -1036,10 +1036,6 @@ namespace symPACK{
   template <typename SCALAR,typename INSCALAR>
     void ParaReadDistSparseMatrix ( const char* filename, DistSparseMatrix<SCALAR>& pspmat, MPI_Comm comm )
     {
-
-      MPI_Errhandler_set(symPACK::world_comm, MPI_ERRORS_RETURN);
-      MPI_Errhandler_set(comm, MPI_ERRORS_RETURN);
-
       MPI_Datatype typeInt;
       MPI_Type_contiguous( sizeof(Int), MPI_BYTE, &typeInt );
       MPI_Type_commit(&typeInt);
@@ -1098,7 +1094,7 @@ namespace symPACK{
       MPI_Address(&pspmat.nnz, &disps[1]);
       types[0] = MPI_BYTE;
       types[1] = MPI_BYTE;
-      MPI_Type_struct(2, lens, disps, types, &type);
+      MPI_Type_create_struct(2, lens, disps, types, &type);
       MPI_Type_commit(&type);
 
 
