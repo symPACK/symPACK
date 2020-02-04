@@ -3360,7 +3360,7 @@ namespace symPACK{
             std::list<Int> ancestor_rows;
 
             Int K = -1; 
-            Idx K_prevSnode = -1;
+            Idx K_prevSnode = (Idx)-1;
             for (Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++) {
               Idx K_row = this->locLindx_[K_sidx-1];
               K = this->SupMembership_[K_row-1];
@@ -4617,7 +4617,7 @@ namespace symPACK{
             std::list<Int> ancestor_rows;
 
             Int K = -1; 
-            Idx K_prevSnode = -1;
+            Idx K_prevSnode = (Idx)-1;
             for (Ptr K_sidx = lfi; K_sidx<=lli;K_sidx++) {
               Idx K_row = this->locLindx_[K_sidx-1];
               K = this->SupMembership_[K_row-1];

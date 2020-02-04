@@ -29,7 +29,7 @@ namespace symPACK{
     bool Last;
     Int GIndex;
     size_t Offset;
-    NZBlockDesc():GIndex(-1),Offset(-1),Last(false){};
+    NZBlockDesc():GIndex(-1),Offset((size_t)-1),Last(false){};
     NZBlockDesc(Int aGIndex, size_t aOffset):GIndex(aGIndex),Offset(aOffset),Last(false){};
   };
 

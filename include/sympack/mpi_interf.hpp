@@ -73,9 +73,9 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
   bool is_signed = std::numeric_limits<_Size>::is_signed;
   
   //first check that everything is positive
-  if ( is_signed && 
-      (std::any_of(stotcounts,stotcounts+mpisize,[](const _Size & a){ return a < 0;}) || 
-                std::any_of(stotdispls,stotdispls+mpisize,[](const _Size & a){ return a < 0;}) ) ) {
+  if ( is_signed &&  // cast to intmax avoids compile warnings when _Size is unsigned
+      (std::any_of(stotcounts,stotcounts+mpisize,[](const _Size & a){ return std::intmax_t(a) < 0;}) || 
+                std::any_of(stotdispls,stotdispls+mpisize,[](const _Size & a){ return std::intmax_t(a) < 0;}) ) ) {
     return -1;
   }
 

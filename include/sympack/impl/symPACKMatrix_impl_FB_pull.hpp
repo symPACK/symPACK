@@ -1029,7 +1029,7 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
 
     Ptr lfi = this->locXlindx_[locsupno-1];
     Ptr lli = this->locXlindx_[locsupno]-1;
-    Idx prevSnode = -1;
+    Idx prevSnode = (Idx)-1;
     for (Ptr sidx = lfi; sidx<=lli;sidx++) {
       Idx row = this->locLindx_[sidx-1];
       Int supno = this->SupMembership_[row-1];
@@ -1209,7 +1209,7 @@ template <typename T> inline void symPACKMatrix<T>::FBGetUpdateCount(std::vector
 
       Ptr lfi = this->locXlindx_[locsupno-1];
       Ptr lli = this->locXlindx_[locsupno]-1;
-      Idx prevSnode  =-1;
+      Idx prevSnode = (Idx)-1;
       for (Ptr sidx = lfi; sidx<=lli;sidx++) {
         Idx row = this->locLindx_[sidx-1];
         Int supno = this->SupMembership_[row-1];
