@@ -311,7 +311,7 @@ namespace symPACK {
         if ( !UPPER  && *UPLO!= 'L' ) {
           INFO = -1;
         }
-        else if ( N < 0 ) {
+        else if ( N > 0x7FFFFFFF ) { // means N would be overflow a signed 32-bit int
           INFO = -2;
         }
         else if ( LDA < std::max(Idx(1),N) ) {
@@ -505,7 +505,7 @@ namespace symPACK {
         if ( !UPPER  && *UPLO!= 'L' ) {
           INFO = -1;
         }
-        else if ( N < 0 ) {
+        else if ( N > 0x7FFFFFFF ) { // means N would be overflow a signed 32-bit int
           INFO = -2;
         }
         else if ( LDA < std::max(Idx(1),N) ) {

@@ -51,9 +51,9 @@ namespace symPACK{
           Ptr lfi = this->locXlindx_[locsupno-1];
           Ptr lli = this->locXlindx_[locsupno]-1;
 
-          Idx blockIdx = -1;
-          Idx prevRow = -1;
-          Idx prevSnode = -1;
+          Idx blockIdx  = (Idx)-1;
+          Idx prevRow   = (Idx)-1;
+          Idx prevSnode = (Idx)-1;
 
           for(Ptr sidx = lfi; sidx<=lli;sidx++){
             Idx row = this->locLindx_[sidx-1];
@@ -548,7 +548,7 @@ namespace symPACK{
 #endif
 
       Idx nzBlockCnt = 1;
-      Idx prevSnode = -1;
+      Idx prevSnode = (Idx)-1;
       for(Ptr sidx = lfi; sidx<=lli;sidx++){
 
         Idx row = this->locLindx_[sidx-1];

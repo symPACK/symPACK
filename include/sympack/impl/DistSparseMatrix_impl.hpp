@@ -551,7 +551,7 @@ namespace symPACK{
     HMat.size = *n;
     graph.size = HMat.size;
 
-    assert(n>0);
+    assert(n);
     //find baseval in first column
     int baseval = 0;
     int keepdiag = 1;
