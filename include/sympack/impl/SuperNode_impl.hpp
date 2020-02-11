@@ -99,12 +99,12 @@ namespace symPACK{
 #else
       idxToBlk_ = CreateITree();
 #endif
-    }; 
+    } 
 
   template<typename T, class Allocator>
     SuperNode<T,Allocator>::SuperNode(Int aiId, Int aiFr, Int aiFc, Int aiLc, Int aiN, std::set<Idx> & rowIndices, Int panel):SuperNode<T,Allocator>() {
       Init(aiId,aiFr,aiFc,aiLc,aiN,rowIndices,panel);
-    }; 
+    } 
 
   template<typename T, class Allocator>
     SuperNode<T,Allocator>::SuperNode(char * storage_ptr,size_t storage_size, Int GIndex ):SuperNode<T,Allocator>() {
@@ -223,7 +223,7 @@ namespace symPACK{
         }
         this->AddNZBlock( prevRow - firstRow + 1, firstRow);
       }
-    }; 
+    } 
 
 
 

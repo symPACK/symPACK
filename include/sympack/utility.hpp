@@ -183,12 +183,12 @@ namespace symPACK{
   inline Int Print(std::ostream &os, const std::string name) {
     os << std::setiosflags(std::ios::left) << name << std::endl;
     return 0;
-  };
+  }
 
   inline Int Print(std::ostream &os, const char* name) {
     os << std::setiosflags(std::ios::left) << std::string(name) << std::endl;
     return 0;
-  };
+  }
 
   inline Int Print(std::ostream &os, const std::string name, std::string val) {
     os << std::setiosflags(std::ios::left) 
@@ -196,7 +196,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_DATA) << val
       << std::endl;
     return 0;
-  };
+  }
 
   inline Int Print(std::ostream &os, const std::string name, const char* val) {
     os << std::setiosflags(std::ios::left) 
@@ -204,7 +204,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_DATA) << std::string(val)
       << std::endl;
     return 0;
-  };
+  }
 
 
   // Real
@@ -221,7 +221,7 @@ namespace symPACK{
       << std::resetiosflags(std::ios::showpos)
       << std::endl;
     return 0;
-  };
+  }
 
   inline Int Print(std::ostream &os, const char* name, Real val) {
     os << std::setiosflags(std::ios::left) 
@@ -233,7 +233,7 @@ namespace symPACK{
       << std::resetiosflags(std::ios::showpos)
       << std::endl;
     return 0;
-  };
+  }
 
 
   inline Int Print(std::ostream &os, const std::string name, Real val, const std::string unit) {
@@ -247,7 +247,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_UNIT) << unit 
       << std::endl;
     return 0;
-  };
+  }
 
   inline Int Print(std::ostream &os, const char *name, Real val, const char *unit) {
     os << std::setiosflags(std::ios::left) 
@@ -260,7 +260,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_UNIT) << std::string(unit) 
       << std::endl;
     return 0;
-  };
+  }
 
   // Two real numbers
   inline Int Print(std::ostream &os, const std::string name1, Real val1, const std::string unit1,
@@ -278,7 +278,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_UNIT) << unit2 
       << std::endl;
     return 0;
-  };
+  }
 
   inline Int Print(std::ostream &os, const char *name1, Real val1, const char *unit1,
       char *name2, Real val2, char *unit2) {
@@ -295,7 +295,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_UNIT) << std::string(unit2) 
       << std::endl;
     return 0;
-  };
+  }
 
   // Int and Real
   inline Int Print(std::ostream &os, const std::string name1, Int val1, const std::string unit1,
@@ -313,7 +313,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_UNIT) << unit2 
       << std::endl;
     return 0;
-  };
+  }
 
   inline Int Print(std::ostream &os, const char *name1, Int val1, const char *unit1,
       char *name2, Real val2, char *unit2) {
@@ -330,7 +330,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_UNIT) << std::string(unit2) 
       << std::endl;
     return 0;
-  };
+  }
 
   inline Int Print(std::ostream &os, 
       const char *name1, Int val1, 
@@ -349,7 +349,7 @@ namespace symPACK{
       << std::resetiosflags(std::ios::showpos)
       << std::endl;
     return 0;
-  };
+  }
 
 
   inline Int Print(std::ostream &os, 
@@ -372,7 +372,7 @@ namespace symPACK{
       << std::resetiosflags(std::ios::showpos)
       << std::endl;
     return 0;
-  };
+  }
 
   // Int
 
@@ -383,7 +383,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_DATA) << val
       << std::endl;
     return 0;
-  };
+  }
 
 
   inline Int Print(std::ostream &os, const char *name, Int val) {
@@ -392,7 +392,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_DATA) << val
       << std::endl;
     return 0;
-  };
+  }
 
 
   inline Int Print(std::ostream &os, const std::string name, Int val, const std::string unit) {
@@ -402,7 +402,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_UNIT) << unit 
       << std::endl;
     return 0;
-  };
+  }
 
 
   inline Int Print(std::ostream &os, const char* name, Int val, const std::string unit) {
@@ -412,7 +412,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_UNIT) << unit 
       << std::endl;
     return 0;
-  };
+  }
 
 
 
@@ -428,7 +428,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_UNIT) << unit2 
       << std::endl;
     return 0;
-  };
+  }
 
   inline Int Print(std::ostream &os, const char *name1, Int val1, const char *unit1,
       char *name2, Int val2, char *unit2) {
@@ -441,7 +441,7 @@ namespace symPACK{
       << std::setw(LENGTH_VAR_UNIT) << std::string(unit2) 
       << std::endl;
     return 0;
-  };
+  }
 
   // Bool
 
@@ -454,7 +454,7 @@ namespace symPACK{
     else
       os << std::setw(LENGTH_VAR_NAME) << "false" << std::endl;
     return 0;
-  };
+  }
 
 
   inline Int Print(std::ostream &os, const char* name, bool val) {
@@ -465,7 +465,7 @@ namespace symPACK{
     else
       os << std::setw(LENGTH_VAR_NAME) << "false" << std::endl;
     return 0;
-  };
+  }
 
   // *********************************************************************
   // Overload << and >> operators for basic data types

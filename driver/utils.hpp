@@ -141,7 +141,7 @@ void check_solution( symPACK::DistSparseMatrix<SCALAR> & HMat, std::vector<SCALA
       std::cout<<"Norm of residual after factorization/solve is "<<normAX/normRHS<<std::endl;
     }
   }
-};
+}
 
 template<typename vdist_int, typename ptr_t, typename ind_t, typename SCALAR>
 void check_solution( int n, vdist_int * vertexDist, ptr_t * colptr, ind_t * rowind, SCALAR * nzvalLocal, std::vector<SCALAR> & RHS, std::vector<SCALAR> & XFinal, MPI_Comm & worldcomm ) {
@@ -194,7 +194,7 @@ void check_solution( int n, vdist_int * vertexDist, ptr_t * colptr, ind_t * rowi
       std::cout<<"Norm of residual after facotrization/solve is "<<normAX/normRHS<<std::endl;
     }
   }
-};
+}
 
 
 

@@ -430,7 +430,7 @@ namespace symPACK{
                 return std::get<2>(a->_meta) < std::get<2>(b->_meta);
               else
                 return std::get<4>(a->_meta)<std::get<4>(b->_meta); 
-            };
+            }
           };
           std::priority_queue<ttask_t*,std::vector<ttask_t*>,avail_comp> avail_tasks;
 #else
@@ -448,7 +448,7 @@ namespace symPACK{
                 return std::get<2>(a->_meta) < std::get<2>(b->_meta);
               else
                 return std::get<4>(a->_meta)<std::get<4>(b->_meta); 
-            };
+            }
           };
           std::priority_queue<ttask_t*,std::vector<ttask_t*>,rdy_comp> ready_tasks;
 #else
@@ -498,7 +498,7 @@ namespace symPACK{
             block_t * _blocks;
             size_t _nblocks;
 
-            block_container_t():_blocks(nullptr),_nblocks(0) {};
+            block_container_t():_blocks(nullptr),_nblocks(0) {}
 
             size_t size() const{
               return _nblocks;
@@ -1977,11 +1977,11 @@ namespace symPACK{
       std::vector< snodeBlock_sptr_t > localBlocks_;
       int nsuper;
       double mem_budget;
-      using cell_key_t = std::pair<uint64_t,uint64_t>;;
+      using cell_key_t = std::pair<uint64_t,uint64_t>;
       cell_key_t coord2supidx(uint64_t i, uint64_t j) { 
         cell_key_t val = std::make_pair(i,j);
         return val;
-      };
+      }
       std::map<cell_key_t, snodeBlockBase_sptr_t > cells_;
 
       inline snodeBlockBase_sptr_t pQueryCELL (int a, int b)  { 

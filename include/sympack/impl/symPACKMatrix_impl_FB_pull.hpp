@@ -23,7 +23,7 @@ template <typename T> inline void symPACKMatrix<T>::dfs_traversal(std::vector<st
       }
     }
   }
-};
+}
 
 template <typename T> inline void symPACKMatrix<T>::FanBoth() 
 {

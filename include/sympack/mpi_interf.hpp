@@ -51,7 +51,7 @@ namespace symPACK{
         //Mark the Icomm as "full"
         allIcomm.setHead(totalSize);
         return ;
-      };		// -----  end of function Gatherv  ----- 
+      }		// -----  end of function Gatherv  ----- 
 
 
 
@@ -517,7 +517,7 @@ inline int Alltoallv(_Container & sendbuf, const _Size *stotcounts, const _Size 
 
 
 template<typename T>
-inline void Allreduce( T* sendbuf, T* recvbuf, Int count, MPI_Op op, MPI_Comm comm){};
+inline void Allreduce( T* sendbuf, T* recvbuf, Int count, MPI_Op op, MPI_Comm comm){}
 
 template<>
 inline void Allreduce<double>( double* sendbuf, double* recvbuf, Int count, MPI_Op op, MPI_Comm comm){

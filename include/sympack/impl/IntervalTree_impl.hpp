@@ -17,7 +17,7 @@ inline ITree<F>::ITNode<F> * ITree<F>::newNode_(ITree<F>::Interval<F> & i)
   temp->min = i.low;
 
   return temp;
-};
+}
 
 
   template<typename F>
