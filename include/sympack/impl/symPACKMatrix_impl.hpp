@@ -198,7 +198,7 @@ namespace symPACK{
 
 
 
-        Task.getHash = [&](char * ameta=nullptr)->GenericTask::id_type{
+        Task.getHash = [&](char * ameta)->GenericTask::id_type{
           char * pmeta = ameta;
           std::stringstream sstr;
           sstr<<meta[0]<<"_"<<meta[1]<<"_"<<0<<"_"<<(Int)(*reinterpret_cast<Factorization::op_type*>(&meta[3]));
