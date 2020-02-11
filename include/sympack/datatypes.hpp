@@ -41,11 +41,11 @@ namespace symPACK {
   const Scalar SCALAR_MINUS_ONE = static_cast<Scalar>(-1.0);
 
   template<typename T>
-    const T ZERO(){ return static_cast<T>(0.0);};
+    const T ZERO(){ return static_cast<T>(0.0);}
   template<typename T>
-    const T ONE(){ return static_cast<T>(1.0);};
+    const T ONE(){ return static_cast<T>(1.0);}
   template<typename T>
-    const T MINUS_ONE(){ return static_cast<T>(-1.0);};
+    const T MINUS_ONE(){ return static_cast<T>(-1.0);}
 
 
 
