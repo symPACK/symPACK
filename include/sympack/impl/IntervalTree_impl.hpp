@@ -6,10 +6,10 @@
 
 // A utility function to create a new Interval Search Tree Node
   template<typename F>
-inline ITree<F>::ITNode<F> * ITree<F>::newNode_(ITree<F>::Interval<F> & i)
+inline typename ITree<F>::template ITNode<F> * ITree<F>::newNode_(typename ITree<F>::template Interval<F> & i)
 {
-  ITree<F>::ITNode<F> *temp = new ITree<F>::ITNode<F>;
-  temp->i = new ITree<F>::Interval<F>(i);
+  ITree<F>::ITNode<F> *temp = new typename ITree<F>::template ITNode<F>;
+  temp->i = new typename ITree<F>::template Interval<F>(i);
   temp->max = i.high;
   temp->left = temp->right = nullptr;
   temp->height = 1;
@@ -52,7 +52,7 @@ inline   Int ITree<F>::min_(ITree<F>::ITNode<F> *N)
 // This is similar to BST Insert.  Here the low value of interval
 // is used tomaintain BST property
   template<typename F>
-inline   ITree<F>::ITNode<F> * ITree<F>::insert_(ITree<F>::ITNode<F> *root, ITree<F>::Interval<F> & i)
+inline typename  ITree<F>::template ITNode<F> * ITree<F>::insert_(typename ITree<F>::template ITNode<F> *root, typename ITree<F>::template Interval<F> & i)
 {
   assert(i.low<=i.high);
 
@@ -154,7 +154,7 @@ inline   bool ITree<F>::doOVerlap_(const ITree<F>::Interval<F> &i1, const Int & 
 // The main function that searches a given interval i in a given
 // Interval Tree.
   template<typename F>
-inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *root,const Int & begin,const Int &end)
+inline typename ITree<F>::template Interval<F> * ITree<F>::intervalSearch_(typename ITree<F>::template ITNode<F> *root,const Int & begin,const Int &end)
 {
   // Base Case, tree is empty
   if (root == nullptr){
@@ -179,7 +179,7 @@ inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *
 
 
   template<typename F>
-inline   ITree<F>::Interval<F> * ITree<F>::intervalSearch_(ITree<F>::ITNode<F> *root,const Int & begin,const Int &end, Interval<F> * & closestR, Interval<F> * & closestL)
+inline typename ITree<F>::template Interval<F> * ITree<F>::intervalSearch_(typename ITree<F>::template ITNode<F> *root,const Int & begin,const Int &end, Interval<F> * & closestR, Interval<F> * & closestL)
 {
   // Base Case, tree is empty
   if (root == nullptr){

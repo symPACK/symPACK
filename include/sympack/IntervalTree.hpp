@@ -76,7 +76,7 @@ namespace symPACK{
 
       // A utility function to check if given two intervals overlap
       inline bool doOVerlap_(const Interval<F> &i1,const Interval<F> &i2);
-      inline bool doOVerlap_(const ITree::Interval<F> &i1, const Int & low, const Int & high);
+      inline bool doOVerlap_(const Interval<F> &i1, const Int & low, const Int & high);
       inline Interval<F> *intervalSearch_(ITNode<F> *root, const Int & begin, const Int & end);
       inline Interval<F> *intervalSearch_(ITNode<F> *root, const Int & begin, const Int &end, Interval<F> * & closestR, Interval<F> * & closestL);
 
