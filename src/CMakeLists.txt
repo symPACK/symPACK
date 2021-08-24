@@ -154,10 +154,10 @@ endif()
 
 if(ENABLE_THREADS)
   get_target_property(UPCXX_DEFINITIONS UPCXX::upcxx INTERFACE_COMPILE_DEFINITIONS)
-  if("UPCXX_BACKEND_GASNET_PAR=1" IN_LIST UPCXX_DEFINITIONS)
+  if("GASNET_PAR" IN_LIST UPCXX_DEFINITIONS)
     target_compile_definitions( sympack PUBLIC  "SP_THREADS")
   else()
-    message(FATAL_ERROR "UPCXX_THREADMODE=par is required when using ENABLE_THREADS=ON\n(UPCXX_BACKEND_GASNET_PAR=1 must be in the compiler definitions)")
+    message(FATAL_ERROR "UPCXX_THREADMODE=par is required when using ENABLE_THREADS=ON\n(GASNET_PAR must be in the compiler definitions)")
   endif()
 endif()
 

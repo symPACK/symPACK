@@ -27,7 +27,9 @@
 #include "SuperNodeInd.hpp"
 
 #ifdef SP_THREADS
-#if !UPCXX_BACKEND_GASNET_PAR
+#if !UPCXX_BACKEND_GASNET_PAR && !UPCXX_THREADMODE
+  // UPCXX_BACKEND_GASNET_PAR is an unspecified identifer in versions <= 2021.3.0
+  // UPCXX_THREADMODE is the supported way to test this starting in 2020.10.0
   #error "UPCXX_THREADMODE=par required when using threads in symPACK."
 #endif
 #endif
