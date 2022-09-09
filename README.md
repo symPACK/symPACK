@@ -17,8 +17,8 @@ git clone git@github.com:symPACK/symPACK.git  /path/to/sympack
 
 ### UPC++
 
-**SymPACK** requires the **UPC++ v1.0** library to be installed. The minimum supported release version is 2019.9.0. 
-It can be downloaded at [upcxx.lbl.gov](upcxx.lbl.gov).
+**SymPACK** requires the [**UPC++ v1.0**](https://upcxx.lbl.gov) library to be installed. The minimum supported release version is 2019.9.0. 
+It can be downloaded at [upcxx.lbl.gov](https://upcxx.lbl.gov).
 UPC++ contains a CMake config file which **symPACK** is using to link to the library. The install path
 needs to be provided to CMake as follows:
 ```
@@ -124,3 +124,27 @@ For larger problems, like [audikw_1](https://www.cise.ufl.edu/research/sparse/RB
 Note that to run **symPACK**, `upcxx-run` is used in the example above, but on some platforms, such as NERSC Cori,
 other launchers may be used to both spawn **MPI** and **UPC++**, such as `srun` if the system is using SLURM.
 Moreover, for larger problems, the `-shared-heap XX` argument to `upcxx-run` may be needed (Please refer to **UPC++** documentation).
+
+# Publications
+--------------------------
+
+## Recent publications
+
+* John Bachan, Scott B. Baden, Steven Hofmeyr, Mathias Jacquelin, Amir Kamil, Dan Bonachea, Paul H. Hargrove, Hadia Ahmed.  
+"[**UPC++: A High-Performance Communication Framework for Asynchronous Computation**](https://github.com/symPACK/symPACK/wiki/pubs/ipdps19-upcxx.pdf)" (see Section IV-D-4),    
+In *[33rd IEEE International Parallel & Distributed Processing Symposium](https://doi.org/10.1109/IPDPS.2019.00104) ([IPDPS'19](https://www.ipdps.org/ipdps2019/))*, May 20-24, 2019, Rio de Janeiro, Brazil. IEEE. 11 pages.  
+https://doi.org/10.25344/S4V88H  
+[Talk slides](https://github.com/symPACK/symPACK/wiki/pubs/ipdps19-upcxx-slides.pdf)
+
+## Older publications (based on UPC++ v0.1 version of symPACK)
+
+* Mathias Jacquelin, Yili Zheng, Esmond Ng, Katherine Yelick    
+["**An Asynchronous Task-based Fan-Both Sparse Cholesky Solver**"](https://arxiv.org/abs/1608.00044),     
+[arXiv:1608.00044](https://arxiv.org/abs/1608.00044) [cs.MS], Aug 2016.    
+https://doi.org/10.48550/arXiv.1608.00044
+
+* Mathias Jacquelin, Yili Zheng, Esmond Ng, Katherine Yelick   
+["**symPACK: a solver for sparse Symmetric Matrices**"](https://github.com/symPACK/symPACK/wiki/pubs/sc16-sympack-poster.pdf),    
+Research Poster at [The International Conference for High Performance Computing, Networking, Storage and Analysis (SC16)](http://sc16.supercomputing.org/sc-archive/tech_poster/poster_files/post222s2-file2.pdf), Nov 2016.
+
+
