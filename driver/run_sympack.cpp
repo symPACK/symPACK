@@ -4,7 +4,7 @@
 #include <sympack/symPACKMatrix.hpp>
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
-
+#include "sympack/cuBLAS.hpp"
 
 #include "utils.hpp"
 
@@ -74,6 +74,9 @@ int main(int argc, char **argv)
     auto SMat = std::make_shared<symPACKMatrix<SCALAR> >();
     try
     {
+#ifdef CUDA_MODE
+    logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
+#endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
       timeSta = get_time();
