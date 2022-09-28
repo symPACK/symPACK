@@ -127,13 +127,9 @@ namespace symPACK {
                            const double           *, Int,
                            double           *, Int);
 
-    cublasStatus_t  cublas_geru(cublasHandle_t , Int, Int,
-                           const cuComplex           *,
-                           const cuComplex           *, Int,
-                           const cuComplex           *, Int,
-                           cuComplex           *, Int);
 
-    cublasStatus_t  cublas_gerc(cublasHandle_t , Int, Int,
+    /* GERU */
+    cublasStatus_t  cublas_geru(cublasHandle_t , Int, Int,
                            const cuComplex           *,
                            const cuComplex           *, Int,
                            const cuComplex           *, Int,
@@ -144,12 +140,20 @@ namespace symPACK {
                            const cuDoubleComplex           *, Int,
                            const cuDoubleComplex           *, Int,
                            cuDoubleComplex           *, Int);
-
+    
+    
+    /* GERC */
     cublasStatus_t  cublas_gerc(cublasHandle_t , Int, Int,
                            const cuDoubleComplex           *,
                            const cuDoubleComplex           *, Int,
                            const cuDoubleComplex           *, Int,
                            cuDoubleComplex           *, Int);
+
+    cublasStatus_t  cublas_gerc(cublasHandle_t , Int, Int,
+                           const cuComplex           *,
+                           const cuComplex           *, Int,
+                           const cuComplex           *, Int,
+                           cuComplex           *, Int);
 
     /* ===== LEVEL 3 BLAS ===== */
     

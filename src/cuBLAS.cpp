@@ -132,3 +132,148 @@ cublasStatus_t  cublas_scal(cublasHandle_t handle, int n,
 
 
 /* ===== LEVEL 2 BLAS ===== */
+
+/* GEMV */
+cublasStatus_t cublas_gemv(cublasHandle_t handle, cublasOperation_t trans,
+                           int m, int n,
+                           const float           *alpha,
+                           const float           *A, int lda,
+                           const float           *x, int incx,
+                           const float           *beta,
+                           float           *y, int incy) {
+    return cublasSgemv(handle, trans,
+                        m, n,
+                        alpha,
+                        A, lda,
+                        x, incx,
+                        beta,
+                        y, incy);
+}
+
+cublasStatus_t cublas_gemv(cublasHandle_t handle, cublasOperation_t trans,
+                           int m, int n,
+                           const double           *alpha,
+                           const double           *A, int lda,
+                           const double           *x, int incx,
+                           const double           *beta,
+                           double           *y, int incy) {
+    return cublasDgemv(handle, trans,
+                        m, n,
+                        alpha,
+                        A, lda,
+                        x, incx,
+                        beta,
+                        y, incy);
+}
+
+cublasStatus_t cublas_gemv(cublasHandle_t handle, cublasOperation_t trans,
+                           int m, int n,
+                           const cuComplex           *alpha,
+                           const cuComplex           *A, int lda,
+                           const cuComplex           *x, int incx,
+                           const cuComplex           *beta,
+                           cuComplex           *y, int incy) {
+    return cublasCgemv(handle, trans,
+                        m, n,
+                        alpha,
+                        A, lda,
+                        x, incx,
+                        beta,
+                        y, incy);
+}
+
+cublasStatus_t cublas_gemv(cublasHandle_t handle, cublasOperation_t trans,
+                           int m, int n,
+                           const cuDoubleComplex           *alpha,
+                           const cuDoubleComplex           *A, int lda,
+                           const cuDoubleComplex           *x, int incx,
+                           const cuDoubleComplex           *beta,
+                           cuDoubleComplex           *y, int incy) {
+    return cublasZgemv(handle, trans,
+                        m, n,
+                        alpha,
+                        A, lda,
+                        x, incx,
+                        beta,
+                        y, incy);
+}
+
+/* GER */
+cublasStatus_t  cublas_ger(cublasHandle_t handle, int m, int n,
+                           const float           *alpha,
+                           const float           *x, int incx,
+                           const float           *y, int incy,
+                           float           *A, int lda) {
+    return cublasSger(handle,
+                      m, n,
+                      alpha,
+                      x, incx,
+                      y, incy,
+                      A, lda);
+}
+
+cublasStatus_t  cublas_ger(cublasHandle_t handle, int m, int n,
+                           const double           *alpha,
+                           const double           *x, int incx,
+                           const double           *y, int incy,
+                           double           *A, int lda) {
+    return cublasDger(handle,
+                      m, n,
+                      alpha,
+                      x, incx,
+                      y, incy,
+                      A, lda);
+}
+
+/* GERU */
+cublasStatus_t  cublas_geru(cublasHandle_t handle, int m, int n,
+                           const cuComplex           *alpha,
+                           const cuComplex           *x, int incx,
+                           const cuComplex           *y, int incy,
+                           cuComplex           *A, int lda) {
+    return cublasCgeru(handle,
+                      m, n,
+                      alpha,
+                      x, incx,
+                      y, incy,
+                      A, lda);
+}
+
+cublasStatus_t  cublas_geru(cublasHandle_t handle, int m, int n,
+                           const cuDoubleComplex           *alpha,
+                           const cuDoubleComplex           *x, int incx,
+                           const cuDoubleComplex           *y, int incy,
+                           cuDoubleComplex           *A, int lda) {
+    return cublasZgeru(handle,
+                      m, n,
+                      alpha,
+                      x, incx,
+                      y, incy,
+                      A, lda);
+}
+
+cublasStatus_t  cublas_gerc(cublasHandle_t handle, int m, int n,
+                           const cuDoubleComplex           *alpha,
+                           const cuDoubleComplex           *x, int incx,
+                           const cuDoubleComplex           *y, int incy,
+                           cuDoubleComplex           *A, int lda) {
+    return cublasZgerc(handle,
+                      m, n,
+                      alpha,
+                      x, incx,
+                      y, incy,
+                      A, lda);
+}
+
+cublasStatus_t  cublas_gerc(cublasHandle_t handle, int m, int n,
+                           const cuComplex           *alpha,
+                           const cuComplex           *x, int incx,
+                           const cuComplex           *y, int incy,
+                           cuComplex           *A, int lda) {
+    return cublasCgerc(handle,
+                      m, n,
+                      alpha,
+                      x, incx,
+                      y, incy,
+                      A, lda);
+}
