@@ -7,7 +7,7 @@ endif()
 
 project(symPACK VERSION 2.0
                 DESCRIPTION "symPACK is a direct linear solver for sparse symmetric matrices"
-                LANGUAGES C CXX Fortran)
+                LANGUAGES C CXX Fortran CUDA)
 
               #include(ExternalProject)
 
@@ -76,6 +76,8 @@ ENDIF()
 
 target_link_libraries(run_sympack PUBLIC   symPACK::sympack)
 target_link_libraries(run_sympack2D PUBLIC symPACK::sympack)
+target_link_libraries(run_sympack PUBLIC -lcublas)
+target_link_libraries(run_sympack2D  PUBLIC -lcublas)
 
 find_package( Threads )
 target_link_libraries( run_sympack PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
