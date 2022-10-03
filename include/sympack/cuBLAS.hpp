@@ -7,8 +7,7 @@
 #include "cublas_v2.h"
 
 namespace symPACK {
-    /* Test */
-    void test_kernel(int);
+namespace cublas {
     // NOTE: This only contains a subset of the complete BLAS, just the operations used in symPACK are included.
     // SYRK, TRSM, GEMM, Axpy, Scal, Gemv, Geru, Copy
     
@@ -254,4 +253,5 @@ namespace symPACK {
     template<typename T>
     cublasStatus_t cublas_trsm(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t,
                         Int, Int, const T *, const T *, Int, T *, Int);
+}
 }

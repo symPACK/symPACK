@@ -2,7 +2,8 @@
 
 #include "sympack/cuBLAS.hpp"
 
-
+namespace symPACK {
+namespace cublas {
  /* ===== LEVEL 1 BLAS ===== */
 
 /* AXPY */
@@ -488,4 +489,6 @@ cublasStatus_t cublas_trsm(cublasHandle_t handle,
                         alpha, A, lda,
                         B, ldb);
 
+}
+}
 }
