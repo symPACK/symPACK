@@ -1,6 +1,7 @@
 /* Wrapper functions for each cuBLAS call
  * Author: Julian Bellavita, UC Berkeley
  */
+#include  "sympack/Environment.hpp"
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
@@ -10,7 +11,8 @@ namespace symPACK {
 namespace cublas {
     // NOTE: This only contains a subset of the complete BLAS, just the operations used in symPACK are included.
     // SYRK, TRSM, GEMM, Axpy, Scal, Gemv, Geru, Copy
-    
+    void test(int);
+    typedef  int                    Int;
     /* ===== LEVEL 1 BLAS ===== */
 
     /* AXPY */
@@ -250,8 +252,8 @@ namespace cublas {
     cublasStatus_t cublas_trsm(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t,
                         Int, Int, const cuDoubleComplex *, const cuDoubleComplex *, Int, cuDoubleComplex *, Int);
     
-    template<typename T>
-    cublasStatus_t cublas_trsm(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t,
-                        Int, Int, const T *, const T *, Int, T *, Int);
+    //template<typename T>
+    //cublasStatus_t cublas_trsm(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t,
+    //                    Int, Int, const T *, const T *, Int, T *, Int);
 }
 }

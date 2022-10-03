@@ -1,9 +1,13 @@
 
 
 #include "sympack/cuBLAS.hpp"
+#include "sympack/Environment.hpp"
 
 namespace symPACK {
 namespace cublas {
+    void test(int a) {
+        a+=1;
+    }
  /* ===== LEVEL 1 BLAS ===== */
 
 /* AXPY */
@@ -22,7 +26,7 @@ cublasStatus_t cublas_axpy(cublasHandle_t handle, Int n,
                            const double           *x, Int incx,
                            double                 *y, Int incy) {
     return cublasDaxpy(handle, n,
-                           alpha
+                           alpha,
                            x, incx,
                            y, incy);
 }
@@ -439,7 +443,7 @@ cublasStatus_t cublas_trsm(cublasHandle_t handle,
                            const float           *A, Int lda,
                            float           *B, Int ldb) {
     
-    return cublasStrsm(handle, side, uplo, transa, diag,
+    return cublasStrsm(handle, side, uplo, trans, diag,
                         m, n,
                         alpha, A, lda,
                         B, ldb);
@@ -454,7 +458,7 @@ cublasStatus_t cublas_trsm(cublasHandle_t handle,
                            const double           *A, Int lda,
                            double           *B, Int ldb) {
     
-    return cublasDtrsm(handle, side, uplo, transa, diag,
+    return cublasDtrsm(handle, side, uplo, trans, diag,
                         m, n,
                         alpha, A, lda,
                         B, ldb);
@@ -469,7 +473,7 @@ cublasStatus_t cublas_trsm(cublasHandle_t handle,
                            const cuComplex           *A, Int lda,
                            cuComplex           *B, Int ldb) {
     
-    return cublasCtrsm(handle, side, uplo, transa, diag,
+    return cublasCtrsm(handle, side, uplo, trans, diag,
                         m, n,
                         alpha, A, lda,
                         B, ldb);
@@ -484,7 +488,7 @@ cublasStatus_t cublas_trsm(cublasHandle_t handle,
                            const cuDoubleComplex           *A, Int lda,
                            cuDoubleComplex           *B, Int ldb) {
     
-    return cublasZtrsm(handle, side, uplo, transa, diag,
+    return cublasZtrsm(handle, side, uplo, trans, diag,
                         m, n,
                         alpha, A, lda,
                         B, ldb);

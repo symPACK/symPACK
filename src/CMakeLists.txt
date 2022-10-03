@@ -15,6 +15,7 @@ IntervalTree.cpp
 Ordering.cpp
 CommPull.cpp
 DistSparseMatrixGraph.cpp
+cuBLAS.cpp
 )
 
 set(SYMPACK_SRC_Fortran

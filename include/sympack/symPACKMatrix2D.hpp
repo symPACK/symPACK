@@ -4,6 +4,7 @@
 #include "sympack/Environment.hpp"
 #include "sympack/symPACKMatrixBase.hpp"
 #include "sympack/symPACKMatrix.hpp"
+#include "sympack/cuBLAS.hpp"
 
 #include "sympack/mpi_interf.hpp"
 
@@ -906,14 +907,36 @@ namespace symPACK{
           auto snode_size = std::get<0>(_dims);
           auto nzblk_nzval = _nzval;
 #ifdef CUDA_MODE
+          /* Setup */
           cublasHandle_t handler;
-          
+          cublasStatus_t stat;
+          stat = cublasCreate(&handler);
+          T * d_diag_nzval;
+          T * d_nzblk_nzval;
+          symPACK::cublas::test(1);
           /* Allocate device buffers */
-          logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
-          cudaMalloc(reinterpret_cast<void **>(&diag_nzval), snode_size * snode_size * sizeof(diag_nzval[0]));
+          cudaMalloc(reinterpret_cast<void **>(&d_diag_nzval), snode_size * snode_size * sizeof(diag_nzval[0]));
+          cudaMalloc(reinterpret_cast<void **>(&d_nzblk_nzval), snode_size * total_rows() * sizeof(nzblk_nzval[0]));
 
-          //cublas::cublas_trsm(handler, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
-            //                  snode_size, total_rows(), T(1.0), );
+          /* Init devices matrices */
+          cublasSetMatrix(snode_size, snode_size, sizeof(diag_nzval[0]), diag_nzval, 1, d_diag_nzval, 1);
+          cublasSetMatrix(total_rows(), snode_size, sizeof(nzblk_nzval[0]), nzblk_nzval, 1, d_nzblk_nzval, 1);
+          
+          /* Trsm */
+          T alpha = T(1.0);
+          symPACK::cublas::cublas_trsm(handler, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
+                              snode_size, total_rows(), &(alpha), d_diag_nzval, snode_size, d_nzblk_nzval, snode_size);
+          //cublasDtrsm(handler, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
+          //                    snode_size, total_rows(), &(alpha), d_diag_nzval, snode_size, d_nzblk_nzval, snode_size);
+          /* Copy matrices to host */
+          cublasGetMatrix(snode_size, snode_size, sizeof(diag_nzval[0]), diag_nzval, 1, d_diag_nzval, 1);
+          cublasGetMatrix(total_rows(), snode_size, sizeof(nzblk_nzval[0]), nzblk_nzval, 1, d_nzblk_nzval, 1);
+
+          /* Cleanup */
+          cudaFree(d_diag_nzval);
+          cudaFree(d_nzblk_nzval);
+          cublasDestroy(handler);
+
 #else
           blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
 #endif
