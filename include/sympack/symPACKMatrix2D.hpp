@@ -7,6 +7,10 @@
 
 #include "sympack/mpi_interf.hpp"
 
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include "cublas_v2.h"
+
 //#define _NO_COMPUTATION_
 //#define LOCK_SRC 2
 
@@ -901,7 +905,18 @@ namespace symPACK{
 
           auto snode_size = std::get<0>(_dims);
           auto nzblk_nzval = _nzval;
+#ifdef CUDA_MODE
+          cublasHandle_t handler;
+          
+          /* Allocate device buffers */
+          logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
+          cudaMalloc(reinterpret_cast<void **>(&diag_nzval), snode_size * snode_size * sizeof(diag_nzval[0]));
+
+          //cublas::cublas_trsm(handler, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
+            //                  snode_size, total_rows(), T(1.0), );
+#else
           blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+#endif
           return 0;
         }
 
