@@ -913,29 +913,28 @@ namespace symPACK{
           stat = cublasCreate(&handler);
           T * d_diag_nzval;
           T * d_nzblk_nzval;
-          symPACK::cublas::test(1);
+
           /* Allocate device buffers */
           cudaMalloc(reinterpret_cast<void **>(&d_diag_nzval), snode_size * snode_size * sizeof(diag_nzval[0]));
           cudaMalloc(reinterpret_cast<void **>(&d_nzblk_nzval), snode_size * total_rows() * sizeof(nzblk_nzval[0]));
 
           /* Init devices matrices */
-          cublasSetMatrix(snode_size, snode_size, sizeof(diag_nzval[0]), diag_nzval, 1, d_diag_nzval, 1);
-          cublasSetMatrix(total_rows(), snode_size, sizeof(nzblk_nzval[0]), nzblk_nzval, 1, d_nzblk_nzval, 1);
+          cublasSetMatrix(snode_size, snode_size, sizeof(diag_nzval[0]), diag_nzval, snode_size, d_diag_nzval, snode_size);
+          cublasSetMatrix(snode_size, total_rows(), sizeof(nzblk_nzval[0]), nzblk_nzval, snode_size, d_nzblk_nzval, snode_size);
           
           /* Trsm */
           T alpha = T(1.0);
           symPACK::cublas::cublas_trsm(handler, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
                               snode_size, total_rows(), &(alpha), d_diag_nzval, snode_size, d_nzblk_nzval, snode_size);
-          //cublasDtrsm(handler, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
-          //                    snode_size, total_rows(), &(alpha), d_diag_nzval, snode_size, d_nzblk_nzval, snode_size);
+
           /* Copy matrices to host */
-          cublasGetMatrix(snode_size, snode_size, sizeof(diag_nzval[0]), diag_nzval, 1, d_diag_nzval, 1);
-          cublasGetMatrix(total_rows(), snode_size, sizeof(nzblk_nzval[0]), nzblk_nzval, 1, d_nzblk_nzval, 1);
+          cublasGetMatrix(snode_size, snode_size, sizeof(diag_nzval[0]), d_diag_nzval, snode_size, diag_nzval, snode_size);
+          cublasGetMatrix(snode_size, total_rows(), sizeof(nzblk_nzval[0]), d_nzblk_nzval, snode_size, nzblk_nzval, snode_size);
 
           /* Cleanup */
           cudaFree(d_diag_nzval);
           cudaFree(d_nzblk_nzval);
-          cublasDestroy(handler);
+          //cublasDestroy(handler);
 
 #else
           blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
@@ -1052,8 +1051,26 @@ namespace symPACK{
             if ( in_place && this->i == this->j ) {
               bassert(src_nrows==tgt_width);
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_SYRK);
+#ifdef CUDA_MODE
+              /* Setup */
+              cublasHandle_t handler;
+              cublasStatus_t stat;
+              stat = cublasCreate(&handler);
+              T * d_pivot_nzval;
+              T * d_buf;
+
+              /* Allocate device buffers */
+              //TODO: Refactor all this stuff into utility functions
+              cudaMalloc(reinterpret_cast<void **>(&d_pivot_nzval), tgt_width * src_snode_size * sizeof(pivot_nzval[0]));
+              cudaMalloc(reinterpret_cast<void **>(&d_buf), tgt_width * tgt_width * sizeof(d_buf[0]));
+
+              /* Init device matrices */
+              //cublasSetMatrix()
+
+#else
               blas::Syrk('U','T',tgt_width, src_snode_size,
                   T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
+#endif                  
               SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_SYRK);
             }
             else {
