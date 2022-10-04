@@ -928,7 +928,6 @@ namespace symPACK{
                               snode_size, total_rows(), &(alpha), d_diag_nzval, snode_size, d_nzblk_nzval, snode_size);
 
           /* Copy matrices to host */
-          cublasGetMatrix(snode_size, snode_size, sizeof(diag_nzval[0]), d_diag_nzval, snode_size, diag_nzval, snode_size);
           cublasGetMatrix(snode_size, total_rows(), sizeof(nzblk_nzval[0]), d_nzblk_nzval, snode_size, nzblk_nzval, snode_size);
 
           /* Cleanup */
@@ -1053,6 +1052,7 @@ namespace symPACK{
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_SYRK);
 #ifdef CUDA_MODE
               /* Setup */
+              //TODO: This syrk is weird
               cublasHandle_t handler;
               cublasStatus_t stat;
               stat = cublasCreate(&handler);
@@ -1062,10 +1062,29 @@ namespace symPACK{
               /* Allocate device buffers */
               //TODO: Refactor all this stuff into utility functions
               cudaMalloc(reinterpret_cast<void **>(&d_pivot_nzval), tgt_width * src_snode_size * sizeof(pivot_nzval[0]));
-              cudaMalloc(reinterpret_cast<void **>(&d_buf), tgt_width * tgt_width * sizeof(d_buf[0]));
+              cudaMalloc(reinterpret_cast<void **>(&d_buf), ldbuf * ldbuf * sizeof(buf[0]));
 
               /* Init device matrices */
-              //cublasSetMatrix()
+              cublasSetMatrix(src_snode_size, tgt_width, sizeof(pivot_nzval[0]), pivot_nzval, src_snode_size, d_pivot_nzval, src_snode_size);
+              cublasSetMatrix(tgt_width, tgt_width, sizeof(buf[0]), buf, tgt_width, d_buf, tgt_width);
+
+              /* SYRK */
+              T alpha = T(-1.0);
+              //symPACK::cublas::cublas_syrk(handler, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, tgt_width, src_snode_size,
+              //                            &alpha, pivot_nzval, src_snode_size, &beta, buf, ldbuf);
+              cublasDsyrk(handler, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, tgt_width, src_snode_size,
+                                          &alpha, pivot_nzval, src_snode_size, &beta, buf, ldbuf);
+
+              /* Copy matrices to host */
+              cublasGetMatrix(tgt_width, tgt_width, sizeof(buf[0]), d_buf, tgt_width, buf, tgt_width);
+
+              /* Cleanup */
+              cudaFree(d_pivot_nzval);
+              cudaFree(d_buf);
+              logfileptr->OFS()<< (buf[ldbuf] <<std::endl;
+              //blas::Syrk('U','T',tgt_width, src_snode_size,
+                //  T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
+
 
 #else
               blas::Syrk('U','T',tgt_width, src_snode_size,
