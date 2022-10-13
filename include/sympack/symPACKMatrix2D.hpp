@@ -1281,7 +1281,30 @@ namespace symPACK{
         }
 
         virtual int _tri_solve(char TRANSA, int_t M,int_t N,T ALPHA,T* A,int_t LDA,T* B,int_t LDB) {
+#ifdef CUDA_MODE
+          T C = T(1.0);
+          T BETA = T(1.0);
+          if (TRANSA=='T')
+            symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
+                                          CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
+                                          CUBLAS_OP_T, CUBLAS_OP_N,
+                                          CUBLAS_DIAG_NON_UNIT,
+                                          M, N, NULL,
+                                          &ALPHA, A, LDA,
+                                          &BETA, B, LDB,
+                                          &C, NULL);
+          else
+            symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
+                                          CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
+                                          CUBLAS_OP_N, CUBLAS_OP_N,
+                                          CUBLAS_DIAG_NON_UNIT,
+                                          M, N, NULL,
+                                          &ALPHA, A, LDA,
+                                          &BETA, B, LDB,
+                                          &C, NULL);
+#else
           blas::Trsm('R','U',TRANSA,'N',M,N, ALPHA,  A, LDA, B, LDB);
+#endif
           return 0;
         }
 
@@ -1652,8 +1675,21 @@ namespace symPACK{
 
           auto snode_size = std::get<0>(this->_dims);
           auto nzblk_nzval = this->_nzval;
-
+#ifdef CUDA_MODE
+          T alpha = T(1.0);
+          T beta = T(1.0);
+          T C = T(1.0);
+          symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
+                                        CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                                        CUBLAS_OP_T, CUBLAS_OP_N,
+                                        CUBLAS_DIAG_UNIT,
+                                        snode_size, this->total_rows(), NULL,
+                                        &alpha, diag_nzval, snode_size,
+                                        &beta, nzblk_nzval, snode_size,
+                                        &C, NULL);
+#else
           blas::Trsm('L','U','T','U',snode_size, this->total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+#endif
 
           //scale column I
           for ( int_t I = 1; I<=snode_size; I++) {
@@ -1936,7 +1972,30 @@ namespace symPACK{
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
+#ifdef CUDA_MODE
+          T C = T(1.0);
+          T BETA = T(1.0);
+          if (TRANSA=='T')
+            symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
+                                          CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
+                                          CUBLAS_OP_T, CUBLAS_OP_N,
+                                          CUBLAS_DIAG_UNIT,
+                                          M, N, NULL,
+                                          &ALPHA, A, LDA,
+                                          &BETA, B, LDB,
+                                          &C, NULL);
+          else
+            symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
+                                          CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
+                                          CUBLAS_OP_N, CUBLAS_OP_N,
+                                          CUBLAS_DIAG_UNIT,
+                                          M, N, NULL,
+                                          &ALPHA, A, LDA,
+                                          &BETA, B, LDB,
+                                          &C, NULL);
+#else
           blas::Trsm('R','U',TRANSA,'U',M,N, ALPHA,  A, LDA, B, LDB);
+#endif
           return 0;
         }
 
