@@ -907,6 +907,17 @@ namespace symPACK{
           auto snode_size = std::get<0>(_dims);
           auto nzblk_nzval = _nzval;
 #ifdef CUDA_MODE
+          T alpha = T(1.0);
+          T beta = T(1.0);
+          T C = T(1.0);
+          symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM, 
+                       CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, 
+                       CUBLAS_OP_T, CUBLAS_OP_N, 
+                       CUBLAS_DIAG_NON_UNIT,
+                       snode_size, total_rows(), NULL, 
+                       &(alpha), diag_nzval, snode_size,
+                       &(beta), nzblk_nzval, snode_size,
+                       &C, NULL);
           /* Setup */
           cublasHandle_t handler;
           cublasStatus_t stat;
@@ -915,20 +926,19 @@ namespace symPACK{
           T * d_nzblk_nzval;
 
           /* Allocate device buffers */
-          cudaMalloc(reinterpret_cast<void **>(&d_diag_nzval), snode_size * snode_size * sizeof(diag_nzval[0]));
-          cudaMalloc(reinterpret_cast<void **>(&d_nzblk_nzval), snode_size * total_rows() * sizeof(nzblk_nzval[0]));
+          //cudaMalloc(reinterpret_cast<void **>(&d_diag_nzval), snode_size * snode_size * sizeof(diag_nzval[0]));
+          //cudaMalloc(reinterpret_cast<void **>(&d_nzblk_nzval), snode_size * total_rows() * sizeof(nzblk_nzval[0]));
 
           /* Init devices matrices */
-          cublasSetMatrix(snode_size, snode_size, sizeof(diag_nzval[0]), diag_nzval, snode_size, d_diag_nzval, snode_size);
-          cublasSetMatrix(snode_size, total_rows(), sizeof(nzblk_nzval[0]), nzblk_nzval, snode_size, d_nzblk_nzval, snode_size);
+          //cublasSetMatrix(snode_size, snode_size, sizeof(diag_nzval[0]), diag_nzval, snode_size, d_diag_nzval, snode_size);
+          //cublasSetMatrix(snode_size, total_rows(), sizeof(nzblk_nzval[0]), nzblk_nzval, snode_size, d_nzblk_nzval, snode_size);
           
           /* Trsm */
-          T alpha = T(1.0);
-          symPACK::cublas::cublas_trsm(handler, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
-                              snode_size, total_rows(), &(alpha), d_diag_nzval, snode_size, d_nzblk_nzval, snode_size);
+          //symPACK::cublas::cublas_trsm(handler, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
+          //                    snode_size, total_rows(), &(alpha), d_diag_nzval, snode_size, d_nzblk_nzval, snode_size);
 
           /* Copy matrices to host */
-          cublasGetMatrix(snode_size, total_rows(), sizeof(nzblk_nzval[0]), d_nzblk_nzval, snode_size, nzblk_nzval, snode_size);
+          //cublasGetMatrix(snode_size, total_rows(), sizeof(nzblk_nzval[0]), d_nzblk_nzval, snode_size, nzblk_nzval, snode_size);
 
           /* Cleanup */
           cudaFree(d_diag_nzval);
@@ -1072,8 +1082,8 @@ namespace symPACK{
               T alpha = T(-1.0);
               //symPACK::cublas::cublas_syrk(handler, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, tgt_width, src_snode_size,
               //                            &alpha, pivot_nzval, src_snode_size, &beta, buf, ldbuf);
-              cublasDsyrk(handler, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, tgt_width, src_snode_size,
-                                          &alpha, pivot_nzval, src_snode_size, &beta, buf, ldbuf);
+              //cublasDsyrk(handler, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, tgt_width, src_snode_size,
+               //                           &alpha, pivot_nzval, src_snode_size, &beta, buf, ldbuf);
 
               /* Copy matrices to host */
               cublasGetMatrix(tgt_width, tgt_width, sizeof(buf[0]), d_buf, tgt_width, buf, tgt_width);
@@ -1263,7 +1273,7 @@ namespace symPACK{
                                         ldsol, ldfact, &alpha, d_diag_nzval, ldfact, d_tgt_contrib_nzval, ldsol);
             
             /* Copy matrices to host */
-            cublasGetMatrix(ldsol, ldfact, sizeof(tgt_contrib._nzval[0]), d_tgt_contrib_nzval, ldsol, d_tgt_contrib_nzval, ldsol);
+            cublasGetMatrix(ldsol, ldfact, sizeof(tgt_contrib._nzval[0]), d_tgt_contrib_nzval, ldsol, tgt_contrib._nzval, ldsol);
 
             /* Cleanup */
             cudaFree(d_diag_nzval);

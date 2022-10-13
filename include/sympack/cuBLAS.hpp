@@ -282,8 +282,45 @@ namespace cublas {
     enum l3_cublas_ops{OP_SYRK,
                        OP_GEMM,
                        OP_TRSM};
-    
-    void do_cublas_l3();
+    template <class T>
+    void do_cublas_l3(l3_cublas_ops op, cublasSideMode_t side, cublasFillMode_t fill, 
+                                  cublasOperation_t opA, cublasOperation_t opB,
+                                  cublasDiagType_t diag, 
+                                  Int M, Int N, Int K,
+                                  T *alpha, T *A, Int lda, 
+                                  T *beta, T *B, Int ldb, 
+                                  T *C, Int ldc) {
+        cublasHandle_t handler;
+        cublasStatus_t stat;
+        stat = cublasCreate(&handler);
+        
+        switch(op) {
+            case OP_TRSM:
+
+                /* Setup device matrices */
+                T * d_A;
+                T * d_B;
+                if (side==CUBLAS_SIDE_LEFT) {
+                    cudaMalloc(reinterpret_cast<void **>(&d_A), lda * M * sizeof(A[0]));
+                    cublasSetMatrix(lda, M, sizeof(A[0]), A, lda, d_A, lda);
+                } else {
+                    cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0]));
+                    cublasSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda);
+                }
+                cudaMalloc(reinterpret_cast<void **>(&d_B), ldb * N * sizeof(B[0]));
+                cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb);
+                
+                /* Do TRSM */
+                cublas_trsm(handler, side, fill, opA, diag, M, N, alpha, d_A, lda, d_B, ldb);
+
+                /* Copy matrices to host */
+                cublasGetMatrix(ldb, N, sizeof(B[0]), d_B, ldb, B, ldb);
+
+                /* Cleanup */
+                cudaFree(d_A);
+                cudaFree(d_B);
+        }
+    };
 
 
 }
