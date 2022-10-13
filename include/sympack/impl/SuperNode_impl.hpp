@@ -5,6 +5,11 @@
 #include <google/coredumper.h>
 #endif
 
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include "cublas_v2.h"
+#include "sympack/cuBLAS.hpp"
+
 
 /****************************************/
 /*            _________________         */
@@ -1117,7 +1122,21 @@ namespace symPACK{
           for ( Int lpan = pan+1; lpan<numPanels; lpan++ ) {
             Int ld_lpan = std::min(meta_->iSize_,(lpan+1)*panel);
             Int lpansize = std::min(panel,meta_->iSize_ - lpan*panel);
+#ifdef CUDA_MODE
+            T alpha = T(1.0);
+            T beta = T(1.0);
+            T C = T(1.0);
+            cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM, 
+                                          CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                                          CUBLAS_OP_T, CUBLAS_OP_N, 
+                                          CUBLAS_DIAG_NON_UNIT,
+                                          pansize, lpansize, NULL,
+                                          &alpha, diag_nzval, ld_diag,
+                                          &beta, nzblk_nzval, ld_lpan,
+                                          &C, NULL);
+#else 
             blas::Trsm('L','U','T','N',pansize, lpansize, T(1.0),  diag_nzval, ld_diag, nzblk_nzval, ld_lpan );
+#endif
           }
           //TODO update trailing matrix
           diag_nzval += (pan+1)*panel*panel;
@@ -1127,7 +1146,21 @@ namespace symPACK{
         T * diag_nzval = &GetNZval(diag_desc.Offset)[0];
         lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
         T * nzblk_nzval = &GetNZval(diag_desc.Offset)[(snode_size)*snode_size];
+#ifdef CUDA_MODE
+        T alpha = T(1.0);
+        T beta = T(1.0);
+        T C = T(1.0);
+        cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
+                             CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                             CUBLAS_OP_T, CUBLAS_OP_N,
+                             CUBLAS_DIAG_NON_UNIT,
+                             snode_size, NRowsBelowBlock(0)-snode_size, NULL,
+                             &alpha, diag_nzval, snode_size,
+                             &beta, nzblk_nzval, snode_size,
+                             &C, NULL);
+#else
         blas::Trsm('L','U','T','N',snode_size, NRowsBelowBlock(0)-snode_size, T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+#endif
       }
       return 0;
 
@@ -1144,7 +1177,21 @@ namespace symPACK{
       NZBlockDesc & diag_desc = diag_snode->GetNZBlockDesc(0);
       T * diag_nzval = &diag_snode->GetNZval(diag_desc.Offset)[0];
       T * nzblk_nzval = &GetNZval(diag_desc.Offset)[(snode_size)*snode_size];
+#ifdef CUDA_MODE
+      T alpha = T(1.0);
+      T beta = T(1.0);
+      T C = T(1.0);
+      cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
+                           CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                           CUBLAS_OP_T, CUBLAS_OP_N,
+                           CUBLAS_DIAG_NON_UNIT,
+                           snode_size, NRowsBelowBlock(0)-snode_size, NULL,
+                           &alpha, diag_nzval, snode_size,
+                           &beta, nzblk_nzval, snode_size,
+                           &C, NULL);
+#else
       blas::Trsm('L','U','T','N',snode_size, NRowsBelowBlock(0)-snode_size, T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+#endif
       return 0;
 
     }

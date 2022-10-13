@@ -5,6 +5,10 @@
 #include <google/coredumper.h>
 #endif
 
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include "cublas_v2.h"
+
 
 /****************************************/
 /*            _________________         */
@@ -443,7 +447,21 @@ namespace symPACK{
 
       SYMPACK_TIMER_START(FACT_TRSM);
       T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
+#ifdef CUDA_MODE
+      T alpha = T(1.0);
+      T beta = T(1.0);
+      T C = T(1.0);
+      cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM, 
+                            CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                            CUBLAS_OP_T, CUBLAS_OP_N, 
+                            CUBLAS_DIAG_UNIT,
+                            snodeSize, totalNRows-snodeSize, NULL,
+                            &alpha, diag_nzval, snodeSize,
+                            &beta, nzblk_nzval, snodeSize,
+                            &C, NULL);
+#else
       blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
+#endif
       SYMPACK_TIMER_STOP(FACT_TRSM);
 
       SYMPACK_TIMER_START(FACT_SCALE);
@@ -476,8 +494,21 @@ namespace symPACK{
 
 
       T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
+#ifdef CUDA_MODE
+      T alpha = T(1.0);
+      T beta = T(1.0);
+      T C = T(1.0);
+      cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM, 
+                            CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                            CUBLAS_OP_T, CUBLAS_OP_N, 
+                            CUBLAS_DIAG_UNIT,
+                            snodeSize, totalNRows-snodeSize, NULL,
+                            &alpha, diag_nzval, snodeSize,
+                            &beta, nzblk_nzval, snodeSize,
+                            &C, NULL);
+#else
       blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
-
+#endif
       //scale column I
       for ( Idx I = 1; I<=snodeSize;I++) {
         blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
