@@ -1081,9 +1081,9 @@ namespace symPACK{
               /* Cleanup */
               cudaFree(d_pivot_nzval);
               cudaFree(d_buf);
-              logfileptr->OFS()<< (buf[ldbuf] <<std::endl;
-              //blas::Syrk('U','T',tgt_width, src_snode_size,
-                //  T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
+              logfileptr->OFS()<< (buf[ldbuf]) <<std::endl;
+              blas::Syrk('U','T',tgt_width, src_snode_size,
+                  T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
 
 
 #else
@@ -1241,7 +1241,37 @@ namespace symPACK{
           if ( this->i == this->j ) {
             bassert(this->blocks().size()==1);
             auto diag_nzval = this->_nzval;
+#ifdef CUDA_MODE
+            /* Setup */
+            cublasHandle_t handler;
+            cublasStatus_t stat;
+            stat = cublasCreate(&handler);
+            T * d_diag_nzval;
+            T * d_tgt_contrib_nzval;
+
+            /* Allocate device buffers */
+            cudaMalloc(reinterpret_cast<void **>(&d_diag_nzval), ldfact*ldfact*sizeof(diag_nzval[0]));
+            cudaMalloc(reinterpret_cast<void **>(&d_tgt_contrib_nzval), ldsol*ldfact*sizeof(tgt_contrib._nzval[0]));
+
+            /* Init device matrices */
+            cublasSetMatrix(ldfact, ldfact, sizeof(diag_nzval[0]), diag_nzval, ldfact, d_diag_nzval, ldfact);
+            cublasSetMatrix(ldsol, ldfact, sizeof(tgt_contrib._nzval[0]), tgt_contrib._nzval, ldsol, d_tgt_contrib_nzval, ldsol);
+
+            /* TRSM */
+            T alpha = T(1.0);
+            symPACK::cublas::cublas_trsm(handler, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT,
+                                        ldsol, ldfact, &alpha, d_diag_nzval, ldfact, d_tgt_contrib_nzval, ldsol);
+            
+            /* Copy matrices to host */
+            cublasGetMatrix(ldsol, ldfact, sizeof(tgt_contrib._nzval[0]), d_tgt_contrib_nzval, ldsol, d_tgt_contrib_nzval, ldsol);
+
+            /* Cleanup */
+            cudaFree(d_diag_nzval);
+            cudaFree(d_tgt_contrib_nzval);
+
+#else
             blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
+#endif
           }
           else {
             bassert(pdiag_contrib);
