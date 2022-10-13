@@ -255,5 +255,36 @@ namespace cublas {
     //template<typename T>
     //cublasStatus_t cublas_trsm(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t,
     //                    Int, Int, const T *, const T *, Int, T *, Int);
+
+    /* DO_CUBLAS_L1 */
+
+    enum l1_cublas_ops{OP_AXPY,
+                       OP_COPY,
+                       OP_SCAL};
+    
+
+    void do_cublas_l1();
+    
+
+    /* DO_CUBLAS_L2 */
+
+    enum l2_cublas_ops{OP_GEMV,
+                       OP_GER,
+                       OP_GERU,
+                       OP_GERC};
+    
+
+    void do_cublas_l2();
+
+
+    /* DO_CUBLAS_L3 */
+
+    enum l3_cublas_ops{OP_SYRK,
+                       OP_GEMM,
+                       OP_TRSM};
+    
+    void do_cublas_l3();
+
+
 }
 }

@@ -5,6 +5,7 @@
 #include <sympack/symPACKMatrix2D.hpp>
 #include "sympack/CommTypes.hpp"
 #include "sympack/Ordering.hpp"
+//#include "sympack/cuBLAS.hpp"
 
 #include "utils.hpp"
 
@@ -67,6 +68,9 @@ int main(int argc, char **argv)
     std::vector<SCALAR> XFinal;
     auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
     try{
+#ifdef CUDA_MODE
+     logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
+#endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
       timeSta = get_time();

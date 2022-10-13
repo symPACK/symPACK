@@ -4,7 +4,7 @@
 #include <sympack/symPACKMatrix.hpp>
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
-#include "sympack/cuBLAS.hpp"
+//#include "sympack/cuBLAS.hpp"
 
 #include "utils.hpp"
 
