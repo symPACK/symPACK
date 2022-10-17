@@ -1270,8 +1270,22 @@ namespace symPACK{
               T * tgt = tgt_contrib._nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
 
               //Do -L*Y (gemm)
+#ifdef CUDA_MODE
+              T alpha = T(-1.0);
+              T beta = T(1.0);
+              cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
+                                   CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                                   CUBLAS_OP_N, CUBLAS_OP_N,
+                                   CUBLAS_DIAG_NON_UNIT,
+                                   ldsol, this->block_nrows(src_block), ldfact,
+                                   &alpha, diag_contrib._nzval, ldsol,
+                                   &beta, src, ldfact,
+                                   tgt, ldsol);
+
+#else
               blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
                   T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
+#endif                  
             }
           }
           return 0;
@@ -1347,7 +1361,22 @@ namespace symPACK{
               T * src = diag_contrib._nzval + block.offset + (fact_block.first_row - block.first_row)*ldsol;
               T * fact = this->_nzval+fact_block.offset;
               //Do -X*LT (gemm)
-              blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
+#ifdef CUDA_MODE
+              T alpha = T(-1.0);
+              T beta = T(1.0);
+              
+              cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
+                                   CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                                   CUBLAS_OP_N, CUBLAS_OP_T,
+                                   CUBLAS_DIAG_NON_UNIT,
+                                   ldsol, ldfact, this->block_nrows(fact_block),
+                                   &alpha, src, ldsol,
+                                   &beta, fact, ldfact,
+                                   tgt_contrib._nzval, ldsol);
+#else              
+              blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), 
+              T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
+#endif              
             }
           }
           return 0;
@@ -1863,8 +1892,20 @@ namespace symPACK{
             bufLDL = pivot._bufLDL;
 
             //Then do -L*W (gemm)
+#ifdef CUDA_MODE
+            T alpha = T(-1.0);
+            cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
+                                 CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                                 CUBLAS_OP_N, CUBLAS_OP_N,
+                                 CUBLAS_DIAG_NON_UNIT,
+                                 tgt_width, src_nrows, src_snode_size,
+                                 &alpha, bufLDL, tgt_width,
+                                 &beta, facing_nzval, src_snode_size,
+                                 buf, ldbuf);
+#else
             blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
                 T(-1.0),bufLDL,tgt_width,facing_nzval,src_snode_size,beta,buf,ldbuf);
+#endif
 
             if ( pivot._own_storage ) {
               if ( pivot.local_pivot.fetch_sub(1)==1) {
@@ -2048,7 +2089,20 @@ namespace symPACK{
 
               bassert(diag_contrib.j != tgt_contrib.j);
               //Do -L*Y (gemm)
+#ifdef CUDA_MODE
+              T alpha = T(-1.0);
+              T beta = T(1.0);
+              cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
+                                   CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                                   CUBLAS_OP_N, CUBLAS_OP_N,
+                                   CUBLAS_DIAG_NON_UNIT,
+                                   ldsol, this->block_nrows(src_block), ldfact,
+                                   &alpha, diag_contrib._nzval, ldsol,
+                                   &beta, src, ldfact,
+                                   tgt, ldsol);
+#else              
               blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact, T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
+#endif              
             }
           }
           return 0;

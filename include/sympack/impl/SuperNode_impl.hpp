@@ -818,9 +818,21 @@ namespace symPACK{
 
         //everything is in row-major
         SYMPACK_TIMER_START(UPDATE_SNODE_GEMM);
+#ifdef CUDA_MODE
+        T alpha = T(-1.0);
+        cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
+                             CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                             CUBLAS_OP_T, CUBLAS_OP_N,
+                             CUBLAS_DIAG_NON_UNIT,
+                             tgt_width, src_nrows, src_snode_size,
+                             &alpha, pivot, src_snode_size,
+                             &beta, pivot, src_snode_size,
+                             buf, tgt_width);
+#else
         blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
             T(-1.0),pivot,src_snode_size,
             pivot,src_snode_size,beta,buf,tgt_width);
+#endif 
         SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
 
         //If the GEMM wasn't done in place we need to aggregate the update
@@ -989,9 +1001,21 @@ namespace symPACK{
 
       //everything is in row-major
       SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
+#ifdef CUDA_MODE
+        T alpha = T(-1.0);
+        cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
+                             CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                             CUBLAS_OP_T, CUBLAS_OP_N,
+                             CUBLAS_DIAG_NON_UNIT,
+                             tgt_width, src_nrows, src_snode_size,
+                             &alpha, pivot, src_snode_size,
+                             &beta, pivot, src_snode_size,
+                             buf, tgt_width);
+#else
       blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
           T(-1.0),pivot,src_snode_size,
           pivot,src_snode_size,beta,buf,tgt_width);
+#endif      
       SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_GEMM);
 
       //If the GEMM wasn't done in place we need to aggregate the update

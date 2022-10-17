@@ -283,7 +283,7 @@ namespace cublas {
                        OP_GEMM,
                        OP_TRSM};
     template <class T>
-    void do_cublas_l3(l3_cublas_ops op, cublasSideMode_t side, cublasFillMode_t fill, 
+    inline void do_cublas_l3(l3_cublas_ops op, cublasSideMode_t side, cublasFillMode_t fill, 
                                   cublasOperation_t opA, cublasOperation_t opB,
                                   cublasDiagType_t diag, 
                                   Int M, Int N, Int K,
@@ -340,7 +340,7 @@ namespace cublas {
                     //B is ldb*N
                     cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * N * sizeof(B[0]));
                     cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb);
-                } else if (opA==CUBLAS_OP_T) {
+                } else if (opB==CUBLAS_OP_T) {
                     //B is lda*K
                     cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * K * sizeof(B[0]));
                     cublasSetMatrix(ldb, K, sizeof(B[0]), B, ldb, d_B, ldb);
@@ -364,7 +364,10 @@ namespace cublas {
                 cudaFree(d_B);
                 cudaFree(d_C);
                 break;
-                
+            
+            case OP_SYRK:
+                //TODO
+                break;
         }
     };
 
