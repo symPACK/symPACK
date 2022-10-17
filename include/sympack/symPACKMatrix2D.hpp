@@ -4,7 +4,7 @@
 #include "sympack/Environment.hpp"
 #include "sympack/symPACKMatrixBase.hpp"
 #include "sympack/symPACKMatrix.hpp"
-#include "sympack/cuBLAS.hpp"
+
 
 #include "sympack/mpi_interf.hpp"
 
@@ -1079,10 +1079,20 @@ namespace symPACK{
             else {
               //everything is in row-major
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
-
+#ifdef CUDA_MODE
+              T alpha = T(-1.0);
+              cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
+                                  CUBLAS_OP_T, CUBLAS_OP_N,
+                                  CUBLAS_DIAG_NON_UNIT,
+                                  tgt_width, src_nrows, src_snode_size,
+                                  &alpha, pivot_nzval, src_snode_size,
+                                  &beta, facing_nzval, src_snode_size,
+                                  buf, ldbuf);
+#else
               blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
                   T(-1.0),pivot_nzval,src_snode_size,
                   facing_nzval,src_snode_size,beta,buf,ldbuf);
+#endif                  
               SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_GEMM);
             }
 

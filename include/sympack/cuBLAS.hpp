@@ -293,13 +293,16 @@ namespace cublas {
         cublasHandle_t handler;
         cublasStatus_t stat;
         stat = cublasCreate(&handler);
+        T * d_A;
+        T * d_B;
+        T * d_C;
         
+        /* Create handlers for each L3 op */
         switch(op) {
+    
             case OP_TRSM:
-
+                logfileptr->OFS()<<"DOING TRSM\n";
                 /* Setup device matrices */
-                T * d_A;
-                T * d_B;
                 if (side==CUBLAS_SIDE_LEFT) {
                     cudaMalloc(reinterpret_cast<void **>(&d_A), lda * M * sizeof(A[0]));
                     cublasSetMatrix(lda, M, sizeof(A[0]), A, lda, d_A, lda);
@@ -319,6 +322,49 @@ namespace cublas {
                 /* Cleanup */
                 cudaFree(d_A);
                 cudaFree(d_B);
+                break;
+            
+            case OP_GEMM:
+                logfileptr->OFS()<<"DOING GEMM\n";
+                if (opA==CUBLAS_OP_N) {
+                    //A is lda*K
+                    cudaMalloc(reinterpret_cast<void**>(&d_A), lda * K * sizeof(A[0]));
+                    cublasSetMatrix(lda, K, sizeof(A[0]), A, lda, d_A, lda);
+                } else if (opA==CUBLAS_OP_T) {
+                    //A is lda*M
+                    cudaMalloc(reinterpret_cast<void**>(&d_A), lda * M * sizeof(A[0]));
+                    cublasSetMatrix(lda, M, sizeof(A[0]), A, lda, d_A, lda);
+                }
+
+                if (opB==CUBLAS_OP_N) {
+                    //B is ldb*N
+                    cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * N * sizeof(B[0]));
+                    cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb);
+                } else if (opA==CUBLAS_OP_T) {
+                    //B is lda*K
+                    cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * K * sizeof(B[0]));
+                    cublasSetMatrix(ldb, K, sizeof(B[0]), B, ldb, d_B, ldb);
+                }
+
+                cudaMalloc(reinterpret_cast<void**>(&d_C), ldc * N * sizeof(C[0]));
+                cublasSetMatrix(ldc, N, sizeof(C[0]), C, ldc, d_C, ldc);
+
+                /* Do GEMM */
+                cublas_gemm(handler, opA, opB,
+                            M, N, K,
+                            alpha, d_A, lda,
+                            d_B, ldb, beta,
+                            d_C, ldc);
+
+                /* Copy matrices to host */
+                cublasGetMatrix(ldc, N, sizeof(C[0]), d_C, ldc, C, ldc);
+
+                /* Cleanup */
+                cudaFree(d_A);
+                cudaFree(d_B);
+                cudaFree(d_C);
+                break;
+                
         }
     };
 
