@@ -1,4 +1,4 @@
-/* Wrapper functions for each cuBLAS call
+/* cuBLAS interface
  * Author: Julian Bellavita, UC Berkeley
  */
 #include  "sympack/Environment.hpp"
@@ -6,6 +6,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "cublas_v2.h"
+
 
 namespace symPACK {
 namespace cublas {
@@ -113,6 +114,70 @@ namespace cublas {
                            const cuDoubleComplex           *, Int ,
                            const cuDoubleComplex           *,
                            cuDoubleComplex           *, Int );
+    
+    template <typename T>
+    cublasStatus_t cublas_gemv_wrapper(cublasOperation_t op,
+                           Int M, Int N,
+                           const T           * alpha,
+                           const T           * A, Int lda,
+                           const T           * X, Int incx,
+                           const T           * beta,
+                           const T           * Y, Int incy) {
+
+        T *d_A;
+        T *d_X;
+        T *d_Y;
+
+        cublasStatus_t status;
+
+        status = cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0]));
+        if (status!=CUBLAS_STATUS_SUCCESS)
+            throw std::runtime_error("cuBLAS error");
+        status = cudaSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda);
+        if (status!=CUBLAS_STATUS_SUCCESS)
+            throw std::runtime_error("cuBLAS error");
+
+        long dimx;
+        if (op==CUBLAS_OP_T) 
+            dimx = (1 + (M - 1) * abs(incx));
+        else 
+            dimx = (1 + (N - 1) * abs(incx));
+    
+        status = cudaMalloc(reinterpret_cast<void **>(&d_X), dimx);
+        if (status!=CUBLAS_STATUS_SUCCESS)
+            throw std::runtime_error("cuBLAS error");
+        status = cublasSetVector(dimx, sizeof(X[0]), X, incx, d_X, incx);
+        if (status!=CUBLAS_STATUS_SUCCESS)
+            throw std::runtime_error("cuBLAS error");
+
+        long dimy;
+        if (op==CUBLAS_OP_T) 
+            dimy = (1 + (N - 1) * abs(incy));
+        else 
+            dimy = (1 + (M - 1) * abs(incy));
+        
+        status = cudaMalloc(reinterpret_cast<void **>(&d_Y), dimy);
+        if (status!=CUBLAS_STATUS_SUCCESS)
+            throw std::runtime_error("cuBLAS error");
+        status = cublasSetVector(dimy, sizeof(Y[0]), Y, incy, d_Y, incy);
+        if (status!=CUBLAS_STATUS_SUCCESS)
+            throw std::runtime_error("cuBLAS error");
+
+        status = cublas_gemv(symPACK::handler, op,
+                    M, N,
+                    alpha, d_A, lda,
+                    d_X, incx,
+                    beta,
+                    d_Y, incy);
+        if (status!=CUBLAS_STATUS_SUCCESS)
+            throw std::runtime_error("cuBLAS error");
+
+        status = cublasGetVector(dimy, sizeof(Y[0]), d_Y, incy, Y, incy);
+        if (status!=CUBLAS_STATUS_SUCCESS)
+            throw std::runtime_error("cuBLAS error");
+
+        return status;
+    };
 
 
     /* GER */
@@ -290,9 +355,6 @@ namespace cublas {
                                   T *alpha, T *A, Int lda, 
                                   T *beta, T *B, Int ldb, 
                                   T *C, Int ldc) {
-        cublasHandle_t handler;
-        cublasStatus_t stat;
-        stat = cublasCreate(&handler);
         T * d_A;
         T * d_B;
         T * d_C;
@@ -314,7 +376,10 @@ namespace cublas {
                 cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb);
                 
                 /* Do TRSM */
-                cublas_trsm(handler, side, fill, opA, diag, M, N, alpha, d_A, lda, d_B, ldb);
+                cublas_trsm(symPACK::handler, side, fill, opA, diag, 
+                            M, N, 
+                            alpha, d_A, lda, 
+                            d_B, ldb);
 
                 /* Copy matrices to host */
                 cublasGetMatrix(ldb, N, sizeof(B[0]), d_B, ldb, B, ldb);
@@ -350,7 +415,7 @@ namespace cublas {
                 cublasSetMatrix(ldc, N, sizeof(C[0]), C, ldc, d_C, ldc);
 
                 /* Do GEMM */
-                cublas_gemm(handler, opA, opB,
+                cublas_gemm(symPACK::handler, opA, opB,
                             M, N, K,
                             alpha, d_A, lda,
                             d_B, ldb, beta,
@@ -368,21 +433,21 @@ namespace cublas {
             case OP_SYRK:
                 logfileptr->OFS()<<"DOING SYRK\n";
                 if (opA==CUBLAS_OP_T) {
-                    cudaMalloc(reinterpret_cast<void **>(&d_A), lda * K * sizeof(A[0]));
-                    cublasSetMatrix(lda, K, sizeof(A[0]), A, lda, d_A, lda);
-                } else {
                     cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0]));
                     cublasSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda);
+                } else {
+                    cudaMalloc(reinterpret_cast<void **>(&d_A), lda * K * sizeof(A[0]));
+                    cublasSetMatrix(lda, K, sizeof(A[0]), A, lda, d_A, lda);
                 }
 
-                cudaMalloc(reinterpret_cast<void **>(&d_A), ldc * N * sizeof(C[0]));
+                cudaMalloc(reinterpret_cast<void **>(&d_C), ldc * N * sizeof(C[0]));
 
-                cublas_syrk(handler, fill, opA, 
+                cublas_syrk(symPACK::handler, fill, opA, 
                             N, K, 
                             alpha, d_A, lda,
                             beta, d_C, ldc);
 
-                cublasGetMatrix(ldc, N, sizeof(C[0]), d_C, ldc, C, ldc);
+                cublasGetMatrix(ldc, N, sizeof(C[0]), d_C, N, C, ldc);
 
                 cudaFree(d_A);
                 cudaFree(d_C);

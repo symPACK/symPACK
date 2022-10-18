@@ -6,6 +6,9 @@
 
 #include "sympack_definitions.hpp"
 #include "sympack_config.hpp"
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include "cublas_v2.h"
 
 #include <sys/time.h>
 inline double get_time()
@@ -56,6 +59,7 @@ namespace symPACK{
 
 
   extern MPI_Comm world_comm;
+  extern cublasHandle_t handler;
 }
 
 namespace symPACK{

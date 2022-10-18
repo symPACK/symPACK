@@ -48,6 +48,15 @@ int symPACK_Init(int *argc, char ***argv){
     symPACK::capture_master_scope();
     libUPCXXInit = true;
   }
+
+  //init CUDA if in CUDA mode 
+#ifdef CUDA_MODE
+  cublasStatus_t status;
+  status = cublasCreate(&symPACK::handler);
+  if (status!=CUBLAS_STATUS_SUCCESS) {
+    retval = -1;
+  }
+#endif
   
   // init MPI, if necessary
   MPI_Initialized(&symPACK::mpi_already_init);
@@ -77,6 +86,10 @@ int symPACK_Finalize(){
     libUPCXXInit = false;
     libMPIInit = false;
   }
+
+#ifdef CUDA_MODE
+  cublasDestroy(symPACK::handler);
+#endif
 
   return retval;
 }

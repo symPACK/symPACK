@@ -30,6 +30,7 @@ namespace symPACK{
   int64_t main_argc = 0;
   char * const * main_argv;
   MPI_Comm comm;
+  cublasHandle_t handler;
   SecondDuration complete_time;
   int64_t set_contxt = 0;
   int64_t output_file_counter = 0;

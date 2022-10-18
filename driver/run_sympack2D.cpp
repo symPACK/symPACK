@@ -22,7 +22,9 @@ using namespace symPACK;
 
 int main(int argc, char **argv) 
 {
-  symPACK_Init(&argc,&argv);
+  int success = symPACK_Init(&argc,&argv);
+  if (success==-1)
+    return 1;
   {
     int iam = 0;
     int np = 1;
