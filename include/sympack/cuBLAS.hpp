@@ -366,7 +366,26 @@ namespace cublas {
                 break;
             
             case OP_SYRK:
-                //TODO
+                logfileptr->OFS()<<"DOING SYRK\n";
+                if (opA==CUBLAS_OP_T) {
+                    cudaMalloc(reinterpret_cast<void **>(&d_A), lda * K * sizeof(A[0]));
+                    cublasSetMatrix(lda, K, sizeof(A[0]), A, lda, d_A, lda);
+                } else {
+                    cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0]));
+                    cublasSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda);
+                }
+
+                cudaMalloc(reinterpret_cast<void **>(&d_A), ldc * N * sizeof(C[0]));
+
+                cublas_syrk(handler, fill, opA, 
+                            N, K, 
+                            alpha, d_A, lda,
+                            beta, d_C, ldc);
+
+                cublasGetMatrix(ldc, N, sizeof(C[0]), d_C, ldc, C, ldc);
+
+                cudaFree(d_A);
+                cudaFree(d_C);
                 break;
         }
     };
