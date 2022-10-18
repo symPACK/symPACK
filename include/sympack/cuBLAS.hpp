@@ -7,6 +7,7 @@
 #include "device_launch_parameters.h"
 #include "cublas_v2.h"
 
+#define CUBLAS_ERROR_CHECK(s) s!=CUBLAS_STATUS_SUCCESS ? 0 : throw std::runtime_error("cuBLAS error")
 
 namespace symPACK {
 namespace cublas {
@@ -123,19 +124,18 @@ namespace cublas {
                            const T           * X, Int incx,
                            const T           * beta,
                            const T           * Y, Int incy) {
-
+        /* Device buffers */
         T *d_A;
         T *d_X;
         T *d_Y;
 
         cublasStatus_t status;
 
+        /* Set up device buffers */
         status = cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0]));
-        if (status!=CUBLAS_STATUS_SUCCESS)
-            throw std::runtime_error("cuBLAS error");
+        CUBLAS_ERROR_CHECK(status)
         status = cudaSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda);
-        if (status!=CUBLAS_STATUS_SUCCESS)
-            throw std::runtime_error("cuBLAS error");
+        CUBLAS_ERROR_CHECK(status)
 
         long dimx;
         if (op==CUBLAS_OP_T) 
@@ -144,11 +144,9 @@ namespace cublas {
             dimx = (1 + (N - 1) * abs(incx));
     
         status = cudaMalloc(reinterpret_cast<void **>(&d_X), dimx);
-        if (status!=CUBLAS_STATUS_SUCCESS)
-            throw std::runtime_error("cuBLAS error");
+        CUBLAS_ERROR_CHECK(status);
         status = cublasSetVector(dimx, sizeof(X[0]), X, incx, d_X, incx);
-        if (status!=CUBLAS_STATUS_SUCCESS)
-            throw std::runtime_error("cuBLAS error");
+        CUBLAS_ERROR_CHECK(status);
 
         long dimy;
         if (op==CUBLAS_OP_T) 
@@ -157,24 +155,22 @@ namespace cublas {
             dimy = (1 + (M - 1) * abs(incy));
         
         status = cudaMalloc(reinterpret_cast<void **>(&d_Y), dimy);
-        if (status!=CUBLAS_STATUS_SUCCESS)
-            throw std::runtime_error("cuBLAS error");
+        CUBLAS_ERROR_CHECK(status)
         status = cublasSetVector(dimy, sizeof(Y[0]), Y, incy, d_Y, incy);
-        if (status!=CUBLAS_STATUS_SUCCESS)
-            throw std::runtime_error("cuBLAS error");
+        CUBLAS_ERROR_CHECK(status)
 
+        /* do gemv */
         status = cublas_gemv(symPACK::handler, op,
                     M, N,
                     alpha, d_A, lda,
                     d_X, incx,
                     beta,
                     d_Y, incy);
-        if (status!=CUBLAS_STATUS_SUCCESS)
-            throw std::runtime_error("cuBLAS error");
+        CUBLAS_ERROR_CHECK(status)
 
+        /* copy result to host */
         status = cublasGetVector(dimy, sizeof(Y[0]), d_Y, incy, Y, incy);
-        if (status!=CUBLAS_STATUS_SUCCESS)
-            throw std::runtime_error("cuBLAS error");
+        CUBLAS_ERROR_CHECK(status)
 
         return status;
     };
@@ -320,26 +316,6 @@ namespace cublas {
     //template<typename T>
     //cublasStatus_t cublas_trsm(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t,
     //                    Int, Int, const T *, const T *, Int, T *, Int);
-
-    /* DO_CUBLAS_L1 */
-
-    enum l1_cublas_ops{OP_AXPY,
-                       OP_COPY,
-                       OP_SCAL};
-    
-
-    void do_cublas_l1();
-    
-
-    /* DO_CUBLAS_L2 */
-
-    enum l2_cublas_ops{OP_GEMV,
-                       OP_GER,
-                       OP_GERU,
-                       OP_GERC};
-    
-
-    void do_cublas_l2();
 
 
     /* DO_CUBLAS_L3 */
