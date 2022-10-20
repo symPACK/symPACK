@@ -1027,16 +1027,6 @@ namespace symPACK{
               bassert(src_nrows==tgt_width);
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_SYRK);
 #ifdef CUDA_MODE
-              T alpha = T(-1.0);
-              T B = T(1.0);
-              /*cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_SYRK,
-                                   CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
-                                   CUBLAS_OP_T, CUBLAS_OP_N,
-                                   CUBLAS_DIAG_NON_UNIT,
-                                   NULL, tgt_width, src_snode_size,
-                                   &alpha, pivot_nzval, src_snode_size,
-                                   &beta, &B, NULL,
-                                   buf, ldbuf);*/
 
               blas::Syrk('U','T',tgt_width, src_snode_size,
                                 T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
@@ -1050,14 +1040,10 @@ namespace symPACK{
               //everything is in row-major
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
 #ifdef CUDA_MODE
-              T alpha = T(-1.0);
-              cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM, CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
-                                  CUBLAS_OP_T, CUBLAS_OP_N,
-                                  CUBLAS_DIAG_NON_UNIT,
-                                  tgt_width, src_nrows, src_snode_size,
-                                  &alpha, pivot_nzval, src_snode_size,
-                                  &beta, facing_nzval, src_snode_size,
-                                  buf, ldbuf);
+              cublas::cublas_gemm_wrapper(symPACK::handler, CUBLAS_OP_T, CUBLAS_OP_N,
+                                          tgt_width, src_nrows, src_snode_size,
+                                          T(-1.0), pivot_nzval, src_snode_size,
+                                          facing_nzval, src_snode_size, beta, buf, ldbuf);
 #else
               blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
                   T(-1.0),pivot_nzval,src_snode_size,
@@ -1206,17 +1192,7 @@ namespace symPACK{
             bassert(this->blocks().size()==1);
             auto diag_nzval = this->_nzval;
 #ifdef CUDA_MODE
-            T alpha = T(1.0);
-            T beta = T(1.0);   
-            T C = T(1.0);
-            symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
-                                          CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
-                                          CUBLAS_OP_N, CUBLAS_OP_N,
-                                          CUBLAS_DIAG_NON_UNIT,
-                                          ldsol, ldfact, NULL,
-                                          &alpha, diag_nzval, ldfact,
-                                          &beta, tgt_contrib._nzval, ldsol,
-                                          &C, NULL);
+            cublas::cublas_trsm_wrapper(symPACK::handler,CUBLAS_SIDE_RIGHT,CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT,ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
 
 #else
             blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
@@ -1241,16 +1217,8 @@ namespace symPACK{
 
               //Do -L*Y (gemm)
 #ifdef CUDA_MODE
-              T alpha = T(-1.0);
-              T beta = T(1.0);
-              cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
-                                   CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
-                                   CUBLAS_OP_N, CUBLAS_OP_N,
-                                   CUBLAS_DIAG_NON_UNIT,
-                                   ldsol, this->block_nrows(src_block), ldfact,
-                                   &alpha, diag_contrib._nzval, ldsol,
-                                   &beta, src, ldfact,
-                                   tgt, ldsol);
+              cublas::cublas_gemm_wrapper(symPACK::handler, CUBLAS_OP_N,CUBLAS_OP_N,ldsol,this->block_nrows(src_block),ldfact,
+                  T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
 
 #else
               blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
@@ -1276,26 +1244,11 @@ namespace symPACK{
 
         virtual int _tri_solve(char TRANSA, int_t M,int_t N,T ALPHA,T* A,int_t LDA,T* B,int_t LDB) {
 #ifdef CUDA_MODE
-          T C = T(1.0);
-          T BETA = T(1.0);
           if (TRANSA=='T')
-            symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
-                                          CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
-                                          CUBLAS_OP_T, CUBLAS_OP_N,
-                                          CUBLAS_DIAG_NON_UNIT,
-                                          M, N, NULL,
-                                          &ALPHA, A, LDA,
-                                          &BETA, B, LDB,
-                                          &C, NULL);
+            cublas::cublas_trsm_wrapper(symPACK::handler, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,M,N, ALPHA,  A, LDA, B, LDB);
           else
-            symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
-                                          CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
-                                          CUBLAS_OP_N, CUBLAS_OP_N,
-                                          CUBLAS_DIAG_NON_UNIT,
-                                          M, N, NULL,
-                                          &ALPHA, A, LDA,
-                                          &BETA, B, LDB,
-                                          &C, NULL);
+            cublas::cublas_trsm_wrapper(symPACK::handler, CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT,M,N, ALPHA,  A, LDA, B, LDB);
+
 #else
           blas::Trsm('R','U',TRANSA,'N',M,N, ALPHA,  A, LDA, B, LDB);
 #endif
@@ -1335,14 +1288,8 @@ namespace symPACK{
               T alpha = T(-1.0);
               T beta = T(1.0);
               
-              cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
-                                   CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
-                                   CUBLAS_OP_N, CUBLAS_OP_T,
-                                   CUBLAS_DIAG_NON_UNIT,
-                                   ldsol, ldfact, this->block_nrows(fact_block),
-                                   &alpha, src, ldsol,
-                                   &beta, fact, ldfact,
-                                   tgt_contrib._nzval, ldsol);
+              cublas::cublas_gemm_wrapper(symPACK::handler, CUBLAS_OP_N,CUBLAS_OP_T,ldsol,ldfact,this->block_nrows(fact_block), 
+              T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
 #else              
               blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), 
               T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
@@ -1685,17 +1632,7 @@ namespace symPACK{
           auto snode_size = std::get<0>(this->_dims);
           auto nzblk_nzval = this->_nzval;
 #ifdef CUDA_MODE
-          T alpha = T(1.0);
-          T beta = T(1.0);
-          T C = T(1.0);
-          symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
-                                        CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
-                                        CUBLAS_OP_T, CUBLAS_OP_N,
-                                        CUBLAS_DIAG_UNIT,
-                                        snode_size, this->total_rows(), NULL,
-                                        &alpha, diag_nzval, snode_size,
-                                        &beta, nzblk_nzval, snode_size,
-                                        &C, NULL);
+          cublas::cublas_trsm_wrapper(symPACK::handler, CUBLAS_SIDE_LEFT,CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_T,CUBLAS_DIAG_UNIT,snode_size, this->total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
 #else
           blas::Trsm('L','U','T','U',snode_size, this->total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
 #endif
@@ -1863,15 +1800,10 @@ namespace symPACK{
 
             //Then do -L*W (gemm)
 #ifdef CUDA_MODE
-            T alpha = T(-1.0);
-            cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
-                                 CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
-                                 CUBLAS_OP_N, CUBLAS_OP_N,
-                                 CUBLAS_DIAG_NON_UNIT,
-                                 tgt_width, src_nrows, src_snode_size,
-                                 &alpha, bufLDL, tgt_width,
-                                 &beta, facing_nzval, src_snode_size,
-                                 buf, ldbuf);
+            cublas::cublas_gemm_wrapper(symPACK::handler, CUBLAS_OP_N, CUBLAS_OP_N,
+                                          tgt_width, src_nrows, src_snode_size,
+                                          T(-1.0), bufLDL, tgt_width,
+                                          facing_nzval, src_snode_size, beta, buf, ldbuf);
 #else
             blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
                 T(-1.0),bufLDL,tgt_width,facing_nzval,src_snode_size,beta,buf,ldbuf);
@@ -1994,26 +1926,10 @@ namespace symPACK{
           return 0;
 #endif
 #ifdef CUDA_MODE
-          T C = T(1.0);
-          T BETA = T(1.0);
           if (TRANSA=='T')
-            symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
-                                          CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
-                                          CUBLAS_OP_T, CUBLAS_OP_N,
-                                          CUBLAS_DIAG_UNIT,
-                                          M, N, NULL,
-                                          &ALPHA, A, LDA,
-                                          &BETA, B, LDB,
-                                          &C, NULL);
+            cublas::cublas_trsm_wrapper(symPACK::handler, CUBLAS_SIDE_RIGHT,CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_T,CUBLAS_DIAG_UNIT,M,N, ALPHA,  A, LDA, B, LDB);
           else
-            symPACK::cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM,
-                                          CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER,
-                                          CUBLAS_OP_N, CUBLAS_OP_N,
-                                          CUBLAS_DIAG_UNIT,
-                                          M, N, NULL,
-                                          &ALPHA, A, LDA,
-                                          &BETA, B, LDB,
-                                          &C, NULL);
+            cublas::cublas_trsm_wrapper(symPACK::handler, CUBLAS_SIDE_RIGHT,CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_N,CUBLAS_DIAG_UNIT,M,N, ALPHA,  A, LDA, B, LDB);
 #else
           blas::Trsm('R','U',TRANSA,'U',M,N, ALPHA,  A, LDA, B, LDB);
 #endif
@@ -2060,16 +1976,8 @@ namespace symPACK{
               bassert(diag_contrib.j != tgt_contrib.j);
               //Do -L*Y (gemm)
 #ifdef CUDA_MODE
-              T alpha = T(-1.0);
-              T beta = T(1.0);
-              cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
-                                   CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
-                                   CUBLAS_OP_N, CUBLAS_OP_N,
-                                   CUBLAS_DIAG_NON_UNIT,
-                                   ldsol, this->block_nrows(src_block), ldfact,
-                                   &alpha, diag_contrib._nzval, ldsol,
-                                   &beta, src, ldfact,
-                                   tgt, ldsol);
+              cublas::cublas_gemm_wrapper(symPACK::handler, CUBLAS_OP_N,CUBLAS_OP_N,ldsol,this->block_nrows(src_block),ldfact,
+                  T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
 #else              
               blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact, T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
 #endif              
