@@ -7,7 +7,25 @@
 #include "device_launch_parameters.h"
 #include "cublas_v2.h"
 
-#define CUBLAS_ERROR_CHECK(s) s!=CUBLAS_STATUS_SUCCESS ? 0 : throw std::runtime_error("cuBLAS error")
+#define CUBLAS_ERROR_CHECK(s)                                                                       \
+{                                                                                                   \
+    cublasStatus_t err;                                                                             \
+    if ((err = (s)) != CUBLAS_STATUS_SUCCESS)                                                       \
+    {                                                                                               \
+        std::cout << "cuBLAS Error " << err << " at " << __FILE__ << ":" << __LINE__ << "\n";       \
+        exit(1);                                                                                    \
+    }                                                                                               \
+}                                                                                                   \
+
+#define CUDA_ERROR_CHECK(s)                                                                         \
+{                                                                                                   \
+    cudaError_t error = s;                                                                          \
+    if (error != cudaSuccess) {                                                                     \
+        std::cout << "CUDA Error " << error << " at " << __FILE__ << ":" << __LINE__ << "\n";       \
+        std::cout << cudaGetErrorString(error) << "\n";                                             \
+        exit(1);                                                                                    \
+    }                                                                                               \
+}                                                                                                   \
 
 namespace symPACK {
 namespace cublas {
@@ -119,11 +137,14 @@ namespace cublas {
     template <typename T>
     cublasStatus_t cublas_gemv_wrapper(cublasOperation_t op,
                            Int M, Int N,
-                           const T           * alpha,
+                           const T           alpha,
                            const T           * A, Int lda,
                            const T           * X, Int incx,
-                           const T           * beta,
+                           const T           beta,
                            const T           * Y, Int incy) {
+        
+        logfileptr->OFS()<<"DOING GEMV\n";
+        
         /* Device buffers */
         T *d_A;
         T *d_X;
@@ -132,10 +153,8 @@ namespace cublas {
         cublasStatus_t status;
 
         /* Set up device buffers */
-        status = cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0]));
-        CUBLAS_ERROR_CHECK(status)
-        status = cudaSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda);
-        CUBLAS_ERROR_CHECK(status)
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0])));
+        CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda));
 
         long dimx;
         if (op==CUBLAS_OP_T) 
@@ -143,10 +162,8 @@ namespace cublas {
         else 
             dimx = (1 + (N - 1) * abs(incx));
     
-        status = cudaMalloc(reinterpret_cast<void **>(&d_X), dimx);
-        CUBLAS_ERROR_CHECK(status);
-        status = cublasSetVector(dimx, sizeof(X[0]), X, incx, d_X, incx);
-        CUBLAS_ERROR_CHECK(status);
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_X), dimx));
+        CUBLAS_ERROR_CHECK(cublasSetVector(dimx, sizeof(X[0]), X, incx, d_X, incx));
 
         long dimy;
         if (op==CUBLAS_OP_T) 
@@ -154,24 +171,26 @@ namespace cublas {
         else 
             dimy = (1 + (M - 1) * abs(incy));
         
-        status = cudaMalloc(reinterpret_cast<void **>(&d_Y), dimy);
-        CUBLAS_ERROR_CHECK(status)
-        status = cublasSetVector(dimy, sizeof(Y[0]), Y, incy, d_Y, incy);
-        CUBLAS_ERROR_CHECK(status)
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_Y), dimy));
+        CUBLAS_ERROR_CHECK(cublasSetVector(dimy, sizeof(Y[0]), Y, incy, d_Y, incy));
 
         /* do gemv */
-        status = cublas_gemv(symPACK::handler, op,
+        CUBLAS_ERROR_CHECK(cublas_gemv(symPACK::handler, op,
                     M, N,
-                    alpha, d_A, lda,
+                    &alpha, d_A, lda,
                     d_X, incx,
-                    beta,
-                    d_Y, incy);
-        CUBLAS_ERROR_CHECK(status)
+                    &beta,
+                    d_Y, incy));
 
         /* copy result to host */
-        status = cublasGetVector(dimy, sizeof(Y[0]), d_Y, incy, Y, incy);
-        CUBLAS_ERROR_CHECK(status)
+        CUBLAS_ERROR_CHECK(cublasGetVector(dimy, sizeof(Y[0]), d_Y, incy, Y, incy));
 
+        /* Cleanup */
+        CUDA_ERROR_CHECK(cudaFree(d_A));
+        CUDA_ERROR_CHECK(cudaFree(d_Y));
+        CUDA_ERROR_CHECK(cudaFree(d_X));
+
+        status = CUBLAS_STATUS_SUCCESS;
         return status;
     };
 
@@ -299,6 +318,62 @@ namespace cublas {
                            const __half           *,
                            __half           *, Int);
 
+    template <typename T>
+    cublasStatus_t cublas_gemm_wrapper(cublasHandle_t handler,
+                           cublasOperation_t opA, cublasOperation_t opB,
+                           Int M, Int N, Int K,
+                           const T           alpha,
+                           const T           * A , Int lda,
+                           const T          * B, Int ldb,
+                           const T           beta,
+                           T           * C, Int ldc) {
+        
+
+        T * d_A;
+        T * d_B;
+        T * d_C;
+
+        logfileptr->OFS()<<"DOING GEMM\n";
+        if (opA==CUBLAS_OP_N) {
+            //A is lda*K
+            CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_A), lda * K * sizeof(A[0])));
+            CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, K, sizeof(A[0]), A, lda, d_A, lda));
+        } else if (opA==CUBLAS_OP_T) {
+            //A is lda*M
+            CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_A), lda * M * sizeof(A[0])));
+            CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, M, sizeof(A[0]), A, lda, d_A, lda));
+        }
+
+        if (opB==CUBLAS_OP_N) {
+            //B is ldb*N
+            CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * N * sizeof(B[0])));
+            CUBLAS_ERROR_CHECK(cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb));
+        } else if (opB==CUBLAS_OP_T) {
+            //B is lda*K
+            CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * K * sizeof(B[0])));
+            CUBLAS_ERROR_CHECK(cublasSetMatrix(ldb, K, sizeof(B[0]), B, ldb, d_B, ldb));
+        }
+
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_C), ldc * N * sizeof(C[0])));
+        CUBLAS_ERROR_CHECK(cublasSetMatrix(ldc, N, sizeof(C[0]), C, ldc, d_C, ldc));
+
+        /* Do GEMM */
+        CUBLAS_ERROR_CHECK(cublas_gemm(symPACK::handler, opA, opB,
+                    M, N, K,
+                    alpha, d_A, lda,
+                    d_B, ldb, beta,
+                    d_C, ldc));
+
+        /* Copy matrices to host */
+        CUBLAS_ERROR_CHECK(cublasGetMatrix(ldc, N, sizeof(C[0]), d_C, ldc, C, ldc));
+
+        /* Cleanup */
+        CUDA_ERROR_CHECK(cudaFree(d_A));
+        CUDA_ERROR_CHECK(cudaFree(d_B));
+        CUDA_ERROR_CHECK(cudaFree(d_C));
+
+        return CUBLAS_STATUS_SUCCESS;
+    }
 
     /* TRSM */
     cublasStatus_t cublas_trsm(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t,
@@ -313,10 +388,40 @@ namespace cublas {
     cublasStatus_t cublas_trsm(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t,
                         Int, Int, const cuDoubleComplex *, const cuDoubleComplex *, Int, cuDoubleComplex *, Int);
     
-    //template<typename T>
-    //cublasStatus_t cublas_trsm(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t,
-    //                    Int, Int, const T *, const T *, Int, T *, Int);
+    template <typename T>
+    cublasStatus_t cublas_trsm_wrapper(cublasHandle_t handler, cublasSideMode_t side, cublasFillMode_t fill, cublasOperation_t op, cublasDiagType_t diag,
+                        Int M , Int N, const T alpha, T * A, Int lda, T * B, Int ldb) {
+        
+        T * d_A;
+        T * d_B;
+        
+        logfileptr->OFS()<<"DOING TRSM\n";
+        /* Setup device matrices */
+        if (side==CUBLAS_SIDE_LEFT) {
+            CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A), lda * M * sizeof(A[0])));
+            CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, M, sizeof(A[0]), A, lda, d_A, lda));
+        } else {
+            CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0])));
+            CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda));
+        }
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_B), ldb * N * sizeof(B[0])));
+        CUBLAS_ERROR_CHECK(cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb));
+                
+        /* Do TRSM */
+        CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::handler, side, fill, op, diag, 
+                    M, N, 
+                    &alpha, d_A, lda, 
+                    d_B, ldb));
 
+        /* Copy matrices to host */
+        CUBLAS_ERROR_CHECK(cublasGetMatrix(ldb, N, sizeof(B[0]), d_B, ldb, B, ldb));
+
+        /* Cleanup */
+        CUDA_ERROR_CHECK(cudaFree(d_A));
+        CUDA_ERROR_CHECK(cudaFree(d_B));
+
+        return CUBLAS_STATUS_SUCCESS;
+    }
 
     /* DO_CUBLAS_L3 */
 
