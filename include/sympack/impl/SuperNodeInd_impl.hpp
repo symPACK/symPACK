@@ -448,17 +448,7 @@ namespace symPACK{
       SYMPACK_TIMER_START(FACT_TRSM);
       T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
 #ifdef CUDA_MODE
-      T alpha = T(1.0);
-      T beta = T(1.0);
-      T C = T(1.0);
-      cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM, 
-                            CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
-                            CUBLAS_OP_T, CUBLAS_OP_N, 
-                            CUBLAS_DIAG_UNIT,
-                            snodeSize, totalNRows-snodeSize, NULL,
-                            &alpha, diag_nzval, snodeSize,
-                            &beta, nzblk_nzval, snodeSize,
-                            &C, NULL);
+      cublas::cublas_trsm_wrapper(CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_UNIT, snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
 #else
       blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
 #endif
@@ -495,17 +485,8 @@ namespace symPACK{
 
       T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
 #ifdef CUDA_MODE
-      T alpha = T(1.0);
-      T beta = T(1.0);
-      T C = T(1.0);
-      cublas::do_cublas_l3(symPACK::cublas::l3_cublas_ops::OP_TRSM, 
-                            CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
-                            CUBLAS_OP_T, CUBLAS_OP_N, 
-                            CUBLAS_DIAG_UNIT,
-                            snodeSize, totalNRows-snodeSize, NULL,
-                            &alpha, diag_nzval, snodeSize,
-                            &beta, nzblk_nzval, snodeSize,
-                            &C, NULL);
+      cublas::cublas_trsm_wrapper(CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_UNIT, snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
+
 #else
       blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
 #endif
@@ -583,15 +564,8 @@ namespace symPACK{
 
         //Then do -L*W (gemm)
 #ifdef CUDA_MODE
-            T alpha = T(-1.0);
-            cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
-                                 CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
-                                 CUBLAS_OP_N, CUBLAS_OP_N,
-                                 CUBLAS_DIAG_NON_UNIT,
-                                 tgt_width, src_nrows, src_snode_size,
-                                 &alpha, bufLDL, tgt_width,
-                                 &beta, pivot, src_snode_size,
-                                 buf, tgt_width);
+            cublas::cublas_gemm_wrapper(CUBLAS_OP_N, CUBLAS_OP_N, tgt_width,src_nrows,src_snode_size,
+            T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
 #else
         blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
             T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
@@ -780,15 +754,8 @@ namespace symPACK{
 
       //Then do -L*W (gemm)
 #ifdef CUDA_MODE
-            T alpha = T(-1.0);
-            cublas::do_cublas_l3(cublas::l3_cublas_ops::OP_GEMM,
-                                 CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER,
-                                 CUBLAS_OP_N, CUBLAS_OP_N,
-                                 CUBLAS_DIAG_NON_UNIT,
-                                 tgt_width, src_nrows, src_snode_size,
-                                 &alpha, bufLDL, tgt_width,
-                                 &beta, pivot, src_snode_size,
-                                 buf, tgt_width);
+            cublas::cublas_gemm_wrapper(CUBLAS_OP_N, CUBLAS_OP_N, tgt_width,src_nrows,src_snode_size,
+            T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
 #else      
       blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
           T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
@@ -953,9 +920,13 @@ namespace symPACK{
             T * fact_nzval = cur_snodeInd->GetNZval(fact_desc.Offset);
 
             //TODO CHECK THIS
+#ifdef CUDA_MODE
+            cublas::cublas_gemv_wrapper(CUBLAS_OP_N, nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*ldsol+nrhsOffset],ldsol,
+                &fact_nzval[rowK*ldfact+kk],ldfact, T(1.0), &updated_nzval[(kk)*ldsol+nrhsOffset], 1);
+#else
             blas::Gemv( 'N', nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*ldsol+nrhsOffset],ldsol,
                 &fact_nzval[rowK*ldfact+kk],ldfact, T(1.0), &updated_nzval[(kk)*ldsol+nrhsOffset], 1);
-
+#endif
           }
         }
       }

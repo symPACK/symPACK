@@ -72,6 +72,9 @@ int main(int argc, char **argv)
     try{
 #ifdef CUDA_MODE
      logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
+     int n_gpus;
+     cudaGetDeviceCount(&n_gpus);
+     logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
 #endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/

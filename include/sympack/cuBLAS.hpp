@@ -141,9 +141,19 @@ namespace cublas {
                            const T           * A, Int lda,
                            const T           * X, Int incx,
                            const T           beta,
-                           const T           * Y, Int incy) {
+                           T           * Y, Int incy) {
         
-        logfileptr->OFS()<<"DOING GEMV\n";
+        int rank;
+        int gpu_id;
+        int n_gpus;
+
+        MPI_Comm_rank(symPACK::world_comm, &rank);
+        cudaGetDeviceCount(&n_gpus);
+
+        gpu_id = rank % n_gpus;
+
+        logfileptr->OFS()<<"DOING GEMV on GPU " << gpu_id << "\n";
+        cudaSetDevice(gpu_id);
         
         /* Device buffers */
         T *d_A;
@@ -175,7 +185,7 @@ namespace cublas {
         CUBLAS_ERROR_CHECK(cublasSetVector(dimy, sizeof(Y[0]), Y, incy, d_Y, incy));
 
         /* do gemv */
-        CUBLAS_ERROR_CHECK(cublas_gemv(symPACK::handler, op,
+        CUBLAS_ERROR_CHECK(cublas_gemv(symPACK::handlers[gpu_id], op,
                     M, N,
                     &alpha, d_A, lda,
                     d_X, incx,
@@ -319,7 +329,7 @@ namespace cublas {
                            __half           *, Int);
 
     template <typename T>
-    cublasStatus_t cublas_gemm_wrapper(cublasHandle_t handler,
+    cublasStatus_t cublas_gemm_wrapper(
                            cublasOperation_t opA, cublasOperation_t opB,
                            Int M, Int N, Int K,
                            const T           alpha,
@@ -327,13 +337,21 @@ namespace cublas {
                            const T          * B, Int ldb,
                            const T           beta,
                            T           * C, Int ldc) {
-        
+        int rank;
+        int gpu_id;
+        int n_gpus;
+
+        MPI_Comm_rank(symPACK::world_comm, &rank);
+        cudaGetDeviceCount(&n_gpus);
+
+        gpu_id = rank % n_gpus;
 
         T * d_A;
         T * d_B;
         T * d_C;
 
-        logfileptr->OFS()<<"DOING GEMM\n";
+        logfileptr->OFS()<<"DOING GEMM on GPU " << gpu_id << "\n";
+        cudaSetDevice(gpu_id);
         if (opA==CUBLAS_OP_N) {
             //A is lda*K
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_A), lda * K * sizeof(A[0])));
@@ -358,10 +376,10 @@ namespace cublas {
         CUBLAS_ERROR_CHECK(cublasSetMatrix(ldc, N, sizeof(C[0]), C, ldc, d_C, ldc));
 
         /* Do GEMM */
-        CUBLAS_ERROR_CHECK(cublas_gemm(symPACK::handler, opA, opB,
+        CUBLAS_ERROR_CHECK(cublas_gemm(symPACK::handlers[gpu_id], opA, opB,
                     M, N, K,
-                    alpha, d_A, lda,
-                    d_B, ldb, beta,
+                    &alpha, d_A, lda,
+                    d_B, ldb, &beta,
                     d_C, ldc));
 
         /* Copy matrices to host */
@@ -389,13 +407,25 @@ namespace cublas {
                         Int, Int, const cuDoubleComplex *, const cuDoubleComplex *, Int, cuDoubleComplex *, Int);
     
     template <typename T>
-    cublasStatus_t cublas_trsm_wrapper(cublasHandle_t handler, cublasSideMode_t side, cublasFillMode_t fill, cublasOperation_t op, cublasDiagType_t diag,
-                        Int M , Int N, const T alpha, T * A, Int lda, T * B, Int ldb) {
-        
+    cublasStatus_t cublas_trsm_wrapper(cublasSideMode_t side, cublasFillMode_t fill, cublasOperation_t op, cublasDiagType_t diag,
+                        Int M , Int N, 
+                        const T alpha, T * A, Int lda, 
+                        T * B, Int ldb) {
+        int rank;
+        int gpu_id;
+        int n_gpus;
+
+        MPI_Comm_rank(symPACK::world_comm, &rank);
+        cudaGetDeviceCount(&n_gpus);
+
+        gpu_id = rank % n_gpus;
+
+        logfileptr->OFS()<<"DOING TRSM on GPU " << gpu_id << "\n";
+        cudaSetDevice(gpu_id);
+
         T * d_A;
         T * d_B;
         
-        logfileptr->OFS()<<"DOING TRSM\n";
         /* Setup device matrices */
         if (side==CUBLAS_SIDE_LEFT) {
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A), lda * M * sizeof(A[0])));
@@ -408,7 +438,7 @@ namespace cublas {
         CUBLAS_ERROR_CHECK(cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb));
                 
         /* Do TRSM */
-        CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::handler, side, fill, op, diag, 
+        CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::handlers[gpu_id], side, fill, op, diag, 
                     M, N, 
                     &alpha, d_A, lda, 
                     d_B, ldb));
@@ -423,95 +453,9 @@ namespace cublas {
         return CUBLAS_STATUS_SUCCESS;
     }
 
-    /* DO_CUBLAS_L3 */
-
-    enum l3_cublas_ops{OP_SYRK,
-                       OP_GEMM,
-                       OP_TRSM};
-    template <class T>
-    inline void do_cublas_l3(l3_cublas_ops op, cublasSideMode_t side, cublasFillMode_t fill, 
-                                  cublasOperation_t opA, cublasOperation_t opB,
-                                  cublasDiagType_t diag, 
-                                  Int M, Int N, Int K,
-                                  T *alpha, T *A, Int lda, 
-                                  T *beta, T *B, Int ldb, 
-                                  T *C, Int ldc) {
-        T * d_A;
-        T * d_B;
-        T * d_C;
-        
-        /* Create handlers for each L3 op */
-        switch(op) {
     
-            case OP_TRSM:
-                logfileptr->OFS()<<"DOING TRSM\n";
-                /* Setup device matrices */
-                if (side==CUBLAS_SIDE_LEFT) {
-                    cudaMalloc(reinterpret_cast<void **>(&d_A), lda * M * sizeof(A[0]));
-                    cublasSetMatrix(lda, M, sizeof(A[0]), A, lda, d_A, lda);
-                } else {
-                    cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0]));
-                    cublasSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda);
-                }
-                cudaMalloc(reinterpret_cast<void **>(&d_B), ldb * N * sizeof(B[0]));
-                cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb);
-                
-                /* Do TRSM */
-                cublas_trsm(symPACK::handler, side, fill, opA, diag, 
-                            M, N, 
-                            alpha, d_A, lda, 
-                            d_B, ldb);
-
-                /* Copy matrices to host */
-                cublasGetMatrix(ldb, N, sizeof(B[0]), d_B, ldb, B, ldb);
-
-                /* Cleanup */
-                cudaFree(d_A);
-                cudaFree(d_B);
-                break;
             
-            case OP_GEMM:
-                logfileptr->OFS()<<"DOING GEMM\n";
-                if (opA==CUBLAS_OP_N) {
-                    //A is lda*K
-                    cudaMalloc(reinterpret_cast<void**>(&d_A), lda * K * sizeof(A[0]));
-                    cublasSetMatrix(lda, K, sizeof(A[0]), A, lda, d_A, lda);
-                } else if (opA==CUBLAS_OP_T) {
-                    //A is lda*M
-                    cudaMalloc(reinterpret_cast<void**>(&d_A), lda * M * sizeof(A[0]));
-                    cublasSetMatrix(lda, M, sizeof(A[0]), A, lda, d_A, lda);
-                }
-
-                if (opB==CUBLAS_OP_N) {
-                    //B is ldb*N
-                    cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * N * sizeof(B[0]));
-                    cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb);
-                } else if (opB==CUBLAS_OP_T) {
-                    //B is lda*K
-                    cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * K * sizeof(B[0]));
-                    cublasSetMatrix(ldb, K, sizeof(B[0]), B, ldb, d_B, ldb);
-                }
-
-                cudaMalloc(reinterpret_cast<void**>(&d_C), ldc * N * sizeof(C[0]));
-                cublasSetMatrix(ldc, N, sizeof(C[0]), C, ldc, d_C, ldc);
-
-                /* Do GEMM */
-                cublas_gemm(symPACK::handler, opA, opB,
-                            M, N, K,
-                            alpha, d_A, lda,
-                            d_B, ldb, beta,
-                            d_C, ldc);
-
-                /* Copy matrices to host */
-                cublasGetMatrix(ldc, N, sizeof(C[0]), d_C, ldc, C, ldc);
-
-                /* Cleanup */
-                cudaFree(d_A);
-                cudaFree(d_B);
-                cudaFree(d_C);
-                break;
-            
-            case OP_SYRK:
+           /* case OP_SYRK:
                 logfileptr->OFS()<<"DOING SYRK\n";
                 if (opA==CUBLAS_OP_T) {
                     cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0]));
@@ -532,9 +476,8 @@ namespace cublas {
 
                 cudaFree(d_A);
                 cudaFree(d_C);
-                break;
-        }
-    };
+                break;*/
+        
 
 
 }
