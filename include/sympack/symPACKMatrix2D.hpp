@@ -1238,7 +1238,11 @@ namespace symPACK{
           Int ldsol = this->width();
           bassert(ldsol==src_cell.width());
           bassert(this->total_rows()==src_cell.total_rows());
+#ifdef CUDA_MODE
+          cublas::cublas_axpy_wrapper(src_cell.nnz(),1.0,src_cell._nzval, 1, this->_nzval,1);
+#else          
           blas::Axpy( src_cell.nnz(),1.0,src_cell._nzval, 1, this->_nzval,1);
+#endif          
           return 0;
         }
 
@@ -1639,7 +1643,11 @@ namespace symPACK{
 
           //scale column I
           for ( int_t I = 1; I<=snode_size; I++) {
+#ifdef CUDA_MODE
+            cublas::cublas_scal_wrapper( this->total_rows(), T(1.0)/diag->_diag[I-1], &nzblk_nzval[I-1], snode_size );
+#else
             blas::Scal( this->total_rows(), T(1.0)/diag->_diag[I-1], &nzblk_nzval[I-1], snode_size );
+#endif            
           }
 
           return 0;
@@ -1915,7 +1923,11 @@ namespace symPACK{
           bassert(tgt_contrib.i == tgt_contrib.j);
           bassert(!tgt_contrib.scaled);
           for(int_t kk = 0; kk<ldfact; ++kk){
+#ifdef CUDA_MODE
+            cublas::cublas_scal_wrapper( ldsol, T(1.0)/this->_diag[kk], &tgt_contrib._nzval[kk*ldsol], 1 );
+#else
             blas::Scal( ldsol, T(1.0)/this->_diag[kk], &tgt_contrib._nzval[kk*ldsol], 1 );
+#endif            
           }
           tgt_contrib.scaled = true;
           return 0;

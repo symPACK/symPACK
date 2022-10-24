@@ -457,7 +457,11 @@ namespace symPACK{
       SYMPACK_TIMER_START(FACT_SCALE);
       //scale column I
       for ( Idx I = 1; I<=snodeSize;I++) {
+#ifdef CUDA_MODE
+        cublas::cublas_scal_wrapper( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
+#else
         blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
+#endif        
       }
       SYMPACK_TIMER_STOP(FACT_SCALE);
 
@@ -492,7 +496,11 @@ namespace symPACK{
 #endif
       //scale column I
       for ( Idx I = 1; I<=snodeSize;I++) {
+#ifdef CUDA_MODE
+        cublas::cublas_scal_wrapper( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
+#else
         blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
+#endif        
       }
       return 0;
     }
@@ -978,13 +986,21 @@ namespace symPACK{
             //if we are processing the "pivot" block
             for(Int kk = 0; kk<snodeSize; ++kk){
               //then compute the rank one update
+#ifdef CUDA_MODE
+              cublas::cublas_ger_wrapper(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*ldsol+nrhsOffset], 1,&chol_nzval[(kk + 1)*ldfact+kk], ldfact, &cur_nzval[(kk + 1)*ldsol+nrhsOffset], ldsol );
+#else              
               blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*ldsol+nrhsOffset], 1,&chol_nzval[(kk + 1)*ldfact+kk], ldfact, &cur_nzval[(kk + 1)*ldsol+nrhsOffset], ldsol );
+#endif              
             }
           }
           else{
             for(Int kk = 0; kk<snodeSize; ++kk){
               //compute the rank one update
+#ifdef CUDA_MODE
+              cublas::cublas_ger_wrapper(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*ldsol+nrhsOffset], 1, &chol_nzval[kk], ldfact, &cur_nzval[nrhsOffset], ldsol );
+#else 
               blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*ldsol+nrhsOffset], 1, &chol_nzval[kk], ldfact, &cur_nzval[nrhsOffset], ldsol );
+#endif            
             }
           }
         }
@@ -1037,13 +1053,21 @@ namespace symPACK{
               }
 
               //then compute the rank one update
+#ifdef CUDA_MODE
+              cublas::cublas_ger_wrapper(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*nrhs], 1,&chol_nzval[(kk + 1)*snodeSize+kk], snodeSize, &cur_nzval[(kk + 1)*nrhs], nrhs );
+#else              
               blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*nrhs], 1,&chol_nzval[(kk + 1)*snodeSize+kk], snodeSize, &cur_nzval[(kk + 1)*nrhs], nrhs );
+#endif
             }
           }
           else{
             for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
               //compute the rank one update
+#ifdef CUDA_MODE
+              cublas::cublas_ger_wrapper(nrhs,cur_nrows, T(-1.0),  &diag_nzval[kk*nrhs], 1,&chol_nzval[kk], snodeSize, &cur_nzval[0], nrhs );
+#else 
               blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*nrhs], 1, &chol_nzval[kk], snodeSize, &cur_nzval[0], nrhs );
+#endif              
             }
 
           }

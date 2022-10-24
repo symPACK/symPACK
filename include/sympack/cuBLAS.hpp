@@ -56,6 +56,47 @@ namespace cublas {
                            const cuDoubleComplex           *, Int,
                            cuDoubleComplex                 *, Int);
 
+    template <typename T>
+    cublasStatus_t cublas_axpy_wrapper(Int N,
+                           const T           DA,
+                           const T           * DX, Int incx,
+                           T                 * DY, Int incy) {
+        
+        int rank;
+        int gpu_id;
+        int n_gpus;
+
+        MPI_Comm_rank(symPACK::world_comm, &rank);
+        cudaGetDeviceCount(&n_gpus);
+
+        gpu_id = rank % n_gpus;
+
+        logfileptr->OFS()<<"DOING AXPY on GPU " << gpu_id << "\n";
+        cudaSetDevice(gpu_id);
+
+        T *d_X;
+        T *d_Y;
+
+        long dimx;
+        dimx = (1 + (N-1)*abs(incx));
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_X), dimx * sizeof(DX[0])));
+        CUBLAS_ERROR_CHECK(cublasSetVector(dimx, sizeof(DX[0]), DX, incx, d_X, incx));
+
+        long dimy;
+        dimy = (1 + (N-1)*abs(incy));
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_Y), dimy * sizeof(DY[0])));
+        CUBLAS_ERROR_CHECK(cublasSetVector(dimy, sizeof(DY[0]), DY, incy, d_Y, incy));
+
+        CUBLAS_ERROR_CHECK(cublas_axpy(symPACK::handlers[gpu_id], N, &DA, d_X, incx, d_Y, incy));
+
+        CUBLAS_ERROR_CHECK(cublasGetVector(dimy, sizeof(DY[0]), d_Y, incy, DY, incy));
+
+        CUDA_ERROR_CHECK(cudaFree(d_X));
+        CUDA_ERROR_CHECK(cudaFree(d_Y));
+
+        return CUBLAS_STATUS_SUCCESS;
+
+    }
 
     /* COPY */
     cublasStatus_t cublas_copy(cublasHandle_t, Int,
@@ -98,6 +139,41 @@ namespace cublas {
     cublasStatus_t  cublas_scal(cublasHandle_t , Int,
                             const double           *,
                             cuDoubleComplex           *, Int);
+
+    template <typename T>
+    cublasStatus_t  cublas_scal_wrapper(Int N,
+                            const T           DA,
+                            T           * DX, Int incx) {
+        int rank;
+        int gpu_id;
+        int n_gpus;
+
+        MPI_Comm_rank(symPACK::world_comm, &rank);
+        cudaGetDeviceCount(&n_gpus);
+
+        gpu_id = rank % n_gpus;
+
+        logfileptr->OFS()<<"DOING SCAL on GPU " << gpu_id << "\n";
+        cudaSetDevice(gpu_id);
+
+        T * d_X;
+
+        long dimx;
+        dimx = (1 + (N - 1) * abs(incx));
+
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_X), dimx * sizeof(DX[0])));
+
+        CUBLAS_ERROR_CHECK(cublasSetVector(dimx, sizeof(DX[0]), DX, incx, d_X, incx));
+
+        CUBLAS_ERROR_CHECK(cublas_scal(symPACK::handlers[gpu_id], N, &DA, DX, incx));
+
+        CUBLAS_ERROR_CHECK(cublasGetVector(dimx, sizeof(DX[0]), d_X, incx, DX, incx));
+
+        CUDA_ERROR_CHECK(cudaFree(d_X));
+
+        return CUBLAS_STATUS_SUCCESS;
+
+    }
 
     /* ===== LEVEL 2 BLAS ===== */
 
@@ -167,21 +243,16 @@ namespace cublas {
         CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda));
 
         long dimx;
-        if (op==CUBLAS_OP_T) 
-            dimx = (1 + (M - 1) * abs(incx));
-        else 
-            dimx = (1 + (N - 1) * abs(incx));
+        dimx = (1 + (M - 1) * abs(incx));
+        
     
-        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_X), dimx));
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_X), dimx * sizeof(X[0])));
         CUBLAS_ERROR_CHECK(cublasSetVector(dimx, sizeof(X[0]), X, incx, d_X, incx));
 
         long dimy;
-        if (op==CUBLAS_OP_T) 
-            dimy = (1 + (N - 1) * abs(incy));
-        else 
-            dimy = (1 + (M - 1) * abs(incy));
+        dimy = (1 + (N - 1) * abs(incy));
         
-        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_Y), dimy));
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_Y), dimy * sizeof(Y[0])));
         CUBLAS_ERROR_CHECK(cublasSetVector(dimy, sizeof(Y[0]), Y, incy, d_Y, incy));
 
         /* do gemv */
@@ -245,6 +316,59 @@ namespace cublas {
                            const cuComplex           *, Int,
                            const cuComplex           *, Int,
                            cuComplex           *, Int);
+
+
+    template <typename T>
+    cublasStatus_t cublas_ger_wrapper(Int M, Int N,
+                           const T           alpha,
+                           const T           * X, Int incx,
+                           const T           * Y, Int incy,
+                           T           * A, Int lda) {
+        int rank;
+        int gpu_id;
+        int n_gpus;
+
+        MPI_Comm_rank(symPACK::world_comm, &rank);
+        cudaGetDeviceCount(&n_gpus);
+
+        gpu_id = rank % n_gpus;
+
+        logfileptr->OFS()<<"DOING GER on GPU " << gpu_id << "\n";
+        cudaSetDevice(gpu_id);
+
+        T * d_X;
+        T * d_Y;
+        T * d_A;
+
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0])));
+        CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda));
+        
+        long dimx;
+        dimx = (1 + (M - 1) * abs(incx));
+
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_X), dimx * sizeof(X[0])));
+        CUBLAS_ERROR_CHECK(cublasSetVector(dimx, sizeof(X[0]), X, incx, d_X, incx));
+
+        long dimy;
+        dimy = (1 + (N - 1) * abs(incy));
+
+        
+        CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_Y), dimy * sizeof(Y[0])));
+        CUBLAS_ERROR_CHECK(cublasSetVector(dimy, sizeof(Y[0]), Y, incy, d_Y, incy));
+
+        if constexpr (std::is_same_v<T, const float> || std::is_same_v<T, const double>)
+            CUBLAS_ERROR_CHECK(cublas_ger(symPACK::handlers[gpu_id], M, N, alpha, d_X, incx, d_Y, incy, d_A, lda));
+        if constexpr (std::is_same_v<T, const cuComplex> || std::is_same_v<T, const cuDoubleComplex>)
+            CUBLAS_ERROR_CHECK(cublas_geru(symPACK::handlers[gpu_id], M, N, alpha, d_X, incx, d_Y, incy, d_A, lda));
+
+        CUBLAS_ERROR_CHECK(cublasGetMatrix(lda, N, sizeof(A[0]), d_A, lda, A, lda));
+
+        CUDA_ERROR_CHECK(cudaFree(d_X));
+        CUDA_ERROR_CHECK(cudaFree(d_Y));
+        CUDA_ERROR_CHECK(cudaFree(d_A));
+
+        return CUBLAS_STATUS_SUCCESS;
+    }
 
     /* ===== LEVEL 3 BLAS ===== */
     
