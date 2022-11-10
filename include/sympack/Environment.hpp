@@ -59,7 +59,9 @@ namespace symPACK{
 
 
   extern MPI_Comm world_comm;
-  extern cublasHandle_t handler;
+  extern std::vector<cublasHandle_t> handlers;
+  extern std::vector<cudaStream_t> streams;
+  extern bool gpu_debug;
 }
 
 namespace symPACK{
@@ -141,7 +143,25 @@ namespace symPACK{
 #include "sympack/LogFile.hpp"
 
 
+#define CUBLAS_ERROR_CHECK(s)                                                                       \
+{                                                                                                   \
+    cublasStatus_t err;                                                                             \
+    if ((err = (s)) != CUBLAS_STATUS_SUCCESS)                                                       \
+    {                                                                                               \
+        std::cout << "cuBLAS Error " << err << " at " << __FILE__ << ":" << __LINE__ << "\n";       \
+        exit(1);                                                                                    \
+    }                                                                                               \
+}                                                                                                   \
 
+#define CUDA_ERROR_CHECK(s)                                                                         \
+{                                                                                                   \
+    cudaError_t error = s;                                                                          \
+    if (error != cudaSuccess) {                                                                     \
+        std::cout << "CUDA Error " << error << " at " << __FILE__ << ":" << __LINE__ << "\n";       \
+        std::cout << cudaGetErrorString(error) << "\n";                                             \
+        exit(1);                                                                                    \
+    }                                                                                               \
+}    
 
 
 

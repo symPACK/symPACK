@@ -7,25 +7,7 @@
 #include "device_launch_parameters.h"
 #include "cublas_v2.h"
 
-#define CUBLAS_ERROR_CHECK(s)                                                                       \
-{                                                                                                   \
-    cublasStatus_t err;                                                                             \
-    if ((err = (s)) != CUBLAS_STATUS_SUCCESS)                                                       \
-    {                                                                                               \
-        std::cout << "cuBLAS Error " << err << " at " << __FILE__ << ":" << __LINE__ << "\n";       \
-        exit(1);                                                                                    \
-    }                                                                                               \
-}                                                                                                   \
-
-#define CUDA_ERROR_CHECK(s)                                                                         \
-{                                                                                                   \
-    cudaError_t error = s;                                                                          \
-    if (error != cudaSuccess) {                                                                     \
-        std::cout << "CUDA Error " << error << " at " << __FILE__ << ":" << __LINE__ << "\n";       \
-        std::cout << cudaGetErrorString(error) << "\n";                                             \
-        exit(1);                                                                                    \
-    }                                                                                               \
-}                                                                                                   \
+                                                                                               \
 
 namespace symPACK {
 namespace cublas {
@@ -465,6 +447,8 @@ namespace cublas {
         int gpu_id;
         int n_gpus;
 
+        auto start = std::chrono::system_clock::now();
+
         MPI_Comm_rank(symPACK::world_comm, &rank);
         cudaGetDeviceCount(&n_gpus);
 
@@ -476,28 +460,34 @@ namespace cublas {
 
         logfileptr->OFS()<<"DOING GEMM on GPU " << gpu_id << "\n";
         cudaSetDevice(gpu_id);
+        
         if (opA==CUBLAS_OP_N) {
             //A is lda*K
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_A), lda * K * sizeof(A[0])));
-            CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, K, sizeof(A[0]), A, lda, d_A, lda));
+            //CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, K, sizeof(A[0]), A, lda, d_A, lda));
+            CUDA_ERROR_CHECK(cudaMemcpyAsync(d_A, A, lda * K * sizeof(A[0]), cudaMemcpyHostToDevice));
         } else if (opA==CUBLAS_OP_T) {
             //A is lda*M
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_A), lda * M * sizeof(A[0])));
-            CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, M, sizeof(A[0]), A, lda, d_A, lda));
+            //CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, M, sizeof(A[0]), A, lda, d_A, lda));
+            CUDA_ERROR_CHECK(cudaMemcpyAsync(d_A, A, lda * M * sizeof(A[0]), cudaMemcpyHostToDevice));
         }
 
         if (opB==CUBLAS_OP_N) {
             //B is ldb*N
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * N * sizeof(B[0])));
-            CUBLAS_ERROR_CHECK(cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb));
+            //CUBLAS_ERROR_CHECK(cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb));
+            CUDA_ERROR_CHECK(cudaMemcpyAsync(d_B, B, ldb * N * sizeof(B[0]), cudaMemcpyHostToDevice));
         } else if (opB==CUBLAS_OP_T) {
             //B is lda*K
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * K * sizeof(B[0])));
-            CUBLAS_ERROR_CHECK(cublasSetMatrix(ldb, K, sizeof(B[0]), B, ldb, d_B, ldb));
+            //CUBLAS_ERROR_CHECK(cublasSetMatrix(ldb, K, sizeof(B[0]), B, ldb, d_B, ldb));
+            CUDA_ERROR_CHECK(cudaMemcpyAsync(d_B, B, ldb * K * sizeof(B[0]), cudaMemcpyHostToDevice));
         }
-
         CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_C), ldc * N * sizeof(C[0])));
-        CUBLAS_ERROR_CHECK(cublasSetMatrix(ldc, N, sizeof(C[0]), C, ldc, d_C, ldc));
+        //CUBLAS_ERROR_CHECK(cublasSetMatrix(ldc, N, sizeof(C[0]), C, ldc, d_C, ldc));
+        CUDA_ERROR_CHECK(cudaMemcpyAsync(d_C, C, ldc * N * sizeof(C[0]), cudaMemcpyHostToDevice));
+        //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
         /* Do GEMM */
         CUBLAS_ERROR_CHECK(cublas_gemm(symPACK::handlers[gpu_id], opA, opB,
@@ -507,12 +497,17 @@ namespace cublas {
                     d_C, ldc));
 
         /* Copy matrices to host */
-        CUBLAS_ERROR_CHECK(cublasGetMatrix(ldc, N, sizeof(C[0]), d_C, ldc, C, ldc));
+        //CUBLAS_ERROR_CHECK(cublasGetMatrix(ldc, N, sizeof(C[0]), d_C, ldc, C, ldc));
+        CUDA_ERROR_CHECK(cudaMemcpyAsync(C, d_C, ldc * N * sizeof(C[0]), cudaMemcpyDeviceToHost));
 
         /* Cleanup */
         CUDA_ERROR_CHECK(cudaFree(d_A));
         CUDA_ERROR_CHECK(cudaFree(d_B));
         CUDA_ERROR_CHECK(cudaFree(d_C));
+
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<double> diff = end - start;
+        statfileptr->OFS() << "GEMM time: " << diff.count() << std::endl;
 
         return CUBLAS_STATUS_SUCCESS;
     }
@@ -539,6 +534,8 @@ namespace cublas {
         int gpu_id;
         int n_gpus;
 
+        auto start = std::chrono::system_clock::now();
+
         MPI_Comm_rank(symPACK::world_comm, &rank);
         cudaGetDeviceCount(&n_gpus);
 
@@ -553,13 +550,13 @@ namespace cublas {
         /* Setup device matrices */
         if (side==CUBLAS_SIDE_LEFT) {
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A), lda * M * sizeof(A[0])));
-            CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, M, sizeof(A[0]), A, lda, d_A, lda));
+            CUDA_ERROR_CHECK(cudaMemcpyAsync(d_A, A, lda * M * sizeof(A[0]), cudaMemcpyHostToDevice));
         } else {
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0])));
-            CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda));
+            CUDA_ERROR_CHECK(cudaMemcpyAsync(d_A, A, lda * N * sizeof(A[0]), cudaMemcpyHostToDevice));
         }
         CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_B), ldb * N * sizeof(B[0])));
-        CUBLAS_ERROR_CHECK(cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb));
+        CUDA_ERROR_CHECK(cudaMemcpyAsync(d_B, B, ldb * N * sizeof(B[0]), cudaMemcpyHostToDevice));
                 
         /* Do TRSM */
         CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::handlers[gpu_id], side, fill, op, diag, 
@@ -568,11 +565,14 @@ namespace cublas {
                     d_B, ldb));
 
         /* Copy matrices to host */
-        CUBLAS_ERROR_CHECK(cublasGetMatrix(ldb, N, sizeof(B[0]), d_B, ldb, B, ldb));
+        CUDA_ERROR_CHECK(cudaMemcpyAsync(B, d_B, ldb * N * sizeof(B[0]), cudaMemcpyDeviceToHost));
 
         /* Cleanup */
         CUDA_ERROR_CHECK(cudaFree(d_A));
         CUDA_ERROR_CHECK(cudaFree(d_B));
+        auto end = std::chrono::system_clock::now();
+        std::chrono::duration<double> diff = end - start;
+        statfileptr->OFS() << "TRSM time: " << diff.count() << std::endl;
 
         return CUBLAS_STATUS_SUCCESS;
     }

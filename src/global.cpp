@@ -49,8 +49,11 @@ int symPACK_Init(int *argc, char ***argv){
     libUPCXXInit = true;
   }
 
+  symPACK::gpu_debug = false;
+
   //init CUDA if in CUDA mode 
 #ifdef CUDA_MODE
+  symPACK::gpu_debug = true;
   int n_gpus;
   cudaGetDeviceCount(&n_gpus);
   symPACK::handlers.reserve(n_gpus);
@@ -64,6 +67,13 @@ int symPACK_Init(int *argc, char ***argv){
     if (status!=CUBLAS_STATUS_SUCCESS) {
       retval = -1;
     }
+  }
+
+  symPACK::streams.reserve(3);
+  for (int i=0; i<3; i++) {
+    cudaStream_t s;
+    symPACK::streams[i] = s;
+    cudaStreamCreate(&symPACK::streams[i]);
   }
 #endif
   

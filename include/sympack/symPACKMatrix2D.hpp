@@ -489,7 +489,11 @@ namespace symPACK{
         std::tuple<rowind_t> _dims;
         upcxx::global_ptr< char > _gstorage;
         char * _storage;
+
         T* _nzval;
+        T* _d_nzval; //pointer to first block on the device
+        upcxx::device_allocator<upcxx::cuda_device> gpu_allocator;
+    
         size_t _cblocks; //capacity
         size_t _cnz; //capacity
         size_t _nnz;
@@ -501,6 +505,7 @@ namespace symPACK{
         class block_container_t {
           public:
             block_t * _blocks;
+            upcxx::global_ptr<block_t *, upcxx::memory_kind::cuda_device> _d_blocks;
             size_t _nblocks;
 
             block_container_t():_blocks(nullptr),_nblocks(0) {}
@@ -594,13 +599,12 @@ namespace symPACK{
 
 
 
-
         blockCell_t(): 
           first_col(0),_dims(std::make_tuple(0)),_total_rows(0),
 #ifdef SP_THREADS
           in_use(false),
 #endif
-          _storage(nullptr),_nzval(nullptr),
+          _storage(nullptr),_nzval(nullptr), _d_nzval(nullptr),
           _gstorage(nullptr),_nnz(0),_storage_size(0), _own_storage(true) {}
         bool _own_storage;
 
@@ -694,8 +698,10 @@ namespace symPACK{
           other._cnz = 0;
           other._nnz = 0;
           other._nzval = nullptr;
+          other._d_nzval = nullptr;
           other._block_container._nblocks = 0;
           other._block_container._blocks = nullptr;
+          other._block_container._d_blocks = nullptr;
           other._own_storage = false;
         }
 
@@ -763,9 +769,11 @@ namespace symPACK{
             other._cblocks = 0;
             other._cnz = 0;
             other._nnz = 0;
-            other._nzval = nullptr;        
+            other._nzval = nullptr; 
+            other._d_nzval = nullptr;       
             other._block_container._nblocks = 0;
             other._block_container._blocks = nullptr;
+            other._block_container._d_blocks = nullptr;
             other._own_storage = false;
           } 
           return *this;  
@@ -810,16 +818,34 @@ namespace symPACK{
 
         void initialize ( size_t nzval_cnt, size_t block_cnt ) {
           _storage_size = nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t);
+          logfileptr->OFS() << "STORAGE" << std::string(_storage) << std::endl;
           _cnz = nzval_cnt;
           _cblocks = block_cnt;
           _nnz = 0;
           _block_container._nblocks = 0;
+#ifdef CUDA_MODE
+
+#ifdef _ALIGNED_
+          _nzval = reinterpret_cast<T*>( _storage );
+          
+          _block_container._blocks = reinterpret_cast<block_t*>( _nzval + _cnz );
+#else
+          _block_container._blocks = reinterpret_cast<block_t*>( _storage );
+          _block_container._d_blocks = gpu_allocator.allocate<block_t*>(strlen(_storage)+1);
+          _nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
+          _d_nzval = reinterpret_cast<T*>(gpu_allocator.local(_block_container._d_blocks + _cblocks));
+#endif
+
+#else //no cuda
+
 #ifdef _ALIGNED_
           _nzval = reinterpret_cast<T*>( _storage );
           _block_container._blocks = reinterpret_cast<block_t*>( _nzval + _cnz );
 #else
           _block_container._blocks = reinterpret_cast<block_t*>( _storage );
           _nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
+#endif
+
 #endif
         }
 
