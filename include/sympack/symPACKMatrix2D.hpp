@@ -488,10 +488,12 @@ namespace symPACK{
         rowind_t first_col;
         std::tuple<rowind_t> _dims;
         upcxx::global_ptr< char > _gstorage;
+        upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> _d_gstorage;
         char * _storage;
+        upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> _d_storage;
 
         T* _nzval;
-        T* _d_nzval; //pointer to first block on the device
+        upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> _d_nzval; //pointer to first block on the device
         upcxx::device_allocator<upcxx::cuda_device> gpu_allocator;
     
         size_t _cblocks; //capacity
@@ -505,7 +507,7 @@ namespace symPACK{
         class block_container_t {
           public:
             block_t * _blocks;
-            upcxx::global_ptr<block_t *, upcxx::memory_kind::cuda_device> _d_blocks;
+            upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> _d_blocks;
             size_t _nblocks;
 
             block_container_t():_blocks(nullptr),_nblocks(0) {}
@@ -814,11 +816,17 @@ namespace symPACK{
           new_block.first_row = first_row;
           new_block.offset = _nnz;
           _nnz += nrows*std::get<0>(_dims);
+#ifdef CUDA_MODE
+          block_t * d_new_block = new block_t;
+          d_new_block->first_row = new_block.first_row;
+          d_new_block->offset = new_block.offset;
+          //upcxx::copy(d_new_block, _block_container._d_blocks + _block_container._nblocks-1, sizeof(*d_new_block)).wait();
+          logfileptr->OFS() << "Copied " << sizeof(*d_new_block) << " bytes to device" << std::endl;
+#endif
         }
 
         void initialize ( size_t nzval_cnt, size_t block_cnt ) {
           _storage_size = nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t);
-          logfileptr->OFS() << "STORAGE" << std::string(_storage) << std::endl;
           _cnz = nzval_cnt;
           _cblocks = block_cnt;
           _nnz = 0;
@@ -827,13 +835,15 @@ namespace symPACK{
 
 #ifdef _ALIGNED_
           _nzval = reinterpret_cast<T*>( _storage );
-          
+          _d_nzval = reinterpret_cast<T*>(gpu_allocator.local(_d_storage));
           _block_container._blocks = reinterpret_cast<block_t*>( _nzval + _cnz );
+          _block_container._d_blocks = reinterpret_cast<block_t*>(gpu_allocator.local(_d_nzval + _cnz));
 #else
           _block_container._blocks = reinterpret_cast<block_t*>( _storage );
-          _block_container._d_blocks = gpu_allocator.allocate<block_t*>(strlen(_storage)+1);
+          _block_container._d_blocks = _d_storage; //if I cast to block_t every time I downcast, this should be okay
           _nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
-          _d_nzval = reinterpret_cast<T*>(gpu_allocator.local(_block_container._d_blocks + _cblocks));
+          _d_nzval = (_block_container._d_blocks + _cblocks*sizeof(T));
+          //TODO: 
 #endif
 
 #else //no cuda
@@ -851,6 +861,8 @@ namespace symPACK{
 
         void allocate ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
           bassert(nzval_cnt!=0 && block_cnt!=0);
+
+
 #ifdef _ALIGNED_
           size_t aligned_size = std::ceil((nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
 #endif
@@ -859,8 +871,10 @@ namespace symPACK{
 
 #ifdef _ALIGNED_
             _gstorage = upcxx::allocate<char, alignof(T) >( aligned_size ); 
+            _d_gstorage = gpu_allocator.allocate<char>(aligned_size);
 #else
             _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
+            _d_gstorage = gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
 #endif
             _storage = _gstorage.local();
             if ( this->_storage==nullptr ) symPACKOS<<"Trying to allocate "<<nzval_cnt<<" for cell ("<<i<<","<<j<<")"<<std::endl;
@@ -870,8 +884,10 @@ namespace symPACK{
             _gstorage = nullptr;
 #ifdef _ALIGNED_
             _storage = (char *)new T[aligned_size];
+            _d_storage = gpu_allocator.allocate<char>(sizeof(T)*aligned_size);
 #else
             _storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
+            _d_storage = gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
 #endif
           }
           initialize( nzval_cnt, block_cnt );
