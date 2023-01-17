@@ -54,12 +54,11 @@ int symPACK_Init(int *argc, char ***argv){
   //init CUDA if in CUDA mode 
 #ifdef CUDA_MODE
   symPACK::gpu_debug = true;
-  int n_gpus;
-  cudaGetDeviceCount(&n_gpus);
-  symPACK::handlers.reserve(n_gpus);
+  cudaGetDeviceCount(&symPACK::n_gpus);
+  symPACK::handlers.reserve(symPACK::n_gpus);
 
   cublasStatus_t status;
-  for (int i=0; i<n_gpus; i++) {
+  for (int i=0; i<symPACK::n_gpus; i++) {
     cublasHandle_t handle;
     symPACK::handlers[i] = handle; 
     cudaSetDevice(i);

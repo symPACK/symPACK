@@ -62,6 +62,7 @@ namespace symPACK{
   extern std::vector<cublasHandle_t> handlers;
   extern std::vector<cudaStream_t> streams;
   extern bool gpu_debug;
+  extern int n_gpus;
 }
 
 namespace symPACK{

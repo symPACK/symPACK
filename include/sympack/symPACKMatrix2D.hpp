@@ -600,7 +600,7 @@ namespace symPACK{
         block_container_t _block_container;
 
 
-
+        
         blockCell_t(): 
           first_col(0),_dims(std::make_tuple(0)),_total_rows(0),
 #ifdef SP_THREADS
@@ -820,6 +820,7 @@ namespace symPACK{
           block_t * d_new_block = new block_t;
           d_new_block->first_row = new_block.first_row;
           d_new_block->offset = new_block.offset;
+          //TODO: Fix this copy, figure out how to make it so we can test in the block_t functions
           //upcxx::copy(d_new_block, _block_container._d_blocks + _block_container._nblocks-1, sizeof(*d_new_block)).wait();
           logfileptr->OFS() << "Copied " << sizeof(*d_new_block) << " bytes to device" << std::endl;
 #endif
@@ -884,10 +885,14 @@ namespace symPACK{
             _gstorage = nullptr;
 #ifdef _ALIGNED_
             _storage = (char *)new T[aligned_size];
+#ifdef CUDA_MODE
             _d_storage = gpu_allocator.allocate<char>(sizeof(T)*aligned_size);
+#endif
 #else
             _storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
+#ifdef CUDA_MODE            
             _d_storage = gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
+#endif            
 #endif
           }
           initialize( nzval_cnt, block_cnt );
@@ -6097,6 +6102,13 @@ namespace symPACK{
                     auto offset = block.offset + (row - block.first_row)*tgt_cell.width() + (col-fc);
                     tgt_cell._nzval[offset] = nzvalA[rowidx-1];
                     found = true;
+/* Now, if CUDA mode is enabled, copy each matrix into GPU memory */
+#ifdef CUDA_MODE
+                    // copy nzval into tgt_cell gpu ptr
+                    //tgt_cell._d_nzval should be copied into, also allocate space for that
+                    upcxx::copy(tgt_cell._d_nzval, nzvalA[rowidx-1], sizeof(T)*nrows).wait();
+
+#endif
                     break;
 
                   }  
@@ -6109,6 +6121,7 @@ namespace symPACK{
           }
 
         }
+        
 
       }
 

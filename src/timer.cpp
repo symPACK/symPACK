@@ -31,6 +31,9 @@ namespace symPACK{
   char * const * main_argv;
   MPI_Comm comm;
   std::vector<cublasHandle_t> handlers;
+  std::vector<cudaStream_t> streams;
+  bool gpu_debug;
+  int n_gpus;
   SecondDuration complete_time;
   int64_t set_contxt = 0;
   int64_t output_file_counter = 0;
