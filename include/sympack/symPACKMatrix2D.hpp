@@ -644,6 +644,8 @@ namespace symPACK{
           _own_storage = false;
           _gstorage = nullptr;
           _storage = ext_storage;
+          //upcxx::copy(ext_storage, _d_storage, _storage_size).wait();
+          //upcxx::copy(ext_storage, _d_gstorage, _storage_size).wait();
           _dims = std::make_tuple(width);
           first_col = firstcol;
           initialize(nzval_cnt,block_cnt);
@@ -658,6 +660,8 @@ namespace symPACK{
           _own_storage = false;
           _gstorage = ext_gstorage;
           _storage = _gstorage.local();
+          upcxx::copy(ext_gstorage, _d_storage, _storage_size).wait();
+          upcxx::copy(ext_gstorage, _d_gstorage, _storage_size).wait();
           _dims = std::make_tuple(width);
           first_col = firstcol;
           initialize(nzval_cnt,block_cnt);
@@ -680,7 +684,10 @@ namespace symPACK{
           allocate( other.nz_capacity(), other.block_capacity() , !other._gstorage.is_null() );
           //now copy the data
           std::copy( other._storage, other._storage + other._storage_size, _storage );
+          upcxx::copy(other._d_storage, _d_storage, other._storage_size).wait();
+          upcxx::copy(other._d_gstorage, _d_gstorage, other._storage_size).wait();
           _block_container._nblocks = other._block_container._nblocks;
+          _block_container._d_nblocks = other._block_container._d_nblocks;
           _nnz = other._nnz;
         }
 
@@ -696,6 +703,8 @@ namespace symPACK{
 
           _gstorage = other._gstorage;
           _storage = other._storage;
+          upcxx::copy(other._storage, _d_storage, _storage_size).wait();
+          upcxx::copy(other._gstorage, _d_gstorage, _storage_size).wait();
           initialize( other._cnz , other._cblocks );
 
           //invalidate other
@@ -741,7 +750,10 @@ namespace symPACK{
             allocate( other._cnz, other._cblocks , !other._gstorage.is_null() );
             //now copy the data
             std::copy( other._storage, other._storage + other._storage_size, _storage );
+            upcxx::copy(other._storage, _d_storage, _storage_size).wait();
+            upcxx::copy(other._gstorage, _d_gstorage, _storage_size).wait();
             _block_container._nblocks = other._block_container._nblocks;
+            _block_container._d_nblocks = other._block_container._d_nblocks;
             _nnz = other._nnz;
 
           } 
@@ -770,6 +782,9 @@ namespace symPACK{
 
             _gstorage = other._gstorage;
             _storage = other._storage;
+            upcxx::copy(other._storage, _d_storage, _storage_size).wait();
+            upcxx::copy(other._gstorage, _d_gstorage, _storage_size).wait();
+
             initialize( other._cnz , other._cblocks );
 
             //invalidate other
@@ -784,7 +799,6 @@ namespace symPACK{
             other._block_container._nblocks = 0;
             other._block_container._blocks = nullptr;
             other._block_container._d_blocks = nullptr;
-            other._block_container._d_cblocks = 0;
             other._block_container._d_nblocks = 0;
             other._own_storage = false;
           } 
@@ -844,8 +858,8 @@ namespace symPACK{
           /* Allocate more space if needed */
           logfileptr->OFS()<<"Capacity "<<_block_container._d_cblocks <<", number: "<<_block_container._d_nblocks<<std::endl;
           if (_block_container._d_nblocks >= _block_container._d_cblocks) {
-            _block_container._d_blocks = cublas::cudaReallocManual<char, block_t>(_block_container._d_blocks, _block_container._d_cblocks, _block_container._d_nblocks+10);
-            _block_container._d_cblocks = _block_container._d_nblocks+10;
+            _block_container._d_blocks = cublas::cudaReallocManual<char, block_t>(_block_container._d_blocks, _block_container._d_cblocks, _block_container._d_nblocks+100);
+            _block_container._d_cblocks = _block_container._d_nblocks+100;
           }
 
           upcxx::copy(reinterpret_cast<char *>(new_block), _block_container._d_blocks + _block_container._nblocks-1, sizeof(block_t)).wait();
@@ -876,7 +890,7 @@ namespace symPACK{
           _nnz = 0;
           _block_container._nblocks = 0;
           _block_container._d_nblocks = 0;
-          _block_container._d_cblocks = 0;
+          _block_container._d_cblocks = _storage_size / sizeof(block_t);
 #ifdef CUDA_MODE
 
 #ifdef _ALIGNED_
