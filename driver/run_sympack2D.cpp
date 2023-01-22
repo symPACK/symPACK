@@ -37,6 +37,10 @@ int main(int argc, char **argv)
     logfileptr = new LogFile(iam);
     logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
     logfileptr->OFS()<<"**********************************"<<std::endl;
+    statfileptr = new LogFile("Statfile", std::to_string(iam).c_str());
+    statfileptr->OFS()<<"********* STATFILE OF P"<<iam<<" *********"<<std::endl;
+    statfileptr->OFS()<<"**********************************"<<std::endl;
+    
 
     // *********************************************************************
     // Input parameter
@@ -64,6 +68,7 @@ int main(int argc, char **argv)
     }
 
     Int n = HMat.size;
+    logfileptr->OFS()<<"Matrix dimension: " << n << std::endl;
     std::vector<SCALAR> RHS,XTrue;
     generate_rhs(HMat,RHS,XTrue,nrhs);
 
@@ -75,6 +80,8 @@ int main(int argc, char **argv)
      int n_gpus;
      cudaGetDeviceCount(&n_gpus);
      logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
+     symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::cuda_device>(n * n * sizeof(double));
+     logfileptr->OFS()<<"Reserved " << n * n * sizeof(double) << " bytes on the device"<<std::endl;
 #endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
@@ -131,6 +138,7 @@ int main(int argc, char **argv)
     MPI_Barrier(worldcomm);
     MPI_Comm_free(&worldcomm);
     delete logfileptr;
+    delete statfileptr;
   }
   //This will also finalize MPI
   symPACK_Finalize();

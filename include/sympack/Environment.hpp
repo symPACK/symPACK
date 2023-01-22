@@ -63,6 +63,7 @@ namespace symPACK{
   extern std::vector<cudaStream_t> streams;
   extern bool gpu_debug;
   extern int n_gpus;
+  extern upcxx::device_allocator<upcxx::cuda_device> gpu_allocator;
 }
 
 namespace symPACK{

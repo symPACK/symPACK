@@ -112,6 +112,7 @@ int symPACK_Finalize(){
     cudaSetDevice(i);
     cublasDestroy(symPACK::handlers[i]);
   }
+  symPACK::gpu_allocator.destroy();
 #endif
 
   return retval;

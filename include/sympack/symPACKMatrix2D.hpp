@@ -494,12 +494,13 @@ namespace symPACK{
 
         T* _nzval;
         upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> _d_nzval; //pointer to first block on the device
-        upcxx::device_allocator<upcxx::cuda_device> gpu_allocator;
     
         size_t _cblocks; //capacity
         size_t _cnz; //capacity
         size_t _nnz;
+        size_t _nnz_comm; //number recieved from other nodes
         size_t _storage_size;
+        
         rowind_t _total_rows;
 
         //relevant only for LDL but more convenient here
@@ -509,8 +510,10 @@ namespace symPACK{
             block_t * _blocks;
             upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> _d_blocks;
             size_t _nblocks;
+            size_t _d_nblocks;
+            size_t _d_cblocks;
 
-            block_container_t():_blocks(nullptr),_nblocks(0) {}
+            block_container_t():_blocks(nullptr),_nblocks(0), _d_nblocks(0), _d_cblocks(0) {}
 
             size_t size() const{
               return _nblocks;
@@ -607,7 +610,7 @@ namespace symPACK{
           in_use(false),
 #endif
           _storage(nullptr),_nzval(nullptr), _d_nzval(nullptr),
-          _gstorage(nullptr),_nnz(0),_storage_size(0), _own_storage(true) {}
+          _gstorage(nullptr),_nnz(0), _nnz_comm(0), _storage_size(0), _own_storage(true) {}
         bool _own_storage;
 
         virtual ~blockCell_t() {
@@ -646,6 +649,7 @@ namespace symPACK{
           initialize(nzval_cnt,block_cnt);
           _nnz = nzval_cnt;
           _block_container._nblocks = block_cnt;
+          _block_container._d_nblocks = block_cnt;
         }
 
         blockCell_t (  int_t i, int_t j,upcxx::global_ptr<char> ext_gstorage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
@@ -659,9 +663,11 @@ namespace symPACK{
           initialize(nzval_cnt,block_cnt);
           _nnz = nzval_cnt;
           _block_container._nblocks = block_cnt;
+          _block_container._d_nblocks = block_cnt;
         }
 
         // Copy constructor.  
+        // TODO: Edit this with new fields
         blockCell_t ( const blockCell_t & other ): blockCell_t() {
           i           = other.i;
           j           = other.j;
@@ -705,6 +711,8 @@ namespace symPACK{
           other._block_container._blocks = nullptr;
           other._block_container._d_blocks = nullptr;
           other._own_storage = false;
+          other._block_container._d_cblocks = 0;
+          other._block_container._d_nblocks = 0;
         }
 
 
@@ -776,6 +784,8 @@ namespace symPACK{
             other._block_container._nblocks = 0;
             other._block_container._blocks = nullptr;
             other._block_container._d_blocks = nullptr;
+            other._block_container._d_cblocks = 0;
+            other._block_container._d_nblocks = 0;
             other._own_storage = false;
           } 
           return *this;  
@@ -808,7 +818,7 @@ namespace symPACK{
           return nRows;
         }
 
-        void add_block( rowind_t first_row, rowind_t nrows ) {
+        void add_block( rowind_t first_row, rowind_t nrows, bool add_to_device=true ) {
           bassert( this->_block_container.data()!=nullptr );
           bassert( this->_block_container.size() + 1 <= block_capacity() );
           bassert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
@@ -816,14 +826,47 @@ namespace symPACK{
           new_block.first_row = first_row;
           new_block.offset = _nnz;
           _nnz += nrows*std::get<0>(_dims);
-#ifdef CUDA_MODE
-          block_t * d_new_block = new block_t;
-          d_new_block->first_row = new_block.first_row;
-          d_new_block->offset = new_block.offset;
-          //TODO: Fix this copy, figure out how to make it so we can test in the block_t functions
-          //upcxx::copy(d_new_block, _block_container._d_blocks + _block_container._nblocks-1, sizeof(*d_new_block)).wait();
-          logfileptr->OFS() << "Copied " << sizeof(*d_new_block) << " bytes to device" << std::endl;
-#endif
+#ifdef CUDA_MODE          
+          if (add_to_device) {
+            logfileptr->OFS()<<"Add block called from copy\n";
+            add_device_block(&new_block);
+          } else {
+            logfileptr->OFS()<<"Add block called from solve\n";
+          }
+#endif          
+        }
+
+        void add_device_block(block_t * new_block) {
+          bassert( this->_block_container.data()!=nullptr );
+          bassert( this->_block_container.size() + 1 <= block_capacity() );
+          bassert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
+
+          /* Allocate more space if needed */
+          logfileptr->OFS()<<"Capacity "<<_block_container._d_cblocks <<", number: "<<_block_container._d_nblocks<<std::endl;
+          if (_block_container._d_nblocks >= _block_container._d_cblocks) {
+            _block_container._d_blocks = cublas::cudaReallocManual<char, block_t>(_block_container._d_blocks, _block_container._d_cblocks, _block_container._d_nblocks+10);
+            _block_container._d_cblocks = _block_container._d_nblocks+10;
+          }
+
+          upcxx::copy(reinterpret_cast<char *>(new_block), _block_container._d_blocks + _block_container._nblocks-1, sizeof(block_t)).wait();
+          _block_container._d_nblocks+=1;
+          logfileptr->OFS() << "Copied block of " << sizeof(block_t) << " bytes to device" << std::endl;
+
+        }
+
+        void add_all_device_blocks() {
+          bassert( this->_block_container.data()!=nullptr );
+          bassert( this->_block_container.size() + 1 <= block_capacity() );
+          bassert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
+
+          _block_container._d_blocks = symPACK::gpu_allocator.allocate<char>(sizeof(block_t)*_block_container._nblocks*2);//TODO: *2 is hacky
+
+          for (auto const& block : _block_container) {
+            upcxx::copy(reinterpret_cast<char*>(_block_container.data()), _block_container._d_blocks, sizeof(block_t)*_block_container._nblocks).wait();
+          }
+
+          logfileptr->OFS() << "Copied all blocks to device\n";
+
         }
 
         void initialize ( size_t nzval_cnt, size_t block_cnt ) {
@@ -832,6 +875,8 @@ namespace symPACK{
           _cblocks = block_cnt;
           _nnz = 0;
           _block_container._nblocks = 0;
+          _block_container._d_nblocks = 0;
+          _block_container._d_cblocks = 0;
 #ifdef CUDA_MODE
 
 #ifdef _ALIGNED_
@@ -843,8 +888,8 @@ namespace symPACK{
           _block_container._blocks = reinterpret_cast<block_t*>( _storage );
           _block_container._d_blocks = _d_storage; //if I cast to block_t every time I downcast, this should be okay
           _nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
-          _d_nzval = (_block_container._d_blocks + _cblocks*sizeof(T));
-          //TODO: 
+          _d_nzval = (_block_container._d_blocks + _cblocks );
+          logfileptr->OFS()<<"device nzval set\n";
 #endif
 
 #else //no cuda
@@ -863,7 +908,6 @@ namespace symPACK{
         void allocate ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
           bassert(nzval_cnt!=0 && block_cnt!=0);
 
-
 #ifdef _ALIGNED_
           size_t aligned_size = std::ceil((nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
 #endif
@@ -872,12 +916,14 @@ namespace symPACK{
 
 #ifdef _ALIGNED_
             _gstorage = upcxx::allocate<char, alignof(T) >( aligned_size ); 
-            _d_gstorage = gpu_allocator.allocate<char>(aligned_size);
+            _d_gstorage =  symPACK::gpu_allocator.allocate<char, alignof(T) >(aligned_size);
 #else
             _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
-            _d_gstorage = gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
+            logfileptr->OFS()<<"Allocated "<<nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)<<" bytes on device\n";
+            _d_gstorage =  symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
 #endif
             _storage = _gstorage.local();
+            _d_storage = _d_gstorage;
             if ( this->_storage==nullptr ) symPACKOS<<"Trying to allocate "<<nzval_cnt<<" for cell ("<<i<<","<<j<<")"<<std::endl;
             assert( this->_storage!=nullptr );
           }
@@ -885,14 +931,11 @@ namespace symPACK{
             _gstorage = nullptr;
 #ifdef _ALIGNED_
             _storage = (char *)new T[aligned_size];
-#ifdef CUDA_MODE
-            _d_storage = gpu_allocator.allocate<char>(sizeof(T)*aligned_size);
-#endif
+            _d_storage =  symPACK::gpu_allocator.allocate<char>(sizeof(T)*aligned_size);
 #else
             _storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
-#ifdef CUDA_MODE            
-            _d_storage = gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
-#endif            
+            logfileptr->OFS()<<"Allocated "<<nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)<<" bytes on device\n";
+            _d_storage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
 #endif
           }
           initialize( nzval_cnt, block_cnt );
@@ -1195,7 +1238,7 @@ namespace symPACK{
           this->allocate(nnz,other->nblocks(),true);
           this->initialize(nnz,other->nblocks());
           for ( auto & cur_block: other->blocks() ) {
-            this->add_block(cur_block.first_row,other->block_nrows(cur_block));
+            this->add_block(cur_block.first_row,other->block_nrows(cur_block), true);          
           }
         }
 
@@ -1640,7 +1683,7 @@ namespace symPACK{
           this->allocate(nnz,other->nblocks(),true);
           this->initialize(nnz,other->nblocks());
           for ( auto & cur_block: other->blocks() ) {
-            this->add_block(cur_block.first_row,other->block_nrows(cur_block));
+            this->add_block(cur_block.first_row,other->block_nrows(cur_block), true);
           }
         }
 
@@ -5880,8 +5923,8 @@ namespace symPACK{
         }
 
 
-
         logfileptr->OFS()<<"Solve task graph created"<<std::endl;
+        
       }
 
 
@@ -6095,27 +6138,48 @@ namespace symPACK{
                 auto & tgt_cell =CELL(J-1,I-1);
                 bassert(this->iam == tgt_cell.owner);
                 bassert(tgt_cell.i==J && tgt_cell.j==I);
+                Int nnzval = 0;
 
                 bool found = false;
                 for (auto & block: tgt_cell.blocks()) {
+                  //Match found if row between first and last row of block
                   if ( block.first_row <= row && row < block.first_row + tgt_cell.block_nrows(block) ) {
+                    //Offset is block offset + row index in block & number of cols in tgt_cell
                     auto offset = block.offset + (row - block.first_row)*tgt_cell.width() + (col-fc);
                     tgt_cell._nzval[offset] = nzvalA[rowidx-1];
                     found = true;
-/* Now, if CUDA mode is enabled, copy each matrix into GPU memory */
-#ifdef CUDA_MODE
-                    // copy nzval into tgt_cell gpu ptr
-                    //tgt_cell._d_nzval should be copied into, also allocate space for that
-                    upcxx::copy(tgt_cell._d_nzval, nzvalA[rowidx-1], sizeof(T)*nrows).wait();
-
-#endif
+                    tgt_cell._nnz_comm+=1; // count number of nnzs copied
                     break;
 
                   }  
-                } 
+                }
 
                 bassert(found);
 
+              }
+
+              for (Ptr rowidx = colbeg; rowidx<=colend; ++rowidx) {
+                Idx row = rowind[rowidx-1];
+
+                Int J = this->SupMembership_[row-1];
+
+                auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
+                assert(ptr_tgt_cell);
+
+                auto & tgt_cell =CELL(J-1,I-1);
+                bassert(this->iam == tgt_cell.owner);
+                bassert(tgt_cell.i==J && tgt_cell.j==I);
+                logfileptr->OFS()<<"Number of nonzeros: "<<tgt_cell._nnz_comm<<std::endl;
+                /*upcxx::global_ptr<double, upcxx::memory_kind::cuda_device> gg = symPACK::gpu_allocator.allocate<double>(1);
+                upcxx::global_ptr<double> test_buf = upcxx::new_array<double>(1);
+                double * tb = test_buf.local();
+                tb[0] = 8;
+                upcxx::copy(test_buf, gg, 1).wait();*/
+                //TODO: Copy to nnz
+                char * nnz_cast = reinterpret_cast<char *>(tgt_cell._nzval);
+                //upcxx::copy(nnz_cast, tgt_cell._d_nzval, tgt_cell._nnz_comm*sizeof(T)).wait();
+                //symPACK::gpu_allocator.deallocate(gg);
+                //upcxx::delete_array(test_buf);
               }
             }
           }

@@ -578,6 +578,19 @@ namespace cublas {
     }
 
     
+    /* Utility functions */
+
+    /* Expand buffer pointed to by DEV_PTR from size n to m. Return pointer to new buffer. */
+    template <typename T, typename U>
+    upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> cudaReallocManual(upcxx::global_ptr<T, upcxx::memory_kind::cuda_device>& dev_ptr, 
+                                                                            size_t n, size_t m) {
+        assert(m>n);
+        logfileptr->OFS() << "Calling cudaRealloc\n";
+        upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> new_ptr = symPACK::gpu_allocator.allocate<T>(m*sizeof(U));
+        upcxx::copy(dev_ptr, new_ptr, n*sizeof(U)).wait();
+        symPACK::gpu_allocator.deallocate(dev_ptr);
+        return new_ptr;
+    }
             
            /* case OP_SYRK:
                 logfileptr->OFS()<<"DOING SYRK\n";
