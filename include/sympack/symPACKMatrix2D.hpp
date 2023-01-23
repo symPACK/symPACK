@@ -493,8 +493,9 @@ namespace symPACK{
         upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> _d_storage;
 
         T* _nzval;
-        upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> _d_nzval; //pointer to first block on the device
-    
+        upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> _d_nzval; //pointer to first block on the device
+        bool _d_cpy;
+
         size_t _cblocks; //capacity
         size_t _cnz; //capacity
         size_t _nnz;
@@ -610,7 +611,7 @@ namespace symPACK{
           in_use(false),
 #endif
           _storage(nullptr),_nzval(nullptr), _d_nzval(nullptr),
-          _gstorage(nullptr),_nnz(0), _nnz_comm(0), _storage_size(0), _own_storage(true) {}
+          _gstorage(nullptr),_nnz(0), _nnz_comm(0), _storage_size(0), _own_storage(true), _d_cpy(false) {}
         bool _own_storage;
 
         virtual ~blockCell_t() {
@@ -660,8 +661,8 @@ namespace symPACK{
           _own_storage = false;
           _gstorage = ext_gstorage;
           _storage = _gstorage.local();
-          upcxx::copy(ext_gstorage, _d_storage, _storage_size).wait();
-          upcxx::copy(ext_gstorage, _d_gstorage, _storage_size).wait();
+          //upcxx::copy(ext_gstorage, _d_storage, _storage_size).wait();
+         // upcxx::copy(ext_gstorage, _d_gstorage, _storage_size).wait();
           _dims = std::make_tuple(width);
           first_col = firstcol;
           initialize(nzval_cnt,block_cnt);
@@ -684,8 +685,8 @@ namespace symPACK{
           allocate( other.nz_capacity(), other.block_capacity() , !other._gstorage.is_null() );
           //now copy the data
           std::copy( other._storage, other._storage + other._storage_size, _storage );
-          upcxx::copy(other._d_storage, _d_storage, other._storage_size).wait();
-          upcxx::copy(other._d_gstorage, _d_gstorage, other._storage_size).wait();
+          //upcxx::copy(other._d_storage, _d_storage, other._storage_size).wait();
+          //upcxx::copy(other._d_gstorage, _d_gstorage, other._storage_size).wait();
           _block_container._nblocks = other._block_container._nblocks;
           _block_container._d_nblocks = other._block_container._d_nblocks;
           _nnz = other._nnz;
@@ -703,8 +704,8 @@ namespace symPACK{
 
           _gstorage = other._gstorage;
           _storage = other._storage;
-          upcxx::copy(other._storage, _d_storage, _storage_size).wait();
-          upcxx::copy(other._gstorage, _d_gstorage, _storage_size).wait();
+         // upcxx::copy(other._storage, _d_storage, _storage_size).wait();
+          //upcxx::copy(other._gstorage, _d_gstorage, _storage_size).wait();
           initialize( other._cnz , other._cblocks );
 
           //invalidate other
@@ -750,8 +751,8 @@ namespace symPACK{
             allocate( other._cnz, other._cblocks , !other._gstorage.is_null() );
             //now copy the data
             std::copy( other._storage, other._storage + other._storage_size, _storage );
-            upcxx::copy(other._storage, _d_storage, _storage_size).wait();
-            upcxx::copy(other._gstorage, _d_gstorage, _storage_size).wait();
+            //upcxx::copy(other._storage, _d_storage, _storage_size).wait();
+            //upcxx::copy(other._gstorage, _d_gstorage, _storage_size).wait();
             _block_container._nblocks = other._block_container._nblocks;
             _block_container._d_nblocks = other._block_container._d_nblocks;
             _nnz = other._nnz;
@@ -782,8 +783,8 @@ namespace symPACK{
 
             _gstorage = other._gstorage;
             _storage = other._storage;
-            upcxx::copy(other._storage, _d_storage, _storage_size).wait();
-            upcxx::copy(other._gstorage, _d_gstorage, _storage_size).wait();
+            //upcxx::copy(other._storage, _d_storage, _storage_size).wait();
+            //upcxx::copy(other._gstorage, _d_gstorage, _storage_size).wait();
 
             initialize( other._cnz , other._cblocks );
 
@@ -841,11 +842,11 @@ namespace symPACK{
           new_block.offset = _nnz;
           _nnz += nrows*std::get<0>(_dims);
 #ifdef CUDA_MODE          
-          if (add_to_device) {
+          if (add_to_device && false) {
             logfileptr->OFS()<<"Add block called from copy\n";
             add_device_block(&new_block);
           } else {
-            logfileptr->OFS()<<"Add block called from solve\n";
+           // logfileptr->OFS()<<"Add block called from solve\n";
           }
 #endif          
         }
@@ -900,10 +901,10 @@ namespace symPACK{
           _block_container._d_blocks = reinterpret_cast<block_t*>(gpu_allocator.local(_d_nzval + _cnz));
 #else
           _block_container._blocks = reinterpret_cast<block_t*>( _storage );
-          _block_container._d_blocks = _d_storage; //if I cast to block_t every time I downcast, this should be okay
+         // _block_container._d_blocks = _d_storage; //if I cast to block_t every time I downcast, this should be okay
           _nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
-          _d_nzval = (_block_container._d_blocks + _cblocks );
-          logfileptr->OFS()<<"device nzval set\n";
+          //_d_nzval = (_block_container._d_blocks + ( _cblocks * sizeof(block_t) ) );
+          //logfileptr->OFS()<<"device nzval set\n";
 #endif
 
 #else //no cuda
@@ -933,11 +934,11 @@ namespace symPACK{
             _d_gstorage =  symPACK::gpu_allocator.allocate<char, alignof(T) >(aligned_size);
 #else
             _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
-            logfileptr->OFS()<<"Allocated "<<nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)<<" bytes on device\n";
-            _d_gstorage =  symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
+            //logfileptr->OFS()<<"Allocated "<<nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)<<" bytes on device\n";
+            //_d_gstorage =  symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
 #endif
             _storage = _gstorage.local();
-            _d_storage = _d_gstorage;
+            //_d_storage = _d_gstorage;
             if ( this->_storage==nullptr ) symPACKOS<<"Trying to allocate "<<nzval_cnt<<" for cell ("<<i<<","<<j<<")"<<std::endl;
             assert( this->_storage!=nullptr );
           }
@@ -948,8 +949,8 @@ namespace symPACK{
             _d_storage =  symPACK::gpu_allocator.allocate<char>(sizeof(T)*aligned_size);
 #else
             _storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
-            logfileptr->OFS()<<"Allocated "<<nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)<<" bytes on device\n";
-            _d_storage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
+            //logfileptr->OFS()<<"Allocated "<<nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)<<" bytes on device\n";
+            //_d_storage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
 #endif
           }
           initialize( nzval_cnt, block_cnt );
@@ -6152,7 +6153,6 @@ namespace symPACK{
                 auto & tgt_cell =CELL(J-1,I-1);
                 bassert(this->iam == tgt_cell.owner);
                 bassert(tgt_cell.i==J && tgt_cell.j==I);
-                Int nnzval = 0;
 
                 bool found = false;
                 for (auto & block: tgt_cell.blocks()) {
@@ -6172,29 +6172,21 @@ namespace symPACK{
 
               }
 
-              for (Ptr rowidx = colbeg; rowidx<=colend; ++rowidx) {
-                Idx row = rowind[rowidx-1];
-
-                Int J = this->SupMembership_[row-1];
-
-                auto ptr_tgt_cell = pQueryCELL(J-1,I-1);
-                assert(ptr_tgt_cell);
-
-                auto & tgt_cell =CELL(J-1,I-1);
-                bassert(this->iam == tgt_cell.owner);
-                bassert(tgt_cell.i==J && tgt_cell.j==I);
-                logfileptr->OFS()<<"Number of nonzeros: "<<tgt_cell._nnz_comm<<std::endl;
-                /*upcxx::global_ptr<double, upcxx::memory_kind::cuda_device> gg = symPACK::gpu_allocator.allocate<double>(1);
-                upcxx::global_ptr<double> test_buf = upcxx::new_array<double>(1);
-                double * tb = test_buf.local();
-                tb[0] = 8;
-                upcxx::copy(test_buf, gg, 1).wait();*/
-                //TODO: Copy to nnz
-                char * nnz_cast = reinterpret_cast<char *>(tgt_cell._nzval);
-                //upcxx::copy(nnz_cast, tgt_cell._d_nzval, tgt_cell._nnz_comm*sizeof(T)).wait();
-                //symPACK::gpu_allocator.deallocate(gg);
-                //upcxx::delete_array(test_buf);
+              /* Copy nnz to device */
+              //logfileptr->OFS()<<"Copying nnz to device\n";
+              for (auto const& elem : cells_) {
+                auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem.second);
+                if (block==NULL || block->_d_cpy)
+                  continue;
+                else
+                  block->_d_cpy = true;
+                block->_d_nzval = symPACK::gpu_allocator.allocate<T>(block->_nnz);
+                upcxx::copy(block->_nzval, block->_d_nzval, block->_nnz).wait();
+                //logfileptr->OFS()<<"Copied\n";
+                // initialization time is a lot worse, but idk how this could be faster.
+                //cublas::print_dev_buffer<T>(block->_d_nzval, block->_nnz);
               }
+              //logfileptr->OFS()<<"Done copying\n";
             }
           }
 
