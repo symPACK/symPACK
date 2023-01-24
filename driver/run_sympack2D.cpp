@@ -76,12 +76,20 @@ int main(int argc, char **argv)
     auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
     try{
 #ifdef CUDA_MODE
-     logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
-     int n_gpus;
-     cudaGetDeviceCount(&n_gpus);
-     logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
-     symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::cuda_device>(n * n * sizeof(double));
-     logfileptr->OFS()<<"Reserved " << n * n * sizeof(double) << " bytes on the device"<<std::endl;
+
+    logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
+
+    int n_gpus;
+    cudaGetDeviceCount(&n_gpus);
+    logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
+    
+    int gpu_id = upcxx::rank_me() % n_gpus;
+    cudaSetDevice(gpu_id);
+    logfileptr->OFS()<<"Rank "<<upcxx::rank_me()<<" using device "<<gpu_id<<std::endl;
+
+    symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::cuda_device>(n * n * sizeof(double));
+    logfileptr->OFS()<<"Reserved " << n * n * sizeof(double) << " bytes on device "<<gpu_id<<std::endl;
+
 #endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
