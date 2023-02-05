@@ -84,6 +84,9 @@ namespace symPACK{
       }
 
       nzval_ = (T*)&loc_storage_container_[0];
+#ifdef CUDA_MODE      
+      d_nzval_ = symPACK::gpu_allocator.allocate<T>(this->storage_size_);
+#endif      
       meta_ = (SuperNodeDesc*)(nzval_+size*ai_num_rows);
       char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
       blocks_ = (NZBlockDesc*) last;
@@ -191,6 +194,9 @@ namespace symPACK{
 
 
       nzval_ = (T*)&loc_storage_container_[0];
+#ifdef CUDA_MODE      
+      d_nzval_ = symPACK::gpu_allocator.allocate<T>(this->storage_size_);
+#endif      
       meta_ = (SuperNodeDesc*)(nzval_+size*numRows);
       char * last = loc_storage_container_+storage_size_-1 - (sizeof(NZBlockDesc) -1);
       blocks_ = (NZBlockDesc*) last;
@@ -250,6 +256,10 @@ namespace symPACK{
 
       meta_= (SuperNodeDesc*)(blocks_ - blkCnt +1) - 1;
       nzval_ = (T*) storage_ptr;
+#ifdef CUDA_MODE      
+      d_nzval_ = symPACK::gpu_allocator.allocate<T>(storage_size);
+#endif      
+      upcxx::copy(reinterpret_cast<T*>(storage_ptr), d_nzval_, (storage_size/sizeof(T))).wait();
 
       //we now need to update the meta data
       meta_->b_own_storage_ = false;
@@ -289,6 +299,7 @@ namespace symPACK{
 
       //Resize the container if I own the storage
       if(meta_->b_own_storage_){
+        logfileptr->OFS()<<"Adding\n";
         scope_timer(a,RESIZE_SUPERNODE);
 
         Int cur_fr = aiGIndex;
@@ -380,6 +391,15 @@ namespace symPACK{
 
         //update nzval count
         meta_->nzval_cnt_+=cur_nzval_cnt;
+
+        //Handle device buffer
+#ifdef CUDA_MODE
+          logfileptr->OFS()<<"Adding device\n";
+          symPACK::gpu_allocator.deallocate(d_nzval_);
+          d_nzval_ = symPACK::gpu_allocator.allocate<T>(meta_->nzval_cnt_);
+          upcxx::copy(nzval_, d_nzval_, meta_->nzval_cnt_).wait();
+#endif    
+
       }
     }
 
@@ -457,6 +477,7 @@ namespace symPACK{
     inline Int SuperNode<T,Allocator>::Shrink(){
       if(meta_->b_own_storage_){
         //TODO make sure that we do not have any extra space anywhere.
+        logfileptr->OFS()<<"Shrinking\n";
 
         bool ownDiagonal = OwnDiagonal();
         //if there is too much room for either nzval or blocks, contract
@@ -494,6 +515,15 @@ namespace symPACK{
           //update pointers
           meta_ = (SuperNodeDesc*) new_meta_ptr;
           blocks_ = (NZBlockDesc*) new_blocks_ptr;
+
+          //Handle device pointers
+#ifdef CUDA_MODE
+          logfileptr->OFS()<<"Shrinking Device\n";
+          upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> dTmpPtr = symPACK::gpu_allocator.allocate<T>((new_size / sizeof(T)));
+          upcxx::copy(d_nzval_, dTmpPtr, meta_->nzval_cnt_).wait();
+          symPACK::gpu_allocator.deallocate(d_nzval_);
+          d_nzval_ = dTmpPtr;
+#endif          
         }
       }
 
@@ -709,7 +739,7 @@ namespace symPACK{
 
   template<typename T, class Allocator>
     inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode){
-
+      logfileptr->OFS()<<"Aggregation normal\n";
       scope_timer(a,AGGREGATE_SNODE);
 
 #if defined(_NO_COMPUTATION_)
@@ -819,6 +849,7 @@ namespace symPACK{
         //everything is in row-major
         SYMPACK_TIMER_START(UPDATE_SNODE_GEMM);
 #ifdef CUDA_MODE
+        logfileptr->OFS()<<"Update Aggregate GEMM\n";
         cublas::cublas_gemm_wrapper(CUBLAS_OP_T,CUBLAS_OP_N,tgt_width, src_nrows,src_snode_size,
             T(-1.0),pivot,src_snode_size,
             pivot,src_snode_size,beta,buf,tgt_width);
@@ -1321,6 +1352,7 @@ namespace symPACK{
 
   template <typename T, class Allocator> 
     inline void SuperNode<T,Allocator>::Serialize(Icomm & buffer, Int first_blkidx, Idx first_row){
+      logfileptr->OFS()<<"Serialize called\n";
       NZBlockDesc* nzblk_ptr = &this->GetNZBlockDesc(first_blkidx);
       if(first_row==0){
         first_row = nzblk_ptr->GIndex;

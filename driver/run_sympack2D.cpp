@@ -84,10 +84,10 @@ int main(int argc, char **argv)
     logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
     
     int gpu_id = upcxx::rank_me() % n_gpus;
-    cudaSetDevice(gpu_id);
-    logfileptr->OFS()<<"Rank "<<upcxx::rank_me()<<" using device "<<gpu_id<<std::endl;
+    //cudaSetDevice(gpu_id);
+    //logfileptr->OFS()<<"Rank "<<upcxx::rank_me()<<" using device "<<gpu_id<<std::endl;
 
-    symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::cuda_device>(n * n * sizeof(double));
+    symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::cuda_device>(n * n * sizeof(double)); //TODO: Fix this overallocation
     logfileptr->OFS()<<"Reserved " << n * n * sizeof(double) << " bytes on device "<<gpu_id<<std::endl;
 
 #endif

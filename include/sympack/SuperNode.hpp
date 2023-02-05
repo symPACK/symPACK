@@ -100,6 +100,9 @@ namespace symPACK{
         //utility pointers
         SuperNodeDesc * meta_;
         T * nzval_;
+#ifdef CUDA_MODE        
+        upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> d_nzval_;
+#endif        
         NZBlockDesc * blocks_;
 
       protected:
@@ -118,6 +121,9 @@ namespace symPACK{
         inline Ptr NNZ(){ return meta_->nzval_cnt_;}
         inline Int NZBlockCnt(){ return meta_->blocks_cnt_;}
         inline NZBlockDesc & GetNZBlockDesc(Int aiLocIndex){ return *(blocks_ -aiLocIndex);}
+#ifdef CUDA_MODE        
+        inline T* GetDNZval(size_t offset){return d_nzval_.local() + offset;}
+#endif        
         inline T* GetNZval(size_t offset){ return &nzval_[offset];}
         inline SuperNodeDesc * GetMeta(){return meta_;}
         inline Int NRows(Int blkidx){

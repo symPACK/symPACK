@@ -949,7 +949,7 @@ namespace symPACK{
             for (int vrow = 0; vrow< block.block_nrows(nzblock); vrow++) {
               std::streamsize p = logfileptr->OFS().precision();
               logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
-              // nzval contains the actual data, stored in column major order, each block_t contains a subset of the data starting at block_t.offset
+              // nzval contains the actual data, stored in row major order, each block_t contains a subset of the data starting at block_t.offset
               for (int vcol = 0; vcol< block.width() ; vcol++) {
                 logfileptr->OFS()<<std::scientific<<ToMatlabScalar(block._nzval[nzblock.offset+vrow*block.width()+vcol])<<" ";
               }
@@ -6156,9 +6156,8 @@ namespace symPACK{
                 bassert(found);
 
               }
-
+#ifdef CUDA_MODE
               /* Copy nnz to device */
-              //logfileptr->OFS()<<"Copying nnz to device\n";
               for (auto const& elem : cells_) {
                 auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem.second);
                 if (block==NULL || block->_d_cpy)
@@ -6168,7 +6167,7 @@ namespace symPACK{
                 block->_d_nzval = symPACK::gpu_allocator.allocate<T>(block->_nnz);
                 upcxx::copy(block->_nzval, block->_d_nzval, block->_nnz).wait();
               }
-              //logfileptr->OFS()<<"Done copying\n";
+#endif              
             }
           }
 
@@ -6345,6 +6344,10 @@ namespace symPACK{
             }
 
             for (auto & block: tgt_cell.blocks()) {
+#ifdef CUDA_MODE
+              //Copy to host
+              upcxx::copy(tgt_cell._d_nzval, tgt_cell._nzval, tgt_cell._nnz).wait();
+#endif              
               T * val = &tgt_cell._nzval[block.offset];
               auto nRows = tgt_cell.block_nrows(block);
               auto row = block.first_row;
@@ -6357,7 +6360,7 @@ namespace symPACK{
                   B[ (destRow -1) +j*this->iSize_ ] = val[i*tgt_cell.width()+j];
                 }
               }
-            }
+            }            
           }
         }
 
