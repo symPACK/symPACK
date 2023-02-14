@@ -352,11 +352,23 @@ namespace symPACK{
         //std::vector<Int,AlignedAllocator<Int> > src_colindx;
         //std::vector<Int,AlignedAllocator<Int> > src_to_tgt_offset;
         std::vector<T   > tmpBuf;
+#ifdef CUDA_MODE
+        upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> d_tmpBuf;
+        Int d_size;
+#endif        
         std::vector<Int > src_colindx;
         std::vector<Int > src_to_tgt_offset;
 
         void Resize(Int size, Int mw){
           if(size*mw > tmpBuf.size()){
+#ifdef CUDA_MODE
+            upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> new_gptr = symPACK::gpu_allocator.allocate<T>(size*mw);
+            upcxx::copy(new_gptr, d_tmpBuf, d_size).wait();
+            symPACK::gpu_allocator.deallocate(d_tmpBuf);
+            
+            d_size = size; 
+            d_tmpBuf = new_gptr;
+#endif            
             tmpBuf.resize(size*mw);
           }
           if(mw > src_colindx.size()){
@@ -369,8 +381,11 @@ namespace symPACK{
 
         void Clear(){
           {
+#ifdef CUDA_MODE
+            symPACK::gpu_allocator.deallocate(d_tmpBuf);
+#endif            
             std::vector<T> tmp;
-            tmpBuf.swap(tmp);
+            tmpBuf.swap(tmp);            
           }
           {
             std::vector<Int> tmp;

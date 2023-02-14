@@ -4240,7 +4240,7 @@ namespace symPACK{
                   std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
                   comp_fact_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 #endif
-
+                  //Scan through all dependent tasks, set metadata of dependent tasks, including the global pointer of the dependent task. (which will be on the src processor)
                   for (auto it = ptask->out_dependencies.begin(); it!=ptask->out_dependencies.end(); it++) {
                     auto pdest = it->first;
                     auto & tgt_cells = it->second;
@@ -4398,7 +4398,7 @@ namespace symPACK{
 #ifdef _TIMING_
                   start = gasneti_ticks_now();
 #endif
-
+                  //Iterate thru dependent tasks
                   for (auto it = ptask->out_dependencies.begin(); it!=ptask->out_dependencies.end(); it++) {
                     auto pdest = it->first;
                     auto & tgt_cells = it->second;
@@ -4996,7 +4996,6 @@ namespace symPACK{
 
         std::vector<int> update_right_cnt(this->nsuper+1,0);
         std::vector<int> update_up_cnt(this->nsuper+1,0);
-
         //now we can process the dependency tasks
         for (auto it = recvbuf_dep.begin();it!=recvbuf_dep.end();it++) {
           auto & cur_op = (*it);
@@ -6346,7 +6345,7 @@ namespace symPACK{
             for (auto & block: tgt_cell.blocks()) {
 #ifdef CUDA_MODE
               //Copy to host
-              upcxx::copy(tgt_cell._d_nzval, tgt_cell._nzval, tgt_cell._nnz).wait();
+              //upcxx::copy(tgt_cell._d_nzval, tgt_cell._nzval, tgt_cell._nnz).wait();
 #endif              
               T * val = &tgt_cell._nzval[block.offset];
               auto nRows = tgt_cell.block_nrows(block);
@@ -6728,7 +6727,7 @@ namespace symPACK{
           {
             while (local_task_cnt>0) {
               if (!ready_tasks.empty()) {
-                upcxx::progress(upcxx::progress_level::internal);
+                //upcxx::progress(upcxx::progress_level::internal);
                 auto ptask = top_ready();
                 pop_ready();
                 ptask->execute(); 
@@ -6747,7 +6746,7 @@ namespace symPACK{
                       ptask->satisfy_dep(1,*this);
                       });
                 } 
-                upcxx::progress(upcxx::progress_level::internal);
+                //upcxx::progress(upcxx::progress_level::internal);
               }
             }
             upcxx::progress();
