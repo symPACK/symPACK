@@ -358,18 +358,32 @@ namespace symPACK{
           meta_t in_meta;
           //a pointer to be used by the user if he wants to attach some data
           std::shared_ptr<blockCellBase_t> extra_data;
+#ifdef CUDA_MODE
+          upcxx::global_ptr<blockCellBase_t, upcxx::memory_kind::cuda_device> d_extra_data;
+#endif          
 
-          incoming_data_t():transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr) {
+          incoming_data_t():transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr), alloc_d_landing_zone(false) {
             on_fetch_future = on_fetch.get_future();
           };
 
           bool transfered;
           upcxx::global_ptr<char> remote_gptr;
+#ifdef CUDA_MODE
+          upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> d_remote_gptr;
+          upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> d_landing_zone;
+          bool alloc_d_landing_zone; //True if d_landing_zone has been allocated on device
+#endif          
           size_t size;
           char * landing_zone;
 
           void allocate() {
             if (landing_zone == nullptr) landing_zone = new char[size];
+#ifdef CUDA_MODE
+            if (alloc_d_landing_zone == false) {
+              d_landing_zone = symPACK::gpu_allocator.allocate<char>(size);
+              alloc_d_landing_zone = true;
+            }
+#endif            
           }
 
           upcxx::future<incoming_data_t *> fetch() {
@@ -379,6 +393,11 @@ namespace symPACK{
               upcxx::rget(remote_gptr,landing_zone,size).then([this]() {
                   on_fetch.fulfill_result(this);
                   return;});
+#ifdef CUDA_MODE
+              upcxx::copy(d_landing_zone, d_remote_gptr, size).then([this]() {
+                  on_fetch.fulfill_result(this);
+                  return;});
+#endif                  
 #else
               std::fill(landing_zone,landing_zone+size,'0');
               on_fetch.fulfill_result(this);
@@ -389,6 +408,9 @@ namespace symPACK{
 
           ~incoming_data_t() {
             if (landing_zone) delete [] landing_zone;
+#ifdef CUDA_MODE
+            if (alloc_d_landing_zone) symPACK::gpu_allocator.deallocate(d_landing_zone);
+#endif            
           }
 
       };
