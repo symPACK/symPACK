@@ -4241,6 +4241,7 @@ namespace symPACK{
             case Factorization::op_type::FACTOR:
               {
                 ptask->execute = [this,src_snode,ptr,I,J,K] () {
+                  logfileptr->OFS()<<"DOING FACTOR"<<std::endl;
                   scope_timer(b,FB_FACTOR_DIAG_TASK);
                   auto ptask = ptr;
 
@@ -4269,9 +4270,17 @@ namespace symPACK{
                     //serialize data once, and list of meta data
                     //factor is output data so it will not be deleted
                     if ( pdest != this->iam ) {
-                      upcxx::rpc_ff( pdest, 
+                      upcxx::rpc_ff( pdest,
+#ifdef CUDA_MODE
+                          [ ] (int sp_handle, upcxx::global_ptr<char> gptr, upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> d_gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) {
+#else                     
                           [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+#endif                            
+#ifdef CUDA_MODE
+                          return upcxx::current_persona().lpc( [sp_handle,gptr,d_gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+#else                            
                           return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+#endif                            
                               //there is a map between sp_handle and task_graphs
 #ifdef _TIMING_
                               gasneti_tick_t start = gasneti_ticks_now();
@@ -4312,6 +4321,7 @@ namespace symPACK{
                                   data->in_meta = meta;
                                   data->size = storage_size;
                                   data->remote_gptr = gptr;
+                                  data->d_remote_gptr = d_gptr;
                                 }
 
                                 taskptr->input_msg.push_back(data);
@@ -4352,8 +4362,11 @@ namespace symPACK{
                               matptr->rpc_fact_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
                           });
-
-                          }, this->sp_handle, ptr_diagcell->_gstorage, ptr_diagcell->_storage_size, ptr_diagcell->nnz(), ptr_diagcell->nblocks(), std::get<0>(ptr_diagcell->_dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+#ifdef CUDA_MODE
+                          }, this->sp_handle, ptr_diagcell->_gstorage, ptr_diagcell->_d_gstorage, ptr_diagcell->_storage_size, ptr_diagcell->nnz(), ptr_diagcell->nblocks(), std::get<0>(ptr_diagcell->_dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+#else
+                          }, this->sp_handle, ptr_diagcell->_gstorage, ptr_diagcell->_storage_size, ptr_diagcell->nnz(), ptr_diagcell->nblocks(), std::get<0>(ptr_diagcell->_dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end()));                           
+#endif                          
                     }
                     else {
                       for ( auto & tgt_cell_idx: tgt_cells ) {
@@ -6187,6 +6200,7 @@ namespace symPACK{
                   block->_d_cpy = true;
                 block->_d_nzval = symPACK::gpu_allocator.allocate<T>(block->_nnz);
                 upcxx::copy(block->_nzval, block->_d_nzval, block->_nnz).wait();
+                upcxx::copy(block->_gstorage, block->_d_gstorage, block->_storage_size).wait();
               }
 #endif              
             }
