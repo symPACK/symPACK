@@ -6199,6 +6199,7 @@ namespace symPACK{
                 else
                   block->_d_cpy = true;
                 block->_d_nzval = symPACK::gpu_allocator.allocate<T>(block->_nnz);
+                block->_d_gstorage = symPACK::gpu_allocator.allocate<char>(block->_storage_size);
                 upcxx::copy(block->_nzval, block->_d_nzval, block->_nnz).wait();
                 upcxx::copy(block->_gstorage, block->_d_gstorage, block->_storage_size).wait();
               }
