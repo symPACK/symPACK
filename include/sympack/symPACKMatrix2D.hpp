@@ -641,6 +641,9 @@ namespace symPACK{
             if ( !_gstorage.is_null() ) {
               bassert(_storage == _gstorage.local());
               upcxx::deallocate( _gstorage );
+#ifdef CUDA_MODE
+              symPACK::gpu_allocator.deallocate(_d_gstorage);
+#endif              
             }
             else {
               delete [] _storage;
@@ -666,7 +669,7 @@ namespace symPACK{
           this->j = j;
           _own_storage = false;
           _gstorage = nullptr;
-          _storage = ext_storage;
+          _storage = ext_storage;       
 
           _dims = std::make_tuple(width);
           first_col = firstcol;
@@ -675,6 +678,24 @@ namespace symPACK{
           _block_container._nblocks = block_cnt;
           _block_container._d_nblocks = block_cnt;
         }
+
+#ifdef CUDA_MODE
+        blockCell_t (  int_t i, int_t j,upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> d_ext_storage, 
+                       rowind_t firstcol, rowind_t width, 
+                       size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
+          this->i = i;
+          this->j = j;
+          _own_storage = false;
+          _gstorage = nullptr;
+
+          _dims = std::make_tuple(width);
+          first_col = firstcol;
+          initialize_dev(nzval_cnt,block_cnt);
+          _nnz = nzval_cnt;
+          _block_container._nblocks = block_cnt;
+          _block_container._d_nblocks = block_cnt;
+        }
+#endif
 
         blockCell_t (  int_t i, int_t j,upcxx::global_ptr<char> ext_gstorage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
           this->i = i;
@@ -929,6 +950,19 @@ namespace symPACK{
 #endif
 
 #endif
+        }
+
+        void initialize_dev ( size_t nzval_cnt, size_t block_cnt ) {
+          _storage_size = nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t);
+          _cnz = nzval_cnt;
+          _cblocks = block_cnt;
+          _nnz = 0;
+          _block_container._nblocks = 0;
+          _block_container._d_nblocks = 0;
+          _block_container._d_cblocks = _storage_size / sizeof(block_t);
+          //reinterpret case global pointers?
+          //_block_container._d_blocks = 
+
         }
 
         void allocate ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
@@ -6201,7 +6235,7 @@ namespace symPACK{
                 block->_d_nzval = symPACK::gpu_allocator.allocate<T>(block->_nnz);
                 block->_d_gstorage = symPACK::gpu_allocator.allocate<char>(block->_storage_size);
                 upcxx::copy(block->_nzval, block->_d_nzval, block->_nnz).wait();
-                upcxx::copy(block->_gstorage, block->_d_gstorage, block->_storage_size).wait();
+                upcxx::copy(block->_storage, block->_d_gstorage, block->_storage_size).wait();
               }
 #endif              
             }
