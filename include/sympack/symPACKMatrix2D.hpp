@@ -510,12 +510,15 @@ namespace symPACK{
         rowind_t first_col;
         std::tuple<rowind_t> _dims;
         upcxx::global_ptr< char > _gstorage;
+#ifdef CUDA_MODE	
         upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> _d_gstorage;
+#endif	
         char * _storage;
-        upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> _d_storage;
 
         T* _nzval;
+#ifdef CUDA_MODE        
         upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> _d_nzval; //pointer to first block on the device
+#endif        
         bool _d_cpy;
 
         size_t _cblocks; //capacity
@@ -531,7 +534,9 @@ namespace symPACK{
         class block_container_t {
           public:
             block_t * _blocks;
-            upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> _d_blocks;
+#ifdef CUDA_MODE            
+            upcxx::global_ptr<block_t, upcxx::memory_kind::cuda_device> _d_blocks;
+#endif            
             size_t _nblocks;
             size_t _d_nblocks;
             size_t _d_cblocks;
@@ -680,13 +685,14 @@ namespace symPACK{
         }
 
 #ifdef CUDA_MODE
-        blockCell_t (  int_t i, int_t j,upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> d_ext_storage, 
+        blockCell_t (  int_t i, int_t j,upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> d_ext_storage, 
                        rowind_t firstcol, rowind_t width, 
                        size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
           this->i = i;
           this->j = j;
           _own_storage = false;
           _gstorage = nullptr;
+          _d_gstorage = d_ext_storage;
 
           _dims = std::make_tuple(width);
           first_col = firstcol;
@@ -896,11 +902,11 @@ namespace symPACK{
           /* Allocate more space if needed */
           logfileptr->OFS()<<"Capacity "<<_block_container._d_cblocks <<", number: "<<_block_container._d_nblocks<<std::endl;
           if (_block_container._d_nblocks >= _block_container._d_cblocks) {
-            _block_container._d_blocks = cublas::cudaReallocManual<char, block_t>(_block_container._d_blocks, _block_container._d_cblocks, _block_container._d_nblocks+100);
+            //_block_container._d_blocks = cublas::cudaReallocManual<char, block_t>(_block_container._d_blocks, _block_container._d_cblocks, _block_container._d_nblocks+100);
             _block_container._d_cblocks = _block_container._d_nblocks+100;
           }
 
-          upcxx::copy(reinterpret_cast<char *>(new_block), _block_container._d_blocks + _block_container._nblocks-1, sizeof(block_t)).wait();
+          //upcxx::copy(reinterpret_cast<char *>(new_block), _block_container._d_blocks + _block_container._nblocks-1, sizeof(block_t)).wait();
           _block_container._d_nblocks+=1;
           logfileptr->OFS() << "Copied block of " << sizeof(block_t) << " bytes to device" << std::endl;
 
@@ -952,6 +958,7 @@ namespace symPACK{
 #endif
         }
 
+        //NOTE: This is only called when constructing a new block_cell after data is exchanged between nodes
         void initialize_dev ( size_t nzval_cnt, size_t block_cnt ) {
           _storage_size = nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t);
           _cnz = nzval_cnt;
@@ -960,8 +967,9 @@ namespace symPACK{
           _block_container._nblocks = 0;
           _block_container._d_nblocks = 0;
           _block_container._d_cblocks = _storage_size / sizeof(block_t);
-          //reinterpret case global pointers?
-          //_block_container._d_blocks = 
+          //init device blocks and nzval
+          _block_container._d_blocks = upcxx::reinterpret_pointer_cast<block_t, char, upcxx::memory_kind::cuda_device>(_d_gstorage);
+          _d_nzval = upcxx::reinterpret_pointer_cast<T, block_t, upcxx::memory_kind::cuda_device>(_block_container._d_blocks + _cblocks);
 
         }
 
@@ -4355,7 +4363,9 @@ namespace symPACK{
                                   data->in_meta = meta;
                                   data->size = storage_size;
                                   data->remote_gptr = gptr;
+#ifdef CUDA_MODE                                  
                                   data->d_remote_gptr = d_gptr;
+#endif                                  
                                 }
 
                                 taskptr->input_msg.push_back(data);
@@ -4370,12 +4380,21 @@ namespace symPACK{
                                     [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
 #if not defined(_NO_COMPUTATION_)
                                     //create snodeBlock_t and store it in the extra_data
+#ifdef CUDA_MODE
                                     if (matptr->options_.decomposition == DecompositionType::LDL) {
-                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                      pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                     }
                                     else {
-                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                      pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->d_landing_zone,fc,width,nnz,nblocks) );
                                     }
+#else                                    
+                                    if (matptr->options_.decomposition == DecompositionType::LDL) {
+                                      pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    }
+                                    else {
+                                      pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    }
+#endif                                    
 #endif
                                     return upcxx::to_future(pdata);
                                     });
@@ -4474,9 +4493,16 @@ namespace symPACK{
                     //serialize data once, and list of meta data
                     //factor is output data so it will not be deleted
                     if ( pdest != this->iam ) {
-                      upcxx::rpc_ff( pdest, 
-                          [K,I] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+                      upcxx::rpc_ff( pdest,
+#ifdef CUDA_MODE
+                          [K,I] (int sp_handle, upcxx::global_ptr<char> gptr, upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> d_gptr,
+                           size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+                          return upcxx::current_persona().lpc( [K,I,sp_handle,gptr,d_gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+#else                       
+                          [K,I] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, 
+                          size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
                           return upcxx::current_persona().lpc( [K,I,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+#endif                            
 #ifdef _TIMING_
                               gasneti_tick_t start = gasneti_ticks_now();
 #endif
@@ -4485,6 +4511,9 @@ namespace symPACK{
                               data->in_meta = meta;
                               data->size = storage_size;
                               data->remote_gptr = gptr;
+#ifdef CUDA_MODE
+                              data->d_remote_gptr = d_gptr;
+#endif                              
 
                               //there is a map between sp_handle and task_graphs
                               auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
@@ -4505,14 +4534,24 @@ namespace symPACK{
                               data->on_fetch_future = data->on_fetch_future.then(
                                   [fc,matptr,width,nnz,nblocks,K,I,owner](SparseTask2D::data_t * pdata) {
 #if not defined(_NO_COMPUTATION_)
-                                  //create snodeBlock_t and store it in the extra_data
+#ifdef CUDA_MODE
                                   if (matptr->options_.decomposition == DecompositionType::LDL) {
-                                  pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   }
                                   else {
-                                  pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->d_landing_zone,fc,width,nnz,nblocks) );
                                   }
                                   pdata->extra_data->owner = owner;
+#else
+                                  //create snodeBlock_t and store it in the extra_data
+                                  if (matptr->options_.decomposition == DecompositionType::LDL) {
+                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
+                                  else {
+                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                  }
+                                  pdata->extra_data->owner = owner;
+#endif                                  
 #endif
                                   return upcxx::to_future(pdata); 
                                   }
@@ -4526,8 +4565,11 @@ namespace symPACK{
                               matptr->rpc_trsm_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
                           });
-
+#ifdef CUDA_MODE
+                          }, this->sp_handle, ptr_od_cell->_gstorage, ptr_od_cell->_d_gstorage, ptr_od_cell->_storage_size, ptr_od_cell->nnz(),ptr_od_cell->nblocks(), std::get<0>(ptr_od_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+#else
                           }, this->sp_handle, ptr_od_cell->_gstorage,ptr_od_cell->_storage_size, ptr_od_cell->nnz(),ptr_od_cell->nblocks(), std::get<0>(ptr_od_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+#endif                          
                     }
                     else {
                       std::shared_ptr<SparseTask2D::data_t> diag_data;
@@ -6825,7 +6867,7 @@ namespace symPACK{
 #ifdef SP_THREADS
             if ( this->quiesceHandle_ != nullptr ) this->quiesceHandle_();
 #endif
-            upcxx::progress();
+            upcxx::progress(); //TODO: move into SP_THREADS ifdef 
             upcxx::barrier();
           }
         }
