@@ -669,6 +669,17 @@ namespace symPACK{
           initialize(nzval_cnt,block_cnt);
         }
 
+#ifdef CUDA_MODE
+        blockCell_t ( int_t i, int_t j, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true  ): blockCell_t() {
+          this->i = i;
+          this->j = j;
+          _dims = std::make_tuple(width);
+          first_col = firstcol;
+          allocate_dev(nzval_cnt,block_cnt, shared_segment);
+          initialize_dev(nzval_cnt,block_cnt);
+        }
+#endif
+
         blockCell_t (  int_t i, int_t j,char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
           this->i = i;
           this->j = j;
@@ -876,7 +887,7 @@ namespace symPACK{
           return nRows;
         }
 
-        void add_block( rowind_t first_row, rowind_t nrows, bool add_to_device=true ) {
+        void add_block( rowind_t first_row, rowind_t nrows, bool add_to_device=false ) {
           bassert( this->_block_container.data()!=nullptr );
           bassert( this->_block_container.size() + 1 <= block_capacity() );
           bassert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
@@ -1000,6 +1011,25 @@ namespace symPACK{
 #endif
           }
           initialize( nzval_cnt, block_cnt );
+        }
+
+
+        void allocate_dev ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
+          bassert(nzval_cnt!=0 && block_cnt!=0);
+
+          if ( shared_segment ) {
+
+            _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
+            _storage = _gstorage.local();
+            if ( this->_storage==nullptr ) symPACKOS<<"Trying to allocate "<<nzval_cnt<<" for cell ("<<i<<","<<j<<")"<<std::endl;
+            assert( this->_storage!=nullptr );
+          }
+          else {
+            _gstorage = nullptr;
+
+            _storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
+          }
+          initialize_dev( nzval_cnt, block_cnt );
         }
 
 
