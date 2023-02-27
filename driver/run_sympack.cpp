@@ -41,6 +41,9 @@ int main(int argc, char **argv)
     logfileptr = new LogFile(iam);
     logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
     logfileptr->OFS()<<"**********************************"<<std::endl;
+    statfileptr = new LogFile("Statfile", std::to_string(iam).c_str());
+    statfileptr->OFS()<<"********* STATFILE OF P"<<iam<<" *********"<<std::endl;
+    statfileptr->OFS()<<"**********************************"<<std::endl;
 
     // *********************************************************************
     // Input parameter
@@ -138,6 +141,7 @@ int main(int argc, char **argv)
     MPI_Barrier(worldcomm);
     MPI_Comm_free(&worldcomm);
     delete logfileptr;
+    delete statfileptr;
   }
   //This will also finalize MPI
   symPACK_Finalize();

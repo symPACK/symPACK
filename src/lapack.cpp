@@ -333,6 +333,11 @@ void Potrf( char uplo, Int n, const dcomplex* A, Int lda )
         throw std::runtime_error("Matrix is not HPD.");
 }
 
+template <typename T>
+void cuda_potrf(char uplo, Int n, const T* A, Int lda)
+{
+    //TODO: Cusovler stuff
+}
 
 void Potrs( char uplo, Int n, Int nrhs, const float* A, Int lda, float* B, Int ldb)
 {

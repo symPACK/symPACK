@@ -34,6 +34,7 @@ namespace symPACK{
   std::vector<cudaStream_t> streams;
   bool gpu_debug;
   int n_gpus;
+  upcxx::device_allocator<upcxx::cuda_device> gpu_allocator;
   SecondDuration complete_time;
   int64_t set_contxt = 0;
   int64_t output_file_counter = 0;

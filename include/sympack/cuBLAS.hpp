@@ -80,6 +80,16 @@ namespace cublas {
 
     }
 
+    template <typename T>
+    cublasStatus_t cublas_axpy_wrapper2(Int N,
+                           const T           DA,
+                           const T           * DX, Int incx,
+                           T                 * DY, Int incy) {
+        logfileptr->OFS()<<"DOING AXPY"<<std::endl;
+        CUBLAS_ERROR_CHECK(cublas_axpy(symPACK::handlers[symPACK::gpu_allocator.device_id()], N, &DA, DX, incx, DY, incy));
+        return CUBLAS_STATUS_SUCCESS;
+    }
+
     /* COPY */
     cublasStatus_t cublas_copy(cublasHandle_t, Int,
                            const float           *, Int,
@@ -386,6 +396,28 @@ namespace cublas {
                            const cuDoubleComplex           *, Int ,
                            const cuDoubleComplex           *,
                            cuDoubleComplex           *, Int);
+    
+    template <typename T>
+    cublasStatus_t cublas_syrk_wrapper2(cublasFillMode_t uplo, cublasOperation_t trans,
+                                        Int N, Int K,
+                                        const T alpha,
+                                        const T * A, Int lda,
+                                        const T beta,
+                                        T * C, Int ldc
+                                        ) {
+        
+        logfileptr->OFS()<<"DOING SYRK"<<std::endl;
+
+        CUBLAS_ERROR_CHECK(cublas_syrk(symPACK::handlers[symPACK::gpu_allocator.device_id()], 
+                                       uplo, trans,
+                                       N, K,
+                                       &alpha,
+                                       A, lda,
+                                       &beta,
+                                       C, ldc));
+
+        return CUBLAS_STATUS_SUCCESS;
+    }
 
 
     /* GEMM */
@@ -512,6 +544,25 @@ namespace cublas {
         return CUBLAS_STATUS_SUCCESS;
     }
 
+    template <typename T>
+    cublasStatus_t cublas_gemm_wrapper2(
+                           cublasOperation_t opA, cublasOperation_t opB,
+                           Int M, Int N, Int K,
+                           const T           alpha,
+                           const T           * A , Int lda,
+                           const T          * B, Int ldb,
+                           const T           beta,
+                           T           * C, Int ldc) {
+
+        logfileptr->OFS()<<"DOING GEMM"<<std::endl;
+        CUBLAS_ERROR_CHECK(cublas_gemm(symPACK::handlers[symPACK::gpu_allocator.device_id()], opA, opB,
+                    M, N, K,
+                    &alpha, A, lda,
+                    B, ldb, &beta,
+                    C, ldc));
+        return CUBLAS_STATUS_SUCCESS;                     
+    }
+
     /* TRSM */
     cublasStatus_t cublas_trsm(cublasHandle_t, cublasSideMode_t, cublasFillMode_t, cublasOperation_t, cublasDiagType_t,
                         Int, Int, const float *, const float *, Int, float *, Int);
@@ -577,8 +628,25 @@ namespace cublas {
         return CUBLAS_STATUS_SUCCESS;
     }
 
+    template <typename T>
+    cublasStatus_t cublas_trsm_wrapper2(cublasSideMode_t side, cublasFillMode_t fill, cublasOperation_t op, cublasDiagType_t diag,
+                        Int M , Int N, 
+                        const T alpha, T * A, Int lda, 
+                        T * B, Int ldb) {
     
-    /* Utility functions */
+        logfileptr->OFS()<<"DOING TRSM"<<std::endl;
+
+        CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::handlers[symPACK::gpu_allocator.device_id()], side, fill, op, diag, 
+                    M, N, 
+                    &alpha, A, lda, 
+                    B, ldb));      
+
+        return CUBLAS_STATUS_SUCCESS;              
+
+    }
+
+    
+    /* UTILITY FUNCTIONS */
 
     /* Expand buffer pointed to by DEV_PTR from size n to m. Return pointer to new buffer. */
     template <typename T, typename U>
@@ -591,29 +659,22 @@ namespace cublas {
         symPACK::gpu_allocator.deallocate(dev_ptr);
         return new_ptr;
     }
-            
-           /* case OP_SYRK:
-                logfileptr->OFS()<<"DOING SYRK\n";
-                if (opA==CUBLAS_OP_T) {
-                    cudaMalloc(reinterpret_cast<void **>(&d_A), lda * N * sizeof(A[0]));
-                    cublasSetMatrix(lda, N, sizeof(A[0]), A, lda, d_A, lda);
-                } else {
-                    cudaMalloc(reinterpret_cast<void **>(&d_A), lda * K * sizeof(A[0]));
-                    cublasSetMatrix(lda, K, sizeof(A[0]), A, lda, d_A, lda);
-                }
 
-                cudaMalloc(reinterpret_cast<void **>(&d_C), ldc * N * sizeof(C[0]));
+    /* Dumps the contents of a global pointer to the device into the logfile */
+    template <typename T>
+    void print_dev_buffer(upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> ptr, size_t n) {
 
-                cublas_syrk(symPACK::handler, fill, opA, 
-                            N, K, 
-                            alpha, d_A, lda,
-                            beta, d_C, ldc);
+        // Copy to host buffer
+        T * h_local_ptr = new T[n];
+        upcxx::copy(ptr, h_local_ptr, n).wait();
 
-                cublasGetMatrix(ldc, N, sizeof(C[0]), d_C, N, C, ldc);
+        logfileptr->OFS()<<"CONTENTS OF DEVICE BUFFER OF SIZE "<<n<<std::endl;
+        for (int i=0; i<n; i++) {
+            logfileptr->OFS()<<h_local_ptr[i];
+            if (i%10==0 && i>0) logfileptr->OFS()<<std::endl; //for readability
+        }
 
-                cudaFree(d_A);
-                cudaFree(d_C);
-                break;*/
+    }
         
 
 

@@ -269,6 +269,7 @@ namespace symPACK{
 
       //Resize the container if I own the storage
       if(this->meta_->b_own_storage_){
+        logfileptr->OFS()<<"Adding\n";
         scope_timer(a,RESIZE_SUPERNODE);
 
         Int cur_fr = aiGIndex;
@@ -371,6 +372,7 @@ namespace symPACK{
   template<typename T, class Allocator>
     inline Int SuperNodeInd<T,Allocator>::Shrink(){
       if(this->meta_->b_own_storage_){
+        logfileptr->OFS()<<"Shrinking\n";
         //TODO make sure that we do not have any extra space anywhere.
 
         bool ownDiagonal = this->OwnDiagonal();
