@@ -11,6 +11,7 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "cublas_v2.h"
+#include "cusolverDn.h"
 
 //#define _NO_COMPUTATION_
 //#define LOCK_SRC 2
@@ -655,7 +656,7 @@ namespace symPACK{
 #ifdef SP_THREADS
           in_use(false),
 #endif
-          _storage(nullptr),_nzval(nullptr), _d_nzval(nullptr),
+          _storage(nullptr),_nzval(nullptr), _d_nzval(nullptr),_d_gstorage(nullptr),
           _gstorage(nullptr),_nnz(0), _nnz_comm(0), _storage_size(0), _own_storage(true), _d_cpy(false) {}
         bool _own_storage;
 
@@ -678,6 +679,7 @@ namespace symPACK{
           return _nnz / width(); 
         }
 
+        //This is only called during FUC and BUC
         blockCell_t ( int_t i, int_t j, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true, bool dev_blk = false  ): blockCell_t() {
           if (dev_blk) {
 #ifdef CUDA_MODE
@@ -703,14 +705,18 @@ namespace symPACK{
           this->j = j;
           _own_storage = false;
           _gstorage = nullptr;
-          _storage = ext_storage;       
+          _storage = ext_storage;   
+#ifdef CUDA_MODE
+          _d_gstorage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
+          upcxx::copy(ext_storage, _d_gstorage, nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)).wait();
+#endif              
 
           _dims = std::make_tuple(width);
           first_col = firstcol;
           initialize(nzval_cnt,block_cnt);
           _nnz = nzval_cnt;
           _block_container._nblocks = block_cnt;
-          _block_container._d_nblocks = block_cnt;
+          //_block_container._d_nblocks = block_cnt;
         }
 
 #ifdef CUDA_MODE
@@ -723,13 +729,14 @@ namespace symPACK{
           _own_storage = false;
           _gstorage = nullptr;
           _d_gstorage = d_ext_storage;
+          
 
           _dims = std::make_tuple(width);
           first_col = firstcol;
           initialize_dev(nzval_cnt,block_cnt);
           _nnz = nzval_cnt;
           _block_container._nblocks = block_cnt;
-          _block_container._d_nblocks = block_cnt;
+          //_block_container._d_nblocks = block_cnt;
           logfileptr->OFS()<<"Completed device constructor for blockcell, num blocks: "<<block_cnt<<std::endl;
         }
 #endif
@@ -740,13 +747,16 @@ namespace symPACK{
           _own_storage = false;
           _gstorage = ext_gstorage;
           _storage = _gstorage.local();
-
+#ifdef CUDA_MODE
+          _d_gstorage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
+          upcxx::copy(ext_gstorage, _d_gstorage, nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)).wait();
+#endif  
           _dims = std::make_tuple(width);
           first_col = firstcol;
           initialize(nzval_cnt,block_cnt);
           _nnz = nzval_cnt;
           _block_container._nblocks = block_cnt;
-          _block_container._d_nblocks = block_cnt;
+          //_block_container._d_nblocks = block_cnt;
         }
 
         // Copy constructor.  
@@ -763,10 +773,13 @@ namespace symPACK{
           allocate( other.nz_capacity(), other.block_capacity() , !other._gstorage.is_null() );
           //now copy the data
           std::copy( other._storage, other._storage + other._storage_size, _storage );
+#ifdef CUDA_MODE
+          upcxx::copy(other._d_gstorage, _d_gstorage, other._storage_size).wait();
+#endif          
 
           _block_container._nblocks = other._block_container._nblocks;
-          _block_container._d_nblocks = other._block_container._d_nblocks;
-          _nnz = other._nnz;
+          //_block_container._d_nblocks = other._block_container._d_nblocks;
+          _nnz = other._nnz;        
         }
 
         // Move constructor.  
@@ -781,12 +794,19 @@ namespace symPACK{
 
           _gstorage = other._gstorage;
           _storage = other._storage;
+#ifdef CUDA_MODE
+          _d_gstorage = other._d_gstorage;
+#endif          
 
           initialize( other._cnz , other._cblocks );
 
           //invalidate other
           other._gstorage = nullptr;
           other._storage = nullptr;
+#ifdef CUDA_MODE
+          //symPACK::gpu_allocator.deallocate(other._d_gstorage);
+          //other._d_gstorage = nullptr;
+#endif          
           other._storage_size = 0;
           other._cblocks = 0;
           other._cnz = 0;
@@ -797,8 +817,8 @@ namespace symPACK{
           other._block_container._blocks = nullptr;
           other._block_container._d_blocks = nullptr;
           other._own_storage = false;
-          other._block_container._d_cblocks = 0;
-          other._block_container._d_nblocks = 0;
+          //other._block_container._d_cblocks = 0;
+          //other._block_container._d_nblocks = 0;
         }
 
 
@@ -811,6 +831,9 @@ namespace symPACK{
             // Free the existing resource.  
             if ( ! _gstorage.is_null() ) {
               upcxx::deallocate( _gstorage );
+#ifdef CUDA_MODE
+              symPACK::gpu_allocator.deallocate(_d_gstorage);
+#endif              
             }
             else {
               delete [] _storage;
@@ -827,9 +850,12 @@ namespace symPACK{
             allocate( other._cnz, other._cblocks , !other._gstorage.is_null() );
             //now copy the data
             std::copy( other._storage, other._storage + other._storage_size, _storage );
+#ifdef CUDA_MODE
+            upcxx::copy(other._d_gstorage, _d_gstorage, other._storage_size).wait();
+#endif            
 
             _block_container._nblocks = other._block_container._nblocks;
-            _block_container._d_nblocks = other._block_container._d_nblocks;
+            //_block_container._d_nblocks = other._block_container._d_nblocks;
             _nnz = other._nnz;
 
           } 
@@ -843,6 +869,9 @@ namespace symPACK{
             // Free the existing resource.  
             if ( !_gstorage.is_null() ) {
               upcxx::deallocate( _gstorage );
+#ifdef CUDA_MODE
+              symPACK::gpu_allocator.deallocate(_d_gstorage);
+#endif    
             }
             else {
               delete [] _storage;
@@ -858,13 +887,19 @@ namespace symPACK{
 
             _gstorage = other._gstorage;
             _storage = other._storage;
-
+#ifdef CUDA_MODE
+            _d_gstorage = other._d_gstorage;
+#endif   
 
             initialize( other._cnz , other._cblocks );
 
             //invalidate other
             other._gstorage = nullptr;
             other._storage = nullptr;
+#ifdef CUDA_MODE
+            //symPACK::gpu_allocator.deallocate(other._d_gstorage);
+            //other._d_gstorage = nullptr;
+#endif            
             other._storage_size = 0;
             other._cblocks = 0;
             other._cnz = 0;
@@ -874,7 +909,7 @@ namespace symPACK{
             other._block_container._nblocks = 0;
             other._block_container._blocks = nullptr;
             other._block_container._d_blocks = nullptr;
-            other._block_container._d_nblocks = 0;
+            //other._block_container._d_nblocks = 0;
             other._own_storage = false;
           } 
           return *this;  
@@ -970,19 +1005,16 @@ namespace symPACK{
 #ifdef _ALIGNED_
           _nzval = reinterpret_cast<T*>( _storage );
           _block_container._blocks = reinterpret_cast<block_t*>( _nzval + _cnz );
+          ee
 #else
           _block_container._blocks = reinterpret_cast<block_t*>( _storage );
           _nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
+#ifdef CUDA_MODE
+          _block_container._d_blocks = upcxx::reinterpret_pointer_cast<block_t, char, upcxx::memory_kind::cuda_device>(_d_gstorage);
+          _d_nzval = upcxx::reinterpret_pointer_cast<T, block_t, upcxx::memory_kind::cuda_device>(_block_container._d_blocks + _cblocks);
+#endif          
 #endif
 
-
-#ifdef _ALIGNED_
-          _nzval = reinterpret_cast<T*>( _storage );
-          _block_container._blocks = reinterpret_cast<block_t*>( _nzval + _cnz );
-#else
-          _block_container._blocks = reinterpret_cast<block_t*>( _storage );
-          _nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
-#endif
 
         }
 
@@ -1014,6 +1046,9 @@ namespace symPACK{
             _gstorage = upcxx::allocate<char, alignof(T) >( aligned_size ); 
 #else
             _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
+#ifdef CUDA_MODE
+            _d_gstorage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
+#endif
 #endif
             _storage = _gstorage.local();
             if ( this->_storage==nullptr ) symPACKOS<<"Trying to allocate "<<nzval_cnt<<" for cell ("<<i<<","<<j<<")"<<std::endl;
@@ -1021,10 +1056,14 @@ namespace symPACK{
           }
           else {
             _gstorage = nullptr;
+
 #ifdef _ALIGNED_
             _storage = (char *)new T[aligned_size];
 #else
             _storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
+#ifdef CUDA_MODE
+            _d_gstorage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
+#endif            
 #endif
           }
           initialize( nzval_cnt, block_cnt );
@@ -1083,6 +1122,21 @@ namespace symPACK{
         }  
 
 
+        bool check_close(T * correct, T * buffer, int n) {
+          auto epsilon = 0.01;
+          logfileptr->OFS()<<"BUFFER SIZE: "<<n<<std::endl;
+          bool result = true;
+          for (int i=0; i<n; i++) {
+            if (fabs(correct - buffer) > epsilon && correct[i]!=buffer[i]) {
+              logfileptr->OFS()<<"Buffers are not equal at index "<<i<<std::endl;
+              result = false;
+            }
+            logfileptr->OFS()<<"Expected "<<correct[i]<<", got "<<buffer[i]<<std::endl;
+          }
+          if (result)
+            logfileptr->OFS()<<"Buffers are equal"<<std::endl;
+          return result;
+        }
 
 
         virtual int factorize( TempUpdateBuffers<T> & tmpBuffers) {
@@ -1090,6 +1144,35 @@ namespace symPACK{
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
+#ifdef CUDA_MODE
+
+          auto snode_size = std::get<0>(_dims);
+          auto diag_nzval = _d_nzval;
+          T * correct_nzval = _nzval;
+          T * actual_nzval = new T[snode_size];
+          upcxx::copy(diag_nzval, actual_nzval, snode_size).wait();
+          check_close(correct_nzval, actual_nzval, snode_size);
+
+          T * d_nzval_test = nullptr;
+          CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_nzval_test), sizeof(T)*snode_size));
+          upcxx::copy(diag_nzval, d_nzval_test, snode_size).wait();
+          try {
+            lapack::cusolver_potrf('U', snode_size, d_nzval_test, snode_size);
+          } catch(const std::runtime_error& e) {
+            std::cerr << "Runtime error: " << e.what() << '\n';
+            gdb_lock();
+          }
+          upcxx::copy(d_nzval_test, diag_nzval, snode_size).wait();
+
+          lapack::Potrf( 'U', snode_size, _nzval, snode_size);
+
+          upcxx::copy(diag_nzval, actual_nzval, snode_size).wait();
+          correct_nzval = _nzval;
+
+          check_close(correct_nzval, actual_nzval, snode_size);
+
+          
+#else
           auto snode_size = std::get<0>(_dims);
           auto diag_nzval = _nzval;
 
@@ -1100,6 +1183,7 @@ namespace symPACK{
             std::cerr << "Runtime error: " << e.what() << '\n';
             gdb_lock();
           }
+#endif          
 
           return 0;
         }
@@ -1119,10 +1203,22 @@ namespace symPACK{
 #ifdef CUDA_MODE
           auto diag_nzval = diag->_d_nzval;
           auto nzblk_nzval = _d_nzval;
+          T *nzblk_nzval_actual = new T[_nnz];
+          upcxx::copy(_d_nzval, nzblk_nzval_actual, _nnz).wait();
+          check_close(_nzval, nzblk_nzval_actual, _nnz); 
+
           cublas::cublas_trsm_wrapper2(
                                       CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
                                       snode_size, total_rows(), T(1.0), symPACK::gpu_allocator.local(diag_nzval), snode_size, symPACK::gpu_allocator.local(nzblk_nzval), snode_size);
 
+          auto h_diag_nzval = diag->_nzval;
+          auto h_nzblk_nzval = _nzval;    
+          blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  h_diag_nzval, snode_size, h_nzblk_nzval, snode_size);
+
+          upcxx::copy(nzblk_nzval, nzblk_nzval_actual, _nnz).wait();
+
+          check_close(h_nzblk_nzval, nzblk_nzval_actual, _nnz);                       
+          
 #else
           auto diag_nzval = diag->_nzval;
           auto nzblk_nzval = _nzval;
@@ -1285,6 +1381,7 @@ namespace symPACK{
             //If the GEMM wasn't done in place we need to aggregate the update
             //This is the assembly phase
             if (!in_place) {
+              logfileptr->OFS()<<"Made it this far"<<std::endl;
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_INDEX_MAP);
               tmpBuffers.src_colindx.resize(tgt_width);
               tmpBuffers.src_to_tgt_offset.resize(src_nrows);
@@ -6392,20 +6489,7 @@ namespace symPACK{
 
               }
 #ifdef CUDA_MODE
-              /* Copy nnz, storage, and blocks to device */
-              for (auto const& elem : cells_) {
-                auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem.second);
-                if (block==NULL || block->_d_cpy)
-                  continue;
-                else
-                  block->_d_cpy = true;
-                block->_d_nzval = symPACK::gpu_allocator.allocate<T>(block->_nnz);
-                block->_d_gstorage = symPACK::gpu_allocator.allocate<char>(block->_storage_size);
-                block->_block_container._d_blocks = symPACK::gpu_allocator.allocate<block_t>(block->_block_container._nblocks);
-                upcxx::copy(block->_nzval, block->_d_nzval, block->_nnz).wait();
-                upcxx::copy(block->_block_container._blocks, block->_block_container._d_blocks, block->_block_container._nblocks);
-                upcxx::copy(block->_storage, block->_d_gstorage, block->_storage_size).wait();
-              }
+              
 #endif              
             }
           }
@@ -6425,7 +6509,14 @@ namespace symPACK{
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
     void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Factorize( ) {
-
+      logfileptr->OFS()<<"Number of blocks: "<<localBlocks_.size()<<std::endl;
+      for (auto const& elem: localBlocks_) {
+        auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
+        upcxx::copy(block->_nzval, block->_d_nzval, block->_nnz).wait();
+        T *nzblk_dev = new T[block->_nnz];
+        upcxx::copy(block->_d_nzval, nzblk_dev, block->_nnz).wait();
+        block->check_close(block->_nzval, nzblk_dev, block->_nnz);
+      }
 
 #ifdef SP_THREADS
       this->scheduler.threadInitHandle_ = nullptr;

@@ -9,6 +9,8 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "cublas_v2.h"
+#include "cusolverDn.h"
+
 
 #include <sys/time.h>
 inline double get_time()
@@ -163,7 +165,16 @@ namespace symPACK{
         std::cout << cudaGetErrorString(error) << "\n";                                             \
         exit(1);                                                                                    \
     }                                                                                               \
-}    
+}   
+
+#define CUSOLVER_ERROR_CHECK(s)                                                                          \
+{                                                                                                        \
+    cusolverStatus_t error = s;                                                                          \
+    if (error != CUSOLVER_STATUS_SUCCESS) {                                                              \
+        std::cout << "cuSOLVER Error " << error << " at " << __FILE__ << ":" << __LINE__ << "\n";        \
+        exit(1);                                                                                         \
+    }                                                                                                    \
+}                                                                                                        \
 
 
 
