@@ -805,7 +805,7 @@ namespace symPACK{
           other._storage = nullptr;
 #ifdef CUDA_MODE
           //symPACK::gpu_allocator.deallocate(other._d_gstorage);
-          //other._d_gstorage = nullptr;
+          other._d_gstorage = nullptr;
 #endif          
           other._storage_size = 0;
           other._cblocks = 0;
@@ -898,7 +898,7 @@ namespace symPACK{
             other._storage = nullptr;
 #ifdef CUDA_MODE
             //symPACK::gpu_allocator.deallocate(other._d_gstorage);
-            //other._d_gstorage = nullptr;
+            other._d_gstorage = nullptr;
 #endif            
             other._storage_size = 0;
             other._cblocks = 0;
@@ -1149,28 +1149,29 @@ namespace symPACK{
           auto snode_size = std::get<0>(_dims);
           auto diag_nzval = _d_nzval;
           T * correct_nzval = _nzval;
-          T * actual_nzval = new T[snode_size];
-          upcxx::copy(diag_nzval, actual_nzval, snode_size).wait();
-          check_close(correct_nzval, actual_nzval, snode_size);
+          T * actual_nzval = new T[_nnz];
+          upcxx::copy(diag_nzval, actual_nzval, _nnz).wait();
+          check_close(correct_nzval, actual_nzval, _nnz);
 
-          T * d_nzval_test = nullptr;
-          CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_nzval_test), sizeof(T)*snode_size));
-          upcxx::copy(diag_nzval, d_nzval_test, snode_size).wait();
+          T * d_nzval_inter = nullptr;
+          CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_nzval_inter), sizeof(T)*_nnz));
+          upcxx::copy(diag_nzval, d_nzval_inter, _nnz).wait();
           try {
-            lapack::cusolver_potrf('U', snode_size, d_nzval_test, snode_size);
+            lapack::cusolver_potrf('U', snode_size, d_nzval_inter, snode_size);
           } catch(const std::runtime_error& e) {
             std::cerr << "Runtime error: " << e.what() << '\n';
             gdb_lock();
           }
-          upcxx::copy(d_nzval_test, diag_nzval, snode_size).wait();
+          upcxx::copy(d_nzval_inter, diag_nzval, _nnz).wait();
+          CUDA_ERROR_CHECK(cudaFree(d_nzval_inter));
 
+          //Debug stuff
           lapack::Potrf( 'U', snode_size, _nzval, snode_size);
 
-          upcxx::copy(diag_nzval, actual_nzval, snode_size).wait();
+          upcxx::copy(diag_nzval, actual_nzval, _nnz).wait();
           correct_nzval = _nzval;
 
-          check_close(correct_nzval, actual_nzval, snode_size);
-
+          check_close(correct_nzval, actual_nzval, _nnz);
           
 #else
           auto snode_size = std::get<0>(_dims);
@@ -1207,9 +1208,25 @@ namespace symPACK{
           upcxx::copy(_d_nzval, nzblk_nzval_actual, _nnz).wait();
           check_close(_nzval, nzblk_nzval_actual, _nnz); 
 
+          upcxx::copy(diag_nzval, nzblk_nzval_actual, diag->_nnz).wait();
+          check_close(diag->_nzval, nzblk_nzval_actual, diag->_nnz); 
+
+          T * diag_nzval_inter = nullptr;
+          T * nzblk_nzval_inter = nullptr;
+          CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&diag_nzval_inter), diag->_nnz*sizeof(T)));
+          CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&nzblk_nzval_inter), _nnz*sizeof(T)));
+          upcxx:when_all(
+              upcxx::copy(diag_nzval, diag_nzval_inter, diag->_nnz),
+              upcxx::copy(nzblk_nzval, nzblk_nzval_inter, _nnz)
+          ).wait();
+
           cublas::cublas_trsm_wrapper2(
                                       CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
-                                      snode_size, total_rows(), T(1.0), symPACK::gpu_allocator.local(diag_nzval), snode_size, symPACK::gpu_allocator.local(nzblk_nzval), snode_size);
+                                      snode_size, total_rows(), T(1.0), diag_nzval_inter, snode_size, nzblk_nzval_inter, snode_size);
+
+          upcxx::when_all(
+            upcxx::copy(nzblk_nzval_inter, nzblk_nzval, _nnz)
+          ).wait();
 
           auto h_diag_nzval = diag->_nzval;
           auto h_nzblk_nzval = _nzval;    
@@ -6488,9 +6505,7 @@ namespace symPACK{
                 bassert(found);
 
               }
-#ifdef CUDA_MODE
               
-#endif              
             }
           }
 
