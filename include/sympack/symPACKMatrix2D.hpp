@@ -1139,6 +1139,26 @@ namespace symPACK{
         }
 
 
+        void check_close2(T * correct, upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> actual, int n) {
+          auto epsilon = 0.01;
+          bool iscorrect = true;
+          logfileptr->OFS()<<"BUFFER SIZE: "<<n<<std::endl;
+          T * h_actual = new T[n];
+          upcxx::when_all(
+            upcxx::copy(actual, h_actual, n)
+          ).wait();
+          for (int i=0; i<n; i++) {
+            if (fabs(correct - h_actual) > epsilon && correct[i]!=h_actual[i]) {
+              logfileptr->OFS()<<"Buffers are not equal at index "<<i<<std::endl;
+              iscorrect = false;
+            }
+            logfileptr->OFS()<<"Expected "<<correct[i]<<", got "<<h_actual[i]<<std::endl;
+          }
+          if (iscorrect)
+            logfileptr->OFS()<<"Buffers are equal"<<std::endl;
+        }
+
+
         virtual int factorize( TempUpdateBuffers<T> & tmpBuffers) {
           scope_timer(a,blockCell_t::factorize);
 #if defined(_NO_COMPUTATION_)
@@ -1370,9 +1390,41 @@ namespace symPACK{
               bassert(src_nrows==tgt_width);
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_SYRK);
 #ifdef CUDA_MODE
+              //Debug A
+              logfileptr->OFS()<<"Checking syrk matrix A"<<std::endl;
+              check_close2(pivot._nzval, pivot_nzval, pivot._nnz);
 
+              //Create dev ptrs
+              T * pivot_nzval_inter = nullptr;
+              T * buf_inter = nullptr;
+              size_t sz = sizeof(T)*(tgt_width*src_nrows + src_snode_size*tgt_width);
+              CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&pivot_nzval_inter), sizeof(T)*pivot._nnz));
+              CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&buf_inter), sz));
+              CUDA_ERROR_CHECK(cudaMemset(buf_inter, 0, sz));
+              cudaDeviceSynchronize();
+              upcxx::copy(pivot_nzval, pivot_nzval_inter, pivot._nnz).wait();
+
+              //debug buf
+              //tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+              //T * buf2 = &tmpBuffers.tmpBuf[0];
+              //T * buf_debug = new T[tgt_width*src_nrows + src_snode_size*tgt_width];
+              //upcxx::copy(buf, buf_debug, tgt_width*src_nrows + src_snode_size*tgt_width).wait();
+              //cudaMemcpy(buf_debug, buf_inter, sizeof(T)*(tgt_width*src_nrows + src_snode_size*tgt_width), cudaMemcpyDeviceToHost);
+              //check_close(buf2, buf_debug, tgt_width*src_nrows + src_snode_size*tgt_width);
+
+              //Do SYRK
               cublas::cublas_syrk_wrapper2(CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_T,tgt_width, src_snode_size,
-                                T(-1.0), symPACK::gpu_allocator.local(pivot_nzval), src_snode_size, beta, symPACK::gpu_allocator.local(buf), ldbuf);
+                                T(-1.0), pivot_nzval_inter, src_snode_size, beta, buf_inter, ldbuf);
+              cudaDeviceSynchronize();                                
+              upcxx::copy(buf_inter, buf, tgt_width*src_nrows + src_snode_size*tgt_width).wait();
+
+              //Debug C
+              tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+              T * buf2 = &tmpBuffers.tmpBuf[0];
+              blas::Syrk('U','T',tgt_width, src_snode_size,
+                  T(-1.0), pivot._nzval, src_snode_size, beta, buf2, ldbuf);
+              logfileptr->OFS()<<"Checking syrk matrix C"<<std::endl;
+              check_close2(buf2, buf, tgt_width*src_nrows + src_snode_size*tgt_width);
 #else
               blas::Syrk('U','T',tgt_width, src_snode_size,
                   T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
