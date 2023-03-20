@@ -1321,6 +1321,7 @@ namespace symPACK{
             //Pointer to the output buffer of the GEMM
 #ifdef CUDA_MODE
             upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> buf;
+            T * buf2; //JUST FOR DEBUG PURPOSES
 #else            
             T * buf = nullptr;
 #endif            
@@ -1397,11 +1398,11 @@ namespace symPACK{
               //Create dev ptrs
               T * pivot_nzval_inter = nullptr;
               T * buf_inter = nullptr;
-              size_t sz = sizeof(T)*(tgt_width*src_nrows + src_snode_size*tgt_width);
+              size_t buf_sz = sizeof(T)*(tgt_width*src_nrows + src_snode_size*tgt_width);
               CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&pivot_nzval_inter), sizeof(T)*pivot._nnz));
-              CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&buf_inter), sz));
-              CUDA_ERROR_CHECK(cudaMemset(buf_inter, 0, sz));
-              cudaDeviceSynchronize();
+              CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&buf_inter), buf_sz));
+              CUDA_ERROR_CHECK(cudaMemset(buf_inter, 0, buf_sz));
+              CUDA_ERROR_CHECK(cudaDeviceSynchronize());
               upcxx::copy(pivot_nzval, pivot_nzval_inter, pivot._nnz).wait();
 
               //debug buf
@@ -1415,16 +1416,17 @@ namespace symPACK{
               //Do SYRK
               cublas::cublas_syrk_wrapper2(CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_T,tgt_width, src_snode_size,
                                 T(-1.0), pivot_nzval_inter, src_snode_size, beta, buf_inter, ldbuf);
-              cudaDeviceSynchronize();                                
+              CUDA_ERROR_CHECK(cudaDeviceSynchronize());                                
               upcxx::copy(buf_inter, buf, tgt_width*src_nrows + src_snode_size*tgt_width).wait();
 
               //Debug C
-              tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
-              T * buf2 = &tmpBuffers.tmpBuf[0];
-              blas::Syrk('U','T',tgt_width, src_snode_size,
-                  T(-1.0), pivot._nzval, src_snode_size, beta, buf2, ldbuf);
-              logfileptr->OFS()<<"Checking syrk matrix C"<<std::endl;
-              check_close2(buf2, buf, tgt_width*src_nrows + src_snode_size*tgt_width);
+              //blas::Syrk('U','T',tgt_width, src_snode_size,
+              //    T(-1.0), pivot._nzval, src_snode_size, beta, buf2, ldbuf);
+              //logfileptr->OFS()<<"Checking syrk matrix C"<<std::endl;
+              //check_close2(buf2, buf, tgt_width*src_nrows + src_snode_size*tgt_width);
+
+              //CUDA_ERROR_CHECK(cudaFree(pivot_nzval_inter));
+              //CUDA_ERROR_CHECK(cudaFree(buf_inter));
 #else
               blas::Syrk('U','T',tgt_width, src_snode_size,
                   T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
@@ -1435,10 +1437,50 @@ namespace symPACK{
               //everything is in row-major
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
 #ifdef CUDA_MODE
+              logfileptr->OFS()<<"Checking GEMM A"<<std::endl;
+              check_close2(pivot._nzval, pivot_nzval, pivot._nnz);
+              logfileptr->OFS()<<"Checking GEMM B"<<std::endl;
+              check_close2(facing._nzval, facing_nzval, facing._nnz);
+
+              T * pivot_nzval_inter = nullptr;
+              T * facing_nzval_inter = nullptr;
+              T * buf_inter = nullptr;
+              size_t buf_sz = sizeof(T)*(tgt_width*src_nrows + src_snode_size*tgt_width);
+              CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&pivot_nzval_inter), sizeof(T)*pivot._nnz));
+              CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&facing_nzval_inter), sizeof(T)*facing._nnz));
+              CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&buf_inter), buf_sz));
+              CUDA_ERROR_CHECK(cudaMemset(buf_inter, 0, buf_sz));
+              CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+              upcxx::when_all(
+                upcxx::copy(pivot_nzval, pivot_nzval_inter, pivot._nnz),
+                upcxx::copy(facing_nzval, facing_nzval_inter, facing._nnz)
+              ).wait();
+
+              //tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+              //buf2 = &tmpBuffers.tmpBuf[0];
+              //T * buf_debug = new T[buf_sz/sizeof(T)];
+              //CUDA_ERROR_CHECK(cudaMemcpy(buf_debug, buf_inter, buf_sz, cudaMemcpyDeviceToHost));
+              //cudaDeviceSynchronize();
+              //logfileptr->OFS()<<"Checking GEMM intermediate C buffer"<<std::endl;
+              //check_close(buf2, buf_debug, buf_sz/sizeof(T));
+
               cublas::cublas_gemm_wrapper2(CUBLAS_OP_T, CUBLAS_OP_N,
                                           tgt_width, src_nrows, src_snode_size,
-                                          T(-1.0), symPACK::gpu_allocator.local(pivot_nzval), src_snode_size,
-                                          symPACK::gpu_allocator.local(facing_nzval), src_snode_size, beta, symPACK::gpu_allocator.local(buf), ldbuf);
+                                          T(-1.0), pivot_nzval_inter, src_snode_size,
+                                          facing_nzval_inter, src_snode_size, beta, buf_inter, ldbuf);
+              CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+              upcxx::copy(buf_inter, buf, buf_sz/sizeof(T)).wait();
+
+              
+              //blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+              //    T(-1.0),pivot._nzval,src_snode_size,
+              //    facing._nzval,src_snode_size,beta,buf2,ldbuf);
+              
+              
+
+              //logfileptr->OFS()<<"Checking GEMM C buffer"<<std::endl;
+              //check_close2(buf2, buf, buf_sz/sizeof(T));            
+
 #else
               blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
                   T(-1.0),pivot_nzval,src_snode_size,
