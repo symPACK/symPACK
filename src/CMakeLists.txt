@@ -16,6 +16,7 @@ Ordering.cpp
 CommPull.cpp
 DistSparseMatrixGraph.cpp
 cuBLAS.cpp
+kernels.cu
 )
 
 set(SYMPACK_SRC_Fortran
