@@ -10,6 +10,6 @@ namespace cudaKernels {
         int , int ,
         int * , int ,
         int * , 
-        double * , double * );
+        double * , double *);
 }
 }
