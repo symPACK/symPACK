@@ -382,13 +382,15 @@ namespace symPACK{
 
 #ifdef CUDA_MODE
       void dev_resize(Int new_size) {
-        if (new_size > d_size) {
           upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> new_buf = symPACK::gpu_allocator.allocate<T>(new_size);
-          upcxx::copy(d_tmpBuf, new_buf, new_size).wait();
+          upcxx::copy(d_tmpBuf, new_buf, std::min(new_size, d_size)).wait();
+          if (new_size > d_size) {//TODO: Replace this with a cuda kernel
+            std::vector<T> zvec( (new_size - d_size), T(0));
+            upcxx::copy(zvec.data(), new_buf + d_size, new_size-d_size).wait();
+          }
           symPACK::gpu_allocator.deallocate(d_tmpBuf);
           d_tmpBuf = new_buf;
           d_size = new_size;
-        }
       }
 #endif
 

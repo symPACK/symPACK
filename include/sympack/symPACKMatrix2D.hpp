@@ -1425,7 +1425,6 @@ namespace symPACK{
 //#ifdef SP_THREADS
 #ifdef CUDA_MODE
               tmpBuffers.dev_resize(tgt_width*src_nrows + src_snode_size*tgt_width);
-              //symPACK::gpu_allocator.allocate<T>(tgt_width*src_nrows + src_snode_size*tgt_width);
               buf = tmpBuffers.d_tmpBuf;
               tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);//d
               buf2 = &tmpBuffers.tmpBuf[0];//d
@@ -1619,9 +1618,37 @@ namespace symPACK{
                   T * h_A = &buf2[rowidx*tgt_width];
                   T * h_B = &tgt2[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
                   logfileptr->OFS()<<"Checking tmpBuffer equality"<<std::endl;
-                  check_close(h_A, A, 1);
+                  check_close(h_A, A, tgt_width);
+                  check_close(h_B, B, tgt_width);
+
+                  //Copy to intermediate buffers
+                  T * d_A = nullptr;
+                  T * d_B = nullptr;
+                  CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_A), sizeof(T) * tgt_width));
+                  CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_B), sizeof(T) * tgt_width));
+                  CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+
+                  upcxx::when_all(
+                    upcxx::copy(A, d_A, tgt_width),
+                    upcxx::copy(B, d_B, tgt_width)
+                  ).wait();
+
                   //axpy with a=1
-                  cublas::cublas_axpy_wrapper2(tgt_width, T(1.0), symPACK::gpu_allocator.local(B), 1, symPACK::gpu_allocator.local(A), 1);                  
+                  cublas::cublas_axpy_wrapper2(tgt_width, T(1.0), d_A, 1, d_B, 1);                  
+
+                  //Copy back to global pointers
+                  upcxx::when_all(
+                    upcxx::copy(d_B, B, tgt_width)
+                  ).wait();
+
+                  //Debug
+                  for (rowind_t i = 0; i < tgt_width; ++i) { h_B[i] += h_A[i]; }
+                  logfileptr->OFS()<<"CHECKING AXPY OUTPUT"<<std::endl;
+                  check_close(h_B, B, tgt_width);
+
+                  //Cleanup
+                  CUDA_ERROR_CHECK(cudaFree(d_A));
+                  CUDA_ERROR_CHECK(cudaFree(d_B));
 #else                  
                   T * A = &buf[rowidx*tgt_width];
                   T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];                  
