@@ -360,10 +360,11 @@ namespace symPACK{
         std::vector<Int > src_to_tgt_offset;
 
         void Resize(Int size, Int mw){
+          logfileptr->OFS()<<"Calling resize"<<std::endl;
           if(size*mw > tmpBuf.size()){
 #ifdef CUDA_MODE
             upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> new_gptr = symPACK::gpu_allocator.allocate<T>(size*mw);
-            upcxx::copy(new_gptr, d_tmpBuf, d_size).wait();
+            upcxx::copy(d_tmpBuf, new_gptr, d_size).wait();
             symPACK::gpu_allocator.deallocate(d_tmpBuf);
             
             d_size = size; 
@@ -378,6 +379,18 @@ namespace symPACK{
             src_to_tgt_offset.resize(size);
           }
         }
+
+#ifdef CUDA_MODE
+      void dev_resize(Int new_size) {
+        if (new_size > d_size) {
+          upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> new_buf = symPACK::gpu_allocator.allocate<T>(new_size);
+          upcxx::copy(d_tmpBuf, new_buf, new_size).wait();
+          symPACK::gpu_allocator.deallocate(d_tmpBuf);
+          d_tmpBuf = new_buf;
+          d_size = new_size;
+        }
+      }
+#endif
 
         void Clear(){
           {
@@ -401,7 +414,7 @@ namespace symPACK{
         }
 
 
-        TempUpdateBuffers(){
+        TempUpdateBuffers() : d_size(0){
         }
         TempUpdateBuffers(Int size, Int mw){
           Resize(size,mw);

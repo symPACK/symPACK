@@ -1199,6 +1199,7 @@ namespace symPACK{
 
           T * d_nzval_inter = nullptr;
           CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_nzval_inter), sizeof(T)*_nnz));
+          CUDA_ERROR_CHECK(cudaDeviceSynchronize());
           upcxx::copy(diag_nzval, d_nzval_inter, _nnz).wait();
           try {
             lapack::cusolver_potrf('U', snode_size, d_nzval_inter, snode_size);
@@ -1269,6 +1270,8 @@ namespace symPACK{
           T * nzblk_nzval_inter = nullptr; //Matrix A
           CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&diag_nzval_inter), sizeA*sizeof(T)));
           CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&nzblk_nzval_inter), sizeB*sizeof(T)));
+          CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+          
           upcxx:when_all(
               upcxx::copy(diag_nzval, diag_nzval_inter, sizeA),
               upcxx::copy(nzblk_nzval, nzblk_nzval_inter, sizeB)
@@ -1277,6 +1280,8 @@ namespace symPACK{
           cublas::cublas_trsm_wrapper2(
                                       CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
                                       snode_size, total_rows(), T(1.0), diag_nzval_inter, snode_size, nzblk_nzval_inter, snode_size);
+
+          CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
           upcxx::when_all(
             upcxx::copy(nzblk_nzval_inter, nzblk_nzval, _nnz)
@@ -1361,7 +1366,7 @@ namespace symPACK{
             //Pointer to the output buffer of the GEMM
 #ifdef CUDA_MODE
             upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> buf;
-            T * buf2; //d
+            T * buf2 = nullptr; //d
 #else            
             T * buf = nullptr;
 #endif            
@@ -1419,7 +1424,8 @@ namespace symPACK{
               //Compute the update in a temporary buffer
 //#ifdef SP_THREADS
 #ifdef CUDA_MODE
-              tmpBuffers.d_tmpBuf = symPACK::gpu_allocator.allocate<T>(tgt_width*src_nrows + src_snode_size*tgt_width);
+              tmpBuffers.dev_resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+              //symPACK::gpu_allocator.allocate<T>(tgt_width*src_nrows + src_snode_size*tgt_width);
               buf = tmpBuffers.d_tmpBuf;
               tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);//d
               buf2 = &tmpBuffers.tmpBuf[0];//d
@@ -1442,6 +1448,7 @@ namespace symPACK{
               T * pivot_nzval_inter = nullptr;
               T * buf_inter = nullptr;
               size_t buf_sz = sizeof(T)*(this->_nnz - tgt_offset);
+              logfileptr->OFS()<<"SYRK BUFFER SIZE: "<<buf_sz<<std::endl;
               CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&pivot_nzval_inter), sizeof(T)*pivot._nnz));
               CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&buf_inter), buf_sz));
               CUDA_ERROR_CHECK(cudaDeviceSynchronize());
@@ -1477,8 +1484,10 @@ namespace symPACK{
 #ifdef CUDA_MODE
               size_t buf_sz = 0;
               if (in_place) {
+                logfileptr->OFS()<<"GEMM IS IN PLACE"<<std::endl;
                 buf_sz = sizeof(T)*(this->_nnz - tgt_offset);
               } else {
+                logfileptr->OFS()<<"GEMM IS NOT IN PLACE"<<std::endl;
                 buf_sz = sizeof(T)*(tgt_width*src_nrows + src_snode_size*tgt_width);
               }
 
@@ -1610,7 +1619,7 @@ namespace symPACK{
                   T * h_A = &buf2[rowidx*tgt_width];
                   T * h_B = &tgt2[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
                   logfileptr->OFS()<<"Checking tmpBuffer equality"<<std::endl;
-                  check_close(h_A, A);
+                  check_close(h_A, A, 1);
                   //axpy with a=1
                   cublas::cublas_axpy_wrapper2(tgt_width, T(1.0), symPACK::gpu_allocator.local(B), 1, symPACK::gpu_allocator.local(A), 1);                  
 #else                  
@@ -1644,6 +1653,8 @@ namespace symPACK{
                 int * d_offset_arr = nullptr;
                 CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_offset_arr), sizeof(int) * tmpBuffers.src_to_tgt_offset.size()));
                 CUDA_ERROR_CHECK(cudaMemcpy(d_offset_arr, tmpBuffers.src_to_tgt_offset.data(), sizeof(int) * tmpBuffers.src_to_tgt_offset.size(), cudaMemcpyHostToDevice));
+                
+                CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
                 upcxx::when_all(
                   upcxx::copy(tgt, d_tgt, this->_nnz),
@@ -1660,6 +1671,7 @@ namespace symPACK{
                   d_buf
                 );
                 CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+                
                 upcxx::when_all(
                   upcxx::copy(d_tgt, tgt, this->_nnz)
                 ).wait();
@@ -1673,8 +1685,10 @@ namespace symPACK{
                       += buf2[rowidx*tgt_width+colidx];                       
                   }
                 }
-                check_close_dev(tgt2, d_tgt, this->_nnz);
-                check_close_dev(buf2, d_buf, buf_sz/sizeof(T));
+                check_close(tgt2, tgt, this->_nnz);
+                check_close(buf2, buf, buf_sz/sizeof(T));
+
+                //upcxx::copy(tgt2, )
 
                 CUDA_ERROR_CHECK(cudaFree(d_col_arr));
                 CUDA_ERROR_CHECK(cudaFree(d_offset_arr));
