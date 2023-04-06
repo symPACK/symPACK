@@ -980,7 +980,7 @@ namespace symPACK{
         }
 
         void add_all_device_blocks() {
-          bassert( this->_block_container.data()!=nullptr );
+          /*bassert( this->_block_container.data()!=nullptr );
           bassert( this->_block_container.size() + 1 <= block_capacity() );
           bassert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
 
@@ -990,7 +990,7 @@ namespace symPACK{
             upcxx::copy(reinterpret_cast<char*>(_block_container.data()), _block_container._d_blocks, sizeof(block_t)*_block_container._nblocks).wait();
           }
 
-          logfileptr->OFS() << "Copied all blocks to device\n";
+          logfileptr->OFS() << "Copied all blocks to device\n";*/
 
         }
 
@@ -1203,6 +1203,7 @@ namespace symPACK{
           upcxx::copy(diag_nzval, d_nzval_inter, _nnz).wait();
           try {
             lapack::cusolver_potrf('U', snode_size, d_nzval_inter, snode_size);
+            CUDA_ERROR_CHECK(cudaDeviceSynchronize());
           } catch(const std::runtime_error& e) {
             std::cerr << "Runtime error: " << e.what() << '\n';
             gdb_lock();
@@ -1271,11 +1272,19 @@ namespace symPACK{
           CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&diag_nzval_inter), sizeA*sizeof(T)));
           CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&nzblk_nzval_inter), sizeB*sizeof(T)));
           CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+
+          logfileptr->OFS()<<"DIAG"<<diag_nzval_inter<<std::endl;
+          logfileptr->OFS()<<"NZ"<<nzblk_nzval_inter<<std::endl;
           
           upcxx:when_all(
               upcxx::copy(diag_nzval, diag_nzval_inter, sizeA),
               upcxx::copy(nzblk_nzval, nzblk_nzval_inter, sizeB)
           ).wait();
+
+          //d
+          auto h_diag_nzval = diag->_nzval;
+          auto h_nzblk_nzval = _nzval;    
+          blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  h_diag_nzval, snode_size, h_nzblk_nzval, snode_size);
 
           cublas::cublas_trsm_wrapper2(
                                       CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
@@ -1284,12 +1293,10 @@ namespace symPACK{
           CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
           upcxx::when_all(
-            upcxx::copy(nzblk_nzval_inter, nzblk_nzval, _nnz)
+            upcxx::copy(nzblk_nzval_inter, nzblk_nzval, sizeB)
           ).wait();
 
-          auto h_diag_nzval = diag->_nzval;
-          auto h_nzblk_nzval = _nzval;    
-          blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  h_diag_nzval, snode_size, h_nzblk_nzval, snode_size);
+          
 
           logfileptr->OFS()<<"Checking TRSM Result"<<std::endl;
           T *X_debug = new T[sizeB];
@@ -1490,6 +1497,7 @@ namespace symPACK{
                 buf_sz = sizeof(T)*(tgt_width*src_nrows + src_snode_size*tgt_width);
               }
 
+
               logfileptr->OFS()<<"Checking GEMM A"<<std::endl;
               check_close(pivot._nzval, pivot_nzval, pivot._nnz);
               logfileptr->OFS()<<"Checking GEMM B"<<std::endl;
@@ -1634,7 +1642,8 @@ namespace symPACK{
                   ).wait();
 
                   //axpy with a=1
-                  cublas::cublas_axpy_wrapper2(tgt_width, T(1.0), d_A, 1, d_B, 1);                  
+                  cublas::cublas_axpy_wrapper2(tgt_width, T(1.0), d_A, 1, d_B, 1);  
+                  CUDA_ERROR_CHECK(cudaDeviceSynchronize());                
 
                   //Copy back to global pointers
                   upcxx::when_all(
@@ -1734,7 +1743,13 @@ namespace symPACK{
               }
               SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD);
             }
+#ifdef CUDA_MODE
+              //if (!in_place && buf != NULL) {
+             //   symPACK::gpu_allocator.deallocate(buf);
+             // }
+#endif
           }
+
           return 0;
         }
 
