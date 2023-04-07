@@ -554,7 +554,10 @@ namespace cublas {
                            const T           beta,
                            T           * C, Int ldc) {
 
-        logfileptr->OFS()<<"DOING GEMM"<<std::endl;
+        logfileptr->OFS()<<"DOING GEMM ON DEVICE "<<symPACK::gpu_allocator.device_id()<<std::endl;
+        logfileptr->OFS()<<"A: "<<A<<std::endl;
+        logfileptr->OFS()<<"B: "<<B<<std::endl;
+        logfileptr->OFS()<<"C: "<<C<<std::endl;
         CUBLAS_ERROR_CHECK(cublas_gemm(symPACK::handlers[symPACK::gpu_allocator.device_id()], opA, opB,
                     M, N, K,
                     &alpha, A, lda,
@@ -636,7 +639,7 @@ namespace cublas {
     
         logfileptr->OFS()<<"DOING TRSM"<<std::endl;
 
-        CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::handlers[symPACK::gpu_allocator.device_id()], side, fill, op, diag, 
+        CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::handlers[0/*symPACK::gpu_allocator.device_id()*/], side, fill, op, diag, 
                     M, N, 
                     &alpha, A, lda, 
                     B, ldb));      

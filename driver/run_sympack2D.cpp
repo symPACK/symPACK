@@ -6,6 +6,7 @@
 #include "sympack/CommTypes.hpp"
 #include "sympack/Ordering.hpp"
 //#include "sympack/cuBLAS.hpp"
+//#include "sympack/kernels.cuh"
 
 #include "utils.hpp"
 
@@ -82,12 +83,13 @@ int main(int argc, char **argv)
     int n_gpus = upcxx::gpu_default_device::device_n(); 
     logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
     
-    //int gpu_id = upcxx::rank_me() % n_gpus;
-    //cudaSetDevice(gpu_id);
+    int gpu_id = upcxx::rank_me() % n_gpus;
+    cudaSetDevice(gpu_id);
     //logfileptr->OFS()<<"Rank "<<upcxx::rank_me()<<" using device "<<gpu_id<<std::endl;
 
-    symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::cuda_device>(n * n * sizeof(double)); //TODO: Fix this overallocation
-    logfileptr->OFS()<<"Reserved " << n * n * sizeof(double) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
+
+    symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::cuda_device>(n*n*sizeof(double)); //TODO: Fix this overallocation
+    logfileptr->OFS()<<"Reserved " << n*n*sizeof(double) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
 
 #endif
       //do the symbolic factorization and build supernodal matrix
