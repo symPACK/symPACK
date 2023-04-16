@@ -394,34 +394,17 @@ namespace symPACK{
               transfered=true;
 #if not defined(_NO_COMPUTATION_)
 #ifdef CUDA_MODE
-              upcxx::copy(d_landing_zone, d_remote_gptr, size).then([this]() {
+              upcxx::when_all(
+                upcxx::copy(d_remote_gptr, d_landing_zone, size),
+                upcxx::rget(remote_gptr,landing_zone,size) //d
+              ).then([this]() {
                   on_fetch.fulfill_result(this);
                   });
               logfileptr->OFS()<<"Did copy"<<std::endl;
-              upcxx::rget(remote_gptr,landing_zone,size).wait();
 #else
               upcxx::rget(remote_gptr,landing_zone,size).then([this]() {
                   on_fetch.fulfill_result(this);
                   return;});
-             /* char * debug_landing_zone = new char[size];
-              std::copy(landing_zone, landing_zone+size, debug_landing_zone);
-              std::string debug_str;
-              for (int i=0; i<size; i++)
-                debug_str += debug_landing_zone[i];
-              logfileptr->OFS()<<"CORRECT LANDING ZONE:"<<std::endl;
-              logfileptr->OFS()<<debug_str<<std::endl;
-              std::fill(debug_landing_zone, debug_landing_zone+size, '0');
-              debug_str.clear();*/
-
-              logfileptr->OFS()<<"Did copy successfuly"<<std::endl;
-              logfileptr->OFS()<<"Did copy successfuly"<<std::endl;
-              /*upcxx::copy(d_landing_zone, debug_landing_zone, size).wait();
-              for (int i=0; i<size; i++)
-                debug_str += debug_landing_zone[i];
-              logfileptr->OFS()<<"DEVICE LANDING ZONE:"<<std::endl;
-              logfileptr->OFS()<<debug_str<<std::endl;
-              std::fill(debug_landing_zone, debug_landing_zone+size, '0');
-              debug_str.clear();*/
 #endif                  
 #else
               std::fill(landing_zone,landing_zone+size,'0');
@@ -747,6 +730,10 @@ namespace symPACK{
           _nnz = nzval_cnt;
           _block_container._nblocks = block_cnt;
           //_block_container._d_nblocks = block_cnt;
+
+          logfileptr->OFS()<<"Checking nnz on host and device"<<std::endl;
+          check_close(_nzval, _d_nzval, _nnz);
+
           logfileptr->OFS()<<"Completed device constructor for blockcell, num blocks: "<<block_cnt<<std::endl;
         }
 #endif
