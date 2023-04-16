@@ -6814,25 +6814,20 @@ namespace symPACK{
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
     void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Factorize( ) {
-      using block_t = typename symPACK::symPACKMatrix2D<colptr_t, rowind_t, T, int_t>::snodeBlock_t::block_t;
       logfileptr->OFS()<<"Number of blocks: "<<localBlocks_.size()<<std::endl;
       for (auto const& elem: localBlocks_) {
         auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
         //upcxx::copy(block->_nzval, block->_d_nzval, block->_nnz).wait();
         upcxx::copy(block->_storage, block->_d_gstorage, block->_storage_size).wait();
-
-        block->_block_container._d_blocks = upcxx::reinterpret_pointer_cast<block_t, char, upcxx::memory_kind::cuda_device>(block->_d_gstorage);
-        block->_d_nzval =  upcxx::reinterpret_pointer_cast<T, block_t, upcxx::memory_kind::cuda_device>(block->_block_container._d_blocks + block->_cblocks);
-
         char *storage_debug = new char[block->_storage_size];
         upcxx::copy(block->_d_gstorage, storage_debug, block->_storage_size).wait();
+
         logfileptr->OFS()<<"CHECKING STORAGE"<<std::endl;
         block->check_close(block->_storage, storage_debug, block->_storage_size);
         
-        T *nz_debug = new T[block->_nnz];
-        upcxx::copy(block->_d_nzval, nz_debug, block->_nnz).wait();
         logfileptr->OFS()<<"CHECKING NNZ"<<std::endl;
-        block->check_close(block->_nzval, nz_debug, block->_nnz);
+        T *nz_debug = new T[block->_nnz];
+        block->check_close(block->_nzval, nz_debug, block->_storage_size);
       }
 
       int seg_free = symPACK::gpu_allocator.segment_size() - symPACK::gpu_allocator.segment_used();
