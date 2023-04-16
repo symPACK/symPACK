@@ -219,6 +219,7 @@ namespace symPACK{
           }
           break;
         default:
+	  os<<"UNSUPPORTED OP TYPE";
           break;
       }
       os<<std::endl;
@@ -392,6 +393,15 @@ namespace symPACK{
             if (!transfered) {
               transfered=true;
 #if not defined(_NO_COMPUTATION_)
+#ifdef CUDA_MODE
+              //upcxx::copy(d_landing_zone, d_remote_gptr, size).then([this]() {
+               //   on_fetch.fulfill_result(this);
+                 // });
+              logfileptr->OFS()<<"Did copy"<<std::endl;
+              upcxx::rget(remote_gptr,landing_zone,size).then([this]() {
+                  on_fetch.fulfill_result(this);
+                  return;});
+#else
               upcxx::rget(remote_gptr,landing_zone,size).then([this]() {
                   on_fetch.fulfill_result(this);
                   return;});
@@ -405,10 +415,7 @@ namespace symPACK{
               std::fill(debug_landing_zone, debug_landing_zone+size, '0');
               debug_str.clear();*/
 
-#ifdef CUDA_MODE
-              upcxx::copy(d_landing_zone, d_remote_gptr, size).then([this]() {
-                  on_fetch.fulfill_result(this);
-                  return;});
+              logfileptr->OFS()<<"Did copy successfuly"<<std::endl;
               logfileptr->OFS()<<"Did copy successfuly"<<std::endl;
               /*upcxx::copy(d_landing_zone, debug_landing_zone, size).wait();
               for (int i=0; i<size; i++)
@@ -709,7 +716,8 @@ namespace symPACK{
           _storage = ext_storage;   
 #ifdef CUDA_MODE
           _d_gstorage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
-          upcxx::copy(ext_storage, _d_gstorage, nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)).wait();
+	        cudaMemcpy(symPACK::gpu_allocator.local(_d_gstorage), ext_storage, nzval_cnt*8 + block_cnt*sizeof(block_t), cudaMemcpyHostToDevice);
+          //upcxx::copy(ext_storage, _d_gstorage, nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)).wait();
 #endif              
 
           _dims = std::make_tuple(width);
@@ -730,8 +738,9 @@ namespace symPACK{
           _own_storage = false;
           _gstorage = nullptr;
           _d_gstorage = d_ext_storage;
-          
-
+          _storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)]; //d
+          CUDA_ERROR_CHECK( cudaMemcpy(_storage, symPACK::gpu_allocator.local(_d_gstorage), nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t), cudaMemcpyDeviceToHost) ); //d
+	        CUDA_ERROR_CHECK(cudaDeviceSynchronize()); //d
           _dims = std::make_tuple(width);
           first_col = firstcol;
           initialize_dev(nzval_cnt,block_cnt);
@@ -1011,8 +1020,8 @@ namespace symPACK{
           _block_container._blocks = reinterpret_cast<block_t*>( _storage );
           _nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
 #ifdef CUDA_MODE
-          _block_container._d_blocks = upcxx::reinterpret_pointer_cast<block_t, char, upcxx::memory_kind::cuda_device>(_d_gstorage);
-          _d_nzval = upcxx::reinterpret_pointer_cast<T, block_t, upcxx::memory_kind::cuda_device>(_block_container._d_blocks + _cblocks);
+          //_block_container._d_blocks = upcxx::reinterpret_pointer_cast<block_t, char, upcxx::memory_kind::cuda_device>(_d_gstorage);
+          //_d_nzval = upcxx::reinterpret_pointer_cast<T, block_t, upcxx::memory_kind::cuda_device>(_block_container._d_blocks + _cblocks);
 #endif          
 #endif
 
@@ -1031,6 +1040,10 @@ namespace symPACK{
           //init device blocks and nzval
           _block_container._d_blocks = upcxx::reinterpret_pointer_cast<block_t, char, upcxx::memory_kind::cuda_device>(_d_gstorage);
           _d_nzval = upcxx::reinterpret_pointer_cast<T, block_t, upcxx::memory_kind::cuda_device>(_block_container._d_blocks + _cblocks);
+
+          //DEBUG CODE 
+          _block_container._blocks = reinterpret_cast<block_t *>(_storage);
+          _nzval = reinterpret_cast<T*>(_block_container._blocks + _cblocks);
 
         }
 
@@ -1122,8 +1135,8 @@ namespace symPACK{
           }
         }  
 
-
-        bool check_close(T * correct, T * actual, int n) {
+        template <typename U=T>
+        bool check_close(U * correct, U * actual, int n) {
           double epsilon = 1.0;
           logfileptr->OFS()<<"BUFFER SIZE: "<<n<<std::endl;
           bool result = true;
@@ -4845,7 +4858,7 @@ namespace symPACK{
                                   data->in_meta = meta;
                                   data->size = storage_size;
                                   data->remote_gptr = gptr;
-#ifdef CUDA_MODE                                  
+#ifdef CUDA_MODE                   
                                   data->d_remote_gptr = d_gptr;
 #endif                                  
                                 }
@@ -5023,8 +5036,9 @@ namespace symPACK{
                                     pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   }
                                   else {
-                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->d_landing_zone,fc,width,nnz,nblocks) );
-                                    logfileptr->OFS()<<"Printing device block for TRSM"<<std::endl;
+				                            logfileptr->OFS()<<"Landing zone: "<<pdata->d_landing_zone<<std::endl;
+                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    //logfileptr->OFS()<<"Printing device block for TRSM"<<std::endl;
                                     //reinterpret_cast<snodeBlock_t*>(pdata->extra_data.get())->print_block(*(reinterpret_cast<snodeBlock_t*>((pdata->extra_data.get()))), "NULL", true);
                                   }
                                   pdata->extra_data->owner = owner;
@@ -5300,7 +5314,7 @@ namespace symPACK{
                                   }
                                   else {
                                     logfileptr->OFS()<<"Printing block for UPDATE"<<std::endl;
-                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->d_landing_zone,fc,width,nnz,nblocks) );
+                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   }
 #else                                  
                                   //create snodeBlock_t and store it in the extra_data
@@ -6803,10 +6817,17 @@ namespace symPACK{
       logfileptr->OFS()<<"Number of blocks: "<<localBlocks_.size()<<std::endl;
       for (auto const& elem: localBlocks_) {
         auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
-        upcxx::copy(block->_nzval, block->_d_nzval, block->_nnz).wait();
-        T *nzblk_dev = new T[block->_nnz];
-        upcxx::copy(block->_d_nzval, nzblk_dev, block->_nnz).wait();
-        block->check_close(block->_nzval, nzblk_dev, block->_nnz);
+        //upcxx::copy(block->_nzval, block->_d_nzval, block->_nnz).wait();
+        upcxx::copy(block->_storage, block->_d_gstorage, block->_storage_size).wait();
+        char *storage_debug = new char[block->_storage_size];
+        upcxx::copy(block->_d_gstorage, storage_debug, block->_storage_size).wait();
+
+        logfileptr->OFS()<<"CHECKING STORAGE"<<std::endl;
+        block->check_close(block->_storage, storage_debug, block->_storage_size);
+        
+        logfileptr->OFS()<<"CHECKING NNZ"<<std::endl;
+        T *nz_debug = new T[block->_nnz];
+        block->check_close(block->_nzval, nz_debug, block->_storage_size);
       }
 
       int seg_free = symPACK::gpu_allocator.segment_size() - symPACK::gpu_allocator.segment_used();
@@ -7351,10 +7372,13 @@ namespace symPACK{
 #endif
           {
             while (local_task_cnt>0) {
+              logfileptr->OFS()<<"Ready tasks size: "<<ready_tasks.size()<<std::endl;
+              logfileptr->OFS()<<"Avail tasks size: "<<avail_tasks.size()<<std::endl;
               if (!ready_tasks.empty()) {
-                //upcxx::progress(upcxx::progress_level::internal);
+                upcxx::progress(upcxx::progress_level::internal);
                 auto ptask = top_ready();
                 pop_ready();
+                logfileptr->OFS()<<"Ptask type: "<<ptask->_meta<<std::endl;
                 ptask->execute(); 
                 local_task_cnt--;
               }
@@ -7365,15 +7389,19 @@ namespace symPACK{
                 auto ptask = top_avail();
                 pop_avail();
                 for (auto & msg : ptask->input_msg) {
+                  logfileptr->OFS()<<"Ptask type: "<<msg->in_meta<<std::endl;
                   msg->allocate();
                   msg->fetch().then([this,ptask](incoming_data_t<ttask_t,meta_t> * pmsg) {
                       //fulfill promise by one, when this reaches 0, ptask is moved to scheduler.ready_tasks
                       ptask->satisfy_dep(1,*this);
                       });
+                  logfileptr->OFS()<<"P "<<upcxx::rank_me()<<" did fetch."<<std::endl;
                 } 
-                //upcxx::progress(upcxx::progress_level::internal);
+                upcxx::progress(upcxx::progress_level::internal);
               }
+              logfileptr->OFS()<<"P "<<upcxx::rank_me()<<" has "<<local_task_cnt<<" tasks left."<<std::endl;
             }
+            logfileptr->OFS()<<"P "<<upcxx::rank_me()<<" done with local tasks."<<std::endl;
             upcxx::progress();
             upcxx::discharge();
 #ifdef SP_THREADS
