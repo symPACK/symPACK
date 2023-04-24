@@ -1393,7 +1393,7 @@ namespace symPACK{
               //Compute the update in a temporary buffer
 //#ifdef SP_THREADS
 #ifdef CUDA_MODE
-              tmpBuffers.dev_resize(tgt_width*src_nrows + src_snode_size*tgt_width);
+              tmpBuffers.dev_resize(tgt_width*src_nrows + src_snode_size*tgt_width, tmpBuffers.d_tmpBuf, tmpBuffers.d_size);
               buf = tmpBuffers.d_tmpBuf;
               tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);//d
               buf2 = &tmpBuffers.tmpBuf[0];//d
@@ -1494,13 +1494,27 @@ namespace symPACK{
             if (!in_place) {
               //logfileptr->OFS()<<"Made it this far"<<std::endl;
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_INDEX_MAP);
+#ifdef CUDA_MODE
+	      tmpBuffers.dev_resize(tgt_width, tmpBuffers.d_src_colindx, tmpBuffers.d_colindx_size);
+              tmpBuffers.src_colindx.resize(tgt_width);//d
+#else
               tmpBuffers.src_colindx.resize(tgt_width);
+#endif
+#ifdef CUDA_MODE
+	      tmpBuffers.dev_resize(src_nrows, tmpBuffers.d_src_to_tgt_offset, tmpBuffers.d_offset_size);
               tmpBuffers.src_to_tgt_offset.resize(src_nrows);
+#else
+              tmpBuffers.src_to_tgt_offset.resize(src_nrows);
+#endif
               colptr_t colidx = 0;
               colptr_t rowidx = 0;
               size_t offset = 0;
+#ifdef CUDA_MODE
+	      upcxx::global_ptr<block_t, upcxx::memory_kind::cuda_device> d_tgt_ptr = _block_container._d_blocks;
               block_t * tgt_ptr = _block_container._blocks;    
-
+#else
+              block_t * tgt_ptr = _block_container._blocks;   
+#endif
               for ( auto & cur_block: facing.blocks() ) {
                 rowind_t cur_src_nrows = facing.block_nrows(cur_block);
                 rowind_t cur_src_lr = cur_block.first_row + cur_src_nrows -1;
@@ -1589,7 +1603,7 @@ namespace symPACK{
                 // full sparse case
 #ifdef CUDA_MODE  
                 //logfileptr->OFS()<<"Executing custom kernel"<<std::endl;
-
+		//TODO: Write more cuda kernels
                 size_t buf_sz = sizeof(T)*(tgt_width*src_nrows + src_snode_size*tgt_width);
 
                 double * d_tgt = nullptr;
