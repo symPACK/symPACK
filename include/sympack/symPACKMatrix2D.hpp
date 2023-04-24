@@ -6727,6 +6727,14 @@ namespace symPACK{
       double execute_graph_ticks = std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
 #endif
       //DEBUG
+      for (auto const& elem: localBlocks_) {
+        auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
+        upcxx::copy(block->_d_gstorage, block->_storage, block->_storage_size).wait();
+        block->_block_container._blocks = reinterpret_cast<block_t *>(block->_storage);       
+        block->_nzval = reinterpret_cast<T*>(block->_block_container._blocks + block->_cblocks);	
+      }
+
+
 #ifdef _TIMING_
       std::stringstream sstr;
       sstr<<upcxx::rank_me()<<" "<<(double)CELL_ticks*1.0e-9<<" "<<(double)rpc_fact_ticks*1.0e-9<<" "<<(double)rpc_trsm_ticks*1.0e-9<<" "<<(double)rpc_upd_ticks*1.0e-9<<std::endl;
