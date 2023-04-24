@@ -11,5 +11,13 @@ namespace cudaKernels {
         int * , int ,
         int * , 
         double * , double *);
+
+    void set_offset_wrapper(int,
+	int, int, int,
+	int, int, int,
+	int *);
+
+    void set_colindx_wrapper(int,
+	int, int, int *);
 }
 }

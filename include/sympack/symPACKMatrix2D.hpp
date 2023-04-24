@@ -1533,13 +1533,20 @@ namespace symPACK{
 
                   int_t lr = std::min(cur_src_lr,tgt_ptr->first_row + block_nrows(*tgt_ptr)-1);
                   int_t tgtOffset = tgt_ptr->offset + (row - tgt_ptr->first_row)*tgt_snode_size;
-
+#ifdef CUDA_MODE
+		  cudaKernels::set_offset_wrapper(lr, tgtOffset, offset, tgt_width,
+				  	  row, rowidx, tgt_snode_size,
+					  symPACK::gpu_allocator.local(tmpBuffers.d_src_to_tgt_offset));
+		 
+#else
                   for (int_t cr = row ;cr<=lr;++cr) {
                     offset+=tgt_width;
                     tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
                     rowidx++;
                   }
+#endif		   
                   row += (lr-row+1);
+		  rowidx = row;
                 }
               }
 
@@ -1547,11 +1554,16 @@ namespace symPACK{
                 rowind_t cur_src_ncols = pivot.block_nrows(cur_block);
                 rowind_t cur_src_lc = std::min(cur_block.first_row + cur_src_ncols -1, this->first_col+this->width()-1);
                 rowind_t cur_src_fc = std::max(cur_block.first_row,this->first_col);
-
+#ifdef CUDA_MODE
+		cudaKernels::set_colindx_wrapper(colidx, cur_src_fc, cur_src_lc,
+					 symPACK::gpu_allocator.local(tmpBuffers.d_src_colindx));
+		colidx += (cur_src_lc - cur_src_fc) + 1;
+#else
                 for (rowind_t col = cur_src_fc ;col<=cur_src_lc;++col) {
                   bassert(this->first_col <= col && col< this->first_col+this->width() );
                   tmpBuffers.src_colindx[colidx++] = col;
                 }
+#endif
               }
 
 
@@ -6755,6 +6767,7 @@ namespace symPACK{
       std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
       double execute_graph_ticks = std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
 #endif
+      //DEBUG
 #ifdef _TIMING_
       std::stringstream sstr;
       sstr<<upcxx::rank_me()<<" "<<(double)CELL_ticks*1.0e-9<<" "<<(double)rpc_fact_ticks*1.0e-9<<" "<<(double)rpc_trsm_ticks*1.0e-9<<" "<<(double)rpc_upd_ticks*1.0e-9<<std::endl;

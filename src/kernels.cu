@@ -23,17 +23,32 @@ __global__ void update_tgt(int src_nrows,
 
 __global__ void set_offset(int lr, int tgtOffset, int offset, int tgt_width,
 	       		   int row, int rowidx, int tgt_snode_size,
-		   	   double * offset_arr) {
-	for (int cr = row; cr<lr; cr++) {
+		   	   int * offset_arr) {
+	for (int cr = row; cr<=lr; cr++) {
 	    offset+=tgt_width;
 	    offset_arr[rowidx] = tgtOffset + (cr-row)*tgt_snode_size;
 	    rowidx++;
 	}
 }	
 
+
+__global__ void set_colindx(int colindx, int cur_src_fc, int cur_src_lc, int * colindx_arr) {
+	
+	for (int col = cur_src_fc; col <= cur_src_lc; col++) {
+	     colindx_arr[colindx++] = col;
+	}
+
+}
+
+
+void set_colindx_wrapper(int colindx, int cur_src_fc, int cur_src_lc, int * colindx_arr) {
+	set_colindx<<<1, 1>>>(colindx, cur_src_fc, cur_src_lc, colindx_arr);
+}
+
+
 void set_offset_wrapper(int lr, int tgtOffset, int offset, int tgt_width,
 	       		   int row, int rowidx, int tgt_snode_size,
-		   	   double * offset_arr) {
+		   	   int * offset_arr) {
      set_offset<<<1, 1>>>(lr, tgtOffset, offset, tgt_width,
 		     	  row, rowidx, tgt_snode_size,
 			  offset_arr);
