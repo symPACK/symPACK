@@ -1614,32 +1614,12 @@ namespace symPACK{
               else {
                 // full sparse case
 #ifdef CUDA_MODE  
-                //logfileptr->OFS()<<"Executing custom kernel"<<std::endl;
-		//TODO: Write more cuda kernels
                 size_t buf_sz = sizeof(T)*(tgt_width*src_nrows + src_snode_size*tgt_width);
 
                 double * d_tgt = symPACK::gpu_allocator.local(tgt);
-                //CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_tgt), sizeof(T) * (this->_nnz)));
-
                 double * d_buf = symPACK::gpu_allocator.local(buf);
-                //CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_buf), buf_sz));
-
-                //This is slow, and will likely make it so we need to create device versions of
-                //these buffers and write more cuda kernels to edit them as in the loops above
                 int * d_col_arr = symPACK::gpu_allocator.local(tmpBuffers.d_src_colindx);//nullptr;
-                //CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_col_arr), sizeof(int) * tmpBuffers.src_colindx.size()));
-                //CUDA_ERROR_CHECK(cudaMemcpy(d_col_arr, tmpBuffers.src_colindx.data(), sizeof(int) * tmpBuffers.src_colindx.size(), cudaMemcpyHostToDevice));
-
                 int * d_offset_arr = symPACK::gpu_allocator.local(tmpBuffers.d_src_to_tgt_offset);//nullptr;
-                //CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_offset_arr), sizeof(int) * tmpBuffers.src_to_tgt_offset.size()));
-                //CUDA_ERROR_CHECK(cudaMemcpy(d_offset_arr, tmpBuffers.src_to_tgt_offset.data(), sizeof(int) * tmpBuffers.src_to_tgt_offset.size(), cudaMemcpyHostToDevice));
-                
-                //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-
-               // upcxx::when_all(
-               //   upcxx::copy(tgt, d_tgt, this->_nnz),
-               //   upcxx::copy(buf, d_buf, buf_sz/sizeof(T))
-               // ).wait();
 
                 cudaKernels::update_tgt_wrapper(
                   src_nrows,
@@ -1651,27 +1631,6 @@ namespace symPACK{
                 );
                 CUDA_ERROR_CHECK(cudaDeviceSynchronize());
                 
-               // upcxx::when_all(
-               //   upcxx::copy(d_tgt, tgt, this->_nnz)
-               // ).wait();
-                
-                //d
-                //for (int rowidx = 0; rowidx < src_nrows; ++rowidx) {
-                //  for (int colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx) {
-                //    int col = tmpBuffers.src_colindx.data()[colidx];
-                //    int tgt_colidx = col - this->first_col;   
-                //    tgt2[tmpBuffers.src_to_tgt_offset.data()[rowidx] + tgt_colidx] 
-                //      += buf2[rowidx*tgt_width+colidx];                       
-                //  }
-                //}
-                //check_close(tgt2, tgt, this->_nnz);
-                //check_close(buf2, buf, buf_sz/sizeof(T));
-
-
-               // CUDA_ERROR_CHECK(cudaFree(d_col_arr));
-               // CUDA_ERROR_CHECK(cudaFree(d_offset_arr));
-               // CUDA_ERROR_CHECK(cudaFree(d_buf));
-               // CUDA_ERROR_CHECK(cudaFree(d_tgt));
 #else                
                 for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
                   for (colptr_t colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx) {
