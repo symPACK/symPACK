@@ -355,6 +355,12 @@ namespace symPACK{
 #ifdef CUDA_MODE
         upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> d_tmpBuf;
         Int d_size;
+
+	upcxx::global_ptr<Int, upcxx::memory_kind::cuda_device> d_src_colindx;
+	Int d_colindx_size;
+
+	upcxx::global_ptr<Int, upcxx::memory_kind::cuda_device> d_src_to_tgt_offset;
+	Int d_offset_size;
 #endif        
         std::vector<Int > src_colindx;
         std::vector<Int > src_to_tgt_offset;
@@ -381,24 +387,27 @@ namespace symPACK{
         }
 
 #ifdef CUDA_MODE
-      void dev_resize(Int new_size) {
-          upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> new_buf = symPACK::gpu_allocator.allocate<T>(new_size);
+      template <typename U>
+      void dev_resize(Int new_size, upcxx::global_ptr<U, upcxx::memory_kind::cuda_device>& old_buf, Int& old_size) {
+          upcxx::global_ptr<U, upcxx::memory_kind::cuda_device> new_buf = symPACK::gpu_allocator.allocate<U>(new_size);
           logfileptr->OFS()<<"New buf"<<new_buf<<std::endl;
-          logfileptr->OFS()<<"Old buf"<<d_tmpBuf<<std::endl;
-          if (d_size==0) {
-            d_tmpBuf = new_buf;
-            d_size = new_size;
+          logfileptr->OFS()<<"Old buf"<<old_buf<<std::endl;
+          if (old_size==0) {
+            old_buf = new_buf;
+            old_size = new_size;
             return;
           }
-          upcxx::copy(d_tmpBuf, new_buf, std::min(new_size, d_size)).wait();
-          if (new_size > d_size) {//TODO: Replace this with a cuda kernel
-            std::vector<T> zvec( (new_size - d_size), T(0));
-            upcxx::copy(zvec.data(), new_buf + d_size, new_size-d_size).wait();
+          upcxx::copy(old_buf, new_buf, std::min(new_size, old_size)).wait();
+          if (new_size > old_size) {//TODO: Replace this with a cuda kernel
+            std::vector<U> zvec( (new_size - old_size), U(0));
+            upcxx::copy(zvec.data(), new_buf + old_size, new_size-old_size).wait();
           }
-          symPACK::gpu_allocator.deallocate(d_tmpBuf);
-          d_tmpBuf = new_buf;
-          d_size = new_size;
+          symPACK::gpu_allocator.deallocate(old_buf);
+          old_buf = new_buf;
+          old_size = new_size;
       }
+
+      
 #endif
 
         void Clear(){
@@ -423,7 +432,7 @@ namespace symPACK{
         }
 
 
-        TempUpdateBuffers() : d_size(0){
+        TempUpdateBuffers() : d_size(0), d_colindx_size(0), d_offset_size(0){
         }
         TempUpdateBuffers(Int size, Int mw){
           Resize(size,mw);
