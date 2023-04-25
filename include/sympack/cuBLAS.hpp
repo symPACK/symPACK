@@ -106,7 +106,15 @@ namespace cublas {
     cublasStatus_t cublas_copy(cublasHandle_t, Int,
                            const cuDoubleComplex           *, Int,
                            cuDoubleComplex                 *, Int);
-    
+
+    template <typename T>
+    cublasStatus_t cublas_copy_wrapper(Int n,
+		   			 T * dx, Int incx,
+					 T * dy, Int incy) {
+        CUBLAS_ERROR_CHECK(cublas_copy(symPACK::handlers[symPACK::gpu_allocator.device_id()], n, dx, incx, dy, incy));
+	return CUBLAS_STATUS_SUCCESS;
+    }
+
     /* SCAL */
     cublasStatus_t  cublas_scal(cublasHandle_t , Int,
                             const float           *,
