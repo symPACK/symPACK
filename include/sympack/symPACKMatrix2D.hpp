@@ -668,7 +668,7 @@ namespace symPACK{
         }
 
         //This is only called during FUC and BUC
-        blockCell_t ( int_t i, int_t j, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true, bool dev_blk = false  ): blockCell_t() {
+        blockCell_t ( int_t i, int_t j, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true ): blockCell_t() {
 #ifdef CUDA_MODE
             this->i = i;
             this->j = j;
@@ -676,9 +676,6 @@ namespace symPACK{
             first_col = firstcol;
             allocate_dev(nzval_cnt,block_cnt, shared_segment);
             initialize_dev(nzval_cnt,block_cnt);
-	    allocate(nzval_cnt,block_cnt, shared_segment);//d
-            initialize(nzval_cnt,block_cnt);//d
-
 #else            
             this->i = i;
             this->j = j;
@@ -1657,10 +1654,14 @@ namespace symPACK{
           int_t nnz = width * other->total_rows();
           this->_dims = std::make_tuple(width);
           this->first_col = other->first_col;
-
+#ifdef CUDA_MODE
+	  this->allocate_dev(nnz, other->nblocks(), true);
+	  this->initialize_dev(nnz, other->nblocks());
+#else
           this->allocate(nnz,other->nblocks(),true);
           this->initialize(nnz,other->nblocks());
-          for ( auto & cur_block: other->blocks() ) {
+#endif      
+     	  for ( auto & cur_block: other->blocks() ) {
             this->add_block(cur_block.first_row,other->block_nrows(cur_block), true);          
           }
         }
@@ -1713,8 +1714,23 @@ namespace symPACK{
 		
 	    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 	    //DEBUG
-            blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  this->_nzval, ldfact, tgt_contrib._nzval, ldsol);
-		
+
+    	    logfileptr->OFS()<<"First tgt val before trsm: " <<tgt_contrib._nzval[0]<<std::endl;	    
+            blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  this->_nzval, ldfact, tgt_contrib._nzval, ldsol);	    
+    	    logfileptr->OFS()<<"First tgt val after trsm: " <<tgt_contrib._nzval[0]<<std::endl;
+
+	    logfileptr->OFS()<<"Dumping trsm output for device"<<std::endl;
+	    double * debug_trsm = new double[ldsol*ldfact];
+	    upcxx::copy(tgt_contrib._d_nzval, debug_trsm, ldsol*ldfact).wait();
+	    for (int i=0; i<ldsol*ldfact; i++) {
+	        logfileptr->OFS()<<debug_trsm[i]<<std::endl;
+	    }
+
+	    logfileptr->OFS()<<"Dumping trsm output for host"<<std::endl;
+	    for (int i=0; i<ldsol*ldfact; i++) {
+	        logfileptr->OFS()<<tgt_contrib._nzval[i]<<std::endl;
+	    }
+
 	    logfileptr->OFS()<<"CHECKING FUC TRSM RESULT"<<std::endl;
 	    check_close(tgt_contrib._nzval, tgt_contrib._d_nzval, ldsol*ldfact);
 #else
@@ -6780,7 +6796,12 @@ namespace symPACK{
       //set solve_data
       //TODO RHS should be distributed according to Xsuper
       std::vector<T> distRHS;
+      logfileptr->OFS()<<"DUMPING RHS"<<std::endl;
+      for (int i = 0; i < rhs_size; i++) {
+          logfileptr->OFS()<<RHS[i]<<std::endl;
+      }
 #ifdef CUDA_MODE
+      this->solve_data.d_rhs = symPACK::gpu_allocator.allocate<T>(rhs_size);
       upcxx::copy(RHS, this->solve_data.d_rhs, rhs_size).then([](){return;});
 #endif
       this->solve_data.rhs = RHS;
