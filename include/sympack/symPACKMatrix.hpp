@@ -440,7 +440,7 @@ namespace symPACK{
       virtual void Factorize() override;
       //Solve routines
       //note: RHS & B are stored in column major format
-      virtual void Solve(T * RHS, int nrhs,  T * Xptr=nullptr) override;
+      virtual void Solve(T * RHS, int nrhs, int dev_size,  T * Xptr=nullptr) override;
       virtual void GetSolution(T * B, int nrhs) override;
 
       void FanBoth( );

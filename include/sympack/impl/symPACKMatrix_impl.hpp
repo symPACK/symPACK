@@ -262,7 +262,7 @@ namespace symPACK{
   }
 
 
-  template <typename T> inline void symPACKMatrix<T>::Solve(T * RHS, int nrhs,  T * Xptr) {
+  template <typename T> inline void symPACKMatrix<T>::Solve(T * RHS, int nrhs, int rhs_size,  T * Xptr) {
     scope_timer(a,SPARSE_SOLVE);
     if (this->options_.iterRefinement) {
       throw std::runtime_error("Iterative refinement is not yet implemented.");

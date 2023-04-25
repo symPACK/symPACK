@@ -130,7 +130,7 @@ int main(int argc, char **argv)
       XFinal = RHS;
 
       timeSta = get_time();
-      SMat2D->Solve(&XFinal[0],nrhs);
+      SMat2D->Solve(&XFinal[0],nrhs, XFinal.size());
       timeEnd = get_time();
 
       if(iam==0){

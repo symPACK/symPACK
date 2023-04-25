@@ -669,7 +669,6 @@ namespace symPACK{
 
         //This is only called during FUC and BUC
         blockCell_t ( int_t i, int_t j, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true, bool dev_blk = false  ): blockCell_t() {
-          if (dev_blk) {
 #ifdef CUDA_MODE
             this->i = i;
             this->j = j;
@@ -677,16 +676,18 @@ namespace symPACK{
             first_col = firstcol;
             allocate_dev(nzval_cnt,block_cnt, shared_segment);
             initialize_dev(nzval_cnt,block_cnt);
-#endif            
-          } else {
+	    allocate(nzval_cnt,block_cnt, shared_segment);//d
+            initialize(nzval_cnt,block_cnt);//d
+
+#else            
             this->i = i;
             this->j = j;
             _dims = std::make_tuple(width);
             first_col = firstcol;
             allocate(nzval_cnt,block_cnt, shared_segment);
             initialize(nzval_cnt,block_cnt);
-          }
-        }
+#endif 
+	}
 
         blockCell_t (  int_t i, int_t j,char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
           this->i = i;
@@ -1053,25 +1054,25 @@ namespace symPACK{
           initialize( nzval_cnt, block_cnt );
         }
 
-
+#ifdef CUDA_MODE
         void allocate_dev ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
           bassert(nzval_cnt!=0 && block_cnt!=0);
 
           if ( shared_segment ) {
-
-            _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );
-            _storage = _gstorage.local();
+	    _d_gstorage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
+            _gstorage = upcxx::allocate<char>( nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t) );//d
+            _storage = _gstorage.local();//d
             if ( this->_storage==nullptr ) symPACKOS<<"Trying to allocate "<<nzval_cnt<<" for cell ("<<i<<","<<j<<")"<<std::endl;
             assert( this->_storage!=nullptr );
           }
           else {
-            _gstorage = nullptr;
-
-            _storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];
+	    _d_gstorage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
+            _gstorage = nullptr;//d
+            _storage = new char[nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)];//d
           }
           initialize_dev( nzval_cnt, block_cnt );
         }
-
+#endif
 
         void print_block(blockCell_t & block, std::string prefix, bool dev=false) const{  
           
@@ -1537,7 +1538,8 @@ namespace symPACK{
 		  cudaKernels::set_offset_wrapper(lr, tgtOffset, offset, tgt_width,
 				  	  row, rowidx, tgt_snode_size,
 					  symPACK::gpu_allocator.local(tmpBuffers.d_src_to_tgt_offset));
-		 
+		  rowidx = row + (lr-row+1);
+ 		  offset += tgt_width * (lr - row + 1);		  
 #else
                   for (int_t cr = row ;cr<=lr;++cr) {
                     offset+=tgt_width;
@@ -1546,7 +1548,6 @@ namespace symPACK{
                   }
 #endif		   
                   row += (lr-row+1);
-		  rowidx = row;
                 }
               }
 
@@ -1702,10 +1703,20 @@ namespace symPACK{
 
           if ( this->i == this->j ) {
             bassert(this->blocks().size()==1);
-            auto diag_nzval = this->_nzval;
 #ifdef CUDA_MODE
-            cublas::cublas_trsm_wrapper(CUBLAS_SIDE_RIGHT,CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT,ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
-
+	    auto diag_nzval = this->_d_nzval;
+#else
+            auto diag_nzval = this->_nzval;
+#endif 
+#ifdef CUDA_MODE
+            cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_RIGHT,CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT,ldsol,ldfact, T(1.0),  symPACK::gpu_allocator.local(diag_nzval), ldfact, symPACK::gpu_allocator.local(tgt_contrib._d_nzval), ldsol);
+		
+	    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+	    //DEBUG
+            blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  this->_nzval, ldfact, tgt_contrib._nzval, ldsol);
+		
+	    logfileptr->OFS()<<"CHECKING FUC TRSM RESULT"<<std::endl;
+	    check_close(tgt_contrib._nzval, tgt_contrib._d_nzval, ldsol*ldfact);
 #else
             blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
 #endif
@@ -1724,13 +1735,27 @@ namespace symPACK{
               }
 
               auto & block = tgt_contrib._block_container[tgt_blk_idx];
+#ifdef CUDA_MODE
+	      auto src = this->_d_nzval + src_block.offset;
+	      auto tgt = tgt_contrib._d_nzval + block.offset + (src_block.first_row - block.first_row)*ldsol;
+	      T * src2 = this->_nzval + src_block.offset;
+              T * tgt2 = tgt_contrib._nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
+
+#else 
               T * src = this->_nzval + src_block.offset;
               T * tgt = tgt_contrib._nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
-
+#endif 
               //Do -L*Y (gemm)
 #ifdef CUDA_MODE
-              cublas::cublas_gemm_wrapper(CUBLAS_OP_N,CUBLAS_OP_N,ldsol,this->block_nrows(src_block),ldfact,
-                  T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
+              cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_N,ldsol,this->block_nrows(src_block),ldfact,
+                  T(-1.0),symPACK::gpu_allocator.local(diag_contrib._d_nzval),ldsol,symPACK::gpu_allocator.local(src),
+		  ldfact,T(1.0),symPACK::gpu_allocator.local(tgt),ldsol);
+	      CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+	      //Debug
+              blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
+                  T(-1.0),diag_contrib._nzval,ldsol,src2,ldfact,T(1.0),tgt2,ldsol);
+	      logfileptr->OFS()<<"Checking FUC GEMM result"<<std::endl;
+	      check_close(tgt2, tgt, ldsol*this->block_nrows(src_block));
 
 #else
               blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
@@ -2536,6 +2561,9 @@ namespace symPACK{
       public:
       struct solve_data_t {
         T * rhs;
+#ifdef CUDA_MODE
+	upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> d_rhs;
+#endif
         int nrhs;
         //This containes AT MOST nsuper contribs.
         std::vector< std::tuple<int_t,snodeBlock_sptr_t> > contribs;
@@ -2673,7 +2701,7 @@ namespace symPACK{
 
 
       virtual void Factorize() override;
-      virtual void Solve( T * RHS, int nrhs,  T * Xptr = nullptr ) override;
+      virtual void Solve( T * RHS, int nrhs, int rhs_size,  T * Xptr = nullptr ) override;
       virtual void GetSolution(T * B, int nrhs) override;
 
 
@@ -5847,6 +5875,7 @@ namespace symPACK{
                           rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>():std::make_shared<snodeBlock_t>());
                           auto ptr_test_cell = pQueryCELL(J-1,J-1);
                           bassert( ptr_test_cell->owner == this->iam );
+			  //copy ptr_cell test into new rptr_contrib block
                           rptr_contrib->copy_row_structure(nrhs,(snodeBlock_t*)ptr_test_cell.get());
                           for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
                             rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
@@ -6747,10 +6776,13 @@ namespace symPACK{
 
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
-    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Solve( T * RHS, int nrhs,  T * Xptr ) {
+    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Solve( T * RHS, int nrhs, int rhs_size,  T * Xptr ) {
       //set solve_data
       //TODO RHS should be distributed according to Xsuper
       std::vector<T> distRHS;
+#ifdef CUDA_MODE
+      upcxx::copy(RHS, this->solve_data.d_rhs, rhs_size).then([](){return;});
+#endif
       this->solve_data.rhs = RHS;
       this->solve_data.nrhs = nrhs;
       this->solve_data.contribs.clear();
@@ -6812,7 +6844,7 @@ namespace symPACK{
       }
 #endif
 
-
+      upcxx::barrier();
       this->scheduler.execute(this->task_graph_solve,this->mem_budget);
 
     } 
