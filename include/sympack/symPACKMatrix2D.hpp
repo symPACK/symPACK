@@ -5872,8 +5872,13 @@ namespace symPACK{
                   auto ptr_cell = pQueryCELL2(J-1,I-1);
                   auto & update_right_cnt = this->solve_data.update_right_cnt;
                   auto & contribs = this->solve_data.contribs;
+#ifdef CUDA_MODE
+		  auto d_rhs = this->solve_data.d_rhs;
+                  auto rhs = this->solve_data.rhs;//d
+#else
                   auto rhs = this->solve_data.rhs;
-                  auto nrhs = this->solve_data.nrhs;
+#endif     
+     		  auto nrhs = this->solve_data.nrhs;
                   snodeBlock_sptr_t ptr_contrib = nullptr;
 
                   if ( I == J ) {
@@ -5895,19 +5900,49 @@ namespace symPACK{
                           rptr_contrib->copy_row_structure(nrhs,(snodeBlock_t*)ptr_test_cell.get());
                           for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
                             rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
+#ifdef CUDA_MODE
+			    cublas::cublas_copy_wrapper(nrhs, symPACK::gpu_allocator.local(d_rhs)+srcRow, 
+					    		this->iSize_,
+					    		symPACK::gpu_allocator.local(rptr_contrib->_d_nzval)+row*nrhs,
+							1);
+			    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+			    
+			    //DEBUG
+			    for (rowind_t col = 0; col<nrhs;++col) {
+                              rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
+                            }
+			    logfileptr->OFS()<<"CHECKING COPY RESULT"<<std::endl;
+			    rptr_contrib->check_close(rptr_contrib->_nzval+row*nrhs, rptr_contrib->_d_nzval+row*nrhs,nrhs); 
+#else
                             for (rowind_t col = 0; col<nrhs;++col) {
                               rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
                             }
-                          }
+#endif      
+      			  }
                         }
                         else {
                           bassert( rptr_contrib->nnz() >0 && rptr_contrib->width()>0);
                           //Add data from RHS
                           for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
                             rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
-                            for (rowind_t col = 0; col<nrhs;++col) {
-                              rptr_contrib->_nzval[row*nrhs+col] += rhs[srcRow + col*this->iSize_];
+#ifdef CUDA_MODE
+			    cublas::cublas_copy_wrapper(nrhs, symPACK::gpu_allocator.local(d_rhs)+srcRow, 
+					    		this->iSize_,
+					    		symPACK::gpu_allocator.local(rptr_contrib->_d_nzval)+row*nrhs,
+							1);
+			    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+			    
+			    //DEBUG
+			    for (rowind_t col = 0; col<nrhs;++col) {
+                              rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
                             }
+			    logfileptr->OFS()<<"CHECKING COPY RESULT"<<std::endl;
+			    rptr_contrib->check_close(rptr_contrib->_nzval+row*nrhs, rptr_contrib->_d_nzval+row*nrhs,nrhs); 
+#else
+                            for (rowind_t col = 0; col<nrhs;++col) {
+                              rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
+                            }
+#endif 
                           }
                         }
                         ptr_contrib = rptr_contrib;
