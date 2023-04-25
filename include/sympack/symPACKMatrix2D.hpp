@@ -1683,13 +1683,47 @@ namespace symPACK{
             }
 
             auto & block = this->_block_container[tgt_blk_idx];
+#ifdef CUDA_MODE
+	    auto src = src_cell._d_nzval + src_block.offset;
+	    auto tgt = this->_d_nzval + block.offset + (src_block.first_row - block.first_row)*ldsol;
+	    T * src2 = src_cell._nzval + src_block.offset;
+            T * tgt2 = this->_nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
+#else 
             T * src = src_cell._nzval + src_block.offset;
             T * tgt = this->_nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
-            //now do an axpy
+#endif      
+      	    //now do an axpy
             for ( int_t row = 0; row < src_cell.block_nrows(src_block); row++) {
+#ifdef CUDA_MODE
+	      cublas::cublas_axpy_wrapper(ldsol, T(1.0), symPACK::gpu_allocator.local(src)+row*ldsol, 1,
+			      		  symPACK::gpu_allocator.local(tgt)+row*ldsol, 1);
+	      CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+	      
+	      //DEBUG
+	      for ( int_t col = 0; col < ldsol; col++) {
+                tgt2[row*ldsol+col] += src2[row*ldsol+col];
+              }
+	      
+	      T * debug_axpy = new T[ldsol];
+	      upcxx::copy(tgt, debug_axpy, ldsol).wait();
+	      
+	      logfileptr->OFS()<<"Dumping device axpy"<<std::endl;
+	      for (int i=0; i<ldsol; i++) {
+	      	logfileptr->OFS()<<debug_axpy[i];
+	      }
+
+	      logfileptr->OFS()<<"Dumping host axpy"<<std::endl;
+	      for (int i=0; i<ldsol; i++) {
+	      	logfileptr->OFS()<<tgt2[i]<<std::endl;
+	      }
+
+	      logfileptr->OFS()<<"Checking update axpy result"<<std::endl;
+	      check_close(tgt2+row*ldsol, tgt+row*ldsol, ldsol);
+#else
               for ( int_t col = 0; col < ldsol; col++) {
                 tgt[row*ldsol+col] += src[row*ldsol+col];
               }
+#endif
             }
           }
           return 0;
