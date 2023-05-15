@@ -621,6 +621,7 @@ namespace symPACK{
 
             block_t& operator[](size_t index)
             {
+	      logfileptr->OFS()<<"("<<index<<","<<_nblocks<<")"<<std::endl;
               bassert(index < _nblocks);
               return _blocks[index];
             }
@@ -676,6 +677,8 @@ namespace symPACK{
             first_col = firstcol;
             allocate_dev(nzval_cnt,block_cnt, shared_segment);
             initialize_dev(nzval_cnt,block_cnt);
+            allocate(nzval_cnt,block_cnt, shared_segment);//d
+            initialize(nzval_cnt,block_cnt);//d
 #else            
             this->i = i;
             this->j = j;
@@ -1735,8 +1738,9 @@ namespace symPACK{
 
           Int ldsol = tgt_contrib.width();
           Int ldfact = this->width();
-
+	  logfileptr->OFS()<<"Doing FUC"<<std::endl;
           if ( this->i == this->j ) {
+	    logfileptr->OFS()<<"Doing TRSM"<<std::endl;
             bassert(this->blocks().size()==1);
 #ifdef CUDA_MODE
 	    auto diag_nzval = this->_d_nzval;
@@ -1748,7 +1752,7 @@ namespace symPACK{
 		
 	    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 	    //DEBUG
-
+	    /* 
     	    logfileptr->OFS()<<"First tgt val before trsm: " <<tgt_contrib._nzval[0]<<std::endl;	    
             blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  this->_nzval, ldfact, tgt_contrib._nzval, ldsol);	    
     	    logfileptr->OFS()<<"First tgt val after trsm: " <<tgt_contrib._nzval[0]<<std::endl;
@@ -1766,12 +1770,13 @@ namespace symPACK{
 	    }
 
 	    logfileptr->OFS()<<"CHECKING FUC TRSM RESULT"<<std::endl;
-	    check_close(tgt_contrib._nzval, tgt_contrib._d_nzval, ldsol*ldfact);
+	    check_close(tgt_contrib._nzval, tgt_contrib._d_nzval, ldsol*ldfact);*/
 #else
             blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
 #endif
           }
           else {
+	    logfileptr->OFS()<<"Doing GEMM"<<std::endl;
             bassert(pdiag_contrib);
             bassert(dynamic_cast<blockCell_t*>(pdiag_contrib));
             blockCell_t & diag_contrib = *dynamic_cast<blockCell_t*>(pdiag_contrib);
@@ -1783,7 +1788,8 @@ namespace symPACK{
                 if (src_block.first_row >= block.first_row && 
                     src_block.first_row <= block.first_row + tgt_contrib.block_nrows(block) -1) break;
               }
-
+	      if (tgt_blk_idx>=tgt_contrib.nblocks()) tgt_blk_idx=tgt_contrib.nblocks()-1;
+	      logfileptr->OFS()<<tgt_blk_idx<<","<<tgt_contrib._block_container._blocks<<std::endl;
               auto & block = tgt_contrib._block_container[tgt_blk_idx];
 #ifdef CUDA_MODE
 	      auto src = this->_d_nzval + src_block.offset;
@@ -1797,6 +1803,7 @@ namespace symPACK{
 #endif 
               //Do -L*Y (gemm)
 #ifdef CUDA_MODE
+	      logfileptr->OFS()<<"Got here"<<std::endl;
               cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_N,ldsol,this->block_nrows(src_block),ldfact,
                   T(-1.0),symPACK::gpu_allocator.local(diag_contrib._d_nzval),ldsol,symPACK::gpu_allocator.local(src),
 		  ldfact,T(1.0),symPACK::gpu_allocator.local(tgt),ldsol);
@@ -1810,7 +1817,8 @@ namespace symPACK{
 #else
               blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
                   T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
-#endif                  
+#endif                 
+	     logfileptr->OFS()<<"Finished GEMM"<<std::endl; 
             }
           }
           return 0;
@@ -1850,6 +1858,7 @@ namespace symPACK{
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
+	  logfileptr->OFS()<<"Doing back_update_contrib"<<std::endl;
           bassert(dynamic_cast<blockCell_t*>(ptgt_contrib));
           blockCell_t & tgt_contrib = *dynamic_cast<blockCell_t*>(ptgt_contrib);
           Int ldsol = tgt_contrib.width();
@@ -1872,15 +1881,25 @@ namespace symPACK{
               }
 
               auto & block = diag_contrib._block_container[src_blk_idx];
+#ifdef CUDA_MODE
+	      auto src = diag_contrib._d_nzval + block.offset + (fact_block.first_row - block.first_row)*ldsol;
+	      auto fact = this->_d_nzval+fact_block.offset;
+	      T * src2 = diag_contrib._nzval + block.offset + (fact_block.first_row - block.first_row)*ldsol;
+              T * fact2 = this->_nzval+fact_block.offset;
+#else
               T * src = diag_contrib._nzval + block.offset + (fact_block.first_row - block.first_row)*ldsol;
               T * fact = this->_nzval+fact_block.offset;
-              //Do -X*LT (gemm)
+#endif     
+     	      //Do -X*LT (gemm)
 #ifdef CUDA_MODE
               T alpha = T(-1.0);
               T beta = T(1.0);
               
-              cublas::cublas_gemm_wrapper(CUBLAS_OP_N,CUBLAS_OP_T,ldsol,ldfact,this->block_nrows(fact_block), 
-              T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
+              cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_T,ldsol,ldfact,this->block_nrows(fact_block), 
+              T(-1.0),symPACK::gpu_allocator.local(src),ldsol,
+	      symPACK::gpu_allocator.local(fact),
+	      ldfact,T(1.0),tgt_contrib._nzval,ldsol);
+	      CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 #else              
               blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), 
               T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
@@ -6079,13 +6098,24 @@ namespace symPACK{
                         auto & rptr_contrib = std::get<1>(contrib_slot);
                         if ( ! rptr_contrib ) {
                           bassert(update_right_cnt[J] == 0);
+
                           rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>():std::make_shared<snodeBlock_t>());
+
                           rowind_t nrows = this->Xsuper_[J] - this->Xsuper_[J-1];
-                          rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1,nrows,true):std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1));
-                          //TODO THIS IS TERRIBLE!!!
-                          rptr_contrib->add_block(this->Xsuper_[J-1],nrows);
+                          
+			  rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1,nrows,true):std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1));
+                          
+			  //TODO THIS IS TERRIBLE!!!
+			  rptr_contrib->add_block(this->Xsuper_[J-1],nrows);
+			  logfileptr->OFS()<<"Add block called"<<std::endl;
+#ifdef CUDA_MODE
+			  cublas::cublas_scal_wrapper2(rptr_contrib->_nnz, T(0), symPACK::gpu_allocator.local(rptr_contrib->_d_nzval), 1);
+			  CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+                          std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));//d
+#else
                           std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
-                        }
+#endif     
+     			}
 
 
                         if (dep_cnt>0) {
@@ -6128,6 +6158,7 @@ namespace symPACK{
 
                       bassert(I<J);
                       //compute the product Y(J) -= L(J,I) * Y(I)
+		      logfileptr->OFS()<<"Yeah it's this one"<<std::endl;
                       ptr_cell->forward_update_contrib(ptr_contrib.get(),ptr_diagContrib.get());
                     } //release the lock here
 
@@ -6236,7 +6267,7 @@ namespace symPACK{
                   auto ptr_tgtcell = pQueryCELL(I-1,I-1);
 
                   snodeBlock_sptr_t ptr_contrib = nullptr;
-
+		  logfileptr->OFS()<<"Doing BUC"<<std::endl;
                   if ( I == J ) {
                     {
 #ifdef SP_THREADS
@@ -6373,8 +6404,14 @@ namespace symPACK{
                                 rptr_contrib->add_block(this->Xsuper_[I-1],nrows);
 
                               }
-                              std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
+#ifdef CUDA_MODE
+			      cublas::cublas_scal_wrapper2(rptr_contrib->_nnz, T(0), symPACK::gpu_allocator.local(rptr_contrib->_d_nzval), 1);
+			      CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
+                              std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));//d
+#else 
+                              std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
+#endif
 
                             }
                             else {
