@@ -626,7 +626,6 @@ namespace symPACK{
 
             block_t& operator[](size_t index)
             {
-	      logfileptr->OFS()<<"("<<index<<","<<_nblocks<<")"<<std::endl;
               bassert(index < _nblocks);
               return _blocks[index];
             }
@@ -1780,9 +1779,7 @@ namespace symPACK{
 
           Int ldsol = tgt_contrib.width();
           Int ldfact = this->width();
-	  logfileptr->OFS()<<"Doing FUC"<<std::endl;
           if ( this->i == this->j ) {
-	    logfileptr->OFS()<<"Doing TRSM"<<std::endl;
             bassert(this->blocks().size()==1);
 #ifdef CUDA_MODE
 	    auto diag_nzval = this->_d_nzval;
@@ -1818,7 +1815,6 @@ namespace symPACK{
 #endif
           }
           else {
-	    logfileptr->OFS()<<"Doing GEMM"<<std::endl;
             bassert(pdiag_contrib);
             bassert(dynamic_cast<blockCell_t*>(pdiag_contrib));
             blockCell_t & diag_contrib = *dynamic_cast<blockCell_t*>(pdiag_contrib);
@@ -1831,7 +1827,6 @@ namespace symPACK{
                     src_block.first_row <= block.first_row + tgt_contrib.block_nrows(block) -1) break;
               }
 	      if (tgt_blk_idx>=tgt_contrib.nblocks()) tgt_blk_idx=tgt_contrib.nblocks()-1;
-	      logfileptr->OFS()<<tgt_blk_idx<<","<<tgt_contrib._block_container._blocks<<std::endl;
               auto & block = tgt_contrib._block_container[tgt_blk_idx];
 #ifdef CUDA_MODE
 	      auto src = this->_d_nzval + src_block.offset;
@@ -1845,7 +1840,6 @@ namespace symPACK{
 #endif 
               //Do -L*Y (gemm)
 #ifdef CUDA_MODE
-	      logfileptr->OFS()<<"Got here"<<std::endl;
               cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_N,ldsol,this->block_nrows(src_block),ldfact,
                   T(-1.0),symPACK::gpu_allocator.local(diag_contrib._d_nzval),ldsol,symPACK::gpu_allocator.local(src),
 		  ldfact,T(1.0),symPACK::gpu_allocator.local(tgt),ldsol);
@@ -1853,14 +1847,12 @@ namespace symPACK{
 	      //Debug
               blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
                   T(-1.0),diag_contrib._nzval,ldsol,src2,ldfact,T(1.0),tgt2,ldsol);
-	      logfileptr->OFS()<<"Checking FUC GEMM result"<<std::endl;
 	      check_close(tgt2, tgt, ldsol*this->block_nrows(src_block));
 
 #else
               blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
                   T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
 #endif                 
-	     logfileptr->OFS()<<"Finished GEMM"<<std::endl; 
             }
           }
           return 0;
@@ -1900,7 +1892,6 @@ namespace symPACK{
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
-	  logfileptr->OFS()<<"Doing back_update_contrib"<<std::endl;
           bassert(dynamic_cast<blockCell_t*>(ptgt_contrib));
           blockCell_t & tgt_contrib = *dynamic_cast<blockCell_t*>(ptgt_contrib);
           Int ldsol = tgt_contrib.width();
@@ -5987,7 +5978,6 @@ namespace symPACK{
                         auto & contrib_slot = contribs[J];
                         auto & rptr_contrib = std::get<1>(contrib_slot);
                         if ( ! rptr_contrib ) {
-                          logfileptr->OFS()<<"FUC is gonna be hard"<<std::endl;
                           bassert(update_right_cnt[J] == 0);
                           rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>():std::make_shared<snodeBlock_t>());
                           auto ptr_test_cell = pQueryCELL(J-1,J-1);
@@ -6150,7 +6140,6 @@ namespace symPACK{
                           
 			  //TODO THIS IS TERRIBLE!!!
 			  rptr_contrib->add_block(this->Xsuper_[J-1],nrows);
-			  logfileptr->OFS()<<"Add block called"<<std::endl;
 #ifdef CUDA_MODE
 			  cublas::cublas_scal_wrapper2(rptr_contrib->_nnz, T(0), symPACK::gpu_allocator.local(rptr_contrib->_d_nzval), 1);
 			  CUDA_ERROR_CHECK(cudaDeviceSynchronize());
@@ -6201,7 +6190,6 @@ namespace symPACK{
 
                       bassert(I<J);
                       //compute the product Y(J) -= L(J,I) * Y(I)
-		      logfileptr->OFS()<<"Yeah it's this one"<<std::endl;
                       ptr_cell->forward_update_contrib(ptr_contrib.get(),ptr_diagContrib.get());
                     } //release the lock here
 
@@ -6310,7 +6298,6 @@ namespace symPACK{
                   auto ptr_tgtcell = pQueryCELL(I-1,I-1);
 
                   snodeBlock_sptr_t ptr_contrib = nullptr;
-		  logfileptr->OFS()<<"Doing BUC"<<std::endl;
                   if ( I == J ) {
                     {
 #ifdef SP_THREADS
@@ -6938,10 +6925,6 @@ namespace symPACK{
       //set solve_data
       //TODO RHS should be distributed according to Xsuper
       std::vector<T> distRHS;
-      logfileptr->OFS()<<"DUMPING RHS"<<std::endl;
-      for (int i = 0; i < rhs_size; i++) {
-          logfileptr->OFS()<<RHS[i]<<std::endl;
-      }
 #ifdef CUDA_MODE
       this->solve_data.d_rhs = symPACK::gpu_allocator.allocate<T>(rhs_size);
       upcxx::copy(RHS, this->solve_data.d_rhs, rhs_size).then([](){return;});
