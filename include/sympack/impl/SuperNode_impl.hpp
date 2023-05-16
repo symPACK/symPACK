@@ -256,10 +256,6 @@ namespace symPACK{
 
       meta_= (SuperNodeDesc*)(blocks_ - blkCnt +1) - 1;
       nzval_ = (T*) storage_ptr;
-#ifdef CUDA_MODE      
-      d_nzval_ = symPACK::gpu_allocator.allocate<T>(storage_size);
-#endif      
-      upcxx::copy(reinterpret_cast<T*>(storage_ptr), d_nzval_, (storage_size/sizeof(T))).wait();
 
       //we now need to update the meta data
       meta_->b_own_storage_ = false;

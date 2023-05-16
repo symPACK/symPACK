@@ -66,6 +66,7 @@ extern LogFile * logfileptr;
 extern LogFile * profileptr;
 extern LogFile * progressptr;
 extern LogFile * statfileptr;
+extern LogFile * dumpfileptr;
 extern std::stringstream * progstr;
 extern std::ostream symPACKOS;
 

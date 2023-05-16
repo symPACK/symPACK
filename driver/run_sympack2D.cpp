@@ -38,6 +38,9 @@ int main(int argc, char **argv)
     logfileptr = new LogFile(iam);
     logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
     logfileptr->OFS()<<"**********************************"<<std::endl;
+    progressptr = new LogFile("Progfile", std::to_string(iam).c_str());
+    progressptr->OFS()<<"********* PROGFILE OF P"<<iam<<" *********"<<std::endl;
+    progressptr->OFS()<<"**********************************"<<std::endl;
     statfileptr = new LogFile("Statfile", std::to_string(iam).c_str());
     statfileptr->OFS()<<"********* STATFILE OF P"<<iam<<" *********"<<std::endl;
     statfileptr->OFS()<<"**********************************"<<std::endl;

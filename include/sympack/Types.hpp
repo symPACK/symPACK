@@ -431,9 +431,13 @@ namespace symPACK{
           //src_to_tgt_offset.clear();
         }
 
-
+#ifdef CUDA_MODE
         TempUpdateBuffers() : d_size(0), d_colindx_size(0), d_offset_size(0){
         }
+#else
+        TempUpdateBuffers(){
+	}
+#endif
         TempUpdateBuffers(Int size, Int mw){
           Resize(size,mw);
         }

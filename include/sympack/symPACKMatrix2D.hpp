@@ -363,11 +363,16 @@ namespace symPACK{
           std::shared_ptr<blockCellBase_t> extra_data;
 #ifdef CUDA_MODE
           upcxx::global_ptr<blockCellBase_t, upcxx::memory_kind::cuda_device> d_extra_data;
-#endif          
-
           incoming_data_t():transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr), alloc_d_landing_zone(false) {
             on_fetch_future = on_fetch.get_future();
+         };
+#else
+	  incoming_data_t():transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr) {
+            on_fetch_future = on_fetch.get_future();
           };
+#endif          
+
+          
 
           bool transfered;
           upcxx::global_ptr<char> remote_gptr;
@@ -645,8 +650,11 @@ namespace symPACK{
 #ifdef SP_THREADS
           in_use(false),
 #endif
-          _storage(nullptr),_nzval(nullptr), _d_nzval(nullptr),_d_gstorage(nullptr),
-          _gstorage(nullptr),_nnz(0), _nnz_comm(0), _storage_size(0), _own_storage(true), _d_cpy(false) {}
+          _storage(nullptr),_nzval(nullptr),
+#ifdef CUDA_MODE 
+	  _d_nzval(nullptr),_d_gstorage(nullptr), _d_cpy(false),
+#endif          
+	  _gstorage(nullptr),_nnz(0), _nnz_comm(0), _storage_size(0), _own_storage(true) {}
         bool _own_storage;
 
         virtual ~blockCell_t() {
@@ -1000,7 +1008,7 @@ namespace symPACK{
 
 
         }
-
+#ifdef CUDA_MODE
         //NOTE: This is only called when constructing a new block_cell after data is exchanged between nodes
         void initialize_dev ( size_t nzval_cnt, size_t block_cnt ) {
           _storage_size = nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t);
@@ -1017,6 +1025,7 @@ namespace symPACK{
           _nzval = reinterpret_cast<T*>(_block_container._blocks + _cblocks);
 
         }
+#endif
 
         void allocate ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
           bassert(nzval_cnt!=0 && block_cnt!=0);
@@ -1164,6 +1173,11 @@ namespace symPACK{
             logfileptr->OFS()<<"Buffers are equal"<<std::endl;
           delete h_actual;
         }
+	
+	
+	void dump_nnz(std::string prelude) {
+	
+	}
 
 
         virtual int factorize( TempUpdateBuffers<T> & tmpBuffers) {
@@ -1388,7 +1402,9 @@ namespace symPACK{
             int ldbuf = tgt_width;
             if (in_place) {
               buf = tgt + tgt_offset;
+#ifdef CUDA_MODE
               buf2 = tgt2 + tgt_offset;//d
+#endif
               beta = T(1);
               ldbuf = tgt_snode_size;
             }
