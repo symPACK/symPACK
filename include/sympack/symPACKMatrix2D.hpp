@@ -1778,7 +1778,7 @@ namespace symPACK{
 		
 	    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 	    //DEBUG
-	    /* 
+	     
     	    logfileptr->OFS()<<"First tgt val before trsm: " <<tgt_contrib._nzval[0]<<std::endl;	    
             blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  this->_nzval, ldfact, tgt_contrib._nzval, ldsol);	    
     	    logfileptr->OFS()<<"First tgt val after trsm: " <<tgt_contrib._nzval[0]<<std::endl;
@@ -1796,7 +1796,7 @@ namespace symPACK{
 	    }
 
 	    logfileptr->OFS()<<"CHECKING FUC TRSM RESULT"<<std::endl;
-	    check_close(tgt_contrib._nzval, tgt_contrib._d_nzval, ldsol*ldfact);*/
+	    check_close(tgt_contrib._nzval, tgt_contrib._d_nzval, ldsol*ldfact);
 #else
             blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
 #endif
@@ -6908,7 +6908,13 @@ namespace symPACK{
         auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
         upcxx::copy(block->_d_gstorage, block->_storage, block->_storage_size).wait();
         block->_block_container._blocks = reinterpret_cast<block_t *>(block->_storage);       
-        block->_nzval = reinterpret_cast<T*>(block->_block_container._blocks + block->_cblocks);	
+        block->_nzval = reinterpret_cast<T*>(block->_block_container._blocks + block->_cblocks);
+	for (int i=0; i<block->_nnz; i++) {
+		if (isnan(block->_nzval[i])) {
+			logfileptr->OFS()<<"FOUND NAN AT IDX "<<i<<std::endl;
+			break;
+		}
+	}	
       }
 
 
