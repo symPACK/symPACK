@@ -1175,14 +1175,14 @@ namespace symPACK{
 
           auto snode_size = std::get<0>(_dims);
           auto diag_nzval = _d_nzval;
-          //T * correct_nzval = _nzval;
-          //T * actual_nzval = new T[_nnz];
-          //upcxx::copy(diag_nzval, actual_nzval, _nnz).wait();
-          //check_close(correct_nzval, actual_nzval, _nnz);
+          T * correct_nzval = _nzval;
+          T * actual_nzval = new T[_nnz];
+	  logfileptr->OFS()<<"Checking factorize pre"<<std::endl;
+          upcxx::copy(diag_nzval, actual_nzval, snode_size*snode_size).wait();
+          check_close(correct_nzval, actual_nzval, snode_size*snode_size);
 
 
           T * d_nzval_inter = symPACK::gpu_allocator.local(diag_nzval);//nullptr;
-          //upcxx::copy(diag_nzval, d_nzval_inter, _nnz).wait();
           try {
             lapack::cusolver_potrf('U', snode_size, d_nzval_inter, snode_size);
             CUDA_ERROR_CHECK(cudaDeviceSynchronize());
@@ -1192,13 +1192,15 @@ namespace symPACK{
           }
 
           //Debug stuff
-          //lapack::Potrf( 'U', snode_size, _nzval, snode_size);
+          lapack::Potrf( 'U', snode_size, _nzval, snode_size);
 
-          //upcxx::copy(diag_nzval, actual_nzval, _nnz).wait();
-          //correct_nzval = _nzval;
+          upcxx::copy(diag_nzval, actual_nzval, snode_size*snode_size).wait();
+          correct_nzval = _nzval;
 
-          //check_close(correct_nzval, actual_nzval, _nnz);
-          //delete actual_nzval;
+	  logfileptr->OFS()<<"Checking factorize post"<<std::endl;
+          upcxx::copy(diag_nzval, actual_nzval, snode_size*snode_size).wait();
+          check_close(correct_nzval, actual_nzval, snode_size*snode_size);
+          delete actual_nzval;
 
           
 #else
@@ -1236,26 +1238,26 @@ namespace symPACK{
           size_t sizeA = snode_size * snode_size;
           size_t sizeB = snode_size * total_rows();
 
-          //logfileptr->OFS()<<"Checking TRSM Matrix B"<<std::endl;
-          //T *B_debug = new T[sizeB];
-          //upcxx::copy(_d_nzval, B_debug, sizeB).wait();
-          //check_close(_nzval, B_debug, sizeB); 
-          //delete B_debug;
+          logfileptr->OFS()<<"Checking TRSM Matrix B"<<std::endl;
+          T *B_debug = new T[sizeB];
+          upcxx::copy(_d_nzval, B_debug, sizeB).wait();
+          check_close(_nzval, B_debug, sizeB); 
+          delete B_debug;
 
-          //logfileptr->OFS()<<"Checking TRSM Matrix A"<<std::endl;
-          //T *A_debug = new T[sizeA];
-          //upcxx::copy(diag_nzval, A_debug, sizeA).wait();
-          //check_close(diag->_nzval, A_debug, sizeA); 
-          //delete A_debug;
+          logfileptr->OFS()<<"Checking TRSM Matrix A"<<std::endl;
+          T *A_debug = new T[sizeA];
+          upcxx::copy(diag_nzval, A_debug, sizeA).wait();
+          check_close(diag->_nzval, A_debug, sizeA); 
+          delete A_debug;
 
 
           T * diag_nzval_inter = symPACK::gpu_allocator.local(diag_nzval); //nullptr; //Matrix B
           T * nzblk_nzval_inter = symPACK::gpu_allocator.local(nzblk_nzval); //nullptr; //Matrix A
           
           //d
-          //auto h_diag_nzval = diag->_nzval;
-          //auto h_nzblk_nzval = _nzval;    
-          //blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  h_diag_nzval, snode_size, h_nzblk_nzval, snode_size);
+          auto h_diag_nzval = diag->_nzval;
+          auto h_nzblk_nzval = _nzval;    
+          blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  h_diag_nzval, snode_size, h_nzblk_nzval, snode_size);
 
           cublas::cublas_trsm_wrapper2(
                                       CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
@@ -1264,11 +1266,11 @@ namespace symPACK{
           CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
 
-          //logfileptr->OFS()<<"Checking TRSM Result"<<std::endl;
-          //T *X_debug = new T[sizeB];
-          //upcxx::copy(nzblk_nzval, X_debug, sizeB).wait();
-          //check_close(h_nzblk_nzval, X_debug, sizeB);   
-          //delete X_debug;
+          logfileptr->OFS()<<"Checking TRSM Result"<<std::endl;
+          T *X_debug = new T[sizeB];
+          upcxx::copy(nzblk_nzval, X_debug, sizeB).wait();
+          check_close(h_nzblk_nzval, X_debug, sizeB);   
+          delete X_debug;
 
 #else
           auto diag_nzval = diag->_nzval;
@@ -1410,8 +1412,8 @@ namespace symPACK{
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_SYRK);
 #ifdef CUDA_MODE
               //Debug A
-              //logfileptr->OFS()<<"Checking syrk matrix A"<<std::endl;
-              //check_close(pivot._nzval, pivot_nzval, pivot._nnz);
+              logfileptr->OFS()<<"Checking syrk matrix A"<<std::endl;
+              check_close(pivot._nzval, pivot_nzval, pivot._nnz);
 
               //Create dev ptrs
               T * pivot_nzval_inter = symPACK::gpu_allocator.local(pivot_nzval);//nullptr;
@@ -1426,10 +1428,10 @@ namespace symPACK{
               CUDA_ERROR_CHECK(cudaDeviceSynchronize());                                
 
               //Debug C
-              //blas::Syrk('U','T',tgt_width, src_snode_size,
-                  //T(-1.0), pivot._nzval, src_snode_size, beta, buf2, ldbuf);
-              //logfileptr->OFS()<<"Checking syrk matrix C"<<std::endl;
-              //check_close(buf2, buf, buf_sz/sizeof(T));
+              blas::Syrk('U','T',tgt_width, src_snode_size,
+                  T(-1.0), pivot._nzval, src_snode_size, beta, buf2, ldbuf);
+              logfileptr->OFS()<<"Checking syrk matrix C"<<std::endl;
+              check_close(buf2, buf, buf_sz/sizeof(T));
 
 #else
               blas::Syrk('U','T',tgt_width, src_snode_size,
@@ -1451,12 +1453,12 @@ namespace symPACK{
               }
 
 
-              //logfileptr->OFS()<<"Checking GEMM A"<<std::endl;
-              //check_close(pivot._nzval, pivot_nzval, pivot._nnz);
-              //logfileptr->OFS()<<"Checking GEMM B"<<std::endl;
-              //check_close(facing._nzval, facing_nzval, facing._nnz);
-              //logfileptr->OFS()<<"Checking GEMM buf"<<std::endl;
-              //check_close(buf2, buf, buf_sz/sizeof(T));
+              logfileptr->OFS()<<"Checking GEMM A"<<std::endl;
+              check_close(pivot._nzval, pivot_nzval, pivot._nnz);
+              logfileptr->OFS()<<"Checking GEMM B"<<std::endl;
+              check_close(facing._nzval, facing_nzval, facing._nnz);
+              logfileptr->OFS()<<"Checking GEMM buf"<<std::endl;
+              check_close(buf2, buf, buf_sz/sizeof(T));
 
               T * pivot_nzval_inter = symPACK::gpu_allocator.local(pivot_nzval);//nullptr;
               T * facing_nzval_inter = symPACK::gpu_allocator.local(facing_nzval);//nullptr;
@@ -1472,14 +1474,14 @@ namespace symPACK{
               CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
               
-              //blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
-                  //T(-1.0),pivot._nzval,src_snode_size,
-                  //facing._nzval,src_snode_size,beta,buf2,ldbuf);
+              blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+                  T(-1.0),pivot._nzval,src_snode_size,
+                  facing._nzval,src_snode_size,beta,buf2,ldbuf);
               
               
 
-              //logfileptr->OFS()<<"Checking GEMM C buffer"<<std::endl;
-              //check_close(buf2, buf, buf_sz/sizeof(T));  
+              logfileptr->OFS()<<"Checking GEMM C buffer"<<std::endl;
+              check_close(buf2, buf, buf_sz/sizeof(T));  
 
 
 #else
@@ -1503,7 +1505,7 @@ namespace symPACK{
 #endif
 #ifdef CUDA_MODE
 	      tmpBuffers.dev_resize(src_nrows, tmpBuffers.d_src_to_tgt_offset, tmpBuffers.d_offset_size);
-              tmpBuffers.src_to_tgt_offset.resize(src_nrows);
+              tmpBuffers.src_to_tgt_offset.resize(src_nrows);//d
 #else
               tmpBuffers.src_to_tgt_offset.resize(src_nrows);
 #endif
@@ -1535,11 +1537,17 @@ namespace symPACK{
                   int_t lr = std::min(cur_src_lr,tgt_ptr->first_row + block_nrows(*tgt_ptr)-1);
                   int_t tgtOffset = tgt_ptr->offset + (row - tgt_ptr->first_row)*tgt_snode_size;
 #ifdef CUDA_MODE
-		  cudaKernels::set_offset_wrapper(lr, tgtOffset, offset, tgt_width,
-				  	  row, rowidx, tgt_snode_size,
-					  symPACK::gpu_allocator.local(tmpBuffers.d_src_to_tgt_offset));
-		  rowidx = row + (lr-row+1);
- 		  offset += tgt_width * (lr - row + 1);		  
+                  //cudaKernels::set_offset_wrapper(lr, tgtOffset, offset, tgt_width,
+                  //        row, rowidx, tgt_snode_size,
+                  //      symPACK::gpu_allocator.local(tmpBuffers.d_src_to_tgt_offset));
+                  //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+                  //rowidx = row + (lr-row+1);
+                  //offset += tgt_width * (lr - row + 1);		  
+		  for (int_t cr = row ;cr<=lr;++cr) {
+                    offset+=tgt_width;
+                    tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
+                    rowidx++;
+                  }
 #else
                   for (int_t cr = row ;cr<=lr;++cr) {
                     offset+=tgt_width;
@@ -1556,9 +1564,14 @@ namespace symPACK{
                 rowind_t cur_src_lc = std::min(cur_block.first_row + cur_src_ncols -1, this->first_col+this->width()-1);
                 rowind_t cur_src_fc = std::max(cur_block.first_row,this->first_col);
 #ifdef CUDA_MODE
-		cudaKernels::set_colindx_wrapper(colidx, cur_src_fc, cur_src_lc,
-					 symPACK::gpu_allocator.local(tmpBuffers.d_src_colindx));
-		colidx += (cur_src_lc - cur_src_fc) + 1;
+                //cudaKernels::set_colindx_wrapper(colidx, cur_src_fc, cur_src_lc,
+                //      symPACK::gpu_allocator.local(tmpBuffers.d_src_colindx));
+                //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+                //colidx += (cur_src_lc - cur_src_fc) + 1;
+		for (rowind_t col = cur_src_fc ;col<=cur_src_lc;++col) {
+                  bassert(this->first_col <= col && col< this->first_col+this->width() );
+                  tmpBuffers.src_colindx[colidx++] = col;
+                }
 #else
                 for (rowind_t col = cur_src_fc ;col<=cur_src_lc;++col) {
                   bassert(this->first_col <= col && col< this->first_col+this->width() );
@@ -1583,11 +1596,11 @@ namespace symPACK{
                   //TODO: Check that this works
                   auto A = buf + rowidx*tgt_width;
                   auto B = tgt + tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset;
-                  //T * h_A = &buf2[rowidx*tgt_width];
-                  //T * h_B = &tgt2[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
-                  //logfileptr->OFS()<<"Checking tmpBuffer equality"<<std::endl;
-                  //check_close(h_A, A, tgt_width);
-                  //check_close(h_B, B, tgt_width);
+                  T * h_A = &buf2[rowidx*tgt_width];
+                  T * h_B = &tgt2[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
+                  logfileptr->OFS()<<"Checking tmpBuffer equality"<<std::endl;
+                  check_close(h_A, A, tgt_width);
+                  check_close(h_B, B, tgt_width);
 
                   T * d_A = symPACK::gpu_allocator.local(A);//nullptr;
                   T * d_B = symPACK::gpu_allocator.local(B);//nullptr;
@@ -1599,9 +1612,9 @@ namespace symPACK{
 
 
                   //Debug
-                  //for (rowind_t i = 0; i < tgt_width; ++i) { h_B[i] += h_A[i]; }
-                  //logfileptr->OFS()<<"CHECKING AXPY OUTPUT"<<std::endl;
-                  //check_close(h_B, B, tgt_width);
+                  for (rowind_t i = 0; i < tgt_width; ++i) { h_B[i] += h_A[i]; }
+                  logfileptr->OFS()<<"CHECKING AXPY OUTPUT"<<std::endl;
+                  check_close(h_B, B, tgt_width);
 
                   //Cleanup
 #else                  
@@ -1617,20 +1630,33 @@ namespace symPACK{
 #ifdef CUDA_MODE  
                 size_t buf_sz = sizeof(T)*(tgt_width*src_nrows + src_snode_size*tgt_width);
 
-                double * d_tgt = symPACK::gpu_allocator.local(tgt);
-                double * d_buf = symPACK::gpu_allocator.local(buf);
-                int * d_col_arr = symPACK::gpu_allocator.local(tmpBuffers.d_src_colindx);//nullptr;
-                int * d_offset_arr = symPACK::gpu_allocator.local(tmpBuffers.d_src_to_tgt_offset);//nullptr;
+                //double * d_tgt = symPACK::gpu_allocator.local(tgt);
+                //double * d_buf = symPACK::gpu_allocator.local(buf);
+                //int * d_col_arr = symPACK::gpu_allocator.local(tmpBuffers.d_src_colindx);//nullptr;
+                //int * d_offset_arr = symPACK::gpu_allocator.local(tmpBuffers.d_src_to_tgt_offset);//nullptr;
 
-                cudaKernels::update_tgt_wrapper(
-                  src_nrows,
-                  this->first_col, tgt_width,
-                  d_col_arr, tmpBuffers.src_colindx.size(),
-                  d_offset_arr,
-                  d_tgt,
-                  d_buf
-                );
-                CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+                //cudaKernels::update_tgt_wrapper(
+                //  src_nrows,
+                //  this->first_col, tgt_width,
+                //  d_col_arr, tmpBuffers.d_size,
+                //  d_offset_arr,
+                //  d_tgt,
+                //  d_buf
+                //);
+                //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+
+		//Debug
+		for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
+                  for (colptr_t colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx) {
+                    rowind_t col = tmpBuffers.src_colindx[colidx];
+                    rowind_t tgt_colidx = col - this->first_col;           
+                    tgt2[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
+                      += buf2[rowidx*tgt_width+colidx];                       
+                  }
+                }
+		//logfileptr->OFS()<<"Checking tgt update"<<std::endl;
+		upcxx::copy(tgt2, tgt, this->_nnz).wait();
+		//check_close(tgt2, tgt, this->_nnz);
                 
 #else                
                 for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {

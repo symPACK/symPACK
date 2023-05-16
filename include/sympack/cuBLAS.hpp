@@ -175,6 +175,16 @@ namespace cublas {
 
     }
 
+    template <typename T>
+    cublasStatus_t  cublas_scal_wrapper2(Int N,
+                            const T           DA,
+                            T           * DX, Int incx) {
+        
+        CUBLAS_ERROR_CHECK(cublas_scal(symPACK::handlers[symPACK::gpu_allocator.device_id()], N, &DA, DX, incx));
+        return CUBLAS_STATUS_SUCCESS;
+
+    }
+
     /* ===== LEVEL 2 BLAS ===== */
 
     /* GEMV */
