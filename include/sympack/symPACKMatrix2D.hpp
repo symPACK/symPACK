@@ -1922,9 +1922,10 @@ namespace symPACK{
               T beta = T(1.0);
               
               cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_T,ldsol,ldfact,this->block_nrows(fact_block), 
-              T(-1.0),symPACK::gpu_allocator.local(src),ldsol,
-	      symPACK::gpu_allocator.local(fact),
-	      ldfact,T(1.0),tgt_contrib._nzval,ldsol);
+              		T(-1.0),symPACK::gpu_allocator.local(src),ldsol,
+	      		symPACK::gpu_allocator.local(fact),
+	      		ldfact,T(1.0),
+			symPACK::gpu_allocator.local(tgt_contrib._d_nzval),ldsol);
 	      CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 #else              
               blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), 
@@ -6847,13 +6848,14 @@ namespace symPACK{
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
     void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Factorize( ) {
       using block_t = typename symPACK::symPACKMatrix2D<colptr_t, rowind_t, T, int_t>::snodeBlock_t::block_t;
+#ifdef CUDA_MODE
       for (auto const& elem: localBlocks_) {
         auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
         upcxx::copy(block->_storage, block->_d_gstorage, block->_storage_size).wait();
         block->_block_container._d_blocks = upcxx::reinterpret_pointer_cast<block_t, char, upcxx::memory_kind::cuda_device>(block->_d_gstorage);
         block->_d_nzval =  upcxx::reinterpret_pointer_cast<T, block_t, upcxx::memory_kind::cuda_device>(block->_block_container._d_blocks + block->_cblocks);
       }
-
+#endif
 
 #ifdef SP_THREADS
       this->scheduler.threadInitHandle_ = nullptr;
@@ -6903,20 +6905,6 @@ namespace symPACK{
       std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
       double execute_graph_ticks = std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
 #endif
-      //DEBUG
-      for (auto const& elem: localBlocks_) {
-        auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
-        upcxx::copy(block->_d_gstorage, block->_storage, block->_storage_size).wait();
-        block->_block_container._blocks = reinterpret_cast<block_t *>(block->_storage);       
-        block->_nzval = reinterpret_cast<T*>(block->_block_container._blocks + block->_cblocks);
-	for (int i=0; i<block->_nnz; i++) {
-		if (isnan(block->_nzval[i])) {
-			logfileptr->OFS()<<"FOUND NAN AT IDX "<<i<<std::endl;
-			break;
-		}
-	}	
-      }
-
 
 #ifdef _TIMING_
       std::stringstream sstr;
@@ -7005,7 +6993,15 @@ namespace symPACK{
 
       upcxx::barrier();
       this->scheduler.execute(this->task_graph_solve,this->mem_budget);
-
+#ifdef CUDA_MODE
+      using block_t = typename symPACK::symPACKMatrix2D<colptr_t, rowind_t, T, int_t>::snodeBlock_t::block_t;
+      for (auto const& elem: localBlocks_) {
+        auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
+        upcxx::copy(block->_d_gstorage, block->_storage, block->_storage_size).wait();
+        block->_block_container._blocks = reinterpret_cast<block_t *>(block->_storage);       
+        block->_nzval = reinterpret_cast<T*>(block->_block_container._blocks + block->_cblocks);
+      }
+#endif
     } 
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
