@@ -621,7 +621,6 @@ namespace symPACK{
 
             block_t& operator[](size_t index)
             {
-	      logfileptr->OFS()<<"("<<index<<","<<_nblocks<<")"<<std::endl;
               bassert(index < _nblocks);
               return _blocks[index];
             }
@@ -1175,10 +1174,10 @@ namespace symPACK{
 
           auto snode_size = std::get<0>(_dims);
           auto diag_nzval = _d_nzval;
-          //T * correct_nzval = _nzval;
-          //T * actual_nzval = new T[_nnz];
-          //upcxx::copy(diag_nzval, actual_nzval, _nnz).wait();
-          //check_close(correct_nzval, actual_nzval, _nnz);
+          T * correct_nzval = _nzval;
+          T * actual_nzval = new T[_nnz];
+          upcxx::copy(diag_nzval, actual_nzval, _nnz).wait();
+          check_close(correct_nzval, actual_nzval, _nnz);
 
 
           T * d_nzval_inter = symPACK::gpu_allocator.local(diag_nzval);//nullptr;
@@ -1192,13 +1191,13 @@ namespace symPACK{
           }
 
           //Debug stuff
-          //lapack::Potrf( 'U', snode_size, _nzval, snode_size);
+          lapack::Potrf( 'U', snode_size, _nzval, snode_size);
 
-          //upcxx::copy(diag_nzval, actual_nzval, _nnz).wait();
-          //correct_nzval = _nzval;
+          upcxx::copy(diag_nzval, actual_nzval, _nnz).wait();
+          correct_nzval = _nzval;
 
-          //check_close(correct_nzval, actual_nzval, _nnz);
-          //delete actual_nzval;
+          check_close(correct_nzval, actual_nzval, _nnz);
+          delete actual_nzval;
 
           
 #else
@@ -1253,9 +1252,9 @@ namespace symPACK{
           T * nzblk_nzval_inter = symPACK::gpu_allocator.local(nzblk_nzval); //nullptr; //Matrix A
           
           //d
-          //auto h_diag_nzval = diag->_nzval;
-          //auto h_nzblk_nzval = _nzval;    
-          //blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  h_diag_nzval, snode_size, h_nzblk_nzval, snode_size);
+          auto h_diag_nzval = diag->_nzval;
+          auto h_nzblk_nzval = _nzval;    
+          blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  h_diag_nzval, snode_size, h_nzblk_nzval, snode_size);
 
           cublas::cublas_trsm_wrapper2(
                                       CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
@@ -1264,11 +1263,11 @@ namespace symPACK{
           CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
 
-          //logfileptr->OFS()<<"Checking TRSM Result"<<std::endl;
-          //T *X_debug = new T[sizeB];
-          //upcxx::copy(nzblk_nzval, X_debug, sizeB).wait();
-          //check_close(h_nzblk_nzval, X_debug, sizeB);   
-          //delete X_debug;
+          logfileptr->OFS()<<"Checking TRSM Result"<<std::endl;
+          T *X_debug = new T[sizeB];
+          upcxx::copy(nzblk_nzval, X_debug, sizeB).wait();
+          check_close(h_nzblk_nzval, X_debug, sizeB);   
+          delete X_debug;
 
 #else
           auto diag_nzval = diag->_nzval;
@@ -1426,10 +1425,10 @@ namespace symPACK{
               CUDA_ERROR_CHECK(cudaDeviceSynchronize());                                
 
               //Debug C
-              //blas::Syrk('U','T',tgt_width, src_snode_size,
-                  //T(-1.0), pivot._nzval, src_snode_size, beta, buf2, ldbuf);
-              //logfileptr->OFS()<<"Checking syrk matrix C"<<std::endl;
-              //check_close(buf2, buf, buf_sz/sizeof(T));
+              blas::Syrk('U','T',tgt_width, src_snode_size,
+                  T(-1.0), pivot._nzval, src_snode_size, beta, buf2, ldbuf);
+              logfileptr->OFS()<<"Checking syrk matrix C"<<std::endl;
+              check_close(buf2, buf, buf_sz/sizeof(T));
 
 #else
               blas::Syrk('U','T',tgt_width, src_snode_size,
@@ -1472,14 +1471,14 @@ namespace symPACK{
               CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
               
-              //blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
-                  //T(-1.0),pivot._nzval,src_snode_size,
-                  //facing._nzval,src_snode_size,beta,buf2,ldbuf);
+              blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+                  T(-1.0),pivot._nzval,src_snode_size,
+                  facing._nzval,src_snode_size,beta,buf2,ldbuf);
               
               
 
-              //logfileptr->OFS()<<"Checking GEMM C buffer"<<std::endl;
-              //check_close(buf2, buf, buf_sz/sizeof(T));  
+              logfileptr->OFS()<<"Checking GEMM C buffer"<<std::endl;
+              check_close(buf2, buf, buf_sz/sizeof(T));  
 
 
 #else
@@ -1583,11 +1582,11 @@ namespace symPACK{
                   //TODO: Check that this works
                   auto A = buf + rowidx*tgt_width;
                   auto B = tgt + tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset;
-                  //T * h_A = &buf2[rowidx*tgt_width];
-                  //T * h_B = &tgt2[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
-                  //logfileptr->OFS()<<"Checking tmpBuffer equality"<<std::endl;
-                  //check_close(h_A, A, tgt_width);
-                  //check_close(h_B, B, tgt_width);
+                  T * h_A = &buf2[rowidx*tgt_width];
+                  T * h_B = &tgt2[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
+                  logfileptr->OFS()<<"Checking tmpBuffer equality"<<std::endl;
+                  check_close(h_A, A, tgt_width);
+                  check_close(h_B, B, tgt_width);
 
                   T * d_A = symPACK::gpu_allocator.local(A);//nullptr;
                   T * d_B = symPACK::gpu_allocator.local(B);//nullptr;
@@ -1599,9 +1598,9 @@ namespace symPACK{
 
 
                   //Debug
-                  //for (rowind_t i = 0; i < tgt_width; ++i) { h_B[i] += h_A[i]; }
-                  //logfileptr->OFS()<<"CHECKING AXPY OUTPUT"<<std::endl;
-                  //check_close(h_B, B, tgt_width);
+                  for (rowind_t i = 0; i < tgt_width; ++i) { h_B[i] += h_A[i]; }
+                  logfileptr->OFS()<<"CHECKING AXPY OUTPUT"<<std::endl;
+                  check_close(h_B, B, tgt_width);
 
                   //Cleanup
 #else                  
@@ -1631,6 +1630,14 @@ namespace symPACK{
                   d_buf
                 );
                 CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+		for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {//d
+                  for (colptr_t colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx) {
+                    rowind_t col = tmpBuffers.src_colindx[colidx];
+                    rowind_t tgt_colidx = col - this->first_col;           
+                    tgt2[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
+                      += buf2[rowidx*tgt_width+colidx];                       
+                  }
+                }
                 
 #else                
                 for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
@@ -1752,7 +1759,7 @@ namespace symPACK{
 		
 	    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 	    //DEBUG
-	    /* 
+	     
     	    logfileptr->OFS()<<"First tgt val before trsm: " <<tgt_contrib._nzval[0]<<std::endl;	    
             blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  this->_nzval, ldfact, tgt_contrib._nzval, ldsol);	    
     	    logfileptr->OFS()<<"First tgt val after trsm: " <<tgt_contrib._nzval[0]<<std::endl;
@@ -1770,7 +1777,7 @@ namespace symPACK{
 	    }
 
 	    logfileptr->OFS()<<"CHECKING FUC TRSM RESULT"<<std::endl;
-	    check_close(tgt_contrib._nzval, tgt_contrib._d_nzval, ldsol*ldfact);*/
+	    check_close(tgt_contrib._nzval, tgt_contrib._d_nzval, ldsol*ldfact);
 #else
             blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
 #endif
@@ -1896,9 +1903,9 @@ namespace symPACK{
               T beta = T(1.0);
               
               cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_T,ldsol,ldfact,this->block_nrows(fact_block), 
-              T(-1.0),symPACK::gpu_allocator.local(src),ldsol,
-	      symPACK::gpu_allocator.local(fact),
-	      ldfact,T(1.0),tgt_contrib._nzval,ldsol);
+              		T(-1.0),symPACK::gpu_allocator.local(src),ldsol,
+	      		symPACK::gpu_allocator.local(fact),
+	      		ldfact,T(1.0),symPACK::gpu_allocator.local(tgt_contrib._d_nzval),ldsol);
 	      CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 #else              
               blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), 
@@ -6821,11 +6828,17 @@ namespace symPACK{
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
     void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Factorize( ) {
       using block_t = typename symPACK::symPACKMatrix2D<colptr_t, rowind_t, T, int_t>::snodeBlock_t::block_t;
+      logfileptr->OFS()<<"Factorize preprocessing"<<std::endl;
       for (auto const& elem: localBlocks_) {
         auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
         upcxx::copy(block->_storage, block->_d_gstorage, block->_storage_size).wait();
         block->_block_container._d_blocks = upcxx::reinterpret_pointer_cast<block_t, char, upcxx::memory_kind::cuda_device>(block->_d_gstorage);
         block->_d_nzval =  upcxx::reinterpret_pointer_cast<T, block_t, upcxx::memory_kind::cuda_device>(block->_block_container._d_blocks + block->_cblocks);
+	for (int i=0; i<block->_nnz; i++) {
+	    if (isnan(block->_nzval[i])) {
+	        logfileptr->OFS()<<"NAN FOUND"<<std::endl;
+	    }
+	}
       }
 
 
@@ -6878,11 +6891,18 @@ namespace symPACK{
       double execute_graph_ticks = std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
 #endif
       //DEBUG
+      logfileptr->OFS()<<"Checking factorize for NAN"<<std::endl;
       for (auto const& elem: localBlocks_) {
         auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
-        upcxx::copy(block->_d_gstorage, block->_storage, block->_storage_size).wait();
-        block->_block_container._blocks = reinterpret_cast<block_t *>(block->_storage);       
-        block->_nzval = reinterpret_cast<T*>(block->_block_container._blocks + block->_cblocks);	
+	upcxx::copy(block->_d_gstorage, block->_storage, block->_storage_size).wait();
+        block->_block_container._blocks = reinterpret_cast<block_t*>(block->_storage);
+        block->_nzval =  reinterpret_cast<T*>(block->_block_container._blocks + block->_cblocks);
+
+	for (int i=0; i<block->_nnz; i++) {
+	    if (isnan(block->_nzval[i])) {
+	        logfileptr->OFS()<<"NAN FOUND"<<std::endl;
+	    }
+	}
       }
 
 
@@ -6974,6 +6994,19 @@ namespace symPACK{
       upcxx::barrier();
       this->scheduler.execute(this->task_graph_solve,this->mem_budget);
 
+#ifdef CUDA_MODE
+      logfileptr->OFS()<<"Checking solve for NAN"<<std::endl;
+      for (auto const& elem: localBlocks_) {
+        auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
+        //upcxx::copy(block->_d_nzval, block->_nzval, block->_nnz).wait();
+	for (int i=0; i<block->_nnz; i++) {
+	    if (isnan(block->_nzval[i])) {
+	        logfileptr->OFS()<<"NAN FOUND"<<std::endl;
+	    }
+	}
+      }
+#endif
+
     } 
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
@@ -7010,7 +7043,6 @@ namespace symPACK{
 
                   Int destRow = tgt_cell.first_col + i;
                   destRow = this->Order_.perm[destRow - 1];
-
                   B[ (destRow -1) +j*this->iSize_ ] = val[i*tgt_cell.width()+j];
                 }
               }
