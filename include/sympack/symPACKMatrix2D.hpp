@@ -947,14 +947,7 @@ namespace symPACK{
           new_block.first_row = first_row;
           new_block.offset = _nnz;
           _nnz += nrows*std::get<0>(_dims);
-#ifdef CUDA_MODE          
-          if (add_to_device && false) {
-            logfileptr->OFS()<<"Add block called from copy\n";
-            add_device_block(&new_block);
-          } else {
-           // logfileptr->OFS()<<"Add block called from solve\n";
-          }
-#endif          
+         
         }
 
         void add_device_block(block_t * new_block) {
@@ -1175,7 +1168,11 @@ namespace symPACK{
 	
 	
 	void dump_nnz(std::string prelude) {
-	
+		progressptr->OFS()<<prelude<<std::endl;
+		for (int i=0; i<_nnz; i++) {
+			progressptr->OFS()<<_nzval[i]<<",";
+		}
+		progressptr->OFS()<<std::endl;
 	}
 
 
@@ -1227,6 +1224,7 @@ namespace symPACK{
             std::cerr << "Runtime error: " << e.what() << '\n';
             gdb_lock();
           }
+	  dump_nnz("Post Factorization::");
 #endif          
 
           return 0;
@@ -1289,6 +1287,7 @@ namespace symPACK{
           auto diag_nzval = diag->_nzval;
           auto nzblk_nzval = _nzval;
           blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+	  dump_nnz("Post TRSM::");
 #endif
           return 0;
         }
@@ -1687,7 +1686,7 @@ namespace symPACK{
               SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD);
             }
           }
-
+	  dump_nnz("Post update::");
           return 0;
         }
 
@@ -1714,7 +1713,6 @@ namespace symPACK{
         virtual int forward_update( blockCellBase_t * psrc_cell) {
           //src_cell is a descendant of the supernode corresponding to *this
           blockCell_t & src_cell = *dynamic_cast<blockCell_t*>(psrc_cell);
-
           Int ldsol = this->width();
           bassert(ldsol==src_cell.width());
 
@@ -1855,6 +1853,8 @@ namespace symPACK{
 #endif                 
             }
           }
+	  //Debug
+	  tgt_contrib.dump_nnz("Post FUC");
           return 0;
         }
 
@@ -1940,6 +1940,8 @@ namespace symPACK{
 #endif              
             }
           }
+	  //Debug
+	  tgt_contrib.dump_nnz("Post BUC");
           return 0;
         }
 
@@ -6005,6 +6007,7 @@ namespace symPACK{
                             }
 #endif      
       			  }
+			  progressptr->OFS()<<"Case 1"<<std::endl;
                         }
                         else {
                           bassert( rptr_contrib->nnz() >0 && rptr_contrib->width()>0);
@@ -6017,19 +6020,21 @@ namespace symPACK{
 					    		symPACK::gpu_allocator.local(rptr_contrib->_d_nzval)+row*nrhs,
 							1);
 			    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+			    //THIS WILL NEED TO BE AXPY
 			    
 			    //DEBUG
 			    for (rowind_t col = 0; col<nrhs;++col) {
-                              rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
+                              rptr_contrib->_nzval[row*nrhs+col] += rhs[srcRow + col*this->iSize_];
                             }
 			    logfileptr->OFS()<<"CHECKING COPY RESULT"<<std::endl;
 			    rptr_contrib->check_close(rptr_contrib->_nzval+row*nrhs, rptr_contrib->_d_nzval+row*nrhs,nrhs); 
 #else
                             for (rowind_t col = 0; col<nrhs;++col) {
-                              rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
+                              rptr_contrib->_nzval[row*nrhs+col] += rhs[srcRow + col*this->iSize_];
                             }
 #endif 
-                          }
+                          }	
+			  progressptr->OFS()<<"Case 2"<<std::endl;
                         }
                         ptr_contrib = rptr_contrib;
                       }
@@ -6146,7 +6151,8 @@ namespace symPACK{
                           std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));//d
 #else
                           std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
-#endif     
+#endif    
+			 progressptr->OFS()<<"Case 3"<<std::endl; 
      			}
 
 
@@ -6904,6 +6910,14 @@ namespace symPACK{
       std::chrono::high_resolution_clock::time_point t3 = std::chrono::high_resolution_clock::now();
 #endif
       this->scheduler.execute(this->task_graph,this->mem_budget);
+      //Debug
+      int block_idx = 0;
+      for (auto &block_base : localBlocks_) {
+      	auto block = std::dynamic_pointer_cast<snodeBlock_t>(block_base);
+	block->dump_nnz("Post Factorize Block " + std::to_string(block_idx));
+	block_idx+=1;
+      }
+
 #ifdef _TIMING_
       std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
       double execute_graph_ticks = std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
@@ -6992,14 +7006,22 @@ namespace symPACK{
 
       upcxx::barrier();
       this->scheduler.execute(this->task_graph_solve,this->mem_budget);
+
+      //Debug
+      int block_idx = 0;
+      for (auto &block_base : localBlocks_) {
+      	auto block = std::dynamic_pointer_cast<snodeBlock_t>(block_base);
+	block->dump_nnz("Post Solve Block " + std::to_string(block_idx));
+	block_idx+=1;
+      }
 #ifdef CUDA_MODE
-      using block_t = typename symPACK::symPACKMatrix2D<colptr_t, rowind_t, T, int_t>::snodeBlock_t::block_t;
+      /*using block_t = typename symPACK::symPACKMatrix2D<colptr_t, rowind_t, T, int_t>::snodeBlock_t::block_t;
       for (auto const& elem: localBlocks_) {
         auto block = std::dynamic_pointer_cast<snodeBlock_t>(elem);
         upcxx::copy(block->_d_gstorage, block->_storage, block->_storage_size).wait();
         block->_block_container._blocks = reinterpret_cast<block_t *>(block->_storage);       
         block->_nzval = reinterpret_cast<T*>(block->_block_container._blocks + block->_cblocks);
-      }
+      }*/
 #endif
     } 
 
@@ -7022,7 +7044,7 @@ namespace symPACK{
             auto & ptr_tgt_cell = std::get<1>(contrib_slot);
             bassert(ptr_tgt_cell!=nullptr);
             auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
-
+	    tgt_cell.dump_nnz("Contrib");	  
             if (this->options_.decomposition == DecompositionType::LDL) {
               auto & tgt_ldlcell = *std::dynamic_pointer_cast<snodeBlockLDL_t>(ptr_tgt_cell);
               bassert(tgt_ldlcell.scaled);
@@ -7032,11 +7054,17 @@ namespace symPACK{
               T * val = &tgt_cell._nzval[block.offset];
               auto nRows = tgt_cell.block_nrows(block);
               auto row = block.first_row;
+	      logfileptr->OFS()<<tgt_cell._nzval[block.offset]<<std::endl;
+	      logfileptr->OFS()<<block.offset<<std::endl;
+	      logfileptr->OFS()<<val<<std::endl;
               for (auto i = 0; i< nRows; ++i) {
                 for (auto j = 0; j< tgt_cell.width(); ++j) {
 
                   Int destRow = tgt_cell.first_col + i;
                   destRow = this->Order_.perm[destRow - 1];
+		  //logfileptr->OFS()<<"destRow: "<<destRow<<std::endl;
+		  //logfileptr->OFS()<<"B value: "<<((destRow -1) +j*this->iSize_) <<std::endl;
+		  //logfileptr->OFS()<<"Solution Value: "<<(i*tgt_cell.width()+j)<<std::endl;
 
                   B[ (destRow -1) +j*this->iSize_ ] = val[i*tgt_cell.width()+j];
                 }
