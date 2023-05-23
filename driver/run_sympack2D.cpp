@@ -38,7 +38,7 @@ int main(int argc, char **argv)
     logfileptr = new LogFile(iam);
     logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
     logfileptr->OFS()<<"**********************************"<<std::endl;
-    progressptr = new LogFile("Progfile", std::to_string(iam).c_str());
+    progressptr = new LogFile("ProgFile", std::to_string(iam).c_str());
     progressptr->OFS()<<"********* PROGFILE OF P"<<iam<<" *********"<<std::endl;
     progressptr->OFS()<<"**********************************"<<std::endl;
     statfileptr = new LogFile("Statfile", std::to_string(iam).c_str());
@@ -139,6 +139,8 @@ int main(int argc, char **argv)
       if(iam==0){
         std::cout<<"Solve 2D time: "<<timeEnd-timeSta<<std::endl;
       }
+
+      progressptr->OFS()<<XFinal<<std::endl;      
 
       SMat2D->GetSolution(&XFinal[0],nrhs);
 
