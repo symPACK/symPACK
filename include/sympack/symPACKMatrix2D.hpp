@@ -1737,7 +1737,7 @@ namespace symPACK{
       	    //now do an axpy
             for ( int_t row = 0; row < src_cell.block_nrows(src_block); row++) {
 #ifdef CUDA_MODE
-	      cublas::cublas_axpy_wrapper(ldsol, T(1.0), symPACK::gpu_allocator.local(src)+row*ldsol, 1,
+	      cublas::cublas_axpy_wrapper2(ldsol, T(1.0), symPACK::gpu_allocator.local(src)+row*ldsol, 1,
 			      		  symPACK::gpu_allocator.local(tgt)+row*ldsol, 1);
 	      CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 	      
@@ -1868,7 +1868,10 @@ namespace symPACK{
           bassert(ldsol==src_cell.width());
           bassert(this->total_rows()==src_cell.total_rows());
 #ifdef CUDA_MODE
-          cublas::cublas_axpy_wrapper(src_cell.nnz(),1.0,src_cell._nzval, 1, this->_nzval,1);
+          cublas::cublas_axpy_wrapper2(src_cell.nnz(),1.0,
+			  	       symPACK::gpu_allocator.local(src_cell._d_nzval), 1, 
+				       symPACK::gpu_allocator.local(this->_d_nzval),1);
+          blas::Axpy( src_cell.nnz(),1.0,src_cell._nzval, 1, this->_nzval,1);//d
 #else          
           blas::Axpy( src_cell.nnz(),1.0,src_cell._nzval, 1, this->_nzval,1);
 #endif          
