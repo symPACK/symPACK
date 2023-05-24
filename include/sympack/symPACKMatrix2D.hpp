@@ -6074,8 +6074,17 @@ namespace symPACK{
                       //diag contrib is output data so it will not be deleted
                       if ( pdest != this->iam ) {
                         upcxx::rpc_ff( pdest,  
-                            [] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width,  SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                            return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+                            [] (int sp_handle, upcxx::global_ptr<char> gptr,
+#ifdef CUDA_MODE
+				upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> d_gptr,
+#endif
+				size_t storage_size, size_t nnz, size_t nblocks, rowind_t width,  SparseTask2D::meta_t meta, 
+				upcxx::view<std::size_t> target_cells ) { 
+                            return upcxx::current_persona().lpc( [sp_handle,gptr,
+#ifdef CUDA_MODE
+					    			  d_gptr,
+#endif
+					    			  storage_size,nnz,nblocks,width,meta,target_cells]() {
                                 //there is a map between sp_handle and task_graphs
                                 auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                 auto I = std::get<1>(meta);
@@ -6092,6 +6101,9 @@ namespace symPACK{
                                 data->in_meta = meta;
                                 data->size = storage_size;
                                 data->remote_gptr = gptr;
+#ifdef CUDA_MODE
+				data->d_remote_gptr = d_gptr;
+#endif
                                 }
 
                                 taskptr->input_msg.push_back(data);
@@ -6110,7 +6122,12 @@ namespace symPACK{
                                       }
                                       else {
                                         logfileptr->OFS()<<"Printing FUC"<<std::endl;
+#ifdef CUDA_MODE
+					
+                                        pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->d_landing_zone, pdata->landing_zone,fc,width,nnz,nblocks) );
+#else
                                         pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+#endif
                                       }
                                       return upcxx::to_future(pdata);
                                       });
@@ -6123,7 +6140,12 @@ namespace symPACK{
 
                             });
 
-                            }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                            }, this->sp_handle, ptr_contrib->_gstorage, 
+#ifdef CUDA_MODE
+			       ptr_contrib->_d_gstorage,
+#endif	       
+			       ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), 
+			       ptr_contrib->width(), ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                       }
                       else {
                         for ( auto & tgt_cell_idx: tgt_cells ) {
@@ -6222,8 +6244,16 @@ namespace symPACK{
                         update_right_cnt[J]++;
                         if ( dep_cnt == update_right_cnt[J]) {
                           upcxx::rpc_ff( pdest, 
-                              [dep_cnt,deleteContrib ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                              return upcxx::current_persona().lpc( [deleteContrib,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
+                              [dep_cnt,deleteContrib ] (int sp_handle, upcxx::global_ptr<char> gptr, 
+#ifdef CUDA_MODE
+				      			upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> d_gptr,
+#endif
+				      			size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
+                              return upcxx::current_persona().lpc( [deleteContrib,sp_handle,gptr,
+#ifdef CUDA_MODE
+					      			    d_gptr,
+#endif		
+								    storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
                                   //there is a map between sp_handle and task_graphs
                                   auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                   auto I = std::get<1>(meta);
@@ -6242,7 +6272,10 @@ namespace symPACK{
                                   data->in_meta = meta;
                                   data->size = storage_size;
                                   data->remote_gptr = gptr;
-                                  }
+#ifdef CUDA_MODE
+				  data->d_remote_gptr = d_gptr;
+#endif
+				  }
 
 
                                   taskptr->input_msg.push_back(data);
@@ -6264,8 +6297,13 @@ namespace symPACK{
                                         pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks,0) );
                                         }
                                         else {
-                                        pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                        }
+#ifdef CUDA_MODE
+
+                                        pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->d_landing_zone, pdata->landing_zone,fc,width,nnz,nblocks) );
+#else                                        
+					pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+#endif
+					}
 
                                         //send a rpc_ff on the owner of the data to signal we have fetched it
                                         if ( deleteContrib ) {
@@ -6282,7 +6320,11 @@ namespace symPACK{
                                   }
                               });
 
-                              }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                              }, this->sp_handle, ptr_contrib->_gstorage,
+#ifdef CUDA_MODE
+				 ptr_contrib->_d_gstorage,
+#endif
+			 	 ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                         }
                       }
                       else {
