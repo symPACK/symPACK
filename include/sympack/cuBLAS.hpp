@@ -650,9 +650,8 @@ namespace cublas {
                         const T alpha, T * A, Int lda, 
                         T * B, Int ldb) {
     
-        //logfileptr->OFS()<<"DOING TRSM"<<std::endl;
 
-        CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::handlers[0/*symPACK::gpu_allocator.device_id()*/], side, fill, op, diag, 
+        CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::handlers[symPACK::gpu_allocator.device_id()], side, fill, op, diag, 
                     M, N, 
                     &alpha, A, lda, 
                     B, ldb));      
