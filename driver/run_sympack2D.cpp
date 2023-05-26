@@ -88,10 +88,8 @@ int main(int argc, char **argv)
     
     int gpu_id = upcxx::rank_me() % n_gpus;
     cudaSetDevice(gpu_id);
-    //logfileptr->OFS()<<"Rank "<<upcxx::rank_me()<<" using device "<<gpu_id<<std::endl;
 
-
-    symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::cuda_device>(n*n*sizeof(double)); //TODO: Fix this overallocation
+    symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::cuda_device>(36842528); //TODO: Use memory budget stuff to remove magic number
     logfileptr->OFS()<<"Reserved " << n*n*sizeof(double) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
 
 #endif
@@ -139,8 +137,6 @@ int main(int argc, char **argv)
       if(iam==0){
         std::cout<<"Solve 2D time: "<<timeEnd-timeSta<<std::endl;
       }
-
-      progressptr->OFS()<<XFinal<<std::endl;      
 
       SMat2D->GetSolution(&XFinal[0],nrhs);
 
