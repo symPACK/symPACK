@@ -85,7 +85,6 @@ namespace cublas {
                            const T           DA,
                            const T           * DX, Int incx,
                            T                 * DY, Int incy) {
-        logfileptr->OFS()<<"DOING AXPY"<<std::endl;
         CUBLAS_ERROR_CHECK(cublas_axpy(symPACK::handlers[symPACK::gpu_allocator.device_id()], N, &DA, DX, incx, DY, incy));
         return CUBLAS_STATUS_SUCCESS;
     }
@@ -572,7 +571,6 @@ namespace cublas {
                            const T           beta,
                            T           * C, Int ldc) {
 
-        //logfileptr->OFS()<<"DOING GEMM ON DEVICE "<<symPACK::gpu_allocator.device_id()<<std::endl;
         CUBLAS_ERROR_CHECK(cublas_gemm(symPACK::handlers[symPACK::gpu_allocator.device_id()], opA, opB,
                     M, N, K,
                     &alpha, A, lda,

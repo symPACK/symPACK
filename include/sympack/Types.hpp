@@ -390,8 +390,6 @@ namespace symPACK{
       template <typename U>
       void dev_resize(Int new_size, upcxx::global_ptr<U, upcxx::memory_kind::cuda_device>& old_buf, Int& old_size) {
           upcxx::global_ptr<U, upcxx::memory_kind::cuda_device> new_buf = symPACK::gpu_allocator.allocate<U>(new_size);
-          logfileptr->OFS()<<"New buf"<<new_buf<<std::endl;
-          logfileptr->OFS()<<"Old buf"<<old_buf<<std::endl;
           if (old_size==0) {
             old_buf = new_buf;
             old_size = new_size;
