@@ -1508,7 +1508,6 @@ namespace symPACK{
 
                   //axpy with a=1
                   cublas::cublas_axpy_wrapper2(tgt_width, T(1.0), d_A, 1, d_B, 1);  
-                  CUDA_ERROR_CHECK(cudaDeviceSynchronize());                
 #else                  
                   T * A = &buf[rowidx*tgt_width];
                   T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];                  
@@ -1516,6 +1515,7 @@ namespace symPACK{
                   for (rowind_t i = 0; i < tgt_width; ++i) { B[i] += A[i]; }
 #endif                  
                 }
+                CUDA_ERROR_CHECK(cudaDeviceSynchronize());                
               }
               else {
                 // full sparse case
@@ -1613,18 +1613,18 @@ namespace symPACK{
             T * src = src_cell._nzval + src_block.offset;
             T * tgt = this->_nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
 #endif      
-      	    //now do an axpy
-            for ( int_t row = 0; row < src_cell.block_nrows(src_block); row++) {
 #ifdef CUDA_MODE
-	      cublas::cublas_axpy_wrapper2(ldsol, T(1.0), symPACK::gpu_allocator.local(src)+row*ldsol, 1,
-			      		  symPACK::gpu_allocator.local(tgt)+row*ldsol, 1);
-	      CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+      	    //now do an axpy
+	    cublas::cublas_axpy_wrapper2(ldsol*src_cell.block_nrows(src_block), T(1.0), symPACK::gpu_allocator.local(src), 1,
+			      		  symPACK::gpu_allocator.local(tgt), 1);
+	    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 #else
+            for ( int_t row = 0; row < src_cell.block_nrows(src_block); row++) {
               for ( int_t col = 0; col < ldsol; col++) {
                 tgt[row*ldsol+col] += src[row*ldsol+col];
               }
-#endif
             }
+#endif
           }
           return 0;
         }
@@ -5845,7 +5845,6 @@ namespace symPACK{
 			    cublas::cublas_axpy_wrapper2(nrhs, T(1.0), symPACK::gpu_allocator.local(d_rhs)+srcRow, this->iSize_,
 					    		 symPACK::gpu_allocator.local(rptr_contrib->_d_nzval)+row*nrhs,
 							 1);
-			    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 			    
 #else
                             for (rowind_t col = 0; col<nrhs;++col) {
@@ -5853,6 +5852,7 @@ namespace symPACK{
                             }
 #endif 
                           }	
+			  CUDA_ERROR_CHECK(cudaDeviceSynchronize());
                         }
                         ptr_contrib = rptr_contrib;
                       }
