@@ -395,9 +395,10 @@ namespace symPACK{
           }
 
           upcxx::future<incoming_data_t *> fetch() {
+	    using Clock = std::chrono::high_resolution_clock;
             if (!transfered) {
               transfered=true;
-#if not defined(_NO_COMPUTATION_)
+	      Clock::time_point stime = Clock::now();
 #ifdef CUDA_MODE
               upcxx::when_all(
                 upcxx::copy(d_remote_gptr, d_landing_zone, size),
@@ -410,12 +411,12 @@ namespace symPACK{
                   on_fetch.fulfill_result(this);
                   return;});
 #endif                  
-#else
-              std::fill(landing_zone,landing_zone+size,'0');
-              on_fetch.fulfill_result(this);
-#endif
+	      Clock::time_point etime = Clock::now();
+	      Clock::duration total = etime - stime;
+	      statfileptr->OFS()<<"Fetch: "<<total.count()<<"ns"<<std::endl;
+
             }
-            return on_fetch_future;
+	    return on_fetch_future;
           }
 
           ~incoming_data_t() {
