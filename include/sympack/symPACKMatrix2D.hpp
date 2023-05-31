@@ -1154,6 +1154,8 @@ namespace symPACK{
 
         virtual int factorize( TempUpdateBuffers<T> & tmpBuffers) {
           scope_timer(a,blockCell_t::factorize);
+	  using Clock = std::chrono::high_resolution_clock;
+	  Clock::time_point stime = Clock::now();
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
@@ -1183,12 +1185,16 @@ namespace symPACK{
             gdb_lock();
           }
 #endif          
-
+	  Clock::time_point etime = Clock::now();
+	  Clock::duration total = etime - stime;
+	  statfileptr->OFS()<<"Factorize: "<<total.count()<<"ns"<<std::endl;
           return 0;
         }
 
         virtual int trsm( const blockCellBase_t * pdiag, TempUpdateBuffers<T> & tmpBuffers) {
           scope_timer(a,blockCell_t::trsm);
+	  using Clock = std::chrono::high_resolution_clock;
+	  Clock::time_point stime = Clock::now();
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
@@ -1217,11 +1223,16 @@ namespace symPACK{
           auto nzblk_nzval = _nzval;
           blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
 #endif
+	  Clock::time_point etime = Clock::now();
+	  Clock::duration total = etime - stime;
+	  statfileptr->OFS()<<"TRSM: "<<total.count()<<"ns"<<std::endl;
           return 0;
         }
 
         virtual int update( blockCellBase_t * ppivot, blockCellBase_t * pfacing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr) {
           scope_timer(a,blockCell_t::update);
+	  using Clock = std::chrono::high_resolution_clock;
+	  Clock::time_point stime = Clock::now();
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
@@ -1332,7 +1343,8 @@ namespace symPACK{
               //Compute the update in a temporary buffer
 //#ifdef SP_THREADS
 #ifdef CUDA_MODE
-              tmpBuffers.dev_resize(tgt_width*src_nrows + src_snode_size*tgt_width, tmpBuffers.d_tmpBuf, tmpBuffers.d_size);
+              //tmpBuffers.dev_resize(tgt_width*src_nrows + src_snode_size*tgt_width, tmpBuffers.d_tmpBuf, tmpBuffers.d_size);
+	      tmpBuffers.d_tmpBuf = symPACK::gpu_allocator.allocate<T>(tgt_width*src_nrows + src_snode_size*tgt_width);
               buf = tmpBuffers.d_tmpBuf;
 #else
               tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
@@ -1526,7 +1538,7 @@ namespace symPACK{
                 //  d_buf
                 //);
                 //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-		
+		Clock::time_point stime_cpy = Clock::now();	
 		T * h_tgt = new T[this->_nnz];
 		T * h_buf = new T[buf_sz/sizeof(T)];
 		upcxx::when_all(
@@ -1543,6 +1555,10 @@ namespace symPACK{
                   }
                 }
 		upcxx::copy(h_tgt, tgt, this->_nnz).wait();
+		symPACK::gpu_allocator.deallocate(tmpBuffers.d_tmpBuf);
+		Clock::time_point etime_cpy = Clock::now();
+		Clock::duration total_cpy = etime_cpy - stime_cpy;
+		statfileptr->OFS()<<"Update_cpy: "<<total_cpy.count()<<"ns"<<std::endl;
                 
 #else                
                 for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
@@ -1558,6 +1574,9 @@ namespace symPACK{
               SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD);
             }
           }
+	  Clock::time_point etime = Clock::now();
+	  Clock::duration total = etime - stime;
+	  statfileptr->OFS()<<"Update: "<<total.count()<<"ns"<<std::endl;
           return 0;
         }
 
@@ -6392,7 +6411,11 @@ namespace symPACK{
 				      			upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> d_gptr,
 #endif
 				      			size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                              return upcxx::current_persona().lpc( [sp_handle,deleteContrib,gptr,d_gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
+                              return upcxx::current_persona().lpc( [sp_handle,deleteContrib,gptr,
+#ifdef CUDA_MODE
+					      			    d_gptr,
+#endif
+								    storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
                                   //there is a map between sp_handle and task_graphs
                                   auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                   auto I = std::get<1>(meta);
