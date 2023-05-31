@@ -685,8 +685,6 @@ namespace symPACK{
             first_col = firstcol;
             allocate_dev(nzval_cnt,block_cnt, shared_segment);
             initialize_dev(nzval_cnt,block_cnt);
-            allocate_h(nzval_cnt,block_cnt, shared_segment);//d
-            initialize(nzval_cnt,block_cnt);//d
 #else            
             this->i = i;
             this->j = j;
@@ -703,9 +701,6 @@ namespace symPACK{
           _own_storage = false;
           _gstorage = nullptr;
           _storage = ext_storage;   
-#ifdef CUDA_MODE
-          _d_gstorage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
-#endif              
 
           _dims = std::make_tuple(width);
           first_col = firstcol;
@@ -741,10 +736,6 @@ namespace symPACK{
           _own_storage = false;
           _gstorage = ext_gstorage;
           _storage = _gstorage.local();
-#ifdef CUDA_MODE
-          _d_gstorage = symPACK::gpu_allocator.allocate<char>(nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t));
-          upcxx::copy(ext_gstorage, _d_gstorage, nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t)).wait();
-#endif  
           _dims = std::make_tuple(width);
           first_col = firstcol;
           initialize(nzval_cnt,block_cnt);
@@ -1016,7 +1007,7 @@ namespace symPACK{
 
         void allocate ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
           bassert(nzval_cnt!=0 && block_cnt!=0);
-
+ 
 #ifdef _ALIGNED_
           size_t aligned_size = std::ceil((nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
 #endif
@@ -1404,13 +1395,11 @@ namespace symPACK{
             if (!in_place) {
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_INDEX_MAP);
 #ifdef CUDA_MODE
-	      tmpBuffers.dev_resize(tgt_width, tmpBuffers.d_src_colindx, tmpBuffers.d_colindx_size);
               tmpBuffers.src_colindx.resize(tgt_width);//remove once cuda kernels
 #else
               tmpBuffers.src_colindx.resize(tgt_width);
 #endif
 #ifdef CUDA_MODE
-	      tmpBuffers.dev_resize(src_nrows, tmpBuffers.d_src_to_tgt_offset, tmpBuffers.d_offset_size);
               tmpBuffers.src_to_tgt_offset.resize(src_nrows);//remove once cuda kernels
 #else
               tmpBuffers.src_to_tgt_offset.resize(src_nrows);
@@ -7299,7 +7288,7 @@ namespace symPACK{
           {
             while (local_task_cnt>0) {
               if (!ready_tasks.empty()) {
-                upcxx::progress(upcxx::progress_level::internal);
+  //              upcxx::progress(upcxx::progress_level::internal);
                 auto ptask = top_ready();
                 pop_ready();
                 ptask->execute(); 
@@ -7318,15 +7307,12 @@ namespace symPACK{
                       ptask->satisfy_dep(1,*this);
                       });
                 } 
-                upcxx::progress(upcxx::progress_level::internal);
               }
             }
-            upcxx::progress();
             upcxx::discharge();
 #ifdef SP_THREADS
             if ( this->quiesceHandle_ != nullptr ) this->quiesceHandle_();
 #endif
-            upcxx::progress(); //TODO: move into SP_THREADS ifdef 
             upcxx::barrier();
           }
         }
