@@ -54,10 +54,12 @@ int symPACK_Init(int *argc, char ***argv){
   //init CUDA if in CUDA mode 
 #ifdef CUDA_MODE
   symPACK::gpu_debug = true;
-  cudaGetDeviceCount(&symPACK::n_gpus);
+  symPACK::n_gpus = upcxx::gpu_default_device::device_n();
   symPACK::handlers.reserve(symPACK::n_gpus);
+  symPACK::cusolver_handlers.reserve(symPACK::n_gpus);
 
   cublasStatus_t status;
+  cusolverStatus_t cusolver_status;
   for (int i=0; i<symPACK::n_gpus; i++) {
     cublasHandle_t handle;
     symPACK::handlers[i] = handle; 
@@ -65,6 +67,12 @@ int symPACK_Init(int *argc, char ***argv){
     status = cublasCreate(&symPACK::handlers[i]);
     if (status!=CUBLAS_STATUS_SUCCESS) {
       retval = -1;
+    }
+    cusolverDnHandle_t cusolver_handle;
+    symPACK::cusolver_handlers[i] = cusolver_handle;
+    cusolver_status = cusolverDnCreate(&symPACK::cusolver_handlers[i]);
+    if (cusolver_status!=CUSOLVER_STATUS_SUCCESS) {
+    	retval = -1;
     }
   }
 

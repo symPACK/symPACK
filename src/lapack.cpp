@@ -334,10 +334,8 @@ void Potrf( char uplo, Int n, const dcomplex* A, Int lda )
 }
 
 #ifdef CUDA_MODE
-cusolverStatus_t cusolver_potrf(char uplo, Int n, double* A, Int lda)
+cusolverStatus_t cusolver_potrf(cusolverDnHandle_t handle, char uplo, Int n, double* A, Int lda)
 {
-    cusolverDnHandle_t handle;
-    CUSOLVER_ERROR_CHECK(cusolverDnCreate(&handle));
 
     cublasFillMode_t cu_uplo;
     if (uplo=='U') 
@@ -359,7 +357,6 @@ cusolverStatus_t cusolver_potrf(char uplo, Int n, double* A, Int lda)
     CUSOLVER_ERROR_CHECK(cusolverDnDpotrf(handle, cu_uplo, n, A, lda, workspace, workspace_size, dev_info));
 
     CUDA_ERROR_CHECK(cudaFree(workspace));
-    CUSOLVER_ERROR_CHECK(cusolverDnDestroy(handle));
 
     return CUSOLVER_STATUS_SUCCESS;
 

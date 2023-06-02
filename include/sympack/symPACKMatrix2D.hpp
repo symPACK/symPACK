@@ -1166,7 +1166,7 @@ namespace symPACK{
           
           T * d_nzval_inter = symPACK::gpu_allocator.local(diag_nzval);//nullptr;
           try {
-            lapack::cusolver_potrf('U', snode_size, d_nzval_inter, snode_size);
+            lapack::cusolver_potrf(symPACK::cusolver_handlers[symPACK::gpu_allocator.device_id()], 'U', snode_size, d_nzval_inter, snode_size);
             CUDA_ERROR_CHECK(cudaDeviceSynchronize());
           } catch(const std::runtime_error& e) {
             std::cerr << "Runtime error: " << e.what() << '\n';

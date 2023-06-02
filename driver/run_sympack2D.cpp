@@ -88,9 +88,16 @@ int main(int argc, char **argv)
     
     int gpu_id = upcxx::rank_me() % n_gpus;
     cudaSetDevice(gpu_id);
+    
+    size_t free;
+    size_t total;
+    cudaMemGetInfo(&free, &total);
+    
+    size_t alloc_size = (free / 2) / (n_gpus / upcxx::rank_n());
+    upcxx::barrier();
 
-    symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::cuda_device>(36842528); //TODO: Use memory budget stuff to remove magic number
-    logfileptr->OFS()<<"Reserved " << n*n*sizeof(double) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
+    symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(alloc_size); //TODO: Use memory budget stuff to remove magic number
+    logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
 
 #endif
       //do the symbolic factorization and build supernodal matrix

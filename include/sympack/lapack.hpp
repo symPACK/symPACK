@@ -26,7 +26,7 @@ namespace symPACK {
     void Potrf( char uplo, Int n, const double* A, Int lda );
     void Potrf( char uplo, Int n, const scomplex* A, Int lda );
     void Potrf( char uplo, Int n, const dcomplex* A, Int lda );
-    cusolverStatus_t cusolver_potrf( char uplo, Int n, double* A, Int lda);
+    cusolverStatus_t cusolver_potrf(cusolverDnHandle_t handle, char uplo, Int n, double* A, Int lda);
 
 
     void Potrs( char uplo, Int n, Int nrhs, const float* A, Int lda, float* B, Int ldb);

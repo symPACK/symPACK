@@ -62,6 +62,7 @@ namespace symPACK{
 
   extern MPI_Comm world_comm;
   extern std::vector<cublasHandle_t> handlers;
+  extern std::vector<cusolverDnHandle_t> cusolver_handlers;
   extern std::vector<cudaStream_t> streams;
   extern bool gpu_debug;
   extern int n_gpus;
