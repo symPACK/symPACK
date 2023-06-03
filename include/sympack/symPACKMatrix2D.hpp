@@ -1209,10 +1209,6 @@ namespace symPACK{
           auto diag_nzval = diag->_d_nzval;//A
           auto nzblk_nzval = _d_nzval;//B
 
-          size_t sizeA = snode_size * snode_size;
-          size_t sizeB = snode_size * total_rows();
-
-          
           T * diag_nzval_inter = symPACK::gpu_allocator.local(diag_nzval); //nullptr; //Matrix B
           T * nzblk_nzval_inter = symPACK::gpu_allocator.local(nzblk_nzval); //nullptr; //Matrix A
           cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
@@ -1344,7 +1340,11 @@ namespace symPACK{
 //#ifdef SP_THREADS
 #ifdef CUDA_MODE
               //tmpBuffers.dev_resize(tgt_width*src_nrows + src_snode_size*tgt_width, tmpBuffers.d_tmpBuf, tmpBuffers.d_size);
+	      Clock::time_point alloc_stime = Clock::now();
 	      tmpBuffers.d_tmpBuf = symPACK::gpu_allocator.allocate<T>(tgt_width*src_nrows + src_snode_size*tgt_width);
+	      Clock::time_point alloc_etime = Clock::now();
+	      Clock::duration alloc_total = alloc_etime - alloc_stime;
+	      statfileptr->OFS()<<"Alloc: "<<alloc_total.count()<<"ns"<<std::endl;
               buf = tmpBuffers.d_tmpBuf;
 #else
               tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
@@ -1365,7 +1365,6 @@ namespace symPACK{
               //Do SYRK
               cublas::cublas_syrk_wrapper2(CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_T,tgt_width, src_snode_size,
                                 T(-1.0), pivot_nzval_inter, src_snode_size, beta, buf_inter, ldbuf);
-              CUDA_ERROR_CHECK(cudaDeviceSynchronize());                                
 
 #else
               blas::Syrk('U','T',tgt_width, src_snode_size,
@@ -1392,7 +1391,6 @@ namespace symPACK{
                                           tgt_width, src_nrows, src_snode_size,
                                           T(-1.0), pivot_nzval_inter, src_snode_size,
                                           facing_nzval_inter, src_snode_size, beta, buf_inter, ldbuf);
-              CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
 #else
               blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
@@ -1491,11 +1489,15 @@ namespace symPACK{
 
 
 
+#ifdef CUDA_MODE
+              CUDA_ERROR_CHECK(cudaDeviceSynchronize());                               
+#endif	
 
               //Multiple cases to consider
               SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_INDEX_MAP);
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_ADD);
               if (first_pivot_idx==last_pivot_idx) {
+		Clock::time_point axpy_stime =  Clock::now();
                 // Updating contiguous columns
                 rowind_t tgt_offset = (tgt_fc - this->first_col);
                 for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
@@ -1509,7 +1511,7 @@ namespace symPACK{
 
 
                   //axpy with a=1
-                  cublas::cublas_axpy_wrapper2(tgt_width, T(1.0), d_A, 1, d_B, 1);  
+                  cublas::cublas_axpy_wrapper2(tgt_width, T(1.0), d_A, 1, d_B, 1); 
 #else                  
                   T * A = &buf[rowidx*tgt_width];
                   T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];                  
@@ -1517,7 +1519,11 @@ namespace symPACK{
                   for (rowind_t i = 0; i < tgt_width; ++i) { B[i] += A[i]; }
 #endif                  
                 }
-                CUDA_ERROR_CHECK(cudaDeviceSynchronize());                
+                CUDA_ERROR_CHECK(cudaDeviceSynchronize());   
+		Clock::time_point axpy_etime = Clock::now();
+		Clock::duration axpy_total = axpy_etime - axpy_stime;
+		statfileptr->OFS()<<"Axpy: "<<axpy_total.count()<<"ns"<<std::endl;
+   				
               }
               else {
                 // full sparse case

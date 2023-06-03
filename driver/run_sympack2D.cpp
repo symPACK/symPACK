@@ -5,8 +5,6 @@
 #include <sympack/symPACKMatrix2D.hpp>
 #include "sympack/CommTypes.hpp"
 #include "sympack/Ordering.hpp"
-//#include "sympack/cuBLAS.hpp"
-//#include "sympack/kernels.cuh"
 
 #include "utils.hpp"
 
@@ -93,7 +91,7 @@ int main(int argc, char **argv)
     size_t total;
     cudaMemGetInfo(&free, &total);
     
-    size_t alloc_size = (free / 2) / (n_gpus / upcxx::rank_n());
+    size_t alloc_size = (free / 2) / (upcxx::rank_n() / n_gpus);
     upcxx::barrier();
 
     symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(alloc_size); //TODO: Use memory budget stuff to remove magic number
