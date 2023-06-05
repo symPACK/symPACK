@@ -1,6 +1,7 @@
 from collections import defaultdict
 import getopt 
 import sys
+import statistics
 
 def analyze():
     
@@ -27,6 +28,7 @@ def analyze():
     fetch_dat = defaultdict(lambda : 0)
     axpy_dat = defaultdict(lambda:0)
     alloc_dat = defaultdict(lambda:0)
+    trsm_sz_dat = defaultdict(lambda:[])
     
     outfile = open(outfile_name, "w+")
 
@@ -49,6 +51,8 @@ def analyze():
                 axpy_dat = parse_line(axpy_dat, line, p)
             if line.find("Alloc")!=-1:
                 alloc_dat = parse_line(alloc_dat, line, p)
+            if line.find("TRSM_SIZE")!=-1:
+                trsm_sz_dat = parse_line(trsm_sz_dat, line, p, lambda a,b: a + [b])
         
         outfile.write(f"***********Stats for P{p}***********\n")
         outfile.write(f"Update_cpy total: {update_cpy_dat[p]}\n")  
@@ -58,12 +62,13 @@ def analyze():
         outfile.write(f"Fetch total: {fetch_dat[p]}\n")
         outfile.write(f"Axpy total: {axpy_dat[p]}\n")
         outfile.write(f"Alloc total: {alloc_dat[p]}\n")
+        outfile.write(f"TRSM size avg: {statistics.median(trsm_sz_dat[p])}\n")
                         
 
-def parse_line(data, line, p):
+def parse_line(data, line, p, l=lambda a,b: a+(b/1e9)):
     time = line.split(": ")[1]
     time = int(time.strip("ns\n"))        
-    data[p] += (time / 1e9)
+    data[p] = l(data[p], time)
     return data
 
 
