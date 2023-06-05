@@ -77,7 +77,6 @@ int main(int argc, char **argv)
     std::vector<SCALAR> XFinal;
     auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
     try{
-#ifdef CUDA_MODE
 
     logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
 
@@ -97,7 +96,6 @@ int main(int argc, char **argv)
     symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(alloc_size); //TODO: Use memory budget stuff to remove magic number
     logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
 
-#endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
       timeSta = get_time();

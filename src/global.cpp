@@ -52,7 +52,6 @@ int symPACK_Init(int *argc, char ***argv){
   symPACK::gpu_debug = false;
 
   //init CUDA if in CUDA mode 
-#ifdef CUDA_MODE
   symPACK::gpu_debug = true;
   symPACK::n_gpus = upcxx::gpu_default_device::device_n();
   symPACK::handlers.reserve(symPACK::n_gpus);
@@ -82,7 +81,6 @@ int symPACK_Init(int *argc, char ***argv){
     symPACK::streams[i] = s;
     cudaStreamCreate(&symPACK::streams[i]);
   }
-#endif
   
   // init MPI, if necessary
   MPI_Initialized(&symPACK::mpi_already_init);

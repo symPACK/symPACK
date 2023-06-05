@@ -395,10 +395,8 @@ namespace symPACK{
           }
 
           upcxx::future<incoming_data_t *> fetch() {
-	    using Clock = std::chrono::high_resolution_clock;
             if (!transfered) {
               transfered=true;
-	      Clock::time_point stime = Clock::now();
 #ifdef CUDA_MODE
               upcxx::when_all(
                 upcxx::copy(d_remote_gptr, d_landing_zone, size),
@@ -411,9 +409,6 @@ namespace symPACK{
                   on_fetch.fulfill_result(this);
                   return;});
 #endif                  
-	      Clock::time_point etime = Clock::now();
-	      Clock::duration total = etime - stime;
-	      statfileptr->OFS()<<"Fetch: "<<total.count()<<"ns"<<std::endl;
 
             }
 	    return on_fetch_future;
@@ -1154,8 +1149,6 @@ namespace symPACK{
 
         virtual int factorize( TempUpdateBuffers<T> & tmpBuffers) {
           scope_timer(a,blockCell_t::factorize);
-	  using Clock = std::chrono::high_resolution_clock;
-	  Clock::time_point stime = Clock::now();
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
@@ -1185,16 +1178,10 @@ namespace symPACK{
             gdb_lock();
           }
 #endif          
-	  Clock::time_point etime = Clock::now();
-	  Clock::duration total = etime - stime;
-	  statfileptr->OFS()<<"Factorize: "<<total.count()<<"ns"<<std::endl;
           return 0;
         }
 
         virtual int trsm( const blockCellBase_t * pdiag, TempUpdateBuffers<T> & tmpBuffers) {
-          scope_timer(a,blockCell_t::trsm);
-	  using Clock = std::chrono::high_resolution_clock;
-	  Clock::time_point stime = Clock::now();
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
@@ -1205,7 +1192,6 @@ namespace symPACK{
           bassert(diag->nblocks()>0);
 
           auto snode_size = std::get<0>(_dims);
-	  statfileptr->OFS()<<"TRSM_SIZE: "<<snode_size*total_rows()<<std::endl;
 #ifdef CUDA_MODE
 	  auto diag_nzval = diag->_d_nzval;//A
 	  auto nzblk_nzval = _d_nzval;//B
@@ -1217,11 +1203,24 @@ namespace symPACK{
 #else
           auto diag_nzval = diag->_nzval;
           auto nzblk_nzval = _nzval;
-          blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+          //blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+	  if (snode_size*total_rows() > 15000) {
+	  	upcxx::global_ptr<T, upcxx::memory_kind::cuda_device>  diag_nzval_inter = symPACK::gpu_allocator.allocate<T>(diag->_nnz); //nullptr; //Matrix B
+	  	upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> nzblk_nzval_inter = symPACK::gpu_allocator.allocate<T>(_nnz);
+	        upcxx::when_all(
+			upcxx::copy(diag_nzval, diag_nzval_inter, diag->_nnz),
+			upcxx::copy(nzblk_nzval, nzblk_nzval_inter, _nnz)
+		).wait();	
+	  	cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
+			      snode_size, total_rows(), T(1.0), symPACK::gpu_allocator.local(diag_nzval_inter), snode_size, 
+			      symPACK::gpu_allocator.local(nzblk_nzval_inter), snode_size);
+		cudaDeviceSynchronize();
+		upcxx::copy(nzblk_nzval_inter, nzblk_nzval, _nnz).wait();
+
+	  } else {
+          	blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+	  }
 #endif
-	  Clock::time_point etime = Clock::now();
-	  Clock::duration total = etime - stime;
-	  statfileptr->OFS()<<"TRSM: "<<total.count()<<"ns"<<std::endl;
           return 0;
         }
 
@@ -1520,9 +1519,6 @@ namespace symPACK{
 #endif                  
                 }
                 CUDA_ERROR_CHECK(cudaDeviceSynchronize());   
-		Clock::time_point axpy_etime = Clock::now();
-		Clock::duration axpy_total = axpy_etime - axpy_stime;
-		statfileptr->OFS()<<"Axpy: "<<axpy_total.count()<<"ns"<<std::endl;
    				
               }
               else {
@@ -1562,9 +1558,6 @@ namespace symPACK{
                 }
 		upcxx::copy(h_tgt, tgt, this->_nnz).wait();
 		symPACK::gpu_allocator.deallocate(tmpBuffers.d_tmpBuf);
-		Clock::time_point etime_cpy = Clock::now();
-		Clock::duration total_cpy = etime_cpy - stime_cpy;
-		statfileptr->OFS()<<"Update_cpy: "<<total_cpy.count()<<"ns"<<std::endl;
                 
 #else                
                 for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
@@ -1580,9 +1573,6 @@ namespace symPACK{
               SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_ADD);
             }
           }
-	  Clock::time_point etime = Clock::now();
-	  Clock::duration total = etime - stime;
-	  statfileptr->OFS()<<"Update: "<<total.count()<<"ns"<<std::endl;
           return 0;
         }
 
