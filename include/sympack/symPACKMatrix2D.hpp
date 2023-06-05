@@ -1205,15 +1205,15 @@ namespace symPACK{
           bassert(diag->nblocks()>0);
 
           auto snode_size = std::get<0>(_dims);
+	  statfileptr->OFS()<<"TRSM_SIZE: "<<snode_size*total_rows()<<std::endl;
 #ifdef CUDA_MODE
-          auto diag_nzval = diag->_d_nzval;//A
-          auto nzblk_nzval = _d_nzval;//B
-
-          T * diag_nzval_inter = symPACK::gpu_allocator.local(diag_nzval); //nullptr; //Matrix B
-          T * nzblk_nzval_inter = symPACK::gpu_allocator.local(nzblk_nzval); //nullptr; //Matrix A
-          cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
-                                      snode_size, total_rows(), T(1.0), diag_nzval_inter, snode_size, nzblk_nzval_inter, snode_size);
-          CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+	  auto diag_nzval = diag->_d_nzval;//A
+	  auto nzblk_nzval = _d_nzval;//B
+	  T * diag_nzval_inter = symPACK::gpu_allocator.local(diag_nzval); //nullptr; //Matrix B
+	  T * nzblk_nzval_inter = symPACK::gpu_allocator.local(nzblk_nzval); //nullptr; //Matrix A
+	  cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
+			      snode_size, total_rows(), T(1.0), diag_nzval_inter, snode_size, nzblk_nzval_inter, snode_size);
+	 //synchronize happens outside the trsm call 
 #else
           auto diag_nzval = diag->_nzval;
           auto nzblk_nzval = _nzval;
@@ -4826,6 +4826,9 @@ namespace symPACK{
                   }
 #ifdef _TIMING_
                   start = gasneti_ticks_now();
+#endif
+#ifdef CUDA_MODE
+          	  CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 #endif
                   //Iterate thru dependent tasks
                   for (auto it = ptask->out_dependencies.begin(); it!=ptask->out_dependencies.end(); it++) {
