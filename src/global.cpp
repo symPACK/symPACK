@@ -49,6 +49,7 @@ int symPACK_Init(int *argc, char ***argv){
     libUPCXXInit = true;
   }
 
+#ifdef CUDA_MODE
   symPACK::gpu_debug = false;
 
   //init CUDA if in CUDA mode 
@@ -56,7 +57,6 @@ int symPACK_Init(int *argc, char ***argv){
   symPACK::n_gpus = upcxx::gpu_default_device::device_n();
   symPACK::handlers.reserve(symPACK::n_gpus);
   symPACK::cusolver_handlers.reserve(symPACK::n_gpus);
-
   cublasStatus_t status;
   cusolverStatus_t cusolver_status;
   for (int i=0; i<symPACK::n_gpus; i++) {
@@ -81,7 +81,8 @@ int symPACK_Init(int *argc, char ***argv){
     symPACK::streams[i] = s;
     cudaStreamCreate(&symPACK::streams[i]);
   }
-  
+#endif
+
   // init MPI, if necessary
   MPI_Initialized(&symPACK::mpi_already_init);
   if (!symPACK::mpi_already_init) MPI_Init(argc, argv);
