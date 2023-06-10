@@ -36,10 +36,10 @@
 //#include <gasnetex.h>
 #include <chrono>
 
-#define TRSM_CPU_LIMIT 15000
-#define FACTORIZE_CPU_LIMIT 1000
-#define GEMM_CPU_LIMIT 5000
-#define SYRK_CPU_LIMIT 5000
+#define TRSM_CPU_LIMIT 1
+#define FACTORIZE_CPU_LIMIT 1
+#define GEMM_CPU_LIMIT 1
+#define SYRK_CPU_LIMIT 1
 #define AXPY_CPU_LIMIT 100000000
 
 #ifdef _PRIORITY_QUEUE_RDY_
@@ -988,12 +988,12 @@ namespace symPACK{
           try {
 #ifdef CUDA_MODE
 	    if (snode_size > FACTORIZE_CPU_LIMIT) {
-		dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(snode_size);
-		upcxx::copy(diag_nzval, d_diag_nzval, snode_size).wait();	
+		dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(snode_size*snode_size);
+		upcxx::copy(diag_nzval, d_diag_nzval, snode_size*snode_size).wait();	
             	lapack::cusolver_potrf(symPACK::cusolver_handlers[symPACK::gpu_allocator.device_id()], 'U', snode_size, 
 				       symPACK::gpu_allocator.local(d_diag_nzval), snode_size);
             	CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-		upcxx::copy(d_diag_nzval, diag_nzval, snode_size).wait();
+		upcxx::copy(d_diag_nzval, diag_nzval, snode_size*snode_size).wait();
 	    } else {
             	lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
 	    }
@@ -1381,10 +1381,26 @@ namespace symPACK{
             bassert(this->blocks().size()==1);
             auto diag_nzval = this->_nzval;
 #ifdef CUDA_MODE
-            //cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_RIGHT,CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT,ldsol,ldfact, T(1.0),  symPACK::gpu_allocator.local(diag_nzval), ldfact, symPACK::gpu_allocator.local(tgt_contrib._d_nzval), ldsol);
+	    if (ldsol*ldfact > TRSM_CPU_LIMIT) {
 		
-	    //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-            blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
+		dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(ldfact*ldfact);
+		dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol*ldfact);
+		
+		upcxx::when_all(
+			upcxx::copy(diag_nzval, d_diag_nzval, ldfact*ldfact),
+			upcxx::copy(tgt_contrib._nzval, d_nzval, ldsol*ldfact)
+		).wait();
+
+	    	cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_RIGHT,CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT,
+				ldsol,ldfact, T(1.0),  
+				symPACK::gpu_allocator.local(d_diag_nzval), ldfact, 
+				symPACK::gpu_allocator.local(d_nzval), ldsol);
+	    	CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+
+		upcxx::copy(d_nzval, tgt_contrib._nzval, ldsol*ldfact).wait();
+	    } else {
+            	blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
+	    }
 #else
             blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
 #endif
@@ -1408,12 +1424,31 @@ namespace symPACK{
               T * tgt = tgt_contrib._nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
               //Do -L*Y (gemm)
 #ifdef CUDA_MODE
-              //cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_N,ldsol,this->block_nrows(src_block),ldfact,
-                  //T(-1.0),symPACK::gpu_allocator.local(diag_contrib._d_nzval),ldsol,symPACK::gpu_allocator.local(src),
-		//  ldfact,T(1.0),symPACK::gpu_allocator.local(tgt),ldsol);
-	      //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-              blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
-                  T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
+	      if (ldsol * ldfact > GEMM_CPU_LIMIT ||
+		  this->block_nrows(src_block)*ldfact > GEMM_CPU_LIMIT ||
+		  ldsol * this->block_nrows(src_block) > GEMM_CPU_LIMIT) {
+		  
+		  dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol * ldfact);
+		  dev_ptr d_src = symPACK::gpu_allocator.allocate<T>(this->block_nrows(src_block)*ldfact);
+		  dev_ptr d_tgt = symPACK::gpu_allocator.allocate<T>(this->block_nrows(src_block)*ldsol);
+
+		  upcxx::when_all(
+			upcxx::copy(diag_contrib._nzval, d_nzval, ldsol*ldfact),
+			upcxx::copy(src, d_src, this->block_nrows(src_block)*ldfact),
+			upcxx::copy(tgt, d_tgt, this->block_nrows(src_block)*ldsol)
+		  ).wait();
+
+              	  cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_N,ldsol,this->block_nrows(src_block),ldfact,
+                  	T(-1.0),symPACK::gpu_allocator.local(d_nzval),ldsol,
+			symPACK::gpu_allocator.local(d_src),ldfact,T(1.0),
+			symPACK::gpu_allocator.local(d_tgt),ldsol);
+	      	  CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+		  
+		  upcxx::copy(d_tgt, tgt, ldsol*this->block_nrows(src_block)).wait();
+	      } else {
+              	  blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
+                  	T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
+	      }
 #else
               blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
                   T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
@@ -1443,15 +1478,28 @@ namespace symPACK{
 #endif          
           return 0;
         }
-
+	
+	//NOTE: This is only called with TRANSA=T
         virtual int _tri_solve(char TRANSA, int_t M,int_t N,T ALPHA,T* A,int_t LDA,T* B,int_t LDB) {
 #ifdef CUDA_MODE
-          //if (TRANSA=='T')
-            //cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,M,N, ALPHA,  A, LDA, B, LDB);
-          //else
-            //cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT,M,N, ALPHA,  A, LDA, B, LDB);
-	  //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-          blas::Trsm('R','U',TRANSA,'N',M,N, ALPHA,  A, LDA, B, LDB);
+	  if (M*N > TRSM_CPU_LIMIT) {
+	  	dev_ptr d_A = symPACK::gpu_allocator.allocate<T>(LDA*N);
+		dev_ptr d_B = symPACK::gpu_allocator.allocate<T>(LDB*N);
+
+		upcxx::when_all(
+			upcxx::copy(A, d_A, LDA*N),
+			upcxx::copy(B, d_B, LDB*N)
+		).wait();
+
+            	cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,M,N, ALPHA, 
+						symPACK::gpu_allocator.local(d_A), LDA, 
+						symPACK::gpu_allocator.local(d_B), LDB);
+	  	CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+
+		upcxx::copy(d_B, B, LDB*N).wait();
+	  } else {
+          	blas::Trsm('R','U',TRANSA,'N',M,N, ALPHA,  A, LDA, B, LDB);
+	  }
 #else
           blas::Trsm('R','U',TRANSA,'N',M,N, ALPHA,  A, LDA, B, LDB);
 #endif
@@ -1491,15 +1539,31 @@ namespace symPACK{
 #ifdef CUDA_MODE
               T alpha = T(-1.0);
               T beta = T(1.0);
-              
-              //cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_T,ldsol,ldfact,this->block_nrows(fact_block), 
-              	//	T(-1.0),symPACK::gpu_allocator.local(src),ldsol,
-	      	//	symPACK::gpu_allocator.local(fact),
-	      	//	ldfact,T(1.0),
-		//	symPACK::gpu_allocator.local(tgt_contrib._d_nzval),ldsol);
-	      //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-              blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), 
-              T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
+              if (ldsol * ldfact > GEMM_CPU_LIMIT ||
+		  this->block_nrows(fact_block)*ldsol > GEMM_CPU_LIMIT ||
+		  ldfact * this->block_nrows(fact_block) > GEMM_CPU_LIMIT) {
+		  
+		  dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol * ldfact);
+		  dev_ptr d_src = symPACK::gpu_allocator.allocate<T>(this->block_nrows(fact_block)*ldsol);
+		  dev_ptr d_fact = symPACK::gpu_allocator.allocate<T>(this->block_nrows(fact_block)*ldfact);
+
+		  upcxx::when_all(
+			upcxx::copy(tgt_contrib._nzval, d_nzval, ldsol*ldfact),
+			upcxx::copy(src, d_src, this->block_nrows(fact_block)*ldsol),
+			upcxx::copy(fact, d_fact, this->block_nrows(fact_block)*ldfact)
+		  ).wait();
+
+              	  cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_T,ldsol,ldfact,this->block_nrows(fact_block),
+                  	T(-1.0),symPACK::gpu_allocator.local(d_src),ldsol,
+			symPACK::gpu_allocator.local(d_fact),ldfact,T(1.0),
+			symPACK::gpu_allocator.local(d_nzval),ldsol);
+	      	  CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+		  
+		  upcxx::copy(d_nzval, tgt_contrib._nzval, ldfact*ldsol).wait();
+	      } else {
+              	  blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), 
+              		T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
+	      }
 #else              
               blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), 
               T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
