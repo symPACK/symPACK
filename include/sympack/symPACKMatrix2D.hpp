@@ -36,10 +36,10 @@
 //#include <gasnetex.h>
 #include <chrono>
 
-#define TRSM_CPU_LIMIT 1
-#define FACTORIZE_CPU_LIMIT 1
-#define GEMM_CPU_LIMIT 1
-#define SYRK_CPU_LIMIT 1
+#define TRSM_CPU_LIMIT 15000
+#define FACTORIZE_CPU_LIMIT 1000
+#define GEMM_CPU_LIMIT 5000
+#define SYRK_CPU_LIMIT 5000
 #define AXPY_CPU_LIMIT 100000000
 
 #ifdef _PRIORITY_QUEUE_RDY_
@@ -995,6 +995,7 @@ namespace symPACK{
 				       symPACK::gpu_allocator.local(d_diag_nzval), snode_size);
             	CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 		upcxx::copy(d_diag_nzval, diag_nzval, snode_size*snode_size).wait();
+		symPACK::gpu_allocator.deallocate(d_diag_nzval);
 	    } else {
             	lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
 	    }
@@ -1035,6 +1036,8 @@ namespace symPACK{
 			      symPACK::gpu_allocator.local(nzblk_nzval_inter), snode_size);
 		cudaDeviceSynchronize();
 		upcxx::copy(nzblk_nzval_inter, nzblk_nzval, _nnz).wait();
+		symPACK::gpu_allocator.deallocate(diag_nzval_inter);
+		symPACK::gpu_allocator.deallocate(nzblk_nzval_inter);
 
 	  } else {
           	blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
@@ -1169,6 +1172,9 @@ namespace symPACK{
 		CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
 		upcxx::copy(d_buf, buf, tgt_width * ldbuf).wait();
+
+		symPACK::gpu_allocator.deallocate(d_pivot_nzval);
+		symPACK::gpu_allocator.deallocate(d_buf);
 	      } else {
               	blas::Syrk('U','T',tgt_width, src_snode_size,
                   T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
@@ -1205,6 +1211,9 @@ namespace symPACK{
 			CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 			
 			upcxx::copy(d_buf, buf, ldbuf*src_nrows).wait();
+			symPACK::gpu_allocator.deallocate(d_pivot_nzval);
+			symPACK::gpu_allocator.deallocate(d_facing_nzval);
+			symPACK::gpu_allocator.deallocate(d_buf);
 
 	      } else {
 	      	 blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
@@ -1399,6 +1408,9 @@ namespace symPACK{
 	    	CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
 		upcxx::copy(d_nzval, tgt_contrib._nzval, ldsol*ldfact).wait();
+		
+		symPACK::gpu_allocator.deallocate(d_diag_nzval);
+		symPACK::gpu_allocator.deallocate(d_nzval);
 	    } else {
             	blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
 	    }
@@ -1446,6 +1458,10 @@ namespace symPACK{
 	      	  CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 		  
 		  upcxx::copy(d_tgt, tgt, ldsol*this->block_nrows(src_block)).wait();
+
+		  symPACK::gpu_allocator.deallocate(d_nzval);
+		  symPACK::gpu_allocator.deallocate(d_src);
+		  symPACK::gpu_allocator.deallocate(d_tgt);
 	      } else {
               	  blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
                   	T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
@@ -1498,6 +1514,8 @@ namespace symPACK{
 	  	CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
 		upcxx::copy(d_B, B, LDB*N).wait();
+		symPACK::gpu_allocator.deallocate(d_A);
+		symPACK::gpu_allocator.deallocate(d_B);
 	  } else {
           	blas::Trsm('R','U',TRANSA,'N',M,N, ALPHA,  A, LDA, B, LDB);
 	  }
@@ -1561,6 +1579,9 @@ namespace symPACK{
 	      	  CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 		  
 		  upcxx::copy(d_nzval, tgt_contrib._nzval, ldfact*ldsol).wait();
+		  symPACK::gpu_allocator.deallocate(d_nzval);
+		  symPACK::gpu_allocator.deallocate(d_src);
+		  symPACK::gpu_allocator.deallocate(d_fact);
 	      } else {
               	  blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), 
               		T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
