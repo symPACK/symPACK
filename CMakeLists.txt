@@ -76,9 +76,10 @@ ENDIF()
 
 target_link_libraries(run_sympack PUBLIC   symPACK::sympack)
 target_link_libraries(run_sympack2D PUBLIC symPACK::sympack)
-target_link_libraries(run_sympack PUBLIC -lcublas)
-target_link_libraries(run_sympack2D  PUBLIC -lcublas)
-
+IF(ENABLE_CUDA)
+	target_link_libraries(run_sympack PUBLIC symPACK::sympack -lcublas -lcusolver)
+	target_link_libraries(run_sympack2D  PUBLIC symPACK::sympack -lcublas -lcusolver)
+ENDIF()
 find_package( Threads )
 target_link_libraries( run_sympack PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
 target_link_libraries( run_sympack2D PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
