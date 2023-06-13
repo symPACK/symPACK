@@ -883,7 +883,8 @@ namespace symPACK{
           }
           initialize( nzval_cnt, block_cnt );
         }
-
+	
+	//Debugging utility functions
 
         void print_block(blockCell_t & block, std::string prefix, bool dev=false) const{  
           
