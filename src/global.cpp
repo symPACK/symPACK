@@ -36,6 +36,25 @@ int symPACK_Rank(int * rank){
 }
 
 
+#ifdef CUDA_MODE
+void symPACK_cuda_setup() {
+  int n_gpus = upcxx::gpu_default_device::device_n();
+  symPACK::handlers.reserve(n_gpus); 
+  symPACK::cusolver_handlers.reserve(n_gpus);
+  cublasStatus_t status;
+  cusolverStatus_t cusolver_status;
+  int gpu_id = upcxx::rank_me() % n_gpus;
+
+  cublasHandle_t handle;
+  symPACK::handlers[gpu_id] = handle; 
+  cudaSetDevice(gpu_id);
+  CUBLAS_ERROR_CHECK(cublasCreate(&symPACK::handlers[gpu_id]));
+
+  cusolverDnHandle_t cusolver_handle;
+  symPACK::cusolver_handlers[gpu_id] = cusolver_handle;
+  CUSOLVER_ERROR_CHECK(cusolverDnCreate(&symPACK::cusolver_handlers[gpu_id]));
+}
+#endif
 
 
 extern "C"
@@ -48,47 +67,18 @@ int symPACK_Init(int *argc, char ***argv){
     symPACK::capture_master_scope();
     libUPCXXInit = true;
   }
-
 #ifdef CUDA_MODE
-  symPACK::gpu_debug = false;
-
-  //init CUDA if in CUDA mode 
-  symPACK::gpu_debug = true;
-  symPACK::n_gpus = upcxx::gpu_default_device::device_n();
-  symPACK::handlers.reserve(symPACK::n_gpus);
-  symPACK::cusolver_handlers.reserve(symPACK::n_gpus);
-  cublasStatus_t status;
-  cusolverStatus_t cusolver_status;
-  for (int i=0; i<symPACK::n_gpus; i++) {
-    cublasHandle_t handle;
-    symPACK::handlers[i] = handle; 
-    cudaSetDevice(i);
-    status = cublasCreate(&symPACK::handlers[i]);
-    if (status!=CUBLAS_STATUS_SUCCESS) {
-      retval = -1;
-    }
-    cusolverDnHandle_t cusolver_handle;
-    symPACK::cusolver_handlers[i] = cusolver_handle;
-    cusolver_status = cusolverDnCreate(&symPACK::cusolver_handlers[i]);
-    if (cusolver_status!=CUSOLVER_STATUS_SUCCESS) {
-    	retval = -1;
-    }
-  }
-
-  symPACK::streams.reserve(3);
-  for (int i=0; i<3; i++) {
-    cudaStream_t s;
-    symPACK::streams[i] = s;
-    cudaStreamCreate(&symPACK::streams[i]);
-  }
+  symPACK_cuda_setup();
 #endif
-
   // init MPI, if necessary
   MPI_Initialized(&symPACK::mpi_already_init);
   if (!symPACK::mpi_already_init) MPI_Init(argc, argv);
   if ( symPACK::world_comm == MPI_COMM_NULL ) MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &symPACK::world_comm);
   return retval;
 }
+
+
+
 
 
 extern "C"
@@ -113,12 +103,11 @@ int symPACK_Finalize(){
   }
 
 #ifdef CUDA_MODE
-  int n_gpus;
-  cudaGetDeviceCount(&n_gpus);
-  for (int i=0; i<n_gpus; i++) {
-    cudaSetDevice(i);
-    cublasDestroy(symPACK::handlers[i]);
-  }
+  int n_gpus = upcxx::gpu_default_device::device_n();
+  int gpu_id = upcxx::rank_me() % n_gpus;
+  cudaSetDevice(gpu_id);
+  cublasDestroy(symPACK::handlers[gpu_id]);
+  cusolverDnDestroy(symPACK::cusolver_handlers[gpu_id]);
   //symPACK::gpu_allocator.destroy();
 #endif
 

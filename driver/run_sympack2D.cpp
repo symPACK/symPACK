@@ -42,7 +42,6 @@ int main(int argc, char **argv)
     statfileptr = new LogFile("Statfile", std::to_string(iam).c_str());
     statfileptr->OFS()<<"********* STATFILE OF P"<<iam<<" *********"<<std::endl;
     statfileptr->OFS()<<"**********************************"<<std::endl;
-    
 
     // *********************************************************************
     // Input parameter

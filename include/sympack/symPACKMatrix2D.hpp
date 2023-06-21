@@ -9,10 +9,12 @@
 
 #include "sympack/mpi_interf.hpp"
 
+#ifdef CUDA_MODE
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "cublas_v2.h"
 #include "cusolverDn.h"
+#endif
 
 //#define _NO_COMPUTATION_
 //#define LOCK_SRC 2
@@ -40,6 +42,7 @@
 #define FACTORIZE_CPU_LIMIT 1000
 #define GEMM_CPU_LIMIT 5000
 #define SYRK_CPU_LIMIT 5000
+#define NO_GPU false
 #define AXPY_CPU_LIMIT 100000000
 
 #ifdef _PRIORITY_QUEUE_RDY_
@@ -1391,7 +1394,7 @@ namespace symPACK{
             bassert(this->blocks().size()==1);
             auto diag_nzval = this->_nzval;
 #ifdef CUDA_MODE
-	    if (ldsol*ldfact > TRSM_CPU_LIMIT) {
+	    if (ldsol*ldfact > TRSM_CPU_LIMIT && NO_GPU) {
 		
 		dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(ldfact*ldfact);
 		dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol*ldfact);
@@ -1437,9 +1440,9 @@ namespace symPACK{
               T * tgt = tgt_contrib._nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
               //Do -L*Y (gemm)
 #ifdef CUDA_MODE
-	      if (ldsol * ldfact > GEMM_CPU_LIMIT ||
+	      if ((ldsol * ldfact > GEMM_CPU_LIMIT ||
 		  this->block_nrows(src_block)*ldfact > GEMM_CPU_LIMIT ||
-		  ldsol * this->block_nrows(src_block) > GEMM_CPU_LIMIT) {
+		  ldsol * this->block_nrows(src_block) > GEMM_CPU_LIMIT) && NO_GPU) {
 		  
 		  dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol * ldfact);
 		  dev_ptr d_src = symPACK::gpu_allocator.allocate<T>(this->block_nrows(src_block)*ldfact);
@@ -1499,7 +1502,7 @@ namespace symPACK{
 	//NOTE: This is only called with TRANSA=T
         virtual int _tri_solve(char TRANSA, int_t M,int_t N,T ALPHA,T* A,int_t LDA,T* B,int_t LDB) {
 #ifdef CUDA_MODE
-	  if (M*N > TRSM_CPU_LIMIT) {
+	  if (M*N > TRSM_CPU_LIMIT && NO_GPU) {
 	  	dev_ptr d_A = symPACK::gpu_allocator.allocate<T>(LDA*N);
 		dev_ptr d_B = symPACK::gpu_allocator.allocate<T>(LDB*N);
 
@@ -1558,9 +1561,9 @@ namespace symPACK{
 #ifdef CUDA_MODE
               T alpha = T(-1.0);
               T beta = T(1.0);
-              if (ldsol * ldfact > GEMM_CPU_LIMIT ||
+              if ((ldsol * ldfact > GEMM_CPU_LIMIT ||
 		  this->block_nrows(fact_block)*ldsol > GEMM_CPU_LIMIT ||
-		  ldfact * this->block_nrows(fact_block) > GEMM_CPU_LIMIT) {
+		  ldfact * this->block_nrows(fact_block) > GEMM_CPU_LIMIT) && NO_GPU) {
 		  
 		  dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol * ldfact);
 		  dev_ptr d_src = symPACK::gpu_allocator.allocate<T>(this->block_nrows(fact_block)*ldsol);
@@ -1592,7 +1595,6 @@ namespace symPACK{
 #endif              
             }
           }
-	  //Debug
           return 0;
         }
 

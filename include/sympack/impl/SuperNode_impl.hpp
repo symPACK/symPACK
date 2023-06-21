@@ -5,11 +5,12 @@
 #include <google/coredumper.h>
 #endif
 
+#ifdef CUDA_MODE
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "cublas_v2.h"
 #include "sympack/cuBLAS.hpp"
-
+#endif
 
 /****************************************/
 /*            _________________         */

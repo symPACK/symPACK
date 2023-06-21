@@ -6,11 +6,12 @@
 
 #include "sympack_definitions.hpp"
 #include "sympack_config.hpp"
+#ifdef CUDA_MODE
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "cublas_v2.h"
 #include "cusolverDn.h"
-
+#endif
 
 #include <sys/time.h>
 inline double get_time()
