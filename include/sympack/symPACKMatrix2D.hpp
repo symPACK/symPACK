@@ -994,7 +994,7 @@ namespace symPACK{
 	    if (snode_size > FACTORIZE_CPU_LIMIT) {
 		dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(snode_size*snode_size);
 		upcxx::copy(diag_nzval, d_diag_nzval, snode_size*snode_size).wait();	
-            	lapack::cusolver_potrf(symPACK::cusolver_handlers[symPACK::gpu_allocator.device_id()], 'U', snode_size, 
+            	lapack::cusolver_potrf(symPACK::cusolver_handler, 'U', snode_size, 
 				       symPACK::gpu_allocator.local(d_diag_nzval), snode_size);
             	CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 		upcxx::copy(d_diag_nzval, diag_nzval, snode_size*snode_size).wait();

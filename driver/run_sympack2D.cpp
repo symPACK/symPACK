@@ -83,22 +83,22 @@ int main(int argc, char **argv)
       logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
     
       int gpu_id = upcxx::rank_me() % n_gpus;
-      cudaSetDevice(gpu_id);
     
       size_t free;
       size_t total;
       cudaMemGetInfo(&free, &total);
     
       size_t alloc_size = (free / 2) / (std::max(upcxx::rank_n(), n_gpus) / n_gpus);
-      upcxx::barrier();
 
       symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(alloc_size); 
       logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
+      symPACK_cuda_setup();
+      upcxx::barrier();
 #endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
-      timeSta = get_time();
       SMat2D->Init(optionsFact);
+      timeSta = get_time();
       SMat2D->SymbolicFactorization(HMat);
       logfileptr->OFS()<<"Distributing Matrix"<<std::endl;
       SMat2D->DistributeMatrix(HMat);

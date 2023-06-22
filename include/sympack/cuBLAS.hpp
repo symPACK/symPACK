@@ -69,7 +69,6 @@ namespace cublas {
         CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_Y), dimy * sizeof(DY[0])));
         CUBLAS_ERROR_CHECK(cublasSetVector(dimy, sizeof(DY[0]), DY, incy, d_Y, incy));
 
-        CUBLAS_ERROR_CHECK(cublas_axpy(symPACK::handlers[gpu_id], N, &DA, d_X, incx, d_Y, incy));
 
         CUBLAS_ERROR_CHECK(cublasGetVector(dimy, sizeof(DY[0]), d_Y, incy, DY, incy));
 
@@ -85,7 +84,7 @@ namespace cublas {
                            const T           DA,
                            const T           * DX, Int incx,
                            T                 * DY, Int incy) {
-        CUBLAS_ERROR_CHECK(cublas_axpy(symPACK::handlers[symPACK::gpu_allocator.device_id()], N, &DA, DX, incx, DY, incy));
+        CUBLAS_ERROR_CHECK(cublas_axpy(symPACK::cublas_handler, N, &DA, DX, incx, DY, incy));
         return CUBLAS_STATUS_SUCCESS;
     }
 
@@ -110,7 +109,6 @@ namespace cublas {
     cublasStatus_t cublas_copy_wrapper(Int n,
 		   			 T * dx, Int incx,
 					 T * dy, Int incy) {
-        CUBLAS_ERROR_CHECK(cublas_copy(symPACK::handlers[symPACK::gpu_allocator.device_id()], n, dx, incx, dy, incy));
 	return CUBLAS_STATUS_SUCCESS;
     }
 
@@ -164,7 +162,6 @@ namespace cublas {
 
         CUBLAS_ERROR_CHECK(cublasSetVector(dimx, sizeof(DX[0]), DX, incx, d_X, incx));
 
-        CUBLAS_ERROR_CHECK(cublas_scal(symPACK::handlers[gpu_id], N, &DA, DX, incx));
 
         CUBLAS_ERROR_CHECK(cublasGetVector(dimx, sizeof(DX[0]), d_X, incx, DX, incx));
 
@@ -179,7 +176,6 @@ namespace cublas {
                             const T           DA,
                             T           * DX, Int incx) {
         
-        CUBLAS_ERROR_CHECK(cublas_scal(symPACK::handlers[symPACK::gpu_allocator.device_id()], N, &DA, DX, incx));
         return CUBLAS_STATUS_SUCCESS;
 
     }
@@ -265,12 +261,6 @@ namespace cublas {
         CUBLAS_ERROR_CHECK(cublasSetVector(dimy, sizeof(Y[0]), Y, incy, d_Y, incy));
 
         /* do gemv */
-        CUBLAS_ERROR_CHECK(cublas_gemv(symPACK::handlers[gpu_id], op,
-                    M, N,
-                    &alpha, d_A, lda,
-                    d_X, incx,
-                    &beta,
-                    d_Y, incy));
 
         /* copy result to host */
         CUBLAS_ERROR_CHECK(cublasGetVector(dimy, sizeof(Y[0]), d_Y, incy, Y, incy));
@@ -366,9 +356,7 @@ namespace cublas {
         CUBLAS_ERROR_CHECK(cublasSetVector(dimy, sizeof(Y[0]), Y, incy, d_Y, incy));
 
         if constexpr (std::is_same_v<T, const float> || std::is_same_v<T, const double>)
-            CUBLAS_ERROR_CHECK(cublas_ger(symPACK::handlers[gpu_id], M, N, alpha, d_X, incx, d_Y, incy, d_A, lda));
         if constexpr (std::is_same_v<T, const cuComplex> || std::is_same_v<T, const cuDoubleComplex>)
-            CUBLAS_ERROR_CHECK(cublas_geru(symPACK::handlers[gpu_id], M, N, alpha, d_X, incx, d_Y, incy, d_A, lda));
 
         CUBLAS_ERROR_CHECK(cublasGetMatrix(lda, N, sizeof(A[0]), d_A, lda, A, lda));
 
@@ -425,7 +413,7 @@ namespace cublas {
         
         //logfileptr->OFS()<<"DOING SYRK"<<std::endl;
 
-        CUBLAS_ERROR_CHECK(cublas_syrk(symPACK::handlers[symPACK::gpu_allocator.device_id()], 
+        CUBLAS_ERROR_CHECK(cublas_syrk(symPACK::cublas_handler, 
                                        uplo, trans,
                                        N, K,
                                        &alpha,
@@ -539,11 +527,6 @@ namespace cublas {
         //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
         /* Do GEMM */
-        CUBLAS_ERROR_CHECK(cublas_gemm(symPACK::handlers[gpu_id], opA, opB,
-                    M, N, K,
-                    &alpha, d_A, lda,
-                    d_B, ldb, &beta,
-                    d_C, ldc));
 
         /* Copy matrices to host */
         //CUBLAS_ERROR_CHECK(cublasGetMatrix(ldc, N, sizeof(C[0]), d_C, ldc, C, ldc));
@@ -571,7 +554,7 @@ namespace cublas {
                            const T           beta,
                            T           * C, Int ldc) {
 
-        CUBLAS_ERROR_CHECK(cublas_gemm(symPACK::handlers[symPACK::gpu_allocator.device_id()], opA, opB,
+        CUBLAS_ERROR_CHECK(cublas_gemm(symPACK::cublas_handler, opA, opB,
                     M, N, K,
                     &alpha, A, lda,
                     B, ldb, &beta,
@@ -626,10 +609,6 @@ namespace cublas {
         CUDA_ERROR_CHECK(cudaMemcpyAsync(d_B, B, ldb * N * sizeof(B[0]), cudaMemcpyHostToDevice));
                 
         /* Do TRSM */
-        CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::handlers[gpu_id], side, fill, op, diag, 
-                    M, N, 
-                    &alpha, d_A, lda, 
-                    d_B, ldb));
 
         /* Copy matrices to host */
         CUDA_ERROR_CHECK(cudaMemcpyAsync(B, d_B, ldb * N * sizeof(B[0]), cudaMemcpyDeviceToHost));
@@ -651,7 +630,7 @@ namespace cublas {
                         T * B, Int ldb) {
     
 
-        CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::handlers[symPACK::gpu_allocator.device_id()], side, fill, op, diag, 
+        CUBLAS_ERROR_CHECK(cublas_trsm(symPACK::cublas_handler, side, fill, op, diag, 
                     M, N, 
                     &alpha, A, lda, 
                     B, ldb));      
