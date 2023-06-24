@@ -58,7 +58,9 @@ int symPACK_Init(int *argc, char ***argv){
   // init MPI, if necessary
   MPI_Initialized(&symPACK::mpi_already_init);
   if (!symPACK::mpi_already_init) MPI_Init(argc, argv);
-  if ( symPACK::world_comm == MPI_COMM_NULL ) MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &symPACK::world_comm);
+  int iam = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &iam);
+  if ( symPACK::world_comm == MPI_COMM_NULL ) MPI_Comm_split(MPI_COMM_WORLD, 0, iam, &symPACK::world_comm);
   MPI_Barrier(MPI_COMM_WORLD);
   // init UPC++
   if ( ! libUPCXXInit ) {

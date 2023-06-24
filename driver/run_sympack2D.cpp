@@ -88,7 +88,7 @@ int main(int argc, char **argv)
       size_t total;
       cudaMemGetInfo(&free, &total);
     
-      size_t alloc_size = (free / 2) / (std::max(upcxx::rank_n(), n_gpus) / n_gpus);
+      size_t alloc_size = (free / 4) / (std::max(upcxx::rank_n(), n_gpus) / n_gpus);
 
       symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(alloc_size); 
       logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
@@ -106,7 +106,7 @@ int main(int argc, char **argv)
       if(upcxx::rank_me()==0){
         std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
       }
-
+      
       timeSta = get_time();
       SMat2D->Factorize();
       timeEnd = get_time();
@@ -148,6 +148,7 @@ int main(int argc, char **argv)
       check_solution(HMat,RHS,XFinal);
     }
 
+    upcxx::barrier();
     MPI_Barrier(worldcomm);
     MPI_Comm_free(&worldcomm);
     delete logfileptr;
