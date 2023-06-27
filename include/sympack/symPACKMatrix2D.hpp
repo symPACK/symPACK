@@ -929,6 +929,7 @@ namespace symPACK{
           return result;
         }
 
+#ifdef CUDA_MODE
         template <typename U=T>
         void check_close(U * correct, upcxx::global_ptr<U, upcxx::memory_kind::cuda_device> actual, int n) {
           double epsilon = 1.0;
@@ -969,7 +970,7 @@ namespace symPACK{
             logfileptr->OFS()<<"Buffers are equal"<<std::endl;
           delete h_actual;
         }
-	
+#endif
 	
 	void dump_nnz(std::string prelude) {
 		progressptr->OFS()<<prelude<<std::endl;

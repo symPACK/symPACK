@@ -2,7 +2,7 @@
  * Author: Julian Bellavita, UC Berkeley
  */
 #include  "sympack/Environment.hpp"
-
+#ifdef CUDA_MODE
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include "cublas_v2.h"
@@ -674,3 +674,4 @@ namespace cublas {
 
 }
 }
+#endif

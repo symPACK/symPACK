@@ -62,12 +62,14 @@ namespace symPACK{
 
 
   extern MPI_Comm world_comm;
+#ifdef CUDA_MODE
   extern cublasHandle_t cublas_handler;
   extern cusolverDnHandle_t cusolver_handler;
   extern std::vector<cudaStream_t> streams;
   extern bool gpu_debug;
   extern int n_gpus;
   extern upcxx::device_allocator<upcxx::cuda_device> gpu_allocator;
+#endif
 }
 
 namespace symPACK{
