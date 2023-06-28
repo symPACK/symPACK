@@ -187,10 +187,18 @@ namespace symPACK{
     scope_timer(a,IN_MSG_ISDONE);
     if(async_get){
       {
+#if UPCXX_VERSION >= 20230305
+	isDone = f_get.is_ready();
+#else
         isDone = f_get.ready();
+#endif
         if(!isDone){
           upcxx::progress();
+#if UPCXX_VERSION >= 20230305
+          isDone = f_get.is_ready();
+#else
           isDone = f_get.ready();
+#endif
         }
         return isDone; 
       }
