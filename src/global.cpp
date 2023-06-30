@@ -62,7 +62,7 @@ int symPACK_Init(int *argc, char ***argv){
   MPI_Comm_rank(MPI_COMM_WORLD, &iam);
   if ( symPACK::world_comm == MPI_COMM_NULL ) MPI_Comm_split(MPI_COMM_WORLD, 0, iam, &symPACK::world_comm);
   MPI_Barrier(MPI_COMM_WORLD);
-  // init UPC++
+   // init UPC++
   if ( ! libUPCXXInit ) {
     upcxx::init();
     upcxx::liberate_master_persona();
@@ -70,11 +70,6 @@ int symPACK_Init(int *argc, char ***argv){
     libUPCXXInit = true;
   }
   upcxx::barrier();
-#ifdef CUDA_MODE
-  //symPACK_cuda_setup();
-#endif
- 
-    
   return retval;
 }
 

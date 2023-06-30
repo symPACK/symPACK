@@ -32,6 +32,10 @@ int main(int argc, char **argv)
     MPI_Comm_size(worldcomm,&np);
     symPACK_Rank(&iam);
 
+    if (iam==0) {
+    	std::cout<<"P="<<np<<std::endl;
+    }
+
     //Initialize a logfile per rank
     logfileptr = new LogFile(iam);
     logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
@@ -72,7 +76,7 @@ int main(int argc, char **argv)
     logfileptr->OFS()<<"Matrix dimension: " << n << std::endl;
     std::vector<SCALAR> RHS,XTrue;
     generate_rhs(HMat,RHS,XTrue,nrhs);
-
+    
     std::vector<SCALAR> XFinal;
     auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
     try{
@@ -88,7 +92,7 @@ int main(int argc, char **argv)
       size_t total;
       cudaMemGetInfo(&free, &total);
     
-      size_t alloc_size = (free / 4) / (std::max(upcxx::rank_n(), n_gpus) / n_gpus);
+      size_t alloc_size = (free) / (std::max(upcxx::rank_n(), n_gpus) / n_gpus);
 
       symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(alloc_size); 
       logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
