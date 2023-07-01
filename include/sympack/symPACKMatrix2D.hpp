@@ -1015,22 +1015,22 @@ namespace symPACK{
           try {
 #ifdef CUDA_MODE
 	    if (snode_size > FACTORIZE_CPU_LIMIT) {
-		
+			
 		dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(snode_size*snode_size);
 		
+		/* Couldn't allocate enough space on GPU, so use CPU */
 		if (d_diag_nzval==nullptr) {
-			gpu_alloc_err_handler(snode_size*snode_size*sizeof(T));	
+			//gpu_alloc_err_handler(snode_size*snode_size*sizeof(T));
+            		lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
+		} else {
+			upcxx::copy(diag_nzval, d_diag_nzval, snode_size*snode_size).wait();	
+			lapack::cusolver_potrf(symPACK::cusolver_handler, 'U', snode_size, 
+					       symPACK::gpu_allocator.local(d_diag_nzval), snode_size);
+			CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+			upcxx::copy(d_diag_nzval, diag_nzval, snode_size*snode_size).wait();
+			symPACK::gpu_allocator.deallocate(d_diag_nzval);
 		}
 
-		upcxx::copy(diag_nzval, d_diag_nzval, snode_size*snode_size).wait();	
-            	
-		lapack::cusolver_potrf(symPACK::cusolver_handler, 'U', snode_size, 
-				       symPACK::gpu_allocator.local(d_diag_nzval), snode_size);
-            	CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-		
-		upcxx::copy(d_diag_nzval, diag_nzval, snode_size*snode_size).wait();
-		
-		symPACK::gpu_allocator.deallocate(d_diag_nzval);
 	    } else {
             	lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
 	    }
@@ -1065,26 +1065,28 @@ namespace symPACK{
 	  	upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> nzblk_nzval_inter = symPACK::gpu_allocator.allocate<T>(snode_size*total_rows());
 		
 		if (diag_nzval_inter==nullptr) {
-			gpu_alloc_err_handler(snode_size*snode_size*sizeof(T));
-		}
-		if (nzblk_nzval_inter==nullptr) {
-			gpu_alloc_err_handler(snode_size*total_rows()*sizeof(T));
-		}
+			//gpu_alloc_err_handler(snode_size*snode_size*sizeof(T));
+          		blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+		} else if (nzblk_nzval_inter==nullptr) {
+			//gpu_alloc_err_handler(snode_size*total_rows()*sizeof(T));
+          		blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+		} else {
 
-	        upcxx::when_all(
-			upcxx::copy(diag_nzval, diag_nzval_inter, snode_size*snode_size),
-			upcxx::copy(nzblk_nzval, nzblk_nzval_inter, snode_size*total_rows())
-		).wait();	
+			upcxx::when_all(
+				upcxx::copy(diag_nzval, diag_nzval_inter, snode_size*snode_size),
+				upcxx::copy(nzblk_nzval, nzblk_nzval_inter, snode_size*total_rows())
+			).wait();	
 
-	  	cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
-			      snode_size, total_rows(), T(1.0), symPACK::gpu_allocator.local(diag_nzval_inter), snode_size, 
-			      symPACK::gpu_allocator.local(nzblk_nzval_inter), snode_size);
-		cudaDeviceSynchronize();
-		
-		upcxx::copy(nzblk_nzval_inter, nzblk_nzval, snode_size*total_rows()).wait();
-		
-		symPACK::gpu_allocator.deallocate(diag_nzval_inter);
-		symPACK::gpu_allocator.deallocate(nzblk_nzval_inter);
+			cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
+				      snode_size, total_rows(), T(1.0), symPACK::gpu_allocator.local(diag_nzval_inter), snode_size, 
+				      symPACK::gpu_allocator.local(nzblk_nzval_inter), snode_size);
+			cudaDeviceSynchronize();
+			
+			upcxx::copy(nzblk_nzval_inter, nzblk_nzval, snode_size*total_rows()).wait();
+			
+			symPACK::gpu_allocator.deallocate(diag_nzval_inter);
+			symPACK::gpu_allocator.deallocate(nzblk_nzval_inter);
+		}
 
 	  } else {
           	blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
@@ -1206,24 +1208,28 @@ namespace symPACK{
 		
 		dev_ptr d_pivot_nzval = symPACK::gpu_allocator.allocate<T>(tgt_width * src_snode_size);
 		dev_ptr d_buf = symPACK::gpu_allocator.allocate<T>(tgt_width * ldbuf);
-		if (d_pivot_nzval==nullptr) gpu_alloc_err_handler(tgt_width*src_snode_size*sizeof(T));
-		if (d_buf==nullptr) gpu_alloc_err_handler(tgt_width*ldbuf*sizeof(T));
+		
+		if (d_pivot_nzval==nullptr) { 
+			blas::Syrk('U','T',tgt_width, src_snode_size, T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
+		} else if (d_buf==nullptr) { 
+			blas::Syrk('U','T',tgt_width, src_snode_size, T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
+		} else {
+			upcxx::when_all(
+				upcxx::copy(pivot_nzval, d_pivot_nzval, tgt_width*src_snode_size),
+				upcxx::copy(buf, d_buf, tgt_width * ldbuf)
+			).wait();
 
-		upcxx::when_all(
-			upcxx::copy(pivot_nzval, d_pivot_nzval, tgt_width*src_snode_size),
-			upcxx::copy(buf, d_buf, tgt_width * ldbuf)
-		).wait();
+			cublas::cublas_syrk_wrapper2(CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_T,tgt_width, src_snode_size,
+					T(-1.0), symPACK::gpu_allocator.local(d_pivot_nzval), 
+					src_snode_size, beta, 
+					symPACK::gpu_allocator.local(d_buf), ldbuf);
+			CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
-              	cublas::cublas_syrk_wrapper2(CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_T,tgt_width, src_snode_size,
-                                T(-1.0), symPACK::gpu_allocator.local(d_pivot_nzval), 
-				src_snode_size, beta, 
-				symPACK::gpu_allocator.local(d_buf), ldbuf);
-		CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+			upcxx::copy(d_buf, buf, tgt_width * ldbuf).wait();
 
-		upcxx::copy(d_buf, buf, tgt_width * ldbuf).wait();
-
-		symPACK::gpu_allocator.deallocate(d_pivot_nzval);
-		symPACK::gpu_allocator.deallocate(d_buf);
+			symPACK::gpu_allocator.deallocate(d_pivot_nzval);
+			symPACK::gpu_allocator.deallocate(d_buf);
+		}
 
 	      } else {
               	blas::Syrk('U','T',tgt_width, src_snode_size,
@@ -1242,33 +1248,42 @@ namespace symPACK{
 	      if (tgt_width * src_nrows > GEMM_CPU_LIMIT ||
 		  tgt_width * src_snode_size > GEMM_CPU_LIMIT ||
 		  src_nrows * src_snode_size > GEMM_CPU_LIMIT ) {
-		        
 		        dev_ptr d_pivot_nzval = symPACK::gpu_allocator.allocate<T>(tgt_width * src_snode_size);
 			dev_ptr d_facing_nzval = symPACK::gpu_allocator.allocate<T>(src_nrows * src_snode_size);
 			dev_ptr d_buf = symPACK::gpu_allocator.allocate<T>(ldbuf * src_nrows);
-			if (d_pivot_nzval==nullptr) gpu_alloc_err_handler(tgt_width*src_snode_size*sizeof(T));
-			if (d_facing_nzval==nullptr) gpu_alloc_err_handler(src_snode_size*src_snode_size*sizeof(T));
-			if (d_buf==nullptr) gpu_alloc_err_handler(ldbuf*src_nrows*sizeof(T));
-
-			upcxx::when_all(
-				upcxx::copy(pivot_nzval, d_pivot_nzval, tgt_width*src_snode_size),
-				upcxx::copy(facing_nzval, d_facing_nzval, src_nrows*src_snode_size),
-				upcxx::copy(buf, d_buf, ldbuf*src_nrows)
-			).wait();
-			
-              		cublas::cublas_gemm_wrapper2(CUBLAS_OP_T, CUBLAS_OP_N,
-                                          tgt_width, src_nrows, src_snode_size,
-                                          T(-1.0), 
-					  symPACK::gpu_allocator.local(d_pivot_nzval), src_snode_size,
-                                          symPACK::gpu_allocator.local(d_facing_nzval), src_snode_size, beta, 
-					  symPACK::gpu_allocator.local(d_buf), ldbuf);
-			CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-			
-			upcxx::copy(d_buf, buf, ldbuf*src_nrows).wait();
-			
-			symPACK::gpu_allocator.deallocate(d_pivot_nzval);
-			symPACK::gpu_allocator.deallocate(d_facing_nzval);
-			symPACK::gpu_allocator.deallocate(d_buf);
+			if (d_pivot_nzval==nullptr) {
+				blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+                  			T(-1.0),pivot_nzval,src_snode_size,
+                  			facing_nzval,src_snode_size,beta,buf,ldbuf);
+			} else if (d_facing_nzval==nullptr) {
+				blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+                  			T(-1.0),pivot_nzval,src_snode_size,
+                  			facing_nzval,src_snode_size,beta,buf,ldbuf);
+			} else if (d_buf==nullptr) { 
+				blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+                  			T(-1.0),pivot_nzval,src_snode_size,
+                  			facing_nzval,src_snode_size,beta,buf,ldbuf);
+			} else {
+				upcxx::when_all(
+					upcxx::copy(pivot_nzval, d_pivot_nzval, tgt_width*src_snode_size),
+					upcxx::copy(facing_nzval, d_facing_nzval, src_nrows*src_snode_size),
+					upcxx::copy(buf, d_buf, ldbuf*src_nrows)
+				).wait();
+				
+				cublas::cublas_gemm_wrapper2(CUBLAS_OP_T, CUBLAS_OP_N,
+						  tgt_width, src_nrows, src_snode_size,
+						  T(-1.0), 
+						  symPACK::gpu_allocator.local(d_pivot_nzval), src_snode_size,
+						  symPACK::gpu_allocator.local(d_facing_nzval), src_snode_size, beta, 
+						  symPACK::gpu_allocator.local(d_buf), ldbuf);
+				CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+				
+				upcxx::copy(d_buf, buf, ldbuf*src_nrows).wait();
+				
+				symPACK::gpu_allocator.deallocate(d_pivot_nzval);
+				symPACK::gpu_allocator.deallocate(d_facing_nzval);
+				symPACK::gpu_allocator.deallocate(d_buf);
+			}
 
 	      } else {
 	      	 blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
