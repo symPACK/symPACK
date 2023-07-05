@@ -4521,7 +4521,6 @@ namespace symPACK{
                     if ( pdest != this->iam ) {
                       upcxx::rpc_ff( pdest,
                           [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                          return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
                               //there is a map between sp_handle and task_graphs
 #ifdef _TIMING_
                               gasneti_tick_t start = gasneti_ticks_now();
@@ -4601,7 +4600,6 @@ namespace symPACK{
 #ifdef _TIMING_
                               matptr->rpc_fact_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
-                          });
                           }, this->sp_handle, ptr_diagcell->_gstorage, ptr_diagcell->_storage_size, ptr_diagcell->nnz(), ptr_diagcell->nblocks(), std::get<0>(ptr_diagcell->_dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end()));                           
                     }
                     else {
@@ -4679,7 +4677,6 @@ namespace symPACK{
                       upcxx::rpc_ff( pdest,
                           [K,I] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, 
                           size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                          return upcxx::current_persona().lpc( [K,I,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
 #ifdef _TIMING_
                               gasneti_tick_t start = gasneti_ticks_now();
 #endif
@@ -4729,7 +4726,6 @@ namespace symPACK{
 #ifdef _TIMING_
                               matptr->rpc_trsm_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
-                          });
                           }, this->sp_handle, ptr_od_cell->_gstorage,ptr_od_cell->_storage_size, ptr_od_cell->nnz(),ptr_od_cell->nblocks(), std::get<0>(ptr_od_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                     }
                     else {
@@ -4934,7 +4930,6 @@ namespace symPACK{
                     if ( pdest != this->iam ) {
                       upcxx::rpc_ff( pdest, 
                           [K,J] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                          return upcxx::current_persona().lpc( [K,J,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
 #ifdef _TIMING_
                               gasneti_tick_t start = gasneti_ticks_now();
 #endif
@@ -4978,7 +4973,6 @@ namespace symPACK{
 #ifdef _TIMING_
                               matptr->rpc_upd_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
-                          });
                           }, this->sp_handle, ptr_upd_cell->_gstorage, ptr_upd_cell->_storage_size,ptr_upd_cell->nnz(),ptr_upd_cell->nblocks(), std::get<0>(ptr_upd_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                     }
                     else {
@@ -5672,8 +5666,6 @@ namespace symPACK{
                             [] (int sp_handle, upcxx::global_ptr<char> gptr,
 				size_t storage_size, size_t nnz, size_t nblocks, rowind_t width,  SparseTask2D::meta_t meta, 
 				upcxx::view<std::size_t> target_cells ) { 
-                            return upcxx::current_persona().lpc( [sp_handle,gptr,
-					    			  storage_size,nnz,nblocks,width,meta,target_cells]() {
                                 //there is a map between sp_handle and task_graphs
                                 auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                 auto I = std::get<1>(meta);
@@ -5718,7 +5710,6 @@ namespace symPACK{
 #endif
                                 }
 
-                            });
 
                             }, this->sp_handle, ptr_contrib->_gstorage, 
 			       ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), 
@@ -5818,8 +5809,6 @@ namespace symPACK{
                           upcxx::rpc_ff( pdest, 
                               [dep_cnt,deleteContrib ] (int sp_handle, upcxx::global_ptr<char> gptr, 
 				      			size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                              return upcxx::current_persona().lpc( [deleteContrib,sp_handle,gptr,
-								    storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
                                   //there is a map between sp_handle and task_graphs
                                   auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                   auto I = std::get<1>(meta);
@@ -5876,7 +5865,6 @@ namespace symPACK{
                                     data->fetch();
 #endif
                                   }
-                              });
 
                               }, this->sp_handle, ptr_contrib->_gstorage,
 			 	 ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
@@ -5966,8 +5954,6 @@ namespace symPACK{
                         upcxx::rpc_ff( pdest,  
                             [ ] (int sp_handle, upcxx::global_ptr<char> gptr, 
 				 size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                            return upcxx::current_persona().lpc( [sp_handle,gptr,
-					    			  storage_size,nnz,nblocks,width,meta,target_cells]() {
                                 //there is a map between sp_handle and task_graphs
                                 auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                 auto I = std::get<1>(meta);
@@ -6014,7 +6000,6 @@ namespace symPACK{
 #endif
                                 }
 
-                            });
 
                             },  this->sp_handle, ptr_contrib->_gstorage,
 			        ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
@@ -6129,8 +6114,6 @@ namespace symPACK{
                           upcxx::rpc_ff( pdest, 
                               [ dep_cnt,deleteContrib ] (int sp_handle, upcxx::global_ptr<char> gptr, 
 				      			size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                              return upcxx::current_persona().lpc( [sp_handle,deleteContrib,gptr,
-								    storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
                                   //there is a map between sp_handle and task_graphs
                                   auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                   auto I = std::get<1>(meta);
@@ -6184,7 +6167,6 @@ namespace symPACK{
                                     data->fetch();
 #endif
                                   }
-                              });
 
                               }, this->sp_handle, ptr_contrib->_gstorage,
 				ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
