@@ -16,6 +16,8 @@
 #include "cusolverDn.h"
 #endif
 
+#include <omp.h>
+
 //#define _NO_COMPUTATION_
 //#define LOCK_SRC 2
 
@@ -31,8 +33,8 @@
 #define _PRIORITY_QUEUE_RDY_
 
 
-//#define _USE_PROM_AVAIL_
-//#define _USE_PROM_RDY_
+#define _USE_PROM_AVAIL_
+#define _USE_PROM_RDY_
 
 #include <functional>
 //#include <gasnetex.h>
@@ -44,6 +46,7 @@
 #define SYRK_CPU_LIMIT 100000
 #define NO_GPU false
 #define AXPY_CPU_LIMIT 100000000
+#define BLOCK_GPU_LIMIT 100000
 
 #ifdef _PRIORITY_QUEUE_RDY_
 #define push_ready(sched,ptr) sched->ready_tasks.push(ptr);
@@ -488,6 +491,8 @@ namespace symPACK{
         };
 #ifdef CUDA_MODE
 	using dev_ptr = upcxx::global_ptr<T, upcxx::memory_kind::cuda_device>;
+	dev_ptr _d_nzval;
+	bool gpu_block;
 #endif 
         //virtual int I() {return i;}
 
@@ -615,6 +620,10 @@ namespace symPACK{
 #ifdef SP_THREADS
           in_use(false),
 #endif
+#ifdef CUDA_MODE
+	  _d_nzval(nullptr),
+	  gpu_block(false),
+#endif
           _storage(nullptr),_nzval(nullptr),
 	  _gstorage(nullptr),_nnz(0), _nnz_comm(0), _storage_size(0), _own_storage(true) {}
         bool _own_storage;
@@ -654,6 +663,13 @@ namespace symPACK{
           _dims = std::make_tuple(width);
           first_col = firstcol;
           initialize(nzval_cnt,block_cnt);
+#ifdef CUDA_MODE
+	  if (nzval_cnt > BLOCK_GPU_LIMIT) {
+	  	_d_nzval = symPACK::gpu_allocator.allocate<T>(nzval_cnt);
+		gpu_block = true;
+		upcxx::copy(_nzval, _d_nzval, nzval_cnt).wait(); 
+	  }
+#endif 
           _nnz = nzval_cnt;
           _block_container._nblocks = block_cnt;
         }
@@ -998,7 +1014,7 @@ namespace symPACK{
 	void gpu_alloc_err_handler(size_t alloc_size) {
 		std::cerr<<"ERROR: tried to alloc "<<alloc_size
 			<<" bytes on device with "<<symPACK::gpu_allocator.segment_size()<<" space left"<<std::endl;
-		gdb_lock();
+		//gdb_lock();
 	}
 #endif
 
@@ -1011,7 +1027,6 @@ namespace symPACK{
 
           auto snode_size = std::get<0>(_dims);
           auto diag_nzval = _nzval;
-
           try {
 #ifdef CUDA_MODE
 	    if (snode_size > FACTORIZE_CPU_LIMIT) {
@@ -1020,7 +1035,7 @@ namespace symPACK{
 		
 		/* Couldn't allocate enough space on GPU, so use CPU */
 		if (d_diag_nzval==nullptr) {
-			//gpu_alloc_err_handler(snode_size*snode_size*sizeof(T));
+			gpu_alloc_err_handler(snode_size*snode_size*sizeof(T));
             		lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
 		} else {
 			upcxx::copy(diag_nzval, d_diag_nzval, snode_size*snode_size).wait();	
@@ -1065,10 +1080,10 @@ namespace symPACK{
 	  	upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> nzblk_nzval_inter = symPACK::gpu_allocator.allocate<T>(snode_size*total_rows());
 		
 		if (diag_nzval_inter==nullptr) {
-			//gpu_alloc_err_handler(snode_size*snode_size*sizeof(T));
+			gpu_alloc_err_handler(snode_size*snode_size*sizeof(T));
           		blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
 		} else if (nzblk_nzval_inter==nullptr) {
-			//gpu_alloc_err_handler(snode_size*total_rows()*sizeof(T));
+			gpu_alloc_err_handler(snode_size*total_rows()*sizeof(T));
           		blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
 		} else {
 
@@ -1093,6 +1108,7 @@ namespace symPACK{
 	  }
 #else
           blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+
 #endif
           return 0;
         }
@@ -1209,9 +1225,11 @@ namespace symPACK{
 		dev_ptr d_pivot_nzval = symPACK::gpu_allocator.allocate<T>(tgt_width * src_snode_size);
 		dev_ptr d_buf = symPACK::gpu_allocator.allocate<T>(tgt_width * ldbuf);
 		
-		if (d_pivot_nzval==nullptr) { 
+		if (d_pivot_nzval==nullptr) {
+		        gpu_alloc_err_handler(tgt_width*src_snode_size);	
 			blas::Syrk('U','T',tgt_width, src_snode_size, T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
 		} else if (d_buf==nullptr) { 
+		        gpu_alloc_err_handler(tgt_width*ldbuf);	
 			blas::Syrk('U','T',tgt_width, src_snode_size, T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
 		} else {
 			upcxx::when_all(
@@ -1252,14 +1270,17 @@ namespace symPACK{
 			dev_ptr d_facing_nzval = symPACK::gpu_allocator.allocate<T>(src_nrows * src_snode_size);
 			dev_ptr d_buf = symPACK::gpu_allocator.allocate<T>(ldbuf * src_nrows);
 			if (d_pivot_nzval==nullptr) {
+				gpu_alloc_err_handler(tgt_width*src_snode_size);
 				blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
                   			T(-1.0),pivot_nzval,src_snode_size,
                   			facing_nzval,src_snode_size,beta,buf,ldbuf);
 			} else if (d_facing_nzval==nullptr) {
+				gpu_alloc_err_handler(src_nrows*src_snode_size);
 				blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
                   			T(-1.0),pivot_nzval,src_snode_size,
                   			facing_nzval,src_snode_size,beta,buf,ldbuf);
 			} else if (d_buf==nullptr) { 
+				gpu_alloc_err_handler(src_nrows*ldbuf);
 				blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
                   			T(-1.0),pivot_nzval,src_snode_size,
                   			facing_nzval,src_snode_size,beta,buf,ldbuf);
@@ -1326,6 +1347,8 @@ namespace symPACK{
 
                   int_t lr = std::min(cur_src_lr,tgt_ptr->first_row + block_nrows(*tgt_ptr)-1);
                   int_t tgtOffset = tgt_ptr->offset + (row - tgt_ptr->first_row)*tgt_snode_size;
+		  
+
                   for (int_t cr = row ;cr<=lr;++cr) {
                     offset+=tgt_width;
                     tmpBuffers.src_to_tgt_offset[rowidx] = tgtOffset + (cr - row)*tgt_snode_size;
@@ -1370,12 +1393,10 @@ namespace symPACK{
 			CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 			upcxx::copy(d_B, B, tgt_width).wait();
 		  } else {
-#pragma unroll
-                  	for (rowind_t i = 0; i < tgt_width; ++i) { B[i] += A[i]; }
+			  blas::Axpy(tgt_width, T(1.0), A, 1, B, 1);
 		  } 
 #else
-#pragma unroll
-                  for (rowind_t i = 0; i < tgt_width; ++i) { B[i] += A[i]; }
+			  blas::Axpy(tgt_width, T(1.0), A, 1, B, 1);
 #endif   				
                 }
               }
@@ -6983,7 +7004,7 @@ namespace symPACK{
           {
             while (local_task_cnt>0) {
               if (!ready_tasks.empty()) {
-  //              upcxx::progress(upcxx::progress_level::internal);
+                upcxx::progress(upcxx::progress_level::internal);
                 auto ptask = top_ready();
                 pop_ready();
                 ptask->execute(); 
@@ -7002,8 +7023,10 @@ namespace symPACK{
                       ptask->satisfy_dep(1,*this);
                       });
                 } 
+	      	upcxx::progress(upcxx::progress_level::internal);
               }
             }
+	    upcxx::progress();
             upcxx::discharge();
 #ifdef SP_THREADS
             if ( this->quiesceHandle_ != nullptr ) this->quiesceHandle_();
