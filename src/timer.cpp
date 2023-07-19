@@ -83,7 +83,7 @@ namespace symPACK{
 
         if (strlen(name) > MAX_NAME_LENGTH) {
           printf("function name must be fewer than %d characters\n",MAX_NAME_LENGTH);
-          assert(0);
+          //assert(0);
         }
       }
 

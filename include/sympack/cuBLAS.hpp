@@ -355,8 +355,8 @@ namespace cublas {
         CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_Y), dimy * sizeof(Y[0])));
         CUBLAS_ERROR_CHECK(cublasSetVector(dimy, sizeof(Y[0]), Y, incy, d_Y, incy));
 
-        if constexpr (std::is_same_v<T, const float> || std::is_same_v<T, const double>)
-        if constexpr (std::is_same_v<T, const cuComplex> || std::is_same_v<T, const cuDoubleComplex>)
+        //if constexpr (std::is_same_v<T, const float> || std::is_same_v<T, const double>)
+        //if constexpr (std::is_same_v<T, const cuComplex> || std::is_same_v<T, const cuDoubleComplex>)
 
         CUBLAS_ERROR_CHECK(cublasGetMatrix(lda, N, sizeof(A[0]), d_A, lda, A, lda));
 

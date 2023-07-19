@@ -37,15 +37,18 @@ int main(int argc, char **argv)
     }
 
     //Initialize a logfile per rank
-    logfileptr = new LogFile(iam);
-    logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
-    logfileptr->OFS()<<"**********************************"<<std::endl;
-    progressptr = new LogFile("ProgFile", std::to_string(iam).c_str());
-    progressptr->OFS()<<"********* PROGFILE OF P"<<iam<<" *********"<<std::endl;
-    progressptr->OFS()<<"**********************************"<<std::endl;
-    statfileptr = new LogFile("Statfile", std::to_string(iam).c_str());
-    statfileptr->OFS()<<"********* STATFILE OF P"<<iam<<" *********"<<std::endl;
-    statfileptr->OFS()<<"**********************************"<<std::endl;
+    bool enable_log = true;
+    if (enable_log) {
+	    logfileptr = new LogFile(iam);
+	    logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
+	    logfileptr->OFS()<<"**********************************"<<std::endl;
+	    progressptr = new LogFile("ProgFile", std::to_string(iam).c_str());
+	    progressptr->OFS()<<"********* PROGFILE OF P"<<iam<<" *********"<<std::endl;
+	    progressptr->OFS()<<"**********************************"<<std::endl;
+	    statfileptr = new LogFile("Statfile", std::to_string(iam).c_str());
+	    statfileptr->OFS()<<"********* STATFILE OF P"<<iam<<" *********"<<std::endl;
+	    statfileptr->OFS()<<"**********************************"<<std::endl;
+    }
 
     // *********************************************************************
     // Input parameter
@@ -73,7 +76,7 @@ int main(int argc, char **argv)
     }
 
     Int n = HMat.size;
-    logfileptr->OFS()<<"Matrix dimension: " << n << std::endl;
+    if (enable_log) logfileptr->OFS()<<"Matrix dimension: " << n << std::endl;
     std::vector<SCALAR> RHS,XTrue;
     generate_rhs(HMat,RHS,XTrue,nrhs);
     
@@ -81,21 +84,20 @@ int main(int argc, char **argv)
     auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
     try{
 #ifdef CUDA_MODE
-      logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
-
+      if (enable_log) logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
+     
       int n_gpus = upcxx::gpu_default_device::device_n(); 
-      logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
-    
-      int gpu_id = upcxx::rank_me() % n_gpus;
-    
+      if (enable_log) logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
+      
       size_t free, total;
       cudaMemGetInfo(&free, &total);
-    
+      upcxx::barrier();
+
       size_t alloc_size = (free) / (std::max(upcxx::rank_n(), n_gpus) / n_gpus);
       if ((std::max(upcxx::rank_n(), n_gpus) / n_gpus)==1) alloc_size=alloc_size/2;
 
-      symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(alloc_size); 
-      logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
+      symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(alloc_size);
+      if (enable_log) logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
 
       symPACK_cuda_setup();
       
@@ -106,7 +108,7 @@ int main(int argc, char **argv)
       SMat2D->Init(optionsFact);
       timeSta = get_time();
       SMat2D->SymbolicFactorization(HMat);
-      logfileptr->OFS()<<"Distributing Matrix"<<std::endl;
+      if (enable_log) logfileptr->OFS()<<"Distributing Matrix"<<std::endl;
       SMat2D->DistributeMatrix(HMat);
       timeEnd = get_time();
       if(upcxx::rank_me()==0){
@@ -119,7 +121,7 @@ int main(int argc, char **argv)
       if(iam==0){
         std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
       }
-      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+      if (enable_log) logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
     }
     catch(const std::bad_alloc& e){
       std::cout << "Allocation failed: " << e.what() << '\n';

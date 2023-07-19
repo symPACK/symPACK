@@ -39,8 +39,8 @@ int symPACK_Rank(int * rank){
 #ifdef CUDA_MODE
 extern "C"
 void symPACK_cuda_setup() {
-  cudaSetDevice(symPACK::gpu_allocator.device_id());
-
+  int gpu_id = symPACK::gpu_allocator.device_id();
+  cudaSetDevice(gpu_id);
   cublasHandle_t handle;
   symPACK::cublas_handler= handle; 
   CUBLAS_ERROR_CHECK(cublasCreate(&symPACK::cublas_handler));
