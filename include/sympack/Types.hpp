@@ -109,6 +109,7 @@ namespace symPACK{
       bool iterRefinement;
       int NpOrdering;
       bool print_stats;
+      int tasks_per_node;
       DecompositionType decomposition;
       MappingType mappingType;
       std::string mappingTypeStr;

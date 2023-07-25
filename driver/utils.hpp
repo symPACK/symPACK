@@ -42,7 +42,6 @@ void generate_rhs( symPACK::DistSparseMatrix<SCALAR> & HMat, std::vector<SCALAR>
 
       RHS.assign(n*nrhs,0.0);
       std::vector<Idx> rrowind;
-      std::vector<SCALAR> rnzval;
       std::vector<SCALAR> ts(nrhs);
       for(Idx j = 1; j<=n; ++j){
         Int iOwner = 0; for(iOwner = 0; iOwner<np;iOwner++){ if(Local.vertexDist[iOwner]+(1-baseval)<=j && j<Local.vertexDist[iOwner+1]+(1-baseval)){ break; } }
@@ -206,6 +205,7 @@ inline void process_options(int argc, char **argv, symPACK::symPACKOptions & opt
   // *********************************************************************
   option_t options;
   OptionsCreate(argc, argv, options);
+  
 
   if( options.find("-in") != options.end() ){
     filename= options["-in"].front();
@@ -220,7 +220,11 @@ inline void process_options(int argc, char **argv, symPACK::symPACKOptions & opt
   if (options.find("-z") != options.end()){
     complextype = true;
   }
-
+  
+  optionsFact.tasks_per_node = -1;
+  if (options.find("-nodes") != options.end()) {
+   optionsFact.tasks_per_node = atoi(options["-nodes"].front().c_str()); 
+  }  
   //-----------------------------------------------------------------
   optionsFact.memory_limit=-1.0;
   if (options.find("-mem") != options.end()){
