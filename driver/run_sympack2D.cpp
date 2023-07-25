@@ -88,7 +88,12 @@ int main(int argc, char **argv)
      
       int n_gpus = upcxx::gpu_default_device::device_n(); 
       logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
-            
+      
+      if (n_gpus==0) {
+        std::cerr<<"Error, found no CUDA devices"<<std::endl;
+        abort();
+      }        
+    
       int tasks_per_node = optionsFact.tasks_per_node; 
       if (tasks_per_node==-1)
         tasks_per_node = upcxx::rank_n();
