@@ -5,7 +5,6 @@
 #include "sympack/symPACKMatrixBase.hpp"
 #include "sympack/symPACKMatrix.hpp"
 
-#include "sympack/kernels.cuh"
 
 #include "sympack/mpi_interf.hpp"
 
@@ -40,6 +39,7 @@
 //#include <gasnetex.h>
 #include <chrono>
 
+#ifdef CUDA_MODE
 #define TRSM_CPU_LIMIT 15000
 #define FACTORIZE_CPU_LIMIT 1000
 #define GEMM_CPU_LIMIT 100000
@@ -47,6 +47,7 @@
 #define NO_GPU false
 #define AXPY_CPU_LIMIT 100000000
 #define GPU_BLOCK_LIMIT 100000
+#endif
 
 #ifdef _PRIORITY_QUEUE_RDY_
 #define push_ready(sched,ptr) sched->ready_tasks.push(ptr);
