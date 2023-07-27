@@ -374,15 +374,14 @@ namespace symPACK{
           std::shared_ptr<blockCellBase_t> extra_data;
 	      incoming_data_t() : transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr)
 #ifdef CUDA_MODE
-          ,d_landing_zone(nullptr), d_remote_gptr(nullptr), is_gpu_block(false), d_size(0)
+          ,d_landing_zone(nullptr), is_gpu_block(false), d_size(0)
 #endif
           {
             on_fetch_future = on_fetch.get_future();
           };
 #ifdef CUDA_MODE
-          using dev_ptr = upcxx::global_ptr<double, upcxx::memory_kind::cuda_device>;
+          using dev_ptr = upcxx::global_ptr<char, upcxx::memory_kind::cuda_device>;
           dev_ptr d_landing_zone;
-          dev_ptr d_remote_gptr;
           bool is_gpu_block;
           size_t d_size;
 #endif
@@ -396,7 +395,8 @@ namespace symPACK{
           void allocate() {
             if (landing_zone == nullptr) landing_zone = new char[size];
 #ifdef CUDA_MODE
-            if (d_landing_zone==nullptr) d_landing_zone = symPACK::gpu_allocator.allocate<double>(d_size);
+            if (d_landing_zone==nullptr) d_landing_zone = symPACK::gpu_allocator.allocate<char>(size);
+            if (d_landing_zone==nullptr) is_gpu_block=false;
 #endif
           }
 
@@ -407,7 +407,7 @@ namespace symPACK{
             if (is_gpu_block) {
               upcxx::when_all(
                 upcxx::rget(remote_gptr, landing_zone, size),
-                upcxx::copy(d_remote_gptr, d_landing_zone, d_size)                    
+                upcxx::copy(remote_gptr, d_landing_zone, size)                    
               ).then([this]() {
                   on_fetch.fulfill_result(this);
                   return;});
@@ -698,13 +698,19 @@ namespace symPACK{
         }
 #ifdef CUDA_MODE
     // GPU block constructor
-    blockCell_t (  int_t i, int_t j,char * ext_storage, dev_ptr d_nzval, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
+    blockCell_t (  int_t i, int_t j,char * ext_storage, 
+                   upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> d_storage, 
+                   rowind_t firstcol, rowind_t width, size_t nzval_cnt, 
+                   size_t block_cnt ): blockCell_t() {
           this->i = i;
           this->j = j;
           _own_storage = false;
           _gstorage = nullptr;
           _storage = ext_storage;   
-          _d_nzval = d_nzval;
+          
+          upcxx::global_ptr<block_t, upcxx::memory_kind::cuda_device> d_blocks;
+          d_blocks = upcxx::reinterpret_pointer_cast<block_t>(d_storage);
+          _d_nzval = upcxx::reinterpret_pointer_cast<T>(d_blocks + block_cnt);
           is_gpu_block = true;
           _dims = std::make_tuple(width);
           first_col = firstcol;
@@ -4583,13 +4589,8 @@ namespace symPACK{
                     //factor is output data so it will not be deleted
 #ifdef CUDA_MODE
                     bool is_gpu_block = false;
-                    upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> d_nzval;
                     if (pdest != this->iam && ptr_diagcell->_nnz*sizeof(T)>GPU_BLOCK_LIMIT && tgt_cells.size()>0) {
-                        d_nzval = symPACK::gpu_allocator.allocate<T>(ptr_diagcell->_nnz);
-                        if (d_nzval != nullptr) {
                             is_gpu_block = true;
-                            upcxx::copy(ptr_diagcell->_nzval, d_nzval, ptr_diagcell->_nnz).wait();
-                        }
                     }
 #endif
                     if ( pdest != this->iam ) {
@@ -4600,9 +4601,6 @@ namespace symPACK{
                           [ ] 
 #endif
                           (int sp_handle, upcxx::global_ptr<char> gptr, 
-#ifdef CUDA_MODE
-                               upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> d_nzval, 
-#endif
                                size_t storage_size, 
                                size_t nnz, size_t nblocks, rowind_t width, 
                                SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
@@ -4649,7 +4647,6 @@ namespace symPACK{
                                       if (is_gpu_block) {
                                         data->is_gpu_block = true;
                                         data->d_size = nnz;
-                                        data->d_remote_gptr = d_nzval;
                                       }
                                     }
 #endif
@@ -4701,9 +4698,6 @@ namespace symPACK{
                               matptr->rpc_fact_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
                           }, this->sp_handle, ptr_diagcell->_gstorage, 
-#ifdef CUDA_MODE
-                             d_nzval,
-#endif
                              ptr_diagcell->_storage_size, ptr_diagcell->nnz(), 
                              ptr_diagcell->nblocks(), std::get<0>(ptr_diagcell->_dims) ,ptask->_meta, 
                              upcxx::make_view(tgt_cells.begin(),tgt_cells.end()));                           
