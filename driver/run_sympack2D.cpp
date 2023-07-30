@@ -32,23 +32,10 @@ int main(int argc, char **argv)
     MPI_Comm_size(worldcomm,&np);
     symPACK_Rank(&iam);
 
-    if (iam==0) {
-    	std::cout<<"P="<<np<<std::endl;
-    }
-
     //Initialize a logfile per rank
-    bool enable_log = true;
-    if (enable_log) {
-	    logfileptr = new LogFile(iam);
-	    logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
-	    logfileptr->OFS()<<"**********************************"<<std::endl;
-	    progressptr = new LogFile("ProgFile", std::to_string(iam).c_str());
-	    progressptr->OFS()<<"********* PROGFILE OF P"<<iam<<" *********"<<std::endl;
-	    progressptr->OFS()<<"**********************************"<<std::endl;
-	    statfileptr = new LogFile("Statfile", std::to_string(iam).c_str());
-	    statfileptr->OFS()<<"********* STATFILE OF P"<<iam<<" *********"<<std::endl;
-	    statfileptr->OFS()<<"**********************************"<<std::endl;
-    }
+    logfileptr = new LogFile(iam);
+    logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
+    logfileptr->OFS()<<"**********************************"<<std::endl;
 
     // *********************************************************************
     // Input parameter
@@ -84,7 +71,7 @@ int main(int argc, char **argv)
     auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
     try{
 #ifdef CUDA_MODE
-      if (enable_log) logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
+      logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
      
       int n_gpus = upcxx::gpu_default_device::device_n(); 
       logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
@@ -105,10 +92,10 @@ int main(int argc, char **argv)
       size_t free, total;
       cudaMemGetInfo(&free, &total);
       size_t alloc_size = (free) / (std::max(tasks_per_node, n_gpus) / n_gpus);
-      if ((std::max(tasks_per_node, n_gpus) / n_gpus)==1) alloc_size=alloc_size/2;
+      if ((std::max(tasks_per_node, n_gpus) / n_gpus)<8) alloc_size=alloc_size/2;
 
       symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(alloc_size);
-      if (enable_log) logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
+      logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
 
       symPACK_cuda_setup();
       upcxx::barrier();
@@ -119,7 +106,7 @@ int main(int argc, char **argv)
       SMat2D->Init(optionsFact);
       timeSta = get_time();
       SMat2D->SymbolicFactorization(HMat);
-      if (enable_log) logfileptr->OFS()<<"Distributing Matrix"<<std::endl;
+      logfileptr->OFS()<<"Distributing Matrix"<<std::endl;
       SMat2D->DistributeMatrix(HMat);
       timeEnd = get_time();
       if(upcxx::rank_me()==0){
@@ -132,7 +119,7 @@ int main(int argc, char **argv)
       if(iam==0){
         std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
       }
-      if (enable_log) logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
     }
     catch(const std::bad_alloc& e){
       std::cout << "Allocation failed: " << e.what() << '\n';
@@ -160,9 +147,6 @@ int main(int argc, char **argv)
       }
 
       SMat2D->GetSolution(&XFinal[0],nrhs);
-
-      //SMat2D->DumpMatlab();
-      //logfileptr->OFS()<<XFinal<<std::endl;
 
       check_solution(HMat,RHS,XFinal);
     }

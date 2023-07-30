@@ -36,7 +36,6 @@
 #define _USE_PROM_RDY_
 
 #include <functional>
-//#include <gasnetex.h>
 #include <chrono>
 
 #ifdef CUDA_MODE
@@ -1065,7 +1064,7 @@ namespace symPACK{
 	void gpu_alloc_err_handler(size_t alloc_size) {
 		std::cerr<<"ERROR: tried to alloc "<<alloc_size
 			<<" bytes on device with "<<symPACK::gpu_allocator.segment_size()<<" space left"<<std::endl;
-		//gdb_lock();
+		gdb_lock();
 	}
 #endif
 
@@ -1432,26 +1431,7 @@ namespace symPACK{
                  
                   T * A = &buf[rowidx*tgt_width];
                   T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];                 
-#ifdef CUDA_MODE
-		  if (tgt_width > AXPY_CPU_LIMIT && false) {
-			dev_ptr d_A = symPACK::gpu_allocator.allocate<T>(tgt_width);
-			dev_ptr d_B = symPACK::gpu_allocator.allocate<T>(tgt_width);
-			  
-			upcxx::when_all(
-				upcxx::copy(A, d_A, tgt_width),
-				upcxx::copy(B, d_B, tgt_width)
-			).wait();
-			cublas::cublas_axpy_wrapper2(tgt_width, T(1.0),
-							symPACK::gpu_allocator.local(d_A), 1,
-							symPACK::gpu_allocator.local(d_B), 1);
-			CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-			upcxx::copy(d_B, B, tgt_width).wait();
-		  } else {
-			  blas::Axpy(tgt_width, T(1.0), A, 1, B, 1);
-		  } 
-#else
-			  blas::Axpy(tgt_width, T(1.0), A, 1, B, 1);
-#endif   				
+    			  blas::Axpy(tgt_width, T(1.0), A, 1, B, 1);
                 }
               }
               else {
