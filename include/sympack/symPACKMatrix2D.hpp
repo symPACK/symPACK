@@ -660,6 +660,10 @@ namespace symPACK{
 
         virtual ~blockCell_t() {
           if (_own_storage) {
+#ifdef CUDA_MODE
+            if (is_gpu_block && !_d_nzval.is_null())
+              symPACK::gpu_allocator.deallocate(_d_nzval);
+#endif
             if ( !_gstorage.is_null() ) {
               bassert(_storage == _gstorage.local());
               upcxx::deallocate( _gstorage );
@@ -1152,7 +1156,9 @@ namespace symPACK{
                 
                 upcxx::copy(nzblk_nzval_inter, nzblk_nzval, snode_size*total_rows()).wait();
                 
-                //symPACK::gpu_allocator.deallocate(diag_nzval_inter);
+                if (!diag->is_gpu_block) {
+                    symPACK::gpu_allocator.deallocate(diag_nzval_inter);
+                }
                 symPACK::gpu_allocator.deallocate(nzblk_nzval_inter);
 
 

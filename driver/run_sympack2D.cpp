@@ -100,9 +100,10 @@ int main(int argc, char **argv)
         
       int gpu_id = upcxx::rank_me() % n_gpus;
     
+      logfileptr->OFS()<<"Tasks per node "<<tasks_per_node<<std::endl;
+    
       size_t free, total;
       cudaMemGetInfo(&free, &total);
-    
       size_t alloc_size = (free) / (std::max(tasks_per_node, n_gpus) / n_gpus);
       if ((std::max(tasks_per_node, n_gpus) / n_gpus)==1) alloc_size=alloc_size/2;
 
@@ -110,8 +111,8 @@ int main(int argc, char **argv)
       if (enable_log) logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
 
       symPACK_cuda_setup();
-      
       upcxx::barrier();
+      
 #endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/

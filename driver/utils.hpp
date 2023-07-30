@@ -222,8 +222,8 @@ inline void process_options(int argc, char **argv, symPACK::symPACKOptions & opt
   }
   
   optionsFact.tasks_per_node = -1;
-  if (options.find("-nodes") != options.end()) {
-   optionsFact.tasks_per_node = atoi(options["-nodes"].front().c_str()); 
+  if (options.find("-tasks-per-node") != options.end()) {
+   optionsFact.tasks_per_node = atoi(options["-tasks-per-node"].front().c_str()); 
   }  
   //-----------------------------------------------------------------
   optionsFact.memory_limit=-1.0;
