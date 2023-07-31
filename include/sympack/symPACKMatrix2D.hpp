@@ -4584,7 +4584,7 @@ namespace symPACK{
 #ifdef CUDA_MODE
                           [is_gpu_block]
 #else 
-                          [ ] 
+                          [] 
 #endif
                           (int sp_handle, upcxx::global_ptr<char> gptr, 
                                size_t storage_size, 
@@ -4634,8 +4634,8 @@ namespace symPACK{
                                         data->is_gpu_block = true;
                                         data->d_size = nnz;
                                       }
-                                    }
 #endif
+                                    }
                                     taskptr->input_msg.push_back(data);
                                     data->target_tasks.push_back(taskptr);
                                     taskptr->avail_dep(1,matptr->scheduler);

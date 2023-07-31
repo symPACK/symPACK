@@ -63,7 +63,7 @@ int main(int argc, char **argv)
     }
 
     Int n = HMat.size;
-    if (enable_log) logfileptr->OFS()<<"Matrix dimension: " << n << std::endl;
+    logfileptr->OFS()<<"Matrix dimension: " << n << std::endl;
     std::vector<SCALAR> RHS,XTrue;
     generate_rhs(HMat,RHS,XTrue,nrhs);
     
@@ -92,7 +92,7 @@ int main(int argc, char **argv)
       size_t free, total;
       cudaMemGetInfo(&free, &total);
       size_t alloc_size = (free) / (std::max(tasks_per_node, n_gpus) / n_gpus);
-      if ((std::max(tasks_per_node, n_gpus) / n_gpus)<8) alloc_size=alloc_size/2;
+      if ((std::max(tasks_per_node, n_gpus) / n_gpus)==1) alloc_size=alloc_size/2;
 
       symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(alloc_size);
       logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
