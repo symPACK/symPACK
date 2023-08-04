@@ -74,20 +74,21 @@ int main(int argc, char **argv)
       logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
      
       int n_gpus = upcxx::gpu_default_device::device_n(); 
-      logfileptr->OFS()<< "Number of GPUs: " << n_gpus << std::endl;
+      logfileptr->OFS()<< "GPUs Per Node: " << n_gpus << std::endl;
       
       if (n_gpus==0) {
         std::cerr<<"Error, found no CUDA devices"<<std::endl;
         abort();
       }        
+
+      MPI_Comm shmcomm;
+      MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &shmcomm);
     
-      int tasks_per_node = optionsFact.tasks_per_node; 
-      if (tasks_per_node==-1)
-        tasks_per_node = upcxx::rank_n();
-        
-      int gpu_id = upcxx::rank_me() % n_gpus;
-    
+      int tasks_per_node;
+      MPI_Comm_size(shmcomm, &tasks_per_node);    
       logfileptr->OFS()<<"Tasks per node "<<tasks_per_node<<std::endl;
+      
+      int gpu_id = upcxx::rank_me() % n_gpus;
     
       size_t free, total;
       cudaMemGetInfo(&free, &total);

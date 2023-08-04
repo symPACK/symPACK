@@ -5,9 +5,15 @@ if(${CMAKE_VERSION} VERSION_LESS 3.12)
 endif()
 
 
-project(symPACK VERSION 2.0
+if (ENABLE_CUDA)
+    project(symPACK VERSION 2.0
                 DESCRIPTION "symPACK is a direct linear solver for sparse symmetric matrices"
                 LANGUAGES C CXX Fortran CUDA)
+else()
+    project(symPACK VERSION 2.0
+                DESCRIPTION "symPACK is a direct linear solver for sparse symmetric matrices"
+                LANGUAGES C CXX Fortran)
+endif()
 
               #include(ExternalProject)
 

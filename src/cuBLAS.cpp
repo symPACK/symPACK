@@ -5,10 +5,7 @@
 
 namespace symPACK {
 namespace cublas {
-    void test(int a) {
-        a+=1;
-    }
- /* ===== LEVEL 1 BLAS ===== */
+/* ===== LEVEL 1 BLAS ===== */
 
 /* AXPY */
 cublasStatus_t cublas_axpy(cublasHandle_t handle, Int n,

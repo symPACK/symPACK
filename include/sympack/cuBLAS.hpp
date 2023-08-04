@@ -53,7 +53,6 @@ namespace cublas {
 
         gpu_id = rank % n_gpus;
 
-        logfileptr->OFS()<<"DOING AXPY on GPU " << gpu_id << "\n";
         cudaSetDevice(gpu_id);
 
         T *d_X;
@@ -150,7 +149,6 @@ namespace cublas {
 
         gpu_id = rank % n_gpus;
 
-        logfileptr->OFS()<<"DOING SCAL on GPU " << gpu_id << "\n";
         cudaSetDevice(gpu_id);
 
         T * d_X;
@@ -233,7 +231,6 @@ namespace cublas {
 
         gpu_id = rank % n_gpus;
 
-        logfileptr->OFS()<<"DOING GEMV on GPU " << gpu_id << "\n";
         cudaSetDevice(gpu_id);
         
         /* Device buffers */
@@ -332,7 +329,6 @@ namespace cublas {
 
         gpu_id = rank % n_gpus;
 
-        logfileptr->OFS()<<"DOING GER on GPU " << gpu_id << "\n";
         cudaSetDevice(gpu_id);
 
         T * d_X;
@@ -355,8 +351,6 @@ namespace cublas {
         CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_Y), dimy * sizeof(Y[0])));
         CUBLAS_ERROR_CHECK(cublasSetVector(dimy, sizeof(Y[0]), Y, incy, d_Y, incy));
 
-        //if constexpr (std::is_same_v<T, const float> || std::is_same_v<T, const double>)
-        //if constexpr (std::is_same_v<T, const cuComplex> || std::is_same_v<T, const cuDoubleComplex>)
 
         CUBLAS_ERROR_CHECK(cublasGetMatrix(lda, N, sizeof(A[0]), d_A, lda, A, lda));
 
@@ -495,41 +489,33 @@ namespace cublas {
         T * d_B;
         T * d_C;
 
-        logfileptr->OFS()<<"DOING GEMM on GPU " << gpu_id << "\n";
         cudaSetDevice(gpu_id);
         
         if (opA==CUBLAS_OP_N) {
             //A is lda*K
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_A), lda * K * sizeof(A[0])));
-            //CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, K, sizeof(A[0]), A, lda, d_A, lda));
             CUDA_ERROR_CHECK(cudaMemcpyAsync(d_A, A, lda * K * sizeof(A[0]), cudaMemcpyHostToDevice));
         } else if (opA==CUBLAS_OP_T) {
             //A is lda*M
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_A), lda * M * sizeof(A[0])));
-            //CUBLAS_ERROR_CHECK(cublasSetMatrix(lda, M, sizeof(A[0]), A, lda, d_A, lda));
             CUDA_ERROR_CHECK(cudaMemcpyAsync(d_A, A, lda * M * sizeof(A[0]), cudaMemcpyHostToDevice));
         }
 
         if (opB==CUBLAS_OP_N) {
             //B is ldb*N
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * N * sizeof(B[0])));
-            //CUBLAS_ERROR_CHECK(cublasSetMatrix(ldb, N, sizeof(B[0]), B, ldb, d_B, ldb));
             CUDA_ERROR_CHECK(cudaMemcpyAsync(d_B, B, ldb * N * sizeof(B[0]), cudaMemcpyHostToDevice));
         } else if (opB==CUBLAS_OP_T) {
             //B is lda*K
             CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_B), ldb * K * sizeof(B[0])));
-            //CUBLAS_ERROR_CHECK(cublasSetMatrix(ldb, K, sizeof(B[0]), B, ldb, d_B, ldb));
             CUDA_ERROR_CHECK(cudaMemcpyAsync(d_B, B, ldb * K * sizeof(B[0]), cudaMemcpyHostToDevice));
         }
         CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_C), ldc * N * sizeof(C[0])));
-        //CUBLAS_ERROR_CHECK(cublasSetMatrix(ldc, N, sizeof(C[0]), C, ldc, d_C, ldc));
         CUDA_ERROR_CHECK(cudaMemcpyAsync(d_C, C, ldc * N * sizeof(C[0]), cudaMemcpyHostToDevice));
-        //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
 
         /* Do GEMM */
 
         /* Copy matrices to host */
-        //CUBLAS_ERROR_CHECK(cublasGetMatrix(ldc, N, sizeof(C[0]), d_C, ldc, C, ldc));
         CUDA_ERROR_CHECK(cudaMemcpyAsync(C, d_C, ldc * N * sizeof(C[0]), cudaMemcpyDeviceToHost));
 
         /* Cleanup */
@@ -539,7 +525,6 @@ namespace cublas {
 
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> diff = end - start;
-        statfileptr->OFS() << "GEMM time: " << diff.count() << std::endl;
 
         return CUBLAS_STATUS_SUCCESS;
     }
@@ -591,7 +576,6 @@ namespace cublas {
 
         gpu_id = rank % n_gpus;
 
-        logfileptr->OFS()<<"DOING TRSM on GPU " << gpu_id << "\n";
         cudaSetDevice(gpu_id);
 
         T * d_A;
@@ -618,7 +602,6 @@ namespace cublas {
         CUDA_ERROR_CHECK(cudaFree(d_B));
         auto end = std::chrono::system_clock::now();
         std::chrono::duration<double> diff = end - start;
-        statfileptr->OFS() << "TRSM time: " << diff.count() << std::endl;
 
         return CUBLAS_STATUS_SUCCESS;
     }
@@ -639,39 +622,7 @@ namespace cublas {
 
     }
 
-    
-    /* UTILITY FUNCTIONS */
-
-    /* Expand buffer pointed to by DEV_PTR from size n to m. Return pointer to new buffer. */
-    template <typename T, typename U>
-    upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> cudaReallocManual(upcxx::global_ptr<T, upcxx::memory_kind::cuda_device>& dev_ptr, 
-                                                                            size_t n, size_t m) {
-        assert(m>n);
-        logfileptr->OFS() << "Calling cudaRealloc\n";
-        upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> new_ptr = symPACK::gpu_allocator.allocate<T>(m*sizeof(U));
-        upcxx::copy(dev_ptr, new_ptr, n*sizeof(U)).wait();
-        symPACK::gpu_allocator.deallocate(dev_ptr);
-        return new_ptr;
-    }
-
-    /* Dumps the contents of a global pointer to the device into the logfile */
-    template <typename T>
-    void print_dev_buffer(upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> ptr, size_t n) {
-
-        // Copy to host buffer
-        T * h_local_ptr = new T[n];
-        upcxx::copy(ptr, h_local_ptr, n).wait();
-
-        logfileptr->OFS()<<"CONTENTS OF DEVICE BUFFER OF SIZE "<<n<<std::endl;
-        for (int i=0; i<n; i++) {
-            logfileptr->OFS()<<h_local_ptr[i];
-            if (i%10==0 && i>0) logfileptr->OFS()<<std::endl; //for readability
-        }
-
-    }
-        
-
-
 }
 }
-#endif
+#endif //CUDA_MODE
+
