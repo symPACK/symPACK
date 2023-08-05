@@ -72,35 +72,8 @@ int main(int argc, char **argv)
     try{
 #ifdef CUDA_MODE
       logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
-     
-      int n_gpus = upcxx::gpu_default_device::device_n(); 
-      logfileptr->OFS()<< "GPUs Per Node: " << n_gpus << std::endl;
-      
-      if (n_gpus==0) {
-        std::cerr<<"Error, found no CUDA devices"<<std::endl;
-        abort();
-      }        
-
-      MPI_Comm shmcomm;
-      MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &shmcomm);
-    
-      int tasks_per_node;
-      MPI_Comm_size(shmcomm, &tasks_per_node);    
-      logfileptr->OFS()<<"Tasks per node "<<tasks_per_node<<std::endl;
-      
-      int gpu_id = upcxx::rank_me() % n_gpus;
-    
-      size_t free, total;
-      cudaMemGetInfo(&free, &total);
-      size_t alloc_size = (free) / (std::max(tasks_per_node, n_gpus) / n_gpus);
-      if ((std::max(tasks_per_node, n_gpus) / n_gpus)==1) alloc_size=alloc_size/2;
-
-      symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(alloc_size);
-      logfileptr->OFS()<<"Reserved " << (alloc_size) << " bytes on device "<<gpu_allocator.device_id()<<std::endl;
-
-      symPACK_cuda_setup();
+      symPACK_cuda_setup(optionsFact);
       upcxx::barrier();
-      
 #endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/

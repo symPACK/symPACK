@@ -41,9 +41,6 @@ int main(int argc, char **argv)
     logfileptr = new LogFile(iam);
     logfileptr->OFS()<<"********* LOGFILE OF P"<<iam<<" *********"<<std::endl;
     logfileptr->OFS()<<"**********************************"<<std::endl;
-    statfileptr = new LogFile("Statfile", std::to_string(iam).c_str());
-    statfileptr->OFS()<<"********* STATFILE OF P"<<iam<<" *********"<<std::endl;
-    statfileptr->OFS()<<"**********************************"<<std::endl;
 
     // *********************************************************************
     // Input parameter
@@ -81,6 +78,8 @@ int main(int argc, char **argv)
     {
 #ifdef CUDA_MODE
     logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
+    symPACK_cuda_setup(optionsFact);
+    upcxx::barrier();
 #endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/

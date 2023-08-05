@@ -38,9 +38,35 @@ int symPACK_Rank(int * rank){
 
 #ifdef CUDA_MODE
 extern "C"
-void symPACK_cuda_setup() {
+void compute_device_alloc_size() {
+  int n_gpus = upcxx::gpu_default_device::device_n();
+  if (n_gpus==0) {
+    std::cerr<<"Error: found no CUDA devices"<<std::endl;
+    abort();
+  }
+
+  MPI_Comm shmcomm;
+  int tasks_per_node;
+  MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &shmcomm);
+  MPI_Comm_size(shmcomm, &tasks_per_node);
+  
+  size_t alloc_size, free, total;
+  CUDA_ERROR_CHECK(cudaMemGetInfo(&free, &total));
+  alloc_size = (free/2) / (std::max(tasks_per_node, n_gpus) / n_gpus);
+  symPACK::gpu_alloc_size = alloc_size;
+}
+ 
+extern "C"
+void symPACK_cuda_setup(symPACK::symPACKOptions optionsFact) {
+  if (optionsFact.gpu_alloc_size != 0) {
+    symPACK::gpu_alloc_size = optionsFact.gpu_alloc_size;  
+  } 
+
+  symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(symPACK::gpu_alloc_size);
+
   int gpu_id = symPACK::gpu_allocator.device_id();
   cudaSetDevice(gpu_id);
+  
   cublasHandle_t handle;
   symPACK::cublas_handler= handle; 
   CUBLAS_ERROR_CHECK(cublasCreate(&symPACK::cublas_handler));
@@ -48,6 +74,12 @@ void symPACK_cuda_setup() {
   cusolverDnHandle_t cusolver_handle;
   symPACK::cusolver_handler = cusolver_handle;
   CUSOLVER_ERROR_CHECK(cusolverDnCreate(&symPACK::cusolver_handler));
+  
+  symPACK::gpu_block_limit = optionsFact.gpu_block_limit;
+  symPACK::trsm_limit = optionsFact.trsm_limit;
+  symPACK::potrf_limit = optionsFact.potrf_limit;
+  symPACK::gemm_limit = optionsFact.gemm_limit;
+  symPACK::syrk_limit = optionsFact.syrk_limit;
 }
 #endif
 
@@ -70,6 +102,9 @@ int symPACK_Init(int *argc, char ***argv){
     libUPCXXInit = true;
   }
   upcxx::barrier();
+#ifdef CUDA_MODE  
+  compute_device_alloc_size();
+#endif
   return retval;
 }
 
@@ -92,7 +127,6 @@ int symPACK_Finalize(){
 #ifdef CUDA_MODE
   cublasDestroy(symPACK::cublas_handler);
   cusolverDnDestroy(symPACK::cusolver_handler);
-  //symPACK::gpu_allocator.destroy();
 #endif
   if(libUPCXXInit){
     symPACK::capture_master_scope();

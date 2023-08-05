@@ -38,15 +38,6 @@
 #include <functional>
 #include <chrono>
 
-#ifdef CUDA_MODE
-#define TRSM_CPU_LIMIT 15000
-#define FACTORIZE_CPU_LIMIT 1000
-#define GEMM_CPU_LIMIT 100000
-#define SYRK_CPU_LIMIT 100000
-#define GPU_SOLVE false
-#define AXPY_CPU_LIMIT 100000000
-#define GPU_BLOCK_LIMIT 100000
-#endif
 
 #ifdef _PRIORITY_QUEUE_RDY_
 #define push_ready(sched,ptr) sched->ready_tasks.push(ptr);
@@ -1078,21 +1069,21 @@ namespace symPACK{
           auto snode_size = std::get<0>(_dims);
           try {
 #ifdef CUDA_MODE
-	    if (snode_size > FACTORIZE_CPU_LIMIT) {
-			
-		dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(snode_size*snode_size);
-		
-		/* Couldn't allocate enough space on GPU, so use CPU */
-		if (d_diag_nzval==nullptr) {
-            		lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
-		} else {
-			upcxx::copy(diag_nzval, d_diag_nzval, snode_size*snode_size).wait();	
-			lapack::cusolver_potrf(symPACK::cusolver_handler, 'U', snode_size, 
-					       symPACK::gpu_allocator.local(d_diag_nzval), snode_size);
-			CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-			upcxx::copy(d_diag_nzval, diag_nzval, snode_size*snode_size).wait();
-			symPACK::gpu_allocator.deallocate(d_diag_nzval);
-		}
+            if (snode_size*snode_size > symPACK::potrf_limit) {
+                
+            dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(snode_size*snode_size);
+            
+            /* Couldn't allocate enough space on GPU, so use CPU */
+            if (d_diag_nzval==nullptr) {
+                lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
+            } else {
+                upcxx::copy(diag_nzval, d_diag_nzval, snode_size*snode_size).wait();	
+                lapack::cusolver_potrf(symPACK::cusolver_handler, 'U', snode_size, 
+                               symPACK::gpu_allocator.local(d_diag_nzval), snode_size);
+                CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+                upcxx::copy(d_diag_nzval, diag_nzval, snode_size*snode_size).wait();
+                symPACK::gpu_allocator.deallocate(d_diag_nzval);
+            }
 
 	    } else {
 		auto diag_nzval = _nzval;
@@ -1124,7 +1115,7 @@ namespace symPACK{
           auto diag_nzval = diag->_nzval;
           auto nzblk_nzval = _nzval;
 #ifdef CUDA_MODE
-          if (diag->is_gpu_block || snode_size*total_rows() > TRSM_CPU_LIMIT) {
+          if (diag->is_gpu_block || snode_size*total_rows() > symPACK::trsm_limit) {
             
             dev_ptr diag_nzval_inter, nzblk_nzval_inter;
             nzblk_nzval_inter = symPACK::gpu_allocator.allocate<T>(snode_size*total_rows());                
@@ -1278,7 +1269,7 @@ namespace symPACK{
               bassert(src_nrows==tgt_width);
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_SYRK);
 #ifdef CUDA_MODE
-              if (SYRK_CPU_LIMIT < tgt_width * src_snode_size) {
+              if (tgt_width * src_snode_size > symPACK::syrk_limit) {
             
                 dev_ptr d_pivot_nzval = symPACK::gpu_allocator.allocate<T>(tgt_width * src_snode_size);
                 dev_ptr d_buf = symPACK::gpu_allocator.allocate<T>(tgt_width * ldbuf);
@@ -1319,10 +1310,10 @@ namespace symPACK{
               //everything is in row-major
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
 #ifdef CUDA_MODE
-              if (tgt_width * src_nrows > GEMM_CPU_LIMIT ||
-              tgt_width * src_snode_size > GEMM_CPU_LIMIT ||
-              src_nrows * src_snode_size > GEMM_CPU_LIMIT ) {
-                    dev_ptr d_pivot_nzval = symPACK::gpu_allocator.allocate<T>(tgt_width * src_snode_size);
+              if (tgt_width * src_nrows > symPACK::gemm_limit ||
+                  tgt_width * src_snode_size > symPACK::gemm_limit ||
+                  src_nrows * src_snode_size > symPACK::gemm_limit) {
+                dev_ptr d_pivot_nzval = symPACK::gpu_allocator.allocate<T>(tgt_width * src_snode_size);
                 dev_ptr d_facing_nzval = symPACK::gpu_allocator.allocate<T>(src_nrows * src_snode_size);
                 dev_ptr d_buf = symPACK::gpu_allocator.allocate<T>(ldbuf * src_nrows);
                 if (d_pivot_nzval==nullptr) {
@@ -1502,7 +1493,7 @@ namespace symPACK{
             bassert(this->blocks().size()==1);
             auto diag_nzval = this->_nzval;
 #ifdef CUDA_MODE
-            if (ldsol*ldfact > TRSM_CPU_LIMIT && GPU_SOLVE) {
+            if (ldsol*ldfact > symPACK::trsm_limit && symPACK::gpu_solve) {
             
                 dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(ldfact*ldfact);
                 dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol*ldfact);
@@ -1549,9 +1540,9 @@ namespace symPACK{
                   T * tgt = tgt_contrib._nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
                   //Do -L*Y (gemm)
 #ifdef CUDA_MODE
-                  if ((ldsol * ldfact > GEMM_CPU_LIMIT ||
-                  this->block_nrows(src_block)*ldfact > GEMM_CPU_LIMIT ||
-                  ldsol * this->block_nrows(src_block) > GEMM_CPU_LIMIT) && GPU_SOLVE) {
+                  if ((ldsol * ldfact > symPACK::gemm_limit ||
+                       this->block_nrows(src_block)*ldfact > symPACK::gemm_limit ||
+                       ldsol * this->block_nrows(src_block) > symPACK::gemm_limit) && symPACK::gpu_solve) {
                       dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol * ldfact);
                       dev_ptr d_src = symPACK::gpu_allocator.allocate<T>(this->block_nrows(src_block)*ldfact);
                       dev_ptr d_tgt = symPACK::gpu_allocator.allocate<T>(this->block_nrows(src_block)*ldsol);
@@ -1602,7 +1593,7 @@ namespace symPACK{
 	//NOTE: This is only called with TRANSA=T
         virtual int _tri_solve(char TRANSA, int_t M,int_t N,T ALPHA,T* A,int_t LDA,T* B,int_t LDB) {
 #ifdef CUDA_MODE
-          if (M*N > TRSM_CPU_LIMIT && GPU_SOLVE) {
+          if (M*N > symPACK::trsm_limit && symPACK::gpu_solve) {
             dev_ptr d_A = symPACK::gpu_allocator.allocate<T>(LDA*N);
             dev_ptr d_B = symPACK::gpu_allocator.allocate<T>(LDB*N);
 
@@ -1662,9 +1653,9 @@ namespace symPACK{
 #ifdef CUDA_MODE
               T alpha = T(-1.0);
               T beta = T(1.0);
-              if ((ldsol * ldfact > GEMM_CPU_LIMIT ||
-              this->block_nrows(fact_block)*ldsol > GEMM_CPU_LIMIT ||
-              ldfact * this->block_nrows(fact_block) > GEMM_CPU_LIMIT) && GPU_SOLVE) {
+              if ((ldsol * ldfact > symPACK::gemm_limit ||
+                    this->block_nrows(fact_block)*ldsol > symPACK::gemm_limit ||
+                    ldfact * this->block_nrows(fact_block) > symPACK::gemm_limit) && symPACK::gpu_solve) {
 		  
                   dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol * ldfact);
                   dev_ptr d_src = symPACK::gpu_allocator.allocate<T>(this->block_nrows(fact_block)*ldsol);
@@ -4555,7 +4546,9 @@ namespace symPACK{
                     //factor is output data so it will not be deleted
 #ifdef CUDA_MODE
                     bool is_gpu_block = false;
-                    if (pdest != this->iam && ptr_diagcell->_nnz*sizeof(T)>GPU_BLOCK_LIMIT && tgt_cells.size()>0) {
+                    if (pdest != this->iam 
+                        && ptr_diagcell->_nnz*sizeof(T)>symPACK::gpu_block_limit
+                        && tgt_cells.size()>0) {
                             is_gpu_block = true;
                     }
 #endif

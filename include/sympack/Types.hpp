@@ -109,7 +109,10 @@ namespace symPACK{
       bool iterRefinement;
       int NpOrdering;
       bool print_stats;
-      int tasks_per_node;
+#ifdef CUDA_MODE
+      size_t gpu_alloc_size, gpu_block_limit, trsm_limit, potrf_limit, gemm_limit, syrk_limit;
+      bool gpu_solve;
+#endif
       DecompositionType decomposition;
       MappingType mappingType;
       std::string mappingTypeStr;
@@ -356,16 +359,7 @@ namespace symPACK{
         //std::vector<Int,AlignedAllocator<Int> > src_colindx;
         //std::vector<Int,AlignedAllocator<Int> > src_to_tgt_offset;
         std::vector<T   > tmpBuf;
-#ifdef CUDA_MODE
-        upcxx::global_ptr<T, upcxx::memory_kind::cuda_device> d_tmpBuf;
-        Int d_size;
-
-	upcxx::global_ptr<Int, upcxx::memory_kind::cuda_device> d_src_colindx;
-	Int d_colindx_size;
-
-	upcxx::global_ptr<Int, upcxx::memory_kind::cuda_device> d_src_to_tgt_offset;
-	Int d_offset_size;
-#endif        
+       
         std::vector<Int > src_colindx;
         std::vector<Int > src_to_tgt_offset;
 
@@ -381,45 +375,8 @@ namespace symPACK{
           }
         }
 
-#ifdef CUDA_MODE
-      template <typename U>
-      void dev_resize(Int new_size, upcxx::global_ptr<U, upcxx::memory_kind::cuda_device>& old_buf, Int& old_size) {
-	  using Clock = std::chrono::high_resolution_clock;
-	  Clock::time_point stime = Clock::now();
-          upcxx::global_ptr<U, upcxx::memory_kind::cuda_device> new_buf = symPACK::gpu_allocator.allocate<U>(new_size);
-          if (old_size==0) {
-            old_buf = new_buf;
-            old_size = new_size;
-	    Clock::time_point etime = Clock::now();
-	    Clock::duration total = etime - stime;
-	    statfileptr->OFS()<<"Resize: "<<total.count()<<"ns"<<std::endl;
-            return;
-          }
-          upcxx::copy(old_buf, new_buf, std::min(new_size, old_size)).wait();
-          if (new_size > old_size) {//TODO: Replace this with a cuda kernel
-            //std::vector<U> zvec( (new_size - old_size), U(0));
-            //upcxx::copy(zvec.data(), new_buf + old_size, new_size-old_size).wait();
-	    //cublas::scal_wrapper2(new_size - old_size, U(0), symPACK::gpu_allocator.local(new_buf + old_size), 1);
-	    //CUDA_ERROR_CHECK(cudaDeviceSynchronize());
-	    cudaMemset(symPACK::gpu_allocator.local(new_buf + old_size), 0, (new_size - old_size)*sizeof(U));
-          }
-          symPACK::gpu_allocator.deallocate(old_buf);
-          old_buf = new_buf;
-          old_size = new_size;
-	  Clock::time_point etime = Clock::now();
-	  Clock::duration total = etime - stime;
-	  statfileptr->OFS()<<"Resize: "<<total.count()<<"ns"<<std::endl;
-
-      }
-
-      
-#endif
-
         void Clear(){
           {
-#ifdef CUDA_MODE
-            symPACK::gpu_allocator.deallocate(d_tmpBuf);
-#endif            
             std::vector<T> tmp;
             tmpBuf.swap(tmp);            
           }
@@ -436,13 +393,7 @@ namespace symPACK{
           //src_to_tgt_offset.clear();
         }
 
-#ifdef CUDA_MODE
-        TempUpdateBuffers() : d_size(0), d_colindx_size(0), d_offset_size(0){
-        }
-#else
-        TempUpdateBuffers(){
-	}
-#endif
+        TempUpdateBuffers(){}
         TempUpdateBuffers(Int size, Int mw){
           Resize(size,mw);
         }

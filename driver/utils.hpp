@@ -220,11 +220,45 @@ inline void process_options(int argc, char **argv, symPACK::symPACKOptions & opt
   if (options.find("-z") != options.end()){
     complextype = true;
   }
+
+// Options related to GPU functionality
+#ifdef CUDA_MODE
+ optionsFact.gpu_solve = false;
+ if (options.find("-gpu_solve") != options.end()) {
+    optionsFact.gpu_solve = true;
+ } 
+
+ optionsFact.gpu_alloc_size = 0;
+ if (options.find("-gpu_mem") != options.end()) {
+    optionsFact.gpu_alloc_size = atol(options["-gpu_mem"].front().c_str());
+ } 
+
+ optionsFact.gpu_block_limit = 100000;
+ if (options.find("-gpu_blk") != options.end()) {
+    optionsFact.gpu_block_limit = atol(options["-gpu_blk"].front().c_str());
+ } 
+ 
+ optionsFact.trsm_limit = 15000;
+ if (options.find("-trsm_limit") != options.end()) {
+    optionsFact.trsm_limit = atol(options["-trsm_limit"].front().c_str());
+ } 
+ 
+ optionsFact.potrf_limit = 1000000;
+ if (options.find("-potrf_limit") != options.end()) {
+    optionsFact.potrf_limit = atol(options["-potrf_limit"].front().c_str());
+ } 
+ 
+ optionsFact.gemm_limit = 100000;
+ if (options.find("-gemm_limit") != options.end()) {
+    optionsFact.gemm_limit = atol(options["-gemm_limit"].front().c_str());
+ } 
+
+ optionsFact.syrk_limit = 100000;
+ if (options.find("-syrk_limit") != options.end()) {
+    optionsFact.syrk_limit = atol(options["-syrk_limit"].front().c_str());
+ } 
+#endif
   
-  optionsFact.tasks_per_node = -1;
-  if (options.find("-tasks-per-node") != options.end()) {
-   optionsFact.tasks_per_node = atoi(options["-tasks-per-node"].front().c_str()); 
-  }  
   //-----------------------------------------------------------------
   optionsFact.memory_limit=-1.0;
   if (options.find("-mem") != options.end()){

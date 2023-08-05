@@ -30,7 +30,7 @@ extern bool libUPCXXInit;
 
   int symPACK_Init(int *argc=nullptr, char ***argv=nullptr);
 #ifdef CUDA_MODE
-  int symPACK_cuda_setup();
+  int symPACK_cuda_setup(symPACK::symPACKOptions optionsFact);
 #endif
   int symPACK_Finalize();
   int symPACK_Rank(int * rank);

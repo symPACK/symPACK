@@ -30,12 +30,14 @@ namespace symPACK{
   int64_t main_argc = 0;
   char * const * main_argv;
   MPI_Comm comm;
+#ifdef CUDA_MODE
   cublasHandle_t cublas_handler;
   cusolverDnHandle_t cusolver_handler;
   std::vector<cudaStream_t> streams;
-  bool gpu_debug;
-  int n_gpus;
   upcxx::device_allocator<upcxx::cuda_device> gpu_allocator;
+  size_t gpu_alloc_size, gpu_block_limit, trsm_limit, potrf_limit, gemm_limit, syrk_limit;
+  bool gpu_solve;
+#endif
   SecondDuration complete_time;
   int64_t set_contxt = 0;
   int64_t output_file_counter = 0;
