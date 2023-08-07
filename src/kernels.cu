@@ -1,6 +1,12 @@
 #include "sympack/kernels.cuh"
 #include <stdio.h>
 
+/* These are cuda kernels that could theoretically replace some of the 
+ * array operations that happen in blockCell_t::update.
+ * Right now they are not used for anything, but I've decided to leave them here
+ * in case they one day might be useful.
+ */
+
 namespace symPACK {
 namespace cudaKernels {
 __global__ void update_tgt(int src_nrows,

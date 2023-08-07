@@ -526,12 +526,10 @@ namespace symPACK{
         char * _storage;
 
         T* _nzval;
-        bool _d_cpy;
 
         size_t _cblocks; //capacity
         size_t _cnz; //capacity
         size_t _nnz;
-        size_t _nnz_comm; //number recieved from other nodes
         size_t _storage_size;
         
         rowind_t _total_rows;
@@ -542,8 +540,6 @@ namespace symPACK{
           public:
             block_t * _blocks;
             size_t _nblocks;
-            //size_t _d_nblocks;
-            //size_t _d_cblocks;
 
             block_container_t():_blocks(nullptr),_nblocks(0) {}
 
@@ -645,7 +641,7 @@ namespace symPACK{
 #ifdef CUDA_MODE
           _d_nzval(nullptr), is_gpu_block(false),
 #endif
-	      _gstorage(nullptr),_nnz(0), _nnz_comm(0), _storage_size(0), _own_storage(true) {}
+	      _gstorage(nullptr),_nnz(0),  _storage_size(0), _own_storage(true) {}
         bool _own_storage;
 
         virtual ~blockCell_t() {
@@ -771,10 +767,8 @@ namespace symPACK{
           other._cnz = 0;
           other._nnz = 0;
           other._nzval = nullptr;
-          other._d_nzval = nullptr;
           other._block_container._nblocks = 0;
           other._block_container._blocks = nullptr;
-          other._block_container._d_blocks = nullptr;
           other._own_storage = false;
         }
 
@@ -806,7 +800,6 @@ namespace symPACK{
             std::copy( other._storage, other._storage + other._storage_size, _storage );
 
             _block_container._nblocks = other._block_container._nblocks;
-            //_block_container._d_nblocks = other._block_container._d_nblocks;
             _nnz = other._nnz;
 
           } 
@@ -846,11 +839,8 @@ namespace symPACK{
             other._cnz = 0;
             other._nnz = 0;
             other._nzval = nullptr; 
-            other._d_nzval = nullptr;       
             other._block_container._nblocks = 0;
             other._block_container._blocks = nullptr;
-            other._block_container._d_blocks = nullptr;
-            //other._block_container._d_nblocks = 0;
             other._own_storage = false;
           } 
           return *this;  
@@ -883,7 +873,7 @@ namespace symPACK{
           return nRows;
         }
 
-        void add_block( rowind_t first_row, rowind_t nrows, bool add_to_device=false ) {
+        void add_block( rowind_t first_row, rowind_t nrows) {
           bassert( this->_block_container.data()!=nullptr );
           bassert( this->_block_container.size() + 1 <= block_capacity() );
           bassert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
@@ -946,7 +936,7 @@ namespace symPACK{
 	
 	//Debugging utility functions
 
-        void print_block(blockCell_t & block, std::string prefix, bool dev=false) const{  
+        void print_block(blockCell_t & block, std::string prefix) const{  
           
           logfileptr->OFS()<<prefix<<" ("<<block.i<<","<<block.j<<")"<<std::endl;
           logfileptr->OFS()<<prefix<<" nzval:"<<std::endl;
@@ -1380,7 +1370,6 @@ namespace symPACK{
 
                 //The other one MUST reside into a single block in the target
                 rowind_t row = cur_src_fr;
-                size_t tgt_iters = 0;
                 while (row<=cur_src_lr) {
                   do {
                     if (tgt_ptr->first_row <= row 
@@ -1452,7 +1441,7 @@ namespace symPACK{
           this->allocate(nnz,other->nblocks(),true);
           this->initialize(nnz,other->nblocks());
      	  for ( auto & cur_block: other->blocks() ) {
-            this->add_block(cur_block.first_row,other->block_nrows(cur_block), true);          
+            this->add_block(cur_block.first_row,other->block_nrows(cur_block));          
           }
         }
 
@@ -1981,7 +1970,7 @@ namespace symPACK{
           this->allocate(nnz,other->nblocks(),true);
           this->initialize(nnz,other->nblocks());
           for ( auto & cur_block: other->blocks() ) {
-            this->add_block(cur_block.first_row,other->block_nrows(cur_block), true);
+            this->add_block(cur_block.first_row,other->block_nrows(cur_block));
           }
         }
 
@@ -6476,7 +6465,6 @@ namespace symPACK{
                     auto offset = block.offset + (row - block.first_row)*tgt_cell.width() + (col-fc);
                     tgt_cell._nzval[offset] = nzvalA[rowidx-1];
                     found = true;
-                    tgt_cell._nnz_comm+=1; // count number of nnzs copied
                     break;
 
                   }  

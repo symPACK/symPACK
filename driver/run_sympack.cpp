@@ -4,7 +4,6 @@
 #include <sympack/symPACKMatrix.hpp>
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
-//#include "sympack/cuBLAS.hpp"
 
 #include "utils.hpp"
 
@@ -140,7 +139,6 @@ int main(int argc, char **argv)
     MPI_Barrier(worldcomm);
     MPI_Comm_free(&worldcomm);
     delete logfileptr;
-    delete statfileptr;
   }
   //This will also finalize MPI
   symPACK_Finalize();

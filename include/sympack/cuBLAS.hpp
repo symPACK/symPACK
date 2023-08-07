@@ -1,6 +1,4 @@
-/* cuBLAS interface
- * Author: Julian Bellavita, UC Berkeley
- */
+/* cuBLAS interface */
 #include  "sympack/Environment.hpp"
 #ifdef CUDA_MODE
 #include "cuda_runtime.h"
@@ -13,7 +11,8 @@ namespace symPACK {
 namespace cublas {
     // NOTE: This only contains a subset of the complete BLAS, just the operations used in symPACK are included.
     // SYRK, TRSM, GEMM, Axpy, Scal, Gemv, Geru, Copy
-    void test(int);
+    // A lot of these operations are only used in the defunct SuperNode methods that have been replaced with
+    // the methods in symPACKMatrix2D.hpp, but they're here just in case they become needed at some point.
     typedef  int                    Int;
     /* ===== LEVEL 1 BLAS ===== */
 

@@ -5,9 +5,6 @@
 #include <google/coredumper.h>
 #endif
 
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-#include "cublas_v2.h"
 
 
 /****************************************/
@@ -449,21 +446,13 @@ namespace symPACK{
 
       SYMPACK_TIMER_START(FACT_TRSM);
       T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
-#ifdef CUDA_MODE
-      cublas::cublas_trsm_wrapper(CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_UNIT, snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
-#else
       blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
-#endif
       SYMPACK_TIMER_STOP(FACT_TRSM);
 
       SYMPACK_TIMER_START(FACT_SCALE);
       //scale column I
       for ( Idx I = 1; I<=snodeSize;I++) {
-#ifdef CUDA_MODE
-        cublas::cublas_scal_wrapper( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
-#else
         blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
-#endif        
       }
       SYMPACK_TIMER_STOP(FACT_SCALE);
 
@@ -490,19 +479,10 @@ namespace symPACK{
 
 
       T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
-#ifdef CUDA_MODE
-      cublas::cublas_trsm_wrapper(CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_UNIT, snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
-
-#else
       blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
-#endif
       //scale column I
       for ( Idx I = 1; I<=snodeSize;I++) {
-#ifdef CUDA_MODE
-        cublas::cublas_scal_wrapper( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
-#else
         blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
-#endif        
       }
       return 0;
     }
@@ -573,13 +553,8 @@ namespace symPACK{
         }
 
         //Then do -L*W (gemm)
-#ifdef CUDA_MODE
-            cublas::cublas_gemm_wrapper(CUBLAS_OP_N, CUBLAS_OP_N, tgt_width,src_nrows,src_snode_size,
-            T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
-#else
         blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
             T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
-#endif
         SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
 
         //If the GEMM wasn't done in place we need to aggregate the update
@@ -763,13 +738,8 @@ namespace symPACK{
       }
 
       //Then do -L*W (gemm)
-#ifdef CUDA_MODE
-            cublas::cublas_gemm_wrapper(CUBLAS_OP_N, CUBLAS_OP_N, tgt_width,src_nrows,src_snode_size,
-            T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
-#else      
       blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
           T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
-#endif
       SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
 
       //If the GEMM wasn't done in place we need to aggregate the update
@@ -930,13 +900,8 @@ namespace symPACK{
             T * fact_nzval = cur_snodeInd->GetNZval(fact_desc.Offset);
 
             //TODO CHECK THIS
-#ifdef CUDA_MODE
-            cublas::cublas_gemv_wrapper(CUBLAS_OP_N, nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*ldsol+nrhsOffset],ldsol,
-                &fact_nzval[rowK*ldfact+kk],ldfact, T(1.0), &updated_nzval[(kk)*ldsol+nrhsOffset], 1);
-#else
             blas::Gemv( 'N', nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*ldsol+nrhsOffset],ldsol,
                 &fact_nzval[rowK*ldfact+kk],ldfact, T(1.0), &updated_nzval[(kk)*ldsol+nrhsOffset], 1);
-#endif
           }
         }
       }
@@ -988,21 +953,13 @@ namespace symPACK{
             //if we are processing the "pivot" block
             for(Int kk = 0; kk<snodeSize; ++kk){
               //then compute the rank one update
-#ifdef CUDA_MODE
-              cublas::cublas_ger_wrapper(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*ldsol+nrhsOffset], 1,&chol_nzval[(kk + 1)*ldfact+kk], ldfact, &cur_nzval[(kk + 1)*ldsol+nrhsOffset], ldsol );
-#else              
               blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*ldsol+nrhsOffset], 1,&chol_nzval[(kk + 1)*ldfact+kk], ldfact, &cur_nzval[(kk + 1)*ldsol+nrhsOffset], ldsol );
-#endif              
             }
           }
           else{
             for(Int kk = 0; kk<snodeSize; ++kk){
               //compute the rank one update
-#ifdef CUDA_MODE
-              cublas::cublas_ger_wrapper(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*ldsol+nrhsOffset], 1, &chol_nzval[kk], ldfact, &cur_nzval[nrhsOffset], ldsol );
-#else 
               blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*ldsol+nrhsOffset], 1, &chol_nzval[kk], ldfact, &cur_nzval[nrhsOffset], ldsol );
-#endif            
             }
           }
         }
@@ -1055,21 +1012,13 @@ namespace symPACK{
               }
 
               //then compute the rank one update
-#ifdef CUDA_MODE
-              cublas::cublas_ger_wrapper(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*nrhs], 1,&chol_nzval[(kk + 1)*snodeSize+kk], snodeSize, &cur_nzval[(kk + 1)*nrhs], nrhs );
-#else              
               blas::Geru(nrhs,cur_nrows-kk-1, T(-1.0),  &diag_nzval[kk*nrhs], 1,&chol_nzval[(kk + 1)*snodeSize+kk], snodeSize, &cur_nzval[(kk + 1)*nrhs], nrhs );
-#endif
             }
           }
           else{
             for(Int kk = 0; kk<cur_snodeInd->Size(); ++kk){
               //compute the rank one update
-#ifdef CUDA_MODE
-              cublas::cublas_ger_wrapper(nrhs,cur_nrows, T(-1.0),  &diag_nzval[kk*nrhs], 1,&chol_nzval[kk], snodeSize, &cur_nzval[0], nrhs );
-#else 
               blas::Geru(nrhs,cur_nrows, T(-1.0), &diag_nzval[kk*nrhs], 1, &chol_nzval[kk], snodeSize, &cur_nzval[0], nrhs );
-#endif              
             }
 
           }
