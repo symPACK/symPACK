@@ -3,7 +3,9 @@
 
 #include  "sympack/Environment.hpp"
 #include  "sympack/blas.hpp"
+#ifdef CUDA_MODE
 #include "cusolverDn.h"
+#endif
 
 namespace symPACK {
 
@@ -26,8 +28,9 @@ namespace symPACK {
     void Potrf( char uplo, Int n, const double* A, Int lda );
     void Potrf( char uplo, Int n, const scomplex* A, Int lda );
     void Potrf( char uplo, Int n, const dcomplex* A, Int lda );
+#ifdef CUDA_MODE
     cusolverStatus_t cusolver_potrf(cusolverDnHandle_t handle, char uplo, Int n, double* A, Int lda);
-
+#endif
 
     void Potrs( char uplo, Int n, Int nrhs, const float* A, Int lda, float* B, Int ldb);
     void Potrs( char uplo, Int n, Int nrhs, const double* A, Int lda, double* B, Int ldb);

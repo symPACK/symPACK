@@ -1,5 +1,5 @@
 
-
+#ifdef CUDA_MODE
 #include "sympack/cuBLAS.hpp"
 #include "sympack/Environment.hpp"
 
@@ -493,3 +493,4 @@ cublasStatus_t cublas_trsm(cublasHandle_t handle,
 }
 }
 }
+#endif //CUDA_MODE

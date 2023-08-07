@@ -4,10 +4,11 @@
 #include "sympack/Environment.hpp"
 #include "sympack/timer.hpp"
 #include "sympack/CommTypes.hpp"
+#ifdef CUDA_MODE
 #include "cuda_runtime.h"
 #include "cublas_v2.h"
 #include "cusolverDn.h"
-
+#endif
 #include <string>
 #include <type_traits>
 #include <cstdlib>
