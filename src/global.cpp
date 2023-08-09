@@ -45,10 +45,7 @@ void compute_device_alloc_size() {
     abort();
   }
 
-  MPI_Comm shmcomm;
-  int tasks_per_node;
-  MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &shmcomm);
-  MPI_Comm_size(shmcomm, &tasks_per_node);
+  int tasks_per_node = upcxx::local_team().rank_n();
   
   size_t alloc_size, free, total;
   CUDA_ERROR_CHECK(cudaMemGetInfo(&free, &total));
