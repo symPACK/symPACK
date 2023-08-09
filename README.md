@@ -104,7 +104,7 @@ Additionally, standalone drivers for **symPACK** can be built by typing `make ex
 
 - `-DENABLE_THREADS` to enable multithreading (`ON|OFF`). `UPCXX_THREADMODE=par` is required during cmake configuration. **SymPACK** implements its own multithreading and as such should be linked with **sequential** BLAS/LAPACK libraries.
 
-- `-DENABLE_CUDA` to enable CUDA mode. This allows certain sufficiently large computations to be offloaded to CUDA devices. 
+- `-DENABLE_CUDA` to enable CUDA mode. This allows certain sufficiently large computations to be offloaded to CUDA devices (`ON|OFF`)
 
 # Running symPACK
 ---------------------------
@@ -138,9 +138,9 @@ Moreover, for larger problems, the `-shared-heap XX` argument to `upcxx-run` may
 **SymPACK** provides several optional command line options that allow the user to configure certain aspects of the GPU mode. They are summarized here:
 
 - `-gpu_mem <SIZE>` controls the amount of memory (in bytes) allocated on the GPU upon calling the `symPACK_cuda_setup()` method. If this option is not specified, **symPACK** will partition a device's memory equally among each process bound to the device.
-- `-gpu_blk <SIZE>` controls the size threshold (in bytes) that a factorized diagonal block must exceed for it to be automatically copied to the GPU bound to a remote process when being sent to said remote process. This allows an intermediate copy to host memory to be bypassed, which can reduce communication overhead for certain problems.
-- `{trsm, gemm, potrf, syrk}_limit <SIZE>` controls how many nonzero entries a block must have for the given matrix operation (TRSM, GEMM, POTRF, or SYRK) involving said block to be offloaded to the GPU. The GPU will generally be most beneficial for operations involving large blocks with many nonzeros.
-- `-gpu_solve` determines if the GPU should be used for **symPACK's** triangular solve routine.
+- `-gpu_blk <SIZE>` controls the size threshold (in bytes) that a factorized diagonal block must exceed for it to be automatically copied to the GPU bound to a remote process when being sent to said remote process. This allows for an intermediate copy to host memory to be bypassed, which can reduce communication overhead for certain problems.
+- `{trsm, gemm, potrf, syrk}_limit <SIZE>` controls how many nonzero entries a block must have for the given matrix operation (TRSM, GEMM, POTRF, or SYRK) involving said block to be offloaded to the GPU. The GPU will generally be most beneficial for operations involving large blocks with many nonzeros, but the exact size thresholds for when each operation starts to run faster on the GPU will differ between devices.
+- `-gpu_solve` determines if the GPU will be used for **symPACK's** triangular solve routine.
 
 # Publications
 --------------------------
