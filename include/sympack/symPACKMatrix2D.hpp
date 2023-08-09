@@ -1019,35 +1019,13 @@ namespace symPACK{
         }
 #endif
 	
-	void dump_nnz(std::string prelude) {
-		progressptr->OFS()<<prelude<<std::endl;
-		for (int i=0; i<_nnz; i++) {
-			progressptr->OFS()<<_nzval[i]<<",";
-		}
-		progressptr->OFS()<<std::endl;
-	}
-
-
-#ifdef CUDA_MODE
-	bool gpu_alloc_check(std::vector<size_t> bytes) {
-		
-		/* Don't do it if GPU hasn't enough space */
-		size_t free = symPACK::gpu_allocator.segment_size();
-		for (auto const& elem : bytes) {
-			if (elem > free) {
-				return false;
-			}
-		}
-		return true;
-
-	}
-
-	void gpu_alloc_err_handler(size_t alloc_size) {
-		std::cerr<<"ERROR: tried to alloc "<<alloc_size
-			<<" bytes on device with "<<symPACK::gpu_allocator.segment_size()<<" space left"<<std::endl;
-		gdb_lock();
-	}
-#endif
+        void dump_nnz(std::string prelude) {
+            progressptr->OFS()<<prelude<<std::endl;
+            for (int i=0; i<_nnz; i++) {
+                progressptr->OFS()<<_nzval[i]<<",";
+            }
+            progressptr->OFS()<<std::endl;
+        }
 
 
         virtual int factorize( TempUpdateBuffers<T> & tmpBuffers) {
@@ -2012,19 +1990,11 @@ namespace symPACK{
 
           auto snode_size = std::get<0>(this->_dims);
           auto nzblk_nzval = this->_nzval;
-#ifdef CUDA_MODE
-          cublas::cublas_trsm_wrapper(CUBLAS_SIDE_LEFT,CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_T,CUBLAS_DIAG_UNIT,snode_size, this->total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
-#else
           blas::Trsm('L','U','T','U',snode_size, this->total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
-#endif
 
           //scale column I
           for ( int_t I = 1; I<=snode_size; I++) {
-#ifdef CUDA_MODE
-            cublas::cublas_scal_wrapper( this->total_rows(), T(1.0)/diag->_diag[I-1], &nzblk_nzval[I-1], snode_size );
-#else
             blas::Scal( this->total_rows(), T(1.0)/diag->_diag[I-1], &nzblk_nzval[I-1], snode_size );
-#endif            
           }
 
           return 0;
@@ -2184,15 +2154,8 @@ namespace symPACK{
             bufLDL = pivot._bufLDL;
 
             //Then do -L*W (gemm)
-#ifdef CUDA_MODE
-            cublas::cublas_gemm_wrapper(CUBLAS_OP_N, CUBLAS_OP_N,
-                                          tgt_width, src_nrows, src_snode_size,
-                                          T(-1.0), bufLDL, tgt_width,
-                                          facing_nzval, src_snode_size, beta, buf, ldbuf);
-#else
             blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
                 T(-1.0),bufLDL,tgt_width,facing_nzval,src_snode_size,beta,buf,ldbuf);
-#endif
 
             if ( pivot._own_storage ) {
               if ( pivot.local_pivot.fetch_sub(1)==1) {
@@ -2300,11 +2263,7 @@ namespace symPACK{
           bassert(tgt_contrib.i == tgt_contrib.j);
           bassert(!tgt_contrib.scaled);
           for(int_t kk = 0; kk<ldfact; ++kk){
-#ifdef CUDA_MODE
-            cublas::cublas_scal_wrapper( ldsol, T(1.0)/this->_diag[kk], &tgt_contrib._nzval[kk*ldsol], 1 );
-#else
             blas::Scal( ldsol, T(1.0)/this->_diag[kk], &tgt_contrib._nzval[kk*ldsol], 1 );
-#endif            
           }
           tgt_contrib.scaled = true;
           return 0;
@@ -2314,14 +2273,7 @@ namespace symPACK{
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
-#ifdef CUDA_MODE
-          if (TRANSA=='T')
-            cublas::cublas_trsm_wrapper(CUBLAS_SIDE_RIGHT,CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_T,CUBLAS_DIAG_UNIT,M,N, ALPHA,  A, LDA, B, LDB);
-          else
-            cublas::cublas_trsm_wrapper(CUBLAS_SIDE_RIGHT,CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_N,CUBLAS_DIAG_UNIT,M,N, ALPHA,  A, LDA, B, LDB);
-#else
           blas::Trsm('R','U',TRANSA,'U',M,N, ALPHA,  A, LDA, B, LDB);
-#endif
           return 0;
         }
 
@@ -2364,12 +2316,7 @@ namespace symPACK{
 
               bassert(diag_contrib.j != tgt_contrib.j);
               //Do -L*Y (gemm)
-#ifdef CUDA_MODE
-              cublas::cublas_gemm_wrapper(CUBLAS_OP_N,CUBLAS_OP_N,ldsol,this->block_nrows(src_block),ldfact,
-                  T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
-#else              
               blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact, T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
-#endif              
             }
           }
           return 0;
