@@ -2,7 +2,7 @@
 --------------------------
 
 
-**symPACK** is a sparse symmetric matrix direct linear solver. It can be built using the following procedure.
+**symPACK** is a sparse symmetric matrix direct linear solver, with optional support for CUDA devices. It can be built using the following procedure.
 
 First, download **symPACK** as follows:
 
@@ -18,11 +18,12 @@ git clone git@github.com:symPACK/symPACK.git  /path/to/sympack
 ### UPC++
 
 **SymPACK** requires the [**UPC++ v1.0**](https://upcxx.lbl.gov) library to be installed. The minimum supported release version is 2019.9.0. 
-It can be downloaded at [upcxx.lbl.gov](https://upcxx.lbl.gov).
+If you wish the use the GPU mode of **symPACK**, the minimum supported release version is 2022.3.0. 
+UPC++ can be downloaded at [upcxx.lbl.gov](https://upcxx.lbl.gov).
 UPC++ contains a CMake config file which **symPACK** is using to link to the library. The install path
 needs to be provided to CMake as follows:
 ```
--DCMAKE_PREFIX_PATH=/path/to/upcxx-2019.9.0
+-DCMAKE_PREFIX_PATH=/path/to/upcxx
 ``` 
 
 ### Ordering libraries
@@ -53,6 +54,11 @@ The `...OPTIONS...` can be one of the following:
 - `-DENABLE_SCOTCH=ON|OFF` to make **SCOTCH** ordering available in **symPACK** (`scotch_PREFIX` must be set in the environment)
 
 - `-DENABLE_PTSCOTCH=ON|OFF` to make **PT-SCOTCH** ordering available in **symPACK** (`ptscotch_PREFIX` must be set in the environment, `scotch_PREFIX` is required as well)
+
+### CUDA Libraries
+To enable the GPU mode of **symPACK** for CUDA devices, use the `-DENABLE_CUDA=ON|OFF` build option. Note that this build option is deactivated by default. 
+
+**symPACK's** GPU mode requires CUDA version 6.0 or later. It also requires the `cuBLAS` and `cuSolver` libraries, both of which can be found in CUDA Toolkit 8.0 or later.
 
 ### Notes for specific platforms
 
@@ -98,6 +104,8 @@ Additionally, standalone drivers for **symPACK** can be built by typing `make ex
 
 - `-DENABLE_THREADS` to enable multithreading (`ON|OFF`). `UPCXX_THREADMODE=par` is required during cmake configuration. **SymPACK** implements its own multithreading and as such should be linked with **sequential** BLAS/LAPACK libraries.
 
+- `-DENABLE_CUDA` to enable CUDA mode. This allows certain sufficiently large computations to be offloaded to CUDA devices. 
+
 # Running symPACK
 ---------------------------
 
@@ -124,6 +132,15 @@ For larger problems, like [audikw_1](https://www.cise.ufl.edu/research/sparse/RB
 Note that to run **symPACK**, `upcxx-run` is used in the example above, but on some platforms, such as NERSC Cori,
 other launchers may be used to both spawn **MPI** and **UPC++**, such as `srun` if the system is using SLURM.
 Moreover, for larger problems, the `-shared-heap XX` argument to `upcxx-run` may be needed (Please refer to **UPC++** documentation).
+
+# GPU Mode Options
+---------------------------
+**SymPACK** provides several optional command line options that allow the user to configure certain aspects of the GPU mode. They are summarized here:
+
+- `-gpu_mem <SIZE>` controls the amount of memory (in bytes) allocated on the GPU upon calling the `symPACK_cuda_setup()` method. If this option is not specified, **symPACK** will partition a device's memory equally among each process bound to the device.
+- `-gpu_blk <SIZE>` controls the size threshold (in bytes) that a factorized diagonal block must exceed for it to be automatically copied to the GPU bound to a remote process when being sent to said remote process. This allows an intermediate copy to host memory to be bypassed, which can reduce communication overhead for certain problems.
+- `{trsm, gemm, potrf, syrk}_limit <SIZE>` controls how many nonzero entries a block must have for the given matrix operation (TRSM, GEMM, POTRF, or SYRK) involving said block to be offloaded to the GPU. The GPU will generally be most beneficial for operations involving large blocks with many nonzeros.
+- `-gpu_solve` determines if the GPU should be used for **symPACK's** triangular solve routine.
 
 # Publications
 --------------------------
