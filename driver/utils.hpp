@@ -257,6 +257,18 @@ inline void process_options(int argc, char **argv, symPACK::symPACKOptions & opt
  if (options.find("-syrk_limit") != options.end()) {
     optionsFact.syrk_limit = atol(options["-syrk_limit"].front().c_str());
  } 
+
+optionsFact.fallback_type = FallbackType::TERMINATE;
+if (options.find("-fallback") !=options.end()) {
+    std::string fallback = options["-fallback"].front();
+    if (fallback.compare("terminate")==0) {
+        //do nothing, since this is the default option
+    } else if (fallback.compare("cpu")==0) {
+        optionsFact.fallback_type = FallbackType::CPU;
+    } else {
+        throw std::invalid_argument("Error: " + fallback + " is not a valid fallback option. Use 'terminate' or 'cpu' instad."); 
+    }
+}
 #endif
   
   //-----------------------------------------------------------------

@@ -69,6 +69,8 @@ namespace symPACK{
   extern upcxx::device_allocator<upcxx::cuda_device> gpu_allocator;
   extern size_t gpu_alloc_size, gpu_block_limit, trsm_limit, potrf_limit, gemm_limit, syrk_limit;
   extern bool gpu_solve;
+  enum class FallbackType {TERMINATE, CPU};
+  extern FallbackType fallback_type;
 #endif
 }
 

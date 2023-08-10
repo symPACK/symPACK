@@ -37,6 +37,7 @@ namespace symPACK{
   upcxx::device_allocator<upcxx::cuda_device> gpu_allocator;
   size_t gpu_alloc_size, gpu_block_limit, trsm_limit, potrf_limit, gemm_limit, syrk_limit;
   bool gpu_solve;
+  FallbackType fallback_type;
 #endif
   SecondDuration complete_time;
   int64_t set_contxt = 0;

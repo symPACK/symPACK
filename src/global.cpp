@@ -57,7 +57,9 @@ extern "C"
 void symPACK_cuda_setup(symPACK::symPACKOptions optionsFact) {
   if (optionsFact.gpu_alloc_size != 0) {
     symPACK::gpu_alloc_size = optionsFact.gpu_alloc_size;  
-  } 
+  }
+
+  symPACK::fallback_type = optionsFact.fallback_type; 
 
   symPACK::gpu_allocator = upcxx::make_gpu_allocator<upcxx::gpu_default_device>(symPACK::gpu_alloc_size);
 
@@ -77,6 +79,7 @@ void symPACK_cuda_setup(symPACK::symPACKOptions optionsFact) {
   symPACK::potrf_limit = optionsFact.potrf_limit;
   symPACK::gemm_limit = optionsFact.gemm_limit;
   symPACK::syrk_limit = optionsFact.syrk_limit;
+  symPACK::gpu_solve = optionsFact.gpu_solve;
 }
 #endif
 
