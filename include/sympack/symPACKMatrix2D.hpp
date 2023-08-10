@@ -1461,6 +1461,25 @@ namespace symPACK{
           return 0;
         }
 
+#ifdef CUDA_MODE
+
+        void gpu_alloc_err_check(std::vector<dev_ptr> d_buffers) {
+#if UPCXX_SPEC_VERSION >= 20230300
+            std::string err_msg("Error: GPU device segment of " + 
+                        std::to_string(symPACK::gpu_allocator.segment_size()) + 
+                        "bytes exhausted with " + std::to_string(symPACK::gpu_allocator.segment_used()) +                         " bytes in use. Try increasing `-gpu_mem` (see README.md)");
+                
+#else
+            std::string err_msg("Error: GPU device segment exhausted, try increasing `-gpu_mem` (see README.md)");
+#endif
+           
+            UPCXX_ASSERT_ALWAYS(std::none_of(d_buffers.begin(), d_buffers.end(), 
+                                [](dev_ptr buf){return buf==nullptr;}), 
+                                err_msg);
+        }
+
+#endif
+
         virtual int forward_update_contrib( blockCellBase_t * ptgt_contrib, blockCellBase_t * pdiag_contrib = nullptr) {
           bassert(dynamic_cast<blockCell_t*>(ptgt_contrib));
           blockCell_t & tgt_contrib = *dynamic_cast<blockCell_t*>(ptgt_contrib);
@@ -1475,6 +1494,8 @@ namespace symPACK{
             
                 dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(ldfact*ldfact);
                 dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol*ldfact);
+                
+                gpu_alloc_err_check(std::vector<dev_ptr>{d_diag_nzval, d_nzval});                
                 
                 upcxx::when_all(
                     upcxx::copy(diag_nzval, d_diag_nzval, ldfact*ldfact),
@@ -1525,6 +1546,8 @@ namespace symPACK{
                       dev_ptr d_src = symPACK::gpu_allocator.allocate<T>(this->block_nrows(src_block)*ldfact);
                       dev_ptr d_tgt = symPACK::gpu_allocator.allocate<T>(this->block_nrows(src_block)*ldsol);
 
+                      gpu_alloc_err_check(std::vector<dev_ptr>{d_src, d_tgt, d_nzval});                
+
                       upcxx::when_all(
                         upcxx::copy(diag_contrib._nzval, d_nzval, ldsol*ldfact),
                         upcxx::copy(src, d_src, this->block_nrows(src_block)*ldfact),
@@ -1574,6 +1597,8 @@ namespace symPACK{
           if (M*N > symPACK::trsm_limit && symPACK::gpu_solve) {
             dev_ptr d_A = symPACK::gpu_allocator.allocate<T>(LDA*N);
             dev_ptr d_B = symPACK::gpu_allocator.allocate<T>(LDB*N);
+
+            gpu_alloc_err_check(std::vector<dev_ptr>{d_B, d_A});                
 
             upcxx::when_all(
                 upcxx::copy(A, d_A, LDA*N),
@@ -1638,6 +1663,8 @@ namespace symPACK{
                   dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol * ldfact);
                   dev_ptr d_src = symPACK::gpu_allocator.allocate<T>(this->block_nrows(fact_block)*ldsol);
                   dev_ptr d_fact = symPACK::gpu_allocator.allocate<T>(this->block_nrows(fact_block)*ldfact);
+
+                  gpu_alloc_err_check(std::vector<dev_ptr>{d_src, d_fact, d_nzval});                
 
                   upcxx::when_all(
                     upcxx::copy(tgt_contrib._nzval, d_nzval, ldsol*ldfact),
