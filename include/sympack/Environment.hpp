@@ -152,33 +152,33 @@ namespace symPACK{
 
 
 #define CUBLAS_ERROR_CHECK(s)                                                                       \
-{                                                                                                   \
+do {                                                                                                   \
     cublasStatus_t err;                                                                             \
     if ((err = (s)) != CUBLAS_STATUS_SUCCESS)                                                       \
     {                                                                                               \
         std::cout << "cuBLAS Error " << err << " at " << __FILE__ << ":" << __LINE__ << "\n";       \
         exit(1);                                                                                    \
     }                                                                                               \
-}                                                                                                   \
+} while (0)
 
 #define CUDA_ERROR_CHECK(s)                                                                         \
-{                                                                                                   \
+do {                                                                                                   \
     cudaError_t error = s;                                                                          \
     if (error != cudaSuccess) {                                                                     \
         std::cout << "CUDA Error " << error << " at " << __FILE__ << ":" << __LINE__ << "\n";       \
         std::cout << cudaGetErrorString(error) << "\n";                                             \
         exit(1);                                                                                    \
     }                                                                                               \
-}   
+} while (0)
 
 #define CUSOLVER_ERROR_CHECK(s)                                                                          \
-{                                                                                                        \
+do {                                                                                                        \
     cusolverStatus_t error = s;                                                                          \
     if (error != CUSOLVER_STATUS_SUCCESS) {                                                              \
         std::cout << "cuSOLVER Error " << error << " at " << __FILE__ << ":" << __LINE__ << "\n";        \
         exit(1);                                                                                         \
     }                                                                                                    \
-}                                                                                                        \
+} while (0)
 
 
 
