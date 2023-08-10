@@ -1501,8 +1501,6 @@ namespace symPACK{
           if ( this->i == this->j ) {
             bassert(this->blocks().size()==1);
             auto diag_nzval = this->_nzval;
-            // For some reason beyond my understanding, using a lambda for this trsm
-            // SPECIICALLY does not work and produces incorrect results.
             auto tgt_nzval = tgt_contrib._nzval;
             auto trsm_cpu = [ldsol, ldfact, diag_nzval, tgt_nzval]() {
                 blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  
