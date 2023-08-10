@@ -80,7 +80,7 @@ make
 make install
 ```
 
-Additionally, standalone drivers for **symPACK** can be built by typing `make examples`
+Additionally, a standalone driver for **symPACK** can be built by typing `make run_sympack2D`.
 
 ### Build options
 
@@ -117,6 +117,8 @@ export GASNET_SPAWNFN='C'
 export GASNET_CSPAWN_CMD='mpirun -np %N %C'
 ```
 
+**SymPACK** offers a standalone driver that can be used to run and benchmark **symPACK**'s performance on a single sparse matrix. This driver is located in `driver/run_sympack2D.cpp`. Note that the `run_sympack.cpp` driver uses a less efficient factorization algorithm than the one used by `run_sympack2D.cpp`, so it is recommended to almost always use `run_sympack2D.cpp`. 
+
 To run the standalone **symPACK** driver, for instance on a sample problem from the [Suite Sparse matrix collection](https://sparse.tamu.edu),
 the procedure below can be followed:
 ```
@@ -126,12 +128,12 @@ wget https://sparse.tamu.edu/RB/Nasa/nasa2146.tar.gz
 tar xzf nasa2146.tar.gz
 
 #run sympack
-upcxx-run -n 4 -- ./run_sympack -in nasa2146/nasa2146.rb -ordering MMD -nrhs 1
+upcxx-run -n 4 -- ./run_sympack2D -in nasa2146/nasa2146.rb -ordering MMD -nrhs 1
 ```
 For larger problems, like [audikw_1](https://www.cise.ufl.edu/research/sparse/RB/GHS_psdef/audikw_1.tar.gz), it is strongly advised to use more efficient orderings (such as **METIS**).
-Note that to run **symPACK**, `upcxx-run` is used in the example above, but on some platforms, such as NERSC Cori,
+Note that to run **symPACK**, `upcxx-run` is used in the example above, but on some platforms, such as NERSC Perlmutter,
 other launchers may be used to both spawn **MPI** and **UPC++**, such as `srun` if the system is using SLURM.
-Moreover, for larger problems, the `-shared-heap XX` argument to `upcxx-run` may be needed (Please refer to **UPC++** documentation).
+Moreover, for larger problems, the `-shared-heap XX` argument to `upcxx-run` may be needed (Please refer to [**UPC++** documentation](https://upcxx.lbl.gov/site)).
 
 # GPU Mode Options
 ---------------------------
@@ -141,6 +143,7 @@ Moreover, for larger problems, the `-shared-heap XX` argument to `upcxx-run` may
 - `-gpu_blk <SIZE>` controls the size threshold (in bytes) that a factorized diagonal block must exceed for it to be automatically copied to the GPU bound to a remote process when being sent to said remote process. This allows for an intermediate copy to host memory to be bypassed, which can reduce communication overhead for certain problems.
 - `{trsm, gemm, potrf, syrk}_limit <SIZE>` controls how many nonzero entries a block must have for the given matrix operation (TRSM, GEMM, POTRF, or SYRK) involving said block to be offloaded to the GPU. The GPU will generally be most beneficial for operations involving large blocks with many nonzeros, but the exact size thresholds for when each operation starts to run faster on the GPU will differ between devices.
 - `-gpu_solve` determines if the GPU will be used for **symPACK's** triangular solve routine.
+- `-fallback {cpu, terminate}` determines what **symPACK** will do in the event that an attempt to allocate memory on a device for use in a matrix computation fails due to an insufficient amount of free memory. Setting this option to `cpu` will make it so **symPACK** will simply perform the computation on the CPU instead of the GPU. Setting this option to `terminate` will cause **symPACK** to throw an error and cease execution when a device allocation fails. 
 
 # Publications
 --------------------------
