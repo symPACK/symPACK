@@ -728,6 +728,9 @@ namespace symPACK{
         // Copy constructor.  
         // TODO: Edit this with new fields
         blockCell_t ( const blockCell_t & other ): blockCell_t() {
+#ifdef CUDA_MODE
+          throw std::runtime_error("The blockCell_t copy constructor is unimplemented for CUDA_MODE");
+#endif
           i           = other.i;
           j           = other.j;
           owner       = other.owner;
@@ -735,7 +738,6 @@ namespace symPACK{
           _dims       = other._dims;
           _total_rows = other._total_rows;
           _own_storage = other._own_storage;
-
           allocate( other.nz_capacity(), other.block_capacity() , !other._gstorage.is_null() );
           //now copy the data
           std::copy( other._storage, other._storage + other._storage_size, _storage );
@@ -746,6 +748,9 @@ namespace symPACK{
 
         // Move constructor.  
         blockCell_t ( const blockCell_t && other ): blockCell_t() {
+#ifdef CUDA_MODE
+          throw std::runtime_error("The blockCell_t move constructor is unimplemented for CUDA_MODE");
+#endif
           i           = other.i;
           j           = other.j;
           owner       = other.owner;
@@ -779,6 +784,9 @@ namespace symPACK{
         blockCell_t& operator=(const blockCell_t& other)  {  
           if (this != &other)  
           {  
+#ifdef CUDA_MODE
+          throw std::runtime_error("The blockCell_t copy assignment operator is unimplemented for CUDA_MODE");
+#endif
             // Free the existing resource.  
             if ( ! _gstorage.is_null() ) {
               upcxx::deallocate( _gstorage );
@@ -810,6 +818,9 @@ namespace symPACK{
         blockCell_t& operator=(const blockCell_t&& other)  {  
           if (this != &other)  
           {  
+#ifdef CUDA_MODE
+          throw std::runtime_error("The blockCell_t move assignment operator is unimplemented for CUDA_MODE");
+#endif
             // Free the existing resource.  
             if ( !_gstorage.is_null() ) {
               upcxx::deallocate( _gstorage );
