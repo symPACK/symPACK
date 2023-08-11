@@ -195,7 +195,23 @@ void check_solution( int n, vdist_int * vertexDist, ptr_t * colptr, ind_t * rowi
   }
 }
 
+size_t get_gpu_alloc_size(const std::string& argstring) {
+    size_t size; int suffix_start;
+    
+    suffix_start = argstring.find_first_not_of("0123456790");
+    
+    std::string alloc_size_str = argstring.substr(0, suffix_start);
+    std::string alloc_units = argstring.substr(suffix_start);
 
+    size = std::stoul(alloc_size_str);
+    
+    if (alloc_units=="MiB")
+        size *= (1<<20);
+    else if (alloc_units=="GiB")
+        size *= (1<<30);
+    
+    return size;
+}
 
 inline void process_options(int argc, char **argv, symPACK::symPACKOptions & optionsFact,std::string & filename, std::string & informatstr, bool & complextype, int & nrhs){
   using namespace symPACK;
@@ -230,7 +246,8 @@ inline void process_options(int argc, char **argv, symPACK::symPACKOptions & opt
 
  optionsFact.gpu_alloc_size = 0;
  if (options.find("-gpu_mem") != options.end()) {
-    optionsFact.gpu_alloc_size = atol(options["-gpu_mem"].front().c_str());
+    std::string arg = options["-gpu_mem"].front();
+    optionsFact.gpu_alloc_size = get_gpu_alloc_size(arg);
  } 
 
  optionsFact.gpu_block_limit = 100000;
