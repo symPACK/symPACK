@@ -49,7 +49,7 @@ void compute_device_alloc_size() {
   
   size_t alloc_size, free, total;
   CUDA_ERROR_CHECK(cudaMemGetInfo(&free, &total));
-  alloc_size = (size_t)(free*0.9) / (std::max(tasks_per_node, n_gpus) / n_gpus);
+  alloc_size = (size_t)(free*0.8) / (std::max(tasks_per_node, n_gpus) / n_gpus);
   symPACK::gpu_alloc_size = alloc_size;
 }
  
