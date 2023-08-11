@@ -84,6 +84,7 @@ void symPACK_cuda_setup(symPACK::symPACKOptions optionsFact) {
   symPACK::gemm_limit = optionsFact.gemm_limit;
   symPACK::syrk_limit = optionsFact.syrk_limit;
   symPACK::gpu_solve = optionsFact.gpu_solve;
+  symPACK::gpu_verbose = optionsFact.gpu_verbose;
   
   if (optionsFact.gpu_verbose) {
     if (upcxx::rank_me()==0) {
@@ -95,6 +96,14 @@ void symPACK_cuda_setup(symPACK::symPACKOptions optionsFact) {
         std::cout<<"-gemm_limit: "<<optionsFact.gemm_limit<<" nonzeros"<<std::endl;
         std::cout<<"-syrk_limit: "<<optionsFact.syrk_limit<<" nonzeros"<<std::endl;
     }
+    symPACK::cpu_ops.insert({"trsm", 0});
+    symPACK::cpu_ops.insert({"potrf", 0});
+    symPACK::cpu_ops.insert({"syrk", 0});
+    symPACK::cpu_ops.insert({"gemm", 0});
+    symPACK::gpu_ops.insert({"trsm", 0});
+    symPACK::gpu_ops.insert({"potrf", 0});
+    symPACK::gpu_ops.insert({"syrk", 0});
+    symPACK::gpu_ops.insert({"gemm", 0});
   }
 
 }
@@ -144,6 +153,18 @@ int symPACK_Finalize(){
 #ifdef CUDA_MODE
   cublasDestroy(symPACK::cublas_handler);
   cusolverDnDestroy(symPACK::cusolver_handler);
+  if (symPACK::gpu_verbose) {
+    std::cout <<"========= GPU Kernel Info ========="<<std::endl;
+    std::cout<<"========= Rank: "<<upcxx::rank_me()<<" ========="<<std::endl;
+    for (auto const& op : symPACK::gpu_ops) {
+        std::cout<<op.second<<" "<<op.first<<" calls on the GPU"<<std::endl;
+    }
+    std::cout <<"========= CPU Kernel Info ========="<<std::endl;
+    std::cout<<"========= Rank: "<<upcxx::rank_me()<<" ========="<<std::endl;
+    for (auto const& op : symPACK::cpu_ops) {
+        std::cout<<op.second<<" "<<op.first<<" calls on the CPU"<<std::endl;
+    }
+  }
 #endif
   if(libUPCXXInit){
     symPACK::capture_master_scope();

@@ -38,6 +38,8 @@ namespace symPACK{
   size_t gpu_alloc_size, gpu_block_limit, trsm_limit, potrf_limit, gemm_limit, syrk_limit;
   bool gpu_solve;
   FallbackType fallback_type;
+  std::map<std::string, int> cpu_ops, gpu_ops;
+  bool gpu_verbose;
 #endif
   SecondDuration complete_time;
   int64_t set_contxt = 0;
