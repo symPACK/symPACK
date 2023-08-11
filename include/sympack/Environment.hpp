@@ -100,9 +100,11 @@ namespace symPACK{
 namespace symPACK{
   template <typename Map>
   inline void increment_counter(Map &map, std::string const &op) {
+  #ifdef CUDA_MODE
     if (symPACK::gpu_verbose) {
         map[op]+=1;
     }
+  #endif
   }
 
   inline void gdb_lock(){
