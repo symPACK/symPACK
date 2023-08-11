@@ -37,10 +37,10 @@ option(ENABLE_THREADS "Enable Threading" OFF)
 ############################## Targets ######################################
 
 add_executable(run_sympack EXCLUDE_FROM_ALL driver/run_sympack.cpp)
-add_executable(run_sympack2D EXCLUDE_FROM_ALL driver/run_sympack2D.cpp)
+#add_executable(run_sympack2D EXCLUDE_FROM_ALL driver/run_sympack2D.cpp)
 add_custom_target(examples DEPENDS run_sympack run_sympack2D )
 
-target_include_directories( run_sympack2D PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/driver> )
+#target_include_directories( run_sympack2D PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/driver> )
 target_include_directories( run_sympack PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/driver> )
 
 
@@ -81,14 +81,14 @@ ENDIF()
 
 
 target_link_libraries(run_sympack PUBLIC   symPACK::sympack)
-target_link_libraries(run_sympack2D PUBLIC symPACK::sympack)
+#target_link_libraries(run_sympack2D PUBLIC symPACK::sympack)
 IF(ENABLE_CUDA)
 	target_link_libraries(run_sympack PUBLIC symPACK::sympack -lcublas -lcusolver)
-	target_link_libraries(run_sympack2D  PUBLIC symPACK::sympack -lcublas -lcusolver)
+	#target_link_libraries(run_sympack2D  PUBLIC symPACK::sympack -lcublas -lcusolver)
 ENDIF()
 find_package( Threads )
 target_link_libraries( run_sympack PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
-target_link_libraries( run_sympack2D PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
+#target_link_libraries( run_sympack2D PUBLIC ${CMAKE_THREAD_LIBS_INIT} )
 
 
 ###########################################################################
