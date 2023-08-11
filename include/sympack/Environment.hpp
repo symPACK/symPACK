@@ -71,9 +71,9 @@ namespace symPACK{
   extern bool gpu_solve;
   enum class FallbackType {TERMINATE, CPU};
   extern FallbackType fallback_type;
-  extern std::map<std::string, int> cpu_ops, gpu_ops;
   extern bool gpu_verbose;
 #endif
+  extern std::map<std::string, int> cpu_ops, gpu_ops;
 }
 
 namespace symPACK{
