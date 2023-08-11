@@ -63,11 +63,6 @@ To enable the GPU mode of **symPACK** for CUDA devices, use the `-DENABLE_CUDA=O
 ### Notes for specific platforms
 
 Some platforms have preconfigured toolchain files which can be used by adding the following option to the `cmake` command:
-```
--DCMAKE_TOOLCHAIN_FILE=/path/to/sympack/toolchains/cori.cmake     
-(To build on NERSC Cori for instance)
-
-```
 
 A sample toolchain file can be found in `/path/to/sympack/toolchains/build_config.cmake` and customized for the target platform.
 
