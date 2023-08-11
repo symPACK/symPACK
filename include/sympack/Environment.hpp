@@ -98,8 +98,12 @@ namespace symPACK{
  **********************************************************************/
 
 namespace symPACK{
-
-
+  template <typename Map>
+  inline void increment_counter(Map &map, std::string const &op) {
+    if (symPACK::gpu_verbose) {
+        map[op]+=1;
+    }
+  }
 
   inline void gdb_lock(){
       pid_t pid = getpid();
