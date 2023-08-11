@@ -46,7 +46,11 @@ void compute_device_alloc_size() {
   }
 
   int tasks_per_node = upcxx::local_team().rank_n();
-  
+ 
+  /* NOTE: This algorithm is known to underestimate the amount of space 
+   * available on nodes that have more than one physical GPU, so using the -gem_mem argument is encouraged
+   * in such cases. See README.md for details.
+   */ 
   size_t alloc_size, free, total;
   CUDA_ERROR_CHECK(cudaMemGetInfo(&free, &total));
   alloc_size = (size_t)(free*0.8) / (std::max(tasks_per_node, n_gpus) / n_gpus);
