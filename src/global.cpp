@@ -88,7 +88,7 @@ void symPACK_cuda_setup(symPACK::symPACKOptions optionsFact) {
   if (optionsFact.gpu_verbose) {
     if (upcxx::rank_me()==0) {
         std::cout<<"========= GPU CONFIGURATION OPTIONS ========="<<std::endl;
-        std::cout<<"-gpu_mem: "<<symPACK::gpu_alloc_size<<" bytes"<<std::endl;
+        std::cout<<"-gpu_mem: "<<(symPACK::gpu_alloc_size/(double)(1<<20))<<" MiB"<<std::endl;
         std::cout<<"-gpu_blk: "<<optionsFact.gpu_block_limit<<" bytes"<<std::endl;
         std::cout<<"-trsm_limit: "<<optionsFact.trsm_limit<<" nonzeros"<<std::endl;
         std::cout<<"-potrf_limit: "<<optionsFact.potrf_limit<<" nonzeros"<<std::endl;
