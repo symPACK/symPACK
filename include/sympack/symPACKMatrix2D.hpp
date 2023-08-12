@@ -336,7 +336,7 @@ namespace symPACK{
 #ifdef _USE_PROM_RDY_
               in_prom = upcxx::promise<>();
 #endif
-#ifdef _USE_PRM_AVAIL_
+#ifdef _USE_PROM_AVAIL_
               in_avail_prom = upcxx::promise<>();
 #endif
               executed = false;
