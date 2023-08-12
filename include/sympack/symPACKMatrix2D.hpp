@@ -15,8 +15,6 @@
 #include "cusolverDn.h"
 #endif
 
-#include <omp.h>
-
 //#define _NO_COMPUTATION_
 //#define LOCK_SRC 2
 
