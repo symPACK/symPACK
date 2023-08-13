@@ -724,7 +724,6 @@ namespace symPACK{
         }
 
         // Copy constructor.  
-        // TODO: Edit this with new fields
         blockCell_t ( const blockCell_t & other ): blockCell_t() {
 #ifdef CUDA_MODE
           UPCXX_ASSERT(!other._d_nzval && !other.is_gpu_block, "This function is unimplemented for blocks using host-bypass communication");
@@ -745,7 +744,7 @@ namespace symPACK{
         }
 
         // Move constructor.  
-        blockCell_t ( const blockCell_t && other ): blockCell_t() {
+        blockCell_t ( blockCell_t && other ): blockCell_t() {
 #ifdef CUDA_MODE
           UPCXX_ASSERT(!other._d_nzval && !other.is_gpu_block, "This function is unimplemented for blocks using host-bypass communication");
 #endif
@@ -813,7 +812,7 @@ namespace symPACK{
         }  
 
         // Move assignment operator.  
-        blockCell_t& operator=(const blockCell_t&& other)  {  
+        blockCell_t& operator=(blockCell_t&& other)  {  
 #ifdef CUDA_MODE
           UPCXX_ASSERT(!other._d_nzval && !other.is_gpu_block, "This function is unimplemented for blocks using host-bypass communication");
 #endif
