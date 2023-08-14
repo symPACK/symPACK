@@ -574,14 +574,14 @@ namespace symPACK{
               public:
                 typedef const_iterator self_type;
                 typedef block_t value_type;
-                typedef block_t& reference;
-                typedef block_t* pointer;
+                typedef block_t const& reference;
+                typedef block_t const* pointer;
                 typedef int difference_type;
                 typedef std::forward_iterator_tag iterator_category;
                 const_iterator(pointer ptr) : ptr_(ptr) { }
                 self_type operator++() { self_type i = *this; ptr_++; return i; }
                 self_type operator++(int junk) { ptr_++; return *this; }
-                const reference operator*() { return *ptr_; }
+                reference operator*() { return *ptr_; }
                 pointer operator->() { return ptr_; }
                 bool operator==(const self_type& rhs) { return ptr_ == rhs.ptr_; }
                 bool operator!=(const self_type& rhs) { return ptr_ != rhs.ptr_; }
