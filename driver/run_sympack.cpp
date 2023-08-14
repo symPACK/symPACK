@@ -89,7 +89,7 @@ int main(int argc, char **argv)
       timeEnd = get_time();
 
       if(iam==0){
-        std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Initialization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
 
       /************* NUMERICAL FACTORIZATION PHASE ***********/
@@ -100,9 +100,9 @@ int main(int argc, char **argv)
       timeEnd = get_time();
 
       if(iam==0){
-        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Factorization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
-      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
 
 
     }
@@ -128,7 +128,7 @@ int main(int argc, char **argv)
       timeEnd = get_time();
 
       if(iam==0){
-        std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Solve time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
 
       SMat->GetSolution(&XFinal[0],nrhs);

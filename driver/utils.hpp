@@ -84,7 +84,7 @@ void generate_rhs( symPACK::DistSparseMatrix<SCALAR> & HMat, std::vector<SCALAR>
 
     double timeEnd = get_time();
     if(iam==0){
-      std::cout<<"spGEMM time: "<<timeEnd-timeSta<<std::endl;
+      std::cout<<"spGEMM time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
     }
 
   }

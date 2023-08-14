@@ -84,16 +84,16 @@ int main(int argc, char **argv)
       SMat2D->DistributeMatrix(HMat);
       timeEnd = get_time();
       if(upcxx::rank_me()==0){
-        std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Initialization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
       
       timeSta = get_time();
       SMat2D->Factorize();
       timeEnd = get_time();
       if(iam==0){
-        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Factorization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
-      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
     }
     catch(const std::bad_alloc& e){
       std::cout << "Allocation failed: " << e.what() << '\n';
@@ -117,7 +117,7 @@ int main(int argc, char **argv)
       timeEnd = get_time();
 
       if(iam==0){
-        std::cout<<"Solve 2D time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Solve 2D time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
 
       SMat2D->GetSolution(&XFinal[0],nrhs);
