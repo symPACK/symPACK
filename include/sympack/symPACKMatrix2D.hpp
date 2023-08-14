@@ -1003,7 +1003,7 @@ namespace symPACK{
           }
           if (iscorrect)
             logfileptr->OFS()<<"Buffers are equal"<<std::endl;
-          delete h_actual;
+          delete [] h_actual;
         }
 
         //actual must be a device pointer
@@ -1023,7 +1023,7 @@ namespace symPACK{
           }
           if (iscorrect)
             logfileptr->OFS()<<"Buffers are equal"<<std::endl;
-          delete h_actual;
+          delete [] h_actual;
         }
 #endif
 	
