@@ -24,6 +24,10 @@ inline double get_time()
 
 #include <upcxx/upcxx.hpp>
 
+#if defined(CUDA_MODE) && !UPCXX_KIND_CUDA
+#error "symPACK's CUDA mode requires the UPC++ library to be configured with CUDA support."
+#endif
+
 //debug
 #include <sys/types.h>
 #include <unistd.h>
