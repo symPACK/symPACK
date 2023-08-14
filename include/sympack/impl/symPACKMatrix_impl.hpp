@@ -191,6 +191,7 @@ namespace symPACK{
                 }
             }
             break;
+          default: break; // silence -Wswitch warnings from clang
         }
 
 

@@ -130,6 +130,7 @@ template <typename T> inline void symPACKMatrix<T>::solve_(T * RHS, int nrhs,  T
           case Solve::op_type::FU:
             name="FU";
             break;
+          default: break; // silence -Wswitch warnings from clang
         }
         logfileptr->OFS()<<"  updating "<<name<<" "<<meta[0]<<"_"<<meta[1]<<std::endl;
     };
@@ -149,6 +150,7 @@ template <typename T> inline void symPACKMatrix<T>::solve_(T * RHS, int nrhs,  T
           case Solve::op_type::FU:
             name="FU";
             break;
+          default: break; // silence -Wswitch warnings from clang
         }
         logfileptr->OFS()<<"  sending to "<<name<<" "<<src<<"_"<<tgt<<std::endl;
     };
