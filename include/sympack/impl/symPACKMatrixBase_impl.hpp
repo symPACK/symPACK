@@ -552,7 +552,8 @@ namespace symPACK {
                   totzeros += (Int)xnewzeros;
 
                   //check that we will not have Integer overflow issues with the Ptr type
-                  if (xtotsize * sizeof(double)< std::numeric_limits<Ptr>::max()){
+                  Ptr ptr_max = std::numeric_limits<Ptr>::max();
+                  if (xtotsize * sizeof(double) < ptr_max){
                     if (merged_snode_size <= params.nrelax1 && z < params.zrelax0){
                       merge = true;
                     }
