@@ -113,13 +113,13 @@ void symPACK_cuda_setup(symPACK::symPACKOptions optionsFact) {
 extern "C"
 int symPACK_Init(int *argc, char ***argv){
   int retval = 1;
+
   // init MPI, if necessary
+  // init MPI before GASNet to avoid bug 4638 on HPE Cray EX
   MPI_Initialized(&symPACK::mpi_already_init);
   if (!symPACK::mpi_already_init) MPI_Init(argc, argv);
-  int iam = 0;
-  MPI_Comm_rank(MPI_COMM_WORLD, &iam);
-  if ( symPACK::world_comm == MPI_COMM_NULL ) MPI_Comm_split(MPI_COMM_WORLD, 0, iam, &symPACK::world_comm);
   MPI_Barrier(MPI_COMM_WORLD);
+
    // init UPC++
   if ( ! libUPCXXInit ) {
     upcxx::init();
@@ -127,10 +127,15 @@ int symPACK_Init(int *argc, char ***argv){
     symPACK::capture_master_scope();
     libUPCXXInit = true;
   }
-  upcxx::barrier();
 #ifdef CUDA_MODE  
   compute_device_alloc_size();
 #endif
+  upcxx::barrier();
+
+  // renumber MPI ranks to ensure they match UPC++ rank ordering:
+  if ( symPACK::world_comm == MPI_COMM_NULL ) MPI_Comm_split(MPI_COMM_WORLD, 0, upcxx::rank_me(), &symPACK::world_comm);
+  MPI_Barrier(symPACK::world_comm);
+
   return retval;
 }
 
