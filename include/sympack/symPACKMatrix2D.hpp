@@ -6925,12 +6925,12 @@ namespace symPACK{
 
 #ifdef _USE_PROM_RDY_
               auto fut = ptask->in_prom.finalize();
-              fut.then([this,ptr]() {
+              fut.then([this, ptr]() {
 #ifdef SP_THREADS
-                  if (this->scheduler.extraTaskHandle_!=nullptr) {
-                  bool delay = this->scheduler.extraTaskHandle_(ptr);
+                  if (this->extraTaskHandle_!=nullptr) {
+                  bool delay = this->extraTaskHandle_(ptr);
                   if (delay) {
-                  this->scheduler.delayedTasks_[ptr->_lock_ptr].push_back(ptr);
+                  this->delayedTasks_[ptr->_lock_ptr].push_back(ptr);
                   return;
                   }
                   }
