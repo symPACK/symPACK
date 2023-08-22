@@ -195,22 +195,33 @@ void check_solution( int n, vdist_int * vertexDist, ptr_t * colptr, ind_t * rowi
   }
 }
 
-size_t get_gpu_alloc_size(const std::string& argstring) {
-    size_t size; int suffix_start;
-    
-    suffix_start = argstring.find_first_not_of("0123456790");
-    
-    std::string alloc_size_str = argstring.substr(0, suffix_start);
-    std::string alloc_units = argstring.substr(suffix_start);
+inline size_t parse_size(const char *desc, const std::vector<std::string> &args, size_t minsz=0) {
+    // concatenate all the arguments
+    auto argstring = std::accumulate(args.begin(), args.end(), std::string(), 
+                        [](const std::string& a, const std::string& b) { return a + b; });
+    auto errstr = std::string("error parsing option ") + desc + std::string(" ") + argstring;
+    size_t pos = 0;
+    double sz_d = std::stod(argstring, &pos);
+    std::string unitstr = argstring.substr(pos);
+    unitstr.erase(0, unitstr.find_first_not_of(" \t\n")); // strip
 
-    size = std::stoul(alloc_size_str);
+    size_t sz;
+    if (unitstr.size() == 0) {
+      sz = sz_d; // no units, assume bytes
+    } else {
+      switch (unitstr[0]) {
+        case 'b': case 'B': sz = sz_d; break;
+        case 'k': case 'K': sz = sz_d * (1<<10); break;
+        case 'm': case 'M': sz = sz_d * (1<<20); break;
+        case 'g': case 'G': sz = sz_d * (1<<30); break;
+        case 't': case 'T': sz = sz_d * (1ULL<<40); break;
+        default: 
+          throw std::runtime_error(errstr);
+      }
+    }
+    if (sz < minsz) throw std::runtime_error(errstr + ": value too small");
     
-    if (alloc_units=="MiB")
-        size *= (1<<20);
-    else if (alloc_units=="GiB")
-        size *= (1<<30);
-    
-    return size;
+    return sz;
 }
 
 inline void process_options(int argc, char **argv, symPACK::symPACKOptions & optionsFact,std::string & filename, std::string & informatstr, bool & complextype, int & nrhs){
@@ -246,33 +257,32 @@ inline void process_options(int argc, char **argv, symPACK::symPACKOptions & opt
 
  optionsFact.gpu_alloc_size = 0;
  if (options.find("-gpu_mem") != options.end()) {
-    std::string arg = options["-gpu_mem"].front();
-    optionsFact.gpu_alloc_size = get_gpu_alloc_size(arg);
+    optionsFact.gpu_alloc_size = parse_size("-gpu_mem", options["-gpu_mem"], 1<<20);
  } 
 
  optionsFact.gpu_block_limit = 100000;
  if (options.find("-gpu_blk") != options.end()) {
-    optionsFact.gpu_block_limit = atol(options["-gpu_blk"].front().c_str());
+    optionsFact.gpu_block_limit = parse_size("-gpu_blk", options["-gpu_blk"]);
  } 
  
  optionsFact.trsm_limit = 15000;
  if (options.find("-trsm_limit") != options.end()) {
-    optionsFact.trsm_limit = atol(options["-trsm_limit"].front().c_str());
+    optionsFact.trsm_limit = parse_size("-trsm_limit", options["-trsm_limit"]);
  } 
  
  optionsFact.potrf_limit = 1000000;
  if (options.find("-potrf_limit") != options.end()) {
-    optionsFact.potrf_limit = atol(options["-potrf_limit"].front().c_str());
+    optionsFact.potrf_limit = parse_size("-potrf_limit", options["-potrf_limit"]);
  } 
  
  optionsFact.gemm_limit = 100000;
  if (options.find("-gemm_limit") != options.end()) {
-    optionsFact.gemm_limit = atol(options["-gemm_limit"].front().c_str());
+    optionsFact.gemm_limit = parse_size("-gemm_limit", options["-gemm_limit"]);
  } 
 
  optionsFact.syrk_limit = 100000;
  if (options.find("-syrk_limit") != options.end()) {
-    optionsFact.syrk_limit = atol(options["-syrk_limit"].front().c_str());
+    optionsFact.syrk_limit = parse_size("-syrk_limit", options["-syrk_limit"]);
  } 
  
  optionsFact.gpu_verbose = false;
