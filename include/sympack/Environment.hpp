@@ -6,6 +6,12 @@
 
 #include "sympack_definitions.hpp"
 #include "sympack_config.hpp"
+#ifdef CUDA_MODE
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include "cublas_v2.h"
+#include "cusolverDn.h"
+#endif
 
 #include <sys/time.h>
 inline double get_time()
@@ -17,6 +23,10 @@ inline double get_time()
 
 
 #include <upcxx/upcxx.hpp>
+
+#if defined(CUDA_MODE) && !UPCXX_KIND_CUDA
+#error "symPACK's CUDA mode requires the UPC++ library to be configured with CUDA support."
+#endif
 
 //debug
 #include <sys/types.h>
@@ -56,6 +66,18 @@ namespace symPACK{
 
 
   extern MPI_Comm world_comm;
+#ifdef CUDA_MODE
+  extern cublasHandle_t cublas_handler;
+  extern cusolverDnHandle_t cusolver_handler;
+  extern std::vector<cudaStream_t> streams;
+  extern upcxx::device_allocator<upcxx::cuda_device> gpu_allocator;
+  extern size_t gpu_alloc_size, gpu_block_limit, trsm_limit, potrf_limit, gemm_limit, syrk_limit;
+  extern bool gpu_solve;
+  enum class FallbackType {TERMINATE, CPU};
+  extern FallbackType fallback_type;
+  extern bool gpu_verbose;
+#endif
+  extern std::map<std::string, int> cpu_ops, gpu_ops;
 }
 
 namespace symPACK{
@@ -80,8 +102,14 @@ namespace symPACK{
  **********************************************************************/
 
 namespace symPACK{
-
-
+  template <typename Map>
+  inline void increment_counter(Map &map, std::string const &op) {
+  #ifdef CUDA_MODE
+    if (symPACK::gpu_verbose) {
+        map[op]+=1;
+    }
+  #endif
+  }
 
   inline void gdb_lock(){
       pid_t pid = getpid();
@@ -137,7 +165,34 @@ namespace symPACK{
 #include "sympack/LogFile.hpp"
 
 
+#define CUBLAS_ERROR_CHECK(s)                                                                       \
+do {                                                                                                   \
+    cublasStatus_t err;                                                                             \
+    if ((err = (s)) != CUBLAS_STATUS_SUCCESS)                                                       \
+    {                                                                                               \
+        std::cout << "cuBLAS Error " << err << " at " << __FILE__ << ":" << __LINE__ << "\n";       \
+        exit(1);                                                                                    \
+    }                                                                                               \
+} while (0)
 
+#define CUDA_ERROR_CHECK(s)                                                                         \
+do {                                                                                                   \
+    cudaError_t error = s;                                                                          \
+    if (error != cudaSuccess) {                                                                     \
+        std::cout << "CUDA Error " << error << " at " << __FILE__ << ":" << __LINE__ << "\n";       \
+        std::cout << cudaGetErrorString(error) << "\n";                                             \
+        exit(1);                                                                                    \
+    }                                                                                               \
+} while (0)
+
+#define CUSOLVER_ERROR_CHECK(s)                                                                          \
+do {                                                                                                        \
+    cusolverStatus_t error = s;                                                                          \
+    if (error != CUSOLVER_STATUS_SUCCESS) {                                                              \
+        std::cout << "cuSOLVER Error " << error << " at " << __FILE__ << ":" << __LINE__ << "\n";        \
+        exit(1);                                                                                         \
+    }                                                                                                    \
+} while (0)
 
 
 

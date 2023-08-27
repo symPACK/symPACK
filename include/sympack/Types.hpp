@@ -4,7 +4,11 @@
 #include "sympack/Environment.hpp"
 #include "sympack/timer.hpp"
 #include "sympack/CommTypes.hpp"
-
+#ifdef CUDA_MODE
+#include "cuda_runtime.h"
+#include "cublas_v2.h"
+#include "cusolverDn.h"
+#endif
 #include <string>
 #include <type_traits>
 #include <cstdlib>
@@ -106,6 +110,12 @@ namespace symPACK{
       bool iterRefinement;
       int NpOrdering;
       bool print_stats;
+#ifdef CUDA_MODE
+      size_t gpu_alloc_size, gpu_block_limit, trsm_limit, potrf_limit, gemm_limit, syrk_limit;
+      bool gpu_solve;
+      bool gpu_verbose;
+      FallbackType fallback_type;
+#endif
       DecompositionType decomposition;
       MappingType mappingType;
       std::string mappingTypeStr;
@@ -352,6 +362,7 @@ namespace symPACK{
         //std::vector<Int,AlignedAllocator<Int> > src_colindx;
         //std::vector<Int,AlignedAllocator<Int> > src_to_tgt_offset;
         std::vector<T   > tmpBuf;
+       
         std::vector<Int > src_colindx;
         std::vector<Int > src_to_tgt_offset;
 
@@ -370,7 +381,7 @@ namespace symPACK{
         void Clear(){
           {
             std::vector<T> tmp;
-            tmpBuf.swap(tmp);
+            tmpBuf.swap(tmp);            
           }
           {
             std::vector<Int> tmp;
@@ -385,9 +396,7 @@ namespace symPACK{
           //src_to_tgt_offset.clear();
         }
 
-
-        TempUpdateBuffers(){
-        }
+        TempUpdateBuffers(){}
         TempUpdateBuffers(Int size, Int mw){
           Resize(size,mw);
         }

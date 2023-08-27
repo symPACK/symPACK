@@ -333,6 +333,35 @@ void Potrf( char uplo, Int n, const dcomplex* A, Int lda )
         throw std::runtime_error("Matrix is not HPD.");
 }
 
+#ifdef CUDA_MODE
+cusolverStatus_t cusolver_potrf(cusolverDnHandle_t handle, char uplo, Int n, double* A, Int lda)
+{
+
+    cublasFillMode_t cu_uplo;
+    if (uplo=='U') 
+        cu_uplo = CUBLAS_FILL_MODE_UPPER;
+    else if (uplo=='L')
+        cu_uplo = CUBLAS_FILL_MODE_LOWER;
+    else
+        return CUSOLVER_STATUS_IRS_PARAMS_INVALID;
+
+
+    int workspace_size = 0;
+    CUSOLVER_ERROR_CHECK(cusolverDnDpotrf_bufferSize(handle, cu_uplo, n, A, lda, &workspace_size));
+
+    double * workspace = nullptr;
+    CUDA_ERROR_CHECK(cudaMalloc(reinterpret_cast<void**>(&workspace), workspace_size*sizeof(double)));
+
+    int * dev_info = nullptr;
+    cudaMalloc(reinterpret_cast<void**>(&dev_info), sizeof(int));
+    CUSOLVER_ERROR_CHECK(cusolverDnDpotrf(handle, cu_uplo, n, A, lda, workspace, workspace_size, dev_info));
+
+    CUDA_ERROR_CHECK(cudaFree(workspace));
+
+    return CUSOLVER_STATUS_SUCCESS;
+
+}
+#endif
 
 void Potrs( char uplo, Int n, Int nrhs, const float* A, Int lda, float* B, Int ldb)
 {

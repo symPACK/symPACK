@@ -1718,7 +1718,7 @@ namespace symPACK{
       }
       double tstop = get_time();
       SYMPACK_TIMER_STOP(READING_MATRIX);
-      if(mpirank==0){ symPACKOS<<"Matrix read time: "<<tstop - tstart<<std::endl; }
+      if(mpirank==0){ symPACKOS<<"Matrix read time: "<<tstop - tstart<<" seconds"<<std::endl; }
       if(mpirank==0){ symPACKOS<<"Matrix order is "<<HMat.size<<std::endl; }
     }
 

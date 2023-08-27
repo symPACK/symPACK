@@ -5,7 +5,15 @@
 #include "sympack/symPACKMatrixBase.hpp"
 #include "sympack/symPACKMatrix.hpp"
 
+
 #include "sympack/mpi_interf.hpp"
+
+#ifdef CUDA_MODE
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include "cublas_v2.h"
+#include "cusolverDn.h"
+#endif
 
 //#define _NO_COMPUTATION_
 //#define LOCK_SRC 2
@@ -22,13 +30,11 @@
 #define _PRIORITY_QUEUE_RDY_
 
 
-//#define _USE_PROM_AVAIL_
-//#define _USE_PROM_RDY_
+#define _USE_PROM_AVAIL_
+#define _USE_PROM_RDY_
 
 #include <functional>
-//#include <gasnetex.h>
 #include <chrono>
-
 
 
 #ifdef _PRIORITY_QUEUE_RDY_
@@ -212,6 +218,7 @@ namespace symPACK{
           }
           break;
         default:
+	  os<<"UNSUPPORTED OP TYPE";
           break;
       }
       os<<std::endl;
@@ -329,7 +336,7 @@ namespace symPACK{
 #ifdef _USE_PROM_RDY_
               in_prom = upcxx::promise<>();
 #endif
-#ifdef _USE_PRM_AVAIL_
+#ifdef _USE_PROM_AVAIL_
               in_avail_prom = upcxx::promise<>();
 #endif
               executed = false;
@@ -353,10 +360,20 @@ namespace symPACK{
           meta_t in_meta;
           //a pointer to be used by the user if he wants to attach some data
           std::shared_ptr<blockCellBase_t> extra_data;
-
-          incoming_data_t():transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr) {
+	      incoming_data_t() : transfered(false),size(0),extra_data(nullptr),landing_zone(nullptr)
+#ifdef CUDA_MODE
+          ,d_landing_zone(nullptr), is_gpu_block(false), d_size(0)
+#endif
+          {
             on_fetch_future = on_fetch.get_future();
           };
+#ifdef CUDA_MODE
+          using dev_ptr = upcxx::global_ptr<char, upcxx::memory_kind::cuda_device>;
+          dev_ptr d_landing_zone;
+          bool is_gpu_block;
+          size_t d_size;
+#endif
+          
 
           bool transfered;
           upcxx::global_ptr<char> remote_gptr;
@@ -365,25 +382,42 @@ namespace symPACK{
 
           void allocate() {
             if (landing_zone == nullptr) landing_zone = new char[size];
+#ifdef CUDA_MODE
+            if (d_landing_zone==nullptr) d_landing_zone = symPACK::gpu_allocator.allocate<char>(size);
+            if (d_landing_zone==nullptr) is_gpu_block=false;
+#endif
           }
 
           upcxx::future<incoming_data_t *> fetch() {
             if (!transfered) {
               transfered=true;
-#if not defined(_NO_COMPUTATION_)
+#ifdef CUDA_MODE
+            if (is_gpu_block) {
+              upcxx::when_all(
+                upcxx::rget(remote_gptr, landing_zone, size),
+                upcxx::copy(remote_gptr, d_landing_zone, size)                    
+              ).then([this]() {
+                  on_fetch.fulfill_result(this);
+                  return;});
+            } else {
+                upcxx::rget(remote_gptr,landing_zone,size).then([this]() {
+                    on_fetch.fulfill_result(this);
+                    return;});
+            }
+#else
               upcxx::rget(remote_gptr,landing_zone,size).then([this]() {
                   on_fetch.fulfill_result(this);
                   return;});
-#else
-              std::fill(landing_zone,landing_zone+size,'0');
-              on_fetch.fulfill_result(this);
 #endif
             }
-            return on_fetch_future;
+	    return on_fetch_future;
           }
 
           ~incoming_data_t() {
             if (landing_zone) delete [] landing_zone;
+#ifdef CUDA_MODE
+            if (d_landing_zone) symPACK::gpu_allocator.deallocate(d_landing_zone);
+#endif
           }
 
       };
@@ -474,21 +508,28 @@ namespace symPACK{
             size_t offset;
             rowind_t first_row;
         };
-
         //virtual int I() {return i;}
 
 #ifdef SP_THREADS
         std::atomic<bool> in_use;
 #endif
+#ifdef CUDA_MODE
+        using dev_ptr = upcxx::global_ptr<T, upcxx::memory_kind::cuda_device>;
+        dev_ptr _d_nzval;
+        bool is_gpu_block;
+#endif
         rowind_t first_col;
         std::tuple<rowind_t> _dims;
         upcxx::global_ptr< char > _gstorage;
         char * _storage;
+
         T* _nzval;
+
         size_t _cblocks; //capacity
         size_t _cnz; //capacity
         size_t _nnz;
         size_t _storage_size;
+        
         rowind_t _total_rows;
 
         //relevant only for LDL but more convenient here
@@ -533,14 +574,14 @@ namespace symPACK{
               public:
                 typedef const_iterator self_type;
                 typedef block_t value_type;
-                typedef block_t& reference;
-                typedef block_t* pointer;
+                typedef block_t const& reference;
+                typedef block_t const* pointer;
                 typedef int difference_type;
                 typedef std::forward_iterator_tag iterator_category;
                 const_iterator(pointer ptr) : ptr_(ptr) { }
                 self_type operator++() { self_type i = *this; ptr_++; return i; }
                 self_type operator++(int junk) { ptr_++; return *this; }
-                const reference operator*() { return *ptr_; }
+                reference operator*() { return *ptr_; }
                 pointer operator->() { return ptr_; }
                 bool operator==(const self_type& rhs) { return ptr_ == rhs.ptr_; }
                 bool operator!=(const self_type& rhs) { return ptr_ != rhs.ptr_; }
@@ -588,19 +629,25 @@ namespace symPACK{
         block_container_t _block_container;
 
 
-
-
+        
         blockCell_t(): 
           first_col(0),_dims(std::make_tuple(0)),_total_rows(0),
 #ifdef SP_THREADS
           in_use(false),
 #endif
           _storage(nullptr),_nzval(nullptr),
-          _gstorage(nullptr),_nnz(0),_storage_size(0), _own_storage(true) {}
+#ifdef CUDA_MODE
+          _d_nzval(nullptr), is_gpu_block(false),
+#endif
+	      _gstorage(nullptr),_nnz(0),  _storage_size(0), _own_storage(true) {}
         bool _own_storage;
 
         virtual ~blockCell_t() {
           if (_own_storage) {
+#ifdef CUDA_MODE
+            if (is_gpu_block && !_d_nzval.is_null())
+              symPACK::gpu_allocator.deallocate(_d_nzval);
+#endif
             if ( !_gstorage.is_null() ) {
               bassert(_storage == _gstorage.local());
               upcxx::deallocate( _gstorage );
@@ -615,21 +662,44 @@ namespace symPACK{
           return _nnz / width(); 
         }
 
-        blockCell_t ( int_t i, int_t j, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true  ): blockCell_t() {
-          this->i = i;
-          this->j = j;
-          _dims = std::make_tuple(width);
-          first_col = firstcol;
-          allocate(nzval_cnt,block_cnt, shared_segment);
-          initialize(nzval_cnt,block_cnt);
-        }
+        //This is only called during FUC and BUC
+        blockCell_t ( int_t i, int_t j, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt, bool shared_segment = true ): blockCell_t() {
+            this->i = i;
+            this->j = j;
+            _dims = std::make_tuple(width);
+            first_col = firstcol;
+            allocate(nzval_cnt,block_cnt, shared_segment);
+	}
 
-        blockCell_t (  int_t i, int_t j,char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
+	blockCell_t (  int_t i, int_t j,char * ext_storage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
           this->i = i;
           this->j = j;
           _own_storage = false;
           _gstorage = nullptr;
-          _storage = ext_storage;
+          _storage = ext_storage;   
+
+          _dims = std::make_tuple(width);
+          first_col = firstcol;
+          initialize(nzval_cnt,block_cnt);
+          _nnz = nzval_cnt;
+          _block_container._nblocks = block_cnt;
+        }
+#ifdef CUDA_MODE
+    // GPU block constructor
+    blockCell_t (  int_t i, int_t j,char * ext_storage, 
+                   upcxx::global_ptr<char, upcxx::memory_kind::cuda_device> d_storage, 
+                   rowind_t firstcol, rowind_t width, size_t nzval_cnt, 
+                   size_t block_cnt ): blockCell_t() {
+          this->i = i;
+          this->j = j;
+          _own_storage = false;
+          _gstorage = nullptr;
+          _storage = ext_storage;   
+          
+          upcxx::global_ptr<block_t, upcxx::memory_kind::cuda_device> d_blocks;
+          d_blocks = upcxx::reinterpret_pointer_cast<block_t>(d_storage);
+          _d_nzval = upcxx::reinterpret_pointer_cast<T>(d_blocks + block_cnt);
+          is_gpu_block = true;
           _dims = std::make_tuple(width);
           first_col = firstcol;
           initialize(nzval_cnt,block_cnt);
@@ -637,6 +707,9 @@ namespace symPACK{
           _block_container._nblocks = block_cnt;
         }
 
+#endif
+
+        //THIS CONSTRUCTOR IS NEVER CALLED
         blockCell_t (  int_t i, int_t j,upcxx::global_ptr<char> ext_gstorage, rowind_t firstcol, rowind_t width, size_t nzval_cnt, size_t block_cnt ): blockCell_t() {
           this->i = i;
           this->j = j;
@@ -652,6 +725,9 @@ namespace symPACK{
 
         // Copy constructor.  
         blockCell_t ( const blockCell_t & other ): blockCell_t() {
+#ifdef CUDA_MODE
+          UPCXX_ASSERT(!other._d_nzval && !other.is_gpu_block, "This function is unimplemented for blocks using host-bypass communication");
+#endif
           i           = other.i;
           j           = other.j;
           owner       = other.owner;
@@ -659,16 +735,19 @@ namespace symPACK{
           _dims       = other._dims;
           _total_rows = other._total_rows;
           _own_storage = other._own_storage;
-
           allocate( other.nz_capacity(), other.block_capacity() , !other._gstorage.is_null() );
           //now copy the data
           std::copy( other._storage, other._storage + other._storage_size, _storage );
+
           _block_container._nblocks = other._block_container._nblocks;
-          _nnz = other._nnz;
+          _nnz = other._nnz;        
         }
 
         // Move constructor.  
-        blockCell_t ( const blockCell_t && other ): blockCell_t() {
+        blockCell_t ( blockCell_t && other ): blockCell_t() {
+#ifdef CUDA_MODE
+          UPCXX_ASSERT(!other._d_nzval && !other.is_gpu_block, "This function is unimplemented for blocks using host-bypass communication");
+#endif
           i           = other.i;
           j           = other.j;
           owner       = other.owner;
@@ -679,6 +758,7 @@ namespace symPACK{
 
           _gstorage = other._gstorage;
           _storage = other._storage;
+
           initialize( other._cnz , other._cblocks );
 
           //invalidate other
@@ -699,6 +779,9 @@ namespace symPACK{
 
         // Copy assignment operator.  
         blockCell_t& operator=(const blockCell_t& other)  {  
+#ifdef CUDA_MODE
+          UPCXX_ASSERT(!other._d_nzval && !other.is_gpu_block, "This function is unimplemented for blocks using host-bypass communication");
+#endif
           if (this != &other)  
           {  
             // Free the existing resource.  
@@ -720,6 +803,7 @@ namespace symPACK{
             allocate( other._cnz, other._cblocks , !other._gstorage.is_null() );
             //now copy the data
             std::copy( other._storage, other._storage + other._storage_size, _storage );
+
             _block_container._nblocks = other._block_container._nblocks;
             _nnz = other._nnz;
 
@@ -728,7 +812,10 @@ namespace symPACK{
         }  
 
         // Move assignment operator.  
-        blockCell_t& operator=(const blockCell_t&& other)  {  
+        blockCell_t& operator=(blockCell_t&& other)  {  
+#ifdef CUDA_MODE
+          UPCXX_ASSERT(!other._d_nzval && !other.is_gpu_block, "This function is unimplemented for blocks using host-bypass communication");
+#endif
           if (this != &other)  
           {  
             // Free the existing resource.  
@@ -749,6 +836,7 @@ namespace symPACK{
 
             _gstorage = other._gstorage;
             _storage = other._storage;
+
             initialize( other._cnz , other._cblocks );
 
             //invalidate other
@@ -758,7 +846,7 @@ namespace symPACK{
             other._cblocks = 0;
             other._cnz = 0;
             other._nnz = 0;
-            other._nzval = nullptr;        
+            other._nzval = nullptr; 
             other._block_container._nblocks = 0;
             other._block_container._blocks = nullptr;
             other._own_storage = false;
@@ -793,7 +881,7 @@ namespace symPACK{
           return nRows;
         }
 
-        void add_block( rowind_t first_row, rowind_t nrows ) {
+        void add_block( rowind_t first_row, rowind_t nrows) {
           bassert( this->_block_container.data()!=nullptr );
           bassert( this->_block_container.size() + 1 <= block_capacity() );
           bassert( nnz() + nrows*std::get<0>(_dims) <= nz_capacity() );
@@ -801,7 +889,10 @@ namespace symPACK{
           new_block.first_row = first_row;
           new_block.offset = _nnz;
           _nnz += nrows*std::get<0>(_dims);
+         
         }
+
+        
 
         void initialize ( size_t nzval_cnt, size_t block_cnt ) {
           _storage_size = nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t);
@@ -809,6 +900,7 @@ namespace symPACK{
           _cblocks = block_cnt;
           _nnz = 0;
           _block_container._nblocks = 0;
+
 #ifdef _ALIGNED_
           _nzval = reinterpret_cast<T*>( _storage );
           _block_container._blocks = reinterpret_cast<block_t*>( _nzval + _cnz );
@@ -816,10 +908,13 @@ namespace symPACK{
           _block_container._blocks = reinterpret_cast<block_t*>( _storage );
           _nzval = reinterpret_cast<T*>( _block_container._blocks + _cblocks );
 #endif
+
+
         }
 
         void allocate ( size_t nzval_cnt, size_t block_cnt, bool shared_segment ) {
           bassert(nzval_cnt!=0 && block_cnt!=0);
+ 
 #ifdef _ALIGNED_
           size_t aligned_size = std::ceil((nzval_cnt*sizeof(T) + block_cnt*sizeof(block_t))/alignof(T))*alignof(T);
 #endif
@@ -837,6 +932,7 @@ namespace symPACK{
           }
           else {
             _gstorage = nullptr;
+
 #ifdef _ALIGNED_
             _storage = (char *)new T[aligned_size];
 #else
@@ -845,16 +941,21 @@ namespace symPACK{
           }
           initialize( nzval_cnt, block_cnt );
         }
-
+	
+	//Debugging utility functions
 
         void print_block(blockCell_t & block, std::string prefix) const{  
+          
           logfileptr->OFS()<<prefix<<" ("<<block.i<<","<<block.j<<")"<<std::endl;
           logfileptr->OFS()<<prefix<<" nzval:"<<std::endl;
           for (auto & nzblock: block.blocks() ) {
+            // iterate through block_t structs. block.width() is the number of columns in the block
             logfileptr->OFS()<<nzblock.first_row<<"-|"<<block.first_col<<"---------------------"<<block.first_col+block.width()-1<<std::endl;
+            // block_nrows(block_t) is used to get the number of rows in the block denoted by block_t
             for (int vrow = 0; vrow< block.block_nrows(nzblock); vrow++) {
               std::streamsize p = logfileptr->OFS().precision();
               logfileptr->OFS().precision(std::numeric_limits< T >::max_digits10);
+              // nzval contains the actual data, stored in row major order, each block_t contains a subset of the data starting at block_t.offset
               for (int vcol = 0; vcol< block.width() ; vcol++) {
                 logfileptr->OFS()<<std::scientific<<ToMatlabScalar(block._nzval[nzblock.offset+vrow*block.width()+vcol])<<" ";
               }
@@ -865,30 +966,142 @@ namespace symPACK{
           }
         }  
 
+        template <typename U=T>
+        bool check_close(U * correct, U * actual, int n) {
+          double epsilon = 1.0;
+          logfileptr->OFS()<<"BUFFER SIZE: "<<n<<std::endl;
+          bool result = true;
+          for (int i=0; i<n; i++) {
+            if (fabs(correct[i] - actual[i]) > epsilon && correct[i]!=actual[i]) {
+              logfileptr->OFS()<<"Buffers are not equal at index "<<i<<std::endl;
+              logfileptr->OFS()<<"Expected "<<correct[i]<<", got "<<actual[i]<<std::endl;
+              logfileptr->OFS()<<"Difference: "<<correct[i]-actual[i]<<std::endl;
+              result = false;
+            }
+          }
+          if (result)
+            logfileptr->OFS()<<"Buffers are equal"<<std::endl;
+          return result;
+        }
 
+#ifdef CUDA_MODE
+        template <typename U=T>
+        void check_close(U * correct, upcxx::global_ptr<U, upcxx::memory_kind::cuda_device> actual, int n) {
+          double epsilon = 1.0;
+          bool iscorrect = true;
+          logfileptr->OFS()<<"BUFFER SIZE: "<<n<<std::endl;
+          U * h_actual = new U[n];
+          CUDA_ERROR_CHECK(cudaMemcpy(h_actual, symPACK::gpu_allocator.local(actual), sizeof(U)*n, cudaMemcpyDeviceToHost));
+          cudaDeviceSynchronize();
+          for (int i=0; i<n; i++) {
+            if (fabs(correct[i] - h_actual[i]) > epsilon && correct[i]!=h_actual[i]) {
+              logfileptr->OFS()<<"Buffers are not equal at index "<<i<<std::endl;
+              logfileptr->OFS()<<"Expected "<<correct[i]<<", got "<<h_actual[i]<<std::endl;
+              logfileptr->OFS()<<"Difference: "<<correct[i]-h_actual[i]<<std::endl;
+              iscorrect = false;
+            }
+          }
+          if (iscorrect)
+            logfileptr->OFS()<<"Buffers are equal"<<std::endl;
+          delete [] h_actual;
+        }
 
+        //actual must be a device pointer
+        void check_close_dev(T * h_correct, T * actual, int n) {
+          double epsilon = 1.0;
+          bool iscorrect = true;
+          logfileptr->OFS()<<"BUFFER SIZE: "<<n<<std::endl;
+          T * h_actual = new T[n];
+          CUDA_ERROR_CHECK(cudaMemcpy(h_actual, actual, sizeof(T)*n, cudaMemcpyDeviceToHost));
+          for (int i=0; i<n; i++) {
+            if (fabs(h_correct[i] - h_actual[i]) > epsilon && h_correct[i]!=h_actual[i]) {
+              logfileptr->OFS()<<"Buffers are not equal at index "<<i<<std::endl;
+              logfileptr->OFS()<<"Expected "<<h_correct[i]<<", got "<<h_actual[i]<<std::endl;
+              logfileptr->OFS()<<"Difference: "<<h_correct[i]-h_actual[i]<<std::endl;
+              iscorrect = false;
+            }
+          }
+          if (iscorrect)
+            logfileptr->OFS()<<"Buffers are equal"<<std::endl;
+          delete [] h_actual;
+        }
+#endif
+	
+        void dump_nnz(std::string prelude) {
+            progressptr->OFS()<<prelude<<std::endl;
+            for (int i=0; i<_nnz; i++) {
+                progressptr->OFS()<<_nzval[i]<<",";
+            }
+            progressptr->OFS()<<std::endl;
+        }
+
+#ifdef CUDA_MODE
+        void terminate_fallback_handler() {
+#if UPCXX_SPEC_VERSION >= 20230300
+            std::string err_msg("Error: GPU device segment of " + 
+                        std::to_string(symPACK::gpu_allocator.segment_size()) + 
+                        " bytes exhausted with " + std::to_string(symPACK::gpu_allocator.segment_used()) +                        " bytes in use. Try increasing `-gpu_mem` (see README.md)");
+#else
+            std::string err_msg("Error: GPU device segment exhausted, try increasing `-gpu_mem` (see README.md)");
+#endif
+            throw std::runtime_error(err_msg);
+        }
+    
+#endif
 
         virtual int factorize( TempUpdateBuffers<T> & tmpBuffers) {
           scope_timer(a,blockCell_t::factorize);
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
+
           auto snode_size = std::get<0>(_dims);
           auto diag_nzval = _nzval;
+          try {
+            auto potrf_cpu = [snode_size, diag_nzval](){
+                symPACK::increment_counter(symPACK::cpu_ops, "potrf");
+                lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
+            };
+#ifdef CUDA_MODE
+            if (snode_size*snode_size > symPACK::potrf_limit) {
+                
+            dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(snode_size*snode_size);
+            
+            /* Couldn't allocate enough space on GPU, so use CPU */
+            if (d_diag_nzval==nullptr) {
+                switch(symPACK::fallback_type) {
+                    case FallbackType::TERMINATE :
+                        terminate_fallback_handler();
+                        break;
+                    case FallbackType::CPU :
+                        potrf_cpu();
+                        break; 
+                }
+            } else {
+                upcxx::copy(diag_nzval, d_diag_nzval, snode_size*snode_size).wait();	
+                lapack::cusolver_potrf(symPACK::cusolver_handler, 'U', snode_size, 
+                               symPACK::gpu_allocator.local(d_diag_nzval), snode_size);
+                symPACK::increment_counter(symPACK::gpu_ops, "potrf");
+                CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+                upcxx::copy(d_diag_nzval, diag_nzval, snode_size*snode_size).wait();
+                symPACK::gpu_allocator.deallocate(d_diag_nzval);
+            }
 
-          try{
-            lapack::Potrf( 'U', snode_size, diag_nzval, snode_size);
-          }
+            } else {
+                potrf_cpu();
+            }
+#else
+                potrf_cpu();
+#endif
+	  }
           catch(const std::runtime_error& e) {
             std::cerr << "Runtime error: " << e.what() << '\n';
             gdb_lock();
           }
-
           return 0;
         }
 
         virtual int trsm( const blockCellBase_t * pdiag, TempUpdateBuffers<T> & tmpBuffers) {
-          scope_timer(a,blockCell_t::trsm);
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
@@ -897,16 +1110,74 @@ namespace symPACK{
           auto diag = dynamic_cast<const blockCell_t*>(pdiag);
 
           bassert(diag->nblocks()>0);
-          auto diag_nzval = diag->_nzval;
 
           auto snode_size = std::get<0>(_dims);
+          auto diag_nzval = diag->_nzval;
           auto nzblk_nzval = _nzval;
-          blas::Trsm('L','U','T','N',snode_size, total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
+          int n_rows = total_rows();
+          auto trsm_cpu = [snode_size, n_rows, diag_nzval, nzblk_nzval](){
+            symPACK::increment_counter(symPACK::cpu_ops, "trsm");
+            blas::Trsm('L','U','T','N',
+                        snode_size, n_rows, 
+                        T(1.0),  diag_nzval, snode_size, 
+                        nzblk_nzval, snode_size);
+          };
+#ifdef CUDA_MODE
+          if (diag->is_gpu_block || snode_size*total_rows() > symPACK::trsm_limit) {
+            
+            dev_ptr diag_nzval_inter, nzblk_nzval_inter;
+            nzblk_nzval_inter = symPACK::gpu_allocator.allocate<T>(snode_size*total_rows());                
+
+            if (diag->is_gpu_block) {
+                diag_nzval_inter = diag->_d_nzval;
+            } else {
+                diag_nzval_inter = symPACK::gpu_allocator.allocate<T>(snode_size*snode_size);
+            }
+            
+            if (diag_nzval_inter==nullptr || nzblk_nzval_inter==nullptr) {
+                switch(symPACK::fallback_type) {
+                    case FallbackType::TERMINATE :
+                        terminate_fallback_handler();
+                        break;
+                    case FallbackType::CPU :
+                        trsm_cpu();
+                        break; 
+                }
+            } else {
+                
+                if (diag->is_gpu_block) {
+                    upcxx::copy(nzblk_nzval, nzblk_nzval_inter, _nnz).wait();
+                } else {
+                    upcxx::when_all(
+                        upcxx::copy(nzblk_nzval, nzblk_nzval_inter, _nnz),
+                        upcxx::copy(diag_nzval, diag_nzval_inter, diag->_nnz)
+                    ).wait();
+                }
+                
+                cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_LEFT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,
+                          snode_size, total_rows(), T(1.0), symPACK::gpu_allocator.local(diag_nzval_inter), snode_size, 
+                          symPACK::gpu_allocator.local(nzblk_nzval_inter), snode_size);
+                symPACK::increment_counter(symPACK::gpu_ops, "trsm");
+                CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+                
+                upcxx::copy(nzblk_nzval_inter, nzblk_nzval, snode_size*total_rows()).wait();
+            }
+
+            if (!diag->is_gpu_block) {
+                symPACK::gpu_allocator.deallocate(diag_nzval_inter);
+            }
+            symPACK::gpu_allocator.deallocate(nzblk_nzval_inter);
+
+          } else {
+            trsm_cpu();
+          }
+#else
+            trsm_cpu();
+#endif
           return 0;
         }
 
         virtual int update( blockCellBase_t * ppivot, blockCellBase_t * pfacing, TempUpdateBuffers<T> & tmpBuffers, T* diag = nullptr) {
-          scope_timer(a,blockCell_t::update);
 #if defined(_NO_COMPUTATION_)
           return 0;
 #endif
@@ -1005,26 +1276,117 @@ namespace symPACK{
             }
             else {
               //Compute the update in a temporary buffer
-//#ifdef SP_THREADS
               tmpBuffers.tmpBuf.resize(tgt_width*src_nrows + src_snode_size*tgt_width);
-//#endif
               buf = &tmpBuffers.tmpBuf[0];
             }
 
             if ( in_place && this->i == this->j ) {
               bassert(src_nrows==tgt_width);
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_SYRK);
-              blas::Syrk('U','T',tgt_width, src_snode_size,
-                  T(-1.0), pivot_nzval, src_snode_size, beta, buf, ldbuf);
+              auto syrk_cpu = [tgt_width, pivot_nzval, src_snode_size, beta, buf, ldbuf]() { 
+                    symPACK::increment_counter(symPACK::cpu_ops, "syrk");
+                    blas::Syrk('U','T',tgt_width, src_snode_size, 
+                                T(-1.0), pivot_nzval, src_snode_size, 
+                                beta, buf, ldbuf);
+              };
+#ifdef CUDA_MODE
+              if (tgt_width * src_snode_size > symPACK::syrk_limit) {
+            
+                dev_ptr d_pivot_nzval = symPACK::gpu_allocator.allocate<T>(tgt_width * src_snode_size);
+                dev_ptr d_buf = symPACK::gpu_allocator.allocate<T>(tgt_width * ldbuf);
+                
+                if (d_pivot_nzval==nullptr || d_buf==nullptr) {
+                    switch(symPACK::fallback_type) {
+                        case FallbackType::TERMINATE :
+                            terminate_fallback_handler();
+                            break;
+                        case FallbackType::CPU :
+                            syrk_cpu(); 
+                            break;
+                    }
+                } else {
+                    upcxx::when_all(
+                        upcxx::copy(pivot_nzval, d_pivot_nzval, tgt_width*src_snode_size),
+                        upcxx::copy(buf, d_buf, tgt_width * ldbuf)
+                    ).wait();
+
+                    cublas::cublas_syrk_wrapper2(CUBLAS_FILL_MODE_UPPER,CUBLAS_OP_T,tgt_width, src_snode_size,
+                            T(-1.0), symPACK::gpu_allocator.local(d_pivot_nzval), 
+                            src_snode_size, beta, 
+                            symPACK::gpu_allocator.local(d_buf), ldbuf);
+                    symPACK::increment_counter(symPACK::gpu_ops, "syrk");
+                    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+
+                    upcxx::copy(d_buf, buf, tgt_width * ldbuf).wait();
+
+                }
+                symPACK::gpu_allocator.deallocate(d_pivot_nzval);
+                symPACK::gpu_allocator.deallocate(d_buf);
+              } else {
+                syrk_cpu();
+              }
+#else
+              syrk_cpu();
+#endif                  
               SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_SYRK);
             }
             else {
               //everything is in row-major
               SYMPACK_TIMER_SPECIAL_START(UPDATE_SNODE_GEMM);
+              auto gemm_cpu = [tgt_width, src_nrows, src_snode_size, 
+                               pivot_nzval, facing_nzval, beta, buf, ldbuf]() {
+                    symPACK::increment_counter(symPACK::cpu_ops, "gemm");
+                    blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
+                                T(-1.0),pivot_nzval,src_snode_size,
+                                facing_nzval,src_snode_size,beta,buf,ldbuf);
+              };
+#ifdef CUDA_MODE
+              if (tgt_width * src_nrows > symPACK::gemm_limit ||
+                  tgt_width * src_snode_size > symPACK::gemm_limit ||
+                  src_nrows * src_snode_size > symPACK::gemm_limit) {
+                dev_ptr d_pivot_nzval = symPACK::gpu_allocator.allocate<T>(tgt_width * src_snode_size);
+                dev_ptr d_facing_nzval = symPACK::gpu_allocator.allocate<T>(src_nrows * src_snode_size);
+                dev_ptr d_buf = symPACK::gpu_allocator.allocate<T>(ldbuf * src_nrows);
+                if (d_pivot_nzval==nullptr || d_facing_nzval==nullptr || d_buf==nullptr) {
+                    switch(symPACK::fallback_type) {
+                        case FallbackType::TERMINATE :
+                            terminate_fallback_handler();
+                            break;
+                        case FallbackType::CPU :
+                            gemm_cpu();
+                            break; 
+                    }
+                } else {
+                    upcxx::when_all(
+                        upcxx::copy(pivot_nzval, d_pivot_nzval, tgt_width*src_snode_size),
+                        upcxx::copy(facing_nzval, d_facing_nzval, src_nrows*src_snode_size),
+                        upcxx::copy(buf, d_buf, ldbuf*src_nrows)
+                    ).wait();
+                    
+                    cublas::cublas_gemm_wrapper2(CUBLAS_OP_T, CUBLAS_OP_N,
+                              tgt_width, src_nrows, src_snode_size,
+                              T(-1.0), 
+                              symPACK::gpu_allocator.local(d_pivot_nzval), src_snode_size,
+                              symPACK::gpu_allocator.local(d_facing_nzval), src_snode_size, beta, 
+                              symPACK::gpu_allocator.local(d_buf), ldbuf);
+                    symPACK::increment_counter(symPACK::gpu_ops, "gemm");
+                    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+                    
 
-              blas::Gemm('T','N',tgt_width, src_nrows,src_snode_size,
-                  T(-1.0),pivot_nzval,src_snode_size,
-                  facing_nzval,src_snode_size,beta,buf,ldbuf);
+                    upcxx::copy(d_buf, buf, ldbuf*src_nrows).wait();
+                    
+                }
+
+                symPACK::gpu_allocator.deallocate(d_pivot_nzval);
+                symPACK::gpu_allocator.deallocate(d_facing_nzval);
+                symPACK::gpu_allocator.deallocate(d_buf);
+
+              } else {
+                gemm_cpu();
+              }
+#else
+                gemm_cpu();
+#endif                  
               SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_GEMM);
             }
 
@@ -1037,9 +1399,7 @@ namespace symPACK{
               colptr_t colidx = 0;
               colptr_t rowidx = 0;
               size_t offset = 0;
-
-              block_t * tgt_ptr = _block_container._blocks;
-
+              block_t * tgt_ptr = _block_container._blocks;   
               for ( auto & cur_block: facing.blocks() ) {
                 rowind_t cur_src_nrows = facing.block_nrows(cur_block);
                 rowind_t cur_src_lr = cur_block.first_row + cur_src_nrows -1;
@@ -1052,11 +1412,12 @@ namespace symPACK{
                     if (tgt_ptr->first_row <= row 
                         && row< tgt_ptr->first_row + block_nrows(*tgt_ptr) ) {
                       break;
-                    }
-                  } while ( ++tgt_ptr<_block_container._blocks + _block_container._nblocks ); 
+                    }                 
+                  } while ( ++tgt_ptr<_block_container._blocks + _block_container._nblocks );                  
 
                   int_t lr = std::min(cur_src_lr,tgt_ptr->first_row + block_nrows(*tgt_ptr)-1);
                   int_t tgtOffset = tgt_ptr->offset + (row - tgt_ptr->first_row)*tgt_snode_size;
+		  
 
                   for (int_t cr = row ;cr<=lr;++cr) {
                     offset+=tgt_width;
@@ -1071,17 +1432,11 @@ namespace symPACK{
                 rowind_t cur_src_ncols = pivot.block_nrows(cur_block);
                 rowind_t cur_src_lc = std::min(cur_block.first_row + cur_src_ncols -1, this->first_col+this->width()-1);
                 rowind_t cur_src_fc = std::max(cur_block.first_row,this->first_col);
-
                 for (rowind_t col = cur_src_fc ;col<=cur_src_lc;++col) {
                   bassert(this->first_col <= col && col< this->first_col+this->width() );
                   tmpBuffers.src_colindx[colidx++] = col;
                 }
               }
-
-
-
-
-
 
               //Multiple cases to consider
               SYMPACK_TIMER_SPECIAL_STOP(UPDATE_SNODE_INDEX_MAP);
@@ -1090,10 +1445,10 @@ namespace symPACK{
                 // Updating contiguous columns
                 rowind_t tgt_offset = (tgt_fc - this->first_col);
                 for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
+                 
                   T * A = &buf[rowidx*tgt_width];
-                  T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];
-#pragma unroll
-                  for (rowind_t i = 0; i < tgt_width; ++i) { B[i] += A[i]; }
+                  T * B = &tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_offset];                 
+    			  blas::Axpy(tgt_width, T(1.0), A, 1, B, 1);
                 }
               }
               else {
@@ -1101,9 +1456,9 @@ namespace symPACK{
                 for (rowind_t rowidx = 0; rowidx < src_nrows; ++rowidx) {
                   for (colptr_t colidx = 0; colidx< tmpBuffers.src_colindx.size();++colidx) {
                     rowind_t col = tmpBuffers.src_colindx[colidx];
-                    rowind_t tgt_colidx = col - this->first_col;
+                    rowind_t tgt_colidx = col - this->first_col;           
                     tgt[tmpBuffers.src_to_tgt_offset[rowidx] + tgt_colidx] 
-                      += buf[rowidx*tgt_width+colidx]; 
+                      += buf[rowidx*tgt_width+colidx];                       
                   }
                 }
               }
@@ -1120,11 +1475,10 @@ namespace symPACK{
           int_t nnz = width * other->total_rows();
           this->_dims = std::make_tuple(width);
           this->first_col = other->first_col;
-
           this->allocate(nnz,other->nblocks(),true);
           this->initialize(nnz,other->nblocks());
-          for ( auto & cur_block: other->blocks() ) {
-            this->add_block(cur_block.first_row,other->block_nrows(cur_block));
+     	  for ( auto & cur_block: other->blocks() ) {
+            this->add_block(cur_block.first_row,other->block_nrows(cur_block));          
           }
         }
 
@@ -1132,7 +1486,6 @@ namespace symPACK{
         virtual int forward_update( blockCellBase_t * psrc_cell) {
           //src_cell is a descendant of the supernode corresponding to *this
           blockCell_t & src_cell = *dynamic_cast<blockCell_t*>(psrc_cell);
-
           Int ldsol = this->width();
           bassert(ldsol==src_cell.width());
 
@@ -1147,7 +1500,6 @@ namespace symPACK{
             auto & block = this->_block_container[tgt_blk_idx];
             T * src = src_cell._nzval + src_block.offset;
             T * tgt = this->_nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
-            //now do an axpy
             for ( int_t row = 0; row < src_cell.block_nrows(src_block); row++) {
               for ( int_t col = 0; col < ldsol; col++) {
                 tgt[row*ldsol+col] += src[row*ldsol+col];
@@ -1157,17 +1509,63 @@ namespace symPACK{
           return 0;
         }
 
+
         virtual int forward_update_contrib( blockCellBase_t * ptgt_contrib, blockCellBase_t * pdiag_contrib = nullptr) {
           bassert(dynamic_cast<blockCell_t*>(ptgt_contrib));
           blockCell_t & tgt_contrib = *dynamic_cast<blockCell_t*>(ptgt_contrib);
 
           Int ldsol = tgt_contrib.width();
           Int ldfact = this->width();
-
           if ( this->i == this->j ) {
             bassert(this->blocks().size()==1);
             auto diag_nzval = this->_nzval;
-            blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
+            auto tgt_nzval = tgt_contrib._nzval;
+            auto trsm_cpu = [ldsol, ldfact, diag_nzval, tgt_nzval]() {
+                symPACK::increment_counter(symPACK::cpu_ops, "trsm");
+                blas::Trsm('R','U','N','N',ldsol,ldfact, T(1.0),  
+                            diag_nzval, ldfact, tgt_nzval, ldsol);
+            };
+#ifdef CUDA_MODE
+            if (ldsol*ldfact > symPACK::trsm_limit && symPACK::gpu_solve) {
+            
+                dev_ptr d_diag_nzval = symPACK::gpu_allocator.allocate<T>(ldfact*ldfact);
+                dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol*ldfact);
+                if (d_diag_nzval == nullptr || d_nzval == nullptr) { 
+                    switch(symPACK::fallback_type) {
+                            case FallbackType::TERMINATE :
+                                terminate_fallback_handler();
+                                break;
+                            case FallbackType::CPU :
+                                trsm_cpu();
+                                break; 
+                    }
+                } else {
+                    upcxx::when_all(
+                        upcxx::copy(diag_nzval, d_diag_nzval, ldfact*ldfact),
+                        upcxx::copy(tgt_contrib._nzval, d_nzval, ldsol*ldfact)
+                    ).wait();
+
+                    cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_RIGHT,CUBLAS_FILL_MODE_UPPER, 
+                        CUBLAS_OP_N, CUBLAS_DIAG_NON_UNIT,
+                        ldsol,ldfact, T(1.0),  
+                        symPACK::gpu_allocator.local(d_diag_nzval), ldfact, 
+                        symPACK::gpu_allocator.local(d_nzval), ldsol);
+                    symPACK::increment_counter(symPACK::gpu_ops, "trsm");
+                    CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+
+                    upcxx::copy(d_nzval, tgt_contrib._nzval, ldsol*ldfact).wait();
+                    
+                }
+
+                symPACK::gpu_allocator.deallocate(d_diag_nzval);
+                symPACK::gpu_allocator.deallocate(d_nzval);
+
+            } else {
+                trsm_cpu();
+            }
+#else
+            trsm_cpu();
+#endif
           }
           else {
             bassert(pdiag_contrib);
@@ -1181,14 +1579,64 @@ namespace symPACK{
                 if (src_block.first_row >= block.first_row && 
                     src_block.first_row <= block.first_row + tgt_contrib.block_nrows(block) -1) break;
               }
+              if (tgt_blk_idx>=tgt_contrib.nblocks()) tgt_blk_idx=tgt_contrib.nblocks()-1;
+                  auto & block = tgt_contrib._block_container[tgt_blk_idx];
 
-              auto & block = tgt_contrib._block_container[tgt_blk_idx];
-              T * src = this->_nzval + src_block.offset;
-              T * tgt = tgt_contrib._nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
+                  T * src = this->_nzval + src_block.offset;
+                  T * tgt = tgt_contrib._nzval + block.offset + (src_block.first_row - block.first_row)*ldsol; 
+                  //Do -L*Y (gemm)
+                  int nrows = this->block_nrows(src_block);
+                  auto gemm_cpu = [nrows, diag_contrib, ldsol, src, ldfact, tgt](){
+                      symPACK::increment_counter(symPACK::cpu_ops, "gemm");
+                      blas::Gemm('N','N',ldsol,nrows,ldfact,
+                            T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
+                  };
+#ifdef CUDA_MODE
+                  if ((ldsol * ldfact > symPACK::gemm_limit ||
+                       this->block_nrows(src_block)*ldfact > symPACK::gemm_limit ||
+                       ldsol * this->block_nrows(src_block) > symPACK::gemm_limit) && symPACK::gpu_solve) {
+                      dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol * ldfact);
+                      dev_ptr d_src = symPACK::gpu_allocator.allocate<T>(this->block_nrows(src_block)*ldfact);
+                      dev_ptr d_tgt = symPACK::gpu_allocator.allocate<T>(this->block_nrows(src_block)*ldsol);
 
-              //Do -L*Y (gemm)
-              blas::Gemm('N','N',ldsol,this->block_nrows(src_block),ldfact,
-                  T(-1.0),diag_contrib._nzval,ldsol,src,ldfact,T(1.0),tgt,ldsol);
+                      if (d_src == nullptr || d_nzval == nullptr || d_tgt == nullptr) { 
+                        switch(symPACK::fallback_type) {
+                          case FallbackType::TERMINATE :
+                            terminate_fallback_handler();
+                            break;
+                          case FallbackType::CPU :
+                            gemm_cpu();
+                            break;
+                        }
+                      } else {
+
+                          upcxx::when_all(
+                            upcxx::copy(diag_contrib._nzval, d_nzval, ldsol*ldfact),
+                            upcxx::copy(src, d_src, this->block_nrows(src_block)*ldfact),
+                            upcxx::copy(tgt, d_tgt, this->block_nrows(src_block)*ldsol)
+                          ).wait();
+
+                          cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_N,ldsol,this->block_nrows(src_block),ldfact,
+                            T(-1.0),symPACK::gpu_allocator.local(d_nzval),ldsol,
+                            symPACK::gpu_allocator.local(d_src),ldfact,T(1.0),
+                            symPACK::gpu_allocator.local(d_tgt),ldsol);
+                          symPACK::increment_counter(symPACK::gpu_ops, "gemm");
+                          CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+                          
+                          upcxx::copy(d_tgt, tgt, ldsol*this->block_nrows(src_block)).wait();
+
+                    }
+
+                    symPACK::gpu_allocator.deallocate(d_nzval);
+                    symPACK::gpu_allocator.deallocate(d_src);
+                    symPACK::gpu_allocator.deallocate(d_tgt);
+
+                  } else {
+                    gemm_cpu();
+                  }
+#else
+                  gemm_cpu();
+#endif                 
             }
           }
           return 0;
@@ -1206,9 +1654,55 @@ namespace symPACK{
           blas::Axpy( src_cell.nnz(),1.0,src_cell._nzval, 1, this->_nzval,1);
           return 0;
         }
-
+	
+	//NOTE: This is only called with TRANSA=T
         virtual int _tri_solve(char TRANSA, int_t M,int_t N,T ALPHA,T* A,int_t LDA,T* B,int_t LDB) {
-          blas::Trsm('R','U',TRANSA,'N',M,N, ALPHA,  A, LDA, B, LDB);
+          auto trsm_cpu = [TRANSA, M, N, ALPHA, A, LDA, B, LDB] () {
+            symPACK::increment_counter(symPACK::cpu_ops, "trsm");
+            blas::Trsm('R','U',TRANSA,'N',M,N, ALPHA,  A, LDA, B, LDB);
+          };
+#ifdef CUDA_MODE
+          if (M*N > symPACK::trsm_limit && symPACK::gpu_solve) {
+            dev_ptr d_A = symPACK::gpu_allocator.allocate<T>(LDA*N);
+            dev_ptr d_B = symPACK::gpu_allocator.allocate<T>(LDB*N);
+            
+            if (d_A == nullptr || d_B == nullptr) { 
+                switch(symPACK::fallback_type) {
+                  case FallbackType::TERMINATE :
+                    terminate_fallback_handler();
+                    break;
+                  case FallbackType::CPU :
+                    trsm_cpu();
+                    break;
+                }
+                if (symPACK::gpu_verbose) {
+                    symPACK::cpu_ops["trsm"]+=1;
+                }
+            } else {
+                upcxx::when_all(
+                    upcxx::copy(A, d_A, LDA*N),
+                    upcxx::copy(B, d_B, LDB*N)
+                ).wait();
+
+                cublas::cublas_trsm_wrapper2(CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER, 
+                                CUBLAS_OP_T, CUBLAS_DIAG_NON_UNIT,M,N, ALPHA, 
+                                symPACK::gpu_allocator.local(d_A), LDA, 
+                                symPACK::gpu_allocator.local(d_B), LDB);
+                symPACK::increment_counter(symPACK::gpu_ops, "trsm");
+                CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+
+                upcxx::copy(d_B, B, LDB*N).wait();
+            }
+
+            symPACK::gpu_allocator.deallocate(d_A);
+            symPACK::gpu_allocator.deallocate(d_B);
+
+          } else {
+            trsm_cpu();
+          }
+#else
+          trsm_cpu();
+#endif
           return 0;
         }
 
@@ -1223,7 +1717,8 @@ namespace symPACK{
           if ( this->i == this->j ) {
             bassert(this->blocks().size()==1);
             auto diag_nzval = this->_nzval;
-            this->_tri_solve('T',ldsol,ldfact, T(1.0),  diag_nzval, ldfact, tgt_contrib._nzval, ldsol);
+	        auto contrib_nzval = tgt_contrib._nzval;
+            this->_tri_solve('T',ldsol,ldfact, T(1.0), diag_nzval, ldfact, contrib_nzval, ldsol);
           }
           else {
             bassert(pdiag_contrib);
@@ -1240,8 +1735,62 @@ namespace symPACK{
               auto & block = diag_contrib._block_container[src_blk_idx];
               T * src = diag_contrib._nzval + block.offset + (fact_block.first_row - block.first_row)*ldsol;
               T * fact = this->_nzval+fact_block.offset;
-              //Do -X*LT (gemm)
-              blas::Gemm('N','T',ldsol,ldfact,this->block_nrows(fact_block), T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_contrib._nzval,ldsol);
+     	      //Do -X*LT (gemm)
+              int nrows = this->block_nrows(fact_block);
+              auto tgt_nzval = tgt_contrib._nzval;
+              auto gemm_cpu = [ldsol, ldfact, nrows, src, fact, tgt_nzval]() {
+                  symPACK::increment_counter(symPACK::cpu_ops, "gemm");
+                  blas::Gemm('N','T',ldsol,ldfact,nrows, 
+                        T(-1.0),src,ldsol,fact,ldfact,T(1.0),tgt_nzval,ldsol);
+              };
+#ifdef CUDA_MODE
+              T alpha = T(-1.0);
+              T beta = T(1.0);
+              if ((ldsol * ldfact > symPACK::gemm_limit ||
+                    this->block_nrows(fact_block)*ldsol > symPACK::gemm_limit ||
+                    ldfact * this->block_nrows(fact_block) > symPACK::gemm_limit) && symPACK::gpu_solve) {
+		  
+                  dev_ptr d_nzval = symPACK::gpu_allocator.allocate<T>(ldsol * ldfact);
+                  dev_ptr d_src = symPACK::gpu_allocator.allocate<T>(this->block_nrows(fact_block)*ldsol);
+                  dev_ptr d_fact = symPACK::gpu_allocator.allocate<T>(this->block_nrows(fact_block)*ldfact);
+
+                  if (d_src == nullptr || d_nzval == nullptr || d_fact == nullptr) { 
+                        switch(symPACK::fallback_type) {
+                          case FallbackType::TERMINATE :
+                            terminate_fallback_handler();
+                            break;
+                          case FallbackType::CPU :
+                            gemm_cpu();
+                            break;
+                        }
+                  } else {
+                      upcxx::when_all(
+                        upcxx::copy(tgt_contrib._nzval, d_nzval, ldsol*ldfact),
+                        upcxx::copy(src, d_src, this->block_nrows(fact_block)*ldsol),
+                        upcxx::copy(fact, d_fact, this->block_nrows(fact_block)*ldfact)
+                      ).wait();
+
+                      cublas::cublas_gemm_wrapper2(CUBLAS_OP_N,CUBLAS_OP_T,
+                                ldsol,ldfact,this->block_nrows(fact_block),
+                                T(-1.0),symPACK::gpu_allocator.local(d_src),ldsol,
+                                symPACK::gpu_allocator.local(d_fact),ldfact,T(1.0),
+                                symPACK::gpu_allocator.local(d_nzval),ldsol);
+                      symPACK::increment_counter(symPACK::gpu_ops, "gemm");
+                      CUDA_ERROR_CHECK(cudaDeviceSynchronize());
+                      
+                      upcxx::copy(d_nzval, tgt_contrib._nzval, ldfact*ldsol).wait();
+                }
+
+                symPACK::gpu_allocator.deallocate(d_nzval);
+                symPACK::gpu_allocator.deallocate(d_src);
+                symPACK::gpu_allocator.deallocate(d_fact);
+
+              } else {
+                gemm_cpu();
+              }
+#else              
+            gemm_cpu();
+#endif              
             }
           }
           return 0;
@@ -1579,7 +2128,6 @@ namespace symPACK{
 
           auto snode_size = std::get<0>(this->_dims);
           auto nzblk_nzval = this->_nzval;
-
           blas::Trsm('L','U','T','U',snode_size, this->total_rows(), T(1.0),  diag_nzval, snode_size, nzblk_nzval, snode_size);
 
           //scale column I
@@ -2075,7 +2623,7 @@ namespace symPACK{
 
 
       virtual void Factorize() override;
-      virtual void Solve( T * RHS, int nrhs,  T * Xptr = nullptr ) override;
+      virtual void Solve( T * RHS, int nrhs, int rhs_size,  T * Xptr = nullptr ) override;
       virtual void GetSolution(T * B, int nrhs) override;
 
 
@@ -4064,16 +4612,31 @@ namespace symPACK{
                   std::chrono::high_resolution_clock::time_point t2 = std::chrono::high_resolution_clock::now();
                   comp_fact_ticks += std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 #endif
-
+                  //Scan through all dependent tasks, set metadata of dependent tasks, including the global pointer of the dependent task. (which will be on the src processor)
                   for (auto it = ptask->out_dependencies.begin(); it!=ptask->out_dependencies.end(); it++) {
                     auto pdest = it->first;
                     auto & tgt_cells = it->second;
                     //serialize data once, and list of meta data
                     //factor is output data so it will not be deleted
+#ifdef CUDA_MODE
+                    bool is_gpu_block = false;
+                    if (pdest != this->iam 
+                        && ptr_diagcell->_nnz*sizeof(T)>symPACK::gpu_block_limit
+                        && tgt_cells.size()>0) {
+                            is_gpu_block = true;
+                    }
+#endif
                     if ( pdest != this->iam ) {
-                      upcxx::rpc_ff( pdest, 
-                          [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                          return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+                      upcxx::rpc_ff( pdest,
+#ifdef CUDA_MODE
+                          [is_gpu_block]
+#else 
+                          [] 
+#endif
+                          (int sp_handle, upcxx::global_ptr<char> gptr, 
+                               size_t storage_size, 
+                               size_t nnz, size_t nblocks, rowind_t width, 
+                               SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
                               //there is a map between sp_handle and task_graphs
 #ifdef _TIMING_
                               gasneti_tick_t start = gasneti_ticks_now();
@@ -4087,52 +4650,66 @@ namespace symPACK{
                               std::shared_ptr <SparseTask2D::data_t > diag_data;
 
                               for ( auto & tgt_cell_idx: target_cells) {
-                              auto taskptr = matptr->task_graph[tgt_cell_idx].get();
+                                  auto taskptr = matptr->task_graph[tgt_cell_idx].get();
 
-                              if ( std::get<2>(taskptr->_meta) == Factorization::op_type::DLT2D_COMP
-                                  || std::get<2>(taskptr->_meta) == Factorization::op_type::UPDATE2D_COMP
-                                 ) {
-                              bassert(std::get<2>(taskptr->_meta) == Factorization::op_type::DLT2D_COMP);
+                                  if ( std::get<2>(taskptr->_meta) == Factorization::op_type::DLT2D_COMP
+                                      || std::get<2>(taskptr->_meta) == Factorization::op_type::UPDATE2D_COMP
+                                     ) {
+                                      bassert(std::get<2>(taskptr->_meta) == Factorization::op_type::DLT2D_COMP);
+                                      bassert (matptr->options_.decomposition == DecompositionType::LDL);
+                                      if ( !diag_data ) {
+                                        upcxx::global_ptr<char> diag_ptr = matptr->find_diag_pointer( I );
+                                        bassert ( diag_ptr.where() != upcxx::rank_me() );
+                                        diag_data = std::make_shared<SparseTask2D::data_t >();
+                                        diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,0,0);;
+                                        diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
+                                        diag_data->remote_gptr = diag_ptr;
+                                      }
 
-                              bassert (matptr->options_.decomposition == DecompositionType::LDL);
-                              if ( !diag_data ) {
-                                upcxx::global_ptr<char> diag_ptr = matptr->find_diag_pointer( I );
-                                bassert ( diag_ptr.where() != upcxx::rank_me() );
-                                diag_data = std::make_shared<SparseTask2D::data_t >();
-                                diag_data->in_meta = std::make_tuple(I,I,Factorization::op_type::DIAG_ENTRIES,0,0);;
-                                diag_data->size = (matptr->Xsuper_[I] - matptr->Xsuper_[I-1])*sizeof(T);
-                                diag_data->remote_gptr = diag_ptr;
-                              }
-
-                              taskptr->input_msg.push_back(diag_data);
-                              diag_data->target_tasks.push_back(taskptr);
-                              taskptr->avail_dep(1,matptr->scheduler);
-                              }
-                              else {
-                                if ( ! data ) {
-                                  data = std::make_shared<SparseTask2D::data_t >();
-                                  data->in_meta = meta;
-                                  data->size = storage_size;
-                                  data->remote_gptr = gptr;
-                                }
-
-                                taskptr->input_msg.push_back(data);
-                                data->target_tasks.push_back(taskptr);
-                                taskptr->avail_dep(1,matptr->scheduler);
-                              }
+                                      taskptr->input_msg.push_back(diag_data);
+                                      diag_data->target_tasks.push_back(taskptr);
+                                      taskptr->avail_dep(1,matptr->scheduler);
+                                  } else {
+                                    
+                                    if ( ! data ) {
+                                      data = std::make_shared<SparseTask2D::data_t >();
+                                      data->in_meta = meta;
+                                      data->size = storage_size;
+                                      data->remote_gptr = gptr;
+#ifdef CUDA_MODE
+                                      if (is_gpu_block) {
+                                        data->is_gpu_block = true;
+                                        data->d_size = nnz;
+                                      }
+#endif
+                                    }
+                                    taskptr->input_msg.push_back(data);
+                                    data->target_tasks.push_back(taskptr);
+                                    taskptr->avail_dep(1,matptr->scheduler);
+                                  }
                               }
 
 
                               if ( data ) {
                                 data->on_fetch_future = data->on_fetch_future.then(
-                                    [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
+                                    [fc,width,nnz,nblocks,I,matptr,data](SparseTask2D::data_t * pdata) {
 #if not defined(_NO_COMPUTATION_)
                                     //create snodeBlock_t and store it in the extra_data
                                     if (matptr->options_.decomposition == DecompositionType::LDL) {
-                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                      pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                     }
                                     else {
-                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+#ifdef CUDA_MODE
+                                      if (data->is_gpu_block) {
+                                        pdata->extra_data = std::shared_ptr<blockCellBase_t>( 
+                                        (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,pdata->d_landing_zone,fc,width,nnz,nblocks) );
+                                      } else {
+                                        pdata->extra_data = std::shared_ptr<blockCellBase_t>( 
+                                        (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                      }
+#else
+                                      pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+#endif
                                     }
 #endif
                                     return upcxx::to_future(pdata);
@@ -4153,9 +4730,10 @@ namespace symPACK{
 #ifdef _TIMING_
                               matptr->rpc_fact_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
-                          });
-
-                          }, this->sp_handle, ptr_diagcell->_gstorage, ptr_diagcell->_storage_size, ptr_diagcell->nnz(), ptr_diagcell->nblocks(), std::get<0>(ptr_diagcell->_dims) ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                          }, this->sp_handle, ptr_diagcell->_gstorage, 
+                             ptr_diagcell->_storage_size, ptr_diagcell->nnz(), 
+                             ptr_diagcell->nblocks(), std::get<0>(ptr_diagcell->_dims) ,ptask->_meta, 
+                             upcxx::make_view(tgt_cells.begin(),tgt_cells.end()));                           
                     }
                     else {
                       for ( auto & tgt_cell_idx: tgt_cells ) {
@@ -4222,16 +4800,16 @@ namespace symPACK{
 #ifdef _TIMING_
                   start = gasneti_ticks_now();
 #endif
-
+                  //Iterate thru dependent tasks
                   for (auto it = ptask->out_dependencies.begin(); it!=ptask->out_dependencies.end(); it++) {
                     auto pdest = it->first;
                     auto & tgt_cells = it->second;
                     //serialize data once, and list of meta data
                     //factor is output data so it will not be deleted
                     if ( pdest != this->iam ) {
-                      upcxx::rpc_ff( pdest, 
-                          [K,I] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                          return upcxx::current_persona().lpc( [K,I,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+                      upcxx::rpc_ff( pdest,
+                          [K,I] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, 
+                          size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
 #ifdef _TIMING_
                               gasneti_tick_t start = gasneti_ticks_now();
 #endif
@@ -4262,11 +4840,12 @@ namespace symPACK{
 #if not defined(_NO_COMPUTATION_)
                                   //create snodeBlock_t and store it in the extra_data
                                   if (matptr->options_.decomposition == DecompositionType::LDL) {
-                                  pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   }
                                   else {
-                                  pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   }
+                                  
                                   pdata->extra_data->owner = owner;
 #endif
                                   return upcxx::to_future(pdata); 
@@ -4280,8 +4859,6 @@ namespace symPACK{
 #ifdef _TIMING_
                               matptr->rpc_trsm_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
-                          });
-
                           }, this->sp_handle, ptr_od_cell->_gstorage,ptr_od_cell->_storage_size, ptr_od_cell->nnz(),ptr_od_cell->nblocks(), std::get<0>(ptr_od_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                     }
                     else {
@@ -4486,7 +5063,6 @@ namespace symPACK{
                     if ( pdest != this->iam ) {
                       upcxx::rpc_ff( pdest, 
                           [K,J] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                          return upcxx::current_persona().lpc( [K,J,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
 #ifdef _TIMING_
                               gasneti_tick_t start = gasneti_ticks_now();
 #endif
@@ -4499,10 +5075,10 @@ namespace symPACK{
                               //there is a map between sp_handle and task_graphs
                               auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                               for ( auto & tgt_cell_idx: target_cells) {
-                              auto taskptr = matptr->task_graph[tgt_cell_idx].get();
-                              taskptr->input_msg.push_back(data);
-                              data->target_tasks.push_back(taskptr);
-                              taskptr->avail_dep(1,matptr->scheduler);
+                                auto taskptr = matptr->task_graph[tgt_cell_idx].get();
+                                taskptr->input_msg.push_back(data);
+                                data->target_tasks.push_back(taskptr);
+                                taskptr->avail_dep(1,matptr->scheduler);
                               }
 
 
@@ -4513,10 +5089,10 @@ namespace symPACK{
 #if not defined(_NO_COMPUTATION_)
                                   //create snodeBlock_t and store it in the extra_data
                                   if (matptr->options_.decomposition == DecompositionType::LDL) {
-                                  pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   }
                                   else {
-                                  pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                    pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(K,J,pdata->landing_zone,fc,width,nnz,nblocks) );
                                   }
 #endif
                                   return upcxx::to_future(pdata);
@@ -4530,8 +5106,6 @@ namespace symPACK{
 #ifdef _TIMING_
                               matptr->rpc_upd_ticks += gasneti_ticks_to_ns(gasneti_ticks_now() - start);
 #endif
-                          });
-
                           }, this->sp_handle, ptr_upd_cell->_gstorage, ptr_upd_cell->_storage_size,ptr_upd_cell->nnz(),ptr_upd_cell->nblocks(), std::get<0>(ptr_upd_cell->_dims),ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                     }
                     else {
@@ -4820,7 +5394,6 @@ namespace symPACK{
 
         std::vector<int> update_right_cnt(this->nsuper+1,0);
         std::vector<int> update_up_cnt(this->nsuper+1,0);
-
         //now we can process the dependency tasks
         for (auto it = recvbuf_dep.begin();it!=recvbuf_dep.end();it++) {
           auto & cur_op = (*it);
@@ -5163,7 +5736,7 @@ namespace symPACK{
                   auto & update_right_cnt = this->solve_data.update_right_cnt;
                   auto & contribs = this->solve_data.contribs;
                   auto rhs = this->solve_data.rhs;
-                  auto nrhs = this->solve_data.nrhs;
+     		  auto nrhs = this->solve_data.nrhs;
                   snodeBlock_sptr_t ptr_contrib = nullptr;
 
                   if ( I == J ) {
@@ -5180,13 +5753,14 @@ namespace symPACK{
                           rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>():std::make_shared<snodeBlock_t>());
                           auto ptr_test_cell = pQueryCELL(J-1,J-1);
                           bassert( ptr_test_cell->owner == this->iam );
+			  //copy ptr_cell test into new rptr_contrib block
                           rptr_contrib->copy_row_structure(nrhs,(snodeBlock_t*)ptr_test_cell.get());
                           for (rowind_t row = 0; row< rptr_contrib->total_rows(); ++row) {
                             rowind_t srcRow = this->Order_.perm[rptr_contrib->first_col-1+row] -1;
                             for (rowind_t col = 0; col<nrhs;++col) {
                               rptr_contrib->_nzval[row*nrhs+col] = rhs[srcRow + col*this->iSize_];
                             }
-                          }
+      			  }
                         }
                         else {
                           bassert( rptr_contrib->nnz() >0 && rptr_contrib->width()>0);
@@ -5196,7 +5770,7 @@ namespace symPACK{
                             for (rowind_t col = 0; col<nrhs;++col) {
                               rptr_contrib->_nzval[row*nrhs+col] += rhs[srcRow + col*this->iSize_];
                             }
-                          }
+                          }	
                         }
                         ptr_contrib = rptr_contrib;
                       }
@@ -5222,8 +5796,9 @@ namespace symPACK{
                       //diag contrib is output data so it will not be deleted
                       if ( pdest != this->iam ) {
                         upcxx::rpc_ff( pdest,  
-                            [] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width,  SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                            return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+                            [] (int sp_handle, upcxx::global_ptr<char> gptr,
+				size_t storage_size, size_t nnz, size_t nblocks, rowind_t width,  SparseTask2D::meta_t meta, 
+				upcxx::view<std::size_t> target_cells ) { 
                                 //there is a map between sp_handle and task_graphs
                                 auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                 auto I = std::get<1>(meta);
@@ -5254,10 +5829,10 @@ namespace symPACK{
                                       [fc,width,nnz,nblocks,I,matptr](SparseTask2D::data_t * pdata) {
                                       //create snodeBlock_t and store it in the extra_data
                                       if (matptr->options_.decomposition == DecompositionType::LDL) {
-                                      pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks,0) );
+                                        pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks,0) );
                                       }
                                       else {
-                                      pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                        pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                       }
                                       return upcxx::to_future(pdata);
                                       });
@@ -5268,9 +5843,10 @@ namespace symPACK{
 #endif
                                 }
 
-                            });
 
-                            }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                            }, this->sp_handle, ptr_contrib->_gstorage, 
+			       ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), 
+			       ptr_contrib->width(), ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                       }
                       else {
                         for ( auto & tgt_cell_idx: tgt_cells ) {
@@ -5297,13 +5873,18 @@ namespace symPACK{
                         auto & rptr_contrib = std::get<1>(contrib_slot);
                         if ( ! rptr_contrib ) {
                           bassert(update_right_cnt[J] == 0);
+
                           rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>():std::make_shared<snodeBlock_t>());
+
                           rowind_t nrows = this->Xsuper_[J] - this->Xsuper_[J-1];
-                          rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1,nrows,true):std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1));
-                          //TODO THIS IS TERRIBLE!!!
-                          rptr_contrib->add_block(this->Xsuper_[J-1],nrows);
+                          
+			  rptr_contrib = std::static_pointer_cast<snodeBlock_t>(this->options_.decomposition == DecompositionType::LDL?std::make_shared<snodeBlockLDL_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1,nrows,true):std::make_shared<snodeBlock_t>(J,J,this->Xsuper_[J-1],nrhs,nrows*nrhs,1));
+                          
+			  //TODO THIS IS TERRIBLE!!!
+			  rptr_contrib->add_block(this->Xsuper_[J-1],nrows);
+			  //TODO: add cublas scal here
                           std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
-                        }
+     			}
 
 
                         if (dep_cnt>0) {
@@ -5359,8 +5940,8 @@ namespace symPACK{
                         update_right_cnt[J]++;
                         if ( dep_cnt == update_right_cnt[J]) {
                           upcxx::rpc_ff( pdest, 
-                              [dep_cnt,deleteContrib ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                              return upcxx::current_persona().lpc( [deleteContrib,sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
+                              [dep_cnt,deleteContrib ] (int sp_handle, upcxx::global_ptr<char> gptr, 
+				      			size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
                                   //there is a map between sp_handle and task_graphs
                                   auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                   auto I = std::get<1>(meta);
@@ -5379,7 +5960,7 @@ namespace symPACK{
                                   data->in_meta = meta;
                                   data->size = storage_size;
                                   data->remote_gptr = gptr;
-                                  }
+				  }
 
 
                                   taskptr->input_msg.push_back(data);
@@ -5401,8 +5982,8 @@ namespace symPACK{
                                         pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks,0) );
                                         }
                                         else {
-                                        pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
-                                        }
+					pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+					}
 
                                         //send a rpc_ff on the owner of the data to signal we have fetched it
                                         if ( deleteContrib ) {
@@ -5417,9 +5998,9 @@ namespace symPACK{
                                     data->fetch();
 #endif
                                   }
-                              });
 
-                              }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                              }, this->sp_handle, ptr_contrib->_gstorage,
+			 	 ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width() ,ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                         }
                       }
                       else {
@@ -5454,7 +6035,6 @@ namespace symPACK{
                   auto ptr_tgtcell = pQueryCELL(I-1,I-1);
 
                   snodeBlock_sptr_t ptr_contrib = nullptr;
-
                   if ( I == J ) {
                     {
 #ifdef SP_THREADS
@@ -5505,8 +6085,8 @@ namespace symPACK{
                       //diag contrib is output data so it will not be deleted
                       if ( pdest != this->iam ) {
                         upcxx::rpc_ff( pdest,  
-                            [ ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                            return upcxx::current_persona().lpc( [sp_handle,gptr,storage_size,nnz,nblocks,width,meta,target_cells]() {
+                            [ ] (int sp_handle, upcxx::global_ptr<char> gptr, 
+				 size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
                                 //there is a map between sp_handle and task_graphs
                                 auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                 auto I = std::get<1>(meta);
@@ -5553,9 +6133,9 @@ namespace symPACK{
 #endif
                                 }
 
-                            });
 
-                            }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                            },  this->sp_handle, ptr_contrib->_gstorage,
+			        ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                       }
                       else {
                         for ( auto & tgt_cell_idx: tgt_cells ) {
@@ -5591,7 +6171,6 @@ namespace symPACK{
 
                               }
                               std::fill(rptr_contrib->_nzval,rptr_contrib->_nzval+rptr_contrib->_nnz,T(0));
-
 
                             }
                             else {
@@ -5666,8 +6245,8 @@ namespace symPACK{
                         update_up_cnt[I]++;
                         if ( dep_cnt == update_up_cnt[I]) {
                           upcxx::rpc_ff( pdest, 
-                              [ dep_cnt,deleteContrib ] (int sp_handle, upcxx::global_ptr<char> gptr, size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
-                              return upcxx::current_persona().lpc( [sp_handle,deleteContrib,gptr,storage_size,nnz,nblocks,width,meta,target_cells,dep_cnt]() {
+                              [ dep_cnt,deleteContrib ] (int sp_handle, upcxx::global_ptr<char> gptr, 
+				      			size_t storage_size, size_t nnz, size_t nblocks, rowind_t width, SparseTask2D::meta_t meta, upcxx::view<std::size_t> target_cells ) { 
                                   //there is a map between sp_handle and task_graphs
                                   auto matptr = (symPACKMatrix2D<colptr_t,rowind_t,T> *) g_sp_handle_to_matrix[sp_handle];
                                   auto I = std::get<1>(meta);
@@ -5702,10 +6281,10 @@ namespace symPACK{
                                         [fc,width,nnz,nblocks,I,matptr,owner,sp_handle,dep_cnt,deleteContrib](SparseTask2D::data_t * pdata) {
                                         //create snodeBlock_t and store it in the extra_data
                                         if (matptr->options_.decomposition == DecompositionType::LDL) {
-                                        pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks,0) );
+                                          pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlockLDL_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks,0) );
                                         }
                                         else {
-                                        pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
+                                          pdata->extra_data = std::shared_ptr<blockCellBase_t>( (blockCellBase_t*)new snodeBlock_t(I,I,pdata->landing_zone,fc,width,nnz,nblocks) );
                                         }
 
 
@@ -5721,9 +6300,9 @@ namespace symPACK{
                                     data->fetch();
 #endif
                                   }
-                              });
 
-                              }, this->sp_handle, ptr_contrib->_gstorage, ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
+                              }, this->sp_handle, ptr_contrib->_gstorage,
+				ptr_contrib->_storage_size, ptr_contrib->nnz(), ptr_contrib->nblocks(), ptr_contrib->width(), ptask->_meta, upcxx::make_view(tgt_cells.begin(),tgt_cells.end())); 
                         }
                       }
                       else {
@@ -5747,8 +6326,8 @@ namespace symPACK{
         }
 
 
-
         logfileptr->OFS()<<"Solve task graph created"<<std::endl;
+        
       }
 
 
@@ -5965,22 +6544,26 @@ namespace symPACK{
 
                 bool found = false;
                 for (auto & block: tgt_cell.blocks()) {
+                  //Match found if row between first and last row of block
                   if ( block.first_row <= row && row < block.first_row + tgt_cell.block_nrows(block) ) {
+                    //Offset is block offset + row index in block & number of cols in tgt_cell
                     auto offset = block.offset + (row - block.first_row)*tgt_cell.width() + (col-fc);
                     tgt_cell._nzval[offset] = nzvalA[rowidx-1];
                     found = true;
                     break;
 
                   }  
-                } 
+                }
 
                 bassert(found);
 
               }
+              
             }
           }
 
         }
+        
 
       }
 
@@ -5994,7 +6577,7 @@ namespace symPACK{
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
     void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Factorize( ) {
-
+      using block_t = typename symPACK::symPACKMatrix2D<colptr_t, rowind_t, T, int_t>::snodeBlock_t::block_t;
 
 #ifdef SP_THREADS
       this->scheduler.threadInitHandle_ = nullptr;
@@ -6044,6 +6627,7 @@ namespace symPACK{
       std::chrono::high_resolution_clock::time_point t4 = std::chrono::high_resolution_clock::now();
       double execute_graph_ticks = std::chrono::duration_cast<std::chrono::microseconds>(t4 - t3).count();
 #endif
+
 #ifdef _TIMING_
       std::stringstream sstr;
       sstr<<upcxx::rank_me()<<" "<<(double)CELL_ticks*1.0e-9<<" "<<(double)rpc_fact_ticks*1.0e-9<<" "<<(double)rpc_trsm_ticks*1.0e-9<<" "<<(double)rpc_upd_ticks*1.0e-9<<std::endl;
@@ -6056,7 +6640,7 @@ namespace symPACK{
 
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
-    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Solve( T * RHS, int nrhs,  T * Xptr ) {
+    void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::Solve( T * RHS, int nrhs, int rhs_size,  T * Xptr ) {
       //set solve_data
       //TODO RHS should be distributed according to Xsuper
       std::vector<T> distRHS;
@@ -6121,10 +6705,9 @@ namespace symPACK{
       }
 #endif
 
-
+      upcxx::barrier();
       this->scheduler.execute(this->task_graph_solve,this->mem_budget);
-
-    } 
+  } 
 
   template <typename colptr_t, typename rowind_t, typename T, typename int_t>
     void symPACKMatrix2D<colptr_t,rowind_t,T,int_t>::GetSolution(T * B, int nrhs) {
@@ -6145,11 +6728,11 @@ namespace symPACK{
             auto & ptr_tgt_cell = std::get<1>(contrib_slot);
             bassert(ptr_tgt_cell!=nullptr);
             auto & tgt_cell = *std::dynamic_pointer_cast<snodeBlock_t>(ptr_tgt_cell);
-
             if (this->options_.decomposition == DecompositionType::LDL) {
               auto & tgt_ldlcell = *std::dynamic_pointer_cast<snodeBlockLDL_t>(ptr_tgt_cell);
               bassert(tgt_ldlcell.scaled);
             }
+
 
             for (auto & block: tgt_cell.blocks()) {
               T * val = &tgt_cell._nzval[block.offset];
@@ -6164,7 +6747,7 @@ namespace symPACK{
                   B[ (destRow -1) +j*this->iSize_ ] = val[i*tgt_cell.width()+j];
                 }
               }
-            }
+            }            
           }
         }
 
@@ -6342,12 +6925,12 @@ namespace symPACK{
 
 #ifdef _USE_PROM_RDY_
               auto fut = ptask->in_prom.finalize();
-              fut.then([this,ptr]() {
+              fut.then([this, ptr]() {
 #ifdef SP_THREADS
-                  if (this->scheduler.extraTaskHandle_!=nullptr) {
-                  bool delay = this->scheduler.extraTaskHandle_(ptr);
+                  if (this->extraTaskHandle_!=nullptr) {
+                  bool delay = this->extraTaskHandle_(ptr);
                   if (delay) {
-                  this->scheduler.delayedTasks_[ptr->_lock_ptr].push_back(ptr);
+                  this->delayedTasks_[ptr->_lock_ptr].push_back(ptr);
                   return;
                   }
                   }
@@ -6551,15 +7134,14 @@ namespace symPACK{
                       ptask->satisfy_dep(1,*this);
                       });
                 } 
-                upcxx::progress(upcxx::progress_level::internal);
+	      	upcxx::progress(upcxx::progress_level::internal);
               }
             }
-            upcxx::progress();
+	    upcxx::progress();
             upcxx::discharge();
 #ifdef SP_THREADS
             if ( this->quiesceHandle_ != nullptr ) this->quiesceHandle_();
 #endif
-            upcxx::progress();
             upcxx::barrier();
           }
         }

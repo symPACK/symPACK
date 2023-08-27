@@ -284,6 +284,7 @@ namespace symPACK{
 
       //Resize the container if I own the storage
       if(meta_->b_own_storage_){
+        logfileptr->OFS()<<"Adding\n";
         scope_timer(a,RESIZE_SUPERNODE);
 
         Int cur_fr = aiGIndex;
@@ -375,6 +376,9 @@ namespace symPACK{
 
         //update nzval count
         meta_->nzval_cnt_+=cur_nzval_cnt;
+
+        //Handle device buffer
+
       }
     }
 
@@ -452,6 +456,7 @@ namespace symPACK{
     inline Int SuperNode<T,Allocator>::Shrink(){
       if(meta_->b_own_storage_){
         //TODO make sure that we do not have any extra space anywhere.
+        logfileptr->OFS()<<"Shrinking\n";
 
         bool ownDiagonal = OwnDiagonal();
         //if there is too much room for either nzval or blocks, contract
@@ -489,6 +494,7 @@ namespace symPACK{
           //update pointers
           meta_ = (SuperNodeDesc*) new_meta_ptr;
           blocks_ = (NZBlockDesc*) new_blocks_ptr;
+
         }
       }
 
@@ -704,7 +710,7 @@ namespace symPACK{
 
   template<typename T, class Allocator>
     inline Int SuperNode<T,Allocator>::Aggregate(SuperNode<T,Allocator> * src_snode){
-
+      logfileptr->OFS()<<"Aggregation normal\n";
       scope_timer(a,AGGREGATE_SNODE);
 
 #if defined(_NO_COMPUTATION_)
@@ -1291,6 +1297,7 @@ namespace symPACK{
 
   template <typename T, class Allocator> 
     inline void SuperNode<T,Allocator>::Serialize(Icomm & buffer, Int first_blkidx, Idx first_row){
+      logfileptr->OFS()<<"Serialize called\n";
       NZBlockDesc* nzblk_ptr = &this->GetNZBlockDesc(first_blkidx);
       if(first_row==0){
         first_row = nzblk_ptr->GIndex;

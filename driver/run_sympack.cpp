@@ -5,7 +5,6 @@
 #include  "sympack/CommTypes.hpp"
 #include  "sympack/Ordering.hpp"
 
-
 #include "utils.hpp"
 
 /******* TYPE used in the computations ********/
@@ -22,7 +21,9 @@ using namespace symPACK;
 
 int main(int argc, char **argv) 
 {
-  symPACK_Init(&argc,&argv);
+  int success = symPACK_Init(&argc,&argv);
+  if (success==-1)
+    return 1;
   {
     int iam = 0;
     int np = 1;
@@ -74,6 +75,11 @@ int main(int argc, char **argv)
     auto SMat = std::make_shared<symPACKMatrix<SCALAR> >();
     try
     {
+#ifdef CUDA_MODE
+    logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
+    symPACK_cuda_setup(optionsFact);
+    upcxx::barrier();
+#endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
       timeSta = get_time();
@@ -83,7 +89,7 @@ int main(int argc, char **argv)
       timeEnd = get_time();
 
       if(iam==0){
-        std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Initialization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
 
       /************* NUMERICAL FACTORIZATION PHASE ***********/
@@ -94,9 +100,9 @@ int main(int argc, char **argv)
       timeEnd = get_time();
 
       if(iam==0){
-        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Factorization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
-      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
 
 
     }
@@ -118,11 +124,11 @@ int main(int argc, char **argv)
       XFinal = RHS;
 
       timeSta = get_time();
-      SMat->Solve(&XFinal[0],nrhs);
+      SMat->Solve(&XFinal[0],nrhs, XFinal.size());
       timeEnd = get_time();
 
       if(iam==0){
-        std::cout<<"Solve time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Solve time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
 
       SMat->GetSolution(&XFinal[0],nrhs);

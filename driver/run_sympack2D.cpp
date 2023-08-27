@@ -21,7 +21,9 @@ using namespace symPACK;
 
 int main(int argc, char **argv) 
 {
-  symPACK_Init(&argc,&argv);
+  int success = symPACK_Init(&argc,&argv);
+  if (success==-1)
+    return 1;
   {
     int iam = 0;
     int np = 1;
@@ -61,30 +63,37 @@ int main(int argc, char **argv)
     }
 
     Int n = HMat.size;
+    logfileptr->OFS()<<"Matrix dimension: " << n << std::endl;
     std::vector<SCALAR> RHS,XTrue;
     generate_rhs(HMat,RHS,XTrue,nrhs);
-
+    
     std::vector<SCALAR> XFinal;
     auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
     try{
+#ifdef CUDA_MODE
+      logfileptr->OFS()<< "CUDA Mode enabled" << std::endl;
+      symPACK_cuda_setup(optionsFact);
+      upcxx::barrier();
+#endif
       //do the symbolic factorization and build supernodal matrix
       /************* ALLOCATION AND SYMBOLIC FACTORIZATION PHASE ***********/
-      timeSta = get_time();
       SMat2D->Init(optionsFact);
+      timeSta = get_time();
       SMat2D->SymbolicFactorization(HMat);
+      logfileptr->OFS()<<"Distributing Matrix"<<std::endl;
       SMat2D->DistributeMatrix(HMat);
       timeEnd = get_time();
       if(upcxx::rank_me()==0){
-        std::cout<<"Initialization time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Initialization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
-
+      
       timeSta = get_time();
       SMat2D->Factorize();
       timeEnd = get_time();
       if(iam==0){
-        std::cout<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Factorization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
-      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<std::endl;
+      logfileptr->OFS()<<"Factorization time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
     }
     catch(const std::bad_alloc& e){
       std::cout << "Allocation failed: " << e.what() << '\n';
@@ -104,24 +113,23 @@ int main(int argc, char **argv)
       XFinal = RHS;
 
       timeSta = get_time();
-      SMat2D->Solve(&XFinal[0],nrhs);
+      SMat2D->Solve(&XFinal[0],nrhs, XFinal.size());
       timeEnd = get_time();
 
       if(iam==0){
-        std::cout<<"Solve 2D time: "<<timeEnd-timeSta<<std::endl;
+        std::cout<<"Solve 2D time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
       }
 
       SMat2D->GetSolution(&XFinal[0],nrhs);
 
-      SMat2D->DumpMatlab();
-      logfileptr->OFS()<<XFinal<<std::endl;
-
       check_solution(HMat,RHS,XFinal);
     }
 
+    upcxx::barrier();
     MPI_Barrier(worldcomm);
     MPI_Comm_free(&worldcomm);
     delete logfileptr;
+    delete statfileptr;
   }
   //This will also finalize MPI
   symPACK_Finalize();

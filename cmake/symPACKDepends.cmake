@@ -61,3 +61,10 @@ target_link_libraries( symPACK::parallel_cxx     INTERFACE MPI::MPI_CXX  UPCXX::
 target_link_libraries( symPACK::parallel_c       INTERFACE MPI::MPI_C       )
 target_link_libraries( symPACK::parallel_fortran INTERFACE MPI::MPI_Fortran )
 
+###   CUDA MODE   ### 
+if (ENABLE_CUDA)
+  message("-- CUDA mode enabled.")
+  find_package(CUDAToolkit REQUIRED)
+  add_compile_definitions(CUDA_MODE=true)
+endif()
+

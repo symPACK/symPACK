@@ -148,6 +148,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
         case Factorization::op_type::UPDATE:
           name="UPDATE";
           break;
+        default: break; // silence -Wswitch warnings from clang
       }
 
       logfileptr->OFS()<<" T "<<name<<" "<<meta[0]<<"_"<<meta[1]<<" "<<tmp->local_deps<<" "<<tmp->remote_deps<<std::endl;
@@ -168,6 +169,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
         case Factorization::op_type::UPDATE:
           name="UPDATE";
           break;
+        default: break; // silence -Wswitch warnings from clang
       }
 
       std::stringstream sstr;
@@ -985,6 +987,7 @@ template <typename T> inline void symPACKMatrix<T>::FanBoth()
               }
             }
             break;
+          default: break; // silence -Wswitch warnings from clang
         }
       }
     }

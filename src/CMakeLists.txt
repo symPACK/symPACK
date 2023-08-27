@@ -15,6 +15,7 @@ IntervalTree.cpp
 Ordering.cpp
 CommPull.cpp
 DistSparseMatrixGraph.cpp
+cuBLAS.cpp
 )
 
 set(SYMPACK_SRC_Fortran
@@ -276,7 +277,14 @@ file(GENERATE
   ${CMAKE_BINARY_DIR}/sympack.mak_at_configured
   )
 
-
+# Build driver
+add_executable(run_sympack2D ../driver/run_sympack2D.cpp)
+target_include_directories( run_sympack2D PRIVATE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/driver> )
+target_link_libraries(run_sympack2D PUBLIC symPACK::sympack)
+if (ENABLE_CUDA)
+    target_link_libraries(run_sympack2D PUBLIC -lcublas -lcusolver)
+endif()
+set_target_properties(run_sympack2D PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/..)
 
 #### INSTALL rules
 ###

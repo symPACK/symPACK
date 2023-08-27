@@ -42,7 +42,6 @@ void generate_rhs( symPACK::DistSparseMatrix<SCALAR> & HMat, std::vector<SCALAR>
 
       RHS.assign(n*nrhs,0.0);
       std::vector<Idx> rrowind;
-      std::vector<SCALAR> rnzval;
       std::vector<SCALAR> ts(nrhs);
       for(Idx j = 1; j<=n; ++j){
         Int iOwner = 0; for(iOwner = 0; iOwner<np;iOwner++){ if(Local.vertexDist[iOwner]+(1-baseval)<=j && j<Local.vertexDist[iOwner+1]+(1-baseval)){ break; } }
@@ -85,7 +84,7 @@ void generate_rhs( symPACK::DistSparseMatrix<SCALAR> & HMat, std::vector<SCALAR>
 
     double timeEnd = get_time();
     if(iam==0){
-      std::cout<<"spGEMM time: "<<timeEnd-timeSta<<std::endl;
+      std::cout<<"spGEMM time: "<<timeEnd-timeSta<<" seconds"<<std::endl;
     }
 
   }
@@ -196,7 +195,34 @@ void check_solution( int n, vdist_int * vertexDist, ptr_t * colptr, ind_t * rowi
   }
 }
 
+inline size_t parse_size(const char *desc, const std::vector<std::string> &args, size_t minsz=0) {
+    // concatenate all the arguments
+    auto argstring = std::accumulate(args.begin(), args.end(), std::string(), 
+                        [](const std::string& a, const std::string& b) { return a + b; });
+    auto errstr = std::string("error parsing option ") + desc + std::string(" ") + argstring;
+    size_t pos = 0;
+    double sz_d = std::stod(argstring, &pos);
+    std::string unitstr = argstring.substr(pos);
+    unitstr.erase(0, unitstr.find_first_not_of(" \t\n")); // strip
 
+    size_t sz;
+    if (unitstr.size() == 0) {
+      sz = sz_d; // no units, assume bytes
+    } else {
+      switch (unitstr[0]) {
+        case 'b': case 'B': sz = sz_d; break;
+        case 'k': case 'K': sz = sz_d * (1<<10); break;
+        case 'm': case 'M': sz = sz_d * (1<<20); break;
+        case 'g': case 'G': sz = sz_d * (1<<30); break;
+        case 't': case 'T': sz = sz_d * (1ULL<<40); break;
+        default: 
+          throw std::runtime_error(errstr);
+      }
+    }
+    if (sz < minsz) throw std::runtime_error(errstr + ": value too small");
+    
+    return sz;
+}
 
 inline void process_options(int argc, char **argv, symPACK::symPACKOptions & optionsFact,std::string & filename, std::string & informatstr, bool & complextype, int & nrhs){
   using namespace symPACK;
@@ -206,6 +232,7 @@ inline void process_options(int argc, char **argv, symPACK::symPACKOptions & opt
   // *********************************************************************
   option_t options;
   OptionsCreate(argc, argv, options);
+  
 
   if( options.find("-in") != options.end() ){
     filename= options["-in"].front();
@@ -221,6 +248,61 @@ inline void process_options(int argc, char **argv, symPACK::symPACKOptions & opt
     complextype = true;
   }
 
+// Options related to GPU functionality
+#ifdef CUDA_MODE
+ optionsFact.gpu_solve = false;
+ if (options.find("-gpu_solve") != options.end()) {
+    optionsFact.gpu_solve = true;
+ } 
+
+ optionsFact.gpu_alloc_size = 0;
+ if (options.find("-gpu_mem") != options.end()) {
+    optionsFact.gpu_alloc_size = parse_size("-gpu_mem", options["-gpu_mem"], 1<<20);
+ } 
+
+ optionsFact.gpu_block_limit = 100000;
+ if (options.find("-gpu_blk") != options.end()) {
+    optionsFact.gpu_block_limit = parse_size("-gpu_blk", options["-gpu_blk"]);
+ } 
+ 
+ optionsFact.trsm_limit = 15000;
+ if (options.find("-trsm_limit") != options.end()) {
+    optionsFact.trsm_limit = parse_size("-trsm_limit", options["-trsm_limit"]);
+ } 
+ 
+ optionsFact.potrf_limit = 1000000;
+ if (options.find("-potrf_limit") != options.end()) {
+    optionsFact.potrf_limit = parse_size("-potrf_limit", options["-potrf_limit"]);
+ } 
+ 
+ optionsFact.gemm_limit = 100000;
+ if (options.find("-gemm_limit") != options.end()) {
+    optionsFact.gemm_limit = parse_size("-gemm_limit", options["-gemm_limit"]);
+ } 
+
+ optionsFact.syrk_limit = 100000;
+ if (options.find("-syrk_limit") != options.end()) {
+    optionsFact.syrk_limit = parse_size("-syrk_limit", options["-syrk_limit"]);
+ } 
+ 
+ optionsFact.gpu_verbose = false;
+ if (options.find("-gpu_v") != options.end()) {
+    optionsFact.gpu_verbose = true;
+ }
+
+ optionsFact.fallback_type = FallbackType::TERMINATE;
+ if (options.find("-fallback") !=options.end()) {
+    std::string fallback = options["-fallback"].front();
+    if (fallback.compare("terminate")==0) {
+        //do nothing, since this is the default option
+    } else if (fallback.compare("cpu")==0) {
+        optionsFact.fallback_type = FallbackType::CPU;
+    } else {
+        throw std::invalid_argument("Error: " + fallback + " is not a valid fallback option. Use 'terminate' or 'cpu' instad."); 
+    }
+ }
+#endif
+  
   //-----------------------------------------------------------------
   optionsFact.memory_limit=-1.0;
   if (options.find("-mem") != options.end()){

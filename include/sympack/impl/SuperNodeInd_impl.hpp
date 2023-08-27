@@ -6,6 +6,7 @@
 #endif
 
 
+
 /****************************************/
 /*            _________________         */
 /*           |     nzval       |        */
@@ -265,6 +266,7 @@ namespace symPACK{
 
       //Resize the container if I own the storage
       if(this->meta_->b_own_storage_){
+        logfileptr->OFS()<<"Adding\n";
         scope_timer(a,RESIZE_SUPERNODE);
 
         Int cur_fr = aiGIndex;
@@ -367,6 +369,7 @@ namespace symPACK{
   template<typename T, class Allocator>
     inline Int SuperNodeInd<T,Allocator>::Shrink(){
       if(this->meta_->b_own_storage_){
+        logfileptr->OFS()<<"Shrinking\n";
         //TODO make sure that we do not have any extra space anywhere.
 
         bool ownDiagonal = this->OwnDiagonal();
@@ -477,7 +480,6 @@ namespace symPACK{
 
       T * nzblk_nzval = &diag_nzval[snodeSize*snodeSize];
       blas::Trsm('L','U','T','U',snodeSize, totalNRows-snodeSize, T(1),  diag_nzval, snodeSize, nzblk_nzval, snodeSize);
-
       //scale column I
       for ( Idx I = 1; I<=snodeSize;I++) {
         blas::Scal( totalNRows-snodeSize, T(1.0)/this->diag_[I-1], &nzblk_nzval[I-1], snodeSize );
@@ -553,7 +555,6 @@ namespace symPACK{
         //Then do -L*W (gemm)
         blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
             T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
-
         SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
 
         //If the GEMM wasn't done in place we need to aggregate the update
@@ -739,7 +740,6 @@ namespace symPACK{
       //Then do -L*W (gemm)
       blas::Gemm('N','N',tgt_width,src_nrows,src_snode_size,
           T(-1.0),bufLDL,tgt_width,pivot,src_snode_size,beta,buf,tgt_width);
-
       SYMPACK_TIMER_STOP(UPDATE_SNODE_GEMM);
 
       //If the GEMM wasn't done in place we need to aggregate the update
@@ -902,7 +902,6 @@ namespace symPACK{
             //TODO CHECK THIS
             blas::Gemv( 'N', nrhs, cur_nrows, T(-1.0), &cur_nzval[(rowK)*ldsol+nrhsOffset],ldsol,
                 &fact_nzval[rowK*ldfact+kk],ldfact, T(1.0), &updated_nzval[(kk)*ldsol+nrhsOffset], 1);
-
           }
         }
       }

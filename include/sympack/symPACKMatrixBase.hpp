@@ -59,7 +59,7 @@ namespace symPACK{
       virtual void DistributeMatrix(DistSparseMatrix<T> & pMat) = 0;
       //Solve routines
       //note: RHS & B are stored in column major format
-      virtual void Solve(T * RHS, int nrhs,  T * Xptr=nullptr) = 0;
+      virtual void Solve(T * RHS, int nrhs, int rhs_size,  T * Xptr=nullptr) = 0;
       virtual void GetSolution(T * B, int nrhs) = 0;
 
       virtual void DumpMatlab() {};

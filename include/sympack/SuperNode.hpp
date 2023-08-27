@@ -7,7 +7,9 @@
 //#include "sympack/NumMat.hpp"
 #include "sympack/IntervalTree.hpp"
 #include "sympack/CommTypes.hpp"
-
+#ifdef CUDA_MODE
+#include "sympack/cuBLAS.hpp"
+#endif
 #include <list>
 #include <mutex>
 #include <atomic>
