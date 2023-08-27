@@ -17,11 +17,13 @@ git clone git@github.com:symPACK/symPACK.git  /path/to/sympack
 
 ### UPC++
 
-**SymPACK** requires the [**UPC++ v1.0**](https://upcxx.lbl.gov) library to be installed. The minimum supported release version is 2019.9.0. 
-If you wish the use the GPU mode of **symPACK**, the minimum supported release version is 2022.3.0. 
+**SymPACK** requires the [**UPC++ v1.0**](https://upcxx.lbl.gov) library to be installed. The minimum supported version of UPC++ is 2019.9.0. 
+If you wish the use the GPU mode of **symPACK**, UPC++ must be configured for CUDA support and the minimum supported version of UPC+ is 2022.3.0. 
 UPC++ can be downloaded at [upcxx.lbl.gov](https://upcxx.lbl.gov).
-UPC++ contains a CMake config file which **symPACK** is using to link to the library. The install path
-needs to be provided to CMake as follows:
+
+UPC++ provides a CMake config file which **symPACK** uses to link to the UPC++ library. 
+The UPC++ compiler wrappers need to either be in your `$PATH`, or the UPC++ install path
+can be provided to CMake as follows:
 ```
 -DCMAKE_PREFIX_PATH=/path/to/upcxx
 ``` 
@@ -40,7 +42,7 @@ Several environment variables can be optionally set before configuring the build
 Then, create a build directory, enter that directory and type:
 
 ```
-cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/install/sympack -DCMAKE_PREFIX_PATH=/path/to/upcxx/install
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/install/sympack -DCMAKE_PREFIX_PATH=/path/to/upcxx
  ...OPTIONS... /path/to/sympack
 
 ```
