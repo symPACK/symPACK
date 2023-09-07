@@ -91,6 +91,8 @@
 cmake_minimum_required( VERSION 3.11 ) # Require CMake 3.11+
 # Set up some auxillary vars if hints have been set
 
+set (scotch_PREFIX $ENV{scotch_PREFIX})
+
 if( scotch_PREFIX AND NOT scotch_INCLUDE_DIR )
   set( scotch_INCLUDE_DIR ${scotch_PREFIX}/include )
 endif()
@@ -207,10 +209,11 @@ if( EXISTS ${SCOTCH_INCLUDE_DIR}/scotch.h )
   )
   file( STRINGS ${SCOTCH_INCLUDE_DIR}/scotch.h scotch_idxwidth
         REGEX ${idxwidth_pattern} )
-
-  string( REGEX REPLACE ${idxwidth_pattern} 
+  if (DEFINED SCOTCH_IDXWIDTH_STRING)
+    string( REGEX REPLACE ${idxwidth_pattern} 
           "${SCOTCH_IDXWIDTH_STRING}\\1"
           SCOTCH_IDXWIDTH_STRING ${scotch_idxwidth} )
+  endif()
 
   if( ${SCOTCH_IDXWIDTH_STRING} MATCHES "int64_t" )
     set( SCOTCH_USES_ILP64 TRUE )
