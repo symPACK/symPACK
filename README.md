@@ -133,6 +133,7 @@ tar xzf nasa2146.tar.gz
 upcxx-run -n 4 -- ./run_sympack2D -in nasa2146/nasa2146.rb -ordering MMD -nrhs 1
 ```
 For larger problems, like [audikw_1](https://www.cise.ufl.edu/research/sparse/RB/GHS_psdef/audikw_1.tar.gz), it is strongly advised to use more efficient orderings (such as **METIS**).
+The default ordering is **MMD**. To use another ordering, include the command line argument `-ordering <ORDERING_LIBRARY>`.
 Note that to run **symPACK**, `upcxx-run` is used in the example above, but on some platforms, such as NERSC Perlmutter,
 other launchers may be used to both spawn **MPI** and **UPC++**, such as `srun` if the system is using SLURM.
 Moreover, for larger problems, the `-shared-heap XX` argument to `upcxx-run` may be needed (Please refer to [**UPC++** documentation](https://upcxx.lbl.gov/site)).
