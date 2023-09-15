@@ -66,6 +66,9 @@ int main(int argc, char **argv)
     logfileptr->OFS()<<"Matrix dimension: " << n << std::endl;
     std::vector<SCALAR> RHS,XTrue;
     generate_rhs(HMat,RHS,XTrue,nrhs);
+
+    if (upcxx::rank_me()==0)
+        std::cout<<"Ordering: "<<optionsFact.orderingStr<<std::endl;
     
     std::vector<SCALAR> XFinal;
     auto SMat2D = std::make_shared<symPACKMatrix2D<Ptr,Idx,SCALAR> >();
