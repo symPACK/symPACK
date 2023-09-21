@@ -265,22 +265,22 @@ inline void process_options(int argc, char **argv, symPACK::symPACKOptions & opt
     optionsFact.gpu_block_limit = parse_size("-gpu_blk", options["-gpu_blk"]);
  } 
  
- optionsFact.trsm_limit = 15000;
+ optionsFact.trsm_limit = 90000;
  if (options.find("-trsm_limit") != options.end()) {
     optionsFact.trsm_limit = parse_size("-trsm_limit", options["-trsm_limit"]);
  } 
  
- optionsFact.potrf_limit = 1000000;
+ optionsFact.potrf_limit = 1500000;
  if (options.find("-potrf_limit") != options.end()) {
     optionsFact.potrf_limit = parse_size("-potrf_limit", options["-potrf_limit"]);
  } 
  
- optionsFact.gemm_limit = 100000;
+ optionsFact.gemm_limit = 500000;
  if (options.find("-gemm_limit") != options.end()) {
     optionsFact.gemm_limit = parse_size("-gemm_limit", options["-gemm_limit"]);
  } 
 
- optionsFact.syrk_limit = 100000;
+ optionsFact.syrk_limit = 200000;
  if (options.find("-syrk_limit") != options.end()) {
     optionsFact.syrk_limit = parse_size("-syrk_limit", options["-syrk_limit"]);
  } 
