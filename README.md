@@ -155,6 +155,12 @@ If this option is not specified, **symPACK** will attempt to partition a device'
 
 ## Recent publications
 
+* Julian Bellavita, Mathias Jacquelin, Esmond G. Ng, Dan Bonachea, Johnny Corbino, Paul H. Hargrove.    
+"[**symPACK: A GPU-Capable Fan-Out Sparse Cholesky Solver**](https://github.com/symPACK/symPACK/wiki/pubs/PAW-ATM23_symPACK-author.pdf)",    
+In *[2023 IEEE/ACM Parallel Applications Workshop, Alternatives To MPI+X (PAW-ATM'23)](https://go.lbl.gov/paw-atm23)*.    
+https://doi.org/10.25344/S49P45    
+[Talk Slides](https://github.com/symPACK/symPACK/wiki/pubs/PAW-ATM23_symPACK-slides.pdf)
+
 * John Bachan, Scott B. Baden, Steven Hofmeyr, Mathias Jacquelin, Amir Kamil, Dan Bonachea, Paul H. Hargrove, Hadia Ahmed.  
 "[**UPC++: A High-Performance Communication Framework for Asynchronous Computation**](https://github.com/symPACK/symPACK/wiki/pubs/ipdps19-upcxx.pdf)" (see Section IV-D-4),    
 In *[33rd IEEE International Parallel & Distributed Processing Symposium](https://doi.org/10.1109/IPDPS.2019.00104) ([IPDPS'19](https://www.ipdps.org/ipdps2019/))*, May 20-24, 2019, Rio de Janeiro, Brazil. IEEE. 11 pages.  
